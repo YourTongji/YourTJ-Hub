@@ -49,6 +49,7 @@ func User2UserDetailedVo(user users.EntityComplete) *vo.UserDetailedVo {
 		Prestige:            user.Prestige,
 		WornBadgeCode:       user.WornBadgeCode,
 		Badges:              userBadges,
+		DisplayBadges:       badgeservice.DisplayBadgesFromList(userBadges, user.DisplayBadgeCodes),
 		WearableBadges:      badgeservice.WearableBadgesFromList(userBadges),
 		WornBadge:           badgeservice.WornBadgeFromList(userBadges, user.WornBadgeCode),
 		CreatedAt:           user.CreatedAt,

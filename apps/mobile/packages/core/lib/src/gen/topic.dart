@@ -142,6 +142,7 @@ abstract class TopicDetailPayload with _$TopicDetailPayload {
 @freezed
 abstract class PostPayload with _$PostPayload {
   const factory PostPayload({
+    @Default(<PostMention>[]) List<PostMention> mentions,
     required int id,
     required int topicId,
     required int postNo,
@@ -228,4 +229,16 @@ abstract class TopicDetailPermissions with _$TopicDetailPermissions {
 
   factory TopicDetailPermissions.fromJson(Map<String, dynamic> json) =>
       _$TopicDetailPermissionsFromJson(json);
+}
+
+@freezed
+abstract class PostMention with _$PostMention {
+  const factory PostMention({
+    required String username,
+    required int userId,
+    required int start,
+    required int end,
+  }) = _PostMention;
+  factory PostMention.fromJson(Map<String, dynamic> json) =>
+      _$PostMentionFromJson(json);
 }

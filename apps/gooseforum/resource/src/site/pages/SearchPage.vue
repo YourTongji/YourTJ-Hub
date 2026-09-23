@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { userDisplayName } from '@/runtime/private-notes'
 import { useRouter } from 'vue-router'
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -165,7 +166,7 @@ watch(
                 <a :href="userUrl(user)" class="flex items-center gap-3 px-4 py-3 transition hover:bg-base-200/60">
                   <img :src="user.avatarUrl || undefined" :alt="user.username" class="h-10 w-10 shrink-0 rounded-full bg-base-300 object-cover" />
                   <div class="min-w-0">
-                    <p class="truncate text-sm font-medium text-base-content">{{ user.nickname || user.username }}</p>
+                    <p class="truncate text-sm font-medium text-base-content">{{ userDisplayName(user.id, user.username, user.nickname) }}</p>
                     <p class="truncate text-xs text-base-content/55">@{{ user.username }}</p>
                     <p v-if="user.bio" class="mt-0.5 truncate text-xs text-base-content/45">{{ user.bio }}</p>
                   </div>

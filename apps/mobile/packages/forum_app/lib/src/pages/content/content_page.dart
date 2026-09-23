@@ -192,18 +192,14 @@ class _ContentPageState extends ConsumerState<ContentPage> {
     if (action == 'restore') {
       await _run((_) => ref.read(contentRepositoryProvider).restore(item));
     } else {
-      if (!await _confirm(
-            l10n.contentPurge,
-            l10n.contentPurgeConfirm,
-          ) ||
+      if (!await _confirm(l10n.contentPurge, l10n.contentPurgeConfirm) ||
           !mounted ||
           epoch != ref.read(offlineCacheEpochProvider)) {
         return;
       }
       await _run(
-        (password) => ref
-            .read(contentRepositoryProvider)
-            .purge(item, password: password),
+        (password) =>
+            ref.read(contentRepositoryProvider).purge(item, password: password),
       );
     }
   }
@@ -299,6 +295,7 @@ class _ContentPageState extends ConsumerState<ContentPage> {
                           return _items.isEmpty
                               ? GfEmpty(message: l10n.contentEmpty)
                               : GfListFooter(
+                                  progressKey: _items.length,
                                   loading: _loading,
                                   hasMore: _hasMore,
                                   onLoadMore: () => _load(more: true),

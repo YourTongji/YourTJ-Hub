@@ -25,6 +25,25 @@ export default {
     capacity: "クラウドには最大10件のプランを保存できます。空きを作って再試行してください。",
     archived: "ローカルの変更を復元用の下書きに保存しました。",
   },
+  privateNote: {
+    edit: "メモを編集",
+    label: "非公開メモ",
+    hint: "自分だけに表示されます。64文字以内。空欄で保存すると削除されます。",
+  },
+  badgeDisplay: {
+    title: "プロフィールのバッジ",
+    hint: "最大5個まで選び、表示順を変更できます。すべて非表示にもできます。アバターのバッジとは別の設定です。",
+    up: "上へ",
+    down: "下へ",
+    save: "バッジを保存"
+  },
+  tongjiRegistration: {
+    title: "同済アカウント登録の完了",
+    intro: "同済の本人確認が完了しました。ユーザー名とパスワードを設定して登録してください。メールの再確認は不要です。",
+    expired: "認証の有効期限が切れました。同済で再ログインしてください。",
+    restart: "再ログイン",
+    verifiedEmail: "確認済みのメール"
+  },
   campus: {
     todayMakeup: "{name}：今日は {date} の時間割で授業を行います。",
     todayHoliday: "{name}：今日は休講です。",
@@ -603,7 +622,7 @@ export default {
   auth: {
     tongjiPolicies: "続行すると、公開されている規約に同意したものとみなされます：",
     tongjiLogin: "同済大学の統合認証でログイン",
-    tongjiSignupHint: "初回ログイン時にアカウントとキャンパス接続を作成し、学籍番号{'@'}tongji.edu.cnを自動設定します。メール認証は不要です。",
+    tongjiSignupHint: "初回認証後、ユーザー名とパスワードを設定して登録します。学籍番号{'@'}tongji.edu.cnとキャンパス接続が自動設定され、メールの再確認は不要です。",
     tongjiUnavailable: "同済大学のログインを利用できません。別の方法でログインしてください。",
     tongjiAccountExists: "この同済大学IDは連携済みの履歴があるか、学籍番号のメールが使用中または予約済みです。既存のアカウントにログインまたは復旧し、キャンパスページで再連携してください。",
     tongjiSignupDisabled: "現在、同済大学認証による新規登録はできません。管理者に連絡するか既存のアカウントでログインしてください。",
@@ -2837,6 +2856,7 @@ export default {
     'post.alreadyDeleted': 'この返信はすでに削除されています。再操作は不要です。',
     'post.firstPostUndeletable': 'トピックの最初の投稿は削除できません。トピック自体を削除してください。',
     'auth.csrf.rejected': 'リクエスト元を検証できませんでした。ページを再読み込みして、もう一度お試しください。',
+    'auth.tongji.accountExists': 'この同済大学IDまたは学籍番号メールは既にアカウントに紐づいています。既存のアカウントにログインまたは復旧し、キャンパスページで再連携してください。',
     'admin.moderator.userRequired': 'Please enter a moderator user.',
     'admin.moderator.userNotFound': 'Moderator user not found.',
     'admin.moderator.notFound': 'Moderator record not found.',

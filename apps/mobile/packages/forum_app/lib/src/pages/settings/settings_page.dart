@@ -27,6 +27,7 @@ import '../../current_user.dart';
 import 'account_closure_dialog.dart';
 import 'profile_edit_dialog.dart';
 import 'username_edit_dialog.dart';
+import 'badge_display_dialog.dart';
 import 'profile_image_editor.dart';
 import 'oauth_bindings_sheet.dart';
 import '../../widgets/profile_image_crop.dart';
@@ -196,6 +197,20 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         );
       }
     }
+  }
+
+  Future<void> _displayBadges(SettingsUserPayload user) async {
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (_) => BadgeDisplayDialog(
+        badges: user.badges,
+        selected: user.displayBadges ?? user.badges.take(5).toList(),
+        onSave: (codes) async {
+          await ref.read(userRepositoryProvider).displayBadges(codes);
+        },
+      ),
+    );
+    if (saved == true && mounted) _loadUser(silent: true);
   }
 
   /// 修改密码:对话框输入旧/新密码,调 change-password。
@@ -1109,6 +1124,17 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     return;
                   }
                   _pickBadge(u);
+                },
+              ),
+              const GfDivider(),
+              GfSettingRow(
+                symbol: 'award',
+                title: l10n.badgeDisplayTitle,
+                description: l10n.badgeDisplayHint,
+                trailing: const Icon(Icons.chevron_right, size: 18),
+                onTap: () {
+                  final user = _user.value;
+                  if (user != null) _displayBadges(user);
                 },
               ),
             ],

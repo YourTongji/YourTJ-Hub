@@ -37,10 +37,12 @@ class GfMarkdownView extends ConsumerStatefulWidget {
     super.key,
     required this.data,
     this.images,
+    this.mentions = const <PostMention>[],
     this.selectable = false,
   });
 
   final String data;
+  final List<PostMention> mentions;
 
   /// 已知图片列表(取自 markdown 的图片引用);为 null 时从内容提取。
   final List<String>? images;
@@ -75,7 +77,8 @@ class _GfMarkdownViewState extends ConsumerState<GfMarkdownView> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.data != widget.data ||
         oldWidget.selectable != widget.selectable ||
-        !listEquals(oldWidget.images, widget.images)) {
+        !listEquals(oldWidget.images, widget.images) ||
+        !listEquals(oldWidget.mentions, widget.mentions)) {
       if (oldWidget.data != widget.data) _linkPreviews = null;
       _ensureStickersResolved();
       _markdownBody = _buildMarkdownBody();
@@ -133,7 +136,7 @@ class _GfMarkdownViewState extends ConsumerState<GfMarkdownView> {
     final GfColors colors = GfTheme.colorsOf(context);
     final GfBorders borders = GfTheme.bordersOf(context);
     final String data = expandStickerTokens(
-      widget.data,
+      expandPostMentions(widget.data, widget.mentions),
       ref.read(stickerLibraryProvider).urlByName,
     );
     // 从展开后的内容提取图片引用,让贴纸图也进入点击查看的图片列表。
@@ -472,7 +475,8 @@ class _LinkPreviewCardState extends ConsumerState<_LinkPreviewCard> {
     final GfColors colors = GfTheme.colorsOf(context);
     final GfBorders borders = GfTheme.bordersOf(context);
     final GfRadii radii = GfTheme.radiiOf(context);
-    final String? coverUrl = !_coverFailed && preview.imageUrl?.isNotEmpty == true
+    final String? coverUrl =
+        !_coverFailed && preview.imageUrl?.isNotEmpty == true
         ? resolveApiAssetUrl(preview.imageUrl!)
         : null;
     final String? faviconUrl = preview.faviconUrl?.isNotEmpty == true
@@ -495,8 +499,7 @@ class _LinkPreviewCardState extends ConsumerState<_LinkPreviewCard> {
     final String title = preview.title?.trim().isNotEmpty == true
         ? preview.title!.trim()
         : (preview.campus ? (l10n?.linkPreviewCampusFallbackTitle ?? '') : '');
-    final String description =
-        preview.description?.trim().isNotEmpty == true
+    final String description = preview.description?.trim().isNotEmpty == true
         ? preview.description!.trim()
         : (preview.campus
               ? (l10n?.linkPreviewCampusFallbackDescription ?? '')
@@ -592,7 +595,9 @@ class _LinkPreviewCardState extends ConsumerState<_LinkPreviewCard> {
             title,
             if (sourceLabel.isNotEmpty) sourceLabel,
           ].join(', '),
-          hint: preview.kind == 'external' ? l10n?.linkPreviewExternalTitle : null,
+          hint: preview.kind == 'external'
+              ? l10n?.linkPreviewExternalTitle
+              : null,
           child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 8),
             child: Material(
@@ -644,9 +649,7 @@ class _LinkPreviewCardState extends ConsumerState<_LinkPreviewCard> {
                             fit: BoxFit.cover,
                             errorBuilder: (_, _, _) {
                               // 封面挂了就把让位空间一起收回，不留死白。
-                              WidgetsBinding.instance.addPostFrameCallback((
-                                _,
-                              ) {
+                              WidgetsBinding.instance.addPostFrameCallback((_) {
                                 if (mounted && !_coverFailed) {
                                   setState(() => _coverFailed = true);
                                 }

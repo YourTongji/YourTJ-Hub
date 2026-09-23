@@ -2275,7 +2275,8 @@ class AppLocalizationsZh extends AppLocalizations {
   String get loginTongji => '同济统一认证登录';
 
   @override
-  String get loginTongjiHint => '首次登录将创建账号并连接校园，自动绑定“学号@tongji.edu.cn”，无需另行激活。';
+  String get loginTongjiHint =>
+      '首次认证后填写用户名和密码完成注册，自动绑定“学号@tongji.edu.cn”并连接校园，无需再次验证邮箱。';
 
   @override
   String get loginTongjiPolicies => '继续即表示同意本站公布的条款：';
@@ -2383,4 +2384,25 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get planSyncArchived => '本地修改已保存为恢复草稿。';
+
+  @override
+  String get privateNoteEdit => '编辑备注';
+
+  @override
+  String get privateNoteLabel => '私有备注';
+
+  @override
+  String get privateNoteHint => '仅自己可见，最多 64 个字符；留空保存即可清除。';
+
+  @override
+  String get badgeDisplayTitle => '资料卡展示徽章';
+
+  @override
+  String get badgeDisplayHint => '最多选择 5 枚，按下方顺序展示；可全部取消。与头像佩戴徽章独立。';
+
+  @override
+  String get badgeDisplayUp => '上移';
+
+  @override
+  String get badgeDisplayDown => '下移';
 }

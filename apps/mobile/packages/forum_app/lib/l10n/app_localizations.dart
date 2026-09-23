@@ -4389,7 +4389,7 @@ abstract class AppLocalizations {
   /// No description provided for @loginTongjiHint.
   ///
   /// In en, this message translates to:
-  /// **'First sign-in creates an account and campus connection, with student-ID@tongji.edu.cn assigned automatically. No email activation is required.'**
+  /// **'After your first school verification, choose a username and password to register. Your student-ID@tongji.edu.cn and campus connection are verified without another email challenge.'**
   String get loginTongjiHint;
 
   /// No description provided for @loginTongjiPolicies.
@@ -4589,6 +4589,48 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Local changes were saved as a recovery draft.'**
   String get planSyncArchived;
+
+  /// No description provided for @privateNoteEdit.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit note'**
+  String get privateNoteEdit;
+
+  /// No description provided for @privateNoteLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Private note'**
+  String get privateNoteLabel;
+
+  /// No description provided for @privateNoteHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Only you can see this. Up to 64 characters; save empty to clear.'**
+  String get privateNoteHint;
+
+  /// No description provided for @badgeDisplayTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Profile badges'**
+  String get badgeDisplayTitle;
+
+  /// No description provided for @badgeDisplayHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose up to 5 badges and their order, or deselect all. Independent of your avatar badge.'**
+  String get badgeDisplayHint;
+
+  /// No description provided for @badgeDisplayUp.
+  ///
+  /// In en, this message translates to:
+  /// **'Move up'**
+  String get badgeDisplayUp;
+
+  /// No description provided for @badgeDisplayDown.
+  ///
+  /// In en, this message translates to:
+  /// **'Move down'**
+  String get badgeDisplayDown;
 }
 
 class _AppLocalizationsDelegate

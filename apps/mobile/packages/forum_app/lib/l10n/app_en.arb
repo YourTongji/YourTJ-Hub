@@ -1120,43 +1120,49 @@
     }
   },
   "loginTongji": "Continue with Tongji SSO",
-  "loginTongjiHint": "First sign-in creates an account and campus connection, with student-ID@tongji.edu.cn assigned automatically. No email activation is required.",
+  "loginTongjiHint": "After your first school verification, choose a username and password to register. Your student-ID@tongji.edu.cn and campus connection are verified without another email challenge.",
   "loginTongjiPolicies": "By continuing, you agree to the published policies:",
   "linkPreviewExternalTitle": "Leaving YourTJ",
   "linkPreviewExternalBody": "You are going to {domain}. Check the address before entering account, verification, or payment details.",
-  "@linkPreviewExternalBody": {"placeholders": {"domain": {"type": "String"}}},
+  "@linkPreviewExternalBody": {
+    "placeholders": {
+      "domain": {
+        "type": "String"
+      }
+    }
+  },
   "linkPreviewRememberDomain": "Do not ask again for this domain during this session",
   "linkPreviewContinue": "Continue",
   "linkPreviewCampusFallbackTitle": "Campus network",
   "linkPreviewCampusFallbackDescription": "Requires campus network access",
-"campusTodayMakeup": "{name}: today follows the timetable for {date}.",
-"@campusTodayMakeup": {
-  "placeholders": {
-    "name": {
-      "type": "String"
-    },
-    "date": {
-      "type": "String"
+  "campusTodayMakeup": "{name}: today follows the timetable for {date}.",
+  "@campusTodayMakeup": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "date": {
+        "type": "String"
+      }
     }
-  }
-},
-"campusTodayHoliday": "{name}: no classes today.",
-"@campusTodayHoliday": {
-  "placeholders": {
-    "name": {
-      "type": "String"
+  },
+  "campusTodayHoliday": "{name}: no classes today.",
+  "@campusTodayHoliday": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
     }
-  }
-},
-"campusTodayMoved": "{name}: today’s classes have moved to another date.",
-"@campusTodayMoved": {
-  "placeholders": {
-    "name": {
-      "type": "String"
+  },
+  "campusTodayMoved": "{name}: today’s classes have moved to another date.",
+  "@campusTodayMoved": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
     }
-  }
-},
-"campusRulesUnavailable": "Holiday rules could not be loaded. Retry later, or disable adjustments to export the original timetable.",
+  },
+  "campusRulesUnavailable": "Holiday rules could not be loaded. Retry later, or disable adjustments to export the original timetable.",
   "planSyncTitle": "Resolve plan conflicts",
   "planSyncBody": "Another device changed these items too. Choose each value to keep; other changes merge automatically.",
   "planSyncLocal": "Keep local",
@@ -1178,5 +1184,12 @@
   "planSyncAdopt": "Sync this device’s local plans to this account",
   "planSyncAdoptHint": "These local plans do not yet belong to this account. Confirm before uploading.",
   "planSyncCapacity": "The cloud holds at most ten plans. Free a slot and retry.",
-  "planSyncArchived": "Local changes were saved as a recovery draft."
+  "planSyncArchived": "Local changes were saved as a recovery draft.",
+  "privateNoteEdit": "Edit note",
+  "privateNoteLabel": "Private note",
+  "privateNoteHint": "Only you can see this. Up to 64 characters; save empty to clear.",
+  "badgeDisplayTitle": "Profile badges",
+  "badgeDisplayHint": "Choose up to 5 badges and their order, or deselect all. Independent of your avatar badge.",
+  "badgeDisplayUp": "Move up",
+  "badgeDisplayDown": "Move down"
 }

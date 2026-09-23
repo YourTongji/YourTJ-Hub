@@ -8,6 +8,19 @@ class UserRepository {
 
   final GfApiClient _client;
 
+  Future<PrivateNotesPayload> getPrivateNotes() =>
+      _client.get<PrivateNotesPayload>(
+        '/api/user-notes',
+        parser: (json) =>
+            PrivateNotesPayload.fromJson(json as Map<String, dynamic>),
+      );
+  Future<void> setPrivateNote(int targetUserId, String note) async {
+    await _client.post<bool>(
+      '/api/user-note',
+      body: {'targetUserId': targetUserId, 'note': note},
+    );
+  }
+
   Future<UserCardPayload> getUserCard(int userId) {
     return _client.get<UserCardPayload>(
       '/api/user-card',
@@ -71,6 +84,14 @@ class UserRepository {
     await _client.post<Object?>(
       '/api/set-preset-avatar',
       body: {'avatarUrl': avatarUrl},
+    );
+    return true;
+  }
+
+  Future<bool> displayBadges(List<String> badgeCodes) async {
+    await _client.post<Object?>(
+      '/api/display-badges',
+      body: {'badgeCodes': badgeCodes},
     );
     return true;
   }

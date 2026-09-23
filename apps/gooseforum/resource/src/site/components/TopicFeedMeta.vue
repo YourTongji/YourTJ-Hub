@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { userDisplayName } from '@/runtime/private-notes'
 import { BookOpen, Eye, HelpCircle, MessageSquare, Pin, Sparkles } from '@lucide/vue'
 import { useI18n } from 'vue-i18n'
 import { formatNumber, timeAgo } from '@/runtime/format'
@@ -35,7 +36,7 @@ const { t } = useI18n()
       <div class="min-w-0 flex-1">
         <div class="flex flex-wrap items-center gap-x-2 gap-y-0.5">
           <span class="max-w-full truncate text-sm font-semibold leading-5 text-base-content">
-            {{ topic.author.nickname || topic.author.username }}
+            {{ userDisplayName(topic.author.id, topic.author.username, topic.author.nickname) }}
           </span>
           <span class="text-xs leading-5 text-base-content/55">
             {{ timeAgo(topic.lastUpdateTime) }}

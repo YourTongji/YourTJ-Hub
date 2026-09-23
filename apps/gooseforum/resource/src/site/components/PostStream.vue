@@ -23,6 +23,7 @@ export interface PostStreamTopicActions {
 </script>
 
 <script setup lang="ts">
+import { userDisplayName } from '@/runtime/private-notes'
 import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, ref, Teleport, useSlots, watch } from 'vue'
 import { AlertTriangle, Ban, Bell, BookOpen, Bookmark, ChevronsUp, Clock, CornerDownLeft, Flag, Heart, HelpCircle, History, Loader2, MoreHorizontal, PencilLine, RotateCcw, Share2, Sparkles, Trash2, X } from '@lucide/vue'
 import { PopoverContent, PopoverPortal, PopoverRoot, PopoverTrigger } from 'reka-ui'
@@ -903,7 +904,7 @@ function treeRootReplyHint(post: PostPayload): { username?: string; postNo?: num
   // 首楼不在当前窗口时用 replyTargets.postNo 判定目标是否首楼（深链打开后段楼层）。
   if (!firstId && (!target || target.postNo === 1)) return null
   if (!target || target.unavailable || !target.author.username) return { unavailable: true }
-  return { username: target.author.username, postNo: target.postNo, isAnonymous: Boolean(target.isAnonymous) }
+  return { username: authorDisplayName(target.author), postNo: target.postNo, isAnonymous: Boolean(target.isAnonymous) }
 }
 
 // 引用条规则：回复话题首楼（或无目标）视为话题级回复，不重复引用首楼正文；
@@ -1414,8 +1415,8 @@ function isTopicRemoved() {
 }
 
 // 优先展示用户昵称，未设置昵称时回退到账号名；匿名楼层展示匿名占位
-function authorDisplayName(author: { username: string; nickname?: string }) {
-  return author.nickname || author.username
+function authorDisplayName(author: { id?: number; username: string; nickname?: string }) {
+  return userDisplayName(author.id, author.username, author.nickname)
 }
 
 function isAnonymousPost(post: PostPayload) {
@@ -2784,7 +2785,7 @@ defineExpose({ openFloatingPostComposer, focusPostComposer })
                 />
                 <div class="min-w-0 truncate text-xs font-semibold text-base-content/55">
                   <template v-if="isAnonymousPost(pendingDeletePost)">{{ t('topic.authorAnonymous') }}</template>
-                  <template v-else>@{{ pendingDeletePost.author.username }}</template>
+                  <template v-else>{{ authorDisplayName(pendingDeletePost.author) }}</template>
                   <span class="ml-1.5 font-medium tabular-nums text-base-content/40">#{{ formatNumber(pendingDeletePost.postNo) }}</span>
                 </div>
               </div>

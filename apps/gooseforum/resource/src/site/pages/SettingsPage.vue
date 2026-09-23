@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import BadgeDisplayEditor from '@/site/components/BadgeDisplayEditor.vue'
 import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import {
   AlertTriangle,
@@ -1745,6 +1746,7 @@ async function toggleBinding(provider: string) {
             </div>
           </section>
 
+          <BadgeDisplayEditor v-if="userBadges.length" :badges="userBadges" :selected="props.user.displayBadges ?? userBadges.slice(0, 5)" />
           <section v-if="userBadges.length" class="mt-4 border-t border-line pt-3">
             <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
               <div>

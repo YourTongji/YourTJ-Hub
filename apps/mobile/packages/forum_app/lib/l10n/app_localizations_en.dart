@@ -2358,7 +2358,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get loginTongjiHint =>
-      'First sign-in creates an account and campus connection, with student-ID@tongji.edu.cn assigned automatically. No email activation is required.';
+      'After your first school verification, choose a username and password to register. Your student-ID@tongji.edu.cn and campus connection are verified without another email challenge.';
 
   @override
   String get loginTongjiPolicies =>
@@ -2475,4 +2475,27 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get planSyncArchived =>
       'Local changes were saved as a recovery draft.';
+
+  @override
+  String get privateNoteEdit => 'Edit note';
+
+  @override
+  String get privateNoteLabel => 'Private note';
+
+  @override
+  String get privateNoteHint =>
+      'Only you can see this. Up to 64 characters; save empty to clear.';
+
+  @override
+  String get badgeDisplayTitle => 'Profile badges';
+
+  @override
+  String get badgeDisplayHint =>
+      'Choose up to 5 badges and their order, or deselect all. Independent of your avatar badge.';
+
+  @override
+  String get badgeDisplayUp => 'Move up';
+
+  @override
+  String get badgeDisplayDown => 'Move down';
 }

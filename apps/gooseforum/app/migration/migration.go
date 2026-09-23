@@ -708,6 +708,7 @@ func SchemaModels() []any {
 		&rolePermissionRs.Entity{},
 		&taskQueue.Entity{},
 		&userFollow.Entity{},
+		&users.PrivateNoteEntity{},
 		&userBadges.Entity{},
 		&oidcAuthRequests.Entity{},
 		&oidcAccessTokens.Entity{},

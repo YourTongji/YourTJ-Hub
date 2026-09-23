@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { RouterView } from 'vue-router'
 import { watch } from 'vue'
+import { usePrivateNotesSession } from '@/runtime/private-notes'
 import type { PreparedPage } from '@/runtime/router'
 import ExternalLinkGuard from '@/site/components/ExternalLinkGuard.vue'
 import { setExternalLinkGuardInternalOrigins } from '@/runtime/external-link-guard'
@@ -14,6 +15,7 @@ watch(
   url => setExternalLinkGuardInternalOrigins(url ? [url] : []),
   { immediate: true },
 )
+usePrivateNotesSession(() => props.page.payload.layout.viewer)
 </script>
 
 <template>

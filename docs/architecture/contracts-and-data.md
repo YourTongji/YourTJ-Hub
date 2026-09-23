@@ -478,3 +478,22 @@ each batch checks ownership. Jobs bind to the configured server origin and requi
 `meilisearch.maintenance_enabled`, preventing main snapshot tasks from running on dev.
 Status responses omit raw errors, document bodies and the instance fingerprint.
 See the [maintenance decision](../decisions/0024-admin-search-index-maintenance.md).
+
+## Private user-name overlays
+
+`Current`: `user_private_notes` uses `(owner_id, target_user_id)` as its composite primary key.
+Both identities are numeric forum IDs. Writes serialize on the two live user rows in ID order,
+including the owner's 1000-note quota. Account closure deletes notes owned by or targeting the
+account in the same transaction as marking the user closed. Private reads obtain current canonical
+usernames from the users domain and exclude closed targets. Public user models/caches do not carry
+viewer notes; Web and native renderers apply a private in-memory overlay without changing saved
+content or identity values. The authenticated `/api/user-notes` and `/api/user-note` operations are
+covered by OpenAPI, generated TS, Dart mirrors and route/fixture tests.
+
+## Native post mentions
+
+**Current**: `PostPayload.mentions` maps visible raw Markdown occurrences to current numeric
+user IDs. Each entry includes the username and an exclusive UTF-16 source range. The service
+resolves a payload's names in one batch after body redaction; clients validate the exact source
+slice and render ordinary internal links without persisting the expansion. Older responses
+without mappings remain readable as plain text.

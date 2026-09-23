@@ -51,9 +51,10 @@ The original safe local destination is retained server-side, including the mobil
 An existing campus binding signs into its available human account and renews encrypted campus
 credentials without changing its email, activation, password or roles. Only an identity that has never
 been bound can register automatically; otherwise recover/sign into an existing account and bind
-explicitly. For a first-time identity the server atomically
-creates an ordinary activated user with `student-ID@tongji.edu.cn`, random public username/nickname,
-no local password and a unique campus binding. Email activation is unnecessary for this school-verified
+explicitly. For a first-time identity the server redirects to `/register/tongji` to choose a
+username and password. Only final submission creates an ordinary activated user with
+`student-ID@tongji.edu.cn`, the chosen password hash and a unique campus binding.
+The callback creates no account or forum session. Email activation is unnecessary for this school-verified
 registration; signup/domain/daily-limit policy still applies. Password and school self-registration
 share a transaction-scoped daily-quota lock; closed accounts still count for their creation day. A current or freshly staged email claim
 never auto-links an existing account: recover/sign into that account and bind from Campus instead.
@@ -62,7 +63,10 @@ school sign-in identity; the existing email and activation remain, and email pas
 establish a password. Closing an account keeps the ordinary retained-email reservation. A separate, permanent HMAC-only
 identity reservation survives unlink, replacement and closure to prevent repeat signup and initial-point
 claims; it contains no user ID, email, school ID or credentials and cannot authenticate a user.
-See [the decision](../decisions/0032-tongji-login-and-registration.md).
+Registration completion uses a ten-minute HttpOnly browser proof and independent CSRF token,
+with no school credentials in the browser. Validation failures allow retry; success consumes the
+proof and resumes the original safe destination, including App OIDC. Restart or expiration requires
+fresh school authentication. See [the decision](../decisions/0034-tongji-registration-completion.md).
 
 ### Built-in OIDC Provider (first-party clients)
 
@@ -368,3 +372,33 @@ support.
 ## Official campus connection
 
 `Current`: [My campus](campus.md) supports a private, bidirectionally unique Tongji identity binding with explicit confirmation, unbind and atomic replacement. This is separate from forum OAuth login. School access/refresh tokens are server-side encrypted credentials; expired refresh authorization reserves the identity and prompts reauthorization. Forum account closure clears campus credentials before invalidating the account.
+
+## Private user notes
+
+`Current`: A signed-in user can edit a private note from another user's Web profile/card or App
+profile. The note is visible only to its author and displays as `note(username)` across user-name
+surfaces, including topic/reply authors, reply references, profiles, connections, search results,
+conversations, notification actors, mention candidates, revision editors, and Web moderation/admin
+lists. Usernames used as identifiers, editor mention text, existing Markdown, exports and public
+payloads remain canonical. Clearing the note restores the existing nickname/username fallback.
+
+Notes are trimmed plain text, up to 64 Unicode characters, without control/formatting characters;
+each account can keep up to 1000 notes. Writes are throttled like other write endpoints: exceeding
+the `user.note` quota returns HTTP 429 with `Retry-After`. Notes follow numeric user IDs, so
+renaming an account does not detach the note. Closing either account erases the relationship.
+Clients retrieve notes through
+an authenticated, `private, no-store` API, keep them in memory for the current session only, and
+refresh on re-entry/focus/resume. Session changes clear the display state and reject old read/write
+responses; the feature does not add notes to search indexes, notifications sent to others, public
+user caches or offline storage.
+
+Private-note editing waits for a successful read of the current owner’s notes. Loading or failed reads keep editing disabled and offer retry, preventing an unseen existing note from being cleared or overwritten.
+
+## Profile badge display
+
+`Current` — Users independently choose one avatar badge and zero to five public
+profile-card badges in an explicit order. Unconfigured profiles retain their first
+five earned badges; saving an empty selection hides the card badges. Only active,
+owned badges can be selected, and revoked or disabled badges disappear from the
+selection. The complete earned-badge collection remains available separately.
+Avatar badge chips use each badge's preset background in light and dark themes.

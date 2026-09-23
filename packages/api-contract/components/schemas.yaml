@@ -775,6 +775,11 @@ PostPayload:
   type: object
   required: [id, topicId, postNo, content, renderedContent, processStatus, isHidden, isAuthorDeleted, isModeratorRemoved, canModerate, author, createdAt, isOwnPost, updatedAt, revisionCount, likeCount, isLiked, isBookmarked, isAnswer]
   properties:
+    mentions:
+      type: array
+      description: Server-resolved mention occurrences in the raw content returned to this viewer; UTF-16 offsets, end exclusive. Empty when the body is redacted or deleted. Moderators receiving an unredacted hidden body also receive its mention mappings. Older servers may omit this field.
+      items:
+        $ref: '#/PostMention'
     id:
       type: integer
       format: uint64
@@ -2495,6 +2500,7 @@ InteractionSuccess:
         result:
           type: boolean
           const: true
+
           description: Set-semantics and idempotent; repeating the same state transition also returns true.
 
 InteractionResponse:
@@ -4433,6 +4439,12 @@ UserCard:
       items:
         $ref: '#/UserBadge'
       description: Always an array (empty when the user holds no badges), never null.
+    displayBadges:
+      type: array
+      maxItems: 5
+      items:
+        $ref: '#/UserBadge'
+      description: Selected active badges in user-defined order; [] hides all. Missing on older servers; clients fall back to the first five earned badges.
     wornBadge:
       $ref: '#/UserBadge'
     lastActiveTime:
@@ -4614,6 +4626,20 @@ PresetAvatarResponse:
     - $ref: '#/PresetAvatarSuccess'
     - $ref: '#/ApiFailure'
 
+DisplayBadgesRequest:
+  type: object
+  required: [badgeCodes]
+  properties:
+    badgeCodes:
+      type: array
+      maxItems: 5
+      uniqueItems: true
+      items:
+        type: string
+        minLength: 1
+        maxLength: 64
+  additionalProperties: false
+
 WearBadgeRequest:
   type: object
   properties:
@@ -4734,6 +4760,7 @@ OAuthBinding:
         bound:
           type: boolean
           const: true
+
         provider:
           type: string
         createdAt:
@@ -5058,6 +5085,7 @@ PushSubscribeSuccess:
           type: boolean
           const: true
 
+
 PushSubscribeResponse:
   oneOf:
     - $ref: '#/PushSubscribeSuccess'
@@ -5082,6 +5110,7 @@ PushUnsubscribeSuccess:
         result:
           type: boolean
           const: true
+
 
 PushUnsubscribeResponse:
   oneOf:
@@ -5116,6 +5145,7 @@ PushDeviceRegisterSuccess:
           type: boolean
           const: true
 
+
 PushDeviceRegisterResponse:
   oneOf:
     - $ref: '#/PushDeviceRegisterSuccess'
@@ -5141,6 +5171,7 @@ PushDeviceUnregisterSuccess:
         result:
           type: boolean
           const: true
+
 
 PushDeviceUnregisterResponse:
   oneOf:
@@ -5356,6 +5387,7 @@ ModerationActionSuccess:
         result:
           type: boolean
           const: true
+
           description: Idempotent — repeating an already-applied status also returns true.
 
 ModerationActionResponse:
@@ -6734,6 +6766,7 @@ AdminBoolSuccess:
         result:
           type: boolean
           const: true
+
 
 AdminBoolResponse:
   oneOf:
@@ -9305,6 +9338,7 @@ ContentActionSuccess:
           type: boolean
           const: true
 
+
 ContentActionResponse:
   oneOf:
     - $ref: '#/ContentActionSuccess'
@@ -9605,6 +9639,7 @@ DirectImageUploadAbortSuccess:
         result:
           type: boolean
           const: true
+
           description: True when the pending upload was aborted.
 
 DirectImageUploadAbortResponse:
@@ -10155,3 +10190,75 @@ PkPlanItemsResponse:
       maxItems: 10
       items:
         $ref: '#/PkPlanItem'
+PrivateNote:
+  type: object
+  required: [targetUserId, username, note]
+  properties:
+    targetUserId:
+      type: integer
+      minimum: 1
+    username:
+      type: string
+      description: Current canonical username, never a private nickname.
+    note:
+      type: string
+      maxLength: 64
+  additionalProperties: false
+PrivateNotesPayload:
+  type: object
+  required: [ownerId, notes]
+  properties:
+    ownerId:
+      type: integer
+      minimum: 1
+      description: Authenticated owner; clients discard data from a different session.
+    notes:
+      type: array
+      maxItems: 1000
+      items:
+        $ref: '#/PrivateNote'
+  additionalProperties: false
+PrivateNotesSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      properties:
+        result:
+          $ref: '#/PrivateNotesPayload'
+PrivateNoteRequest:
+  type: object
+  required: [targetUserId, note]
+  properties:
+    targetUserId:
+      type: integer
+      minimum: 1
+    note:
+      type: string
+      maxLength: 64
+      description: Trimmed plain text; empty clears. Control and formatting characters are rejected.
+  additionalProperties: false
+PrivateNoteSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      properties:
+        result:
+          type: boolean
+          const: true
+
+PostMention:
+  type: object
+  required: [username, userId, start, end]
+  properties:
+    username:
+      type: string
+    userId:
+      type: integer
+      format: uint64
+      minimum: 1
+    start:
+      type: integer
+      minimum: 0
+    end:
+      type: integer
+      minimum: 1

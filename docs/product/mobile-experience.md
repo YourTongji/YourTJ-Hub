@@ -15,6 +15,15 @@ Web inside an authenticated in-app browser. The navigation and management bounda
 
 ## Navigation and reading
 
+- `Current`: paginated feeds, search, notifications, profiles, content management, own course
+  reviews and post history automatically fetch near the list end. Requests are serialized;
+  errors and responses without cursor/item progress retain an explicit retry control instead
+  of starting a retry loop. Short pages continue filling the viewport while data advances.
+- `Current`: topic bodies and replies link only server-resolved mention occurrences to native
+  user profiles. The payload carries numeric identities and UTF-16 source ranges; unknown users,
+  escaped text, code, existing links and math remain unchanged. Hidden/deleted bodies expose no
+  mention metadata, and persisted Markdown stays unchanged.
+
 - `Current`: a bare HTTP(S) URL in its own Markdown paragraph resolves through the server batch API and
   becomes a compact native preview only when typed metadata is ready; failure keeps the ordinary link,
   and each document stops after three previews. Cards and ordinary Markdown links share internal routing
@@ -369,6 +378,9 @@ Web inside an authenticated in-app browser. The navigation and management bounda
   underline. Avatar overlap participates in layout so it leaves no translated blank space. The role
   label stays beside the name; earned badges appear as bordered title/description cards with colored
   hexagons and their server-provided SVGs. The selected badge remains attached to the avatar.
+  Settings allow selecting and ordering zero to five owned, enabled badges for the profile header.
+  An explicit empty selection hides that row; existing accounts default to their first five badges.
+  This selection does not change the avatar badge or the complete earned badge collection.
   Profile body text uses 16 pixels; statistics prioritize the values and wrap into fewer columns on
   narrow screens or at large text sizes. Settings groups use rounded inset surfaces, multiline row
   labels and consistent trailing arrows; avatar upload copy describes image selection and cropping.
@@ -465,3 +477,12 @@ private student-ID@tongji.edu.cn email without a separate activation step. All f
 supported. Tongji shares the exact MainActivity-owned `yourtj://callback` bridge with Google and
 GitHub; AppAuth's Android receiver does not claim it, and no WebView is used for this OAuth login.
 `Partial`: physical-device school sign-in has not been validated with the new APK.
+
+## Private user notes
+
+`Current`: User profiles provide a private-note editor with retry and clear behavior. Names in topic
+lists, replies, profile connections, search, conversations, notifications, mention candidates and
+revision history use `note(username)` for the current viewer. Notes are fetched through the shared
+core contract and remain only in a session-scoped memory provider; changing account invalidates
+pending responses and never reuses notes from the offline forum cache. Limits and account-erasure
+semantics are defined in [Identity and access](identity-and-access.md#private-user-notes).

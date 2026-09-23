@@ -6,6 +6,7 @@
   design-taste：浮动工具语言，VARIANCE 4 / MOTION 2。
 -->
 <script setup lang="ts">
+import { userDisplayName } from '@/runtime/private-notes'
 import { computed, ref, watch, type CSSProperties } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { MentionUser } from '@/runtime/mention'
@@ -90,7 +91,7 @@ function onOptionPointerDown(event: PointerEvent) {
           :key="user.id"
           role="option"
           :aria-selected="index === activeIndex"
-          :aria-label="`${user.nickname || user.username} @${user.username}`"
+          :aria-label="`${userDisplayName(user.id, user.username, user.nickname)} @${user.username}`"
           class="gf-mention-option"
           :class="{ 'is-active': index === activeIndex }"
           :data-active="index === activeIndex || undefined"
@@ -99,7 +100,7 @@ function onOptionPointerDown(event: PointerEvent) {
         >
           <img :src="user.avatarUrl" alt="" class="gf-mention-avatar" loading="lazy" />
           <span class="min-w-0 flex-1">
-            <span class="gf-mention-nickname">{{ user.nickname || user.username }}</span>
+            <span class="gf-mention-nickname">{{ userDisplayName(user.id, user.username, user.nickname) }}</span>
             <span class="gf-mention-username">@{{ user.username }}</span>
           </span>
           <span v-if="user.tag" class="gf-mention-tag">{{ tagLabel(user.tag) }}</span>

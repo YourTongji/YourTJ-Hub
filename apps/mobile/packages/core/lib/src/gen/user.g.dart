@@ -37,6 +37,9 @@ _$UserCardPayloadImpl _$$UserCardPayloadImplFromJson(
   isOnline: json['isOnline'] as bool,
   isFollowing: json['isFollowing'] as bool,
   isSelf: json['isSelf'] as bool,
+  displayBadges: (json['displayBadges'] as List<dynamic>?)
+      ?.map((e) => UserBadgePayload.fromJson(e as Map<String, dynamic>))
+      .toList(),
   badges:
       (json['badges'] as List<dynamic>?)
           ?.map((e) => UserBadgePayload.fromJson(e as Map<String, dynamic>))
@@ -74,6 +77,7 @@ Map<String, dynamic> _$$UserCardPayloadImplToJson(
   'isOnline': instance.isOnline,
   'isFollowing': instance.isFollowing,
   'isSelf': instance.isSelf,
+  'displayBadges': instance.displayBadges,
   'badges': instance.badges,
   'wornBadge': instance.wornBadge,
   'lastActiveTime': instance.lastActiveTime,
@@ -279,6 +283,9 @@ _$SettingsUserPayloadImpl _$$SettingsUserPayloadImplFromJson(
         ),
       ),
   wornBadgeCode: json['wornBadgeCode'] as String,
+  displayBadges: (json['displayBadges'] as List<dynamic>?)
+      ?.map((e) => UserBadgePayload.fromJson(e as Map<String, dynamic>))
+      .toList(),
   badges: (json['badges'] as List<dynamic>)
       .map((e) => UserBadgePayload.fromJson(e as Map<String, dynamic>))
       .toList(),
@@ -309,6 +316,7 @@ Map<String, dynamic> _$$SettingsUserPayloadImplToJson(
   'createdAt': instance.createdAt,
   'externalInformation': instance.externalInformation,
   'wornBadgeCode': instance.wornBadgeCode,
+  'displayBadges': instance.displayBadges,
   'badges': instance.badges,
   'wearableBadges': instance.wearableBadges,
   'wornBadge': instance.wornBadge,
@@ -361,3 +369,32 @@ Map<String, dynamic> _$$SettingsPagePropsImplToJson(
   'stats': instance.stats,
   'tabs': instance.tabs,
 };
+
+_$PrivateNotePayloadImpl _$$PrivateNotePayloadImplFromJson(
+  Map<String, dynamic> json,
+) => _$PrivateNotePayloadImpl(
+  targetUserId: (json['targetUserId'] as num).toInt(),
+  username: json['username'] as String,
+  note: json['note'] as String,
+);
+
+Map<String, dynamic> _$$PrivateNotePayloadImplToJson(
+  _$PrivateNotePayloadImpl instance,
+) => <String, dynamic>{
+  'targetUserId': instance.targetUserId,
+  'username': instance.username,
+  'note': instance.note,
+};
+
+_$PrivateNotesPayloadImpl _$$PrivateNotesPayloadImplFromJson(
+  Map<String, dynamic> json,
+) => _$PrivateNotesPayloadImpl(
+  ownerId: (json['ownerId'] as num).toInt(),
+  notes: (json['notes'] as List<dynamic>)
+      .map((e) => PrivateNotePayload.fromJson(e as Map<String, dynamic>))
+      .toList(),
+);
+
+Map<String, dynamic> _$$PrivateNotesPayloadImplToJson(
+  _$PrivateNotesPayloadImpl instance,
+) => <String, dynamic>{'ownerId': instance.ownerId, 'notes': instance.notes};

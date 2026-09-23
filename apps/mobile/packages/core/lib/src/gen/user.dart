@@ -33,6 +33,7 @@ abstract class UserCardPayload with _$UserCardPayload {
     required bool isSelf,
     // 容错：旧后端（< 2026-09-06 修复）对无徽章用户序列化 badges 为 null
     // （违反 TS 契约），defaultValue 对显式 null 与缺键均生效。
+    List<UserBadgePayload>? displayBadges,
     @JsonKey(defaultValue: []) required List<UserBadgePayload> badges,
     UserBadgePayload? wornBadge,
     required String lastActiveTime,
@@ -167,6 +168,7 @@ abstract class SettingsUserPayload with _$SettingsUserPayload {
     required String createdAt,
     required Map<String, ExternalLinkPayload> externalInformation,
     required String wornBadgeCode,
+    List<UserBadgePayload>? displayBadges,
     required List<UserBadgePayload> badges,
     required List<UserBadgePayload> wearableBadges,
     UserBadgePayload? wornBadge,
@@ -207,4 +209,25 @@ abstract class SettingsPageProps with _$SettingsPageProps {
 
   factory SettingsPageProps.fromJson(Map<String, dynamic> json) =>
       _$SettingsPagePropsFromJson(json);
+}
+
+@freezed
+abstract class PrivateNotePayload with _$PrivateNotePayload {
+  const factory PrivateNotePayload({
+    required int targetUserId,
+    required String username,
+    required String note,
+  }) = _PrivateNotePayload;
+  factory PrivateNotePayload.fromJson(Map<String, dynamic> json) =>
+      _$PrivateNotePayloadFromJson(json);
+}
+
+@freezed
+abstract class PrivateNotesPayload with _$PrivateNotesPayload {
+  const factory PrivateNotesPayload({
+    required int ownerId,
+    required List<PrivateNotePayload> notes,
+  }) = _PrivateNotesPayload;
+  factory PrivateNotesPayload.fromJson(Map<String, dynamic> json) =>
+      _$PrivateNotesPayloadFromJson(json);
 }

@@ -2294,7 +2294,7 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get loginTongjiHint =>
-      '初回ログイン時にアカウントとキャンパス接続を作成し、学籍番号@tongji.edu.cnを自動設定します。メール認証は不要です。';
+      '初回認証後、ユーザー名とパスワードを設定して登録します。学籍番号@tongji.edu.cnとキャンパス接続が自動設定され、メールの再確認は不要です。';
 
   @override
   String get loginTongjiPolicies => '続行すると、公開されている規約に同意したものとみなされます：';
@@ -2405,4 +2405,26 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get planSyncArchived => 'ローカルの変更を復元用の下書きに保存しました。';
+
+  @override
+  String get privateNoteEdit => 'メモを編集';
+
+  @override
+  String get privateNoteLabel => '非公開メモ';
+
+  @override
+  String get privateNoteHint => '自分だけに表示されます。64文字以内。空欄で保存すると削除されます。';
+
+  @override
+  String get badgeDisplayTitle => 'プロフィールのバッジ';
+
+  @override
+  String get badgeDisplayHint =>
+      '最大5個まで選び、表示順を変更できます。すべて非表示にもできます。アバターのバッジとは別の設定です。';
+
+  @override
+  String get badgeDisplayUp => '上へ';
+
+  @override
+  String get badgeDisplayDown => '下へ';
 }

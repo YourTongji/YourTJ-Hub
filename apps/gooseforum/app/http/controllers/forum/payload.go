@@ -119,6 +119,7 @@ type ErrorPageProps struct {
 }
 
 type LoginPageProps struct {
+	TongjiRegistration    bool     `json:"tongjiRegistration,omitempty"`
 	InitialMode           string   `json:"initialMode"`
 	RedirectURL           string   `json:"redirectUrl"`
 	GitHubURL             string   `json:"githubUrl"`
@@ -359,31 +360,32 @@ type TopicDetailPayload struct {
 }
 
 type PostPayload struct {
-	ID                 uint64              `json:"id"`
-	TopicID            uint64              `json:"topicId"`
-	PostNo             uint64              `json:"postNo"`
-	Content            string              `json:"content"`
-	RenderedContent    string              `json:"renderedContent"`
-	ProcessStatus      int8                `json:"processStatus"`
-	IsHidden           bool                `json:"isHidden"`
-	IsAuthorDeleted    bool                `json:"isAuthorDeleted"`
-	IsModeratorRemoved bool                `json:"isModeratorRemoved"`
-	CanModerate        bool                `json:"canModerate"`
-	Author             TopicAuthorPayload  `json:"author"`
-	IsAnonymous        bool                `json:"isAnonymous"`
-	CreatedAt          string              `json:"createdAt"`
-	ReplyToPostID      uint64              `json:"replyToPostId,omitempty"`
-	ReplyToUserID      uint64              `json:"replyToUserId,omitempty"`
-	ReplyToUsername    string              `json:"replyToUsername,omitempty"`
-	IsOwnPost          bool                `json:"isOwnPost"`
-	UpdatedAt          string              `json:"updatedAt"`
-	LastEditor         *TopicAuthorPayload `json:"lastEditor,omitempty"`
-	LastEditedAt       string              `json:"lastEditedAt,omitempty"`
-	RevisionCount      int64               `json:"revisionCount"`
-	LikeCount          uint64              `json:"likeCount"`
-	IsLiked            bool                `json:"isLiked"`
-	IsBookmarked       bool                `json:"isBookmarked"`
-	IsAnswer           bool                `json:"isAnswer"`
+	Mentions           []postservice.PostMention `json:"mentions"`
+	ID                 uint64                    `json:"id"`
+	TopicID            uint64                    `json:"topicId"`
+	PostNo             uint64                    `json:"postNo"`
+	Content            string                    `json:"content"`
+	RenderedContent    string                    `json:"renderedContent"`
+	ProcessStatus      int8                      `json:"processStatus"`
+	IsHidden           bool                      `json:"isHidden"`
+	IsAuthorDeleted    bool                      `json:"isAuthorDeleted"`
+	IsModeratorRemoved bool                      `json:"isModeratorRemoved"`
+	CanModerate        bool                      `json:"canModerate"`
+	Author             TopicAuthorPayload        `json:"author"`
+	IsAnonymous        bool                      `json:"isAnonymous"`
+	CreatedAt          string                    `json:"createdAt"`
+	ReplyToPostID      uint64                    `json:"replyToPostId,omitempty"`
+	ReplyToUserID      uint64                    `json:"replyToUserId,omitempty"`
+	ReplyToUsername    string                    `json:"replyToUsername,omitempty"`
+	IsOwnPost          bool                      `json:"isOwnPost"`
+	UpdatedAt          string                    `json:"updatedAt"`
+	LastEditor         *TopicAuthorPayload       `json:"lastEditor,omitempty"`
+	LastEditedAt       string                    `json:"lastEditedAt,omitempty"`
+	RevisionCount      int64                     `json:"revisionCount"`
+	LikeCount          uint64                    `json:"likeCount"`
+	IsLiked            bool                      `json:"isLiked"`
+	IsBookmarked       bool                      `json:"isBookmarked"`
+	IsAnswer           bool                      `json:"isAnswer"`
 }
 
 type ReplyTargetPayload struct {
@@ -1453,6 +1455,15 @@ func buildPostPayloads(postEntities []*posts.Entity, userMap map[uint64]*users.E
 			res[i].IsLiked = state.LikedAt != nil
 			res[i].IsBookmarked = state.BookmarkedAt != nil
 		}
+	}
+	// Resolve only the bodies this viewer may read, never hidden/deleted text.
+	contents := make([]string, len(res))
+	for i := range res {
+		contents[i] = res[i].Content
+	}
+	mentions := postservice.ResolvePostMentions(contents)
+	for i := range res {
+		res[i].Mentions = mentions[i]
 	}
 	return res, replyTargets
 }

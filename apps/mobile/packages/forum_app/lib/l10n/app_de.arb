@@ -790,43 +790,49 @@
     }
   },
   "loginTongji": "Mit Tongji-SSO anmelden",
-  "loginTongjiHint": "Bei der ersten Anmeldung werden Konto und Campus-Verbindung erstellt und Matrikelnummer@tongji.edu.cn automatisch hinterlegt. Eine E-Mail-Aktivierung entfällt.",
+  "loginTongjiHint": "Nach der ersten Hochschulprüfung Benutzername und Passwort wählen. Matrikelnummer@tongji.edu.cn und Campus-Verbindung werden ohne erneute E-Mail-Prüfung bestätigt.",
   "loginTongjiPolicies": "Mit dem Fortfahren stimmen Sie den veröffentlichten Richtlinien zu:",
   "linkPreviewExternalTitle": "YourTJ verlassen",
   "linkPreviewExternalBody": "Du wechselst zu {domain}. Prüfe die Adresse, bevor du Konto-, Bestätigungs- oder Zahlungsdaten eingibst.",
-  "@linkPreviewExternalBody": {"placeholders": {"domain": {"type": "String"}}},
+  "@linkPreviewExternalBody": {
+    "placeholders": {
+      "domain": {
+        "type": "String"
+      }
+    }
+  },
   "linkPreviewRememberDomain": "Für diese Domain in dieser Sitzung nicht erneut fragen",
   "linkPreviewContinue": "Weiter",
   "linkPreviewCampusFallbackTitle": "Campusnetz",
   "linkPreviewCampusFallbackDescription": "Zugriff nur aus dem Campusnetz",
-"campusTodayMakeup": "{name}: Heute gilt der Stundenplan vom {date}.",
-"@campusTodayMakeup": {
-  "placeholders": {
-    "name": {
-      "type": "String"
-    },
-    "date": {
-      "type": "String"
+  "campusTodayMakeup": "{name}: Heute gilt der Stundenplan vom {date}.",
+  "@campusTodayMakeup": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "date": {
+        "type": "String"
+      }
     }
-  }
-},
-"campusTodayHoliday": "{name}: Heute finden keine Lehrveranstaltungen statt.",
-"@campusTodayHoliday": {
-  "placeholders": {
-    "name": {
-      "type": "String"
+  },
+  "campusTodayHoliday": "{name}: Heute finden keine Lehrveranstaltungen statt.",
+  "@campusTodayHoliday": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
     }
-  }
-},
-"campusTodayMoved": "{name}: Die heutigen Lehrveranstaltungen wurden auf einen anderen Tag verlegt.",
-"@campusTodayMoved": {
-  "placeholders": {
-    "name": {
-      "type": "String"
+  },
+  "campusTodayMoved": "{name}: Die heutigen Lehrveranstaltungen wurden auf einen anderen Tag verlegt.",
+  "@campusTodayMoved": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
     }
-  }
-},
-"campusRulesUnavailable": "Feiertagsregeln konnten nicht geladen werden. Später erneut versuchen oder Anpassungen deaktivieren, um den Originalstundenplan zu exportieren.",
+  },
+  "campusRulesUnavailable": "Feiertagsregeln konnten nicht geladen werden. Später erneut versuchen oder Anpassungen deaktivieren, um den Originalstundenplan zu exportieren.",
   "planSyncTitle": "Plankonflikte lösen",
   "planSyncBody": "Ein anderes Gerät hat diese Einträge ebenfalls geändert. Wähle die Werte, die bleiben sollen. Andere Änderungen werden automatisch zusammengeführt.",
   "planSyncLocal": "Lokal behalten",
@@ -848,5 +854,12 @@
   "planSyncAdopt": "Lokale Pläne dieses Geräts mit diesem Konto synchronisieren",
   "planSyncAdoptHint": "Diese lokalen Pläne gehören noch nicht zu diesem Konto. Bitte vor dem Hochladen bestätigen.",
   "planSyncCapacity": "Die Cloud speichert höchstens zehn Pläne. Schaffe Platz und versuche es erneut.",
-  "planSyncArchived": "Lokale Änderungen wurden als Entwurf gesichert."
+  "planSyncArchived": "Lokale Änderungen wurden als Entwurf gesichert.",
+  "privateNoteEdit": "Notiz bearbeiten",
+  "privateNoteLabel": "Private Notiz",
+  "privateNoteHint": "Nur für dich sichtbar. Bis zu 64 Zeichen; leer speichern zum Entfernen.",
+  "badgeDisplayTitle": "Profilabzeichen",
+  "badgeDisplayHint": "Bis zu 5 Abzeichen auswählen und sortieren oder alle abwählen. Unabhängig vom Avatar-Abzeichen.",
+  "badgeDisplayUp": "Nach oben",
+  "badgeDisplayDown": "Nach unten"
 }
