@@ -131,6 +131,36 @@ void main() {
   });
 
   testWidgets(
+    'wide preview covers contain the image while phone thumbnails crop',
+    (tester) async {
+      for (final width in [320.0, 700.0]) {
+        await tester.binding.setSurfaceSize(Size(width, 640));
+        await tester.pumpWidget(
+          ProviderScope(
+            child: _wrap(
+              const GfLinkPreviewCard(
+                preview: LinkPreviewPayload(
+                  requestedUrl: 'https://example.com',
+                  kind: 'external',
+                  status: 'ready',
+                  url: 'https://example.com',
+                  displayHost: 'example.com',
+                  title: 'A wide image stays complete',
+                  imageUrl: 'https://image.test/cover.png',
+                ),
+              ),
+            ),
+          ),
+        );
+        final cover = tester.widget<Image>(find.byType(Image).first);
+        expect(cover.fit, width >= 640 ? BoxFit.contain : BoxFit.cover);
+        await tester.pumpWidget(const SizedBox.shrink());
+      }
+      await tester.binding.setSurfaceSize(null);
+    },
+  );
+
+  testWidgets(
     'standalone URL resolves once and renders a responsive preview card',
     (tester) async {
       await tester.binding.setSurfaceSize(const Size(320, 640));

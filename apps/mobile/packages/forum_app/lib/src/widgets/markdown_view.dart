@@ -446,22 +446,22 @@ class _DeferredLinkPreviewState extends State<_DeferredLinkPreview> {
             }
             return preview == null
                 ? widget.fallback
-                : _LinkPreviewCard(preview: preview);
+                : GfLinkPreviewCard(preview: preview);
           },
     );
   }
 }
 
-class _LinkPreviewCard extends ConsumerStatefulWidget {
-  const _LinkPreviewCard({required this.preview});
+class GfLinkPreviewCard extends ConsumerStatefulWidget {
+  const GfLinkPreviewCard({super.key, required this.preview});
 
   final LinkPreviewPayload preview;
 
   @override
-  ConsumerState<_LinkPreviewCard> createState() => _LinkPreviewCardState();
+  ConsumerState<GfLinkPreviewCard> createState() => _GfLinkPreviewCardState();
 }
 
-class _LinkPreviewCardState extends ConsumerState<_LinkPreviewCard> {
+class _GfLinkPreviewCardState extends ConsumerState<GfLinkPreviewCard> {
   /// Web 端同一套档位：<480 不显示描述（小卡化最缺的正是垂直空间），
   /// 480–639 一行，≥640 两行。
   static int descriptionLinesFor(double cardWidth) =>
@@ -511,9 +511,9 @@ class _LinkPreviewCardState extends ConsumerState<_LinkPreviewCard> {
         final int descriptionLines = descriptionLinesFor(constraints.maxWidth);
         // 封面走 Stack + Positioned，刻意不参与卡片高度计算：竖版封面若留在
         // 文档流里，会按自身比例把整张卡片撑高（Web 端实测 164px → 362px）。
-        // <640px 是右上角 56px 方形缩略图；≥640px 是贴齐右缘、上下贴边的
-        // 168px 导轨，右缘圆角交给卡片自身的 clipBehavior 裁切。
-        final double coverInset = railCover ? 0 : 14;
+        // <640px 是右上角 56px 方形缩略图；≥640px 是保留 16px 内边距的
+        // 168px 居中缩略图，宽屏使用 contain 完整显示，避免裁掉封面两端。
+        final double coverInset = railCover ? 16 : 14;
         final double coverWidth = railCover ? 168 : 56;
         final double bodyRightPadding = coverUrl == null
             ? 14
@@ -637,16 +637,14 @@ class _LinkPreviewCardState extends ConsumerState<_LinkPreviewCard> {
                       Positioned(
                         top: coverInset,
                         right: coverInset,
-                        bottom: railCover ? 0 : null,
+                        bottom: railCover ? coverInset : null,
                         width: coverWidth,
                         height: railCover ? null : coverWidth,
                         child: ClipRRect(
-                          borderRadius: BorderRadius.circular(
-                            railCover ? 0 : 6,
-                          ),
+                          borderRadius: BorderRadius.circular(6),
                           child: Image.network(
                             coverUrl,
-                            fit: BoxFit.cover,
+                            fit: railCover ? BoxFit.contain : BoxFit.cover,
                             errorBuilder: (_, _, _) {
                               // 封面挂了就把让位空间一起收回，不留死白。
                               WidgetsBinding.instance.addPostFrameCallback((_) {

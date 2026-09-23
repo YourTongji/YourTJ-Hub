@@ -50,6 +50,19 @@ function proceed() {
   continueExternalNavigation(remember.value)
 }
 
+function trapTab(event: KeyboardEvent) {
+  if (event.key !== 'Tab' || !dialog.value) return
+  const controls = Array.from(dialog.value.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([disabled]), a[href], [tabindex="0"]'))
+    .filter(element => element.getClientRects().length > 0)
+  const first = controls[0], last = controls.at(-1)
+  if (!first || !last) { event.preventDefault(); return }
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault(); last.focus()
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault(); first.focus()
+  }
+}
+
 async function copyURL() {
   const href = externalLinkGuardState.pending?.href
   if (!href) return
@@ -72,6 +85,7 @@ async function copyURL() {
       aria-labelledby="external-link-title"
       aria-describedby="external-link-description"
       @cancel.prevent="cancel"
+      @keydown="trapTab"
       @close="externalLinkGuardState.open && cancelExternalLinkGuard()"
     >
       <div class="p-5 sm:p-6">

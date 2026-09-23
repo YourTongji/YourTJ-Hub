@@ -11,6 +11,13 @@ export interface LinkPreviewHintController {
   compositionStart(): void
   compositionEnd(markdown: string): void
   dispose(): void
+  /**
+   * True once nothing is in flight: no debounced request pending and no
+   * resolve round-trip running. Browser-test fixtures wait on this state
+   * instead of sleeping past the debounce, so their waits track real state
+   * rather than a constant in this file.
+   */
+  isSettled(): boolean
 }
 
 /**
@@ -37,7 +44,7 @@ export function createLinkPreviewHintController(options: LinkPreviewHintOptions)
   let request: AbortController | undefined
   let sequence = 0
   let composing = false
-  let latestMarkdown = ''
+  let candidateKey: string | null = null
 
   const cancelPending = () => {
     if (timer !== undefined) clearTimeout(timer)
@@ -46,14 +53,22 @@ export function createLinkPreviewHintController(options: LinkPreviewHintOptions)
     request = undefined
   }
 
+  // `request` must drop back to undefined once a resolve finishes, otherwise
+  // isSettled would never turn true again after the first request.
+  const isSettled = () => timer === undefined && request === undefined
+
   const schedule = (markdown: string) => {
     markdown = markdown ?? ''
-    latestMarkdown = markdown
+    if (composing) return
+    const urls = scanMarkdownLinkCandidates(markdown)
+    const key = JSON.stringify(urls)
+    // Typing elsewhere must not hide a valid hint or indefinitely delay its request.
+    if (candidateKey === key) return
+    candidateKey = key
     sequence += 1
     const currentSequence = sequence
     cancelPending()
-    if (composing) return
-    const urls = scanMarkdownLinkCandidates(markdown)
+    options.onChange(null)
     if (urls.length === 0) {
       options.onChange(null)
       return
@@ -73,23 +88,33 @@ export function createLinkPreviewHintController(options: LinkPreviewHintOptions)
           .map(preview => preview.displayHost || new URL(preview.url!).hostname)
         options.onChange(domains.length > 0 ? { domains } : null)
       } catch {
-        if (currentSequence === sequence && !activeRequest.signal.aborted) options.onChange(null)
+        if (currentSequence === sequence && !activeRequest.signal.aborted) {
+          candidateKey = null
+          options.onChange(null)
+        }
+      } finally {
+        // A newer schedule may already own `request`; only retire our own handle.
+        if (request === activeRequest) request = undefined
       }
     }, delay)
   }
 
   return {
     schedule,
+    isSettled,
     compositionStart() {
       composing = true
+      candidateKey = null
       sequence += 1
       cancelPending()
+      options.onChange(null)
     },
     compositionEnd(markdown: string) {
       composing = false
-      schedule(markdown || latestMarkdown)
+      schedule(markdown)
     },
     dispose() {
+      candidateKey = null
       sequence += 1
       cancelPending()
       options.onChange(null)
