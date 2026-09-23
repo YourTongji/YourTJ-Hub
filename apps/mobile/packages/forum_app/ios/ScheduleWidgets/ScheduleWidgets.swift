@@ -575,6 +575,7 @@ private struct TodayScheduleView: View {
         let projection = entry.projection
         let state = projection?.state(at: entry.date) ?? (entry.emptyState, nil)
         let today = projection?.day(at: entry.date)
+        let next = tomorrow(in: projection)
         VStack(alignment: .leading, spacing: 7) {
             if family == .systemLarge {
                 HStack(alignment: .top, spacing: 12) {
@@ -582,38 +583,15 @@ private struct TodayScheduleView: View {
                                    currentId: state.1?.id, hasProjection: projection != nil,
                                    showsBrandMark: false)
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                    LargeDayColumn(title: "明天", day: tomorrow(in: projection),
+                    LargeDayColumn(title: "明天", day: next,
                                    fallbackDate: nextDay(after: entry.date),
                                    currentId: nil, hasProjection: projection != nil,
                                    showsBrandMark: true)
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 }
             } else {
-                GeometryReader { geometry in
-                    HStack(alignment: .top, spacing: 10) {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(weekdayText(today, fallbackDate: entry.date))
-                                .font(.system(size: 11, weight: .semibold))
-                            Text(shortDateText(today, fallbackDate: entry.date))
-                                .font(.system(size: 19, weight: .bold, design: .rounded))
-                            Text(weekText(today)).font(.system(size: 11))
-                            Spacer(minLength: 0)
-                            WidgetFooter(projection: projection, compact: true)
-                        }
-                        .foregroundColor(.secondary)
-                        .frame(width: 68, height: geometry.size.height, alignment: .topLeading)
-                        VStack(alignment: .leading, spacing: 3) {
-                            HStack {
-                                Spacer(minLength: 0)
-                                WidgetBrandMark()
-                            }
-                            MediumDayColumn(day: today, state: state,
-                                            hasProjection: projection != nil)
-                                .frame(height: max(0, geometry.size.height - 19), alignment: .topLeading)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .topLeading)
-                    }
-                }
+                MediumSchedule(entry: entry, today: today, tomorrow: next,
+                               state: state, showsTomorrow: mediumShowsTomorrow(today))
             }
             if family == .systemLarge {
                 Spacer(minLength: 0)
@@ -624,7 +602,7 @@ private struct TodayScheduleView: View {
         .accessibilityLabel(Text(scheduleAccessibilityText(
             state: state.0,
             today: today,
-            tomorrow: family == .systemLarge ? tomorrow(in: projection) : nil
+            tomorrow: family == .systemLarge || mediumShowsTomorrow(today) ? next : nil
         )))
         .widgetURL(URL(string: "yourtj://campus/today?homeWidget=true"))
         .widgetContainerBackground()
@@ -637,38 +615,141 @@ private struct TodayScheduleView: View {
     }
 }
 
+private func mediumShowsTomorrow(_ day: Projection.Day?) -> Bool {
+    guard let day, day.kind != "unknown" else { return false }
+    return day.courses.count <= 2
+}
+
 private func nextDay(after date: Date) -> Date {
     var calendar = Calendar(identifier: .gregorian)
     calendar.timeZone = TimeZone(identifier: "Asia/Shanghai")!
     return calendar.date(byAdding: .day, value: 1, to: date) ?? date.addingTimeInterval(86_400)
 }
 
+private struct MediumSchedule: View {
+    let entry: ScheduleEntry
+    let today: Projection.Day?
+    let tomorrow: Projection.Day?
+    let state: (String, Projection.Course?)
+    let showsTomorrow: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            ZStack(alignment: .topTrailing) {
+                HStack(alignment: .top, spacing: 10) {
+                    MediumDateHeading(day: today, fallbackDate: entry.date)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    if showsTomorrow {
+                        MediumDateHeading(day: tomorrow, fallbackDate: nextDay(after: entry.date))
+                            .padding(.trailing, 22)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+                WidgetBrandMark()
+            }
+            GeometryReader { geometry in
+                let columnWidth = max(0, (geometry.size.width - 10) / 2)
+                HStack(alignment: .top, spacing: 10) {
+                    if showsTomorrow {
+                        MediumDayColumn(day: today, state: state.0, currentId: state.1?.id,
+                                        hasProjection: entry.projection != nil)
+                            .frame(width: columnWidth, height: geometry.size.height, alignment: .topLeading)
+                        MediumDayColumn(day: tomorrow, state: tomorrowState,
+                                        currentId: nil, hasProjection: entry.projection != nil,
+                                        isTomorrow: true)
+                            .frame(width: columnWidth, height: geometry.size.height, alignment: .topLeading)
+                    } else if let today, !today.courses.isEmpty {
+                        MediumSplitCourses(courses: today.courses, currentId: state.1?.id)
+                            .frame(width: geometry.size.width, height: geometry.size.height, alignment: .topLeading)
+                    } else {
+                        EmptyDay(state: state.0, day: today, hasProjection: entry.projection != nil)
+                    }
+                }
+            }
+            WidgetFooter(projection: entry.projection)
+        }
+    }
+
+    private var tomorrowState: String {
+        switch tomorrow?.kind {
+        case "holiday": return "holiday"
+        case "unknown", nil: return "needsRefresh"
+        default: return "noClasses"
+        }
+    }
+}
+
+private struct MediumDateHeading: View {
+    let day: Projection.Day?
+    let fallbackDate: Date
+
+    var body: some View {
+        Text("\(shortWeekText(day))  \(weekdayText(day, fallbackDate: fallbackDate))  \(shortDateText(day, fallbackDate: fallbackDate))")
+            .font(.system(size: 11, weight: .semibold))
+            .foregroundColor(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
 private struct MediumDayColumn: View {
     let day: Projection.Day?
-    let state: (String, Projection.Course?)
+    let state: String
+    let currentId: String?
     let hasProjection: Bool
+    var isTomorrow = false
 
     var body: some View {
         Group {
             if let day, !day.courses.isEmpty {
                 if #available(iOSApplicationExtension 16.0, *) {
                     ViewThatFits(in: .vertical) {
-                        CourseRows(courses: day.courses, currentId: state.1?.id,
-                                   count: 3, compact: true)
-                        CourseRows(courses: day.courses, currentId: state.1?.id,
-                                   count: 2, compact: true)
-                        CourseRows(courses: day.courses, currentId: state.1?.id,
-                                   count: 1, compact: true)
+                        CourseRows(courses: day.courses, currentId: currentId,
+                                   count: 2, compact: true, small: true)
+                        CourseRows(courses: day.courses, currentId: currentId,
+                                   count: 1, compact: true, small: true)
                     }
                 } else {
-                    CourseRows(courses: day.courses, currentId: state.1?.id,
-                               count: 1, compact: true)
+                    CourseRows(courses: day.courses, currentId: currentId,
+                               count: 1, compact: true, small: true)
                 }
+            } else if isTomorrow && state == "noClasses" {
+                Text(Locale.current.languageCode == "zh" ? "明天暂无课程安排" : "No classes tomorrow")
+                    .font(.system(size: 11, weight: .medium))
             } else {
-                EmptyDay(state: state.0, day: day, hasProjection: hasProjection)
+                EmptyDay(state: state, day: day, hasProjection: hasProjection)
             }
         }
         .frame(maxWidth: .infinity, alignment: .topLeading)
+    }
+}
+
+private struct MediumSplitCourses: View {
+    let courses: [Projection.Course]
+    let currentId: String?
+
+    var body: some View {
+        if #available(iOSApplicationExtension 16.0, *) {
+            ViewThatFits(in: .vertical) {
+                columns(visibleCount: 4)
+                columns(visibleCount: 3)
+                columns(visibleCount: 2)
+                columns(visibleCount: 1)
+            }
+        } else {
+            columns(visibleCount: 2)
+        }
+    }
+
+    private func columns(visibleCount: Int) -> some View {
+        let firstCount = visibleCount >= 3 ? 2 : 1
+        return HStack(alignment: .top, spacing: 10) {
+            CourseRows(courses: Array(courses.prefix(firstCount)), currentId: currentId,
+                       count: firstCount, compact: true, small: true)
+                .frame(maxWidth: .infinity, alignment: .topLeading)
+            CourseRows(courses: Array(courses.dropFirst(firstCount)), currentId: currentId,
+                       count: visibleCount - firstCount, compact: true, small: true)
+                .frame(maxWidth: .infinity, alignment: .topLeading)
+        }
     }
 }
 
@@ -763,12 +844,14 @@ private struct CourseRows: View {
     let currentId: String?
     let count: Int
     var compact = false
+    var small = false
 
     var body: some View {
         let visible = Array(courses.prefix(count))
-        VStack(alignment: .leading, spacing: compact ? 3 : 6) {
+        VStack(alignment: .leading, spacing: compact ? (small ? 2 : 3) : 6) {
             ForEach(visible) { course in
-                CourseRow(course: course, current: currentId == course.id, compact: compact)
+                CourseRow(course: course, current: currentId == course.id,
+                          compact: compact, small: small)
             }
             Remaining(count: courses.count - visible.count)
         }
@@ -826,7 +909,7 @@ private struct CourseRow: View {
         .fixedSize(horizontal: false, vertical: true)
         .padding(.leading, 12)
         .padding(.trailing, 6)
-        .padding(.vertical, compact ? 2 : 5)
+        .padding(.vertical, compact ? (small ? 1 : 2) : 5)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(RoundedRectangle(cornerRadius: 9).fill(stripe.opacity(colorScheme == .dark ? 0.18 : 0.07)))
         .overlay(

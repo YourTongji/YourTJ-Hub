@@ -180,9 +180,34 @@ void main() {
     expect(small, contains('prefix(3)'));
     expect(small, contains('CompactCoursePreview(course: courses[index])'));
     expect(small, contains('CourseRow(course: courses[index]'));
-    expect(source, contains('count: 3, compact: true'));
     expect(source, contains('"教学北楼": "北"'));
   });
+
+  test(
+    'iOS medium widget uses compact date headings and adapts its two columns',
+    () {
+      final source = read('ios/ScheduleWidgets/ScheduleWidgets.swift');
+      expect(source, contains('private struct MediumSchedule'));
+      final medium = source.substring(
+        source.indexOf('private struct MediumSchedule'),
+        source.indexOf('private struct DayHeading'),
+      );
+
+      expect(medium, contains('shortWeekText(day)'));
+      expect(medium, contains('weekdayText(day, fallbackDate: fallbackDate)'));
+      expect(
+        medium,
+        contains('shortDateText(day, fallbackDate: fallbackDate)'),
+      );
+      expect(source, contains('return day.courses.count <= 2'));
+      expect(medium, contains('MediumSplitCourses'));
+      expect(medium, contains('columns(visibleCount: 4)'));
+      expect(medium, contains('columns(visibleCount: 3)'));
+      expect(medium, contains('columns(visibleCount: 2)'));
+      expect(medium, contains('tomorrow'));
+      expect(source, isNot(contains('.frame(width: 68')));
+    },
+  );
 
   test('NextClass selects future days and has a dense wide compact layout', () {
     final source = read(
