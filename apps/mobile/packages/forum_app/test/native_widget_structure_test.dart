@@ -103,9 +103,11 @@ void main() {
     );
     expect(nextClass, isNot(contains('Capsule()')));
     expect(nextClass, isNot(contains('distanceText(')));
-    expect(nextClass, contains('course.campus'));
-    expect(nextClass, contains('course.room'));
-    expect(nextClass, contains('course.teacher'));
+    final courseRow = ios.substring(ios.indexOf('private struct CourseRow'));
+    expect(courseRow, isNot(contains('course.campus')));
+    expect(courseRow, contains('compactRoom(course.room)'));
+    expect(courseRow, contains('course.room'));
+    expect(courseRow, contains('course.teacher'));
     expect(ios, isNot(contains('width: current ?')));
   });
 
@@ -158,6 +160,28 @@ void main() {
     expect(cssColors.length, 16);
     expect(nativeColors('lightCourseStripeRGB'), cssColors.sublist(0, 8));
     expect(nativeColors('darkCourseStripeRGB'), cssColors.sublist(8));
+  });
+
+  test('iOS widget text stays at least 11 points', () {
+    final source = read('ios/ScheduleWidgets/ScheduleWidgets.swift');
+    final sizes = RegExp(r'\.font\(\.system\(size: (\d+)')
+        .allMatches(source)
+        .map((match) => int.parse(match.group(1)!));
+    expect(sizes, isNotEmpty);
+    expect(sizes.every((size) => size >= 11), isTrue);
+  });
+
+  test('iOS compact widgets retain two full courses and one preview', () {
+    final source = read('ios/ScheduleWidgets/ScheduleWidgets.swift');
+    final small = source.substring(
+      source.indexOf('private struct NextClassView'),
+      source.indexOf('private struct TodayScheduleView'),
+    );
+    expect(small, contains('prefix(3)'));
+    expect(small, contains('CompactCoursePreview(course: courses[index])'));
+    expect(small, contains('CourseRow(course: courses[index]'));
+    expect(source, contains('count: 3, compact: true'));
+    expect(source, contains('"教学北楼": "北"'));
   });
 
   test('NextClass selects future days and has a dense wide compact layout', () {
@@ -237,7 +261,7 @@ void main() {
     // The iOS home_widget plugin only forwards links carrying this marker.
     expect(source, contains('yourtj://campus/today?homeWidget=true'));
     expect(source, contains('&homeWidget=true'));
-    expect(source, contains('Divider()'));
+    expect(source, contains('HStack(alignment: .top, spacing: 12)'));
     expect(source, isNot(contains('.teal')));
     expect(source, isNot(contains('.indigo')));
     for (final unsupportedApi in [

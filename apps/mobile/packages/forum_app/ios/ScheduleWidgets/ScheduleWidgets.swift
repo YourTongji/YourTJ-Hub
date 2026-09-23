@@ -339,6 +339,17 @@ private func courseTime(_ course: Projection.Course) -> String {
     return "\(Projection.clock.string(from: course.startAt))–\(Projection.clock.string(from: course.endAt))"
 }
 
+private func compactRoom(_ room: String) -> String {
+    let aliases = [
+        "教学北楼": "北", "教学南楼": "南", "教学东楼": "东",
+        "教学西楼": "西", "教学中楼": "中", "教学楼": "教",
+    ]
+    for (prefix, short) in aliases where room.hasPrefix(prefix) {
+        return short + room.dropFirst(prefix.count).replacingOccurrences(of: " ", with: "")
+    }
+    return room.replacingOccurrences(of: " ", with: "")
+}
+
 private func scheduleAccessibilityText(
     state: String,
     today: Projection.Day?,
@@ -392,18 +403,35 @@ private func dayHeaderText(_ day: Projection.Day) -> String {
     ].compactMap { $0 }.joined(separator: " · ")
 }
 
-private func compactDayText(_ day: Projection.Day?, fallbackDate: Date) -> String {
-    let zh = Locale.current.languageCode == "zh"
-    let date = day.flatMap { Projection.schoolDate.date(from: $0.date) } ?? fallbackDate
+private func dayDate(_ day: Projection.Day?, fallbackDate: Date) -> Date {
+    day.flatMap { Projection.schoolDate.date(from: $0.date) } ?? fallbackDate
+}
+
+private func shortDateText(_ day: Projection.Day?, fallbackDate: Date) -> String {
     let formatter = DateFormatter()
-    formatter.locale = zh ? Locale(identifier: "zh_CN") : Locale.current
+    formatter.locale = Locale(identifier: "en_US_POSIX")
+    formatter.timeZone = TimeZone(identifier: "Asia/Shanghai")
+    formatter.dateFormat = "M/d"
+    return formatter.string(from: dayDate(day, fallbackDate: fallbackDate))
+}
+
+private func weekdayText(_ day: Projection.Day?, fallbackDate: Date) -> String {
+    let formatter = DateFormatter()
+    formatter.locale = Locale.current.languageCode == "zh" ? Locale(identifier: "zh_CN") : Locale.current
     formatter.timeZone = TimeZone(identifier: "Asia/Shanghai")
     formatter.dateFormat = "EEE"
-    let weekday = formatter.string(from: date)
-    formatter.dateFormat = zh ? "M/d" : "MMM d"
-    let shortDate = formatter.string(from: date)
-    return [day?.week.map { zh ? "第\($0)周" : "Week \($0)" }, weekday, shortDate]
-        .compactMap { $0 }.joined(separator: " · ")
+    return formatter.string(from: dayDate(day, fallbackDate: fallbackDate))
+}
+
+private func weekText(_ day: Projection.Day?) -> String {
+    let zh = Locale.current.languageCode == "zh"
+    return day?.week.map { zh ? "第\($0)周" : "Week \($0)" }
+        ?? (zh ? "课表待更新" : "Update needed")
+}
+
+private func shortWeekText(_ day: Projection.Day?) -> String {
+    guard let week = day?.week else { return Locale.current.languageCode == "zh" ? "待更新" : "Update" }
+    return Locale.current.languageCode == "zh" ? "\(week)周" : "W\(week)"
 }
 
 private func lastUpdatedText(_ date: Date) -> String {
@@ -413,6 +441,14 @@ private func lastUpdatedText(_ date: Date) -> String {
     formatter.timeZone = TimeZone(identifier: "Asia/Shanghai")
     formatter.dateFormat = zh ? "M/d HH:mm" : "MMM d HH:mm"
     return "\(zh ? "最后更新于" : "Updated") \(formatter.string(from: date))"
+}
+
+private func compactUpdatedText(_ date: Date) -> String {
+    let formatter = DateFormatter()
+    formatter.locale = Locale(identifier: "en_US_POSIX")
+    formatter.timeZone = TimeZone(identifier: "Asia/Shanghai")
+    formatter.dateFormat = "M/d HH:mm"
+    return "\(Locale.current.languageCode == "zh" ? "更新于" : "Updated")\n\(formatter.string(from: date))"
 }
 
 // sRGB mirrors resource/src/styles/tokens.css --gf-color-course-1...8.
@@ -438,67 +474,57 @@ private func courseStripeColor(_ slot: Int, scheme: ColorScheme) -> Color {
 
 private struct WidgetFooter: View {
     let projection: Projection?
+    var compact = false
 
     var body: some View {
         if let projection {
-            Text(lastUpdatedText(projection.generatedAt))
-                .font(.system(size: 9))
+            Text(compact ? compactUpdatedText(projection.generatedAt) : lastUpdatedText(projection.generatedAt))
+                .font(.system(size: 11))
                 .foregroundColor(.secondary)
                 .lineLimit(2)
-                .minimumScaleFactor(0.85)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 }
 
 private struct NextClassView: View {
-    @Environment(\.colorScheme) private var colorScheme
     let entry: ScheduleEntry
 
     var body: some View {
         let state = entry.projection?.nextClass(at: entry.date) ?? (entry.emptyState, nil, nil)
         let day = state.2 ?? entry.projection?.day(at: entry.date)
+        let courses: [Projection.Course] = {
+            guard let day, let first = state.1,
+                  let index = day.courses.firstIndex(where: { $0.id == first.id }) else { return [] }
+            let start = min(index, max(0, day.courses.count - 3))
+            return Array(day.courses.dropFirst(start).prefix(3))
+        }()
+        let previewIndex = courses.count == 3 && courses[2].id == state.1?.id ? 0 : 2
         let accessibility = [
-            title(state.0), day.map(dayHeaderText), state.1?.name,
-            state.1.map { courseTime($0) }, state.1?.campus,
-            state.1?.room, state.1?.teacher,
+            title(state.0), day.map(dayHeaderText),
+            courses.map { [$0.name, compactRoom($0.room), $0.teacher, courseTime($0)]
+                .filter { !$0.isEmpty }.joined(separator: "，") }.joined(separator: "，"),
             entry.projection.map { lastUpdatedText($0.generatedAt) },
         ].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: "，")
-        VStack(alignment: .leading, spacing: 3) {
+        VStack(alignment: .leading, spacing: 2) {
             HStack(alignment: .top, spacing: 4) {
-                Text(compactDayText(day, fallbackDate: entry.date))
-                    .font(.system(size: 9, weight: .medium))
+                Text("\(shortWeekText(day)) \(weekdayText(day, fallbackDate: entry.date)) \(shortDateText(day, fallbackDate: entry.date))")
+                    .font(.system(size: 11, weight: .medium))
                     .foregroundColor(.secondary)
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.85)
+                    .fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 0)
                 WidgetBrandMark()
             }
-            if let course = state.1 {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(course.name)
-                        .font(.system(size: 14, weight: .semibold))
-                        .lineLimit(2)
-                        .minimumScaleFactor(0.85)
-                    let place = [course.campus, course.room].filter { !$0.isEmpty }.joined(separator: " · ")
-                    if !place.isEmpty {
-                        Text(place).font(.system(size: 10)).foregroundColor(.secondary)
-                            .lineLimit(2).minimumScaleFactor(0.85)
+            if !courses.isEmpty {
+                ForEach(courses.indices, id: \.self) { index in
+                    if index == previewIndex {
+                        CompactCoursePreview(course: courses[index])
+                    } else {
+                        CourseRow(course: courses[index],
+                                  current: courses[index].id == state.1?.id,
+                                  compact: true, small: true)
                     }
-                    if !course.teacher.isEmpty {
-                        Text(course.teacher).font(.system(size: 10)).foregroundColor(.secondary)
-                            .lineLimit(2).minimumScaleFactor(0.85)
-                    }
-                    Text(courseTime(course))
-                        .font(.system(size: 10).monospacedDigit()).foregroundColor(.secondary)
                 }
-                .padding(.leading, 8)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 2)
-                        .fill(courseStripeColor(course.colorSlot, scheme: colorScheme))
-                        .frame(width: 3).widgetAccent(),
-                    alignment: .leading
-                )
             } else {
                 Text(title(state.0)).font(.subheadline.weight(.semibold)).lineLimit(3)
                 if let support = support(state.0, hasProjection: entry.projection != nil) {
@@ -515,6 +541,32 @@ private struct NextClassView: View {
     }
 }
 
+private struct CompactCoursePreview: View {
+    @Environment(\.colorScheme) private var colorScheme
+    let course: Projection.Course
+
+    var body: some View {
+        let stripe = courseStripeColor(course.colorSlot, scheme: colorScheme)
+        return HStack(alignment: .firstTextBaseline, spacing: 4) {
+            Text(course.name).font(.system(size: 11, weight: .semibold)).foregroundColor(stripe)
+            Spacer(minLength: 0)
+            Text(Projection.clock.string(from: course.startAt))
+                .font(.system(size: 11).monospacedDigit())
+                .foregroundColor(.secondary)
+        }
+        .padding(.leading, 12)
+        .padding(.trailing, 4)
+        .padding(.vertical, 1)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 7).fill(stripe.opacity(colorScheme == .dark ? 0.18 : 0.07)))
+        .overlay(
+            RoundedRectangle(cornerRadius: 2).fill(stripe)
+                .frame(width: 3).padding(.leading, 4).widgetAccent(),
+            alignment: .leading
+        )
+    }
+}
+
 private struct TodayScheduleView: View {
     @Environment(\.widgetFamily) private var family
     let entry: ScheduleEntry
@@ -523,33 +575,52 @@ private struct TodayScheduleView: View {
         let projection = entry.projection
         let state = projection?.state(at: entry.date) ?? (entry.emptyState, nil)
         let today = projection?.day(at: entry.date)
-        VStack(alignment: .leading, spacing: 5) {
+        VStack(alignment: .leading, spacing: 7) {
             if family == .systemLarge {
                 HStack {
                     Spacer(minLength: 0)
                     WidgetBrandMark()
                 }
-                HStack(alignment: .top, spacing: 8) {
+                HStack(alignment: .top, spacing: 12) {
                     LargeDayColumn(title: "今天", day: today, fallbackDate: entry.date,
                                    currentId: state.1?.id, hasProjection: projection != nil)
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                    Divider().overlay(Color.secondary.opacity(0.22))
                     LargeDayColumn(title: "明天", day: tomorrow(in: projection),
                                    fallbackDate: nextDay(after: entry.date),
                                    currentId: nil, hasProjection: projection != nil)
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 }
             } else {
-                HStack(alignment: .top, spacing: 4) {
-                    Text(compactDayText(today, fallbackDate: entry.date))
-                        .font(.caption2.weight(.medium)).foregroundColor(.secondary)
-                    Spacer(minLength: 0)
-                    WidgetBrandMark()
+                GeometryReader { geometry in
+                    HStack(alignment: .top, spacing: 10) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(weekdayText(today, fallbackDate: entry.date))
+                                .font(.system(size: 11, weight: .semibold))
+                            Text(shortDateText(today, fallbackDate: entry.date))
+                                .font(.system(size: 19, weight: .bold, design: .rounded))
+                            Text(weekText(today)).font(.system(size: 11))
+                            Spacer(minLength: 0)
+                            WidgetFooter(projection: projection, compact: true)
+                        }
+                        .foregroundColor(.secondary)
+                        .frame(width: 68, height: geometry.size.height, alignment: .topLeading)
+                        VStack(alignment: .leading, spacing: 3) {
+                            HStack {
+                                Spacer(minLength: 0)
+                                WidgetBrandMark()
+                            }
+                            MediumDayColumn(day: today, state: state,
+                                            hasProjection: projection != nil)
+                                .frame(height: max(0, geometry.size.height - 19), alignment: .topLeading)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .topLeading)
+                    }
                 }
-                MediumDayColumn(day: today, state: state, hasProjection: projection != nil)
             }
-            Spacer(minLength: 0)
-            WidgetFooter(projection: projection)
+            if family == .systemLarge {
+                Spacer(minLength: 0)
+                WidgetFooter(projection: projection)
+            }
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(Text(scheduleAccessibilityText(
@@ -582,12 +653,43 @@ private struct MediumDayColumn: View {
     var body: some View {
         Group {
             if let day, !day.courses.isEmpty {
-                CourseRows(courses: day.courses, currentId: state.1?.id, count: 2)
+                if #available(iOSApplicationExtension 16.0, *) {
+                    ViewThatFits(in: .vertical) {
+                        CourseRows(courses: day.courses, currentId: state.1?.id,
+                                   count: 3, compact: true)
+                        CourseRows(courses: day.courses, currentId: state.1?.id,
+                                   count: 2, compact: true)
+                        CourseRows(courses: day.courses, currentId: state.1?.id,
+                                   count: 1, compact: true)
+                    }
+                } else {
+                    CourseRows(courses: day.courses, currentId: state.1?.id,
+                               count: 1, compact: true)
+                }
             } else {
                 EmptyDay(state: state.0, day: day, hasProjection: hasProjection)
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+    }
+}
+
+private struct DayHeading: View {
+    let day: Projection.Day?
+    let fallbackDate: Date
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(weekdayText(day, fallbackDate: fallbackDate))
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundColor(.secondary)
+            Text(shortDateText(day, fallbackDate: fallbackDate))
+                .font(.system(size: 21, weight: .bold, design: .rounded))
+            Text(weekText(day))
+                .font(.system(size: 11, weight: .medium))
+                .foregroundColor(.secondary)
+                .lineLimit(2)
+        }
     }
 }
 
@@ -599,12 +701,14 @@ private struct LargeDayColumn: View {
     let hasProjection: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(Locale.current.languageCode == "zh" ? title : (title == "今天" ? "Today" : "Tomorrow"))
-                .font(.subheadline.weight(.semibold))
-            Text(compactDayText(day, fallbackDate: fallbackDate))
-                .font(.system(size: 10, weight: .medium)).foregroundColor(.secondary)
-                .lineLimit(2)
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .top, spacing: 6) {
+                DayHeading(day: day, fallbackDate: fallbackDate)
+                Spacer(minLength: 0)
+                Text(Locale.current.languageCode == "zh" ? title : (title == "今天" ? "Today" : "Tomorrow"))
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(.secondary)
+            }
             if let day, !day.courses.isEmpty {
                 FittingCourses(courses: day.courses, currentId: currentId, preferredCount: 3)
             } else {
@@ -656,12 +760,13 @@ private struct CourseRows: View {
     let courses: [Projection.Course]
     let currentId: String?
     let count: Int
+    var compact = false
 
     var body: some View {
         let visible = Array(courses.prefix(count))
-        VStack(alignment: .leading, spacing: 5) {
+        VStack(alignment: .leading, spacing: compact ? 3 : 6) {
             ForEach(visible) { course in
-                CourseRow(course: course, current: currentId == course.id)
+                CourseRow(course: course, current: currentId == course.id, compact: compact)
             }
             Remaining(count: courses.count - visible.count)
         }
@@ -689,29 +794,43 @@ private struct CourseRow: View {
     @Environment(\.colorScheme) private var colorScheme
     let course: Projection.Course
     let current: Bool
+    var compact = false
+    var small = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 1) {
+        let stripe = courseStripeColor(course.colorSlot, scheme: colorScheme)
+        return VStack(alignment: .leading, spacing: compact ? 0 : 2) {
             Text(course.name)
-                .font(.system(size: 12, weight: current ? .semibold : .medium))
-                .foregroundColor(current ? .accentColor : .primary)
-                .lineLimit(2).minimumScaleFactor(0.85)
-            let place = [course.campus, course.room].filter { !$0.isEmpty }.joined(separator: " · ")
-            if !place.isEmpty {
-                Text(place).font(.system(size: 10)).foregroundColor(.secondary)
-                    .lineLimit(2).minimumScaleFactor(0.85)
+                .font(.system(size: small ? 11 : 13, weight: current ? .semibold : .medium))
+                .foregroundColor(stripe)
+                .lineLimit(2)
+            if compact {
+                let detail = [compactRoom(course.room), course.teacher, courseTime(course)]
+                    .filter { !$0.isEmpty }.joined(separator: " · ")
+                Text(detail).font(.system(size: 11).monospacedDigit())
+                    .foregroundColor(.secondary).lineLimit(2)
+            } else {
+                let room = compactRoom(course.room)
+                if !room.isEmpty {
+                    Text(room).font(.system(size: 11)).foregroundColor(.secondary)
+                        .lineLimit(2)
+                }
+                let time = courseTime(course)
+                let detail = [course.teacher, time].filter { !$0.isEmpty }.joined(separator: " · ")
+                Text(detail).font(.system(size: 11).monospacedDigit()).foregroundColor(.secondary)
+                    .lineLimit(2)
             }
-            let time = courseTime(course)
-            let detail = [course.teacher, time].filter { !$0.isEmpty }.joined(separator: " · ")
-            Text(detail).font(.system(size: 10).monospacedDigit()).foregroundColor(.secondary)
-                .lineLimit(2).minimumScaleFactor(0.85)
         }
         .fixedSize(horizontal: false, vertical: true)
-        .padding(.leading, 8)
+        .padding(.leading, 12)
+        .padding(.trailing, 6)
+        .padding(.vertical, compact ? 2 : 5)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 9).fill(stripe.opacity(colorScheme == .dark ? 0.18 : 0.07)))
         .overlay(
             RoundedRectangle(cornerRadius: 2)
-                .fill(courseStripeColor(course.colorSlot, scheme: colorScheme))
-                .frame(width: 3).widgetAccent(),
+                .fill(stripe)
+                .frame(width: 3).padding(.leading, 4).widgetAccent(),
             alignment: .leading
         )
     }
@@ -765,8 +884,8 @@ struct NextClassWidget: Widget {
     let kind = "NextClassWidget"
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: kind, provider: ScheduleProvider()) { NextClassView(entry: $0) }
-            .configurationDisplayName("下一节课")
-            .description("离线显示当前或下一节校园课程。")
+            .configurationDisplayName("近期课程")
+            .description("离线显示当前课程与相邻课程。")
             .supportedFamilies([.systemSmall])
     }
 }
