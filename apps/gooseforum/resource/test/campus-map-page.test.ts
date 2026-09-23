@@ -140,6 +140,7 @@ it('locates a confirmed timetable building using only the generic map feature id
   expect(page.text()).toContain('Your official Tongji timetable')
   expect(campusApi.dataset.mock.calls.map(([key]) => key).sort()).toEqual(['calendar', 'timetable', 'today'])
   await page.get('.atlas-mine__course').trigger('click')
+  await flushPromises()
   expect(page.get('.atlas-mine__selected').text()).toContain('四平路校区 · 北 · 115')
   expect(page.get('.atlas-mine__selected').text()).not.toContain('Building location could not be verified')
   expect(page.findComponent({ name: 'CampusCanvas' }).props('selected').id).toBe('way/183383474')
@@ -197,6 +198,7 @@ it('keeps an unconfirmed campus/building combination unpinned', async () => {
 
   const page = await openPage()
   await page.get('.atlas-mine__course').trigger('click')
+  await flushPromises()
   expect(page.get('.atlas-mine__selected').text()).toContain('Building location could not be verified')
   expect(page.findComponent({ name: 'CampusCanvas' }).props('selected')).toBeNull()
   expect(window.location.hash).toBe('')
@@ -285,12 +287,14 @@ it('clears the mapped feature when the course scope changes or private data clea
   }))
   const page = await openPage()
   await page.get('.atlas-mine__course').trigger('click')
+  await flushPromises()
   expect(window.location.hash).toBe('#place=way%2F183383474')
 
   await page.get('.atlas-mine__tabs button:nth-child(2)').trigger('click')
   expect(window.location.hash).toBe('')
   expect(page.findComponent({ name: 'CampusCanvas' }).props('selected')).toBeNull()
   await page.get('.atlas-mine__course').trigger('click')
+  await flushPromises()
   expect(window.location.hash).toBe('#place=way%2F183383474')
 
   window.dispatchEvent(new Event('pagehide'))

@@ -3,11 +3,17 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { CampusDataset, CampusEvent } from '@gooseforum/client'
 import { campusAPI } from '@/runtime/campus-api'
-import { officialLocationTarget, parseOfficialLocation } from '@/site/campus-map/official-location'
+import type { CampusMapTarget } from '@/site/campus-map/official-location'
+import { parseOfficialLocation } from '@/site/campus-map/official-location'
+import CampusMapSchedulePanel from './CampusMapSchedulePanel.vue'
 
-const props = defineProps<{ authenticated: boolean }>()
-const emit = defineEmits<{ select: [target: ReturnType<typeof officialLocationTarget> | null] }>()
+const props = defineProps<{
+  authenticated: boolean
+  resolveLocation: (campus: string, room: string) => Promise<CampusMapTarget | undefined>
+}>()
+const emit = defineEmits<{ select: [target: CampusMapTarget | null] }>()
 const { t } = useI18n()
+const view = ref<'mine' | 'schedule'>('mine')
 const state = ref<'loading' | 'login' | 'unbound' | 'reauthorize' | 'ready' | 'error'>('loading')
 const today = ref<CampusDataset | null>(null)
 const calendar = ref<CampusDataset | null>(null)
@@ -16,6 +22,8 @@ const scope = ref<'today' | 'week'>('today')
 const week = ref(1)
 const search = ref('')
 const selected = ref<CampusEvent | null>(null)
+const selectedLocationMapped = ref(false)
+const selectedLocationResolved = ref(false)
 let controller: AbortController | undefined
 let requestVersion = 0
 let clockTimer: number | undefined
@@ -45,15 +53,28 @@ function shanghaiDate() {
 }
 
 function displayLocation(campus: string, room: string) {
-  const parsed = parseOfficialLocation(room)
+  const parsed = parseOfficialLocation(room, campus)
   return [campus, parsed?.building, parsed?.room || (!parsed ? room : '') || t('campus.roomPending')]
     .filter(Boolean)
     .join(' · ')
 }
 
-function chooseCourse(course: CampusEvent) {
-  selected.value = selected.value === course ? null : course
-  emit('select', selected.value ? officialLocationTarget(course.campus, course.room) ?? null : null)
+async function chooseCourse(course: CampusEvent) {
+  if (selected.value === course) {
+    selected.value = null
+    selectedLocationMapped.value = false
+    selectedLocationResolved.value = false
+    emit('select', null)
+    return
+  }
+  selected.value = course
+  selectedLocationMapped.value = false
+  selectedLocationResolved.value = false
+  const target = await props.resolveLocation(course.campus, course.room)
+  if (selected.value !== course) return
+  selectedLocationMapped.value = Boolean(target)
+  selectedLocationResolved.value = true
+  emit('select', target ?? null)
 }
 
 function clearData() {
@@ -63,12 +84,16 @@ function clearData() {
   timetable.value = null
   if (selected.value) emit('select', null)
   selected.value = null
+  selectedLocationMapped.value = false
+  selectedLocationResolved.value = false
   search.value = ''
 }
 
 function changeScope(nextScope: 'today' | 'week') {
   scope.value = nextScope
   selected.value = null
+  selectedLocationMapped.value = false
+  selectedLocationResolved.value = false
   emit('select', null)
 }
 
@@ -206,9 +231,20 @@ onBeforeUnmount(() => {
 
 <template>
   <section class="atlas-mine" aria-labelledby="atlas-mine-title">
-    <p class="atlas-mine__eyebrow">{{ t('campusMap.mine.source') }}</p>
-    <h2 id="atlas-mine-title">{{ t('campusMap.mine.title') }}</h2>
+    <p class="atlas-mine__eyebrow">{{ t(view === 'mine' ? 'campusMap.mine.source' : 'campusMap.schedule.source') }}</p>
+    <div class="atlas-mine__views" role="group" :aria-label="t('campusMap.schedule.views')">
+      <button type="button" :aria-pressed="view === 'mine'" @click="view = 'mine'">{{ t('campusMap.mine.personalTab') }}</button>
+      <button type="button" :aria-pressed="view === 'schedule'" @click="view = 'schedule'">{{ t('campusMap.schedule.tab') }}</button>
+    </div>
+    <h2 id="atlas-mine-title">{{ t(view === 'mine' ? 'campusMap.mine.title' : 'campusMap.schedule.title') }}</h2>
 
+    <CampusMapSchedulePanel
+      v-if="view === 'schedule'"
+      :resolve-location="props.resolveLocation"
+      @select="emit('select', $event)"
+    />
+
+    <template v-else>
     <div v-if="state === 'loading'" class="atlas-mine__status" role="status">
       {{ t('campusMap.mine.loading') }}
     </div>
@@ -266,8 +302,9 @@ onBeforeUnmount(() => {
       <div v-if="selected" class="atlas-mine__selected" role="status">
         <strong>{{ selected.name }}</strong>
         <p>{{ displayLocation(selected.campus, selected.room) }}</p>
-        <p v-if="!officialLocationTarget(selected.campus, selected.room)" class="atlas-mine__unverified">{{ t('campusMap.mine.locationUnverified') }}</p>
+        <p v-if="selectedLocationResolved && !selectedLocationMapped" class="atlas-mine__unverified">{{ t('campusMap.mine.locationUnverified') }}</p>
       </div>
+    </template>
     </template>
   </section>
 </template>
@@ -275,6 +312,9 @@ onBeforeUnmount(() => {
 <style scoped>
 .atlas-mine { display: flex; min-height: 100%; flex-direction: column; gap: 12px; padding: 20px; color: #24342f; }
 .atlas-mine h2 { margin: 0; font-size: 21px; font-weight: 650; }
+.atlas-mine__views { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; padding: 4px; border-radius: 10px; background: #f1f2e9; }
+.atlas-mine__views button { min-height: 34px; border: 0; border-radius: 7px; background: transparent; color: #68735f; font: inherit; font-size: 12px; cursor: pointer; }
+.atlas-mine__views button[aria-pressed='true'] { background: #fffef8; color: #344c30; box-shadow: 0 1px 4px #52604418; }
 .atlas-mine__eyebrow { margin: 0; color: #5d7469; font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
 .atlas-mine__note, .atlas-mine__status { margin: 0; color: #62746d; font-size: 13px; line-height: 1.55; }
 .atlas-mine__status { display: grid; gap: 10px; }

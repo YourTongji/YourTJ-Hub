@@ -11,6 +11,11 @@ import { useI18n } from 'vue-i18n'
 import type { LayoutPayload } from '@gooseforum/client'
 import CampusMapMinePanel from '@/site/components/CampusMapMinePanel.vue'
 import {
+  officialCampusId,
+  officialLocationTarget,
+  type CampusMapTarget,
+} from '@/site/campus-map/official-location'
+import {
   ArrowLeft,
   ArrowUpRight,
   BookOpen,
@@ -185,21 +190,31 @@ function select(id: string, fromTimetable = false) {
   url.hash = `place=${encodeURIComponent(id)}`
   window.history.replaceState(window.history.state, '', url)
 }
-async function selectMinePlace(target: { campusId: 'siping' | 'jiading'; featureId: string } | null | undefined) {
+async function resolveMineLocation(campusName: string, room: string): Promise<CampusMapTarget | undefined> {
+  const campusId = officialCampusId(campusName)
+  if (!campusId) return undefined
+  let pending: Promise<void> | undefined
+  if (campus.value.id !== campusId) pending = switchCampus(campusId, false, false)
+  else {
+    closePlace()
+    if (!data.value) pending = mapLoad?.campusId === campusId ? mapLoad.promise : load()
+  }
+  const version = mineSelectionVersion
+  await pending
+  if (version !== mineSelectionVersion || campus.value.id !== campusId) return undefined
+  return officialLocationTarget(campusName, room, data.value)
+}
+function selectMinePlace(target: CampusMapTarget | null | undefined) {
   const version = ++mineSelectionVersion
   if (!target) {
     closePlace()
     return
   }
-  if (campus.value.id !== target.campusId) await switchCampus(target.campusId, false, false)
-  else if (!data.value) {
-    const pending = mapLoad?.campusId === target.campusId ? mapLoad.promise : null
-    await (pending ?? load())
-  }
   if (version !== mineSelectionVersion || campus.value.id !== target.campusId) return
   select(target.featureId, true)
 }
 function closePlace() {
+  mineSelectionVersion++
   selected.value = null
   selectedFromTimetable.value = false
   const url = new URL(window.location.href)
@@ -482,6 +497,7 @@ onBeforeUnmount(() => {
         <CampusMapMinePanel
           v-else-if="showTimetable"
           :authenticated="page.layout?.viewer.isAuthenticated ?? false"
+          :resolve-location="resolveMineLocation"
           @select="selectMinePlace"
         />
         <template v-else>
