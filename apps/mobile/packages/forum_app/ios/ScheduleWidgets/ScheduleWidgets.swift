@@ -450,7 +450,9 @@ private func dayHeaderText(_ day: Projection.Day) -> String {
 }
 
 private let courseColors: [Color] = [
-    .red, .orange, .yellow, .green, .teal, .blue, .indigo, .pink,
+    .red, .orange, .yellow, .green,
+    Color(red: 0.149, green: 0.486, blue: 0.471), .blue,
+    Color(red: 0.447, green: 0.337, blue: 0.710), .pink,
 ]
 
 private struct NextClassView: View {

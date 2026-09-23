@@ -173,6 +173,8 @@ void main() {
     expect(source, isNot(contains('import Network')));
     expect(source, contains('func nextClass(at date: Date)'));
     expect(source, contains('Divider()'));
+    expect(source, isNot(contains('.teal')));
+    expect(source, isNot(contains('.indigo')));
     expect(source, contains('.frame(width: 4, height: 48)'));
     expect(
       '.frame(maxWidth: .infinity'.allMatches(source).length,
