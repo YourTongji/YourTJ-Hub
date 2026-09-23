@@ -76,3 +76,22 @@ it('limits the result list to the selected building', async () => {
   expect(wrapper.text()).toContain('课程模块最近同步：2026-09-23')
   wrapper.unmount()
 })
+
+it('converts a selected date to the course module week and weekday', async () => {
+  api.calendars.mockResolvedValue([{ calendarId: 122, calendarName: '2026-2027学年第一学期', startDate: '2026-09-07', endDate: '2027-01-31' }])
+  api.latest.mockResolvedValue({ latestSyncAt: '2026-09-23' })
+  api.byTime.mockResolvedValue({ courses: [] })
+  const wrapper = mount(CampusMapSchedulePanel, {
+    props: { resolveLocation: vi.fn() },
+    global: { plugins: [createI18n({ legacy: false, locale: 'zh', messages: { zh } })] },
+  })
+  await flushPromises()
+  await wrapper.findAll('select')[1]!.setValue('true')
+  await wrapper.get('input[type="date"]').setValue('2026-09-14')
+  await wrapper.get('.atlas-schedule__submit').trigger('click')
+  await flushPromises()
+
+  expect(api.byTime).toHaveBeenCalledWith(122, 1, 1, true)
+  expect(wrapper.text()).toContain('课程日期：2026-09-14')
+  wrapper.unmount()
+})

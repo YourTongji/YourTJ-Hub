@@ -33,6 +33,7 @@ const latestSyncDate = ref<string | null>(null)
 const day = ref(1)
 const section = ref(1)
 const week = ref(1)
+const dateMode = ref(false)
 const search = ref('')
 const state = ref<'loading-calendar' | 'ready' | 'loading' | 'error'>('loading-calendar')
 const entries = ref<ScheduleEntry[]>([])
@@ -57,6 +58,26 @@ const periods = computed(() => {
   ]
 })
 const queryDate = ref(new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai' }).format(new Date()))
+const selectedCalendar = computed(() => calendars.value.find((calendar) => calendar.calendarId === calendarId.value))
+const dateSelection = computed(() => {
+  const startDate = selectedCalendar.value?.startDate
+  if (!dateMode.value || !startDate) return undefined
+  const start = Date.parse(`${startDate}T00:00:00Z`)
+  const target = Date.parse(`${queryDate.value}T00:00:00Z`)
+  const offset = Math.floor((target - start) / 86_400_000)
+  const targetWeek = Math.floor(offset / 7) + 1
+  const targetDay = new Date(target).getUTCDay() || 7
+  if (!Number.isFinite(start) || !Number.isFinite(target) || offset < 0 || targetWeek > 20 ||
+    (selectedCalendar.value?.endDate && queryDate.value > selectedCalendar.value.endDate)) return undefined
+  return { day: targetDay, week: targetWeek }
+})
+const displayedScheduleDate = computed(() => {
+  if (dateMode.value) return queryDate.value
+  const startDate = selectedCalendar.value?.startDate
+  if (!startDate) return null
+  const target = Date.parse(`${startDate}T00:00:00Z`) + ((week.value - 1) * 7 + day.value - 1) * 86_400_000
+  return new Date(target).toISOString().slice(0, 10)
+})
 
 async function loadCalendars() {
   state.value = 'loading-calendar'
@@ -71,7 +92,8 @@ async function loadCalendars() {
 }
 
 async function searchSchedule() {
-  if (!calendarId.value || !Number.isInteger(week.value) || week.value < 1 || week.value > 16) return
+  const selection = dateMode.value ? dateSelection.value : { day: day.value, week: week.value }
+  if (!calendarId.value || !selection || !Number.isInteger(selection.week) || selection.week < 1 || selection.week > 20) return
   const version = ++requestVersion
   selected.value = null
   locationMapped.value = false
@@ -79,7 +101,7 @@ async function searchSchedule() {
   emit('select', null)
   state.value = 'loading'
   try {
-    const result = await getPkCoursesByTime(calendarId.value, day.value, section.value, true)
+    const result = await getPkCoursesByTime(calendarId.value, selection.day, section.value, true)
     const courses = result.courses
     const codes = [...new Set(courses.map((course) => course.courseCode).filter(Boolean))]
     const detailMap: Record<string, Awaited<ReturnType<typeof getPkCourseDetails>>[string]> = {}
@@ -93,8 +115,8 @@ async function searchSchedule() {
     const matched = courses.flatMap((course: PkCourse) =>
       (detailMap[course.courseCode] ?? []).flatMap((detail) =>
         (detail.arrangementInfo ?? [])
-          .filter((arrangement) => arrangement.occupyDay === day.value &&
-            arrangement.occupyWeek?.includes(week.value) &&
+          .filter((arrangement) => arrangement.occupyDay === selection.day &&
+            arrangement.occupyWeek?.includes(selection.week) &&
             arrangement.occupyTime?.some((period) => slots.includes(period)))
           .map((arrangement, index) => ({
             key: `${course.courseCode}:${detail.teachingClassId}:${arrangement.arrangementText}:${index}`,
@@ -115,7 +137,6 @@ async function searchSchedule() {
           return target?.campusId === building.campusId && target.featureId === building.featureId
         })
       : matched
-    queryDate.value = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai' }).format(new Date())
     state.value = 'ready'
   } catch {
     if (version === requestVersion) state.value = 'error'
@@ -158,25 +179,38 @@ onBeforeUnmount(() => {
         <option v-for="calendar in calendars" :key="calendar.calendarId" :value="calendar.calendarId">{{ calendar.calendarName }}</option>
       </select>
     </label>
+    <label>
+      <span>{{ t('campusMap.schedule.queryMode') }}</span>
+      <select v-model="dateMode">
+        <option :value="false">{{ t('campusMap.schedule.weekMode') }}</option>
+        <option :value="true">{{ t('campusMap.schedule.dateMode') }}</option>
+      </select>
+    </label>
     <div class="atlas-schedule__filters">
-      <label>
+      <label v-if="!dateMode">
         <span>{{ t('campusMap.schedule.day') }}</span>
         <select v-model.number="day">
-          <option v-for="(key, index) in ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']" :key="key" :value="index + 1">{{ t(`campus.weekdays.${key}`) }}</option>
+          <option v-for="(key, index) in ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']" :key="key" :value="index + 1">{{ t(`common.weekdays.${key}`) }}</option>
         </select>
       </label>
-      <label>
+      <label v-if="!dateMode">
         <span>{{ t('campusMap.schedule.period') }}</span>
         <select v-model.number="section">
           <option v-for="(period, index) in periods" :key="index" :value="index + 1">{{ t('campusMap.schedule.periodRange', { start: period[0], end: period[1] }) }}</option>
         </select>
       </label>
-      <label>
+      <label v-if="dateMode">
+        <span>{{ t('campusMap.schedule.date') }}</span>
+        <input v-model="queryDate" type="date" :min="selectedCalendar?.startDate ?? undefined" :max="selectedCalendar?.endDate ?? undefined" />
+      </label>
+      <label v-else>
         <span>{{ t('campusMap.schedule.week') }}</span>
-        <input v-model.number="week" type="number" min="1" max="16" inputmode="numeric" />
+        <input v-model.number="week" type="number" min="1" max="20" inputmode="numeric" />
       </label>
     </div>
-    <button class="atlas-schedule__submit" type="button" :disabled="state === 'loading' || state === 'loading-calendar' || !calendarId" @click="searchSchedule">
+    <p v-if="dateMode && !selectedCalendar?.startDate" class="atlas-schedule__status" role="status">{{ t('campusMap.schedule.dateNeedsStart') }}</p>
+    <p v-else-if="dateMode && !dateSelection" class="atlas-schedule__status" role="status">{{ t('campusMap.schedule.dateOutOfRange') }}</p>
+    <button class="atlas-schedule__submit" type="button" :disabled="state === 'loading' || state === 'loading-calendar' || !calendarId || (dateMode && !dateSelection)" @click="searchSchedule">
       {{ t('campusMap.schedule.search') }}
     </button>
     <label class="atlas-schedule__search">
@@ -194,7 +228,7 @@ onBeforeUnmount(() => {
       </button>
     </div>
     <p v-if="selected && locationResolved && !locationMapped" class="atlas-schedule__unmapped" role="status">{{ t('campusMap.mine.locationUnverified') }}</p>
-    <p class="atlas-schedule__provenance">{{ t('campusMap.schedule.queryDate', { date: queryDate }) }}<br>{{ t('campusMap.schedule.source') }}<template v-if="latestSyncDate"> · {{ t('campusMap.schedule.lastSynced', { date: latestSyncDate }) }}</template><template v-else> · {{ t('campusMap.schedule.syncUnknown') }}</template></p>
+    <p class="atlas-schedule__provenance"><template v-if="displayedScheduleDate">{{ t('campusMap.schedule.scheduleDate', { date: displayedScheduleDate }) }}</template><template v-else>{{ t('campusMap.schedule.weekAndDay', { week, day: t(`common.weekdays.${['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'][day - 1]}`) }) }}</template><br>{{ t('campusMap.schedule.source') }}<template v-if="latestSyncDate"> · {{ t('campusMap.schedule.lastSynced', { date: latestSyncDate }) }}</template><template v-else> · {{ t('campusMap.schedule.syncUnknown') }}</template></p>
   </div>
 </template>
 
