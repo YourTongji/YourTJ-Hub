@@ -334,6 +334,8 @@ export function createScheduleSyncController(deps: { transport: PkSyncTransport 
     persistenceFailed = false
     mergeBlocked.value = false
     placeholder = null
+    retryDelay = PK_SYNC_DEBOUNCE_MS
+    lastRead = 0
   }
   function onLocalChange() {
     if (!enabled) return

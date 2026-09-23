@@ -163,6 +163,8 @@ class ScheduleSyncController {
     needsAdoption.value = false;
     _placeholderID = null;
     _placeholderKey = null;
+    _retrySeconds = 3;
+    _lastRead = null;
     final cache = store.readPlanSyncCache(owner);
     _bases = {};
     drafts.value = {};

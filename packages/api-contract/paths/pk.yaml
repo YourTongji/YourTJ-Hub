@@ -667,6 +667,8 @@ getPlans:
     description: |
       After first access to /api/pk/plan-items, this legacy operation returns 410.
       Existing snapshots migrate without deleting any plan, including recovery copies.
+      An erased (closed) account also reads as an empty snapshot with 200 and null
+      data; its writes and deletes still return 410.
       Login-required read of the caller's PK scheduler plan snapshot (issue #537).
       Returns the four persisted fields (plans/activePlanId/majorSelected/weekView)
       plus the server-side authoritative updatedAt clock (RFC3339Nano UTC) that
