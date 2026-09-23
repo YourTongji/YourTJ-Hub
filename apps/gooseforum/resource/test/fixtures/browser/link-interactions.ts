@@ -22,7 +22,8 @@ Object.assign(window, { linkFixture: {
   getValue: () => editor.value?.getValue(),
   model: () => markdown.value,
   setValue: (value: string) => { markdown.value = value },
-  hintSettled: () => editor.value?.hintSettled() ?? true,
+  // 编辑器未挂载时必须 fail closed：回退 true 会让等待静默通过。
+  hintSettled: () => editor.value?.hintSettled() ?? false,
   pending: () => externalLinkGuardState.pending,
   cancel: cancelExternalLinkGuard,
 } })
