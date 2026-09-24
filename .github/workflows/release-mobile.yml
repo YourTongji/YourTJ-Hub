@@ -181,6 +181,7 @@ jobs:
         env:
           IOS_DISTRIBUTION_P12_BASE64: ${{ secrets.IOS_DISTRIBUTION_P12_BASE64 }}
           IOS_PROFILE_BASE64: ${{ secrets.IOS_PROFILE_BASE64 }}
+          IOS_WIDGET_PROFILE_BASE64: ${{ secrets.IOS_WIDGET_PROFILE_BASE64 }}
           ASC_PRIVATE_KEY_BASE64: ${{ secrets.ASC_PRIVATE_KEY_BASE64 }}
         run: |
           python3 - <<'PY'
@@ -189,11 +190,11 @@ jobs:
           os.umask(0o077)
           root = Path(os.environ['RUNNER_TEMP']) / 'yourtj-ios-secrets'
           root.mkdir()
-          for key, name in {'IOS_DISTRIBUTION_P12_BASE64': 'distribution.p12', 'IOS_PROFILE_BASE64': 'profile.mobileprovision', 'ASC_PRIVATE_KEY_BASE64': 'AuthKey.p8'}.items():
+          for key, name in {'IOS_DISTRIBUTION_P12_BASE64': 'distribution.p12', 'IOS_PROFILE_BASE64': 'profile.mobileprovision', 'IOS_WIDGET_PROFILE_BASE64': 'widget.mobileprovision', 'ASC_PRIVATE_KEY_BASE64': 'AuthKey.p8'}.items():
               if not os.environ[key]: raise SystemExit('Missing secret ' + key)
               (root / name).write_bytes(base64.b64decode(os.environ[key], validate=True))
           with open(os.environ['GITHUB_ENV'], 'a') as output:
-              output.write(f'IOS_P12_PATH={root / "distribution.p12"}\nIOS_PROFILE_PATH={root / "profile.mobileprovision"}\nASC_PRIVATE_KEY_PATH={root / "AuthKey.p8"}\n')
+              output.write(f'IOS_P12_PATH={root / "distribution.p12"}\nIOS_PROFILE_PATH={root / "profile.mobileprovision"}\nIOS_WIDGET_PROFILE_PATH={root / "widget.mobileprovision"}\nASC_PRIVATE_KEY_PATH={root / "AuthKey.p8"}\n')
           PY
       - name: Install only ASC authentication for recovery
         if: inputs.recover_ios

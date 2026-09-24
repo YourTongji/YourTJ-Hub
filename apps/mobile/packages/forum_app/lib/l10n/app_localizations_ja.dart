@@ -2430,4 +2430,34 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get badgeDisplayDown => '下へ';
+
+  @override
+  String get scheduleWidgetSettingsTitle => 'ホーム画面の時間割';
+
+  @override
+  String get scheduleWidgetPrivacyDescription =>
+      'ウィジェットには、この端末に保存された時間割の授業名、時刻、教員、場所が表示されます。時間割を更新するとホーム画面にも反映されます。';
+
+  @override
+  String get scheduleWidgetRefresh => 'オフライン時間割から更新';
+
+  @override
+  String get scheduleWidgetClear => 'ホーム画面データを消去';
+
+  @override
+  String get scheduleWidgetCleared => 'ホーム画面の時間割データを消去しました';
+
+  @override
+  String get scheduleWidgetDiagnostics => '更新診断';
+
+  @override
+  String get scheduleWidgetDiagnosticsDescription =>
+      '日付や授業状態の更新が遅い場合は、YourTJ のバックグラウンド動作とバッテリー設定を確認してください。設定項目の名前は端末によって異なります。';
+
+  @override
+  String get scheduleWidgetTransparencyTitle => 'ウィジェットの背景の透明度';
+
+  @override
+  String get scheduleWidgetTransparencyDescription =>
+      '値を上げると、ホーム画面の背景がより透けて見えます。授業情報の読みやすさを保つため、範囲は 0%～15% です。';
 }

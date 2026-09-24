@@ -2530,4 +2530,34 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get badgeDisplayDown => 'Nach unten';
+
+  @override
+  String get scheduleWidgetSettingsTitle => 'Startbildschirm-Stundenplan';
+
+  @override
+  String get scheduleWidgetPrivacyDescription =>
+      'Widgets zeigen Kursnamen, Zeiten, Lehrkräfte und Orte aus dem auf diesem Gerät gespeicherten Stundenplan. Nach einer Aktualisierung erscheint der neue Stand auf dem Startbildschirm.';
+
+  @override
+  String get scheduleWidgetRefresh => 'Aus Offline-Stundenplan aktualisieren';
+
+  @override
+  String get scheduleWidgetClear => 'Startbildschirmdaten löschen';
+
+  @override
+  String get scheduleWidgetCleared => 'Startbildschirm-Stundenplan gelöscht';
+
+  @override
+  String get scheduleWidgetDiagnostics => 'Aktualisierungsdiagnose';
+
+  @override
+  String get scheduleWidgetDiagnosticsDescription =>
+      'Wenn sich Datum oder Kursstatus verzögert aktualisieren, prüfe die Hintergrundaktivität und Akkueinstellungen für YourTJ. Die Menünamen unterscheiden sich je nach Gerät.';
+
+  @override
+  String get scheduleWidgetTransparencyTitle => 'Widget-Hintergrundtransparenz';
+
+  @override
+  String get scheduleWidgetTransparencyDescription =>
+      'Bei höheren Werten scheint mehr vom Hintergrund durch. Der Bereich von 0 % bis 15 % verbindet den Hintergrundeffekt mit gut lesbarem Kurstext.';
 }
