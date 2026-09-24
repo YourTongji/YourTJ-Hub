@@ -1,10 +1,13 @@
 import '../../private_notes.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:dio/dio.dart';
 import 'package:ui_kit/ui_kit.dart';
 
 import 'package:core/core.dart';
+
 import '../../widgets/app_refresh_indicator.dart';
 import '../../asset_url.dart';
 import '../../server_messages.dart';
@@ -33,6 +36,8 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   bool _loadingMore = false;
   String? _loadMoreError;
   int _generation = 0;
+  CancelToken? _searchCancel;
+  CancelToken? _loadMoreCancel;
   List<String> _recent = [];
   int _historyGeneration = 0;
 
@@ -109,6 +114,8 @@ class _SearchPageState extends ConsumerState<SearchPage> {
 
   @override
   void dispose() {
+    _searchCancel?.cancel('search page disposed');
+    _loadMoreCancel?.cancel('search page disposed');
     _query.dispose();
     super.dispose();
   }
@@ -116,6 +123,8 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   void _clearSearch() {
     // Invalidates initial, refresh and pagination requests already in flight.
     _generation++;
+    _searchCancel?.cancel('search cleared');
+    _loadMoreCancel?.cancel('search cleared');
     _query.clear();
     setState(() {
       _result = null;
@@ -134,6 +143,9 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     _remember(q);
     final epoch = ref.read(offlineCacheEpochProvider);
     final generation = ++_generation;
+    _searchCancel?.cancel('search request superseded');
+    _loadMoreCancel?.cancel('search query changed');
+    final cancel = _searchCancel = CancelToken();
     setState(() {
       _submittedQuery = q;
       _result = const AsyncValue.loading();
@@ -144,7 +156,12 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     try {
       final SearchPageProps props = await ref
           .read(topicRepositoryProvider)
-          .search(query: q, scope: _scope == 'all' ? '' : _scope, page: 1);
+          .search(
+            query: q,
+            scope: _scope == 'all' ? '' : _scope,
+            page: 1,
+            cancelToken: cancel,
+          );
       if (mounted &&
           generation == _generation &&
           epoch == ref.read(offlineCacheEpochProvider)) {
@@ -156,6 +173,8 @@ class _SearchPageState extends ConsumerState<SearchPage> {
           epoch == ref.read(offlineCacheEpochProvider)) {
         setState(() => _result = AsyncValue.error(e, st));
       }
+    } finally {
+      if (identical(_searchCancel, cancel)) _searchCancel = null;
     }
   }
 
@@ -169,6 +188,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     }
     final epoch = ref.read(offlineCacheEpochProvider);
     final generation = _generation;
+    final cancel = _loadMoreCancel = CancelToken();
     setState(() {
       _loadingMore = true;
       _loadMoreError = null;
@@ -181,6 +201,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
             // Only topics paginate; keep the other aggregate groups intact.
             scope: 'topics',
             page: _page + 1,
+            cancelToken: cancel,
           );
       if (mounted &&
           generation == _generation &&
@@ -217,6 +238,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
         );
       }
     } finally {
+      if (identical(_loadMoreCancel, cancel)) _loadMoreCancel = null;
       if (mounted &&
           generation == _generation &&
           epoch == ref.read(offlineCacheEpochProvider)) {
@@ -236,11 +258,19 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     if (q.isEmpty) return;
     final epoch = ref.read(offlineCacheEpochProvider);
     final generation = ++_generation;
+    _searchCancel?.cancel('search refresh superseded');
+    _loadMoreCancel?.cancel('search refresh superseded');
+    final cancel = _searchCancel = CancelToken();
     setState(() => _loadingMore = false);
     try {
       final SearchPageProps props = await ref
           .read(topicRepositoryProvider)
-          .search(query: q, scope: _scope == 'all' ? '' : _scope, page: 1);
+          .search(
+            query: q,
+            scope: _scope == 'all' ? '' : _scope,
+            page: 1,
+            cancelToken: cancel,
+          );
       if (mounted &&
           generation == _generation &&
           epoch == ref.read(offlineCacheEpochProvider)) {
@@ -264,6 +294,8 @@ class _SearchPageState extends ConsumerState<SearchPage> {
           setState(() => _result = AsyncValue.error(e, st));
         }
       }
+    } finally {
+      if (identical(_searchCancel, cancel)) _searchCancel = null;
     }
   }
 
@@ -271,6 +303,8 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   Widget build(BuildContext context) {
     ref.listen(offlineCacheEpochProvider, (_, next) {
       _generation++;
+      _searchCancel?.cancel('search session changed');
+      _loadMoreCancel?.cancel('search session changed');
       _historyGeneration++;
       setState(() {
         _recent = [];

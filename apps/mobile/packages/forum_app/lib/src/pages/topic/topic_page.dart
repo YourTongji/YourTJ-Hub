@@ -1,12 +1,15 @@
 import '../../private_notes.dart';
 import '../../local/writing_store.dart';
+
 import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:core/core.dart';
 import 'package:ui_kit/ui_kit.dart';
+
 import '../../widgets/app_refresh_indicator.dart';
 import '../../asset_url.dart';
 
@@ -351,17 +354,6 @@ class _TopicPageState extends ConsumerState<TopicPage>
         );
         return;
       }
-      // 写入 drift 离线缓存(供断网时回读);缓存失败静默降级。
-      // 仅当前世代允许写入,避免旧会话在途响应写回上一账号数据。
-      if (epoch == ref.read(offlineCacheEpochProvider)) {
-        await _cachePut(widget.topicId, payload.toJson());
-      }
-      // 写入期间会话可能已切换,再次校验世代再更新 UI。
-      if (!mounted ||
-          generation != _windowGeneration ||
-          epoch != ref.read(offlineCacheEpochProvider)) {
-        return;
-      }
       setState(() {
         _page = AsyncValue.data(props);
         _viewerAuthenticated = payload.layout.viewer.isAuthenticated;
@@ -388,6 +380,14 @@ class _TopicPageState extends ConsumerState<TopicPage>
         _likeCount = props.topic.likeCount;
       });
       _recordReturnState();
+      unawaited(() async {
+        if (!mounted ||
+            generation != _windowGeneration ||
+            epoch != ref.read(offlineCacheEpochProvider)) {
+          return;
+        }
+        await _cachePut(widget.topicId, payload.toJson());
+      }());
     } catch (e, st) {
       // 网络失败:回退 drift 离线缓存(已浏览话题离线可读)。
       if (!mounted ||

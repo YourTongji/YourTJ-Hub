@@ -5,7 +5,40 @@ import (
 
 	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/eventNotification"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/realtimeservice"
 )
+
+func TestMentionCommitPublishesOnlyToRecipients(t *testing.T) {
+	conn := db.Connect()
+	if err := conn.AutoMigrate(&eventNotification.Entity{}); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_ = conn.Where("user_id = ?", 7651).Delete(&eventNotification.Entity{}).Error
+	})
+	owner, err := realtimeservice.DefaultHub.Subscribe(7651)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer owner.Close()
+	other, err := realtimeservice.DefaultHub.Subscribe(7652)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer other.Close()
+	if err := SendMentionNotifications([]uint64{7651}, 91, 92, 1, "preview", 3); err != nil {
+		t.Fatal(err)
+	}
+	event := <-owner.Events()
+	if event.Type != realtimeservice.EventNotificationsChanged || event.Change != "created" {
+		t.Fatalf("event=%+v", event)
+	}
+	select {
+	case event := <-other.Events():
+		t.Fatalf("leaked event=%+v", event)
+	default:
+	}
+}
 
 func TestCommentNotificationsUseTopicPostPayload(t *testing.T) {
 	conn := db.Connect()

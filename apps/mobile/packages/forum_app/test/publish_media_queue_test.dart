@@ -81,26 +81,27 @@ class _Files extends FileRepository {
 class _Pages extends PageRepository {
   _Pages(super.client);
   @override
-  Future<PagePayload> fetch(String path) async => PagePayload.fromJson({
-    'component': PageComponent.publish,
-    'props': {
-      'topicId': 0,
-      'isEditing': false,
-      'categories': [
-        {'id': 1, 'name': '校园', 'color': '#2563eb'},
-      ],
-      'topic': {
-        'title': '',
-        'content': '',
-        'categoryIds': [],
-        'topicStatus': 0,
-      },
-    },
-    'meta': {'title': '发布'},
-    'layout': minimalLayoutJson(),
-    'url': '/publish',
-    'version': '1',
-  });
+  Future<PagePayload> fetch(String path, {Object? cancelToken}) async =>
+      PagePayload.fromJson({
+        'component': PageComponent.publish,
+        'props': {
+          'topicId': 0,
+          'isEditing': false,
+          'categories': [
+            {'id': 1, 'name': '校园', 'color': '#2563eb'},
+          ],
+          'topic': {
+            'title': '',
+            'content': '',
+            'categoryIds': [],
+            'topicStatus': 0,
+          },
+        },
+        'meta': {'title': '发布'},
+        'layout': minimalLayoutJson(),
+        'url': '/publish',
+        'version': '1',
+      });
 }
 
 void main() {

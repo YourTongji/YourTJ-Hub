@@ -190,3 +190,112 @@ markChatRead:
                 externalValue: ../fixtures/account-frozen.json
               csrfRejected:
                 externalValue: ../fixtures/csrf-rejected.json
+
+markChatVisibleRead:
+  post:
+    tags: [Forum]
+    summary: Mark only displayed incoming chat messages as read
+    operationId: markChatVisibleRead
+    description: |
+      A client sends the actual incoming message IDs that became visible. The server
+      validates the whole batch as one conversation and one recipient, then marks
+      only those IDs read and decrements the stored unread count by newly read rows
+      in the same conversation-locked transaction. Duplicate and
+      already-read IDs are idempotent. Any invalid ID rejects the whole batch with
+      `chat.markRead.failed`; malformed, empty, zero, or over-100 inputs fail
+      validation with `common.request.invalidParams`. The legacy mark-read endpoint
+      remains available for older clients. Pending-activation users can clear their
+      own read state; frozen accounts cannot.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/ChatMessageIDsRequest
+    responses:
+      '200':
+        description: Explicit IDs acknowledged, or a legacy business failure envelope.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ChatVisibleReadResponse
+            examples:
+              success:
+                externalValue: ../fixtures/chat-mark-visible-success.json
+              failed:
+                externalValue: ../fixtures/chat-mark-read-failed.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Frozen account or cross-site cookie-authenticated request rejected by the CSRF gate.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
+
+getChatMessageReadStates:
+  post:
+    tags: [Forum]
+    summary: Refresh chat read flags without downloading message bodies
+    operationId: getChatMessageReadStates
+    description: |
+      Read-only member operation for 1–100 explicit message IDs in one
+      conversation. Incoming and outgoing IDs are allowed. An invalid ID or
+      non-member conversation fails with `chat.messages.failed` without disclosing
+      which check failed. Flags and the stored conversation unread counter are read
+      under the same conversation lock as send/read mutations; this bounded lookup
+      does not recount the unread backlog. Frozen accounts retain this read-only access.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/ChatMessageIDsRequest
+    responses:
+      '200':
+        description: Read flags and current unread count, or a legacy business failure envelope.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ChatMessageReadStatesResponse
+            examples:
+              success:
+                externalValue: ../fixtures/chat-message-read-states-success.json
+              failed:
+                externalValue: ../fixtures/chat-messages-failed.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Cross-site cookie-authenticated request rejected by the CSRF gate.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json

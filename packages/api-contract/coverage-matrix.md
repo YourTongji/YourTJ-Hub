@@ -4,11 +4,11 @@
 
 路由快照来自 `TestRoutesSnapshot`（`fixtures/routes-snapshot.json`，默认配置装配，不含 OIDC `/api/oauth/*` 端点——OIDC 另有专项）。
 
-- 快照路由总数：331
-- /api JSON 路由：265，已入契约：266（100%），已知未覆盖：0
+- 快照路由总数：334
+- /api JSON 路由：268，已入契约：269（100%），已知未覆盖：0
 - 非 API 排除路由：65
 
-## 已覆盖（266）
+## 已覆盖（269）
 
 | Method | Path | operationId |
 | --- | --- | --- |
@@ -64,6 +64,7 @@
 | GET | `/api/forum/courses/:courseId/related` | `getCourseRelated` |
 | GET | `/api/forum/courses/:courseId/reviews` | `listCourseReviews` |
 | GET | `/api/forum/courses/:courseId/summary` | `getCourseSummary` |
+| GET | `/api/forum/events` | `streamForumEvents` |
 | GET | `/api/forum/get-site-statistics` | `getSiteStatistics` |
 | GET | `/api/forum/my-course-reviews` | `listOwnCourseReviews` |
 | GET | `/api/forum/notifications` | `getNotifications` |
@@ -185,6 +186,8 @@
 | POST | `/api/display-badges` | `displayBadges` |
 | POST | `/api/forgot-password` | `forgotPassword` |
 | POST | `/api/forum/chat/mark-read` | `markChatRead` |
+| POST | `/api/forum/chat/mark-visible` | `markChatVisibleRead` |
+| POST | `/api/forum/chat/message-read-states` | `getChatMessageReadStates` |
 | POST | `/api/forum/chat/messages` | `getChatMessages` |
 | POST | `/api/forum/chat/send` | `sendChatMessage` |
 | POST | `/api/forum/course-reviews` | `createCourseReview` |

@@ -921,6 +921,11 @@ TopicPayload:
       type: array
       items:
         type: string
+    imageMetadata:
+      type: array
+      description: Intrinsic dimensions and available static thumbnail variants for uploaded topic images; absent for legacy or external images.
+      items:
+        $ref: '#/ImageMetadata'
     url:
       type: string
     pinWeight:
@@ -961,6 +966,40 @@ TopicPayload:
     unseen:
       type: boolean
       description: Present only for authenticated viewers with unseen tracking.
+  additionalProperties: false
+
+ImageMetadata:
+  type: object
+  required: [url, width, height]
+  properties:
+    url:
+      type: string
+      description: The original image URL already present in firstImageUrl or images.
+    width:
+      type: integer
+      minimum: 1
+    height:
+      type: integer
+      minimum: 1
+    variants:
+      type: array
+      items:
+        $ref: '#/ImageVariant'
+  additionalProperties: false
+
+ImageVariant:
+  type: object
+  required: [url, width, height]
+  properties:
+    url:
+      type: string
+      description: Public URL for a server-generated derivative.
+    width:
+      type: integer
+      minimum: 1
+    height:
+      type: integer
+      minimum: 1
   additionalProperties: false
 
 UserSearchPayload:
@@ -5345,6 +5384,101 @@ ChatMarkReadResponse:
     - $ref: '#/ChatMarkReadSuccess'
     - $ref: '#/ApiFailure'
 
+ChatMessageIDsRequest:
+  type: object
+  required: [convId, messageIds]
+  properties:
+    convId:
+      type: integer
+      format: uint64
+      minimum: 1
+    messageIds:
+      type: array
+      minItems: 1
+      maxItems: 100
+      items:
+        type: integer
+        format: uint64
+        minimum: 1
+      description: Explicit message IDs. The server deduplicates them; a highest ID is never a read-through cursor.
+  additionalProperties: false
+
+ChatVisibleReadResult:
+  type: object
+  required: [convId, acknowledgedMessageIds, unreadCount]
+  properties:
+    convId:
+      type: integer
+      format: uint64
+      minimum: 1
+    acknowledgedMessageIds:
+      type: array
+      items:
+        type: integer
+        format: uint64
+        minimum: 1
+      description: All valid deduplicated incoming IDs, including those already read, in request order.
+    unreadCount:
+      type: integer
+      minimum: 0
+      description: Remaining incoming unread messages in this conversation after the transaction commits.
+  additionalProperties: false
+
+ChatVisibleReadSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          $ref: '#/ChatVisibleReadResult'
+
+ChatVisibleReadResponse:
+  oneOf:
+    - $ref: '#/ChatVisibleReadSuccess'
+    - $ref: '#/ApiFailure'
+
+ChatMessageReadState:
+  type: object
+  required: [id, isRead]
+  properties:
+    id:
+      type: integer
+      format: uint64
+      minimum: 1
+    isRead:
+      type: integer
+      enum: [0, 1]
+  additionalProperties: false
+
+ChatMessageReadStatesResult:
+  type: object
+  required: [items, unreadCount]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/ChatMessageReadState'
+      description: Read flags for all deduplicated requested IDs, in request order, without message bodies.
+    unreadCount:
+      type: integer
+      minimum: 0
+  additionalProperties: false
+
+ChatMessageReadStatesSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          $ref: '#/ChatMessageReadStatesResult'
+
+ChatMessageReadStatesResponse:
+  oneOf:
+    - $ref: '#/ChatMessageReadStatesSuccess'
+    - $ref: '#/ApiFailure'
+
 
 # ================= Forum moderation workbench（Issue #277 P3）=================
 
@@ -8788,6 +8922,8 @@ AdminImgUploadResult:
     size:
       type: integer
       description: Stored byte length.
+    imageMetadata:
+      $ref: '#/ImageMetadata'
   additionalProperties: false
 
 AdminImgUploadResponse:
@@ -9604,6 +9740,8 @@ DirectImageUploadCompleteResult:
       format: int64
       minimum: 1
       description: Stored byte size.
+    imageMetadata:
+      $ref: '#/ImageMetadata'
   additionalProperties: false
 
 DirectImageUploadCompleteSuccess:

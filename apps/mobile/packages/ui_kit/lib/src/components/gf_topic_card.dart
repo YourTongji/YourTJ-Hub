@@ -1,3 +1,4 @@
+import 'dart:developer' as developer;
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -7,6 +8,32 @@ import 'atoms/gf_avatar.dart';
 import 'gf_card.dart';
 import 'gf_chip.dart';
 import 'gf_topic_row.dart';
+
+class GfTopicImageVariant {
+  const GfTopicImageVariant({
+    required this.url,
+    required this.width,
+    required this.height,
+  });
+
+  final String url;
+  final int width;
+  final int height;
+}
+
+class GfTopicImageMetadata {
+  const GfTopicImageMetadata({
+    required this.url,
+    required this.width,
+    required this.height,
+    this.variants = const <GfTopicImageVariant>[],
+  });
+
+  final String url;
+  final int width;
+  final int height;
+  final List<GfTopicImageVariant> variants;
+}
 
 /// Mobile topic-feed card aligned with the web `TopicFeedPreview` surface.
 class GfTopicCard extends StatefulWidget {
@@ -25,11 +52,13 @@ class GfTopicCard extends StatefulWidget {
     this.onTap,
     this.onLike,
     this.onBookmark,
+    this.onFirstMediaFrame,
     this.likeTooltip,
     this.bookmarkTooltip,
     this.bookmarkedTooltip,
     this.liked = false,
     this.bookmarked = false,
+    this.imageMetadata = const <GfTopicImageMetadata>[],
     this.imageAspectRatio,
     this.pinned = false,
     this.unseen = false,
@@ -49,6 +78,7 @@ class GfTopicCard extends StatefulWidget {
   final VoidCallback? onTap;
   final Future<bool> Function(bool target)? onLike;
   final Future<bool> Function(bool target)? onBookmark;
+  final VoidCallback? onFirstMediaFrame;
   final String? likeTooltip;
   final String? bookmarkTooltip;
   final String? bookmarkedTooltip;
@@ -56,8 +86,9 @@ class GfTopicCard extends StatefulWidget {
   /// Controlled by the owning list so recycling never resets server state.
   final bool liked;
   final bool bookmarked;
+  final List<GfTopicImageMetadata> imageMetadata;
 
-  /// Optional known first-image ratio; otherwise decoded from the image stream.
+  /// Optional first-image ratio; otherwise uses intrinsic metadata or a legacy fallback.
   final double? imageAspectRatio;
   final bool pinned;
   final bool unseen;
@@ -69,14 +100,21 @@ class GfTopicCard extends StatefulWidget {
 
 class _GfTopicCardState extends State<GfTopicCard>
     with TickerProviderStateMixin {
-  ImageStream? _stream;
-  ImageStreamListener? _listener;
-  double _ratio = 1.5;
-  String? _observedUrl;
+  static bool _firstMediaFrameRecorded = false;
+
   bool get _liked => widget.liked;
   bool get _bookmarked => widget.bookmarked;
   bool _likeBusy = false;
   bool _bookmarkBusy = false;
+
+  static void _recordFirstMediaFrame(VoidCallback? onFirstMediaFrame) {
+    if (!_firstMediaFrameRecorded) {
+      _firstMediaFrameRecorded = true;
+      developer.Timeline.instantSync('startup.feed_first_media_frame_ready');
+    }
+    onFirstMediaFrame?.call();
+  }
+
   late final AnimationController _likeAnimation;
   late final AnimationController _bookmarkAnimation;
 
@@ -97,20 +135,7 @@ class _GfTopicCardState extends State<GfTopicCard>
   void dispose() {
     _likeAnimation.dispose();
     _bookmarkAnimation.dispose();
-    if (_listener != null) _stream?.removeListener(_listener!);
     super.dispose();
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    _observeImage();
-  }
-
-  @override
-  void didUpdateWidget(GfTopicCard oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    _observeImage();
   }
 
   Future<void> _toggleLike() async {
@@ -145,42 +170,32 @@ class _GfTopicCardState extends State<GfTopicCard>
     }
   }
 
-  void _observeImage() {
-    final url = widget.imageUrls.where((url) => url.isNotEmpty).firstOrNull;
-    if (url == _observedUrl) return;
-    if (_listener != null) _stream?.removeListener(_listener!);
-    _observedUrl = url;
-    _ratio = 1.5;
-    if (url == null) return;
-    _stream = NetworkImage(url).resolve(createLocalImageConfiguration(context));
-    _listener = ImageStreamListener((info, synchronousCall) {
-      try {
-        if (!mounted || info.image.height == 0) return;
-        final ratio = info.image.width / info.image.height;
-        if (synchronousCall) {
-          _ratio = ratio;
-        } else {
-          setState(() => _ratio = ratio);
-        }
-      } finally {
-        info.dispose();
-      }
-    }, onError: (Object error, StackTrace? stack) {});
-    _stream!.addListener(_listener!);
-  }
-
   @override
   Widget build(BuildContext context) {
     final GfColors colors = GfTheme.colorsOf(context);
     final allImages = widget.imageUrls.where((url) => url.isNotEmpty).toList();
     final images = allImages.take(3).toList();
-    final ratio = widget.imageAspectRatio ?? _ratio;
+    final imageMetadata = <String, GfTopicImageMetadata>{
+      for (final metadata in widget.imageMetadata) metadata.url: metadata,
+    };
+    final firstImageMetadata = images.isEmpty
+        ? null
+        : imageMetadata[images.first];
+    final intrinsicRatio =
+        firstImageMetadata != null &&
+            firstImageMetadata.width > 0 &&
+            firstImageMetadata.height > 0
+        ? firstImageMetadata.width / firstImageMetadata.height
+        : null;
+    final ratio = widget.imageAspectRatio ?? intrinsicRatio ?? 1.5;
     final portrait = ratio < 1;
     final singleImage = images.length == 1 && portrait;
 
     Widget photo(int index, {double? width, double height = 104}) =>
         _TopicImage(
           url: images[index],
+          metadata: imageMetadata[images[index]],
+          onFirstMediaFrame: widget.onFirstMediaFrame,
           width: width,
           height: height,
           fit: portrait ? BoxFit.cover : BoxFit.contain,
@@ -673,12 +688,16 @@ class _AuthorMeta extends StatelessWidget {
 class _TopicImage extends StatelessWidget {
   const _TopicImage({
     required this.url,
+    this.metadata,
+    this.onFirstMediaFrame,
     this.width,
     required this.height,
     this.fit = BoxFit.cover,
   });
 
   final String url;
+  final GfTopicImageMetadata? metadata;
+  final VoidCallback? onFirstMediaFrame;
   final double? width;
   final double height;
   final BoxFit fit;
@@ -688,23 +707,95 @@ class _TopicImage extends StatelessWidget {
     final GfColors colors = GfTheme.colorsOf(context);
     return ClipRRect(
       borderRadius: BorderRadius.circular(8),
-      child: SizedBox(
-        width: width,
-        height: height,
-        child: Image.network(
-          url,
-          fit: fit,
-          errorBuilder:
-              (BuildContext context, Object error, StackTrace? stack) {
-                return ColoredBox(
-                  color: colors.base200,
-                  child: Icon(Icons.image_outlined, color: colors.iconMuted),
-                );
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final logicalWidth = width != null && width!.isFinite
+              ? width!
+              : constraints.maxWidth.isFinite
+              ? constraints.maxWidth
+              : MediaQuery.sizeOf(context).width;
+          final int pixelWidth =
+              (logicalWidth * MediaQuery.devicePixelRatioOf(context))
+                  .round()
+                  .clamp(1, 1000000)
+                  .toInt();
+          final source = _closestImageSource(metadata, pixelWidth);
+          final int? cacheHeight = source == null
+              ? null
+              : (pixelWidth * source.height / source.width)
+                    .round()
+                    .clamp(1, 1000000)
+                    .toInt();
+          return SizedBox(
+            width: width,
+            height: height,
+            child: Image(
+              image: _feedImageProvider(
+                source?.url ?? url,
+                pixelWidth,
+                cacheHeight,
+              ),
+              fit: fit,
+              frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+                if (frame != null) {
+                  _GfTopicCardState._recordFirstMediaFrame(onFirstMediaFrame);
+                }
+                return child;
               },
-        ),
+              errorBuilder:
+                  (BuildContext context, Object error, StackTrace? stack) {
+                    return ColoredBox(
+                      color: colors.base200,
+                      child: Icon(
+                        Icons.image_outlined,
+                        color: colors.iconMuted,
+                      ),
+                    );
+                  },
+            ),
+          );
+        },
       ),
     );
   }
+}
+
+GfTopicImageVariant? _closestImageSource(
+  GfTopicImageMetadata? metadata,
+  int targetWidth,
+) {
+  if (metadata == null || metadata.width < 1 || metadata.height < 1) {
+    return null;
+  }
+  final candidates = <GfTopicImageVariant>[
+    ...metadata.variants.where(
+      (variant) =>
+          variant.url.isNotEmpty &&
+          variant.width > 0 &&
+          variant.height > 0 &&
+          variant.width <= metadata.width &&
+          variant.height <= metadata.height,
+    ),
+    GfTopicImageVariant(
+      url: metadata.url,
+      width: metadata.width,
+      height: metadata.height,
+    ),
+  ];
+  var closest = candidates.first;
+  for (final candidate in candidates.skip(1)) {
+    final distance = (candidate.width - targetWidth).abs();
+    final closestDistance = (closest.width - targetWidth).abs();
+    if (distance < closestDistance ||
+        (distance == closestDistance && candidate.width > closest.width)) {
+      closest = candidate;
+    }
+  }
+  return closest;
+}
+
+ResizeImage _feedImageProvider(String url, int pixelWidth, int? pixelHeight) {
+  return ResizeImage(NetworkImage(url), width: pixelWidth, height: pixelHeight);
 }
 
 class _Metric extends StatelessWidget {
