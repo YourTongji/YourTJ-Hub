@@ -63,14 +63,24 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
     final filter = _filter;
     _refreshing = true;
     _loadingMore = false;
-    _loadMoreError = null;
-    if (!silent) setState(() => _list = const AsyncValue.loading());
+    if (!silent) {
+      setState(() {
+        _loadMoreError = null;
+        _list = const AsyncValue.loading();
+      });
+    }
     try {
       final resp = await ref
           .read(notificationRepositoryProvider)
           .fetchNotifications(filter: filter, cursor: 0);
       if (!_current(generation, epoch)) return;
+      final confirmedRead = resp.items
+          .where((item) => item.isRead)
+          .map((item) => item.id)
+          .toSet();
       setState(() {
+        _readErrors.removeWhere((id, _) => confirmedRead.contains(id));
+        _loadMoreError = null;
         _list = AsyncValue.data(resp);
         _items.clear();
         _items.addAll(_mergeRead(resp.items));
@@ -130,7 +140,8 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
         next.items,
       ).where((item) => seen.add(item.id)).toList();
       if (next.hasNext && next.nextCursor == cursor && additions.isEmpty) {
-        throw StateError(l10n.commonLoadFailed);
+        setState(() => _loadMoreError = l10n.commonLoadFailed);
+        return;
       }
       setState(() {
         _items.addAll(additions);
@@ -400,8 +411,9 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                                     markReadLabel: l10n.notificationsMarkRead,
                                     onTap: () => _openNotification(n),
                                   ),
-                                  if (_reading.contains(n.id) ||
-                                      _readErrors.containsKey(n.id))
+                                  if (!n.isRead &&
+                                      (_reading.contains(n.id) ||
+                                          _readErrors.containsKey(n.id)))
                                     Padding(
                                       padding: const EdgeInsets.fromLTRB(
                                         16,

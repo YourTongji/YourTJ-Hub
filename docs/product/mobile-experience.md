@@ -135,9 +135,11 @@ Web inside an authenticated in-app browser. The navigation and management bounda
   same query/page without discarding prior items. New queries and account changes invalidate old responses.
 - `Current`: Notifications also retain rows after a failed refresh. Filter changes and account
   generations reject older refresh/pagination responses. Pagination deduplicates IDs and pauses with
-  explicit retry after failure or a response without progress. Single/all-read actions are serialized,
+  explicit retry after failure or a response without progress. A failed refresh preserves that pagination
+  error and pause; a successful refresh or explicit retry resumes loading. Single/all-read actions are serialized,
   display pending state and surface failures; rows remain unread until acknowledged. Confirmed reads
-  cannot be reverted by an earlier fetch. Single-read failures retain a row-level retry action; the
+  cannot be reverted by an earlier fetch. Single-read failures retain a row-level retry action until
+  a successful action or refreshed server state confirms the read; the
   unread filter removes acknowledged rows and continues pagination when its visible page is drained.
 - `Current`: outgoing chat messages appear immediately as sending bubbles. Failures retain their text
   and expose manual retry without replacing a newer input. Acknowledged bubbles stay visible until

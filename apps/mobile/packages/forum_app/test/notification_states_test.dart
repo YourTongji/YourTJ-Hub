@@ -63,24 +63,28 @@ class _Notifications extends NotificationRepository {
   }
 }
 
-NotificationListResponse _page(String text, {int id = 1, bool more = false}) =>
-    NotificationListResponse(
-      items: [
-        NotificationPayload(
-          id: id,
-          eventType: 'system',
-          isRead: false,
-          createdAt: '2026-09-24',
-          title: text,
-          content: '',
-          actor: const NotificationActorPayload(id: 1, username: 'Alice'),
-          payload: const NotificationInnerPayload(actorId: 1),
-        ),
-      ],
-      nextCursor: more ? id : 0,
-      hasNext: more,
-      unreadCount: 1,
-    );
+NotificationListResponse _page(
+  String text, {
+  int id = 1,
+  bool more = false,
+  bool isRead = false,
+}) => NotificationListResponse(
+  items: [
+    NotificationPayload(
+      id: id,
+      eventType: 'system',
+      isRead: isRead,
+      createdAt: '2026-09-24',
+      title: text,
+      content: '',
+      actor: const NotificationActorPayload(id: 1, username: 'Alice'),
+      payload: const NotificationInnerPayload(actorId: 1),
+    ),
+  ],
+  nextCursor: more ? id : 0,
+  hasNext: more,
+  unreadCount: 1,
+);
 
 Future<ProviderContainer> _mount(
   WidgetTester tester,
@@ -185,7 +189,10 @@ void main() {
     repo.requests.last.$3.complete(_page('First', more: true));
     await tester.pumpAndSettle();
     final footer = tester.widget<GfListFooter>(find.byType(GfListFooter));
-    expect(footer.error, isNotNull);
+    final l = AppLocalizations.of(
+      tester.element(find.byType(NotificationsPage)),
+    );
+    expect(footer.error, l.commonLoadFailed);
     expect(repo.requests, hasLength(2));
     await tester.pump(const Duration(seconds: 1));
     expect(repo.requests, hasLength(2));
@@ -194,6 +201,75 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Next'), findsOneWidget);
   });
+
+  testWidgets('server-confirmed read clears a failed read retry', (
+    tester,
+  ) async {
+    final repo = _Notifications();
+    await _mount(tester, repo);
+    repo.requests.first.$3.complete(_page('One notification'));
+    await tester.pumpAndSettle();
+    tester
+        .widget<GfNotificationRow>(find.byType(GfNotificationRow))
+        .onMarkRead!();
+    repo.markOne.single.$2.completeError(
+      const ApiException(fallbackMessage: 'read timed out'),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Retry'), findsOneWidget);
+    final refresh = tester
+        .widget<AppRefreshIndicator>(find.byType(AppRefreshIndicator))
+        .onRefresh();
+    repo.requests.last.$3.complete(_page('One notification', isRead: true));
+    await refresh;
+    await tester.pumpAndSettle();
+    expect(
+      tester.widget<GfNotificationRow>(find.byType(GfNotificationRow)).unread,
+      isFalse,
+    );
+    expect(find.text('Retry'), findsNothing);
+  });
+
+  testWidgets(
+    'failed refresh preserves pagination failure until explicit retry',
+    (tester) async {
+      final repo = _Notifications();
+      await _mount(tester, repo);
+      repo.requests.first.$3.complete(_page('First', more: true));
+      await tester.pump();
+      await tester.pump();
+      repo.requests.last.$3.completeError(
+        const ApiException(fallbackMessage: 'page failed'),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        tester.widget<GfListFooter>(find.byType(GfListFooter)).error,
+        'Failed to load',
+      );
+      final refresh = tester
+          .widget<AppRefreshIndicator>(find.byType(AppRefreshIndicator))
+          .onRefresh();
+      repo.requests.last.$3.completeError(
+        const ApiException(fallbackMessage: 'refresh failed'),
+      );
+      await refresh;
+      await tester.pump();
+      await tester.pump();
+      expect(
+        tester.widget<GfListFooter>(find.byType(GfListFooter)).error,
+        'Failed to load',
+      );
+      expect(repo.requests, hasLength(3));
+      await tester.pump(const Duration(seconds: 1));
+      expect(repo.requests, hasLength(3));
+      tester.widget<GfListFooter>(find.byType(GfListFooter)).onLoadMore();
+      expect(repo.requests.last.$2, 1);
+      repo.requests.last.$3.complete(_page('Next', id: 2));
+      await tester.pumpAndSettle();
+      expect(find.text('Next'), findsOneWidget);
+      expect(find.text('First'), findsOneWidget);
+    },
+  );
 
   testWidgets(
     'account changes hide old rows and ignore pending read acknowledgements',
