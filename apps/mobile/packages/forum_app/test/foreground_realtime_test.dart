@@ -136,4 +136,36 @@ void main() {
       coordinator.stop();
     },
   );
+
+  test(
+    'a guest session can start delivery after a token is accepted',
+    () async {
+      String? token;
+      var connects = 0;
+      final connected = Completer<void>();
+      final coordinator = ForegroundRealtimeCoordinator(
+        readToken: () async => token,
+        connect: (value, cancel, onActivity) async {
+          connects++;
+          connected.complete();
+          return ForumRealtimeConnection(
+            const Stream<ForumSseFrame>.empty(),
+            cancel,
+          );
+        },
+        onResync: () {},
+        onEvent: (_) {},
+        onFallbackTick: () {},
+        onHealthChanged: (_) {},
+      );
+      coordinator.start();
+      await Future<void>.delayed(Duration.zero);
+      token = 'new-session';
+      coordinator.start();
+      await Future<void>.delayed(Duration.zero);
+      expect(connects, 1);
+      await connected.future;
+      coordinator.stop();
+    },
+  );
 }

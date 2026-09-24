@@ -103,6 +103,7 @@ class ForegroundRealtimeCoordinator {
       if (!_current(attempt)) return;
       if (token == null || token.isEmpty) {
         _pendingCancel = null;
+        _running = false;
         return;
       }
       final connection = await connect(token, cancel, () {

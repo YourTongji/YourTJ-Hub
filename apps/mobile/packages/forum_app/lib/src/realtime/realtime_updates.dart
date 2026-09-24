@@ -1,4 +1,15 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:core/core.dart';
+
+import '../providers.dart';
+import 'foreground_realtime.dart';
+
+final realtimeConnectProvider = Provider<RealtimeConnect>((ref) {
+  final client = ref.watch(apiClientProvider);
+  return (token, cancel, onActivity) => ForumRealtimeTransport(
+    client,
+  ).connect(token: token, cancelToken: cancel, onActivity: onActivity);
+});
 
 class RealtimeInvalidations {
   const RealtimeInvalidations({

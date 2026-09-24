@@ -77,7 +77,9 @@ class GfShell extends ConsumerStatefulWidget {
 }
 
 class _GfShellState extends ConsumerState<GfShell> with WidgetsBindingObserver {
-  late final ForegroundRealtimeCoordinator _realtime;
+  late ForegroundRealtimeCoordinator _realtime;
+  late int _realtimeEpoch;
+  bool _realtimeSessionStarted = false;
   Future<void>? _unreadInFlight;
   bool _unreadDirty = false;
   bool _unreadNotifications = false;
@@ -87,12 +89,18 @@ class _GfShellState extends ConsumerState<GfShell> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    final client = ref.read(apiClientProvider);
-    _realtime = ForegroundRealtimeCoordinator(
+    routeVisibilityChanges.addListener(_onRouteVisibilityChanged);
+    _realtimeEpoch = ref.read(offlineCacheEpochProvider);
+    _realtime = _createRealtime();
+    unawaited(_purgeStaleOfflineCacheOnBoot());
+    unawaited(_pollUnread());
+    _onRouteVisibilityChanged();
+  }
+
+  ForegroundRealtimeCoordinator _createRealtime() {
+    return ForegroundRealtimeCoordinator(
       readToken: ref.read(tokenStorageProvider).read,
-      connect: (token, cancel, onActivity) => ForumRealtimeTransport(
-        client,
-      ).connect(token: token, cancelToken: cancel, onActivity: onActivity),
+      connect: ref.read(realtimeConnectProvider),
       onResync: () {
         if (!mounted) return;
         ref.read(realtimeInvalidationsProvider.notifier).resync();
@@ -110,17 +118,54 @@ class _GfShellState extends ConsumerState<GfShell> with WidgetsBindingObserver {
         }
       },
     );
-    unawaited(_purgeStaleOfflineCacheOnBoot());
-    unawaited(_pollUnread());
-    if (WidgetsBinding.instance.lifecycleState == null ||
-        WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed) {
+  }
+
+  void _onRouteVisibilityChanged() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) unawaited(_ensureRealtimeForCurrentSession());
+    });
+  }
+
+  Future<void> _ensureRealtimeForCurrentSession() async {
+    if (!mounted ||
+        (WidgetsBinding.instance.lifecycleState != null &&
+            WidgetsBinding.instance.lifecycleState !=
+                AppLifecycleState.resumed) ||
+        !routeIsUncovered(context)) {
+      return;
+    }
+    final epoch = ref.read(offlineCacheEpochProvider);
+    if (_realtimeEpoch != epoch) {
+      _realtime.stop();
+      _realtimeEpoch = epoch;
+      _realtimeSessionStarted = false;
+      _realtime = _createRealtime();
+    }
+    if (_realtimeSessionStarted) return;
+    try {
+      final token = await ref.read(tokenStorageProvider).read();
+      if (!mounted ||
+          epoch != ref.read(offlineCacheEpochProvider) ||
+          !routeIsUncovered(context) ||
+          (WidgetsBinding.instance.lifecycleState != null &&
+              WidgetsBinding.instance.lifecycleState !=
+                  AppLifecycleState.resumed)) {
+        return;
+      }
+      if (token == null || token.isEmpty) return;
       _realtime.start();
+      _realtimeSessionStarted = true;
+      unawaited(_pollUnread());
+    } catch (_) {
+      // Token storage errors leave the public shell usable; another route or
+      // foreground transition can retry the connection.
     }
   }
 
   @override
   void dispose() {
     _realtime.stop();
+    routeVisibilityChanges.removeListener(_onRouteVisibilityChanged);
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -128,10 +173,10 @@ class _GfShellState extends ConsumerState<GfShell> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      _realtime.start();
-      unawaited(_pollUnread());
+      unawaited(_ensureRealtimeForCurrentSession());
     } else {
       _realtime.stop();
+      _realtimeSessionStarted = false;
     }
   }
 
@@ -244,7 +289,10 @@ class _GfShellState extends ConsumerState<GfShell> with WidgetsBindingObserver {
       }
     });
     ref.listen(offlineCacheEpochProvider, (int? previous, int next) {
-      if (next != previous) _realtime.stop();
+      if (next != previous) {
+        _realtime.stop();
+        _realtimeSessionStarted = false;
+      }
     });
 
     final chrome = ref.watch(readingChromeProvider);
