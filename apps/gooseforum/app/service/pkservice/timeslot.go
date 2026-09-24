@@ -20,7 +20,7 @@ func getPkTimeSlotsBySection(section int) []int {
 	case 5:
 		return []int{9}
 	case 6:
-		return []int{10}
+		return []int{10, 11, 12}
 	default:
 		return nil
 	}
@@ -33,7 +33,7 @@ type CoursesByTimeResult struct {
 }
 
 // FindCoursesByTime P10：按时间段查课。timeslots 未就绪时触发后台构建并降级 LIKE 查询。
-func FindCoursesByTime(calendarId, day, section int) (CoursesByTimeResult, error) {
+func FindCoursesByTime(calendarId, day, section int, includeAll bool) (CoursesByTimeResult, error) {
 	slotSections := getPkTimeSlotsBySection(section)
 	if len(slotSections) == 0 {
 		return CoursesByTimeResult{}, ErrInvalidParams
@@ -49,10 +49,14 @@ func FindCoursesByTime(calendarId, day, section int) (CoursesByTimeResult, error
 
 	var rows []pk.CourseAggRow
 	var err error
+	optionalLabels := OPTIONAL_LABEL_NAMES
+	if includeAll {
+		optionalLabels = nil
+	}
 	if ready {
-		rows, err = pk.ListTimeslotCoursesBySlot(calendarId, day, slotSections, OPTIONAL_LABEL_NAMES)
+		rows, err = pk.ListTimeslotCoursesBySlot(calendarId, day, slotSections, optionalLabels)
 	} else {
-		rows, err = pk.ListTimeslotCoursesByLike(calendarId, buildTimeLikePatterns(day, section), OPTIONAL_LABEL_NAMES)
+		rows, err = pk.ListTimeslotCoursesByLike(calendarId, buildTimeLikePatterns(day, section), optionalLabels)
 	}
 	if err != nil {
 		return CoursesByTimeResult{}, err

@@ -11,6 +11,8 @@ import 'package:forum_app/src/pages/topic/topic_page.dart';
 import 'package:forum_app/src/pages/topic/post_actions.dart';
 import 'package:forum_app/src/providers.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:go_router/go_router.dart';
+import 'package:forum_app/src/pages/topic/mention_panel.dart';
 import 'package:ui_kit/ui_kit.dart';
 import 'pages_smoke_test.dart'
     show
@@ -57,6 +59,8 @@ class _Posts extends PostRepository {
 class _Topics extends FakeTopicRepository {
   _Topics(super.client);
   int? requestedAnchor;
+  Completer<PostWindowPayload>? pendingOlder;
+  int paginatedCalls = 0;
   @override
   Future<PostWindowPayload> getPostWindow({
     required int topicId,
@@ -66,6 +70,10 @@ class _Topics extends FakeTopicRepository {
     int? afterPostNo,
     int? limit,
   }) async {
+    if (anchorPostId == null && pendingOlder != null) {
+      paginatedCalls++;
+      return pendingOlder!.future;
+    }
     requestedAnchor = anchorPostId;
     final original = parsePageProps<TopicDetailProps>(
       parsePayload(topicDetailPayloadJson()),
@@ -90,6 +98,20 @@ class _Topics extends FakeTopicRepository {
   }
 }
 
+class _Pages extends FakePageRepository {
+  _Pages(super.client, this.hasMore);
+  final bool hasMore;
+  @override
+  Future<PagePayload> fetch(String path) async {
+    if (!hasMore || !path.startsWith('/p/post/')) return super.fetch(path);
+    final json = topicDetailPayloadJson();
+    final stream = (json['props'] as Map)['postStream'] as Map;
+    stream['hasAfter'] = true;
+    stream['afterPostNo'] = 3;
+    return parsePayload(json);
+  }
+}
+
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
   const scope = 'http%3A%2F%2Ffake.local:1';
@@ -103,6 +125,9 @@ void main() {
     bool fresh = true,
     int? floor,
     Future<CurrentUser?>? identity,
+    bool routed = false,
+    bool hasMore = false,
+    Completer<PostWindowPayload>? pendingPagination,
   }) async {
     if (fresh) {
       final client = GfApiClient(
@@ -112,7 +137,7 @@ void main() {
       );
       store = _Store();
       posts = _Posts(client);
-      topics = _Topics(client);
+      topics = _Topics(client)..pendingOlder = pendingPagination;
       container = ProviderContainer(
         overrides: [
           apiClientProvider.overrideWithValue(client),
@@ -121,7 +146,7 @@ void main() {
                 ? const CurrentUser(id: 1, username: 'alice')
                 : await identity,
           ),
-          pageRepositoryProvider.overrideWithValue(FakePageRepository(client)),
+          pageRepositoryProvider.overrideWithValue(_Pages(client, hasMore)),
           topicRepositoryProvider.overrideWithValue(topics),
           postRepositoryProvider.overrideWithValue(posts),
           writingStoreProvider.overrideWithValue(store),
@@ -130,19 +155,48 @@ void main() {
       );
       addTearDown(container.dispose);
     }
+    GoRouter? router;
+    if (routed) {
+      router = GoRouter(
+        initialLocation: '/topic',
+        routes: [
+          GoRoute(
+            path: '/',
+            builder: (_, _) => const Scaffold(body: Text('返回列表')),
+          ),
+          GoRoute(
+            path: '/topic',
+            builder: (_, _) => TopicPage(topicId: 100, initialPostNo: floor),
+          ),
+        ],
+      );
+      addTearDown(router.dispose);
+    }
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
-        child: MaterialApp(
-          theme: gfThemeData(Brightness.light),
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-          locale: const Locale('zh'),
-          home: TopicPage(topicId: 100, initialPostNo: floor),
-        ),
+        child: routed
+            ? MaterialApp.router(
+                routerConfig: router,
+                theme: gfThemeData(Brightness.light),
+                localizationsDelegates: AppLocalizations.localizationsDelegates,
+                supportedLocales: AppLocalizations.supportedLocales,
+                locale: const Locale('zh'),
+              )
+            : MaterialApp(
+                theme: gfThemeData(Brightness.light),
+                localizationsDelegates: AppLocalizations.localizationsDelegates,
+                supportedLocales: AppLocalizations.supportedLocales,
+                locale: const Locale('zh'),
+                home: TopicPage(topicId: 100, initialPostNo: floor),
+              ),
       ),
     );
-    await tester.pumpAndSettle();
+    if (pendingPagination == null) {
+      await tester.pumpAndSettle();
+    } else {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
   }
 
   GfPostComposer composer(WidgetTester tester) =>
@@ -163,6 +217,111 @@ void main() {
     await tester.pump(const Duration(milliseconds: 800));
     await tester.pumpAndSettle();
   }
+
+  testWidgets('restored reply rebuilds local mention candidates', (
+    tester,
+  ) async {
+    await WritingStore().save(
+      scope,
+      const LocalDraft(
+        key: 'reply-100',
+        kind: DraftKind.reply,
+        title: '话题',
+        content: 'unfinished',
+        contentType: 2,
+        topicId: 100,
+        categories: [],
+        images: [],
+        updatedAt: 1,
+        replyToPostId: 9002,
+        replyTargetName: 'bob',
+      ),
+    );
+    await pumpTopic(tester);
+    composer(tester).controller.value = const TextEditingValue(
+      text: '@',
+      selection: TextSelection.collapsed(offset: 1),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .widget<MentionCandidatesPanel>(find.byType(MentionCandidatesPanel))
+          .session
+          .candidates
+          .map((user) => user.username),
+      contains('bob'),
+    );
+    await disposePage(tester);
+  });
+  testWidgets('anchoring a sent reply records the updated return-state count', (
+    tester,
+  ) async {
+    await pumpTopic(tester);
+    await open(tester);
+    composer(tester).controller.text = 'new reply';
+    composer(tester).onPublish();
+    await tester.pumpAndSettle();
+    expect(container.read(topicReturnStatesProvider)[100]!.replyCount, 3);
+    await disposePage(tester);
+  });
+  testWidgets(
+    'storage failure offers an explicit unsaved exit without deleting the old copy',
+    (tester) async {
+      await pumpTopic(tester, routed: true);
+      await open(tester);
+      composer(tester).controller.text = 'old saved reply';
+      await autosave(tester);
+      store.fail = true;
+      composer(tester).controller.text = 'unsaved changes';
+      await tester.tap(find.byTooltip('返回'));
+      await tester.pumpAndSettle();
+      expect(find.text('放弃修改'), findsOneWidget);
+      await tester.tap(find.text('继续编辑'));
+      await tester.pumpAndSettle();
+      expect(composer(tester).controller.text, 'unsaved changes');
+      await tester.tap(find.byTooltip('返回'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('放弃修改'));
+      await tester.pumpAndSettle();
+      expect(find.text('返回列表'), findsOneWidget);
+      expect((await store.drafts(scope)).single.content, 'old saved reply');
+      await disposePage(tester);
+    },
+  );
+  testWidgets('anchored send resets an invalidated pagination loading flag', (
+    tester,
+  ) async {
+    final pending = Completer<PostWindowPayload>();
+    await pumpTopic(tester, hasMore: true, pendingPagination: pending);
+    for (var i = 0; i < 6 && topics.paginatedCalls == 0; i++) {
+      await tester.drag(find.byType(CustomScrollView), const Offset(0, -600));
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    expect(topics.paginatedCalls, 1);
+    tester
+        .widget<GfFloatingControls>(find.byType(GfFloatingControls))
+        .onOpenReply!();
+    await tester.pump();
+    composer(tester).controller.text = 'reply during pagination';
+    composer(tester).onPublish();
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.pump(const Duration(milliseconds: 300));
+    final original = parsePageProps<TopicDetailProps>(
+      parsePayload(topicDetailPayloadJson()),
+    )!.postStream;
+    topics.pendingOlder!.complete(original);
+    await tester.pump(const Duration(milliseconds: 400));
+    final l10n = AppLocalizations.of(tester.element(find.byType(TopicPage)));
+    expect(
+      tester
+          .widget<TextButton>(
+            find.widgetWithText(TextButton, l10n.topicEarlierReplies),
+          )
+          .onPressed,
+      isNotNull,
+    );
+    await disposePage(tester);
+  });
 
   testWidgets('viewing a topic creates no empty reply draft', (tester) async {
     await pumpTopic(tester);

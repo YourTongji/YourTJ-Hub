@@ -12,8 +12,8 @@ YourTJ 移动端论坛客户端(Flutter)。`apps/mobile` melos 工作区的入�
 - **内容与编辑**:按图片方向展示的信息流;瞬间/提问使用图片轮播加正文,文章使用折叠工具栏的富文本编辑器;三类编辑器共享类型图标、步骤提示、18 px 正文与预览后的分类区域,支持服务端草稿和离开确认。个人页的各个 Tab 请求真实活动流,内容管理和回收站按服务端权限提供操作。
 - **账号与管理**:资料编辑保留网站、语言和社交链接;账号、安全与隐私控制位于独立设置页。完整 Web 管理与审核工作台通过受限的原生 WebView 访问,会话仅通过请求头交接。公共站点信息从校园或设置页的“关于社区”进入。
 - **交互规格**:具体行为、权限和验证边界见[移动端体验](../../../../docs/product/mobile-experience.md);路由以 `lib/src/router.dart` 为准。
-- **本机写作**:`lib/src/local/writing_store.dart` 按 API origin 与数字账号 ID 隔离未完成草稿和最近搜索；每次新建使用独立 ID，云端草稿编辑、已发布话题编辑和按话题保存的回复分别命名。旧 v1 槽位可从草稿列表继续恢复。回复保留正文、对象和图片，收起/离页不清空；发送成功只清理未被继续编辑的提交内容。草稿页使用同一滚动面，支持当前列表搜索及本机/云端/回复筛选，显示内容类型与继续编辑入口；本机删除可在当前页撤销最近一次，已有新版时不覆盖，账号切换清理撤销与搜索状态。刷新失败保留原内容；写入失败可重试，缓存清理不删除草稿。
-- **离线**:`lib/src/offline/drift_cache.dart` 基于 drift 缓存已浏览话题与 IM 会话。
+- **本机写作**:`lib/src/local/writing_store.dart` 按 API origin 与数字账号 ID 隔离未完成草稿和最近搜索；每次新建使用独立 ID，云端草稿编辑、已发布话题编辑和按话题保存的回复分别命名。旧 v1 槽位可从草稿列表继续恢复。回复保留正文、对象和图片，收起/离页不清空；发送成功只清理未被继续编辑的提交内容。草稿页使用同一滚动面，支持当前列表搜索及本机/云端/回复筛选，显示内容类型与继续编辑入口；本机删除可在当前页撤销最近一次，已有新版时不覆盖，账号切换清理撤销与搜索状态。刷新失败保留原内容；写入失败可重试，缓存清理不删除草稿。私信发送状态由 `lib/src/messages/chat_outbox.dart` 在当前会话中保留。
+- **离线**:`lib/src/offline/drift_cache.dart` 基于 drift 缓存已浏览话题与 IM 会话；校园页另以单行原子快照保存 profile/calendar/timetable/today，并从该快照生成不含姓名、学号、邮箱、成绩、消息或凭据的桌面课表 Projection。Projection schema 2 保留服务端当日权威结果，并在规则可靠时写入八天滚动窗口；Android Glance 与 iOS WidgetKit 只读此投影，不联网，也不读取排课器 store。
 - **发帖图片**:`lib/src/images/composer_upload_queue.dart` 管理前台多选上传队列，失败原项重试或移除，成功 URL 立即进入独立草稿。未上传照片不写临时路径到持久存储；存在待处理项时阻止离开或提交，后台暂停后续上传，会话失效隔离旧结果。
 - **运行配置**(`lib/src/app_config.dart`):经 `--dart-define` 注入 `YOURTJ_OIDC_ISSUER` / `YOURTJ_OIDC_CLIENT_ID` / `YOURTJ_API_BASE_URL`;默认内建 OIDC issuer 为 `http://localhost:5234/api/oauth`,API baseUrl 为空时 Android 模拟器走 `10.0.2.2`。
 

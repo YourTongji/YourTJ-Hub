@@ -266,10 +266,24 @@ class _PublishPageState extends ConsumerState<PublishPage>
     if (owner == null || _dirty) return;
     final drafts = await _localStore.drafts(owner);
     if (!mounted || !_sessionCurrent || _dirty) return;
+    final unknownTopicKind =
+        widget.localDraftKey == null &&
+        _currentTopicId > 0 &&
+        _draftKind == null;
+    // Offline metadata cannot tell a cloud draft from a published topic. Prefer
+    // the newest matching recovery copy across both modern identities and v1.
+    final recoveryKeys = {
+      topicDraftKey(_currentTopicId, published: true),
+      topicDraftKey(_currentTopicId, published: false),
+      'topic-$_currentTopicId',
+    };
     var matching = drafts.where(
-      (draft) => draft.key == _draftKey && draft.kind != DraftKind.reply,
+      (draft) =>
+          draft.kind != DraftKind.reply &&
+          (unknownTopicKind
+              ? recoveryKeys.contains(draft.key)
+              : draft.key == _draftKey),
     );
-    // Legacy v1 topic snapshots had one undifferentiated recovery slot.
     if (matching.isEmpty &&
         widget.localDraftKey == null &&
         _currentTopicId > 0) {

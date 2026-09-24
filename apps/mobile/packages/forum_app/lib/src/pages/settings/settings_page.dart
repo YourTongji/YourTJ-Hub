@@ -21,10 +21,12 @@ import '../../theme_mode.dart';
 import '../../app_locale.dart';
 import '../../widgets/language_picker.dart';
 import '../../site_theme.dart';
+import '../../campus_widget/schedule_widget_bridge.dart';
 import '../../push/push_service.dart';
 import '../../widgets/status_views.dart';
 import '../../current_user.dart';
 import 'account_closure_dialog.dart';
+import 'campus_cache_clear_tile.dart';
 import 'profile_edit_dialog.dart';
 import 'username_edit_dialog.dart';
 import 'badge_display_dialog.dart';
@@ -38,7 +40,9 @@ enum _SettingsTab {
   account,
   privacy,
   binding,
-  security;
+  security,
+  appearance,
+  notifications;
 
   String label(AppLocalizations l10n) => switch (this) {
     _SettingsTab.profile => l10n.settingsTabProfile,
@@ -46,12 +50,15 @@ enum _SettingsTab {
     _SettingsTab.privacy => l10n.settingsTabPrivacy,
     _SettingsTab.binding => l10n.settingsTabBinding,
     _SettingsTab.security => l10n.settingsTabSecurity,
+    _SettingsTab.appearance => l10n.settingsAppearance,
+    _SettingsTab.notifications => l10n.settingsPush,
   };
 }
 
 /// 设置页(web settings.index 的移动端形态)。
 ///
-/// 5 tab 对齐 web:资料 / 账户 / 隐私 / 绑定 / 安全。
+/// Device preferences remain available to guests. Existing section deep links
+/// retain their names; the index opens each category on a normal back stack.
 class SettingsPage extends ConsumerStatefulWidget {
   const SettingsPage({super.key, this.initialSection});
   final String? initialSection;
@@ -61,28 +68,94 @@ class SettingsPage extends ConsumerStatefulWidget {
 }
 
 class _SettingsPageState extends ConsumerState<SettingsPage> {
-  _SettingsTab _tab = _SettingsTab.profile;
+  _SettingsTab? _tab;
+  bool? _signedIn;
+  int _sessionRequest = 0;
+  int _userRequest = 0;
+  int _sessionsRequest = 0;
   AsyncValue<List<UserSessionPayload>> _sessions = const AsyncValue.loading();
   AsyncValue<SettingsUserPayload> _user = const AsyncValue.loading();
   bool _uploadingAvatar = false;
   bool _accountClosing = false;
   bool _googleOAuthReady = false;
+  int _widgetTransparency = ScheduleWidgetBridge.defaultTransparencyPercent;
+  int _savedWidgetTransparency =
+      ScheduleWidgetBridge.defaultTransparencyPercent;
+  bool _widgetTransparencyLoaded = false;
   final ImagePicker _imagePicker = ImagePicker();
 
   @override
   void initState() {
     super.initState();
-    _tab = _SettingsTab.values.firstWhere(
-      (tab) => tab.name == widget.initialSection,
-      orElse: () => _SettingsTab.profile,
-    );
-    _loadSessions();
-    _loadUser();
+    for (final section in _SettingsTab.values) {
+      if (section.name == widget.initialSection) _tab = section;
+    }
+    _loadSession();
+    _loadWidgetTransparency();
+  }
+
+  bool get _needsUser =>
+      _tab == _SettingsTab.profile ||
+      _tab == _SettingsTab.account ||
+      _tab == _SettingsTab.binding;
+
+  Future<void> _loadSession() async {
+    final request = ++_sessionRequest;
+    final epoch = ref.read(offlineCacheEpochProvider);
+    bool signedIn = false;
+    try {
+      signedIn = await hasSessionToken(ref.read(tokenStorageProvider));
+    } catch (_) {
+      // Device preferences work even when session storage is unavailable.
+    }
+    if (!mounted ||
+        request != _sessionRequest ||
+        ref.read(offlineCacheEpochProvider) != epoch) {
+      return;
+    }
+    setState(() => _signedIn = signedIn);
+    if (!signedIn) return;
+    if (_needsUser) unawaited(_loadUser());
+    if (_tab == _SettingsTab.security) unawaited(_loadSessions());
+  }
+
+  Future<void> _loadWidgetTransparency() async {
+    try {
+      final value = await ref
+          .read(scheduleWidgetBridgeProvider)
+          .readTransparency();
+      if (!mounted) return;
+      setState(() {
+        _widgetTransparency = value;
+        _savedWidgetTransparency = value;
+        _widgetTransparencyLoaded = true;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _widgetTransparencyLoaded = true);
+    }
+  }
+
+  Future<void> _saveWidgetTransparency(int value) async {
+    try {
+      await ref.read(scheduleWidgetBridgeProvider).setTransparency(value);
+      if (mounted) setState(() => _savedWidgetTransparency = value);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _widgetTransparency = _savedWidgetTransparency);
+      final l10n = AppLocalizations.of(context);
+      showGfToast(
+        context,
+        l10n.settingsOpFailed(resolveErrorMessage(l10n, error)),
+        error: true,
+      );
+    }
   }
 
   /// 加载设置页账户数据(settings.index 数据通道 → 徽章等)。
   Future<void> _loadUser({bool silent = false}) async {
-    final SettingsUserPayload? previous = _user.value;
+    final request = ++_userRequest;
+    final epoch = ref.read(offlineCacheEpochProvider);
+    final SettingsUserPayload? previous = _user.valueOrNull;
     if (!silent || previous == null) {
       setState(() => _user = const AsyncValue.loading());
     }
@@ -93,18 +166,24 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       final SettingsPageProps? props = parsePageProps<SettingsPageProps>(
         payload,
       );
-      if (!mounted) return;
+      if (!mounted ||
+          request != _userRequest ||
+          ref.read(offlineCacheEpochProvider) != epoch) {
+        return;
+      }
+      if (props == null) {
+        throw FormatException(AppLocalizations.of(context).commonParseFailed);
+      }
       setState(() {
-        _googleOAuthReady = props?.googleOAuthReady ?? false;
-        _user = props == null
-            ? AsyncValue.error(
-                AppLocalizations.of(context).commonParseFailed,
-                StackTrace.empty,
-              )
-            : AsyncValue.data(props.user);
+        _googleOAuthReady = props.googleOAuthReady;
+        _user = AsyncValue.data(props.user);
       });
     } catch (e, st) {
-      if (!mounted) return;
+      if (!mounted ||
+          request != _userRequest ||
+          ref.read(offlineCacheEpochProvider) != epoch) {
+        return;
+      }
       if (silent && previous != null) {
         showGfToast(context, '$e', error: true);
         return;
@@ -115,8 +194,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
   Future<void> _refresh() async {
     await Future.wait<void>(<Future<void>>[
-      _loadUser(silent: true),
-      if (_tab == _SettingsTab.security) _loadSessions(silent: true),
+      if (_signedIn == true && _needsUser) _loadUser(silent: true),
+      if (_signedIn == true && _tab == _SettingsTab.security)
+        _loadSessions(silent: true),
     ]);
   }
 
@@ -126,7 +206,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       navigator.pop();
       return;
     }
-    context.go('/profile');
+    if (_tab != null) {
+      setState(() => _tab = null);
+      return;
+    }
+    context.go(_signedIn == true ? '/profile' : '/');
   }
 
   /// 徽章佩戴选择:底部弹出可佩戴徽章列表,点选调 wear-badge。
@@ -687,17 +771,26 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   }
 
   Future<void> _loadSessions({bool silent = false}) async {
-    final List<UserSessionPayload>? previous = _sessions.value;
+    final request = ++_sessionsRequest;
+    final epoch = ref.read(offlineCacheEpochProvider);
+    final List<UserSessionPayload>? previous = _sessions.valueOrNull;
     if (!silent || previous == null) {
       setState(() => _sessions = const AsyncValue.loading());
     }
     try {
       final sessions = await ref.read(userRepositoryProvider).listSessions();
-      if (mounted) {
-        setState(() => _sessions = AsyncValue.data(sessions));
+      if (!mounted ||
+          request != _sessionsRequest ||
+          ref.read(offlineCacheEpochProvider) != epoch) {
+        return;
       }
+      setState(() => _sessions = AsyncValue.data(sessions));
     } catch (e, st) {
-      if (!mounted) return;
+      if (!mounted ||
+          request != _sessionsRequest ||
+          ref.read(offlineCacheEpochProvider) != epoch) {
+        return;
+      }
       if (silent && previous != null) {
         showGfToast(context, '$e', error: true);
         return;
@@ -744,10 +837,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       return;
     }
     await _signOutLocally(successMessage: l10n.settingsRevokeAllDone);
-  }
-
-  void _toggleDarkMode(bool value) {
-    ref.read(themeModeProvider.notifier).toggleDark(value);
   }
 
   Future<void> _pickProfileImage({bool cover = false}) async {
@@ -857,86 +946,317 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
   @override
   Widget build(BuildContext context) {
-    final AppLocalizations l10n = AppLocalizations.of(context);
-    final bool isDark = Theme.of(context).brightness == Brightness.dark;
-
+    ref.listen(offlineCacheEpochProvider, (previous, next) {
+      if (previous == next) return;
+      _userRequest++;
+      _sessionsRequest++;
+      setState(() {
+        _signedIn = null;
+        _user = const AsyncValue.loading();
+        _sessions = const AsyncValue.loading();
+        _googleOAuthReady = false;
+      });
+      unawaited(_loadSession());
+    });
+    final l10n = AppLocalizations.of(context);
+    final title = _tab?.label(l10n) ?? l10n.settingsTitle;
+    final colors = GfTheme.colorsOf(context);
+    final titleStyle = GfTheme.typographyOf(
+      context,
+    ).heading.copyWith(fontSize: 18, height: 1.4, fontWeight: FontWeight.w700);
+    final titleLayout = TextPainter(
+      text: TextSpan(text: title, style: titleStyle),
+      textDirection: Directionality.of(context),
+      textScaler: MediaQuery.textScalerOf(context),
+      maxLines: 2,
+    )..layout(maxWidth: MediaQuery.sizeOf(context).width - 88);
+    final toolbarHeight = (titleLayout.height + 16).clamp(
+      56.0,
+      double.infinity,
+    );
+    titleLayout.dispose();
     return Scaffold(
-      backgroundColor: GfTheme.colorsOf(context).base200,
-      appBar: GfAppBar(
-        leading: GfIconButton(
-          icon: Icons.arrow_back,
+      backgroundColor: colors.base200,
+      appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
           tooltip: l10n.commonBack,
-          size: 44,
           onPressed: _leaveSettings,
         ),
-        title: Text(l10n.settingsTitle),
-        actions: [
-          IconButton(
-            icon: const GfSymbol('languages'),
-            tooltip: l10n.settingsAppLanguage,
-            onPressed: () => showAppLanguagePicker(context),
-          ),
-          IconButton(
-            icon: const GfSymbol('info'),
-            tooltip: l10n.siteInfoTitle,
-            onPressed: () => context.push('/about'),
-          ),
-        ],
+        title: Text(title, maxLines: 2),
+        centerTitle: false,
+        titleTextStyle: titleStyle,
+        toolbarHeight: toolbarHeight,
+        backgroundColor: colors.base100,
+        scrolledUnderElevation: 0,
+        shape: Border(bottom: BorderSide(color: colors.line)),
       ),
-      body: Column(
-        children: [
-          // Tab 栏(对齐 web settingsTabLabel: profile/account/privacy/binding/security)。
-          Container(
-            height: GfTabBar.heightFor(context),
-            alignment: Alignment.centerLeft,
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            child: GfTabBar(
-              tabs: <GfTab>[
-                for (final tab in _SettingsTab.values)
-                  GfTab(label: tab.label(l10n), value: tab),
-              ],
-              selected: _tab,
-              onSelected: (Object value) =>
-                  setState(() => _tab = value as _SettingsTab),
-            ),
+      body: SafeArea(
+        top: false,
+        child: Align(
+          alignment: Alignment.topCenter,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 720),
+            child: _tab == null ? _buildIndex(l10n) : _buildTabBody(l10n),
           ),
-          const GfDivider(),
-          Expanded(child: _buildTabBody(l10n, isDark: isDark)),
-        ],
+        ),
       ),
     );
   }
 
-  Widget _buildTabBody(AppLocalizations l10n, {required bool isDark}) {
-    final bool needsUser =
-        _tab == _SettingsTab.profile || _tab == _SettingsTab.account;
-    if (needsUser && _user.isLoading && !_user.hasValue) {
+  void _openSection(_SettingsTab section) {
+    Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) => SettingsPage(initialSection: section.name),
+      ),
+    );
+  }
+
+  Widget _buildIndex(AppLocalizations l10n) => ListView(
+    padding: const EdgeInsets.all(16),
+    children: [
+      _settingsSection(
+        context,
+        title: l10n.settingsDevice,
+        child: Column(
+          children: [
+            _categoryRow(
+              key: const ValueKey('settings-category-appearance'),
+              icon: Icons.palette_outlined,
+              title: l10n.settingsAppearance,
+              onTap: () => _openSection(_SettingsTab.appearance),
+            ),
+            const GfDivider(),
+            _categoryRow(
+              key: const ValueKey('settings-category-language'),
+              icon: Icons.language,
+              title: l10n.settingsAppLanguage,
+              description:
+                  appLanguageNames[ref
+                      .watch(appLocaleProvider)
+                      ?.languageCode] ??
+                  l10n.settingsLanguageSystem,
+              onTap: () => showAppLanguagePicker(context),
+            ),
+            const GfDivider(),
+            _categoryRow(
+              icon: Icons.info_outline,
+              title: l10n.settingsAbout,
+              onTap: () => context.push('/about'),
+            ),
+          ],
+        ),
+      ),
+      const SizedBox(height: 24),
+      _settingsSection(
+        context,
+        title: l10n.settingsYourAccount,
+        child: Column(
+          children: [
+            if (_signedIn == true)
+              for (final section in const [
+                _SettingsTab.profile,
+                _SettingsTab.account,
+                _SettingsTab.privacy,
+                _SettingsTab.binding,
+                _SettingsTab.notifications,
+                _SettingsTab.security,
+              ]) ...[
+                if (section != _SettingsTab.profile) const GfDivider(),
+                _categoryRow(
+                  key: ValueKey('settings-category-${section.name}'),
+                  icon: switch (section) {
+                    _SettingsTab.profile => Icons.person_outline,
+                    _SettingsTab.account => Icons.manage_accounts_outlined,
+                    _SettingsTab.privacy => Icons.privacy_tip_outlined,
+                    _SettingsTab.binding => Icons.link,
+                    _SettingsTab.notifications => Icons.notifications_outlined,
+                    _ => Icons.shield_outlined,
+                  },
+                  title: section.label(l10n),
+                  onTap: () => _openSection(section),
+                ),
+              ]
+            else if (_signedIn == false)
+              _categoryRow(
+                icon: Icons.login,
+                title: l10n.authLoginTitle,
+                onTap: () => context.push('/login'),
+              )
+            else
+              const Padding(
+                padding: EdgeInsets.all(16),
+                child: LinearProgressIndicator(),
+              ),
+          ],
+        ),
+      ),
+    ],
+  );
+
+  // Material's focusable InkWell gives category rows keyboard and screen-reader
+  // activation. Wrapping text has no fixed row height, including at 200% scaling.
+  Widget _categoryRow({
+    Key? key,
+    required IconData icon,
+    required String title,
+    String? description,
+    required VoidCallback onTap,
+  }) => ListTile(
+    key: key,
+    leading: Icon(icon),
+    title: Text(title),
+    subtitle: description == null ? null : Text(description),
+    trailing: const Icon(Icons.chevron_right),
+    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+    onTap: onTap,
+  );
+
+  Widget _buildTabBody(AppLocalizations l10n) {
+    if (_tab != _SettingsTab.appearance) {
+      if (_signedIn == null) return const GfSettingsSkeleton();
+      if (_signedIn == false) return _buildIndex(l10n);
+    }
+    if (_needsUser && _user.isLoading && !_user.hasValue) {
       return const GfSettingsSkeleton();
     }
-    if (needsUser && _user.hasError && !_user.hasValue) {
+    if (_needsUser && _user.hasError && !_user.hasValue) {
       return GfErrorRetry(
         message: resolveErrorMessage(l10n, _user.error!),
         onRetry: _loadUser,
       );
     }
-
     return GfScrollToTop(
       semanticLabel: l10n.commonBackToTop,
-      key: ValueKey<_SettingsTab>(_tab),
-      builder: (_, ScrollController controller) => AppRefreshIndicator(
-        onRefresh: _refresh,
-        child: switch (_tab) {
+      key: ValueKey<_SettingsTab?>(_tab),
+      builder: (_, ScrollController controller) {
+        final content = switch (_tab!) {
           _SettingsTab.profile => _buildProfileTab(l10n, controller),
           _SettingsTab.account => _buildAccountTab(l10n, controller),
           _SettingsTab.privacy => _buildPrivacyTab(l10n, controller),
           _SettingsTab.binding => _buildBindingTab(l10n, controller),
-          _SettingsTab.security => _buildSecurityTab(
-            l10n,
-            controller,
-            isDark: isDark,
+          _SettingsTab.security => _buildSecurityTab(l10n, controller),
+          _SettingsTab.appearance => _buildAppearance(l10n, controller),
+          _SettingsTab.notifications => _buildNotifications(l10n, controller),
+        };
+        if (_tab == _SettingsTab.appearance ||
+            _tab == _SettingsTab.notifications) {
+          return content;
+        }
+        return AppRefreshIndicator(onRefresh: _refresh, child: content);
+      },
+    );
+  }
+
+  Widget _buildAppearance(AppLocalizations l10n, ScrollController controller) {
+    final mode = ref.watch(themeModeProvider);
+    final siteTheme = ref.watch(siteThemeProvider);
+    return ListView(
+      controller: controller,
+      padding: const EdgeInsets.all(16),
+      children: [
+        _settingsSection(
+          context,
+          title: l10n.settingsAppearance,
+          child: RadioGroup<ThemeMode>(
+            groupValue: mode,
+            onChanged: (value) {
+              if (value != null) {
+                ref.read(themeModeProvider.notifier).setMode(value);
+              }
+            },
+            child: Column(
+              children: [
+                for (final choice in ThemeMode.values)
+                  RadioListTile<ThemeMode>(
+                    key: ValueKey('settings-theme-${choice.name}'),
+                    title: Text(switch (choice) {
+                      ThemeMode.system => l10n.settingsLanguageSystem,
+                      ThemeMode.light => l10n.settingsThemeLight,
+                      ThemeMode.dark => l10n.settingsThemeDark,
+                    }),
+                    value: choice,
+                  ),
+              ],
+            ),
           ),
-        },
-      ),
+        ),
+        const SizedBox(height: 12),
+        _settingsSection(
+          context,
+          title: l10n.scheduleWidgetSettingsTitle,
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            l10n.scheduleWidgetTransparencyTitle,
+                            style: Theme.of(context).textTheme.titleSmall,
+                          ),
+                        ),
+                        Text(
+                          '$_widgetTransparency%',
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                      ],
+                    ),
+                    Slider(
+                      value: _widgetTransparency.toDouble(),
+                      min: ScheduleWidgetBridge.minTransparencyPercent
+                          .toDouble(),
+                      max: ScheduleWidgetBridge.maxTransparencyPercent
+                          .toDouble(),
+                      divisions:
+                          ScheduleWidgetBridge.maxTransparencyPercent -
+                          ScheduleWidgetBridge.minTransparencyPercent,
+                      label: '$_widgetTransparency%',
+                      semanticFormatterCallback: (value) =>
+                          '${l10n.scheduleWidgetTransparencyTitle}, ${value.round()}%',
+                      onChanged: !_widgetTransparencyLoaded
+                          ? null
+                          : (value) => setState(
+                              () => _widgetTransparency = value.round(),
+                            ),
+                      onChangeEnd: !_widgetTransparencyLoaded
+                          ? null
+                          : (value) => _saveWidgetTransparency(value.round()),
+                    ),
+                    Text(
+                      l10n.scheduleWidgetTransparencyDescription,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: GfTheme.colorsOf(context).iconMuted,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (siteTheme.available) ...[
+          const SizedBox(height: 12),
+          _settingsSection(
+            context,
+            title: l10n.settingsFollowSiteTheme,
+            child: SwitchListTile(
+              title: Text(l10n.settingsFollowSiteTheme),
+              subtitle: Text(l10n.settingsFollowSiteThemeDesc),
+              value: siteTheme.following,
+              onChanged: (value) =>
+                  ref.read(siteThemeProvider.notifier).setFollowing(value),
+            ),
+          ),
+        ],
+      ],
     );
   }
 
@@ -947,20 +1267,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.all(16),
       children: <Widget>[
-        Material(
-          color: GfTheme.colorsOf(context).base100,
-          borderRadius: BorderRadius.circular(20),
-          clipBehavior: Clip.antiAlias,
-          child: GfSettingRow(
-            symbol: 'languages',
-            title: l10n.settingsAppLanguage,
-            description:
-                appLanguageNames[ref.watch(appLocaleProvider)?.languageCode] ??
-                l10n.settingsLanguageSystem,
-            onTap: () => showAppLanguagePicker(context),
-          ),
-        ),
-        const SizedBox(height: 12),
         _settingsSection(
           context,
           title: l10n.settingsSectionProfile,
@@ -1162,6 +1468,15 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           title: l10n.profileTrash,
           onTap: () => context.push('/recycle-bin'),
         ),
+        const CampusCacheClearTile(),
+        const GfDivider(),
+        GfSettingRow(
+          symbol: 'calendar-days',
+          title: l10n.scheduleWidgetSettingsTitle,
+          description: l10n.scheduleWidgetPrivacyDescription,
+          trailing: const Icon(Icons.chevron_right, size: 18),
+          onTap: () => context.push('/settings/widgets'),
+        ),
         const SizedBox(height: 24),
         Text(l10n.settingsCloseAccountWarning),
         const SizedBox(height: 12),
@@ -1201,127 +1516,93 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     );
   }
 
-  /// 安全:外观 + TOTP + 会话管理 + 关于(web security tab)。
-  Widget _buildSecurityTab(
+  Widget _buildNotifications(
     AppLocalizations l10n,
-    ScrollController controller, {
-    required bool isDark,
-  }) {
+    ScrollController controller,
+  ) => ListView(
+    controller: controller,
+    padding: const EdgeInsets.all(16),
+    children: [
+      // Keep delivery status visible even when configuration is incomplete.
+      Consumer(
+        builder: (BuildContext context, WidgetRef ref, _) {
+          final PushChannelStatus push = ref.watch(pushControllerProvider);
+          // permissionDenied = 用户已开启但系统权限被拒：开关保持开，
+          // 下方给出跳系统设置引导行（三态之二）。
+          final bool switchOn =
+              push == PushChannelStatus.enabled ||
+              push == PushChannelStatus.permissionDenied ||
+              push == PushChannelStatus.serverDisabled ||
+              push == PushChannelStatus.registrationFailed;
+          return _settingsSection(
+            context,
+            title: l10n.settingsPush,
+            child: Column(
+              children: [
+                GfSwitchRow(
+                  symbol: 'bell',
+                  title: l10n.settingsPush,
+                  description: l10n.settingsPushConsent,
+                  value: switchOn,
+                  onChanged: (bool value) async {
+                    final PushController controller = ref.read(
+                      pushControllerProvider.notifier,
+                    );
+                    if (value) {
+                      await controller.enable();
+                    } else {
+                      await controller.disable();
+                    }
+                  },
+                ),
+                const GfDivider(),
+                GfSettingRow(
+                  title: l10n.settingsPushPrivacy,
+                  onTap: () => launchUrl(
+                    Uri.parse('https://www.jiguang.cn/license/privacy'),
+                    mode: LaunchMode.externalApplication,
+                  ),
+                ),
+                if (push == PushChannelStatus.unsupported ||
+                    push == PushChannelStatus.serverDisabled ||
+                    push == PushChannelStatus.registrationFailed) ...[
+                  const GfDivider(),
+                  GfSettingRow(
+                    title: push == PushChannelStatus.unsupported
+                        ? l10n.settingsPushUnsupported
+                        : push == PushChannelStatus.serverDisabled
+                        ? l10n.settingsPushServerDisabled
+                        : l10n.settingsPushFailed,
+                    onTap: () =>
+                        ref.read(pushControllerProvider.notifier).enable(),
+                  ),
+                ],
+                if (push == PushChannelStatus.permissionDenied) ...[
+                  const GfDivider(),
+                  GfSettingRow(
+                    title: l10n.settingsPushDenied,
+                    trailing: const Icon(Icons.chevron_right, size: 18),
+                    onTap: () => ref
+                        .read(pushControllerProvider.notifier)
+                        .openSystemSettings(),
+                  ),
+                ],
+              ],
+            ),
+          );
+        },
+      ),
+      const SizedBox(height: 12),
+    ],
+  );
+
+  /// Account security: two-factor authentication, sessions and sign-out.
+  Widget _buildSecurityTab(AppLocalizations l10n, ScrollController controller) {
     return ListView(
       controller: controller,
       physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.all(16),
       children: <Widget>[
-        _settingsSection(
-          context,
-          title: l10n.settingsAppearance,
-          child: Column(
-            children: [
-              GfSwitchRow(
-                symbol: isDark ? 'moon' : 'sun',
-                iconColor: const Color(0xFF7C3AED),
-                title: l10n.settingsDarkMode,
-                description: isDark
-                    ? l10n.settingsDarkCurrent
-                    : l10n.settingsLightCurrent,
-                value: isDark,
-                onChanged: _toggleDarkMode,
-              ),
-              // 站点主题同步（Route A）：仅服务端启用站点主题时展示。
-              Consumer(
-                builder: (BuildContext context, WidgetRef ref, _) {
-                  final SiteThemeState siteTheme = ref.watch(siteThemeProvider);
-                  if (!siteTheme.available) return const SizedBox.shrink();
-                  return Column(
-                    children: [
-                      const GfDivider(),
-                      GfSwitchRow(
-                        symbol: 'palette',
-                        title: l10n.settingsFollowSiteTheme,
-                        description: l10n.settingsFollowSiteThemeDesc,
-                        value: siteTheme.following,
-                        onChanged: (bool value) => ref
-                            .read(siteThemeProvider.notifier)
-                            .setFollowing(value),
-                      ),
-                    ],
-                  );
-                },
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 12),
-        // Keep delivery status visible even when configuration is incomplete.
-        Consumer(
-          builder: (BuildContext context, WidgetRef ref, _) {
-            final PushChannelStatus push = ref.watch(pushControllerProvider);
-            // permissionDenied = 用户已开启但系统权限被拒：开关保持开，
-            // 下方给出跳系统设置引导行（三态之二）。
-            final bool switchOn =
-                push == PushChannelStatus.enabled ||
-                push == PushChannelStatus.permissionDenied ||
-                push == PushChannelStatus.serverDisabled ||
-                push == PushChannelStatus.registrationFailed;
-            return _settingsSection(
-              context,
-              title: l10n.settingsPush,
-              child: Column(
-                children: [
-                  GfSwitchRow(
-                    symbol: 'bell',
-                    title: l10n.settingsPush,
-                    description: l10n.settingsPushConsent,
-                    value: switchOn,
-                    onChanged: (bool value) async {
-                      final PushController controller = ref.read(
-                        pushControllerProvider.notifier,
-                      );
-                      if (value) {
-                        await controller.enable();
-                      } else {
-                        await controller.disable();
-                      }
-                    },
-                  ),
-                  const GfDivider(),
-                  GfSettingRow(
-                    title: l10n.settingsPushPrivacy,
-                    onTap: () => launchUrl(
-                      Uri.parse('https://www.jiguang.cn/license/privacy'),
-                      mode: LaunchMode.externalApplication,
-                    ),
-                  ),
-                  if (push == PushChannelStatus.unsupported ||
-                      push == PushChannelStatus.serverDisabled ||
-                      push == PushChannelStatus.registrationFailed) ...[
-                    const GfDivider(),
-                    GfSettingRow(
-                      title: push == PushChannelStatus.unsupported
-                          ? l10n.settingsPushUnsupported
-                          : push == PushChannelStatus.serverDisabled
-                          ? l10n.settingsPushServerDisabled
-                          : l10n.settingsPushFailed,
-                      onTap: () =>
-                          ref.read(pushControllerProvider.notifier).enable(),
-                    ),
-                  ],
-                  if (push == PushChannelStatus.permissionDenied) ...[
-                    const GfDivider(),
-                    GfSettingRow(
-                      title: l10n.settingsPushDenied,
-                      trailing: const Icon(Icons.chevron_right, size: 18),
-                      onTap: () => ref
-                          .read(pushControllerProvider.notifier)
-                          .openSystemSettings(),
-                    ),
-                  ],
-                ],
-              ),
-            );
-          },
-        ),
-        const SizedBox(height: 12),
         _settingsSection(
           context,
           title: l10n.settingsTotpTitle,
@@ -1374,6 +1655,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                             )
                           : GfIconButton(
                               icon: Icons.delete_outline,
+                              tooltip: l10n.settingsRevokeSession,
                               iconSize: 18,
                               onPressed: () => _revokeSession(s.id),
                             ),
@@ -1507,6 +1789,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     await clearOfflineCacheQuietly(
       ref.read(offlineTopicCacheProvider),
       ref.read(offlineChatCacheProvider),
+      ref.read(scheduleWidgetBridgeProvider),
     );
     if (successMessage != null && mounted) {
       showGfToast(context, successMessage);

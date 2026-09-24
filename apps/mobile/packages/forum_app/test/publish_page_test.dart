@@ -383,6 +383,36 @@ void main() {
     await tester.pump(const Duration(milliseconds: 600));
   });
 
+  testWidgets('cloud draft URL finds its modern recovery copy while offline', (
+    tester,
+  ) async {
+    final scope = writingScope('http://fake.local', 1);
+    await WritingStore().save(
+      scope,
+      const LocalDraft(
+        key: 'server-draft-42',
+        kind: DraftKind.serverDraft,
+        title: '离线草稿',
+        content: '草稿正文',
+        contentType: 3,
+        topicId: 42,
+        categories: [],
+        images: [],
+        updatedAt: 1,
+      ),
+    );
+    await pumpPublishPage(tester, editing: true, offline: true);
+    expect(find.byType(TextField), findsWidgets);
+    await tester.enterText(find.byType(TextField).first, '离线继续修改');
+    await tester.pump(const Duration(milliseconds: 800));
+    await tester.pumpAndSettle();
+    final draft = (await WritingStore().drafts(scope)).single;
+    expect(draft.kind, DraftKind.serverDraft);
+    expect(draft.key, 'server-draft-42');
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
+  });
+
   testWidgets('new topics keep independent recovery drafts', (tester) async {
     await pumpPublishPage(tester, editing: false, contentType: 3);
     tester

@@ -131,29 +131,38 @@ void main() {
     },
   );
 
-  testWidgets('published adjustments are loaded only when expanded', (
-    tester,
-  ) async {
-    final repo = FakeCampusRepository();
-    await tester.pumpWidget(
-      campusTestApp(
-        repo,
-        child: const Scaffold(body: CampusCalendarExportButton(enabled: true)),
-      ),
-    );
-    await tester.pumpAndSettle();
-    expect(repo.requested, isNot(contains('calendar-rules')));
-    await tester.tap(find.text('查看已发布的调休规则'));
-    await tester.pumpAndSettle();
-    expect(repo.requested, contains('calendar-rules'));
-    expect(find.text('国庆补课'), findsOneWidget);
-    expect(find.textContaining('2026年10月6日'), findsOneWidget);
-    expect(find.textContaining('2026年9月20日'), findsOneWidget);
-    await tester.tap(find.text('查看已发布的调休规则'));
-    await tester.pumpAndSettle();
-    expect(find.text('国庆补课'), findsNothing);
-    expect(tester.takeException(), isNull);
-  });
+  testWidgets(
+    'published adjustments refresh for the widget and when expanded',
+    (tester) async {
+      final repo = FakeCampusRepository();
+      await tester.pumpWidget(
+        campusTestApp(
+          repo,
+          child: const Scaffold(
+            body: CampusCalendarExportButton(enabled: true),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        repo.requested.where((key) => key == 'calendar-rules'),
+        hasLength(1),
+      );
+      await tester.tap(find.text('查看已发布的调休规则'));
+      await tester.pumpAndSettle();
+      expect(
+        repo.requested.where((key) => key == 'calendar-rules'),
+        hasLength(2),
+      );
+      expect(find.text('国庆补课'), findsOneWidget);
+      expect(find.textContaining('2026年10月6日'), findsOneWidget);
+      expect(find.textContaining('2026年9月20日'), findsOneWidget);
+      await tester.tap(find.text('查看已发布的调休规则'));
+      await tester.pumpAndSettle();
+      expect(find.text('国庆补课'), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets('shows incomplete calendar errors and supports retry', (
     tester,

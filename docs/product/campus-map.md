@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-09-13
+> Last verified: 2026-09-23
 
 The campus map helps people find a building or sports facility and understand its
 position among nearby paths and landmarks. It is available to anonymous visitors
@@ -20,12 +20,16 @@ at `/map`, with an entry in the community navigation.
 | Place discovery | Current | Search source names, aliases, raw activity tags and activity names in the selected language; filter academic, library, food, living and sports places. Unnamed outdoor sports polygons remain discoverable. Golf grounds and sports centres are included even when their source has no explicit activity tag; 嘉定高尔夫练习场 is searchable with 高尔夫 or 高尔夫球 and appears in the golf filter. |
 | Map labels | Current | Named buildings participate in label placement at campus overview scale; screen-space collision avoidance controls density. Overview labels omit redundant campus prefixes and parenthesized department suffixes, while hover, selection and search retain full names. Selected places, campus landmarks and libraries take precedence. |
 | Place selection | Current | A map label, building polygon or result opens a detail card and moves the map to the selected feature. Closing restores the place list. |
+| Building navigation | Current | Calibrated campus buildings with finite in-range WGS84 centers link to an external walking route using the building name and center. Apple devices use Apple Maps; Android uses a native geo destination with a separate Baidu web route fallback, and other browsers use that web route. The web route declares WGS84 coordinates. The route opens separately so the selected place remains available; Zhangjiang schematic coordinates and non-building places are excluded. Destination data is sent to the map provider only when the visitor follows the link. |
 | Place links | Current | `?campus=<campus ID>#place=<source feature ID>` restores a selected place. Copying a link falls back to a selectable URL if clipboard access fails. |
 | Map loading failure | Current | The place list remains usable when WebGL fails; data/network failures show an explicit retry state. |
 | Campus switching | Current | Siping, Jiading, Huxi, Hubei, Zhangjiang and Lingang each have an independent dataset. Switching cancels obsolete loads and clears the previous search/selection. |
 | Sports drawing | Current | Siping, Jiading and Huxi athletics tracks have red running surfaces, green infields, lanes and football markings. Hubei follows the official straight-track layout. Individual supported court footprints receive markings; aggregated court polygons do not imply a court count. |
 | Current location | Current | Explicit button press requests one browser WGS84 fix. A blue point and geodesic accuracy circle show it; a nearby calibrated campus is selected automatically. Outside-campus, denial, unsupported, timeout and unavailable states are explicit. A fix received before the renderer is ready is focused after loading. The uncalibrated Zhangjiang plan reports an outside-campus fix without promising a position overlay. No navigation or continuous tracking. |
 | Coverage and facility detail | Partial | Hubei and Lingang have approximately aligned official-plan building traces. Zhangjiang has the four named buildings and paths in an explicitly uncalibrated local plan: location may be obtained but is not drawn on that plan. Indoor rooms, entrances, court counts and live venue information are not fully verified. |
+| Personal timetable on map | Partial | The `/campus` Today section header has one generic “view my courses on the map” link beside “View Week”; it opens the existing map with the timetable tab selected. The map menu switches between place browsing, the private personal timetable, and a course-module schedule search while keeping the same map, campus selector, and map controls. The private view verifies the forum session and campus binding, then reads the existing personal timetable APIs into an in-memory searchable list. The schedule search composes the existing PK `courses-by-time` and batched `course-details` APIs, supporting term, weekday, period group and teaching-week filters. Both views retain original campus/room text; a uniquely matched campus map building can be pinned. The intent URL contains no course identity or location; canonical links stay `/map`. |
+| Timetable-to-map building matching | Partial | Existing explicit Siping and Jiading mappings are combined with unique exact matches against names and clear aliases in the selected campus GeoJSON. Ambiguous or unmatched locations keep their original text and do not place a pin. These matches are project-level name matches, not school-verified building IDs or `towerCode` mappings. |
+| Building and classroom schedules | Partial | The existing map place detail opens a schedule query scoped to that building. It filters the PK course module's teaching arrangements by term, date (when a term start date is available) or teaching week plus weekday, and period group. It displays the arrangement period, room, course, teacher, selected course date/week, source and latest successful PK-module sync date when available. Changing query filters clears prior results and the selected map pin; obsolete in-flight responses cannot populate the new query. An empty result means no matching arrangement was returned; request failure is shown separately. Coverage and freshness follow the module's synchronized data, which does not establish complete classroom schedules or live occupancy. No result may be called a free, open or reservable room. |
 | Native mobile | Partial | The shared page-component identifier is mirrored in Dart; the Flutter app has no native campus-map screen. Mobile browsers use the responsive Web page. |
 
 The UI uses a fixed cartographic palette, with green grounds, blue water, warm
@@ -44,10 +48,22 @@ forum's script policy. Labels use the local DOM/font stack instead of remote gly
 services. No map API token, external tile service, additional database, PMTiles
 service, or Cloudflare Worker is required.
 
+The personal timetable menu tab is requested with `?mine=1`; this is only an intent
+flag, not a shareable course URL or a separate map page. It keeps the original map
+and switches the explorer menu between places and courses. Its response is `private, no-store`, props contain
+no timetable data, and the canonical URL omits the flag. Course records are fetched
+from the existing private campus APIs after session and binding checks, kept in page
+memory, and cleared when the page is left or its binding changes. The course search
+uses the existing PK scheduler's public read APIs; it is an additional mode inside
+the same map menu and does not expose personal timetable records. Dataset
+`updatedAt` is the server time when the normalized response is generated, not the
+school's last-change timestamp; the timetable menu does not display it as a freshness
+claim.
+
 The Go handler returns `campus.map` through the existing HTML/page-payload renderer.
 Vite includes map assets in `resource/static/dist`, which the forum embeds in its
-single binary. There is no new JSON API or authentication system. Location coordinates stay in Vue memory, are never put in links, browser storage,
-analytics events or application requests, and are discarded on document exit.
+single binary. There is no new JSON API or authentication system. Current-location coordinates stay in Vue memory, are never put in links, browser storage,
+analytics events or application requests, and are discarded on document exit. Building destinations are transferred to the external map provider only after the visitor activates the navigation link; this does not request browser location permission.
 Browser/OS positioning services retain their own permission and provider behavior.
 The page does not publish collaborative annotations.
 
@@ -70,7 +86,7 @@ facilities outside that boundary are not guaranteed to appear in search.
 - `resource/test/campus-map.test.ts` covers unnamed sports discovery, alias search,
   stable place IDs, campus-boundary filtering, geometry bounds, all six datasets, sports geometry, location/error handling and data privacy.
 - `resource/test/campus-map-page.test.ts` covers translated sports discovery, cached fixes before
-  canvas readiness, the uncalibrated-plan location notice and data/renderer failure recovery.
+  canvas readiness, selected-building navigation, the uncalibrated-plan location notice and data/renderer failure recovery.
 - `app/http/controllers/forum/campus_map_test.go` covers anonymous HTML and page
   payload responses.
 - `app/http/middleware/securityHeaders_test.go` verifies the map-only location policy.
