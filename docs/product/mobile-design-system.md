@@ -60,6 +60,11 @@ are separate from account editing, binding and security. Appearance offers Syste
 
 ## Transient surfaces and input
 
+`Current`: opening a publishing field or moving its caret alone does not create unsaved work.
+While the software keyboard is visible, the edit step hides its introductory guide and empty photo
+placeholder, retaining the title, body, save status and writing toolbar. Title focus and controller
+identity survive this layout change. The header keeps a small outer margin for its primary action.
+
 `Planned`: use a bottom sheet for short contextual choices, a dialog for consequential confirmation,
 and a page for sustained editing. Sheets share drag handle, heading, close affordance, corner shape,
 safe-area handling and a bounded scrolling body. Expanded windows constrain sheet/dialog width.
