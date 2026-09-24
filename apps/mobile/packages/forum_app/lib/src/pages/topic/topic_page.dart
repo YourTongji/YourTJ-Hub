@@ -121,6 +121,8 @@ class _TopicPageState extends ConsumerState<TopicPage>
   Timer? _replyAutosave;
   int _replyRevision = 0, _replySavedRevision = 0, _replyDraftGeneration = 0;
   bool _restoringReply = false;
+  bool _leavingReply = false;
+  bool _discardReplyOnLeave = false;
   String _lastReplyText = '';
   bool _replySaveFailed = false;
   String _replySaveStatus = '';
@@ -177,6 +179,7 @@ class _TopicPageState extends ConsumerState<TopicPage>
       _replyRevision = _replySavedRevision = 0;
       _replySaveStatus = '';
       _replySaveFailed = false;
+      _discardReplyOnLeave = false;
       _composerOpen = false;
       _mentionSession.close();
       _restoreReplyDraft();
@@ -230,6 +233,7 @@ class _TopicPageState extends ConsumerState<TopicPage>
         _composerOpen = true;
         _replySaveStatus = AppLocalizations.of(context).draftLocalRestored;
       });
+      _syncMentionContext();
     } catch (_) {
       // Reading a damaged local store must not prevent viewing the topic.
     }
@@ -237,6 +241,7 @@ class _TopicPageState extends ConsumerState<TopicPage>
 
   Future<bool> _saveReplyDraft({int? topicId, bool notify = true}) async {
     _replyAutosave?.cancel();
+    if (_discardReplyOnLeave) return true;
     if (!_writingCurrent) return false;
     if (!_replyDirty) return true;
     final generation = _replyDraftGeneration;
@@ -269,7 +274,7 @@ class _TopicPageState extends ConsumerState<TopicPage>
         await _writingStore.save(
           owner,
           draft,
-          isCurrent: () => _writingCurrent,
+          isCurrent: () => _writingCurrent && !_discardReplyOnLeave,
         );
       }
       if (!mounted || !_writingCurrent || generation != _replyDraftGeneration) {
@@ -440,6 +445,10 @@ class _TopicPageState extends ConsumerState<TopicPage>
         });
       } else {
         setState(() => _page = AsyncValue.error(e, st));
+      }
+    } finally {
+      if (mounted && _writingCurrent && generation == _windowGeneration) {
+        _syncMentionContext();
       }
     }
   }
@@ -992,6 +1001,7 @@ class _TopicPageState extends ConsumerState<TopicPage>
 
   Future<void> _showCreatedReply(CreatePostResult result) async {
     final generation = ++_windowGeneration;
+    setState(() => _loadingMore = false);
     final topicId = widget.topicId;
     try {
       // A one-post anchored window makes the acknowledgement visible even in a
@@ -1038,6 +1048,8 @@ class _TopicPageState extends ConsumerState<TopicPage>
         _currentFloor =
             result.postNo ?? window.posts.firstOrNull?.postNo ?? _currentFloor;
       });
+      _recordReturnState();
+      _syncMentionContext();
       await _scrollToTop.scrollToTop();
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted || !_writingCurrent || generation != _windowGeneration) {
@@ -1165,19 +1177,50 @@ class _TopicPageState extends ConsumerState<TopicPage>
   }
 
   Future<void> _goBack() async {
-    if (_replying || !await _saveReplyDraft() || !mounted || !_writingCurrent) {
-      return;
-    }
-    setState(() {});
-    // Let PopScope reflect the completed save before issuing the route pop.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      if (context.canPop()) {
-        context.pop();
-      } else {
-        context.go('/');
+    if (_replying || _leavingReply) return;
+    _leavingReply = true;
+    try {
+      final saved = await _saveReplyDraft();
+      if (!mounted || !_writingCurrent) return;
+      if (!saved) {
+        if (!_replySaveFailed) return;
+        final l10n = AppLocalizations.of(context);
+        final discard = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: Text(l10n.draftLocalSaveFailed),
+            content: Text(l10n.draftReplyLeaveUnsaved),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: Text(l10n.publishContinue),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: Text(l10n.publishDiscard),
+              ),
+            ],
+          ),
+        );
+        if (discard != true || !mounted || !_writingCurrent) return;
+        // Leave the last successfully stored copy intact. Never report the
+        // current failed revision as saved or retry its write during disposal.
+        _replyAutosave?.cancel();
+        _discardReplyOnLeave = true;
+        _replyDraftGeneration++;
       }
-    });
+      setState(() {});
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !_writingCurrent) return;
+        if (context.canPop()) {
+          context.pop();
+        } else {
+          context.go('/');
+        }
+      });
+    } finally {
+      _leavingReply = false;
+    }
   }
 
   @override
@@ -1617,7 +1660,7 @@ class _TopicPageState extends ConsumerState<TopicPage>
       ),
     );
     return PopScope(
-      canPop: !_replyDirty && !_replying,
+      canPop: _discardReplyOnLeave || (!_replyDirty && !_replying),
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) _goBack();
       },

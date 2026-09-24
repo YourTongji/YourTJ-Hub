@@ -15,4 +15,11 @@
     <style name="NormalTheme" parent="@android:style/Theme.Light.NoTitleBar">
         <item name="android:windowBackground">?android:colorBackground</item>
     </style>
+    <style name="WidgetNoScrollbarListView" parent="@android:style/Widget.ListView">
+        <item name="android:scrollbars">none</item>
+    </style>
+    <style name="WidgetHostTheme" parent="@style/NormalTheme">
+        <item name="android:absListViewStyle">@style/WidgetNoScrollbarListView</item>
+        <item name="android:listViewStyle">@style/WidgetNoScrollbarListView</item>
+    </style>
 </resources>
