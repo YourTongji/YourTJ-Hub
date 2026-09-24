@@ -89,7 +89,8 @@
   session invalidation, fences pending callbacks by session, and uses the `hello` frame to refresh
   open message/notification views and unread badges. Chat views stop their 15-second polling while
   the stream is healthy. On disconnect or an unsupported endpoint they resume polling in the
-  foreground; reconnect performs another REST reconciliation.
+  foreground; reconnect performs another REST reconciliation. Expected HTTP cancellation during
+  decoder shutdown completes silently; other transport errors still trigger reconciliation and retry.
 - This process-local delivery assumes the forum's single-instance deployment shape. A multi-instance
   deployment would need shared fan-out before treating SSE as a reliable cross-instance hint channel.
 

@@ -81,7 +81,17 @@ class ForumRealtimeTransport {
       throw const FormatException('SSE response has no body');
     }
     return ForumRealtimeConnection(
-      decodeForumSse(body.stream, onActivity: onActivity),
+      decodeForumSse(
+        // Lifecycle shutdown cancels the decoder and HTTP request together.
+        // The decoder may still be awaiting bytes while its cancel Future is
+        // pending: consume only the expected transport cancellation here so
+        // that Future completes normally. Real network errors still propagate.
+        body.stream.handleError(
+          (Object _) {},
+          test: (error) => error is DioException && CancelToken.isCancel(error),
+        ),
+        onActivity: onActivity,
+      ),
       cancelToken,
     );
   }
