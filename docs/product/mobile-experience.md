@@ -13,6 +13,11 @@ writing use native pages. Management uses the same first-party workspaces and pe
 Web inside an authenticated in-app browser. The navigation and management boundary are recorded in
 [0012](../decisions/0012-unified-mobile-reading-navigation.md).
 
+The [interaction and layout standard](mobile-design-system.md) defines the shared visual and
+behavioral acceptance rules. Its `Planned` requirements are tracked separately from the implemented
+behaviors below; [state and cache boundaries](../architecture/mobile-state-and-cache.md) describe the
+corresponding planned ownership and lifecycle contracts.
+
 ## Navigation and reading
 
 - `Current`: paginated feeds, search, notifications, profiles, content management, own course
