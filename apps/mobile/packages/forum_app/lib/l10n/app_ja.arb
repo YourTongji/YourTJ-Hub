@@ -156,6 +156,9 @@
   "messagesNoMessagesYet": "まだメッセージはありません",
   "messagesEmptyDetail": "まだメッセージはありません。挨拶してみましょう！",
   "messagesInputHint": "メッセージを入力…",
+  "messagesEmoji": "絵文字",
+  "messagesKeyboard": "キーボード",
+  "messagesCopyAll": "メッセージ全体をコピー",
   "messagesSendFailed": "送信できませんでした：{error}",
   "notificationsTitle": "通知",
   "notificationsEmpty": "通知はありません",
@@ -870,6 +873,7 @@
   "badgeDisplayHint": "最大5個まで選び、表示順を変更できます。すべて非表示にもできます。アバターのバッジとは別の設定です。",
   "badgeDisplayUp": "上へ",
   "badgeDisplayDown": "下へ",
+  "notificationsMarkRead": "既読にする",
   "scheduleWidgetSettingsTitle": "ホーム画面の時間割",
   "scheduleWidgetPrivacyDescription": "ウィジェットには、この端末に保存された時間割の授業名、時刻、教員、場所が表示されます。時間割を更新するとホーム画面にも反映されます。",
   "scheduleWidgetRefresh": "オフライン時間割から更新",
@@ -915,5 +919,11 @@
         "type": "String"
       }
     }
-  }
+  },
+  "coursesFilterSearchHint": "絞り込み項目を検索",
+  "coursesFilterNoMatches": "一致する絞り込み項目がありません",
+  "coursesClearSelection": "選択を解除",
+  "coursesResetSearch": "検索と絞り込みをリセット",
+  "coursesFilterLoadFailed": "絞り込み項目を読み込めませんでした。",
+  "coursesPaginationStalled": "追加のコースを取得できませんでした。もう一度お試しください。"
 }

@@ -1753,6 +1753,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/forum/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Stream foreground chat and notification invalidations
+         * @description A single authenticated foreground SSE connection per app instance. The
+         *     stream emits an immediate hello with resync=true; clients must reconcile
+         *     chat, notification and unread state over REST after every connection or
+         *     reconnect. Events are owner-scoped hints, contain no message bodies or
+         *     notification previews, have no replay IDs, and are never a substitute for
+         *     REST cursors. A full server queue closes the stream rather than silently
+         *     dropping events. Heartbeat comments arrive every 15 seconds; the server
+         *     rotates streams within one hour to renew expiring credentials. Session
+         *     validity is checked at handshake and independently every five minutes;
+         *     transport heartbeats do not query the database. Only
+         *     Bearer authorization or the host-only access_token cookie is accepted;
+         *     query-string tokens are not supported. Cookie requests without a
+         *     verifiable same-origin Origin or Referer are rejected before streaming.
+         *     The stream does not extend online presence.
+         *     This process-local stream requires a shared invalidation transport before
+         *     running the forum as multiple serving instances.
+         */
+        get: operations["streamForumEvents"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/forum/notifications": {
         parameters: {
             query?: never;
@@ -2025,6 +2060,59 @@ export interface paths {
          *     messageCode.
          */
         post: operations["markChatRead"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/chat/mark-visible": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Mark only displayed incoming chat messages as read
+         * @description A client sends the actual incoming message IDs that became visible. The server
+         *     validates the whole batch as one conversation and one recipient, then marks
+         *     only those IDs read and decrements the stored unread count by newly read rows
+         *     in the same conversation-locked transaction. Duplicate and
+         *     already-read IDs are idempotent. Any invalid ID rejects the whole batch with
+         *     `chat.markRead.failed`; malformed, empty, zero, or over-100 inputs fail
+         *     validation with `common.request.invalidParams`. The legacy mark-read endpoint
+         *     remains available for older clients. Pending-activation users can clear their
+         *     own read state; frozen accounts cannot.
+         */
+        post: operations["markChatVisibleRead"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/chat/message-read-states": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Refresh chat read flags without downloading message bodies
+         * @description Read-only member operation for 1–100 explicit message IDs in one
+         *     conversation. Incoming and outgoing IDs are allowed. An invalid ID or
+         *     non-member conversation fails with `chat.messages.failed` without disclosing
+         *     which check failed. Flags and the stored conversation unread counter are read
+         *     under the same conversation lock as send/read mutations; this bounded lookup
+         *     does not recount the unread backlog. Frozen accounts retain this read-only access.
+         */
+        post: operations["getChatMessageReadStates"];
         delete?: never;
         options?: never;
         head?: never;
@@ -7895,6 +7983,33 @@ export interface components {
             result: null;
         };
         ChatMarkReadResponse: components["schemas"]["ChatMarkReadSuccess"] | components["schemas"]["ApiFailure"];
+        ChatMessageIDsRequest: {
+            /** Format: uint64 */
+            convId: number;
+            /** @description Explicit message IDs. The server deduplicates them; a highest ID is never a read-through cursor. */
+            messageIds: number[];
+        };
+        ChatVisibleReadResult: {
+            /** Format: uint64 */
+            convId: number;
+            /** @description All valid deduplicated incoming IDs, including those already read, in request order. */
+            acknowledgedMessageIds: number[];
+            /** @description Remaining incoming unread messages in this conversation after the transaction commits. */
+            unreadCount: number;
+        };
+        ChatVisibleReadResponse: components["schemas"]["ChatVisibleReadSuccess"] | components["schemas"]["ApiFailure"];
+        ChatMessageReadState: {
+            /** Format: uint64 */
+            id: number;
+            /** @enum {integer} */
+            isRead: 0 | 1;
+        };
+        ChatMessageReadStatesResult: {
+            /** @description Read flags for all deduplicated requested IDs, in request order, without message bodies. */
+            items: components["schemas"]["ChatMessageReadState"][];
+            unreadCount: number;
+        };
+        ChatMessageReadStatesResponse: components["schemas"]["ChatMessageReadStatesSuccess"] | components["schemas"]["ApiFailure"];
         RateLimitedFailure: components["schemas"]["ApiFailure"] & {
             params: {
                 action: string;
@@ -11677,6 +11792,12 @@ export interface components {
         DisplayBadgesRequest: {
             badgeCodes: string[];
         };
+        ChatVisibleReadSuccess: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["ChatVisibleReadResult"];
+        };
+        ChatMessageReadStatesSuccess: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["ChatMessageReadStatesResult"];
+        };
         LinkPreviewResolveRequest: {
             urls: string[];
         };
@@ -15054,6 +15175,67 @@ export interface operations {
             };
         };
     };
+    streamForumEvents: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /**
+             * @description SSE frames: hello {version, heartbeatSeconds, resync, capabilities},
+             *     chat.changed {convId, change}, notifications.changed {change},
+             *     unread.changed {}, and session.invalidated {}. Changes are hints;
+             *     REST remains authoritative.
+             */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example event: hello
+                     *     data: {"version":1,"heartbeatSeconds":15,"resync":true,"capabilities":{"visibleRead":true}}
+                     *
+                     *     event: chat.changed
+                     *     data: {"convId":42,"change":"received"}
+                     */
+                    "text/event-stream": string;
+                };
+            };
+            /** @description Invalid, expired, or revoked session before streaming. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Cookie-authenticated stream without verifiable same origin is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Per-user or total stream connection limit; Retry-After is five seconds. */
+            429: {
+                headers: {
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Session recheck database unavailable before streaming. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     getNotifications: {
         parameters: {
             query?: {
@@ -15499,6 +15681,90 @@ export interface operations {
                 };
             };
             /** @description Authenticated account is frozen or its account information cannot be resolved. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    markChatVisibleRead: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChatMessageIDsRequest"];
+            };
+        };
+        responses: {
+            /** @description Explicit IDs acknowledged, or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChatVisibleReadResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account or cross-site cookie-authenticated request rejected by the CSRF gate. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    getChatMessageReadStates: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChatMessageIDsRequest"];
+            };
+        };
+        responses: {
+            /** @description Read flags and current unread count, or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChatMessageReadStatesResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Cross-site cookie-authenticated request rejected by the CSRF gate. */
             403: {
                 headers: {
                     [name: string]: unknown;

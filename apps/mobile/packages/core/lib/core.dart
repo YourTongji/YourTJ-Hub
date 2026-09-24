@@ -25,6 +25,7 @@ export 'src/gen/course_catalog.dart';
 export 'src/gen/course_review.dart';
 export 'src/gen/course_summary.dart';
 export 'src/gen/chat.dart';
+export 'src/gen/realtime.dart';
 export 'src/gen/common.dart';
 export 'src/gen/content_pages.dart';
 export 'src/gen/layout.dart';

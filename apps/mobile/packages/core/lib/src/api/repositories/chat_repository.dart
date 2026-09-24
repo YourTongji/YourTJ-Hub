@@ -53,4 +53,26 @@ class ChatRepository {
     );
     return true;
   }
+
+  /// Acknowledge only incoming messages that reached the visible viewport.
+  Future<ChatVisibleReadResult> markVisible({
+    required int convId,
+    required List<int> messageIds,
+  }) => _client.post<ChatVisibleReadResult>(
+    '/api/forum/chat/mark-visible',
+    body: {'convId': convId, 'messageIds': messageIds},
+    parser: (json) =>
+        ChatVisibleReadResult.fromJson(json as Map<String, dynamic>),
+  );
+
+  /// Refresh read flags for loaded messages without reloading their bodies.
+  Future<ChatMessageReadStatesResult> messageReadStates({
+    required int convId,
+    required List<int> messageIds,
+  }) => _client.post<ChatMessageReadStatesResult>(
+    '/api/forum/chat/message-read-states',
+    body: {'convId': convId, 'messageIds': messageIds},
+    parser: (json) =>
+        ChatMessageReadStatesResult.fromJson(json as Map<String, dynamic>),
+  );
 }

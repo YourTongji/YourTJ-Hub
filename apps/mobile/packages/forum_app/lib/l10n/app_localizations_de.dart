@@ -504,6 +504,15 @@ class AppLocalizationsDe extends AppLocalizations {
   String get messagesInputHint => 'Nachricht eingeben …';
 
   @override
+  String get messagesEmoji => 'Emoji';
+
+  @override
+  String get messagesKeyboard => 'Tastatur';
+
+  @override
+  String get messagesCopyAll => 'Ganze Nachricht kopieren';
+
+  @override
   String messagesSendFailed(String error) {
     return 'Senden fehlgeschlagen: $error';
   }
@@ -2557,6 +2566,9 @@ class AppLocalizationsDe extends AppLocalizations {
   String get badgeDisplayDown => 'Nach unten';
 
   @override
+  String get notificationsMarkRead => 'Als gelesen markieren';
+
+  @override
   String get scheduleWidgetSettingsTitle => 'Startbildschirm-Stundenplan';
 
   @override
@@ -2637,4 +2649,24 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get scheduleGridScrollHint =>
       'Seitlich wischen, um die ganze Woche zu sehen';
+
+  @override
+  String get coursesFilterSearchHint => 'Filteroptionen suchen';
+
+  @override
+  String get coursesFilterNoMatches => 'Keine passenden Filteroptionen';
+
+  @override
+  String get coursesClearSelection => 'Auswahl löschen';
+
+  @override
+  String get coursesResetSearch => 'Suche und Filter zurücksetzen';
+
+  @override
+  String get coursesFilterLoadFailed =>
+      'Filteroptionen konnten nicht geladen werden.';
+
+  @override
+  String get coursesPaginationStalled =>
+      'Keine weiteren Kurse erhalten. Laden Sie diese Seite erneut.';
 }

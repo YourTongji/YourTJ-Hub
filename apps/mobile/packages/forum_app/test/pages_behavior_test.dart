@@ -16,6 +16,7 @@ import 'package:auth/auth.dart';
 import 'package:forum_app/l10n/app_localizations.dart';
 import 'package:forum_app/src/current_user.dart';
 import 'package:forum_app/src/local/writing_store.dart';
+import 'package:forum_app/src/messages/message_content.dart';
 import 'package:forum_app/src/offline/drift_cache.dart';
 import 'package:forum_app/src/pages/auth/login_page.dart';
 import 'package:forum_app/src/pages/drafts/drafts_page.dart';
@@ -3265,6 +3266,12 @@ void main() {
       await tester.tap(find.text('发送'));
       await tester.pumpAndSettle();
       expect(find.text('不能丢失的消息'), findsOneWidget);
+      final pending = tester.widget<GfMessageBubble>(
+        find.byType(GfMessageBubble).last,
+      );
+      expect(pending.selectable, isTrue);
+      expect(pending.copyMessageLabel, '复制整条消息');
+      expect(pending.content, isA<MessageContent>());
       await tester.enterText(find.byType(TextField), '正在写下一条');
       chats.fail = false;
       await tester.tap(find.text('重新发送'));

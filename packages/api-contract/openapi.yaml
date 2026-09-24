@@ -185,6 +185,8 @@ paths:
     $ref: ./paths/user-account.yaml#/unbindOAuth
   /api/forum/unread-status:
     $ref: ./paths/forum-notifications.yaml#/getUnreadStatus
+  /api/forum/events:
+    $ref: ./paths/forum-events.yaml#/streamForumEvents
   /api/forum/notifications:
     $ref: ./paths/forum-notifications.yaml#/getNotifications
   /api/forum/notification/mark-read:
@@ -207,6 +209,10 @@ paths:
     $ref: ./paths/forum-chat.yaml#/getChatMessages
   /api/forum/chat/mark-read:
     $ref: ./paths/forum-chat.yaml#/markChatRead
+  /api/forum/chat/mark-visible:
+    $ref: ./paths/forum-chat.yaml#/markChatVisibleRead
+  /api/forum/chat/message-read-states:
+    $ref: ./paths/forum-chat.yaml#/getChatMessageReadStates
   /api/forum/get-site-statistics:
     $ref: ./paths/forum-read.yaml#/getSiteStatistics
   /api/forum/search:
@@ -1035,6 +1041,18 @@ components:
       $ref: ./components/schemas.yaml#/ChatMarkReadSuccess
     ChatMarkReadResponse:
       $ref: ./components/schemas.yaml#/ChatMarkReadResponse
+    ChatMessageIDsRequest:
+      $ref: ./components/schemas.yaml#/ChatMessageIDsRequest
+    ChatVisibleReadResult:
+      $ref: ./components/schemas.yaml#/ChatVisibleReadResult
+    ChatVisibleReadResponse:
+      $ref: ./components/schemas.yaml#/ChatVisibleReadResponse
+    ChatMessageReadState:
+      $ref: ./components/schemas.yaml#/ChatMessageReadState
+    ChatMessageReadStatesResult:
+      $ref: ./components/schemas.yaml#/ChatMessageReadStatesResult
+    ChatMessageReadStatesResponse:
+      $ref: ./components/schemas.yaml#/ChatMessageReadStatesResponse
     RateLimitedFailure:
       $ref: ./components/schemas.yaml#/RateLimitedFailure
     AgentMe:

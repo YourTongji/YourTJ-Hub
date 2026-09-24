@@ -488,6 +488,15 @@ class AppLocalizationsZh extends AppLocalizations {
   String get messagesInputHint => '输入消息…';
 
   @override
+  String get messagesEmoji => '表情';
+
+  @override
+  String get messagesKeyboard => '键盘';
+
+  @override
+  String get messagesCopyAll => '复制整条消息';
+
+  @override
   String messagesSendFailed(String error) {
     return '发送失败:$error';
   }
@@ -2435,6 +2444,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get badgeDisplayDown => '下移';
 
   @override
+  String get notificationsMarkRead => '标为已读';
+
+  @override
   String get scheduleWidgetSettingsTitle => '桌面课表小组件';
 
   @override
@@ -2508,4 +2520,22 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get scheduleGridScrollHint => '左右滑动查看整周课表';
+
+  @override
+  String get coursesFilterSearchHint => '搜索筛选项';
+
+  @override
+  String get coursesFilterNoMatches => '没有匹配的筛选项';
+
+  @override
+  String get coursesClearSelection => '清空选择';
+
+  @override
+  String get coursesResetSearch => '重置搜索和筛选';
+
+  @override
+  String get coursesFilterLoadFailed => '筛选项加载失败，请重试。';
+
+  @override
+  String get coursesPaginationStalled => '暂未获取到更多课程，请重试本页。';
 }
