@@ -447,7 +447,11 @@ findCoursesByTime:
                 type: integer
                 minimum: 1
                 maximum: 6
-                description: PK row group 1-6 (maps to sections 1-2/3-4/5-6/7-8/9/10).
+                description: PK row group 1-6 (maps to sections 1-2/3-4/5-6/7-8/9/10-12).
+              includeAll:
+                type: boolean
+                default: false
+                description: Include every course nature for campus map schedule lookup; omitted or false preserves the optional-course picker filter.
             additionalProperties: false
     responses:
       '200':

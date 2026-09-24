@@ -1760,7 +1760,7 @@ void main() {
       repo.fail = false;
       repo.failMore = false;
       await tester.fling(
-        find.byType(CustomScrollView).first,
+        find.byType(ListView).first,
         const Offset(0, 400),
         1200,
       );
@@ -2496,7 +2496,7 @@ void main() {
       expect(find.text('重试'), findsOneWidget);
       repo.fail = true;
       await tester.fling(
-        find.byType(CustomScrollView).first,
+        find.byType(ListView).first,
         const Offset(0, 400),
         1200,
       );
@@ -3216,11 +3216,17 @@ void main() {
       expect(find.text('聚合帖子结果'), findsOneWidget);
       expect(find.text('Bob'), findsOneWidget);
       expect(find.text('@bob'), findsOneWidget);
-      await tester.drag(
-        find.byType(CustomScrollView).first,
-        const Offset(0, -600),
+      // Results are built per row; reveal the later category section first.
+      await tester.scrollUntilVisible(
+        find.text('开发'),
+        200,
+        scrollable: find
+            .descendant(
+              of: find.byType(ListView),
+              matching: find.byType(Scrollable),
+            )
+            .first,
       );
-      await tester.pumpAndSettle();
       expect(find.text('开发'), findsOneWidget);
 
       await tester.tap(find.text('用户').first);

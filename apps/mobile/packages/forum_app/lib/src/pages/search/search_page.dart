@@ -19,8 +19,7 @@ import '../../local/writing_store.dart';
 import '../../widgets/status_views.dart';
 import '../../widgets/campus_shortcuts.dart';
 
-/// 聚合搜索页。结构与 Web SearchPage.vue 保持一致：页面头搜索框、
-/// 四列范围胶囊，以及同一结果卡片中的用户/帖子/分类分组。
+/// 聚合搜索页：已提交查询与输入中的关键词分离，各类型结果逐项构建。
 class SearchPage extends ConsumerStatefulWidget {
   const SearchPage({super.key});
 
@@ -32,6 +31,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   final TextEditingController _query = TextEditingController();
   AsyncValue<SearchPageProps>? _result;
   String _scope = 'all';
+  String _submittedQuery = '';
   int _page = 1;
   bool _loadingMore = false;
   String? _loadMoreError;
@@ -128,6 +128,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     _query.clear();
     setState(() {
       _result = null;
+      _submittedQuery = '';
       _scope = 'all';
       _page = 1;
       _loadingMore = false;
@@ -135,8 +136,8 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     });
   }
 
-  Future<void> _search() async {
-    final String q = _query.text.trim();
+  Future<void> _search({String? query}) async {
+    final String q = query ?? _query.text.trim();
     if (q.isEmpty) return;
     FocusManager.instance.primaryFocus?.unfocus();
     _remember(q);
@@ -146,6 +147,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     _loadMoreCancel?.cancel('search query changed');
     final cancel = _searchCancel = CancelToken();
     setState(() {
+      _submittedQuery = q;
       _result = const AsyncValue.loading();
       _page = 1;
       _loadingMore = false;
@@ -178,7 +180,12 @@ class _SearchPageState extends ConsumerState<SearchPage> {
 
   Future<void> _loadMore() async {
     final SearchPageProps? props = _result?.value;
-    if (props == null || _loadingMore || _page >= props.totalPages) return;
+    if (props == null ||
+        (_scope != 'all' && _scope != 'topics') ||
+        _loadingMore ||
+        _page >= props.totalPages) {
+      return;
+    }
     final epoch = ref.read(offlineCacheEpochProvider);
     final generation = _generation;
     final cancel = _loadMoreCancel = CancelToken();
@@ -191,18 +198,30 @@ class _SearchPageState extends ConsumerState<SearchPage> {
           .read(topicRepositoryProvider)
           .search(
             query: props.query,
-            scope: _scope == 'all' ? '' : _scope,
+            // Only topics paginate; keep the other aggregate groups intact.
+            scope: 'topics',
             page: _page + 1,
             cancelToken: cancel,
           );
       if (mounted &&
           generation == _generation &&
           epoch == ref.read(offlineCacheEpochProvider)) {
+        if (next.searchUnavailable == true ||
+            (next.failedScopes?.contains('topics') ?? false)) {
+          setState(
+            () =>
+                _loadMoreError = AppLocalizations.of(context).searchUnavailable,
+          );
+          return;
+        }
         setState(() {
           _page += 1;
           _result = AsyncValue.data(
-            next.copyWith(
+            props.copyWith(
               topics: <TopicPayload>[...props.topics, ...next.topics],
+              total: next.total,
+              totalPages: next.totalPages,
+              pagination: next.pagination,
             ),
           );
         });
@@ -231,11 +250,11 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   void _setScope(String scope) {
     if (scope == _scope) return;
     setState(() => _scope = scope);
-    _search();
+    _search(query: _submittedQuery);
   }
 
   Future<void> _refresh() async {
-    final String q = _result?.valueOrNull?.query ?? _query.text.trim();
+    final String q = _submittedQuery;
     if (q.isEmpty) return;
     final epoch = ref.read(offlineCacheEpochProvider);
     final generation = ++_generation;
@@ -290,19 +309,17 @@ class _SearchPageState extends ConsumerState<SearchPage> {
       setState(() {
         _recent = [];
         _result = null;
+        _submittedQuery = '';
+        _scope = 'all';
+        _page = 1;
         _loadingMore = false;
+        _loadMoreError = null;
       });
       _loadHistory();
     });
     final AppLocalizations l10n = AppLocalizations.of(context);
-    final SearchPageProps? props = _result?.value;
-    final String description = props == null
-        ? l10n.searchEmpty
-        : '${props.query} · ${formatNumber(_scope == 'users'
-              ? props.usersTotal
-              : _scope == 'categories'
-              ? props.categoriesTotal
-              : props.total)}';
+    final String description =
+        '$_submittedQuery · ${_scopeLabel(_scope, l10n)}';
 
     return Scaffold(
       appBar: GfAppBar(title: Text(l10n.searchTitle)),
@@ -337,7 +354,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                       ),
                     ],
                   ),
-                if (props != null) ...[
+                if (_submittedQuery.isNotEmpty) ...[
                   const SizedBox(height: 10),
                   Text(
                     description,
@@ -349,19 +366,15 @@ class _SearchPageState extends ConsumerState<SearchPage> {
               ],
             ),
           ),
-          if (props != null && props.searchUnavailable != true)
+          if (_submittedQuery.isNotEmpty)
             _SearchScopeBar(
               selected: _scope,
               onSelected: _setScope,
               tabs: <_ScopeTab>[
-                _ScopeTab('all', l10n.searchAll, props.total),
-                _ScopeTab('topics', l10n.searchTopics, props.total),
-                _ScopeTab('users', l10n.searchUsers, props.usersTotal),
-                _ScopeTab(
-                  'categories',
-                  l10n.searchCategories,
-                  props.categoriesTotal,
-                ),
+                _ScopeTab('all', l10n.searchAll),
+                _ScopeTab('topics', l10n.searchTopics),
+                _ScopeTab('users', l10n.searchUsers),
+                _ScopeTab('categories', l10n.searchCategories),
               ],
             ),
           Expanded(child: _buildResult(context)),
@@ -435,8 +448,10 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     }
     return result.when(
       loading: () => const GfLoading(),
-      error: (Object e, _) =>
-          GfErrorRetry(message: resolveErrorMessage(l10n, e), onRetry: _search),
+      error: (Object e, _) => GfErrorRetry(
+        message: resolveErrorMessage(l10n, e),
+        onRetry: () => _search(query: _submittedQuery),
+      ),
       data: (SearchPageProps props) {
         if (props.searchUnavailable == true) {
           return GfEmpty(message: l10n.searchUnavailable);
@@ -461,12 +476,20 @@ class _SearchPageState extends ConsumerState<SearchPage> {
 }
 
 class _ScopeTab {
-  const _ScopeTab(this.value, this.label, this.count);
+  const _ScopeTab(this.value, this.label);
 
   final String value;
   final String label;
-  final int count;
 }
+
+String _scopeLabel(String scope, AppLocalizations l10n) => switch (scope) {
+  'topics' => l10n.searchTopics,
+  'users' => l10n.searchUsers,
+  'categories' => l10n.searchCategories,
+  'courses' => l10n.coursesTitle,
+  'all' => l10n.searchAll,
+  _ => scope,
+};
 
 class _SearchScopeBar extends StatelessWidget {
   const _SearchScopeBar({
@@ -548,17 +571,6 @@ class _ScopeButton extends StatelessWidget {
                     ),
                   ),
                 ),
-                const SizedBox(width: 8),
-                Text(
-                  formatNumber(tab.count),
-                  style: TextStyle(
-                    color: active
-                        ? colors.neutralContent.withValues(alpha: 0.7)
-                        : colors.baseContent.withValues(alpha: 0.4),
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
               ],
             ),
           ),
@@ -601,102 +613,112 @@ class _SearchResults extends StatelessWidget {
         props.categories.isNotEmpty;
     final bool hasResults = showUsers || showTopics || showCategories;
 
-    final slivers = <Widget>[
-      if ((props.failedScopes ?? const <String>[]).isNotEmpty)
-        SliverToBoxAdapter(child: _PartialFailure(scopes: props.failedScopes!)),
-      if (!hasResults)
-        SliverFillRemaining(
-          hasScrollBody: false,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 44),
-            child: GfEmpty(
-              message: scope == 'users'
-                  ? l10n.searchNoUsers
-                  : scope == 'categories'
-                  ? l10n.searchNoCategories
-                  : '“${props.query}” · ${l10n.commonEmpty}',
-            ),
+    final failed = props.failedScopes ?? const <String>[];
+    final sections = <({String scope, int length, int total})>[
+      if (showUsers)
+        (scope: 'users', length: props.users.length, total: props.usersTotal),
+      if (showTopics)
+        (scope: 'topics', length: props.topics.length, total: props.total),
+      if (showCategories)
+        (
+          scope: 'categories',
+          length: props.categories.length,
+          total: props.categoriesTotal,
+        ),
+    ];
+    final showFooter = showTopics && props.totalPages > 1;
+    final itemCount =
+        (failed.isEmpty ? 0 : 1) +
+        (hasResults
+            ? sections.fold<int>(
+                    0,
+                    (count, section) => count + 1 + section.length,
+                  ) +
+                  (showFooter ? 1 : 0)
+            : 1);
+
+    // The delegate constructs individual rows, including after topic pages append.
+    // No shrink-wrapped grid or whole-section Column expands the viewport cache.
+    Widget buildRow(int index) {
+      if (failed.isNotEmpty) {
+        if (index == 0) return _PartialFailure(scopes: failed);
+        index--;
+      }
+      if (!hasResults) {
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 44),
+          child: GfEmpty(
+            message: scope == 'users'
+                ? l10n.searchNoUsers
+                : scope == 'categories'
+                ? l10n.searchNoCategories
+                : '“${props.query}” · ${l10n.commonEmpty}',
           ),
-        ),
-      if (showUsers) ...<Widget>[
-        SliverToBoxAdapter(
-          child: GfSectionHeader(
-            title: l10n.searchUsers,
-            description: formatNumber(props.usersTotal),
-            icon: Icons.people_outline,
-          ),
-        ),
-        SliverList(
-          delegate: SliverChildBuilderDelegate((context, index) {
-            if (index.isOdd) return const GfDivider();
-            return _UserRows.item(context, props.users[index ~/ 2]);
-          }, childCount: props.users.length * 2 - 1),
-        ),
-      ],
-      if (showTopics) ...<Widget>[
-        if (scope == 'all')
-          SliverToBoxAdapter(
+        );
+      }
+      for (final section in sections) {
+        if (index == 0) {
+          return Semantics(
+            header: true,
             child: GfSectionHeader(
-              title: l10n.searchTopics,
-              description: formatNumber(props.total),
-              icon: Icons.forum_outlined,
+              title: _scopeLabel(section.scope, l10n),
+              description: l10n.searchResultCount(
+                section.length,
+                section.total,
+              ),
+              icon: switch (section.scope) {
+                'users' => Icons.people_outline,
+                'topics' => Icons.forum_outlined,
+                _ => Icons.folder_open_outlined,
+              },
             ),
-          ),
-        SliverList.builder(
-          itemCount: props.topics.length,
-          itemBuilder: (context, index) => _TopicRows.item(
-            context,
-            props.topics[index],
-            index < props.topics.length - 1,
-          ),
-        ),
-        if (props.totalPages > 1)
-          SliverToBoxAdapter(
-            child: GfListFooter(
+          );
+        }
+        index--;
+        if (index < section.length) {
+          return switch (section.scope) {
+            'users' => _UserRow(
+              key: ValueKey('search-user-${props.users[index].id}'),
+              user: props.users[index],
+            ),
+            'topics' => _TopicRow(
+              key: ValueKey('search-topic-${props.topics[index].id}'),
+              topic: props.topics[index],
+            ),
+            _ => _CategoryRow(
+              key: ValueKey('search-category-${props.categories[index].id}'),
+              category: props.categories[index],
+            ),
+          };
+        }
+        index -= section.length;
+        if (section.scope == 'topics' && showFooter) {
+          if (index == 0) {
+            return GfListFooter(
               progressKey: props.topics.length,
               loading: loadingMore,
               error: loadMoreError,
               hasMore: hasMore,
               onLoadMore: onLoadMore,
-            ),
-          ),
-      ],
-      if (showCategories) ...<Widget>[
-        SliverToBoxAdapter(
-          child: GfSectionHeader(
-            title: l10n.searchCategories,
-            description: formatNumber(props.categoriesTotal),
-            icon: Icons.folder_open_outlined,
-          ),
-        ),
-        SliverPadding(
-          padding: const EdgeInsets.all(12),
-          sliver: SliverGrid.builder(
-            itemCount: props.categories.length,
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              crossAxisSpacing: 8,
-              mainAxisSpacing: 8,
-              mainAxisExtent: 82,
-            ),
-            itemBuilder: (context, index) =>
-                _CategoryGrid.item(context, props.categories[index]),
-          ),
-        ),
-      ],
-    ];
+            );
+          }
+          index--;
+        }
+      }
+      throw RangeError.index(index, sections);
+    }
 
     return AppRefreshIndicator(
       onRefresh: onRefresh,
-      child: CustomScrollView(
+      child: ListView.builder(
         controller: controller,
         physics: const AlwaysScrollableScrollPhysics(),
-        slivers: <Widget>[
-          SliverPadding(
-            padding: const EdgeInsets.fromLTRB(12, 0, 12, 24),
-            sliver: SliverMainAxisGroup(slivers: slivers),
-          ),
-        ],
+        padding: const EdgeInsets.fromLTRB(12, 0, 12, 24),
+        itemCount: itemCount,
+        itemBuilder: (context, index) => Material(
+          color: GfTheme.colorsOf(context).base100,
+          child: buildRow(index),
+        ),
       ),
     );
   }
@@ -724,7 +746,7 @@ class _PartialFailure extends StatelessWidget {
           const SizedBox(width: 8),
           Expanded(
             child: Text(
-              '${AppLocalizations.of(context).searchUnavailable}: ${scopes.join(', ')}',
+              '${AppLocalizations.of(context).searchUnavailable}: ${scopes.map((scope) => _scopeLabel(scope, AppLocalizations.of(context))).join(', ')}',
               style: TextStyle(
                 color: colors.baseContent.withValues(alpha: 0.75),
                 fontSize: 13,
@@ -737,21 +759,28 @@ class _PartialFailure extends StatelessWidget {
   }
 }
 
-abstract final class _UserRows {
-  static Widget item(BuildContext context, UserSearchPayload user) {
-    final GfColors colors = GfTheme.colorsOf(context);
+class _UserRow extends StatelessWidget {
+  const _UserRow({super.key, required this.user});
+  final UserSearchPayload user;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = GfTheme.colorsOf(context);
     return InkWell(
       onTap: () => context.push('/u/${user.id}'),
-      child: Padding(
+      child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          border: Border(bottom: BorderSide(color: colors.line)),
+        ),
         child: Row(
-          children: <Widget>[
+          children: [
             GfAvatar(src: resolveApiAssetUrl(user.avatarUrl), size: 40),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
+                children: [
                   Text(
                     privateDisplayName(
                       context,
@@ -776,14 +805,14 @@ abstract final class _UserRows {
                       fontSize: 12,
                     ),
                   ),
-                  if (user.bio.isNotEmpty) ...<Widget>[
+                  if (user.bio.isNotEmpty) ...[
                     const SizedBox(height: 2),
                     Text(
                       user.bio,
-                      maxLines: 1,
+                      maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        color: colors.baseContent.withValues(alpha: 0.45),
+                        color: colors.baseContent.withValues(alpha: 0.55),
                         fontSize: 12,
                       ),
                     ),
@@ -798,25 +827,25 @@ abstract final class _UserRows {
   }
 }
 
-abstract final class _TopicRows {
-  static Widget item(
-    BuildContext context,
-    TopicPayload topic,
-    bool showDivider,
-  ) {
-    final AppLocalizations l10n = AppLocalizations.of(context);
+class _TopicRow extends StatelessWidget {
+  const _TopicRow({super.key, required this.topic});
+  final TopicPayload topic;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return GfTopicRow(
       title: topic.title,
       description: topic.description,
-      categories: <GfTopicCategory>[
-        for (final CategoryBriefPayload category in topic.categories)
+      categories: [
+        for (final category in topic.categories)
           GfTopicCategory(
             name: category.name,
             color: colorFromHex(category.color),
           ),
       ],
-      participantAvatarUrls: <String>[
-        for (final UserBriefPayload participant in topic.participants)
+      participantAvatarUrls: [
+        for (final participant in topic.participants)
           resolveApiAssetUrl(participant.avatarUrl),
       ],
       activityText: timeAgo(topic.activityText, l10n: l10n),
@@ -825,73 +854,73 @@ abstract final class _TopicRows {
       hot: topic.viewCount > 500,
       pinned: topic.pinWeight > 0,
       unseen: topic.unseen == true,
-      showDivider: showDivider,
       onTap: () => context.push('/p/${topic.id}'),
     );
   }
 }
 
-abstract final class _CategoryGrid {
-  static Widget item(BuildContext context, CategorySearchPayload category) {
-    final GfColors colors = GfTheme.colorsOf(context);
-    return Material(
-      color: colors.base100,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(GfTheme.radiiOf(context).field),
-        side: BorderSide(color: colors.line),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: () => context.push('/c/${category.slug}/${category.id}'),
-        child: Padding(
-          padding: const EdgeInsets.all(10),
-          child: Row(
-            children: <Widget>[
-              Container(
-                width: 36,
-                height: 36,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: colorFromHex(category.color),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  category.icon.isEmpty ? '#' : category.icon,
-                  style: const TextStyle(fontSize: 17),
+class _CategoryRow extends StatelessWidget {
+  const _CategoryRow({super.key, required this.category});
+  final CategorySearchPayload category;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = GfTheme.colorsOf(context);
+    return InkWell(
+      onTap: () => context.push('/c/${category.slug}/${category.id}'),
+      child: Container(
+        constraints: const BoxConstraints(minHeight: 72),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          border: Border(bottom: BorderSide(color: colors.line)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: colorFromHex(category.color),
+                borderRadius: BorderRadius.circular(
+                  GfTheme.radiiOf(context).field,
                 ),
               ),
-              const SizedBox(width: 9),
-              Expanded(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
+              child: Text(
+                category.icon.isEmpty ? '#' : category.icon,
+                style: const TextStyle(fontSize: 17),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    category.name,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  if (category.desc.isNotEmpty) ...[
+                    const SizedBox(height: 3),
                     Text(
-                      category.name,
-                      maxLines: 1,
+                      category.desc,
+                      maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
+                      style: TextStyle(
+                        color: colors.baseContent.withValues(alpha: 0.55),
+                        fontSize: 12,
                       ),
                     ),
-                    if (category.desc.isNotEmpty) ...<Widget>[
-                      const SizedBox(height: 3),
-                      Text(
-                        category.desc,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: colors.baseContent.withValues(alpha: 0.55),
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
                   ],
-                ),
+                ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

@@ -167,6 +167,7 @@
   "searchNoUsers": "該当するユーザーはいません",
   "searchNoCategories": "該当するカテゴリはありません",
   "searchUnavailable": "検索サービスを利用できません",
+  "searchResultCount": "表示 {shown} 件 · 一致 {total} 件",
   "searchAll": "すべて",
   "searchTopics": "トピック",
   "searchUsers": "ユーザー",

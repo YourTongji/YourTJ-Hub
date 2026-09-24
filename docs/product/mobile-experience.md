@@ -13,7 +13,20 @@ writing use native pages. Management uses the same first-party workspaces and pe
 Web inside an authenticated in-app browser. The navigation and management boundary are recorded in
 [0012](../decisions/0012-unified-mobile-reading-navigation.md).
 
+The [interaction and layout standard](mobile-design-system.md) defines the shared visual and
+behavioral acceptance rules. Its `Planned` requirements are tracked separately from the implemented
+behaviors below; [state and cache boundaries](../architecture/mobile-state-and-cache.md) describe the
+corresponding planned ownership and lifecycle contracts.
+
 ## Navigation and reading
+
+- `Current`: Home offers a server-defined Following sort. It requires sign-in and shows only
+  currently followed authors' public forum topics, newest creation time first with descending
+  topic ID for ties. Pagination uses an opaque cursor in `nextUrl`; edits, replies and pinning
+  do not reorder it. After following or unfollowing from a profile, pull to refresh Following
+  to replace retained rows and start from the newest matching topics. Continuation requests
+  already exclude unfollowed authors, while newly followed content above the cursor appears
+  on refresh. An empty follow list stays empty; guests are directed to sign-in.
 
 - `Current`: paginated feeds, search, notifications, profiles, content management, own course
   reviews and post history automatically fetch near the list end. Requests are serialized;
@@ -183,8 +196,14 @@ Web inside an authenticated in-app browser. The navigation and management bounda
   submission where applicable. Clearing global search resets results, scope and pagination, and
   invalidates pending requests; account and publishing forms retain their separate form styling.
 - `Current`: global search starts with guidance and direct course, scheduler and Wiki destinations.
-  Result scope buttons scroll horizontally to preserve translated labels and counts at larger text
-  sizes. Course and Wiki search actions carry the current query into the matching native page.
+  Result scope buttons stay available during loading, empty results and failures, and scroll
+  horizontally at larger text sizes. Switching scope or retrying uses the last submitted keyword;
+  typing a different keyword does not search it until submission. Each result section identifies its
+  type and shows displayed rows separately from matching totals; unqueried scopes are not labelled
+  as zero, and the all-scope view does not treat the topic total as an aggregate total.
+  Users, topics and categories build one row at a time near the viewport. Only topics paginate;
+  appending a page retains the other groups, and a failed page keeps the current rows with a retry.
+  Course and Wiki search actions carry the current input into the matching native page.
   Recent searches keep up to ten distinct queries per site and account (with a separate guest list),
   in device preferences only; users can clear them. Storage failure does not block searching.
 - `Current`: topic view/reply metrics remain below the body; reply, like, bookmark and watch actions
