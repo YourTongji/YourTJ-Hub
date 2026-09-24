@@ -162,6 +162,17 @@ corresponding planned ownership and lifecycle contracts.
   and is cleared at the account/session boundary; it is not persisted across app termination. Only one request for
   each bubble can run at once. The API has no message idempotency key, so ambiguous network failures
   cannot guarantee exactly-once delivery when manually retried.
+- `Current`: chat text, including sending, acknowledged and failed outbox bubbles, supports native
+  selection/copy and underlined HTTP(S) links using the shared
+  internal-routing/external-confirmation policy. Inline stickers remain supported; chat text is not
+  interpreted as Markdown or HTML. The selection menu also offers whole-message copy, preserving
+  sticker tokens that partial native text selection omits. The emoji accessory replaces the current
+  selection and leaves the caret after insertion. Replacing the draft with text that has no valid
+  selection resets insertion to the end. Opening it dismisses the software keyboard and keeps focus
+  inside the composer for hardware shortcuts; the keyboard control restores
+  focus. Its bounded scrollable grid has touch-sized controls, localized labels and system-back/Escape
+  dismissal. Mobile return inserts a newline; hardware Ctrl/Cmd+Enter sends. Disabling the composer
+  also disables emoji edits. Platform IME transitions still require physical-device verification.
 - `Partial`: the chat API can acknowledge an explicit set of incoming message IDs and read back
   individual read flags. The Flutter conversation screen still calls the compatible whole-conversation
   read endpoint; visible-viewport measurement and the unread new-message prompt are not yet connected.

@@ -483,6 +483,15 @@ class AppLocalizationsZh extends AppLocalizations {
   String get messagesInputHint => '输入消息…';
 
   @override
+  String get messagesEmoji => '表情';
+
+  @override
+  String get messagesKeyboard => '键盘';
+
+  @override
+  String get messagesCopyAll => '复制整条消息';
+
+  @override
   String messagesSendFailed(String error) {
     return '发送失败:$error';
   }
