@@ -2433,6 +2433,82 @@ class AppLocalizationsDe extends AppLocalizations {
       'Feiertagsregeln konnten nicht geladen werden. Später erneut versuchen oder Anpassungen deaktivieren, um den Originalstundenplan zu exportieren.';
 
   @override
+  String get planSyncTitle => 'Plankonflikte lösen';
+
+  @override
+  String get planSyncBody =>
+      'Ein anderes Gerät hat diese Einträge ebenfalls geändert. Wähle die Werte, die bleiben sollen. Andere Änderungen werden automatisch zusammengeführt.';
+
+  @override
+  String get planSyncLocal => 'Lokal behalten';
+
+  @override
+  String get planSyncRemote => 'Cloud verwenden';
+
+  @override
+  String get planSyncDeleted => 'Gelöscht';
+
+  @override
+  String get planSyncPlan => 'Plan';
+
+  @override
+  String get planSyncName => 'Name';
+
+  @override
+  String get planSyncCreatedAt => 'Erstellt';
+
+  @override
+  String get planSyncCourse => 'Kurs';
+
+  @override
+  String get planSyncEvent => 'Eigener Termin';
+
+  @override
+  String get planSyncLabel => 'Terminname';
+
+  @override
+  String get planSyncDay => 'Tag';
+
+  @override
+  String get planSyncSections => 'Stunden';
+
+  @override
+  String get planSyncWeeks => 'Wochen';
+
+  @override
+  String get planSyncApply => 'Zusammenführen und speichern';
+
+  @override
+  String get planSyncDrafts => 'Wiederherstellungsentwürfe';
+
+  @override
+  String get planSyncDraftHint =>
+      'Diese Entwürfe bleiben auf diesem Gerät und belegen keinen Cloud-Platz. Beim Wiederherstellen entsteht ein neuer Plan.';
+
+  @override
+  String get planSyncRestore => 'Als neuen Plan wiederherstellen';
+
+  @override
+  String get planSyncAdopt =>
+      'Lokale Pläne dieses Geräts mit diesem Konto synchronisieren';
+
+  @override
+  String get planSyncAdoptHint =>
+      'Diese lokalen Pläne gehören noch nicht zu diesem Konto. Bitte vor dem Hochladen bestätigen.';
+
+  @override
+  String get planSyncCapacity =>
+      'Die Cloud speichert höchstens zehn Pläne. Schaffe Platz und versuche es erneut.';
+
+  @override
+  String get planSyncRejected =>
+      'Speichern wurde abgelehnt. Das Konto kann nicht schreiben oder die Plandaten waren ungültig.';
+
+  @override
+  String get planSyncArchived =>
+      'Lokale Änderungen wurden als Entwurf gesichert.';
+
+  @override
   String get privateNoteEdit => 'Notiz bearbeiten';
 
   @override
@@ -2441,6 +2517,8 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get privateNoteHint =>
       'Nur für dich sichtbar. Bis zu 64 Zeichen; leer speichern zum Entfernen.';
+
+  @override
   String get badgeDisplayTitle => 'Profilabzeichen';
 
   @override
@@ -2452,4 +2530,69 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get badgeDisplayDown => 'Nach unten';
+
+  @override
+  String get scheduleWidgetSettingsTitle => 'Startbildschirm-Stundenplan';
+
+  @override
+  String get scheduleWidgetPrivacyDescription =>
+      'Widgets zeigen Kursnamen, Zeiten, Lehrkräfte und Orte aus dem auf diesem Gerät gespeicherten Stundenplan. Nach einer Aktualisierung erscheint der neue Stand auf dem Startbildschirm.';
+
+  @override
+  String get scheduleWidgetRefresh => 'Aus Offline-Stundenplan aktualisieren';
+
+  @override
+  String get scheduleWidgetClear => 'Startbildschirmdaten löschen';
+
+  @override
+  String get scheduleWidgetCleared => 'Startbildschirm-Stundenplan gelöscht';
+
+  @override
+  String get scheduleWidgetDiagnostics => 'Aktualisierungsdiagnose';
+
+  @override
+  String get scheduleWidgetDiagnosticsDescription =>
+      'Wenn sich Datum oder Kursstatus verzögert aktualisieren, prüfe die Hintergrundaktivität und Akkueinstellungen für YourTJ. Die Menünamen unterscheiden sich je nach Gerät.';
+
+  @override
+  String get scheduleWidgetTransparencyTitle => 'Widget-Hintergrundtransparenz';
+
+  @override
+  String get scheduleWidgetTransparencyDescription =>
+      'Bei höheren Werten scheint mehr vom Hintergrund durch. Der Bereich von 0 % bis 15 % verbindet den Hintergrundeffekt mit gut lesbarem Kurstext.';
+
+  @override
+  String campusSnapshotUpdated(String time) {
+    return 'Geräte-Snapshot aktualisiert: $time';
+  }
+
+  @override
+  String get campusSnapshotStale =>
+      'Dieser Snapshot ist möglicherweise veraltet. Bitte aktualisieren.';
+
+  @override
+  String get campusSnapshotOffline =>
+      'Verbindung konnte nicht geprüft werden. Der Geräte-Snapshot wird angezeigt.';
+
+  @override
+  String get campusSnapshotRefreshFailed =>
+      'Einige Daten konnten nicht aktualisiert werden. Bisherige Inhalte bleiben erhalten.';
+
+  @override
+  String get campusDataNeedsRefresh =>
+      'Dieser Inhalt wurde noch nicht aktualisiert. Bitte manuell laden.';
+
+  @override
+  String get campusCacheClear => 'Campus-Cache leeren';
+
+  @override
+  String get campusCacheClearDescription =>
+      'Campus-Snapshots und Stundenplan-Widgets auf diesem Gerät entfernen. Entwürfe, Stundenplanentwürfe und die Hochschulverknüpfung bleiben erhalten.';
+
+  @override
+  String get campusCacheCleared => 'Campus-Cache geleert';
+
+  @override
+  String get campusCacheClearFailed =>
+      'Einige Cache-Daten konnten nicht gelöscht werden. Bitte erneut versuchen.';
 }

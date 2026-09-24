@@ -105,7 +105,7 @@ func TestPKSchemaConcurrentUpsertPostgreSQL(t *testing.T) {
 	// ON CONFLICT 复合键必须无歧义——最终恰好 1 行，不产生重复行。
 	onConflict := clause.OnConflict{
 		Columns: []clause.Column{
-			{Name: "calendar_id"}, {Name: "teaching_class_id"}, {Name: "occupy_day"},
+			{Name: "audience"}, {Name: "calendar_id"}, {Name: "teaching_class_id"}, {Name: "occupy_day"},
 			{Name: "occupy_section"}, {Name: "teacher_code"}, {Name: "teacher_name"},
 		},
 		UpdateAll: true,

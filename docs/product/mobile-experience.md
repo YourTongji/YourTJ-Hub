@@ -274,10 +274,36 @@ Web inside an authenticated in-app browser. The navigation and management bounda
   a notice after a permission update. Leaving the campus tab drops its private view and cancels
   requests. Selected overview datasets have a five-minute foreground memory cache, reusable only
   after fresh binding-status verification; grades and notice bodies remain page-local.
-  Backgrounding, session/site changes and identity invalidation clear the cache. Pull-to-refresh
-  keeps same-identity content visible while loading; failures show errors instead of stale results.
-  School-local date rollover invalidates teaching-day data. Nothing enters persistent/offline storage.
-  See [campus retention rules](campus.md).
+  Backgrounding clears the foreground memory layer. A Drift device snapshot atomically retains only
+  profile, calendar, timetable and server-adjusted today data, scoped by API origin, numeric forum
+  account and binding revision. Grades, exams, campus messages/bodies and credentials are excluded.
+  The private campus workspace shows snapshot time, stale/offline state and a manual refresh action.
+  Repeated refreshes coalesce; restored snapshot tabs do not refetch the four persisted datasets when
+  the foreground cache expires. Ordinary block failures keep usable same-day content visible; invalid
+  teaching rules suppress old course results. Missing or expired-day data requests an explicit refresh.
+  Settings can clear only campus memory, device snapshots and desktop data, preserve drafts/plans and
+  school binding, report partial failure and retry. Pending refreshes cannot refill a cleared cache.
+  Snapshot storage is bounded to 1 MiB per document and four scopes; reads discard data older than 30 days.
+  Pull-to-refresh keeps the last successful same-identity snapshot when the network fails; logout,
+  unbind/rebind, account/site changes and explicit identity invalidation clear both snapshot and Widget
+  data. The visible minute clock does not poll the network. School-local date rollover invalidates the
+  in-app teaching-day response; Widgets advance within their last verified eight-day local window and
+  request a refresh when a future day is unknown. See [campus retention rules](campus.md).
+- `Current`: Android and iOS expose native “Next class” and “Today schedule” home-screen Widgets from
+  a versioned, minimal projection of that Drift snapshot. Android uses Jetpack Glance with 2x1 and
+  resizable 4x2/4x4 surfaces, and adds a default 4x3 “Course timeline” Widget with independent
+  today/tomorrow switching and a scrollbar-free vertical course list; iOS 14 and later use
+  WidgetKit/SwiftUI for systemSmall, systemMedium and systemLarge. The iOS 13 app remains usable
+  without desktop Widgets.
+  Widgets never access the network, advance class state and Shanghai midnight from local alarms/
+  timelines, and use a schema-2 rolling window whose first day remains the server-resolved authority.
+  Large widgets show today and tomorrow side by side. They support light/dark, Android 12 dynamic color,
+  iOS tinted rendering, large text and screen reader descriptions, and deep-link to Campus today.
+  Android 12–14 picker previews use a 4×2 two-day layout and a 2×1 next-class layout. App Appearance
+  settings adjust only the widget background transparency from 0% to 15% (default 9%), keeping course
+  text fully opaque. Widget settings disclose displayed fields, can rebuild or clear desktop data,
+  and provide optional OEM refresh diagnostics. The source is the official campus snapshot and is
+  independent from the `/schedule` planner store.
 - `Partial`: native school login on a physical device is not end-to-end verified. Automated tests
   cover navigation policy, session handoff, confirmation, stale responses and native rendering.
 - `Current`: the scheduler opens in course selection. Plan preview remains a local planning
@@ -287,16 +313,16 @@ Web inside an authenticated in-app browser. The navigation and management bounda
   credit, hour and conflict counts wrap in a compact row. A small Web action opens
   the full [Web scheduler](https://f.yourtj.de/schedule) in the external browser without transferring
   the native credential. Plans are not official enrollment results.
-- `Current`: signed-in plans cloud-sync with the Web scheduler (`GET/PUT/DELETE /api/pk/plans`,
-  issue #537): local changes upload after a 3s debounce, entering the scheduler reconciles against
-  the cloud snapshot (empty cloud auto-uploads local; conflicting edits show a one-time
-  use-cloud / keep-local dialog), and the server's `updatedAt` clock is the only sync authority.
-  Uploads carry the observed server revision; HTTP 409 triggers another read and a conflict
-  dialog. Initial read failures and unresolved conflicts block writes. Pending local changes
-  survive page exit and transient failures, and the sync clock advances only after local
-  persistence succeeds. Switching accounts requires choosing the cloud copy or explicitly
-  keeping the retained local plans, including when the new account has no cloud snapshot.
-  Signed-out use stays purely local with zero requests; account closure deletes the cloud copy.
+- `Current`: signed-in plans use the same per-plan revision and three-way merge rules as Web
+  (`GET/PUT/DELETE /api/pk/plan-items`). Independent course changes and custom-event fields merge
+  automatically; only conflicting values require a choice. A remotely deleted plan with local edits
+  can be kept as a device-only recovery draft and restored under a new ID, outside cloud quota until
+  restoration. Current plan, major selection and week view are device-local. Each account retains its
+  own cache and merge bases; guest content needs explicit adoption. Changes debounce for 3 seconds,
+  dirty network failures back off up to 60 seconds, foreground/network restoration flush pending
+  edits, and focus reads are throttled to 30 seconds. Clean state has no polling timer.
+  Existing cloud snapshots migrate intact on first use; legacy clients receive 410 afterward.
+  Account closure erases cloud content and prevents in-flight requests from recreating it.
 - `Current`: course details retain offering-specific five-star reviews and existing review fields;
   bookmark and write-review actions stay in a bottom dock. Scores share a baseline with their
   five-point denominator. The signed-in user’s own reviews (including anonymous reviews) appear
@@ -366,15 +392,16 @@ Web inside an authenticated in-app browser. The navigation and management bounda
 
 - `Current`: the root avatar opens an account drawer with a generous left inset, larger line icons,
   nickname and account handle. Following/follower counts come from the user's card and open the
-  matching profile streams. Unavailable counts show a placeholder with retry instead of zero; opening
+  matching native connection lists. Unavailable counts show a placeholder with retry instead of zero; opening
   the drawer refreshes the card, and account changes discard previous identity data. Profile,
   bookmarks, drafts, my content, recycle bin and my course reviews are direct entries. Settings and
   permission-gated workspaces remain available. The profile overflow retains its infrequent entries.
   Account controls are outside the public profile.
 - `Current`: activity entries distinguish signup, post, like, follow and comment with matching
-  icons and localized captions in bordered cards with a content preview and compact timestamp. Stream changes retain the profile header collapse, limiting deep offsets to the start of the
-  new stream so loading, empty states and retry actions stay visible. Empty badge lists use
-  badge-specific feedback.
+  icons and localized captions in bordered cards with a content preview and compact timestamp.
+  A first visit to a stream retains the collapsed profile header so loading, empty states and retry
+  actions stay visible; revisiting restores that stream's loaded pages and scroll position. Empty
+  badge lists use badge-specific feedback.
 - `Current`: profile bios trim boundary whitespace; signatures use a separate feather mark and subtle
   underline. Avatar overlap participates in layout so it leaves no translated blank space. The role
   label stays beside the name; earned badges appear as bordered title/description cards with colored
@@ -388,9 +415,21 @@ Web inside an authenticated in-app browser. The navigation and management bounda
 - `Current`: users with follow permission retain the follow button for already-followed accounts,
   including administrators. It displays the followed state and toggles to unfollow, prevents duplicate
   in-flight requests and restores the previous state when a request fails.
-- `Current`: only the active profile tab displays its label; all tabs retain accessible names.
-  Activity, topics, likes, own bookmarks, follows/followers and badges fetch their corresponding
-  server streams. Cursor pagination uses the server's next URL within the same user's profile.
+- `Current`: profile content tabs always show their localized text, with a stable selected underline
+  and a pinned rail. Activity, topics, likes, own bookmarks and badges fetch their corresponding
+  server streams. Each stream retains its pages, scroll position, loading and retry state while the
+  page is open. Inactive reads cannot replace the selected stream; refresh and account changes
+  invalidate older responses. Failed refreshes and pagination keep already loaded rows. Pagination
+  follows only relative server URLs for the same user and stream, deduplicating overlapping rows.
+- `Current`: following and follower statistics are keyboard-accessible navigation controls with
+  at least 48-pixel targets. They open a separate native two-tab connection list, identify the
+  profile by its handle, and link each person to their public profile. Both lists use the existing
+  public `/u/:id/following` and `/u/:id/followers` PagePayload endpoints and retain independent
+  pagination and scroll state. Visitors can browse public connections; an own-profile entry without
+  a signed-in user offers login. The account drawer's existing connection links use the same page.
+  Pull-to-refresh reloads the selected list to reflect follow changes; cached lists are not live
+  subscriptions. Profile and connection content is centered at a maximum width of 760 logical pixels;
+  statistics wrap and tabs scroll horizontally with enlarged text.
 - `Current`: content management and recycle bin provide topic/reply filters, cursor loading,
   multi-selection, restore and deletion. Restore/permanent-delete affordances follow the server's
   capabilities; confirmation/password requirements and partial batch failures remain authoritative.

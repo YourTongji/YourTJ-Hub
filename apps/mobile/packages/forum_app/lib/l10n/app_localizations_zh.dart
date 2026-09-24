@@ -2320,6 +2320,75 @@ class AppLocalizationsZh extends AppLocalizations {
   String get campusRulesUnavailable => '暂时无法读取调休规则，请稍后重试，或关闭调休后导出原课表。';
 
   @override
+  String get planSyncTitle => '处理方案冲突';
+
+  @override
+  String get planSyncBody => '其他设备也修改了这些内容。请选择每项要保留的值，其余修改会自动合并。';
+
+  @override
+  String get planSyncLocal => '保留本地';
+
+  @override
+  String get planSyncRemote => '使用云端';
+
+  @override
+  String get planSyncDeleted => '已删除';
+
+  @override
+  String get planSyncPlan => '方案';
+
+  @override
+  String get planSyncName => '名称';
+
+  @override
+  String get planSyncCreatedAt => '创建时间';
+
+  @override
+  String get planSyncCourse => '课程';
+
+  @override
+  String get planSyncEvent => '自定义事件';
+
+  @override
+  String get planSyncLabel => '事件名称';
+
+  @override
+  String get planSyncDay => '星期';
+
+  @override
+  String get planSyncSections => '节次';
+
+  @override
+  String get planSyncWeeks => '周次';
+
+  @override
+  String get planSyncApply => '合并并保存';
+
+  @override
+  String get planSyncDrafts => '恢复草稿';
+
+  @override
+  String get planSyncDraftHint => '这些草稿仅保存在此设备，不占云端方案额度。恢复时会创建新方案。';
+
+  @override
+  String get planSyncRestore => '恢复为新方案';
+
+  @override
+  String get planSyncAdopt => '将此设备的本地方案同步到当前账号';
+
+  @override
+  String get planSyncAdoptHint => '本地方案尚未归属当前账号，确认后才会上传。';
+
+  @override
+  String get planSyncCapacity => '云端最多保存十套方案，请先腾出空间后重试。';
+
+  @override
+  String get planSyncRejected => '保存被拒绝：当前账号不可写入，或方案数据未通过校验。';
+
+  @override
+  String get planSyncArchived => '本地修改已保存为恢复草稿。';
+
+  @override
   String get privateNoteEdit => '编辑备注';
 
   @override
@@ -2327,6 +2396,8 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get privateNoteHint => '仅自己可见，最多 64 个字符；留空保存即可清除。';
+
+  @override
   String get badgeDisplayTitle => '资料卡展示徽章';
 
   @override
@@ -2337,4 +2408,63 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get badgeDisplayDown => '下移';
+
+  @override
+  String get scheduleWidgetSettingsTitle => '桌面课表小组件';
+
+  @override
+  String get scheduleWidgetPrivacyDescription =>
+      '小组件展示课表中的课程名称、时间、教师和地点。内容来自本机保存的课表，刷新后同步到桌面。';
+
+  @override
+  String get scheduleWidgetRefresh => '从离线课表刷新';
+
+  @override
+  String get scheduleWidgetClear => '清除桌面数据';
+
+  @override
+  String get scheduleWidgetCleared => '已清除桌面课表数据';
+
+  @override
+  String get scheduleWidgetDiagnostics => '刷新诊断';
+
+  @override
+  String get scheduleWidgetDiagnosticsDescription =>
+      '如果日期或课程状态更新较慢，请检查系统对 YourTJ 的后台运行和电量设置；不同设备的菜单名称可能不同。';
+
+  @override
+  String get scheduleWidgetTransparencyTitle => '小组件背景透明度';
+
+  @override
+  String get scheduleWidgetTransparencyDescription =>
+      '调高后会透出更多桌面背景。范围为 0%–15%，兼顾透出壁纸与课程文字辨识。';
+
+  @override
+  String campusSnapshotUpdated(String time) {
+    return '设备快照更新于 $time';
+  }
+
+  @override
+  String get campusSnapshotStale => '快照可能已过期，请刷新获取最新数据。';
+
+  @override
+  String get campusSnapshotOffline => '连接核验失败，正在显示本设备快照。';
+
+  @override
+  String get campusSnapshotRefreshFailed => '部分数据更新失败，保留上次可用内容。';
+
+  @override
+  String get campusDataNeedsRefresh => '此内容尚未更新，请手动刷新。';
+
+  @override
+  String get campusCacheClear => '清除校园缓存';
+
+  @override
+  String get campusCacheClearDescription => '清除本设备的校园快照和桌面课表。草稿、排课方案与学校绑定不受影响。';
+
+  @override
+  String get campusCacheCleared => '校园缓存已清除';
+
+  @override
+  String get campusCacheClearFailed => '部分缓存未能清除，请重试。';
 }

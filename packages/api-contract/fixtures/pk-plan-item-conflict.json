@@ -1,0 +1,16 @@
+{
+  "code": 409,
+  "msg": "方案已在另一设备修改",
+  "data": {
+    "plan": {
+      "id": "plan_example",
+      "name": "方案 1",
+      "createdAt": 1725000000000,
+      "stagedCourses": [],
+      "selectedCourses": [],
+      "customEvents": []
+    },
+    "revision": 1,
+    "updatedAt": "2026-09-21T00:00:00Z"
+  }
+}

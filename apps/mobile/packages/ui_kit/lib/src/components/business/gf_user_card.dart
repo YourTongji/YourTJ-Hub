@@ -28,6 +28,7 @@ class GfUserCard extends StatelessWidget {
     this.badges = const <String>[],
     this.coloredBadges = const <GfUserBadge>[],
     this.stats = const <(String, String)>[],
+    this.statActions = const {},
     this.actions,
     this.details,
     this.avatarBadge,
@@ -48,6 +49,10 @@ class GfUserCard extends StatelessWidget {
 
   /// (label, value) pairs rendered in a compact, equal-width stats row.
   final List<(String, String)> stats;
+
+  /// Optional navigation actions keyed by the zero-based statistic index.
+  /// Actionable statistics have a full-width, keyboard-accessible 48px target.
+  final Map<int, VoidCallback> statActions;
 
   /// Optional action buttons row (e.g. follow / message / edit).
   final Widget? actions;
@@ -215,36 +220,50 @@ class GfUserCard extends StatelessWidget {
                     return Wrap(
                       runSpacing: 16,
                       children: [
-                        for (final (label, value) in stats)
+                        for (int i = 0; i < stats.length; i++)
                           SizedBox(
                             width: constraints.maxWidth / columns,
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  value,
-                                  style: TextStyle(
-                                    fontSize: 18,
-                                    height: 1.35,
-                                    fontWeight: FontWeight.w600,
-                                    color: colors.baseContent,
-                                    fontFeatures: const [
-                                      FontFeature.tabularFigures(),
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  label,
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    height: 1.35,
-                                    color: colors.baseContent.withValues(
-                                      alpha: 0.72,
+                            child: MergeSemantics(
+                              child: Semantics(
+                                button: statActions[i] != null,
+                                child: InkWell(
+                                  onTap: statActions[i],
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: ConstrainedBox(
+                                    constraints: const BoxConstraints(
+                                      minHeight: 48,
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          stats[i].$2,
+                                          style: TextStyle(
+                                            fontSize: 18,
+                                            height: 1.35,
+                                            fontWeight: FontWeight.w600,
+                                            color: colors.baseContent,
+                                            fontFeatures: const [
+                                              FontFeature.tabularFigures(),
+                                            ],
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          stats[i].$1,
+                                          style: TextStyle(
+                                            fontSize: 14,
+                                            height: 1.35,
+                                            color: colors.baseContent
+                                                .withValues(alpha: 0.72),
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ),
                                 ),
-                              ],
+                              ),
                             ),
                           ),
                       ],

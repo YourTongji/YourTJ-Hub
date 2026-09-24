@@ -15,7 +15,7 @@ import (
 func setupScheduleSnapshotTest(t *testing.T) {
 	t.Helper()
 	conn := db.Connect()
-	if err := conn.AutoMigrate(&ScheduleSnapshotEntity{}); err != nil {
+	if err := conn.AutoMigrate(&ScheduleSnapshotEntity{}, &PlanSyncOwner{}, &PlanItem{}); err != nil {
 		t.Fatalf("migrate schedule snapshot: %v", err)
 	}
 	t.Cleanup(func() {
@@ -250,7 +250,7 @@ func TestScheduleSnapshotPostgresCompareAndSwap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := conn.AutoMigrate(&ScheduleSnapshotEntity{}); err != nil {
+	if err := conn.AutoMigrate(&ScheduleSnapshotEntity{}, &PlanSyncOwner{}, &PlanItem{}); err != nil {
 		t.Fatal(err)
 	}
 	const uid = 5570001

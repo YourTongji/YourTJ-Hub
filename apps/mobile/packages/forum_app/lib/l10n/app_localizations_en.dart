@@ -2406,6 +2406,81 @@ class AppLocalizationsEn extends AppLocalizations {
       'Holiday rules could not be loaded. Retry later, or disable adjustments to export the original timetable.';
 
   @override
+  String get planSyncTitle => 'Resolve plan conflicts';
+
+  @override
+  String get planSyncBody =>
+      'Another device changed these items too. Choose each value to keep; other changes merge automatically.';
+
+  @override
+  String get planSyncLocal => 'Keep local';
+
+  @override
+  String get planSyncRemote => 'Use cloud';
+
+  @override
+  String get planSyncDeleted => 'Deleted';
+
+  @override
+  String get planSyncPlan => 'Plan';
+
+  @override
+  String get planSyncName => 'Name';
+
+  @override
+  String get planSyncCreatedAt => 'Created';
+
+  @override
+  String get planSyncCourse => 'Course';
+
+  @override
+  String get planSyncEvent => 'Custom event';
+
+  @override
+  String get planSyncLabel => 'Event name';
+
+  @override
+  String get planSyncDay => 'Day';
+
+  @override
+  String get planSyncSections => 'Periods';
+
+  @override
+  String get planSyncWeeks => 'Weeks';
+
+  @override
+  String get planSyncApply => 'Merge and save';
+
+  @override
+  String get planSyncDrafts => 'Recovery drafts';
+
+  @override
+  String get planSyncDraftHint =>
+      'These drafts stay on this device and do not use cloud plan slots. Restoring creates a new plan.';
+
+  @override
+  String get planSyncRestore => 'Restore as new plan';
+
+  @override
+  String get planSyncAdopt => 'Sync this device’s local plans to this account';
+
+  @override
+  String get planSyncAdoptHint =>
+      'These local plans do not yet belong to this account. Confirm before uploading.';
+
+  @override
+  String get planSyncCapacity =>
+      'The cloud holds at most ten plans. Free a slot and retry.';
+
+  @override
+  String get planSyncRejected =>
+      'Saving was rejected. The account cannot write or the plan data failed validation.';
+
+  @override
+  String get planSyncArchived =>
+      'Local changes were saved as a recovery draft.';
+
+  @override
   String get privateNoteEdit => 'Edit note';
 
   @override
@@ -2414,6 +2489,8 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get privateNoteHint =>
       'Only you can see this. Up to 64 characters; save empty to clear.';
+
+  @override
   String get badgeDisplayTitle => 'Profile badges';
 
   @override
@@ -2425,4 +2502,70 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get badgeDisplayDown => 'Move down';
+
+  @override
+  String get scheduleWidgetSettingsTitle => 'Home screen schedule';
+
+  @override
+  String get scheduleWidgetPrivacyDescription =>
+      'Widgets show course names, times, teachers and locations from the schedule saved on this device. Refreshing the schedule updates the home-screen view.';
+
+  @override
+  String get scheduleWidgetRefresh => 'Refresh from offline schedule';
+
+  @override
+  String get scheduleWidgetClear => 'Clear home screen data';
+
+  @override
+  String get scheduleWidgetCleared => 'Home screen schedule data cleared';
+
+  @override
+  String get scheduleWidgetDiagnostics => 'Refresh diagnostics';
+
+  @override
+  String get scheduleWidgetDiagnosticsDescription =>
+      'If the date or class status is slow to update, check YourTJ\'s background activity and battery settings. Menu names vary by device.';
+
+  @override
+  String get scheduleWidgetTransparencyTitle =>
+      'Widget background transparency';
+
+  @override
+  String get scheduleWidgetTransparencyDescription =>
+      'Higher values reveal more of your wallpaper. The 0%–15% range balances the background effect with readable course text.';
+
+  @override
+  String campusSnapshotUpdated(String time) {
+    return 'Device snapshot updated $time';
+  }
+
+  @override
+  String get campusSnapshotStale =>
+      'This snapshot may be outdated. Refresh for the latest data.';
+
+  @override
+  String get campusSnapshotOffline =>
+      'Connection verification failed. Showing this device’s snapshot.';
+
+  @override
+  String get campusSnapshotRefreshFailed =>
+      'Some data could not be updated. Previous content is retained.';
+
+  @override
+  String get campusDataNeedsRefresh =>
+      'This content has not been updated. Refresh to load it.';
+
+  @override
+  String get campusCacheClear => 'Clear campus cache';
+
+  @override
+  String get campusCacheClearDescription =>
+      'Remove campus snapshots and home-screen schedules from this device. Drafts, schedule plans and the school connection are kept.';
+
+  @override
+  String get campusCacheCleared => 'Campus cache cleared';
+
+  @override
+  String get campusCacheClearFailed =>
+      'Some cached data could not be cleared. Please retry.';
 }

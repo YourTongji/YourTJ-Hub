@@ -34,6 +34,7 @@ import 'pages/wiki/wiki_search_page.dart';
 import 'pages/schedule/schedule_page.dart';
 import 'pages/search/search_page.dart';
 import 'pages/settings/settings_page.dart';
+import 'pages/settings/schedule_widget_settings_page.dart';
 import 'pages/topic/topic_page.dart';
 import 'providers.dart';
 import 'current_user.dart';
@@ -124,6 +125,7 @@ class _GfShellState extends ConsumerState<GfShell> with WidgetsBindingObserver {
       await clearOfflineCacheQuietly(
         ref.read(offlineTopicCacheProvider),
         ref.read(offlineChatCacheProvider),
+        ref.read(scheduleWidgetBridgeProvider),
       );
     } catch (_) {
       // 兜底清理失败(缓存不可用)不阻塞启动。
@@ -372,12 +374,24 @@ final GoRouter appRouter = GoRouter(
         initialPostNo: int.tryParse(state.uri.queryParameters['postNo'] ?? ''),
       ),
     ),
+    for (final stream in ['following', 'followers'])
+      GoRoute(
+        path: '/u/:userId/$stream',
+        builder: (_, state) => ProfilePage.connections(
+          userId: int.parse(state.pathParameters['userId']!),
+          initialStream: stream,
+        ),
+      ),
     GoRoute(
       path: '/u/:userId',
       builder: (BuildContext context, GoRouterState state) =>
           ProfilePage(userId: int.parse(state.pathParameters['userId']!)),
     ),
     GoRoute(path: '/settings', builder: (_, _) => const SettingsPage()),
+    GoRoute(
+      path: '/settings/widgets',
+      builder: (_, _) => const ScheduleWidgetSettingsPage(),
+    ),
     GoRoute(
       path: '/settings/:section',
       builder: (_, state) =>
@@ -394,14 +408,13 @@ final GoRouter appRouter = GoRouter(
     ),
     GoRoute(
       path: '/profile',
-      builder: (_, state) => ProfilePage(
-        initialStream: switch (state.uri.queryParameters['stream']) {
-          'bookmarks' => 'bookmarks',
-          'following' => 'following',
-          'followers' => 'followers',
-          _ => 'timeline',
-        },
-      ),
+      builder: (_, state) => switch (state.uri.queryParameters['stream']) {
+        'following' || 'followers' => ProfilePage.connections(
+          initialStream: state.uri.queryParameters['stream']!,
+        ),
+        'bookmarks' => const ProfilePage(initialStream: 'bookmarks'),
+        _ => const ProfilePage(),
+      },
     ),
     GoRoute(
       path: '/moderation',

@@ -4458,6 +4458,144 @@ abstract class AppLocalizations {
   /// **'Holiday rules could not be loaded. Retry later, or disable adjustments to export the original timetable.'**
   String get campusRulesUnavailable;
 
+  /// No description provided for @planSyncTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Resolve plan conflicts'**
+  String get planSyncTitle;
+
+  /// No description provided for @planSyncBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Another device changed these items too. Choose each value to keep; other changes merge automatically.'**
+  String get planSyncBody;
+
+  /// No description provided for @planSyncLocal.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep local'**
+  String get planSyncLocal;
+
+  /// No description provided for @planSyncRemote.
+  ///
+  /// In en, this message translates to:
+  /// **'Use cloud'**
+  String get planSyncRemote;
+
+  /// No description provided for @planSyncDeleted.
+  ///
+  /// In en, this message translates to:
+  /// **'Deleted'**
+  String get planSyncDeleted;
+
+  /// No description provided for @planSyncPlan.
+  ///
+  /// In en, this message translates to:
+  /// **'Plan'**
+  String get planSyncPlan;
+
+  /// No description provided for @planSyncName.
+  ///
+  /// In en, this message translates to:
+  /// **'Name'**
+  String get planSyncName;
+
+  /// No description provided for @planSyncCreatedAt.
+  ///
+  /// In en, this message translates to:
+  /// **'Created'**
+  String get planSyncCreatedAt;
+
+  /// No description provided for @planSyncCourse.
+  ///
+  /// In en, this message translates to:
+  /// **'Course'**
+  String get planSyncCourse;
+
+  /// No description provided for @planSyncEvent.
+  ///
+  /// In en, this message translates to:
+  /// **'Custom event'**
+  String get planSyncEvent;
+
+  /// No description provided for @planSyncLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Event name'**
+  String get planSyncLabel;
+
+  /// No description provided for @planSyncDay.
+  ///
+  /// In en, this message translates to:
+  /// **'Day'**
+  String get planSyncDay;
+
+  /// No description provided for @planSyncSections.
+  ///
+  /// In en, this message translates to:
+  /// **'Periods'**
+  String get planSyncSections;
+
+  /// No description provided for @planSyncWeeks.
+  ///
+  /// In en, this message translates to:
+  /// **'Weeks'**
+  String get planSyncWeeks;
+
+  /// No description provided for @planSyncApply.
+  ///
+  /// In en, this message translates to:
+  /// **'Merge and save'**
+  String get planSyncApply;
+
+  /// No description provided for @planSyncDrafts.
+  ///
+  /// In en, this message translates to:
+  /// **'Recovery drafts'**
+  String get planSyncDrafts;
+
+  /// No description provided for @planSyncDraftHint.
+  ///
+  /// In en, this message translates to:
+  /// **'These drafts stay on this device and do not use cloud plan slots. Restoring creates a new plan.'**
+  String get planSyncDraftHint;
+
+  /// No description provided for @planSyncRestore.
+  ///
+  /// In en, this message translates to:
+  /// **'Restore as new plan'**
+  String get planSyncRestore;
+
+  /// No description provided for @planSyncAdopt.
+  ///
+  /// In en, this message translates to:
+  /// **'Sync this device’s local plans to this account'**
+  String get planSyncAdopt;
+
+  /// No description provided for @planSyncAdoptHint.
+  ///
+  /// In en, this message translates to:
+  /// **'These local plans do not yet belong to this account. Confirm before uploading.'**
+  String get planSyncAdoptHint;
+
+  /// No description provided for @planSyncCapacity.
+  ///
+  /// In en, this message translates to:
+  /// **'The cloud holds at most ten plans. Free a slot and retry.'**
+  String get planSyncCapacity;
+
+  /// No description provided for @planSyncRejected.
+  ///
+  /// In en, this message translates to:
+  /// **'Saving was rejected. The account cannot write or the plan data failed validation.'**
+  String get planSyncRejected;
+
+  /// No description provided for @planSyncArchived.
+  ///
+  /// In en, this message translates to:
+  /// **'Local changes were saved as a recovery draft.'**
+  String get planSyncArchived;
+
   /// No description provided for @privateNoteEdit.
   ///
   /// In en, this message translates to:
@@ -4475,6 +4613,7 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Only you can see this. Up to 64 characters; save empty to clear.'**
   String get privateNoteHint;
+
   /// No description provided for @badgeDisplayTitle.
   ///
   /// In en, this message translates to:
@@ -4498,6 +4637,114 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Move down'**
   String get badgeDisplayDown;
+
+  /// No description provided for @scheduleWidgetSettingsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Home screen schedule'**
+  String get scheduleWidgetSettingsTitle;
+
+  /// No description provided for @scheduleWidgetPrivacyDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Widgets show course names, times, teachers and locations from the schedule saved on this device. Refreshing the schedule updates the home-screen view.'**
+  String get scheduleWidgetPrivacyDescription;
+
+  /// No description provided for @scheduleWidgetRefresh.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh from offline schedule'**
+  String get scheduleWidgetRefresh;
+
+  /// No description provided for @scheduleWidgetClear.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear home screen data'**
+  String get scheduleWidgetClear;
+
+  /// No description provided for @scheduleWidgetCleared.
+  ///
+  /// In en, this message translates to:
+  /// **'Home screen schedule data cleared'**
+  String get scheduleWidgetCleared;
+
+  /// No description provided for @scheduleWidgetDiagnostics.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh diagnostics'**
+  String get scheduleWidgetDiagnostics;
+
+  /// No description provided for @scheduleWidgetDiagnosticsDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'If the date or class status is slow to update, check YourTJ\'s background activity and battery settings. Menu names vary by device.'**
+  String get scheduleWidgetDiagnosticsDescription;
+
+  /// No description provided for @scheduleWidgetTransparencyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Widget background transparency'**
+  String get scheduleWidgetTransparencyTitle;
+
+  /// No description provided for @scheduleWidgetTransparencyDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Higher values reveal more of your wallpaper. The 0%–15% range balances the background effect with readable course text.'**
+  String get scheduleWidgetTransparencyDescription;
+
+  /// No description provided for @campusSnapshotUpdated.
+  ///
+  /// In en, this message translates to:
+  /// **'Device snapshot updated {time}'**
+  String campusSnapshotUpdated(String time);
+
+  /// No description provided for @campusSnapshotStale.
+  ///
+  /// In en, this message translates to:
+  /// **'This snapshot may be outdated. Refresh for the latest data.'**
+  String get campusSnapshotStale;
+
+  /// No description provided for @campusSnapshotOffline.
+  ///
+  /// In en, this message translates to:
+  /// **'Connection verification failed. Showing this device’s snapshot.'**
+  String get campusSnapshotOffline;
+
+  /// No description provided for @campusSnapshotRefreshFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Some data could not be updated. Previous content is retained.'**
+  String get campusSnapshotRefreshFailed;
+
+  /// No description provided for @campusDataNeedsRefresh.
+  ///
+  /// In en, this message translates to:
+  /// **'This content has not been updated. Refresh to load it.'**
+  String get campusDataNeedsRefresh;
+
+  /// No description provided for @campusCacheClear.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear campus cache'**
+  String get campusCacheClear;
+
+  /// No description provided for @campusCacheClearDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove campus snapshots and home-screen schedules from this device. Drafts, schedule plans and the school connection are kept.'**
+  String get campusCacheClearDescription;
+
+  /// No description provided for @campusCacheCleared.
+  ///
+  /// In en, this message translates to:
+  /// **'Campus cache cleared'**
+  String get campusCacheCleared;
+
+  /// No description provided for @campusCacheClearFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Some cached data could not be cleared. Please retry.'**
+  String get campusCacheClearFailed;
 }
 
 class _AppLocalizationsDelegate

@@ -10170,6 +10170,69 @@ SearchMaintenanceSubmissionResponse:
     result:
       $ref: '#/SearchMaintenanceSubmission'
 
+PkPlanItem:
+  type: object
+  required: [plan, revision, updatedAt]
+  properties:
+    plan:
+      $ref: '#/PkPlanPayload'
+    revision:
+      type: integer
+      minimum: 1
+      maximum: 9007199254740991
+    updatedAt:
+      type: string
+      format: date-time
+      description: Diagnostic timestamp, never a CAS version.
+PkPlanItemPutRequest:
+  type: object
+  required: [plan, baseRevision]
+  properties:
+    plan:
+      $ref: '#/PkPlanPayload'
+    baseRevision:
+      type: integer
+      minimum: 0
+      maximum: 9007199254740990
+      description: Zero creates a new ID; positive revision updates the observed plan.
+PkPlanItemDeleteRequest:
+  type: object
+  required: [planId, baseRevision]
+  properties:
+    planId:
+      type: string
+      minLength: 1
+      maxLength: 64
+    baseRevision:
+      type: integer
+      minimum: 1
+      maximum: 9007199254740991
+PkPlanItemResponse:
+  type: object
+  required: [code, msg, data]
+  properties:
+    code:
+      type: integer
+    msg:
+      type: string
+    data:
+      oneOf:
+        - $ref: '#/PkPlanItem'
+        - type: 'null'
+PkPlanItemsResponse:
+  type: object
+  required: [code, msg, data]
+  properties:
+    code:
+      type: integer
+      const: 0
+    msg:
+      type: string
+    data:
+      type: array
+      maxItems: 10
+      items:
+        $ref: '#/PkPlanItem'
 PrivateNote:
   type: object
   required: [targetUserId, username, note]

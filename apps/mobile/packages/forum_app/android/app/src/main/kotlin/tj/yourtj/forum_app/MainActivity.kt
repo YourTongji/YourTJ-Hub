@@ -11,6 +11,7 @@ import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodChannel
+import tj.yourtj.forum_app.widget.publishScheduleWidgetPreviews
 import java.io.File
 import java.security.MessageDigest
 
@@ -33,6 +34,7 @@ class MainActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        publishScheduleWidgetPreviews(applicationContext)
         PushBridge.attach(this, MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "yourtj/push"))
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "yourtj/startup")
             .setMethodCallHandler { call, result ->

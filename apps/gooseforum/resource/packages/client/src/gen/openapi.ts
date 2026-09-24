@@ -6118,6 +6118,44 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/pk/plan-items": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read independent plan revisions
+         * @description Caller-owned per-plan synchronization. First access atomically migrates every legacy plan
+         *     and retires the legacy snapshot API for this account. Each plan has an integer CAS revision.
+         *     At most ten plans per account; each plan payload is limited to 1 MB. Device preferences stay local.
+         *     Conflicts include the latest item; a missing positive revision returns 410 and cannot recreate it.
+         */
+        get: operations["pkListPlanItems"];
+        /**
+         * Conditionally save one plan
+         * @description Caller-owned per-plan synchronization. First access atomically migrates every legacy plan
+         *     and retires the legacy snapshot API for this account. Each plan has an integer CAS revision.
+         *     At most ten plans per account; each plan payload is limited to 1 MB. Device preferences stay local.
+         *     Conflicts include the latest item; a missing positive revision returns 410 and cannot recreate it.
+         */
+        put: operations["pkPutPlanItem"];
+        post?: never;
+        /**
+         * Conditionally delete one plan
+         * @description Caller-owned per-plan synchronization. First access atomically migrates every legacy plan
+         *     and retires the legacy snapshot API for this account. Each plan has an integer CAS revision.
+         *     At most ten plans per account; each plan payload is limited to 1 MB. Device preferences stay local.
+         *     Conflicts include the latest item. Deleting an already-absent plan is idempotent and returns
+         *     200 regardless of the observed revision; the missing-positive-revision 410 applies only to PUT.
+         */
+        delete: operations["pkDeletePlanItem"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/pk/plans": {
         parameters: {
             query?: never;
@@ -6127,7 +6165,12 @@ export interface paths {
         };
         /**
          * Fetch the caller's cloud schedule plan snapshot
-         * @description Login-required read of the caller's PK scheduler plan snapshot (issue #537).
+         * @deprecated
+         * @description After first access to /api/pk/plan-items, this legacy operation returns 410.
+         *     Existing snapshots migrate without deleting any plan, including recovery copies.
+         *     An erased (closed) account also reads as an empty snapshot with 200 and null
+         *     data; its writes and deletes still return 410.
+         *     Login-required read of the caller's PK scheduler plan snapshot (issue #537).
          *     Returns the four persisted fields (plans/activePlanId/majorSelected/weekView)
          *     plus the server-side authoritative updatedAt clock (RFC3339Nano UTC) that
          *     clients store as pk.syncedAt for load-time conflict detection. When the user
@@ -6139,7 +6182,10 @@ export interface paths {
         get: operations["pkGetPlans"];
         /**
          * Replace the caller's cloud schedule plan snapshot wholesale
-         * @description Login-required whole-snapshot upsert (issue #537): plans/activePlanId/
+         * @deprecated
+         * @description After first access to /api/pk/plan-items, this legacy operation returns 410.
+         *     Existing snapshots migrate without deleting any plan, including recovery copies.
+         *     Login-required whole-snapshot upsert (issue #537): plans/activePlanId/
          *     majorSelected/weekView are replaced atomically; created_at stays fixed and
          *     the server-side updated_at clock is refreshed. Server-side shallow
          *     validation only (1..10 plans, non-blank id/name per plan, activePlanId must
@@ -6152,7 +6198,10 @@ export interface paths {
         post?: never;
         /**
          * Delete the caller's cloud schedule plan snapshot
-         * @description Login-required idempotent delete of the caller's cloud snapshot (issue #537);
+         * @deprecated
+         * @description After first access to /api/pk/plan-items, this legacy operation returns 410.
+         *     Existing snapshots migrate without deleting any plan, including recovery copies.
+         *     Login-required idempotent delete of the caller's cloud snapshot (issue #537);
          *     local data is untouched. Same account-close semantics as the push device
          *     cleanup (anonymize and delete modes both erase the row). Writes require a
          *     writable account.
@@ -11541,6 +11590,35 @@ export interface components {
             messageCode: "common.operation.success";
         };
         AdminStickerImportResponse: components["schemas"]["AdminStickerImportSuccess"] | components["schemas"]["ApiFailure"];
+        PkPlanItem: {
+            plan: components["schemas"]["PkPlanPayload"];
+            revision: number;
+            /**
+             * Format: date-time
+             * @description Diagnostic timestamp, never a CAS version.
+             */
+            updatedAt: string;
+        };
+        PkPlanItemPutRequest: {
+            plan: components["schemas"]["PkPlanPayload"];
+            /** @description Zero creates a new ID; positive revision updates the observed plan. */
+            baseRevision: number;
+        };
+        PkPlanItemDeleteRequest: {
+            planId: string;
+            baseRevision: number;
+        };
+        PkPlanItemResponse: {
+            code: number;
+            msg: string;
+            data: components["schemas"]["PkPlanItem"] | null;
+        };
+        PkPlanItemsResponse: {
+            /** @constant */
+            code: 0;
+            msg: string;
+            data: components["schemas"]["PkPlanItem"][];
+        };
         TongjiRegistrationStatus: {
             csrfToken: string;
             email: string;
@@ -22542,6 +22620,263 @@ export interface operations {
             };
         };
     };
+    pkListPlanItems: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PkPlanItemsResponse"];
+                };
+            };
+            /** @description Invalid input. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PkFailure"];
+                };
+            };
+            /** @description Authentication required. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Account cannot write. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Remote item changed, or quota reached with null data. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PkPlanItemResponse"];
+                };
+            };
+            /** @description Plan deleted; preserve dirty content locally. */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PkPlanItemResponse"];
+                };
+            };
+            /** @description Rate limited. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+            /** @description Storage unavailable. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PkFailure"];
+                };
+            };
+        };
+    };
+    pkPutPlanItem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PkPlanItemPutRequest"];
+            };
+        };
+        responses: {
+            /** @description Success. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PkPlanItemResponse"];
+                };
+            };
+            /** @description Invalid input. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PkFailure"];
+                };
+            };
+            /** @description Authentication required. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Account cannot write. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Remote item changed, or quota reached with null data. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PkPlanItemResponse"];
+                };
+            };
+            /** @description Plan deleted; preserve dirty content locally. */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PkPlanItemResponse"];
+                };
+            };
+            /** @description Rate limited. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+            /** @description Storage unavailable. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PkFailure"];
+                };
+            };
+        };
+    };
+    pkDeletePlanItem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PkPlanItemDeleteRequest"];
+            };
+        };
+        responses: {
+            /** @description Success. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PkPlansDeleteResponse"];
+                };
+            };
+            /** @description Invalid input. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PkFailure"];
+                };
+            };
+            /** @description Authentication required. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Account cannot write. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Remote item changed, or quota reached with null data. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PkPlanItemResponse"];
+                };
+            };
+            /** @description Plan deleted; preserve dirty content locally. */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PkPlanItemResponse"];
+                };
+            };
+            /** @description Rate limited. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+            /** @description Storage unavailable. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PkFailure"];
+                };
+            };
+        };
+    };
     pkGetPlans: {
         parameters: {
             query?: never;
@@ -22567,6 +22902,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Account uses per-plan synchronization; update the client. */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PkPlanItemResponse"];
                 };
             };
             /** @description Rate limit exceeded (pk.plans quota). */
@@ -22647,6 +22991,15 @@ export interface operations {
                     "application/json": components["schemas"]["PkFailure"];
                 };
             };
+            /** @description Account uses per-plan synchronization; update the client. */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PkPlanItemResponse"];
+                };
+            };
             /** @description Rate limit exceeded (pk.plans quota). */
             429: {
                 headers: {
@@ -22701,6 +23054,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Account uses per-plan synchronization; update the client. */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PkPlanItemResponse"];
                 };
             };
             /** @description Rate limit exceeded (pk.plans quota). */

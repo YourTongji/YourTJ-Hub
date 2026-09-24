@@ -12,6 +12,7 @@ import 'dart:async';
 import 'schedule_grid.dart';
 export 'schedule_grid.dart';
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:core/core.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -173,8 +174,7 @@ class ScheduleStoreNotifier extends StateNotifier<ScheduleState> {
   SharedPreferences? _prefs;
   late final Future<void> _initial;
   Future<void> _writeQueue = Future<void>.value();
-  int _planSeq = 0;
-  int _eventSeq = 0;
+
   bool _applyingRemote = false;
   String _syncedAt = '';
   bool _syncDirty = false;
@@ -262,10 +262,6 @@ class ScheduleStoreNotifier extends StateNotifier<ScheduleState> {
     if (plans.isEmpty) {
       plans = <PkPlan>[_createEmptyPlan(_planNameOf(1))];
     }
-    _planSeq = plans.fold<int>(0, (max, plan) {
-      final int index = _defaultNameIndexOf(plan.name);
-      return index > max ? index : max;
-    });
 
     String activePlanId = '';
     final String? activeRaw = prefs?.getString(
@@ -564,7 +560,7 @@ class ScheduleStoreNotifier extends StateNotifier<ScheduleState> {
 
   PkPlan _createEmptyPlan(String name) {
     return PkPlan(
-      id: 'plan_${_nowMs().toRadixString(36)}_${(_planSeq++).toRadixString(36)}',
+      id: newScheduleId('plan'),
       name: name,
       createdAt: _nowMs(),
       stagedCourses: <PkStagedCourse>[],
@@ -573,8 +569,7 @@ class ScheduleStoreNotifier extends StateNotifier<ScheduleState> {
     );
   }
 
-  String _genEventId() =>
-      'evt_${_nowMs().toRadixString(36)}_${(_eventSeq++).toRadixString(36)}';
+  String _genEventId() => newScheduleId('evt');
 
   String _nextDefaultPlanName(List<PkPlan> plans) {
     int max = 0;
@@ -645,10 +640,7 @@ class ScheduleStoreNotifier extends StateNotifier<ScheduleState> {
       ScheduleStorageKeys.weekView,
       jsonEncode({'week': sanitized.week, 'useCurrent': sanitized.useCurrent}),
     );
-    // weekView 属云同步快照字段：本地变更同样通知上行钩子。
-    if (!_applyingRemote) {
-      scheduleLocalPlansChanged?.call();
-    }
+    // Device-local preference; does not advance any plan revision.
     _rebuild();
   }
 
@@ -674,14 +666,48 @@ class ScheduleStoreNotifier extends StateNotifier<ScheduleState> {
         plan.customEvents.isEmpty;
   }
 
+  Map<String, dynamic>? readPlanSyncCache(int owner) {
+    try {
+      final raw = _prefs?.getString('pk.planSync.v3.$owner');
+      return raw == null
+          ? null
+          : Map<String, dynamic>.from(jsonDecode(raw) as Map);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<bool> writePlanSyncCache(int owner, Map<String, dynamic> value) {
+    final encoded = jsonEncode(value);
+    var saved = false;
+    _writeQueue = _writeQueue.then((_) async {
+      try {
+        saved =
+            await _prefs?.setString('pk.planSync.v3.$owner', encoded) ?? false;
+      } catch (_) {}
+    });
+    return _writeQueue.then((_) => saved);
+  }
+
+  void applyPlanItems(List<PkPlan> plans) => applyRemoteSnapshot(
+    PkPlansSnapshot(
+      plans: plans,
+      activePlanId: state.activePlanId,
+      majorSelected: state.majorSelected,
+      weekView: state.weekView,
+      updatedAt: '',
+    ),
+  );
+
   /// 服务端同步时钟（PUT 成功 / 整包采用后推进；持久化 pk.syncedAt）。
   String get syncedAt => _syncedAt;
 
   bool get syncDirty => _syncDirty;
   int? get syncOwner => int.tryParse(_prefs?.getString('pk.syncOwner') ?? '');
 
-  Future<bool> setSyncOwner(int id) async {
+  Future<bool> setSyncOwner(int id, {bool Function()? canWrite}) async {
     await flush;
+    if (canWrite != null && !canWrite()) return false;
     try {
       return await _prefs?.setString('pk.syncOwner', '$id') ?? false;
     } catch (_) {
@@ -753,10 +779,6 @@ class ScheduleStoreNotifier extends StateNotifier<ScheduleState> {
       if (plans.isEmpty) {
         plans = <PkPlan>[_createEmptyPlan(_planNameOf(1))];
       }
-      _planSeq = plans.fold<int>(0, (max, plan) {
-        final int index = _defaultNameIndexOf(plan.name);
-        return index > max ? index : max;
-      });
       String activePlanId = snapshot.activePlanId;
       if (!plans.any((plan) => plan.id == activePlanId)) {
         activePlanId = plans.first.id;
@@ -883,10 +905,7 @@ class ScheduleStoreNotifier extends StateNotifier<ScheduleState> {
     if (_findPlan(planId) == null) return;
     state = state.copyWith(activePlanId: planId);
     _persist(ScheduleStorageKeys.activePlanId, jsonEncode(planId));
-    // activePlanId 属云同步快照字段：本地切换方案也通知上行钩子。
-    if (!_applyingRemote) {
-      scheduleLocalPlansChanged?.call();
-    }
+    // Device-local preference; does not advance any plan revision.
     _rebuild();
   }
 
@@ -920,7 +939,6 @@ class ScheduleStoreNotifier extends StateNotifier<ScheduleState> {
         .where((p) => p.id != planId)
         .toList();
     if (remaining.isEmpty) {
-      _planSeq = 0;
       final PkPlan fresh = _createEmptyPlan(_planNameOf(1));
       state = state.copyWith(plans: <PkPlan>[fresh], activePlanId: fresh.id);
     } else {
@@ -1419,3 +1437,8 @@ final Provider<PkPlan> activePlanProvider = Provider<PkPlan>((ref) {
   }
   return state.plans.first;
 });
+
+String newScheduleId(String prefix) {
+  final random = Random.secure();
+  return '${prefix}_${List.generate(16, (_) => random.nextInt(256).toRadixString(16).padLeft(2, '0')).join()}';
+}

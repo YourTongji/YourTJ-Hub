@@ -2339,6 +2339,77 @@ class AppLocalizationsJa extends AppLocalizations {
       '休講・振替規則を取得できません。再試行するか、規則を無効にして元の時間割を出力してください。';
 
   @override
+  String get planSyncTitle => 'プランの競合を解決';
+
+  @override
+  String get planSyncBody =>
+      '別の端末でもこれらの項目が変更されました。残す値を選択してください。他の変更は自動的に統合されます。';
+
+  @override
+  String get planSyncLocal => 'ローカルを保持';
+
+  @override
+  String get planSyncRemote => 'クラウドを使用';
+
+  @override
+  String get planSyncDeleted => '削除済み';
+
+  @override
+  String get planSyncPlan => 'プラン';
+
+  @override
+  String get planSyncName => '名前';
+
+  @override
+  String get planSyncCreatedAt => '作成日時';
+
+  @override
+  String get planSyncCourse => '科目';
+
+  @override
+  String get planSyncEvent => '予定';
+
+  @override
+  String get planSyncLabel => '予定名';
+
+  @override
+  String get planSyncDay => '曜日';
+
+  @override
+  String get planSyncSections => '時限';
+
+  @override
+  String get planSyncWeeks => '週';
+
+  @override
+  String get planSyncApply => '統合して保存';
+
+  @override
+  String get planSyncDrafts => '復元用の下書き';
+
+  @override
+  String get planSyncDraftHint =>
+      '下書きはこの端末のみに保存され、クラウドのプラン数に含まれません。復元すると新しいプランを作成します。';
+
+  @override
+  String get planSyncRestore => '新しいプランとして復元';
+
+  @override
+  String get planSyncAdopt => 'この端末のプランを現在のアカウントに同期';
+
+  @override
+  String get planSyncAdoptHint => 'ローカルプランはまだこのアカウントに属していません。確認後にアップロードします。';
+
+  @override
+  String get planSyncCapacity => 'クラウドには最大10件のプランを保存できます。空きを作って再試行してください。';
+
+  @override
+  String get planSyncRejected => '保存できませんでした。アカウントが書き込み不可、またはプランデータが検証に失敗しました。';
+
+  @override
+  String get planSyncArchived => 'ローカルの変更を復元用の下書きに保存しました。';
+
+  @override
   String get privateNoteEdit => 'メモを編集';
 
   @override
@@ -2346,6 +2417,8 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get privateNoteHint => '自分だけに表示されます。64文字以内。空欄で保存すると削除されます。';
+
+  @override
   String get badgeDisplayTitle => 'プロフィールのバッジ';
 
   @override
@@ -2357,4 +2430,64 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get badgeDisplayDown => '下へ';
+
+  @override
+  String get scheduleWidgetSettingsTitle => 'ホーム画面の時間割';
+
+  @override
+  String get scheduleWidgetPrivacyDescription =>
+      'ウィジェットには、この端末に保存された時間割の授業名、時刻、教員、場所が表示されます。時間割を更新するとホーム画面にも反映されます。';
+
+  @override
+  String get scheduleWidgetRefresh => 'オフライン時間割から更新';
+
+  @override
+  String get scheduleWidgetClear => 'ホーム画面データを消去';
+
+  @override
+  String get scheduleWidgetCleared => 'ホーム画面の時間割データを消去しました';
+
+  @override
+  String get scheduleWidgetDiagnostics => '更新診断';
+
+  @override
+  String get scheduleWidgetDiagnosticsDescription =>
+      '日付や授業状態の更新が遅い場合は、YourTJ のバックグラウンド動作とバッテリー設定を確認してください。設定項目の名前は端末によって異なります。';
+
+  @override
+  String get scheduleWidgetTransparencyTitle => 'ウィジェットの背景の透明度';
+
+  @override
+  String get scheduleWidgetTransparencyDescription =>
+      '値を上げると、ホーム画面の背景がより透けて見えます。授業情報の読みやすさを保つため、範囲は 0%～15% です。';
+
+  @override
+  String campusSnapshotUpdated(String time) {
+    return '端末のスナップショット更新：$time';
+  }
+
+  @override
+  String get campusSnapshotStale => 'このスナップショットは古い可能性があります。更新してください。';
+
+  @override
+  String get campusSnapshotOffline => '接続を確認できません。端末のスナップショットを表示しています。';
+
+  @override
+  String get campusSnapshotRefreshFailed => '一部のデータを更新できませんでした。以前の内容を保持しています。';
+
+  @override
+  String get campusDataNeedsRefresh => 'この内容は未更新です。手動で更新してください。';
+
+  @override
+  String get campusCacheClear => 'キャンパスのキャッシュを削除';
+
+  @override
+  String get campusCacheClearDescription =>
+      'この端末のキャンパスデータとホーム画面の時間割を削除します。下書き、履修計画、大学との連携は保持されます。';
+
+  @override
+  String get campusCacheCleared => 'キャンパスのキャッシュを削除しました';
+
+  @override
+  String get campusCacheClearFailed => '一部のキャッシュを削除できませんでした。再試行してください。';
 }

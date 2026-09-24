@@ -26,7 +26,7 @@ func TestScheduleSnapshotSchemaCreatedOnSQLite(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
-	if err := conn.AutoMigrate(&pk.ScheduleSnapshotEntity{}); err != nil {
+	if err := conn.AutoMigrate(&pk.ScheduleSnapshotEntity{}, &pk.PlanSyncOwner{}, &pk.PlanItem{}); err != nil {
 		t.Fatalf("AutoMigrate pk_schedule_snapshot: %v", err)
 	}
 	if !conn.Migrator().HasTable("pk_schedule_snapshot") {
@@ -65,7 +65,7 @@ func TestScheduleSnapshotSchemaUpgradeFromLegacySubset(t *testing.T) {
 	if conn.Migrator().HasTable("pk_schedule_snapshot") {
 		t.Fatal("precondition failed: fresh schema should not have pk_schedule_snapshot")
 	}
-	if err := conn.AutoMigrate(&pk.ScheduleSnapshotEntity{}); err != nil {
+	if err := conn.AutoMigrate(&pk.ScheduleSnapshotEntity{}, &pk.PlanSyncOwner{}, &pk.PlanItem{}); err != nil {
 		t.Fatalf("upgrade AutoMigrate pk_schedule_snapshot: %v", err)
 	}
 	if !conn.Migrator().HasTable("pk_schedule_snapshot") {

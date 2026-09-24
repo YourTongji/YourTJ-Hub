@@ -175,6 +175,7 @@ jobs:
         # 包必须在此显式接线（PR #589 的 topicUserStat 一度漏接）。
         run: |
           go test ./app/migration/ -run 'TestSchema' -v
+          go test ./app/models/forum/pk/ -run 'PostgreSQL$' -v
           go test ./app/models/forum/course/ -run 'PostgreSQL$' -v
           go test ./app/models/forum/dailyStats/ -run 'PostgreSQL$' -v
           go test ./app/models/forum/topicUserStat/ -run 'PostgreSQL$' -v
