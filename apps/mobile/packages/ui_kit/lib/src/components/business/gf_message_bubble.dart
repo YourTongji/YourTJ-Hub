@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../theme/gf_theme.dart';
 
@@ -15,6 +16,7 @@ class GfMessageBubble extends StatelessWidget {
     this.contentSpan,
     this.content,
     this.selectable = false,
+    this.copyMessageLabel = 'Copy message',
   });
 
   final String text;
@@ -31,6 +33,7 @@ class GfMessageBubble extends StatelessWidget {
   final InlineSpan? contentSpan;
   final Widget? content;
   final bool selectable;
+  final String copyMessageLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -49,7 +52,27 @@ class GfMessageBubble extends StatelessWidget {
               ? Text(text)
               : Text.rich(TextSpan(children: <InlineSpan>[contentSpan!]))),
     );
-    if (selectable) body = SelectionArea(child: body);
+    if (selectable) {
+      body = SelectionArea(
+        contextMenuBuilder: (context, selection) =>
+            AdaptiveTextSelectionToolbar.buttonItems(
+              anchors: selection.contextMenuAnchors,
+              buttonItems: [
+                ...selection.contextMenuButtonItems,
+                ContextMenuButtonItem(
+                  label: copyMessageLabel,
+                  onPressed: () {
+                    // Whole-message copy preserves sticker tokens that native
+                    // partial text selection cannot represent as images.
+                    Clipboard.setData(ClipboardData(text: text));
+                    selection.hideToolbar();
+                  },
+                ),
+              ],
+            ),
+        child: body,
+      );
+    }
     final Widget bubble = Container(
       constraints: BoxConstraints(
         maxWidth: MediaQuery.sizeOf(context).width * maxWidthFactor,

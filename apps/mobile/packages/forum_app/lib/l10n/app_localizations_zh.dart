@@ -2414,4 +2414,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get messagesKeyboard => '键盘';
+
+  @override
+  String get messagesCopyAll => '复制整条消息';
 }

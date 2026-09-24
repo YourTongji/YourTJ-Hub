@@ -864,5 +864,6 @@
   "badgeDisplayUp": "Nach oben",
   "badgeDisplayDown": "Nach unten",
   "messagesEmoji": "Emoji",
-  "messagesKeyboard": "Tastatur"
+  "messagesKeyboard": "Tastatur",
+  "messagesCopyAll": "Ganze Nachricht kopieren"
 }

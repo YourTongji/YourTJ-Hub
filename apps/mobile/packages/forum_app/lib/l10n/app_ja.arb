@@ -864,5 +864,6 @@
   "badgeDisplayUp": "上へ",
   "badgeDisplayDown": "下へ",
   "messagesEmoji": "絵文字",
-  "messagesKeyboard": "キーボード"
+  "messagesKeyboard": "キーボード",
+  "messagesCopyAll": "メッセージ全体をコピー"
 }

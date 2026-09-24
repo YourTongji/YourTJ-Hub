@@ -1194,5 +1194,6 @@
   "badgeDisplayUp": "Move up",
   "badgeDisplayDown": "Move down",
   "messagesEmoji": "Emoji",
-  "messagesKeyboard": "Keyboard"
+  "messagesKeyboard": "Keyboard",
+  "messagesCopyAll": "Copy entire message"
 }

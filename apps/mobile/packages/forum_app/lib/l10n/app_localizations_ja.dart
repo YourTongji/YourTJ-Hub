@@ -2436,4 +2436,7 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get messagesKeyboard => 'キーボード';
+
+  @override
+  String get messagesCopyAll => 'メッセージ全体をコピー';
 }

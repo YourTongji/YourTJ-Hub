@@ -4649,6 +4649,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Keyboard'**
   String get messagesKeyboard;
+
+  /// No description provided for @messagesCopyAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy entire message'**
+  String get messagesCopyAll;
 }
 
 class _AppLocalizationsDelegate

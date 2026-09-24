@@ -1198,6 +1198,7 @@ class _MessageRow extends ConsumerWidget {
             child: GfMessageBubble(
               text: message.content,
               selectable: true,
+              copyMessageLabel: AppLocalizations.of(context).messagesCopyAll,
               content: MessageContent(
                 text: message.content,
                 stickers: ref.read(stickerLibraryProvider).urlByName,

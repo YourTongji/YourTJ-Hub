@@ -2536,4 +2536,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get messagesKeyboard => 'Tastatur';
+
+  @override
+  String get messagesCopyAll => 'Ganze Nachricht kopieren';
 }

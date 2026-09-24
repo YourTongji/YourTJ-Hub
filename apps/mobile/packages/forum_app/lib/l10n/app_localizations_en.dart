@@ -2508,4 +2508,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get messagesKeyboard => 'Keyboard';
+
+  @override
+  String get messagesCopyAll => 'Copy entire message';
 }

@@ -1194,5 +1194,6 @@
   "badgeDisplayUp": "上移",
   "badgeDisplayDown": "下移",
   "messagesEmoji": "表情",
-  "messagesKeyboard": "键盘"
+  "messagesKeyboard": "键盘",
+  "messagesCopyAll": "复制整条消息"
 }

@@ -41,7 +41,7 @@ class _MessageContentState extends State<MessageContent> {
     final spans = <InlineSpan>[];
     var offset = 0;
     for (final match in RegExp(
-      r'''https?://[^\s<>"“”]+''',
+      r'''https?://[^\s<>"“”，。！？；：、]+''',
       caseSensitive: false,
     ).allMatches(text)) {
       var end = match.end;
