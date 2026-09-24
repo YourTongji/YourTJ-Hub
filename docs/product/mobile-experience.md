@@ -20,6 +20,14 @@ corresponding planned ownership and lifecycle contracts.
 
 ## Navigation and reading
 
+- `Current`: Home offers a server-defined Following sort. It requires sign-in and shows only
+  currently followed authors' public forum topics, newest creation time first with descending
+  topic ID for ties. Pagination uses an opaque cursor in `nextUrl`; edits, replies and pinning
+  do not reorder it. After following or unfollowing from a profile, pull to refresh Following
+  to replace retained rows and start from the newest matching topics. Continuation requests
+  already exclude unfollowed authors, while newly followed content above the cursor appears
+  on refresh. An empty follow list stays empty; guests are directed to sign-in.
+
 - `Current`: paginated feeds, search, notifications, profiles, content management, own course
   reviews and post history automatically fetch near the list end. Requests are serialized;
   errors and responses without cursor/item progress retain an explicit retry control instead

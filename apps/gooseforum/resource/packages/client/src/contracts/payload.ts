@@ -312,9 +312,11 @@ export interface PaginationPayload {
 }
 
 export interface HomeProps {
+  /** Server-defined sort keys include following (sign-in required). */
   sort: string
   tabs: Array<{ key: string; label?: string; url: string; active: boolean }>
   topics: TopicPayload[]
+  /** Follow nextUrl verbatim: following uses an account-scoped chronological cursor. */
   pagination: PaginationPayload
   announcement: {
     enabled: boolean
