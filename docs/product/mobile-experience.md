@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-09-20
+> Last verified: 2026-09-25
 
 The Flutter app combines the forum, course catalog, scheduler and Wiki. Ordinary browsing and
 writing use native pages. Management uses the same first-party workspaces and permission checks as
@@ -144,6 +144,10 @@ Web inside an authenticated in-app browser. The navigation and management bounda
 - `Partial`: the chat API can acknowledge an explicit set of incoming message IDs and read back
   individual read flags. The Flutter conversation screen still calls the compatible whole-conversation
   read endpoint; visible-viewport measurement and the unread new-message prompt are not yet connected.
+- `Partial`: the server offers an authenticated foreground event stream for chat, notifications and
+  unread-state changes. It sends an immediate resync instruction and bounded, owner-scoped change
+  hints; clients fetch actual content and counts from REST. The Flutter app still uses its existing
+  refresh path until its single foreground connection and reconnect reconciliation are integrated.
 
 ## Language and presentation
 

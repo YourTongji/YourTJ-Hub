@@ -1,8 +1,10 @@
 package userSessions
 
 import (
+	"context"
 	"time"
 
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"gorm.io/gorm"
 )
 
@@ -19,6 +21,17 @@ func GetByJti(jti string) *Entity {
 		return nil
 	}
 	return &entity
+}
+
+// GetByJtiContext preserves database errors for long-lived stream validation.
+func GetByJtiContext(ctx context.Context, jti string) (*Entity, error) {
+	var entity Entity
+	err := dbconnect.ConnectContext(ctx).Model(&Entity{}).Select(fieldUserId, fieldExpiresAt).
+		Where(fieldJti, jti).First(&entity).Error
+	if err != nil {
+		return nil, err
+	}
+	return &entity, nil
 }
 
 // DeleteByJtiAndUserID deletes one session owned by the user, keyed by jti.

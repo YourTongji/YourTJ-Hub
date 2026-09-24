@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-09-20
+> Last verified: 2026-09-25
 
 ## Contract status
 
@@ -81,6 +81,19 @@ seen. `POST /api/forum/chat/message-read-states` returns flags for selected inco
 without message bodies. The legacy `mark-read` route remains compatible and still clears the whole
 conversation when older clients call it. These operations use the existing message `is_read` rows;
 there is no persisted highest-read watermark or schema migration.
+
+`GET /api/forum/events` is a `text/event-stream` invalidation channel for an authenticated foreground
+client. The `hello` frame has `resync: true` on every connection; `chat.changed`,
+`notifications.changed` and `unread.changed` carry owner-scoped hints only. The client reconciles
+via REST cursors after hello, reconnection or an interrupted stream; SSE has no replay IDs and never
+carries message bodies, previews or authoritative unread counts. Chat write/read hints are published
+only after their transaction commits, and notification hints after persisted notification mutations.
+Each subscription has a bounded queue; overflow closes the stream, forcing a REST resync rather
+than silently losing an event. The server permits at most five streams per user and 10,000 per
+process. Session rows and token versions are checked without the profile cache every 15 seconds;
+a database failure closes the stream for retry without declaring logout. This hub is process-local:
+serving the same forum from multiple processes requires a shared invalidation transport before
+this stream can guarantee prompt cross-instance updates. REST remains correct independently.
 
 ## HTTP method contract: HEAD vs GET (issue #411)
 
