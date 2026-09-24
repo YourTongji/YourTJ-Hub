@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../local/writing_store.dart';
@@ -70,36 +71,83 @@ class ChatDraft {
 final chatDraftStoreProvider = Provider((ref) => ChatDraftStore());
 final chatDraftsProvider = ChangeNotifierProvider<ChatDrafts>((ref) {
   final epoch = ref.watch(offlineCacheEpochProvider);
-  ref.watch(
-    apiClientProvider.select((client) => Uri.parse(client.baseUrl).origin),
-  );
+  // A same-site login changes identity even when the API origin is unchanged.
+  final scope = ref.watch(writingScopeProvider.future);
   final session = ref.read(offlineCacheEpochProvider.notifier);
   return ChatDrafts(
     store: ref.watch(chatDraftStoreProvider),
-    resolveScope: () => ref.read(writingScopeProvider.future),
+    resolveScope: () => scope,
     isCurrent: () => session.isCurrent(epoch),
   );
 });
 
-/// This prefix shares the account-close cleanup boundary with other writing,
-/// but stays out of the topic/reply draft list. It never stores credentials.
+/// Private message drafts use device-bound Keychain items on iOS. Android uses
+/// the existing secure-storage file (excluded from backup), with namespaced keys.
+/// Do not change Android file/cipher options independently of token storage: the
+/// installed plugin shares one native instance with sticky file options.
 class ChatDraftStore {
+  ChatDraftStore({
+    this.secureStorage = const FlutterSecureStorage(
+      iOptions: IOSOptions(
+        accountName: 'yourtj_chat_drafts',
+        accessibility: KeychainAccessibility.first_unlock_this_device,
+        synchronizable: false,
+      ),
+    ),
+  });
+  final FlutterSecureStorage secureStorage;
   Future<void> _tail = Future.value();
   String _prefix(String scope) => 'yourtj:writing:v1:$scope:chat:';
+  bool _isChatKey(String key) =>
+      key.startsWith('yourtj:writing:v1:') && key.contains(':chat:');
 
-  Future<List<ChatDraft>> read(String scope) async {
-    await _tail;
+  Future<T> _serial<T>(Future<T> Function() action) {
+    final result = _tail.then((_) => action());
+    _tail = result.then<void>((_) {}, onError: (Object _) {});
+    return result;
+  }
+
+  Future<void> _put(String key, String value) async {
+    await secureStorage.write(key: key, value: value);
+    if (await secureStorage.read(key: key) != value) {
+      throw StateError('Chat draft storage failed');
+    }
+  }
+
+  Future<void> _removeLegacy(SharedPreferences prefs, String key) async {
+    if (prefs.containsKey(key) && !await prefs.remove(key)) {
+      throw StateError('Chat draft migration cleanup failed');
+    }
+  }
+
+  Future<List<ChatDraft>> read(String scope) => _serial(() async {
     if (scope.endsWith(':0')) throw StateError('Draft requires an account');
     final prefs = await SharedPreferences.getInstance();
-    // A failed write still mutates the plugin cache. Restore only disk truth.
     await prefs.reload();
+    final secured = Map<String, String>.of(await secureStorage.readAll());
+    // Migrate every account's legacy chat records without exposing foreign data.
+    // A verified secure value always wins over an older plaintext copy. A
+    // tombstone also wins, preventing an acknowledged draft from reappearing.
+    for (final key in prefs.getKeys().where(_isChatKey)) {
+      if (!secured.containsKey(key)) {
+        final value = prefs.getString(key);
+        if (value == null) continue;
+        await _put(key, value);
+        secured[key] = value;
+      }
+      await _removeLegacy(prefs, key);
+    }
     final result = <ChatDraft>[];
-    for (final key in prefs.getKeys().where(
-      (key) => key.startsWith(_prefix(scope)),
+    for (final entry in secured.entries.where(
+      (entry) => entry.key.startsWith(_prefix(scope)),
     )) {
+      if (entry.value.isEmpty) {
+        await secureStorage.delete(key: entry.key);
+        continue;
+      }
       try {
         final draft = ChatDraft.fromJson(
-          jsonDecode(prefs.getString(key)!) as Map<String, dynamic>,
+          jsonDecode(entry.value) as Map<String, dynamic>,
           0,
         );
         if (draft.peerId > 0 && draft.hasText) result.add(draft);
@@ -110,32 +158,38 @@ class ChatDraftStore {
       }
     }
     return result;
-  }
+  });
 
   Future<void> write(
     String scope,
     ChatDraft draft, {
     required bool Function() isCurrent,
-  }) {
-    final result = _tail.then((_) async {
-      final prefs = await SharedPreferences.getInstance();
-      if (!isCurrent()) throw StateError('Draft session changed');
-      if (scope.endsWith(':0')) throw StateError('Draft requires an account');
-      final key = '${_prefix(scope)}${draft.peerId}';
-      // Read platform truth again after a failed set/remove mutated the cache.
-      await prefs.reload();
-      if (!isCurrent()) throw StateError('Draft session changed');
-      final existed = prefs.containsKey(key);
-      final saved = draft.hasText
-          ? await prefs.setString(key, jsonEncode(draft.toJson()))
-          : await prefs.remove(key);
-      if (!saved && (draft.hasText || existed)) {
-        throw StateError('Chat draft storage failed');
-      }
-    });
-    _tail = result.catchError((Object _) {});
-    return result;
-  }
+  }) => _serial(() async {
+    if (scope.endsWith(':0')) throw StateError('Draft requires an account');
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.reload();
+    if (!isCurrent()) throw StateError('Draft session changed');
+    final key = '${_prefix(scope)}${draft.peerId}';
+    // Write deletion intent before touching legacy storage. If cleanup fails,
+    // the empty secure value prevents migration from resurrecting old text.
+    await _put(key, draft.hasText ? jsonEncode(draft.toJson()) : '');
+    await _removeLegacy(prefs, key);
+    if (!draft.hasText) await secureStorage.delete(key: key);
+  });
+
+  Future<void> clearAccount(String scope) => _serial(() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.reload();
+    final keys = {
+      ...(await secureStorage.readAll()).keys,
+      ...prefs.getKeys(),
+    }.where((key) => key.startsWith(_prefix(scope)));
+    for (final key in keys) {
+      await _put(key, '');
+      await _removeLegacy(prefs, key);
+      await secureStorage.delete(key: key);
+    }
+  });
 }
 
 /// Session-owned memory survives route disposal; disk writes debounce and flush

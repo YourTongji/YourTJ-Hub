@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:ui_kit/ui_kit.dart';
 
 import 'package:core/core.dart';
@@ -308,6 +309,21 @@ class RetryChatRepository extends RecordingChatRepository {
     sent.add((peerId, content));
     if (fail) throw const NetworkException(fallbackMessage: 'offline');
     return 9;
+  }
+}
+
+class FailingChatDraftCleanup extends ChatDraftStore {
+  @override
+  Future<void> clearAccount(String scope) async =>
+      throw PlatformException(code: 'locked');
+}
+
+class RecordingWritingCleanup extends WritingStore {
+  final scopes = <String>[];
+  @override
+  Future<void> clearAccount(String scope) async {
+    scopes.add(scope);
+    await super.clearAccount(scope);
   }
 }
 
@@ -1578,6 +1594,7 @@ void main() {
 
   setUp(() {
     SharedPreferences.setMockInitialValues(<String, Object>{});
+    FlutterSecureStorage.setMockInitialValues({});
     nativePushStops = 0;
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(const MethodChannel('yourtj/push'), (
@@ -3244,7 +3261,148 @@ void main() {
     });
   });
 
+  testWidgets(
+    'account closure still clears writing and signs out when chat cleanup fails',
+    (tester) async {
+      final storage = MemTokenStorage()..write('token');
+      final dio = Dio()
+        ..interceptors.add(
+          InterceptorsWrapper(
+            onRequest: (options, handler) {
+              handler.resolve(
+                Response(
+                  requestOptions: options,
+                  statusCode: 200,
+                  data: {'code': 0, 'result': null},
+                ),
+              );
+            },
+          ),
+        );
+      final client = GfApiClient(
+        dio: dio,
+        tokenStorage: storage,
+        baseUrl: 'http://fake.local',
+      );
+      final writing = RecordingWritingCleanup();
+      final container = await makeContainer(
+        pageRepo: CountingPageRepository(client),
+        currentUserId: 1,
+        tokenStorage: storage,
+        extraOverrides: [
+          contentRepositoryProvider.overrideWithValue(
+            ContentRepository(client),
+          ),
+          chatDraftStoreProvider.overrideWithValue(FailingChatDraftCleanup()),
+          writingStoreProvider.overrideWithValue(writing),
+        ],
+      );
+      final router = GoRouter(
+        initialLocation: '/settings',
+        routes: [
+          GoRoute(
+            path: '/settings',
+            builder: (_, _) => const SettingsPage(initialSection: 'privacy'),
+          ),
+          GoRoute(
+            path: '/login',
+            builder: (_, _) => const Scaffold(body: Text('signed-out')),
+          ),
+        ],
+      );
+      addTearDown(router.dispose);
+      await tester.pumpWidget(routerApp(container, router));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('注销账号'));
+      await tester.tap(find.text('注销账号'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), 'password');
+      await tester.pump();
+      await tester.tap(find.widgetWithText(FilledButton, '注销账号'));
+      await tester.pumpAndSettle();
+      expect(writing.scopes, hasLength(1));
+      expect(await storage.read(), isNull);
+      expect(find.text('signed-out'), findsOneWidget);
+    },
+  );
+
   group('私信列表', () {
+    testWidgets(
+      'local draft waits for server conversation and initial history',
+      (tester) async {
+        final client = GfApiClient(
+          dio: Dio(),
+          tokenStorage: MemTokenStorage(),
+          baseUrl: 'http://fake.local',
+        );
+        final pages = DelayedPageRepository(client);
+        final chats = InitialHistoryChatRepository(client);
+        final container = await makeContainer(
+          pageRepo: pages,
+          chatRepo: chats,
+          currentUserId: 1,
+        );
+        final server = parsePageProps<MessagesPageProps>(
+          parsePayload(messagesPayloadJson()),
+        )!.conversations.first;
+        final draftPeer = ChatItemPayload(
+          id: 0,
+          peerId: server.peerId,
+          peerUsername: server.peerUsername,
+          peerAvatar: '',
+          convId: 0,
+          lastMsg: '',
+          lastMsgTime: '',
+          unreadCount: 0,
+          peerUrl: server.peerUrl,
+        );
+        final drafts = container.read(chatDraftsProvider);
+        drafts.update(draftPeer, const TextEditingValue(text: '等待解析的草稿'));
+        await drafts.flush();
+        await tester.pumpWidget(app(container, const MessagesPage()));
+        await tester.pump();
+        final row = find.byType(GfConversationRow);
+        expect(find.text('草稿 · 等待解析的草稿'), findsOneWidget);
+        expect(tester.widget<GfConversationRow>(row).onTap, isNull);
+        pages.complete(messagesPayloadJson());
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('草稿 · 等待解析的草稿'));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 400));
+        expect(
+          tester.widget<GfChatInput>(find.byType(GfChatInput)).canSend,
+          isFalse,
+        );
+        expect(chats.sent, isEmpty);
+        chats.initial.complete(
+          ChatMessagesResponse(
+            list: [
+              makeChatMessage(42).copyWith(content: '等待解析的草稿', isSelf: true),
+            ],
+            hasMoreBefore: false,
+            hasMoreAfter: false,
+            nextBeforeId: 0,
+            latestId: 42,
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(
+          tester.widget<GfChatInput>(find.byType(GfChatInput)).canSend,
+          isTrue,
+        );
+        await tester.tap(find.text('发送'));
+        await tester.pumpAndSettle();
+        expect(chats.sent, [(server.peerId, '等待解析的草稿')]);
+        expect(
+          find.text('等待解析的草稿'),
+          findsNWidgets(2),
+          reason:
+              'An identical historical message cannot acknowledge the new send',
+        );
+        await tester.pumpWidget(const SizedBox.shrink());
+      },
+    );
+
     testWidgets(
       'acknowledgement after leaving still clears the submitted draft',
       (tester) async {

@@ -14,6 +14,7 @@ import '../../widgets/app_refresh_indicator.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../providers.dart';
 import '../../local/writing_store.dart';
+import '../../messages/chat_drafts.dart';
 import '../../format.dart';
 import '../../asset_url.dart';
 import '../../server_messages.dart';
@@ -1710,6 +1711,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     if (choice == null || !mounted) return;
     setState(() => _accountClosing = true);
     final store = ref.read(writingStoreProvider);
+    final chatDraftStore = ref.read(chatDraftStoreProvider);
     final epoch = ref.read(offlineCacheEpochProvider);
     String? scope;
     try {
@@ -1725,7 +1727,12 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) return;
       ref.read(offlineCacheEpochProvider.notifier).invalidate();
       try {
-        if (scope != null) await store.clearAccount(scope);
+        if (scope != null) {
+          await Future.wait([
+            chatDraftStore.clearAccount(scope),
+            store.clearAccount(scope),
+          ]);
+        }
       } catch (_) {
         /* A storage failure must not keep a closed account signed in. */
       }

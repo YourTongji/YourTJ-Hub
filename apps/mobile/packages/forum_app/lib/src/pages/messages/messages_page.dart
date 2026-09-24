@@ -50,6 +50,7 @@ class _MessagesPageState extends ConsumerState<MessagesPage> {
   late final GfTabScrollRegistry _tabScrollRegistry;
   bool _pollingConfigured = false;
   ChatItemPayload? _targetConversation;
+  bool _serverConversationsResolved = false;
 
   @override
   void initState() {
@@ -135,6 +136,7 @@ class _MessagesPageState extends ConsumerState<MessagesPage> {
       if (mounted && epoch == ref.read(offlineCacheEpochProvider)) {
         setState(() {
           _conversations = AsyncValue.data(items);
+          _serverConversationsResolved = true;
           _suggestedUsers = parsed?.suggestedUsers ?? const [];
           _viewerAvatar = resolveApiAssetUrl(props.layout.viewer.avatarUrl);
           _targetConversation = _targetConversationFor(items);
@@ -201,6 +203,8 @@ class _MessagesPageState extends ConsumerState<MessagesPage> {
   }
 
   Future<void> _openConversation(ChatItemPayload conv) async {
+    // Restored peers may already have a conversation on another device.
+    if (conv.convId == 0 && !_serverConversationsResolved) return;
     await Navigator.of(context, rootNavigator: true).push(
       MaterialPageRoute<void>(
         builder: (_) =>
@@ -265,7 +269,10 @@ class _MessagesPageState extends ConsumerState<MessagesPage> {
 
   Widget _conversationBody(ChatDrafts drafts, double top, double bottom) {
     final l10n = AppLocalizations.of(context);
-    final hasStatus = drafts.error != null || _conversations.hasError;
+    final waitingForServer =
+        _conversations.isLoading && drafts.items.isNotEmpty;
+    final hasStatus =
+        drafts.error != null || _conversations.hasError || waitingForServer;
     final items = [...?_conversations.valueOrNull];
     final peers = items.map((item) => item.peerId).toSet();
     final local = drafts.items.toList()
@@ -294,6 +301,7 @@ class _MessagesPageState extends ConsumerState<MessagesPage> {
           padding: EdgeInsets.only(top: hasStatus ? 0 : top, bottom: bottom),
           items: items,
           drafts: {for (final draft in local) draft.peerId: draft},
+          canOpenNewConversation: _serverConversationsResolved,
           query: _conversationSearch.text,
           emptyMessage: l10n.messagesEmpty,
           emptyDescription: l10n.messagesEmptyDescription,
@@ -306,6 +314,7 @@ class _MessagesPageState extends ConsumerState<MessagesPage> {
     return Column(
       children: [
         if (hasStatus) SizedBox(height: top),
+        if (waitingForServer) const LinearProgressIndicator(),
         _ChatDraftStatus(drafts: drafts),
         if (_conversations.hasError && items.isNotEmpty)
           Row(
@@ -328,6 +337,7 @@ class _MessagesPageState extends ConsumerState<MessagesPage> {
       _conversationSearch.clear();
       setState(() {
         _conversations = const AsyncValue.loading();
+        _serverConversationsResolved = false;
         _targetConversation = null;
         _suggestedUsers = [];
         _viewerAvatar = '';
@@ -913,6 +923,7 @@ class _ConversationList extends StatelessWidget {
     this.padding = EdgeInsets.zero,
     required this.items,
     required this.drafts,
+    required this.canOpenNewConversation,
     required this.query,
     required this.emptyMessage,
     required this.emptyDescription,
@@ -925,6 +936,7 @@ class _ConversationList extends StatelessWidget {
   final EdgeInsets padding;
   final List<ChatItemPayload> items;
   final Map<int, ChatDraft> drafts;
+  final bool canOpenNewConversation;
   final String query;
   final String emptyMessage;
   final String emptyDescription;
@@ -974,7 +986,9 @@ class _ConversationList extends StatelessWidget {
               : stickerPreviewLabel(conversation.lastMsg),
           time: formatChatTime(conversation.lastMsgTime, l10n: l10n),
           unreadCount: conversation.unreadCount,
-          onTap: () => onOpen(conversation),
+          onTap: conversation.convId == 0 && !canOpenNewConversation
+              ? null
+              : () => onOpen(conversation),
         );
       },
     );

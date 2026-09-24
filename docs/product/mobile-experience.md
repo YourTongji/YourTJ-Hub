@@ -155,16 +155,35 @@ corresponding planned ownership and lifecycle contracts.
   each bubble can run at once. The API has no message idempotency key, so ambiguous network failures
   cannot guarantee exactly-once delivery when manually retried.
 - `Current`: unsent private-message text and caret/selection are kept per peer in app-private device
-  preferences, scoped by API origin and numeric account ID. Conversation rows show a localized draft
+  secure storage, scoped by API origin and numeric account ID. Conversation rows show a localized draft
   preview, including new peers without a server conversation; list search also matches draft text.
+  Unresolved new-peer rows remain visible but cannot open until the server conversation list succeeds;
+  a resolved existing conversation still waits for its initial history before enabling send.
   Input remains editable during sending. A successful acknowledgement clears only the submitted
   revision, while newer input and failed sends remain available. Retrying the unchanged failed draft
   reuses its outbox bubble. Saving debounces for 500 ms and flushes on leaving or app inactivity;
   failures keep the current text in session memory with visible retry. No message is sent by autosave.
   Signing out hides drafts and invalidates pending saves; the same account/site can restore them on
-  its next session. Account closure attempts to remove that account's local writing. Drafts contain
-  no credential and are not cloud-synchronized. OS termination before a successful save can lose the
-  latest edits; the outbox's separate session-only retention and ambiguous-retry limitation remain.
+  its next session; accepting a same-site login recreates the draft registry for the new identity.
+  Account closure attempts to remove that account's local writing. Drafts contain no credential and
+  the app does not upload or synchronize them. On iOS, a dedicated Keychain service uses
+  `AfterFirstUnlockThisDeviceOnly` with synchronization disabled: items cannot migrate to another
+  device, although same-device backup restoration is permitted. Android keeps namespaced draft keys
+  in the existing secure-storage file and excludes that file, its wrapped-key preferences and the
+  legacy Flutter preferences file from cloud backup and device transfer. This also excludes other Flutter preferences (such as
+  theme/language) and secure credentials in those files from system migration.
+  Legacy plaintext chat records are copied for all stored accounts and read back before removal;
+  only the active account's records are exposed. A failed migration retains the original and shows
+  retry, while a secure deletion marker prevents stale legacy text from resurrecting. Previously
+  created OS backups cannot be retroactively erased by the app. Android's plugin enumerates the
+  shared encrypted store before account filtering; unreadable ciphertext, including an unrelated
+  record, can prevent draft restore/save until the storage error is resolved. The app retains the
+  current text and legacy copies with a retry message; it never resets the secure store or deletes
+  unrelated credentials to recover. See
+  [Android backup rules](https://developer.android.com/identity/data/autobackup) and
+  [Apple device-bound Keychain behavior](https://developer.apple.com/documentation/security/ksecattraccessibleafterfirstunlockthisdeviceonly).
+  OS termination before a successful save can lose the latest edits; the outbox's separate session-only
+  retention and ambiguous-retry limitation remain.
 - `Current`: chat text, including sending, acknowledged and failed outbox bubbles, supports native
   selection/copy and underlined HTTP(S) links using the shared
   internal-routing/external-confirmation policy. Inline stickers remain supported; chat text is not
