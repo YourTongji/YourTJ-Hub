@@ -98,6 +98,8 @@
   "authLoginTitle": "登录账号",
   "authRegisterTitle": "创建新账号",
   "authForgotTitle": "重置密码",
+  "authContinueAfterLogin": "登录后继续刚才的浏览或创作。",
+  "authSignInMethods": "其他登录方式",
   "authLoginSubtitle": "欢迎回来，继续你的讨论和创作。",
   "authRegisterSubtitle": "创建账号，加入校园里的每一次讨论。",
   "authForgotSubtitle": "输入邮箱，我们会发送一封重置密码邮件。",

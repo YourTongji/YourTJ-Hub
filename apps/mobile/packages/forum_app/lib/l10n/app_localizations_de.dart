@@ -178,6 +178,13 @@ class AppLocalizationsDe extends AppLocalizations {
   String get authForgotTitle => 'Passwort zurücksetzen';
 
   @override
+  String get authContinueAfterLogin =>
+      'Melde dich an, um dort weiterzumachen, wo du aufgehört hast.';
+
+  @override
+  String get authSignInMethods => 'Weitere Anmeldeoptionen';
+
+  @override
   String get authLoginSubtitle =>
       'Willkommen zurück. Setze deine Diskussionen und Beiträge fort.';
 

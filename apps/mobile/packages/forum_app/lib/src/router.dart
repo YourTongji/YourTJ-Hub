@@ -9,6 +9,8 @@ import 'package:go_router/go_router.dart';
 import 'package:ui_kit/ui_kit.dart';
 
 import '../l10n/app_localizations.dart';
+import 'navigation/auth_navigation.dart';
+import 'navigation/session_overlays.dart';
 import 'navigation/tab_scroll_registry.dart';
 import 'navigation/route_visibility.dart';
 import 'navigation/reading_chrome.dart';
@@ -311,10 +313,21 @@ int? publishTopicIdFromUri(Uri uri) {
 }
 
 final appNavigatorKey = GlobalKey<NavigatorState>();
+final appSessionOverlays = SessionOverlayRegistry();
 final GoRouter appRouter = GoRouter(
   navigatorKey: appNavigatorKey,
-  observers: [VisibilityRouteObserver()],
   initialLocation: '/',
+  observers: [VisibilityRouteObserver(), appSessionOverlays.observer()],
+  redirect: (context, state) => authNavigationRedirect(
+    requested: state.uri,
+    previousLocation: appRouter.routerDelegate.currentConfiguration.isEmpty
+        ? null
+        : appRouter.state.uri.toString(),
+    tokenStorage: ProviderScope.containerOf(
+      context,
+      listen: false,
+    ).read(tokenStorageProvider),
+  ),
   routes: <RouteBase>[
     StatefulShellRoute.indexedStack(
       builder:
@@ -325,19 +338,19 @@ final GoRouter appRouter = GoRouter(
           ) => GfShell(navigationShell: navigationShell),
       branches: <StatefulShellBranch>[
         StatefulShellBranch(
-          observers: [VisibilityRouteObserver()],
+          observers: [VisibilityRouteObserver(), appSessionOverlays.observer()],
           routes: <RouteBase>[
             GoRoute(path: '/', builder: (_, _) => const HomePage()),
           ],
         ),
         StatefulShellBranch(
-          observers: [VisibilityRouteObserver()],
+          observers: [VisibilityRouteObserver(), appSessionOverlays.observer()],
           routes: <RouteBase>[
             GoRoute(path: '/campus', builder: (_, _) => const CampusPage()),
           ],
         ),
         StatefulShellBranch(
-          observers: [VisibilityRouteObserver()],
+          observers: [VisibilityRouteObserver(), appSessionOverlays.observer()],
           routes: [
             GoRoute(
               path: '/notifications',
@@ -346,7 +359,7 @@ final GoRouter appRouter = GoRouter(
           ],
         ),
         StatefulShellBranch(
-          observers: [VisibilityRouteObserver()],
+          observers: [VisibilityRouteObserver(), appSessionOverlays.observer()],
           routes: <RouteBase>[
             GoRoute(
               path: '/messages',
