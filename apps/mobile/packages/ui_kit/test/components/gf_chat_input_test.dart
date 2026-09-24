@@ -1,10 +1,42 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ui_kit/ui_kit.dart';
 
 import '../helpers.dart';
 
 void main() {
+  testWidgets('replacement text discards the old selected range', (
+    tester,
+  ) async {
+    final controller = TextEditingController(text: 'old selection');
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(
+      gfApp(GfChatInput(controller: controller, onSend: (_) {})),
+    );
+    controller.selection = const TextSelection(baseOffset: 0, extentOffset: 3);
+    controller.text = 'new draft';
+    await tester.tap(find.byTooltip('Emoji'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('😀'));
+    expect(controller.text, 'new draft😀');
+  });
+
+  testWidgets('pointer-opened emoji panel handles hardware Escape', (
+    tester,
+  ) async {
+    await tester.pumpWidget(gfApp(GfChatInput(onSend: (_) {})));
+    await tester.tap(find.byType(TextField));
+    await tester.pump();
+    await tester.tap(find.byTooltip('Emoji'));
+    await tester.pumpAndSettle();
+    expect(find.text('😀'), findsOneWidget);
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    expect(find.text('😀'), findsNothing);
+    expect(tester.testTextInput.isVisible, isFalse);
+  });
+
   testWidgets('send keeps a new draft installed by the accepting callback', (
     tester,
   ) async {

@@ -687,7 +687,7 @@ class _ConversationPageState extends ConsumerState<_ConversationPage> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.end,
                               children: [
-                                GfMessageBubble(
+                                _ChatMessageBubble(
                                   text: pending.content,
                                   mine: true,
                                 ),
@@ -1169,6 +1169,53 @@ class _DatePill extends StatelessWidget {
   }
 }
 
+class _ChatMessageBubble extends ConsumerWidget {
+  const _ChatMessageBubble({
+    required this.text,
+    required this.mine,
+    this.time,
+    this.maxWidthFactor = 0.88,
+  });
+
+  final String text;
+  final bool mine;
+  final String? time;
+  final double maxWidthFactor;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return GfMessageBubble(
+      text: text,
+      selectable: true,
+      copyMessageLabel: AppLocalizations.of(context).messagesCopyAll,
+      content: MessageContent(
+        text: text,
+        stickers: ref.read(stickerLibraryProvider).urlByName,
+        onOpenLink: (url) async {
+          try {
+            await LinkNavigation.open(
+              context,
+              url,
+              baseUrl: ref.read(apiClientProvider).baseUrl,
+            );
+          } catch (error) {
+            if (context.mounted) {
+              showGfToast(
+                context,
+                resolveErrorMessage(AppLocalizations.of(context), error),
+                error: true,
+              );
+            }
+          }
+        },
+      ),
+      mine: mine,
+      time: time,
+      maxWidthFactor: maxWidthFactor,
+    );
+  }
+}
+
 class _MessageRow extends ConsumerWidget {
   const _MessageRow({
     required this.message,
@@ -1195,34 +1242,8 @@ class _MessageRow extends ConsumerWidget {
             const SizedBox(width: 8),
           ],
           Flexible(
-            child: GfMessageBubble(
+            child: _ChatMessageBubble(
               text: message.content,
-              selectable: true,
-              copyMessageLabel: AppLocalizations.of(context).messagesCopyAll,
-              content: MessageContent(
-                text: message.content,
-                stickers: ref.read(stickerLibraryProvider).urlByName,
-                onOpenLink: (url) async {
-                  try {
-                    await LinkNavigation.open(
-                      context,
-                      url,
-                      baseUrl: ref.read(apiClientProvider).baseUrl,
-                    );
-                  } catch (error) {
-                    if (context.mounted) {
-                      showGfToast(
-                        context,
-                        resolveErrorMessage(
-                          AppLocalizations.of(context),
-                          error,
-                        ),
-                        error: true,
-                      );
-                    }
-                  }
-                },
-              ),
               mine: message.isSelf,
               time: formatChatTime(
                 message.createdAt,

@@ -58,6 +58,7 @@ class _GfChatInputState extends State<GfChatInput> {
   late TextEditingController _controller =
       widget.controller ?? TextEditingController();
   final FocusNode _inputFocus = FocusNode();
+  final FocusNode _accessoryFocus = FocusNode();
   TextSelection? _lastSelection;
   bool _emojiOpen = false;
 
@@ -72,6 +73,8 @@ class _GfChatInputState extends State<GfChatInput> {
     final selection = _controller.selection;
     if (selection.isValid && selection.end <= _controller.text.length) {
       _lastSelection = selection;
+    } else {
+      _lastSelection = null;
     }
   }
 
@@ -99,6 +102,7 @@ class _GfChatInputState extends State<GfChatInput> {
     _controller.removeListener(_handleTextChanged);
     if (widget.controller == null) _controller.dispose();
     _inputFocus.dispose();
+    _accessoryFocus.dispose();
     super.dispose();
   }
 
@@ -121,6 +125,7 @@ class _GfChatInputState extends State<GfChatInput> {
       _rememberSelection();
       _inputFocus.unfocus();
       setState(() => _emojiOpen = true);
+      _accessoryFocus.requestFocus();
     }
   }
 
@@ -157,154 +162,160 @@ class _GfChatInputState extends State<GfChatInput> {
             _inputFocus.unfocus();
           },
         },
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          decoration: BoxDecoration(
-            color: colors.base100,
-            border: Border(top: BorderSide(color: colors.line, width: 1)),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: colors.base200.withValues(alpha: 0.8),
-                  borderRadius: BorderRadius.circular(radii.box),
-                  border: Border.all(color: colors.line),
-                ),
-                child: Column(
-                  children: <Widget>[
-                    TextField(
-                      controller: _controller,
-                      focusNode: _inputFocus,
-                      enabled: widget.enabled,
-                      textInputAction: TextInputAction.newline,
-                      minLines: 1,
-                      maxLines: 4,
-                      style: const TextStyle(fontSize: 16, height: 1.45),
-                      decoration: InputDecoration(
-                        hintText: widget.hintText,
-                        filled: false,
-                        isDense: false,
-                        constraints: const BoxConstraints(minHeight: 44),
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 9,
-                        ),
-                        border: InputBorder.none,
-                        enabledBorder: InputBorder.none,
-                        focusedBorder: InputBorder.none,
-                      ),
-                      onTap: () {
-                        if (_emojiOpen) setState(() => _emojiOpen = false);
-                      },
-                    ),
-                    Divider(
-                      height: 1,
-                      color: colors.line.withValues(alpha: 0.7),
-                    ),
-                    const SizedBox(height: 7),
-                    Row(
-                      children: <Widget>[
-                        SizedBox(
-                          width: 48,
-                          height: 48,
-                          child: IconButton(
-                            padding: EdgeInsets.zero,
-                            icon: Icon(
-                              _emojiOpen
-                                  ? Icons.keyboard_alt_outlined
-                                  : Icons.emoji_emotions_outlined,
-                              size: 20,
-                              color: colors.iconMuted,
-                            ),
-                            onPressed: widget.enabled
-                                ? _toggleInputSurface
-                                : null,
-                            tooltip: _emojiOpen
-                                ? widget.keyboardLabel
-                                : widget.emojiLabel,
+        child: Focus(
+          focusNode: _accessoryFocus,
+          skipTraversal: true,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: colors.base100,
+              border: Border(top: BorderSide(color: colors.line, width: 1)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: colors.base200.withValues(alpha: 0.8),
+                    borderRadius: BorderRadius.circular(radii.box),
+                    border: Border.all(color: colors.line),
+                  ),
+                  child: Column(
+                    children: <Widget>[
+                      TextField(
+                        controller: _controller,
+                        focusNode: _inputFocus,
+                        enabled: widget.enabled,
+                        textInputAction: TextInputAction.newline,
+                        minLines: 1,
+                        maxLines: 4,
+                        style: const TextStyle(fontSize: 16, height: 1.45),
+                        decoration: InputDecoration(
+                          hintText: widget.hintText,
+                          filled: false,
+                          isDense: false,
+                          constraints: const BoxConstraints(minHeight: 44),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 9,
                           ),
+                          border: InputBorder.none,
+                          enabledBorder: InputBorder.none,
+                          focusedBorder: InputBorder.none,
                         ),
-                        if (widget.enterHint != null) ...<Widget>[
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              widget.enterHint!,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                color: colors.baseContent.withValues(
-                                  alpha: 0.55,
+                        onTap: () {
+                          if (_emojiOpen) setState(() => _emojiOpen = false);
+                        },
+                      ),
+                      Divider(
+                        height: 1,
+                        color: colors.line.withValues(alpha: 0.7),
+                      ),
+                      const SizedBox(height: 7),
+                      Row(
+                        children: <Widget>[
+                          SizedBox(
+                            width: 48,
+                            height: 48,
+                            child: IconButton(
+                              padding: EdgeInsets.zero,
+                              icon: Icon(
+                                _emojiOpen
+                                    ? Icons.keyboard_alt_outlined
+                                    : Icons.emoji_emotions_outlined,
+                                size: 20,
+                                color: colors.iconMuted,
+                              ),
+                              onPressed: widget.enabled
+                                  ? _toggleInputSurface
+                                  : null,
+                              tooltip: _emojiOpen
+                                  ? widget.keyboardLabel
+                                  : widget.emojiLabel,
+                            ),
+                          ),
+                          if (widget.enterHint != null) ...<Widget>[
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                widget.enterHint!,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: colors.baseContent.withValues(
+                                    alpha: 0.55,
+                                  ),
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w500,
                                 ),
-                                fontSize: 11,
-                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ] else
+                            const Spacer(),
+                          FilledButton.icon(
+                            onPressed:
+                                widget.enabled &&
+                                    widget.canSend &&
+                                    _controller.text.trim().isNotEmpty
+                                ? _send
+                                : null,
+                            icon: const Icon(Icons.send, size: 16),
+                            label: Text(widget.sendLabel ?? 'Send'),
+                            style: FilledButton.styleFrom(
+                              minimumSize: const Size(48, 44),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                              ),
+                              textStyle: GfTheme.typographyOf(context).caption
+                                  .copyWith(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(
+                                  radii.field,
+                                ),
                               ),
                             ),
                           ),
-                        ] else
-                          const Spacer(),
-                        FilledButton.icon(
-                          onPressed:
-                              widget.enabled &&
-                                  widget.canSend &&
-                                  _controller.text.trim().isNotEmpty
-                              ? _send
-                              : null,
-                          icon: const Icon(Icons.send, size: 16),
-                          label: Text(widget.sendLabel ?? 'Send'),
-                          style: FilledButton.styleFrom(
-                            minimumSize: const Size(48, 44),
-                            padding: const EdgeInsets.symmetric(horizontal: 12),
-                            textStyle: GfTheme.typographyOf(context).caption
-                                .copyWith(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(radii.field),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              // Let the keyboard finish closing before occupying its space. The
-              // accessory is bounded and scrollable on short/resized windows.
-              if (_emojiOpen && MediaQuery.viewInsetsOf(context).bottom == 0)
-                ConstrainedBox(
-                  constraints: BoxConstraints(
-                    maxHeight: (MediaQuery.sizeOf(context).height * 0.3).clamp(
-                      96.0,
-                      240.0,
-                    ),
-                    maxWidth: 480,
-                  ),
-                  child: GridView.extent(
-                    maxCrossAxisExtent: 64,
-                    childAspectRatio: 1,
-                    shrinkWrap: true,
-                    padding: const EdgeInsets.only(top: 8),
-                    children: [
-                      for (final emoji in _emojis)
-                        TextButton(
-                          onPressed: () => _insertEmoji(emoji),
-                          style: TextButton.styleFrom(
-                            minimumSize: const Size(44, 44),
-                            padding: EdgeInsets.zero,
-                          ),
-                          child: Text(
-                            emoji,
-                            style: const TextStyle(fontSize: 24),
-                          ),
-                        ),
+                        ],
+                      ),
                     ],
                   ),
                 ),
-            ],
+                // Let the keyboard finish closing before occupying its space. The
+                // accessory is bounded and scrollable on short/resized windows.
+                if (_emojiOpen && MediaQuery.viewInsetsOf(context).bottom == 0)
+                  ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxHeight: (MediaQuery.sizeOf(context).height * 0.3)
+                          .clamp(96.0, 240.0),
+                      maxWidth: 480,
+                    ),
+                    child: GridView.extent(
+                      maxCrossAxisExtent: 64,
+                      childAspectRatio: 1,
+                      shrinkWrap: true,
+                      padding: const EdgeInsets.only(top: 8),
+                      children: [
+                        for (final emoji in _emojis)
+                          TextButton(
+                            onPressed: () => _insertEmoji(emoji),
+                            style: TextButton.styleFrom(
+                              minimumSize: const Size(44, 44),
+                              padding: EdgeInsets.zero,
+                            ),
+                            child: Text(
+                              emoji,
+                              style: const TextStyle(fontSize: 24),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
           ),
         ),
       ),

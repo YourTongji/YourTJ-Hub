@@ -15,6 +15,30 @@ Iterable<TextSpan> textSpans(InlineSpan root) sync* {
 }
 
 void main() {
+  testWidgets('curly-quoted URLs preserve quotes outside the link', (
+    tester,
+  ) async {
+    const content = '“https://example.com”';
+    final opened = <String>[];
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MessageContent(
+          text: content,
+          stickers: const {},
+          onOpenLink: opened.add,
+        ),
+      ),
+    );
+    final text = tester.widget<Text>(find.byType(Text));
+    expect(text.textSpan!.toPlainText(), content);
+    final links = textSpans(
+      text.textSpan!,
+    ).where((span) => span.recognizer != null).toList();
+    expect(links.map((span) => span.text), ['https://example.com']);
+    (links.single.recognizer as TapGestureRecognizer).onTap!();
+    expect(opened, ['https://example.com']);
+  });
+
   testWidgets('whole-message copy retains sticker tokens and URL source', (
     tester,
   ) async {

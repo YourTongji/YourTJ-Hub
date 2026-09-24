@@ -141,11 +141,14 @@ Web inside an authenticated in-app browser. The navigation and management bounda
   and is cleared at the account/session boundary; it is not persisted across app termination. Only one request for
   each bubble can run at once. The API has no message idempotency key, so ambiguous network failures
   cannot guarantee exactly-once delivery when manually retried.
-- `Current`: chat text supports native selection/copy and underlined HTTP(S) links using the shared
+- `Current`: chat text, including sending, acknowledged and failed outbox bubbles, supports native
+  selection/copy and underlined HTTP(S) links using the shared
   internal-routing/external-confirmation policy. Inline stickers remain supported; chat text is not
   interpreted as Markdown or HTML. The selection menu also offers whole-message copy, preserving
   sticker tokens that partial native text selection omits. The emoji accessory replaces the current
-  selection and leaves the caret after insertion. Opening it dismisses the software keyboard; the keyboard control restores
+  selection and leaves the caret after insertion. Replacing the draft with text that has no valid
+  selection resets insertion to the end. Opening it dismisses the software keyboard and keeps focus
+  inside the composer for hardware shortcuts; the keyboard control restores
   focus. Its bounded scrollable grid has touch-sized controls, localized labels and system-back/Escape
   dismissal. Mobile return inserts a newline; hardware Ctrl/Cmd+Enter sends. Disabling the composer
   also disables emoji edits. Platform IME transitions still require physical-device verification.
