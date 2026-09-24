@@ -1268,5 +1268,11 @@
   "draftKindEdit": "话题修改",
   "draftKindReply": "回复",
   "draftLocalEmpty": "未完成的创作会保存在本机，显示在这里。",
-  "draftReplyLeaveUnsaved": "最新回复修改未能保存。可以继续编辑并重试，或放弃这些修改后离开；已有的本机副本仍会保留。"
+  "draftReplyLeaveUnsaved": "最新回复修改未能保存。可以继续编辑并重试，或放弃这些修改后离开；已有的本机副本仍会保留。",
+  "publishMediaQueueTitle": "照片上传",
+  "publishMediaPendingWarning": "仍有未上传的图片。请完成上传或移除后，再保存、发布、切换类型或离开。",
+  "publishMediaTemporary": "待上传图片只在本次编辑中保留，应用关闭后需重新选择。",
+  "publishMediaUploading": "正在上传",
+  "publishMediaWaiting": "等待前一张图片",
+  "publishMediaSavedPartial": "文字和已上传图片已保存到本机"
 }

@@ -2578,4 +2578,22 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String get draftReplyLeaveUnsaved =>
       '最新回复修改未能保存。可以继续编辑并重试，或放弃这些修改后离开；已有的本机副本仍会保留。';
+
+  @override
+  String get publishMediaQueueTitle => '照片上传';
+
+  @override
+  String get publishMediaPendingWarning => '仍有未上传的图片。请完成上传或移除后，再保存、发布、切换类型或离开。';
+
+  @override
+  String get publishMediaTemporary => '待上传图片只在本次编辑中保留，应用关闭后需重新选择。';
+
+  @override
+  String get publishMediaUploading => '正在上传';
+
+  @override
+  String get publishMediaWaiting => '等待前一张图片';
+
+  @override
+  String get publishMediaSavedPartial => '文字和已上传图片已保存到本机';
 }

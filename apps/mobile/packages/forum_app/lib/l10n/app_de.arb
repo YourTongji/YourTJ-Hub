@@ -938,5 +938,11 @@
   "draftKindEdit": "Themenbearbeitung",
   "draftKindReply": "Antwort",
   "draftLocalEmpty": "Unfertige Beiträge werden auf diesem Gerät gespeichert und hier angezeigt.",
-  "draftReplyLeaveUnsaved": "Die letzten Änderungen an der Antwort konnten nicht gespeichert werden. Weiterbearbeiten und erneut versuchen oder diese Änderungen verwerfen und die Seite verlassen. Eine zuvor gespeicherte lokale Kopie bleibt erhalten."
+  "draftReplyLeaveUnsaved": "Die letzten Änderungen an der Antwort konnten nicht gespeichert werden. Weiterbearbeiten und erneut versuchen oder diese Änderungen verwerfen und die Seite verlassen. Eine zuvor gespeicherte lokale Kopie bleibt erhalten.",
+  "publishMediaQueueTitle": "Fotos hochladen",
+  "publishMediaPendingWarning": "Einige Fotos sind noch nicht hochgeladen. Laden Sie sie hoch oder entfernen Sie sie, bevor Sie speichern, veröffentlichen, den Typ wechseln oder die Seite verlassen.",
+  "publishMediaTemporary": "Ausstehende Fotos bleiben nur während dieser Bearbeitung erhalten. Nach dem Schließen der App müssen Sie sie erneut auswählen.",
+  "publishMediaUploading": "Wird hochgeladen",
+  "publishMediaWaiting": "Warten auf das vorherige Foto",
+  "publishMediaSavedPartial": "Text und hochgeladene Fotos auf diesem Gerät gespeichert"
 }

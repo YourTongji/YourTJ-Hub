@@ -938,5 +938,11 @@
   "draftKindEdit": "トピックの編集",
   "draftKindReply": "返信",
   "draftLocalEmpty": "書きかけの内容はこの端末に保存され、ここに表示されます。",
-  "draftReplyLeaveUnsaved": "返信の最新の変更を保存できませんでした。編集を続けて再試行するか、この変更を破棄して離れます。保存済みの端末コピーは保持されます。"
+  "draftReplyLeaveUnsaved": "返信の最新の変更を保存できませんでした。編集を続けて再試行するか、この変更を破棄して離れます。保存済みの端末コピーは保持されます。",
+  "publishMediaQueueTitle": "写真のアップロード",
+  "publishMediaPendingWarning": "未アップロードの写真があります。保存・投稿・種類の変更・終了の前に、アップロードするか削除してください。",
+  "publishMediaTemporary": "待機中の写真は今回の編集中のみ保持されます。アプリを閉じた場合は再選択してください。",
+  "publishMediaUploading": "アップロード中",
+  "publishMediaWaiting": "前の写真を待機中",
+  "publishMediaSavedPartial": "文章とアップロード済みの写真を端末に保存しました"
 }

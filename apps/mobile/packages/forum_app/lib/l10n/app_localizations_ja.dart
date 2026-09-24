@@ -2601,4 +2601,24 @@ class AppLocalizationsJa extends AppLocalizations {
   @override
   String get draftReplyLeaveUnsaved =>
       '返信の最新の変更を保存できませんでした。編集を続けて再試行するか、この変更を破棄して離れます。保存済みの端末コピーは保持されます。';
+
+  @override
+  String get publishMediaQueueTitle => '写真のアップロード';
+
+  @override
+  String get publishMediaPendingWarning =>
+      '未アップロードの写真があります。保存・投稿・種類の変更・終了の前に、アップロードするか削除してください。';
+
+  @override
+  String get publishMediaTemporary =>
+      '待機中の写真は今回の編集中のみ保持されます。アプリを閉じた場合は再選択してください。';
+
+  @override
+  String get publishMediaUploading => 'アップロード中';
+
+  @override
+  String get publishMediaWaiting => '前の写真を待機中';
+
+  @override
+  String get publishMediaSavedPartial => '文章とアップロード済みの写真を端末に保存しました';
 }
