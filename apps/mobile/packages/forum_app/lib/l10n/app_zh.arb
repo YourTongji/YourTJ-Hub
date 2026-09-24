@@ -1245,5 +1245,11 @@
         "type": "String"
       }
     }
-  }
+  },
+  "coursesFilterSearchHint": "搜索筛选项",
+  "coursesFilterNoMatches": "没有匹配的筛选项",
+  "coursesClearSelection": "清空选择",
+  "coursesResetSearch": "重置搜索和筛选",
+  "coursesFilterLoadFailed": "筛选项加载失败，请重试。",
+  "coursesPaginationStalled": "暂未获取到更多课程，请重试本页。"
 }
