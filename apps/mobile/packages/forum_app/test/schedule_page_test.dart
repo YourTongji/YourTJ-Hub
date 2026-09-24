@@ -120,6 +120,7 @@ class FakePkRepository extends PkRepository {
     required int calendarId,
     required int day,
     required int section,
+    bool includeAll = false,
   }) async => PkCoursesByTimeResult(
     auxiliaryReady: true,
     courses: const <PkSearchCourseItem>[],

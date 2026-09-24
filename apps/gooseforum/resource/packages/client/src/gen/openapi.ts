@@ -22411,8 +22411,13 @@ export interface operations {
                     calendarId: number;
                     /** @description Weekday 1-7 (Monday-Sunday). */
                     day: number;
-                    /** @description PK row group 1-6 (maps to sections 1-2/3-4/5-6/7-8/9/10). */
+                    /** @description PK row group 1-6 (maps to sections 1-2/3-4/5-6/7-8/9/10-12). */
                     section: number;
+                    /**
+                     * @description Include every course nature for campus map schedule lookup; omitted or false preserves the optional-course picker filter.
+                     * @default false
+                     */
+                    includeAll?: boolean;
                 };
             };
         };
