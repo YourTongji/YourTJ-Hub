@@ -49,12 +49,13 @@ Widget campusTestApp(
   Brightness brightness = Brightness.light,
   Locale locale = const Locale('zh'),
   bool signedIn = true,
+  AppDatabase? database,
 }) {
-  final database = AppDatabase(NativeDatabase.memory());
-  addTearDown(database.close);
+  final testDatabase = database ?? AppDatabase(NativeDatabase.memory());
+  if (database == null) addTearDown(testDatabase.close);
   return ProviderScope(
     overrides: [
-      offlineDatabaseProvider.overrideWithValue(database),
+      offlineDatabaseProvider.overrideWithValue(testDatabase),
       campusRepositoryProvider.overrideWithValue(repository),
       pkRepositoryProvider.overrideWithValue(CampusPkRepository()),
       currentUserProvider.overrideWith(

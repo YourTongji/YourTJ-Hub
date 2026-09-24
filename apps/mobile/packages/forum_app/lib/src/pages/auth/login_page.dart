@@ -13,6 +13,7 @@ import 'package:core/core.dart';
 
 import '../../../l10n/app_localizations.dart';
 import '../../app_config.dart';
+import '../../navigation/auth_navigation.dart';
 import '../../providers.dart';
 import '../../server_messages.dart';
 import '../../current_user.dart';
@@ -407,6 +408,11 @@ class _LoginPageState extends ConsumerState<LoginPage>
       controller: _captcha,
       focusNode: _mode == _AuthMode.login ? _captchaFocusNode : null,
       labelText: l10n.authCaptcha,
+      autofillHints: const [],
+      autocorrect: false,
+      enableSuggestions: false,
+      textInputAction: TextInputAction.done,
+      onSubmitted: (_) => _submit(),
     );
     return _mode == _AuthMode.login
         ? _withAuthFocusIntent(_captchaFocusNode, input)
@@ -440,7 +446,7 @@ class _LoginPageState extends ConsumerState<LoginPage>
       );
     }
     if (mounted && _authController.phase == LoginPhase.authenticated) {
-      await _finishAuthentication();
+      await _finishAuthentication(saveAutofill: true);
     }
   }
 
@@ -541,7 +547,7 @@ class _LoginPageState extends ConsumerState<LoginPage>
   /// 认证成功后的收尾:先确保旧账号缓存已清空,再把暂存的新会话提交到
   /// 安全存储。清理失败时新 token 从未持久化,因此重启也无法以新账号读取
   /// 旧账号离线数据。
-  Future<void> _finishAuthentication() async {
+  Future<void> _finishAuthentication({bool saveAutofill = false}) async {
     if (!mounted || _finishingAuthentication) return;
     setState(() => _finishingAuthentication = true);
     try {
@@ -589,12 +595,26 @@ class _LoginPageState extends ConsumerState<LoginPage>
       // 其 New-Token 续期与 401 回调已永久失效;新 shell 首次读取时重建
       // 并捕获当前 epoch,恢复新账号的滑动续期与 401 清理。
       ref.invalidate(apiClientProvider);
-      // 用 go('/') 替换整个导航栈,销毁 401 保留的旧 shell(及其内存态),
-      // 避免新账号返回后看到上一账号的会话/消息数据。
-      context.go('/');
+      // Replace the old stack after accepting the new session, then restore
+      // only a validated native location. No pending write action is replayed.
+      if (saveAutofill) TextInput.finishAutofillContext(shouldSave: true);
+      final epoch = ref.read(offlineCacheEpochProvider);
+      final session = ref.read(offlineCacheEpochProvider.notifier);
+      restoreAuthContext(
+        GoRouter.of(context),
+        _returnTo,
+        isCurrent: () => session.isCurrent(epoch),
+      );
     } finally {
       if (mounted) setState(() => _finishingAuthentication = false);
     }
+  }
+
+  String? get _returnTo {
+    if (GoRouter.maybeOf(context) == null) return null;
+    return safeAuthReturnTo(
+      GoRouterState.of(context).uri.queryParameters['returnTo'],
+    );
   }
 
   void _leaveAuth() {
@@ -766,241 +786,354 @@ class _LoginPageState extends ConsumerState<LoginPage>
       }
     }
 
+    return AutofillGroup(
+      onDisposeAction: AutofillContextAction.cancel,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Text('YourTJ', style: GfTheme.typographyOf(context).display),
+          ),
+          const SizedBox(height: 24),
+          Text(
+            _title(l10n),
+            style: GfTheme.typographyOf(context).display.copyWith(fontSize: 27),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            _mode == _AuthMode.login && _returnTo != null && _returnTo != '/'
+                ? l10n.authContinueAfterLogin
+                : _subtitle(l10n),
+            style: GfTheme.typographyOf(
+              context,
+            ).small.copyWith(color: colors.baseContent.withValues(alpha: 0.55)),
+          ),
+          const SizedBox(height: 22),
+          if (_mode != _AuthMode.forgotPassword) ...<Widget>[
+            GfSegmented<_AuthMode>(
+              segments: <(String, _AuthMode)>[
+                (l10n.loginModeLogin, _AuthMode.login),
+                (l10n.loginModeRegister, _AuthMode.register),
+              ],
+              selected: _mode,
+              onSelected: _switchMode,
+            ),
+            const SizedBox(height: 20),
+          ],
+          if (_mode != _AuthMode.forgotPassword) ...<Widget>[
+            _withAuthFocusIntent(
+              _usernameFocusNode,
+              GfInput(
+                controller: _username,
+                focusNode: _usernameFocusNode,
+                autofillHints: [
+                  _mode == _AuthMode.login
+                      ? AutofillHints.username
+                      : AutofillHints.newUsername,
+                ],
+                autocorrect: false,
+                enableSuggestions: false,
+                textInputAction: TextInputAction.next,
+                onSubmitted: (_) => _mode == _AuthMode.login
+                    ? _passwordFocusNode.requestFocus()
+                    : FocusScope.of(context).nextFocus(),
+                labelText: _mode == _AuthMode.login
+                    ? l10n.authUsernameOrEmail
+                    : l10n.authUsername,
+                prefixIcon: const Icon(Icons.person_outline, size: 20),
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
+          if (_mode != _AuthMode.login) ...<Widget>[
+            GfInput(
+              controller: _email,
+              keyboardType: TextInputType.emailAddress,
+              autofillHints:
+                  _mode == _AuthMode.register &&
+                      _registration?.allowedDomains.isNotEmpty == true
+                  ? const []
+                  : const [AutofillHints.email],
+              autocorrect: false,
+              enableSuggestions: false,
+              textInputAction: _mode == _AuthMode.forgotPassword
+                  ? TextInputAction.done
+                  : TextInputAction.next,
+              onSubmitted: (_) => _mode == _AuthMode.forgotPassword
+                  ? _submit()
+                  : FocusScope.of(context).nextFocus(),
+              labelText:
+                  _mode == _AuthMode.register &&
+                      _registration?.allowedDomains.isNotEmpty == true
+                  ? l10n.authEmailPrefix
+                  : l10n.authEmail,
+              prefixIcon: const Icon(Icons.mail_outline, size: 20),
+            ),
+            if (_mode == _AuthMode.register &&
+                _registration?.allowedDomains.isNotEmpty == true) ...[
+              const SizedBox(height: 8),
+              DropdownButtonFormField<String>(
+                key: const Key('register-email-domain'),
+                initialValue: _emailDomain,
+                isExpanded: true,
+                decoration: InputDecoration(labelText: l10n.authEmailDomain),
+                items: _registration!.allowedDomains
+                    .map(
+                      (domain) => DropdownMenuItem(
+                        value: domain,
+                        child: Text('@$domain'),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (value) => setState(() => _emailDomain = value),
+              ),
+            ],
+            const SizedBox(height: 12),
+          ],
+          if (_mode != _AuthMode.forgotPassword) ...<Widget>[
+            TapRegion(
+              key: const Key('login-password-region'),
+              onTapOutside: (_) => _onPasswordTapOutside(),
+              child: _withAuthFocusIntent(
+                _passwordFocusNode,
+                GfInput(
+                  controller: _password,
+                  focusNode: _passwordFocusNode,
+                  obscureText: true,
+                  autofillHints: [
+                    _mode == _AuthMode.login
+                        ? AutofillHints.password
+                        : AutofillHints.newPassword,
+                  ],
+                  autocorrect: false,
+                  enableSuggestions: false,
+                  textInputAction: TextInputAction.next,
+                  onEditingComplete: _mode == _AuthMode.login
+                      ? _completePasswordStage
+                      : () => FocusScope.of(context).nextFocus(),
+                  labelText: l10n.authPassword,
+                  prefixIcon: const Icon(Icons.lock_outline, size: 20),
+                  onChanged: _onPasswordChanged,
+                ),
+              ),
+            ),
+            if (_mode == _AuthMode.login) ...<Widget>[
+              const SizedBox(height: 4),
+              Align(
+                alignment: Alignment.centerRight,
+                child: GfButton(
+                  label: l10n.authForgotPassword,
+                  variant: GfButtonVariant.link,
+                  size: GfButtonSize.small,
+                  onPressed: () => _switchMode(_AuthMode.forgotPassword),
+                ),
+              ),
+            ] else
+              const SizedBox(height: 12),
+          ],
+          if (_mode == _AuthMode.register) ...[
+            GfInput(
+              controller: _confirmPassword,
+              labelText: l10n.authConfirmPassword,
+              obscureText: true,
+              autofillHints: const [AutofillHints.newPassword],
+              autocorrect: false,
+              enableSuggestions: false,
+              textInputAction: TextInputAction.done,
+              onSubmitted: (_) => _submit(),
+            ),
+            if (_registrationLoading) const LinearProgressIndicator(),
+            if (_registrationError != null) ...[
+              GfStatusMessage(message: _registrationError!),
+              if (_registration == null)
+                TextButton(
+                  onPressed: _loadRegistration,
+                  child: Text(l10n.commonRetry),
+                ),
+            ],
+            if (_registration?.termsOfServiceEnabled == true ||
+                _registration?.privacyPolicyEnabled == true) ...[
+              Material(
+                color: Colors.transparent,
+                child: CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  controlAffinity: ListTileControlAffinity.leading,
+                  value: _agreed,
+                  onChanged: (value) => setState(() => _agreed = value == true),
+                  title: Text(l10n.authAgreePolicies),
+                ),
+              ),
+              Wrap(
+                children: [
+                  if (_registration!.termsOfServiceEnabled)
+                    TextButton(
+                      onPressed: () => context.push('/terms'),
+                      child: Text(l10n.siteInfoTerms),
+                    ),
+                  if (_registration!.privacyPolicyEnabled)
+                    TextButton(
+                      onPressed: () => context.push('/privacy'),
+                      child: Text(l10n.siteInfoPrivacy),
+                    ),
+                ],
+              ),
+            ],
+          ],
+          if (showCaptcha) ...<Widget>[
+            const SizedBox(height: 4),
+            KeyedSubtree(
+              key: const Key('login-captcha'),
+              child: captcha != null
+                  ? LayoutBuilder(
+                      builder: (context, constraints) {
+                        final image = ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: GfCaptchaImage(imageData: captcha.captchaImg),
+                        );
+                        // Leave room for a complete code at the user's text size.
+                        final inputWidth = MediaQuery.textScalerOf(
+                          context,
+                        ).scale(140);
+                        if (constraints.maxWidth < 140 + inputWidth) {
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              image,
+                              const SizedBox(height: 12),
+                              _buildCaptchaInput(l10n),
+                            ],
+                          );
+                        }
+                        return Row(
+                          children: [
+                            image,
+                            const SizedBox(width: 12),
+                            Expanded(child: _buildCaptchaInput(l10n)),
+                          ],
+                        );
+                      },
+                    )
+                  : GfButton(
+                      label: l10n.authGetCode,
+                      variant: GfButtonVariant.ghost,
+                      onPressed: _loadVisibleCaptcha,
+                    ),
+            ),
+          ],
+          if (_authController.phase == LoginPhase.needsTotp) ...<Widget>[
+            const SizedBox(height: 12),
+            GfInput(
+              controller: _totp,
+              keyboardType: TextInputType.number,
+              autofillHints: const [AutofillHints.oneTimeCode],
+              autocorrect: false,
+              enableSuggestions: false,
+              textInputAction: TextInputAction.done,
+              labelText: l10n.authTwoFactorCode,
+              prefixIcon: const Icon(Icons.shield_outlined, size: 20),
+              onSubmitted: (_) => _submit(),
+            ),
+          ],
+          if (_authController.error.isNotEmpty ||
+              _oidcError.isNotEmpty ||
+              _cacheError.isNotEmpty) ...<Widget>[
+            const SizedBox(height: 12),
+            GfStatusMessage(
+              message: _cacheError.isNotEmpty
+                  ? _cacheError
+                  : _oidcError.isNotEmpty
+                  ? _oidcError
+                  : _authController.error,
+            ),
+          ],
+          const SizedBox(height: 20),
+          GfButton(
+            label: _submitLabel(l10n),
+            variant: GfButtonVariant.primary,
+            size: GfButtonSize.extraLarge,
+            expanded: true,
+            loading: _authController.busy || _finishingAuthentication,
+            onPressed:
+                _authController.busy ||
+                    _oidcBusy ||
+                    _finishingAuthentication ||
+                    (_mode == _AuthMode.register &&
+                        (_registration == null ||
+                            _registrationLoading ||
+                            ((_registration!.termsOfServiceEnabled ||
+                                    _registration!.privacyPolicyEnabled) &&
+                                !_agreed)))
+                ? null
+                : _submit,
+          ),
+          if (_mode != _AuthMode.forgotPassword) _buildSsoOptions(l10n),
+          if (_mode == _AuthMode.login && _registrationError != null)
+            TextButton(
+              onPressed: _loadRegistration,
+              child: Text(l10n.commonRetry),
+            ),
+          if (_mode == _AuthMode.forgotPassword) ...<Widget>[
+            const SizedBox(height: 8),
+            GfButton(
+              label: l10n.authBackToLogin,
+              variant: GfButtonVariant.link,
+              expanded: true,
+              onPressed: () => _switchMode(_AuthMode.login),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSsoOptions(AppLocalizations l10n) {
+    final options = _registration;
+    if (options == null) return const SizedBox.shrink();
+    final providers = [
+      if (options.tongjiReady) 'tongji',
+      if (_mode == _AuthMode.login && options.googleReady) 'google',
+      if (_mode == _AuthMode.login && options.githubUrl.isNotEmpty) 'github',
+    ];
+    if (providers.isEmpty) return const SizedBox.shrink();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: <Widget>[
-        Align(
-          alignment: Alignment.centerLeft,
-          child: Text('YourTJ', style: GfTheme.typographyOf(context).display),
-        ),
-        const SizedBox(height: 24),
-        Text(
-          _title(l10n),
-          style: GfTheme.typographyOf(context).display.copyWith(fontSize: 27),
-        ),
-        const SizedBox(height: 6),
-        Text(
-          _subtitle(l10n),
-          style: GfTheme.typographyOf(
-            context,
-          ).small.copyWith(color: colors.baseContent.withValues(alpha: 0.55)),
-        ),
-        const SizedBox(height: 22),
-        if (_mode != _AuthMode.forgotPassword) ...<Widget>[
-          GfSegmented<_AuthMode>(
-            segments: <(String, _AuthMode)>[
-              (l10n.loginModeLogin, _AuthMode.login),
-              (l10n.loginModeRegister, _AuthMode.register),
-            ],
-            selected: _mode,
-            onSelected: _switchMode,
-          ),
-          const SizedBox(height: 20),
-        ],
-        if (_mode != _AuthMode.forgotPassword) ...<Widget>[
-          _withAuthFocusIntent(
-            _usernameFocusNode,
-            GfInput(
-              controller: _username,
-              focusNode: _usernameFocusNode,
-              labelText: _mode == _AuthMode.login
-                  ? l10n.authUsernameOrEmail
-                  : l10n.authUsername,
-              prefixIcon: const Icon(Icons.person_outline, size: 20),
-            ),
-          ),
-          const SizedBox(height: 12),
-        ],
-        if (_mode != _AuthMode.login) ...<Widget>[
-          GfInput(
-            controller: _email,
-            keyboardType: TextInputType.emailAddress,
-            labelText:
-                _mode == _AuthMode.register &&
-                    _registration?.allowedDomains.isNotEmpty == true
-                ? l10n.authEmailPrefix
-                : l10n.authEmail,
-            prefixIcon: const Icon(Icons.mail_outline, size: 20),
-          ),
-          if (_mode == _AuthMode.register &&
-              _registration?.allowedDomains.isNotEmpty == true) ...[
-            const SizedBox(height: 8),
-            DropdownButtonFormField<String>(
-              key: const Key('register-email-domain'),
-              initialValue: _emailDomain,
-              isExpanded: true,
-              decoration: InputDecoration(labelText: l10n.authEmailDomain),
-              items: _registration!.allowedDomains
-                  .map(
-                    (domain) => DropdownMenuItem(
-                      value: domain,
-                      child: Text('@$domain'),
-                    ),
-                  )
-                  .toList(),
-              onChanged: (value) => setState(() => _emailDomain = value),
-            ),
-          ],
-          const SizedBox(height: 12),
-        ],
-        if (_mode != _AuthMode.forgotPassword) ...<Widget>[
-          TapRegion(
-            key: const Key('login-password-region'),
-            onTapOutside: (_) => _onPasswordTapOutside(),
-            child: _withAuthFocusIntent(
-              _passwordFocusNode,
-              GfInput(
-                controller: _password,
-                focusNode: _passwordFocusNode,
-                obscureText: true,
-                labelText: l10n.authPassword,
-                prefixIcon: const Icon(Icons.lock_outline, size: 20),
-                onChanged: _onPasswordChanged,
-              ),
-            ),
-          ),
-          if (_mode == _AuthMode.login) ...<Widget>[
-            const SizedBox(height: 4),
-            Align(
-              alignment: Alignment.centerRight,
-              child: GfButton(
-                label: l10n.authForgotPassword,
-                variant: GfButtonVariant.link,
-                size: GfButtonSize.small,
-                onPressed: () => _switchMode(_AuthMode.forgotPassword),
-              ),
-            ),
-          ] else
-            const SizedBox(height: 12),
-        ],
-        if (_mode == _AuthMode.register) ...[
-          GfInput(
-            controller: _confirmPassword,
-            labelText: l10n.authConfirmPassword,
-            obscureText: true,
-          ),
-          if (_registrationLoading) const LinearProgressIndicator(),
-          if (_registrationError != null) ...[
-            GfStatusMessage(message: _registrationError!),
-            if (_registration == null)
-              TextButton(
-                onPressed: _loadRegistration,
-                child: Text(l10n.commonRetry),
-              ),
-          ],
-          if (_registration?.termsOfServiceEnabled == true ||
-              _registration?.privacyPolicyEnabled == true) ...[
-            Material(
-              color: Colors.transparent,
-              child: CheckboxListTile(
-                contentPadding: EdgeInsets.zero,
-                controlAffinity: ListTileControlAffinity.leading,
-                value: _agreed,
-                onChanged: (value) => setState(() => _agreed = value == true),
-                title: Text(l10n.authAgreePolicies),
-              ),
-            ),
-            Wrap(
-              children: [
-                if (_registration!.termsOfServiceEnabled)
-                  TextButton(
-                    onPressed: () => context.push('/terms'),
-                    child: Text(l10n.siteInfoTerms),
-                  ),
-                if (_registration!.privacyPolicyEnabled)
-                  TextButton(
-                    onPressed: () => context.push('/privacy'),
-                    child: Text(l10n.siteInfoPrivacy),
-                  ),
-              ],
-            ),
-          ],
-        ],
-        if (showCaptcha) ...<Widget>[
-          const SizedBox(height: 4),
-          KeyedSubtree(
-            key: const Key('login-captcha'),
-            child: captcha != null
-                ? Row(
-                    children: <Widget>[
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: GfCaptchaImage(imageData: captcha.captchaImg),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(child: _buildCaptchaInput(l10n)),
-                    ],
-                  )
-                : GfButton(
-                    label: l10n.authGetCode,
-                    variant: GfButtonVariant.ghost,
-                    onPressed: _loadVisibleCaptcha,
-                  ),
-          ),
-        ],
-        if (_authController.phase == LoginPhase.needsTotp) ...<Widget>[
-          const SizedBox(height: 12),
-          GfInput(
-            controller: _totp,
-            keyboardType: TextInputType.number,
-            labelText: l10n.authTwoFactorCode,
-            prefixIcon: const Icon(Icons.shield_outlined, size: 20),
-            onSubmitted: (_) => _submit(),
-          ),
-        ],
-        if (_authController.error.isNotEmpty ||
-            _oidcError.isNotEmpty ||
-            _cacheError.isNotEmpty) ...<Widget>[
-          const SizedBox(height: 12),
-          GfStatusMessage(
-            message: _cacheError.isNotEmpty
-                ? _cacheError
-                : _oidcError.isNotEmpty
-                ? _oidcError
-                : _authController.error,
-          ),
-        ],
+      children: [
         const SizedBox(height: 20),
-        GfButton(
-          label: _submitLabel(l10n),
-          variant: GfButtonVariant.primary,
-          size: GfButtonSize.extraLarge,
-          expanded: true,
-          loading: _authController.busy || _finishingAuthentication,
-          onPressed:
-              _authController.busy ||
-                  _oidcBusy ||
-                  _finishingAuthentication ||
-                  (_mode == _AuthMode.register &&
-                      (_registration == null ||
-                          _registrationLoading ||
-                          ((_registration!.termsOfServiceEnabled ||
-                                  _registration!.privacyPolicyEnabled) &&
-                              !_agreed)))
-              ? null
-              : _submit,
+        Text(
+          l10n.authSignInMethods,
+          style: Theme.of(context).textTheme.labelLarge,
         ),
-        if (_mode != _AuthMode.forgotPassword &&
-            (_registration?.tongjiReady ?? false)) ...<Widget>[
-          const SizedBox(height: 12),
+        const SizedBox(height: 8),
+        for (final provider in providers) ...[
           OutlinedButton.icon(
-            icon: const GfSymbol('graduation-cap', size: 22),
+            icon: GfSymbol(
+              provider == 'tongji' ? 'graduation-cap' : provider,
+              size: 22,
+            ),
             style: OutlinedButton.styleFrom(
               minimumSize: const Size.fromHeight(48),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
             ),
-            label: Text(l10n.loginTongji, textAlign: TextAlign.center),
+            label: Text(switch (provider) {
+              'tongji' => l10n.loginTongji,
+              'google' => l10n.loginGoogle,
+              _ => l10n.loginGithub,
+            }, textAlign: TextAlign.center),
             onPressed:
                 _authController.busy || _oidcBusy || _finishingAuthentication
                 ? null
-                : () => _loginOidc('tongji'),
+                : () => _loginOidc(provider),
           ),
           const SizedBox(height: 8),
+        ],
+        if (options.tongjiReady) ...[
           Text(
             l10n.loginTongjiHint,
             style: Theme.of(context).textTheme.bodySmall,
           ),
-          if (_registration!.termsOfServiceEnabled ||
-              _registration!.privacyPolicyEnabled) ...[
+          if (options.termsOfServiceEnabled ||
+              options.privacyPolicyEnabled) ...[
             const SizedBox(height: 8),
             Text(
               l10n.loginTongjiPolicies,
@@ -1008,12 +1141,12 @@ class _LoginPageState extends ConsumerState<LoginPage>
             ),
             Wrap(
               children: [
-                if (_registration!.termsOfServiceEnabled)
+                if (options.termsOfServiceEnabled)
                   TextButton(
                     onPressed: () => context.push('/terms'),
                     child: Text(l10n.siteInfoTerms),
                   ),
-                if (_registration!.privacyPolicyEnabled)
+                if (options.privacyPolicyEnabled)
                   TextButton(
                     onPressed: () => context.push('/privacy'),
                     child: Text(l10n.siteInfoPrivacy),
@@ -1021,43 +1154,6 @@ class _LoginPageState extends ConsumerState<LoginPage>
               ],
             ),
           ],
-        ],
-        if (_mode == _AuthMode.login) ...<Widget>[
-          const SizedBox(height: 12),
-          for (final provider in ['google', 'github']) ...[
-            OutlinedButton.icon(
-              icon: GfSymbol(provider, size: 22),
-              style: OutlinedButton.styleFrom(
-                minimumSize: const Size.fromHeight(48),
-              ),
-              label: Text(
-                provider == 'google' ? l10n.loginGoogle : l10n.loginGithub,
-              ),
-              onPressed:
-                  _authController.busy ||
-                      _oidcBusy ||
-                      _finishingAuthentication ||
-                      _registration == null ||
-                      (provider == 'google' && !_registration!.googleReady)
-                  ? null
-                  : () => _loginOidc(provider),
-            ),
-            const SizedBox(height: 12),
-          ],
-          if (_registrationError != null)
-            TextButton(
-              onPressed: _loadRegistration,
-              child: Text(l10n.commonRetry),
-            ),
-        ],
-        if (_mode == _AuthMode.forgotPassword) ...<Widget>[
-          const SizedBox(height: 8),
-          GfButton(
-            label: l10n.authBackToLogin,
-            variant: GfButtonVariant.link,
-            expanded: true,
-            onPressed: () => _switchMode(_AuthMode.login),
-          ),
         ],
       ],
     );
@@ -1073,10 +1169,11 @@ class _LoginPageState extends ConsumerState<LoginPage>
   };
 
   Future<void> _submit() async {
+    if (_authController.busy || _oidcBusy || _finishingAuthentication) return;
     if (_authController.phase == LoginPhase.needsTotp) {
       await _authController.submitTotp(_totp.text.trim());
       if (mounted && _authController.phase == LoginPhase.authenticated) {
-        await _finishAuthentication();
+        await _finishAuthentication(saveAutofill: true);
       }
       return;
     }

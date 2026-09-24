@@ -32,6 +32,7 @@ dependencies:
   markdown_widget: ^2.3.2
   image: ^4.5.4
   shared_preferences: ^2.3.3
+  flutter_secure_storage: ^9.2.4
   drift: ^2.34.3
   drift_flutter: ^0.3.1
   home_widget: ^0.10.0
@@ -46,6 +47,7 @@ dependencies:
   path_provider: ^2.1.6
   tldts: 0.0.1-beta
 dev_dependencies:
+  flutter_secure_storage_platform_interface: ^1.1.2
   shared_preferences_platform_interface: ^2.4.2
   path_provider_platform_interface: ^2.1.2
   webview_flutter_platform_interface: ^2.15.1

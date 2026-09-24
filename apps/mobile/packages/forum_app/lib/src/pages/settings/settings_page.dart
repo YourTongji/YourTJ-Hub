@@ -14,6 +14,7 @@ import '../../widgets/app_refresh_indicator.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../providers.dart';
 import '../../local/writing_store.dart';
+import '../../messages/chat_drafts.dart';
 import '../../format.dart';
 import '../../asset_url.dart';
 import '../../server_messages.dart';
@@ -25,6 +26,7 @@ import '../../campus_widget/schedule_widget_bridge.dart';
 import '../../push/push_service.dart';
 import '../../widgets/status_views.dart';
 import '../../current_user.dart';
+import '../../navigation/auth_navigation.dart';
 import 'account_closure_dialog.dart';
 import 'campus_cache_clear_tile.dart';
 import 'profile_edit_dialog.dart';
@@ -153,6 +155,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
   /// 加载设置页账户数据(settings.index 数据通道 → 徽章等)。
   Future<void> _loadUser({bool silent = false}) async {
+    if (_signedIn != true) return;
     final request = ++_userRequest;
     final epoch = ref.read(offlineCacheEpochProvider);
     final SettingsUserPayload? previous = _user.valueOrNull;
@@ -771,6 +774,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   }
 
   Future<void> _loadSessions({bool silent = false}) async {
+    if (_signedIn != true) return;
     final request = ++_sessionsRequest;
     final epoch = ref.read(offlineCacheEpochProvider);
     final List<UserSessionPayload>? previous = _sessions.valueOrNull;
@@ -1081,7 +1085,13 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               _categoryRow(
                 icon: Icons.login,
                 title: l10n.authLoginTitle,
-                onTap: () => context.push('/login'),
+                onTap: () => context.push(
+                  authLoginLocation(
+                    returnTo: _tab == null
+                        ? '/settings'
+                        : '/settings/${_tab!.name}',
+                  ),
+                ),
               )
             else
               const Padding(
@@ -1710,6 +1720,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     if (choice == null || !mounted) return;
     setState(() => _accountClosing = true);
     final store = ref.read(writingStoreProvider);
+    final chatDraftStore = ref.read(chatDraftStoreProvider);
     final epoch = ref.read(offlineCacheEpochProvider);
     String? scope;
     try {
@@ -1725,7 +1736,12 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) return;
       ref.read(offlineCacheEpochProvider.notifier).invalidate();
       try {
-        if (scope != null) await store.clearAccount(scope);
+        if (scope != null) {
+          await Future.wait([
+            chatDraftStore.clearAccount(scope),
+            store.clearAccount(scope),
+          ]);
+        }
       } catch (_) {
         /* A storage failure must not keep a closed account signed in. */
       }

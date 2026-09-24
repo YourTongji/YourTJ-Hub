@@ -396,6 +396,18 @@ abstract class AppLocalizations {
   /// **'Reset password'**
   String get authForgotTitle;
 
+  /// No description provided for @authContinueAfterLogin.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in to continue where you left off.'**
+  String get authContinueAfterLogin;
+
+  /// No description provided for @authSignInMethods.
+  ///
+  /// In en, this message translates to:
+  /// **'Other sign-in options'**
+  String get authSignInMethods;
+
   /// No description provided for @authLoginSubtitle.
   ///
   /// In en, this message translates to:
@@ -4895,6 +4907,150 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'This server does not support individual read receipts. Unread messages are preserved.'**
   String get messagesReadUnavailable;
+
+  /// No description provided for @messagesDraftLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Draft'**
+  String get messagesDraftLabel;
+
+  /// No description provided for @messagesDraftStorageFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not read or save message drafts on this device. Try again.'**
+  String get messagesDraftStorageFailed;
+
+  /// No description provided for @draftCollapse.
+  ///
+  /// In en, this message translates to:
+  /// **'Collapse'**
+  String get draftCollapse;
+
+  /// No description provided for @draftKindNew.
+  ///
+  /// In en, this message translates to:
+  /// **'New topic'**
+  String get draftKindNew;
+
+  /// No description provided for @draftKindServer.
+  ///
+  /// In en, this message translates to:
+  /// **'Cloud draft recovery'**
+  String get draftKindServer;
+
+  /// No description provided for @draftKindEdit.
+  ///
+  /// In en, this message translates to:
+  /// **'Topic edit'**
+  String get draftKindEdit;
+
+  /// No description provided for @draftKindReply.
+  ///
+  /// In en, this message translates to:
+  /// **'Reply'**
+  String get draftKindReply;
+
+  /// No description provided for @draftLocalEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'Unfinished writing is saved here on this device.'**
+  String get draftLocalEmpty;
+
+  /// No description provided for @draftReplyLeaveUnsaved.
+  ///
+  /// In en, this message translates to:
+  /// **'The latest reply changes could not be saved. Continue editing to retry, or leave without these changes. Any previously saved local copy will remain.'**
+  String get draftReplyLeaveUnsaved;
+
+  /// No description provided for @publishMediaQueueTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Photo uploads'**
+  String get publishMediaQueueTitle;
+
+  /// No description provided for @publishMediaPendingWarning.
+  ///
+  /// In en, this message translates to:
+  /// **'Some photos have not uploaded. Finish uploading or remove them before saving, publishing, switching type or leaving.'**
+  String get publishMediaPendingWarning;
+
+  /// No description provided for @publishMediaTemporary.
+  ///
+  /// In en, this message translates to:
+  /// **'Photos waiting to upload are kept only during this edit. Select them again if the app closes.'**
+  String get publishMediaTemporary;
+
+  /// No description provided for @publishMediaUploading.
+  ///
+  /// In en, this message translates to:
+  /// **'Uploading'**
+  String get publishMediaUploading;
+
+  /// No description provided for @publishMediaWaiting.
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for the previous photo'**
+  String get publishMediaWaiting;
+
+  /// No description provided for @publishMediaSavedPartial.
+  ///
+  /// In en, this message translates to:
+  /// **'Text and uploaded photos saved on this device'**
+  String get publishMediaSavedPartial;
+
+  /// No description provided for @draftSearchHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Search titles and text'**
+  String get draftSearchHint;
+
+  /// No description provided for @draftSearchScope.
+  ///
+  /// In en, this message translates to:
+  /// **'Search device drafts and the current cloud list.'**
+  String get draftSearchScope;
+
+  /// No description provided for @draftMatchCount.
+  ///
+  /// In en, this message translates to:
+  /// **'Drafts shown: {count}'**
+  String draftMatchCount(int count);
+
+  /// No description provided for @draftNoMatches.
+  ///
+  /// In en, this message translates to:
+  /// **'No drafts match these conditions.'**
+  String get draftNoMatches;
+
+  /// No description provided for @draftClearFilters.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear search and filters'**
+  String get draftClearFilters;
+
+  /// No description provided for @draftDeleteDone.
+  ///
+  /// In en, this message translates to:
+  /// **'Local draft deleted. You can undo the latest deletion.'**
+  String get draftDeleteDone;
+
+  /// No description provided for @draftDeleteRestored.
+  ///
+  /// In en, this message translates to:
+  /// **'Draft restored on this device'**
+  String get draftDeleteRestored;
+
+  /// No description provided for @draftRestoreConflict.
+  ///
+  /// In en, this message translates to:
+  /// **'An existing copy was kept without changes.'**
+  String get draftRestoreConflict;
+
+  /// No description provided for @draftRestoreFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not restore the draft. Try Undo again.'**
+  String get draftRestoreFailed;
 }
 
 class _AppLocalizationsDelegate

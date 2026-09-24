@@ -1,4 +1,5 @@
 import '../../private_notes.dart';
+import '../../local/writing_store.dart';
 
 import 'dart:async';
 
@@ -42,7 +43,8 @@ class TopicPage extends ConsumerStatefulWidget {
 /// 评论排序(移动端评论胶囊):正序/倒序/只看楼主。
 enum CommentSort { asc, desc, onlyOp }
 
-class _TopicPageState extends ConsumerState<TopicPage> {
+class _TopicPageState extends ConsumerState<TopicPage>
+    with WidgetsBindingObserver {
   final GlobalKey _titleKey = GlobalKey();
   bool _showHeaderTitle = false;
   bool _titleCheckScheduled = false;
@@ -115,6 +117,21 @@ class _TopicPageState extends ConsumerState<TopicPage> {
   String? _replyTargetName;
   String? _replyMentionPrefix;
 
+  late final WritingStore _writingStore;
+  late final OfflineCacheEpoch _writingSession;
+  late final int _writingEpoch;
+  late final Future<String?> _replyOwner;
+  Timer? _replyAutosave;
+  int _replyRevision = 0, _replySavedRevision = 0, _replyDraftGeneration = 0;
+  bool _restoringReply = false;
+  bool _leavingReply = false;
+  bool _discardReplyOnLeave = false;
+  String _lastReplyText = '';
+  bool _replySaveFailed = false;
+  String _replySaveStatus = '';
+  bool get _writingCurrent => _writingSession.isCurrent(_writingEpoch);
+  bool get _replyDirty => _replyRevision != _replySavedRevision;
+
   // @mention 候选会话(issue #565):token/候选/防抖逻辑在 mention_session.dart。
   late final MentionSessionController _mentionSession;
   int _viewerId = 0;
@@ -130,34 +147,178 @@ class _TopicPageState extends ConsumerState<TopicPage> {
   @override
   void initState() {
     super.initState();
+    _writingStore = ref.read(writingStoreProvider);
+    _writingSession = ref.read(offlineCacheEpochProvider.notifier);
+    _writingEpoch = ref.read(offlineCacheEpochProvider);
+    _replyOwner = ref
+        .read(writingScopeProvider.future)
+        .then<String?>(
+          (scope) => scope.endsWith(':0') ? null : scope,
+          onError: (Object _) => null,
+        );
+    WidgetsBinding.instance.addObserver(this);
     _mentionSession = MentionSessionController(
       searchUsers: ref.read(mentionUserSearchProvider),
     );
     _replyController.addListener(_onReplyValueChanged);
     _replyFocus.addListener(_onReplyFocusChanged);
     _load(postNo: widget.initialPostNo);
+    _restoreReplyDraft();
   }
 
   @override
   void didUpdateWidget(TopicPage oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.topicId != oldWidget.topicId ||
-        widget.initialPostNo != oldWidget.initialPostNo) {
-      _railOpen = false;
-      _sort = CommentSort.asc;
-      _composerOpen = false;
+    if (widget.topicId != oldWidget.topicId) {
+      unawaited(_saveReplyDraft(topicId: oldWidget.topicId, notify: false));
+      _replyDraftGeneration++;
+      _restoringReply = true;
       _replyController.clear();
       _replyImageUrl = null;
       _replyToPostId = 0;
       _replyTargetName = null;
       _replyMentionPrefix = null;
+      _restoringReply = false;
+      _replyRevision = _replySavedRevision = 0;
+      _replySaveStatus = '';
+      _replySaveFailed = false;
+      _discardReplyOnLeave = false;
+      _composerOpen = false;
       _mentionSession.close();
+      _restoreReplyDraft();
+    }
+    if (widget.topicId != oldWidget.topicId ||
+        widget.initialPostNo != oldWidget.initialPostNo) {
+      _railOpen = false;
+      _sort = CommentSort.asc;
       _load(postNo: widget.initialPostNo);
     }
   }
 
+  void _replyChanged() {
+    if (_restoringReply || !_writingCurrent) return;
+    _replyRevision++;
+    setState(() {
+      _replySaveFailed = false;
+      _replySaveStatus = AppLocalizations.of(context).draftLocalSaving;
+    });
+    _replyAutosave?.cancel();
+    _replyAutosave = Timer(const Duration(milliseconds: 700), _saveReplyDraft);
+  }
+
+  Future<void> _restoreReplyDraft() async {
+    final generation = _replyDraftGeneration;
+    final topicId = widget.topicId;
+    try {
+      final owner = await _replyOwner;
+      if (owner == null || !_writingCurrent) return;
+      final drafts = await _writingStore.drafts(owner);
+      if (!mounted ||
+          !_writingCurrent ||
+          generation != _replyDraftGeneration ||
+          _replyRevision != 0) {
+        return;
+      }
+      final draft = drafts
+          .where(
+            (d) => d.key == replyDraftKey(topicId) && d.kind == DraftKind.reply,
+          )
+          .firstOrNull;
+      if (draft == null) return;
+      _restoringReply = true;
+      _replyToPostId = draft.replyToPostId;
+      _replyTargetName = draft.replyTargetName;
+      _replyMentionPrefix = draft.replyMentionPrefix;
+      _replyImageUrl = draft.images.firstOrNull;
+      _replyController.text = draft.content;
+      _restoringReply = false;
+      setState(() {
+        _composerOpen = true;
+        _replySaveStatus = AppLocalizations.of(context).draftLocalRestored;
+      });
+      _syncMentionContext();
+    } catch (_) {
+      // Reading a damaged local store must not prevent viewing the topic.
+    }
+  }
+
+  Future<bool> _saveReplyDraft({int? topicId, bool notify = true}) async {
+    _replyAutosave?.cancel();
+    if (_discardReplyOnLeave) return true;
+    if (!_writingCurrent) return false;
+    if (!_replyDirty) return true;
+    final generation = _replyDraftGeneration;
+    final revision = _replyRevision;
+    final id = topicId ?? widget.topicId;
+    // Capture before awaiting identity/storage: disposal and navigation can
+    // replace the live controllers, but this copy always belongs to this topic.
+    final draft = LocalDraft(
+      key: replyDraftKey(id),
+      kind: DraftKind.reply,
+      title: _page.valueOrNull?.topic.title ?? '',
+      content: _replyController.text,
+      contentType: 2,
+      topicId: id,
+      categories: const [],
+      images: [?_replyImageUrl],
+      replyToPostId: _replyToPostId,
+      replyTargetName: _replyTargetName,
+      replyMentionPrefix: _replyMentionPrefix,
+      updatedAt: DateTime.now().millisecondsSinceEpoch,
+    );
+    try {
+      final owner = await _replyOwner;
+      if (owner == null) {
+        // A sent/cleared reply has no local content to preserve. Ownership was
+        // never resolved for this page, so no owned draft was written or read.
+        // Do not reopen an empty composer after the server acknowledged it.
+        if (!draft.isEmpty) throw StateError('Draft requires an account');
+      } else {
+        await _writingStore.save(
+          owner,
+          draft,
+          isCurrent: () => _writingCurrent && !_discardReplyOnLeave,
+        );
+      }
+      if (!mounted || !_writingCurrent || generation != _replyDraftGeneration) {
+        return false;
+      }
+      _replySavedRevision = revision;
+      if (notify) {
+        setState(() {
+          _replySaveFailed = false;
+          _replySaveStatus = owner != null && revision == _replyRevision
+              ? AppLocalizations.of(context).draftLocalSaved
+              : '';
+        });
+      }
+      return revision == _replyRevision;
+    } catch (_) {
+      if (notify &&
+          mounted &&
+          _writingCurrent &&
+          generation == _replyDraftGeneration &&
+          revision == _replyRevision) {
+        setState(() {
+          _replySaveFailed = true;
+          _replySaveStatus = AppLocalizations.of(context).draftLocalSaveFailed;
+          _composerOpen = true;
+        });
+      }
+      return false;
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) unawaited(_saveReplyDraft());
+  }
+
   @override
   void dispose() {
+    unawaited(_saveReplyDraft(notify: false));
+    _replyAutosave?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
     _replyController.dispose();
     _replyCaptchaCode.dispose();
     _replyFocus.dispose();
@@ -284,6 +445,10 @@ class _TopicPageState extends ConsumerState<TopicPage> {
         });
       } else {
         setState(() => _page = AsyncValue.error(e, st));
+      }
+    } finally {
+      if (mounted && _writingCurrent && generation == _windowGeneration) {
+        _syncMentionContext();
       }
     }
   }
@@ -524,6 +689,10 @@ class _TopicPageState extends ConsumerState<TopicPage> {
 
   /// 编辑值变化:基于 caret 前文本驱动 @mention 会话(选区/无 caret 时关闭)。
   void _onReplyValueChanged() {
+    if (_lastReplyText != _replyController.text) {
+      _lastReplyText = _replyController.text;
+      _replyChanged();
+    }
     if (!_composerOpen) return;
     final TextEditingValue value = _replyController.value;
     final int base = value.selection.baseOffset;
@@ -615,10 +784,11 @@ class _TopicPageState extends ConsumerState<TopicPage> {
     }
     if (replyTo != null) {
       final String mention = '@${replyTo.author.username} ';
+      _removeGeneratedMention();
       _replyToPostId = replyTo.id;
       _replyMentionPrefix = mention;
-      _replyController.text = mention;
       _replyTargetName = replyTo.author.nickname ?? replyTo.author.username;
+      _replyController.text = '$mention${_replyController.text}';
       _replyController.selection = TextSelection.collapsed(
         offset: _replyController.text.length,
       );
@@ -652,13 +822,15 @@ class _TopicPageState extends ConsumerState<TopicPage> {
     _replyTargetName = null;
     _replyMentionPrefix = null;
     _syncMentionContext();
+    _replyChanged();
   }
 
-  void _closeComposer() {
+  Future<void> _closeComposer() async {
     _replyFocus.unfocus();
-    _clearReplyTarget();
     _mentionSession.close();
-    setState(() => _composerOpen = false);
+    if (await _saveReplyDraft() && mounted && _writingCurrent) {
+      setState(() => _composerOpen = false);
+    }
   }
 
   void _insertReplyImage(String url) {
@@ -683,6 +855,7 @@ class _TopicPageState extends ConsumerState<TopicPage> {
       composing: TextRange.empty,
     );
     setState(() => _replyImageUrl = url);
+    _replyChanged();
   }
 
   void _removeReplyImage() {
@@ -711,14 +884,21 @@ class _TopicPageState extends ConsumerState<TopicPage> {
       composing: TextRange.empty,
     );
     setState(() => _replyImageUrl = null);
+    _replyChanged();
   }
 
   Future<void> _pickReplyImage() async {
     if (_uploadingReplyImage) return;
+    final topicId = widget.topicId;
     setState(() => _uploadingReplyImage = true);
     try {
       final String? url = await pickAndUploadImage(ref: ref);
-      if (url != null && mounted) _insertReplyImage(url);
+      if (url != null &&
+          mounted &&
+          _writingCurrent &&
+          widget.topicId == topicId) {
+        _insertReplyImage(url);
+      }
     } catch (e) {
       if (mounted) {
         showGfToast(
@@ -762,10 +942,11 @@ class _TopicPageState extends ConsumerState<TopicPage> {
     if (content.isEmpty) return;
     final topicId = widget.topicId;
     final target = _replyToPostId;
+    final submittedRevision = _replyRevision;
     final epoch = ref.read(offlineCacheEpochProvider);
     setState(() => _replying = true);
     try {
-      await ref
+      final result = await ref
           .read(postRepositoryProvider)
           .createPost(
             topicId: topicId,
@@ -779,20 +960,22 @@ class _TopicPageState extends ConsumerState<TopicPage> {
           epoch != ref.read(offlineCacheEpochProvider)) {
         return;
       }
-      if (_replyController.text.trim() == content && _replyToPostId == target) {
+      if (_replyRevision == submittedRevision) {
         _clearReplyTarget();
         _replyController.clear();
         setState(() {
           _replyImageUrl = null;
           _composerOpen = false;
         });
+        await _saveReplyDraft();
       }
+      if (!mounted || !_writingCurrent || topicId != widget.topicId) return;
       setState(() {
         _replyCaptcha = null;
         _replyCaptchaCode.clear();
       });
       showGfToast(context, AppLocalizations.of(context).topicReplySuccess);
-      await _load(silent: true);
+      await _showCreatedReply(result);
     } catch (error) {
       if (!mounted ||
           topicId != widget.topicId ||
@@ -813,6 +996,83 @@ class _TopicPageState extends ConsumerState<TopicPage> {
       }
     } finally {
       if (mounted) setState(() => _replying = false);
+    }
+  }
+
+  Future<void> _showCreatedReply(CreatePostResult result) async {
+    final generation = ++_windowGeneration;
+    setState(() => _loadingMore = false);
+    final topicId = widget.topicId;
+    try {
+      // A one-post anchored window makes the acknowledgement visible even in a
+      // long topic. Earlier/later controls keep the rest of the thread reachable.
+      final window = await ref
+          .read(topicRepositoryProvider)
+          .getPostWindow(topicId: topicId, anchorPostId: result.id, limit: 1);
+      if (!mounted ||
+          !_writingCurrent ||
+          generation != _windowGeneration ||
+          topicId != widget.topicId) {
+        return;
+      }
+      setState(() {
+        _sort = CommentSort.asc;
+        final props = _page.valueOrNull;
+        if (props != null) {
+          _page = AsyncValue.data(
+            props.copyWith(
+              postStream: window,
+              topic: props.topic.copyWith(
+                maxPostNo: window.maxPostNo,
+                replyCount: (window.total - 1).clamp(0, window.total),
+              ),
+            ),
+          );
+        }
+        final mainPost = _mainPost(_posts);
+        _posts
+          ..clear()
+          ..addAll([
+            if (mainPost != null &&
+                !window.posts.any((post) => post.id == mainPost.id))
+              mainPost,
+            ...window.posts,
+          ]);
+        _replyTargets
+          ..clear()
+          ..addEntries(window.replyTargets.map((t) => MapEntry(t.id, t)));
+        _beforePostNo = window.beforePostNo;
+        _afterPostNo = window.afterPostNo;
+        _hasEarlierPosts = window.hasBefore;
+        _hasMorePosts = window.hasAfter;
+        _currentFloor =
+            result.postNo ?? window.posts.firstOrNull?.postNo ?? _currentFloor;
+      });
+      _recordReturnState();
+      _syncMentionContext();
+      await _scrollToTop.scrollToTop();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !_writingCurrent || generation != _windowGeneration) {
+          return;
+        }
+        final target = _discussionKey.currentContext;
+        if (target != null) {
+          unawaited(
+            Scrollable.ensureVisible(
+              target,
+              duration: const Duration(milliseconds: 200),
+            ),
+          );
+        }
+      });
+    } catch (error) {
+      if (mounted && _writingCurrent && generation == _windowGeneration) {
+        showGfToast(
+          context,
+          resolveErrorMessage(AppLocalizations.of(context), error),
+          error: true,
+        );
+      }
     }
   }
 
@@ -916,23 +1176,65 @@ class _TopicPageState extends ConsumerState<TopicPage> {
     return target.postNo != 1;
   }
 
-  void _goBack() {
-    if (context.canPop()) {
-      context.pop();
-      return;
+  Future<void> _goBack() async {
+    if (_replying || _leavingReply) return;
+    _leavingReply = true;
+    try {
+      final saved = await _saveReplyDraft();
+      if (!mounted || !_writingCurrent) return;
+      if (!saved) {
+        if (!_replySaveFailed) return;
+        final l10n = AppLocalizations.of(context);
+        final discard = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: Text(l10n.draftLocalSaveFailed),
+            content: Text(l10n.draftReplyLeaveUnsaved),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: Text(l10n.publishContinue),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: Text(l10n.publishDiscard),
+              ),
+            ],
+          ),
+        );
+        if (discard != true || !mounted || !_writingCurrent) return;
+        // Leave the last successfully stored copy intact. Never report the
+        // current failed revision as saved or retry its write during disposal.
+        _replyAutosave?.cancel();
+        _discardReplyOnLeave = true;
+        _replyDraftGeneration++;
+      }
+      setState(() {});
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !_writingCurrent) return;
+        if (context.canPop()) {
+          context.pop();
+        } else {
+          context.go('/');
+        }
+      });
+    } finally {
+      _leavingReply = false;
     }
-    context.go('/');
   }
 
   @override
   Widget build(BuildContext context) {
+    if (ref.watch(offlineCacheEpochProvider) != _writingEpoch) {
+      return const SizedBox.shrink();
+    }
     final GfColors colors = GfTheme.colorsOf(context);
     final AppLocalizations l10n = AppLocalizations.of(context);
 
     final String appBarTitle = _showHeaderTitle
         ? (_page.value?.topic.title ?? l10n.topicTitle)
         : l10n.topicTitle;
-    return Scaffold(
+    final scaffold = Scaffold(
       appBar: GfAppBar(
         leading: GfIconButton(
           icon: Icons.arrow_back,
@@ -1152,7 +1454,7 @@ class _TopicPageState extends ConsumerState<TopicPage> {
                                             hideKeyboardLabel:
                                                 l10n.commonHideKeyboard,
                                             onCollapse: _closeComposer,
-                                            collapseLabel: l10n.commonCancel,
+                                            collapseLabel: l10n.draftCollapse,
                                             controller: _replyController,
                                             focusNode: _replyFocus,
                                             targetName: _replyTargetDisplayName(
@@ -1188,9 +1490,34 @@ class _TopicPageState extends ConsumerState<TopicPage> {
                                             publishLabel: l10n.commonSend,
                                             hintText: l10n.topicReplyHint,
                                             onPublish: _submitReply,
-                                            toolbar: _replyCaptcha == null
-                                                ? null
-                                                : Row(
+                                            toolbar: Column(
+                                              mainAxisSize: MainAxisSize.min,
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                if (_replySaveStatus.isNotEmpty)
+                                                  Row(
+                                                    children: [
+                                                      Expanded(
+                                                        child: Text(
+                                                          _replySaveStatus,
+                                                          style: Theme.of(
+                                                            context,
+                                                          ).textTheme.bodySmall,
+                                                        ),
+                                                      ),
+                                                      if (_replySaveFailed)
+                                                        TextButton(
+                                                          onPressed:
+                                                              _saveReplyDraft,
+                                                          child: Text(
+                                                            l10n.commonRetry,
+                                                          ),
+                                                        ),
+                                                    ],
+                                                  ),
+                                                if (_replyCaptcha != null)
+                                                  Row(
                                                     children: [
                                                       InkWell(
                                                         onTap:
@@ -1237,6 +1564,8 @@ class _TopicPageState extends ConsumerState<TopicPage> {
                                                       ),
                                                     ],
                                                   ),
+                                              ],
+                                            ),
                                           );
                                         },
                                       ),
@@ -1329,6 +1658,13 @@ class _TopicPageState extends ConsumerState<TopicPage> {
           },
         ),
       ),
+    );
+    return PopScope(
+      canPop: _discardReplyOnLeave || (!_replyDirty && !_replying),
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _goBack();
+      },
+      child: scaffold,
     );
   }
 

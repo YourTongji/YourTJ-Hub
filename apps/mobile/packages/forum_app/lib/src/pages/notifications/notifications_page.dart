@@ -17,6 +17,7 @@ import '../../providers.dart';
 import '../../navigation/tab_scroll_registry.dart';
 import '../../widgets/root_surface.dart';
 import '../../widgets/status_views.dart';
+import '../../realtime/realtime_updates.dart';
 
 /// 通知页(web notifications.index 的移动端形态):
 /// 通知列表 + 未读标记 + 全部已读 + all/unread 筛选 + 点击跳转。
@@ -44,6 +45,8 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
   final Map<int, String> _readErrors = {};
   final _scroll = GfScrollToTopController();
   late final GfTabScrollRegistry _registry;
+  int _seenRealtimeRevision = 0;
+  bool _realtimeDirty = false;
 
   @override
   void dispose() {
@@ -59,11 +62,30 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
     super.initState();
     _registry = ref.read(tabScrollRegistryProvider)
       ..register(GfShellDestination.notifications, _scroll);
+    _seenRealtimeRevision = ref
+        .read(realtimeInvalidationsProvider)
+        .notificationsRevision;
     _load();
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final revision = ref
+        .read(realtimeInvalidationsProvider)
+        .notificationsRevision;
+    if (TickerMode.valuesOf(context).enabled &&
+        revision != _seenRealtimeRevision) {
+      _seenRealtimeRevision = revision;
+      _load(silent: true);
+    }
+  }
+
   Future<void> _load({bool silent = false}) async {
-    if (silent && _refreshing) return;
+    if (silent && _refreshing) {
+      _realtimeDirty = true;
+      return;
+    }
     _loadCancel?.cancel('notifications request superseded');
     _loadMoreCancel?.cancel('notifications refresh superseded');
     final cancel = _loadCancel = CancelToken();
@@ -104,7 +126,13 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
       }
     } finally {
       if (identical(_loadCancel, cancel)) _loadCancel = null;
-      if (_current(generation, epoch)) setState(() => _refreshing = false);
+      if (_current(generation, epoch)) {
+        setState(() => _refreshing = false);
+        if (_realtimeDirty) {
+          _realtimeDirty = false;
+          _load(silent: true);
+        }
+      }
     }
   }
 
@@ -273,6 +301,14 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen(realtimeInvalidationsProvider, (previous, next) {
+      if (previous?.notificationsRevision == next.notificationsRevision ||
+          !TickerMode.valuesOf(context).enabled) {
+        return;
+      }
+      _seenRealtimeRevision = next.notificationsRevision;
+      _load(silent: true);
+    });
     final AppLocalizations l10n = AppLocalizations.of(context);
     ref.listen<int>(offlineCacheEpochProvider, (_, _) {
       _generation++;
@@ -285,6 +321,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
       _readErrors.clear();
       _markingAll = false;
       _refreshing = false;
+      _realtimeDirty = false;
       _cursor = 0;
       _load();
     });

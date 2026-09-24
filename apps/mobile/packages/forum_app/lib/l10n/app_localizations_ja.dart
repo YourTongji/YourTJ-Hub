@@ -174,6 +174,12 @@ class AppLocalizationsJa extends AppLocalizations {
   String get authForgotTitle => 'パスワード再設定';
 
   @override
+  String get authContinueAfterLogin => 'ログインして、先ほどのページに戻ります。';
+
+  @override
+  String get authSignInMethods => 'その他のログイン方法';
+
+  @override
   String get authLoginSubtitle => 'おかえりなさい。議論と投稿を続けましょう。';
 
   @override
@@ -2573,4 +2579,81 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get messagesReadUnavailable => 'このサーバーは個別の既読通知に対応していません。未読は保持されます。';
+
+  @override
+  String get messagesDraftLabel => '下書き';
+
+  @override
+  String get messagesDraftStorageFailed => 'この端末のメッセージ下書きを読み書きできません。再試行してください。';
+
+  @override
+  String get draftCollapse => '折りたたむ';
+
+  @override
+  String get draftKindNew => '新しいトピック';
+
+  @override
+  String get draftKindServer => 'クラウド下書きの復元用コピー';
+
+  @override
+  String get draftKindEdit => 'トピックの編集';
+
+  @override
+  String get draftKindReply => '返信';
+
+  @override
+  String get draftLocalEmpty => '書きかけの内容はこの端末に保存され、ここに表示されます。';
+
+  @override
+  String get draftReplyLeaveUnsaved =>
+      '返信の最新の変更を保存できませんでした。編集を続けて再試行するか、この変更を破棄して離れます。保存済みの端末コピーは保持されます。';
+
+  @override
+  String get publishMediaQueueTitle => '写真のアップロード';
+
+  @override
+  String get publishMediaPendingWarning =>
+      '未アップロードの写真があります。保存・投稿・種類の変更・終了の前に、アップロードするか削除してください。';
+
+  @override
+  String get publishMediaTemporary =>
+      '待機中の写真は今回の編集中のみ保持されます。アプリを閉じた場合は再選択してください。';
+
+  @override
+  String get publishMediaUploading => 'アップロード中';
+
+  @override
+  String get publishMediaWaiting => '前の写真を待機中';
+
+  @override
+  String get publishMediaSavedPartial => '文章とアップロード済みの写真を端末に保存しました';
+
+  @override
+  String get draftSearchHint => 'タイトルと本文を検索';
+
+  @override
+  String get draftSearchScope => '端末の下書きと現在のクラウド一覧を検索します。';
+
+  @override
+  String draftMatchCount(int count) {
+    return '$count 件の下書きを表示';
+  }
+
+  @override
+  String get draftNoMatches => '条件に合う下書きがありません。';
+
+  @override
+  String get draftClearFilters => '検索と絞り込みを解除';
+
+  @override
+  String get draftDeleteDone => '端末の下書きを削除しました。直前の削除を取り消せます。';
+
+  @override
+  String get draftDeleteRestored => '端末の下書きを復元しました';
+
+  @override
+  String get draftRestoreConflict => '既存のコピーがあるため、その内容を保持しました。';
+
+  @override
+  String get draftRestoreFailed => '復元できませんでした。もう一度取り消してください。';
 }

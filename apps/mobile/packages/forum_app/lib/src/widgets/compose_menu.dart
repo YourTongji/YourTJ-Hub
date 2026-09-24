@@ -10,6 +10,7 @@ import '../pages/publish/publish_type.dart';
 Future<void> showComposeMenu(
   BuildContext context, {
   required double bottom,
+  Future<void> Function(PublishType type)? onCompose,
 }) async {
   final l10n = AppLocalizations.of(context);
   final source = context.findRenderObject();
@@ -105,6 +106,10 @@ Future<void> showComposeMenu(
     ),
   );
   if (type != null && context.mounted) {
-    context.push('/publish?type=${type.value}');
+    if (onCompose != null) {
+      await onCompose(type);
+    } else {
+      context.push('/publish?type=${type.value}');
+    }
   }
 }
