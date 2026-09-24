@@ -193,6 +193,30 @@ class _GfShellState extends ConsumerState<GfShell> with WidgetsBindingObserver {
       }
     });
 
+    final destinations = [
+      for (final destination in GfShellDestination.values)
+        GfBottomNavigationItem(
+          icon: destination.icon,
+          selectedIcon: destination.activeIcon,
+          symbol: switch (destination) {
+            GfShellDestination.home => 'house',
+            GfShellDestination.campus => 'graduation-cap',
+            GfShellDestination.notifications => 'bell',
+            GfShellDestination.messages => 'mail',
+          },
+          selectedSymbol: switch (destination) {
+            GfShellDestination.home => 'house-filled',
+            GfShellDestination.campus => 'graduation-cap-filled',
+            GfShellDestination.notifications => 'bell-filled',
+            GfShellDestination.messages => 'mail-filled',
+          },
+          label: destination.label(l10n),
+          badge: destination == GfShellDestination.notifications
+              ? _unreadNotifications
+              : destination == GfShellDestination.messages && _unreadMessages,
+        ),
+    ];
+
     final chrome = ref.watch(readingChromeProvider);
     final duration = MediaQuery.disableAnimationsOf(context)
         ? Duration.zero
@@ -226,34 +250,10 @@ class _GfShellState extends ConsumerState<GfShell> with WidgetsBindingObserver {
           maxContentWidth: widget.navigationShell.currentIndex == 1
               ? 1120
               : 720,
-          rail: NavigationRail(
-            minWidth: 72,
-            scrollable: true,
-            selectedIndex: widget.navigationShell.currentIndex,
-            onDestinationSelected: _selectDestination,
-            backgroundColor: GfTheme.colorsOf(context).base100,
-            labelType: NavigationRailLabelType.none,
-            destinations: [
-              for (final destination in GfShellDestination.values)
-                NavigationRailDestination(
-                  icon: Tooltip(
-                    message: destination.label(l10n),
-                    child: Badge(
-                      isLabelVisible:
-                          destination == GfShellDestination.notifications
-                          ? _unreadNotifications
-                          : destination == GfShellDestination.messages &&
-                                _unreadMessages,
-                      child: Icon(destination.icon),
-                    ),
-                  ),
-                  selectedIcon: Tooltip(
-                    message: destination.label(l10n),
-                    child: Icon(destination.activeIcon),
-                  ),
-                  label: Text(destination.label(l10n)),
-                ),
-            ],
+          rail: ReadingNavigationRail(
+            currentIndex: widget.navigationShell.currentIndex,
+            onSelected: _selectDestination,
+            items: destinations,
           ),
           bottomNavigation: AnimatedSlide(
             offset: chrome.hidden ? const Offset(0, 1) : Offset.zero,
@@ -267,30 +267,7 @@ class _GfShellState extends ConsumerState<GfShell> with WidgetsBindingObserver {
                   currentIndex: widget.navigationShell.currentIndex,
                   onSelected: _selectDestination,
                   showLabels: false,
-                  items: [
-                    for (final destination in GfShellDestination.values)
-                      GfBottomNavigationItem(
-                        icon: destination.icon,
-                        selectedIcon: destination.activeIcon,
-                        symbol: switch (destination) {
-                          GfShellDestination.home => 'house',
-                          GfShellDestination.campus => 'graduation-cap',
-                          GfShellDestination.notifications => 'bell',
-                          GfShellDestination.messages => 'mail',
-                        },
-                        selectedSymbol: switch (destination) {
-                          GfShellDestination.home => 'house-filled',
-                          GfShellDestination.campus => 'graduation-cap-filled',
-                          GfShellDestination.notifications => 'bell-filled',
-                          GfShellDestination.messages => 'mail-filled',
-                        },
-                        label: destination.label(l10n),
-                        badge: destination == GfShellDestination.notifications
-                            ? _unreadNotifications
-                            : destination == GfShellDestination.messages &&
-                                  _unreadMessages,
-                      ),
-                  ],
+                  items: destinations,
                 ),
               ),
             ),
