@@ -26,6 +26,7 @@ import '../../campus_widget/schedule_widget_bridge.dart';
 import '../../push/push_service.dart';
 import '../../widgets/status_views.dart';
 import '../../current_user.dart';
+import '../../navigation/auth_navigation.dart';
 import 'account_closure_dialog.dart';
 import 'campus_cache_clear_tile.dart';
 import 'profile_edit_dialog.dart';
@@ -154,6 +155,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
   /// 加载设置页账户数据(settings.index 数据通道 → 徽章等)。
   Future<void> _loadUser({bool silent = false}) async {
+    if (_signedIn != true) return;
     final request = ++_userRequest;
     final epoch = ref.read(offlineCacheEpochProvider);
     final SettingsUserPayload? previous = _user.valueOrNull;
@@ -772,6 +774,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   }
 
   Future<void> _loadSessions({bool silent = false}) async {
+    if (_signedIn != true) return;
     final request = ++_sessionsRequest;
     final epoch = ref.read(offlineCacheEpochProvider);
     final List<UserSessionPayload>? previous = _sessions.valueOrNull;
@@ -1082,7 +1085,13 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               _categoryRow(
                 icon: Icons.login,
                 title: l10n.authLoginTitle,
-                onTap: () => context.push('/login'),
+                onTap: () => context.push(
+                  authLoginLocation(
+                    returnTo: _tab == null
+                        ? '/settings'
+                        : '/settings/${_tab!.name}',
+                  ),
+                ),
               )
             else
               const Padding(

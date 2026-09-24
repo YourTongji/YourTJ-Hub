@@ -177,6 +177,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get authForgotTitle => 'Reset password';
 
   @override
+  String get authContinueAfterLogin =>
+      'Sign in to continue where you left off.';
+
+  @override
+  String get authSignInMethods => 'Other sign-in options';
+
+  @override
   String get authLoginSubtitle =>
       'Welcome back. Continue your discussions and writing.';
 
@@ -2265,7 +2272,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get campusPrivacy =>
-      'One account, one official identity. School data is private and is not saved on your device.';
+      'One account, one school identity. Name, calendar and timetable snapshots are stored on this device for offline use. You can clear them below.';
 
   @override
   String get campusDisabled => 'Campus connection is not enabled on this site';

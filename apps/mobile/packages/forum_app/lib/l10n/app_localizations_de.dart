@@ -178,6 +178,13 @@ class AppLocalizationsDe extends AppLocalizations {
   String get authForgotTitle => 'Passwort zurücksetzen';
 
   @override
+  String get authContinueAfterLogin =>
+      'Melde dich an, um dort weiterzumachen, wo du aufgehört hast.';
+
+  @override
+  String get authSignInMethods => 'Weitere Anmeldeoptionen';
+
+  @override
   String get authLoginSubtitle =>
       'Willkommen zurück. Setze deine Diskussionen und Beiträge fort.';
 
@@ -2293,7 +2300,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get campusPrivacy =>
-      'Ein Konto, eine offizielle Identität. Hochschuldaten sind privat und werden nicht auf dem Gerät gespeichert.';
+      'Ein Konto, eine Hochschulidentität. Name, Kalender und Stundenplan werden für die Offline-Nutzung auf diesem Gerät gespeichert. Unten können Sie diese Daten löschen.';
 
   @override
   String get campusDisabled => 'Die Campus-Verbindung ist hier nicht aktiviert';
