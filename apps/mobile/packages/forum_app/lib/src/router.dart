@@ -12,7 +12,9 @@ import '../l10n/app_localizations.dart';
 import 'navigation/auth_navigation.dart';
 import 'navigation/session_overlays.dart';
 import 'navigation/tab_scroll_registry.dart';
+import 'navigation/route_visibility.dart';
 import 'navigation/reading_chrome.dart';
+import 'navigation/reading_window.dart';
 import 'widgets/account_drawer.dart';
 import 'pages/auth/login_page.dart';
 import 'pages/admin/admin_page.dart';
@@ -222,57 +224,80 @@ class _GfShellState extends ConsumerState<GfShell> with WidgetsBindingObserver {
           }
           return false;
         },
-        child: Stack(
-          children: [
-            Positioned.fill(child: widget.navigationShell),
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 0,
-              child: AnimatedSlide(
-                offset: chrome.hidden ? const Offset(0, 1) : Offset.zero,
-                duration: duration,
-                curve: Curves.easeOut,
-                child: IgnorePointer(
-                  ignoring: chrome.hidden,
-                  child: ExcludeSemantics(
-                    excluding: chrome.hidden,
-                    child: GfBottomNavigation(
-                      currentIndex: widget.navigationShell.currentIndex,
-                      onSelected: _selectDestination,
-                      showLabels: false,
-                      items: [
-                        for (final destination in GfShellDestination.values)
-                          GfBottomNavigationItem(
-                            icon: destination.icon,
-                            selectedIcon: destination.activeIcon,
-                            symbol: switch (destination) {
-                              GfShellDestination.home => 'house',
-                              GfShellDestination.campus => 'graduation-cap',
-                              GfShellDestination.notifications => 'bell',
-                              GfShellDestination.messages => 'mail',
-                            },
-                            selectedSymbol: switch (destination) {
-                              GfShellDestination.home => 'house-filled',
-                              GfShellDestination.campus =>
-                                'graduation-cap-filled',
-                              GfShellDestination.notifications => 'bell-filled',
-                              GfShellDestination.messages => 'mail-filled',
-                            },
-                            label: destination.label(l10n),
-                            badge:
-                                destination == GfShellDestination.notifications
-                                ? _unreadNotifications
-                                : destination == GfShellDestination.messages &&
-                                      _unreadMessages,
-                          ),
-                      ],
+        child: ReadingWindow(
+          maxContentWidth: widget.navigationShell.currentIndex == 1
+              ? 1120
+              : 720,
+          rail: NavigationRail(
+            minWidth: 72,
+            scrollable: true,
+            selectedIndex: widget.navigationShell.currentIndex,
+            onDestinationSelected: _selectDestination,
+            backgroundColor: GfTheme.colorsOf(context).base100,
+            labelType: NavigationRailLabelType.none,
+            destinations: [
+              for (final destination in GfShellDestination.values)
+                NavigationRailDestination(
+                  icon: Tooltip(
+                    message: destination.label(l10n),
+                    child: Badge(
+                      isLabelVisible:
+                          destination == GfShellDestination.notifications
+                          ? _unreadNotifications
+                          : destination == GfShellDestination.messages &&
+                                _unreadMessages,
+                      child: Icon(destination.icon),
                     ),
                   ),
+                  selectedIcon: Tooltip(
+                    message: destination.label(l10n),
+                    child: Icon(destination.activeIcon),
+                  ),
+                  label: Text(destination.label(l10n)),
+                ),
+            ],
+          ),
+          bottomNavigation: AnimatedSlide(
+            offset: chrome.hidden ? const Offset(0, 1) : Offset.zero,
+            duration: duration,
+            curve: Curves.easeOut,
+            child: IgnorePointer(
+              ignoring: chrome.hidden,
+              child: ExcludeSemantics(
+                excluding: chrome.hidden,
+                child: GfBottomNavigation(
+                  currentIndex: widget.navigationShell.currentIndex,
+                  onSelected: _selectDestination,
+                  showLabels: false,
+                  items: [
+                    for (final destination in GfShellDestination.values)
+                      GfBottomNavigationItem(
+                        icon: destination.icon,
+                        selectedIcon: destination.activeIcon,
+                        symbol: switch (destination) {
+                          GfShellDestination.home => 'house',
+                          GfShellDestination.campus => 'graduation-cap',
+                          GfShellDestination.notifications => 'bell',
+                          GfShellDestination.messages => 'mail',
+                        },
+                        selectedSymbol: switch (destination) {
+                          GfShellDestination.home => 'house-filled',
+                          GfShellDestination.campus => 'graduation-cap-filled',
+                          GfShellDestination.notifications => 'bell-filled',
+                          GfShellDestination.messages => 'mail-filled',
+                        },
+                        label: destination.label(l10n),
+                        badge: destination == GfShellDestination.notifications
+                            ? _unreadNotifications
+                            : destination == GfShellDestination.messages &&
+                                  _unreadMessages,
+                      ),
+                  ],
                 ),
               ),
             ),
-          ],
+          ),
+          child: widget.navigationShell,
         ),
       ),
     );
@@ -292,7 +317,7 @@ final appSessionOverlays = SessionOverlayRegistry();
 final GoRouter appRouter = GoRouter(
   navigatorKey: appNavigatorKey,
   initialLocation: '/',
-  observers: [appSessionOverlays.observer()],
+  observers: [VisibilityRouteObserver(), appSessionOverlays.observer()],
   redirect: (context, state) => authNavigationRedirect(
     requested: state.uri,
     previousLocation: appRouter.routerDelegate.currentConfiguration.isEmpty
@@ -313,19 +338,19 @@ final GoRouter appRouter = GoRouter(
           ) => GfShell(navigationShell: navigationShell),
       branches: <StatefulShellBranch>[
         StatefulShellBranch(
-          observers: [appSessionOverlays.observer()],
+          observers: [VisibilityRouteObserver(), appSessionOverlays.observer()],
           routes: <RouteBase>[
             GoRoute(path: '/', builder: (_, _) => const HomePage()),
           ],
         ),
         StatefulShellBranch(
-          observers: [appSessionOverlays.observer()],
+          observers: [VisibilityRouteObserver(), appSessionOverlays.observer()],
           routes: <RouteBase>[
             GoRoute(path: '/campus', builder: (_, _) => const CampusPage()),
           ],
         ),
         StatefulShellBranch(
-          observers: [appSessionOverlays.observer()],
+          observers: [VisibilityRouteObserver(), appSessionOverlays.observer()],
           routes: [
             GoRoute(
               path: '/notifications',
@@ -334,7 +359,7 @@ final GoRouter appRouter = GoRouter(
           ],
         ),
         StatefulShellBranch(
-          observers: [appSessionOverlays.observer()],
+          observers: [VisibilityRouteObserver(), appSessionOverlays.observer()],
           routes: <RouteBase>[
             GoRoute(
               path: '/messages',

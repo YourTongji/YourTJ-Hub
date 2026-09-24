@@ -149,6 +149,64 @@ class _HangingPages extends _PagedPages {
   }
 }
 
+class _SortedPages extends _Pages {
+  final requestTokens = <String, CancelToken?>{};
+  final calls = <String, int>{};
+  final nextCalls = <String>[];
+  int latestTopicCount = 25;
+  bool keepNextPage = false;
+  bool sharedTopics = false;
+  Completer<PagePayload>? hotRequest;
+  Completer<PagePayload>? nextRequest;
+
+  PagePayload sorted(String sort, {bool next = false, bool last = false}) {
+    final data = homePayloadJson();
+    final props = data['props'] as Map<String, dynamic>;
+    final first = (props['topics'] as List).first as Map<String, dynamic>;
+    props['sort'] = sort;
+    props['topics'] = [
+      for (var i = 0; i < (sort == 'latest' ? latestTopicCount : 25); i++)
+        {
+          ...first,
+          'id':
+              (sort == 'hot' && !sharedTopics ? 200 : 100) +
+              (next ? 25 : 0) +
+              i,
+          'title': '$sort ${next ? 25 + i : i}',
+          'liked': liked,
+          'bookmarked': bookmarked,
+          'likeCount': likeCount,
+        },
+    ];
+    final hasMore = !next || (keepNextPage && !last);
+    props['pagination'] = {
+      'page': next ? 2 : 1,
+      'nextPage': hasMore ? (next ? 3 : 2) : 0,
+      'hasNext': hasMore,
+      'nextUrl': hasMore ? '/?sort=$sort&page=${next ? 3 : 2}' : '',
+    };
+    return parsePayload(data);
+  }
+
+  @override
+  Future<PagePayload> home({String sort = '', Object? cancelToken}) async {
+    final key = sort.isEmpty ? 'latest' : sort;
+    requestTokens[key] = cancelToken as CancelToken?;
+    calls.update(key, (count) => count + 1, ifAbsent: () => 1);
+    if (key == 'hot' && hotRequest != null) return hotRequest!.future;
+    return sorted(key);
+  }
+
+  @override
+  Future<PagePayload> fetch(String path, {Object? cancelToken}) async {
+    requestTokens['page:$path'] = cancelToken as CancelToken?;
+    nextCalls.add(path);
+    final query = Uri.parse(path).queryParameters;
+    if (query['page'] == '2' && nextRequest != null) return nextRequest!.future;
+    return sorted(query['sort']!, next: true, last: query['page'] == '3');
+  }
+}
+
 /// 详情页 fake:/p/post/ 返回详情 fixture,点赞状态可调。
 class _DetailPages extends _Pages {
   bool detailLiked = false;
@@ -205,8 +263,9 @@ void main() {
   Future<ProviderContainer> pump(
     WidgetTester tester,
     _Pages pages,
-    _Topics topics,
-  ) async {
+    _Topics topics, {
+    bool settle = true,
+  }) async {
     SharedPreferences.setMockInitialValues({});
     final container = ProviderContainer(
       overrides: [
@@ -231,7 +290,12 @@ void main() {
         ),
       ),
     );
-    await tester.pumpAndSettle();
+    if (settle) {
+      await tester.pumpAndSettle();
+    } else {
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+    }
     return container;
   }
 
@@ -260,6 +324,185 @@ void main() {
     expect(topics.likes, [2, 1]);
     expect(topics.bookmarks, [2, 1]);
   });
+
+  testWidgets('sort tabs retain their own list, cursor and scroll offset', (
+    tester,
+  ) async {
+    final pages = _SortedPages();
+    await pump(tester, pages, _Topics(pages));
+    // AccountAvatar also reads the home layout during the initial build.
+    final initialLatestCalls = pages.calls['latest'];
+    var list = tester.widget<GfTopicList>(find.byType(GfTopicList));
+    list.onLoadMore();
+    await tester.pumpAndSettle();
+    list = tester.widget<GfTopicList>(find.byType(GfTopicList));
+    expect(list.topics.length, 50);
+    list.controller!.jumpTo(800);
+    await tester.pump();
+    await tester.tap(find.text('热门'));
+    await tester.pumpAndSettle();
+    expect(
+      tester.widget<GfTopicList>(find.byType(GfTopicList)).topics.first.title,
+      'hot 0',
+    );
+    await tester.tap(find.text('最新'));
+    await tester.pumpAndSettle();
+    list = tester.widget<GfTopicList>(find.byType(GfTopicList));
+    expect(list.topics.length, 50);
+    expect(list.hasMore, isFalse);
+    expect(list.controller!.offset, 800);
+    expect(pages.calls['latest'], initialLatestCalls);
+  });
+
+  testWidgets(
+    'a pending sort keeps tabs usable and never replaces another sort',
+    (tester) async {
+      final pages = _SortedPages()..hotRequest = Completer<PagePayload>();
+      await pump(tester, pages, _Topics(pages));
+      await tester.tap(find.text('热门'));
+      await tester.pump();
+      expect(find.text('最新'), findsOneWidget);
+      await tester.tap(find.text('最新'));
+      await tester.pump();
+      expect(find.text('latest 0'), findsOneWidget);
+      expect(pages.requestTokens['hot']!.isCancelled, isFalse);
+      pages.hotRequest!.complete(pages.sorted('hot'));
+      await tester.pumpAndSettle();
+      expect(find.text('latest 0'), findsOneWidget);
+      expect(find.text('hot 0'), findsNothing);
+      await tester.tap(find.text('热门'));
+      await tester.pumpAndSettle();
+      expect(find.text('hot 0'), findsOneWidget);
+      expect(pages.calls['hot'], 1);
+    },
+  );
+
+  testWidgets('pagination completes into its original sort after switching', (
+    tester,
+  ) async {
+    final pages = _SortedPages()..nextRequest = Completer<PagePayload>();
+    await pump(tester, pages, _Topics(pages));
+    tester.widget<GfTopicList>(find.byType(GfTopicList)).onLoadMore();
+    await tester.pump();
+    await tester.tap(find.text('热门'));
+    await tester.pumpAndSettle();
+    expect(
+      pages.requestTokens['page:/?sort=latest&page=2']!.isCancelled,
+      isFalse,
+    );
+    pages.nextRequest!.complete(pages.sorted('latest', next: true));
+    await tester.pumpAndSettle();
+    expect(
+      tester.widget<GfTopicList>(find.byType(GfTopicList)).topics.length,
+      25,
+    );
+    await tester.tap(find.text('最新'));
+    await tester.pumpAndSettle();
+    expect(
+      tester.widget<GfTopicList>(find.byType(GfTopicList)).topics.length,
+      50,
+    );
+  });
+  testWidgets('hidden sorts stop automatic pagination and resume on return', (
+    tester,
+  ) async {
+    final pages = _SortedPages()
+      ..latestTopicCount = 1
+      ..keepNextPage = true
+      ..nextRequest = Completer<PagePayload>();
+    await pump(tester, pages, _Topics(pages), settle: false);
+    expect(pages.nextCalls, ['/?sort=latest&page=2']);
+    await tester.tap(find.text('热门'));
+    await tester.pumpAndSettle();
+    pages.nextRequest!.complete(pages.sorted('latest', next: true));
+    await tester.pumpAndSettle();
+    // This short hidden list has another cursor and space to fill, but no
+    // request may begin until its TickerMode becomes active again.
+    expect(pages.nextCalls, ['/?sort=latest&page=2']);
+    await tester.tap(find.text('最新'));
+    await tester.pumpAndSettle();
+    expect(pages.nextCalls, ['/?sort=latest&page=2', '/?sort=latest&page=3']);
+  });
+
+  testWidgets(
+    'older sort reads cannot erase a successful shared-topic action',
+    (tester) async {
+      final pages = _SortedPages()
+        ..sharedTopics = true
+        ..liked = false
+        ..hotRequest = Completer<PagePayload>();
+      final stale = pages.sorted('hot');
+      final topics = _Topics(pages);
+      await pump(tester, pages, topics);
+      await tester.tap(find.text('热门'));
+      await tester.pump();
+      await tester.tap(find.text('最新'));
+      await tester.pump();
+      await tester.tap(find.byTooltip('点赞').first);
+      await tester.pumpAndSettle();
+      // A newer read may accept server data, but must not retire the mutation
+      // fence needed by the older pending read in the other sort.
+      pages.likeCount = 6;
+      await tester
+          .widget<AppRefreshIndicator>(find.byType(AppRefreshIndicator))
+          .onRefresh();
+      await tester.pumpAndSettle();
+      pages.hotRequest!.complete(stale);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('热门'));
+      await tester.pumpAndSettle();
+      final card = tester.widget<GfTopicCard>(find.byType(GfTopicCard).first);
+      expect(card.liked, isTrue);
+      expect(card.likeCount, 6);
+      expect(topics.likes, [1]);
+    },
+  );
+
+  testWidgets('detail return state survives an older read in another sort', (
+    tester,
+  ) async {
+    final pages = _SortedPages()
+      ..sharedTopics = true
+      ..liked = false
+      ..hotRequest = Completer<PagePayload>();
+    final stale = pages.sorted('hot');
+    final container = await pump(tester, pages, _Topics(pages));
+    await tester.tap(find.text('热门'));
+    await tester.pump();
+    await tester.tap(find.text('最新'));
+    await tester.pump();
+    await tester.tap(find.byTooltip('点赞').first);
+    await tester.pumpAndSettle();
+    // A subsequent detail visit returns a newer unlike and counters. Its
+    // state must supersede both the earlier home action and the stale read.
+    container.read(topicReturnStatesProvider)[100] = (
+      unseen: false,
+      liked: false,
+      bookmarked: true,
+      likeCount: 9,
+      replyCount: 8,
+      viewCount: 30,
+    );
+    pages
+      ..liked = false
+      ..likeCount = 9;
+    tester.widget<GfTopicList>(find.byType(GfTopicList)).onReturnFromTopic!();
+    await tester.pumpAndSettle();
+    pages.hotRequest!.complete(stale);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('热门'));
+    await tester.pumpAndSettle();
+    final topic = tester
+        .widget<GfTopicList>(find.byType(GfTopicList))
+        .topics
+        .first;
+    expect(topic.liked, isFalse);
+    expect(topic.likeCount, 9);
+    expect(topic.replyCount, 8);
+    expect(topic.viewCount, 30);
+    expect(topic.bookmarked, isTrue);
+  });
+
   testWidgets('late refresh cannot overwrite a successful action', (
     tester,
   ) async {

@@ -65,6 +65,11 @@ class AppLocalizationsDe extends AppLocalizations {
   String get commonSave => 'Speichern';
 
   @override
+  String imageViewPosition(int index, int count) {
+    return 'Bild $index von $count ansehen';
+  }
+
+  @override
   String get imageSave => 'Bild speichern';
 
   @override
@@ -1229,6 +1234,10 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get wikiTitle => 'Wiki';
+
+  @override
+  String get wikiLinkOpenFailed =>
+      'Der Link konnte nicht geöffnet werden. Bitte versuche es erneut.';
 
   @override
   String get wikiRecent => 'Zuletzt aktualisiert';
@@ -2671,4 +2680,15 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get coursesPaginationStalled =>
       'Keine weiteren Kurse erhalten. Laden Sie diese Seite erneut.';
+
+  @override
+  String get messagesNewMessages => 'Neue Nachrichten · Zum Ende';
+
+  @override
+  String get messagesReadSyncFailed =>
+      'Lesestatus konnte nicht synchronisiert werden. Ungelesene Nachrichten bleiben erhalten.';
+
+  @override
+  String get messagesReadUnavailable =>
+      'Dieser Server unterstützt noch keine einzelnen Lesebestätigungen. Ungelesene Nachrichten bleiben erhalten.';
 }

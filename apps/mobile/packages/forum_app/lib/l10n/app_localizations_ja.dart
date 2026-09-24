@@ -62,6 +62,11 @@ class AppLocalizationsJa extends AppLocalizations {
   String get commonSave => '保存';
 
   @override
+  String imageViewPosition(int index, int count) {
+    return '画像 $index / $count を表示';
+  }
+
+  @override
   String get imageSave => '画像を保存';
 
   @override
@@ -1203,6 +1208,9 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get wikiTitle => 'Wiki';
+
+  @override
+  String get wikiLinkOpenFailed => 'リンクを開けませんでした。もう一度お試しください。';
 
   @override
   String get wikiRecent => '最近の更新';
@@ -2562,4 +2570,13 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get coursesPaginationStalled => '追加のコースを取得できませんでした。もう一度お試しください。';
+
+  @override
+  String get messagesNewMessages => '新着メッセージ・最新へ';
+
+  @override
+  String get messagesReadSyncFailed => '既読状態を同期できませんでした。未読は保持されます。';
+
+  @override
+  String get messagesReadUnavailable => 'このサーバーは個別の既読通知に対応していません。未読は保持されます。';
 }
