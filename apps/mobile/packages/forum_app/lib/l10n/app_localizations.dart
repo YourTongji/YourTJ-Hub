@@ -1410,6 +1410,36 @@ abstract class AppLocalizations {
   /// **'Operation failed: {error}'**
   String settingsOpFailed(String error);
 
+  /// No description provided for @settingsDevice.
+  ///
+  /// In en, this message translates to:
+  /// **'This device'**
+  String get settingsDevice;
+
+  /// No description provided for @settingsYourAccount.
+  ///
+  /// In en, this message translates to:
+  /// **'Your account'**
+  String get settingsYourAccount;
+
+  /// No description provided for @settingsThemeLight.
+  ///
+  /// In en, this message translates to:
+  /// **'Light'**
+  String get settingsThemeLight;
+
+  /// No description provided for @settingsThemeDark.
+  ///
+  /// In en, this message translates to:
+  /// **'Dark'**
+  String get settingsThemeDark;
+
+  /// No description provided for @settingsRevokeSession.
+  ///
+  /// In en, this message translates to:
+  /// **'Revoke this session'**
+  String get settingsRevokeSession;
+
   /// No description provided for @settingsAppearance.
   ///
   /// In en, this message translates to:

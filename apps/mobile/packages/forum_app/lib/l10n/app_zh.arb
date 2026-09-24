@@ -393,6 +393,11 @@
       }
     }
   },
+  "settingsDevice": "此设备",
+  "settingsYourAccount": "你的账户",
+  "settingsThemeLight": "浅色",
+  "settingsThemeDark": "深色",
+  "settingsRevokeSession": "吊销此会话",
   "settingsAppearance": "外观",
   "settingsDarkMode": "深色模式",
   "settingsDarkCurrent": "当前:深色",

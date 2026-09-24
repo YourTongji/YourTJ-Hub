@@ -728,6 +728,21 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get settingsDevice => 'This device';
+
+  @override
+  String get settingsYourAccount => 'Your account';
+
+  @override
+  String get settingsThemeLight => 'Light';
+
+  @override
+  String get settingsThemeDark => 'Dark';
+
+  @override
+  String get settingsRevokeSession => 'Revoke this session';
+
+  @override
   String get settingsAppearance => 'Appearance';
 
   @override
