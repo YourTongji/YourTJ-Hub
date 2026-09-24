@@ -23,8 +23,9 @@ permissions; a cached card does not authorize an action.
 
 Every private asynchronous operation captures API origin, numeric account ID and a session epoch.
 Responses, events and delayed storage writes may apply only to their captured scope. Private campus
-operations also capture the binding version. Logout/account changes dispose event connections and
-cancel work before replacing the active scope. A callback from a previous session cannot revive its
+operations also capture the binding version. Logout/account changes synchronously advance the active
+session epoch first, then dispose event connections and cancel work, then install the replacement
+account scope. A callback from a previous session cannot revive its
 cache, submit its draft or mutate the next account's counters.
 
 Refresh is a new data revision, not a request to empty the view. Pagination is single-flight per
@@ -97,9 +98,12 @@ successful fetch time. Hard expiry and user-visible staleness are separate polic
 The Campus snapshot is an explicit application storage policy, not an HTTP cache exception inferred
 from a successful request. Campus API responses retain `private, no-store`; generic HTTP caches must
 not persist them. School tokens remain server-side. Web's private-data lifecycle remains separate.
-The persistent-snapshot implementation must supersede
-[0033](../decisions/0033-campus-foreground-memory-cache.md) through a new decision, not rewrite its
-accepted no-disk policy in place.
+The persistent-snapshot proposal is recorded in
+[0035](../decisions/0035-campus-device-snapshot-and-schedule-widgets.md). The product requirement
+permits device storage of the allowlisted name and timetable. The decision remains `Proposed` until
+the complete implementation ships; that implementation must mark it `Accepted` and supersede
+[0033](../decisions/0033-campus-foreground-memory-cache.md), rather than rewriting its accepted
+no-disk policy in place. Until then the current application's retention behavior remains unchanged.
 
 Campus displays last successful update, offline/stale status and refresh progress. Local clock changes
 derive today's display from the stored calendar/timetable and stored adjustment rules where supported;

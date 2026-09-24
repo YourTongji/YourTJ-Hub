@@ -18,11 +18,12 @@ to the Flutter app. [Mobile experience](mobile-experience.md) records implemente
 and one persistent feed selector. Announcements remain reachable through an expandable summary;
 category discovery must not require a permanently tall second navigation area. Returning to a stream
 restores its items, cursor and reading position. Latest, popular, trending and following are distinct
-streams; following contains posts from followed authors in creation order. Latest retains its existing
+streams; following contains posts from followed authors in `created_at DESC, id DESC` order, with
+pagination cursors based on that tuple. Latest retains its existing
 server ordering unless the product explicitly changes that ordering.
 
-`Current`: the shared reading scale is 17 logical pixels for feed text and 18 for Markdown/editor body
-text. `Planned`: all surfaces use the shared type hierarchy instead of shrinking text to fit controls.
+The implemented reading scale is defined in [mobile experience](mobile-experience.md#navigation-and-reading).
+`Planned`: all surfaces use that shared type hierarchy instead of shrinking text to fit controls.
 Names and action labels remain legible; timestamps and secondary metadata are subordinate. A post
 uses one author line, one body/media region and one action row, with subtle separators rather than
 stacked decorative cards. Color communicates selection and status, not merely decoration.
