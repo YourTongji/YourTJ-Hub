@@ -2661,4 +2661,27 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get messagesReadUnavailable =>
       'This server does not support individual read receipts. Unread messages are preserved.';
+
+  @override
+  String get draftCollapse => 'Collapse';
+
+  @override
+  String get draftKindNew => 'New topic';
+
+  @override
+  String get draftKindServer => 'Cloud draft recovery';
+
+  @override
+  String get draftKindEdit => 'Topic edit';
+
+  @override
+  String get draftKindReply => 'Reply';
+
+  @override
+  String get draftLocalEmpty =>
+      'Unfinished writing is saved here on this device.';
+
+  @override
+  String get draftReplyLeaveUnsaved =>
+      'The latest reply changes could not be saved. Continue editing to retry, or leave without these changes. Any previously saved local copy will remain.';
 }

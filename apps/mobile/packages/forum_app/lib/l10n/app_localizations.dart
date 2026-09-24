@@ -4907,6 +4907,48 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'This server does not support individual read receipts. Unread messages are preserved.'**
   String get messagesReadUnavailable;
+
+  /// No description provided for @draftCollapse.
+  ///
+  /// In en, this message translates to:
+  /// **'Collapse'**
+  String get draftCollapse;
+
+  /// No description provided for @draftKindNew.
+  ///
+  /// In en, this message translates to:
+  /// **'New topic'**
+  String get draftKindNew;
+
+  /// No description provided for @draftKindServer.
+  ///
+  /// In en, this message translates to:
+  /// **'Cloud draft recovery'**
+  String get draftKindServer;
+
+  /// No description provided for @draftKindEdit.
+  ///
+  /// In en, this message translates to:
+  /// **'Topic edit'**
+  String get draftKindEdit;
+
+  /// No description provided for @draftKindReply.
+  ///
+  /// In en, this message translates to:
+  /// **'Reply'**
+  String get draftKindReply;
+
+  /// No description provided for @draftLocalEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'Unfinished writing is saved here on this device.'**
+  String get draftLocalEmpty;
+
+  /// No description provided for @draftReplyLeaveUnsaved.
+  ///
+  /// In en, this message translates to:
+  /// **'The latest reply changes could not be saved. Continue editing to retry, or leave without these changes. Any previously saved local copy will remain.'**
+  String get draftReplyLeaveUnsaved;
 }
 
 class _AppLocalizationsDelegate

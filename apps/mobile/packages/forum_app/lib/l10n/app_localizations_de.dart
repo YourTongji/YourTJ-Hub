@@ -2691,4 +2691,27 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get messagesReadUnavailable =>
       'Dieser Server unterstützt noch keine einzelnen Lesebestätigungen. Ungelesene Nachrichten bleiben erhalten.';
+
+  @override
+  String get draftCollapse => 'Einklappen';
+
+  @override
+  String get draftKindNew => 'Neues Thema';
+
+  @override
+  String get draftKindServer => 'Lokale Kopie eines Cloud-Entwurfs';
+
+  @override
+  String get draftKindEdit => 'Themenbearbeitung';
+
+  @override
+  String get draftKindReply => 'Antwort';
+
+  @override
+  String get draftLocalEmpty =>
+      'Unfertige Beiträge werden auf diesem Gerät gespeichert und hier angezeigt.';
+
+  @override
+  String get draftReplyLeaveUnsaved =>
+      'Die letzten Änderungen an der Antwort konnten nicht gespeichert werden. Weiterbearbeiten und erneut versuchen oder diese Änderungen verwerfen und die Seite verlassen. Eine zuvor gespeicherte lokale Kopie bleibt erhalten.';
 }

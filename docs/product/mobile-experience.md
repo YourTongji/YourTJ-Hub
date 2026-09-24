@@ -310,10 +310,16 @@ corresponding planned ownership and lifecycle contracts.
 - `Current`: changed editors debounce local recovery saves by 700 ms and flush when leaving or
   the app becomes inactive. Title, Markdown/simple text, type, category IDs and uploaded image URLs
   survive reopening, including when the page metadata request fails. Save progress, success and
-  retryable storage failure are visible. Local recovery has one slot per creation entry type and one
-  per edited topic; switching type retains the entry's slot. A restored editor still obtains current
+  retryable storage failure are visible. Each new composition has an independent identity;
+  changing its content type keeps that identity. Cloud-draft edits, published-topic edits and replies
+  use distinct identities. Earlier v1 recovery slots remain listed and can be explicitly reopened.
+  Opening a cloud draft by its server ID while offline also finds its latest device recovery copy,
+  before the server can confirm whether the topic is published or still a draft.
+  Starting another composition never replaces a previous one. A restored editor still obtains current
   server metadata before publishing.
-- `Current`: drafts show separate local and server sections. Local snapshots use app-private device
+- `Current`: the drafts page presents device and cloud sections in one scroll surface, with a new
+  composition action, content previews, recovery kind and last-edit time. Replies reopen their topic.
+  Failed cloud refreshes retain the displayed drafts and offer an inline retry. Local snapshots use app-private device
   preferences scoped by API origin and numeric account ID, with no token or background cloud upload.
   Logging out hides them; logging back into the same account restores access. Explicit discard or
   successful server acknowledgement removes the matching recovery snapshot; local deletion is
@@ -322,6 +328,16 @@ corresponding planned ownership and lifecycle contracts.
   before the debounce/flush completes can lose the newest unsaved input.
 - `Current`: changed editors offer continue, discard, or save to this device and leave. A server-required
   captcha can be refreshed without discarding content.
+- `Current`: one reply recovery copy per topic preserves text, its reply target and uploaded image URL.
+  Selecting another target replaces only the generated mention prefix, keeping the body. Collapsing,
+  changing floors, leaving the topic and app inactivity preserve the reply; storage failure keeps the
+  editor available with retry. Leaving after a storage failure offers continued editing or an explicit
+  unsaved exit that preserves the previously saved copy. Restored replies rebuild local mention
+  suggestions. An acknowledged send clears only unchanged submitted text; edits made
+  while sending remain recoverable. The returned post ID opens its anchored reply window after success,
+  resets obsolete pagination and updates the reply count used when returning to the feed.
+  Reading a topic without editing creates no draft. Session invalidation prevents queued writing from
+  crossing the account boundary; cache clearing does not delete writing recovery copies.
 - `Planned`: text-to-image cards. No UI claims this feature exists.
 
 ## Campus and sign-in

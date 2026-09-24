@@ -4696,8 +4696,26 @@ void main() {
       expect(find.text('回复 用户 2'), findsOneWidget);
       expect(find.text('@user2 '), findsOneWidget);
 
-      await tester.tap(find.byTooltip('取消'));
+      final composerContext = tester.element(find.byType(GfPostComposer));
+      await tester.tap(
+        find.byTooltip(
+          MaterialLocalizations.of(composerContext).closeButtonTooltip,
+        ),
+      );
       await tester.pumpAndSettle();
+      expect(find.byType(GfPostComposer), findsOneWidget);
+      expect(
+        tester
+            .widget<GfPostComposer>(find.byType(GfPostComposer))
+            .controller
+            .text,
+        isEmpty,
+      );
+      await tester.tap(
+        find.byTooltip(AppLocalizations.of(composerContext).draftCollapse),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byType(GfPostComposer), findsNothing);
       await tester.tap(find.text('参与讨论'));
       await tester.pumpAndSettle();
       expect(find.text('回复 用户 2'), findsNothing);
