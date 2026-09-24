@@ -1887,27 +1887,29 @@ class _PublishPageState extends ConsumerState<PublishPage>
     bool? selected,
   }) {
     final colors = GfTheme.colorsOf(context);
-    return Semantics(
-      toggled: selected,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: selected == true
-              ? colors.primary.withValues(alpha: 0.12)
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(GfTheme.radiiOf(context).field),
-        ),
-        child: GfIconButton(
-          icon: icon,
-          tooltip: tooltip,
-          size: 44,
-          iconSize: 20,
-          color: onPressed == null
-              ? colors.iconMuted.withValues(alpha: 0.4)
-              : selected == true
-              ? colors.primary
-              : colors.iconMuted,
-          onPressed: onPressed,
-          onLongPress: onLongPress,
+    return MergeSemantics(
+      child: Semantics(
+        toggled: selected,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: selected == true
+                ? colors.primary.withValues(alpha: 0.12)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(GfTheme.radiiOf(context).field),
+          ),
+          child: GfIconButton(
+            icon: icon,
+            tooltip: tooltip,
+            size: 44,
+            iconSize: 20,
+            color: onPressed == null
+                ? colors.iconMuted.withValues(alpha: 0.4)
+                : selected == true
+                ? colors.primary
+                : colors.iconMuted,
+            onPressed: onPressed,
+            onLongPress: onLongPress,
+          ),
         ),
       ),
     );

@@ -172,6 +172,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get authForgotTitle => '重置密码';
 
   @override
+  String get authContinueAfterLogin => '登录后继续刚才的浏览或创作。';
+
+  @override
+  String get authSignInMethods => '其他登录方式';
+
+  @override
   String get authLoginSubtitle => '欢迎回来，继续你的讨论和创作。';
 
   @override
@@ -2197,7 +2203,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get campusConfirmBody => '学校认证已完成，请核对身份。确认后此身份可用于登录，换绑时替换原身份，账号邮箱不变。';
 
   @override
-  String get campusPrivacy => '一个账号绑定一个官方身份。校园数据仅本人可见，不保存到设备。';
+  String get campusPrivacy => '一个账号绑定一个官方身份。姓名、校历和课表会保存在本设备，供离线查看；可在下方清除。';
 
   @override
   String get campusDisabled => '本站尚未启用校园连接';

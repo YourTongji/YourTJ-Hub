@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:core/core.dart';
 import 'package:dio/dio.dart';
@@ -9,6 +10,8 @@ import 'package:go_router/go_router.dart';
 import 'package:ui_kit/ui_kit.dart';
 
 import '../l10n/app_localizations.dart';
+import 'navigation/auth_navigation.dart';
+import 'navigation/session_overlays.dart';
 import 'navigation/tab_scroll_registry.dart';
 import 'navigation/route_visibility.dart';
 import 'navigation/reading_chrome.dart';
@@ -40,6 +43,8 @@ import 'pages/settings/schedule_widget_settings_page.dart';
 import 'pages/topic/topic_page.dart';
 import 'providers.dart';
 import 'current_user.dart';
+import 'realtime/foreground_realtime.dart';
+import 'realtime/realtime_updates.dart';
 
 extension on GfShellDestination {
   IconData get icon => switch (this) {
@@ -77,8 +82,12 @@ class GfShell extends ConsumerStatefulWidget {
 }
 
 class _GfShellState extends ConsumerState<GfShell> with WidgetsBindingObserver {
-  Timer? _unreadTimer;
-  bool _pollingUnread = false;
+  late ForegroundRealtimeCoordinator _realtime;
+  late int _realtimeEpoch;
+  bool _realtimeSessionStarted = false;
+  bool _activeInTree = true;
+  Future<void>? _unreadInFlight;
+  bool _unreadDirty = false;
   CancelToken? _unreadCancel;
   bool _unreadNotifications = false;
   bool _unreadMessages = false;
@@ -87,36 +96,139 @@ class _GfShellState extends ConsumerState<GfShell> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    routeVisibilityChanges.addListener(_onRouteVisibilityChanged);
+    _realtimeEpoch = ref.read(offlineCacheEpochProvider);
+    _realtime = _createRealtime();
     unawaited(_purgeStaleOfflineCacheOnBoot());
-    _startUnreadTimer();
-    _pollUnread();
+    unawaited(_pollUnread());
+    _onRouteVisibilityChanged();
   }
 
-  void _startUnreadTimer() {
-    _unreadTimer ??= Timer.periodic(
-      const Duration(seconds: 30),
-      (_) => _pollUnread(),
+  ForegroundRealtimeCoordinator _createRealtime() {
+    return ForegroundRealtimeCoordinator(
+      readToken: ref.read(tokenStorageProvider).read,
+      connect: ref.read(realtimeConnectProvider),
+      onResync: () {
+        if (!mounted || !_activeInTree) return;
+        ref.read(realtimeInvalidationsProvider.notifier).resync();
+        unawaited(_pollUnread());
+      },
+      onEvent: _handleRealtimeEvent,
+      onFallbackTick: () {
+        if (!mounted || !_activeInTree) return;
+        ref.read(realtimeInvalidationsProvider.notifier).notifications();
+        unawaited(_pollUnread());
+      },
+      onHealthChanged: (healthy) {
+        if (mounted && _activeInTree) {
+          ref.read(realtimeHealthyProvider.notifier).setHealthy(healthy);
+        }
+      },
     );
+  }
+
+  void _onRouteVisibilityChanged() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _activeInTree) {
+        unawaited(_ensureRealtimeForCurrentSession());
+      }
+    });
+  }
+
+  Future<void> _ensureRealtimeForCurrentSession() async {
+    if (!mounted ||
+        !_activeInTree ||
+        (WidgetsBinding.instance.lifecycleState != null &&
+            WidgetsBinding.instance.lifecycleState !=
+                AppLifecycleState.resumed) ||
+        !routeIsUncovered(context)) {
+      return;
+    }
+    final epoch = ref.read(offlineCacheEpochProvider);
+    if (_realtimeEpoch != epoch) {
+      _realtime.stop();
+      _realtimeEpoch = epoch;
+      _realtimeSessionStarted = false;
+      _realtime = _createRealtime();
+    }
+    if (_realtimeSessionStarted) return;
+    try {
+      final token = await ref.read(tokenStorageProvider).read();
+      if (!mounted ||
+          !_activeInTree ||
+          epoch != ref.read(offlineCacheEpochProvider) ||
+          !routeIsUncovered(context) ||
+          (WidgetsBinding.instance.lifecycleState != null &&
+              WidgetsBinding.instance.lifecycleState !=
+                  AppLifecycleState.resumed)) {
+        return;
+      }
+      if (token == null || token.isEmpty) return;
+      _realtime.start();
+      _realtimeSessionStarted = true;
+      unawaited(_pollUnread());
+    } catch (_) {
+      // Token storage errors leave the public shell usable; another route or
+      // foreground transition can retry the connection.
+    }
+  }
+
+  @override
+  void deactivate() {
+    _realtime.stop();
+    _realtimeSessionStarted = false;
+    _activeInTree = false;
+    super.deactivate();
+  }
+
+  @override
+  void activate() {
+    super.activate();
+    _activeInTree = true;
+    _onRouteVisibilityChanged();
+  }
+
+  @override
+  void dispose() {
+    _activeInTree = false;
+    _realtime.stop();
+    _unreadCancel?.cancel('shell disposed');
+    shellDrawerOpen.value = false;
+    routeVisibilityChanges.removeListener(_onRouteVisibilityChanged);
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      _startUnreadTimer();
-      _pollUnread();
-      return;
+      unawaited(_ensureRealtimeForCurrentSession());
+    } else {
+      _realtime.stop();
+      _realtimeSessionStarted = false;
+      _unreadCancel?.cancel('application backgrounded');
     }
-    _unreadTimer?.cancel();
-    _unreadTimer = null;
-    _unreadCancel?.cancel('application backgrounded');
   }
 
-  @override
-  void dispose() {
-    _unreadTimer?.cancel();
-    _unreadCancel?.cancel('shell disposed');
-    WidgetsBinding.instance.removeObserver(this);
-    super.dispose();
+  void _handleRealtimeEvent(ForumSseFrame frame) {
+    if (!mounted) return;
+    switch (frame.event) {
+      case 'chat.changed':
+        try {
+          final event = ForumRealtimeChatChanged.fromJson(
+            jsonDecode(frame.data) as Map<String, dynamic>,
+          );
+          ref.read(realtimeInvalidationsProvider.notifier).chat(event.convId);
+        } catch (_) {
+          // Unknown or malformed hints cannot replace REST as truth.
+        }
+      case 'notifications.changed':
+        ref.read(realtimeInvalidationsProvider.notifier).notifications();
+      case 'unread.changed':
+        unawaited(_pollUnread());
+      case 'session.invalidated':
+        ref.read(apiClientProvider).onUnauthorized?.call();
+    }
   }
 
   /// 启动兜底:无令牌(上次 401 清库可能被进程中断)时清空离线缓存,
@@ -134,9 +246,26 @@ class _GfShellState extends ConsumerState<GfShell> with WidgetsBindingObserver {
     }
   }
 
-  Future<void> _pollUnread() async {
-    if (_pollingUnread) return;
-    _pollingUnread = true;
+  Future<void> _pollUnread() {
+    if (_unreadInFlight case final inFlight?) {
+      _unreadDirty = true;
+      return inFlight;
+    }
+    final request = _fetchUnread();
+    _unreadInFlight = request;
+    unawaited(
+      request.whenComplete(() {
+        _unreadInFlight = null;
+        if (_unreadDirty && mounted && _activeInTree) {
+          _unreadDirty = false;
+          unawaited(_pollUnread());
+        }
+      }),
+    );
+    return request;
+  }
+
+  Future<void> _fetchUnread() async {
     final epoch = ref.read(offlineCacheEpochProvider);
     final cancel = _unreadCancel = CancelToken();
     try {
@@ -161,7 +290,6 @@ class _GfShellState extends ConsumerState<GfShell> with WidgetsBindingObserver {
     } catch (_) {
       // Unread state is best-effort and never blocks navigation.
     } finally {
-      _pollingUnread = false;
       if (identical(_unreadCancel, cancel)) _unreadCancel = null;
     }
   }
@@ -192,6 +320,14 @@ class _GfShellState extends ConsumerState<GfShell> with WidgetsBindingObserver {
         context.go('/login');
       }
     });
+    ref.listen(offlineCacheEpochProvider, (int? previous, int next) {
+      if (next != previous) {
+        _realtime.stop();
+        _realtimeSessionStarted = false;
+        _unreadCancel?.cancel('session changed');
+        _unreadDirty = false;
+      }
+    });
 
     final chrome = ref.watch(readingChromeProvider);
     final duration = MediaQuery.disableAnimationsOf(context)
@@ -200,6 +336,7 @@ class _GfShellState extends ConsumerState<GfShell> with WidgetsBindingObserver {
     return Scaffold(
       drawer: const AccountDrawer(),
       onDrawerChanged: (open) {
+        shellDrawerOpen.value = open;
         ref.read(readingChromeProvider).show();
         if (open) ref.invalidate(accountCardProvider);
       },
@@ -311,10 +448,21 @@ int? publishTopicIdFromUri(Uri uri) {
 }
 
 final appNavigatorKey = GlobalKey<NavigatorState>();
+final appSessionOverlays = SessionOverlayRegistry();
 final GoRouter appRouter = GoRouter(
   navigatorKey: appNavigatorKey,
-  observers: [VisibilityRouteObserver()],
   initialLocation: '/',
+  observers: [VisibilityRouteObserver(), appSessionOverlays.observer()],
+  redirect: (context, state) => authNavigationRedirect(
+    requested: state.uri,
+    previousLocation: appRouter.routerDelegate.currentConfiguration.isEmpty
+        ? null
+        : appRouter.state.uri.toString(),
+    tokenStorage: ProviderScope.containerOf(
+      context,
+      listen: false,
+    ).read(tokenStorageProvider),
+  ),
   routes: <RouteBase>[
     StatefulShellRoute.indexedStack(
       builder:
@@ -325,19 +473,19 @@ final GoRouter appRouter = GoRouter(
           ) => GfShell(navigationShell: navigationShell),
       branches: <StatefulShellBranch>[
         StatefulShellBranch(
-          observers: [VisibilityRouteObserver()],
+          observers: [VisibilityRouteObserver(), appSessionOverlays.observer()],
           routes: <RouteBase>[
             GoRoute(path: '/', builder: (_, _) => const HomePage()),
           ],
         ),
         StatefulShellBranch(
-          observers: [VisibilityRouteObserver()],
+          observers: [VisibilityRouteObserver(), appSessionOverlays.observer()],
           routes: <RouteBase>[
             GoRoute(path: '/campus', builder: (_, _) => const CampusPage()),
           ],
         ),
         StatefulShellBranch(
-          observers: [VisibilityRouteObserver()],
+          observers: [VisibilityRouteObserver(), appSessionOverlays.observer()],
           routes: [
             GoRoute(
               path: '/notifications',
@@ -346,7 +494,7 @@ final GoRouter appRouter = GoRouter(
           ],
         ),
         StatefulShellBranch(
-          observers: [VisibilityRouteObserver()],
+          observers: [VisibilityRouteObserver(), appSessionOverlays.observer()],
           routes: <RouteBase>[
             GoRoute(
               path: '/messages',

@@ -9,6 +9,7 @@ import 'package:forum_app/src/pages/messages/messages_page.dart';
 import 'package:forum_app/src/providers.dart';
 import 'package:forum_app/src/messages/visible_chat_reads.dart';
 import 'package:forum_app/src/navigation/route_visibility.dart';
+import 'package:forum_app/src/realtime/realtime_updates.dart';
 import 'package:ui_kit/ui_kit.dart';
 import 'pages_behavior_test.dart'
     show
@@ -165,6 +166,50 @@ void main() {
 
   ScrollController scroll(WidgetTester tester) =>
       tester.widget<ListView>(find.byType(ListView).last).controller!;
+
+  testWidgets('other conversation hints cannot erase a covered chat update', (
+    tester,
+  ) async {
+    final h = await pumpChat(tester, messages: [makeChatMessage(1)]);
+    h.container.read(realtimeHealthyProvider.notifier).setHealthy(true);
+    await tester.pump();
+    final before = h.repo.afterCalls;
+    h.navigator.currentState!.push(
+      DialogRoute<void>(
+        context: h.navigator.currentContext!,
+        builder: (_) => const AlertDialog(title: Text('Covered')),
+      ),
+    );
+    await tester.pumpAndSettle();
+    h.repo.messages.add(makeChatMessage(2));
+    h.container.read(realtimeInvalidationsProvider.notifier).chat(1);
+    h.container.read(realtimeInvalidationsProvider.notifier).chat(2);
+    await tester.pump();
+    expect(h.repo.afterCalls, before);
+
+    h.navigator.currentState!.pop();
+    await tester.pumpAndSettle();
+    expect(h.repo.afterCalls, greaterThan(before));
+    expect(find.text('消息 2'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('shell drawer suspends visible-read dwell until closed', (
+    tester,
+  ) async {
+    final h = await pumpChat(tester, messages: [makeChatMessage(1)]);
+    addTearDown(() => shellDrawerOpen.value = false);
+    shellDrawerOpen.value = true;
+    await tester.pump();
+    await dwell(tester);
+    expect(h.repo.batches, isEmpty);
+
+    shellDrawerOpen.value = false;
+    await tester.pump();
+    await dwell(tester);
+    expect(h.repo.batches.length, 1);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
 
   testWidgets(
     'prepending older history preserves the anchor without marking unseen rows',

@@ -11,6 +11,7 @@ import 'package:forum_app/src/app_config.dart';
 import 'package:forum_app/src/current_user.dart';
 import 'package:forum_app/src/providers.dart';
 import 'package:forum_app/src/pages/campus/campus_page.dart';
+import 'package:forum_app/src/pages/campus/campus_connection.dart';
 import 'package:forum_app/src/pages/settings/campus_cache_clear_tile.dart';
 import 'package:forum_app/src/pages/settings/schedule_widget_settings_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -102,6 +103,59 @@ void main() {
     store = CampusSnapshotStore(db);
   });
   tearDown(() => db.close());
+
+  for (final locale in ['zh', 'en', 'ja', 'de']) {
+    testWidgets(
+      'campus privacy explains storage beside clear action ($locale)',
+      (tester) async {
+        tester.view.physicalSize = const Size(320, 640);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              campusControllerProvider.overrideWith(
+                (_) => CampusController(ControlledCampusRepository()),
+              ),
+            ],
+            child: MaterialApp(
+              theme: gfThemeData(Brightness.light),
+              locale: Locale(locale),
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              builder: (context, child) => MediaQuery(
+                data: MediaQuery.of(
+                  context,
+                ).copyWith(textScaler: const TextScaler.linear(2)),
+                child: child!,
+              ),
+              home: const Scaffold(
+                body: SingleChildScrollView(
+                  child: Padding(
+                    padding: EdgeInsets.all(16),
+                    child: CampusConnection(),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        final l10n = AppLocalizations.of(
+          tester.element(find.byType(CampusConnection)),
+        );
+        expect(find.text(l10n.campusPrivacy), findsOneWidget);
+        await tester.ensureVisible(find.byType(CampusCacheClearTile));
+        await tester.tap(find.text(l10n.campusCacheClear));
+        await tester.pumpAndSettle();
+        expect(find.byType(GfAlertDialog), findsOneWidget);
+        expect(find.text(l10n.campusCacheClearDescription), findsWidgets);
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pumpAndSettle();
+      },
+    );
+  }
 
   test(
     'persisted timetable tab reuse does not restart school requests after five minutes',

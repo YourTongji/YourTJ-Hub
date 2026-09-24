@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'dart:ui' show Tristate;
+import 'dart:ui' show SemanticsAction, Tristate;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:forum_app/src/local/writing_store.dart';
 import 'package:forum_app/src/current_user.dart';
@@ -794,6 +794,12 @@ void main() {
     );
     expect(button('撤销').onPressed, isNull);
     expect(button('重做').onPressed, isNull);
+    final undoSemantics = tester
+        .getSemantics(find.byTooltip(l10n.publishUndo))
+        .getSemanticsData();
+    expect(undoSemantics.label, l10n.publishUndo);
+    expect(undoSemantics.flagsCollection.isEnabled, Tristate.isFalse);
+    expect(undoSemantics.hasAction(SemanticsAction.tap), isFalse);
     final controller = tester
         .widget<QuillEditor>(find.byType(QuillEditor))
         .controller;
@@ -806,13 +812,14 @@ void main() {
     controller.formatSelection(Attribute.bold);
     await tester.pump();
     expect(button('撤销').onPressed, isNotNull);
-    expect(
-      tester
-          .getSemantics(find.byTooltip(l10n.publishToolBold))
-          .flagsCollection
-          .isToggled,
-      Tristate.isTrue,
-    );
+    final boldSemantics = tester
+        .getSemantics(find.byTooltip(l10n.publishToolBold))
+        .getSemanticsData();
+    expect(boldSemantics.label, l10n.publishToolBold);
+    expect(boldSemantics.flagsCollection.isButton, isTrue);
+    expect(boldSemantics.flagsCollection.isEnabled, Tristate.isTrue);
+    expect(boldSemantics.hasAction(SemanticsAction.tap), isTrue);
+    expect(boldSemantics.flagsCollection.isToggled, Tristate.isTrue);
     controller.updateSelection(
       const TextSelection.collapsed(offset: 7),
       ChangeSource.local,
@@ -821,6 +828,7 @@ void main() {
     expect(
       tester
           .getSemantics(find.byTooltip(l10n.publishToolBold))
+          .getSemanticsData()
           .flagsCollection
           .isToggled,
       Tristate.isFalse,
