@@ -111,4 +111,4 @@ A decision starts `Proposed`. Once implemented, its status becomes `Accepted` an
 
 - [0034](0034-tongji-registration-completion.md) — 同济认证后选择用户名和密码，再原子完成注册。
 
-- [0035](0035-campus-device-snapshot-and-schedule-widgets.md) — 校园白名单设备快照与原生桌面课表（Proposed）。
+- [0035](0035-campus-device-snapshot-and-schedule-widgets.md) — 校园白名单 Drift 快照派生最小投影，供 Android Glance 与 iOS WidgetKit 离线显示。

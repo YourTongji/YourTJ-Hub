@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="widget_background">#FFFDF8</color>
+    <color name="widget_foreground">#1C1B1F</color>
+    <color name="widget_muted">#514D56</color>
+    <color name="widget_divider">#2968636B</color>
+    <color name="widget_accent">#006C4C</color>
+    <color name="course_slot_1">#C53D43</color>
+    <color name="course_slot_2">#D06A2A</color>
+    <color name="course_slot_3">#A47716</color>
+    <color name="course_slot_4">#438B4B</color>
+    <color name="course_slot_5">#267C78</color>
+    <color name="course_slot_6">#3C70B5</color>
+    <color name="course_slot_7">#7256B5</color>
+    <color name="course_slot_8">#A24684</color>
+</resources>

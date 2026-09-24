@@ -1,7 +1,7 @@
 # 校园白名单设备快照与原生桌面课表
 
 ## Status
-Proposed
+Accepted
 Class: architecture
 
 ## Context and Problem Statement
@@ -25,7 +25,7 @@ Class: architecture
 
 ## Decision Outcome
 
-选择 Drift 白名单快照，完整实现后取代 [0033](0033-campus-foreground-memory-cache.md)。`profile`、`calendar`、`timetable`、`today` 以单个版本化 JSON 文档原子替换；行键为规范化 API origin 与论坛数字账号，行内携带校园 `bindingRevision`。普通网络失败保留最后成功文档；损坏或不支持的 schema 安全删除。成绩、消息列表/正文、学校凭据、token 与 cookie 不进入该快照。
+选择 Drift 白名单快照并取代 [0033](0033-campus-foreground-memory-cache.md)。`profile`、`calendar`、`timetable`、`today` 以单个版本化 JSON 文档原子替换；行键为规范化 API origin 与论坛数字账号，行内携带校园 `bindingRevision`。普通网络失败保留最后成功文档；损坏或不支持的 schema 安全删除。成绩、消息列表/正文、学校凭据、token 与 cookie 不进入该快照。
 
 主 App 只在用户手动刷新、首次绑定或重新授权后的完整白名单读取全部成功时提交快照。可见页面的分钟时钟只更新显示和执行上海午夜失效，不发起网络轮询。会话清理、解绑/换绑成功、身份切换、site 不匹配和明确授权失效同时清除校园快照与 Widget 数据。
 
@@ -42,8 +42,6 @@ Flutter 与原生桥使用 `home_widget`。Android 使用与当前 minSdk 24、A
 - 原生直读 Drift/排课器：少一层复制，但把原生端绑定到完整数据库和无关数据域，扩大隐私面与迁移风险，因此拒绝。
 
 ## Links
-
-- [快照与桌面课表实现提案](https://github.com/YourTongji/YourTJ-Hub/pull/764)
 
 - [被取代的前台内存缓存决策](0033-campus-foreground-memory-cache.md)
 - [校园产品与保留规则](../product/campus.md)

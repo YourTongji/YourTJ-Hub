@@ -10,8 +10,8 @@
 
 This specification defines `Planned` contracts and explicitly provisional `Decision needed` policies for the
 [mobile interaction standard](../product/mobile-design-system.md). Existing behavior is recorded in
-[mobile experience](../product/mobile-experience.md) and [campus](../product/campus.md). It does not
-claim an event endpoint or persistent campus snapshot is present in the current application.
+[mobile experience](../product/mobile-experience.md) and [campus](../product/campus.md). The campus snapshot policy is `Current` under accepted decision 0035; foreground event contracts
+remain `Planned` until their implementation is integrated.
 
 ## State ownership
 
@@ -90,25 +90,17 @@ successful fetch time. Hard expiry and user-visible staleness are separate polic
 |---|---|
 | Public forum pages, course metadata and Wiki | Bounded disposable cache; conditional refresh where supported; explicit stale/offline presentation. Private fields retain account scope. |
 | Conversation and notification cache | Private account scope; reconcile on foreground events; cache retrieval never acknowledges reads. |
-| Campus name, calendar, official timetable | `Decision needed`: proposed private allowlisted device snapshot, additionally binding-scoped; initial explicit entry may fill a missing snapshot; existing snapshots refresh by user action. |
+| Campus name, calendar, official timetable | `Current`: private allowlisted device snapshot, additionally binding-scoped; complete successful refreshes replace it atomically; existing snapshots refresh by user action. |
 | Campus grades, academic summaries, school notice bodies | Page-local by default; broader durable retention needs an explicit product/privacy decision. |
 | Credentials | Existing secure session storage/server credential boundary only; never generic cache or draft storage. |
 | Drafts, media pending publication, unsent chat, unsynced plans | Recoverable user work; excluded from cache eviction and clear-cache controls. |
 
-`Decision needed`: the following campus snapshot policy and its acceptance requirements are provisional
-until [0035](../decisions/0035-campus-device-snapshot-and-schedule-widgets.md) is accepted and supersedes
-[0033](../decisions/0033-campus-foreground-memory-cache.md). The current application follows the accepted
-no-disk policy; this specification does not authorize persistence before that replacement.
-
-The proposed Campus snapshot is an explicit application storage policy, not an HTTP cache exception inferred
-from a successful request. Campus API responses retain `private, no-store`; generic HTTP caches must
-not persist them. School tokens remain server-side. Web's private-data lifecycle remains separate.
-The persistent-snapshot proposal is recorded in
-[0035](../decisions/0035-campus-device-snapshot-and-schedule-widgets.md). The product requirement
-permits device storage of the allowlisted name and timetable. The decision remains `Proposed` until
-the complete implementation ships; that implementation must mark it `Accepted` and supersede
-[0033](../decisions/0033-campus-foreground-memory-cache.md), rather than rewriting its accepted
-no-disk policy in place. Until then the current application's retention behavior remains unchanged.
+`Current`: [0035](../decisions/0035-campus-device-snapshot-and-schedule-widgets.md) accepts the
+allowlisted device snapshot and supersedes [0033](../decisions/0033-campus-foreground-memory-cache.md).
+This is an explicit application storage policy. Campus API responses retain `private, no-store`;
+generic HTTP caches must not persist them. School tokens remain server-side, and Web's private-data
+lifecycle remains separate. Only `profile`, `calendar`, `timetable` and `today` enter the snapshot;
+credentials, grades and school message bodies are excluded.
 
 Campus displays last successful update, offline/stale status and refresh progress. Local clock changes
 derive today's display from the stored calendar/timetable and stored adjustment rules where supported;

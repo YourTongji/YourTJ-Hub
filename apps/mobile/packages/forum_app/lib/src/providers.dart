@@ -6,6 +6,8 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'offline/drift_cache.dart';
+import 'offline/campus_snapshot_store.dart';
+import 'campus_widget/schedule_widget_bridge.dart';
 import 'app_config.dart';
 import 'app_locale.dart';
 
@@ -110,6 +112,18 @@ final offlineChatCacheProvider = Provider<OfflineChatCache>((ref) {
   return DriftOfflineCache(ref.watch(offlineDatabaseProvider));
 });
 
+final campusSnapshotStoreProvider = Provider<CampusSnapshotStore>((ref) {
+  return CampusSnapshotStore(ref.watch(offlineDatabaseProvider));
+});
+
+final scheduleWidgetBridgeProvider = Provider<ScheduleWidgetBridge>((ref) {
+  return ScheduleWidgetBridge();
+});
+
+final scheduleWidgetLinkProvider = StreamProvider<Uri?>((ref) {
+  return ref.watch(scheduleWidgetBridgeProvider).links();
+});
+
 /// 清除全部离线缓存(话题 + 会话 + 消息)。
 ///
 /// 登出、401 会话失效、重新登录(进入登录页)时必须清空,否则同一设备上
@@ -117,9 +131,12 @@ final offlineChatCacheProvider = Provider<OfflineChatCache>((ref) {
 Future<void> clearOfflineCache(
   OfflineTopicCache topicCache,
   OfflineChatCache chatCache,
+  ScheduleWidgetBridge widgetBridge,
 ) async {
+  // The production Drift cache clears campus_snapshots in the same transaction.
   await topicCache.clear();
   await chatCache.clear();
+  await widgetBridge.clear(state: 'signedOut');
 }
 
 /// 尽力清除离线缓存,失败静默(清理失败不阻塞登出/会话失效流程,
@@ -127,9 +144,10 @@ Future<void> clearOfflineCache(
 Future<void> clearOfflineCacheQuietly(
   OfflineTopicCache topicCache,
   OfflineChatCache chatCache,
+  ScheduleWidgetBridge widgetBridge,
 ) async {
   try {
-    await clearOfflineCache(topicCache, chatCache);
+    await clearOfflineCache(topicCache, chatCache, widgetBridge);
   } catch (_) {
     // 缓存不可用时忽略。
   }
@@ -185,6 +203,7 @@ final apiClientProvider = Provider<GfApiClient>((ref) {
         await clearOfflineCacheQuietly(
           ref.read(offlineTopicCacheProvider),
           ref.read(offlineChatCacheProvider),
+          ref.read(scheduleWidgetBridgeProvider),
         );
         unauthorizedNotifier.trigger();
       }());
