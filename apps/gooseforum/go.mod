@@ -16,7 +16,7 @@ require (
 	github.com/glebarez/sqlite v1.11.0
 	github.com/go-jose/go-jose/v4 v4.1.5
 	github.com/go-playground/locales v0.14.1
-	github.com/go-playground/universal-translator v0.18.1
+	github.com/go-playground/universal-translator v0.18.2
 	github.com/go-playground/validator/v10 v10.30.4
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/jsonschema-go v0.4.3
