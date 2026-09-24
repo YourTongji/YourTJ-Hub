@@ -402,6 +402,16 @@ class RecordingChatRepository extends ChatRepository {
 
   @override
   Future<bool> markRead({required int convId}) async => true;
+
+  @override
+  Future<ChatVisibleReadResult> markVisible({
+    required int convId,
+    required List<int> messageIds,
+  }) async => ChatVisibleReadResult(
+    convId: convId,
+    acknowledgedMessageIds: messageIds,
+    unreadCount: 0,
+  );
 }
 
 ChatMessagePayload makeChatMessage(int id) {
@@ -430,6 +440,7 @@ class PollingChatRepository extends ChatRepository {
   int afterCalls = 0;
   int beforeCalls = 0;
   int markReadCalls = 0;
+  final visibleReadBatches = <List<int>>[];
 
   @override
   Future<ChatMessagesResponse> getMessages({
@@ -464,6 +475,19 @@ class PollingChatRepository extends ChatRepository {
   Future<bool> markRead({required int convId}) async {
     markReadCalls++;
     return true;
+  }
+
+  @override
+  Future<ChatVisibleReadResult> markVisible({
+    required int convId,
+    required List<int> messageIds,
+  }) async {
+    visibleReadBatches.add(List.of(messageIds));
+    return ChatVisibleReadResult(
+      convId: convId,
+      acknowledgedMessageIds: messageIds,
+      unreadCount: 0,
+    );
   }
 }
 
@@ -3751,7 +3775,12 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(chatRepo.afterCalls, 1);
-      expect(chatRepo.markReadCalls, 2);
+      expect(chatRepo.markReadCalls, 0);
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pumpAndSettle();
+      expect(chatRepo.visibleReadBatches, [
+        [101],
+      ]);
       expect(chatCache.putMessageCalls, 1);
       expect(chatCache.storedMessageIds, <List<int>>[
         <int>[101],
@@ -3762,7 +3791,10 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(chatRepo.afterCalls, 2);
-      expect(chatRepo.markReadCalls, 2);
+      expect(chatRepo.markReadCalls, 0);
+      expect(chatRepo.visibleReadBatches, [
+        [101],
+      ]);
       expect(chatCache.putMessageCalls, 1);
 
       await tester.pumpWidget(const SizedBox.shrink());

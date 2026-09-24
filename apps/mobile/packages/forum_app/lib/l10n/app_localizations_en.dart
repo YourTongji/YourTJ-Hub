@@ -65,6 +65,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get commonSave => 'Save';
 
   @override
+  String imageViewPosition(int index, int count) {
+    return 'View image $index of $count';
+  }
+
+  @override
   String get imageSave => 'Save image';
 
   @override
@@ -1210,6 +1215,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get wikiTitle => 'Wiki';
+
+  @override
+  String get wikiLinkOpenFailed => 'Could not open the link. Please try again.';
 
   @override
   String get wikiRecent => 'Recently updated';
@@ -2635,6 +2643,17 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get coursesPaginationStalled =>
       'No additional courses arrived. Try loading this page again.';
+
+  @override
+  String get messagesNewMessages => 'New messages · Jump to latest';
+
+  @override
+  String get messagesReadSyncFailed =>
+      'Read status could not sync. Unread messages are preserved.';
+
+  @override
+  String get messagesReadUnavailable =>
+      'This server does not support individual read receipts. Unread messages are preserved.';
 
   @override
   String get messagesDraftLabel => 'Draft';

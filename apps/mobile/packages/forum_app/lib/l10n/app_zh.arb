@@ -17,6 +17,7 @@
   "navProfile": "我的",
   "commonCancel": "取消",
   "commonSave": "保存",
+  "imageViewPosition": "查看图片 {index} / {count}",
   "imageSave": "保存图片",
   "imageSaved": "图片已保存",
   "imageSaveFailed": "图片保存失败，请稍后重试",
@@ -651,6 +652,7 @@
   "reviewHelpful": "有用",
   "reviewsEmpty": "还没有评价",
   "wikiTitle": "Wiki",
+  "wikiLinkOpenFailed": "无法打开链接，请重试。",
   "wikiRecent": "最近更新",
   "wikiEditOnGithub": "在 GitHub 编辑",
   "wikiToc": "目录",
@@ -1255,6 +1257,9 @@
   "coursesResetSearch": "重置搜索和筛选",
   "coursesFilterLoadFailed": "筛选项加载失败，请重试。",
   "coursesPaginationStalled": "暂未获取到更多课程，请重试本页。",
+  "messagesNewMessages": "有新消息，回到底部",
+  "messagesReadSyncFailed": "已读状态未同步；你的未读消息会保留。",
+  "messagesReadUnavailable": "服务器暂不支持逐条已读；未读消息会保留。",
   "messagesDraftLabel": "草稿",
   "messagesDraftStorageFailed": "无法读取或保存本机私信草稿，请重试。"
 }
