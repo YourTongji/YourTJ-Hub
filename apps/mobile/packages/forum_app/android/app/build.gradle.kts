@@ -2,6 +2,7 @@ import java.util.Properties
 
 plugins {
     id("com.android.application")
+    id("org.jetbrains.kotlin.plugin.compose")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
 }
@@ -32,7 +33,10 @@ android {
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
-    buildFeatures { buildConfig = true }
+    buildFeatures {
+        buildConfig = true
+        compose = true
+    }
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -101,6 +105,7 @@ tasks.configureEach {
 // Pin both SDK and OEM adapters, including jcore's otherwise dynamic transitive dependency.
 configurations.all { resolutionStrategy.force("cn.jiguang.sdk:jcore:5.5.2") }
 dependencies {
+    implementation("androidx.glance:glance-appwidget:1.2.0")
     implementation("cn.jiguang.sdk:jpush:6.2.1")
     implementation("cn.jiguang.sdk:jcore:5.5.2")
     for (vendor in vendors) implementation("cn.jiguang.sdk.plugin:$vendor:6.2.1")

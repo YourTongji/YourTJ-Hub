@@ -48,7 +48,16 @@ Color _userBadgeColor(UserBadgePayload badge) {
 /// User profile aligned with the web identity card while keeping mobile
 /// navigation, actions and content streams clear and thumb-friendly.
 class ProfilePage extends ConsumerStatefulWidget {
-  const ProfilePage({super.key, this.userId, this.initialStream = 'timeline'});
+  const ProfilePage({super.key, this.userId, this.initialStream = 'timeline'})
+    : connectionsOnly = false;
+
+  const ProfilePage.connections({
+    super.key,
+    this.userId,
+    this.initialStream = 'following',
+  }) : connectionsOnly = true;
+
+  final bool connectionsOnly;
 
   final int? userId;
   final String initialStream;
@@ -57,12 +66,33 @@ class ProfilePage extends ConsumerStatefulWidget {
   ConsumerState<ProfilePage> createState() => _ProfilePageState();
 }
 
+class _ProfileStreamState {
+  UserProfileProps? props;
+  bool loading = false;
+  bool loadingMore = false;
+  Object? error;
+  Object? paginationError;
+  int request = 0;
+  double? offset;
+}
+
 class _ProfilePageState extends ConsumerState<ProfilePage> {
-  AsyncValue<UserProfileProps> _page = const AsyncValue.loading();
-  int _request = 0;
-  bool _loadingMore = false;
-  bool _streamLoading = false;
-  Object? _streamError;
+  final _streams = <String, _ProfileStreamState>{};
+  _ProfileStreamState get _active =>
+      _streams.putIfAbsent(_stream, _ProfileStreamState.new);
+  AsyncValue<UserProfileProps> get _page {
+    final props = _active.props ?? _headerProps;
+    if (props != null) return AsyncValue.data(props);
+    if (_active.error != null) {
+      return AsyncValue.error(_active.error!, StackTrace.current);
+    }
+    return const AsyncValue.loading();
+  }
+
+  bool get _loadingMore => _active.loadingMore;
+  bool get _streamLoading => _active.loading && _active.props == null;
+  Object? get _streamError => _active.error;
+  int _followRevision = 0;
   UserProfileProps? _headerProps;
   double _minimumScrollOffset = 0;
   String _stream = 'timeline';
@@ -86,150 +116,204 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     _load();
   }
 
-  Future<void> _load({
-    bool silent = false,
-    String? nextUrl,
-    bool streamChange = false,
-  }) async {
-    final request = ++_request;
-    final previous = _page.valueOrNull;
-    if (!silent && mounted) {
-      setState(() {
-        _page = const AsyncValue.loading();
-        _loginRequired = false;
-      });
+  @override
+  void didUpdateWidget(covariant ProfilePage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.userId != widget.userId ||
+        oldWidget.initialStream != widget.initialStream ||
+        oldWidget.connectionsOnly != widget.connectionsOnly) {
+      _stream = widget.initialStream;
+      _resetStreams();
+      _load();
     }
+  }
+
+  void _resetStreams() {
+    _streams.clear();
+    _headerProps = null;
+    _minimumScrollOffset = 0;
+    _followBusy = false;
+    _following = false;
+    _canAccessAdmin = false;
+    _canModerate = false;
+    _canManageCourses = false;
+    _followRevision++;
+  }
+
+  Future<void> _load({String? nextUrl, bool streamChange = false}) async {
+    final key = _stream;
+    final state = _active;
+    final request = ++state.request;
+    final epoch = ref.read(offlineCacheEpochProvider);
+    final followRevision = _followRevision;
+    final previous = state.props;
+    bool current() =>
+        mounted &&
+        request == state.request &&
+        identical(_streams[key], state) &&
+        ref.read(offlineCacheEpochProvider) == epoch;
+    setState(() {
+      state.loading = nextUrl == null;
+      state.loadingMore = nextUrl != null;
+      state.error = null;
+      state.paginationError = null;
+      _loginRequired = false;
+    });
     try {
       final int? currentId = (await ref.read(currentUserProvider.future))?.id;
+      if (!mounted || !current()) return;
       final int uid = widget.userId ?? currentId ?? 0;
       if (uid == 0) {
-        if (!mounted) return;
         setState(() {
           _loginRequired = true;
-          _page = AsyncValue.error(
-            AppLocalizations.of(context).profileNotLoggedIn,
-            StackTrace.current,
-          );
+          state.error = AppLocalizations.of(context).profileNotLoggedIn;
         });
         return;
       }
-
-      final path = nextUrl ?? _streamPath(uid, _stream);
-      final PagePayload payload = await ref
-          .read(pageRepositoryProvider)
-          .fetch(path);
+      final path = nextUrl ?? _streamPath(uid, key);
+      final payload = await ref.read(pageRepositoryProvider).fetch(path);
+      if (!mounted || !current()) return;
       var props = parsePageProps<UserProfileProps>(payload);
-      if (!mounted || request != _request) return;
-      if (nextUrl != null && previous != null && props != null) {
-        props = props.copyWith(
-          topics: [...previous.topics, ...props.topics],
-          activities: [...previous.activities, ...props.activities],
-          likes: [...previous.likes, ...props.likes],
-          bookmarks: [...previous.bookmarks, ...props.bookmarks],
-          following: [...previous.following, ...props.following],
-          followers: [...previous.followers, ...props.followers],
-        );
-      }
       if (props == null) {
         throw FormatException(AppLocalizations.of(context).commonParseFailed);
       }
+      if (nextUrl != null && previous != null) {
+        props = props.copyWith(
+          topics: _merge(previous.topics, props.topics, (item) => item.id),
+          activities: _merge(
+            previous.activities,
+            props.activities,
+            (item) => item.id,
+          ),
+          likes: _merge(previous.likes, props.likes, (item) => item.id),
+          bookmarks: _merge(
+            previous.bookmarks,
+            props.bookmarks,
+            (item) => item.id,
+          ),
+          following: _merge(
+            previous.following,
+            props.following,
+            (item) => item.id,
+          ),
+          followers: _merge(
+            previous.followers,
+            props.followers,
+            (item) => item.id,
+          ),
+        );
+      }
       final loaded = props;
       setState(() {
-        _loginRequired = false;
-        _page = AsyncValue.data(loaded);
-        if (!streamChange && nextUrl == null) _headerProps = loaded;
-        _streamLoading = false;
-        _streamError = null;
-        _following = loaded.user.isFollowing;
-        _canAccessAdmin = payload.layout.viewer.canAccessAdmin;
-        _canModerate = payload.layout.viewer.isModerator;
-        _canManageCourses = payload.layout.viewer.canManageCourses;
-      });
-    } catch (e, st) {
-      if (mounted && request == _request) {
-        setState(() {
-          _loginRequired = false;
-          if (streamChange && previous != null) {
-            _page = AsyncValue.data(previous);
-            _streamLoading = false;
-            _streamError = e;
-          } else {
-            _page = AsyncValue.error(e, st);
+        state.props = loaded;
+        // Inactive streams may finish, but cannot replace the visible identity
+        // or undo a follow action started after this read.
+        if (key == _stream && nextUrl == null && !streamChange) {
+          _headerProps = loaded;
+          if (!_followBusy && followRevision == _followRevision) {
+            _following = loaded.user.isFollowing;
           }
+          _canAccessAdmin = payload.layout.viewer.canAccessAdmin;
+          _canModerate = payload.layout.viewer.isModerator;
+          _canManageCourses = payload.layout.viewer.canManageCourses;
+        }
+      });
+    } catch (error) {
+      if (mounted && current()) {
+        setState(() {
+          if (nextUrl != null) {
+            state.paginationError = error;
+          } else {
+            state.error = error;
+          }
+        });
+      }
+    } finally {
+      if (mounted && current()) {
+        setState(() {
+          state.loading = false;
+          state.loadingMore = false;
         });
       }
     }
   }
 
+  List<T> _merge<T>(List<T> previous, List<T> next, int Function(T) id) => {
+    for (final item in previous) id(item): item,
+    for (final item in next) id(item): item,
+  }.values.toList();
+
+  void _selectStream(
+    String key,
+    ScrollController controller,
+    double headerExtent,
+  ) {
+    if (key == _stream) return;
+    _active.offset = controller.offset;
+    final state = _streams.putIfAbsent(key, _ProfileStreamState.new);
+    final offset =
+        state.offset ??
+        math.min(math.max(0.0, controller.offset), headerExtent);
+    setState(() {
+      _stream = key;
+      _minimumScrollOffset = offset;
+    });
+    // Restore after the new slivers have laid out, preserving deep offsets for
+    // visited streams and only the collapsed header for a first visit.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _stream == key && controller.hasClients) {
+        controller.jumpTo(offset);
+      }
+    });
+    if (state.props == null && !state.loading && state.error == null) {
+      _load(streamChange: true);
+    }
+  }
+
   String _streamPath(int uid, String key) => switch (key) {
-    'bookmarks' || 'badges' => '/u/$uid/$key',
+    'bookmarks' || 'badges' || 'following' || 'followers' => '/u/$uid/$key',
     'timeline' => '/u/$uid/activity',
     _ => '/u/$uid/activity/$key',
   };
 
   List<TabItemPayload> _tabs(UserProfileProps props, AppLocalizations l10n) => [
-    TabItemPayload(
-      key: 'timeline',
-      label: l10n.profileActivity,
-      url: '',
-      active: false,
-    ),
-    TabItemPayload(
-      key: 'topics',
-      label: l10n.profileTopics,
-      url: '',
-      active: false,
-    ),
-    TabItemPayload(
-      key: 'likes',
-      label: l10n.profileLikes,
-      url: '',
-      active: false,
-    ),
-    if (props.isOwnProfile)
-      TabItemPayload(
-        key: 'bookmarks',
-        label: l10n.profileBookmarks,
-        url: '',
-        active: false,
-      ),
-    TabItemPayload(
-      key: 'following',
-      label: l10n.profileFollowingCount,
-      url: '',
-      active: false,
-    ),
-    TabItemPayload(
-      key: 'followers',
-      label: l10n.profileFollowers,
-      url: '',
-      active: false,
-    ),
-    TabItemPayload(
-      key: 'badges',
-      label: l10n.profileBadges,
-      url: '',
-      active: false,
-    ),
+    for (final (key, label)
+        in widget.connectionsOnly
+            ? [
+                ('following', l10n.profileFollowingCount),
+                ('followers', l10n.profileFollowers),
+              ]
+            : [
+                ('timeline', l10n.profileActivity),
+                ('topics', l10n.profileTopics),
+                ('likes', l10n.profileLikes),
+                if (props.isOwnProfile) ('bookmarks', l10n.profileBookmarks),
+                ('badges', l10n.profileBadges),
+              ])
+      TabItemPayload(key: key, label: label, url: '', active: key == _stream),
   ];
 
   Future<void> _loadMore(UserProfileProps props) async {
-    if (_loadingMore || !props.pagination.hasNext) return;
+    if (_active.loading || _loadingMore || !props.pagination.hasNext) return;
     final uri = Uri.tryParse(props.pagination.nextUrl);
-    // SSR pagination stays in the current user's profile; reject foreign URLs.
+    // Follow only relative pagination URLs for this exact user and stream.
     if (uri == null ||
         uri.hasScheme ||
         uri.hasAuthority ||
-        !uri.path.startsWith('/u/${props.user.userId}/')) {
+        uri.path != _streamPath(props.user.userId, _stream)) {
       return;
     }
-    setState(() => _loadingMore = true);
-    await _load(silent: true, nextUrl: uri.toString());
-    if (mounted) setState(() => _loadingMore = false);
+    await _load(nextUrl: uri.toString());
   }
 
   Future<void> _toggleFollow(UserCardPayload user) async {
     if (user.isSelf || _followBusy) return;
+    final revision = ++_followRevision;
+    final epoch = ref.read(offlineCacheEpochProvider);
+    bool current() =>
+        mounted &&
+        revision == _followRevision &&
+        ref.read(offlineCacheEpochProvider) == epoch;
     final bool wasFollowing = _following;
     final bool target = !wasFollowing;
     setState(() {
@@ -241,7 +325,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
           .read(topicRepositoryProvider)
           .followUser(userId: user.userId, isFollowing: wasFollowing);
     } catch (error) {
-      if (mounted) {
+      if (mounted && current()) {
         setState(() => _following = wasFollowing);
         showGfToast(
           context,
@@ -250,23 +334,42 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
         );
       }
     } finally {
-      if (mounted) setState(() => _followBusy = false);
+      if (current()) {
+        setState(() {
+          // Reads begun during the mutation also precede its settled truth.
+          _followRevision++;
+          _followBusy = false;
+        });
+      }
     }
   }
 
   Future<void> _openProfileTool(String route) async {
     await context.push(route);
-    if (mounted) await _load(silent: true);
+    if (mounted) await _load();
   }
 
   @override
   Widget build(BuildContext context) {
     final AppLocalizations l10n = AppLocalizations.of(context);
+    ref.listen(offlineCacheEpochProvider, (previous, next) {
+      if (previous == next) return;
+      setState(_resetStreams);
+      _load();
+    });
     return Scaffold(
       appBar: GfAppBar(
-        title: Text(l10n.profileTitle),
+        title: Text(
+          widget.connectionsOnly
+              ? (_stream == 'followers'
+                    ? l10n.profileFollowers
+                    : l10n.profileFollowingCount)
+              : l10n.profileTitle,
+        ),
         automaticallyImplyLeading: true,
-        actions: _isShellProfile || _page.valueOrNull?.isOwnProfile == true
+        actions:
+            !widget.connectionsOnly &&
+                (_isShellProfile || _page.valueOrNull?.isOwnProfile == true)
             ? <Widget>[
                 PopupMenuButton<String>(
                   tooltip: l10n.profileMore,
@@ -329,131 +432,159 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
               ]
             : const <Widget>[],
       ),
-      body: _page.when(
-        loading: () => const GfProfileSkeleton(),
-        error: (e, _) => _isShellProfile
-            ? _ProfileErrorBody(
-                message: resolveErrorMessage(l10n, e),
-                onRetry: _load,
-                showLogin: _loginRequired,
-                l10n: l10n,
-              )
-            : GfErrorRetry(
-                message: resolveErrorMessage(l10n, e),
-                onRetry: _load,
-              ),
-        data: (UserProfileProps props) {
-          final tabs = _tabs(props, l10n);
-          return GfScrollToTop(
-            semanticLabel: l10n.commonBackToTop,
-            controller: _isShellProfile ? _scrollToTopController : null,
-            threshold: 360,
-            builder: (BuildContext context, ScrollController controller) {
-              return AppRefreshIndicator(
-                onRefresh: () => _load(silent: true),
-                child: CustomScrollView(
-                  controller: controller,
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  slivers: <Widget>[
-                    SliverToBoxAdapter(
-                      child: _profileCard(_headerProps ?? props),
-                    ),
-                    if (props.isOwnProfile)
-                      SliverToBoxAdapter(
-                        child: ListTile(
-                          leading: GfSymbol(
-                            'star',
-                            color: GfTheme.colorsOf(context).primary,
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 760),
+          child: _page.when(
+            loading: () => const GfProfileSkeleton(),
+            error: (e, _) => _isShellProfile
+                ? _ProfileErrorBody(
+                    message: resolveErrorMessage(l10n, e),
+                    onRetry: _load,
+                    showLogin: _loginRequired,
+                    l10n: l10n,
+                  )
+                : GfErrorRetry(
+                    message: resolveErrorMessage(l10n, e),
+                    onRetry: _load,
+                  ),
+            data: (UserProfileProps props) {
+              final tabs = _tabs(props, l10n);
+              return GfScrollToTop(
+                semanticLabel: l10n.commonBackToTop,
+                controller: _isShellProfile ? _scrollToTopController : null,
+                threshold: 360,
+                builder: (BuildContext context, ScrollController controller) {
+                  return AppRefreshIndicator(
+                    onRefresh: () => _load(),
+                    child: CustomScrollView(
+                      controller: controller,
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      slivers: <Widget>[
+                        if (widget.connectionsOnly)
+                          SliverToBoxAdapter(
+                            child: Padding(
+                              padding: const EdgeInsets.fromLTRB(
+                                20,
+                                12,
+                                20,
+                                12,
+                              ),
+                              child: Text(
+                                '@${(_headerProps ?? props).user.username}',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  color: GfTheme.colorsOf(context).iconMuted,
+                                ),
+                              ),
+                            ),
                           ),
-                          title: Text(l10n.myCourseReviewsTitle),
-                          trailing: const Icon(Icons.chevron_right),
-                          onTap: () => context.push('/my-course-reviews'),
-                        ),
-                      ),
-                    const SliverToBoxAdapter(child: GfDivider()),
-                    if (tabs.isNotEmpty)
-                      SliverLayoutBuilder(
-                        builder: (context, constraints) => SliverToBoxAdapter(
-                          child: _ProfileTabs(
-                            tabs: tabs,
-                            // Bookmarks only exists on one's own profile, so
-                            // derive selection from the visible stream keys.
-                            index: tabs.indexWhere((tab) => tab.key == _stream),
-                            onChanged: (int index) {
-                              if (_stream == tabs[index].key) return;
-                              // Retain header collapse, not an arbitrary offset
-                              // into the previous stream that could hide status.
-                              final retainedOffset = math.min(
-                                math.max(0.0, controller.offset),
-                                constraints.precedingScrollExtent,
-                              );
-                              controller.jumpTo(retainedOffset);
-                              setState(() {
-                                _minimumScrollOffset = retainedOffset;
-                                _stream = tabs[index].key;
-                                _streamLoading = true;
-                                _streamError = null;
-                              });
-                              _load(silent: true, streamChange: true);
-                            },
+                        if (!widget.connectionsOnly)
+                          SliverToBoxAdapter(
+                            child: _profileCard(_headerProps ?? props),
                           ),
-                        ),
-                      ),
-                    const SliverToBoxAdapter(child: GfDivider()),
-                    if (_streamLoading)
-                      const SliverToBoxAdapter(
-                        child: Padding(
-                          padding: EdgeInsets.all(24),
-                          child: Center(child: GfLoadingIndicator(small: true)),
-                        ),
-                      )
-                    else if (_streamError != null)
-                      SliverToBoxAdapter(
-                        child: GfErrorRetry(
-                          message: resolveErrorMessage(l10n, _streamError!),
-                          onRetry: () {
-                            setState(() {
-                              _streamLoading = true;
-                              _streamError = null;
-                            });
-                            _load(silent: true, streamChange: true);
-                          },
-                        ),
-                      )
-                    else
-                      _ProfileBody(props: props, selectedKey: _stream),
-                    if (!_streamLoading &&
-                        _streamError == null &&
-                        props.pagination.hasNext)
-                      SliverToBoxAdapter(
-                        child: GfListFooter(
-                          progressKey: (_stream, props.pagination.nextUrl),
-                          hasMore: props.pagination.hasNext,
-                          loading: _loadingMore,
-                          onLoadMore: () => _loadMore(props),
-                        ),
-                      ),
+                        if (!widget.connectionsOnly && props.isOwnProfile)
+                          SliverToBoxAdapter(
+                            child: ListTile(
+                              leading: GfSymbol(
+                                'star',
+                                color: GfTheme.colorsOf(context).primary,
+                              ),
+                              title: Text(l10n.myCourseReviewsTitle),
+                              trailing: const Icon(Icons.chevron_right),
+                              onTap: () => context.push('/my-course-reviews'),
+                            ),
+                          ),
+                        const SliverToBoxAdapter(child: GfDivider()),
+                        if (tabs.isNotEmpty)
+                          SliverLayoutBuilder(
+                            builder: (context, constraints) =>
+                                SliverPersistentHeader(
+                                  pinned: true,
+                                  delegate: _ProfileTabsHeader(
+                                    height: math.max(
+                                      52,
+                                      MediaQuery.textScalerOf(
+                                                context,
+                                              ).scale(16) *
+                                              1.4 +
+                                          24,
+                                    ),
+                                    child: _ProfileTabs(
+                                      tabs: tabs,
+                                      index: tabs.indexWhere(
+                                        (tab) => tab.key == _stream,
+                                      ),
+                                      onChanged: (index) => _selectStream(
+                                        tabs[index].key,
+                                        controller,
+                                        constraints.precedingScrollExtent,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                          ),
+                        if (_streamLoading)
+                          const SliverToBoxAdapter(
+                            child: Padding(
+                              padding: EdgeInsets.all(24),
+                              child: Center(
+                                child: GfLoadingIndicator(small: true),
+                              ),
+                            ),
+                          )
+                        else if (_streamError != null)
+                          SliverToBoxAdapter(
+                            child: GfErrorRetry(
+                              message: resolveErrorMessage(l10n, _streamError!),
+                              onRetry: () {
+                                _load(streamChange: true);
+                              },
+                            ),
+                          ),
+                        if (!_streamLoading && _active.props != null)
+                          _ProfileBody(props: props, selectedKey: _stream),
+                        if (!_streamLoading &&
+                            _streamError == null &&
+                            props.pagination.hasNext)
+                          SliverToBoxAdapter(
+                            child: GfListFooter(
+                              key: ValueKey(_stream),
+                              error: _active.paginationError == null
+                                  ? null
+                                  : resolveErrorMessage(
+                                      l10n,
+                                      _active.paginationError!,
+                                    ),
+                              progressKey: (_stream, props.pagination.nextUrl),
+                              hasMore: props.pagination.hasNext,
+                              loading: _loadingMore,
+                              onLoadMore: () => _loadMore(props),
+                            ),
+                          ),
 
-                    // Short/empty streams must not clamp the shared header back
-                    // into view. Reserve only the retained header-collapse offset.
-                    SliverLayoutBuilder(
-                      builder: (context, constraints) => SliverToBoxAdapter(
-                        child: SizedBox(
-                          height: math.max(
-                            32,
-                            _minimumScrollOffset +
-                                constraints.viewportMainAxisExtent -
-                                constraints.precedingScrollExtent,
+                        // Keep short streams from clamping a restored offset.
+                        // First visits retain only the header-collapse offset.
+                        SliverLayoutBuilder(
+                          builder: (context, constraints) => SliverToBoxAdapter(
+                            child: SizedBox(
+                              height: math.max(
+                                32,
+                                _minimumScrollOffset +
+                                    constraints.viewportMainAxisExtent -
+                                    constraints.precedingScrollExtent,
+                              ),
+                            ),
                           ),
                         ),
-                      ),
+                      ],
                     ),
-                  ],
-                ),
+                  );
+                },
               );
             },
-          );
-        },
+          ),
+        ),
       ),
     );
   }
@@ -589,6 +720,10 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
         (l10n.profileFollowers, formatNumber(user.followerCount)),
         (l10n.profileFollowingCount, formatNumber(user.followingCount)),
       ],
+      statActions: {
+        3: () => context.push('/u/${user.userId}/followers'),
+        4: () => context.push('/u/${user.userId}/following'),
+      },
       actions: actions.isEmpty
           ? null
           : Wrap(spacing: 8, runSpacing: 8, children: actions),
@@ -632,13 +767,38 @@ class _ProfileErrorBody extends StatelessWidget {
   }
 }
 
+class _ProfileTabsHeader extends SliverPersistentHeaderDelegate {
+  const _ProfileTabsHeader({required this.height, required this.child});
+  final double height;
+  final Widget child;
+  @override
+  double get minExtent => height;
+  @override
+  double get maxExtent => height;
+  @override
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) => Material(
+    color: GfTheme.colorsOf(context).base100,
+    child: Column(
+      children: [
+        Expanded(child: child),
+        const GfDivider(),
+      ],
+    ),
+  );
+  @override
+  bool shouldRebuild(covariant _ProfileTabsHeader oldDelegate) => true;
+}
+
 class _ProfileTabs extends StatelessWidget {
   const _ProfileTabs({
     required this.tabs,
     required this.index,
     required this.onChanged,
   });
-
   final List<TabItemPayload> tabs;
   final int index;
   final ValueChanged<int> onChanged;
@@ -648,25 +808,25 @@ class _ProfileTabs extends StatelessWidget {
     final colors = GfTheme.colorsOf(context);
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.symmetric(horizontal: 8),
       child: Row(
         children: [
           for (int i = 0; i < tabs.length; i++)
             Tooltip(
               message: tabs[i].label ?? tabs[i].key,
+              excludeFromSemantics: true,
               child: Semantics(
                 selected: i == index,
                 button: true,
                 label: tabs[i].label ?? tabs[i].key,
                 child: InkWell(
                   onTap: () => onChanged(i),
-                  borderRadius: BorderRadius.circular(24),
                   child: Container(
+                    alignment: Alignment.center,
                     constraints: const BoxConstraints(
-                      minWidth: 48,
+                      minWidth: 72,
                       minHeight: 48,
                     ),
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
                     decoration: BoxDecoration(
                       border: Border(
                         bottom: BorderSide(
@@ -677,33 +837,17 @@ class _ProfileTabs extends StatelessWidget {
                         ),
                       ),
                     ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        GfSymbol(
-                          switch (tabs[i].key) {
-                            'topics' => 'file-text',
-                            'likes' => 'heart',
-                            'bookmarks' => 'bookmark',
-                            'following' => 'user-round-plus',
-                            'followers' => 'users-round',
-                            'badges' => 'award',
-                            _ => 'activity',
-                          },
-                          size: 22,
-                          color: i == index ? colors.primary : colors.iconMuted,
+                    child: ExcludeSemantics(
+                      child: Text(
+                        tabs[i].label ?? tabs[i].key,
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: i == index
+                              ? colors.baseContent
+                              : colors.iconMuted,
                         ),
-                        if (i == index) ...[
-                          const SizedBox(width: 8),
-                          Text(
-                            tabs[i].label ?? tabs[i].key,
-                            style: TextStyle(
-                              fontWeight: FontWeight.w600,
-                              color: colors.primary,
-                            ),
-                          ),
-                        ],
-                      ],
+                      ),
                     ),
                   ),
                 ),

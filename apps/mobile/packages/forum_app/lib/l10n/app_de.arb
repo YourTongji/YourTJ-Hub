@@ -167,6 +167,7 @@
   "searchNoUsers": "Keine passenden Nutzer",
   "searchNoCategories": "Keine passenden Kategorien",
   "searchUnavailable": "Suche nicht verfügbar",
+  "searchResultCount": "{shown} angezeigt · {total} Treffer",
   "searchAll": "Alle",
   "searchTopics": "Themen",
   "searchUsers": "Benutzer",
@@ -863,6 +864,31 @@
   "badgeDisplayHint": "Bis zu 5 Abzeichen auswählen und sortieren oder alle abwählen. Unabhängig vom Avatar-Abzeichen.",
   "badgeDisplayUp": "Nach oben",
   "badgeDisplayDown": "Nach unten",
+  "scheduleWidgetSettingsTitle": "Startbildschirm-Stundenplan",
+  "scheduleWidgetPrivacyDescription": "Widgets zeigen Kursnamen, Zeiten, Lehrkräfte und Orte aus dem auf diesem Gerät gespeicherten Stundenplan. Nach einer Aktualisierung erscheint der neue Stand auf dem Startbildschirm.",
+  "scheduleWidgetRefresh": "Aus Offline-Stundenplan aktualisieren",
+  "scheduleWidgetClear": "Startbildschirmdaten löschen",
+  "scheduleWidgetCleared": "Startbildschirm-Stundenplan gelöscht",
+  "scheduleWidgetDiagnostics": "Aktualisierungsdiagnose",
+  "scheduleWidgetDiagnosticsDescription": "Wenn sich Datum oder Kursstatus verzögert aktualisieren, prüfe die Hintergrundaktivität und Akkueinstellungen für YourTJ. Die Menünamen unterscheiden sich je nach Gerät.",
+  "scheduleWidgetTransparencyTitle": "Widget-Hintergrundtransparenz",
+  "scheduleWidgetTransparencyDescription": "Bei höheren Werten scheint mehr vom Hintergrund durch. Der Bereich von 0 % bis 15 % verbindet den Hintergrundeffekt mit gut lesbarem Kurstext.",
+  "campusSnapshotUpdated": "Geräte-Snapshot aktualisiert: {time}",
+  "campusSnapshotStale": "Dieser Snapshot ist möglicherweise veraltet. Bitte aktualisieren.",
+  "campusSnapshotOffline": "Verbindung konnte nicht geprüft werden. Der Geräte-Snapshot wird angezeigt.",
+  "campusSnapshotRefreshFailed": "Einige Daten konnten nicht aktualisiert werden. Bisherige Inhalte bleiben erhalten.",
+  "campusDataNeedsRefresh": "Dieser Inhalt wurde noch nicht aktualisiert. Bitte manuell laden.",
+  "campusCacheClear": "Campus-Cache leeren",
+  "campusCacheClearDescription": "Campus-Snapshots und Stundenplan-Widgets auf diesem Gerät entfernen. Entwürfe, Stundenplanentwürfe und die Hochschulverknüpfung bleiben erhalten.",
+  "campusCacheCleared": "Campus-Cache geleert",
+  "campusCacheClearFailed": "Einige Cache-Daten konnten nicht gelöscht werden. Bitte erneut versuchen.",
+  "@campusSnapshotUpdated": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
   "messagesNewMessages": "Neue Nachrichten · Zum Ende",
   "messagesReadSyncFailed": "Lesestatus konnte nicht synchronisiert werden. Ungelesene Nachrichten bleiben erhalten.",
   "messagesReadUnavailable": "Dieser Server unterstützt noch keine einzelnen Lesebestätigungen. Ungelesene Nachrichten bleiben erhalten."
