@@ -154,6 +154,9 @@ corresponding planned ownership and lifecycle contracts.
   and is cleared at the account/session boundary; it is not persisted across app termination. Only one request for
   each bubble can run at once. The API has no message idempotency key, so ambiguous network failures
   cannot guarantee exactly-once delivery when manually retried.
+- `Partial`: the chat API can acknowledge an explicit set of incoming message IDs and read back
+  individual read flags. The Flutter conversation screen still calls the compatible whole-conversation
+  read endpoint; visible-viewport measurement and the unread new-message prompt are not yet connected.
 
 ## Language and presentation
 

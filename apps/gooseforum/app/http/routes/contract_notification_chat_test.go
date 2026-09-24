@@ -15,6 +15,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/eventNotification"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pushDevice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pushSubscription"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
@@ -52,6 +53,8 @@ func setupNotificationChatContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 	chatAPI.POST("/send", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitMessageSend), UpButterReq(api.SendMessage))
 	chatAPI.POST("/messages", UpButterReq(api.GetMessages))
 	chatAPI.POST("/mark-read", middleware.CheckWritableAccountAllowPendingActivation, UpButterReq(api.MarkChatRead))
+	chatAPI.POST("/mark-visible", middleware.CheckWritableAccountAllowPendingActivation, UpButterReq(api.MarkChatVisibleRead))
+	chatAPI.POST("/message-read-states", UpButterReq(api.GetChatMessageReadStates))
 	return conn, router
 }
 
@@ -385,6 +388,118 @@ func TestChatMarkReadHTTPContract(t *testing.T) {
 			t.Fatalf("non-member status = %d, want 200: %s", recorder.Code, recorder.Body.String())
 		}
 		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "chat-mark-read-failed.json"))
+	})
+}
+
+func TestChatVisibleReadHTTPContract(t *testing.T) {
+	t.Run("success preserves gaps and deduplicates IDs", func(t *testing.T) {
+		conn, router := setupNotificationChatContractTest(t)
+		viewer := createHTTPContractUser(t, conn, 22048)
+		peer := createHTTPContractUser(t, conn, 21024)
+		createContractConversation(t, conn, 27701, viewer.Id, peer.Id)
+		for _, id := range []uint64{29001, 29003, 29004} {
+			createContractMessage(t, conn, id, 27701, peer.Id, "incoming", 0, time.Now())
+		}
+		if err := conn.Model(&imUserChatConfigs.Entity{}).Where("user_id = ? AND conv_id = ?", viewer.Id, 27701).
+			Update("unread_count", 3).Error; err != nil {
+			t.Fatal(err)
+		}
+		recorder := serveJSON(router, "/api/forum/chat/mark-visible",
+			`{"convId":27701,"messageIds":[29003,29001,29003]}`, contractSessionToken(t, viewer))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "chat-mark-visible-success.json"))
+		var unread messages.Entity
+		if err := conn.First(&unread, 29004).Error; err != nil || unread.IsRead != 0 {
+			t.Fatalf("unseen message changed: %+v, %v", unread, err)
+		}
+	})
+
+	t.Run("invalid membership or message shares failure", func(t *testing.T) {
+		conn, router := setupNotificationChatContractTest(t)
+		viewer := createHTTPContractUser(t, conn, contractTestID())
+		peer := createHTTPContractUser(t, conn, contractTestID())
+		outsider := createHTTPContractUser(t, conn, contractTestID())
+		convID := contractTestID()
+		messageID := contractTestID()
+		createContractConversation(t, conn, convID, viewer.Id, peer.Id)
+		createContractMessage(t, conn, messageID, convID, peer.Id, "incoming", 0, time.Now())
+		for _, tc := range []struct {
+			user *users.EntityComplete
+			ids  string
+		}{
+			{viewer, fmt.Sprintf("[%d,999999]", messageID)},
+			{outsider, fmt.Sprintf("[%d]", messageID)},
+		} {
+			body := fmt.Sprintf(`{"convId":%d,"messageIds":%s}`, convID, tc.ids)
+			recorder := serveJSON(router, "/api/forum/chat/mark-visible", body, contractSessionToken(t, tc.user))
+			assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "chat-mark-read-failed.json"))
+		}
+		var unchanged messages.Entity
+		if err := conn.First(&unchanged, messageID).Error; err != nil || unchanged.IsRead != 0 {
+			t.Fatalf("invalid batch marked message read: %+v, %v", unchanged, err)
+		}
+	})
+
+	t.Run("invalid body and session", func(t *testing.T) {
+		conn, router := setupNotificationChatContractTest(t)
+		viewer := createHTTPContractUser(t, conn, contractTestID())
+		for _, body := range []string{
+			`{"convId":1,"messageIds":[]}`,
+			`{"convId":1,"messageIds":[0]}`,
+		} {
+			recorder := serveJSON(router, "/api/forum/chat/mark-visible", body, contractSessionToken(t, viewer))
+			assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "invalid-params.json"))
+		}
+		assertInteractionUnauthenticated(t, router, "/api/forum/chat/mark-visible", `{}`, "auth-required.json")
+	})
+
+	t.Run("frozen account is forbidden", func(t *testing.T) {
+		conn, router := setupNotificationChatContractTest(t)
+		assertInteractionForbidden(t, conn, router, "/api/forum/chat/mark-visible", `{}`, "account-frozen.json")
+	})
+
+	t.Run("pending account can clear its own visible read state", func(t *testing.T) {
+		conn, router := setupNotificationChatContractTest(t)
+		enableContractEmailVerification(t, conn)
+		viewer := createPendingContractUser(t, conn)
+		peer := createHTTPContractUser(t, conn, contractTestID())
+		convID, messageID := contractTestID(), contractTestID()
+		createContractConversation(t, conn, convID, viewer.Id, peer.Id)
+		createContractMessage(t, conn, messageID, convID, peer.Id, "pending read", 0, time.Now())
+		body := fmt.Sprintf(`{"convId":%d,"messageIds":[%d]}`, convID, messageID)
+		recorder := serveJSON(router, "/api/forum/chat/mark-visible", body, contractSessionToken(t, viewer))
+		if got := decodeContractEnvelope(t, recorder); got.Code != 0 {
+			t.Fatalf("pending visible read failed: %s", recorder.Body.String())
+		}
+	})
+}
+
+func TestChatMessageReadStatesHTTPContract(t *testing.T) {
+	t.Run("success includes incoming and outgoing IDs", func(t *testing.T) {
+		conn, router := setupNotificationChatContractTest(t)
+		viewer := createHTTPContractUser(t, conn, 32048)
+		peer := createHTTPContractUser(t, conn, 31024)
+		createContractConversation(t, conn, 37701, viewer.Id, peer.Id)
+		createContractMessage(t, conn, 39001, 37701, peer.Id, "incoming", 1, time.Now())
+		createContractMessage(t, conn, 39002, 37701, viewer.Id, "outgoing", 0, time.Now())
+		createContractMessage(t, conn, 39003, 37701, peer.Id, "incoming", 1, time.Now())
+		createContractMessage(t, conn, 39004, 37701, peer.Id, "unseen", 0, time.Now())
+		// The read-only response uses the conversation counter maintained by
+		// send/read transactions, without scanning the unread backlog.
+		if err := conn.Model(&imUserChatConfigs.Entity{}).Where("user_id = ? AND conv_id = ?", viewer.Id, 37701).
+			Update("unread_count", 1).Error; err != nil {
+			t.Fatal(err)
+		}
+		recorder := serveJSON(router, "/api/forum/chat/message-read-states",
+			`{"convId":37701,"messageIds":[39003,39001,39002,39003]}`, contractSessionToken(t, viewer))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "chat-message-read-states-success.json"))
+	})
+
+	t.Run("invalid IDs do not disclose membership", func(t *testing.T) {
+		conn, router := setupNotificationChatContractTest(t)
+		viewer := createHTTPContractUser(t, conn, contractTestID())
+		recorder := serveJSON(router, "/api/forum/chat/message-read-states",
+			`{"convId":987654321,"messageIds":[1]}`, contractSessionToken(t, viewer))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "chat-messages-failed.json"))
 	})
 }
 

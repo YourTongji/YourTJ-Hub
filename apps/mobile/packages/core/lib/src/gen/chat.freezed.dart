@@ -1122,3 +1122,600 @@ abstract class _ChatMessagesResponse implements ChatMessagesResponse {
   _$$ChatMessagesResponseImplCopyWith<_$ChatMessagesResponseImpl>
   get copyWith => throw _privateConstructorUsedError;
 }
+
+ChatVisibleReadResult _$ChatVisibleReadResultFromJson(
+  Map<String, dynamic> json,
+) {
+  return _ChatVisibleReadResult.fromJson(json);
+}
+
+/// @nodoc
+mixin _$ChatVisibleReadResult {
+  int get convId => throw _privateConstructorUsedError;
+  List<int> get acknowledgedMessageIds => throw _privateConstructorUsedError;
+  int get unreadCount => throw _privateConstructorUsedError;
+
+  /// Serializes this ChatVisibleReadResult to a JSON map.
+  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
+
+  /// Create a copy of ChatVisibleReadResult
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  $ChatVisibleReadResultCopyWith<ChatVisibleReadResult> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class $ChatVisibleReadResultCopyWith<$Res> {
+  factory $ChatVisibleReadResultCopyWith(
+    ChatVisibleReadResult value,
+    $Res Function(ChatVisibleReadResult) then,
+  ) = _$ChatVisibleReadResultCopyWithImpl<$Res, ChatVisibleReadResult>;
+  @useResult
+  $Res call({int convId, List<int> acknowledgedMessageIds, int unreadCount});
+}
+
+/// @nodoc
+class _$ChatVisibleReadResultCopyWithImpl<
+  $Res,
+  $Val extends ChatVisibleReadResult
+>
+    implements $ChatVisibleReadResultCopyWith<$Res> {
+  _$ChatVisibleReadResultCopyWithImpl(this._value, this._then);
+
+  // ignore: unused_field
+  final $Val _value;
+  // ignore: unused_field
+  final $Res Function($Val) _then;
+
+  /// Create a copy of ChatVisibleReadResult
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? convId = null,
+    Object? acknowledgedMessageIds = null,
+    Object? unreadCount = null,
+  }) {
+    return _then(
+      _value.copyWith(
+            convId: null == convId
+                ? _value.convId
+                : convId // ignore: cast_nullable_to_non_nullable
+                      as int,
+            acknowledgedMessageIds: null == acknowledgedMessageIds
+                ? _value.acknowledgedMessageIds
+                : acknowledgedMessageIds // ignore: cast_nullable_to_non_nullable
+                      as List<int>,
+            unreadCount: null == unreadCount
+                ? _value.unreadCount
+                : unreadCount // ignore: cast_nullable_to_non_nullable
+                      as int,
+          )
+          as $Val,
+    );
+  }
+}
+
+/// @nodoc
+abstract class _$$ChatVisibleReadResultImplCopyWith<$Res>
+    implements $ChatVisibleReadResultCopyWith<$Res> {
+  factory _$$ChatVisibleReadResultImplCopyWith(
+    _$ChatVisibleReadResultImpl value,
+    $Res Function(_$ChatVisibleReadResultImpl) then,
+  ) = __$$ChatVisibleReadResultImplCopyWithImpl<$Res>;
+  @override
+  @useResult
+  $Res call({int convId, List<int> acknowledgedMessageIds, int unreadCount});
+}
+
+/// @nodoc
+class __$$ChatVisibleReadResultImplCopyWithImpl<$Res>
+    extends
+        _$ChatVisibleReadResultCopyWithImpl<$Res, _$ChatVisibleReadResultImpl>
+    implements _$$ChatVisibleReadResultImplCopyWith<$Res> {
+  __$$ChatVisibleReadResultImplCopyWithImpl(
+    _$ChatVisibleReadResultImpl _value,
+    $Res Function(_$ChatVisibleReadResultImpl) _then,
+  ) : super(_value, _then);
+
+  /// Create a copy of ChatVisibleReadResult
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? convId = null,
+    Object? acknowledgedMessageIds = null,
+    Object? unreadCount = null,
+  }) {
+    return _then(
+      _$ChatVisibleReadResultImpl(
+        convId: null == convId
+            ? _value.convId
+            : convId // ignore: cast_nullable_to_non_nullable
+                  as int,
+        acknowledgedMessageIds: null == acknowledgedMessageIds
+            ? _value._acknowledgedMessageIds
+            : acknowledgedMessageIds // ignore: cast_nullable_to_non_nullable
+                  as List<int>,
+        unreadCount: null == unreadCount
+            ? _value.unreadCount
+            : unreadCount // ignore: cast_nullable_to_non_nullable
+                  as int,
+      ),
+    );
+  }
+}
+
+/// @nodoc
+@JsonSerializable()
+class _$ChatVisibleReadResultImpl implements _ChatVisibleReadResult {
+  const _$ChatVisibleReadResultImpl({
+    required this.convId,
+    required final List<int> acknowledgedMessageIds,
+    required this.unreadCount,
+  }) : _acknowledgedMessageIds = acknowledgedMessageIds;
+
+  factory _$ChatVisibleReadResultImpl.fromJson(Map<String, dynamic> json) =>
+      _$$ChatVisibleReadResultImplFromJson(json);
+
+  @override
+  final int convId;
+  final List<int> _acknowledgedMessageIds;
+  @override
+  List<int> get acknowledgedMessageIds {
+    if (_acknowledgedMessageIds is EqualUnmodifiableListView)
+      return _acknowledgedMessageIds;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(_acknowledgedMessageIds);
+  }
+
+  @override
+  final int unreadCount;
+
+  @override
+  String toString() {
+    return 'ChatVisibleReadResult(convId: $convId, acknowledgedMessageIds: $acknowledgedMessageIds, unreadCount: $unreadCount)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$ChatVisibleReadResultImpl &&
+            (identical(other.convId, convId) || other.convId == convId) &&
+            const DeepCollectionEquality().equals(
+              other._acknowledgedMessageIds,
+              _acknowledgedMessageIds,
+            ) &&
+            (identical(other.unreadCount, unreadCount) ||
+                other.unreadCount == unreadCount));
+  }
+
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  int get hashCode => Object.hash(
+    runtimeType,
+    convId,
+    const DeepCollectionEquality().hash(_acknowledgedMessageIds),
+    unreadCount,
+  );
+
+  /// Create a copy of ChatVisibleReadResult
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$ChatVisibleReadResultImplCopyWith<_$ChatVisibleReadResultImpl>
+  get copyWith =>
+      __$$ChatVisibleReadResultImplCopyWithImpl<_$ChatVisibleReadResultImpl>(
+        this,
+        _$identity,
+      );
+
+  @override
+  Map<String, dynamic> toJson() {
+    return _$$ChatVisibleReadResultImplToJson(this);
+  }
+}
+
+abstract class _ChatVisibleReadResult implements ChatVisibleReadResult {
+  const factory _ChatVisibleReadResult({
+    required final int convId,
+    required final List<int> acknowledgedMessageIds,
+    required final int unreadCount,
+  }) = _$ChatVisibleReadResultImpl;
+
+  factory _ChatVisibleReadResult.fromJson(Map<String, dynamic> json) =
+      _$ChatVisibleReadResultImpl.fromJson;
+
+  @override
+  int get convId;
+  @override
+  List<int> get acknowledgedMessageIds;
+  @override
+  int get unreadCount;
+
+  /// Create a copy of ChatVisibleReadResult
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  _$$ChatVisibleReadResultImplCopyWith<_$ChatVisibleReadResultImpl>
+  get copyWith => throw _privateConstructorUsedError;
+}
+
+ChatMessageReadState _$ChatMessageReadStateFromJson(Map<String, dynamic> json) {
+  return _ChatMessageReadState.fromJson(json);
+}
+
+/// @nodoc
+mixin _$ChatMessageReadState {
+  int get id => throw _privateConstructorUsedError;
+  int get isRead => throw _privateConstructorUsedError;
+
+  /// Serializes this ChatMessageReadState to a JSON map.
+  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
+
+  /// Create a copy of ChatMessageReadState
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  $ChatMessageReadStateCopyWith<ChatMessageReadState> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class $ChatMessageReadStateCopyWith<$Res> {
+  factory $ChatMessageReadStateCopyWith(
+    ChatMessageReadState value,
+    $Res Function(ChatMessageReadState) then,
+  ) = _$ChatMessageReadStateCopyWithImpl<$Res, ChatMessageReadState>;
+  @useResult
+  $Res call({int id, int isRead});
+}
+
+/// @nodoc
+class _$ChatMessageReadStateCopyWithImpl<
+  $Res,
+  $Val extends ChatMessageReadState
+>
+    implements $ChatMessageReadStateCopyWith<$Res> {
+  _$ChatMessageReadStateCopyWithImpl(this._value, this._then);
+
+  // ignore: unused_field
+  final $Val _value;
+  // ignore: unused_field
+  final $Res Function($Val) _then;
+
+  /// Create a copy of ChatMessageReadState
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({Object? id = null, Object? isRead = null}) {
+    return _then(
+      _value.copyWith(
+            id: null == id
+                ? _value.id
+                : id // ignore: cast_nullable_to_non_nullable
+                      as int,
+            isRead: null == isRead
+                ? _value.isRead
+                : isRead // ignore: cast_nullable_to_non_nullable
+                      as int,
+          )
+          as $Val,
+    );
+  }
+}
+
+/// @nodoc
+abstract class _$$ChatMessageReadStateImplCopyWith<$Res>
+    implements $ChatMessageReadStateCopyWith<$Res> {
+  factory _$$ChatMessageReadStateImplCopyWith(
+    _$ChatMessageReadStateImpl value,
+    $Res Function(_$ChatMessageReadStateImpl) then,
+  ) = __$$ChatMessageReadStateImplCopyWithImpl<$Res>;
+  @override
+  @useResult
+  $Res call({int id, int isRead});
+}
+
+/// @nodoc
+class __$$ChatMessageReadStateImplCopyWithImpl<$Res>
+    extends _$ChatMessageReadStateCopyWithImpl<$Res, _$ChatMessageReadStateImpl>
+    implements _$$ChatMessageReadStateImplCopyWith<$Res> {
+  __$$ChatMessageReadStateImplCopyWithImpl(
+    _$ChatMessageReadStateImpl _value,
+    $Res Function(_$ChatMessageReadStateImpl) _then,
+  ) : super(_value, _then);
+
+  /// Create a copy of ChatMessageReadState
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({Object? id = null, Object? isRead = null}) {
+    return _then(
+      _$ChatMessageReadStateImpl(
+        id: null == id
+            ? _value.id
+            : id // ignore: cast_nullable_to_non_nullable
+                  as int,
+        isRead: null == isRead
+            ? _value.isRead
+            : isRead // ignore: cast_nullable_to_non_nullable
+                  as int,
+      ),
+    );
+  }
+}
+
+/// @nodoc
+@JsonSerializable()
+class _$ChatMessageReadStateImpl implements _ChatMessageReadState {
+  const _$ChatMessageReadStateImpl({required this.id, required this.isRead});
+
+  factory _$ChatMessageReadStateImpl.fromJson(Map<String, dynamic> json) =>
+      _$$ChatMessageReadStateImplFromJson(json);
+
+  @override
+  final int id;
+  @override
+  final int isRead;
+
+  @override
+  String toString() {
+    return 'ChatMessageReadState(id: $id, isRead: $isRead)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$ChatMessageReadStateImpl &&
+            (identical(other.id, id) || other.id == id) &&
+            (identical(other.isRead, isRead) || other.isRead == isRead));
+  }
+
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  int get hashCode => Object.hash(runtimeType, id, isRead);
+
+  /// Create a copy of ChatMessageReadState
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$ChatMessageReadStateImplCopyWith<_$ChatMessageReadStateImpl>
+  get copyWith =>
+      __$$ChatMessageReadStateImplCopyWithImpl<_$ChatMessageReadStateImpl>(
+        this,
+        _$identity,
+      );
+
+  @override
+  Map<String, dynamic> toJson() {
+    return _$$ChatMessageReadStateImplToJson(this);
+  }
+}
+
+abstract class _ChatMessageReadState implements ChatMessageReadState {
+  const factory _ChatMessageReadState({
+    required final int id,
+    required final int isRead,
+  }) = _$ChatMessageReadStateImpl;
+
+  factory _ChatMessageReadState.fromJson(Map<String, dynamic> json) =
+      _$ChatMessageReadStateImpl.fromJson;
+
+  @override
+  int get id;
+  @override
+  int get isRead;
+
+  /// Create a copy of ChatMessageReadState
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  _$$ChatMessageReadStateImplCopyWith<_$ChatMessageReadStateImpl>
+  get copyWith => throw _privateConstructorUsedError;
+}
+
+ChatMessageReadStatesResult _$ChatMessageReadStatesResultFromJson(
+  Map<String, dynamic> json,
+) {
+  return _ChatMessageReadStatesResult.fromJson(json);
+}
+
+/// @nodoc
+mixin _$ChatMessageReadStatesResult {
+  List<ChatMessageReadState> get items => throw _privateConstructorUsedError;
+  int get unreadCount => throw _privateConstructorUsedError;
+
+  /// Serializes this ChatMessageReadStatesResult to a JSON map.
+  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
+
+  /// Create a copy of ChatMessageReadStatesResult
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  $ChatMessageReadStatesResultCopyWith<ChatMessageReadStatesResult>
+  get copyWith => throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class $ChatMessageReadStatesResultCopyWith<$Res> {
+  factory $ChatMessageReadStatesResultCopyWith(
+    ChatMessageReadStatesResult value,
+    $Res Function(ChatMessageReadStatesResult) then,
+  ) =
+      _$ChatMessageReadStatesResultCopyWithImpl<
+        $Res,
+        ChatMessageReadStatesResult
+      >;
+  @useResult
+  $Res call({List<ChatMessageReadState> items, int unreadCount});
+}
+
+/// @nodoc
+class _$ChatMessageReadStatesResultCopyWithImpl<
+  $Res,
+  $Val extends ChatMessageReadStatesResult
+>
+    implements $ChatMessageReadStatesResultCopyWith<$Res> {
+  _$ChatMessageReadStatesResultCopyWithImpl(this._value, this._then);
+
+  // ignore: unused_field
+  final $Val _value;
+  // ignore: unused_field
+  final $Res Function($Val) _then;
+
+  /// Create a copy of ChatMessageReadStatesResult
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({Object? items = null, Object? unreadCount = null}) {
+    return _then(
+      _value.copyWith(
+            items: null == items
+                ? _value.items
+                : items // ignore: cast_nullable_to_non_nullable
+                      as List<ChatMessageReadState>,
+            unreadCount: null == unreadCount
+                ? _value.unreadCount
+                : unreadCount // ignore: cast_nullable_to_non_nullable
+                      as int,
+          )
+          as $Val,
+    );
+  }
+}
+
+/// @nodoc
+abstract class _$$ChatMessageReadStatesResultImplCopyWith<$Res>
+    implements $ChatMessageReadStatesResultCopyWith<$Res> {
+  factory _$$ChatMessageReadStatesResultImplCopyWith(
+    _$ChatMessageReadStatesResultImpl value,
+    $Res Function(_$ChatMessageReadStatesResultImpl) then,
+  ) = __$$ChatMessageReadStatesResultImplCopyWithImpl<$Res>;
+  @override
+  @useResult
+  $Res call({List<ChatMessageReadState> items, int unreadCount});
+}
+
+/// @nodoc
+class __$$ChatMessageReadStatesResultImplCopyWithImpl<$Res>
+    extends
+        _$ChatMessageReadStatesResultCopyWithImpl<
+          $Res,
+          _$ChatMessageReadStatesResultImpl
+        >
+    implements _$$ChatMessageReadStatesResultImplCopyWith<$Res> {
+  __$$ChatMessageReadStatesResultImplCopyWithImpl(
+    _$ChatMessageReadStatesResultImpl _value,
+    $Res Function(_$ChatMessageReadStatesResultImpl) _then,
+  ) : super(_value, _then);
+
+  /// Create a copy of ChatMessageReadStatesResult
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({Object? items = null, Object? unreadCount = null}) {
+    return _then(
+      _$ChatMessageReadStatesResultImpl(
+        items: null == items
+            ? _value._items
+            : items // ignore: cast_nullable_to_non_nullable
+                  as List<ChatMessageReadState>,
+        unreadCount: null == unreadCount
+            ? _value.unreadCount
+            : unreadCount // ignore: cast_nullable_to_non_nullable
+                  as int,
+      ),
+    );
+  }
+}
+
+/// @nodoc
+@JsonSerializable()
+class _$ChatMessageReadStatesResultImpl
+    implements _ChatMessageReadStatesResult {
+  const _$ChatMessageReadStatesResultImpl({
+    required final List<ChatMessageReadState> items,
+    required this.unreadCount,
+  }) : _items = items;
+
+  factory _$ChatMessageReadStatesResultImpl.fromJson(
+    Map<String, dynamic> json,
+  ) => _$$ChatMessageReadStatesResultImplFromJson(json);
+
+  final List<ChatMessageReadState> _items;
+  @override
+  List<ChatMessageReadState> get items {
+    if (_items is EqualUnmodifiableListView) return _items;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(_items);
+  }
+
+  @override
+  final int unreadCount;
+
+  @override
+  String toString() {
+    return 'ChatMessageReadStatesResult(items: $items, unreadCount: $unreadCount)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$ChatMessageReadStatesResultImpl &&
+            const DeepCollectionEquality().equals(other._items, _items) &&
+            (identical(other.unreadCount, unreadCount) ||
+                other.unreadCount == unreadCount));
+  }
+
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  int get hashCode => Object.hash(
+    runtimeType,
+    const DeepCollectionEquality().hash(_items),
+    unreadCount,
+  );
+
+  /// Create a copy of ChatMessageReadStatesResult
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$ChatMessageReadStatesResultImplCopyWith<_$ChatMessageReadStatesResultImpl>
+  get copyWith =>
+      __$$ChatMessageReadStatesResultImplCopyWithImpl<
+        _$ChatMessageReadStatesResultImpl
+      >(this, _$identity);
+
+  @override
+  Map<String, dynamic> toJson() {
+    return _$$ChatMessageReadStatesResultImplToJson(this);
+  }
+}
+
+abstract class _ChatMessageReadStatesResult
+    implements ChatMessageReadStatesResult {
+  const factory _ChatMessageReadStatesResult({
+    required final List<ChatMessageReadState> items,
+    required final int unreadCount,
+  }) = _$ChatMessageReadStatesResultImpl;
+
+  factory _ChatMessageReadStatesResult.fromJson(Map<String, dynamic> json) =
+      _$ChatMessageReadStatesResultImpl.fromJson;
+
+  @override
+  List<ChatMessageReadState> get items;
+  @override
+  int get unreadCount;
+
+  /// Create a copy of ChatMessageReadStatesResult
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  _$$ChatMessageReadStatesResultImplCopyWith<_$ChatMessageReadStatesResultImpl>
+  get copyWith => throw _privateConstructorUsedError;
+}
