@@ -1200,6 +1200,7 @@
   "badgeDisplayHint": "Choose up to 5 badges and their order, or deselect all. Independent of your avatar badge.",
   "badgeDisplayUp": "Move up",
   "badgeDisplayDown": "Move down",
+  "notificationsMarkRead": "Mark as read",
   "scheduleWidgetSettingsTitle": "Home screen schedule",
   "scheduleWidgetPrivacyDescription": "Widgets show course names, times, teachers and locations from the schedule saved on this device. Refreshing the schedule updates the home-screen view.",
   "scheduleWidgetRefresh": "Refresh from offline schedule",

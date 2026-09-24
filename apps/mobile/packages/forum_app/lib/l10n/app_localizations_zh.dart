@@ -2430,6 +2430,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get badgeDisplayDown => '下移';
 
   @override
+  String get notificationsMarkRead => '标为已读';
+
+  @override
   String get scheduleWidgetSettingsTitle => '桌面课表小组件';
 
   @override
