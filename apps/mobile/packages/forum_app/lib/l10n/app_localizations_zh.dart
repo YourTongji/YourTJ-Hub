@@ -2408,4 +2408,13 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get badgeDisplayDown => '下移';
+
+  @override
+  String get messagesNewMessages => '有新消息，回到底部';
+
+  @override
+  String get messagesReadSyncFailed => '已读状态未同步；你的未读消息会保留。';
+
+  @override
+  String get messagesReadUnavailable => '服务器暂不支持逐条已读；未读消息会保留。';
 }

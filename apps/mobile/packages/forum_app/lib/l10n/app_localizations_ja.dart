@@ -2430,4 +2430,13 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get badgeDisplayDown => '下へ';
+
+  @override
+  String get messagesNewMessages => '新着メッセージ・最新へ';
+
+  @override
+  String get messagesReadSyncFailed => '既読状態を同期できませんでした。未読は保持されます。';
+
+  @override
+  String get messagesReadUnavailable => 'このサーバーは個別の既読通知に対応していません。未読は保持されます。';
 }
