@@ -427,6 +427,12 @@ corresponding planned ownership and lifecycle contracts.
   stale results and opens paragraph anchors. Search unavailability has retry feedback. Reading
   keeps directory, Wiki search and GitHub edit actions in a bottom dock; GitHub remains the content
   source of truth.
+- `Current`: Wiki body links open native Wiki pages and the Wiki overview only for the configured
+  site origin (scheme, host and port). External links, including other sites' `/wiki/` paths, retain
+  their destination and use the shared external-link confirmation. Same-site repository attachments
+  under `/wiki/_assets/` open their actual URL in the system browser/app; launch failure keeps the
+  reading page and shows a localized error. Encoded page/file paths, query strings and fragments are
+  preserved, while page-local anchors continue scrolling inside the document.
 - `Current`: sign-in offers account/password, Google, GitHub and Tongji when the published options
   allow it. Password captcha and TOTP remain
   supported. The login captcha stays folded until the password field is first interacted with;

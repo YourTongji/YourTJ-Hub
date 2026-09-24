@@ -2310,6 +2310,12 @@ abstract class AppLocalizations {
   /// **'Wiki'**
   String get wikiTitle;
 
+  /// No description provided for @wikiLinkOpenFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not open the link. Please try again.'**
+  String get wikiLinkOpenFailed;
+
   /// No description provided for @wikiRecent.
   ///
   /// In en, this message translates to:

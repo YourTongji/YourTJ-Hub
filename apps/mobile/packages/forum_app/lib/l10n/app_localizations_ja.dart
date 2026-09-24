@@ -1204,6 +1204,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String get wikiTitle => 'Wiki';
 
   @override
+  String get wikiLinkOpenFailed => 'リンクを開けませんでした。もう一度お試しください。';
+
+  @override
   String get wikiRecent => '最近の更新';
 
   @override

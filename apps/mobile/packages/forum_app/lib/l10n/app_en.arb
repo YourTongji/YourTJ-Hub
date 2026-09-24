@@ -669,6 +669,7 @@
   "reviewHelpful": "Helpful",
   "reviewsEmpty": "No reviews yet",
   "wikiTitle": "Wiki",
+  "wikiLinkOpenFailed": "Could not open the link. Please try again.",
   "wikiRecent": "Recently updated",
   "wikiEditOnGithub": "Edit on GitHub",
   "wikiToc": "Contents",
