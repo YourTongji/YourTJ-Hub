@@ -1349,6 +1349,7 @@ class _NewChatSheetState extends State<_NewChatSheet> {
                   ),
                   GfIconButton(
                     icon: Icons.close,
+                    tooltip: AppLocalizations.of(context).commonClose,
                     size: 44,
                     iconSize: 18,
                     onPressed: () => Navigator.pop(context),

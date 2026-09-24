@@ -9,6 +9,10 @@ YourTJ 移动端设计系统(Flutter):设计 token、`ThemeData` 与 Gf* 组件�
 - **组件分层**:`lib/src/components/` 下 `atoms/`(基础元素)、`business/`(业务组件)、`surfaces/`(容器与浮层)与顶层组件(导航/按钮/卡片等);主题在 `lib/src/theme/`。公开面统一由 `lib/ui_kit.dart` 导出。
 - **依赖方向**:本包运行时只依赖 Flutter、锁定的 TDesign 与 `extended_image`(图片查看器);不依赖 `core` / `auth` / `forum_app`,不发请求、不持有业务状态。
 
+`GfInput` 使用 Flutter 原生 `TextField`，由 Gf token 保持外观，并透传 autofill hints、输入动作、
+自动纠错、建议、大小写、焦点和回调。锁定的 TDesign 输入组件未透传这些原生表单属性；页面继续
+只使用 `GfInput`，由业务层选择凭据/一次性验证码提示以及何时提交 autofill context。
+
 ## 主要组件
 
 - 导航与动作:`GfBottomNavigation`(四个目的地,支持纯图标)、`GfTabBar`、`GfAppBar`(56px 居中导航栏,默认返回 + 显式 leading)、`GfButton` / `GfIconButton` / `GfFloatingAction`。

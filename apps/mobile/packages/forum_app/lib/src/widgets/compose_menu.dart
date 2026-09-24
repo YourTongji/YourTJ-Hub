@@ -12,6 +12,15 @@ Future<void> showComposeMenu(
   required double bottom,
 }) async {
   final l10n = AppLocalizations.of(context);
+  final source = context.findRenderObject();
+  final window = MediaQuery.of(context);
+  final sourceRight = source is RenderBox && source.hasSize
+      ? source.localToGlobal(Offset(source.size.width, 0)).dx
+      : window.size.width;
+  // The dialog belongs to the root navigator; anchor it to the reading column
+  // that opened it, even when the window has gutters and a navigation rail.
+  final rightInset = (window.size.width - window.padding.right - sourceRight)
+      .clamp(0.0, window.size.width);
   final type = await showGeneralDialog<PublishType>(
     context: context,
     barrierDismissible: true,
@@ -34,8 +43,9 @@ Future<void> showComposeMenu(
       child: Align(
         alignment: Alignment.bottomRight,
         child: Padding(
-          padding: EdgeInsets.fromLTRB(24, 16, 16, bottom),
+          padding: EdgeInsets.fromLTRB(24, 16, 16 + rightInset, bottom),
           child: ConstrainedBox(
+            key: const ValueKey('compose-menu'),
             constraints: const BoxConstraints(maxWidth: 320),
             child: SingleChildScrollView(
               child: Column(

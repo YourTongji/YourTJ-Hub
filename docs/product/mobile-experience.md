@@ -436,7 +436,10 @@ corresponding planned ownership and lifecycle contracts.
   reading page and shows a localized error. Encoded page/file paths, query strings and fragments are
   preserved, while page-local anchors continue scrolling inside the document.
 - `Current`: sign-in offers account/password, Google, GitHub and Tongji when the published options
-  allow it. Password captcha and TOTP remain
+  allow it, grouped below the password form. Unconfigured providers are hidden. Native credential
+  fields expose username/password/new-password autofill, email and one-time-code hints and explicit
+  keyboard actions; password-manager saving is requested only after accepting the native session.
+  Narrow layouts and larger text stack the captcha image above its input. Password captcha and TOTP remain
   supported. The login captcha stays folded until the password field is first interacted with;
   the first password focus/input warms the challenge, and a blank outside tap or genuine secure-IME
   dismissal reveals it without taking focus from another explicit control. That reveal is latched through transient Android
@@ -454,6 +457,20 @@ corresponding planned ownership and lifecycle contracts.
   intentionally bypasses flutter_appauth/AppAuth/CustomTabs. No OAuth provider uses a WebView for
   Android login. Non-Android platforms retain AppAuth. `Partial`: the new Android path awaits a
   physical-device APK test; the exact native crash stack remains unproven without logcat.
+- `Current`: native routes that require a session lead guests to sign-in before constructing the
+  private page. Login retains the original native location, including topic reply position, composer
+  context and chat recipient, using an explicit route/query allowlist. External, recursive and
+  malformed return targets fall back to Home. Successful login replaces the old navigation stack and
+  restores only that context; detail pages sit above a fresh Home so Back remains available, while
+  shell destinations open their own branch. Users still explicitly submit posts, follow users or send
+  messages. Keyboard submission shares the button's busy guard for login, TOTP, registration and
+  password recovery. Device settings remain public: guests can change language and appearance without
+  fetching account details or sessions. The category index and account sections retain their
+  sign-in destination alongside appearance, language and desktop-widget preferences. A session change
+  removes dialogs, menus and sheets owned by the previous session from the root and shell navigators, completing pending confirmations as cancelled;
+  new-session overlays remain open. `Partial`: native password-manager prompts and physical-device
+  keyboard behavior still require device validation; widget tests cover route boundaries, four
+  languages, narrow viewports and 200% text.
 
 ## Registration
 
