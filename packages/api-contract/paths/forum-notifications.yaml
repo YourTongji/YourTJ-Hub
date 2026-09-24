@@ -76,6 +76,8 @@ getNotifications:
             examples:
               success:
                 externalValue: ../fixtures/notifications-success.json
+              likePreview:
+                externalValue: ../fixtures/notifications-like-preview-success.json
               mention:
                 externalValue: ../fixtures/notifications-mention-success.json
               invalidFilter:

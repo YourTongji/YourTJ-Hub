@@ -116,6 +116,43 @@ Future<ProviderContainer> _mount(
 }
 
 void main() {
+  testWidgets(
+    'social notifications show actor and template-specific like mark',
+    (tester) async {
+      final repo = _Notifications();
+      await _mount(tester, repo);
+      final item = _page('ignored').items.single.copyWith(
+        eventType: 'comment',
+        actor: const NotificationActorPayload(
+          id: 77,
+          username: 'Alice',
+          avatarUrl: '',
+        ),
+        payload: const NotificationInnerPayload(
+          actorId: 77,
+          templateKey: 'notifications.templates.like',
+        ),
+      );
+      repo.requests.first.$3.complete(
+        NotificationListResponse(
+          items: [item],
+          nextCursor: 0,
+          hasNext: false,
+          unreadCount: 1,
+        ),
+      );
+      await tester.pumpAndSettle();
+      final row = tester.widget<GfNotificationRow>(
+        find.byType(GfNotificationRow),
+      );
+      expect(row.actorName, 'Alice');
+      expect(row.avatarUrl, isNotNull);
+      expect(row.icon, Icons.favorite);
+      expect(row.onActorTap, isNotNull);
+      expect(repo.markOne, isEmpty);
+    },
+  );
+
   for (final locale in [const Locale('en'), const Locale('zh')]) {
     for (final all in [false, true]) {
       testWidgets(
@@ -216,8 +253,8 @@ void main() {
       await tester.pumpAndSettle();
       pagination.complete(_page('Old page', id: 2));
       await tester.pumpAndSettle();
-      expect(find.text('Unread chosen'), findsOneWidget);
-      expect(find.text('Old page'), findsNothing);
+      expect(find.textContaining('Unread chosen'), findsOneWidget);
+      expect(find.textContaining('Old page'), findsNothing);
     },
   );
 
@@ -242,7 +279,7 @@ void main() {
     footer.onLoadMore();
     repo.requests.last.$3.complete(_page('Next', id: 2));
     await tester.pumpAndSettle();
-    expect(find.text('Next'), findsOneWidget);
+    expect(find.textContaining('Next'), findsOneWidget);
   });
 
   testWidgets('server-confirmed read clears a failed read retry', (
@@ -309,8 +346,8 @@ void main() {
       expect(repo.requests.last.$2, 1);
       repo.requests.last.$3.complete(_page('Next', id: 2));
       await tester.pumpAndSettle();
-      expect(find.text('Next'), findsOneWidget);
-      expect(find.text('First'), findsOneWidget);
+      expect(find.textContaining('Next'), findsOneWidget);
+      expect(find.textContaining('First'), findsOneWidget);
     },
   );
 
@@ -326,7 +363,7 @@ void main() {
           .onMarkRead!();
       container.read(offlineCacheEpochProvider.notifier).invalidate();
       await tester.pump();
-      expect(find.text('Account one'), findsNothing);
+      expect(find.textContaining('Account one'), findsNothing);
       repo.requests.last.$3.complete(_page('Account two'));
       await tester.pumpAndSettle();
       repo.markOne.single.$2.complete(true);
@@ -335,7 +372,7 @@ void main() {
         tester.widget<GfNotificationRow>(find.byType(GfNotificationRow)).unread,
         isTrue,
       );
-      expect(find.text('Account two'), findsOneWidget);
+      expect(find.textContaining('Account two'), findsOneWidget);
     },
   );
 
@@ -350,8 +387,8 @@ void main() {
     await tester.pumpAndSettle();
     repo.requests.first.$3.complete(_page('All stale'));
     await tester.pumpAndSettle();
-    expect(find.text('Unread current'), findsOneWidget);
-    expect(find.text('All stale'), findsNothing);
+    expect(find.textContaining('Unread current'), findsOneWidget);
+    expect(find.textContaining('All stale'), findsNothing);
   });
 
   testWidgets('failed refresh retains rows and exposes failure', (
@@ -368,7 +405,7 @@ void main() {
     repo.requests.last.$3.completeError(StateError('offline'));
     await refresh;
     await tester.pumpAndSettle();
-    expect(find.text('Keep this notification'), findsOneWidget);
+    expect(find.textContaining('Keep this notification'), findsOneWidget);
     expect(find.textContaining('offline'), findsOneWidget);
   });
 

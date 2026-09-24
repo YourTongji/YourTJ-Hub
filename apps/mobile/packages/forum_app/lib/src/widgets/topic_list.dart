@@ -96,7 +96,7 @@ class GfTopicList extends StatelessWidget {
         }
         final TopicPayload topic = topics[index];
         return feedMode == GfTopicFeedMode.card
-            ? _topicCard(
+            ? buildTopicFeedCard(
                 context,
                 topic,
                 onReturn: onReturnFromTopic,
@@ -159,7 +159,8 @@ Widget _topicRow(
   );
 }
 
-Widget _topicCard(
+/// Shared author-led topic card for Home and profile topic streams.
+Widget buildTopicFeedCard(
   BuildContext context,
   TopicPayload topic, {
   VoidCallback? onReturn,

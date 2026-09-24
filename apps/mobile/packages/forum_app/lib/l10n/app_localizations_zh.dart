@@ -426,6 +426,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get profileReplies => '回复';
 
   @override
+  String get profileLikedPosts => '赞过';
+
+  @override
   String get profileLikes => '获赞';
 
   @override

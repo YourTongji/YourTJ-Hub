@@ -1290,6 +1290,9 @@ UserLikePayload _$UserLikePayloadFromJson(Map<String, dynamic> json) {
 
 /// @nodoc
 mixin _$UserLikePayload {
+  UserBriefPayload? get author => throw _privateConstructorUsedError;
+  String? get excerpt => throw _privateConstructorUsedError;
+  String? get thumbnailUrl => throw _privateConstructorUsedError;
   int get id => throw _privateConstructorUsedError;
   int get topicId => throw _privateConstructorUsedError;
   String get title => throw _privateConstructorUsedError;
@@ -1313,7 +1316,18 @@ abstract class $UserLikePayloadCopyWith<$Res> {
     $Res Function(UserLikePayload) then,
   ) = _$UserLikePayloadCopyWithImpl<$Res, UserLikePayload>;
   @useResult
-  $Res call({int id, int topicId, String title, String url, String likedAt});
+  $Res call({
+    UserBriefPayload? author,
+    String? excerpt,
+    String? thumbnailUrl,
+    int id,
+    int topicId,
+    String title,
+    String url,
+    String likedAt,
+  });
+
+  $UserBriefPayloadCopyWith<$Res>? get author;
 }
 
 /// @nodoc
@@ -1331,6 +1345,9 @@ class _$UserLikePayloadCopyWithImpl<$Res, $Val extends UserLikePayload>
   @pragma('vm:prefer-inline')
   @override
   $Res call({
+    Object? author = freezed,
+    Object? excerpt = freezed,
+    Object? thumbnailUrl = freezed,
     Object? id = null,
     Object? topicId = null,
     Object? title = null,
@@ -1339,6 +1356,18 @@ class _$UserLikePayloadCopyWithImpl<$Res, $Val extends UserLikePayload>
   }) {
     return _then(
       _value.copyWith(
+            author: freezed == author
+                ? _value.author
+                : author // ignore: cast_nullable_to_non_nullable
+                      as UserBriefPayload?,
+            excerpt: freezed == excerpt
+                ? _value.excerpt
+                : excerpt // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            thumbnailUrl: freezed == thumbnailUrl
+                ? _value.thumbnailUrl
+                : thumbnailUrl // ignore: cast_nullable_to_non_nullable
+                      as String?,
             id: null == id
                 ? _value.id
                 : id // ignore: cast_nullable_to_non_nullable
@@ -1363,6 +1392,20 @@ class _$UserLikePayloadCopyWithImpl<$Res, $Val extends UserLikePayload>
           as $Val,
     );
   }
+
+  /// Create a copy of UserLikePayload
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @pragma('vm:prefer-inline')
+  $UserBriefPayloadCopyWith<$Res>? get author {
+    if (_value.author == null) {
+      return null;
+    }
+
+    return $UserBriefPayloadCopyWith<$Res>(_value.author!, (value) {
+      return _then(_value.copyWith(author: value) as $Val);
+    });
+  }
 }
 
 /// @nodoc
@@ -1374,7 +1417,19 @@ abstract class _$$UserLikePayloadImplCopyWith<$Res>
   ) = __$$UserLikePayloadImplCopyWithImpl<$Res>;
   @override
   @useResult
-  $Res call({int id, int topicId, String title, String url, String likedAt});
+  $Res call({
+    UserBriefPayload? author,
+    String? excerpt,
+    String? thumbnailUrl,
+    int id,
+    int topicId,
+    String title,
+    String url,
+    String likedAt,
+  });
+
+  @override
+  $UserBriefPayloadCopyWith<$Res>? get author;
 }
 
 /// @nodoc
@@ -1391,6 +1446,9 @@ class __$$UserLikePayloadImplCopyWithImpl<$Res>
   @pragma('vm:prefer-inline')
   @override
   $Res call({
+    Object? author = freezed,
+    Object? excerpt = freezed,
+    Object? thumbnailUrl = freezed,
     Object? id = null,
     Object? topicId = null,
     Object? title = null,
@@ -1399,6 +1457,18 @@ class __$$UserLikePayloadImplCopyWithImpl<$Res>
   }) {
     return _then(
       _$UserLikePayloadImpl(
+        author: freezed == author
+            ? _value.author
+            : author // ignore: cast_nullable_to_non_nullable
+                  as UserBriefPayload?,
+        excerpt: freezed == excerpt
+            ? _value.excerpt
+            : excerpt // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        thumbnailUrl: freezed == thumbnailUrl
+            ? _value.thumbnailUrl
+            : thumbnailUrl // ignore: cast_nullable_to_non_nullable
+                  as String?,
         id: null == id
             ? _value.id
             : id // ignore: cast_nullable_to_non_nullable
@@ -1428,6 +1498,9 @@ class __$$UserLikePayloadImplCopyWithImpl<$Res>
 @JsonSerializable()
 class _$UserLikePayloadImpl implements _UserLikePayload {
   const _$UserLikePayloadImpl({
+    this.author,
+    this.excerpt,
+    this.thumbnailUrl,
     required this.id,
     required this.topicId,
     required this.title,
@@ -1438,6 +1511,12 @@ class _$UserLikePayloadImpl implements _UserLikePayload {
   factory _$UserLikePayloadImpl.fromJson(Map<String, dynamic> json) =>
       _$$UserLikePayloadImplFromJson(json);
 
+  @override
+  final UserBriefPayload? author;
+  @override
+  final String? excerpt;
+  @override
+  final String? thumbnailUrl;
   @override
   final int id;
   @override
@@ -1451,7 +1530,7 @@ class _$UserLikePayloadImpl implements _UserLikePayload {
 
   @override
   String toString() {
-    return 'UserLikePayload(id: $id, topicId: $topicId, title: $title, url: $url, likedAt: $likedAt)';
+    return 'UserLikePayload(author: $author, excerpt: $excerpt, thumbnailUrl: $thumbnailUrl, id: $id, topicId: $topicId, title: $title, url: $url, likedAt: $likedAt)';
   }
 
   @override
@@ -1459,6 +1538,10 @@ class _$UserLikePayloadImpl implements _UserLikePayload {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
             other is _$UserLikePayloadImpl &&
+            (identical(other.author, author) || other.author == author) &&
+            (identical(other.excerpt, excerpt) || other.excerpt == excerpt) &&
+            (identical(other.thumbnailUrl, thumbnailUrl) ||
+                other.thumbnailUrl == thumbnailUrl) &&
             (identical(other.id, id) || other.id == id) &&
             (identical(other.topicId, topicId) || other.topicId == topicId) &&
             (identical(other.title, title) || other.title == title) &&
@@ -1468,8 +1551,17 @@ class _$UserLikePayloadImpl implements _UserLikePayload {
 
   @JsonKey(includeFromJson: false, includeToJson: false)
   @override
-  int get hashCode =>
-      Object.hash(runtimeType, id, topicId, title, url, likedAt);
+  int get hashCode => Object.hash(
+    runtimeType,
+    author,
+    excerpt,
+    thumbnailUrl,
+    id,
+    topicId,
+    title,
+    url,
+    likedAt,
+  );
 
   /// Create a copy of UserLikePayload
   /// with the given fields replaced by the non-null parameter values.
@@ -1490,6 +1582,9 @@ class _$UserLikePayloadImpl implements _UserLikePayload {
 
 abstract class _UserLikePayload implements UserLikePayload {
   const factory _UserLikePayload({
+    final UserBriefPayload? author,
+    final String? excerpt,
+    final String? thumbnailUrl,
     required final int id,
     required final int topicId,
     required final String title,
@@ -1500,6 +1595,12 @@ abstract class _UserLikePayload implements UserLikePayload {
   factory _UserLikePayload.fromJson(Map<String, dynamic> json) =
       _$UserLikePayloadImpl.fromJson;
 
+  @override
+  UserBriefPayload? get author;
+  @override
+  String? get excerpt;
+  @override
+  String? get thumbnailUrl;
   @override
   int get id;
   @override
@@ -1525,6 +1626,8 @@ UserBookmarkPayload _$UserBookmarkPayloadFromJson(Map<String, dynamic> json) {
 
 /// @nodoc
 mixin _$UserBookmarkPayload {
+  UserBriefPayload? get author => throw _privateConstructorUsedError;
+  String? get thumbnailUrl => throw _privateConstructorUsedError;
   int get id => throw _privateConstructorUsedError;
   String get type => throw _privateConstructorUsedError;
   int get topicId => throw _privateConstructorUsedError;
@@ -1553,6 +1656,8 @@ abstract class $UserBookmarkPayloadCopyWith<$Res> {
   ) = _$UserBookmarkPayloadCopyWithImpl<$Res, UserBookmarkPayload>;
   @useResult
   $Res call({
+    UserBriefPayload? author,
+    String? thumbnailUrl,
     int id,
     String type,
     int topicId,
@@ -1563,6 +1668,8 @@ abstract class $UserBookmarkPayloadCopyWith<$Res> {
     String url,
     String bookmarkedAt,
   });
+
+  $UserBriefPayloadCopyWith<$Res>? get author;
 }
 
 /// @nodoc
@@ -1580,6 +1687,8 @@ class _$UserBookmarkPayloadCopyWithImpl<$Res, $Val extends UserBookmarkPayload>
   @pragma('vm:prefer-inline')
   @override
   $Res call({
+    Object? author = freezed,
+    Object? thumbnailUrl = freezed,
     Object? id = null,
     Object? type = null,
     Object? topicId = null,
@@ -1592,6 +1701,14 @@ class _$UserBookmarkPayloadCopyWithImpl<$Res, $Val extends UserBookmarkPayload>
   }) {
     return _then(
       _value.copyWith(
+            author: freezed == author
+                ? _value.author
+                : author // ignore: cast_nullable_to_non_nullable
+                      as UserBriefPayload?,
+            thumbnailUrl: freezed == thumbnailUrl
+                ? _value.thumbnailUrl
+                : thumbnailUrl // ignore: cast_nullable_to_non_nullable
+                      as String?,
             id: null == id
                 ? _value.id
                 : id // ignore: cast_nullable_to_non_nullable
@@ -1632,6 +1749,20 @@ class _$UserBookmarkPayloadCopyWithImpl<$Res, $Val extends UserBookmarkPayload>
           as $Val,
     );
   }
+
+  /// Create a copy of UserBookmarkPayload
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @pragma('vm:prefer-inline')
+  $UserBriefPayloadCopyWith<$Res>? get author {
+    if (_value.author == null) {
+      return null;
+    }
+
+    return $UserBriefPayloadCopyWith<$Res>(_value.author!, (value) {
+      return _then(_value.copyWith(author: value) as $Val);
+    });
+  }
 }
 
 /// @nodoc
@@ -1644,6 +1775,8 @@ abstract class _$$UserBookmarkPayloadImplCopyWith<$Res>
   @override
   @useResult
   $Res call({
+    UserBriefPayload? author,
+    String? thumbnailUrl,
     int id,
     String type,
     int topicId,
@@ -1654,6 +1787,9 @@ abstract class _$$UserBookmarkPayloadImplCopyWith<$Res>
     String url,
     String bookmarkedAt,
   });
+
+  @override
+  $UserBriefPayloadCopyWith<$Res>? get author;
 }
 
 /// @nodoc
@@ -1670,6 +1806,8 @@ class __$$UserBookmarkPayloadImplCopyWithImpl<$Res>
   @pragma('vm:prefer-inline')
   @override
   $Res call({
+    Object? author = freezed,
+    Object? thumbnailUrl = freezed,
     Object? id = null,
     Object? type = null,
     Object? topicId = null,
@@ -1682,6 +1820,14 @@ class __$$UserBookmarkPayloadImplCopyWithImpl<$Res>
   }) {
     return _then(
       _$UserBookmarkPayloadImpl(
+        author: freezed == author
+            ? _value.author
+            : author // ignore: cast_nullable_to_non_nullable
+                  as UserBriefPayload?,
+        thumbnailUrl: freezed == thumbnailUrl
+            ? _value.thumbnailUrl
+            : thumbnailUrl // ignore: cast_nullable_to_non_nullable
+                  as String?,
         id: null == id
             ? _value.id
             : id // ignore: cast_nullable_to_non_nullable
@@ -1727,6 +1873,8 @@ class __$$UserBookmarkPayloadImplCopyWithImpl<$Res>
 @JsonSerializable()
 class _$UserBookmarkPayloadImpl implements _UserBookmarkPayload {
   const _$UserBookmarkPayloadImpl({
+    this.author,
+    this.thumbnailUrl,
     required this.id,
     required this.type,
     required this.topicId,
@@ -1741,6 +1889,10 @@ class _$UserBookmarkPayloadImpl implements _UserBookmarkPayload {
   factory _$UserBookmarkPayloadImpl.fromJson(Map<String, dynamic> json) =>
       _$$UserBookmarkPayloadImplFromJson(json);
 
+  @override
+  final UserBriefPayload? author;
+  @override
+  final String? thumbnailUrl;
   @override
   final int id;
   @override
@@ -1762,7 +1914,7 @@ class _$UserBookmarkPayloadImpl implements _UserBookmarkPayload {
 
   @override
   String toString() {
-    return 'UserBookmarkPayload(id: $id, type: $type, topicId: $topicId, postId: $postId, postNo: $postNo, title: $title, excerpt: $excerpt, url: $url, bookmarkedAt: $bookmarkedAt)';
+    return 'UserBookmarkPayload(author: $author, thumbnailUrl: $thumbnailUrl, id: $id, type: $type, topicId: $topicId, postId: $postId, postNo: $postNo, title: $title, excerpt: $excerpt, url: $url, bookmarkedAt: $bookmarkedAt)';
   }
 
   @override
@@ -1770,6 +1922,9 @@ class _$UserBookmarkPayloadImpl implements _UserBookmarkPayload {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
             other is _$UserBookmarkPayloadImpl &&
+            (identical(other.author, author) || other.author == author) &&
+            (identical(other.thumbnailUrl, thumbnailUrl) ||
+                other.thumbnailUrl == thumbnailUrl) &&
             (identical(other.id, id) || other.id == id) &&
             (identical(other.type, type) || other.type == type) &&
             (identical(other.topicId, topicId) || other.topicId == topicId) &&
@@ -1786,6 +1941,8 @@ class _$UserBookmarkPayloadImpl implements _UserBookmarkPayload {
   @override
   int get hashCode => Object.hash(
     runtimeType,
+    author,
+    thumbnailUrl,
     id,
     type,
     topicId,
@@ -1816,6 +1973,8 @@ class _$UserBookmarkPayloadImpl implements _UserBookmarkPayload {
 
 abstract class _UserBookmarkPayload implements UserBookmarkPayload {
   const factory _UserBookmarkPayload({
+    final UserBriefPayload? author,
+    final String? thumbnailUrl,
     required final int id,
     required final String type,
     required final int topicId,
@@ -1830,6 +1989,10 @@ abstract class _UserBookmarkPayload implements UserBookmarkPayload {
   factory _UserBookmarkPayload.fromJson(Map<String, dynamic> json) =
       _$UserBookmarkPayloadImpl.fromJson;
 
+  @override
+  UserBriefPayload? get author;
+  @override
+  String? get thumbnailUrl;
   @override
   int get id;
   @override

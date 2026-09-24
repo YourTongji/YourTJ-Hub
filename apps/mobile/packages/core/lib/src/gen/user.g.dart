@@ -121,6 +121,11 @@ Map<String, dynamic> _$$UserActivityPayloadImplToJson(
 _$UserLikePayloadImpl _$$UserLikePayloadImplFromJson(
   Map<String, dynamic> json,
 ) => _$UserLikePayloadImpl(
+  author: json['author'] == null
+      ? null
+      : UserBriefPayload.fromJson(json['author'] as Map<String, dynamic>),
+  excerpt: json['excerpt'] as String?,
+  thumbnailUrl: json['thumbnailUrl'] as String?,
   id: (json['id'] as num).toInt(),
   topicId: (json['topicId'] as num).toInt(),
   title: json['title'] as String,
@@ -131,6 +136,9 @@ _$UserLikePayloadImpl _$$UserLikePayloadImplFromJson(
 Map<String, dynamic> _$$UserLikePayloadImplToJson(
   _$UserLikePayloadImpl instance,
 ) => <String, dynamic>{
+  'author': instance.author,
+  'excerpt': instance.excerpt,
+  'thumbnailUrl': instance.thumbnailUrl,
   'id': instance.id,
   'topicId': instance.topicId,
   'title': instance.title,
@@ -141,6 +149,10 @@ Map<String, dynamic> _$$UserLikePayloadImplToJson(
 _$UserBookmarkPayloadImpl _$$UserBookmarkPayloadImplFromJson(
   Map<String, dynamic> json,
 ) => _$UserBookmarkPayloadImpl(
+  author: json['author'] == null
+      ? null
+      : UserBriefPayload.fromJson(json['author'] as Map<String, dynamic>),
+  thumbnailUrl: json['thumbnailUrl'] as String?,
   id: (json['id'] as num).toInt(),
   type: json['type'] as String,
   topicId: (json['topicId'] as num).toInt(),
@@ -155,6 +167,8 @@ _$UserBookmarkPayloadImpl _$$UserBookmarkPayloadImplFromJson(
 Map<String, dynamic> _$$UserBookmarkPayloadImplToJson(
   _$UserBookmarkPayloadImpl instance,
 ) => <String, dynamic>{
+  'author': instance.author,
+  'thumbnailUrl': instance.thumbnailUrl,
   'id': instance.id,
   'type': instance.type,
   'topicId': instance.topicId,

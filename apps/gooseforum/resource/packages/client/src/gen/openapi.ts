@@ -7750,7 +7750,9 @@ export interface components {
             /** @description Notification creation time in RFC 3339 format. */
             createdAt: string;
             title: string;
+            /** @description Stored preview; for likes without one, a readable excerpt of the currently visible referenced reply. */
             content: string;
+            /** @description Actor identity with the current public avatar hydrated in a batch when the actor exists. */
             actor: components["schemas"]["TopicAuthorPayload"];
             topic?: components["schemas"]["NotificationTopicRef"];
             /** @description Raw event payload (title/content/templateKey/templateParams/actorId/topicId/postId/metadata and friends); shape varies by eventType. */

@@ -21,6 +21,7 @@ import 'package:forum_app/src/pages/wiki/wiki_home_page.dart';
 import 'package:forum_app/src/pages/wiki/wiki_page.dart';
 import 'package:forum_app/src/providers.dart';
 import 'package:forum_app/src/schedule/schedule_store.dart';
+import 'package:forum_app/src/schedule/schedule_sync.dart';
 import 'package:core/core.dart';
 
 import '../golden_helper.dart';
@@ -767,6 +768,20 @@ void main() {
         pkRepositoryProvider.overrideWithValue(pkRepo ?? FakePkRepository(api)),
         if (notifier != null)
           scheduleStoreProvider.overrideWith((ref) => notifier),
+        // Golden rendering has no native connectivity plugin. Keep the seeded
+        // guest schedule deterministic without subscribing to platform events.
+        scheduleSyncControllerProvider.overrideWith((ref) {
+          final sync = ScheduleSyncController(
+            transport: PkPlansRepositoryTransport(
+              ref.read(pkRepositoryProvider),
+            ),
+            tokenStorage: ref.read(tokenStorageProvider),
+            store: ref.read(scheduleStoreProvider.notifier),
+            readUserId: () async => null,
+          );
+          ref.onDispose(sync.dispose);
+          return sync;
+        }),
         offlineTopicCacheProvider.overrideWithValue(NoopOfflineCache()),
         offlineChatCacheProvider.overrideWithValue(NoopOfflineCache()),
       ],

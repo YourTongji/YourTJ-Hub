@@ -22,6 +22,54 @@ void main() {
 
   for (final brightness in Brightness.values) {
     testWidgets(
+      'Content preview ${brightness.name}',
+      skip: skipGoldens,
+      tags: 'golden',
+      (tester) async {
+        await pumpGfGolden(
+          tester,
+          const SizedBox(
+            width: 390,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                GfContentRow(
+                  author: 'Grey Goose',
+                  avatarUrl: '',
+                  time: '3 分钟前',
+                  text: '在同济，记录日常，也分享一点新发现。',
+                  contextLabel: '发表回复',
+                  contextIcon: Icons.chat_bubble_outline,
+                ),
+                GfContentRow(
+                  author: 'Alice',
+                  avatarUrl: '',
+                  time: '昨天',
+                  title: '这周的校园生活',
+                  text: '从一张课表开始，把学习和课余生活安排得更从容。',
+                ),
+                GfContentRow(
+                  author: '',
+                  avatarUrl: '',
+                  time: '昨天',
+                  title: '收藏的讨论',
+                  text: '旧服务器和匿名作者的内容仍然可以阅读。',
+                ),
+              ],
+            ),
+          ),
+          brightness: brightness,
+        );
+        await expectLater(
+          find.byType(Column).first,
+          matchesGoldenFile('golden/gf_content_row_${brightness.name}.png'),
+        );
+      },
+    );
+  }
+
+  for (final brightness in Brightness.values) {
+    testWidgets(
       'Profile presentation ${brightness.name}',
       skip: skipGoldens,
       tags: 'golden',
@@ -363,17 +411,21 @@ void main() {
         child: Column(
           children: [
             GfNotificationRow(
-              icon: Icons.message,
+              icon: Icons.chat_bubble_outline,
               tone: GfNotificationTone.primary,
-              title: '有人回复了你的话题',
+              actorName: 'Bob',
+              avatarUrl: '',
+              title: 'Bob 回复了你的话题',
               subtitle: '内容预览…',
               time: '3 分钟前',
               unread: true,
             ),
             GfNotificationRow(
-              icon: Icons.person_add,
-              tone: GfNotificationTone.success,
-              title: 'Alice 关注了你',
+              icon: Icons.favorite,
+              tone: GfNotificationTone.like,
+              actorName: 'Alice',
+              avatarUrl: '',
+              title: 'Alice 赞了你的回复',
               subtitle: '',
               time: '昨天',
               unread: false,

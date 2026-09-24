@@ -453,23 +453,28 @@ type UserActivityPayload struct {
 }
 
 type UserLikePayload struct {
-	ID      uint64 `json:"id"`
-	TopicID uint64 `json:"topicId"`
-	Title   string `json:"title"`
-	URL     string `json:"url"`
-	LikedAt string `json:"likedAt"`
+	Author       *TopicAuthorPayload `json:"author,omitempty"`
+	Excerpt      string              `json:"excerpt,omitempty"`
+	ThumbnailURL string              `json:"thumbnailUrl,omitempty"`
+	ID           uint64              `json:"id"`
+	TopicID      uint64              `json:"topicId"`
+	Title        string              `json:"title"`
+	URL          string              `json:"url"`
+	LikedAt      string              `json:"likedAt"`
 }
 
 type UserBookmarkPayload struct {
-	ID           uint64 `json:"id"`
-	Type         string `json:"type"` // topic | post
-	TopicID      uint64 `json:"topicId"`
-	PostID       uint64 `json:"postId,omitempty"`
-	PostNo       uint64 `json:"postNo,omitempty"`
-	Title        string `json:"title"`
-	Excerpt      string `json:"excerpt,omitempty"`
-	URL          string `json:"url"`
-	BookmarkedAt string `json:"bookmarkedAt"`
+	Author       *TopicAuthorPayload `json:"author,omitempty"`
+	ThumbnailURL string              `json:"thumbnailUrl,omitempty"`
+	ID           uint64              `json:"id"`
+	Type         string              `json:"type"` // topic | post
+	TopicID      uint64              `json:"topicId"`
+	PostID       uint64              `json:"postId,omitempty"`
+	PostNo       uint64              `json:"postNo,omitempty"`
+	Title        string              `json:"title"`
+	Excerpt      string              `json:"excerpt,omitempty"`
+	URL          string              `json:"url"`
+	BookmarkedAt string              `json:"bookmarkedAt"`
 }
 
 type UserConnectionPayload struct {
@@ -2136,6 +2141,35 @@ func buildUserProfileActivityTabs(userID uint64, section string, active string) 
 	}
 }
 
+// publicPreviewTopics applies public-topic visibility before exposing cached
+// summaries or author information. First posts are resolved in one batch so the
+// same rule also protects notification and reply-bookmark parent topics.
+func publicPreviewTopics(ids []uint64) map[uint64]*topics.Entity {
+	topicMap := topics.GetPointerMapByIds(ids)
+	firstIDs := make([]uint64, 0, len(topicMap))
+	for id, topic := range topicMap {
+		if topic.Status != 1 || topic.ProcessStatus != topics.ProcessStatusNormal || topic.VisibilityStatus != topics.VisibilityActive || topic.DeletedAt.Valid {
+			delete(topicMap, id)
+			continue
+		}
+		firstIDs = append(firstIDs, topic.FirstPostId)
+	}
+	firstPosts := posts.GetMapByIds(firstIDs)
+	for id, topic := range topicMap {
+		first := firstPosts[topic.FirstPostId]
+		if !publicPreviewPost(first) || first.TopicId != topic.Id {
+			delete(topicMap, id)
+		}
+	}
+	return topicMap
+}
+
+func publicPreviewPost(post *posts.Entity) bool {
+	// User-deleted replies with children remain as unscoped tombstones, including
+	// their original body; process_status alone does not make that body public.
+	return post != nil && post.ProcessStatus == posts.ProcessStatusNormal && post.VisibilityStatus == posts.VisibilityActive && !post.DeletedAt.Valid
+}
+
 func buildUserLikes(refs []topicUserAction.LikedTopicRef) []UserLikePayload {
 	ids := make([]uint64, 0, len(refs))
 	for _, ref := range refs {
@@ -2143,19 +2177,23 @@ func buildUserLikes(refs []topicUserAction.LikedTopicRef) []UserLikePayload {
 			ids = append(ids, ref.TopicID)
 		}
 	}
-	topicMap := topics.GetPointerMapByIds(ids)
+	topicMap := publicPreviewTopics(ids)
+	authors := profilePreviewAuthors(topicMap, nil)
 	res := make([]UserLikePayload, 0, len(refs))
 	for _, ref := range refs {
 		topic := topicMap[ref.TopicID]
-		if topic == nil || topic.Status != 1 || topic.ProcessStatus != 0 {
+		if topic == nil {
 			continue
 		}
 		res = append(res, UserLikePayload{
-			ID:      ref.ID,
-			TopicID: ref.TopicID,
-			Title:   topic.Title,
-			URL:     urlconfig.PostDetail(ref.TopicID),
-			LikedAt: ref.LikedAt.Format(time.RFC3339),
+			ID:           ref.ID,
+			TopicID:      ref.TopicID,
+			Title:        topic.Title,
+			Author:       authors[topic.UserId],
+			Excerpt:      topic.Excerpt,
+			ThumbnailURL: urlutil.Clean(urlutil.Image, topic.FirstImageURL),
+			URL:          urlconfig.PostDetail(ref.TopicID),
+			LikedAt:      ref.LikedAt.Format(time.RFC3339),
 		})
 	}
 	return res
@@ -2168,11 +2206,12 @@ func buildUserBookmarks(refs []topicUserAction.BookmarkedTopicRef) []UserBookmar
 			ids = append(ids, ref.TopicID)
 		}
 	}
-	topicMap := topics.GetPointerMapByIds(ids)
+	topicMap := publicPreviewTopics(ids)
+	authors := profilePreviewAuthors(topicMap, nil)
 	res := make([]UserBookmarkPayload, 0, len(refs))
 	for _, ref := range refs {
 		topic := topicMap[ref.TopicID]
-		if topic == nil || topic.Status != 1 || topic.ProcessStatus != 0 {
+		if topic == nil {
 			continue
 		}
 		res = append(res, UserBookmarkPayload{
@@ -2180,6 +2219,9 @@ func buildUserBookmarks(refs []topicUserAction.BookmarkedTopicRef) []UserBookmar
 			Type:         "topic",
 			TopicID:      ref.TopicID,
 			Title:        topic.Title,
+			Author:       authors[topic.UserId],
+			Excerpt:      topic.Excerpt,
+			ThumbnailURL: urlutil.Clean(urlutil.Image, topic.FirstImageURL),
 			URL:          urlconfig.PostDetail(ref.TopicID),
 			BookmarkedAt: ref.BookmarkedAt.Format(time.RFC3339),
 		})
@@ -2291,7 +2333,7 @@ func buildBookmarkPayloads(refs []mergedBookmarkRef) []UserBookmarkPayload {
 			postIDs = append(postIDs, ref.postID)
 		}
 	}
-	topicMap := topics.GetPointerMapByIds(topicIDs)
+	topicMap := publicPreviewTopics(topicIDs)
 	postEntities := posts.GetByIds(postIDs)
 
 	postMap := make(map[uint64]*posts.Entity, len(postEntities))
@@ -2303,13 +2345,14 @@ func buildBookmarkPayloads(refs []mergedBookmarkRef) []UserBookmarkPayload {
 		postMap[post.Id] = post
 		postTopicIDs = append(postTopicIDs, post.TopicId)
 	}
-	postTopicMap := topics.GetPointerMapByIds(postTopicIDs)
+	postTopicMap := publicPreviewTopics(postTopicIDs)
+	authors := profilePreviewAuthors(topicMap, postEntities)
 
 	for _, ref := range refs {
 		switch ref.kind {
 		case "topic":
 			topic := topicMap[ref.topicID]
-			if topic == nil || topic.Status != 1 || topic.ProcessStatus != 0 {
+			if topic == nil {
 				continue
 			}
 			payloads = append(payloads, UserBookmarkPayload{
@@ -2317,19 +2360,28 @@ func buildBookmarkPayloads(refs []mergedBookmarkRef) []UserBookmarkPayload {
 				Type:         "topic",
 				TopicID:      ref.topicID,
 				Title:        topic.Title,
+				Author:       authors[topic.UserId],
+				Excerpt:      topic.Excerpt,
+				ThumbnailURL: urlutil.Clean(urlutil.Image, topic.FirstImageURL),
 				URL:          urlconfig.PostDetail(ref.topicID),
 				BookmarkedAt: ref.bookmarkedAt.Format(time.RFC3339),
 			})
 		case "post":
 			post := postMap[ref.postID]
-			if post == nil || post.ProcessStatus != 0 {
+			if !publicPreviewPost(post) {
 				continue
 			}
 			topic := postTopicMap[post.TopicId]
-			if topic == nil || topic.Status != 1 || topic.ProcessStatus != 0 {
+			if topic == nil {
 				continue
 			}
+			author := authors[post.UserId]
+			if post.IsAnonymous {
+				author = nil
+			}
 			payloads = append(payloads, UserBookmarkPayload{
+				Author:       author,
+				ThumbnailURL: markdown2html.ExtractFirstImageURL(post.Content),
 				ID:           ref.refID,
 				Type:         "post",
 				TopicID:      post.TopicId,
@@ -2345,15 +2397,30 @@ func buildBookmarkPayloads(refs []mergedBookmarkRef) []UserBookmarkPayload {
 	return payloads
 }
 
-// bookmarkExcerpt 楼层内容预览：压缩空白并截断
-func bookmarkExcerpt(content string) string {
-	compact := strings.Join(strings.Fields(content), " ")
-	runes := []rune(compact)
-	if len(runes) > 120 {
-		return string(runes[:120]) + "…"
+// profilePreviewAuthors batches public author presentation; callers must mask anonymous posts.
+func profilePreviewAuthors(topicMap map[uint64]*topics.Entity, replies []*posts.Entity) map[uint64]*TopicAuthorPayload {
+	ids := make([]uint64, 0, len(topicMap)+len(replies))
+	for _, topic := range topicMap {
+		if topic != nil {
+			ids = append(ids, topic.UserId)
+		}
 	}
-	return compact
+	for _, post := range replies {
+		if post != nil && !post.IsAnonymous {
+			ids = append(ids, post.UserId)
+		}
+	}
+	result := make(map[uint64]*TopicAuthorPayload)
+	for id, user := range users.GetMapByIds(ids) {
+		if user != nil {
+			result[id] = &TopicAuthorPayload{ID: id, Username: user.Username, Nickname: user.Nickname, AvatarURL: user.GetWebAvatarUrl()}
+		}
+	}
+	return result
 }
+
+// bookmarkExcerpt renders Markdown as readable text before truncation.
+func bookmarkExcerpt(content string) string { return markdown2html.ExtractPreview(content, 160) }
 
 // buildPostAnchorURL 楼层锚点链接：/p/post/{topicId}/{postNo}#post-{postId}
 func buildPostAnchorURL(topicID, postNo, postID uint64) string {
@@ -2421,6 +2488,9 @@ func userActivityURL(activity *userActivities.Entity, replyByID map[uint64]*post
 		post := replyByID[activity.SubjectId]
 		if post == nil || post.TopicId == 0 {
 			return ""
+		}
+		if post.PostNo > 0 {
+			return buildPostAnchorURL(post.TopicId, post.PostNo, post.Id)
 		}
 		return urlconfig.PostDetail(post.TopicId) + "#post-" + strconv.FormatUint(post.Id, 10)
 	}
@@ -2770,12 +2840,45 @@ func buildDraftsPageProps(c *gin.Context) DraftsPageProps {
 }
 
 func BuildNotificationPayloads(notifications []*eventNotification.Entity) []NotificationPayload {
+	// Notification snapshots carry names, but avatar presentation is resolved in
+	// one batch. Do not add a lookup to the single-item snapshot converter.
+	actorIDs, postIDs, topicIDs := make([]uint64, 0), make([]uint64, 0), make([]uint64, 0)
+	for _, notification := range notifications {
+		if notification == nil {
+			continue
+		}
+		p := notification.Payload
+		if p.ActorId > 0 {
+			actorIDs = append(actorIDs, p.ActorId)
+		}
+		if notification.EventType == eventNotification.EventTypeLike && p.Content == "" && p.TemplateParams.Preview == "" && p.PostId > 0 {
+			postIDs = append(postIDs, p.PostId)
+			topicIDs = append(topicIDs, p.TopicId)
+		}
+	}
+	authors := users.GetMapByIds(actorIDs)
+	replies := posts.GetMapByIds(postIDs)
+	parents := publicPreviewTopics(topicIDs)
 	items := make([]NotificationPayload, 0, len(notifications))
 	for _, notification := range notifications {
 		if notification == nil {
 			continue
 		}
-		items = append(items, BuildNotificationPayload(notification))
+		item := BuildNotificationPayload(notification)
+		if author := authors[item.Actor.ID]; author != nil {
+			item.Actor.AvatarURL = author.GetWebAvatarUrl()
+			if item.Actor.Username == "" {
+				item.Actor.Username = author.Username
+			}
+		}
+		if notification.EventType == eventNotification.EventTypeLike && item.Content == "" && item.Payload.TemplateParams.Preview == "" {
+			post := replies[notification.Payload.PostId]
+			topic := parents[notification.Payload.TopicId]
+			if publicPreviewPost(post) && topic != nil && post.TopicId == topic.Id {
+				item.Content = bookmarkExcerpt(post.Content)
+			}
+		}
+		items = append(items, item)
 	}
 	return items
 }

@@ -876,6 +876,12 @@ abstract class AppLocalizations {
   /// **'Replies'**
   String get profileReplies;
 
+  /// No description provided for @profileLikedPosts.
+  ///
+  /// In en, this message translates to:
+  /// **'Likes'**
+  String get profileLikedPosts;
+
   /// No description provided for @profileLikes.
   ///
   /// In en, this message translates to:

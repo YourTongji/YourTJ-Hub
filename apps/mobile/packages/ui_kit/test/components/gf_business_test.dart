@@ -196,9 +196,9 @@ void main() {
           ),
         ),
       );
-      expect(find.text('有人回复了你'), findsOneWidget);
+      expect(find.textContaining('有人回复了你'), findsOneWidget);
       expect(find.text('内容预览'), findsOneWidget);
-      expect(find.text('3 分钟前'), findsOneWidget);
+      expect(find.textContaining('3 分钟前'), findsOneWidget);
     });
 
     testWidgets('renders read row without dot', (tester) async {
@@ -214,7 +214,7 @@ void main() {
           ),
         ),
       );
-      expect(find.text('已读通知'), findsOneWidget);
+      expect(find.textContaining('已读通知'), findsOneWidget);
     });
   });
 

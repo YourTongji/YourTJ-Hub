@@ -162,6 +162,11 @@ ordered after the active route in the accessibility tree so iOS does not hide it
   share a compact footer, wrapping on narrow screens or large text. Reply references use Web's
   subtle background and left rule, an author/avatar/floor header, and a four-line preview with
   expand/collapse controls only when the rendered text overflows.
+- `Current`: notification entries use a small event glyph (pink heart for likes), the actor's
+  avatar, a bold actor name within the localized action, inline time and a muted three-line preview.
+  Avatar URLs are resolved in a server batch; likes without a stored preview use the visible reply excerpt.
+  Actor avatars open the profile independently of the notification's read action. Unread dots,
+  acknowledged-read updates and failure retries remain available.
 - `Current`: notification headings resolve the same template keys and event types as Web in the
   selected language, with actor names and topic/content previews. Legacy literal headings take precedence when no template key is present; content previews take
   precedence over topic titles. Protocol-key filtering applies only to heading fields, preserving
@@ -582,6 +587,14 @@ identity survive this layout change. The header keeps a small outer margin for i
 
 ## Profile and privacy
 
+- `Current`: activity, topics, liked posts and bookmarks use flat avatar-led content rows with fine
+  separators. Activity actions sit above normal-weight excerpts; topics, likes and bookmarks show
+  the content author's name, title, excerpt and a compact first-image thumbnail when available.
+  The Liked posts tab means likes given; the profile statistic still counts likes received.
+  Anonymous replies and older servers without author enrichment use an unlinked neutral avatar.
+  Bookmark replies and activity URLs with a post number open that floor. Each profile stream keeps
+  its own scroll position when switching between different row heights.
+
 - `Current`: avatar and cover uploads open a native drag/pinch crop preview with an accessible
   zoom slider and reset action. Avatars export at 300×300; covers at 1600×320 with the central
   mobile area marked. Camera orientation is normalized before cropping. Failed uploads retain
@@ -623,7 +636,7 @@ identity survive this layout change. The header keeps a small outer margin for i
   Settings allow selecting and ordering zero to five owned, enabled badges for the profile header.
   An explicit empty selection hides that row; existing accounts default to their first five badges.
   This selection does not change the avatar badge or the complete earned badge collection.
-  Profile body text uses 16 pixels; statistics prioritize the values and wrap into fewer columns on
+  Profile statistics prioritize the values and wrap into fewer columns on
   narrow screens or at large text sizes. Settings groups use rounded inset surfaces, multiline row
   labels and consistent trailing arrows; avatar upload copy describes image selection and cropping.
 - `Current`: Settings opens a scrollable category index, with device preferences separated from

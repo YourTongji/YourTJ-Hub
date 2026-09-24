@@ -549,3 +549,21 @@ Refreshing drops both `page` and `cursor`, re-queries current follows and replac
 Following rows. Existing rows may remain on screen after an unfollow until explicit refresh;
 continuation pages filter the current relationships immediately. Newly followed content above
 the current cursor appears on refresh. This is a live filtered feed, not a frozen snapshot.
+
+## Profile content previews
+
+`Current`: the existing `X-Goose-Page` profile channel adds optional `author`, `excerpt` and
+`thumbnailUrl` presentation fields to liked-topic entries, and optional `author`/`thumbnailUrl`
+to bookmark entries. These are hand-written page contracts in Go, TypeScript and Dart; no new
+`/api` operation or schema migration is involved. Authors are fetched once per batch, content
+visibility requires an active published topic and a matching, active, normal, undeleted first post,
+resolved in one batch. Anonymous reply bookmarks omit author identity. Reply
+excerpts are plain Markdown previews. Missing fields on older servers remain valid. Bookmark
+ordering and cursor semantics are unchanged; activity reply URLs include the post number when known.
+
+`Current`: notification `actor.avatarUrl` is populated from current public user presentation in
+one batch. The existing `content` field uses a visible reply's readable preview for likes with no
+stored content. Deleted/blocked replies, retained deletion tombstones, and hidden or mismatched
+parent topics (including hidden first posts) are not hydrated;
+stored event snapshots and read-state semantics are unchanged. OpenAPI examples and the shared
+notification fixture cover the enriched response without introducing fields.
