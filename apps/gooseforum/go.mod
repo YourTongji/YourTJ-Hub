@@ -8,7 +8,7 @@ require (
 	github.com/Masterminds/sprig/v3 v3.3.0
 	github.com/SherClockHolmes/webpush-go v1.4.1-0.20260422052225-76cc00f5ac2d
 	github.com/ThreeDotsLabs/watermill v1.5.3
-	github.com/bmatcuk/doublestar/v4 v4.10.0
+	github.com/bmatcuk/doublestar/v4 v4.10.2
 	github.com/dgraph-io/badger/v4 v4.9.6
 	github.com/fsnotify/fsnotify v1.10.1
 	github.com/gin-contrib/gzip v1.2.7
