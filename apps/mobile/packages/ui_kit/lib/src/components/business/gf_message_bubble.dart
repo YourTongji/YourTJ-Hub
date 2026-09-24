@@ -14,10 +14,14 @@ class GfMessageBubble extends StatelessWidget {
     this.time,
     this.maxWidthFactor = 0.88,
     this.contentSpan,
+    this.bubbleKey,
     this.content,
     this.selectable = false,
     this.copyMessageLabel = 'Copy message',
   });
+
+  /// Optional key on the painted bubble, excluding alignment and timestamp.
+  final GlobalKey? bubbleKey;
 
   final String text;
   final bool mine;
@@ -74,6 +78,7 @@ class GfMessageBubble extends StatelessWidget {
       );
     }
     final Widget bubble = Container(
+      key: bubbleKey,
       constraints: BoxConstraints(
         maxWidth: MediaQuery.sizeOf(context).width * maxWidthFactor,
       ),

@@ -4865,6 +4865,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'No additional courses arrived. Try loading this page again.'**
   String get coursesPaginationStalled;
+
+  /// No description provided for @messagesNewMessages.
+  ///
+  /// In en, this message translates to:
+  /// **'New messages · Jump to latest'**
+  String get messagesNewMessages;
+
+  /// No description provided for @messagesReadSyncFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Read status could not sync. Unread messages are preserved.'**
+  String get messagesReadSyncFailed;
+
+  /// No description provided for @messagesReadUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'This server does not support individual read receipts. Unread messages are preserved.'**
+  String get messagesReadUnavailable;
 }
 
 class _AppLocalizationsDelegate

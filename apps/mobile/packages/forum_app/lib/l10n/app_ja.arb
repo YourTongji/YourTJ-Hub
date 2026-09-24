@@ -924,5 +924,8 @@
   "coursesClearSelection": "選択を解除",
   "coursesResetSearch": "検索と絞り込みをリセット",
   "coursesFilterLoadFailed": "絞り込み項目を読み込めませんでした。",
-  "coursesPaginationStalled": "追加のコースを取得できませんでした。もう一度お試しください。"
+  "coursesPaginationStalled": "追加のコースを取得できませんでした。もう一度お試しください。",
+  "messagesNewMessages": "新着メッセージ・最新へ",
+  "messagesReadSyncFailed": "既読状態を同期できませんでした。未読は保持されます。",
+  "messagesReadUnavailable": "このサーバーは個別の既読通知に対応していません。未読は保持されます。"
 }

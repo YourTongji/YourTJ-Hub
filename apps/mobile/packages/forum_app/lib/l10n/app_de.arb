@@ -924,5 +924,8 @@
   "coursesClearSelection": "Auswahl löschen",
   "coursesResetSearch": "Suche und Filter zurücksetzen",
   "coursesFilterLoadFailed": "Filteroptionen konnten nicht geladen werden.",
-  "coursesPaginationStalled": "Keine weiteren Kurse erhalten. Laden Sie diese Seite erneut."
+  "coursesPaginationStalled": "Keine weiteren Kurse erhalten. Laden Sie diese Seite erneut.",
+  "messagesNewMessages": "Neue Nachrichten · Zum Ende",
+  "messagesReadSyncFailed": "Lesestatus konnte nicht synchronisiert werden. Ungelesene Nachrichten bleiben erhalten.",
+  "messagesReadUnavailable": "Dieser Server unterstützt noch keine einzelnen Lesebestätigungen. Ungelesene Nachrichten bleiben erhalten."
 }
