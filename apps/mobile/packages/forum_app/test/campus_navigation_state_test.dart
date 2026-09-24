@@ -238,6 +238,36 @@ void main() {
     });
   }
 
+  testWidgets('first campus binding resets an observed unbound section', (
+    tester,
+  ) async {
+    final repo = FakeCampusRepository()
+      ..current = const CampusStatus(
+        enabled: true,
+        binding: null,
+        candidate: null,
+      );
+    await tester.pumpWidget(campusTestApp(repo));
+    await tester.pumpAndSettle();
+    await _select(tester, 'connection');
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(CampusPage)),
+    );
+    final controller = container.read(campusControllerProvider.notifier);
+    await controller.refresh();
+    await tester.pumpAndSettle();
+    expect(
+      tester.widget<GfTabBar>(find.byType(GfTabBar)).selected,
+      'connection',
+    );
+    await repo.confirm();
+    await controller.refresh();
+    await tester.pumpAndSettle();
+    expect(tester.widget<GfTabBar>(find.byType(GfTabBar)).selected, 'today');
+    await tester.pumpWidget(const SizedBox());
+    await tester.pumpAndSettle();
+  });
+
   testWidgets('failed refresh retains notice filter and position', (
     tester,
   ) async {

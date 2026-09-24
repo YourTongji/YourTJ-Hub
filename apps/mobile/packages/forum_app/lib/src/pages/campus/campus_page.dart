@@ -31,6 +31,7 @@ class _CampusNavigation {
   int? week;
   int? account;
   String? binding;
+  bool bindingObserved = false;
   bool identityRejected = false;
 
   void clear() {
@@ -39,6 +40,7 @@ class _CampusNavigation {
     offsets.clear();
     week = null;
     binding = null;
+    bindingObserved = false;
     identityRejected = false;
   }
 }
@@ -586,7 +588,7 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace> {
     final identityRejected =
         state.needsAuthorization || isCampusIdentityError(state.error);
     if (!state.loading && (state.status != null || identityRejected)) {
-      if ((_navigation.binding != null &&
+      if ((_navigation.bindingObserved &&
               _navigation.binding != binding?.revision) ||
           (!_navigation.identityRejected && identityRejected)) {
         _navigation.clear();
@@ -601,6 +603,7 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace> {
         });
       }
       _navigation.binding = binding?.revision;
+      _navigation.bindingObserved = true;
       _navigation.identityRejected = identityRejected;
     }
     final labels = {
