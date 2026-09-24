@@ -497,3 +497,28 @@ user IDs. Each entry includes the username and an exclusive UTF-16 source range.
 resolves a payload's names in one batch after body redaction; clients validate the exact source
 slice and render ordinary internal links without persisting the expansion. Older responses
 without mappings remain readable as plain text.
+
+## Personalized Home page channel
+
+`Current`: `GET /?sort=following` uses the existing `X-Goose-Page: true` page channel and
+`HomeProps`; it adds no `/api` route or payload field. The server publishes a localized
+`following` tab, so Flutter can display it through the existing server-defined sort rail.
+Web guest navigation points to login; direct guest page-channel requests return HTTP 401
+with `auth.required`, and ordinary HTML requests redirect to login with a return address.
+
+The feed queries active follow relationships on every request and preserves the public
+forum-topic and first-post visibility filters. It bypasses the shared public-feed cache.
+Responses use `no-store`; personalized metadata uses `noindex, nofollow`. The opaque cursor
+is a viewer-scoped `(created_at, id)` boundary in descending order, carried in
+`pagination.nextUrl`; clients must follow that URL instead of constructing page offsets.
+Malformed or other-viewer cursors, cursor IDs outside the positive signed 64-bit database range,
+and page numbers greater than one without a cursor return HTTP 400. Failures of the initial topic
+selection query return HTTP 500 rather than a successful empty feed. Author, first-post and
+interaction enrichment retains the shared Home renderer's best-effort behavior; its storage failures
+may produce incomplete fields in an HTTP 200 response. The cursor
+is only a position: changing it cannot bypass the current follow and visibility filters.
+
+Refreshing drops both `page` and `cursor`, re-queries current follows and replaces retained
+Following rows. Existing rows may remain on screen after an unfollow until explicit refresh;
+continuation pages filter the current relationships immediately. Newly followed content above
+the current cursor appears on refresh. This is a live filtered feed, not a frozen snapshot.

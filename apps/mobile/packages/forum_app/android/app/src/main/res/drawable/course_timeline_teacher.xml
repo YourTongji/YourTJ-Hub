@@ -1,0 +1,15 @@
+<!-- Android vector port of ui_kit/assets/icons/user-round.svg. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24"
+    android:tint="@color/widget_muted">
+    <path
+        android:fillColor="@android:color/transparent"
+        android:pathData="M17,8a5,5 0 1,1 -10,0a5,5 0 1,1 10,0M20,21a8,8 0 0,0 -16,0"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+</vector>
