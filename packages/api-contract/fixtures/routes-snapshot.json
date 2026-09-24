@@ -937,6 +937,14 @@
   },
   {
     "method": "POST",
+    "path": "/api/forum/chat/mark-visible"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/chat/message-read-states"
+  },
+  {
+    "method": "POST",
     "path": "/api/forum/chat/messages"
   },
   {
