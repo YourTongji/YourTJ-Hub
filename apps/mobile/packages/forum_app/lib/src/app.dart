@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ui_kit/ui_kit.dart';
 
 import '../l10n/app_localizations.dart';
+import 'navigation/session_overlays.dart';
 import 'router.dart';
 import 'private_notes.dart';
 import 'app_locale.dart';
@@ -44,7 +45,10 @@ class GfApp extends ConsumerWidget {
       builder: (context, child) => MobileUpdateHost(
         key: appUpdateHostKey,
         navigatorKey: appNavigatorKey,
-        child: PrivateNotesHost(child: child ?? const SizedBox.shrink()),
+        child: SessionOverlayHost(
+          registry: appSessionOverlays,
+          child: PrivateNotesHost(child: child ?? const SizedBox.shrink()),
+        ),
       ),
       // The same four languages as Web, resolved without a locale flash on switching.
       localizationsDelegates: const [

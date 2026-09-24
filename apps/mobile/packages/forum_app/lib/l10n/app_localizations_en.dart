@@ -172,6 +172,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get authForgotTitle => 'Reset password';
 
   @override
+  String get authContinueAfterLogin =>
+      'Sign in to continue where you left off.';
+
+  @override
+  String get authSignInMethods => 'Other sign-in options';
+
+  @override
   String get authLoginSubtitle =>
       'Welcome back. Continue your discussions and writing.';
 

@@ -97,6 +97,8 @@
   "authLoginTitle": "Sign in",
   "authRegisterTitle": "Create account",
   "authForgotTitle": "Reset password",
+  "authContinueAfterLogin": "Sign in to continue where you left off.",
+  "authSignInMethods": "Other sign-in options",
   "authLoginSubtitle": "Welcome back. Continue your discussions and writing.",
   "authRegisterSubtitle": "Create an account and join the campus conversation.",
   "authForgotSubtitle": "Enter your email and we will send a reset link.",

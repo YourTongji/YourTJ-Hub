@@ -390,6 +390,18 @@ abstract class AppLocalizations {
   /// **'Reset password'**
   String get authForgotTitle;
 
+  /// No description provided for @authContinueAfterLogin.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in to continue where you left off.'**
+  String get authContinueAfterLogin;
+
+  /// No description provided for @authSignInMethods.
+  ///
+  /// In en, this message translates to:
+  /// **'Other sign-in options'**
+  String get authSignInMethods;
+
   /// No description provided for @authLoginSubtitle.
   ///
   /// In en, this message translates to:

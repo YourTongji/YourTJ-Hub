@@ -55,6 +55,8 @@
   "authLoginTitle": "Melde dich mit deinem Konto an",
   "authRegisterTitle": "Konto erstellen",
   "authForgotTitle": "Passwort zurücksetzen",
+  "authContinueAfterLogin": "Melde dich an, um dort weiterzumachen, wo du aufgehört hast.",
+  "authSignInMethods": "Weitere Anmeldeoptionen",
   "authLoginSubtitle": "Willkommen zurück. Setze deine Diskussionen und Beiträge fort.",
   "authRegisterSubtitle": "Erstelle ein Konto und tausche dich auf dem Campus aus.",
   "authForgotSubtitle": "Gib deine E-Mail ein und wir senden dir eine Nachricht zum Zurücksetzen des Passworts.",

@@ -169,6 +169,12 @@ class AppLocalizationsJa extends AppLocalizations {
   String get authForgotTitle => 'パスワード再設定';
 
   @override
+  String get authContinueAfterLogin => 'ログインして、先ほどのページに戻ります。';
+
+  @override
+  String get authSignInMethods => 'その他のログイン方法';
+
+  @override
   String get authLoginSubtitle => 'おかえりなさい。議論と投稿を続けましょう。';
 
   @override

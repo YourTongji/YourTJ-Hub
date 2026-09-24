@@ -55,6 +55,8 @@
   "authLoginTitle": "アカウントにログイン",
   "authRegisterTitle": "アカウント作成",
   "authForgotTitle": "パスワード再設定",
+  "authContinueAfterLogin": "ログインして、先ほどのページに戻ります。",
+  "authSignInMethods": "その他のログイン方法",
   "authLoginSubtitle": "おかえりなさい。議論と投稿を続けましょう。",
   "authRegisterSubtitle": "アカウントを作成して、キャンパスの会話に参加しましょう。",
   "authForgotSubtitle": "メールアドレスを入力すると、再設定メールを送信します。",
