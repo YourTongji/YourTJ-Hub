@@ -1,4 +1,7 @@
+import 'dart:ui' show SemanticsAction;
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ui_kit/ui_kit.dart';
 
@@ -372,6 +375,43 @@ void main() {
       expect(find.text('90'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
+
+    testWidgets(
+      'profile statistic actions have keyboard activation and combined semantics',
+      (tester) async {
+        final semantics = tester.ensureSemantics();
+        var calls = 0;
+        await tester.pumpWidget(
+          gfApp(
+            GfUserCard(
+              avatarUrl: '',
+              name: 'Alice',
+              username: 'alice',
+              stats: const [('话题', '5'), ('粉丝', '20')],
+              statActions: {1: () => calls++},
+            ),
+          ),
+        );
+        final action = find
+            .ancestor(of: find.text('粉丝'), matching: find.byType(InkWell))
+            .first;
+        expect(tester.getSize(action).height, greaterThanOrEqualTo(48));
+        expect(tester.getSize(action).width, greaterThanOrEqualTo(48));
+        final node = tester.getSemantics(find.bySemanticsLabel('20\n粉丝'));
+        expect(node.getSemanticsData().flagsCollection.isButton, isTrue);
+        expect(node.getSemanticsData().hasAction(SemanticsAction.tap), isTrue);
+        Focus.of(tester.element(find.text('粉丝'))).requestFocus();
+        await tester.pump();
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.pump();
+        expect(calls, 1);
+        await tester.tap(find.text('粉丝'));
+        expect(calls, 2);
+        await tester.tap(find.text('话题'));
+        expect(calls, 2);
+        semantics.dispose();
+      },
+    );
 
     testWidgets('profile trims bio and signature boundary whitespace', (
       tester,

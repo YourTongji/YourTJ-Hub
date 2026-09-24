@@ -521,6 +521,11 @@ class AppLocalizationsZh extends AppLocalizations {
   String get searchUnavailable => '搜索暂不可用';
 
   @override
+  String searchResultCount(int shown, int total) {
+    return '已显示 $shown 项 · 匹配 $total 项';
+  }
+
+  @override
   String get searchAll => '全部';
 
   @override
@@ -2411,4 +2416,63 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get notificationsMarkRead => '标为已读';
+
+  @override
+  String get scheduleWidgetSettingsTitle => '桌面课表小组件';
+
+  @override
+  String get scheduleWidgetPrivacyDescription =>
+      '小组件展示课表中的课程名称、时间、教师和地点。内容来自本机保存的课表，刷新后同步到桌面。';
+
+  @override
+  String get scheduleWidgetRefresh => '从离线课表刷新';
+
+  @override
+  String get scheduleWidgetClear => '清除桌面数据';
+
+  @override
+  String get scheduleWidgetCleared => '已清除桌面课表数据';
+
+  @override
+  String get scheduleWidgetDiagnostics => '刷新诊断';
+
+  @override
+  String get scheduleWidgetDiagnosticsDescription =>
+      '如果日期或课程状态更新较慢，请检查系统对 YourTJ 的后台运行和电量设置；不同设备的菜单名称可能不同。';
+
+  @override
+  String get scheduleWidgetTransparencyTitle => '小组件背景透明度';
+
+  @override
+  String get scheduleWidgetTransparencyDescription =>
+      '调高后会透出更多桌面背景。范围为 0%–15%，兼顾透出壁纸与课程文字辨识。';
+
+  @override
+  String campusSnapshotUpdated(String time) {
+    return '设备快照更新于 $time';
+  }
+
+  @override
+  String get campusSnapshotStale => '快照可能已过期，请刷新获取最新数据。';
+
+  @override
+  String get campusSnapshotOffline => '连接核验失败，正在显示本设备快照。';
+
+  @override
+  String get campusSnapshotRefreshFailed => '部分数据更新失败，保留上次可用内容。';
+
+  @override
+  String get campusDataNeedsRefresh => '此内容尚未更新，请手动刷新。';
+
+  @override
+  String get campusCacheClear => '清除校园缓存';
+
+  @override
+  String get campusCacheClearDescription => '清除本设备的校园快照和桌面课表。草稿、排课方案与学校绑定不受影响。';
+
+  @override
+  String get campusCacheCleared => '校园缓存已清除';
+
+  @override
+  String get campusCacheClearFailed => '部分缓存未能清除，请重试。';
 }

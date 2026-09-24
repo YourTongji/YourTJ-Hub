@@ -272,6 +272,8 @@
   "searchNoUsers": "No matching users",
   "searchNoCategories": "No matching categories",
   "searchUnavailable": "Search unavailable",
+  "searchResultCount": "{shown} shown · {total} matches",
+  "@searchResultCount": {"placeholders": {"shown": {"type": "int"}, "total": {"type": "int"}}},
   "searchAll": "All",
   "searchTopics": "Topics",
   "searchUsers": "Users",
@@ -1193,5 +1195,30 @@
   "badgeDisplayHint": "Choose up to 5 badges and their order, or deselect all. Independent of your avatar badge.",
   "badgeDisplayUp": "Move up",
   "badgeDisplayDown": "Move down",
-  "notificationsMarkRead": "Mark as read"
+  "notificationsMarkRead": "Mark as read",
+  "scheduleWidgetSettingsTitle": "Home screen schedule",
+  "scheduleWidgetPrivacyDescription": "Widgets show course names, times, teachers and locations from the schedule saved on this device. Refreshing the schedule updates the home-screen view.",
+  "scheduleWidgetRefresh": "Refresh from offline schedule",
+  "scheduleWidgetClear": "Clear home screen data",
+  "scheduleWidgetCleared": "Home screen schedule data cleared",
+  "scheduleWidgetDiagnostics": "Refresh diagnostics",
+  "scheduleWidgetDiagnosticsDescription": "If the date or class status is slow to update, check YourTJ's background activity and battery settings. Menu names vary by device.",
+  "scheduleWidgetTransparencyTitle": "Widget background transparency",
+  "scheduleWidgetTransparencyDescription": "Higher values reveal more of your wallpaper. The 0%–15% range balances the background effect with readable course text.",
+  "campusSnapshotUpdated": "Device snapshot updated {time}",
+  "campusSnapshotStale": "This snapshot may be outdated. Refresh for the latest data.",
+  "campusSnapshotOffline": "Connection verification failed. Showing this device’s snapshot.",
+  "campusSnapshotRefreshFailed": "Some data could not be updated. Previous content is retained.",
+  "campusDataNeedsRefresh": "This content has not been updated. Refresh to load it.",
+  "campusCacheClear": "Clear campus cache",
+  "campusCacheClearDescription": "Remove campus snapshots and home-screen schedules from this device. Drafts, schedule plans and the school connection are kept.",
+  "campusCacheCleared": "Campus cache cleared",
+  "campusCacheClearFailed": "Some cached data could not be cleared. Please retry.",
+  "@campusSnapshotUpdated": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  }
 }

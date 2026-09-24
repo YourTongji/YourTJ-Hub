@@ -442,6 +442,8 @@ export default {
     sportNote: "Sports are listed from map data. Consult the venue for indoor locations, opening hours and reservations.",
     placeNote: "Locations follow the map source. Building shapes and heights are illustrative.",
     share: "Share this place",
+    navigate: "Navigate",
+    navigateWeb: "Web directions",
     copied: "Link copied",
     water: "Water",
     dataNote: "Map sources",
@@ -792,6 +794,7 @@ export default {
     refreshComplete: 'Feed is up to date',
     refreshFailed: 'Unable to refresh. Try again later.',
     tabs: {
+      following: 'Following',
       latest: 'Latest',
       hot: 'Hot',
       popular: 'Popular',
