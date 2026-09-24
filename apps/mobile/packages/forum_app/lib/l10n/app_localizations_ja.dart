@@ -62,6 +62,11 @@ class AppLocalizationsJa extends AppLocalizations {
   String get commonSave => '保存';
 
   @override
+  String imageViewPosition(int index, int count) {
+    return '画像 $index / $count を表示';
+  }
+
+  @override
   String get imageSave => '画像を保存';
 
   @override
@@ -167,6 +172,12 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get authForgotTitle => 'パスワード再設定';
+
+  @override
+  String get authContinueAfterLogin => 'ログインして、先ほどのページに戻ります。';
+
+  @override
+  String get authSignInMethods => 'その他のログイン方法';
 
   @override
   String get authLoginSubtitle => 'おかえりなさい。議論と投稿を続けましょう。';
@@ -485,6 +496,15 @@ class AppLocalizationsJa extends AppLocalizations {
   String get messagesInputHint => 'メッセージを入力…';
 
   @override
+  String get messagesEmoji => '絵文字';
+
+  @override
+  String get messagesKeyboard => 'キーボード';
+
+  @override
+  String get messagesCopyAll => 'メッセージ全体をコピー';
+
+  @override
   String messagesSendFailed(String error) {
     return '送信できませんでした：$error';
   }
@@ -716,6 +736,21 @@ class AppLocalizationsJa extends AppLocalizations {
   String settingsOpFailed(String error) {
     return '操作に失敗しました：$error';
   }
+
+  @override
+  String get settingsDevice => 'この端末';
+
+  @override
+  String get settingsYourAccount => 'アカウント';
+
+  @override
+  String get settingsThemeLight => 'ライト';
+
+  @override
+  String get settingsThemeDark => 'ダーク';
+
+  @override
+  String get settingsRevokeSession => 'このセッションを無効化';
 
   @override
   String get settingsAppearance => '外観';
@@ -1173,6 +1208,9 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get wikiTitle => 'Wiki';
+
+  @override
+  String get wikiLinkOpenFailed => 'リンクを開けませんでした。もう一度お試しください。';
 
   @override
   String get wikiRecent => '最近の更新';
@@ -2179,7 +2217,7 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get campusPrivacy =>
-      '一つのアカウントに一つの大学アカウントを連携できます。情報は本人のみが閲覧でき、端末には保存されません。';
+      '一つのアカウントに一つの大学アカウントを連携できます。氏名・学年暦・時間割はオフライン閲覧のため端末に保存されます。下から削除できます。';
 
   @override
   String get campusDisabled => 'このサイトでは大学連携が有効になっていません';
@@ -2437,6 +2475,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String get badgeDisplayDown => '下へ';
 
   @override
+  String get notificationsMarkRead => '既読にする';
+
+  @override
   String get scheduleWidgetSettingsTitle => 'ホーム画面の時間割';
 
   @override
@@ -2495,4 +2536,47 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get campusCacheClearFailed => '一部のキャッシュを削除できませんでした。再試行してください。';
+
+  @override
+  String get scheduleTimeAxis => '時限';
+
+  @override
+  String scheduleEmptyCell(String day, int section) {
+    return '$day、$section 時限目、授業を選択';
+  }
+
+  @override
+  String scheduleSectionsN(String range) {
+    return '$range 時限';
+  }
+
+  @override
+  String get scheduleGridScrollHint => '左右にスワイプして週全体を表示';
+
+  @override
+  String get coursesFilterSearchHint => '絞り込み項目を検索';
+
+  @override
+  String get coursesFilterNoMatches => '一致する絞り込み項目がありません';
+
+  @override
+  String get coursesClearSelection => '選択を解除';
+
+  @override
+  String get coursesResetSearch => '検索と絞り込みをリセット';
+
+  @override
+  String get coursesFilterLoadFailed => '絞り込み項目を読み込めませんでした。';
+
+  @override
+  String get coursesPaginationStalled => '追加のコースを取得できませんでした。もう一度お試しください。';
+
+  @override
+  String get messagesNewMessages => '新着メッセージ・最新へ';
+
+  @override
+  String get messagesReadSyncFailed => '既読状態を同期できませんでした。未読は保持されます。';
+
+  @override
+  String get messagesReadUnavailable => 'このサーバーは個別の既読通知に対応していません。未読は保持されます。';
 }

@@ -17,6 +17,7 @@
   "navProfile": "Mein Profil",
   "commonCancel": "Abbrechen",
   "commonSave": "Speichern",
+  "imageViewPosition": "Bild {index} von {count} ansehen",
   "imageSave": "Bild speichern",
   "imageSaved": "Bild gespeichert",
   "imageSaveFailed": "Bild konnte nicht gespeichert werden. Bitte später erneut versuchen.",
@@ -55,6 +56,8 @@
   "authLoginTitle": "Melde dich mit deinem Konto an",
   "authRegisterTitle": "Konto erstellen",
   "authForgotTitle": "Passwort zurücksetzen",
+  "authContinueAfterLogin": "Melde dich an, um dort weiterzumachen, wo du aufgehört hast.",
+  "authSignInMethods": "Weitere Anmeldeoptionen",
   "authLoginSubtitle": "Willkommen zurück. Setze deine Diskussionen und Beiträge fort.",
   "authRegisterSubtitle": "Erstelle ein Konto und tausche dich auf dem Campus aus.",
   "authForgotSubtitle": "Gib deine E-Mail ein und wir senden dir eine Nachricht zum Zurücksetzen des Passworts.",
@@ -155,6 +158,9 @@
   "messagesNoMessagesYet": "Noch keine Nachrichten",
   "messagesEmptyDetail": "Noch keine Nachrichten. Sag Hallo!",
   "messagesInputHint": "Nachricht eingeben …",
+  "messagesEmoji": "Emoji",
+  "messagesKeyboard": "Tastatur",
+  "messagesCopyAll": "Ganze Nachricht kopieren",
   "messagesSendFailed": "Senden fehlgeschlagen: {error}",
   "notificationsTitle": "Benachrichtigungen",
   "notificationsEmpty": "Keine Benachrichtigungen",
@@ -225,6 +231,11 @@
   "settingsRevokeFailed": "Beenden fehlgeschlagen: {error}",
   "settingsRevokeAllDone": "Alle Sitzungen beendet",
   "settingsOpFailed": "Aktion fehlgeschlagen: {error}",
+  "settingsDevice": "Dieses Gerät",
+  "settingsYourAccount": "Dein Konto",
+  "settingsThemeLight": "Hell",
+  "settingsThemeDark": "Dunkel",
+  "settingsRevokeSession": "Diese Sitzung widerrufen",
   "settingsAppearance": "Darstellung",
   "settingsDarkMode": "Dunkler Modus",
   "settingsDarkCurrent": "Aktuell: dunkel",
@@ -383,6 +394,7 @@
   "reviewHelpful": "Hilfreich",
   "reviewsEmpty": "Noch keine Bewertungen",
   "wikiTitle": "Wiki",
+  "wikiLinkOpenFailed": "Der Link konnte nicht geöffnet werden. Bitte versuche es erneut.",
   "wikiRecent": "Zuletzt aktualisiert",
   "wikiEditOnGithub": "Auf GitHub bearbeiten",
   "wikiToc": "Inhaltsverzeichnis",
@@ -744,7 +756,7 @@
   "campusConfirmBinding": "Verbindung bestätigen",
   "campusConfirmUpdate": "Erneuerten Zugriff bestätigen",
   "campusConfirmBody": "Prüfen Sie die Hochschulidentität. Nach der Bestätigung dient sie zur Anmeldung und ersetzt eine zuvor verknüpfte Identität. Die E-Mail-Adresse bleibt unverändert.",
-  "campusPrivacy": "Ein Konto, eine offizielle Identität. Hochschuldaten sind privat und werden nicht auf dem Gerät gespeichert.",
+  "campusPrivacy": "Ein Konto, eine Hochschulidentität. Name, Kalender und Stundenplan werden für die Offline-Nutzung auf diesem Gerät gespeichert. Unten können Sie diese Daten löschen.",
   "campusDisabled": "Die Campus-Verbindung ist hier nicht aktiviert",
   "campusUnavailable": "Hochschuldaten sind derzeit nicht verfügbar. Bitte später erneut versuchen.",
   "campusNoData": "Noch keine Einträge",
@@ -864,6 +876,7 @@
   "badgeDisplayHint": "Bis zu 5 Abzeichen auswählen und sortieren oder alle abwählen. Unabhängig vom Avatar-Abzeichen.",
   "badgeDisplayUp": "Nach oben",
   "badgeDisplayDown": "Nach unten",
+  "notificationsMarkRead": "Als gelesen markieren",
   "scheduleWidgetSettingsTitle": "Startbildschirm-Stundenplan",
   "scheduleWidgetPrivacyDescription": "Widgets zeigen Kursnamen, Zeiten, Lehrkräfte und Orte aus dem auf diesem Gerät gespeicherten Stundenplan. Nach einer Aktualisierung erscheint der neue Stand auf dem Startbildschirm.",
   "scheduleWidgetRefresh": "Aus Offline-Stundenplan aktualisieren",
@@ -888,5 +901,35 @@
         "type": "String"
       }
     }
-  }
+  },
+  "scheduleTimeAxis": "Stunden",
+  "scheduleEmptyCell": "{day}, Stunde {section}, Kurs auswählen",
+  "scheduleSectionsN": "Stunden {range}",
+  "scheduleGridScrollHint": "Seitlich wischen, um die ganze Woche zu sehen",
+  "@scheduleEmptyCell": {
+    "placeholders": {
+      "day": {
+        "type": "String"
+      },
+      "section": {
+        "type": "int"
+      }
+    }
+  },
+  "@scheduleSectionsN": {
+    "placeholders": {
+      "range": {
+        "type": "String"
+      }
+    }
+  },
+  "coursesFilterSearchHint": "Filteroptionen suchen",
+  "coursesFilterNoMatches": "Keine passenden Filteroptionen",
+  "coursesClearSelection": "Auswahl löschen",
+  "coursesResetSearch": "Suche und Filter zurücksetzen",
+  "coursesFilterLoadFailed": "Filteroptionen konnten nicht geladen werden.",
+  "coursesPaginationStalled": "Keine weiteren Kurse erhalten. Laden Sie diese Seite erneut.",
+  "messagesNewMessages": "Neue Nachrichten · Zum Ende",
+  "messagesReadSyncFailed": "Lesestatus konnte nicht synchronisiert werden. Ungelesene Nachrichten bleiben erhalten.",
+  "messagesReadUnavailable": "Dieser Server unterstützt noch keine einzelnen Lesebestätigungen. Ungelesene Nachrichten bleiben erhalten."
 }

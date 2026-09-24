@@ -17,6 +17,7 @@
   "navProfile": "マイページ",
   "commonCancel": "キャンセル",
   "commonSave": "保存",
+  "imageViewPosition": "画像 {index} / {count} を表示",
   "imageSave": "画像を保存",
   "imageSaved": "画像を保存しました",
   "imageSaveFailed": "画像を保存できませんでした。後でもう一度お試しください。",
@@ -55,6 +56,8 @@
   "authLoginTitle": "アカウントにログイン",
   "authRegisterTitle": "アカウント作成",
   "authForgotTitle": "パスワード再設定",
+  "authContinueAfterLogin": "ログインして、先ほどのページに戻ります。",
+  "authSignInMethods": "その他のログイン方法",
   "authLoginSubtitle": "おかえりなさい。議論と投稿を続けましょう。",
   "authRegisterSubtitle": "アカウントを作成して、キャンパスの会話に参加しましょう。",
   "authForgotSubtitle": "メールアドレスを入力すると、再設定メールを送信します。",
@@ -155,6 +158,9 @@
   "messagesNoMessagesYet": "まだメッセージはありません",
   "messagesEmptyDetail": "まだメッセージはありません。挨拶してみましょう！",
   "messagesInputHint": "メッセージを入力…",
+  "messagesEmoji": "絵文字",
+  "messagesKeyboard": "キーボード",
+  "messagesCopyAll": "メッセージ全体をコピー",
   "messagesSendFailed": "送信できませんでした：{error}",
   "notificationsTitle": "通知",
   "notificationsEmpty": "通知はありません",
@@ -225,6 +231,11 @@
   "settingsRevokeFailed": "セッションを終了できませんでした：{error}",
   "settingsRevokeAllDone": "すべてのセッションを終了しました",
   "settingsOpFailed": "操作に失敗しました：{error}",
+  "settingsDevice": "この端末",
+  "settingsYourAccount": "アカウント",
+  "settingsThemeLight": "ライト",
+  "settingsThemeDark": "ダーク",
+  "settingsRevokeSession": "このセッションを無効化",
   "settingsAppearance": "外観",
   "settingsDarkMode": "ダークモード",
   "settingsDarkCurrent": "現在：ダーク",
@@ -383,6 +394,7 @@
   "reviewHelpful": "参考になった",
   "reviewsEmpty": "まだ評価はありません",
   "wikiTitle": "Wiki",
+  "wikiLinkOpenFailed": "リンクを開けませんでした。もう一度お試しください。",
   "wikiRecent": "最近の更新",
   "wikiEditOnGithub": "GitHubで編集",
   "wikiToc": "目次",
@@ -744,7 +756,7 @@
   "campusConfirmBinding": "連携を確定",
   "campusConfirmUpdate": "認証の更新を確定",
   "campusConfirmBody": "大学のIDをご確認ください。確認後はログインに使われ、変更時は以前のIDを置き換えます。メールは変わりません。",
-  "campusPrivacy": "一つのアカウントに一つの大学アカウントを連携できます。情報は本人のみが閲覧でき、端末には保存されません。",
+  "campusPrivacy": "一つのアカウントに一つの大学アカウントを連携できます。氏名・学年暦・時間割はオフライン閲覧のため端末に保存されます。下から削除できます。",
   "campusDisabled": "このサイトでは大学連携が有効になっていません",
   "campusUnavailable": "大学のデータを取得できません。後でもう一度お試しください。",
   "campusNoData": "記録はありません",
@@ -864,6 +876,7 @@
   "badgeDisplayHint": "最大5個まで選び、表示順を変更できます。すべて非表示にもできます。アバターのバッジとは別の設定です。",
   "badgeDisplayUp": "上へ",
   "badgeDisplayDown": "下へ",
+  "notificationsMarkRead": "既読にする",
   "scheduleWidgetSettingsTitle": "ホーム画面の時間割",
   "scheduleWidgetPrivacyDescription": "ウィジェットには、この端末に保存された時間割の授業名、時刻、教員、場所が表示されます。時間割を更新するとホーム画面にも反映されます。",
   "scheduleWidgetRefresh": "オフライン時間割から更新",
@@ -888,5 +901,35 @@
         "type": "String"
       }
     }
-  }
+  },
+  "scheduleTimeAxis": "時限",
+  "scheduleEmptyCell": "{day}、{section} 時限目、授業を選択",
+  "scheduleSectionsN": "{range} 時限",
+  "scheduleGridScrollHint": "左右にスワイプして週全体を表示",
+  "@scheduleEmptyCell": {
+    "placeholders": {
+      "day": {
+        "type": "String"
+      },
+      "section": {
+        "type": "int"
+      }
+    }
+  },
+  "@scheduleSectionsN": {
+    "placeholders": {
+      "range": {
+        "type": "String"
+      }
+    }
+  },
+  "coursesFilterSearchHint": "絞り込み項目を検索",
+  "coursesFilterNoMatches": "一致する絞り込み項目がありません",
+  "coursesClearSelection": "選択を解除",
+  "coursesResetSearch": "検索と絞り込みをリセット",
+  "coursesFilterLoadFailed": "絞り込み項目を読み込めませんでした。",
+  "coursesPaginationStalled": "追加のコースを取得できませんでした。もう一度お試しください。",
+  "messagesNewMessages": "新着メッセージ・最新へ",
+  "messagesReadSyncFailed": "既読状態を同期できませんでした。未読は保持されます。",
+  "messagesReadUnavailable": "このサーバーは個別の既読通知に対応していません。未読は保持されます。"
 }

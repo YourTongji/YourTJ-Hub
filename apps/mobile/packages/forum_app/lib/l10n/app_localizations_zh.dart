@@ -60,6 +60,11 @@ class AppLocalizationsZh extends AppLocalizations {
   String get commonSave => '保存';
 
   @override
+  String imageViewPosition(int index, int count) {
+    return '查看图片 $index / $count';
+  }
+
+  @override
   String get imageSave => '保存图片';
 
   @override
@@ -165,6 +170,12 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get authForgotTitle => '重置密码';
+
+  @override
+  String get authContinueAfterLogin => '登录后继续刚才的浏览或创作。';
+
+  @override
+  String get authSignInMethods => '其他登录方式';
 
   @override
   String get authLoginSubtitle => '欢迎回来，继续你的讨论和创作。';
@@ -483,6 +494,15 @@ class AppLocalizationsZh extends AppLocalizations {
   String get messagesInputHint => '输入消息…';
 
   @override
+  String get messagesEmoji => '表情';
+
+  @override
+  String get messagesKeyboard => '键盘';
+
+  @override
+  String get messagesCopyAll => '复制整条消息';
+
+  @override
   String messagesSendFailed(String error) {
     return '发送失败:$error';
   }
@@ -714,6 +734,21 @@ class AppLocalizationsZh extends AppLocalizations {
   String settingsOpFailed(String error) {
     return '操作失败:$error';
   }
+
+  @override
+  String get settingsDevice => '此设备';
+
+  @override
+  String get settingsYourAccount => '你的账户';
+
+  @override
+  String get settingsThemeLight => '浅色';
+
+  @override
+  String get settingsThemeDark => '深色';
+
+  @override
+  String get settingsRevokeSession => '吊销此会话';
 
   @override
   String get settingsAppearance => '外观';
@@ -1171,6 +1206,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get wikiTitle => 'Wiki';
+
+  @override
+  String get wikiLinkOpenFailed => '无法打开链接，请重试。';
 
   @override
   String get wikiRecent => '最近更新';
@@ -2165,7 +2203,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get campusConfirmBody => '学校认证已完成，请核对身份。确认后此身份可用于登录，换绑时替换原身份，账号邮箱不变。';
 
   @override
-  String get campusPrivacy => '一个账号绑定一个官方身份。校园数据仅本人可见，不保存到设备。';
+  String get campusPrivacy => '一个账号绑定一个官方身份。姓名、校历和课表会保存在本设备，供离线查看；可在下方清除。';
 
   @override
   String get campusDisabled => '本站尚未启用校园连接';
@@ -2415,6 +2453,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get badgeDisplayDown => '下移';
 
   @override
+  String get notificationsMarkRead => '标为已读';
+
+  @override
   String get scheduleWidgetSettingsTitle => '桌面课表小组件';
 
   @override
@@ -2472,4 +2513,47 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get campusCacheClearFailed => '部分缓存未能清除，请重试。';
+
+  @override
+  String get scheduleTimeAxis => '节次';
+
+  @override
+  String scheduleEmptyCell(String day, int section) {
+    return '$day，第 $section 节，选课';
+  }
+
+  @override
+  String scheduleSectionsN(String range) {
+    return '第 $range 节';
+  }
+
+  @override
+  String get scheduleGridScrollHint => '左右滑动查看整周课表';
+
+  @override
+  String get coursesFilterSearchHint => '搜索筛选项';
+
+  @override
+  String get coursesFilterNoMatches => '没有匹配的筛选项';
+
+  @override
+  String get coursesClearSelection => '清空选择';
+
+  @override
+  String get coursesResetSearch => '重置搜索和筛选';
+
+  @override
+  String get coursesFilterLoadFailed => '筛选项加载失败，请重试。';
+
+  @override
+  String get coursesPaginationStalled => '暂未获取到更多课程，请重试本页。';
+
+  @override
+  String get messagesNewMessages => '有新消息，回到底部';
+
+  @override
+  String get messagesReadSyncFailed => '已读状态未同步；你的未读消息会保留。';
+
+  @override
+  String get messagesReadUnavailable => '服务器暂不支持逐条已读；未读消息会保留。';
 }

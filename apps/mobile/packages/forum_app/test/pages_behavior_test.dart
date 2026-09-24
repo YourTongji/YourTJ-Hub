@@ -16,6 +16,7 @@ import 'package:auth/auth.dart';
 import 'package:forum_app/l10n/app_localizations.dart';
 import 'package:forum_app/src/current_user.dart';
 import 'package:forum_app/src/local/writing_store.dart';
+import 'package:forum_app/src/messages/message_content.dart';
 import 'package:forum_app/src/offline/drift_cache.dart';
 import 'package:forum_app/src/pages/auth/login_page.dart';
 import 'package:forum_app/src/pages/drafts/drafts_page.dart';
@@ -31,6 +32,7 @@ import 'package:forum_app/src/pages/topic/mention_search.dart';
 import 'package:forum_app/src/pages/topic/mention_session.dart';
 import 'package:forum_app/src/providers.dart';
 import 'package:forum_app/src/router.dart';
+import 'package:forum_app/src/realtime/realtime_updates.dart';
 import 'package:forum_app/src/navigation/tab_scroll_registry.dart';
 import 'package:forum_app/src/widgets/topic_list.dart';
 import 'package:forum_app/src/widgets/status_views.dart';
@@ -214,7 +216,7 @@ class FailingPageRepository extends PageRepository {
   FailingPageRepository(super.client);
 
   @override
-  Future<PagePayload> fetch(String path) async =>
+  Future<PagePayload> fetch(String path, {Object? cancelToken}) async =>
       throw StateError('network down');
 }
 
@@ -312,6 +314,7 @@ class RetryChatRepository extends RecordingChatRepository {
 class InitialHistoryChatRepository extends RecordingChatRepository {
   InitialHistoryChatRepository(super.client);
   Completer<ChatMessagesResponse> initial = Completer();
+  CancelToken? initialCancel;
 
   @override
   Future<ChatMessagesResponse> getMessages({
@@ -319,9 +322,14 @@ class InitialHistoryChatRepository extends RecordingChatRepository {
     int beforeId = 0,
     int afterId = 0,
     int limit = 30,
-  }) => afterId == 0
-      ? initial.future
-      : super.getMessages(convId: convId, afterId: afterId);
+    Object? cancelToken,
+  }) {
+    if (afterId == 0) {
+      initialCancel = cancelToken as CancelToken?;
+      return initial.future;
+    }
+    return super.getMessages(convId: convId, afterId: afterId);
+  }
 }
 
 class RecordingChatRepository extends ChatRepository {
@@ -345,6 +353,7 @@ class RecordingChatRepository extends ChatRepository {
     int beforeId = 0,
     int afterId = 0,
     int limit = 30,
+    Object? cancelToken,
   }) async {
     return const ChatMessagesResponse(
       list: <ChatMessagePayload>[],
@@ -357,6 +366,16 @@ class RecordingChatRepository extends ChatRepository {
 
   @override
   Future<bool> markRead({required int convId}) async => true;
+
+  @override
+  Future<ChatVisibleReadResult> markVisible({
+    required int convId,
+    required List<int> messageIds,
+  }) async => ChatVisibleReadResult(
+    convId: convId,
+    acknowledgedMessageIds: messageIds,
+    unreadCount: 0,
+  );
 }
 
 ChatMessagePayload makeChatMessage(int id) {
@@ -385,6 +404,7 @@ class PollingChatRepository extends ChatRepository {
   int afterCalls = 0;
   int beforeCalls = 0;
   int markReadCalls = 0;
+  final visibleReadBatches = <List<int>>[];
 
   @override
   Future<ChatMessagesResponse> getMessages({
@@ -392,6 +412,7 @@ class PollingChatRepository extends ChatRepository {
     int beforeId = 0,
     int afterId = 0,
     int limit = 30,
+    Object? cancelToken,
   }) async {
     if (beforeId > 0) {
       beforeCalls++;
@@ -419,6 +440,19 @@ class PollingChatRepository extends ChatRepository {
     markReadCalls++;
     return true;
   }
+
+  @override
+  Future<ChatVisibleReadResult> markVisible({
+    required int convId,
+    required List<int> messageIds,
+  }) async {
+    visibleReadBatches.add(List.of(messageIds));
+    return ChatVisibleReadResult(
+      convId: convId,
+      acknowledgedMessageIds: messageIds,
+      unreadCount: 0,
+    );
+  }
 }
 
 class IncomingChatRepository extends RecordingChatRepository {
@@ -432,6 +466,7 @@ class IncomingChatRepository extends RecordingChatRepository {
     int beforeId = 0,
     int afterId = 0,
     int limit = 30,
+    Object? cancelToken,
   }) async {
     fetchedConvIds.add(convId);
     return const ChatMessagesResponse(
@@ -461,7 +496,7 @@ class CountingPageRepository extends PageRepository {
   int fetchCalls = 0;
 
   @override
-  Future<PagePayload> fetch(String path) async {
+  Future<PagePayload> fetch(String path, {Object? cancelToken}) async {
     fetchCalls++;
     if (path == '/' || path.startsWith('/?sort=')) {
       return parsePayload(homePayloadJson());
@@ -489,7 +524,7 @@ class FailingRefreshPageRepository extends CountingPageRepository {
   FailingRefreshPageRepository(super.client);
   bool fail = false;
   @override
-  Future<PagePayload> fetch(String path) {
+  Future<PagePayload> fetch(String path, {Object? cancelToken}) {
     if (fail) throw const NetworkException(fallbackMessage: 'offline');
     return super.fetch(path);
   }
@@ -504,6 +539,7 @@ class FailingSearchRepository extends PagingTopicRepository {
     required String query,
     String scope = '',
     int page = 1,
+    Object? cancelToken,
   }) {
     if (fail || (failMore && page > 1)) {
       throw const NetworkException(fallbackMessage: 'offline');
@@ -516,7 +552,7 @@ class EditableProfileRepository extends CountingPageRepository {
   EditableProfileRepository(super.client);
   String nickname = 'Alice';
   @override
-  Future<PagePayload> fetch(String path) async {
+  Future<PagePayload> fetch(String path, {Object? cancelToken}) async {
     final page = await super.fetch(path);
     if (!path.startsWith('/u/1')) return page;
     final json = jsonDecode(jsonEncode(page)) as Map<String, dynamic>;
@@ -531,12 +567,26 @@ class CountingMessagesPageRepository extends PageRepository {
   int fetchCalls = 0;
 
   @override
-  Future<PagePayload> fetch(String path) async {
+  Future<PagePayload> fetch(String path, {Object? cancelToken}) async {
     if (path != '/messages') {
       throw UnimplementedError('unexpected page path: $path');
     }
     fetchCalls++;
     return parsePayload(messagesPayloadJson());
+  }
+}
+
+class DelayedMessagesPageRepository extends PageRepository {
+  DelayedMessagesPageRepository(super.client);
+
+  final requests = <Completer<PagePayload>>[];
+
+  @override
+  Future<PagePayload> fetch(String path, {Object? cancelToken}) {
+    if (path != '/messages') throw StateError('unexpected path: $path');
+    final request = Completer<PagePayload>();
+    requests.add(request);
+    return request.future;
   }
 }
 
@@ -547,7 +597,7 @@ class FailAfterFirstMessagesRepository extends CountingPageRepository {
   int messagesCalls = 0;
 
   @override
-  Future<PagePayload> fetch(String path) async {
+  Future<PagePayload> fetch(String path, {Object? cancelToken}) async {
     if (path == '/messages') {
       messagesCalls++;
       if (messagesCalls > 1) throw StateError('network down');
@@ -570,7 +620,7 @@ class RedesignPageRepository extends PageRepository {
   final paths = <String>[];
 
   @override
-  Future<PagePayload> fetch(String path) async {
+  Future<PagePayload> fetch(String path, {Object? cancelToken}) async {
     paths.add(path);
     if (path.startsWith('/p/post/')) {
       return parsePayload(topicPayload ?? redesignedTopicPayloadJson());
@@ -590,7 +640,7 @@ class _ShortProfileStreams extends RedesignPageRepository {
   bool fail = false;
   Future<void>? pending;
   @override
-  Future<PagePayload> fetch(String path) async {
+  Future<PagePayload> fetch(String path, {Object? cancelToken}) async {
     await pending;
     if (fail) throw StateError('stream unavailable');
     final payload = redesignedProfilePayloadJson();
@@ -632,7 +682,7 @@ class PagedTopicPageRepository extends PageRepository {
   PagedTopicPageRepository(super.client);
 
   @override
-  Future<PagePayload> fetch(String path) async {
+  Future<PagePayload> fetch(String path, {Object? cancelToken}) async {
     if (path.startsWith('/p/post/')) {
       return parsePayload(pagedTopicPayloadJson());
     }
@@ -644,7 +694,7 @@ class JumpingTopicPageRepository extends CountingPageRepository {
   JumpingTopicPageRepository(super.client);
   final paths = <String>[];
   @override
-  Future<PagePayload> fetch(String path) async {
+  Future<PagePayload> fetch(String path, {Object? cancelToken}) async {
     paths.add(path);
     if (path.endsWith('/2')) return parsePayload(anchoredTopicPayloadJson());
     return super.fetch(path);
@@ -655,7 +705,7 @@ class AnchoredTopicPageRepository extends PageRepository {
   AnchoredTopicPageRepository(super.client);
 
   @override
-  Future<PagePayload> fetch(String path) async {
+  Future<PagePayload> fetch(String path, {Object? cancelToken}) async {
     if (path.startsWith('/p/post/')) {
       return parsePayload(anchoredTopicPayloadJson());
     }
@@ -670,7 +720,8 @@ class DelayedPageRepository extends PageRepository {
   final Completer<PagePayload> response = Completer<PagePayload>();
 
   @override
-  Future<PagePayload> fetch(String path) => response.future;
+  Future<PagePayload> fetch(String path, {Object? cancelToken}) =>
+      response.future;
 
   void complete(Map<String, dynamic> payload) {
     if (!response.isCompleted) response.complete(parsePayload(payload));
@@ -936,7 +987,7 @@ class MidWindowTopicPageRepository extends PageRepository {
   MidWindowTopicPageRepository(super.client);
 
   @override
-  Future<PagePayload> fetch(String path) async {
+  Future<PagePayload> fetch(String path, {Object? cancelToken}) async {
     if (path.startsWith('/p/post/')) {
       return parsePayload(midWindowTopicPayloadJson());
     }
@@ -995,7 +1046,7 @@ class ActivatingConversationPageRepository extends CountingPageRepository {
   int messagesFetches = 0;
 
   @override
-  Future<PagePayload> fetch(String path) async {
+  Future<PagePayload> fetch(String path, {Object? cancelToken}) async {
     if (path != '/messages') return super.fetch(path);
 
     fetchCalls++;
@@ -1020,7 +1071,7 @@ class ErroringProfilePageRepository extends CountingPageRepository {
   ErroringProfilePageRepository(super.client);
 
   @override
-  Future<PagePayload> fetch(String path) async {
+  Future<PagePayload> fetch(String path, {Object? cancelToken}) async {
     if (path.startsWith('/u/')) {
       fetchCalls++;
       throw StateError('profile request failed');
@@ -1038,6 +1089,7 @@ class ControlledSearchRepository extends PagingTopicRepository {
     required String query,
     String scope = '',
     int page = 1,
+    Object? cancelToken,
   }) async {
     if (page > 1) await pending;
     return super.search(query: query, scope: scope, page: page);
@@ -1054,6 +1106,7 @@ class PagingTopicRepository extends TopicRepository {
     required String query,
     String scope = '',
     int page = 1,
+    Object? cancelToken,
   }) async {
     searchPages.add(page);
     if (page <= 1) {
@@ -1109,6 +1162,7 @@ class AggregateSearchRepository extends PagingTopicRepository {
     required String query,
     String scope = '',
     int page = 1,
+    Object? cancelToken,
   }) async {
     scopes.add(scope);
     return SearchPageProps(
@@ -1273,7 +1327,7 @@ class DraftsPageRepository extends PageRepository {
   final String editUrl;
 
   @override
-  Future<PagePayload> fetch(String path) async {
+  Future<PagePayload> fetch(String path, {Object? cancelToken}) async {
     if (path != '/drafts') {
       throw UnimplementedError('unexpected page path: $path');
     }
@@ -1293,6 +1347,7 @@ class FilteringNotificationRepository extends NotificationRepository {
     String filter = 'all',
     int cursor = 0,
     int limit = 20,
+    Object? cancelToken,
   }) async {
     filters.add(filter);
     final NotificationPayload n = NotificationPayload(
@@ -1797,6 +1852,12 @@ void main() {
         }
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 400));
+        expect(
+          chats.initialCancel?.isCancelled,
+          isFalse,
+          reason:
+              'Configuring foreground polling must preserve initial history',
+        );
         await tester.enterText(
           find.descendant(
             of: find.byType(GfChatInput),
@@ -2597,6 +2658,106 @@ void main() {
   });
 
   group('消息轮询', () {
+    testWidgets(
+      'late older conversation snapshot cannot replace event refresh',
+      (tester) async {
+        final client = GfApiClient(
+          dio: Dio(),
+          tokenStorage: MemTokenStorage(),
+          baseUrl: 'http://fake.local',
+        );
+        final pageRepo = DelayedMessagesPageRepository(client);
+        final container = await makeContainer(pageRepo: pageRepo);
+        PagePayload snapshot(String text) {
+          final payload = messagesPayloadJson();
+          final props = payload['props'] as Map<String, dynamic>;
+          final conversations = props['conversations'] as List<dynamic>;
+          (conversations.first as Map<String, dynamic>)['lastMsg'] = text;
+          return parsePayload(payload);
+        }
+
+        await tester.pumpWidget(app(container, const MessagesPage()));
+        await tester.pump();
+        expect(pageRepo.requests.length, 1);
+        container.read(realtimeInvalidationsProvider.notifier).chat(1);
+        await tester.pump();
+        // Coalesce the hint behind the in-flight request and never paint its
+        // obsolete snapshot while waiting for the follow-up refresh.
+        expect(pageRepo.requests.length, 1);
+        pageRepo.requests[0].complete(snapshot('stale snapshot'));
+        await tester.pump();
+        expect(pageRepo.requests.length, 2);
+        expect(find.text('stale snapshot'), findsNothing);
+        pageRepo.requests[1].complete(snapshot('new snapshot'));
+        await tester.pumpAndSettle();
+        expect(find.text('new snapshot'), findsOneWidget);
+        expect(find.text('stale snapshot'), findsNothing);
+        await tester.pumpWidget(const SizedBox.shrink());
+      },
+    );
+
+    testWidgets('healthy stream stops polling and reconciles a chat hint', (
+      tester,
+    ) async {
+      final client = GfApiClient(
+        dio: Dio(),
+        tokenStorage: MemTokenStorage(),
+        baseUrl: 'http://fake.local',
+      );
+      final pageRepo = CountingMessagesPageRepository(client);
+      final container = await makeContainer(pageRepo: pageRepo);
+      await tester.pumpWidget(app(container, const MessagesPage()));
+      await tester.pumpAndSettle();
+      expect(pageRepo.fetchCalls, 1);
+
+      container.read(realtimeHealthyProvider.notifier).setHealthy(true);
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 16));
+      expect(pageRepo.fetchCalls, 1);
+
+      container.read(realtimeInvalidationsProvider.notifier).chat(7);
+      await tester.pumpAndSettle();
+      expect(pageRepo.fetchCalls, 2);
+
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      container.read(realtimeHealthyProvider.notifier).setHealthy(false);
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 15));
+      expect(pageRepo.fetchCalls, 2);
+
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pump();
+      expect(pageRepo.fetchCalls, greaterThanOrEqualTo(3));
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+
+    testWidgets('notification hint reconciles the visible filter', (
+      tester,
+    ) async {
+      final client = GfApiClient(
+        dio: Dio(),
+        tokenStorage: MemTokenStorage(),
+        baseUrl: 'http://fake.local',
+      );
+      final notifications = FilteringNotificationRepository(client);
+      final container = await makeContainer(
+        pageRepo: CountingPageRepository(client),
+        notifRepo: notifications,
+      );
+      await tester.pumpWidget(app(container, const NotificationsPage()));
+      await tester.pumpAndSettle();
+      expect(notifications.filters, ['all']);
+
+      container.read(realtimeInvalidationsProvider.notifier).notifications();
+      await tester.pumpAndSettle();
+      expect(notifications.filters, ['all', 'all']);
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+
     testWidgets('隐藏分支暂停轮询，重新可见后立即刷新', (tester) async {
       final GfApiClient client = GfApiClient(
         dio: Dio(),
@@ -3244,6 +3405,12 @@ void main() {
       await tester.tap(find.text('发送'));
       await tester.pumpAndSettle();
       expect(find.text('不能丢失的消息'), findsOneWidget);
+      final pending = tester.widget<GfMessageBubble>(
+        find.byType(GfMessageBubble).last,
+      );
+      expect(pending.selectable, isTrue);
+      expect(pending.copyMessageLabel, '复制整条消息');
+      expect(pending.content, isA<MessageContent>());
       await tester.enterText(find.byType(TextField), '正在写下一条');
       chats.fail = false;
       await tester.tap(find.text('重新发送'));
@@ -3360,7 +3527,12 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(chatRepo.afterCalls, 1);
-      expect(chatRepo.markReadCalls, 2);
+      expect(chatRepo.markReadCalls, 0);
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pumpAndSettle();
+      expect(chatRepo.visibleReadBatches, [
+        [101],
+      ]);
       expect(chatCache.putMessageCalls, 1);
       expect(chatCache.storedMessageIds, <List<int>>[
         <int>[101],
@@ -3371,7 +3543,10 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(chatRepo.afterCalls, 2);
-      expect(chatRepo.markReadCalls, 2);
+      expect(chatRepo.markReadCalls, 0);
+      expect(chatRepo.visibleReadBatches, [
+        [101],
+      ]);
       expect(chatCache.putMessageCalls, 1);
 
       await tester.pumpWidget(const SizedBox.shrink());
@@ -3982,7 +4157,9 @@ void main() {
         pageRepo: pages,
         userRepo: UserRepository(client),
       );
-      await tester.pumpWidget(app(container, const SettingsPage()));
+      await tester.pumpWidget(
+        app(container, const SettingsPage(initialSection: 'profile')),
+      );
       pages.complete(settingsPayloadJson());
       await tester.pumpAndSettle();
       await tester.tap(find.text('头像'));
@@ -4036,7 +4213,9 @@ void main() {
         pageRepo: pages,
         userRepo: UserRepository(client),
       );
-      await tester.pumpWidget(app(container, const SettingsPage()));
+      await tester.pumpWidget(
+        app(container, const SettingsPage(initialSection: 'profile')),
+      );
       final payload = settingsPayloadJson();
       final user = (payload['props'] as Map)['user'] as Map;
       user['websiteName'] = 'Alice’s notebook';
@@ -4072,7 +4251,9 @@ void main() {
         userRepo: EmptySessionsUserRepository(client),
       );
 
-      await tester.pumpWidget(app(container, const SettingsPage()));
+      await tester.pumpWidget(
+        app(container, const SettingsPage(initialSection: 'profile')),
+      );
       await tester.pump();
       expect(find.byType(GfSettingsSkeleton), findsOneWidget);
 
@@ -4093,7 +4274,9 @@ void main() {
       final ProviderContainer container = await makeContainer(
         pageRepo: pageRepo,
       );
-      await tester.pumpWidget(app(container, const SettingsPage()));
+      await tester.pumpWidget(
+        app(container, const SettingsPage(initialSection: 'profile')),
+      );
       await tester.pumpAndSettle();
       final int callsBefore = pageRepo.fetchCalls;
 
@@ -4179,7 +4362,7 @@ void main() {
       await tester.pumpWidget(app(container, const SettingsPage()));
       await tester.pumpAndSettle();
 
-      // 切到 Security tab 查看会话列表。
+      // 打开 Security 分类 查看会话列表。
       await tester.tap(find.text('安全'));
       await tester.pumpAndSettle();
 
@@ -4266,7 +4449,7 @@ void main() {
         ],
       );
 
-      // 设置更大视口,保证安全 tab 内"退出登录"按钮无需滚动即可见。
+      // 设置更大视口,保证安全分类内"退出登录"按钮无需滚动即可见。
       tester.view.physicalSize = const Size(1080, 2400);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.reset);
@@ -4284,7 +4467,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // 切到 Security tab 找登出按钮。
+      // 打开 Security 分类 找登出按钮。
       await tester.tap(find.text('安全'));
       await tester.pumpAndSettle();
       expect(find.text('退出登录'), findsOneWidget);
@@ -4357,7 +4540,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // 切到 Security tab 找"吊销全部会话"按钮。
+      // 打开 Security 分类 找"吊销全部会话"按钮。
       await tester.tap(find.text('安全'));
       await tester.pumpAndSettle();
       expect(find.text('吊销全部会话'), findsOneWidget);

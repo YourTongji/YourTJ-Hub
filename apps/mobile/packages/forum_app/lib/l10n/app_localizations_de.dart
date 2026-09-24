@@ -65,6 +65,11 @@ class AppLocalizationsDe extends AppLocalizations {
   String get commonSave => 'Speichern';
 
   @override
+  String imageViewPosition(int index, int count) {
+    return 'Bild $index von $count ansehen';
+  }
+
+  @override
   String get imageSave => 'Bild speichern';
 
   @override
@@ -171,6 +176,13 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get authForgotTitle => 'Passwort zurücksetzen';
+
+  @override
+  String get authContinueAfterLogin =>
+      'Melde dich an, um dort weiterzumachen, wo du aufgehört hast.';
+
+  @override
+  String get authSignInMethods => 'Weitere Anmeldeoptionen';
 
   @override
   String get authLoginSubtitle =>
@@ -499,6 +511,15 @@ class AppLocalizationsDe extends AppLocalizations {
   String get messagesInputHint => 'Nachricht eingeben …';
 
   @override
+  String get messagesEmoji => 'Emoji';
+
+  @override
+  String get messagesKeyboard => 'Tastatur';
+
+  @override
+  String get messagesCopyAll => 'Ganze Nachricht kopieren';
+
+  @override
   String messagesSendFailed(String error) {
     return 'Senden fehlgeschlagen: $error';
   }
@@ -731,6 +752,21 @@ class AppLocalizationsDe extends AppLocalizations {
   String settingsOpFailed(String error) {
     return 'Aktion fehlgeschlagen: $error';
   }
+
+  @override
+  String get settingsDevice => 'Dieses Gerät';
+
+  @override
+  String get settingsYourAccount => 'Dein Konto';
+
+  @override
+  String get settingsThemeLight => 'Hell';
+
+  @override
+  String get settingsThemeDark => 'Dunkel';
+
+  @override
+  String get settingsRevokeSession => 'Diese Sitzung widerrufen';
 
   @override
   String get settingsAppearance => 'Darstellung';
@@ -1198,6 +1234,10 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get wikiTitle => 'Wiki';
+
+  @override
+  String get wikiLinkOpenFailed =>
+      'Der Link konnte nicht geöffnet werden. Bitte versuche es erneut.';
 
   @override
   String get wikiRecent => 'Zuletzt aktualisiert';
@@ -2260,7 +2300,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get campusPrivacy =>
-      'Ein Konto, eine offizielle Identität. Hochschuldaten sind privat und werden nicht auf dem Gerät gespeichert.';
+      'Ein Konto, eine Hochschulidentität. Name, Kalender und Stundenplan werden für die Offline-Nutzung auf diesem Gerät gespeichert. Unten können Sie diese Daten löschen.';
 
   @override
   String get campusDisabled => 'Die Campus-Verbindung ist hier nicht aktiviert';
@@ -2537,6 +2577,9 @@ class AppLocalizationsDe extends AppLocalizations {
   String get badgeDisplayDown => 'Nach unten';
 
   @override
+  String get notificationsMarkRead => 'Als gelesen markieren';
+
+  @override
   String get scheduleWidgetSettingsTitle => 'Startbildschirm-Stundenplan';
 
   @override
@@ -2600,4 +2643,52 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get campusCacheClearFailed =>
       'Einige Cache-Daten konnten nicht gelöscht werden. Bitte erneut versuchen.';
+
+  @override
+  String get scheduleTimeAxis => 'Stunden';
+
+  @override
+  String scheduleEmptyCell(String day, int section) {
+    return '$day, Stunde $section, Kurs auswählen';
+  }
+
+  @override
+  String scheduleSectionsN(String range) {
+    return 'Stunden $range';
+  }
+
+  @override
+  String get scheduleGridScrollHint =>
+      'Seitlich wischen, um die ganze Woche zu sehen';
+
+  @override
+  String get coursesFilterSearchHint => 'Filteroptionen suchen';
+
+  @override
+  String get coursesFilterNoMatches => 'Keine passenden Filteroptionen';
+
+  @override
+  String get coursesClearSelection => 'Auswahl löschen';
+
+  @override
+  String get coursesResetSearch => 'Suche und Filter zurücksetzen';
+
+  @override
+  String get coursesFilterLoadFailed =>
+      'Filteroptionen konnten nicht geladen werden.';
+
+  @override
+  String get coursesPaginationStalled =>
+      'Keine weiteren Kurse erhalten. Laden Sie diese Seite erneut.';
+
+  @override
+  String get messagesNewMessages => 'Neue Nachrichten · Zum Ende';
+
+  @override
+  String get messagesReadSyncFailed =>
+      'Lesestatus konnte nicht synchronisiert werden. Ungelesene Nachrichten bleiben erhalten.';
+
+  @override
+  String get messagesReadUnavailable =>
+      'Dieser Server unterstützt noch keine einzelnen Lesebestätigungen. Ungelesene Nachrichten bleiben erhalten.';
 }

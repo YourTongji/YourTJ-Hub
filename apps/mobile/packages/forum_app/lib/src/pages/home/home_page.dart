@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:core/core.dart';
@@ -19,6 +21,10 @@ import '../../widgets/status_views.dart';
 import '../../widgets/topic_list.dart';
 import '../../widgets/root_surface.dart';
 import '../../widgets/announcement_banner.dart';
+import '../../app_config.dart';
+import '../../current_user.dart';
+import '../../offline/drift_cache.dart';
+import '../../startup_metrics.dart';
 
 /// 首页:公告 + 话题流(web HomePage.vue 的移动端形态)。
 class HomePage extends ConsumerStatefulWidget {
@@ -36,16 +42,42 @@ typedef _InteractionOverride = ({
   int? likeCount,
 });
 
+/// Each visited sort owns its request generation, pagination and reading
+/// position. Switching tabs never supersedes another tab's in-flight read.
+class _HomeFeedState {
+  _HomeFeedState(this.sort);
+
+  final String sort;
+  AsyncValue<HomeProps> page = const AsyncValue.loading();
+  final List<TopicPayload> topics = [];
+  bool loadingMore = false;
+  String? loadMoreError;
+  int loadSequence = 0;
+  CancelToken? loadCancel;
+  CancelToken? loadMoreCancel;
+
+  void cancel() {
+    loadCancel?.cancel("home feed disposed");
+    loadMoreCancel?.cancel("home feed disposed");
+  }
+
+  final scrollToTop = GfScrollToTopController();
+}
+
 class _HomePageState extends ConsumerState<HomePage> {
   static const String _feedModeKey = 'goose:home-feed-mode';
 
-  AsyncValue<HomeProps> _page = const AsyncValue.loading();
   String _sort = '';
-  bool _announcementCollapsed = false;
-  int _loadSequence = 0;
+  final _feeds = <String, _HomeFeedState>{'': _HomeFeedState('')};
+  _HomeFeedState get _activeFeed => _feeds[_sort]!;
+  HomeProps? _navigationProps;
+  bool _announcementCollapsed = true;
   int _interactionRevision = 0;
+  bool _firstCardFrameRecorded = false;
   final _pendingInteractions = <(int, bool)>{};
   final _interactionOverrides = <(int, bool), _InteractionOverride>{};
+  final _returnedTopicOverrides =
+      <int, ({int revision, int epoch, TopicReturnState state})>{};
 
   // Pending writes and writes completed after a read started override that
   // response. A refresh started after completion remains authoritative.
@@ -56,14 +88,35 @@ class _HomePageState extends ConsumerState<HomePage> {
 
   TopicPayload _mergeInteraction(TopicPayload topic, int readRevision) {
     var result = topic;
+    final returned = _returnedTopicOverrides[topic.id];
+    final returnRevision =
+        returned != null &&
+            returned.epoch == ref.read(offlineCacheEpochProvider) &&
+            returned.revision > readRevision
+        ? returned.revision
+        : 0;
+    if (returnRevision > 0) {
+      final state = returned!.state;
+      result = result.copyWith(
+        unseen: state.unseen,
+        liked: state.liked,
+        bookmarked: state.bookmarked,
+        likeCount: state.likeCount,
+        replyCount: state.replyCount,
+        viewCount: state.viewCount,
+      );
+    }
     for (final bookmark in [false, true]) {
       final key = (topic.id, bookmark);
       final update = _interactionOverrides[key];
       if (update == null) continue;
-      if (update.epoch != ref.read(offlineCacheEpochProvider) ||
-          (!_pendingInteractions.contains(key) &&
-              update.revision <= readRevision)) {
+      if (update.epoch != ref.read(offlineCacheEpochProvider)) {
         _interactionOverrides.remove(key);
+        continue;
+      }
+      // Keep the revision fence for reads still running in other sorts.
+      if (!_pendingInteractions.contains(key) &&
+          update.revision <= math.max(readRevision, returnRevision)) {
         continue;
       }
       result = bookmark
@@ -73,13 +126,9 @@ class _HomePageState extends ConsumerState<HomePage> {
     return result;
   }
 
-  final List<TopicPayload> _topics = <TopicPayload>[];
-  bool _loadingMore = false;
-  String? _loadMoreError;
   GfTopicFeedMode _feedMode = GfTopicFeedMode.card;
   List<CategoryNavPayload> _categories = const <CategoryNavPayload>[];
-  final GfScrollToTopController _scrollToTopController =
-      GfScrollToTopController();
+  GfScrollToTopController get _scrollToTopController => _activeFeed.scrollToTop;
   late final GfTabScrollRegistry _tabScrollRegistry;
 
   @override
@@ -88,11 +137,19 @@ class _HomePageState extends ConsumerState<HomePage> {
     _tabScrollRegistry = ref.read(tabScrollRegistryProvider)
       ..register(GfShellDestination.home, _scrollToTopController);
     _restoreFeedMode();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        recordStartupMilestone('startup.home_skeleton_frame_submitted');
+      }
+    });
     _load();
   }
 
   @override
   void dispose() {
+    for (final feed in _feeds.values) {
+      feed.cancel();
+    }
     _tabScrollRegistry.unregister(
       GfShellDestination.home,
       _scrollToTopController,
@@ -134,94 +191,205 @@ class _HomePageState extends ConsumerState<HomePage> {
     setState(() => _announcementCollapsed = collapsed);
   }
 
-  Future<void> _load({bool silent = false}) async {
+  Future<void> _load({bool silent = false, String? sort}) async {
+    final feed = _feeds[sort ?? _sort]!;
     if (!mounted) return;
-    final sequence = ++_loadSequence;
+    final sequence = ++feed.loadSequence;
     final revision = _interactionRevision;
     final epoch = ref.read(offlineCacheEpochProvider);
-    _loadingMore = false;
-    _loadMoreError = null;
-    if (!silent) setState(() => _page = const AsyncValue.loading());
+    feed.loadCancel?.cancel('home request superseded');
+    feed.loadMoreCancel?.cancel('home refresh superseded');
+    feed.loadingMore = false;
+    feed.loadMoreError = null;
+    final cancel = feed.loadCancel = CancelToken();
+    final requestedSort = feed.sort;
+    final cacheScopeFuture = _homeCacheScope();
+    var cachedPageShown = false;
+    var networkPageShown = false;
+    if (!silent) setState(() => feed.page = const AsyncValue.loading());
+    final cacheShownFuture =
+        (!silent
+                ? () async {
+                    try {
+                      final scope = await cacheScopeFuture;
+                      if (scope == null) return false;
+                      final cache = ref.read(offlineTopicCacheProvider);
+                      if (cache is! OfflineHomeCache) return false;
+                      final cached = await (cache as OfflineHomeCache)
+                          .getHomePage(
+                            accountId: scope.$1,
+                            baseUrl: scope.$2,
+                            sort: requestedSort,
+                          );
+                      if (cached == null ||
+                          networkPageShown ||
+                          !mounted ||
+                          sequence != feed.loadSequence ||
+                          epoch != ref.read(offlineCacheEpochProvider)) {
+                        return false;
+                      }
+                      final cachedProps = parsePageProps<HomeProps>(cached);
+                      if (cachedProps == null) return false;
+                      setState(() {
+                        feed.page = AsyncValue.data(cachedProps);
+                        _navigationProps ??= cachedProps;
+                        _categories = cached.layout.sidebar.categories;
+                        feed.topics
+                          ..clear()
+                          ..addAll(
+                            _mergeInteractions(cachedProps.topics, revision),
+                          );
+                      });
+                      _recordFirstHomeContent(cachedProps.topics.isNotEmpty);
+                      return true;
+                    } catch (_) {
+                      return false;
+                    }
+                  }()
+                : Future<bool>.value(false))
+            .then((shown) => cachedPageShown = shown);
     try {
       final PagePayload payload = await ref
           .read(pageRepositoryProvider)
-          .home(sort: _sort);
+          .home(sort: requestedSort, cancelToken: cancel);
       if (!mounted ||
-          sequence != _loadSequence ||
+          sequence != feed.loadSequence ||
           epoch != ref.read(offlineCacheEpochProvider)) {
         return;
       }
       final HomeProps? props = parsePageProps<HomeProps>(payload);
       if (props == null) throw const FormatException('home props');
+      networkPageShown = true;
       setState(() {
-        _page = AsyncValue.data(props);
+        feed.page = AsyncValue.data(props);
+        _navigationProps = props;
         _categories = payload.layout.sidebar.categories;
-        _topics.clear();
-        _topics.addAll(_mergeInteractions(props.topics, revision));
+        feed.topics.clear();
+        feed.topics.addAll(_mergeInteractions(props.topics, revision));
       });
+      recordStartupMilestone('startup.home_data_parsed');
+      _recordFirstHomeContent(props.topics.isNotEmpty);
+      unawaited(() async {
+        try {
+          final scope = await cacheScopeFuture;
+          if (sequence != feed.loadSequence ||
+              epoch != ref.read(offlineCacheEpochProvider) ||
+              scope == null) {
+            return;
+          }
+          final cache = ref.read(offlineTopicCacheProvider);
+          if (cache is OfflineHomeCache) {
+            await (cache as OfflineHomeCache).putHomePage(
+              accountId: scope.$1,
+              baseUrl: scope.$2,
+              sort: requestedSort,
+              payload: payload,
+            );
+          }
+        } catch (_) {
+          // Persistent SWR is optional; the network result is already visible.
+        }
+      }());
     } catch (e, st) {
       if (!mounted ||
-          sequence != _loadSequence ||
+          sequence != feed.loadSequence ||
           epoch != ref.read(offlineCacheEpochProvider)) {
         return;
       }
-      if (silent && _page.hasValue) {
+      if (cancel.isCancelled) return;
+      await cacheShownFuture;
+      if (!mounted ||
+          sequence != feed.loadSequence ||
+          epoch != ref.read(offlineCacheEpochProvider)) {
+        return;
+      }
+      if ((silent || cachedPageShown) && feed.page.hasValue) {
         showGfToast(
           context,
           AppLocalizations.of(context).refreshFailedRetained,
           error: true,
         );
       } else {
-        setState(() => _page = AsyncValue.error(e, st));
+        setState(() => feed.page = AsyncValue.error(e, st));
       }
+    } finally {
+      if (identical(feed.loadCancel, cancel)) feed.loadCancel = null;
     }
+  }
+
+  Future<(int, String)?> _homeCacheScope() async {
+    CurrentUser? user;
+    try {
+      user = await ref.read(currentUserProvider.future);
+    } catch (_) {
+      // A cache identity failure must not block the network request.
+    }
+    final hasToken = await hasSessionToken(ref.read(tokenStorageProvider));
+    final accountId = user?.id ?? (hasToken ? null : 0);
+    if (accountId == null) return null;
+    final baseUrl = AppConfig.apiBaseUrl.isNotEmpty
+        ? AppConfig.apiBaseUrl
+        : GfApiClient.defaultBaseUrl;
+    return (accountId, baseUrl);
+  }
+
+  void _recordFirstHomeContent(bool hasTopics) {
+    if (_firstCardFrameRecorded) return;
+    _firstCardFrameRecorded = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        recordFirstHomeContentAndFullyDrawn(hasTopics: hasTopics);
+      }
+    });
   }
 
   /// 从话题详情返回:先消费详情页带回的话题增量(unseen/点赞/收藏/计数,
   /// 条目落在任何已加载页都生效),再后台请求第一页,按 id 原位更新已加载
-  /// 话题的最新状态。不把第一页 payload 写入 _page——分页游标
+  /// 话题的最新状态。不把第一页 payload 写入 feed.page——分页游标
   /// (nextUrl/hasNext)保留,「加载更多」从原进度继续;列表长度不回缩,
   /// 滚动位置不跳顶(MADR 0012 Preserve scroll position)。下拉刷新仍走
   /// _load(silent: true) 的整页重置语义,两条静默路径分开接线。
-  Future<void> _refreshAfterReturn() async {
+  Future<void> _refreshAfterReturn(_HomeFeedState feed) async {
     if (!mounted) return;
-    final revision = _interactionRevision;
+    final returnReadRevision = _interactionRevision;
+    final epoch = ref.read(offlineCacheEpochProvider);
     final Map<int, TopicReturnState> returned = Map.of(
       ref.read(topicReturnStatesProvider),
     );
     if (returned.isNotEmpty) {
       ref.read(topicReturnStatesProvider).clear();
       setState(() {
-        for (var i = 0; i < _topics.length; i++) {
-          final TopicReturnState? state = returned[_topics[i].id];
-          if (state == null) continue;
-          _topics[i] = _mergeInteraction(
-            _topics[i].copyWith(
-              unseen: state.unseen,
-              liked: state.liked,
-              bookmarked: state.bookmarked,
-              likeCount: state.likeCount,
-              replyCount: state.replyCount,
-              viewCount: state.viewCount,
-            ),
-            revision,
+        for (final entry in returned.entries) {
+          // A not-yet-loaded sort can still return an older read after this
+          // detail handoff. Preserve its revision just like a local mutation.
+          _returnedTopicOverrides[entry.key] = (
+            revision: ++_interactionRevision,
+            epoch: epoch,
+            state: entry.value,
+          );
+          _updateLoadedTopic(
+            entry.key,
+            (topic) => _mergeInteraction(topic, returnReadRevision),
           );
         }
       });
     }
-    if (_topics.isEmpty) return;
-    final sequence = ++_loadSequence;
-    final epoch = ref.read(offlineCacheEpochProvider);
+    if (feed.topics.isEmpty) return;
+    final sequence = ++feed.loadSequence;
+    final revision = _interactionRevision;
+    feed.loadCancel?.cancel('home return refresh superseded');
+    feed.loadMoreCancel?.cancel('home return refresh superseded');
+    final cancel = feed.loadCancel = CancelToken();
     // 在途「加载更多」已随序号失效,其 finally 的同序号守卫不会清理加载态,
-    // 这里必须像 _load 一样接管,否则 _loadingMore 卡死、分页失效。
-    _loadingMore = false;
-    _loadMoreError = null;
+    // 这里必须像 _load 一样接管,否则 feed.loadingMore 卡死、分页失效。
+    feed.loadingMore = false;
+    feed.loadMoreError = null;
     try {
       final PagePayload payload = await ref
           .read(pageRepositoryProvider)
-          .home(sort: _sort);
+          .home(sort: feed.sort, cancelToken: cancel);
       if (!mounted ||
-          sequence != _loadSequence ||
+          sequence != feed.loadSequence ||
           epoch != ref.read(offlineCacheEpochProvider)) {
         return;
       }
@@ -233,75 +401,82 @@ class _HomePageState extends ConsumerState<HomePage> {
       setState(() {
         // 只原位替换已加载条目:不追加新热帖、不移除已消失条目,
         // 保证列表形状与滚动位置稳定。
-        for (var i = 0; i < _topics.length; i++) {
-          final TopicPayload? fresh = incoming[_topics[i].id];
-          if (fresh != null) _topics[i] = _mergeInteraction(fresh, revision);
+        for (var i = 0; i < feed.topics.length; i++) {
+          final TopicPayload? fresh = incoming[feed.topics[i].id];
+          if (fresh != null) {
+            feed.topics[i] = _mergeInteraction(fresh, revision);
+          }
         }
       });
     } catch (_) {
       // 返回刷新失败:保留当前列表与分页进度,并按 Home 失败刷新的
       // 产品约定轻提示(docs/product/mobile-experience.md)。
       if (!mounted ||
-          sequence != _loadSequence ||
+          sequence != feed.loadSequence ||
           epoch != ref.read(offlineCacheEpochProvider)) {
         return;
       }
+      if (cancel.isCancelled) return;
       showGfToast(
         context,
         AppLocalizations.of(context).refreshFailedRetained,
         error: true,
       );
+    } finally {
+      if (identical(feed.loadCancel, cancel)) feed.loadCancel = null;
     }
   }
 
-  Future<void> _loadMore() async {
-    final HomeProps? props = _page.value;
-    if (props == null || !props.pagination.hasNext || _loadingMore) return;
+  Future<void> _loadMore(_HomeFeedState feed) async {
+    final HomeProps? props = feed.page.value;
+    if (props == null || !props.pagination.hasNext || feed.loadingMore) return;
     final String nextUrl = props.pagination.nextUrl;
     if (nextUrl.isEmpty) return;
-    final sequence = _loadSequence;
+    final sequence = feed.loadSequence;
     final revision = _interactionRevision;
     final epoch = ref.read(offlineCacheEpochProvider);
+    final cancel = feed.loadMoreCancel = CancelToken();
     setState(() {
-      _loadingMore = true;
-      _loadMoreError = null;
+      feed.loadingMore = true;
+      feed.loadMoreError = null;
     });
     try {
       // 真实分页:按后端 nextUrl 请求下一页(页面级数据通道)。
       final PagePayload payload = await ref
           .read(pageRepositoryProvider)
-          .fetch(nextUrl);
+          .fetch(nextUrl, cancelToken: cancel);
       if (!mounted ||
-          sequence != _loadSequence ||
+          sequence != feed.loadSequence ||
           epoch != ref.read(offlineCacheEpochProvider)) {
         return;
       }
       final HomeProps? next = parsePageProps<HomeProps>(payload);
       if (next == null) throw const FormatException('home pagination');
       setState(() {
-        final seen = _topics.map((topic) => topic.id).toSet();
-        _topics.addAll(
+        final seen = feed.topics.map((topic) => topic.id).toSet();
+        feed.topics.addAll(
           _mergeInteractions(
             next.topics.where((topic) => seen.add(topic.id)).toList(),
             revision,
           ),
         );
-        _page = AsyncValue.data(next);
+        feed.page = AsyncValue.data(next);
       });
     } catch (error) {
       if (mounted &&
-          sequence == _loadSequence &&
+          sequence == feed.loadSequence &&
           epoch == ref.read(offlineCacheEpochProvider)) {
         setState(
-          () => _loadMoreError = resolveErrorMessage(
+          () => feed.loadMoreError = resolveErrorMessage(
             AppLocalizations.of(context),
             error,
           ),
         );
       }
     } finally {
-      if (mounted && sequence == _loadSequence) {
-        setState(() => _loadingMore = false);
+      if (identical(feed.loadMoreCancel, cancel)) feed.loadMoreCancel = null;
+      if (mounted && sequence == feed.loadSequence) {
+        setState(() => feed.loadingMore = false);
       }
     }
   }
@@ -315,8 +490,9 @@ class _HomePageState extends ConsumerState<HomePage> {
     final key = (topic.id, bookmark);
     if (!_pendingInteractions.add(key)) return false;
     final epoch = ref.read(offlineCacheEpochProvider);
-    final index = _topics.indexWhere((t) => t.id == topic.id);
-    final current = index >= 0 ? _topics[index] : topic;
+    final topics = _activeFeed.topics;
+    final index = topics.indexWhere((t) => t.id == topic.id);
+    final current = index >= 0 ? topics[index] : topic;
     // 乐观更新先于请求落盘：图标与点赞计数立即切换并记录 override（并发刷新
     // 据此折叠）；失败按字段回滚，过期会话丢弃结果，避免跨会话污染。
     final snapshot = (
@@ -335,11 +511,12 @@ class _HomePageState extends ConsumerState<HomePage> {
     );
     setState(() {
       _interactionOverrides[key] = optimistic;
-      if (index >= 0) {
-        _topics[index] = bookmark
-            ? current.copyWith(bookmarked: target)
-            : current.copyWith(liked: target, likeCount: optimistic.likeCount!);
-      }
+      _updateLoadedTopic(
+        topic.id,
+        (loaded) => bookmark
+            ? loaded.copyWith(bookmarked: target)
+            : loaded.copyWith(liked: target, likeCount: optimistic.likeCount!),
+      );
     });
     try {
       final repository = ref.read(topicRepositoryProvider);
@@ -409,22 +586,43 @@ class _HomePageState extends ConsumerState<HomePage> {
       } else {
         _interactionOverrides[key] = snapshot.override!;
       }
-      final index = _topics.indexWhere((t) => t.id == topicId);
-      if (index >= 0) {
-        _topics[index] = bookmark
-            ? _topics[index].copyWith(bookmarked: snapshot.bookmarked)
-            : _topics[index].copyWith(
+      _updateLoadedTopic(
+        topicId,
+        (topic) => bookmark
+            ? topic.copyWith(bookmarked: snapshot.bookmarked)
+            : topic.copyWith(
                 liked: snapshot.liked,
                 likeCount: snapshot.likeCount,
-              );
-      }
+              ),
+      );
     });
   }
 
+  void _updateLoadedTopic(
+    int topicId,
+    TopicPayload Function(TopicPayload) update,
+  ) {
+    for (final feed in _feeds.values) {
+      final index = feed.topics.indexWhere((topic) => topic.id == topicId);
+      if (index >= 0) {
+        feed.topics[index] = update(feed.topics[index]);
+      }
+    }
+  }
+
   void _switchSort(String sort) {
+    if (sort == 'latest') sort = '';
     if (sort == _sort) return;
-    _sort = sort;
-    _load();
+    final firstVisit = !_feeds.containsKey(sort);
+    setState(() {
+      _sort = sort;
+      _feeds.putIfAbsent(sort, () => _HomeFeedState(sort));
+    });
+    _tabScrollRegistry.register(
+      GfShellDestination.home,
+      _scrollToTopController,
+    );
+    if (firstVisit) _load();
   }
 
   @override
@@ -432,6 +630,19 @@ class _HomePageState extends ConsumerState<HomePage> {
     ref.listen<int>(offlineCacheEpochProvider, (_, _) {
       _pendingInteractions.clear();
       _interactionOverrides.clear();
+      _returnedTopicOverrides.clear();
+      for (final feed in _feeds.values) {
+        feed.cancel();
+      }
+      _feeds
+        ..clear()
+        ..[_sort] = _HomeFeedState(_sort);
+      _navigationProps = null;
+      _categories = [];
+      _tabScrollRegistry.register(
+        GfShellDestination.home,
+        _scrollToTopController,
+      );
       _load();
     });
     final AppLocalizations l10n = AppLocalizations.of(context);
@@ -446,50 +657,78 @@ class _HomePageState extends ConsumerState<HomePage> {
       ],
       toolbarHeight:
           GfTabBar.heightFor(context) + (_categories.isEmpty ? 0 : 56),
-      toolbar: _page.hasValue
+      toolbar: _navigationProps != null
           ? _HomeToolbar(
-              props: _page.requireValue,
+              props: _navigationProps!,
               categories: _categories,
-              selected: _sort,
+              selected: _sort.isEmpty ? 'latest' : _sort,
               feedMode: _feedMode,
               onSelected: _switchSort,
               onFeedModeSelected: _setFeedMode,
             )
           : const SizedBox.shrink(),
-      body: (top, bottom) => _page.when(
-        loading: () => Padding(
-          padding: EdgeInsets.only(top: top),
-          child: const GfTopicFeedSkeleton(),
-        ),
-        error: (e, _) =>
-            GfErrorRetry(message: resolveErrorMessage(l10n, e), onRetry: _load),
-        data: (props) => GfScrollToTop(
-          semanticLabel: l10n.commonBackToTop,
-          controller: _scrollToTopController,
-          showButton: false,
-          builder: (_, controller) => AppRefreshIndicator(
-            edgeOffset: top,
-            onRefresh: () => _load(silent: true),
-            child: GfTopicList(
-              loadMoreError: _loadMoreError,
-              controller: controller,
-              padding: EdgeInsets.only(top: top, bottom: bottom),
-              header: AnnouncementBanner(
-                announcement: props.announcement,
-                collapsed: _announcementCollapsed,
-                onCollapsedChanged: _setAnnouncementCollapsed,
+      body: (top, bottom) => IndexedStack(
+        index: _feeds.keys.toList().indexOf(_sort),
+        children: [
+          for (final feed in _feeds.values)
+            TickerMode(
+              key: ObjectKey(feed),
+              enabled:
+                  feed == _activeFeed && TickerMode.valuesOf(context).enabled,
+              child: GfScrollToTop(
+                semanticLabel: l10n.commonBackToTop,
+                controller: feed.scrollToTop,
+                showButton: false,
+                builder: (_, controller) =>
+                    _buildFeed(feed, controller, top, bottom),
               ),
-              loading: _loadingMore,
-              topics: _topics,
-              feedMode: _feedMode,
-              onLikeTopic: _toggleTopicInteraction,
-              onBookmarkTopic: (topic, target) =>
-                  _toggleTopicInteraction(topic, target, bookmark: true),
-              onReturnFromTopic: _refreshAfterReturn,
-              hasMore: props.pagination.hasNext,
-              onLoadMore: _loadMore,
             ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFeed(
+    _HomeFeedState feed,
+    ScrollController controller,
+    double top,
+    double bottom,
+  ) {
+    final l10n = AppLocalizations.of(context);
+    return feed.page.when(
+      loading: () => Padding(
+        padding: EdgeInsets.only(top: top),
+        child: const GfTopicFeedSkeleton(),
+      ),
+      error: (e, _) => Padding(
+        padding: EdgeInsets.only(top: top, bottom: bottom),
+        child: GfErrorRetry(
+          message: resolveErrorMessage(l10n, e),
+          onRetry: () => _load(sort: feed.sort),
+        ),
+      ),
+      data: (props) => AppRefreshIndicator(
+        edgeOffset: top,
+        onRefresh: () => _load(silent: true, sort: feed.sort),
+        child: GfTopicList(
+          loadMoreError: feed.loadMoreError,
+          controller: controller,
+          padding: EdgeInsets.only(top: top, bottom: bottom),
+          header: AnnouncementBanner(
+            announcement: props.announcement,
+            collapsed: _announcementCollapsed,
+            onCollapsedChanged: _setAnnouncementCollapsed,
           ),
+          loading: feed.loadingMore,
+          topics: feed.topics,
+          feedMode: _feedMode,
+          onFirstMediaFrame: recordFirstHomeMediaFrame,
+          onLikeTopic: _toggleTopicInteraction,
+          onBookmarkTopic: (topic, target) =>
+              _toggleTopicInteraction(topic, target, bookmark: true),
+          onReturnFromTopic: () => _refreshAfterReturn(feed),
+          hasMore: props.pagination.hasNext,
+          onLoadMore: () => _loadMore(feed),
         ),
       ),
     );

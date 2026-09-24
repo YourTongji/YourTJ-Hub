@@ -66,7 +66,7 @@ class RouterPageRepository extends PageRepository {
   RouterPageRepository(super.client);
 
   @override
-  Future<PagePayload> fetch(String path) async {
+  Future<PagePayload> fetch(String path, {Object? cancelToken}) async {
     if (path == '/' || path.startsWith('/?sort=')) {
       return parsePayload(homePayloadJson());
     }
@@ -89,6 +89,9 @@ class RouterPageRepository extends PageRepository {
 
 void main() {
   testWidgets('app builds with Gf theme and bottom shell', (tester) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(390, 844);
+    addTearDown(tester.view.reset);
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
@@ -155,6 +158,7 @@ void main() {
   testWidgets('设置/通知/草稿路由可达:router 注册且可导航', (tester) async {
     appRouter.go('/');
     final MemoryTokenStorage storage = MemoryTokenStorage();
+    await storage.write('authenticated-test-session');
     final GfApiClient client = GfApiClient(
       dio: Dio(),
       tokenStorage: storage,
@@ -193,6 +197,48 @@ void main() {
     await tester.tap(find.text('草稿箱'));
     await tester.pumpAndSettle();
     expect(find.text('草稿箱'), findsWidgets);
+  });
+
+  testWidgets('app redirects guest intents and clears old settings overlays', (
+    tester,
+  ) async {
+    final container = ProviderContainer(
+      overrides: [
+        tokenStorageProvider.overrideWithValue(MemoryTokenStorage()),
+        offlineTopicCacheProvider.overrideWithValue(NoopOfflineCache()),
+        offlineChatCacheProvider.overrideWithValue(NoopOfflineCache()),
+      ],
+    );
+    addTearDown(container.dispose);
+    appRouter.go('/');
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const GfApp(locale: Locale('en')),
+      ),
+    );
+    await tester.pumpAndSettle();
+    appRouter.push('/publish?type=question');
+    await tester.pumpAndSettle();
+    expect(appRouter.state.uri.path, '/login');
+    expect(
+      appRouter.state.uri.queryParameters['returnTo'],
+      '/publish?type=question',
+    );
+    appRouter.go('/settings');
+    await tester.pumpAndSettle();
+    expect(appRouter.state.uri.path, '/settings');
+    final oldResult = showDialog<bool>(
+      context: appNavigatorKey.currentContext!,
+      builder: (_) => const AlertDialog(title: Text('Old settings form')),
+    );
+    await tester.pumpAndSettle();
+    container.read(offlineCacheEpochProvider.notifier).invalidate();
+    await tester.pumpAndSettle();
+    expect(await oldResult, isNull);
+    expect(find.text('Old settings form'), findsNothing);
+    appRouter.go('/');
+    await tester.pumpAndSettle();
   });
 
   test('router has all browsing routes registered', () {

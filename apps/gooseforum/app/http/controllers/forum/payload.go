@@ -20,6 +20,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/transform"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/vo"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/defaultconfig"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/filemodel/filedata"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/category"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/eventNotification"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
@@ -36,6 +37,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/badgeservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/campusservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/chatservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/fileusageservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/moderationservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/notificationservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/oauthservice"
@@ -288,24 +290,25 @@ type AnnouncementItemPayload struct {
 }
 
 type TopicPayload struct {
-	ID             uint64                 `json:"id"`
-	Title          string                 `json:"title"`
-	Description    string                 `json:"description"`
-	FirstImageURL  string                 `json:"firstImageUrl,omitempty"`
-	Images         []string               `json:"images,omitempty"`
-	URL            string                 `json:"url"`
-	PinWeight      int                    `json:"pinWeight"`
-	ProcessStatus  int8                   `json:"processStatus"`
-	Author         TopicAuthorPayload     `json:"author"`
-	Participants   []TopicAuthorPayload   `json:"participants"`
-	Categories     []TopicCategoryPayload `json:"categories"`
-	ReplyCount     uint64                 `json:"replyCount"`
-	ViewCount      uint64                 `json:"viewCount"`
-	LikeCount      uint64                 `json:"likeCount"`
-	ActivityText   string                 `json:"activityText"`
-	LastUpdateTime string                 `json:"lastUpdateTime"`
-	Unseen         bool                   `json:"unseen,omitempty"`
-	ContentType    int8                   `json:"contentType"`
+	ID             uint64                   `json:"id"`
+	Title          string                   `json:"title"`
+	Description    string                   `json:"description"`
+	FirstImageURL  string                   `json:"firstImageUrl,omitempty"`
+	Images         []string                 `json:"images,omitempty"`
+	ImageMetadata  []filedata.ImageMetadata `json:"imageMetadata,omitempty"`
+	URL            string                   `json:"url"`
+	PinWeight      int                      `json:"pinWeight"`
+	ProcessStatus  int8                     `json:"processStatus"`
+	Author         TopicAuthorPayload       `json:"author"`
+	Participants   []TopicAuthorPayload     `json:"participants"`
+	Categories     []TopicCategoryPayload   `json:"categories"`
+	ReplyCount     uint64                   `json:"replyCount"`
+	ViewCount      uint64                   `json:"viewCount"`
+	LikeCount      uint64                   `json:"likeCount"`
+	ActivityText   string                   `json:"activityText"`
+	LastUpdateTime string                   `json:"lastUpdateTime"`
+	Unseen         bool                     `json:"unseen,omitempty"`
+	ContentType    int8                     `json:"contentType"`
 	// Nil means personal state is unavailable, never an assumed false value.
 	Liked      *bool `json:"liked,omitempty"`
 	Bookmarked *bool `json:"bookmarked,omitempty"`
@@ -1042,6 +1045,24 @@ func buildHomeTabs(sort string, userID uint64, lang string) []TabPayload {
 func buildTopicPayloads(topics []*vo.TopicsSimpleVo) []TopicPayload {
 	categoryMap := hotdataserve.CategoryMap()
 	res := make([]TopicPayload, 0, len(topics))
+	imageNames := make([]string, 0, len(topics)*2)
+	for _, topic := range topics {
+		if topic == nil {
+			continue
+		}
+		imageURLs := topic.ImageUrls
+		if len(imageURLs) == 0 && topic.FirstImageURL != "" {
+			imageURLs = []string{topic.FirstImageURL}
+		}
+		for _, imageURL := range imageURLs {
+			imageNames = append(imageNames, fileusageservice.FileNameFromURL(imageURL))
+		}
+	}
+	imageMetadata, err := filedata.ImageMetadataByNames(imageNames)
+	if err != nil {
+		slog.Warn("resolve feed image metadata failed", "error", err)
+		imageMetadata = nil
+	}
 	for _, topic := range topics {
 		if topic == nil {
 			continue
@@ -1072,6 +1093,18 @@ func buildTopicPayloads(topics []*vo.TopicsSimpleVo) []TopicPayload {
 				Color: color,
 			})
 		}
+		imageURLs := topic.ImageUrls
+		if len(imageURLs) == 0 && topic.FirstImageURL != "" {
+			imageURLs = []string{topic.FirstImageURL}
+		}
+		images := make([]filedata.ImageMetadata, 0, len(imageURLs))
+		for _, imageURL := range imageURLs {
+			name := fileusageservice.FileNameFromURL(imageURL)
+			if metadata, ok := imageMetadata[name]; ok {
+				metadata.URL = imageURL
+				images = append(images, metadata)
+			}
+		}
 
 		res = append(res, TopicPayload{
 			ID:            topic.Id,
@@ -1079,6 +1112,7 @@ func buildTopicPayloads(topics []*vo.TopicsSimpleVo) []TopicPayload {
 			Description:   topic.Description,
 			FirstImageURL: topic.FirstImageURL,
 			Images:        topic.ImageUrls,
+			ImageMetadata: images,
 			URL:           urlconfig.PostDetail(topic.Id),
 			PinWeight:     topic.PinWeight,
 			ProcessStatus: topic.ProcessStatus,

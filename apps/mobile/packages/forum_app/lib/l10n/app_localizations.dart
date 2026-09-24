@@ -204,6 +204,12 @@ abstract class AppLocalizations {
   /// **'Save'**
   String get commonSave;
 
+  /// Accessible label for opening an image in the feed gallery.
+  ///
+  /// In en, this message translates to:
+  /// **'View image {index} of {count}'**
+  String imageViewPosition(int index, int count);
+
   /// No description provided for @imageSave.
   ///
   /// In en, this message translates to:
@@ -389,6 +395,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Reset password'**
   String get authForgotTitle;
+
+  /// No description provided for @authContinueAfterLogin.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in to continue where you left off.'**
+  String get authContinueAfterLogin;
+
+  /// No description provided for @authSignInMethods.
+  ///
+  /// In en, this message translates to:
+  /// **'Other sign-in options'**
+  String get authSignInMethods;
 
   /// No description provided for @authLoginSubtitle.
   ///
@@ -990,6 +1008,24 @@ abstract class AppLocalizations {
   /// **'Type a message…'**
   String get messagesInputHint;
 
+  /// No description provided for @messagesEmoji.
+  ///
+  /// In en, this message translates to:
+  /// **'Emoji'**
+  String get messagesEmoji;
+
+  /// No description provided for @messagesKeyboard.
+  ///
+  /// In en, this message translates to:
+  /// **'Keyboard'**
+  String get messagesKeyboard;
+
+  /// No description provided for @messagesCopyAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy entire message'**
+  String get messagesCopyAll;
+
   /// No description provided for @messagesSendFailed.
   ///
   /// In en, this message translates to:
@@ -1409,6 +1445,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Operation failed: {error}'**
   String settingsOpFailed(String error);
+
+  /// No description provided for @settingsDevice.
+  ///
+  /// In en, this message translates to:
+  /// **'This device'**
+  String get settingsDevice;
+
+  /// No description provided for @settingsYourAccount.
+  ///
+  /// In en, this message translates to:
+  /// **'Your account'**
+  String get settingsYourAccount;
+
+  /// No description provided for @settingsThemeLight.
+  ///
+  /// In en, this message translates to:
+  /// **'Light'**
+  String get settingsThemeLight;
+
+  /// No description provided for @settingsThemeDark.
+  ///
+  /// In en, this message translates to:
+  /// **'Dark'**
+  String get settingsThemeDark;
+
+  /// No description provided for @settingsRevokeSession.
+  ///
+  /// In en, this message translates to:
+  /// **'Revoke this session'**
+  String get settingsRevokeSession;
 
   /// No description provided for @settingsAppearance.
   ///
@@ -2255,6 +2321,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Wiki'**
   String get wikiTitle;
+
+  /// No description provided for @wikiLinkOpenFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not open the link. Please try again.'**
+  String get wikiLinkOpenFailed;
 
   /// No description provided for @wikiRecent.
   ///
@@ -4173,7 +4245,7 @@ abstract class AppLocalizations {
   /// No description provided for @campusPrivacy.
   ///
   /// In en, this message translates to:
-  /// **'One account, one official identity. School data is private and is not saved on your device.'**
+  /// **'One account, one school identity. Name, calendar and timetable snapshots are stored on this device for offline use. You can clear them below.'**
   String get campusPrivacy;
 
   /// No description provided for @campusDisabled.
@@ -4644,6 +4716,12 @@ abstract class AppLocalizations {
   /// **'Move down'**
   String get badgeDisplayDown;
 
+  /// No description provided for @notificationsMarkRead.
+  ///
+  /// In en, this message translates to:
+  /// **'Mark as read'**
+  String get notificationsMarkRead;
+
   /// No description provided for @scheduleWidgetSettingsTitle.
   ///
   /// In en, this message translates to:
@@ -4751,6 +4829,84 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Some cached data could not be cleared. Please retry.'**
   String get campusCacheClearFailed;
+
+  /// No description provided for @scheduleTimeAxis.
+  ///
+  /// In en, this message translates to:
+  /// **'Sections'**
+  String get scheduleTimeAxis;
+
+  /// No description provided for @scheduleEmptyCell.
+  ///
+  /// In en, this message translates to:
+  /// **'{day}, section {section}, choose a course'**
+  String scheduleEmptyCell(String day, int section);
+
+  /// No description provided for @scheduleSectionsN.
+  ///
+  /// In en, this message translates to:
+  /// **'Sections {range}'**
+  String scheduleSectionsN(String range);
+
+  /// No description provided for @scheduleGridScrollHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Swipe sideways to view the full week'**
+  String get scheduleGridScrollHint;
+
+  /// No description provided for @coursesFilterSearchHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Search filter options'**
+  String get coursesFilterSearchHint;
+
+  /// No description provided for @coursesFilterNoMatches.
+  ///
+  /// In en, this message translates to:
+  /// **'No matching filter options'**
+  String get coursesFilterNoMatches;
+
+  /// No description provided for @coursesClearSelection.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear selection'**
+  String get coursesClearSelection;
+
+  /// No description provided for @coursesResetSearch.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset search and filters'**
+  String get coursesResetSearch;
+
+  /// No description provided for @coursesFilterLoadFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Filter options could not be loaded.'**
+  String get coursesFilterLoadFailed;
+
+  /// No description provided for @coursesPaginationStalled.
+  ///
+  /// In en, this message translates to:
+  /// **'No additional courses arrived. Try loading this page again.'**
+  String get coursesPaginationStalled;
+
+  /// No description provided for @messagesNewMessages.
+  ///
+  /// In en, this message translates to:
+  /// **'New messages · Jump to latest'**
+  String get messagesNewMessages;
+
+  /// No description provided for @messagesReadSyncFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Read status could not sync. Unread messages are preserved.'**
+  String get messagesReadSyncFailed;
+
+  /// No description provided for @messagesReadUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'This server does not support individual read receipts. Unread messages are preserved.'**
+  String get messagesReadUnavailable;
 }
 
 class _AppLocalizationsDelegate

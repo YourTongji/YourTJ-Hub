@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-09-24
+> Last verified: 2026-09-25
 
 This standard applies the native reading direction in [0012](../decisions/0012-unified-mobile-reading-navigation.md)
 to the Flutter app. [Mobile experience](mobile-experience.md) records implemented behavior. Rules marked
@@ -40,12 +40,13 @@ identity uses the brand mark or a deliberate person glyph, never a broken-image 
 
 ## Navigation and windows
 
-`Planned`: layout depends on the available window, not the device model. Initial layout bands are
-compact below 600 logical pixels, medium from 600 to 999, and expanded from 1000. These are design
-constraints to validate, not hard-coded assumptions about tablets. Compact layouts retain the bottom
-destinations; medium/expanded layouts can use a navigation rail and a centered reading column. The
-reading column has a maximum width of approximately 720 pixels; extra space supports context or a
-message detail pane, rather than stretching text across the window.
+`Current`: root layout uses the available window width. Below 600 logical pixels it retains bottom
+destinations; at 600 and above it uses a persistent, scrollable 72-pixel navigation rail. Forum,
+notification and conversation lists occupy a centered column up to 720 pixels wide. Campus can use
+1120 pixels for its timetable and tools. Wide layouts reclaim the bottom-navigation inset, keep
+compose actions inside the content column and anchor their menu to that column. Resizing preserves
+the retained branch navigator, inputs and reading position; opening a keyboard does not change the
+width breakpoint. `Planned`: contextual panes and bounded reading layouts on every pushed page.
 
 Resizing, rotating or opening the keyboard must not recreate a draft, reset the selected tab, navigate
 away or lose scroll position. No product operation depends solely on hover. Keyboard users can reach
@@ -132,6 +133,12 @@ unsent message text and unsynced plans must not be included in “clear cache”
 in-flight responses so the just-cleared data cannot immediately reappear.
 
 ## Accessibility and localization
+
+`Current`: shared icon buttons merge their localized label, button role, enabled state and action
+into one accessibility node. Disabled icons use a subdued foreground. The login theme switch
+announces the theme it will select. Campus connection explains which snapshots remain on-device
+and provides the same confirmed cache-clearing control as Settings; the control preserves drafts,
+schedule plans and the school binding.
 
 `Planned`: every icon-only control has a localized semantic label and toggle state where applicable.
 Traversal follows reading order; sheet opening/closing restores focus sensibly. Dynamic changes such

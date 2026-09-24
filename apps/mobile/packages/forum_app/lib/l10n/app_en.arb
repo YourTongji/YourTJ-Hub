@@ -17,6 +17,14 @@
   "navProfile": "Me",
   "commonCancel": "Cancel",
   "commonSave": "Save",
+  "imageViewPosition": "View image {index} of {count}",
+  "@imageViewPosition": {
+    "description": "Accessible label for opening an image in the feed gallery.",
+    "placeholders": {
+      "index": {"type": "int"},
+      "count": {"type": "int"}
+    }
+  },
   "imageSave": "Save image",
   "imageSaved": "Image saved",
   "imageSaveFailed": "Couldn’t save the image. Try again later.",
@@ -97,6 +105,8 @@
   "authLoginTitle": "Sign in",
   "authRegisterTitle": "Create account",
   "authForgotTitle": "Reset password",
+  "authContinueAfterLogin": "Sign in to continue where you left off.",
+  "authSignInMethods": "Other sign-in options",
   "authLoginSubtitle": "Welcome back. Continue your discussions and writing.",
   "authRegisterSubtitle": "Create an account and join the campus conversation.",
   "authForgotSubtitle": "Enter your email and we will send a reset link.",
@@ -253,6 +263,9 @@
   "messagesNoMessagesYet": "No messages yet",
   "messagesEmptyDetail": "No messages yet, say hi!",
   "messagesInputHint": "Type a message…",
+  "messagesEmoji": "Emoji",
+  "messagesKeyboard": "Keyboard",
+  "messagesCopyAll": "Copy entire message",
   "messagesSendFailed": "Send failed: {error}",
   "@messagesSendFailed": {
     "placeholders": {
@@ -273,7 +286,16 @@
   "searchNoCategories": "No matching categories",
   "searchUnavailable": "Search unavailable",
   "searchResultCount": "{shown} shown · {total} matches",
-  "@searchResultCount": {"placeholders": {"shown": {"type": "int"}, "total": {"type": "int"}}},
+  "@searchResultCount": {
+    "placeholders": {
+      "shown": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
   "searchAll": "All",
   "searchTopics": "Topics",
   "searchUsers": "Users",
@@ -394,6 +416,11 @@
       }
     }
   },
+  "settingsDevice": "This device",
+  "settingsYourAccount": "Your account",
+  "settingsThemeLight": "Light",
+  "settingsThemeDark": "Dark",
+  "settingsRevokeSession": "Revoke this session",
   "settingsAppearance": "Appearance",
   "settingsDarkMode": "Dark mode",
   "settingsDarkCurrent": "Current: dark",
@@ -644,6 +671,7 @@
   "reviewHelpful": "Helpful",
   "reviewsEmpty": "No reviews yet",
   "wikiTitle": "Wiki",
+  "wikiLinkOpenFailed": "Could not open the link. Please try again.",
   "wikiRecent": "Recently updated",
   "wikiEditOnGithub": "Edit on GitHub",
   "wikiToc": "Contents",
@@ -1075,7 +1103,7 @@
   "campusConfirmBinding": "Confirm connection",
   "campusConfirmUpdate": "Confirm authorization update",
   "campusConfirmBody": "Verify the school identity before confirming. It will be usable for sign-in, replacing any previous linked identity. Your account email stays unchanged.",
-  "campusPrivacy": "One account, one official identity. School data is private and is not saved on your device.",
+  "campusPrivacy": "One account, one school identity. Name, calendar and timetable snapshots are stored on this device for offline use. You can clear them below.",
   "campusDisabled": "Campus connection is not enabled on this site",
   "campusUnavailable": "School data is temporarily unavailable. Try again later.",
   "campusNoData": "No records yet",
@@ -1195,6 +1223,7 @@
   "badgeDisplayHint": "Choose up to 5 badges and their order, or deselect all. Independent of your avatar badge.",
   "badgeDisplayUp": "Move up",
   "badgeDisplayDown": "Move down",
+  "notificationsMarkRead": "Mark as read",
   "scheduleWidgetSettingsTitle": "Home screen schedule",
   "scheduleWidgetPrivacyDescription": "Widgets show course names, times, teachers and locations from the schedule saved on this device. Refreshing the schedule updates the home-screen view.",
   "scheduleWidgetRefresh": "Refresh from offline schedule",
@@ -1219,5 +1248,35 @@
         "type": "String"
       }
     }
-  }
+  },
+  "scheduleTimeAxis": "Sections",
+  "scheduleEmptyCell": "{day}, section {section}, choose a course",
+  "scheduleSectionsN": "Sections {range}",
+  "scheduleGridScrollHint": "Swipe sideways to view the full week",
+  "@scheduleEmptyCell": {
+    "placeholders": {
+      "day": {
+        "type": "String"
+      },
+      "section": {
+        "type": "int"
+      }
+    }
+  },
+  "@scheduleSectionsN": {
+    "placeholders": {
+      "range": {
+        "type": "String"
+      }
+    }
+  },
+  "coursesFilterSearchHint": "Search filter options",
+  "coursesFilterNoMatches": "No matching filter options",
+  "coursesClearSelection": "Clear selection",
+  "coursesResetSearch": "Reset search and filters",
+  "coursesFilterLoadFailed": "Filter options could not be loaded.",
+  "coursesPaginationStalled": "No additional courses arrived. Try loading this page again.",
+  "messagesNewMessages": "New messages · Jump to latest",
+  "messagesReadSyncFailed": "Read status could not sync. Unread messages are preserved.",
+  "messagesReadUnavailable": "This server does not support individual read receipts. Unread messages are preserved."
 }

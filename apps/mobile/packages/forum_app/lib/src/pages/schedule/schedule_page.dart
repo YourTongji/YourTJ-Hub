@@ -1,6 +1,7 @@
 import 'scheduler_web_tip.dart';
 import 'schedule_sync_panel.dart';
 import '../../widgets/schedule_time_grid.dart';
+
 // 排课器主页面（/schedule 路由目标）：移动端双 tab（课表 / 选课）+ 方案条 +
 // 学期·年级·专业配置行 + 数据过期同步 + 自定义占位 + PNG/CSV 导出。
 //
@@ -150,21 +151,45 @@ class _SchedulePageState extends ConsumerState<SchedulePage>
 
   /// 会话级元数据：学期字典 + 节次作息 + P11 最新同步日期（不持久化）。
   Future<void> _loadSessionMeta() async {
-    try {
-      final List<PkCalendarItem> calendars = await ref
-          .read(pkRepositoryProvider)
-          .calendars();
-      if (mounted) setState(() => _calendars = calendars);
-    } catch (_) {
-      // 学期字典失败不阻塞主流程。
+    final repository = ref.read(pkRepositoryProvider);
+    Future<Object?> attemptCalendars() async {
+      try {
+        return await repository.calendars();
+      } catch (_) {
+        return null;
+      }
     }
-    try {
-      final SectionTimesPayload? payload = await ref
-          .read(pkRepositoryProvider)
-          .sectionTimes();
-      if (mounted && payload != null) {
-        setState(() {
-          _sectionOverrides = payload.sectionTimes
+
+    Future<Object?> attemptSectionTimes() async {
+      try {
+        return await repository.sectionTimes();
+      } catch (_) {
+        return null;
+      }
+    }
+
+    Future<Object?> attemptLatestUpdate() async {
+      try {
+        return await repository.latestUpdate();
+      } catch (_) {
+        return null;
+      }
+    }
+
+    final results = await Future.wait<Object?>([
+      attemptCalendars(),
+      attemptSectionTimes(),
+      attemptLatestUpdate(),
+    ]);
+    if (!mounted) return;
+    final calendars = results[0] as List<PkCalendarItem>?;
+    final sectionTimes = results[1] as SectionTimesPayload?;
+    final latest = results[2] as String?;
+    if (calendars != null || sectionTimes != null) {
+      setState(() {
+        if (calendars != null) _calendars = calendars;
+        if (sectionTimes != null) {
+          _sectionOverrides = sectionTimes.sectionTimes
               .map(
                 (SectionTimeSetting setting) => SectionTime(
                   section: setting.section,
@@ -173,20 +198,11 @@ class _SchedulePageState extends ConsumerState<SchedulePage>
                 ),
               )
               .toList();
-        });
-      }
-    } catch (_) {
-      // 作息表失败回退默认表。
+        }
+      });
     }
-    try {
-      final String? latest = await ref
-          .read(pkRepositoryProvider)
-          .latestUpdate();
-      if (mounted && latest != null && latest.isNotEmpty) {
-        _notifier.setLatestUpdateTime(latest);
-      }
-    } catch (_) {
-      // P11 不可用时静默（web 同款：不提示过期）。
+    if (latest != null && latest.isNotEmpty) {
+      _notifier.setLatestUpdateTime(latest);
     }
   }
 
@@ -1222,8 +1238,10 @@ class _TimetableTab extends ConsumerWidget {
                 : null,
             grid: grid,
             times: times,
-            onTapEmptyCell: (day, section) =>
-                _openCellPicker(context, ref, day, section),
+            onTapEmptyCell:
+                ref.read(scheduleStoreProvider.notifier).isMajorSelected
+                ? (day, section) => _openCellPicker(context, ref, day, section)
+                : null,
             onTapCourse: (course) => _openCourseDetail(context, ref, course),
           ),
         ),
@@ -1295,6 +1313,7 @@ class _WeekFilter extends StatelessWidget {
     final AppLocalizations l10n = AppLocalizations.of(context);
     final GfColors colors = GfTheme.colorsOf(context);
     return Container(
+      constraints: const BoxConstraints(minHeight: 48),
       padding: const EdgeInsets.only(left: 12, right: 4),
       decoration: BoxDecoration(
         color: colors.base100,
@@ -1310,7 +1329,7 @@ class _WeekFilter extends StatelessWidget {
               child: DropdownButton<int?>(
                 value: week,
                 isExpanded: true,
-                isDense: true,
+                isDense: false,
                 dropdownColor: colors.base100,
                 items: <DropdownMenuItem<int?>>[
                   DropdownMenuItem<int?>(

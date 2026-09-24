@@ -3,6 +3,8 @@ library;
 
 export 'src/api/api_error.dart';
 export 'src/api/gf_api_client.dart';
+export 'src/api/forum_sse.dart';
+export 'src/api/forum_realtime_transport.dart';
 export 'src/api/repositories/auth_repository.dart';
 export 'src/api/repositories/chat_repository.dart';
 export 'src/api/repositories/file_repository.dart';
@@ -25,6 +27,7 @@ export 'src/gen/course_catalog.dart';
 export 'src/gen/course_review.dart';
 export 'src/gen/course_summary.dart';
 export 'src/gen/chat.dart';
+export 'src/gen/realtime.dart';
 export 'src/gen/common.dart';
 export 'src/gen/content_pages.dart';
 export 'src/gen/layout.dart';

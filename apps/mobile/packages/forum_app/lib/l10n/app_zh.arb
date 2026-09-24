@@ -17,6 +17,7 @@
   "navProfile": "我的",
   "commonCancel": "取消",
   "commonSave": "保存",
+  "imageViewPosition": "查看图片 {index} / {count}",
   "imageSave": "保存图片",
   "imageSaved": "图片已保存",
   "imageSaveFailed": "图片保存失败，请稍后重试",
@@ -97,6 +98,8 @@
   "authLoginTitle": "登录账号",
   "authRegisterTitle": "创建新账号",
   "authForgotTitle": "重置密码",
+  "authContinueAfterLogin": "登录后继续刚才的浏览或创作。",
+  "authSignInMethods": "其他登录方式",
   "authLoginSubtitle": "欢迎回来，继续你的讨论和创作。",
   "authRegisterSubtitle": "创建账号，加入校园里的每一次讨论。",
   "authForgotSubtitle": "输入邮箱，我们会发送一封重置密码邮件。",
@@ -253,6 +256,9 @@
   "messagesNoMessagesYet": "还没有消息",
   "messagesEmptyDetail": "暂无消息,说点什么吧",
   "messagesInputHint": "输入消息…",
+  "messagesEmoji": "表情",
+  "messagesKeyboard": "键盘",
+  "messagesCopyAll": "复制整条消息",
   "messagesSendFailed": "发送失败:{error}",
   "@messagesSendFailed": {
     "placeholders": {
@@ -393,6 +399,11 @@
       }
     }
   },
+  "settingsDevice": "此设备",
+  "settingsYourAccount": "你的账户",
+  "settingsThemeLight": "浅色",
+  "settingsThemeDark": "深色",
+  "settingsRevokeSession": "吊销此会话",
   "settingsAppearance": "外观",
   "settingsDarkMode": "深色模式",
   "settingsDarkCurrent": "当前:深色",
@@ -643,6 +654,7 @@
   "reviewHelpful": "有用",
   "reviewsEmpty": "还没有评价",
   "wikiTitle": "Wiki",
+  "wikiLinkOpenFailed": "无法打开链接，请重试。",
   "wikiRecent": "最近更新",
   "wikiEditOnGithub": "在 GitHub 编辑",
   "wikiToc": "目录",
@@ -1074,7 +1086,7 @@
   "campusConfirmBinding": "确认绑定",
   "campusConfirmUpdate": "确认更新授权",
   "campusConfirmBody": "学校认证已完成，请核对身份。确认后此身份可用于登录，换绑时替换原身份，账号邮箱不变。",
-  "campusPrivacy": "一个账号绑定一个官方身份。校园数据仅本人可见，不保存到设备。",
+  "campusPrivacy": "一个账号绑定一个官方身份。姓名、校历和课表会保存在本设备，供离线查看；可在下方清除。",
   "campusDisabled": "本站尚未启用校园连接",
   "campusUnavailable": "学校暂未提供可用数据，请稍后重试。",
   "campusNoData": "暂无记录",
@@ -1194,6 +1206,7 @@
   "badgeDisplayHint": "最多选择 5 枚，按下方顺序展示；可全部取消。与头像佩戴徽章独立。",
   "badgeDisplayUp": "上移",
   "badgeDisplayDown": "下移",
+  "notificationsMarkRead": "标为已读",
   "scheduleWidgetSettingsTitle": "桌面课表小组件",
   "scheduleWidgetPrivacyDescription": "小组件展示课表中的课程名称、时间、教师和地点。内容来自本机保存的课表，刷新后同步到桌面。",
   "scheduleWidgetRefresh": "从离线课表刷新",
@@ -1218,5 +1231,35 @@
         "type": "String"
       }
     }
-  }
+  },
+  "scheduleTimeAxis": "节次",
+  "scheduleEmptyCell": "{day}，第 {section} 节，选课",
+  "scheduleSectionsN": "第 {range} 节",
+  "scheduleGridScrollHint": "左右滑动查看整周课表",
+  "@scheduleEmptyCell": {
+    "placeholders": {
+      "day": {
+        "type": "String"
+      },
+      "section": {
+        "type": "int"
+      }
+    }
+  },
+  "@scheduleSectionsN": {
+    "placeholders": {
+      "range": {
+        "type": "String"
+      }
+    }
+  },
+  "coursesFilterSearchHint": "搜索筛选项",
+  "coursesFilterNoMatches": "没有匹配的筛选项",
+  "coursesClearSelection": "清空选择",
+  "coursesResetSearch": "重置搜索和筛选",
+  "coursesFilterLoadFailed": "筛选项加载失败，请重试。",
+  "coursesPaginationStalled": "暂未获取到更多课程，请重试本页。",
+  "messagesNewMessages": "有新消息，回到底部",
+  "messagesReadSyncFailed": "已读状态未同步；你的未读消息会保留。",
+  "messagesReadUnavailable": "服务器暂不支持逐条已读；未读消息会保留。"
 }

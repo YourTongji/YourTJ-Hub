@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-09-20
+> Last verified: 2026-09-25
 
 The Flutter app combines the forum, course catalog, scheduler and Wiki. Ordinary browsing and
 writing use native pages. Management uses the same first-party workspaces and permission checks as
@@ -32,6 +32,11 @@ corresponding planned ownership and lifecycle contracts.
   reviews and post history automatically fetch near the list end. Requests are serialized;
   errors and responses without cursor/item progress retain an explicit retry control instead
   of starting a retry loop. Short pages continue filling the viewport while data advances.
+- `Current`: each visited Home sort retains its own loaded topics, pagination cursor, scroll
+  position, loading and retry state. Switching sorts keeps the filter rail available during
+  loading; late responses update only the sort that requested them. Returning to a visited sort
+  resumes it without refetching. Hidden sorts pause automatic pagination until selected again.
+  Session changes discard all retained feeds.
 - `Current`: topic bodies and replies link only server-resolved mention occurrences to native
   user profiles. The payload carries numeric identities and UTF-16 source ranges; unknown users,
   escaped text, code, existing links and math remain unchanged. Hidden/deleted bodies expose no
@@ -48,7 +53,7 @@ corresponding planned ownership and lifecycle contracts.
   single-HTML payload. A small bell sits in a separate leading column, with title and body aligned
   to the same inset as Web. They grow with their contents and text size; empty announcements take no
   space. Multiple announcements rotate automatically and expose capsule indicators plus previous/
-  next controls when expanded. The banner can collapse to a single-line ticker; the collapsed state
+  next controls when expanded. The banner starts as an expandable single-line ticker; its state
   is shared across the latest, popular and trending tabs. Assistive navigation and reduced motion
   disable automatic rotation. Refresh replaces the active announcement safely.
 - `Current`: feed body text uses 17 logical pixels; Markdown reading and publishing body text use
@@ -76,19 +81,25 @@ corresponding planned ownership and lifecycle contracts.
 - `Current`: Home cards retain both images for two-image topics. A portrait single image sits beside
   the text; a landscape image appears below the text with aspect-preserving fit. Portrait galleries
   show up to three columns; two landscape images share a row; larger landscape galleries overlap
-  up to three previews with a total count. Tapping the feed card opens the topic; the full gallery
-  with zoom is available from inside the topic view.
+  up to three previews with a total count. Tapping the author avatar or name opens the native
+  profile; tapping text opens the topic. Tapping a preview opens the shared lightbox at that image
+  with every topic image available, including images beyond the feed preview limit. Author
+  targets and previews support keyboard activation; previews announce their localized image
+  position, and both author targets have at least 44-by-44 logical-pixel touch areas.
 - `Current`: topic bodies, Markdown and Wiki reading surfaces open the shared image lightbox. It
   supports swipe navigation, pinch and double-tap zoom, actual-size viewing, long-press save and
-  system sharing; feed previews deliberately keep their card navigation and do not open the lightbox.
+  system sharing. Home feed previews use the same lightbox and image actions.
 - `Current`: Home topic cards expose compact authenticated like and bookmark shortcuts beside the
-  reply/view metrics, and the like metric shows the topic's total like count. Actions switch
+  reply/view metrics. A single heart action includes the topic's total like count; both actions
+  retain a minimum 44-by-44 logical-pixel touch target while their icons animate. Actions switch
   their selected icon and the like count immediately (likes adjust the shown total by one)
   before the request resolves; failures restore the previous state and count and show the
   localized error. Home summaries
   batch-load the viewer's like/bookmark state; absent state (anonymous, unavailable or older
   servers) suppresses the shortcuts. Selected states survive offscreen card recycling, and
-  returning from detail refreshes them. In-flight reads cannot overwrite pending or newer successful actions. Likes and bookmarks
+  returning from detail refreshes them. Loaded Home sorts share interaction updates. In-flight
+  reads cannot overwrite pending or newer successful actions or newer state returned from detail.
+  Likes and bookmarks
   settle independently; switching accounts discards all pending interaction state and reloads the feed.
   Metrics and actions wrap at narrow widths and enlarged text sizes.
 - `Current`: simple-content topics show an uncropped, swipeable image gallery above the body. The
@@ -146,6 +157,14 @@ corresponding planned ownership and lifecycle contracts.
 - `Current`: Home and global search keep the current list after a failed refresh and show a light
   failure notice. Pagination errors remain beside an explicit retry action; retry continues the
   same query/page without discarding prior items. New queries and account changes invalidate old responses.
+- `Current`: Notifications also retain rows after a failed refresh. Filter changes and account
+  generations reject older refresh/pagination responses. Pagination deduplicates IDs and pauses with
+  explicit retry after failure or a response without progress. A failed refresh preserves that pagination
+  error and pause; a successful refresh or explicit retry resumes loading. Single/all-read actions are serialized,
+  display pending state and surface failures; rows remain unread until acknowledged. Confirmed reads
+  cannot be reverted by an earlier fetch. Single-read failures retain a row-level retry action until
+  a successful action or refreshed server state confirms the read; the
+  unread filter removes acknowledged rows and continues pagination when its visible page is drained.
 - `Current`: outgoing chat messages appear immediately as sending bubbles. Failures retain their text
   and expose manual retry without replacing a newer input. Acknowledged bubbles stay visible until
   matched by server history. Existing conversations load their initial server history before enabling
@@ -154,6 +173,37 @@ corresponding planned ownership and lifecycle contracts.
   and is cleared at the account/session boundary; it is not persisted across app termination. Only one request for
   each bubble can run at once. The API has no message idempotency key, so ambiguous network failures
   cannot guarantee exactly-once delivery when manually retried.
+- `Current`: chat text, including sending, acknowledged and failed outbox bubbles, supports native
+  selection/copy and underlined HTTP(S) links using the shared
+  internal-routing/external-confirmation policy. Inline stickers remain supported; chat text is not
+  interpreted as Markdown or HTML. The selection menu also offers whole-message copy, preserving
+  sticker tokens that partial native text selection omits. The emoji accessory replaces the current
+  selection and leaves the caret after insertion. Replacing the draft with text that has no valid
+  selection resets insertion to the end. Opening it dismisses the software keyboard and keeps focus
+  inside the composer for hardware shortcuts; the keyboard control restores
+  focus. Its bounded scrollable grid has touch-sized controls, localized labels and system-back/Escape
+  dismissal. Mobile return inserts a newline; hardware Ctrl/Cmd+Enter sends. Disabling the composer
+  also disables emoji edits. Platform IME transitions still require physical-device verification.
+- `Current`: native conversations acknowledge only incoming, unread server message IDs whose actual
+  bubbles are at least 50% visible for a stable 350 ms in the message viewport. For a bubble taller
+  than the viewport, visibility uses the viewport height. The keyboard-clipped viewport, current
+  route and ancestor navigator routes, active tab, foreground lifecycle and session epoch all gate
+  measurement. List prebuilding, opening a conversation, fetching messages and intermediate positions
+  during a jump do not establish read state. Batches contain at most 100 IDs with one request in
+  flight; stale callbacks cannot update the next session. A transient failure has one automatic retry
+  and an explicit retry, preserving unread state. Unsupported servers show a compatibility message
+  and never fall back to the whole-conversation read endpoint.
+- `Current`: new incoming messages preserve the user's history position and expose an accessible
+  lower-right jump-to-latest button. Jumping only acknowledges bubbles actually visible after layout;
+  unseen history remains unread. Loading older pages preserves the visible bubble anchor across lazy
+  relayout, and newer fetches retain the older-history cursor. `Partial`: physical-device visibility
+  thresholds, keyboard overlays and lifecycle behavior still require device validation.
+- `Current`: the authenticated Flutter shell keeps one chat/notification/unread event connection only
+  while foregrounded. The server sends an immediate resync instruction and owner-scoped change hints;
+  the app reloads actual messages, notification lists and unread badges through REST. Reconnects and
+  resumed sessions reconcile again, and a failed or unsupported stream uses foreground polling until
+  delivery recovers. Account changes cancel the previous connection and discard stale unread responses.
+  Background push delivery is not provided by this stream.
 
 ## Language and presentation
 
@@ -167,7 +217,7 @@ corresponding planned ownership and lifecycle contracts.
   and prevents dismissal by dragging or tapping outside.
 - `Current`: shared form inputs use 16-pixel text. Buttons have a minimum height of 44–56
   pixels by size and grow for wrapped or enlarged labels; disabled actions remain visibly muted.
-  Interactive category chips have at least 44-pixel targets. Home, notification and settings tabs
+  Interactive category chips have at least 44-pixel targets. Home and notification tabs
   grow with system text size, and the overlay's content inset uses the same measured height.
 - `Current`: empty and retry states share a soft icon surface, readable explanation and optional
   next action, with scrolling on short screens. Empty notifications link back to Home; empty drafts
@@ -340,6 +390,16 @@ corresponding planned ownership and lifecycle contracts.
   credit, hour and conflict counts wrap in a compact row. A small Web action opens
   the full [Web scheduler](https://f.yourtj.de/schedule) in the external browser without transferring
   the native credential. Plans are not official enrollment results.
+- `Current`: planner and official timetable grids share a responsive seven-day layout with a fixed
+  section/time rail during horizontal scrolling. Larger screens expand the columns; narrow screens
+  keep readable column widths and explain sideways scrolling. Spanning course blocks show title,
+  room, teachers and week range; single-section and stacked blocks prioritize title, room and week
+  parity, with complete details in their accessible labels. Course colors retain stable slots, while
+  soft borders, an accent line and separate conflict icons follow the Web hierarchy. Row heights and
+  column widths follow accessibility text scaling, including nonlinear scaling of small text. Course
+  details and selectable empty cells support keyboard activation and labeled screen-reader actions;
+  unconfigured empty cells and custom placeholders do not present inert buttons. The week selector
+  has a minimum 48dp action height.
 - `Current`: signed-in plans use the same per-plan revision and three-way merge rules as Web
   (`GET/PUT/DELETE /api/pk/plan-items`). Independent course changes and custom-event fields merge
   automatically; only conflicting values require a choice. A remotely deleted plan with local edits
@@ -350,6 +410,17 @@ corresponding planned ownership and lifecycle contracts.
   edits, and focus reads are throttled to 30 seconds. Clean state has no polling timer.
   Existing cloud snapshots migrate intact on first use; legacy clients receive 410 afterward.
   Account closure erases cloud content and prevents in-flight requests from recreating it.
+- `Current`: the course catalog debounces keyword search and captures filters for each request
+  generation, so late responses and pages cannot replace a newer search. Short lists load the next
+  page automatically while visible. Paging errors keep existing courses and offer explicit retry;
+  duplicate pages stop automatic loading until retried. Pull-to-refresh retains results and shows
+  an inline retry on failure. Department, term and campus pickers search both values and displayed
+  labels, retain selections across search terms, and provide clear-selection controls; teachers
+  remain free-text multi-value filters. Filter options have separate loading/error feedback, and
+  search plus all filters can be reset together. Sheets accommodate the keyboard and large text,
+  with a persistent Done action. Session/site invalidation clears the old catalog, permissions and filters, then loads the new
+  session’s catalog; queued searches and late results cannot cross identities. These interactions use the existing
+  course API and SSR filter options; search service failures remain errors rather than empty results.
 - `Current`: course details retain offering-specific five-star reviews and existing review fields;
   bookmark and write-review actions stay in a bottom dock. Scores share a baseline with their
   five-point denominator. The signed-in user’s own reviews (including anonymous reviews) appear
@@ -366,8 +437,17 @@ corresponding planned ownership and lifecycle contracts.
   stale results and opens paragraph anchors. Search unavailability has retry feedback. Reading
   keeps directory, Wiki search and GitHub edit actions in a bottom dock; GitHub remains the content
   source of truth.
+- `Current`: Wiki body links open native Wiki pages and the Wiki overview only for the configured
+  site origin (scheme, host and port). External links, including other sites' `/wiki/` paths, retain
+  their destination and use the shared external-link confirmation. Same-site repository attachments
+  under `/wiki/_assets/` open their actual URL in the system browser/app; launch failure keeps the
+  reading page and shows a localized error. Encoded page/file paths, query strings and fragments are
+  preserved, while page-local anchors continue scrolling inside the document.
 - `Current`: sign-in offers account/password, Google, GitHub and Tongji when the published options
-  allow it. Password captcha and TOTP remain
+  allow it, grouped below the password form. Unconfigured providers are hidden. Native credential
+  fields expose username/password/new-password autofill, email and one-time-code hints and explicit
+  keyboard actions; password-manager saving is requested only after accepting the native session.
+  Narrow layouts and larger text stack the captcha image above its input. Password captcha and TOTP remain
   supported. The login captcha stays folded until the password field is first interacted with;
   the first password focus/input warms the challenge, and a blank outside tap or genuine secure-IME
   dismissal reveals it without taking focus from another explicit control. That reveal is latched through transient Android
@@ -385,6 +465,20 @@ corresponding planned ownership and lifecycle contracts.
   intentionally bypasses flutter_appauth/AppAuth/CustomTabs. No OAuth provider uses a WebView for
   Android login. Non-Android platforms retain AppAuth. `Partial`: the new Android path awaits a
   physical-device APK test; the exact native crash stack remains unproven without logcat.
+- `Current`: native routes that require a session lead guests to sign-in before constructing the
+  private page. Login retains the original native location, including topic reply position, composer
+  context and chat recipient, using an explicit route/query allowlist. External, recursive and
+  malformed return targets fall back to Home. Successful login replaces the old navigation stack and
+  restores only that context; detail pages sit above a fresh Home so Back remains available, while
+  shell destinations open their own branch. Users still explicitly submit posts, follow users or send
+  messages. Keyboard submission shares the button's busy guard for login, TOTP, registration and
+  password recovery. Device settings remain public: guests can change language and appearance without
+  fetching account details or sessions. The category index and account sections retain their
+  sign-in destination alongside appearance, language and desktop-widget preferences. A session change
+  removes dialogs, menus and sheets owned by the previous session from the root and shell navigators, completing pending confirmations as cancelled;
+  new-session overlays remain open. `Partial`: native password-manager prompts and physical-device
+  keyboard behavior still require device validation; widget tests cover route boundaries, four
+  languages, narrow viewports and 200% text.
 
 ## Registration
 
@@ -439,6 +533,15 @@ corresponding planned ownership and lifecycle contracts.
   Profile body text uses 16 pixels; statistics prioritize the values and wrap into fewer columns on
   narrow screens or at large text sizes. Settings groups use rounded inset surfaces, multiline row
   labels and consistent trailing arrows; avatar upload copy describes image selection and cropping.
+- `Current`: Settings opens a scrollable category index, with device preferences separated from
+  account settings. Appearance offers system, light and dark modes; language and site information
+  remain available to guests without fetching account details or sessions. Theme choices apply
+  immediately, survive restart and take precedence over asynchronous restoration; writes are
+  serialized so the latest choice remains stored. Account categories preserve existing section
+  links, open on a normal back stack and fetch only their required data. Failed refreshes retain
+  loaded content, and session changes clear private settings before loading the next account.
+  The category index and section headers support enlarged text, keyboard activation and localized
+  accessible labels; content stays centered within 720 pixels on larger windows.
 - `Current`: users with follow permission retain the follow button for already-followed accounts,
   including administrators. It displays the followed state and toggles to unfollow, prevents duplicate
   in-flight requests and restores the previous state when a request fails.

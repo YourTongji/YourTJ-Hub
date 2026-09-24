@@ -22,9 +22,10 @@ import 'pages_smoke_test.dart' show MemoryTokenStorage, FakeTopicRepository;
 class SurfacePageRepository extends PageRepository {
   SurfacePageRepository(super.client);
   @override
-  Future<PagePayload> fetch(String path) async => PagePayload.fromJson(
-    path == '/settings' ? settingsPayloadJson() : homePayloadJson(),
-  );
+  Future<PagePayload> fetch(String path, {Object? cancelToken}) async =>
+      PagePayload.fromJson(
+        path == '/settings' ? settingsPayloadJson() : homePayloadJson(),
+      );
 }
 
 class EmptyNotificationsRepository extends NotificationRepository {
@@ -34,6 +35,7 @@ class EmptyNotificationsRepository extends NotificationRepository {
     String filter = 'all',
     int cursor = 0,
     int limit = 20,
+    Object? cancelToken,
   }) async => const NotificationListResponse(
     items: [],
     nextCursor: 0,
@@ -174,8 +176,9 @@ void main() {
         router.go('/settings');
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);
-        final settingsTabs = tester.getRect(find.byType(GfTabBar));
-        expect(settingsTabs.height, greaterThan(48));
+        expect(find.byType(GfTabBar), findsNothing);
+        expect(find.text(l10n.settingsAppearance), findsOneWidget);
+        expect(find.text(l10n.settingsAppLanguage), findsOneWidget);
         router.go('/notifications');
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);

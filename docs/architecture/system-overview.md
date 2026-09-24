@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-08-14
+> Last verified: 2026-09-25
 
 ## System shape
 
@@ -78,6 +78,20 @@
   Flutter shell and feature pages consume the repository-owned `Gf*` UI API; `ui_kit` maps those
   tokens and components to the pinned TDesign v1 alpha implementation so application pages do not
   depend on pre-release TDesign APIs directly.
+
+### Foreground chat and notification changes (Current)
+
+- The Go forum publishes owner-scoped chat, notification and unread invalidations to a bounded,
+  process-local SSE hub after committed writes. `GET /api/forum/events` authenticates the forum
+  session, sends `hello` with `resync: true`, heartbeats and bounded change hints. The stream has no
+  durable replay cursor or message body; REST remains the source of content and unread counts.
+- The Flutter shell owns one stream while foregrounded. It cancels the connection on background or
+  session invalidation, fences pending callbacks by session, and uses the `hello` frame to refresh
+  open message/notification views and unread badges. Chat views stop their 15-second polling while
+  the stream is healthy. On disconnect or an unsupported endpoint they resume polling in the
+  foreground; reconnect performs another REST reconciliation.
+- This process-local delivery assumes the forum's single-instance deployment shape. A multi-instance
+  deployment would need shared fan-out before treating SSE as a reliable cross-instance hint channel.
 
 ### Search (Partial)
 

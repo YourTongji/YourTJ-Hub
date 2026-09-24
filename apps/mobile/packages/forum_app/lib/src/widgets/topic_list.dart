@@ -8,6 +8,7 @@ import '../../l10n/app_localizations.dart';
 import '../format.dart';
 import 'status_views.dart';
 import '../asset_url.dart';
+import '../images/image_save.dart';
 
 enum GfTopicFeedMode { list, card }
 
@@ -23,6 +24,7 @@ class GfTopicList extends StatelessWidget {
     this.feedMode = GfTopicFeedMode.list,
     this.onLikeTopic,
     this.onBookmarkTopic,
+    this.onFirstMediaFrame,
     this.onReturnFromTopic,
     required this.hasMore,
     required this.onLoadMore,
@@ -37,6 +39,7 @@ class GfTopicList extends StatelessWidget {
   final GfTopicFeedMode feedMode;
   final Future<bool> Function(TopicPayload topic, bool target)? onLikeTopic;
   final Future<bool> Function(TopicPayload topic, bool target)? onBookmarkTopic;
+  final VoidCallback? onFirstMediaFrame;
   final VoidCallback? onReturnFromTopic;
   final bool hasMore;
   final VoidCallback onLoadMore;
@@ -97,6 +100,7 @@ class GfTopicList extends StatelessWidget {
                 context,
                 topic,
                 onReturn: onReturnFromTopic,
+                onFirstMediaFrame: onFirstMediaFrame,
                 onLike: onLikeTopic == null || topic.liked == null
                     ? null
                     : (target) => onLikeTopic!(topic, target),
@@ -159,6 +163,7 @@ Widget _topicCard(
   BuildContext context,
   TopicPayload topic, {
   VoidCallback? onReturn,
+  VoidCallback? onFirstMediaFrame,
   Future<bool> Function(bool target)? onLike,
   Future<bool> Function(bool target)? onBookmark,
 }) {
@@ -183,6 +188,14 @@ Widget _topicCard(
       nickname,
     ),
     authorAvatarUrl: resolveApiAssetUrl(topic.author.avatarUrl),
+    onAuthorTap: topic.author.id > 0
+        ? () => context.push('/u/${topic.author.id}')
+        : null,
+    imageSemanticLabelBuilder: l10n.imageViewPosition,
+    onSaveImage: (url) => saveImageFromUrl(context, url),
+    saveImageLabel: l10n.imageSave,
+    onShareImage: (url) => shareImageFromUrl(context, url),
+    shareImageLabel: l10n.topicShare,
     categories: <GfTopicCategory>[
       for (final CategoryBriefPayload category in topic.categories)
         GfTopicCategory(
@@ -191,6 +204,24 @@ Widget _topicCard(
         ),
     ],
     imageUrls: images,
+    onFirstMediaFrame: onFirstMediaFrame,
+    imageMetadata: <GfTopicImageMetadata>[
+      for (final TopicImageMetadataPayload metadata
+          in topic.imageMetadata ?? const <TopicImageMetadataPayload>[])
+        GfTopicImageMetadata(
+          url: resolveApiAssetUrl(metadata.url),
+          width: metadata.width,
+          height: metadata.height,
+          variants: <GfTopicImageVariant>[
+            for (final TopicImageVariantPayload variant in metadata.variants)
+              GfTopicImageVariant(
+                url: resolveApiAssetUrl(variant.url),
+                width: variant.width,
+                height: variant.height,
+              ),
+          ],
+        ),
+    ],
     activityText: timeAgo(
       topic.activityText.isNotEmpty ? topic.activityText : topic.lastUpdateTime,
       l10n: l10n,

@@ -1,0 +1,11 @@
+{
+  "result": {
+    "items": [
+      {"id": 39003, "isRead": 1},
+      {"id": 39001, "isRead": 1},
+      {"id": 39002, "isRead": 0}
+    ],
+    "unreadCount": 1
+  },
+  "code": 0
+}

@@ -65,6 +65,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get commonSave => 'Save';
 
   @override
+  String imageViewPosition(int index, int count) {
+    return 'View image $index of $count';
+  }
+
+  @override
   String get imageSave => 'Save image';
 
   @override
@@ -170,6 +175,13 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get authForgotTitle => 'Reset password';
+
+  @override
+  String get authContinueAfterLogin =>
+      'Sign in to continue where you left off.';
+
+  @override
+  String get authSignInMethods => 'Other sign-in options';
 
   @override
   String get authLoginSubtitle =>
@@ -495,6 +507,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get messagesInputHint => 'Type a message…';
 
   @override
+  String get messagesEmoji => 'Emoji';
+
+  @override
+  String get messagesKeyboard => 'Keyboard';
+
+  @override
+  String get messagesCopyAll => 'Copy entire message';
+
+  @override
   String messagesSendFailed(String error) {
     return 'Send failed: $error';
   }
@@ -726,6 +747,21 @@ class AppLocalizationsEn extends AppLocalizations {
   String settingsOpFailed(String error) {
     return 'Operation failed: $error';
   }
+
+  @override
+  String get settingsDevice => 'This device';
+
+  @override
+  String get settingsYourAccount => 'Your account';
+
+  @override
+  String get settingsThemeLight => 'Light';
+
+  @override
+  String get settingsThemeDark => 'Dark';
+
+  @override
+  String get settingsRevokeSession => 'Revoke this session';
 
   @override
   String get settingsAppearance => 'Appearance';
@@ -1186,6 +1222,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get wikiTitle => 'Wiki';
+
+  @override
+  String get wikiLinkOpenFailed => 'Could not open the link. Please try again.';
 
   @override
   String get wikiRecent => 'Recently updated';
@@ -2233,7 +2272,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get campusPrivacy =>
-      'One account, one official identity. School data is private and is not saved on your device.';
+      'One account, one school identity. Name, calendar and timetable snapshots are stored on this device for offline use. You can clear them below.';
 
   @override
   String get campusDisabled => 'Campus connection is not enabled on this site';
@@ -2509,6 +2548,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get badgeDisplayDown => 'Move down';
 
   @override
+  String get notificationsMarkRead => 'Mark as read';
+
+  @override
   String get scheduleWidgetSettingsTitle => 'Home screen schedule';
 
   @override
@@ -2573,4 +2615,50 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get campusCacheClearFailed =>
       'Some cached data could not be cleared. Please retry.';
+
+  @override
+  String get scheduleTimeAxis => 'Sections';
+
+  @override
+  String scheduleEmptyCell(String day, int section) {
+    return '$day, section $section, choose a course';
+  }
+
+  @override
+  String scheduleSectionsN(String range) {
+    return 'Sections $range';
+  }
+
+  @override
+  String get scheduleGridScrollHint => 'Swipe sideways to view the full week';
+
+  @override
+  String get coursesFilterSearchHint => 'Search filter options';
+
+  @override
+  String get coursesFilterNoMatches => 'No matching filter options';
+
+  @override
+  String get coursesClearSelection => 'Clear selection';
+
+  @override
+  String get coursesResetSearch => 'Reset search and filters';
+
+  @override
+  String get coursesFilterLoadFailed => 'Filter options could not be loaded.';
+
+  @override
+  String get coursesPaginationStalled =>
+      'No additional courses arrived. Try loading this page again.';
+
+  @override
+  String get messagesNewMessages => 'New messages · Jump to latest';
+
+  @override
+  String get messagesReadSyncFailed =>
+      'Read status could not sync. Unread messages are preserved.';
+
+  @override
+  String get messagesReadUnavailable =>
+      'This server does not support individual read receipts. Unread messages are preserved.';
 }
