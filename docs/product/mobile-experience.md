@@ -167,7 +167,7 @@ corresponding planned ownership and lifecycle contracts.
   and prevents dismissal by dragging or tapping outside.
 - `Current`: shared form inputs use 16-pixel text. Buttons have a minimum height of 44–56
   pixels by size and grow for wrapped or enlarged labels; disabled actions remain visibly muted.
-  Interactive category chips have at least 44-pixel targets. Home, notification and settings tabs
+  Interactive category chips have at least 44-pixel targets. Home and notification tabs
   grow with system text size, and the overlay's content inset uses the same measured height.
 - `Current`: empty and retry states share a soft icon surface, readable explanation and optional
   next action, with scrolling on short screens. Empty notifications link back to Home; empty drafts
@@ -332,6 +332,16 @@ corresponding planned ownership and lifecycle contracts.
   credit, hour and conflict counts wrap in a compact row. A small Web action opens
   the full [Web scheduler](https://f.yourtj.de/schedule) in the external browser without transferring
   the native credential. Plans are not official enrollment results.
+- `Current`: planner and official timetable grids share a responsive seven-day layout with a fixed
+  section/time rail during horizontal scrolling. Larger screens expand the columns; narrow screens
+  keep readable column widths and explain sideways scrolling. Spanning course blocks show title,
+  room, teachers and week range; single-section and stacked blocks prioritize title, room and week
+  parity, with complete details in their accessible labels. Course colors retain stable slots, while
+  soft borders, an accent line and separate conflict icons follow the Web hierarchy. Row heights and
+  column widths follow accessibility text scaling, including nonlinear scaling of small text. Course
+  details and selectable empty cells support keyboard activation and labeled screen-reader actions;
+  unconfigured empty cells and custom placeholders do not present inert buttons. The week selector
+  has a minimum 48dp action height.
 - `Current`: signed-in plans use the same per-plan revision and three-way merge rules as Web
   (`GET/PUT/DELETE /api/pk/plan-items`). Independent course changes and custom-event fields merge
   automatically; only conflicting values require a choice. A remotely deleted plan with local edits
@@ -431,6 +441,15 @@ corresponding planned ownership and lifecycle contracts.
   Profile body text uses 16 pixels; statistics prioritize the values and wrap into fewer columns on
   narrow screens or at large text sizes. Settings groups use rounded inset surfaces, multiline row
   labels and consistent trailing arrows; avatar upload copy describes image selection and cropping.
+- `Current`: Settings opens a scrollable category index, with device preferences separated from
+  account settings. Appearance offers system, light and dark modes; language and site information
+  remain available to guests without fetching account details or sessions. Theme choices apply
+  immediately, survive restart and take precedence over asynchronous restoration; writes are
+  serialized so the latest choice remains stored. Account categories preserve existing section
+  links, open on a normal back stack and fetch only their required data. Failed refreshes retain
+  loaded content, and session changes clear private settings before loading the next account.
+  The category index and section headers support enlarged text, keyboard activation and localized
+  accessible labels; content stays centered within 720 pixels on larger windows.
 - `Current`: users with follow permission retain the follow button for already-followed accounts,
   including administrators. It displays the followed state and toggles to unfollow, prevents duplicate
   in-flight requests and restores the previous state when a request fails.
