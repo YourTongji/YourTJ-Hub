@@ -49,10 +49,13 @@ import PublishMenu from './PublishMenu.vue'
 import { loadQuickPublishModal, useEverOpenedQuickPublish } from '@/site/composables/useQuickPublish'
 
 import { useShellState } from '@/runtime/shell-state'
+import { useShellSidebar } from '@/runtime/shell-sidebar'
 
 const route = useRoute()
 const router = useRouter()
 const shellState = useShellState()
+// 桌面侧栏折叠（issue #798）：lg+ 生效，偏好记忆在 goose:shell-sidebar-collapsed。
+const { sidebarCollapsed, toggleSidebar } = useShellSidebar()
 const isPublishPage = computed(() => route?.path === '/publish' || route?.name === 'publish')
 const isTopicPage = computed(() => {
   if (shellState.isTopicPage) return true
@@ -463,6 +466,23 @@ async function loadUserCard() {
           >
             <Menu class="h-5 w-5" />
           </button>
+          <!-- 桌面侧栏折叠开关：与窄屏抽屉入口同一位置、同一图标（<lg 用抽屉，不渲染本按钮）。
+               方向反馈不用换图标：图标自身旋转半圈（三横线转过 180° 与原形重合），
+               文案与 aria-expanded 同步表达展开/收起。 -->
+          <button
+            type="button"
+            class="gf-icon-button hidden h-10 w-10 rounded-full active:scale-[0.96] motion-reduce:active:scale-100 lg:inline-grid"
+            :aria-label="sidebarCollapsed ? t('shell.expandSidebar') : t('shell.collapseSidebar')"
+            :title="sidebarCollapsed ? t('shell.expandSidebar') : t('shell.collapseSidebar')"
+            :aria-expanded="!sidebarCollapsed"
+            aria-controls="goose-shell-sidebar"
+            @click="toggleSidebar"
+          >
+            <Menu
+              class="h-5 w-5 gf-shell-sidebar-toggle-icon"
+              :class="{ 'gf-shell-sidebar-toggle-icon--flipped': sidebarCollapsed }"
+            />
+          </button>
           <button
             v-if="hasHeaderTitle"
             type="button"
@@ -821,11 +841,21 @@ async function loadUserCard() {
 
     <GlobalFlash />
 
+    <!-- 桌面网格轨道（含窄屏单列与侧栏折叠态）由 components.css 的 gf-shell-main* 驱动：
+         工具层的 grid-cols-* 会盖住组件层的 lg/xl 轨道，因此这里不再挂 Tailwind 轨道类。
+         折叠时轨道收到 0 且侧栏仍占第一列，内容列不变列位。 -->
     <main
-      class="gf-shell-main mx-auto grid w-full max-w-[1600px] grid-cols-1 gap-0 px-0 py-0 sm:gap-3 sm:px-5 sm:py-3 lg:grid-cols-[210px_minmax(0,1fr)] lg:px-8 xl:grid-cols-[224px_minmax(0,1fr)]"
-      :class="{ 'xl:grid-cols-[224px_minmax(0,1fr)_280px]': rail }"
+      class="gf-shell-main mx-auto grid w-full max-w-[1600px] gap-0 px-0 py-0 sm:gap-3 sm:px-5 sm:py-3 lg:px-8"
+      :class="{ 'gf-shell-main--collapsed': sidebarCollapsed, 'gf-shell-main--rail': rail }"
     >
-      <aside class="gf-scrollbar-none sticky top-16 -my-3 hidden h-[calc(100vh-4rem)] overflow-y-auto self-start lg:block" aria-label="Sidebar">
+      <aside
+        id="goose-shell-sidebar"
+        class="gf-shell-sidebar gf-scrollbar-none sticky top-16 -my-3 hidden h-[calc(100vh-4rem)] overflow-y-auto self-start lg:block"
+        :class="{ 'gf-shell-sidebar--collapsed': sidebarCollapsed }"
+        :inert="sidebarCollapsed ? true : undefined"
+        :aria-hidden="sidebarCollapsed ? 'true' : undefined"
+        aria-label="Sidebar"
+      >
         <WikiSidebar v-if="isWikiMode" :tree="wikiTree" />
         <nav v-else class="py-3">
           <div class="pb-2">

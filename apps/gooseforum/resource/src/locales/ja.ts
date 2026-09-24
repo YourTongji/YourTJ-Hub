@@ -234,6 +234,8 @@ export default {
     openMenu: 'メニューを開く',
     menu: 'メニュー',
     closeMenu: 'メニューを閉じる',
+    collapseSidebar: 'サイドバーを折りたたむ',
+    expandSidebar: 'サイドバーを展開する',
     search: '検索',
     switchLanguage: '言語を切り替え',
     switchTheme: 'テーマを切り替え',

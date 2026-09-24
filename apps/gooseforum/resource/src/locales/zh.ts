@@ -235,6 +235,8 @@ export default {
     openMenu: '打开菜单',
     menu: '菜单',
     closeMenu: '关闭菜单',
+    collapseSidebar: '收起侧栏',
+    expandSidebar: '展开侧栏',
     search: '搜索',
     switchLanguage: '切换语言',
     switchTheme: '切换主题',
