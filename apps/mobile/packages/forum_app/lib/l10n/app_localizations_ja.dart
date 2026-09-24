@@ -174,6 +174,12 @@ class AppLocalizationsJa extends AppLocalizations {
   String get authForgotTitle => 'パスワード再設定';
 
   @override
+  String get authContinueAfterLogin => 'ログインして、先ほどのページに戻ります。';
+
+  @override
+  String get authSignInMethods => 'その他のログイン方法';
+
+  @override
   String get authLoginSubtitle => 'おかえりなさい。議論と投稿を続けましょう。';
 
   @override
@@ -2211,7 +2217,7 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get campusPrivacy =>
-      '一つのアカウントに一つの大学アカウントを連携できます。情報は本人のみが閲覧でき、端末には保存されません。';
+      '一つのアカウントに一つの大学アカウントを連携できます。氏名・学年暦・時間割はオフライン閲覧のため端末に保存されます。下から削除できます。';
 
   @override
   String get campusDisabled => 'このサイトでは大学連携が有効になっていません';
