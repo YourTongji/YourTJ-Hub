@@ -374,6 +374,17 @@ corresponding planned ownership and lifecycle contracts.
   edits, and focus reads are throttled to 30 seconds. Clean state has no polling timer.
   Existing cloud snapshots migrate intact on first use; legacy clients receive 410 afterward.
   Account closure erases cloud content and prevents in-flight requests from recreating it.
+- `Current`: the course catalog debounces keyword search and captures filters for each request
+  generation, so late responses and pages cannot replace a newer search. Short lists load the next
+  page automatically while visible. Paging errors keep existing courses and offer explicit retry;
+  duplicate pages stop automatic loading until retried. Pull-to-refresh retains results and shows
+  an inline retry on failure. Department, term and campus pickers search both values and displayed
+  labels, retain selections across search terms, and provide clear-selection controls; teachers
+  remain free-text multi-value filters. Filter options have separate loading/error feedback, and
+  search plus all filters can be reset together. Sheets accommodate the keyboard and large text,
+  with a persistent Done action. Session/site invalidation clears the old catalog, permissions and filters, then loads the new
+  session’s catalog; queued searches and late results cannot cross identities. These interactions use the existing
+  course API and SSR filter options; search service failures remain errors rather than empty results.
 - `Current`: course details retain offering-specific five-star reviews and existing review fields;
   bookmark and write-review actions stay in a bottom dock. Scores share a baseline with their
   five-point denominator. The signed-in user’s own reviews (including anonymous reviews) appear

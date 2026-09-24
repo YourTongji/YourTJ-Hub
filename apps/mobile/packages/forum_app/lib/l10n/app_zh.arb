@@ -253,6 +253,9 @@
   "messagesNoMessagesYet": "还没有消息",
   "messagesEmptyDetail": "暂无消息,说点什么吧",
   "messagesInputHint": "输入消息…",
+  "messagesEmoji": "表情",
+  "messagesKeyboard": "键盘",
+  "messagesCopyAll": "复制整条消息",
   "messagesSendFailed": "发送失败:{error}",
   "@messagesSendFailed": {
     "placeholders": {
@@ -1246,7 +1249,10 @@
       }
     }
   },
-  "messagesEmoji": "表情",
-  "messagesKeyboard": "键盘",
-  "messagesCopyAll": "复制整条消息"
+  "coursesFilterSearchHint": "搜索筛选项",
+  "coursesFilterNoMatches": "没有匹配的筛选项",
+  "coursesClearSelection": "清空选择",
+  "coursesResetSearch": "重置搜索和筛选",
+  "coursesFilterLoadFailed": "筛选项加载失败，请重试。",
+  "coursesPaginationStalled": "暂未获取到更多课程，请重试本页。"
 }
