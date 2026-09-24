@@ -9,6 +9,7 @@ import 'package:forum_app/src/current_user.dart';
 import 'package:forum_app/src/providers.dart';
 import 'package:forum_app/src/router.dart';
 import 'package:forum_app/src/navigation/reading_window.dart';
+import 'package:forum_app/src/navigation/reading_chrome.dart';
 import 'package:forum_app/src/widgets/account_drawer.dart';
 import 'package:forum_app/src/widgets/root_surface.dart';
 import 'package:ui_kit/ui_kit.dart';
@@ -137,6 +138,33 @@ void main() {
           expect(state.scroll.offset, 300);
           expect(tester.takeException(), isNull);
         }
+        tester.view.physicalSize = const Size(1440, 200);
+        await tester.pumpAndSettle();
+        container.read(readingChromeProvider).show();
+        await tester.drag(
+          find.byType(ReadingNavigationRail),
+          const Offset(0, -100),
+        );
+        await tester.pumpAndSettle();
+        expect(
+          container.read(readingChromeProvider).hidden,
+          isFalse,
+          reason:
+              'Scrolling persistent destinations must not hide reading controls',
+        );
+        expect(state.scroll.offset, 300);
+        tester.view.physicalSize = const Size(1440, 420);
+        tester.view.padding = const FakeViewPadding(
+          top: 44,
+          bottom: 34,
+          right: 44,
+        );
+        tester.view.viewPadding = const FakeViewPadding(
+          top: 44,
+          bottom: 34,
+          right: 44,
+        );
+        await tester.pumpAndSettle();
         final l10n = AppLocalizations.of(tester.element(find.byType(GfShell)));
         final semantics = tester.ensureSemantics();
         await tester.pumpAndSettle();

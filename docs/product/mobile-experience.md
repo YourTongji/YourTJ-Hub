@@ -20,6 +20,19 @@ corresponding planned ownership and lifecycle contracts.
 
 ## Navigation and reading
 
+`Current`: root layout uses the available window width. Below 600 logical pixels it retains bottom
+destinations; at 600 and above it uses a persistent, scrollable 72-pixel navigation rail. Forum,
+notification and conversation lists occupy a centered column up to 720 pixels wide. Campus can use
+1120 pixels for its timetable and tools. Wide layouts reclaim the bottom-navigation inset, keep
+compose actions inside the content column and anchor their menu to that column. Resizing preserves
+the retained branch navigator, inputs and reading position; opening a keyboard does not change the
+width breakpoint.
+
+`Current`: the rail shares destination icons and unread state with the bottom bar. Each action
+exposes its name, selected state and activation in one semantic node. Persistent navigation is
+ordered after the active route in the accessibility tree so iOS does not hide it behind that route.
+
+
 - `Current`: Home offers a server-defined Following sort. It requires sign-in and shows only
   currently followed authors' public forum topics, newest creation time first with descending
   topic ID for ties. Pagination uses an opaque cursor in `nextUrl`; edits, replies and pinning
@@ -295,6 +308,12 @@ corresponding planned ownership and lifecycle contracts.
   unless a semantic or provider color is explicitly set.
 
 ## Publishing
+
+`Current`: opening a publishing field or moving its caret alone does not create unsaved work.
+While the software keyboard is visible, the edit step hides its introductory guide and empty photo
+placeholder, retaining the title, body, save status and writing toolbar. Title focus and controller
+identity survive this layout change. The header keeps a small outer margin for its primary action.
+
 
 - `Current`: publishing uses a type-coloured icon, contextual writing hint and a two-step
   edit/preview indicator above an unframed, multiline title and writing canvas. Classification sits

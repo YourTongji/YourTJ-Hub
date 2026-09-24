@@ -149,7 +149,12 @@ class ReadingWindow extends StatelessWidget {
                   width: railWidth,
                   child: ColoredBox(
                     color: colors.base100,
-                    child: SafeArea(right: false, child: rail),
+                    child: NotificationListener<ScrollNotification>(
+                      // Scrolling a short rail is navigation, not reading
+                      // progress. Keep it out of the shell chrome listener.
+                      onNotification: (_) => true,
+                      child: SafeArea(right: false, child: rail),
+                    ),
                   ),
                 ),
             ],

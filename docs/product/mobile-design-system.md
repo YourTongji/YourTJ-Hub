@@ -8,7 +8,7 @@
 >
 > Last verified: 2026-09-25
 
-This standard applies the native reading direction in [0012](../decisions/0012-unified-mobile-reading-navigation.md)
+This standard applies the native reading direction in [0037](../decisions/0037-adaptive-mobile-reading-window.md)
 to the Flutter app. [Mobile experience](mobile-experience.md) records implemented behavior. Rules marked
 `Planned` below are acceptance requirements, not a claim that every screen already conforms.
 
@@ -40,17 +40,11 @@ identity uses the brand mark or a deliberate person glyph, never a broken-image 
 
 ## Navigation and windows
 
-`Current`: root layout uses the available window width. Below 600 logical pixels it retains bottom
-destinations; at 600 and above it uses a persistent, scrollable 72-pixel navigation rail. Forum,
-notification and conversation lists occupy a centered column up to 720 pixels wide. Campus can use
-1120 pixels for its timetable and tools. Wide layouts reclaim the bottom-navigation inset, keep
-compose actions inside the content column and anchor their menu to that column. Resizing preserves
-the retained branch navigator, inputs and reading position; opening a keyboard does not change the
-width breakpoint. `Planned`: contextual panes and bounded reading layouts on every pushed page.
-
-`Current`: the rail shares destination icons and unread state with the bottom bar. Each action
-exposes its name, selected state and activation in one semantic node. Persistent navigation is
-ordered after the active route in the accessibility tree so iOS does not hide it behind that route.
+Navigation uses the same destinations, icons and unread meaning at every window width. A wide
+rail stays reachable independently of reading scroll; compact controls reclaim vertical reading
+space. Compose menus follow their source column and consume system insets once. Implemented
+breakpoints and bounds live in [mobile experience](mobile-experience.md#navigation-and-reading).
+`Planned`: contextual panes and bounded reading layouts on every pushed page.
 
 Resizing, rotating or opening the keyboard must not recreate a draft, reset the selected tab, navigate
 away or lose scroll position. No product operation depends solely on hover. Keyboard users can reach
@@ -64,10 +58,9 @@ are separate from account editing, binding and security. Appearance offers Syste
 
 ## Transient surfaces and input
 
-`Current`: opening a publishing field or moving its caret alone does not create unsaved work.
-While the software keyboard is visible, the edit step hides its introductory guide and empty photo
-placeholder, retaining the title, body, save status and writing toolbar. Title focus and controller
-identity survive this layout change. The header keeps a small outer margin for its primary action.
+Focusing an editor is not an edit. Keyboard layouts prioritize the active writing surface over
+introductory guidance, retain focus, and keep the primary action reachable. Implemented behavior
+lives in [mobile experience](mobile-experience.md#publishing).
 
 `Planned`: use a bottom sheet for short contextual choices, a dialog for consequential confirmation,
 and a page for sustained editing. Sheets share drag handle, heading, close affordance, corner shape,
