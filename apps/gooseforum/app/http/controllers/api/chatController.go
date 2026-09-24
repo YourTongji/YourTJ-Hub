@@ -71,3 +71,26 @@ func MarkChatRead(req component.BetterRequest[MarkReadReq]) component.Response {
 	}
 	return component.SuccessResponse(nil)
 }
+
+type ChatMessageIDsReq struct {
+	ConvId     uint64   `json:"convId" validate:"required"`
+	MessageIds []uint64 `json:"messageIds" validate:"required,min=1,max=100,dive,required"`
+}
+
+// MarkChatVisibleRead acknowledges only messages the client actually displayed.
+func MarkChatVisibleRead(req component.BetterRequest[ChatMessageIDsReq]) component.Response {
+	result, err := chatservice.MarkVisibleRead(req.UserId, req.Params.ConvId, req.Params.MessageIds)
+	if err != nil {
+		return component.FailResponseCode(component.MessageChatMarkReadFailed, nil)
+	}
+	return component.SuccessResponse(result)
+}
+
+// GetChatMessageReadStates refreshes read flags without message bodies.
+func GetChatMessageReadStates(req component.BetterRequest[ChatMessageIDsReq]) component.Response {
+	result, err := chatservice.GetMessageReadStates(req.UserId, req.Params.ConvId, req.Params.MessageIds)
+	if err != nil {
+		return component.FailResponseCode(component.MessageChatGetMessagesFailed, nil)
+	}
+	return component.SuccessResponse(result)
+}

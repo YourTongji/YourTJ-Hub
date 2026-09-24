@@ -97,3 +97,48 @@ Map<String, dynamic> _$$ChatMessagesResponseImplToJson(
   'nextBeforeId': instance.nextBeforeId,
   'latestId': instance.latestId,
 };
+
+_$ChatVisibleReadResultImpl _$$ChatVisibleReadResultImplFromJson(
+  Map<String, dynamic> json,
+) => _$ChatVisibleReadResultImpl(
+  convId: (json['convId'] as num).toInt(),
+  acknowledgedMessageIds: (json['acknowledgedMessageIds'] as List<dynamic>)
+      .map((e) => (e as num).toInt())
+      .toList(),
+  unreadCount: (json['unreadCount'] as num).toInt(),
+);
+
+Map<String, dynamic> _$$ChatVisibleReadResultImplToJson(
+  _$ChatVisibleReadResultImpl instance,
+) => <String, dynamic>{
+  'convId': instance.convId,
+  'acknowledgedMessageIds': instance.acknowledgedMessageIds,
+  'unreadCount': instance.unreadCount,
+};
+
+_$ChatMessageReadStateImpl _$$ChatMessageReadStateImplFromJson(
+  Map<String, dynamic> json,
+) => _$ChatMessageReadStateImpl(
+  id: (json['id'] as num).toInt(),
+  isRead: (json['isRead'] as num).toInt(),
+);
+
+Map<String, dynamic> _$$ChatMessageReadStateImplToJson(
+  _$ChatMessageReadStateImpl instance,
+) => <String, dynamic>{'id': instance.id, 'isRead': instance.isRead};
+
+_$ChatMessageReadStatesResultImpl _$$ChatMessageReadStatesResultImplFromJson(
+  Map<String, dynamic> json,
+) => _$ChatMessageReadStatesResultImpl(
+  items: (json['items'] as List<dynamic>)
+      .map((e) => ChatMessageReadState.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  unreadCount: (json['unreadCount'] as num).toInt(),
+);
+
+Map<String, dynamic> _$$ChatMessageReadStatesResultImplToJson(
+  _$ChatMessageReadStatesResultImpl instance,
+) => <String, dynamic>{
+  'items': instance.items,
+  'unreadCount': instance.unreadCount,
+};

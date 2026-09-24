@@ -869,6 +869,7 @@
   "badgeDisplayHint": "最大5個まで選び、表示順を変更できます。すべて非表示にもできます。アバターのバッジとは別の設定です。",
   "badgeDisplayUp": "上へ",
   "badgeDisplayDown": "下へ",
+  "notificationsMarkRead": "既読にする",
   "scheduleWidgetSettingsTitle": "ホーム画面の時間割",
   "scheduleWidgetPrivacyDescription": "ウィジェットには、この端末に保存された時間割の授業名、時刻、教員、場所が表示されます。時間割を更新するとホーム画面にも反映されます。",
   "scheduleWidgetRefresh": "オフライン時間割から更新",

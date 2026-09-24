@@ -1199,6 +1199,7 @@
   "badgeDisplayHint": "最多选择 5 枚，按下方顺序展示；可全部取消。与头像佩戴徽章独立。",
   "badgeDisplayUp": "上移",
   "badgeDisplayDown": "下移",
+  "notificationsMarkRead": "标为已读",
   "scheduleWidgetSettingsTitle": "桌面课表小组件",
   "scheduleWidgetPrivacyDescription": "小组件展示课表中的课程名称、时间、教师和地点。内容来自本机保存的课表，刷新后同步到桌面。",
   "scheduleWidgetRefresh": "从离线课表刷新",
