@@ -43,7 +43,77 @@ class _StreamAdapter implements HttpClientAdapter {
   void close({bool force = false}) {}
 }
 
+class _LiveStreamAdapter implements HttpClientAdapter {
+  final body = StreamController<Uint8List>();
+
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async => ResponseBody(
+    body.stream,
+    200,
+    headers: {
+      Headers.contentTypeHeader: ['text/event-stream'],
+    },
+  );
+
+  @override
+  void close({bool force = false}) {}
+}
+
 void main() {
+  test(
+    'closing a live SSE while cancelling its decoder completes cleanly',
+    () async {
+      final dio = Dio(BaseOptions(baseUrl: 'http://test'));
+      final adapter = _LiveStreamAdapter();
+      dio.httpClientAdapter = adapter;
+      final client = GfApiClient(
+        dio: dio,
+        tokenStorage: _Tokens(),
+        baseUrl: 'http://test',
+      );
+      final connection = await ForumRealtimeTransport(
+        client,
+      ).connect(token: 'session', cancelToken: CancelToken());
+      final subscription = connection.events.listen((_) {});
+      // Let the async decoder enter its await-for with a live, idle response.
+      await Future<void>.delayed(Duration.zero);
+      final cancelled = subscription.cancel();
+      final cleanShutdown = expectLater(cancelled, completes);
+      connection.close();
+      await cleanShutdown;
+      await adapter.body.close();
+      dio.close(force: true);
+    },
+  );
+
+  test('live SSE still propagates non-cancellation transport errors', () async {
+    final dio = Dio(BaseOptions(baseUrl: 'http://test'));
+    final adapter = _LiveStreamAdapter();
+    dio.httpClientAdapter = adapter;
+    final client = GfApiClient(
+      dio: dio,
+      tokenStorage: _Tokens(),
+      baseUrl: 'http://test',
+    );
+    final connection = await ForumRealtimeTransport(
+      client,
+    ).connect(token: 'session', cancelToken: CancelToken());
+    final failure = DioException.connectionError(
+      requestOptions: RequestOptions(path: '/api/forum/events'),
+      reason: 'Connection lost',
+    );
+    final observed = expectLater(connection.events, emitsError(same(failure)));
+    adapter.body.addError(failure);
+    await observed;
+    connection.close();
+    await adapter.body.close();
+    dio.close(force: true);
+  });
+
   test('transport pins the session token and streams events', () async {
     final dio = Dio(BaseOptions(baseUrl: 'http://test'));
     final adapter = _StreamAdapter(
