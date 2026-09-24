@@ -1769,10 +1769,13 @@ export interface paths {
          *     notification previews, have no replay IDs, and are never a substitute for
          *     REST cursors. A full server queue closes the stream rather than silently
          *     dropping events. Heartbeat comments arrive every 15 seconds; the server
-         *     rotates streams within one hour to renew expiring credentials. Only
+         *     rotates streams within one hour to renew expiring credentials. Session
+         *     validity is checked at handshake and independently every five minutes;
+         *     transport heartbeats do not query the database. Only
          *     Bearer authorization or the host-only access_token cookie is accepted;
-         *     query-string tokens are not supported. A cross-origin cookie request is
-         *     rejected before streaming. The stream does not extend online presence.
+         *     query-string tokens are not supported. Cookie requests without a
+         *     verifiable same-origin Origin or Referer are rejected before streaming.
+         *     The stream does not extend online presence.
          *     This process-local stream requires a shared invalidation transport before
          *     running the forum as multiple serving instances.
          */
@@ -15189,7 +15192,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Cross-origin cookie-authenticated stream is forbidden. */
+            /** @description Cookie-authenticated stream without verifiable same origin is forbidden. */
             403: {
                 headers: {
                     [name: string]: unknown;

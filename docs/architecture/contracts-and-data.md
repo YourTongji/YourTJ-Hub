@@ -90,10 +90,12 @@ carries message bodies, previews or authoritative unread counts. Chat write/read
 only after their transaction commits, and notification hints after persisted notification mutations.
 Each subscription has a bounded queue; overflow closes the stream, forcing a REST resync rather
 than silently losing an event. The server permits at most five streams per user and 10,000 per
-process. Session rows and token versions are checked without the profile cache every 15 seconds;
+process. Session rows and token versions are checked without the profile cache at handshake and
+every five minutes, independently of the 15-second transport heartbeat;
 a database failure closes the stream for retry without declaring logout. This hub is process-local:
 serving the same forum from multiple processes requires a shared invalidation transport before
-this stream can guarantee prompt cross-instance updates. REST remains correct independently.
+this stream can guarantee prompt cross-instance updates. REST remains correct independently. The
+delivery and scaling tradeoffs are recorded in [MADR 0035](../decisions/0035-foreground-realtime-invalidation.md).
 
 ## HTTP method contract: HEAD vs GET (issue #411)
 

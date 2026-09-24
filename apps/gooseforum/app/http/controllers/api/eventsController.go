@@ -16,18 +16,22 @@ import (
 )
 
 const (
-	eventHeartbeat  = 15 * time.Second
-	eventWriteLimit = 5 * time.Second
-	eventMaxAge     = time.Hour
+	eventHeartbeat = 15 * time.Second
+	// Session rows are checked at handshake and independently every five
+	// minutes. Heartbeats only keep the transport alive; REST still checks
+	// session validity on every authenticated request.
+	eventSessionRecheck = 5 * time.Minute
+	eventWriteLimit     = 5 * time.Second
+	eventMaxAge         = time.Hour
 )
 
 // StreamEvents sends owner-scoped invalidation hints. The first hello frame
 // always requires REST reconciliation, including after a dropped connection.
 func StreamEvents(c *gin.Context) {
-	streamEvents(c, realtimeservice.DefaultHub, authsessionservice.CheckStreamToken, eventHeartbeat)
+	streamEvents(c, realtimeservice.DefaultHub, authsessionservice.CheckStreamToken, eventHeartbeat, eventSessionRecheck)
 }
 
-func streamEvents(c *gin.Context, hub *realtimeservice.Hub, check func(context.Context, string) (bool, error), heartbeat time.Duration) {
+func streamEvents(c *gin.Context, hub *realtimeservice.Hub, check func(context.Context, string) (bool, error), heartbeat, sessionRecheck time.Duration) {
 	userID := c.GetUint64("userId")
 	if userID == 0 {
 		c.AbortWithStatus(http.StatusUnauthorized)
@@ -77,6 +81,8 @@ func streamEvents(c *gin.Context, hub *realtimeservice.Hub, check func(context.C
 	}
 	beats := time.NewTicker(heartbeat)
 	defer beats.Stop()
+	rechecks := time.NewTicker(sessionRecheck)
+	defer rechecks.Stop()
 	maxAge := time.NewTimer(eventMaxAge)
 	defer maxAge.Stop()
 	for {
@@ -98,6 +104,10 @@ func streamEvents(c *gin.Context, hub *realtimeservice.Hub, check func(context.C
 				return
 			}
 		case <-beats.C:
+			if err := writeStreamComment(c, controller, "ping"); err != nil {
+				return
+			}
+		case <-rechecks.C:
 			valid, err := check(c.Request.Context(), token)
 			if err != nil {
 				slog.Warn("realtime session recheck failed", "err", err)
@@ -105,9 +115,6 @@ func streamEvents(c *gin.Context, hub *realtimeservice.Hub, check func(context.C
 			}
 			if !valid {
 				_ = writeStreamFrame(c, controller, "session.invalidated", map[string]any{})
-				return
-			}
-			if err := writeStreamComment(c, controller, "ping"); err != nil {
 				return
 			}
 		}

@@ -14,6 +14,7 @@ const (
 )
 
 var ErrConnectionLimit = errors.New("realtime connection limit reached")
+var ErrHubClosed = errors.New("realtime hub is shutting down")
 
 // Event deliberately carries no private message body or notification preview.
 type Event struct {
@@ -29,6 +30,7 @@ type Hub struct {
 	perUser   int
 	total     int
 	queueSize int
+	closed    bool
 }
 
 type Subscription struct {
@@ -55,6 +57,9 @@ func (h *Hub) Subscribe(userID uint64) (*Subscription, error) {
 	}
 	h.mu.Lock()
 	defer h.mu.Unlock()
+	if h.closed {
+		return nil, ErrHubClosed
+	}
 	if h.count >= h.total || len(h.byUser[userID]) >= h.perUser {
 		return nil, ErrConnectionLimit
 	}
@@ -96,10 +101,12 @@ func (h *Hub) removeLocked(sub *Subscription) {
 	close(sub.done)
 }
 
-// CloseAll lets long-running HTTP handlers finish before http.Server.Shutdown.
+// CloseAll rejects new subscriptions and lets existing HTTP handlers finish
+// before http.Server.Shutdown. It is terminal for this Hub.
 func (h *Hub) CloseAll() {
 	h.mu.Lock()
 	defer h.mu.Unlock()
+	h.closed = true
 	for _, connections := range h.byUser {
 		for sub := range connections {
 			h.removeLocked(sub)

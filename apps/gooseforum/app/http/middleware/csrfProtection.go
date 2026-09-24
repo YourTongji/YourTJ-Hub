@@ -83,11 +83,12 @@ func CSRFProtection(c *gin.Context) {
 // held open by a different same-site origin. Bearer clients have no ambient
 // browser credential and are allowed without an Origin header.
 func StreamOriginProtection(c *gin.Context) {
-	if strings.TrimSpace(c.GetHeader("Authorization")) != "" || strings.TrimSpace(c.GetHeader("Origin")) == "" {
+	authorization := strings.TrimSpace(c.GetHeader("Authorization"))
+	if strings.HasPrefix(authorization, "Bearer ") && strings.TrimSpace(strings.TrimPrefix(authorization, "Bearer ")) != "" {
 		c.Next()
 		return
 	}
-	if cookie, err := c.Cookie(accessTokenCookieName); err == nil && cookie != "" && !sameSiteRequest(c) {
+	if cookie, err := c.Cookie(accessTokenCookieName); err == nil && strings.TrimSpace(cookie) != "" && !sameSiteRequest(c) {
 		c.AbortWithStatus(http.StatusForbidden)
 		return
 	}

@@ -110,3 +110,5 @@ A decision starts `Proposed`. Once implemented, its status becomes `Accepted` an
 - [0033](0033-campus-foreground-memory-cache.md) — Flutter 校园页使用经绑定核验的五分钟前台内存缓存。
 
 - [0034](0034-tongji-registration-completion.md) — 同济认证后选择用户名和密码，再原子完成注册。
+
+- [0035](0035-foreground-realtime-invalidation.md) — 前台更新采用进程内 SSE 失效提示与 REST 对账。
