@@ -2473,6 +2473,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'The cloud holds at most ten plans. Free a slot and retry.';
 
   @override
+  String get planSyncRejected =>
+      'Saving was rejected. The account cannot write or the plan data failed validation.';
+
+  @override
   String get planSyncArchived =>
       'Local changes were saved as a recovery draft.';
 

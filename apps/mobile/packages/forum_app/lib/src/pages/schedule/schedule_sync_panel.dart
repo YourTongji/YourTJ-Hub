@@ -37,7 +37,9 @@ class ScheduleSyncPanel extends ConsumerWidget {
             ),
           if (sync.blocked.value)
             Text(
-              l.planSyncCapacity,
+              sync.blockedReason.value == 'rejected'
+                  ? l.planSyncRejected
+                  : l.planSyncCapacity,
               style: TextStyle(color: Theme.of(context).colorScheme.error),
             ),
           for (final conflict in sync.conflicts.value)

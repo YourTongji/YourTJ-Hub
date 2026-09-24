@@ -99,7 +99,15 @@ watch(scheduleSync.notice, (message) => {
 })
 
 watch(scheduleSync.mergeBlocked, (blocked) => {
-  if (blocked) flash(t('planSync.capacity'), 'error')
+  if (blocked)
+    flash(
+      t(
+        scheduleSync.mergeBlockedReason.value === 'rejected'
+          ? 'planSync.rejected'
+          : 'planSync.capacity',
+      ),
+      'error',
+    )
 })
 
 /** 手动保存（「保存课表」按钮）：立即上传本地方案到云端。 */

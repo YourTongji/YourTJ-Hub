@@ -1184,6 +1184,7 @@
   "planSyncAdopt": "Sync this device’s local plans to this account",
   "planSyncAdoptHint": "These local plans do not yet belong to this account. Confirm before uploading.",
   "planSyncCapacity": "The cloud holds at most ten plans. Free a slot and retry.",
+  "planSyncRejected": "Saving was rejected. The account cannot write or the plan data failed validation.",
   "planSyncArchived": "Local changes were saved as a recovery draft.",
   "privateNoteEdit": "Edit note",
   "privateNoteLabel": "Private note",

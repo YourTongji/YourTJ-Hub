@@ -4584,6 +4584,12 @@ abstract class AppLocalizations {
   /// **'The cloud holds at most ten plans. Free a slot and retry.'**
   String get planSyncCapacity;
 
+  /// No description provided for @planSyncRejected.
+  ///
+  /// In en, this message translates to:
+  /// **'Saving was rejected. The account cannot write or the plan data failed validation.'**
+  String get planSyncRejected;
+
   /// No description provided for @planSyncArchived.
   ///
   /// In en, this message translates to:

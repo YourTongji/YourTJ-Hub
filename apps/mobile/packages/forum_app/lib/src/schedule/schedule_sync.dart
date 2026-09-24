@@ -62,6 +62,9 @@ class ScheduleSyncController {
   final drafts = ValueNotifier<Map<String, PkPlan>>({});
   final needsAdoption = ValueNotifier(false);
   final blocked = ValueNotifier(false);
+
+  /// Why sync is blocked: 'capacity' (quota/overflow) or 'rejected' (400/403).
+  final blockedReason = ValueNotifier<String?>(null);
   Map<String, PkPlanItem> _bases = {};
   String? _placeholderID, _placeholderKey;
   int? _owner;
@@ -74,9 +77,14 @@ class ScheduleSyncController {
   Timer? _timer;
   Future<void>? _operation;
   List<PkPlan> get _plans => store.buildSnapshotPayload().plans;
+  // A placeholder stops masking its plan once that plan has a server base:
+  // clearing it afterwards is an update, never the DELETE of a real plan.
   List<PkPlan> get _content => _plans
       .where(
-        (p) => p.id != _placeholderID || schedulePlanKey(p) != _placeholderKey,
+        (p) =>
+            p.id != _placeholderID ||
+            schedulePlanKey(p) != _placeholderKey ||
+            _bases.containsKey(p.id),
       )
       .toList();
   PkPlan? _local(String id) {
@@ -101,6 +109,7 @@ class ScheduleSyncController {
     drafts.dispose();
     needsAdoption.dispose();
     blocked.dispose();
+    blockedReason.dispose();
     if (identical(scheduleLocalPlansChanged, _onLocalChange)) {
       scheduleLocalPlansChanged = null;
     }
@@ -138,13 +147,42 @@ class ScheduleSyncController {
       return false;
     }
     final run = _generation;
-    final saved = await store.writePlanSyncCache(_owner!, {
-      'bases': {for (final e in _bases.entries) e.key: e.value.toJson()},
-      'plans': _plans.map((p) => p.toJson()).toList(),
-      'drafts': {for (final e in drafts.value.entries) e.key: e.value.toJson()},
-      'placeholderID': _placeholderID,
-      'placeholderKey': _placeholderKey,
-    });
+    final baseMap = {
+      for (final e in _bases.entries) e.key: e.value.toJson(),
+    };
+    final draftMap = {
+      for (final e in drafts.value.entries) e.key: e.value.toJson(),
+    };
+    // Degrade instead of failing wholesale: bases keep conflict detection
+    // alive, plans are re-derivable from bases, drafts are the last thing to go.
+    final shapes = <Map<String, dynamic>>[
+      {
+        'bases': baseMap,
+        'plans': _plans.map((p) => p.toJson()).toList(),
+        'drafts': draftMap,
+        'placeholderID': _placeholderID,
+        'placeholderKey': _placeholderKey,
+      },
+      {
+        'bases': baseMap,
+        'plans': <Map<String, dynamic>>[],
+        'drafts': draftMap,
+        'placeholderID': _placeholderID,
+        'placeholderKey': _placeholderKey,
+      },
+      {
+        'bases': baseMap,
+        'plans': <Map<String, dynamic>>[],
+        'drafts': <String, Map<String, dynamic>>{},
+        'placeholderID': _placeholderID,
+        'placeholderKey': _placeholderKey,
+      },
+    ];
+    var saved = false;
+    for (final shape in shapes) {
+      saved = await store.writePlanSyncCache(_owner!, shape);
+      if (saved) break;
+    }
     if (run == _generation && !_disposed) _persistenceFailed = !saved;
     return saved;
   }
@@ -159,6 +197,7 @@ class ScheduleSyncController {
     _reconciled = false;
     _authStopped = false;
     blocked.value = false;
+    blockedReason.value = null;
     conflicts.value = [];
     needsAdoption.value = false;
     _placeholderID = null;
@@ -197,16 +236,25 @@ class ScheduleSyncController {
         if (!_disposed && run == _generation) needsAdoption.value = true;
         return;
       }
-      final plans = (cache?['plans'] as List? ?? [])
+      final cachedPlans = (cache?['plans'] as List? ?? [])
           .map((p) => PkPlan.fromJson(Map<String, dynamic>.from(p as Map)))
           .toList();
+      // A cache persisted under storage pressure carries no plans copy;
+      // rebuild device-local content from the acknowledged bases.
+      final plans = cachedPlans.isNotEmpty
+          ? cachedPlans
+          : [for (final item in _bases.values) item.plan];
       if (!await _current(run)) return;
       store.applyPlanItems(plans);
       if (plans.isEmpty) _markPlaceholder();
     } else if (store.syncOwner == null &&
-        _plans.any(
-          (p) => p.stagedCourses.isNotEmpty || p.customEvents.isNotEmpty,
-        )) {
+        !(_plans.length == 1 &&
+            _plans.every(
+              (p) =>
+                  p.stagedCourses.isEmpty &&
+                  p.selectedCourses.isEmpty &&
+                  p.customEvents.isEmpty,
+            ))) {
       if (!_disposed && run == _generation) needsAdoption.value = true;
       return;
     } else if (!await store.setSyncOwner(
@@ -297,6 +345,7 @@ class ScheduleSyncController {
       _authStopped = true;
     } else if (error is ApiException && [400, 403].contains(error.statusCode)) {
       blocked.value = true;
+      blockedReason.value = 'rejected';
     } else {
       _schedule(_retrySeconds);
       _retrySeconds = (_retrySeconds * 2).clamp(3, 60);
@@ -338,6 +387,7 @@ class ScheduleSyncController {
           );
         } else if (error is ApiException && error.statusCode == 409) {
           blocked.value = true;
+          blockedReason.value = 'capacity';
           return;
         } else {
           _fail(error);
@@ -354,6 +404,13 @@ class ScheduleSyncController {
       if (read) {
         final items = await transport.list();
         if (!await _current(run)) return;
+        // Server order is plan_id (random); present plans in creation order.
+        int byCreation(PkPlanItem x, PkPlanItem y) {
+          final created = x.plan.createdAt.compareTo(y.plan.createdAt);
+          return created != 0 ? created : x.plan.id.compareTo(y.plan.id);
+        }
+
+        items.sort(byCreation);
         final remote = {for (final item in items) item.plan.id: item};
         if (_bases.isEmpty &&
             store.syncedAt.isNotEmpty &&
@@ -380,6 +437,7 @@ class ScheduleSyncController {
           }
           if (!await _current(run)) return;
           blocked.value = true;
+          blockedReason.value = 'capacity';
         }
         _reconciled = true;
         _lastRead = DateTime.now();
@@ -490,6 +548,7 @@ class ScheduleSyncController {
     _apply(plan.id, plan);
     drafts.value = {...drafts.value}..remove(id);
     blocked.value = false;
+    blockedReason.value = null;
     _onLocalChange();
     return true;
   }

@@ -104,10 +104,14 @@ Future<void> settle() async {
 
 class ControlledStore extends ScheduleStoreNotifier {
   bool failCacheWrites = false;
+  bool failLargeCacheWrites = false;
   Completer<bool>? nextCacheWrite;
   @override
   Future<bool> writePlanSyncCache(int owner, Map<String, dynamic> value) async {
     if (failCacheWrites) return false;
+    if (failLargeCacheWrites && jsonEncode(value).contains('"plans":[{')) {
+      return false;
+    }
     final pending = nextCacheWrite;
     nextCacheWrite = null;
     if (pending != null) return pending.future;
@@ -457,5 +461,98 @@ void main() {
     await store.flush;
     final cached = store.readPlanSyncCache(7)!;
     expect(jsonEncode(cached), isNot(contains('weekView')));
+  });
+  test('clearing an uploaded placeholder updates it instead of deleting it', () async {
+    transport.remote = [];
+    await sync.syncOnEnter();
+    final defaultPlan = store.buildSnapshotPayload().plans.first;
+    store.renamePlan(defaultPlan.id, 'Mine');
+    timers.last.fire();
+    await settle();
+    expect(transport.writes.length, 1);
+    store.renamePlan(defaultPlan.id, defaultPlan.name);
+    timers.last.fire();
+    await settle();
+    expect(transport.deletes, isEmpty);
+    expect(transport.writes.length, 2);
+    expect(transport.writes.last.$1.id, defaultPlan.id);
+  });
+  test('guest adoption covers selected-only plans', () async {
+    final guest = edit(plan('guest'), {'selectedCourses': ['101.01']});
+    store.applyPlanItems([guest]);
+    transport.remote = [];
+    await sync.syncOnEnter();
+    expect(sync.needsAdoption.value, isTrue);
+    expect(transport.writes, isEmpty);
+  });
+  test('guest adoption covers multiple empty plans', () async {
+    store.applyPlanItems([plan('a'), plan('b')]);
+    transport.remote = [];
+    await sync.syncOnEnter();
+    expect(sync.needsAdoption.value, isTrue);
+    expect(transport.writes, isEmpty);
+  });
+  test('plans are presented in creation order regardless of server order', () async {
+    final tieB = edit(plan('b', 'B'), {'createdAt': 100});
+    final tieA = edit(plan('a', 'A'), {'createdAt': 100});
+    final late = edit(plan('late', 'Late'), {'createdAt': 200});
+    transport.remote = [item(late), item(tieB), item(tieA)];
+    await sync.syncOnEnter();
+    expect(store.buildSnapshotPayload().plans.map((p) => p.id).toList(), [
+      'a',
+      'b',
+      'late',
+    ]);
+  });
+  test('cache degrades without the plans copy and rebuilds from bases', () async {
+    await sync.syncOnEnter();
+    store.failLargeCacheWrites = true;
+    store.renamePlan('p', 'Changed');
+    timers.last.fire();
+    await settle();
+    expect(transport.writes.length, 1);
+    await store.flush;
+    final cached = store.readPlanSyncCache(7)!;
+    expect(cached['plans'] as List, isEmpty);
+    expect((cached['bases'] as Map)['p']['revision'], 2);
+    // A device switching back to the account rebuilds from the degraded cache.
+    final reloaded = ScheduleSyncController(
+      transport: transport,
+      tokenStorage: tokens,
+      store: store,
+      readUserId: () async => tokens.owner,
+      debounceTimer: (delay, fire) => FakeTimer(fire),
+    );
+    tokens.owner = 8;
+    await reloaded.syncOnEnter();
+    tokens.owner = 7;
+    await reloaded.syncOnEnter();
+    expect(store.buildSnapshotPayload().plans.map((p) => p.id).toList(), ['p']);
+    expect(store.buildSnapshotPayload().plans.first.name, 'Changed');
+    reloaded.dispose();
+  });
+  test('write rejection reports rejected state distinct from capacity', () async {
+    await sync.syncOnEnter();
+    transport.writeError = const ApiException(
+      fallbackMessage: 'frozen',
+      statusCode: 403,
+    );
+    store.renamePlan('p', 'Local');
+    timers.last.fire();
+    await settle();
+    expect(sync.blocked.value, isTrue);
+    expect(sync.blockedReason.value, 'rejected');
+  });
+  test('quota conflict reports the capacity reason', () async {
+    await sync.syncOnEnter();
+    transport.writeError = const ApiException(
+      fallbackMessage: 'quota',
+      statusCode: 409,
+    );
+    store.renamePlan('p', 'Local');
+    timers.last.fire();
+    await settle();
+    expect(sync.blocked.value, isTrue);
+    expect(sync.blockedReason.value, 'capacity');
   });
 }

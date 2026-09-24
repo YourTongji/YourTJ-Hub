@@ -268,6 +268,92 @@ describe('per-plan sync state machine', () => {
     await controller.syncOnPageEnter()
     expect(t.list).toHaveBeenCalledTimes(2)
   })
+  test('clearing an uploaded placeholder updates it instead of deleting it', async () => {
+    const t = setup([])
+    await controller.syncOnPageEnter()
+    store.renamePlan('placeholder', 'Mine')
+    store.state.plans[0].customEvents = [
+      { id: 'e', label: 'Guest', day: 1, sections: [1], weeks: [1] },
+    ]
+    store.solidify()
+    await vi.advanceTimersByTimeAsync(3000)
+    expect(t.put).toHaveBeenCalledTimes(1)
+    store.renamePlan('placeholder', 'Plan')
+    store.state.plans[0].customEvents = []
+    store.solidify()
+    await vi.advanceTimersByTimeAsync(3000)
+    expect(t.remove).not.toHaveBeenCalled()
+    expect(t.put).toHaveBeenCalledTimes(2)
+    expect(t.put.mock.calls[1][0]).toMatchObject({ id: 'placeholder', name: 'Plan' })
+  })
+  test('guest adoption covers selected-only and multiple empty plans', async () => {
+    store.state.plans[0].selectedCourses = ['101.01']
+    store.solidify()
+    const t = setup([])
+    await controller.syncOnPageEnter()
+    expect(controller.needsOwnerConfirmation()).toBe(true)
+    expect(t.put).not.toHaveBeenCalled()
+    store.applyRemoteSnapshot({
+      plans: [plan('a'), plan('b')],
+      activePlanId: 'a',
+      majorSelected: {},
+      weekView: { week: null, useCurrent: false },
+    })
+    controller.stop()
+    memory.clear()
+    const t2 = setup([])
+    await controller.syncOnPageEnter()
+    expect(controller.needsOwnerConfirmation()).toBe(true)
+    expect(t2.put).not.toHaveBeenCalled()
+  })
+  test('remote plans are listed in creation order regardless of server order', async () => {
+    const tieB = plan('b', 'B')
+    tieB.createdAt = 100
+    const tieA = plan('a', 'A')
+    tieA.createdAt = 100
+    const late = plan('late', 'Late')
+    late.createdAt = 200
+    setup([item(late), item(tieB), item(tieA)])
+    await controller.syncOnPageEnter()
+    expect(store.state.plans.map((p) => p.id)).toEqual(['a', 'b', 'late'])
+  })
+  test('cache degrades without the plans copy and rebuilds from bases on reload', async () => {
+    const t = setup()
+    await controller.syncOnPageEnter()
+    vi.spyOn(localStorage, 'setItem').mockImplementation((key, value) => {
+      if (value.includes('"plans":[{"')) throw new Error('full')
+      memory.set(key, value)
+    })
+    store.renamePlan('p', 'Changed')
+    await vi.advanceTimersByTimeAsync(3000)
+    expect(t.put).toHaveBeenCalledTimes(1)
+    const cache = JSON.parse(memory.get('pk.planSync.v3.7')!)
+    expect(cache.plans).toEqual([])
+    expect(cache.bases.p.revision).toBe(2)
+    controller.stop()
+    controller.start(8)
+    controller.start(7)
+    expect(store.state.plans.map((p) => p.id)).toEqual(['p'])
+    expect(store.state.plans[0].name).toBe('Changed')
+  })
+  test('write rejection reports rejected state distinct from capacity', async () => {
+    const t = setup()
+    await controller.syncOnPageEnter()
+    t.put.mockRejectedValue(new PkSyncError('frozen', 403))
+    store.renamePlan('p', 'Local')
+    await vi.advanceTimersByTimeAsync(3000)
+    expect(controller.mergeBlocked.value).toBe(true)
+    expect(controller.mergeBlockedReason.value).toBe('rejected')
+  })
+  test('quota conflict reports the capacity reason', async () => {
+    const t = setup()
+    await controller.syncOnPageEnter()
+    t.put.mockRejectedValue(new PkSyncError('quota', 409))
+    store.renamePlan('p', 'Local')
+    await vi.advanceTimersByTimeAsync(3000)
+    expect(controller.mergeBlocked.value).toBe(true)
+    expect(controller.mergeBlockedReason.value).toBe('capacity')
+  })
 })
 test('a recovery draft must persist before its last visible local copy is removed', async () => {
   const t = setup()

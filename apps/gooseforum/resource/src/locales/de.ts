@@ -23,6 +23,7 @@ export default {
     adopt: "Lokale Pläne dieses Geräts mit diesem Konto synchronisieren",
     adoptHint: "Diese lokalen Pläne gehören noch nicht zu diesem Konto. Bitte vor dem Hochladen bestätigen.",
     capacity: "Die Cloud speichert höchstens zehn Pläne. Schaffe Platz und versuche es erneut.",
+    rejected: "Speichern wurde abgelehnt. Das Konto kann nicht schreiben oder die Plandaten waren ungültig.",
     archived: "Lokale Änderungen wurden als Entwurf gesichert.",
   },
   privateNote: {

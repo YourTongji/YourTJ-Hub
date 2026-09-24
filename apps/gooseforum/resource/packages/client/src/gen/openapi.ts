@@ -6147,7 +6147,8 @@ export interface paths {
          * @description Caller-owned per-plan synchronization. First access atomically migrates every legacy plan
          *     and retires the legacy snapshot API for this account. Each plan has an integer CAS revision.
          *     At most ten plans per account; each plan payload is limited to 1 MB. Device preferences stay local.
-         *     Conflicts include the latest item; a missing positive revision returns 410 and cannot recreate it.
+         *     Conflicts include the latest item. Deleting an already-absent plan is idempotent and returns
+         *     200 regardless of the observed revision; the missing-positive-revision 410 applies only to PUT.
          */
         delete: operations["pkDeletePlanItem"];
         options?: never;

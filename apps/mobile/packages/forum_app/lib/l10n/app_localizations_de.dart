@@ -2501,6 +2501,10 @@ class AppLocalizationsDe extends AppLocalizations {
       'Die Cloud speichert höchstens zehn Pläne. Schaffe Platz und versuche es erneut.';
 
   @override
+  String get planSyncRejected =>
+      'Speichern wurde abgelehnt. Das Konto kann nicht schreiben oder die Plandaten waren ungültig.';
+
+  @override
   String get planSyncArchived =>
       'Lokale Änderungen wurden als Entwurf gesichert.';
 

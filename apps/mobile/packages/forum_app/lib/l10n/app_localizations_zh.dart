@@ -2383,6 +2383,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get planSyncCapacity => '云端最多保存十套方案，请先腾出空间后重试。';
 
   @override
+  String get planSyncRejected => '保存被拒绝：当前账号不可写入，或方案数据未通过校验。';
+
+  @override
   String get planSyncArchived => '本地修改已保存为恢复草稿。';
 
   @override

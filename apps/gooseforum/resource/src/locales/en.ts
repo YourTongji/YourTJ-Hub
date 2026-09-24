@@ -23,6 +23,7 @@ export default {
     adopt: "Sync this device’s local plans to this account",
     adoptHint: "These local plans do not yet belong to this account. Confirm before uploading.",
     capacity: "The cloud holds at most ten plans. Free a slot and retry.",
+    rejected: "Saving was rejected. The account cannot write or the plan data failed validation.",
     archived: "Local changes were saved as a recovery draft.",
   },
   privateNote: {

@@ -46,7 +46,13 @@ function choiceKey(id: string, revision?: number) {
     aria-live="polite"
   >
     <p v-if="scheduleSync.mergeBlocked.value" class="text-sm text-warning">
-      {{ t('planSync.capacity') }}
+      {{
+        t(
+          scheduleSync.mergeBlockedReason.value === 'rejected'
+            ? 'planSync.rejected'
+            : 'planSync.capacity',
+        )
+      }}
     </p>
     <div v-if="scheduleSync.needsOwnerConfirmation()" class="rounded-lg border border-line p-4">
       <p class="mb-2 text-sm">{{ t('planSync.adoptHint') }}</p>

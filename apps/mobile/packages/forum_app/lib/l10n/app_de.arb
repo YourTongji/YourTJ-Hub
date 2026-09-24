@@ -854,6 +854,7 @@
   "planSyncAdopt": "Lokale Pläne dieses Geräts mit diesem Konto synchronisieren",
   "planSyncAdoptHint": "Diese lokalen Pläne gehören noch nicht zu diesem Konto. Bitte vor dem Hochladen bestätigen.",
   "planSyncCapacity": "Die Cloud speichert höchstens zehn Pläne. Schaffe Platz und versuche es erneut.",
+  "planSyncRejected": "Speichern wurde abgelehnt. Das Konto kann nicht schreiben oder die Plandaten waren ungültig.",
   "planSyncArchived": "Lokale Änderungen wurden als Entwurf gesichert.",
   "privateNoteEdit": "Notiz bearbeiten",
   "privateNoteLabel": "Private Notiz",

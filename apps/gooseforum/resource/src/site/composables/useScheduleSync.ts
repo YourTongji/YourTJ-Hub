@@ -50,10 +50,10 @@ export interface PlanSyncConflict {
   fields: PlanMergeConflict[]
 }
 interface SyncCache {
-  placeholder?: { id: string; key: string }
+  placeholder: { id: string; key: string } | null
   bases: Record<string, PkPlanItem>
-  plans: PkPlan[]
-  drafts: Record<string, PkPlan>
+  plans?: PkPlan[]
+  drafts?: Record<string, PkPlan>
 }
 export const PK_SYNC_DEBOUNCE_MS = 3000
 export const PK_SYNC_FOCUS_MS = 30000
@@ -72,6 +72,7 @@ export function createScheduleSyncController(deps: { transport: PkSyncTransport 
   const conflicts = shallowRef<PlanSyncConflict[]>([])
   const drafts = shallowRef<Record<string, PkPlan>>({})
   const mergeBlocked = shallowRef(false)
+  const mergeBlockedReason = shallowRef<'capacity' | 'rejected' | null>(null)
   const notice = shallowRef<string | null>(null)
   let bases: Record<string, PkPlanItem> = Object.create(null)
   let owner = 0,
@@ -86,9 +87,20 @@ export function createScheduleSyncController(deps: { transport: PkSyncTransport 
   let timer: ReturnType<typeof setTimeout> | null = null
   let operation: Promise<PkSyncReconcileResult> | null = null
   let placeholder: { id: string; key: string } | null = null
+  const setBlocked = (reason: 'capacity' | 'rejected') => {
+    mergeBlocked.value = true
+    mergeBlockedReason.value = reason
+  }
+  const clearBlocked = () => {
+    mergeBlocked.value = false
+    mergeBlockedReason.value = null
+  }
+  // A placeholder stops masking its plan once that plan has a server base:
+  // clearing it afterwards is an update, never the DELETE of a real plan.
   const contentPlans = () =>
     store.state.plans.filter(
-      (p) => !(placeholder?.id === p.id && placeholder.key === schedulePlanKey(p)),
+      (p) =>
+        !(placeholder?.id === p.id && placeholder.key === schedulePlanKey(p)) || !!bases[p.id],
     )
   const local = (id: string) => contentPlans().find((p) => p.id === id) ?? null
   const dirtyIDs = () =>
@@ -106,29 +118,36 @@ export function createScheduleSyncController(deps: { transport: PkSyncTransport 
       const raw = localStorage.getItem(cacheKey(id))
       if (!raw) return null
       const data = JSON.parse(raw)
-      return data && Array.isArray(data.plans) && data.bases && data.drafts ? data : null
+      // Plans may be absent when persistence degraded under storage pressure;
+      // start() rebuilds them from the acknowledged bases.
+      return data && data.bases ? (data as SyncCache) : null
     } catch {
       return null
     }
   }
   function persist(): boolean {
     if (!enabled || adoptionRequired.value || store.getSyncOwner() !== owner) return false
-    try {
-      localStorage.setItem(
-        cacheKey(owner),
-        JSON.stringify({
-          placeholder,
-          bases,
-          plans: store.snapshotForSync().plans,
-          drafts: drafts.value,
-        }),
-      )
-      persistenceFailed = false
-      return true
-    } catch {
-      persistenceFailed = true
-      return false
+    const shapes: Array<SyncCache> = [
+      {
+        placeholder,
+        bases,
+        plans: store.snapshotForSync().plans,
+        drafts: drafts.value,
+      },
+      { placeholder, bases, plans: [], drafts: drafts.value },
+      { placeholder, bases, plans: [], drafts: {} },
+    ]
+    for (const shape of shapes) {
+      try {
+        localStorage.setItem(cacheKey(owner), JSON.stringify(shape))
+        persistenceFailed = false
+        return true
+      } catch {
+        // Storage pressure: retry with the next, smaller shape.
+      }
     }
+    persistenceFailed = true
+    return false
   }
   function apply(id: string, plan: PkPlan | null) {
     const plans = copy(contentPlans())
@@ -175,7 +194,7 @@ export function createScheduleSyncController(deps: { transport: PkSyncTransport 
     for (const plan of candidates) {
       if (!archive(plan.id, plan)) break
     }
-    mergeBlocked.value = true
+    setBlocked('capacity')
   }
   function schedule(delay = PK_SYNC_DEBOUNCE_MS) {
     clearTimer()
@@ -190,7 +209,7 @@ export function createScheduleSyncController(deps: { transport: PkSyncTransport 
   function fail(error: unknown) {
     if (error instanceof PkSyncError && error.status === 401) authStopped = true
     else if (error instanceof PkSyncError && [400, 403].includes(error.status))
-      mergeBlocked.value = true
+      setBlocked('rejected')
     else {
       schedule(retryDelay)
       retryDelay = Math.min(retryDelay * 2, 60000)
@@ -222,7 +241,7 @@ export function createScheduleSyncController(deps: { transport: PkSyncTransport 
         else if (error instanceof PkSyncError && error.status === 409 && error.remote)
           reconcileItem(id, error.remote)
         else if (error instanceof PkSyncError && error.status === 409) {
-          mergeBlocked.value = true
+          setBlocked('capacity')
           return
         } else {
           fail(error)
@@ -238,6 +257,12 @@ export function createScheduleSyncController(deps: { transport: PkSyncTransport 
       if (read) {
         const items = await deps.transport.list()
         if (!current(runID)) return 'failed'
+        // Server order is plan_id (random); present plans in creation order.
+        items.sort(
+          (a, b) =>
+            a.plan.createdAt - b.plan.createdAt ||
+            (a.plan.id < b.plan.id ? -1 : a.plan.id > b.plan.id ? 1 : 0),
+        )
         const remote = new Map(items.map((item) => [item.plan.id, item]))
         // A fresh empty default is a UI placeholder, not an intentional new plan.
         if (
@@ -298,12 +323,19 @@ export function createScheduleSyncController(deps: { transport: PkSyncTransport 
         adoptionRequired.value = true
         return
       }
-      store.applyPlanItems(cache?.plans ?? [])
+      store.applyPlanItems(
+        cache?.plans?.length ? cache.plans : Object.values(bases).map((b) => b.plan),
+      )
       if (!cache)
         placeholder = { id: store.state.plans[0].id, key: schedulePlanKey(store.state.plans[0]) }
     } else if (
       !previous &&
-      store.state.plans.some((p) => p.stagedCourses.length || p.customEvents.length)
+      !(
+        store.state.plans.length === 1 &&
+        store.state.plans.every(
+          (p) => !p.stagedCourses.length && !p.selectedCourses.length && !p.customEvents.length,
+        )
+      )
     ) {
       adoptionRequired.value = true
       return
@@ -332,7 +364,7 @@ export function createScheduleSyncController(deps: { transport: PkSyncTransport 
     adoptionRequired.value = false
     authStopped = false
     persistenceFailed = false
-    mergeBlocked.value = false
+    clearBlocked()
     placeholder = null
     retryDelay = PK_SYNC_DEBOUNCE_MS
     lastRead = 0
@@ -351,6 +383,7 @@ export function createScheduleSyncController(deps: { transport: PkSyncTransport 
       bases = Object.create(null)
     }
     mergeBlocked.value = false
+    mergeBlockedReason.value = null
     persist()
     await run(!reconciled)
     return !isDirty() && !conflicts.value.length
@@ -389,7 +422,7 @@ export function createScheduleSyncController(deps: { transport: PkSyncTransport 
     const next = { ...drafts.value }
     delete next[id]
     drafts.value = next
-    mergeBlocked.value = false
+    clearBlocked()
     onLocalChange()
     return true
   }
@@ -398,6 +431,7 @@ export function createScheduleSyncController(deps: { transport: PkSyncTransport 
     drafts,
     notice,
     mergeBlocked,
+    mergeBlockedReason,
     start,
     stop,
     onLocalChange,
@@ -410,7 +444,7 @@ export function createScheduleSyncController(deps: { transport: PkSyncTransport 
       notice.value = null
     },
     syncOnPageEnter: () => {
-      mergeBlocked.value = false
+      clearBlocked()
       return run(true)
     },
     onFocus: () =>

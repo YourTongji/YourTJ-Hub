@@ -2404,6 +2404,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String get planSyncCapacity => 'クラウドには最大10件のプランを保存できます。空きを作って再試行してください。';
 
   @override
+  String get planSyncRejected => '保存できませんでした。アカウントが書き込み不可、またはプランデータが検証に失敗しました。';
+
+  @override
   String get planSyncArchived => 'ローカルの変更を復元用の下書きに保存しました。';
 
   @override

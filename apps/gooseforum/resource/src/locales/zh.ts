@@ -23,6 +23,7 @@ export default {
     adopt: "将此设备的本地方案同步到当前账号",
     adoptHint: "本地方案尚未归属当前账号，确认后才会上传。",
     capacity: "云端最多保存十套方案，请先腾出空间后重试。",
+    rejected: "保存被拒绝：当前账号不可写入，或方案数据未通过校验。",
     archived: "本地修改已保存为恢复草稿。",
   },
   privateNote: {
