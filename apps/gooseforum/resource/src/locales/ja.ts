@@ -441,6 +441,8 @@ export default {
     sportNote: "種目は地図資料に基づきます。館内の場所・開館時間・予約は施設の案内をご確認ください。",
     placeNote: "位置は地図資料に基づきます。建物の形状と高さは模式的です。",
     share: "この場所を共有",
+    navigate: "ナビを開始",
+    navigateWeb: "ブラウザで経路を見る",
     copied: "リンクをコピーしました",
     water: "水域",
     dataNote: "地図資料",
