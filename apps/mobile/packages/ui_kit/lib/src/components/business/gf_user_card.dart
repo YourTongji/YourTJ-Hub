@@ -82,7 +82,17 @@ class GfUserCard extends StatelessWidget {
                   image: coverUrl == null || coverUrl!.isEmpty
                       ? null
                       : DecorationImage(
-                          image: NetworkImage(coverUrl!),
+                          image: ResizeImage(
+                            NetworkImage(coverUrl!),
+                            policy: ResizeImagePolicy.fit,
+                            width:
+                                (MediaQuery.sizeOf(context).width *
+                                        MediaQuery.devicePixelRatioOf(context))
+                                    .round(),
+                            height:
+                                (184 * MediaQuery.devicePixelRatioOf(context))
+                                    .round(),
+                          ),
                           fit: BoxFit.cover,
                         ),
                 ),

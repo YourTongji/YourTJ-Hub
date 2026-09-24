@@ -22,7 +22,7 @@ class _UnreadRepository extends NotificationRepository {
   Completer<UnreadStatusPayload>? gate;
 
   @override
-  Future<UnreadStatusPayload> getUnreadStatus() async {
+  Future<UnreadStatusPayload> getUnreadStatus({Object? cancelToken}) async {
     calls++;
     return gate?.future ??
         const UnreadStatusPayload(notifications: false, messages: false);

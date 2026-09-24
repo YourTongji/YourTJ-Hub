@@ -206,7 +206,7 @@ class FakePageRepository extends PageRepository {
   FakePageRepository(super.client);
 
   @override
-  Future<PagePayload> fetch(String path) async {
+  Future<PagePayload> fetch(String path, {Object? cancelToken}) async {
     if (path == '/courses') {
       return parsePayload(<String, dynamic>{
         'component': PageComponent.course,
@@ -576,12 +576,15 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      final list = find.byType(ListView).first;
+      final list = find.byType(CustomScrollView).first;
       await tester.drag(list, const Offset(0, -6000));
       await tester.pumpAndSettle();
       // Lazy rows revise the scroll extent after layout, especially at larger
       // font sizes. Settle at the real end before checking dock clearance.
-      final position = tester.widget<ListView>(list).controller!.position;
+      final position = tester
+          .widget<CustomScrollView>(list)
+          .controller!
+          .position;
       for (
         var attempt = 0;
         attempt < 4 && position.extentAfter > 0;

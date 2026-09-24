@@ -36,6 +36,7 @@ class VisibleChatRepository extends PollingChatRepository {
     int beforeId = 0,
     int afterId = 0,
     int limit = 30,
+    Object? cancelToken,
   }) {
     if (beforeId > 0 && olderMessages.isNotEmpty) {
       beforeCalls++;
@@ -55,6 +56,7 @@ class VisibleChatRepository extends PollingChatRepository {
           beforeId: beforeId,
           afterId: afterId,
           limit: limit,
+          cancelToken: cancelToken,
         )
         .then(
           (response) => afterId > 0

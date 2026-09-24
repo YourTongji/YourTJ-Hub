@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../theme/gf_theme.dart';
 
@@ -14,6 +15,9 @@ class GfMessageBubble extends StatelessWidget {
     this.maxWidthFactor = 0.88,
     this.contentSpan,
     this.bubbleKey,
+    this.content,
+    this.selectable = false,
+    this.copyMessageLabel = 'Copy message',
   });
 
   /// Optional key on the painted bubble, excluding alignment and timestamp.
@@ -31,6 +35,9 @@ class GfMessageBubble extends StatelessWidget {
   /// Optional rich content segments replacing the plain [text] body
   /// (sticker message rendering); null keeps the plain-text path.
   final InlineSpan? contentSpan;
+  final Widget? content;
+  final bool selectable;
+  final String copyMessageLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -41,6 +48,35 @@ class GfMessageBubble extends StatelessWidget {
       height: 1.4,
       color: mine ? colors.primaryContent : colors.baseContent,
     );
+    Widget body = DefaultTextStyle(
+      style: contentStyle,
+      child:
+          content ??
+          (contentSpan == null
+              ? Text(text)
+              : Text.rich(TextSpan(children: <InlineSpan>[contentSpan!]))),
+    );
+    if (selectable) {
+      body = SelectionArea(
+        contextMenuBuilder: (context, selection) =>
+            AdaptiveTextSelectionToolbar.buttonItems(
+              anchors: selection.contextMenuAnchors,
+              buttonItems: [
+                ...selection.contextMenuButtonItems,
+                ContextMenuButtonItem(
+                  label: copyMessageLabel,
+                  onPressed: () {
+                    // Whole-message copy preserves sticker tokens that native
+                    // partial text selection cannot represent as images.
+                    Clipboard.setData(ClipboardData(text: text));
+                    selection.hideToolbar();
+                  },
+                ),
+              ],
+            ),
+        child: body,
+      );
+    }
     final Widget bubble = Container(
       key: bubbleKey,
       constraints: BoxConstraints(
@@ -58,12 +94,7 @@ class GfMessageBubble extends StatelessWidget {
           ),
         ],
       ),
-      child: contentSpan == null
-          ? Text(text, style: contentStyle)
-          : Text.rich(
-              TextSpan(children: <InlineSpan>[contentSpan!]),
-              style: contentStyle,
-            ),
+      child: body,
     );
 
     final Widget withTime = time == null
