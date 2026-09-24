@@ -342,6 +342,14 @@ final GoRouter appRouter = GoRouter(
         initialPostNo: int.tryParse(state.uri.queryParameters['postNo'] ?? ''),
       ),
     ),
+    for (final stream in ['following', 'followers'])
+      GoRoute(
+        path: '/u/:userId/$stream',
+        builder: (_, state) => ProfilePage.connections(
+          userId: int.parse(state.pathParameters['userId']!),
+          initialStream: stream,
+        ),
+      ),
     GoRoute(
       path: '/u/:userId',
       builder: (BuildContext context, GoRouterState state) =>
@@ -364,14 +372,13 @@ final GoRouter appRouter = GoRouter(
     ),
     GoRoute(
       path: '/profile',
-      builder: (_, state) => ProfilePage(
-        initialStream: switch (state.uri.queryParameters['stream']) {
-          'bookmarks' => 'bookmarks',
-          'following' => 'following',
-          'followers' => 'followers',
-          _ => 'timeline',
-        },
-      ),
+      builder: (_, state) => switch (state.uri.queryParameters['stream']) {
+        'following' || 'followers' => ProfilePage.connections(
+          initialStream: state.uri.queryParameters['stream']!,
+        ),
+        'bookmarks' => const ProfilePage(initialStream: 'bookmarks'),
+        _ => const ProfilePage(),
+      },
     ),
     GoRoute(
       path: '/moderation',
