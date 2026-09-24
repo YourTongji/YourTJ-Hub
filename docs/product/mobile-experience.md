@@ -305,8 +305,8 @@ Web inside an authenticated in-app browser. The navigation and management bounda
   labels, retain selections across search terms, and provide clear-selection controls; teachers
   remain free-text multi-value filters. Filter options have separate loading/error feedback, and
   search plus all filters can be reset together. Sheets accommodate the keyboard and large text,
-  with a persistent Done action. Session/site invalidation hides the old catalog and prevents its
-  queued searches or late results from crossing identities. These interactions use the existing
+  with a persistent Done action. Session/site invalidation clears the old catalog, permissions and filters, then loads the new
+  session’s catalog; queued searches and late results cannot cross identities. These interactions use the existing
   course API and SSR filter options; search service failures remain errors rather than empty results.
 - `Current`: course details retain offering-specific five-star reviews and existing review fields;
   bookmark and write-review actions stay in a bottom dock. Scores share a baseline with their

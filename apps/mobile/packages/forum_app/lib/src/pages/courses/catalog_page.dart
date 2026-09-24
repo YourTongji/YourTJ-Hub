@@ -20,15 +20,28 @@ import 'course_common.dart';
 /// 由仓库按逗号拼接查询）+ 只看有评价开关 + 滚动分页（hasNext）+ 下拉刷新。
 /// 筛选值域（院系/学期/校区）来自页面级数据通道 `/courses` 的 SSR props
 /// （与 web 同源）；教师为自由输入多值（web 亦为文本输入）。
-class CourseCatalogPage extends ConsumerStatefulWidget {
+class CourseCatalogPage extends ConsumerWidget {
   const CourseCatalogPage({super.key, this.initialQuery = ''});
   final String initialQuery;
 
   @override
-  ConsumerState<CourseCatalogPage> createState() => _CourseCatalogPageState();
+  Widget build(BuildContext context, WidgetRef ref) => _CourseCatalogContent(
+    key: ValueKey(ref.watch(offlineCacheEpochProvider)),
+    initialQuery: initialQuery,
+  );
 }
 
-class _CourseCatalogPageState extends ConsumerState<CourseCatalogPage> {
+// Recreate the full query and permission state on an account/site change.
+class _CourseCatalogContent extends ConsumerStatefulWidget {
+  const _CourseCatalogContent({super.key, required this.initialQuery});
+  final String initialQuery;
+
+  @override
+  ConsumerState<_CourseCatalogContent> createState() =>
+      _CourseCatalogPageState();
+}
+
+class _CourseCatalogPageState extends ConsumerState<_CourseCatalogContent> {
   static const Duration _searchDebounce = Duration(milliseconds: 300);
   static const int _pageSize = 20;
 

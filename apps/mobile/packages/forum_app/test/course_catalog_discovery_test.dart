@@ -353,14 +353,19 @@ void main() {
   );
 
   testWidgets(
-    'session invalidation hides cached permissions and ignores pending results',
+    'session invalidation reloads usable catalog and ignores pending results',
     (tester) async {
       await pumpCatalog(tester);
       container.read(offlineCacheEpochProvider.notifier).invalidate();
       courses.requests.first.result.complete(_result('旧会话课程'));
-      await tester.pumpAndSettle();
+      await tester.pump();
+      await tester.pump();
       expect(find.text('旧会话课程'), findsNothing);
-      expect(find.byType(GfSearchField), findsNothing);
+      expect(courses.requests, hasLength(2));
+      courses.requests.last.result.complete(_result('新会话课程'));
+      await tester.pumpAndSettle();
+      expect(find.byType(GfSearchField), findsOneWidget);
+      expect(find.text('新会话课程'), findsOneWidget);
       await tester.pumpWidget(const SizedBox.shrink());
     },
   );
@@ -373,7 +378,10 @@ void main() {
     await tester.enterText(find.byType(TextField).first, '旧账号的搜索');
     container.read(offlineCacheEpochProvider.notifier).invalidate();
     await tester.pump(const Duration(milliseconds: 310));
-    expect(courses.requests, hasLength(1));
+    expect(courses.requests, hasLength(2));
+    expect(courses.requests.last.keyword, isEmpty);
+    courses.requests.last.result.complete(_result('新会话课程'));
+    await tester.pumpAndSettle();
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
