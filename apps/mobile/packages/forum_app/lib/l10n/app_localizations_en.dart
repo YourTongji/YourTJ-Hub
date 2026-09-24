@@ -177,6 +177,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get authForgotTitle => 'Reset password';
 
   @override
+  String get authContinueAfterLogin =>
+      'Sign in to continue where you left off.';
+
+  @override
+  String get authSignInMethods => 'Other sign-in options';
+
+  @override
   String get authLoginSubtitle =>
       'Welcome back. Continue your discussions and writing.';
 
@@ -2654,4 +2661,88 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get messagesReadUnavailable =>
       'This server does not support individual read receipts. Unread messages are preserved.';
+
+  @override
+  String get messagesDraftLabel => 'Draft';
+
+  @override
+  String get messagesDraftStorageFailed =>
+      'Could not read or save message drafts on this device. Try again.';
+
+  @override
+  String get draftCollapse => 'Collapse';
+
+  @override
+  String get draftKindNew => 'New topic';
+
+  @override
+  String get draftKindServer => 'Cloud draft recovery';
+
+  @override
+  String get draftKindEdit => 'Topic edit';
+
+  @override
+  String get draftKindReply => 'Reply';
+
+  @override
+  String get draftLocalEmpty =>
+      'Unfinished writing is saved here on this device.';
+
+  @override
+  String get draftReplyLeaveUnsaved =>
+      'The latest reply changes could not be saved. Continue editing to retry, or leave without these changes. Any previously saved local copy will remain.';
+
+  @override
+  String get publishMediaQueueTitle => 'Photo uploads';
+
+  @override
+  String get publishMediaPendingWarning =>
+      'Some photos have not uploaded. Finish uploading or remove them before saving, publishing, switching type or leaving.';
+
+  @override
+  String get publishMediaTemporary =>
+      'Photos waiting to upload are kept only during this edit. Select them again if the app closes.';
+
+  @override
+  String get publishMediaUploading => 'Uploading';
+
+  @override
+  String get publishMediaWaiting => 'Waiting for the previous photo';
+
+  @override
+  String get publishMediaSavedPartial =>
+      'Text and uploaded photos saved on this device';
+
+  @override
+  String get draftSearchHint => 'Search titles and text';
+
+  @override
+  String get draftSearchScope =>
+      'Search device drafts and the current cloud list.';
+
+  @override
+  String draftMatchCount(int count) {
+    return 'Drafts shown: $count';
+  }
+
+  @override
+  String get draftNoMatches => 'No drafts match these conditions.';
+
+  @override
+  String get draftClearFilters => 'Clear search and filters';
+
+  @override
+  String get draftDeleteDone =>
+      'Local draft deleted. You can undo the latest deletion.';
+
+  @override
+  String get draftDeleteRestored => 'Draft restored on this device';
+
+  @override
+  String get draftRestoreConflict =>
+      'An existing copy was kept without changes.';
+
+  @override
+  String get draftRestoreFailed =>
+      'Could not restore the draft. Try Undo again.';
 }

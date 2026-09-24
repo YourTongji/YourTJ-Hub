@@ -173,6 +173,36 @@ corresponding planned ownership and lifecycle contracts.
   and is cleared at the account/session boundary; it is not persisted across app termination. Only one request for
   each bubble can run at once. The API has no message idempotency key, so ambiguous network failures
   cannot guarantee exactly-once delivery when manually retried.
+- `Current`: unsent private-message text and caret/selection are kept per peer in app-private device
+  secure storage, scoped by API origin and numeric account ID. Conversation rows show a localized draft
+  preview, including new peers without a server conversation; list search also matches draft text.
+  Unresolved new-peer rows remain visible but cannot open until the server conversation list succeeds;
+  a resolved existing conversation still waits for its initial history before enabling send.
+  Input remains editable during sending. A successful acknowledgement clears only the submitted
+  revision, while newer input and failed sends remain available. Retrying the unchanged failed draft
+  reuses its outbox bubble. Saving debounces for 500 ms and flushes on leaving or app inactivity;
+  failures keep the current text in session memory with visible retry. No message is sent by autosave.
+  Signing out hides drafts and invalidates pending saves; the same account/site can restore them on
+  its next session; accepting a same-site login recreates the draft registry for the new identity.
+  Account closure attempts to remove that account's local writing. Drafts contain no credential and
+  the app does not upload or synchronize them. On iOS, a dedicated Keychain service uses
+  `AfterFirstUnlockThisDeviceOnly` with synchronization disabled: items cannot migrate to another
+  device, although same-device backup restoration is permitted. Android keeps namespaced draft keys
+  in the existing secure-storage file and excludes that file, its wrapped-key preferences and the
+  legacy Flutter preferences file from cloud backup and device transfer. This also excludes other Flutter preferences (such as
+  theme/language) and secure credentials in those files from system migration.
+  Legacy plaintext chat records are copied for all stored accounts and read back before removal;
+  only the active account's records are exposed. A failed migration retains the original and shows
+  retry, while a secure deletion marker prevents stale legacy text from resurrecting. Previously
+  created OS backups cannot be retroactively erased by the app. Android's plugin enumerates the
+  shared encrypted store before account filtering; unreadable ciphertext, including an unrelated
+  record, can prevent draft restore/save until the storage error is resolved. The app retains the
+  current text and legacy copies with a retry message; it never resets the secure store or deletes
+  unrelated credentials to recover. See
+  [Android backup rules](https://developer.android.com/identity/data/autobackup) and
+  [Apple device-bound Keychain behavior](https://developer.apple.com/documentation/security/ksecattraccessibleafterfirstunlockthisdeviceonly).
+  OS termination before a successful save can lose the latest edits; the outbox's separate session-only
+  retention and ambiguous-retry limitation remain.
 - `Current`: chat text, including sending, acknowledged and failed outbox bubbles, supports native
   selection/copy and underlined HTTP(S) links using the shared
   internal-routing/external-confirmation policy. Inline stickers remain supported; chat text is not
@@ -198,10 +228,12 @@ corresponding planned ownership and lifecycle contracts.
   unseen history remains unread. Loading older pages preserves the visible bubble anchor across lazy
   relayout, and newer fetches retain the older-history cursor. `Partial`: physical-device visibility
   thresholds, keyboard overlays and lifecycle behavior still require device validation.
-- `Partial`: the server offers an authenticated foreground event stream for chat, notifications and
-  unread-state changes. It sends an immediate resync instruction and bounded, owner-scoped change
-  hints; clients fetch actual content and counts from REST. The Flutter app still uses its existing
-  refresh path until its single foreground connection and reconnect reconciliation are integrated.
+- `Current`: the authenticated Flutter shell keeps one chat/notification/unread event connection only
+  while foregrounded. The server sends an immediate resync instruction and owner-scoped change hints;
+  the app reloads actual messages, notification lists and unread badges through REST. Reconnects and
+  resumed sessions reconcile again, and a failed or unsupported stream uses foreground polling until
+  delivery recovers. Account changes cancel the previous connection and discard stale unread responses.
+  Background push delivery is not provided by this stream.
 
 ## Language and presentation
 
@@ -269,7 +301,11 @@ corresponding planned ownership and lifecycle contracts.
   in a rounded panel below the preview. All three types share these controls and spacing. Article
   formatting tools remain
   folded in a bottom accessory bar above the software keyboard; expanding them preserves the editor
-  selection. The heading tool applies heading 2 with a tap and opens a level sheet on long press that
+  selection and active body focus, including while local save status changes. Format buttons reflect
+  the current selection visually and announce their label, enabled state and format toggle together;
+  undo and redo are disabled when
+  their respective history is empty. The heading tool applies heading 2 with a tap and opens a level
+  sheet on long press that
   offers heading 1–3 (matching the Markdown round-trip); the current level is checked and re-picking
   it clears the heading. The accessory bar holds the draft action and, for articles only, the image
   tool; moments and questions pick images from the compact gallery tile above the body. Rich and
@@ -284,7 +320,11 @@ corresponding planned ownership and lifecycle contracts.
 
 - `Current`: publishing and reply composers have a localized hide-keyboard button that preserves
   unsent text. Dragging the publishing page or topic stream also dismisses the keyboard; opening
-  the publishing preview removes editor focus. Rich-text formatting remains available while editing.
+  the publishing preview removes editor focus. Returning to article editing retains the live document,
+  selection and undo history, restores the previous scroll position, and resumes body focus only if
+  the body was focused before preview. Using the hide-keyboard action before preview keeps it dismissed
+  on return. Rich-text
+  formatting remains available while editing.
 
 - `Current`: the type selector keeps Web's moment/question/article values. Moments and questions
   use a simple gallery plus text; articles use an inline rich editor backed by Markdown. Article
@@ -296,6 +336,16 @@ corresponding planned ownership and lifecycle contracts.
   paragraph: the image lands below the paragraph it is dropped on, the move
   is a single undo step, and long document drags auto-scroll at the editor
   edges.
+- `Current`: publishing can select up to nine photos per batch; simple galleries retain the
+  nine-photo total limit. The foreground queue uploads in selection order, pauses at a failed photo
+  for retry or removal, and ignores the result of a removed photo. Successful URLs are immediately
+  included in local recovery; gallery ordering/removal and article insertion positions remain part
+  of the draft. Article insertions track intervening text edits at the original selection.
+  Pending photos visibly block leaving, manual draft submission, publishing and type changes.
+  Temporary picker files are retained only for the current editor: app termination requires selecting
+  unuploaded photos again, and the UI distinguishes this from saved text and uploaded photos.
+  Backgrounding starts no further queued upload; an already-started request may finish. Resuming
+  continues the current queue, while session/site invalidation rejects its results and later requests.
 - `Current`: Next opens the preview/classification step. The step shows one publish action in the
   AppBar, with the draft action beside it as an icon button. If a long translation or enlarged text
   cannot fit, the next/publish action also uses a labelled icon button; up to three existing
@@ -308,18 +358,44 @@ corresponding planned ownership and lifecycle contracts.
 - `Current`: changed editors debounce local recovery saves by 700 ms and flush when leaving or
   the app becomes inactive. Title, Markdown/simple text, type, category IDs and uploaded image URLs
   survive reopening, including when the page metadata request fails. Save progress, success and
-  retryable storage failure are visible. Local recovery has one slot per creation entry type and one
-  per edited topic; switching type retains the entry's slot. A restored editor still obtains current
+  retryable storage failure are visible. Each new composition has an independent identity;
+  changing its content type keeps that identity. Cloud-draft edits, published-topic edits and replies
+  use distinct identities. Earlier v1 recovery slots remain listed and can be explicitly reopened.
+  Opening a cloud draft by its server ID while offline also finds its latest device recovery copy,
+  before the server can confirm whether the topic is published or still a draft.
+  Starting another composition never replaces a previous one. A restored editor still obtains current
   server metadata before publishing.
-- `Current`: drafts show separate local and server sections. Local snapshots use app-private device
+- `Current`: the drafts page presents device and cloud sections in one scroll surface, with a new
+  composition action, content previews, recovery kind, content type and last-edit time. Continue editing
+  reopens the same writing identity; replies reopen their topic. Returning from new or resumed writing
+  refreshes the list. Title/text search and all/device/cloud/reply
+  filters operate on device copies and the currently loaded cloud list; the cloud endpoint returns at most
+  100 drafts and only its title/description are searchable here. Counts describe displayed copies, so a
+  device recovery copy and its cloud draft count separately. Empty matches offer a filter reset. Local
+  loading is distinct from an empty list; failed local or cloud refreshes retain displayed content with
+  an inline retry. Local snapshots use app-private device
   preferences scoped by API origin and numeric account ID, with no token or background cloud upload.
   Logging out hides them; logging back into the same account restores access. Explicit discard or
   successful server acknowledgement removes the matching recovery snapshot; local deletion is
-  confirmed. Account closure attempts to clear that account's local drafts and searches. Serialized
-  writes order deletion after pending saves. Storage failure is reported when saving; OS termination
+  confirmed. The latest local deletion can be undone from a persistent action while the drafts page stays
+  open; another deletion replaces that undo and leaving the page ends it. Restoration keeps the original
+  identity and metadata, never overwrites an existing copy, and remains retryable on storage failure.
+  Account/site changes clear search and undo state and reject queued stale restoration. Account closure
+  attempts to clear that account's local drafts and searches. Serialized writes order deletion and
+  restoration after pending saves. Storage failure is reported when saving; OS termination
   before the debounce/flush completes can lose the newest unsaved input.
 - `Current`: changed editors offer continue, discard, or save to this device and leave. A server-required
   captcha can be refreshed without discarding content.
+- `Current`: one reply recovery copy per topic preserves text, its reply target and uploaded image URL.
+  Selecting another target replaces only the generated mention prefix, keeping the body. Collapsing,
+  changing floors, leaving the topic and app inactivity preserve the reply; storage failure keeps the
+  editor available with retry. Leaving after a storage failure offers continued editing or an explicit
+  unsaved exit that preserves the previously saved copy. Restored replies rebuild local mention
+  suggestions. An acknowledged send clears only unchanged submitted text; edits made
+  while sending remain recoverable. The returned post ID opens its anchored reply window after success,
+  resets obsolete pagination and updates the reply count used when returning to the feed.
+  Reading a topic without editing creates no draft. Session invalidation prevents queued writing from
+  crossing the account boundary; cache clearing does not delete writing recovery copies.
 - `Planned`: text-to-image cards. No UI claims this feature exists.
 
 ## Campus and sign-in
@@ -335,6 +411,14 @@ corresponding planned ownership and lifecycle contracts.
   have visible shortcuts at the top of its home view, also available to guests, unbound users and
   when school services fail. Pushed tools return to the Campus destination. Explore campus retains
   public course previews; shortcuts are shared with search discovery. See [campus semantics](campus.md) for binding, privacy and provider limits.
+- `Current`: while the app stays in the foreground, Campus remembers its selected section,
+  independent academic/notice search text and scroll positions, and selected timetable week when
+  switching sections, bottom destinations or returning from a pushed page. Scroll restoration waits
+  for the selected section's data and clamps to the available content; a fresh section settles at
+  the top immediately, and manual scrolling cancels pending restoration. These choices stay only in
+  page memory; backgrounding, session/account/site changes, binding changes (including the first
+  binding after an observed unbound state) and authorization loss clear them. Private views still unmount and cancel requests when hidden; grades and notice bodies
+  are not retained by this navigation state or added to the device snapshot.
 - `Current`: school authorization uses the current native forum session in a restricted WebView.
   The initial Bearer header goes only to the first-party session handoff; school navigation receives
   no native credential. The server callback returns to a native confirmation, including resuming
@@ -434,7 +518,10 @@ corresponding planned ownership and lifecycle contracts.
   reading page and shows a localized error. Encoded page/file paths, query strings and fragments are
   preserved, while page-local anchors continue scrolling inside the document.
 - `Current`: sign-in offers account/password, Google, GitHub and Tongji when the published options
-  allow it. Password captcha and TOTP remain
+  allow it, grouped below the password form. Unconfigured providers are hidden. Native credential
+  fields expose username/password/new-password autofill, email and one-time-code hints and explicit
+  keyboard actions; password-manager saving is requested only after accepting the native session.
+  Narrow layouts and larger text stack the captcha image above its input. Password captcha and TOTP remain
   supported. The login captcha stays folded until the password field is first interacted with;
   the first password focus/input warms the challenge, and a blank outside tap or genuine secure-IME
   dismissal reveals it without taking focus from another explicit control. That reveal is latched through transient Android
@@ -452,6 +539,20 @@ corresponding planned ownership and lifecycle contracts.
   intentionally bypasses flutter_appauth/AppAuth/CustomTabs. No OAuth provider uses a WebView for
   Android login. Non-Android platforms retain AppAuth. `Partial`: the new Android path awaits a
   physical-device APK test; the exact native crash stack remains unproven without logcat.
+- `Current`: native routes that require a session lead guests to sign-in before constructing the
+  private page. Login retains the original native location, including topic reply position, composer
+  context and chat recipient, using an explicit route/query allowlist. External, recursive and
+  malformed return targets fall back to Home. Successful login replaces the old navigation stack and
+  restores only that context; detail pages sit above a fresh Home so Back remains available, while
+  shell destinations open their own branch. Users still explicitly submit posts, follow users or send
+  messages. Keyboard submission shares the button's busy guard for login, TOTP, registration and
+  password recovery. Device settings remain public: guests can change language and appearance without
+  fetching account details or sessions. The category index and account sections retain their
+  sign-in destination alongside appearance, language and desktop-widget preferences. A session change
+  removes dialogs, menus and sheets owned by the previous session from the root and shell navigators, completing pending confirmations as cancelled;
+  new-session overlays remain open. `Partial`: native password-manager prompts and physical-device
+  keyboard behavior still require device validation; widget tests cover route boundaries, four
+  languages, narrow viewports and 200% text.
 
 ## Registration
 

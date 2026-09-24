@@ -178,6 +178,13 @@ class AppLocalizationsDe extends AppLocalizations {
   String get authForgotTitle => 'Passwort zurücksetzen';
 
   @override
+  String get authContinueAfterLogin =>
+      'Melde dich an, um dort weiterzumachen, wo du aufgehört hast.';
+
+  @override
+  String get authSignInMethods => 'Weitere Anmeldeoptionen';
+
+  @override
   String get authLoginSubtitle =>
       'Willkommen zurück. Setze deine Diskussionen und Beiträge fort.';
 
@@ -2684,4 +2691,89 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get messagesReadUnavailable =>
       'Dieser Server unterstützt noch keine einzelnen Lesebestätigungen. Ungelesene Nachrichten bleiben erhalten.';
+
+  @override
+  String get messagesDraftLabel => 'Entwurf';
+
+  @override
+  String get messagesDraftStorageFailed =>
+      'Nachrichtenentwürfe konnten auf diesem Gerät nicht gelesen oder gespeichert werden. Erneut versuchen.';
+
+  @override
+  String get draftCollapse => 'Einklappen';
+
+  @override
+  String get draftKindNew => 'Neues Thema';
+
+  @override
+  String get draftKindServer => 'Lokale Kopie eines Cloud-Entwurfs';
+
+  @override
+  String get draftKindEdit => 'Themenbearbeitung';
+
+  @override
+  String get draftKindReply => 'Antwort';
+
+  @override
+  String get draftLocalEmpty =>
+      'Unfertige Beiträge werden auf diesem Gerät gespeichert und hier angezeigt.';
+
+  @override
+  String get draftReplyLeaveUnsaved =>
+      'Die letzten Änderungen an der Antwort konnten nicht gespeichert werden. Weiterbearbeiten und erneut versuchen oder diese Änderungen verwerfen und die Seite verlassen. Eine zuvor gespeicherte lokale Kopie bleibt erhalten.';
+
+  @override
+  String get publishMediaQueueTitle => 'Fotos hochladen';
+
+  @override
+  String get publishMediaPendingWarning =>
+      'Einige Fotos sind noch nicht hochgeladen. Laden Sie sie hoch oder entfernen Sie sie, bevor Sie speichern, veröffentlichen, den Typ wechseln oder die Seite verlassen.';
+
+  @override
+  String get publishMediaTemporary =>
+      'Ausstehende Fotos bleiben nur während dieser Bearbeitung erhalten. Nach dem Schließen der App müssen Sie sie erneut auswählen.';
+
+  @override
+  String get publishMediaUploading => 'Wird hochgeladen';
+
+  @override
+  String get publishMediaWaiting => 'Warten auf das vorherige Foto';
+
+  @override
+  String get publishMediaSavedPartial =>
+      'Text und hochgeladene Fotos auf diesem Gerät gespeichert';
+
+  @override
+  String get draftSearchHint => 'Titel und Text durchsuchen';
+
+  @override
+  String get draftSearchScope =>
+      'Durchsucht lokale Entwürfe und die aktuelle Cloud-Liste.';
+
+  @override
+  String draftMatchCount(int count) {
+    return 'Angezeigte Entwürfe: $count';
+  }
+
+  @override
+  String get draftNoMatches => 'Keine Entwürfe entsprechen diesen Bedingungen.';
+
+  @override
+  String get draftClearFilters => 'Suche und Filter zurücksetzen';
+
+  @override
+  String get draftDeleteDone =>
+      'Lokaler Entwurf gelöscht. Die letzte Löschung kann rückgängig gemacht werden.';
+
+  @override
+  String get draftDeleteRestored =>
+      'Entwurf auf diesem Gerät wiederhergestellt';
+
+  @override
+  String get draftRestoreConflict =>
+      'Eine vorhandene Kopie wurde unverändert beibehalten.';
+
+  @override
+  String get draftRestoreFailed =>
+      'Wiederherstellung fehlgeschlagen. Erneut rückgängig machen.';
 }

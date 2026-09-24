@@ -45,6 +45,14 @@ newer revision survives. Local write failures remain visible and retain the in-m
 Switching accounts hides another account's drafts without adopting them. Explicit account erasure
 removes its local work according to the account lifecycle. Ordinary cache clearing never deletes it.
 
+`Current`: private-message draft records use the existing secure-storage plugin. iOS uses a distinct
+Keychain service with `AfterFirstUnlockThisDeviceOnly` and synchronization disabled; Android retains
+the token store's native file/cipher configuration with separate draft keys, and excludes the secure
+and legacy preferences files from backup/transfer. Legacy plaintext is removed only after secure
+write/read-back succeeds. Ordered deletion markers prevent an old plaintext record from resurrecting
+if cleanup fails. Product retention and backup limits are specified in
+[mobile experience](../product/mobile-experience.md).
+
 The media queue owns temporary local files, upload state and remote attachment references. It does
 not own the editor document or submit content. Attachment ordering is independent of completion
 order. Cancellation and retry affect the selected attachment, and publishing validates queue state.

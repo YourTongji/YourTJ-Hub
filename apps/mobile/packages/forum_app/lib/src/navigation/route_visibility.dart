@@ -4,6 +4,9 @@ import 'package:flutter/widgets.dart';
 /// changes the effective visibility of a current route in a nested navigator.
 final routeVisibilityChanges = _RouteVisibilityChanges();
 
+/// The shell drawer covers content without pushing a Navigator route.
+final shellDrawerOpen = ValueNotifier<bool>(false);
+
 class _RouteVisibilityChanges extends ChangeNotifier {
   void changed() => notifyListeners();
 }

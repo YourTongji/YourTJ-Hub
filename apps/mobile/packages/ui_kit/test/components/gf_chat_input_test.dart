@@ -6,6 +6,26 @@ import 'package:ui_kit/ui_kit.dart';
 import '../helpers.dart';
 
 void main() {
+  testWidgets('caller can retain the submitted text until acknowledgement', (
+    tester,
+  ) async {
+    final controller = TextEditingController(text: 'pending');
+    addTearDown(controller.dispose);
+    final sent = <String>[];
+    await tester.pumpWidget(
+      gfApp(
+        GfChatInput(
+          controller: controller,
+          clearOnSend: false,
+          onSend: sent.add,
+        ),
+      ),
+    );
+    await tester.tap(find.text('Send'));
+    expect(sent, ['pending']);
+    expect(controller.text, 'pending');
+  });
+
   testWidgets('replacement text discards the old selected range', (
     tester,
   ) async {

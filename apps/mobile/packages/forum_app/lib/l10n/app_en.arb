@@ -105,6 +105,8 @@
   "authLoginTitle": "Sign in",
   "authRegisterTitle": "Create account",
   "authForgotTitle": "Reset password",
+  "authContinueAfterLogin": "Sign in to continue where you left off.",
+  "authSignInMethods": "Other sign-in options",
   "authLoginSubtitle": "Welcome back. Continue your discussions and writing.",
   "authRegisterSubtitle": "Create an account and join the campus conversation.",
   "authForgotSubtitle": "Enter your email and we will send a reset link.",
@@ -1276,5 +1278,36 @@
   "coursesPaginationStalled": "No additional courses arrived. Try loading this page again.",
   "messagesNewMessages": "New messages · Jump to latest",
   "messagesReadSyncFailed": "Read status could not sync. Unread messages are preserved.",
-  "messagesReadUnavailable": "This server does not support individual read receipts. Unread messages are preserved."
+  "messagesReadUnavailable": "This server does not support individual read receipts. Unread messages are preserved.",
+  "messagesDraftLabel": "Draft",
+  "messagesDraftStorageFailed": "Could not read or save message drafts on this device. Try again.",
+  "draftCollapse": "Collapse",
+  "draftKindNew": "New topic",
+  "draftKindServer": "Cloud draft recovery",
+  "draftKindEdit": "Topic edit",
+  "draftKindReply": "Reply",
+  "draftLocalEmpty": "Unfinished writing is saved here on this device.",
+  "draftReplyLeaveUnsaved": "The latest reply changes could not be saved. Continue editing to retry, or leave without these changes. Any previously saved local copy will remain.",
+  "publishMediaQueueTitle": "Photo uploads",
+  "publishMediaPendingWarning": "Some photos have not uploaded. Finish uploading or remove them before saving, publishing, switching type or leaving.",
+  "publishMediaTemporary": "Photos waiting to upload are kept only during this edit. Select them again if the app closes.",
+  "publishMediaUploading": "Uploading",
+  "publishMediaWaiting": "Waiting for the previous photo",
+  "publishMediaSavedPartial": "Text and uploaded photos saved on this device",
+  "draftSearchHint": "Search titles and text",
+  "draftSearchScope": "Search device drafts and the current cloud list.",
+  "draftMatchCount": "Drafts shown: {count}",
+  "draftNoMatches": "No drafts match these conditions.",
+  "draftClearFilters": "Clear search and filters",
+  "draftDeleteDone": "Local draft deleted. You can undo the latest deletion.",
+  "draftDeleteRestored": "Draft restored on this device",
+  "draftRestoreConflict": "An existing copy was kept without changes.",
+  "draftRestoreFailed": "Could not restore the draft. Try Undo again.",
+  "@draftMatchCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  }
 }

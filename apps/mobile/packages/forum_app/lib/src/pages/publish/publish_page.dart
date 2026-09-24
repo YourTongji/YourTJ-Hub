@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_quill/flutter_quill.dart';
@@ -14,6 +15,7 @@ import '../../providers.dart';
 import '../../local/writing_store.dart';
 import '../../asset_url.dart';
 import '../../images/image_upload.dart';
+import '../../images/composer_upload_queue.dart';
 import '../../server_messages.dart';
 import '../../widgets/markdown_view.dart';
 import '../../widgets/status_views.dart';
@@ -74,6 +76,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
   late final OfflineCacheEpoch _session;
   late final int _epoch;
   late String _draftKey;
+  DraftKind? _draftKind;
   String? _owner;
   Timer? _autosave;
   int _revision = 0;
@@ -91,15 +94,29 @@ class _PublishPageState extends ConsumerState<PublishPage>
 
   late QuillController _quill;
   final GlobalKey<EditorState> _editorKey = GlobalKey<EditorState>();
+  // QuillEditor.basic otherwise creates new input nodes on each page rebuild.
+  final FocusNode _editorFocusNode = FocusNode(debugLabel: 'article-body');
+  final ScrollController _editorScrollController = ScrollController();
   final ScrollController _pageScrollController = ScrollController();
   final GlobalKey _pageScrollViewKey = GlobalKey();
   late StreamSubscription<DocChange> _documentChanges;
   late int _currentTopicId;
 
   _ComposeMode _mode = _ComposeMode.edit;
+  double? _editScrollOffset;
+  bool _restoreEditorFocus = false;
+  int _modeRevision = 0;
   bool _loading = true;
   bool _submitting = false;
-  bool _uploading = false;
+  late final ComposerUploadQueue _uploads;
+  bool _pickingImage = false;
+  bool get _uploading => _pickingImage || _uploads.hasPending;
+  bool get _activelyUploading =>
+      _pickingImage ||
+      _uploads.items.any(
+        (item) => item.status == ComposerUploadStatus.uploading,
+      );
+  int? _mediaInsertAt;
   CaptchaPayload? _captcha;
   final _captchaCode = TextEditingController();
   bool _captchaLoading = false;
@@ -120,8 +137,8 @@ class _PublishPageState extends ConsumerState<PublishPage>
     _draftKey =
         widget.localDraftKey ??
         (widget.topicId == null
-            ? 'new-${widget.initialContentType}'
-            : 'topic-${widget.topicId}');
+            ? newTopicDraftKey()
+            : topicDraftKey(widget.topicId!, published: true));
     WidgetsBinding.instance.addObserver(this);
     _title.addListener(_textChanged);
     _simple.addListener(_textChanged);
@@ -132,11 +149,30 @@ class _PublishPageState extends ConsumerState<PublishPage>
     _title.text = widget.editTitle ?? '';
     _categoryIds.addAll(widget.editCategoryIds ?? const <int>[]);
     _quill = _createController('');
+    final files = ref.read(fileRepositoryProvider);
+    _uploads = ComposerUploadQueue(
+      isCurrent: () => mounted && _sessionCurrent && !_finished,
+      upload: (file) async {
+        final bytes = await file.readAsBytes();
+        if (!mounted || !_sessionCurrent || _finished) {
+          throw StateError('Image upload session changed');
+        }
+        return files.uploadImage(bytes: bytes, filename: file.name);
+      },
+      onUploaded: _insertUploadedImage,
+    )..addListener(_uploadsChanged);
     _previewMarkdown = _markdownFromEditor();
     _initializeDraft();
   }
 
   bool get _sessionCurrent => _session.isCurrent(_epoch);
+
+  void _uploadsChanged() {
+    if (!mounted || !_sessionCurrent) return;
+    setState(() {
+      if (!_uploads.hasPending) _mediaInsertAt = null;
+    });
+  }
 
   Future<void> _initializeDraft() async {
     try {
@@ -172,8 +208,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
       _saveStatusScheduled = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _saveStatusScheduled = false;
-        // 无账号会话（guest）没有本机持久化，_saveLocal 直接成功返回且不会
-        // 更新状态；这里不展示“正在保存…”，避免永久悬挂的保存状态条（#705）。
+        // A guest has no persistent owner; do not show a pending save forever.
         if (mounted &&
             _sessionCurrent &&
             !_finished &&
@@ -200,7 +235,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
       return true;
     }
     final owner = _owner;
-    if (owner == null) return true;
+    if (owner == null) return false;
     final revision = _revision;
     final l10n = notify ? AppLocalizations.of(context) : null;
     if (notify && mounted) {
@@ -212,6 +247,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
     try {
       final draft = LocalDraft(
         key: _draftKey,
+        kind: _draftKind ?? DraftKind.newTopic,
         title: _title.text,
         content: _contentType == 3
             ? _converter.documentToMarkdown(_quill.document)
@@ -222,11 +258,15 @@ class _PublishPageState extends ConsumerState<PublishPage>
         images: List.of(_images),
         updatedAt: DateTime.now().millisecondsSinceEpoch,
       );
-      await _localStore.save(owner, draft);
+      await _localStore.save(owner, draft, isCurrent: () => _sessionCurrent);
       if (!mounted || !_sessionCurrent || _finished) return false;
       _savedRevision = revision;
       if (notify && revision == _revision) {
-        setState(() => _localStatus = l10n!.draftLocalSaved);
+        setState(
+          () => _localStatus = _uploads.hasPending
+              ? l10n!.publishMediaSavedPartial
+              : l10n!.draftLocalSaved,
+        );
       }
       return true;
     } catch (_) {
@@ -245,9 +285,33 @@ class _PublishPageState extends ConsumerState<PublishPage>
     if (owner == null || _dirty) return;
     final drafts = await _localStore.drafts(owner);
     if (!mounted || !_sessionCurrent || _dirty) return;
-    final matching = drafts.where((draft) => draft.key == _draftKey);
+    final unknownTopicKind =
+        widget.localDraftKey == null &&
+        _currentTopicId > 0 &&
+        _draftKind == null;
+    // Offline metadata cannot tell a cloud draft from a published topic. Prefer
+    // the newest matching recovery copy across both modern identities and v1.
+    final recoveryKeys = {
+      topicDraftKey(_currentTopicId, published: true),
+      topicDraftKey(_currentTopicId, published: false),
+      'topic-$_currentTopicId',
+    };
+    var matching = drafts.where(
+      (draft) =>
+          draft.kind != DraftKind.reply &&
+          (unknownTopicKind
+              ? recoveryKeys.contains(draft.key)
+              : draft.key == _draftKey),
+    );
+    if (matching.isEmpty &&
+        widget.localDraftKey == null &&
+        _currentTopicId > 0) {
+      matching = drafts.where((draft) => draft.key == 'topic-$_currentTopicId');
+    }
     if (matching.isEmpty) return;
     final draft = matching.first;
+    _draftKey = draft.key;
+    _draftKind ??= draft.kind;
     _contentType = draft.contentType;
     _currentTopicId = draft.topicId;
     _title.text = draft.title;
@@ -266,6 +330,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    _uploads.setActive(state == AppLifecycleState.resumed);
     if (state != AppLifecycleState.resumed) unawaited(_saveLocal());
   }
 
@@ -274,9 +339,12 @@ class _PublishPageState extends ConsumerState<PublishPage>
       document: _converter.mdToDocument(markdown),
       selection: const TextSelection.collapsed(offset: 0),
     );
-    _documentChanges = controller.document.changes.listen(
-      (DocChange _) => _handleEditorChanged(),
-    );
+    _documentChanges = controller.document.changes.listen((DocChange change) {
+      if (_mediaInsertAt != null) {
+        _mediaInsertAt = change.change.transformPosition(_mediaInsertAt!);
+      }
+      _handleEditorChanged();
+    });
     return controller;
   }
 
@@ -325,6 +393,13 @@ class _PublishPageState extends ConsumerState<PublishPage>
 
   void _selectMode(_ComposeMode mode) {
     if (mode == _mode) return;
+    final revision = ++_modeRevision;
+    if (mode == _ComposeMode.preview) {
+      _editScrollOffset = _pageScrollController.hasClients
+          ? _pageScrollController.offset
+          : null;
+      _restoreEditorFocus = _contentType == 3 && _editorFocusNode.hasFocus;
+    }
     FocusManager.instance.primaryFocus?.unfocus();
     _previewDebounce?.cancel();
     _previewDebounce = null;
@@ -335,6 +410,25 @@ class _PublishPageState extends ConsumerState<PublishPage>
       _mode = mode;
       _previewMarkdown = preview;
     });
+    if (mode == _ComposeMode.edit) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted ||
+            !_sessionCurrent ||
+            revision != _modeRevision ||
+            _mode != _ComposeMode.edit) {
+          return;
+        }
+        final offset = _editScrollOffset;
+        if (offset != null && _pageScrollController.hasClients) {
+          _pageScrollController.jumpTo(
+            offset.clamp(0.0, _pageScrollController.position.maxScrollExtent),
+          );
+        }
+        if (_restoreEditorFocus && _contentType == 3) {
+          _editorFocusNode.requestFocus();
+        }
+      });
+    }
   }
 
   String get _payloadPath =>
@@ -384,7 +478,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
           );
         }
         existingImages = existing.topic.images ?? const [];
-        if (!mounted) return;
+        if (!mounted || !_sessionCurrent) return;
       }
       if (_owner == null &&
           payload.layout.viewer.isAuthenticated &&
@@ -393,6 +487,17 @@ class _PublishPageState extends ConsumerState<PublishPage>
           Uri.parse(ref.read(apiClientProvider).baseUrl).origin,
           payload.layout.viewer.id,
         );
+      }
+      if (props.isEditing) {
+        _draftKind = props.topic.topicStatus == 0
+            ? DraftKind.serverDraft
+            : DraftKind.topicEdit;
+        if (widget.localDraftKey == null && !_localRestored) {
+          _draftKey = topicDraftKey(
+            props.topicId,
+            published: props.topic.topicStatus != 0,
+          );
+        }
       }
       final keepEditing = _dirty;
       if (!keepEditing) {
@@ -447,12 +552,15 @@ class _PublishPageState extends ConsumerState<PublishPage>
       unawaited(_saveLocal(notify: false));
     }
     _autosave?.cancel();
+    _uploads.dispose();
     WidgetsBinding.instance.removeObserver(this);
     _title.removeListener(_textChanged);
     _simple.removeListener(_textChanged);
     _previewDebounce?.cancel();
     _dragAutoscrollTimer?.cancel();
     _pageScrollController.dispose();
+    _editorScrollController.dispose();
+    _editorFocusNode.dispose();
     _captchaCode.dispose();
     _title.dispose();
     _simple.dispose();
@@ -463,6 +571,13 @@ class _PublishPageState extends ConsumerState<PublishPage>
 
   Future<void> _goBack() async {
     if (_submitting) return;
+    if (_uploading) {
+      showGfToast(
+        context,
+        AppLocalizations.of(context).publishMediaPendingWarning,
+      );
+      return;
+    }
     if (_mode == _ComposeMode.preview) {
       _selectMode(_ComposeMode.edit);
       return;
@@ -492,11 +607,24 @@ class _PublishPageState extends ConsumerState<PublishPage>
       );
       if (!mounted || choice == null || choice == 'continue') return;
       if (choice == 'save') {
+        if (_owner == null) {
+          setState(() {
+            _localSaveFailed = true;
+            _localStatus = l10n.draftLocalSaveFailed;
+          });
+          return;
+        }
         if (!await _saveLocal() || !mounted || !_sessionCurrent) return;
       } else {
         _autosave?.cancel();
         try {
-          if (_owner != null) await _localStore.delete(_owner!, _draftKey);
+          if (_owner != null) {
+            await _localStore.delete(
+              _owner!,
+              _draftKey,
+              isCurrent: () => _sessionCurrent,
+            );
+          }
         } catch (_) {
           if (mounted) {
             setState(() {
@@ -526,7 +654,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
   }
 
   void _changeContentType(int? value) {
-    if (value == null || value == _contentType) return;
+    if (_uploading || value == null || value == _contentType) return;
     var markdown = _markdownFromEditor();
     final photos = <String>[];
     if (_contentType == 3 && value != 3) {
@@ -633,56 +761,112 @@ class _PublishPageState extends ConsumerState<PublishPage>
   }
 
   Future<void> _pickAndInsertImage() async {
-    if (_uploading || _submitting) return;
+    if (_uploading || _submitting || !_sessionCurrent || _finished) return;
     final l10n = AppLocalizations.of(context);
-    final source = await showGfBottomSheet<ImageSource>(
-      context,
-      keyboardAware: true,
-      builder: (context) => SafeArea(
-        child: ListView(
-          shrinkWrap: true,
-          padding: EdgeInsets.zero,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.photo_library_outlined),
-              title: Text(l10n.publishPhotoLibrary),
-              onTap: () => Navigator.pop(context, ImageSource.gallery),
-            ),
-            ListTile(
-              leading: const Icon(Icons.camera_alt_outlined),
-              title: Text(l10n.publishCamera),
-              onTap: () => Navigator.pop(context, ImageSource.camera),
-            ),
-          ],
-        ),
-      ),
-    );
-    if (source == null || !mounted) return;
-    setState(() => _uploading = true);
+    final remaining = _contentType == 3 ? 9 : 9 - _images.length;
+    if (remaining <= 0) {
+      showGfToast(context, l10n.publishGalleryTooMany, error: true);
+      return;
+    }
+    _mediaInsertAt = _contentType == 3
+        ? _quill.selection.baseOffset.clamp(0, _quill.document.length - 1)
+        : null;
+    setState(() => _pickingImage = true);
     try {
-      final String? url = await pickAndUploadImage(ref: ref, source: source);
-      if (url == null || !mounted) return;
-      _markDirty();
-      _allowPop = false;
-      if (_contentType != 3) {
-        setState(() => _images.add(url));
+      final source = await showGfBottomSheet<ImageSource>(
+        context,
+        keyboardAware: true,
+        builder: (context) => SafeArea(
+          child: ListView(
+            shrinkWrap: true,
+            padding: EdgeInsets.zero,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.photo_library_outlined),
+                title: Text(l10n.publishPhotoLibrary),
+                onTap: () => Navigator.pop(context, ImageSource.gallery),
+              ),
+              ListTile(
+                leading: const Icon(Icons.camera_alt_outlined),
+                title: Text(l10n.publishCamera),
+                onTap: () => Navigator.pop(context, ImageSource.camera),
+              ),
+            ],
+          ),
+        ),
+      );
+      if (source == null || !mounted || !_sessionCurrent || _finished) return;
+      final picker = ref.read(imagePickerProvider);
+      final List<XFile> selected;
+      if (source == ImageSource.gallery && remaining > 1) {
+        selected = await picker.pickMultiImage(
+          maxWidth: 2048,
+          imageQuality: 85,
+          limit: remaining,
+          requestFullMetadata: false,
+        );
+      } else {
+        final photo = await picker.pickImage(
+          source: source,
+          maxWidth: 2048,
+          imageQuality: 85,
+          requestFullMetadata: false,
+        );
+        selected = [?photo];
+      }
+      if (!mounted || !_sessionCurrent || _finished) return;
+      // Some native pickers ignore limit. Reject the batch without silently
+      // dropping selected photos or exceeding the gallery contract.
+      if (selected.length > remaining) {
+        showGfToast(context, l10n.publishGalleryTooMany, error: true);
         return;
       }
-      final int selectionOffset = _quill.selection.baseOffset;
-      final int insertAt = selectionOffset < 0 ? 0 : selectionOffset;
-      _quill.document.insert(insertAt, BlockEmbed.image(url));
-      _quill.updateSelection(
-        TextSelection.collapsed(offset: insertAt + 1),
-        ChangeSource.local,
-      );
+      _uploads.add(selected);
     } catch (error) {
-      if (mounted) {
+      if (mounted && _sessionCurrent) {
         final AppLocalizations l10n = AppLocalizations.of(context);
-        showGfToast(context, l10n.publishImageFailed('$error'), error: true);
+        showGfToast(
+          context,
+          l10n.publishImageFailed(
+            error is ApiException
+                ? resolveErrorMessage(l10n, error)
+                : l10n.commonLoadFailed,
+          ),
+          error: true,
+        );
       }
     } finally {
-      if (mounted) setState(() => _uploading = false);
+      if (mounted) setState(() => _pickingImage = false);
     }
+  }
+
+  void _insertUploadedImage(String url) {
+    if (!mounted || !_sessionCurrent || _finished) return;
+    if (_contentType != 3) {
+      setState(() => _images.add(url));
+      _markDirty();
+    } else {
+      final insertAt = (_mediaInsertAt ?? _quill.document.length - 1).clamp(
+        0,
+        _quill.document.length - 1,
+      );
+      final selection = _quill.selection;
+      final change = _quill.document.insert(insertAt, BlockEmbed.image(url));
+      _quill.updateSelection(
+        TextSelection(
+          baseOffset: change.transformPosition(
+            selection.baseOffset.clamp(0, _quill.document.length - 1),
+          ),
+          extentOffset: change.transformPosition(
+            selection.extentOffset.clamp(0, _quill.document.length - 1),
+          ),
+        ),
+        ChangeSource.local,
+      );
+      _markDirty();
+    }
+    _allowPop = false;
+    unawaited(_saveLocal());
   }
 
   void _startDragAutoscroll() {
@@ -785,6 +969,13 @@ class _PublishPageState extends ConsumerState<PublishPage>
   }
 
   Future<void> _submit({required int topicStatus}) async {
+    if (_uploading) {
+      showGfToast(
+        context,
+        AppLocalizations.of(context).publishMediaPendingWarning,
+      );
+      return;
+    }
     if (_submitting || _loading || !_sessionCurrent) return;
     if (_loadError.isNotEmpty) {
       if (topicStatus == 0 && _localRestored) {
@@ -858,7 +1049,13 @@ class _PublishPageState extends ConsumerState<PublishPage>
       // The server write succeeded; deletion must follow any in-flight autosave.
       _finished = true;
       try {
-        if (_owner != null) await _localStore.delete(_owner!, _draftKey);
+        if (_owner != null) {
+          await _localStore.delete(
+            _owner!,
+            _draftKey,
+            isCurrent: () => _sessionCurrent,
+          );
+        }
       } catch (_) {
         /* Keep recovery data if deletion fails; server ack remains valid. */
       }
@@ -872,7 +1069,10 @@ class _PublishPageState extends ConsumerState<PublishPage>
         return;
       }
       _finished = false;
-      _draftKey = 'topic-$_currentTopicId';
+      _draftKey = topicDraftKey(_currentTopicId, published: topicStatus == 1);
+      _draftKind = topicStatus == 1
+          ? DraftKind.topicEdit
+          : DraftKind.serverDraft;
       _localStatus = '';
       setState(() {
         _message = topicStatus == 1
@@ -907,6 +1107,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
     return PopScope(
       canPop:
           !_submitting &&
+          !_uploading &&
           (_allowPop || (!_dirty && _mode == _ComposeMode.edit)),
       onPopInvokedWithResult: (didPop, result) {
         if (!didPop) _goBack();
@@ -1152,6 +1353,10 @@ class _PublishPageState extends ConsumerState<PublishPage>
                         icon: const Icon(Icons.cloud_off_outlined),
                         label: Text(l10n.commonRetry),
                       ),
+                    if (_uploads.hasPending) ...[
+                      _buildUploadQueue(l10n),
+                      const SizedBox(height: 16),
+                    ],
                     if (!typing) ...[
                       _buildComposeGuide(l10n),
                       const SizedBox(height: 20),
@@ -1453,6 +1658,8 @@ class _PublishPageState extends ConsumerState<PublishPage>
               List<dynamic> rejectedData,
             ) => QuillEditor.basic(
               controller: _quill,
+              focusNode: _editorFocusNode,
+              scrollController: _editorScrollController,
               config: QuillEditorConfig(
                 scrollable: false,
                 editorKey: _editorKey,
@@ -1526,7 +1733,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
                   ),
                 if (_contentType == 3)
                   _toolButton(
-                    icon: _uploading
+                    icon: _activelyUploading
                         ? Icons.hourglass_top_rounded
                         : Icons.image_outlined,
                     tooltip: l10n.publishToolImage,
@@ -1613,73 +1820,89 @@ class _PublishPageState extends ConsumerState<PublishPage>
   Widget _buildToolbar(AppLocalizations l10n) {
     final GfColors colors = GfTheme.colorsOf(context);
 
-    return ColoredBox(
-      color: colors.base200.withValues(alpha: 0.55),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-        child: Row(
-          children: <Widget>[
-            _toolButton(
-              icon: Icons.undo,
-              tooltip: l10n.publishUndo,
-              onPressed: _quill.undo,
-            ),
-            _toolButton(
-              icon: Icons.redo,
-              tooltip: l10n.publishRedo,
-              onPressed: _quill.redo,
-            ),
-            _toolButton(
-              icon: Icons.title,
-              tooltip: l10n.publishHeading,
-              onPressed: () => _toggleFormat(Attribute.h2),
-              onLongPress: () => _showHeadingLevelMenu(l10n),
-            ),
-            _toolButton(
-              icon: Icons.link,
-              tooltip: l10n.publishToolLink,
-              onPressed: _insertLink,
-            ),
+    return ListenableBuilder(
+      listenable: _quill,
+      builder: (context, _) {
+        final attributes = _quill.getSelectionStyle().attributes;
+        bool selected(Attribute attribute) =>
+            attributes[attribute.key]?.value == attribute.value;
+        return ColoredBox(
+          color: colors.base200.withValues(alpha: 0.55),
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+            child: Row(
+              children: <Widget>[
+                _toolButton(
+                  icon: Icons.undo,
+                  tooltip: l10n.publishUndo,
+                  onPressed: _quill.hasUndo ? _quill.undo : null,
+                ),
+                _toolButton(
+                  icon: Icons.redo,
+                  tooltip: l10n.publishRedo,
+                  onPressed: _quill.hasRedo ? _quill.redo : null,
+                ),
+                _toolButton(
+                  icon: Icons.title,
+                  tooltip: l10n.publishHeading,
+                  selected: attributes[Attribute.header.key]?.value != null,
+                  onPressed: () => _toggleFormat(Attribute.h2),
+                  onLongPress: () => _showHeadingLevelMenu(l10n),
+                ),
+                _toolButton(
+                  icon: Icons.link,
+                  tooltip: l10n.publishToolLink,
+                  onPressed: _insertLink,
+                ),
 
-            _toolButton(
-              icon: Icons.format_bold_rounded,
-              tooltip: l10n.publishToolBold,
-              onPressed: () => _toggleFormat(Attribute.bold),
+                _toolButton(
+                  icon: Icons.format_bold_rounded,
+                  tooltip: l10n.publishToolBold,
+                  selected: selected(Attribute.bold),
+                  onPressed: () => _toggleFormat(Attribute.bold),
+                ),
+                _toolButton(
+                  icon: Icons.format_italic_rounded,
+                  tooltip: l10n.publishToolItalic,
+                  selected: selected(Attribute.italic),
+                  onPressed: () => _toggleFormat(Attribute.italic),
+                ),
+                _toolButton(
+                  icon: Icons.format_strikethrough_rounded,
+                  tooltip: l10n.publishToolStrike,
+                  selected: selected(Attribute.strikeThrough),
+                  onPressed: () => _toggleFormat(Attribute.strikeThrough),
+                ),
+                _toolButton(
+                  icon: Icons.format_quote_rounded,
+                  tooltip: l10n.publishToolQuote,
+                  selected: selected(Attribute.blockQuote),
+                  onPressed: () => _toggleFormat(Attribute.blockQuote),
+                ),
+                _toolButton(
+                  icon: Icons.code_rounded,
+                  tooltip: l10n.publishToolCode,
+                  selected: selected(Attribute.inlineCode),
+                  onPressed: () => _toggleFormat(Attribute.inlineCode),
+                ),
+                _toolButton(
+                  icon: Icons.format_list_bulleted_rounded,
+                  tooltip: l10n.publishToolBulletList,
+                  selected: selected(Attribute.ul),
+                  onPressed: () => _toggleFormat(Attribute.ul),
+                ),
+                _toolButton(
+                  icon: Icons.format_list_numbered_rounded,
+                  tooltip: l10n.publishToolOrderedList,
+                  selected: selected(Attribute.ol),
+                  onPressed: () => _toggleFormat(Attribute.ol),
+                ),
+              ],
             ),
-            _toolButton(
-              icon: Icons.format_italic_rounded,
-              tooltip: l10n.publishToolItalic,
-              onPressed: () => _toggleFormat(Attribute.italic),
-            ),
-            _toolButton(
-              icon: Icons.format_strikethrough_rounded,
-              tooltip: l10n.publishToolStrike,
-              onPressed: () => _toggleFormat(Attribute.strikeThrough),
-            ),
-            _toolButton(
-              icon: Icons.format_quote_rounded,
-              tooltip: l10n.publishToolQuote,
-              onPressed: () => _toggleFormat(Attribute.blockQuote),
-            ),
-            _toolButton(
-              icon: Icons.code_rounded,
-              tooltip: l10n.publishToolCode,
-              onPressed: () => _toggleFormat(Attribute.inlineCode),
-            ),
-            _toolButton(
-              icon: Icons.format_list_bulleted_rounded,
-              tooltip: l10n.publishToolBulletList,
-              onPressed: () => _toggleFormat(Attribute.ul),
-            ),
-            _toolButton(
-              icon: Icons.format_list_numbered_rounded,
-              tooltip: l10n.publishToolOrderedList,
-              onPressed: () => _toggleFormat(Attribute.ol),
-            ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 
@@ -1688,14 +1911,34 @@ class _PublishPageState extends ConsumerState<PublishPage>
     required String tooltip,
     required VoidCallback? onPressed,
     VoidCallback? onLongPress,
+    bool? selected,
   }) {
-    return GfIconButton(
-      icon: icon,
-      tooltip: tooltip,
-      size: 44,
-      iconSize: 20,
-      onPressed: onPressed,
-      onLongPress: onLongPress,
+    final colors = GfTheme.colorsOf(context);
+    return MergeSemantics(
+      child: Semantics(
+        toggled: selected,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: selected == true
+                ? colors.primary.withValues(alpha: 0.12)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(GfTheme.radiiOf(context).field),
+          ),
+          child: GfIconButton(
+            icon: icon,
+            tooltip: tooltip,
+            size: 44,
+            iconSize: 20,
+            color: onPressed == null
+                ? colors.iconMuted.withValues(alpha: 0.4)
+                : selected == true
+                ? colors.primary
+                : colors.iconMuted,
+            onPressed: onPressed,
+            onLongPress: onLongPress,
+          ),
+        ),
+      ),
     );
   }
 
@@ -1779,7 +2022,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
             padding: const EdgeInsets.all(16),
             child: Row(
               children: [
-                _uploading
+                _activelyUploading
                     ? const SizedBox.square(
                         dimension: 24,
                         child: CircularProgressIndicator(strokeWidth: 2),
@@ -1894,12 +2137,111 @@ class _PublishPageState extends ConsumerState<PublishPage>
             label: l10n.publishToolImage,
             icon: const Icon(Icons.add_photo_alternate_outlined),
             variant: GfButtonVariant.outline,
-            loading: _uploading,
+            loading: _pickingImage,
             onPressed: _images.length >= 9 || _uploading
                 ? null
                 : _pickAndInsertImage,
           ),
       ],
+    );
+  }
+
+  Widget _buildUploadQueue(AppLocalizations l10n) {
+    final colors = GfTheme.colorsOf(context);
+    return Container(
+      key: const Key('publish-upload-queue'),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: colors.base200,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            l10n.publishMediaQueueTitle,
+            style: GfTheme.typographyOf(context).bodyStrong,
+          ),
+          const SizedBox(height: 4),
+          Text(l10n.publishMediaPendingWarning),
+          Text(
+            l10n.publishMediaTemporary,
+            style: GfTheme.typographyOf(context).caption,
+          ),
+          for (final item in _uploads.items)
+            Padding(
+              key: ValueKey('upload-${item.id}'),
+              padding: const EdgeInsets.only(top: 8),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  SizedBox.square(
+                    dimension: 48,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          Image.file(
+                            File(item.file.path),
+                            fit: BoxFit.cover,
+                            cacheWidth: 96,
+                            excludeFromSemantics: true,
+                            errorBuilder: (_, _, _) =>
+                                const Icon(Icons.photo_outlined),
+                          ),
+                          if (item.status == ComposerUploadStatus.uploading)
+                            const Center(
+                              child: SizedBox.square(
+                                dimension: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          item.file.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        Text(
+                          item.status == ComposerUploadStatus.uploading
+                              ? l10n.publishMediaUploading
+                              : item.error == null
+                              ? l10n.publishMediaWaiting
+                              : item.error is ApiException
+                              ? resolveErrorMessage(l10n, item.error!)
+                              : l10n.commonLoadFailed,
+                          style: GfTheme.typographyOf(context).caption,
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (item.status == ComposerUploadStatus.failed)
+                    IconButton(
+                      tooltip: l10n.commonRetry,
+                      onPressed: () => _uploads.retry(item.id),
+                      icon: const Icon(Icons.refresh),
+                    ),
+                  IconButton(
+                    tooltip: l10n.publishRemoveImage,
+                    onPressed: () => _uploads.remove(item.id),
+                    icon: const Icon(Icons.close),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
     );
   }
 }

@@ -172,6 +172,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get authForgotTitle => '重置密码';
 
   @override
+  String get authContinueAfterLogin => '登录后继续刚才的浏览或创作。';
+
+  @override
+  String get authSignInMethods => '其他登录方式';
+
+  @override
   String get authLoginSubtitle => '欢迎回来，继续你的讨论和创作。';
 
   @override
@@ -2550,4 +2556,79 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get messagesReadUnavailable => '服务器暂不支持逐条已读；未读消息会保留。';
+
+  @override
+  String get messagesDraftLabel => '草稿';
+
+  @override
+  String get messagesDraftStorageFailed => '无法读取或保存本机私信草稿，请重试。';
+
+  @override
+  String get draftCollapse => '收起';
+
+  @override
+  String get draftKindNew => '新话题';
+
+  @override
+  String get draftKindServer => '云端草稿的本机副本';
+
+  @override
+  String get draftKindEdit => '话题修改';
+
+  @override
+  String get draftKindReply => '回复';
+
+  @override
+  String get draftLocalEmpty => '未完成的创作会保存在本机，显示在这里。';
+
+  @override
+  String get draftReplyLeaveUnsaved =>
+      '最新回复修改未能保存。可以继续编辑并重试，或放弃这些修改后离开；已有的本机副本仍会保留。';
+
+  @override
+  String get publishMediaQueueTitle => '照片上传';
+
+  @override
+  String get publishMediaPendingWarning => '仍有未上传的图片。请完成上传或移除后，再保存、发布、切换类型或离开。';
+
+  @override
+  String get publishMediaTemporary => '待上传图片只在本次编辑中保留，应用关闭后需重新选择。';
+
+  @override
+  String get publishMediaUploading => '正在上传';
+
+  @override
+  String get publishMediaWaiting => '等待前一张图片';
+
+  @override
+  String get publishMediaSavedPartial => '文字和已上传图片已保存到本机';
+
+  @override
+  String get draftSearchHint => '搜索标题和正文';
+
+  @override
+  String get draftSearchScope => '搜索本机草稿与当前云端列表。';
+
+  @override
+  String draftMatchCount(int count) {
+    return '当前显示 $count 份草稿';
+  }
+
+  @override
+  String get draftNoMatches => '没有符合这些条件的草稿。';
+
+  @override
+  String get draftClearFilters => '清空搜索与筛选';
+
+  @override
+  String get draftDeleteDone => '本机草稿已删除，可撤销最近一次删除。';
+
+  @override
+  String get draftDeleteRestored => '已恢复本机草稿';
+
+  @override
+  String get draftRestoreConflict => '已有本机副本，已保留其内容。';
+
+  @override
+  String get draftRestoreFailed => '恢复失败，请再次点击撤销。';
 }
