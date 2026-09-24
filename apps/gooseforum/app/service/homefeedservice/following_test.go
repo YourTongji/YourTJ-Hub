@@ -2,6 +2,8 @@ package homefeedservice
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
@@ -152,5 +154,29 @@ func TestFollowingRejectsGuestMalformedCursorAndReadFailure(t *testing.T) {
 	cancel()
 	if _, err := Following(ctx, 973100, ""); !errors.Is(err, context.Canceled) {
 		t.Fatalf("read failure must not masquerade as empty: %v", err)
+	}
+}
+
+func TestFollowingRejectsCursorIDsOutsideDatabaseRange(t *testing.T) {
+	followingDB(t)
+	const viewer uint64 = 973200
+	for _, id := range []uint64{1 << 63, ^uint64(0)} {
+		t.Run(fmt.Sprint(id), func(t *testing.T) {
+			raw, err := json.Marshal(followingCursor{Version: 1, ViewerID: viewer, CreatedAt: time.Now(), ID: id})
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, err = Following(t.Context(), viewer, base64.RawURLEncoding.EncodeToString(raw))
+			if !errors.Is(err, ErrInvalidCursor) {
+				t.Fatalf("out-of-range ID must fail cursor validation: %v", err)
+			}
+		})
+	}
+	raw, err := json.Marshal(followingCursor{Version: 1, ViewerID: viewer, CreatedAt: time.Now(), ID: 1<<63 - 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Following(t.Context(), viewer, base64.RawURLEncoding.EncodeToString(raw)); err != nil {
+		t.Fatalf("largest signed database ID is a valid cursor: %v", err)
 	}
 }

@@ -94,7 +94,7 @@ func followingHome(c *gin.Context, page int) {
 		Component: PageComponentHome,
 		Props:     props,
 		Meta:      meta,
-		Layout:    buildLayout(c, "following"),
+		Layout:    buildLayout(c, activeKeyForHome("following")),
 		URL:       buildPageURL(c),
 		Version:   payloadVersion,
 	})

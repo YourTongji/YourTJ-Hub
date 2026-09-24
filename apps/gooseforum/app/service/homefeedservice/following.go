@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"math"
 	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
@@ -48,7 +49,7 @@ func Following(ctx context.Context, viewerID uint64, cursor string) (FollowingPa
 			return FollowingPage{}, ErrInvalidCursor
 		}
 		var value followingCursor
-		if json.Unmarshal(raw, &value) != nil || value.Version != 1 || value.ViewerID != viewerID || value.ID == 0 || value.CreatedAt.IsZero() {
+		if json.Unmarshal(raw, &value) != nil || value.Version != 1 || value.ViewerID != viewerID || value.ID == 0 || value.ID > math.MaxInt64 || value.CreatedAt.IsZero() {
 			return FollowingPage{}, ErrInvalidCursor
 		}
 		before = &topics.CreatedCursor{CreatedAt: value.CreatedAt, ID: value.ID}

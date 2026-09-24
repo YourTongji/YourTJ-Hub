@@ -2,6 +2,7 @@ package forum
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
@@ -76,9 +77,10 @@ func TestFollowingHomePayloadCursorAndLocale(t *testing.T) {
 	router := gin.New()
 	router.GET("/", func(c *gin.Context) { c.Set("userId", viewer); Home(c) })
 	request := func(path string) struct {
-		Component string    `json:"component"`
-		Props     HomeProps `json:"props"`
-		Meta      PageMeta  `json:"meta"`
+		Component string        `json:"component"`
+		Props     HomeProps     `json:"props"`
+		Meta      PageMeta      `json:"meta"`
+		Layout    LayoutPayload `json:"layout"`
 	} {
 		t.Helper()
 		req := httptest.NewRequest(http.MethodGet, path, nil)
@@ -90,9 +92,10 @@ func TestFollowingHomePayloadCursorAndLocale(t *testing.T) {
 			t.Fatalf("status %d: %s", recorder.Code, recorder.Body.String())
 		}
 		var payload struct {
-			Component string    `json:"component"`
-			Props     HomeProps `json:"props"`
-			Meta      PageMeta  `json:"meta"`
+			Component string        `json:"component"`
+			Props     HomeProps     `json:"props"`
+			Meta      PageMeta      `json:"meta"`
+			Layout    LayoutPayload `json:"layout"`
 		}
 		if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
 			t.Fatal(err)
@@ -105,6 +108,9 @@ func TestFollowingHomePayloadCursorAndLocale(t *testing.T) {
 	first := request("/?sort=following")
 	if first.Component != string(PageComponentHome) || first.Props.Sort != "following" || len(first.Props.Topics) != 20 {
 		t.Fatalf("first payload: %+v", first)
+	}
+	if first.Layout.Sidebar.ActiveKey != "topics" {
+		t.Fatalf("Following must keep the Home sidebar selected: %q", first.Layout.Sidebar.ActiveKey)
 	}
 	followingTab := false
 	for _, tab := range first.Props.Tabs {
@@ -131,7 +137,8 @@ func TestFollowingHomePayloadCursorAndLocale(t *testing.T) {
 func TestFollowingHomeRejectsInvalidCursorAndReadFailure(t *testing.T) {
 	router := gin.New()
 	router.GET("/", func(c *gin.Context) { c.Set("userId", uint64(976000)); Home(c) })
-	for _, path := range []string{"/?sort=following&cursor=garbage", "/?sort=following&page=2"} {
+	oversized := base64.RawURLEncoding.EncodeToString([]byte(`{"v":1,"u":976000,"t":"2026-09-25T00:00:00Z","id":18446744073709551615}`))
+	for _, path := range []string{"/?sort=following&cursor=garbage", "/?sort=following&page=2", "/?sort=following&cursor=" + oversized} {
 		req := httptest.NewRequest(http.MethodGet, path, nil)
 		req.Header.Set("X-Goose-Page", "true")
 		recorder := httptest.NewRecorder()
