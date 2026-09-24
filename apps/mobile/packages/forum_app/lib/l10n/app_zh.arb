@@ -393,6 +393,11 @@
       }
     }
   },
+  "settingsDevice": "此设备",
+  "settingsYourAccount": "你的账户",
+  "settingsThemeLight": "浅色",
+  "settingsThemeDark": "深色",
+  "settingsRevokeSession": "吊销此会话",
   "settingsAppearance": "外观",
   "settingsDarkMode": "深色模式",
   "settingsDarkCurrent": "当前:深色",
@@ -1215,6 +1220,27 @@
   "@campusSnapshotUpdated": {
     "placeholders": {
       "time": {
+        "type": "String"
+      }
+    }
+  },
+  "scheduleTimeAxis": "节次",
+  "scheduleEmptyCell": "{day}，第 {section} 节，选课",
+  "scheduleSectionsN": "第 {range} 节",
+  "scheduleGridScrollHint": "左右滑动查看整周课表",
+  "@scheduleEmptyCell": {
+    "placeholders": {
+      "day": {
+        "type": "String"
+      },
+      "section": {
+        "type": "int"
+      }
+    }
+  },
+  "@scheduleSectionsN": {
+    "placeholders": {
+      "range": {
         "type": "String"
       }
     }

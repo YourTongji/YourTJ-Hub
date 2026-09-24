@@ -225,6 +225,11 @@
   "settingsRevokeFailed": "Beenden fehlgeschlagen: {error}",
   "settingsRevokeAllDone": "Alle Sitzungen beendet",
   "settingsOpFailed": "Aktion fehlgeschlagen: {error}",
+  "settingsDevice": "Dieses Gerät",
+  "settingsYourAccount": "Dein Konto",
+  "settingsThemeLight": "Hell",
+  "settingsThemeDark": "Dunkel",
+  "settingsRevokeSession": "Diese Sitzung widerrufen",
   "settingsAppearance": "Darstellung",
   "settingsDarkMode": "Dunkler Modus",
   "settingsDarkCurrent": "Aktuell: dunkel",
@@ -885,6 +890,27 @@
   "@campusSnapshotUpdated": {
     "placeholders": {
       "time": {
+        "type": "String"
+      }
+    }
+  },
+  "scheduleTimeAxis": "Stunden",
+  "scheduleEmptyCell": "{day}, Stunde {section}, Kurs auswählen",
+  "scheduleSectionsN": "Stunden {range}",
+  "scheduleGridScrollHint": "Seitlich wischen, um die ganze Woche zu sehen",
+  "@scheduleEmptyCell": {
+    "placeholders": {
+      "day": {
+        "type": "String"
+      },
+      "section": {
+        "type": "int"
+      }
+    }
+  },
+  "@scheduleSectionsN": {
+    "placeholders": {
+      "range": {
         "type": "String"
       }
     }

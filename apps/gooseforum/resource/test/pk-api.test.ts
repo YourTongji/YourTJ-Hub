@@ -14,6 +14,7 @@ import {
   getPkCampuses,
   getPkCoursesByMajor,
   getPkCoursesByNature,
+  getPkCoursesByTime,
   getPkFaculties,
   getPkGrades,
   getPkLatestUpdate,
@@ -33,6 +34,16 @@ afterEach(() => {
 })
 
 describe('pk-api wire shape adaptation', () => {
+  test('getPkCoursesByTime keeps the default filter unless includeAll is requested', async () => {
+    const fetchMock = vi.fn().mockImplementation(() => jsonResponse({ code: 0, msg: 'ok', data: { courses: [] } }))
+    vi.stubGlobal('fetch', fetchMock)
+    await getPkCoursesByTime(122, 1, 1)
+    expect(JSON.parse(fetchMock.mock.calls[0]?.[1]?.body as string)).toEqual({ calendarId: 122, day: 1, section: 1 })
+
+    await getPkCoursesByTime(122, 1, 1, true)
+    expect(JSON.parse(fetchMock.mock.calls[1]?.[1]?.body as string)).toEqual({ calendarId: 122, day: 1, section: 1, includeAll: true })
+  })
+
   test('getPkGrades unwraps {gradeList}', async () => {
     // 契约 PkGradesResult：data = { gradeList: [...] }（fixtures/pk-grades-success.json）。
     vi.stubGlobal(
