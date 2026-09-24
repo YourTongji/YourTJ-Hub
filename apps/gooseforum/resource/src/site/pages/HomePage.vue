@@ -214,7 +214,8 @@ async function refreshFirstPage(mode: 'prepend' | 'replace') {
   refreshStatusMessage.value = t('topicList.refreshing')
   try {
     const payload = (await fetchPage(currentFirstPageUrl())) as PagePayload<HomeProps>
-    topics.value = mode === 'prepend'
+    // Following refreshes replace retained rows so unfollowed authors disappear.
+    topics.value = mode === 'prepend' && page.props.sort !== 'following'
       ? prependTopics(topics.value, payload.props.topics)
       : [...payload.props.topics]
     pagination.value = payload.props.pagination
@@ -319,6 +320,7 @@ function mergeTopics(current: TopicPayload[], incoming: TopicPayload[]) {
 
 function sortTabLabel(key: string, fallback?: string) {
   if (key === 'latest') return t('topicList.tabs.latest')
+  if (key === 'following') return t('topicList.tabs.following')
   if (key === 'hot') return t('topicList.tabs.hot')
   if (key === 'popular') return t('topicList.tabs.popular')
   return fallback || key

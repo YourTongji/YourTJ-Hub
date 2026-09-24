@@ -35,6 +35,11 @@ describe('home feed refresh helpers', () => {
       .toEqual([12, 11, 10, 9, 8])
   })
 
+  test('drops the following cursor when refreshing a deep link', () => {
+    expect(firstPageUrl('/?sort=following&page=4&cursor=opaque', 'https://forum.example').toString())
+      .toBe('https://forum.example/?sort=following')
+  })
+
   test('normalizes the current sort url back to page one', () => {
     expect(firstPageUrl('/?sort=hot&page=4', 'https://forum.example').toString())
       .toBe('https://forum.example/?sort=hot')

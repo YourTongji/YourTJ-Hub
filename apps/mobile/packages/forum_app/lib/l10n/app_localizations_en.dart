@@ -538,6 +538,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get searchUnavailable => 'Search unavailable';
 
   @override
+  String searchResultCount(int shown, int total) {
+    return '$shown shown · $total matches';
+  }
+
+  @override
   String get searchAll => 'All';
 
   @override
@@ -726,6 +731,21 @@ class AppLocalizationsEn extends AppLocalizations {
   String settingsOpFailed(String error) {
     return 'Operation failed: $error';
   }
+
+  @override
+  String get settingsDevice => 'This device';
+
+  @override
+  String get settingsYourAccount => 'Your account';
+
+  @override
+  String get settingsThemeLight => 'Light';
+
+  @override
+  String get settingsThemeDark => 'Dark';
+
+  @override
+  String get settingsRevokeSession => 'Revoke this session';
 
   @override
   String get settingsAppearance => 'Appearance';
@@ -2573,4 +2593,20 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get campusCacheClearFailed =>
       'Some cached data could not be cleared. Please retry.';
+
+  @override
+  String get scheduleTimeAxis => 'Sections';
+
+  @override
+  String scheduleEmptyCell(String day, int section) {
+    return '$day, section $section, choose a course';
+  }
+
+  @override
+  String scheduleSectionsN(String range) {
+    return 'Sections $range';
+  }
+
+  @override
+  String get scheduleGridScrollHint => 'Swipe sideways to view the full week';
 }

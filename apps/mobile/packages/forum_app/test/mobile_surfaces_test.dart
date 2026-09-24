@@ -176,8 +176,9 @@ void main() {
         router.go('/settings');
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);
-        final settingsTabs = tester.getRect(find.byType(GfTabBar));
-        expect(settingsTabs.height, greaterThan(48));
+        expect(find.byType(GfTabBar), findsNothing);
+        expect(find.text(l10n.settingsAppearance), findsOneWidget);
+        expect(find.text(l10n.settingsAppLanguage), findsOneWidget);
         router.go('/notifications');
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);

@@ -168,6 +168,7 @@
   "searchNoUsers": "該当するユーザーはいません",
   "searchNoCategories": "該当するカテゴリはありません",
   "searchUnavailable": "検索サービスを利用できません",
+  "searchResultCount": "表示 {shown} 件 · 一致 {total} 件",
   "searchAll": "すべて",
   "searchTopics": "トピック",
   "searchUsers": "ユーザー",
@@ -225,6 +226,11 @@
   "settingsRevokeFailed": "セッションを終了できませんでした：{error}",
   "settingsRevokeAllDone": "すべてのセッションを終了しました",
   "settingsOpFailed": "操作に失敗しました：{error}",
+  "settingsDevice": "この端末",
+  "settingsYourAccount": "アカウント",
+  "settingsThemeLight": "ライト",
+  "settingsThemeDark": "ダーク",
+  "settingsRevokeSession": "このセッションを無効化",
   "settingsAppearance": "外観",
   "settingsDarkMode": "ダークモード",
   "settingsDarkCurrent": "現在：ダーク",
@@ -885,6 +891,27 @@
   "@campusSnapshotUpdated": {
     "placeholders": {
       "time": {
+        "type": "String"
+      }
+    }
+  },
+  "scheduleTimeAxis": "時限",
+  "scheduleEmptyCell": "{day}、{section} 時限目、授業を選択",
+  "scheduleSectionsN": "{range} 時限",
+  "scheduleGridScrollHint": "左右にスワイプして週全体を表示",
+  "@scheduleEmptyCell": {
+    "placeholders": {
+      "day": {
+        "type": "String"
+      },
+      "section": {
+        "type": "int"
+      }
+    }
+  },
+  "@scheduleSectionsN": {
+    "placeholders": {
+      "range": {
         "type": "String"
       }
     }

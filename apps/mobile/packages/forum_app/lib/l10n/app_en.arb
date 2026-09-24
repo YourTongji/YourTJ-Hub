@@ -280,6 +280,8 @@
   "searchNoUsers": "No matching users",
   "searchNoCategories": "No matching categories",
   "searchUnavailable": "Search unavailable",
+  "searchResultCount": "{shown} shown · {total} matches",
+  "@searchResultCount": {"placeholders": {"shown": {"type": "int"}, "total": {"type": "int"}}},
   "searchAll": "All",
   "searchTopics": "Topics",
   "searchUsers": "Users",
@@ -400,6 +402,11 @@
       }
     }
   },
+  "settingsDevice": "This device",
+  "settingsYourAccount": "Your account",
+  "settingsThemeLight": "Light",
+  "settingsThemeDark": "Dark",
+  "settingsRevokeSession": "Revoke this session",
   "settingsAppearance": "Appearance",
   "settingsDarkMode": "Dark mode",
   "settingsDarkCurrent": "Current: dark",
@@ -1222,6 +1229,27 @@
   "@campusSnapshotUpdated": {
     "placeholders": {
       "time": {
+        "type": "String"
+      }
+    }
+  },
+  "scheduleTimeAxis": "Sections",
+  "scheduleEmptyCell": "{day}, section {section}, choose a course",
+  "scheduleSectionsN": "Sections {range}",
+  "scheduleGridScrollHint": "Swipe sideways to view the full week",
+  "@scheduleEmptyCell": {
+    "placeholders": {
+      "day": {
+        "type": "String"
+      },
+      "section": {
+        "type": "int"
+      }
+    }
+  },
+  "@scheduleSectionsN": {
+    "placeholders": {
+      "range": {
         "type": "String"
       }
     }

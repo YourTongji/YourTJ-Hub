@@ -13,7 +13,20 @@ writing use native pages. Management uses the same first-party workspaces and pe
 Web inside an authenticated in-app browser. The navigation and management boundary are recorded in
 [0012](../decisions/0012-unified-mobile-reading-navigation.md).
 
+The [interaction and layout standard](mobile-design-system.md) defines the shared visual and
+behavioral acceptance rules. Its `Planned` requirements are tracked separately from the implemented
+behaviors below; [state and cache boundaries](../architecture/mobile-state-and-cache.md) describe the
+corresponding planned ownership and lifecycle contracts.
+
 ## Navigation and reading
+
+- `Current`: Home offers a server-defined Following sort. It requires sign-in and shows only
+  currently followed authors' public forum topics, newest creation time first with descending
+  topic ID for ties. Pagination uses an opaque cursor in `nextUrl`; edits, replies and pinning
+  do not reorder it. After following or unfollowing from a profile, pull to refresh Following
+  to replace retained rows and start from the newest matching topics. Continuation requests
+  already exclude unfollowed authors, while newly followed content above the cursor appears
+  on refresh. An empty follow list stays empty; guests are directed to sign-in.
 
 - `Current`: paginated feeds, search, notifications, profiles, content management, own course
   reviews and post history automatically fetch near the list end. Requests are serialized;
@@ -165,7 +178,7 @@ Web inside an authenticated in-app browser. The navigation and management bounda
   and prevents dismissal by dragging or tapping outside.
 - `Current`: shared form inputs use 16-pixel text. Buttons have a minimum height of 44–56
   pixels by size and grow for wrapped or enlarged labels; disabled actions remain visibly muted.
-  Interactive category chips have at least 44-pixel targets. Home, notification and settings tabs
+  Interactive category chips have at least 44-pixel targets. Home and notification tabs
   grow with system text size, and the overlay's content inset uses the same measured height.
 - `Current`: empty and retry states share a soft icon surface, readable explanation and optional
   next action, with scrolling on short screens. Empty notifications link back to Home; empty drafts
@@ -194,8 +207,14 @@ Web inside an authenticated in-app browser. The navigation and management bounda
   submission where applicable. Clearing global search resets results, scope and pagination, and
   invalidates pending requests; account and publishing forms retain their separate form styling.
 - `Current`: global search starts with guidance and direct course, scheduler and Wiki destinations.
-  Result scope buttons scroll horizontally to preserve translated labels and counts at larger text
-  sizes. Course and Wiki search actions carry the current query into the matching native page.
+  Result scope buttons stay available during loading, empty results and failures, and scroll
+  horizontally at larger text sizes. Switching scope or retrying uses the last submitted keyword;
+  typing a different keyword does not search it until submission. Each result section identifies its
+  type and shows displayed rows separately from matching totals; unqueried scopes are not labelled
+  as zero, and the all-scope view does not treat the topic total as an aggregate total.
+  Users, topics and categories build one row at a time near the viewport. Only topics paginate;
+  appending a page retains the other groups, and a failed page keeps the current rows with a retry.
+  Course and Wiki search actions carry the current input into the matching native page.
   Recent searches keep up to ten distinct queries per site and account (with a separate guest list),
   in device preferences only; users can clear them. Storage failure does not block searching.
 - `Current`: topic view/reply metrics remain below the body; reply, like, bookmark and watch actions
@@ -324,6 +343,16 @@ Web inside an authenticated in-app browser. The navigation and management bounda
   credit, hour and conflict counts wrap in a compact row. A small Web action opens
   the full [Web scheduler](https://f.yourtj.de/schedule) in the external browser without transferring
   the native credential. Plans are not official enrollment results.
+- `Current`: planner and official timetable grids share a responsive seven-day layout with a fixed
+  section/time rail during horizontal scrolling. Larger screens expand the columns; narrow screens
+  keep readable column widths and explain sideways scrolling. Spanning course blocks show title,
+  room, teachers and week range; single-section and stacked blocks prioritize title, room and week
+  parity, with complete details in their accessible labels. Course colors retain stable slots, while
+  soft borders, an accent line and separate conflict icons follow the Web hierarchy. Row heights and
+  column widths follow accessibility text scaling, including nonlinear scaling of small text. Course
+  details and selectable empty cells support keyboard activation and labeled screen-reader actions;
+  unconfigured empty cells and custom placeholders do not present inert buttons. The week selector
+  has a minimum 48dp action height.
 - `Current`: signed-in plans use the same per-plan revision and three-way merge rules as Web
   (`GET/PUT/DELETE /api/pk/plan-items`). Independent course changes and custom-event fields merge
   automatically; only conflicting values require a choice. A remotely deleted plan with local edits
@@ -423,6 +452,15 @@ Web inside an authenticated in-app browser. The navigation and management bounda
   Profile body text uses 16 pixels; statistics prioritize the values and wrap into fewer columns on
   narrow screens or at large text sizes. Settings groups use rounded inset surfaces, multiline row
   labels and consistent trailing arrows; avatar upload copy describes image selection and cropping.
+- `Current`: Settings opens a scrollable category index, with device preferences separated from
+  account settings. Appearance offers system, light and dark modes; language and site information
+  remain available to guests without fetching account details or sessions. Theme choices apply
+  immediately, survive restart and take precedence over asynchronous restoration; writes are
+  serialized so the latest choice remains stored. Account categories preserve existing section
+  links, open on a normal back stack and fetch only their required data. Failed refreshes retain
+  loaded content, and session changes clear private settings before loading the next account.
+  The category index and section headers support enlarged text, keyboard activation and localized
+  accessible labels; content stays centered within 720 pixels on larger windows.
 - `Current`: users with follow permission retain the follow button for already-followed accounts,
   including administrators. It displays the followed state and toggles to unfollow, prevents duplicate
   in-flight requests and restores the previous state when a request fails.

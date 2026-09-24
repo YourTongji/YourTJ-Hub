@@ -528,6 +528,11 @@ class AppLocalizationsJa extends AppLocalizations {
   String get searchUnavailable => '検索サービスを利用できません';
 
   @override
+  String searchResultCount(int shown, int total) {
+    return '表示 $shown 件 · 一致 $total 件';
+  }
+
+  @override
   String get searchAll => 'すべて';
 
   @override
@@ -716,6 +721,21 @@ class AppLocalizationsJa extends AppLocalizations {
   String settingsOpFailed(String error) {
     return '操作に失敗しました：$error';
   }
+
+  @override
+  String get settingsDevice => 'この端末';
+
+  @override
+  String get settingsYourAccount => 'アカウント';
+
+  @override
+  String get settingsThemeLight => 'ライト';
+
+  @override
+  String get settingsThemeDark => 'ダーク';
+
+  @override
+  String get settingsRevokeSession => 'このセッションを無効化';
 
   @override
   String get settingsAppearance => '外観';
@@ -2495,4 +2515,20 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get campusCacheClearFailed => '一部のキャッシュを削除できませんでした。再試行してください。';
+
+  @override
+  String get scheduleTimeAxis => '時限';
+
+  @override
+  String scheduleEmptyCell(String day, int section) {
+    return '$day、$section 時限目、授業を選択';
+  }
+
+  @override
+  String scheduleSectionsN(String range) {
+    return '$range 時限';
+  }
+
+  @override
+  String get scheduleGridScrollHint => '左右にスワイプして週全体を表示';
 }

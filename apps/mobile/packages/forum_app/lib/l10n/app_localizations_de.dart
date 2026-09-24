@@ -542,6 +542,11 @@ class AppLocalizationsDe extends AppLocalizations {
   String get searchUnavailable => 'Suche nicht verfügbar';
 
   @override
+  String searchResultCount(int shown, int total) {
+    return '$shown angezeigt · $total Treffer';
+  }
+
+  @override
   String get searchAll => 'Alle';
 
   @override
@@ -731,6 +736,21 @@ class AppLocalizationsDe extends AppLocalizations {
   String settingsOpFailed(String error) {
     return 'Aktion fehlgeschlagen: $error';
   }
+
+  @override
+  String get settingsDevice => 'Dieses Gerät';
+
+  @override
+  String get settingsYourAccount => 'Dein Konto';
+
+  @override
+  String get settingsThemeLight => 'Hell';
+
+  @override
+  String get settingsThemeDark => 'Dunkel';
+
+  @override
+  String get settingsRevokeSession => 'Diese Sitzung widerrufen';
 
   @override
   String get settingsAppearance => 'Darstellung';
@@ -2600,4 +2620,21 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get campusCacheClearFailed =>
       'Einige Cache-Daten konnten nicht gelöscht werden. Bitte erneut versuchen.';
+
+  @override
+  String get scheduleTimeAxis => 'Stunden';
+
+  @override
+  String scheduleEmptyCell(String day, int section) {
+    return '$day, Stunde $section, Kurs auswählen';
+  }
+
+  @override
+  String scheduleSectionsN(String range) {
+    return 'Stunden $range';
+  }
+
+  @override
+  String get scheduleGridScrollHint =>
+      'Seitlich wischen, um die ganze Woche zu sehen';
 }

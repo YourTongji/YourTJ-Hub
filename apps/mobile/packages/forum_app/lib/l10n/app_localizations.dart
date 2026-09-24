@@ -1068,6 +1068,12 @@ abstract class AppLocalizations {
   /// **'Search unavailable'**
   String get searchUnavailable;
 
+  /// No description provided for @searchResultCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{shown} shown · {total} matches'**
+  String searchResultCount(int shown, int total);
+
   /// No description provided for @searchAll.
   ///
   /// In en, this message translates to:
@@ -1409,6 +1415,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Operation failed: {error}'**
   String settingsOpFailed(String error);
+
+  /// No description provided for @settingsDevice.
+  ///
+  /// In en, this message translates to:
+  /// **'This device'**
+  String get settingsDevice;
+
+  /// No description provided for @settingsYourAccount.
+  ///
+  /// In en, this message translates to:
+  /// **'Your account'**
+  String get settingsYourAccount;
+
+  /// No description provided for @settingsThemeLight.
+  ///
+  /// In en, this message translates to:
+  /// **'Light'**
+  String get settingsThemeLight;
+
+  /// No description provided for @settingsThemeDark.
+  ///
+  /// In en, this message translates to:
+  /// **'Dark'**
+  String get settingsThemeDark;
+
+  /// No description provided for @settingsRevokeSession.
+  ///
+  /// In en, this message translates to:
+  /// **'Revoke this session'**
+  String get settingsRevokeSession;
 
   /// No description provided for @settingsAppearance.
   ///
@@ -4751,6 +4787,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Some cached data could not be cleared. Please retry.'**
   String get campusCacheClearFailed;
+
+  /// No description provided for @scheduleTimeAxis.
+  ///
+  /// In en, this message translates to:
+  /// **'Sections'**
+  String get scheduleTimeAxis;
+
+  /// No description provided for @scheduleEmptyCell.
+  ///
+  /// In en, this message translates to:
+  /// **'{day}, section {section}, choose a course'**
+  String scheduleEmptyCell(String day, int section);
+
+  /// No description provided for @scheduleSectionsN.
+  ///
+  /// In en, this message translates to:
+  /// **'Sections {range}'**
+  String scheduleSectionsN(String range);
+
+  /// No description provided for @scheduleGridScrollHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Swipe sideways to view the full week'**
+  String get scheduleGridScrollHint;
 }
 
 class _AppLocalizationsDelegate

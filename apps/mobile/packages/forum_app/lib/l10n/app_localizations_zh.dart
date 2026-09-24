@@ -526,6 +526,11 @@ class AppLocalizationsZh extends AppLocalizations {
   String get searchUnavailable => '搜索暂不可用';
 
   @override
+  String searchResultCount(int shown, int total) {
+    return '已显示 $shown 项 · 匹配 $total 项';
+  }
+
+  @override
   String get searchAll => '全部';
 
   @override
@@ -714,6 +719,21 @@ class AppLocalizationsZh extends AppLocalizations {
   String settingsOpFailed(String error) {
     return '操作失败:$error';
   }
+
+  @override
+  String get settingsDevice => '此设备';
+
+  @override
+  String get settingsYourAccount => '你的账户';
+
+  @override
+  String get settingsThemeLight => '浅色';
+
+  @override
+  String get settingsThemeDark => '深色';
+
+  @override
+  String get settingsRevokeSession => '吊销此会话';
 
   @override
   String get settingsAppearance => '外观';
@@ -2472,4 +2492,20 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get campusCacheClearFailed => '部分缓存未能清除，请重试。';
+
+  @override
+  String get scheduleTimeAxis => '节次';
+
+  @override
+  String scheduleEmptyCell(String day, int section) {
+    return '$day，第 $section 节，选课';
+  }
+
+  @override
+  String scheduleSectionsN(String range) {
+    return '第 $range 节';
+  }
+
+  @override
+  String get scheduleGridScrollHint => '左右滑动查看整周课表';
 }
