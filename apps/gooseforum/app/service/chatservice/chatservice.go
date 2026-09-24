@@ -12,6 +12,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/chat/imUserChatConfigs"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/chat/messages"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/realtimeservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/unreadservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/urlconfig"
 	"github.com/samber/lo"
@@ -117,6 +118,8 @@ func sendMessage(conn *gorm.DB, senderId, peerId uint64, content string, msgType
 			imUserChatConfigs.InvalidateConversationAccess(senderId, convId)
 			imUserChatConfigs.InvalidateConversationAccess(peerId, convId)
 			unreadservice.Invalidate(peerId)
+			realtimeservice.PublishChatChanged(senderId, convId, "sent")
+			realtimeservice.PublishChatChanged(peerId, convId, "received")
 			return convId, nil
 		}
 		if attempt == 2 || !retryableChatWrite(err) {
@@ -241,11 +244,13 @@ func GetMessages(userId, convId uint64, beforeId, afterId uint64, limit int) (*M
 // 越权翻转他人私聊会话的已读状态（issue #111，CWE-639）。校验失败时返回
 // 与 GetMessages 一致的 "conversation not found" 错误语义，且不触碰任何状态。
 func MarkRead(userId, convId uint64) error {
+	var peerID uint64
 	err := db.Connect().Transaction(func(tx *gorm.DB) error {
 		config, err := lockedMember(tx, userId, convId)
 		if err != nil {
 			return err
 		}
+		peerID = config.PeerId
 		if err := tx.Model(&messages.Entity{}).
 			Where("conv_id = ? AND sender_id != ? AND is_read = 0", convId, userId).
 			Update("is_read", 1).Error; err != nil {
@@ -257,6 +262,8 @@ func MarkRead(userId, convId uint64) error {
 		return err
 	}
 	unreadservice.Invalidate(userId)
+	realtimeservice.PublishChatChanged(userId, convId, "read")
+	realtimeservice.PublishChatChanged(peerID, convId, "read")
 	return nil
 }
 
@@ -288,11 +295,13 @@ func markVisibleRead(conn *gorm.DB, userId, convId uint64, ids []uint64) (*Visib
 		return nil, errors.New("invalid visible message IDs")
 	}
 	result := &VisibleReadResult{ConvId: convId, AcknowledgedMessageIds: unique}
+	var peerID uint64
 	err = conn.Transaction(func(tx *gorm.DB) error {
 		config, err := lockedMember(tx, userId, convId)
 		if err != nil {
 			return err
 		}
+		peerID = config.PeerId
 		var owned []messages.Entity
 		if err := tx.Select("id").Where("conv_id = ? AND sender_id != ? AND id IN ?", convId, userId, unique).
 			Find(&owned).Error; err != nil {
@@ -322,6 +331,8 @@ func markVisibleRead(conn *gorm.DB, userId, convId uint64, ids []uint64) (*Visib
 		return nil, err
 	}
 	unreadservice.Invalidate(userId)
+	realtimeservice.PublishChatChanged(userId, convId, "read")
+	realtimeservice.PublishChatChanged(peerID, convId, "read")
 	return result, nil
 }
 

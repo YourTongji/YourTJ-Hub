@@ -185,6 +185,8 @@ paths:
     $ref: ./paths/user-account.yaml#/unbindOAuth
   /api/forum/unread-status:
     $ref: ./paths/forum-notifications.yaml#/getUnreadStatus
+  /api/forum/events:
+    $ref: ./paths/forum-events.yaml#/streamForumEvents
   /api/forum/notifications:
     $ref: ./paths/forum-notifications.yaml#/getNotifications
   /api/forum/notification/mark-read:
