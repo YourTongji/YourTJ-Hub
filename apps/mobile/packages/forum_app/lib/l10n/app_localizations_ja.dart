@@ -2339,6 +2339,77 @@ class AppLocalizationsJa extends AppLocalizations {
       '休講・振替規則を取得できません。再試行するか、規則を無効にして元の時間割を出力してください。';
 
   @override
+  String get planSyncTitle => 'プランの競合を解決';
+
+  @override
+  String get planSyncBody =>
+      '別の端末でもこれらの項目が変更されました。残す値を選択してください。他の変更は自動的に統合されます。';
+
+  @override
+  String get planSyncLocal => 'ローカルを保持';
+
+  @override
+  String get planSyncRemote => 'クラウドを使用';
+
+  @override
+  String get planSyncDeleted => '削除済み';
+
+  @override
+  String get planSyncPlan => 'プラン';
+
+  @override
+  String get planSyncName => '名前';
+
+  @override
+  String get planSyncCreatedAt => '作成日時';
+
+  @override
+  String get planSyncCourse => '科目';
+
+  @override
+  String get planSyncEvent => '予定';
+
+  @override
+  String get planSyncLabel => '予定名';
+
+  @override
+  String get planSyncDay => '曜日';
+
+  @override
+  String get planSyncSections => '時限';
+
+  @override
+  String get planSyncWeeks => '週';
+
+  @override
+  String get planSyncApply => '統合して保存';
+
+  @override
+  String get planSyncDrafts => '復元用の下書き';
+
+  @override
+  String get planSyncDraftHint =>
+      '下書きはこの端末のみに保存され、クラウドのプラン数に含まれません。復元すると新しいプランを作成します。';
+
+  @override
+  String get planSyncRestore => '新しいプランとして復元';
+
+  @override
+  String get planSyncAdopt => 'この端末のプランを現在のアカウントに同期';
+
+  @override
+  String get planSyncAdoptHint => 'ローカルプランはまだこのアカウントに属していません。確認後にアップロードします。';
+
+  @override
+  String get planSyncCapacity => 'クラウドには最大10件のプランを保存できます。空きを作って再試行してください。';
+
+  @override
+  String get planSyncRejected => '保存できませんでした。アカウントが書き込み不可、またはプランデータが検証に失敗しました。';
+
+  @override
+  String get planSyncArchived => 'ローカルの変更を復元用の下書きに保存しました。';
+
+  @override
   String get privateNoteEdit => 'メモを編集';
 
   @override
@@ -2346,6 +2417,8 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get privateNoteHint => '自分だけに表示されます。64文字以内。空欄で保存すると削除されます。';
+
+  @override
   String get badgeDisplayTitle => 'プロフィールのバッジ';
 
   @override

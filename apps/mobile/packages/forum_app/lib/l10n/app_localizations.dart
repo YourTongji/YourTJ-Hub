@@ -4458,6 +4458,144 @@ abstract class AppLocalizations {
   /// **'Holiday rules could not be loaded. Retry later, or disable adjustments to export the original timetable.'**
   String get campusRulesUnavailable;
 
+  /// No description provided for @planSyncTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Resolve plan conflicts'**
+  String get planSyncTitle;
+
+  /// No description provided for @planSyncBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Another device changed these items too. Choose each value to keep; other changes merge automatically.'**
+  String get planSyncBody;
+
+  /// No description provided for @planSyncLocal.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep local'**
+  String get planSyncLocal;
+
+  /// No description provided for @planSyncRemote.
+  ///
+  /// In en, this message translates to:
+  /// **'Use cloud'**
+  String get planSyncRemote;
+
+  /// No description provided for @planSyncDeleted.
+  ///
+  /// In en, this message translates to:
+  /// **'Deleted'**
+  String get planSyncDeleted;
+
+  /// No description provided for @planSyncPlan.
+  ///
+  /// In en, this message translates to:
+  /// **'Plan'**
+  String get planSyncPlan;
+
+  /// No description provided for @planSyncName.
+  ///
+  /// In en, this message translates to:
+  /// **'Name'**
+  String get planSyncName;
+
+  /// No description provided for @planSyncCreatedAt.
+  ///
+  /// In en, this message translates to:
+  /// **'Created'**
+  String get planSyncCreatedAt;
+
+  /// No description provided for @planSyncCourse.
+  ///
+  /// In en, this message translates to:
+  /// **'Course'**
+  String get planSyncCourse;
+
+  /// No description provided for @planSyncEvent.
+  ///
+  /// In en, this message translates to:
+  /// **'Custom event'**
+  String get planSyncEvent;
+
+  /// No description provided for @planSyncLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Event name'**
+  String get planSyncLabel;
+
+  /// No description provided for @planSyncDay.
+  ///
+  /// In en, this message translates to:
+  /// **'Day'**
+  String get planSyncDay;
+
+  /// No description provided for @planSyncSections.
+  ///
+  /// In en, this message translates to:
+  /// **'Periods'**
+  String get planSyncSections;
+
+  /// No description provided for @planSyncWeeks.
+  ///
+  /// In en, this message translates to:
+  /// **'Weeks'**
+  String get planSyncWeeks;
+
+  /// No description provided for @planSyncApply.
+  ///
+  /// In en, this message translates to:
+  /// **'Merge and save'**
+  String get planSyncApply;
+
+  /// No description provided for @planSyncDrafts.
+  ///
+  /// In en, this message translates to:
+  /// **'Recovery drafts'**
+  String get planSyncDrafts;
+
+  /// No description provided for @planSyncDraftHint.
+  ///
+  /// In en, this message translates to:
+  /// **'These drafts stay on this device and do not use cloud plan slots. Restoring creates a new plan.'**
+  String get planSyncDraftHint;
+
+  /// No description provided for @planSyncRestore.
+  ///
+  /// In en, this message translates to:
+  /// **'Restore as new plan'**
+  String get planSyncRestore;
+
+  /// No description provided for @planSyncAdopt.
+  ///
+  /// In en, this message translates to:
+  /// **'Sync this device’s local plans to this account'**
+  String get planSyncAdopt;
+
+  /// No description provided for @planSyncAdoptHint.
+  ///
+  /// In en, this message translates to:
+  /// **'These local plans do not yet belong to this account. Confirm before uploading.'**
+  String get planSyncAdoptHint;
+
+  /// No description provided for @planSyncCapacity.
+  ///
+  /// In en, this message translates to:
+  /// **'The cloud holds at most ten plans. Free a slot and retry.'**
+  String get planSyncCapacity;
+
+  /// No description provided for @planSyncRejected.
+  ///
+  /// In en, this message translates to:
+  /// **'Saving was rejected. The account cannot write or the plan data failed validation.'**
+  String get planSyncRejected;
+
+  /// No description provided for @planSyncArchived.
+  ///
+  /// In en, this message translates to:
+  /// **'Local changes were saved as a recovery draft.'**
+  String get planSyncArchived;
+
   /// No description provided for @privateNoteEdit.
   ///
   /// In en, this message translates to:
@@ -4475,6 +4613,7 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Only you can see this. Up to 64 characters; save empty to clear.'**
   String get privateNoteHint;
+
   /// No description provided for @badgeDisplayTitle.
   ///
   /// In en, this message translates to:

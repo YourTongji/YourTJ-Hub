@@ -163,10 +163,9 @@ function createInitialState(): ScheduleState {
 
 // ---- id 生成 ----
 
-let planSeq = 0
 function genId(prefix: string): string {
-  planSeq += 1
-  return `${prefix}_${Date.now().toString(36)}_${planSeq.toString(36)}`
+  const bytes = crypto.getRandomValues(new Uint8Array(16))
+  return `${prefix}_${Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('')}`
 }
 
 /** 从默认方案名（「方案 {n}」）或自动恢复方案名（「[本地自动恢复]方案 {n}」）提取序号；
@@ -183,52 +182,6 @@ function planNameIndex(name: string): number {
     indexFrom(i18n.global.t('schedule.planDefaultName', { n: '{n}' })),
     indexFrom(i18n.global.t('schedule.planAutoRestoreName', { n: '{n}' })),
   )
-}
-
-/**
- * 云端分歧自动恢复（#573）：把本地方案克隆为「[本地自动恢复]方案 {n}」追加保留，
- * 避免网络恢复补传时本地数据被云端整包覆盖丢失。克隆生成新 id；序号接续现存方案。
- * 内容指纹已在云端（existing）的方案跳过克隆：合并 PUT 在途期间用户又编辑、下轮
- * 重对账重合并时，不再把已上传的方案克隆一遍导致恢复方案翻倍（#571 review 竞态）。
- */
-export function clonePlansAsAutoRestore(source: PkPlan[], existing: PkPlan[]): PkPlan[] {
-  const existingContent = new Set(existing.map(planContentKey))
-  const pending = source.filter((plan) => !existingContent.has(planContentKey(plan)))
-  let max = 0
-  for (const plan of existing) {
-    const index = planNameIndex(plan.name)
-    if (index > max) max = index
-  }
-  return pending.map((plan, index) => {
-    const clone = JSON.parse(JSON.stringify(plan)) as PkPlan
-    clone.id = genId('plan')
-    clone.name = i18n.global.t('schedule.planAutoRestoreName', { n: max + index + 1 })
-    return clone
-  })
-}
-
-/** 方案内容指纹（staged/selected/customEvents 三字段；不含 id/name/createdAt 等标识
- *  字段——恢复克隆与源方案指纹一致，重合并且内容已在云端时据此跳过克隆）。
- *  比较前双侧过 sanitize 管道归一化：云端快照经 Go 结构体往返后，指针字段
- *  （teachingClassId/isExclusive/status）序列化为 null 值键恒存在，移动端上传则
- *  省略 null 键，与本地 sanitize 形状（可选键缺省）字节不同但语义一致；字节级
- *  比较会让去重失效，每次分歧合并把已在云端的方案再克隆一遍，恢复方案翻倍
- *  撞 10 套上限（用户反馈）。归一化同时统一键序，并保证 null/缺省键、非法
- *  字段丢弃口径与本地加载路径一致。 */
-function planContentKey(plan: PkPlan): string {
-  const normalized = sanitizePlan({
-    stagedCourses: plan.stagedCourses,
-    selectedCourses: plan.selectedCourses,
-    customEvents: plan.customEvents,
-  })
-  return JSON.stringify([normalized.stagedCourses, normalized.selectedCourses, normalized.customEvents])
-}
-
-/** 方案数组内容签名（逐方案 planContentKey 顺序拼接）。云同步分歧判定用：比较时忽略
- *  id/name/createdAt 等身份字段，只看课程内容，内容一致即不视为分歧（#571：内容一致的
- *  从未云同步本地直接采用云端建立时钟，零 PUT，与恢复克隆的内容指纹去重口径一致）。 */
-export function planListContentKey(plans: PkPlan[]): string {
-  return JSON.stringify(plans.map(planContentKey))
 }
 
 /**
@@ -824,7 +777,7 @@ export function useScheduleStore() {
 
   /**
    * 复制方案：达到 MAX_PLANS 上限或方案不存在返回 null（UI 禁用入口兜底）。
-   * JSON 深拷贝（同 clonePlansAsAutoRestore 模式）避免副本与原方案共享数组引用；
+   * JSON 深拷贝避免副本与原方案共享数组引用；
    * 换新 id、续号命名（nextPlanName 取现存最大序号 +1，避免与现有方案重名），追加到列表。
    * 激活副本由调用方（UI）走 switchPlan，与 createPlan 保持一致。
    */
@@ -980,6 +933,11 @@ export function useScheduleStore() {
     }
   }
 
+  /** Replace only plan content; week, active selection and major stay device-local. */
+  function applyPlanItems(plans: PkPlan[]): void {
+    applyRemoteSnapshot({ ...snapshotForSync(), plans })
+  }
+
   /** 记录服务端权威同步时钟（PUT 成功 / 整包采用云端后调用）。 */
   function markSynced(updatedAt: string): boolean {
     const snapshot = snapshotForSync()
@@ -1007,7 +965,7 @@ export function useScheduleStore() {
     writeStorage(STORAGE_KEYS.activePlanId, state.activePlanId)
     writeStorage(STORAGE_KEYS.weekView, state.weekView)
     // 云同步钩子：本地真实变更才标脏/上传；整包采用云端（applyingRemote）不回灌。
-    const payload = JSON.stringify(snapshotForSync())
+    const payload = JSON.stringify(state.plans)
     const changed = lastSyncPayload !== payload
     lastSyncPayload = payload
     if (!applyingRemote && changed) solidifyHook?.()
@@ -1053,7 +1011,7 @@ export function useScheduleStore() {
     }
 
     syncActiveView()
-    lastSyncPayload = JSON.stringify(snapshotForSync())
+    lastSyncPayload = JSON.stringify(state.plans)
   }
 
   function setConfigCollapsed(collapsed: boolean): void {
@@ -1172,6 +1130,7 @@ export function useScheduleStore() {
     applySyncToAllPlans,
     snapshotForSync,
     applyRemoteSnapshot,
+    applyPlanItems,
     markSynced,
     getSyncedAt,
     markSyncDirty,

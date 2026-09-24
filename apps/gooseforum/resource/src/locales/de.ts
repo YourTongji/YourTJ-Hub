@@ -1,6 +1,31 @@
 import adminRaw from './admin-raw.de.generated'
 
 export default {
+  planSync: {
+    title: "Plankonflikte lösen",
+    body: "Ein anderes Gerät hat diese Einträge ebenfalls geändert. Wähle die Werte, die bleiben sollen. Andere Änderungen werden automatisch zusammengeführt.",
+    local: "Lokal behalten",
+    remote: "Cloud verwenden",
+    deleted: "Gelöscht",
+    plan: "Plan",
+    name: "Name",
+    createdAt: "Erstellt",
+    course: "Kurs",
+    event: "Eigener Termin",
+    label: "Terminname",
+    day: "Tag",
+    sections: "Stunden",
+    weeks: "Wochen",
+    apply: "Zusammenführen und speichern",
+    drafts: "Wiederherstellungsentwürfe",
+    draftHint: "Diese Entwürfe bleiben auf diesem Gerät und belegen keinen Cloud-Platz. Beim Wiederherstellen entsteht ein neuer Plan.",
+    restore: "Als neuen Plan wiederherstellen",
+    adopt: "Lokale Pläne dieses Geräts mit diesem Konto synchronisieren",
+    adoptHint: "Diese lokalen Pläne gehören noch nicht zu diesem Konto. Bitte vor dem Hochladen bestätigen.",
+    capacity: "Die Cloud speichert höchstens zehn Pläne. Schaffe Platz und versuche es erneut.",
+    rejected: "Speichern wurde abgelehnt. Das Konto kann nicht schreiben oder die Plandaten waren ungültig.",
+    archived: "Lokale Änderungen wurden als Entwurf gesichert.",
+  },
   privateNote: {
     edit: "Notiz bearbeiten",
     label: "Private Notiz",

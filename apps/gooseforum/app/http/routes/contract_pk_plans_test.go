@@ -89,7 +89,7 @@ func assertPkPlansFixture(t *testing.T, actual pkPlansEnvelope, fixture pkPlansF
 func setupPkPlansContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 	t.Helper()
 	conn, router := setupHTTPContractTest(t)
-	if err := conn.AutoMigrate(&pk.ScheduleSnapshotEntity{}); err != nil {
+	if err := conn.AutoMigrate(&pk.ScheduleSnapshotEntity{}, &pk.PlanSyncOwner{}, &pk.PlanItem{}); err != nil {
 		t.Fatalf("migrate pk schedule snapshot: %v", err)
 	}
 	cleanup := func() {
