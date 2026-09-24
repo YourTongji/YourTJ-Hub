@@ -713,6 +713,21 @@ class AppLocalizationsJa extends AppLocalizations {
   }
 
   @override
+  String get settingsDevice => 'この端末';
+
+  @override
+  String get settingsYourAccount => 'アカウント';
+
+  @override
+  String get settingsThemeLight => 'ライト';
+
+  @override
+  String get settingsThemeDark => 'ダーク';
+
+  @override
+  String get settingsRevokeSession => 'このセッションを無効化';
+
+  @override
   String get settingsAppearance => '外観';
 
   @override

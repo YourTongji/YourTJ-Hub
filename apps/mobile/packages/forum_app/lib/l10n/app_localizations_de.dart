@@ -728,6 +728,21 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
+  String get settingsDevice => 'Dieses Gerät';
+
+  @override
+  String get settingsYourAccount => 'Dein Konto';
+
+  @override
+  String get settingsThemeLight => 'Hell';
+
+  @override
+  String get settingsThemeDark => 'Dunkel';
+
+  @override
+  String get settingsRevokeSession => 'Diese Sitzung widerrufen';
+
+  @override
   String get settingsAppearance => 'Darstellung';
 
   @override

@@ -3971,7 +3971,9 @@ void main() {
         pageRepo: pages,
         userRepo: UserRepository(client),
       );
-      await tester.pumpWidget(app(container, const SettingsPage()));
+      await tester.pumpWidget(
+        app(container, const SettingsPage(initialSection: 'profile')),
+      );
       pages.complete(settingsPayloadJson());
       await tester.pumpAndSettle();
       await tester.tap(find.text('头像'));
@@ -4025,7 +4027,9 @@ void main() {
         pageRepo: pages,
         userRepo: UserRepository(client),
       );
-      await tester.pumpWidget(app(container, const SettingsPage()));
+      await tester.pumpWidget(
+        app(container, const SettingsPage(initialSection: 'profile')),
+      );
       final payload = settingsPayloadJson();
       final user = (payload['props'] as Map)['user'] as Map;
       user['websiteName'] = 'Alice’s notebook';
@@ -4061,7 +4065,9 @@ void main() {
         userRepo: EmptySessionsUserRepository(client),
       );
 
-      await tester.pumpWidget(app(container, const SettingsPage()));
+      await tester.pumpWidget(
+        app(container, const SettingsPage(initialSection: 'profile')),
+      );
       await tester.pump();
       expect(find.byType(GfSettingsSkeleton), findsOneWidget);
 
@@ -4082,7 +4088,9 @@ void main() {
       final ProviderContainer container = await makeContainer(
         pageRepo: pageRepo,
       );
-      await tester.pumpWidget(app(container, const SettingsPage()));
+      await tester.pumpWidget(
+        app(container, const SettingsPage(initialSection: 'profile')),
+      );
       await tester.pumpAndSettle();
       final int callsBefore = pageRepo.fetchCalls;
 
@@ -4168,7 +4176,7 @@ void main() {
       await tester.pumpWidget(app(container, const SettingsPage()));
       await tester.pumpAndSettle();
 
-      // 切到 Security tab 查看会话列表。
+      // 打开 Security 分类 查看会话列表。
       await tester.tap(find.text('安全'));
       await tester.pumpAndSettle();
 
@@ -4255,7 +4263,7 @@ void main() {
         ],
       );
 
-      // 设置更大视口,保证安全 tab 内"退出登录"按钮无需滚动即可见。
+      // 设置更大视口,保证安全分类内"退出登录"按钮无需滚动即可见。
       tester.view.physicalSize = const Size(1080, 2400);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.reset);
@@ -4273,7 +4281,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // 切到 Security tab 找登出按钮。
+      // 打开 Security 分类 找登出按钮。
       await tester.tap(find.text('安全'));
       await tester.pumpAndSettle();
       expect(find.text('退出登录'), findsOneWidget);
@@ -4346,7 +4354,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // 切到 Security tab 找"吊销全部会话"按钮。
+      // 打开 Security 分类 找"吊销全部会话"按钮。
       await tester.tap(find.text('安全'));
       await tester.pumpAndSettle();
       expect(find.text('吊销全部会话'), findsOneWidget);

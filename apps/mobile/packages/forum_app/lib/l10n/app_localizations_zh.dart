@@ -711,6 +711,21 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String get settingsDevice => '此设备';
+
+  @override
+  String get settingsYourAccount => '你的账户';
+
+  @override
+  String get settingsThemeLight => '浅色';
+
+  @override
+  String get settingsThemeDark => '深色';
+
+  @override
+  String get settingsRevokeSession => '吊销此会话';
+
+  @override
   String get settingsAppearance => '外观';
 
   @override
