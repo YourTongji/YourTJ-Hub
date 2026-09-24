@@ -2530,4 +2530,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get badgeDisplayDown => 'Nach unten';
+
+  @override
+  String get notificationsMarkRead => 'Als gelesen markieren';
 }

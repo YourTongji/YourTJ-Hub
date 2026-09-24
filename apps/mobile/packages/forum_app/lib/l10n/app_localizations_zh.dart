@@ -2408,4 +2408,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get badgeDisplayDown => '下移';
+
+  @override
+  String get notificationsMarkRead => '标为已读';
 }

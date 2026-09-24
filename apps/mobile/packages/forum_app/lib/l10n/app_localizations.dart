@@ -4637,6 +4637,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Move down'**
   String get badgeDisplayDown;
+
+  /// No description provided for @notificationsMarkRead.
+  ///
+  /// In en, this message translates to:
+  /// **'Mark as read'**
+  String get notificationsMarkRead;
 }
 
 class _AppLocalizationsDelegate

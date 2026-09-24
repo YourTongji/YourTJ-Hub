@@ -862,5 +862,6 @@
   "badgeDisplayTitle": "Profilabzeichen",
   "badgeDisplayHint": "Bis zu 5 Abzeichen auswählen und sortieren oder alle abwählen. Unabhängig vom Avatar-Abzeichen.",
   "badgeDisplayUp": "Nach oben",
-  "badgeDisplayDown": "Nach unten"
+  "badgeDisplayDown": "Nach unten",
+  "notificationsMarkRead": "Als gelesen markieren"
 }

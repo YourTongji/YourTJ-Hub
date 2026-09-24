@@ -2430,4 +2430,7 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get badgeDisplayDown => '下へ';
+
+  @override
+  String get notificationsMarkRead => '既読にする';
 }
