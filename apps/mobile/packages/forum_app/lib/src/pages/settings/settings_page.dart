@@ -21,10 +21,12 @@ import '../../theme_mode.dart';
 import '../../app_locale.dart';
 import '../../widgets/language_picker.dart';
 import '../../site_theme.dart';
+import '../../campus_widget/schedule_widget_bridge.dart';
 import '../../push/push_service.dart';
 import '../../widgets/status_views.dart';
 import '../../current_user.dart';
 import 'account_closure_dialog.dart';
+import 'campus_cache_clear_tile.dart';
 import 'profile_edit_dialog.dart';
 import 'username_edit_dialog.dart';
 import 'badge_display_dialog.dart';
@@ -67,6 +69,10 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   bool _uploadingAvatar = false;
   bool _accountClosing = false;
   bool _googleOAuthReady = false;
+  int _widgetTransparency = ScheduleWidgetBridge.defaultTransparencyPercent;
+  int _savedWidgetTransparency =
+      ScheduleWidgetBridge.defaultTransparencyPercent;
+  bool _widgetTransparencyLoaded = false;
   final ImagePicker _imagePicker = ImagePicker();
 
   @override
@@ -78,6 +84,39 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     );
     _loadSessions();
     _loadUser();
+    _loadWidgetTransparency();
+  }
+
+  Future<void> _loadWidgetTransparency() async {
+    try {
+      final value = await ref
+          .read(scheduleWidgetBridgeProvider)
+          .readTransparency();
+      if (!mounted) return;
+      setState(() {
+        _widgetTransparency = value;
+        _savedWidgetTransparency = value;
+        _widgetTransparencyLoaded = true;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _widgetTransparencyLoaded = true);
+    }
+  }
+
+  Future<void> _saveWidgetTransparency(int value) async {
+    try {
+      await ref.read(scheduleWidgetBridgeProvider).setTransparency(value);
+      if (mounted) setState(() => _savedWidgetTransparency = value);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _widgetTransparency = _savedWidgetTransparency);
+      final l10n = AppLocalizations.of(context);
+      showGfToast(
+        context,
+        l10n.settingsOpFailed(resolveErrorMessage(l10n, error)),
+        error: true,
+      );
+    }
   }
 
   /// 加载设置页账户数据(settings.index 数据通道 → 徽章等)。
@@ -1162,6 +1201,15 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           title: l10n.profileTrash,
           onTap: () => context.push('/recycle-bin'),
         ),
+        const CampusCacheClearTile(),
+        const GfDivider(),
+        GfSettingRow(
+          symbol: 'calendar-days',
+          title: l10n.scheduleWidgetSettingsTitle,
+          description: l10n.scheduleWidgetPrivacyDescription,
+          trailing: const Icon(Icons.chevron_right, size: 18),
+          onTap: () => context.push('/settings/widgets'),
+        ),
         const SizedBox(height: 24),
         Text(l10n.settingsCloseAccountWarning),
         const SizedBox(height: 12),
@@ -1226,6 +1274,59 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     : l10n.settingsLightCurrent,
                 value: isDark,
                 onChanged: _toggleDarkMode,
+              ),
+              const GfDivider(),
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            l10n.scheduleWidgetTransparencyTitle,
+                            style: Theme.of(context).textTheme.titleSmall,
+                          ),
+                        ),
+                        Text(
+                          '$_widgetTransparency%',
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                      ],
+                    ),
+                    Slider(
+                      value: _widgetTransparency.toDouble(),
+                      min: ScheduleWidgetBridge.minTransparencyPercent
+                          .toDouble(),
+                      max: ScheduleWidgetBridge.maxTransparencyPercent
+                          .toDouble(),
+                      divisions:
+                          ScheduleWidgetBridge.maxTransparencyPercent -
+                          ScheduleWidgetBridge.minTransparencyPercent,
+                      label: '$_widgetTransparency%',
+                      semanticFormatterCallback: (value) =>
+                          '${l10n.scheduleWidgetTransparencyTitle}, ${value.round()}%',
+                      onChanged: !_widgetTransparencyLoaded
+                          ? null
+                          : (value) => setState(
+                              () => _widgetTransparency = value.round(),
+                            ),
+                      onChangeEnd: !_widgetTransparencyLoaded
+                          ? null
+                          : (value) => _saveWidgetTransparency(value.round()),
+                    ),
+                    Text(
+                      l10n.scheduleWidgetTransparencyDescription,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: GfTheme.colorsOf(context).iconMuted,
+                      ),
+                    ),
+                  ],
+                ),
               ),
               // 站点主题同步（Route A）：仅服务端启用站点主题时展示。
               Consumer(
@@ -1507,6 +1608,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     await clearOfflineCacheQuietly(
       ref.read(offlineTopicCacheProvider),
       ref.read(offlineChatCacheProvider),
+      ref.read(scheduleWidgetBridgeProvider),
     );
     if (successMessage != null && mounted) {
       showGfToast(context, successMessage);

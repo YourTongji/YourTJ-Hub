@@ -192,6 +192,7 @@ class _LoginPageState extends ConsumerState<LoginPage>
       await clearOfflineCache(
         ref.read(offlineTopicCacheProvider),
         ref.read(offlineChatCacheProvider),
+        ref.read(scheduleWidgetBridgeProvider),
       );
       return true;
     } catch (_) {

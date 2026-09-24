@@ -14,7 +14,7 @@ YourTJ 移动端论坛客户端(Flutter)。`apps/mobile` melos 工作区的入�
 - **账号与管理**:资料编辑保留网站、语言和社交链接;账号、安全与隐私控制位于独立设置页。完整 Web 管理与审核工作台通过受限的原生 WebView 访问,会话仅通过请求头交接。公共站点信息从校园或设置页的“关于社区”进入。
 - **交互规格**:具体行为、权限和验证边界见[移动端体验](../../../../docs/product/mobile-experience.md);路由以 `lib/src/router.dart` 为准。
 - **本机写作**:`lib/src/local/writing_store.dart` 按 API origin 与数字账号 ID 隔离未完成草稿和最近搜索，串行保存/删除；草稿的云端写入仍走现有发布接口。私信发送状态由 `lib/src/messages/chat_outbox.dart` 在当前会话中保留。
-- **离线**:`lib/src/offline/drift_cache.dart` 基于 drift 缓存已浏览话题与 IM 会话。
+- **离线**:`lib/src/offline/drift_cache.dart` 基于 drift 缓存已浏览话题与 IM 会话；校园页另以单行原子快照保存 profile/calendar/timetable/today，并从该快照生成不含姓名、学号、邮箱、成绩、消息或凭据的桌面课表 Projection。Projection schema 2 保留服务端当日权威结果，并在规则可靠时写入八天滚动窗口；Android Glance 与 iOS WidgetKit 只读此投影，不联网，也不读取排课器 store。
 - **运行配置**(`lib/src/app_config.dart`):经 `--dart-define` 注入 `YOURTJ_OIDC_ISSUER` / `YOURTJ_OIDC_CLIENT_ID` / `YOURTJ_API_BASE_URL`;默认内建 OIDC issuer 为 `http://localhost:5234/api/oauth`,API baseUrl 为空时 Android 模拟器走 `10.0.2.2`。
 
 ## 运行与验证
