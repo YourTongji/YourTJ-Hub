@@ -33,6 +33,7 @@ class GfNotificationRow extends StatelessWidget {
     required this.unread,
     this.onTap,
     this.onMarkRead,
+    this.markReadLabel = 'Mark as read',
   });
 
   final IconData icon;
@@ -50,6 +51,7 @@ class GfNotificationRow extends StatelessWidget {
   final bool unread;
   final VoidCallback? onTap;
   final VoidCallback? onMarkRead;
+  final String markReadLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -124,16 +126,17 @@ class GfNotificationRow extends StatelessWidget {
                         ),
                       if (unread && onMarkRead != null) ...<Widget>[
                         const SizedBox(width: 6),
-                        InkWell(
-                          onTap: onMarkRead,
-                          child: SizedBox(
-                            width: 44,
-                            height: 44,
-                            child: Icon(
-                              Icons.check_circle_outline,
-                              size: 20,
-                              color: colors.iconMuted,
-                            ),
+                        IconButton(
+                          onPressed: onMarkRead,
+                          tooltip: markReadLabel,
+                          constraints: const BoxConstraints(
+                            minWidth: 44,
+                            minHeight: 44,
+                          ),
+                          icon: Icon(
+                            Icons.check_circle_outline,
+                            size: 20,
+                            color: colors.iconMuted,
                           ),
                         ),
                       ],
