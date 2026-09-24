@@ -1,7 +1,10 @@
 import '../../private_notes.dart';
 import '../../widgets/root_surface.dart';
 import '../../messages/chat_outbox.dart';
+import '../../messages/visible_chat_reads.dart';
 import '../../messages/message_content.dart';
+import '../../navigation/route_visibility.dart';
+import '../../realtime/realtime_updates.dart';
 import '../../link_navigation.dart';
 import 'dart:async';
 import 'dart:math' as math;
@@ -23,7 +26,7 @@ import '../../server_messages.dart';
 import '../../widgets/status_views.dart';
 
 /// 私信(IM)页(web messages.index 的移动端形态):
-/// 会话列表 + 消息游标分页 + 15s 轮询 + 已读回执 + 离线缓存 + 发起新会话。
+/// 会话列表 + 消息游标分页 + 前台事件对账（失联时轮询）+ 可见已读 + 离线缓存。
 class MessagesPage extends ConsumerStatefulWidget {
   const MessagesPage({
     super.key,
@@ -51,8 +54,11 @@ class _MessagesPageState extends ConsumerState<MessagesPage>
       GfScrollToTopController();
   late final GfTabScrollRegistry _tabScrollRegistry;
   bool _pollingConfigured = false;
+  int _seenRealtimeRevision = 0;
+  bool _foreground = true;
+  int _loadGeneration = 0;
   bool _loadingRequest = false;
-  bool _appActive = true;
+  bool _loadDirty = false;
   CancelToken? _loadCancel;
   ChatItemPayload? _targetConversation;
 
@@ -61,6 +67,12 @@ class _MessagesPageState extends ConsumerState<MessagesPage>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _tabScrollRegistry = ref.read(tabScrollRegistryProvider);
+    _foreground =
+        WidgetsBinding.instance.lifecycleState == null ||
+        WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
+    _seenRealtimeRevision = ref
+        .read(realtimeInvalidationsProvider)
+        .chatRevision;
     if (widget.targetUserId == null) {
       _tabScrollRegistry.register(
         GfShellDestination.messages,
@@ -73,13 +85,13 @@ class _MessagesPageState extends ConsumerState<MessagesPage>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _syncPolling(_appActive && TickerMode.valuesOf(context).enabled);
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    _appActive = state == AppLifecycleState.resumed;
-    _syncPolling(_appActive && TickerMode.valuesOf(context).enabled);
+    final active = TickerMode.valuesOf(context).enabled;
+    _syncPolling(active && _foreground && !ref.read(realtimeHealthyProvider));
+    final revision = ref.read(realtimeInvalidationsProvider).chatRevision;
+    if (active && revision != _seenRealtimeRevision) {
+      _seenRealtimeRevision = revision;
+      unawaited(_load(silent: true));
+    }
   }
 
   void _syncPolling(bool shouldPoll) {
@@ -89,11 +101,24 @@ class _MessagesPageState extends ConsumerState<MessagesPage>
 
     _pollTimer?.cancel();
     _pollTimer = null;
-    if (!shouldPoll) return;
+    if (!shouldPoll) {
+      _loadCancel?.cancel('messages page hidden');
+      return;
+    }
     if (wasConfigured) _load(silent: true);
     _pollTimer = Timer.periodic(
       const Duration(seconds: 15),
       (_) => _load(silent: true),
+    );
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _foreground = state == AppLifecycleState.resumed;
+    _syncPolling(
+      _foreground &&
+          TickerMode.valuesOf(context).enabled &&
+          !ref.read(realtimeHealthyProvider),
     );
   }
 
@@ -138,20 +163,29 @@ class _MessagesPageState extends ConsumerState<MessagesPage>
   }
 
   Future<void> _load({bool silent = false}) async {
-    if (_loadingRequest) return;
+    if (_loadingRequest) {
+      _loadDirty = true;
+      return;
+    }
     _loadingRequest = true;
     // 记录发起时的缓存世代;401/登出/换账号后世代自增,返回时丢弃旧会话数据。
     final int epoch = ref.read(offlineCacheEpochProvider);
+    final int generation = ++_loadGeneration;
     final cancel = _loadCancel = CancelToken();
     try {
       final props = await ref
           .read(pageRepositoryProvider)
           .fetch('/messages', cancelToken: cancel);
+      // A newer foreground hint arrived while this snapshot was in flight.
+      // Let the queued request own both the screen and the offline cache.
+      if (cancel.isCancelled || _loadDirty) return;
       final MessagesPageProps? parsed = parsePageProps<MessagesPageProps>(
         props,
       );
       final List<ChatItemPayload> items = parsed?.conversations ?? [];
-      if (mounted && epoch == ref.read(offlineCacheEpochProvider)) {
+      if (mounted &&
+          epoch == ref.read(offlineCacheEpochProvider) &&
+          generation == _loadGeneration) {
         setState(() {
           _conversations = AsyncValue.data(items);
           _suggestedUsers = parsed?.suggestedUsers ?? const [];
@@ -161,16 +195,21 @@ class _MessagesPageState extends ConsumerState<MessagesPage>
       }
       // 会话列表在单事务中批量写入离线缓存(断网可读);仅当前世代允许写入,
       // 避免 401/登出后旧会话在途响应把上一账号数据写回刚清空的缓存。
-      if (epoch == ref.read(offlineCacheEpochProvider)) {
+      if (epoch == ref.read(offlineCacheEpochProvider) &&
+          generation == _loadGeneration) {
         await ref.read(offlineChatCacheProvider).putConversations(items);
       }
     } catch (e, st) {
       // 网络失败:回退离线缓存的会话列表。
-      if (cancel.isCancelled) return;
-      if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) return;
+      if (cancel.isCancelled || _loadDirty) return;
+      if (!mounted ||
+          epoch != ref.read(offlineCacheEpochProvider) ||
+          generation != _loadGeneration) {
+        return;
+      }
       // 无会话令牌(如 401 后进程被杀重启)时不得回退上一账号残留缓存。
       if (!await hasSessionToken(ref.read(tokenStorageProvider))) {
-        if (!silent && mounted) {
+        if (!silent && mounted && generation == _loadGeneration) {
           setState(() => _conversations = AsyncValue.error(e, st));
         }
         return;
@@ -180,7 +219,11 @@ class _MessagesPageState extends ConsumerState<MessagesPage>
             .read(offlineChatCacheProvider)
             .getConversations();
         // 读缓存期间会话可能已切换,再次校验世代再更新 UI。
-        if (epoch != ref.read(offlineCacheEpochProvider)) return;
+        if (!mounted ||
+            epoch != ref.read(offlineCacheEpochProvider) ||
+            generation != _loadGeneration) {
+          return;
+        }
         if (cached.isNotEmpty) {
           setState(() {
             _conversations = AsyncValue.data(cached);
@@ -191,12 +234,18 @@ class _MessagesPageState extends ConsumerState<MessagesPage>
       } catch (_) {
         // 缓存不可用时继续走错误态。
       }
-      if (!silent && mounted) {
+      if (!silent && mounted && generation == _loadGeneration) {
         setState(() => _conversations = AsyncValue.error(e, st));
       }
     } finally {
       _loadingRequest = false;
       if (identical(_loadCancel, cancel)) _loadCancel = null;
+      if (_loadDirty &&
+          mounted &&
+          epoch == ref.read(offlineCacheEpochProvider)) {
+        _loadDirty = false;
+        unawaited(_load(silent: true));
+      }
     }
   }
 
@@ -288,6 +337,20 @@ class _MessagesPageState extends ConsumerState<MessagesPage>
 
   @override
   Widget build(BuildContext context) {
+    ref.listen(realtimeHealthyProvider, (_, healthy) {
+      _syncPolling(
+        _foreground && TickerMode.valuesOf(context).enabled && !healthy,
+      );
+    });
+    ref.listen(realtimeInvalidationsProvider, (previous, next) {
+      if (previous?.chatRevision == next.chatRevision ||
+          !_foreground ||
+          !TickerMode.valuesOf(context).enabled) {
+        return;
+      }
+      _seenRealtimeRevision = next.chatRevision;
+      unawaited(_load(silent: true));
+    });
     final AppLocalizations l10n = AppLocalizations.of(context);
     final ChatItemPayload? targetConversation = _targetConversation;
     if (targetConversation != null) {
@@ -366,24 +429,147 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
   int _latestId = 0;
   int _nextBeforeId = 0;
   bool _pollingConfigured = false;
+  int _seenRealtimeRevision = 0;
   bool _loadingRequest = false;
-  bool _appActive = true;
+  bool _loadDirty = false;
   CancelToken? _loadCancel;
+  final _viewportKey = GlobalKey();
+  final Map<int, GlobalKey> _bubbleKeys = {};
+  late final VisibleChatReads _visibleReads;
+  late final int _sessionEpoch;
+  bool _foreground = true;
+  bool _unseenNewMessages = false;
+  bool _readSyncFailed = false;
+  bool _readSyncUnsupported = false;
+  int _scrollAdjustmentGeneration = 0;
+  bool _adjustingScroll = false;
+
+  bool get _sessionCurrent =>
+      mounted && _sessionEpoch == ref.read(offlineCacheEpochProvider);
+  bool get _canObserve =>
+      _sessionCurrent &&
+      _foreground &&
+      !shellDrawerOpen.value &&
+      !_adjustingScroll &&
+      TickerMode.valuesOf(context).enabled &&
+      routeIsUncovered(context);
+
+  Set<int> _visibleMessageIds() {
+    final viewport = _viewportKey.currentContext?.findRenderObject();
+    if (viewport is! RenderBox || !viewport.hasSize) return {};
+    final bounds = (viewport.localToGlobal(Offset.zero) & viewport.size)
+        .intersect(Offset.zero & MediaQuery.sizeOf(context));
+    return {
+      for (final message in _messages)
+        if (!message.isSelf &&
+            message.id > 0 &&
+            message.isRead == 0 &&
+            _bubbleVisible(message.id, bounds))
+          message.id,
+    };
+  }
+
+  bool _bubbleVisible(int id, Rect viewport) {
+    final bubble = _bubbleKeys[id]?.currentContext?.findRenderObject();
+    return bubble is RenderBox &&
+        bubble.attached &&
+        bubble.hasSize &&
+        bubbleIsVisible(
+          bubble.localToGlobal(Offset.zero) & bubble.size,
+          viewport,
+        );
+  }
+
+  void _visibilityChanged() {
+    if (!_sessionCurrent) return;
+    _visibleReads.suspend();
+    _visibleReads.changed(restartDwell: true);
+    if (!_foreground ||
+        shellDrawerOpen.value ||
+        !TickerMode.valuesOf(context).enabled ||
+        !routeIsUncovered(context)) {
+      return;
+    }
+    final revision = ref.read(realtimeInvalidationsProvider).chatRevision;
+    if (revision != _seenRealtimeRevision) {
+      _seenRealtimeRevision = revision;
+      unawaited(_load(silent: true));
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _foreground = state == AppLifecycleState.resumed;
+    _visibleReads.suspend();
+    _syncPolling(
+      _foreground &&
+          TickerMode.valuesOf(context).enabled &&
+          !ref.read(realtimeHealthyProvider),
+    );
+    if (_foreground) _visibleReads.changed(restartDwell: true);
+  }
+
+  @override
+  void didChangeMetrics() => _visibleReads.changed(restartDwell: true);
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addObserver(this);
     _convId = widget.conv.convId > 0
         ? widget.conv.convId
         : ref.read(chatOutboxProvider(widget.conv.peerId)).conversationId;
+    _sessionEpoch = ref.read(offlineCacheEpochProvider);
+    _seenRealtimeRevision = ref
+        .read(realtimeInvalidationsProvider)
+        .chatRevision;
+    _foreground =
+        WidgetsBinding.instance.lifecycleState == null ||
+        WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
+    _visibleReads = VisibleChatReads(
+      isEnabled: () => _canObserve,
+      visibleIds: _visibleMessageIds,
+      acknowledge: (ids) async {
+        final result = await ref
+            .read(chatRepositoryProvider)
+            .markVisible(convId: _convId, messageIds: ids);
+        if (result.convId != _convId) {
+          throw StateError('Read receipt conversation mismatch');
+        }
+        return result.acknowledgedMessageIds.toSet();
+      },
+      onAcknowledged: (ids) {
+        if (!_sessionCurrent) return;
+        setState(() {
+          _readSyncFailed = false;
+          for (var i = 0; i < _messages.length; i++) {
+            if (ids.contains(_messages[i].id)) {
+              _messages[i] = _messages[i].copyWith(isRead: 1);
+            }
+          }
+        });
+      },
+      canRetry: (error) => !_unsupportedReadApi(error),
+      onFailure: (error) {
+        if (_sessionCurrent) {
+          setState(() {
+            _readSyncFailed = true;
+            _readSyncUnsupported = _unsupportedReadApi(error);
+          });
+        }
+      },
+    );
+    WidgetsBinding.instance.addObserver(this);
+    routeVisibilityChanges.addListener(_visibilityChanged);
+    shellDrawerOpen.addListener(_visibilityChanged);
     _load();
     _scrollController.addListener(_onScroll);
-    // 打开会话即上报已读回执(清服务端未读数)。
-    _markRead();
     // 表情包库未就绪时拉一次(会话级缓存),完成后刷新气泡分段渲染。
     _ensureStickers();
   }
+
+  bool _unsupportedReadApi(Object error) =>
+      error is ApiException &&
+      (error.statusCode == 404 || error.statusCode == 405);
 
   void _ensureStickers() {
     ref
@@ -400,13 +586,15 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _syncPolling(_appActive && TickerMode.valuesOf(context).enabled);
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    _appActive = state == AppLifecycleState.resumed;
-    _syncPolling(_appActive && TickerMode.valuesOf(context).enabled);
+    final active =
+        _foreground && _sessionCurrent && TickerMode.valuesOf(context).enabled;
+    _syncPolling(active && !ref.read(realtimeHealthyProvider));
+    final revision = ref.read(realtimeInvalidationsProvider).chatRevision;
+    if (active && revision != _seenRealtimeRevision) {
+      _seenRealtimeRevision = revision;
+      unawaited(_load(silent: true));
+    }
+    _visibleReads.changed(restartDwell: true);
   }
 
   void _syncPolling(bool shouldPoll) {
@@ -437,7 +625,6 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
     _loading = true;
     _historyReady = false;
     unawaited(_load(silent: true));
-    unawaited(_markRead());
   }
 
   @override
@@ -445,30 +632,42 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
     _pollTimer?.cancel();
     _loadCancel?.cancel('conversation disposed');
     WidgetsBinding.instance.removeObserver(this);
+    routeVisibilityChanges.removeListener(_visibilityChanged);
+    shellDrawerOpen.removeListener(_visibilityChanged);
+    _visibleReads.dispose();
     _input.dispose();
     _scrollController.dispose();
     super.dispose();
   }
 
   void _onScroll() {
+    _visibleReads.changed(restartDwell: true);
+    if (_unseenNewMessages &&
+        _scrollController.hasClients &&
+        _scrollController.position.extentAfter < 24) {
+      setState(() => _unseenNewMessages = false);
+    }
     if (_scrollController.hasClients &&
         _scrollController.position.pixels < 80) {
       _loadOlder();
     }
   }
 
-  /// 已读回执:markRead + 缓存置空未读(服务端清除,列表轮询会反映)。
-  Future<void> _markRead() async {
-    if (_convId <= 0) return;
-    try {
-      await ref.read(chatRepositoryProvider).markRead(convId: _convId);
-    } catch (_) {
-      // 回执失败静默(下次轮询重试)。
+  bool _onUserScroll(ScrollStartNotification notification) {
+    if (notification.dragDetails != null) {
+      _scrollAdjustmentGeneration++;
+      _adjustingScroll = false;
+      _visibleReads.changed(restartDwell: true);
     }
+    return false;
   }
 
   Future<void> _load({bool silent = false}) async {
-    if (_loadingRequest) return;
+    if (!_sessionCurrent) return;
+    if (_loadingRequest) {
+      _loadDirty = true;
+      return;
+    }
     if (_convId <= 0) {
       _convId = ref.read(chatOutboxProvider(widget.conv.peerId)).conversationId;
     }
@@ -491,11 +690,6 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
     final cancel = _loadCancel = CancelToken();
     try {
       final bool initial = _latestId == 0;
-      final bool pinnedToBottom =
-          !_scrollController.hasClients ||
-          _scrollController.position.maxScrollExtent -
-                  _scrollController.position.pixels <
-              80;
       final ChatMessagesResponse resp = await ref
           .read(chatRepositoryProvider)
           .getMessages(
@@ -503,6 +697,10 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
             afterId: _latestId,
             cancelToken: cancel,
           );
+      if (cancel.isCancelled) return;
+      final bool pinnedToBottom =
+          !_scrollController.hasClients ||
+          _scrollController.position.extentAfter < 80;
       final Set<int> seenIds = _messages
           .map((ChatMessagePayload message) => message.id)
           .toSet();
@@ -514,13 +712,22 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
           if (newMessages.isNotEmpty) {
             _messages.addAll(newMessages);
             _messages.sort((a, b) => a.id.compareTo(b.id));
+            if (!initial &&
+                (!pinnedToBottom || !_canObserve) &&
+                newMessages.any((m) => !m.isSelf && m.isRead == 0)) {
+              _unseenNewMessages = true;
+            }
           }
           if (resp.latestId > _latestId) _latestId = resp.latestId;
           // Only server history establishes a safe lower bound for new sends.
           // Cached history may omit a newer, identical self-authored message.
           _historyReady = true;
-          _hasMoreBefore = resp.hasMoreBefore;
-          _nextBeforeId = resp.nextBeforeId;
+          // An afterId response describes its newer window, not the oldest
+          // loaded cursor. Preserve older history pagination across live pulls.
+          if (initial) {
+            _hasMoreBefore = resp.hasMoreBefore;
+            _nextBeforeId = resp.nextBeforeId;
+          }
           _loading = false;
         });
         ref.read(chatOutboxProvider(widget.conv.peerId)).reconcile(_messages);
@@ -532,7 +739,6 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
         await ref
             .read(offlineChatCacheProvider)
             .putMessages(_convId, newMessages);
-        await _markRead();
       }
     } catch (_) {
       // 网络失败:回退离线缓存消息。
@@ -569,21 +775,49 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
     } finally {
       _loadingRequest = false;
       if (identical(_loadCancel, cancel)) _loadCancel = null;
+      if (_loadDirty && _sessionCurrent) {
+        _loadDirty = false;
+        unawaited(_load(silent: true));
+      }
     }
   }
 
   Future<void> _loadOlder() async {
-    if (_loadingOlder || !_hasMoreBefore || _nextBeforeId <= 0) return;
+    if (!_sessionCurrent ||
+        _loadingOlder ||
+        !_hasMoreBefore ||
+        _nextBeforeId <= 0) {
+      return;
+    }
     final int epoch = ref.read(offlineCacheEpochProvider);
     setState(() => _loadingOlder = true);
-    final double previousExtent = _scrollController.hasClients
-        ? _scrollController.position.maxScrollExtent
-        : 0;
     try {
       final ChatMessagesResponse resp = await ref
           .read(chatRepositoryProvider)
           .getMessages(convId: _convId, beforeId: _nextBeforeId);
       if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) return;
+      final previousExtent = _scrollController.hasClients
+          ? _scrollController.position.maxScrollExtent
+          : 0.0;
+      final previousOffset = _scrollController.hasClients
+          ? _scrollController.offset
+          : 0.0;
+      final viewport = _viewportKey.currentContext?.findRenderObject();
+      (GlobalKey, double)? anchor;
+      if (viewport is RenderBox && viewport.hasSize) {
+        final bounds = viewport.localToGlobal(Offset.zero) & viewport.size;
+        for (final message in _messages) {
+          final key = _bubbleKeys[message.id];
+          final box = key?.currentContext?.findRenderObject();
+          if (box is RenderBox &&
+              box.attached &&
+              box.hasSize &&
+              (box.localToGlobal(Offset.zero) & box.size).overlaps(bounds)) {
+            anchor = (key!, box.localToGlobal(Offset.zero).dy);
+            break;
+          }
+        }
+      }
       setState(() {
         final Set<int> existing = _messages.map((m) => m.id).toSet();
         _messages.addAll(resp.list.where((m) => !existing.contains(m.id)));
@@ -591,14 +825,7 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
         _hasMoreBefore = resp.hasMoreBefore;
         _nextBeforeId = resp.nextBeforeId;
       });
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!_scrollController.hasClients) return;
-        final double addedExtent =
-            _scrollController.position.maxScrollExtent - previousExtent;
-        _scrollController.jumpTo(
-          addedExtent.clamp(0, _scrollController.position.maxScrollExtent),
-        );
-      });
+      _restoreHistoryPosition(previousExtent, previousOffset, anchor);
     } catch (_) {
       // 历史消息加载失败保持当前列表，允许下一次滚动重试。
     } finally {
@@ -606,11 +833,53 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
     }
   }
 
-  void _scrollToBottom() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!_scrollController.hasClients) return;
-      _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+  void _restoreHistoryPosition(
+    double previousExtent,
+    double previousOffset,
+    (GlobalKey, double)? anchor,
+  ) {
+    _settleScroll((position) {
+      final box = anchor?.$1.currentContext?.findRenderObject();
+      return box is RenderBox && box.attached && box.hasSize
+          ? position.pixels + box.localToGlobal(Offset.zero).dy - anchor!.$2
+          : previousOffset + position.maxScrollExtent - previousExtent;
     });
+  }
+
+  void _scrollToBottom() =>
+      _settleScroll((position) => position.maxScrollExtent);
+
+  void _settleScroll(double Function(ScrollPosition) targetFor) {
+    final generation = ++_scrollAdjustmentGeneration;
+    _adjustingScroll = true;
+    _visibleReads.suspend();
+    // Lazy variable-height rows can revise extents after the first jump. Resolve
+    // the real anchor over bounded frames; intermediate positions are not reads.
+    void settle(int remaining) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (generation != _scrollAdjustmentGeneration) return;
+        if (!_sessionCurrent ||
+            !_foreground ||
+            !_scrollController.hasClients ||
+            !TickerMode.valuesOf(context).enabled ||
+            !routeIsUncovered(context)) {
+          _adjustingScroll = false;
+          return;
+        }
+        final position = _scrollController.position;
+        final target = targetFor(position).clamp(0.0, position.maxScrollExtent);
+        if ((target - position.pixels).abs() <= 1 || remaining == 0) {
+          _adjustingScroll = false;
+          _visibleReads.changed(restartDwell: true);
+          return;
+        }
+        _scrollController.jumpTo(target);
+        settle(remaining - 1);
+        WidgetsBinding.instance.ensureVisualUpdate();
+      });
+    }
+
+    settle(8);
   }
 
   Future<void> _send(String value) async {
@@ -640,9 +909,47 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
 
   @override
   Widget build(BuildContext context) {
+    ref.listen(realtimeHealthyProvider, (_, healthy) {
+      _syncPolling(
+        _foreground &&
+            _sessionCurrent &&
+            TickerMode.valuesOf(context).enabled &&
+            !healthy,
+      );
+    });
+    ref.listen(realtimeInvalidationsProvider, (previous, next) {
+      if (previous?.chatRevision == next.chatRevision || !_sessionCurrent) {
+        return;
+      }
+      final convId = next.chatConvId;
+      if (convId != 0 && convId != _convId) {
+        return;
+      }
+      if (!_foreground ||
+          !TickerMode.valuesOf(context).enabled ||
+          !routeIsUncovered(context)) {
+        return;
+      }
+      _seenRealtimeRevision = next.chatRevision;
+      unawaited(_load(silent: true));
+    });
     final AppLocalizations l10n = AppLocalizations.of(context);
     final GfColors colors = GfTheme.colorsOf(context);
     final outbox = ref.watch(chatOutboxProvider(widget.conv.peerId));
+    ref.listen(offlineCacheEpochProvider, (_, epoch) {
+      if (epoch == _sessionEpoch) return;
+      _visibleReads.suspend();
+      _pollTimer?.cancel();
+      _pollTimer = null;
+      setState(() {
+        _messages.clear();
+        _bubbleKeys.clear();
+        _loading = false;
+        _historyReady = false;
+        _unseenNewMessages = false;
+      });
+    });
+    _visibleReads.changed();
 
     return Scaffold(
       appBar: GfAppBar(
@@ -690,116 +997,164 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
       body: Column(
         children: <Widget>[
           Expanded(
-            child: ColoredBox(
-              color: colors.base100,
-              child: _loading
-                  ? const GfLoading()
-                  : _messages.isEmpty && outbox.items.isEmpty
-                  ? _ChatEmptyState(
-                      title: l10n.messagesStartChat,
-                      description: l10n.messagesFirstMessageTo(
-                        privateDisplayName(
-                          context,
-                          widget.conv.peerId,
-                          '',
-                          widget.conv.peerUsername,
-                        ),
-                      ),
-                    )
-                  : ListView.builder(
-                      controller: _scrollController,
-                      padding: const EdgeInsets.fromLTRB(12, 12, 12, 18),
-                      itemCount:
-                          _messages.length +
-                          outbox.items.length +
-                          (_loadingOlder ? 1 : 0),
-                      itemBuilder: (BuildContext context, int index) {
-                        if (_loadingOlder && index == 0) {
-                          return const Padding(
-                            padding: EdgeInsets.only(bottom: 10),
-                            child: GfLoadingIndicator(small: true),
-                          );
-                        }
-                        final int messageIndex =
-                            index - (_loadingOlder ? 1 : 0);
-                        if (messageIndex >= _messages.length) {
-                          final pending =
-                              outbox.items[messageIndex - _messages.length];
-                          final reason = pending.error is ApiException
-                              ? resolveErrorMessage(l10n, pending.error!)
-                              : null;
-                          final failureLabel =
-                              reason == null || reason == l10n.commonLoadFailed
-                              ? l10n.messagesFailed
-                              : '${l10n.messagesFailed} · $reason';
-                          return Padding(
-                            key: ValueKey('pending-${pending.id}'),
-                            padding: const EdgeInsets.symmetric(vertical: 8),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              children: [
-                                _ChatMessageBubble(
-                                  text: pending.content,
-                                  mine: true,
+            child: NotificationListener<ScrollStartNotification>(
+              onNotification: _onUserScroll,
+              child: Stack(
+                children: [
+                  Positioned.fill(
+                    child: ColoredBox(
+                      key: _viewportKey,
+                      color: colors.base100,
+                      child: _loading
+                          ? const GfLoading()
+                          : _messages.isEmpty && outbox.items.isEmpty
+                          ? _ChatEmptyState(
+                              title: l10n.messagesStartChat,
+                              description: l10n.messagesFirstMessageTo(
+                                privateDisplayName(
+                                  context,
+                                  widget.conv.peerId,
+                                  '',
+                                  widget.conv.peerUsername,
                                 ),
-                                if (pending.state == DeliveryState.failed) ...[
-                                  Padding(
-                                    padding: const EdgeInsets.only(top: 4),
-                                    child: Text(
-                                      failureLabel,
-                                      style: TextStyle(
-                                        color: colors.error,
-                                        fontSize: 12,
+                              ),
+                            )
+                          : ListView.builder(
+                              controller: _scrollController,
+                              padding: const EdgeInsets.fromLTRB(
+                                12,
+                                12,
+                                12,
+                                18,
+                              ),
+                              itemCount:
+                                  _messages.length +
+                                  outbox.items.length +
+                                  (_loadingOlder ? 1 : 0),
+                              itemBuilder: (BuildContext context, int index) {
+                                if (_loadingOlder && index == 0) {
+                                  return const Padding(
+                                    padding: EdgeInsets.only(bottom: 10),
+                                    child: GfLoadingIndicator(small: true),
+                                  );
+                                }
+                                final int messageIndex =
+                                    index - (_loadingOlder ? 1 : 0);
+                                if (messageIndex >= _messages.length) {
+                                  final pending = outbox
+                                      .items[messageIndex - _messages.length];
+                                  final reason = pending.error is ApiException
+                                      ? resolveErrorMessage(
+                                          l10n,
+                                          pending.error!,
+                                        )
+                                      : null;
+                                  final failureLabel =
+                                      reason == null ||
+                                          reason == l10n.commonLoadFailed
+                                      ? l10n.messagesFailed
+                                      : '${l10n.messagesFailed} · $reason';
+                                  return Padding(
+                                    key: ValueKey('pending-${pending.id}'),
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 8,
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.end,
+                                      children: [
+                                        _ChatMessageBubble(
+                                          text: pending.content,
+                                          mine: true,
+                                        ),
+                                        if (pending.state ==
+                                            DeliveryState.failed) ...[
+                                          Padding(
+                                            padding: const EdgeInsets.only(
+                                              top: 4,
+                                            ),
+                                            child: Text(
+                                              failureLabel,
+                                              style: TextStyle(
+                                                color: colors.error,
+                                                fontSize: 12,
+                                              ),
+                                              textAlign: TextAlign.end,
+                                            ),
+                                          ),
+                                          TextButton.icon(
+                                            onPressed: _historyReady
+                                                ? () => _sendPending(pending)
+                                                : null,
+                                            icon: const Icon(
+                                              Icons.error_outline,
+                                              size: 18,
+                                            ),
+                                            label: Text(l10n.messagesRetry),
+                                          ),
+                                        ] else
+                                          Padding(
+                                            padding: const EdgeInsets.only(
+                                              top: 4,
+                                            ),
+                                            child: Text(
+                                              pending.state ==
+                                                      DeliveryState.sending
+                                                  ? l10n.messagesSending
+                                                  : l10n.messagesSent,
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                color: colors.iconMuted,
+                                              ),
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                  );
+                                }
+                                final ChatMessagePayload message =
+                                    _messages[messageIndex];
+                                final bool startsDay =
+                                    messageIndex == 0 ||
+                                    formatDate(
+                                          _messages[messageIndex - 1].createdAt,
+                                        ) !=
+                                        formatDate(message.createdAt);
+                                return Column(
+                                  children: <Widget>[
+                                    if (startsDay)
+                                      _DatePill(
+                                        date: formatDate(message.createdAt),
                                       ),
-                                      textAlign: TextAlign.end,
-                                    ),
-                                  ),
-                                  TextButton.icon(
-                                    onPressed: _historyReady
-                                        ? () => _sendPending(pending)
-                                        : null,
-                                    icon: const Icon(
-                                      Icons.error_outline,
-                                      size: 18,
-                                    ),
-                                    label: Text(l10n.messagesRetry),
-                                  ),
-                                ] else
-                                  Padding(
-                                    padding: const EdgeInsets.only(top: 4),
-                                    child: Text(
-                                      pending.state == DeliveryState.sending
-                                          ? l10n.messagesSending
-                                          : l10n.messagesSent,
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: colors.iconMuted,
+                                    _MessageRow(
+                                      bubbleKey: _bubbleKeys.putIfAbsent(
+                                        message.id,
+                                        GlobalKey.new,
                                       ),
+                                      message: message,
+                                      peerAvatar: widget.conv.peerAvatar,
+                                      viewerAvatar: widget.viewerAvatar,
                                     ),
-                                  ),
-                              ],
+                                  ],
+                                );
+                              },
                             ),
-                          );
-                        }
-                        final ChatMessagePayload message =
-                            _messages[messageIndex];
-                        final bool startsDay =
-                            messageIndex == 0 ||
-                            formatDate(_messages[messageIndex - 1].createdAt) !=
-                                formatDate(message.createdAt);
-                        return Column(
-                          children: <Widget>[
-                            if (startsDay)
-                              _DatePill(date: formatDate(message.createdAt)),
-                            _MessageRow(
-                              message: message,
-                              peerAvatar: widget.conv.peerAvatar,
-                              viewerAvatar: widget.viewerAvatar,
-                            ),
-                          ],
-                        );
-                      },
                     ),
+                  ),
+                  if (_unseenNewMessages)
+                    Positioned(
+                      right: 12,
+                      bottom: 12,
+                      child: FloatingActionButton.small(
+                        key: const Key('chat-new-messages'),
+                        heroTag: null,
+                        tooltip: l10n.messagesNewMessages,
+                        onPressed: _scrollToBottom,
+                        child: const Icon(Icons.arrow_downward),
+                      ),
+                    ),
+                ],
+              ),
             ),
           ),
           SafeArea(
@@ -807,6 +1162,26 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
+                if (_readSyncFailed)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            _readSyncUnsupported
+                                ? l10n.messagesReadUnavailable
+                                : l10n.messagesReadSyncFailed,
+                          ),
+                        ),
+                        if (!_readSyncUnsupported)
+                          TextButton(
+                            onPressed: _canObserve ? _visibleReads.retry : null,
+                            child: Text(l10n.commonRetry),
+                          ),
+                      ],
+                    ),
+                  ),
                 if (!_historyReady && !_loading)
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -974,6 +1349,7 @@ class _NewChatSheetState extends State<_NewChatSheet> {
                   ),
                   GfIconButton(
                     icon: Icons.close,
+                    tooltip: AppLocalizations.of(context).commonClose,
                     size: 44,
                     iconSize: 18,
                     onPressed: () => Navigator.pop(context),
@@ -1222,12 +1598,14 @@ class _DatePill extends StatelessWidget {
 
 class _ChatMessageBubble extends ConsumerWidget {
   const _ChatMessageBubble({
+    this.bubbleKey,
     required this.text,
     required this.mine,
     this.time,
     this.maxWidthFactor = 0.88,
   });
 
+  final GlobalKey? bubbleKey;
   final String text;
   final bool mine;
   final String? time;
@@ -1236,6 +1614,7 @@ class _ChatMessageBubble extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return GfMessageBubble(
+      bubbleKey: bubbleKey,
       text: text,
       selectable: true,
       copyMessageLabel: AppLocalizations.of(context).messagesCopyAll,
@@ -1269,11 +1648,13 @@ class _ChatMessageBubble extends ConsumerWidget {
 
 class _MessageRow extends ConsumerWidget {
   const _MessageRow({
+    this.bubbleKey,
     required this.message,
     required this.peerAvatar,
     required this.viewerAvatar,
   });
 
+  final GlobalKey? bubbleKey;
   final ChatMessagePayload message;
   final String peerAvatar;
   final String viewerAvatar;
@@ -1294,6 +1675,7 @@ class _MessageRow extends ConsumerWidget {
           ],
           Flexible(
             child: _ChatMessageBubble(
+              bubbleKey: bubbleKey,
               text: message.content,
               mine: message.isSelf,
               time: formatChatTime(

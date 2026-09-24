@@ -62,6 +62,11 @@ class AppLocalizationsJa extends AppLocalizations {
   String get commonSave => '保存';
 
   @override
+  String imageViewPosition(int index, int count) {
+    return '画像 $index / $count を表示';
+  }
+
+  @override
   String get imageSave => '画像を保存';
 
   @override
@@ -167,6 +172,12 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get authForgotTitle => 'パスワード再設定';
+
+  @override
+  String get authContinueAfterLogin => 'ログインして、先ほどのページに戻ります。';
+
+  @override
+  String get authSignInMethods => 'その他のログイン方法';
 
   @override
   String get authLoginSubtitle => 'おかえりなさい。議論と投稿を続けましょう。';
@@ -1199,6 +1210,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String get wikiTitle => 'Wiki';
 
   @override
+  String get wikiLinkOpenFailed => 'リンクを開けませんでした。もう一度お試しください。';
+
+  @override
   String get wikiRecent => '最近の更新';
 
   @override
@@ -2203,7 +2217,7 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get campusPrivacy =>
-      '一つのアカウントに一つの大学アカウントを連携できます。情報は本人のみが閲覧でき、端末には保存されません。';
+      '一つのアカウントに一つの大学アカウントを連携できます。氏名・学年暦・時間割はオフライン閲覧のため端末に保存されます。下から削除できます。';
 
   @override
   String get campusDisabled => 'このサイトでは大学連携が有効になっていません';
@@ -2556,6 +2570,15 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get coursesPaginationStalled => '追加のコースを取得できませんでした。もう一度お試しください。';
+
+  @override
+  String get messagesNewMessages => '新着メッセージ・最新へ';
+
+  @override
+  String get messagesReadSyncFailed => '既読状態を同期できませんでした。未読は保持されます。';
+
+  @override
+  String get messagesReadUnavailable => 'このサーバーは個別の既読通知に対応していません。未読は保持されます。';
 
   @override
   String get draftCollapse => '折りたたむ';

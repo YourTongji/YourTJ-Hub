@@ -65,6 +65,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get commonSave => 'Save';
 
   @override
+  String imageViewPosition(int index, int count) {
+    return 'View image $index of $count';
+  }
+
+  @override
   String get imageSave => 'Save image';
 
   @override
@@ -170,6 +175,13 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get authForgotTitle => 'Reset password';
+
+  @override
+  String get authContinueAfterLogin =>
+      'Sign in to continue where you left off.';
+
+  @override
+  String get authSignInMethods => 'Other sign-in options';
 
   @override
   String get authLoginSubtitle =>
@@ -1210,6 +1222,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get wikiTitle => 'Wiki';
+
+  @override
+  String get wikiLinkOpenFailed => 'Could not open the link. Please try again.';
 
   @override
   String get wikiRecent => 'Recently updated';
@@ -2257,7 +2272,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get campusPrivacy =>
-      'One account, one official identity. School data is private and is not saved on your device.';
+      'One account, one school identity. Name, calendar and timetable snapshots are stored on this device for offline use. You can clear them below.';
 
   @override
   String get campusDisabled => 'Campus connection is not enabled on this site';
@@ -2635,6 +2650,17 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get coursesPaginationStalled =>
       'No additional courses arrived. Try loading this page again.';
+
+  @override
+  String get messagesNewMessages => 'New messages · Jump to latest';
+
+  @override
+  String get messagesReadSyncFailed =>
+      'Read status could not sync. Unread messages are preserved.';
+
+  @override
+  String get messagesReadUnavailable =>
+      'This server does not support individual read receipts. Unread messages are preserved.';
 
   @override
   String get draftCollapse => 'Collapse';

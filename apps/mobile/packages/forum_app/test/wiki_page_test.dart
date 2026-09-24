@@ -1,12 +1,14 @@
 import 'package:core/core.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:ui_kit/ui_kit.dart';
 
 import 'package:forum_app/l10n/app_localizations.dart';
+import 'package:forum_app/src/link_navigation.dart';
 import 'package:forum_app/src/pages/wiki/wiki_home_page.dart';
 import 'package:forum_app/src/pages/wiki/wiki_page.dart';
 import 'package:forum_app/src/providers.dart';
@@ -164,6 +166,7 @@ Future<GoRouter> _pumpApp(
     initialLocation: initialLocation,
     routes: <RouteBase>[
       GoRoute(path: '/', builder: (_, _) => const WikiHomePage()),
+      GoRoute(path: '/wiki', builder: (_, _) => const WikiHomePage()),
       GoRoute(
         // 与生产 router.dart 对齐:参数名 wikiPath、锚点经 state.uri.fragment
         // 解码后传入(URI fragment 保留 percent-encoded 态)。
@@ -179,6 +182,7 @@ Future<GoRouter> _pumpApp(
   await tester.pumpWidget(
     ProviderScope(
       overrides: <Override>[
+        apiClientProvider.overrideWithValue(_client()),
         pageRepositoryProvider.overrideWithValue(pages),
         wikiRepositoryProvider.overrideWithValue(wikiRepo),
       ],
@@ -197,6 +201,222 @@ Future<GoRouter> _pumpApp(
 }
 
 void main() {
+  tearDown(LinkNavigation.clearSessionTrust);
+  testWidgets('encoded same-page anchors scroll without opening another page', (
+    tester,
+  ) async {
+    final pages = _FakePageRepository(
+      _client(),
+      payloads: {
+        '/wiki/guide/start': _detailPayload(
+          path: 'guide/start',
+          title: '开始',
+          content:
+              '<p><a href="#%E7%94%B3%E8%AF%B7%E6%9D%A1%E4%BB%B6">跳到申请条件</a></p>'
+              '${List.filled(30, '<p>占位段落。</p>').join()}'
+              '<h2 id="申请条件">申请条件</h2>',
+        ),
+      },
+    );
+    final router = await _pumpApp(
+      tester,
+      pages: pages,
+      initialLocation: '/wiki/guide/start',
+    );
+    await _tapLinkText(
+      tester,
+      find.textContaining('跳到申请条件', findRichText: true),
+    );
+    await tester.pumpAndSettle();
+    final view = tester.widget<ListView>(
+      find.byKey(const Key('wiki-page-scroll')),
+    );
+    expect(view.controller!.offset, greaterThan(0));
+    expect(router.state.uri.path, '/wiki/guide/start');
+    expect(pages.fetchedPaths, ['/wiki/guide/start']);
+  });
+  for (final url in [
+    'https://en.wikipedia.org/wiki/Tongji_University',
+    '//en.wikipedia.org/wiki/Tongji_University',
+    'http://fake.local:8080/wiki/guide/start',
+    'https://fake.local/wiki/guide/start',
+  ]) {
+    testWidgets('external wiki link keeps its origin: $url', (tester) async {
+      final pages = _FakePageRepository(
+        _client(),
+        payloads: {
+          '/wiki/guide/start': _detailPayload(
+            path: 'guide/start',
+            title: '开始',
+            content: '<p><a href="$url">维基百科</a></p>',
+          ),
+        },
+      );
+      final opened = <String>[];
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        const MethodChannel('plugins.flutter.io/url_launcher'),
+        (call) async {
+          if (call.method == 'launch') {
+            opened.add((call.arguments as Map)['url'] as String);
+          }
+          return true;
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          const MethodChannel('plugins.flutter.io/url_launcher'),
+          null,
+        ),
+      );
+      final router = await _pumpApp(
+        tester,
+        pages: pages,
+        initialLocation: '/wiki/guide/start',
+      );
+      await _tapLinkText(
+        tester,
+        find.textContaining('维基百科', findRichText: true),
+      );
+      await tester.pumpAndSettle();
+      expect(router.state.uri.path, '/wiki/guide/start');
+      expect(find.text('即将离开 YourTJ'), findsOneWidget);
+      expect(opened, isEmpty);
+      await tester.tap(find.text('继续访问'));
+      await tester.pumpAndSettle();
+      expect(opened, [Uri.parse('http://fake.local').resolve(url).toString()]);
+      expect(pages.fetchedPaths, ['/wiki/guide/start']);
+    });
+  }
+
+  testWidgets('wiki attachment opens its real URL instead of loading a page', (
+    tester,
+  ) async {
+    const path = '/wiki/_assets/guide/a%20b.pdf?download=1#page=2';
+    final pages = _FakePageRepository(
+      _client(),
+      payloads: {
+        '/wiki/guide/start': _detailPayload(
+          path: 'guide/start',
+          title: '开始',
+          content: '<p><a href="$path">下载讲义</a></p>',
+        ),
+      },
+    );
+    final opened = <String>[];
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      const MethodChannel('plugins.flutter.io/url_launcher'),
+      (call) async {
+        if (call.method == 'launch') {
+          opened.add((call.arguments as Map)['url'] as String);
+        }
+        return true;
+      },
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        const MethodChannel('plugins.flutter.io/url_launcher'),
+        null,
+      ),
+    );
+    final router = await _pumpApp(
+      tester,
+      pages: pages,
+      initialLocation: '/wiki/guide/start',
+    );
+    await _tapLinkText(tester, find.textContaining('下载讲义', findRichText: true));
+    await tester.pumpAndSettle();
+    expect(router.state.uri.path, '/wiki/guide/start');
+    expect(opened, ['http://fake.local$path']);
+    expect(pages.fetchedPaths, ['/wiki/guide/start']);
+  });
+
+  testWidgets('failed attachment launch keeps reading and exposes failure', (
+    tester,
+  ) async {
+    final pages = _FakePageRepository(
+      _client(),
+      payloads: {
+        '/wiki/guide/start': _detailPayload(
+          path: 'guide/start',
+          title: '开始',
+          content: '<p><a href="/wiki/_assets/guide.pdf">下载讲义</a></p>',
+        ),
+      },
+    );
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      const MethodChannel('plugins.flutter.io/url_launcher'),
+      (_) async => false,
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        const MethodChannel('plugins.flutter.io/url_launcher'),
+        null,
+      ),
+    );
+    final router = await _pumpApp(
+      tester,
+      pages: pages,
+      initialLocation: '/wiki/guide/start',
+    );
+    await _tapLinkText(tester, find.textContaining('下载讲义', findRichText: true));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(router.state.uri.path, '/wiki/guide/start');
+    expect(find.text('无法打开链接，请重试。'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 5));
+  });
+
+  testWidgets('wiki root link opens the native overview', (tester) async {
+    final pages = _FakePageRepository(
+      _client(),
+      payloads: {
+        '/wiki/guide/start': _detailPayload(
+          path: 'guide/start',
+          title: '开始',
+          content: '<p><a href="/wiki">知识库首页</a></p>',
+        ),
+      },
+    );
+    final router = await _pumpApp(
+      tester,
+      pages: pages,
+      initialLocation: '/wiki/guide/start',
+    );
+    await _tapLinkText(
+      tester,
+      find.textContaining('知识库首页', findRichText: true),
+    );
+    await tester.pumpAndSettle();
+    expect(router.state.uri.path, '/wiki');
+    expect(pages.fetchedPaths, ['/wiki/guide/start']);
+  });
+
+  testWidgets('same-origin page links retain query and anchor', (tester) async {
+    final pages = _FakePageRepository(
+      _client(),
+      payloads: {
+        '/wiki/guide/start': _detailPayload(
+          path: 'guide/start',
+          title: '开始',
+          content: '<p><a href="/wiki/guide/details?tab=2#intro">阅读详情</a></p>',
+        ),
+        '/wiki/guide/details': _detailPayload(
+          path: 'guide/details',
+          title: '详情',
+        ),
+      },
+    );
+    final router = await _pumpApp(
+      tester,
+      pages: pages,
+      initialLocation: '/wiki/guide/start',
+    );
+    await _tapLinkText(tester, find.textContaining('阅读详情', findRichText: true));
+    await tester.pumpAndSettle();
+    expect(router.state.uri.toString(), '/wiki/guide/details?tab=2#intro');
+    expect(find.text('详情'), findsOneWidget);
+  });
+
   testWidgets('wiki 首页渲染命名空间卡片与最近更新并可进入详情', (tester) async {
     final _FakePageRepository pages = _FakePageRepository(
       _client(),

@@ -204,6 +204,12 @@ abstract class AppLocalizations {
   /// **'Save'**
   String get commonSave;
 
+  /// Accessible label for opening an image in the feed gallery.
+  ///
+  /// In en, this message translates to:
+  /// **'View image {index} of {count}'**
+  String imageViewPosition(int index, int count);
+
   /// No description provided for @imageSave.
   ///
   /// In en, this message translates to:
@@ -389,6 +395,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Reset password'**
   String get authForgotTitle;
+
+  /// No description provided for @authContinueAfterLogin.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in to continue where you left off.'**
+  String get authContinueAfterLogin;
+
+  /// No description provided for @authSignInMethods.
+  ///
+  /// In en, this message translates to:
+  /// **'Other sign-in options'**
+  String get authSignInMethods;
 
   /// No description provided for @authLoginSubtitle.
   ///
@@ -2303,6 +2321,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Wiki'**
   String get wikiTitle;
+
+  /// No description provided for @wikiLinkOpenFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not open the link. Please try again.'**
+  String get wikiLinkOpenFailed;
 
   /// No description provided for @wikiRecent.
   ///
@@ -4221,7 +4245,7 @@ abstract class AppLocalizations {
   /// No description provided for @campusPrivacy.
   ///
   /// In en, this message translates to:
-  /// **'One account, one official identity. School data is private and is not saved on your device.'**
+  /// **'One account, one school identity. Name, calendar and timetable snapshots are stored on this device for offline use. You can clear them below.'**
   String get campusPrivacy;
 
   /// No description provided for @campusDisabled.
@@ -4865,6 +4889,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'No additional courses arrived. Try loading this page again.'**
   String get coursesPaginationStalled;
+
+  /// No description provided for @messagesNewMessages.
+  ///
+  /// In en, this message translates to:
+  /// **'New messages · Jump to latest'**
+  String get messagesNewMessages;
+
+  /// No description provided for @messagesReadSyncFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Read status could not sync. Unread messages are preserved.'**
+  String get messagesReadSyncFailed;
+
+  /// No description provided for @messagesReadUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'This server does not support individual read receipts. Unread messages are preserved.'**
+  String get messagesReadUnavailable;
 
   /// No description provided for @draftCollapse.
   ///
