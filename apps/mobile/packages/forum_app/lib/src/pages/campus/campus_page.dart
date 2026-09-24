@@ -21,15 +21,76 @@ import 'campus_message_page.dart';
 import 'campus_private_surface.dart';
 import 'campus_state.dart';
 
-class CampusPage extends StatelessWidget {
+/// Only navigation choices survive the disposable private view. This object is
+/// never serialized and contains no school response, credential or notice body.
+class _CampusNavigation {
+  String tab = 'today';
+  final queries = <String, String>{};
+  final offsets = <String, double>{};
+  int? week;
+  int? account;
+  String? binding;
+  bool identityRejected = false;
+
+  void clear() {
+    tab = 'today';
+    queries.clear();
+    offsets.clear();
+    week = null;
+    binding = null;
+    identityRejected = false;
+  }
+}
+
+class CampusPage extends ConsumerStatefulWidget {
   const CampusPage({super.key});
   @override
-  Widget build(BuildContext context) =>
-      CampusPrivateSurface(builder: (_) => const _CampusAccount());
+  ConsumerState<CampusPage> createState() => _CampusPageState();
+}
+
+class _CampusPageState extends ConsumerState<CampusPage>
+    with WidgetsBindingObserver {
+  _CampusNavigation _navigation = _CampusNavigation();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) {
+      // Replace the object so a disposing child cannot refill the next session.
+      setState(() => _navigation = _CampusNavigation());
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    ref.listen(offlineCacheEpochProvider, (_, _) {
+      setState(() => _navigation = _CampusNavigation());
+    });
+    final repository = ref.watch(campusRepositoryProvider);
+    ref.listen(campusRepositoryProvider, (_, _) {
+      _navigation = _CampusNavigation();
+    });
+    return CampusPrivateSurface(
+      key: ObjectKey(repository),
+      builder: (_) => _CampusAccount(navigation: _navigation),
+    );
+  }
 }
 
 class _CampusAccount extends ConsumerWidget {
-  const _CampusAccount();
+  const _CampusAccount({required this.navigation});
+  final _CampusNavigation navigation;
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l = AppLocalizations.of(context);
@@ -62,39 +123,51 @@ class _CampusAccount extends ConsumerWidget {
               onRetry: () => ref.invalidate(currentUserProvider),
             ),
           ),
-          data: (user) => user == null
-              ? publicSurface(
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Text(
-                        l.campusOfficialSubtitle,
-                        style: GfTheme.typographyOf(context).title2,
-                      ),
-                      const SizedBox(height: 16),
-                      Text(l.campusPrivacy),
-                      const SizedBox(height: 24),
-                      GfButton(
-                        label: l.authLoginTitle,
-                        onPressed: () => context.push('/login'),
-                      ),
-                    ],
-                  ),
-                )
-              : _CampusWorkspace(key: ValueKey(user.id)),
+          data: (user) {
+            if (navigation.account != user?.id) {
+              navigation.clear();
+              navigation.account = user?.id;
+            }
+            return user == null
+                ? publicSurface(
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Text(
+                          l.campusOfficialSubtitle,
+                          style: GfTheme.typographyOf(context).title2,
+                        ),
+                        const SizedBox(height: 16),
+                        Text(l.campusPrivacy),
+                        const SizedBox(height: 24),
+                        GfButton(
+                          label: l.authLoginTitle,
+                          onPressed: () => context.push('/login'),
+                        ),
+                      ],
+                    ),
+                  )
+                : _CampusWorkspace(
+                    key: ValueKey(user.id),
+                    navigation: navigation,
+                  );
+          },
         );
   }
 }
 
 class _CampusWorkspace extends ConsumerStatefulWidget {
-  const _CampusWorkspace({super.key});
+  const _CampusWorkspace({super.key, required this.navigation});
+  final _CampusNavigation navigation;
   @override
   ConsumerState<_CampusWorkspace> createState() => _CampusWorkspaceState();
 }
 
 class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace> {
-  String _tab = 'today';
-  String _query = '';
+  _CampusNavigation get _navigation => widget.navigation;
+  String get _tab => _navigation.tab;
+  String get _query => _navigation.queries[_tab] ?? '';
+  bool _restoreScroll = true;
   int _wish = math.Random().nextInt(4);
   final _search = TextEditingController();
   final _scroll = GfScrollToTopController();
@@ -104,13 +177,12 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace> {
   @override
   void initState() {
     super.initState();
+    _search.text = _query;
     // A notice may have kept the shared connection alive while this tab was
     // hidden. Verify the binding before reusing any foreground cache.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        unawaited(
-          ref.read(campusControllerProvider.notifier).enterTab('today'),
-        );
+        unawaited(ref.read(campusControllerProvider.notifier).enterTab(_tab));
       }
     });
     _registry = ref.read(tabScrollRegistryProvider)
@@ -151,13 +223,14 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace> {
   }
 
   void _select(String tab) {
+    if (tab == _tab) return;
+    FocusManager.instance.primaryFocus?.unfocus();
     setState(() {
-      _tab = tab;
-      _query = '';
-      _search.clear();
+      _navigation.tab = tab;
+      _search.text = _query;
+      _restoreScroll = true;
     });
     unawaited(ref.read(campusControllerProvider.notifier).loadTab(tab));
-    _scroll.scrollToTop();
   }
 
   Widget _section(String title, Widget child, {Widget? action}) => Padding(
@@ -501,13 +574,34 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace> {
       controller: _search,
       hintText: AppLocalizations.of(context).commonSearch,
       clearLabel: MaterialLocalizations.of(context).deleteButtonTooltip,
-      onChanged: (value) => setState(() => _query = value),
+      onChanged: (value) => setState(() => _navigation.queries[_tab] = value),
     ),
   );
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
     final state = ref.watch(campusControllerProvider);
+    final binding = state.status?.binding;
+    final identityRejected =
+        state.needsAuthorization || isCampusIdentityError(state.error);
+    if (!state.loading && (state.status != null || identityRejected)) {
+      if ((_navigation.binding != null &&
+              _navigation.binding != binding?.revision) ||
+          (!_navigation.identityRejected && identityRejected)) {
+        _navigation.clear();
+        _search.clear();
+        _restoreScroll = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            unawaited(
+              ref.read(campusControllerProvider.notifier).loadTab(_tab),
+            );
+          }
+        });
+      }
+      _navigation.binding = binding?.revision;
+      _navigation.identityRejected = identityRejected;
+    }
     final labels = {
       'today': l.campusToday,
       'timetable': l.campusTimetable,
@@ -549,6 +643,8 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace> {
                 'timetable',
                 (data) => CampusWeekTimetable(
                   data: data,
+                  selectedWeek: _navigation.week,
+                  onWeekChanged: (week) => _navigation.week = week,
                   week:
                       (int.tryParse(
                                 campusMetric(state.data['calendar'], '教学周'),
@@ -623,23 +719,62 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace> {
         controller: _scroll,
         showButton: false,
         semanticLabel: l.commonBackToTop,
-        builder: (_, controller) => AppRefreshIndicator(
-          edgeOffset: top,
-          onRefresh: () =>
-              ref.read(campusControllerProvider.notifier).refresh(),
-          child: ListView(
-            controller: controller,
-            physics: const AlwaysScrollableScrollPhysics(),
-            padding: EdgeInsets.fromLTRB(20, top + 24, 20, bottom + 16),
-            children: [
-              if (_tab == 'today') ...[
-                const CampusShortcuts(),
-                const SizedBox(height: 24),
-              ],
-              content,
-            ],
-          ),
-        ),
+        builder: (_, controller) {
+          final tab = _tab;
+          final navigation = _navigation;
+          final ready =
+              !state.loading &&
+              !state.refreshing &&
+              (campusTabKeys[tab] ?? []).every(
+                (key) =>
+                    !state.fetching.contains(key) &&
+                    const {'ready', 'empty'}.contains(state.data[key]?.status),
+              );
+          if (_restoreScroll && ready) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (!mounted ||
+                  !identical(navigation, _navigation) ||
+                  tab != _tab ||
+                  !controller.hasClients ||
+                  !_restoreScroll) {
+                return;
+              }
+              final position = controller.position;
+              controller.jumpTo(
+                (navigation.offsets[tab] ?? 0).clamp(
+                  position.minScrollExtent,
+                  position.maxScrollExtent,
+                ),
+              );
+              _restoreScroll = false;
+            });
+          }
+          return NotificationListener<ScrollUpdateNotification>(
+            onNotification: (notification) {
+              if (notification.depth == 0 && !_restoreScroll && tab == _tab) {
+                navigation.offsets[tab] = notification.metrics.pixels;
+              }
+              return false;
+            },
+            child: AppRefreshIndicator(
+              edgeOffset: top,
+              onRefresh: () =>
+                  ref.read(campusControllerProvider.notifier).refresh(),
+              child: ListView(
+                controller: controller,
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: EdgeInsets.fromLTRB(20, top + 24, 20, bottom + 16),
+                children: [
+                  if (_tab == 'today') ...[
+                    const CampusShortcuts(),
+                    const SizedBox(height: 24),
+                  ],
+                  content,
+                ],
+              ),
+            ),
+          );
+        },
       ),
     );
   }

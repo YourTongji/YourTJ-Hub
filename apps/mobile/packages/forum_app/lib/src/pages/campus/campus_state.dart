@@ -103,7 +103,7 @@ class CampusController extends StateNotifier<CampusViewState> {
   }
 
   void invalidateForError(Object error) {
-    if (_invalidatesIdentity(error)) _dropPrivateData(error);
+    if (isCampusIdentityError(error)) _dropPrivateData(error);
   }
 
   void _dropPrivateData(Object error, {String key = 'status'}) {
@@ -243,7 +243,7 @@ class CampusController extends StateNotifier<CampusViewState> {
       }
     } catch (e) {
       if (mounted && generation == _generation) {
-        if (_invalidatesIdentity(e)) {
+        if (isCampusIdentityError(e)) {
           _dropPrivateData(e);
         } else {
           state = CampusViewState(
@@ -389,7 +389,7 @@ class CampusController extends StateNotifier<CampusViewState> {
           !cache.isCurrent(cacheFence)) {
         return;
       }
-      if (_invalidatesIdentity(e)) {
+      if (isCampusIdentityError(e)) {
         _dropPrivateData(e, key: key);
         return;
       }
@@ -442,7 +442,7 @@ class CampusController extends StateNotifier<CampusViewState> {
       return mounted && state.error == null;
     } catch (e) {
       if (mounted && generation == _generation) {
-        if (_invalidatesIdentity(e)) {
+        if (isCampusIdentityError(e)) {
           _dropPrivateData(e);
           return false;
         }
@@ -607,7 +607,7 @@ final campusControllerProvider =
 
 // A 403 can reject an operation (CSRF/email verification) without invalidating
 // the session or school binding. Only explicit identity failures clear all data.
-bool _invalidatesIdentity(Object error) =>
+bool isCampusIdentityError(Object? error) =>
     isCampusAuthorizationError(error) ||
     (error is ApiException &&
         (error.statusCode == 401 ||
