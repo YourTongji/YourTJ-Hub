@@ -1700,7 +1700,7 @@ void main() {
       final path = switch (stream) {
         'bookmarks' => '/u/1/bookmarks',
         'invalid' => '/u/1/activity',
-        _ => '/u/1/activity/$stream',
+        _ => '/u/1/$stream',
       };
       expect(repo.paths, contains(path));
       final label = switch (stream) {
@@ -4554,6 +4554,12 @@ void main() {
             ),
           ),
           GoRoute(
+            path: '/u/:id/following',
+            builder: (_, state) => ProfilePage.connections(
+              userId: int.parse(state.pathParameters['id']!),
+            ),
+          ),
+          GoRoute(
             path: '/u/:id',
             builder: (BuildContext context, GoRouterState state) {
               final int id = int.parse(state.pathParameters['id']!);
@@ -4612,7 +4618,12 @@ void main() {
 
       router.pop();
       await tester.pumpAndSettle();
-      await tester.tap(find.byTooltip('关注'));
+      await tester.ensureVisible(
+        find.descendant(of: find.byType(GfUserCard), matching: find.text('关注')),
+      );
+      await tester.tap(
+        find.descendant(of: find.byType(GfUserCard), matching: find.text('关注')),
+      );
       await tester.pumpAndSettle();
       expect(find.text('Bob'), findsOneWidget);
       await tester.tap(find.text('Bob'));

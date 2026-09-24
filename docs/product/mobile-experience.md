@@ -392,15 +392,16 @@ Web inside an authenticated in-app browser. The navigation and management bounda
 
 - `Current`: the root avatar opens an account drawer with a generous left inset, larger line icons,
   nickname and account handle. Following/follower counts come from the user's card and open the
-  matching profile streams. Unavailable counts show a placeholder with retry instead of zero; opening
+  matching native connection lists. Unavailable counts show a placeholder with retry instead of zero; opening
   the drawer refreshes the card, and account changes discard previous identity data. Profile,
   bookmarks, drafts, my content, recycle bin and my course reviews are direct entries. Settings and
   permission-gated workspaces remain available. The profile overflow retains its infrequent entries.
   Account controls are outside the public profile.
 - `Current`: activity entries distinguish signup, post, like, follow and comment with matching
-  icons and localized captions in bordered cards with a content preview and compact timestamp. Stream changes retain the profile header collapse, limiting deep offsets to the start of the
-  new stream so loading, empty states and retry actions stay visible. Empty badge lists use
-  badge-specific feedback.
+  icons and localized captions in bordered cards with a content preview and compact timestamp.
+  A first visit to a stream retains the collapsed profile header so loading, empty states and retry
+  actions stay visible; revisiting restores that stream's loaded pages and scroll position. Empty
+  badge lists use badge-specific feedback.
 - `Current`: profile bios trim boundary whitespace; signatures use a separate feather mark and subtle
   underline. Avatar overlap participates in layout so it leaves no translated blank space. The role
   label stays beside the name; earned badges appear as bordered title/description cards with colored
@@ -414,9 +415,21 @@ Web inside an authenticated in-app browser. The navigation and management bounda
 - `Current`: users with follow permission retain the follow button for already-followed accounts,
   including administrators. It displays the followed state and toggles to unfollow, prevents duplicate
   in-flight requests and restores the previous state when a request fails.
-- `Current`: only the active profile tab displays its label; all tabs retain accessible names.
-  Activity, topics, likes, own bookmarks, follows/followers and badges fetch their corresponding
-  server streams. Cursor pagination uses the server's next URL within the same user's profile.
+- `Current`: profile content tabs always show their localized text, with a stable selected underline
+  and a pinned rail. Activity, topics, likes, own bookmarks and badges fetch their corresponding
+  server streams. Each stream retains its pages, scroll position, loading and retry state while the
+  page is open. Inactive reads cannot replace the selected stream; refresh and account changes
+  invalidate older responses. Failed refreshes and pagination keep already loaded rows. Pagination
+  follows only relative server URLs for the same user and stream, deduplicating overlapping rows.
+- `Current`: following and follower statistics are keyboard-accessible navigation controls with
+  at least 48-pixel targets. They open a separate native two-tab connection list, identify the
+  profile by its handle, and link each person to their public profile. Both lists use the existing
+  public `/u/:id/following` and `/u/:id/followers` PagePayload endpoints and retain independent
+  pagination and scroll state. Visitors can browse public connections; an own-profile entry without
+  a signed-in user offers login. The account drawer's existing connection links use the same page.
+  Pull-to-refresh reloads the selected list to reflect follow changes; cached lists are not live
+  subscriptions. Profile and connection content is centered at a maximum width of 760 logical pixels;
+  statistics wrap and tabs scroll horizontally with enlarged text.
 - `Current`: content management and recycle bin provide topic/reply filters, cursor loading,
   multi-selection, restore and deletion. Restore/permanent-delete affordances follow the server's
   capabilities; confirmation/password requirements and partial batch failures remain authoritative.
