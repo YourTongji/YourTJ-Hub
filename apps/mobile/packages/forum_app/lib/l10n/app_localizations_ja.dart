@@ -523,6 +523,11 @@ class AppLocalizationsJa extends AppLocalizations {
   String get searchUnavailable => '検索サービスを利用できません';
 
   @override
+  String searchResultCount(int shown, int total) {
+    return '表示 $shown 件 · 一致 $total 件';
+  }
+
+  @override
   String get searchAll => 'すべて';
 
   @override

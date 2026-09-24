@@ -188,8 +188,14 @@ corresponding planned ownership and lifecycle contracts.
   submission where applicable. Clearing global search resets results, scope and pagination, and
   invalidates pending requests; account and publishing forms retain their separate form styling.
 - `Current`: global search starts with guidance and direct course, scheduler and Wiki destinations.
-  Result scope buttons scroll horizontally to preserve translated labels and counts at larger text
-  sizes. Course and Wiki search actions carry the current query into the matching native page.
+  Result scope buttons stay available during loading, empty results and failures, and scroll
+  horizontally at larger text sizes. Switching scope or retrying uses the last submitted keyword;
+  typing a different keyword does not search it until submission. Each result section identifies its
+  type and shows displayed rows separately from matching totals; unqueried scopes are not labelled
+  as zero, and the all-scope view does not treat the topic total as an aggregate total.
+  Users, topics and categories build one row at a time near the viewport. Only topics paginate;
+  appending a page retains the other groups, and a failed page keeps the current rows with a retry.
+  Course and Wiki search actions carry the current input into the matching native page.
   Recent searches keep up to ten distinct queries per site and account (with a separate guest list),
   in device preferences only; users can clear them. Storage failure does not block searching.
 - `Current`: topic view/reply metrics remain below the body; reply, like, bookmark and watch actions
