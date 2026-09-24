@@ -1219,5 +1219,26 @@
         "type": "String"
       }
     }
+  },
+  "scheduleTimeAxis": "节次",
+  "scheduleEmptyCell": "{day}，第 {section} 节，选课",
+  "scheduleSectionsN": "第 {range} 节",
+  "scheduleGridScrollHint": "左右滑动查看整周课表",
+  "@scheduleEmptyCell": {
+    "placeholders": {
+      "day": {
+        "type": "String"
+      },
+      "section": {
+        "type": "int"
+      }
+    }
+  },
+  "@scheduleSectionsN": {
+    "placeholders": {
+      "range": {
+        "type": "String"
+      }
+    }
   }
 }

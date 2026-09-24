@@ -19,6 +19,7 @@ import 'package:forum_app/l10n/app_localizations.dart';
 import 'package:forum_app/src/pages/schedule/schedule_page.dart';
 import 'package:forum_app/src/schedule/schedule_store.dart';
 import 'package:forum_app/src/providers.dart';
+import 'package:forum_app/src/widgets/schedule_time_grid.dart';
 
 /// 测试用内存 TokenStorage（与 pages_smoke_test 同构，副本内联）。
 class MemoryTokenStorage implements TokenStorage {
@@ -120,6 +121,7 @@ class FakePkRepository extends PkRepository {
     required int calendarId,
     required int day,
     required int section,
+    bool includeAll = false,
   }) async => PkCoursesByTimeResult(
     auxiliaryReady: true,
     courses: const <PkSearchCourseItem>[],
@@ -306,6 +308,29 @@ Widget wrapApp(ProviderContainer container, {double textScale = 1}) {
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  testWidgets(
+    'timetable controls have 48dp targets and unconfigured cells are read-only',
+    (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      final notifier = await seededNotifier();
+      final container = makeContainer(notifier);
+      addTearDown(container.dispose);
+      await tester.pumpWidget(wrapApp(container, textScale: 2));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('方案预览'));
+      await tester.tap(find.text('方案预览'));
+      await tester.pumpAndSettle();
+      final week = find.byWidgetPredicate((w) => w is DropdownButton<int?>);
+      expect(tester.getSize(week).height, greaterThanOrEqualTo(48));
+      final grid = tester.widget<ScheduleTimeGrid>(
+        find.byType(ScheduleTimeGrid),
+      );
+      expect(grid.onTapEmptyCell, isNull);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
 
   group('ScheduleStore 持久化与消毒', () {
     test('roundtrip：方案/课程持久化后重建相等', () async {

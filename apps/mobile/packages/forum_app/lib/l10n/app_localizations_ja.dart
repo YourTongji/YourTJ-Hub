@@ -2498,4 +2498,20 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get campusCacheClearFailed => '一部のキャッシュを削除できませんでした。再試行してください。';
+
+  @override
+  String get scheduleTimeAxis => '時限';
+
+  @override
+  String scheduleEmptyCell(String day, int section) {
+    return '$day、$section 時限目、授業を選択';
+  }
+
+  @override
+  String scheduleSectionsN(String range) {
+    return '$range 時限';
+  }
+
+  @override
+  String get scheduleGridScrollHint => '左右にスワイプして週全体を表示';
 }

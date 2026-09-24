@@ -1220,5 +1220,26 @@
         "type": "String"
       }
     }
+  },
+  "scheduleTimeAxis": "Sections",
+  "scheduleEmptyCell": "{day}, section {section}, choose a course",
+  "scheduleSectionsN": "Sections {range}",
+  "scheduleGridScrollHint": "Swipe sideways to view the full week",
+  "@scheduleEmptyCell": {
+    "placeholders": {
+      "day": {
+        "type": "String"
+      },
+      "section": {
+        "type": "int"
+      }
+    }
+  },
+  "@scheduleSectionsN": {
+    "placeholders": {
+      "range": {
+        "type": "String"
+      }
+    }
   }
 }

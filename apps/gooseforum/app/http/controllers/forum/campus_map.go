@@ -8,6 +8,12 @@ import (
 // CampusMap is a public read-only atlas. Map data ships as versioned frontend
 // assets; this page does not create a second identity, database, or map service.
 func CampusMap(c *gin.Context) {
+	privateCourses := c.Query("mine") == "1"
+	layout := buildLayout(c, "campusMap")
+	if privateCourses {
+		c.Header("Cache-Control", "private, no-store")
+		layout = campusLayout(layout)
+	}
 	payload := PagePayload{
 		Component: PageComponentCampusMap,
 		Props:     struct{}{},
@@ -16,7 +22,7 @@ func CampusMap(c *gin.Context) {
 			Description: "探索同济大学各校区的建筑、体育场地与校园生活设施。",
 			Canonical:   component.GetBaseUri(c) + "/map",
 		},
-		Layout:  buildLayout(c, "campusMap"),
+		Layout:  layout,
 		URL:     buildPageURL(c),
 		Version: payloadVersion,
 	}
