@@ -163,6 +163,7 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
       setState(() {
         // freezed 解析出的 list 可能是不可变包装；后续行内替换/删除依赖可变列表。
         _reviews = List<ReviewPayload>.of(result.list);
+        _prioritizeEditableReviews();
         _nextCursor = result.nextCursor ?? '';
         _reviewTotal = result.total;
         _reviewsLoading = false;
@@ -238,6 +239,7 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
       }
       setState(() {
         _reviews = <ReviewPayload>[..._reviews, ...result.list];
+        _prioritizeEditableReviews();
         _nextCursor = result.nextCursor ?? '';
         _reviewTotal = result.total;
       });
@@ -249,6 +251,18 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
   }
 
   CourseCopy _copy() => CourseCopy(AppLocalizations.of(context));
+
+  void _prioritizeEditableReviews() {
+    final editable = <ReviewPayload>[];
+    final other = <ReviewPayload>[];
+    for (final review in _reviews) {
+      (review.viewer.canEdit ? editable : other).add(review);
+    }
+    _reviews
+      ..clear()
+      ..addAll(editable)
+      ..addAll(other);
+  }
 
   void _toast(String message, {bool error = false}) {
     if (!mounted) return;
@@ -440,35 +454,43 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
               await _load();
               await _loadRelated();
             },
-            child: ListView(
+            child: CustomScrollView(
               controller: _scrollController,
               physics: const AlwaysScrollableScrollPhysics(),
-              padding: EdgeInsets.only(
-                bottom: 96 + MediaQuery.paddingOf(context).bottom,
-              ),
-              children: <Widget>[
-                _CourseHeader(detail: detail),
-                const GfDivider(),
-                _RatingSection(detail: detail),
-                const GfDivider(),
-                _AiSummaryCard(courseId: widget.courseId),
-                const GfDivider(),
-                _buildReviewsSection(l10n, copy, detail),
-                const GfDivider(),
-                _OfferingsSection(
-                  offerings:
-                      detail.offerings ?? const <CourseOfferingPayload>[],
-                  activeOfferingId: _activeOfferingId,
-                  onFocusOffering: _focusOffering,
-                  copy: copy,
+              slivers: <Widget>[
+                SliverToBoxAdapter(child: _CourseHeader(detail: detail)),
+                const SliverToBoxAdapter(child: GfDivider()),
+                SliverToBoxAdapter(child: _RatingSection(detail: detail)),
+                const SliverToBoxAdapter(child: GfDivider()),
+                SliverToBoxAdapter(
+                  child: _AiSummaryCard(courseId: widget.courseId),
                 ),
-                const GfDivider(),
-                _RelatedSection(
-                  related: _related,
-                  courseId: widget.courseId,
-                  onOpenCourse: (int id) =>
-                      context.pushReplacement('/courses/$id'),
-                  copy: copy,
+                const SliverToBoxAdapter(child: GfDivider()),
+                ..._buildReviewsSlivers(l10n, copy, detail),
+                const SliverToBoxAdapter(child: GfDivider()),
+                SliverToBoxAdapter(
+                  child: _OfferingsSection(
+                    offerings:
+                        detail.offerings ?? const <CourseOfferingPayload>[],
+                    activeOfferingId: _activeOfferingId,
+                    onFocusOffering: _focusOffering,
+                    copy: copy,
+                  ),
+                ),
+                const SliverToBoxAdapter(child: GfDivider()),
+                SliverToBoxAdapter(
+                  child: _RelatedSection(
+                    related: _related,
+                    courseId: widget.courseId,
+                    onOpenCourse: (int id) =>
+                        context.pushReplacement('/courses/$id'),
+                    copy: copy,
+                  ),
+                ),
+                SliverToBoxAdapter(
+                  child: SizedBox(
+                    height: 96 + MediaQuery.paddingOf(context).bottom,
+                  ),
                 ),
               ],
             ),
@@ -517,59 +539,66 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
     );
   }
 
-  Widget _buildReviewsSection(
+  List<Widget> _buildReviewsSlivers(
     AppLocalizations l10n,
     CourseCopy copy,
     CourseDetailPayload detail,
   ) {
-    return Column(
-      key: _reviewsSectionKey,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: <Widget>[
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-          child: Row(
-            children: <Widget>[
-              Text(
-                l10n.courseDetailReviews,
-                style: GfTheme.typographyOf(
-                  context,
-                ).heading.copyWith(fontWeight: FontWeight.w700),
-              ),
-              if (_reviewTotal > 0) ...<Widget>[
-                const SizedBox(width: 6),
-                Text(
-                  '$_reviewTotal',
-                  style: GfTheme.typographyOf(context).small.copyWith(
-                    color: GfTheme.colorsOf(
+    final colors = GfTheme.colorsOf(context);
+    return <Widget>[
+      SliverToBoxAdapter(
+        child: Column(
+          key: _reviewsSectionKey,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+              child: Row(
+                children: <Widget>[
+                  Text(
+                    l10n.courseDetailReviews,
+                    style: GfTheme.typographyOf(
                       context,
-                    ).baseContent.withValues(alpha: 0.45),
+                    ).heading.copyWith(fontWeight: FontWeight.w700),
                   ),
-                ),
-              ],
-            ],
-          ),
+                  if (_reviewTotal > 0) ...<Widget>[
+                    const SizedBox(width: 6),
+                    Text(
+                      '$_reviewTotal',
+                      style: GfTheme.typographyOf(context).small.copyWith(
+                        color: colors.baseContent.withValues(alpha: 0.45),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            if (_activeOfferingId != null)
+              _OfferingFocusBanner(
+                detail: detail,
+                offeringId: _activeOfferingId!,
+                copy: copy,
+                onClear: _clearOfferingFocus,
+              ),
+            if (_reviewsLoading)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 24),
+                child: Center(child: GfLoadingIndicator()),
+              )
+            else if (_reviewsLoaded && _reviews.isEmpty)
+              GfEmpty(
+                icon: Icons.rate_review_outlined,
+                message: l10n.reviewsEmpty,
+              ),
+          ],
         ),
-        if (_activeOfferingId != null)
-          _OfferingFocusBanner(
-            detail: detail,
-            offeringId: _activeOfferingId!,
-            copy: copy,
-            onClear: _clearOfferingFocus,
-          ),
-        if (_reviewsLoading)
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 24),
-            child: Center(child: GfLoadingIndicator()),
-          )
-        else if (_reviewsLoaded && _reviews.isEmpty)
-          GfEmpty(icon: Icons.rate_review_outlined, message: l10n.reviewsEmpty)
-        else if (_reviewsLoaded)
-          for (final ReviewPayload review in [
-            ..._reviews.where((review) => review.viewer.canEdit),
-            ..._reviews.where((review) => !review.viewer.canEdit),
-          ]) ...<Widget>[
-            _ReviewRow(
+      ),
+      if (_reviewsLoaded && _reviews.isNotEmpty)
+        SliverList(
+          delegate: SliverChildBuilderDelegate((context, index) {
+            if (index.isOdd) return const GfDivider();
+            final review = _reviews[index ~/ 2];
+            return _ReviewRow(
               key: review.id == widget.focusReviewId
                   ? _targetReviewKey
                   : ValueKey(review.id),
@@ -582,11 +611,12 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
               onDelete: review.viewer.canDelete
                   ? () => _confirmDeleteReview(review)
                   : null,
-            ),
-            const GfDivider(),
-          ],
-        if (_reviewsLoaded && _nextCursor.isNotEmpty)
-          Padding(
+            );
+          }, childCount: _reviews.length * 2 - 1),
+        ),
+      if (_reviewsLoaded && _nextCursor.isNotEmpty)
+        SliverToBoxAdapter(
+          child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 12),
             child: Center(
               child: _loadingMore
@@ -594,15 +624,13 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
                   : Text(
                       copy.relatedEmpty,
                       style: GfTheme.typographyOf(context).caption.copyWith(
-                        color: GfTheme.colorsOf(
-                          context,
-                        ).baseContent.withValues(alpha: 0.35),
+                        color: colors.baseContent.withValues(alpha: 0.35),
                       ),
                     ),
             ),
           ),
-      ],
-    );
+        ),
+    ];
   }
 
   String _offeringLabel(CourseDetailPayload detail, int offeringId) {

@@ -1432,6 +1432,8 @@ mixin _$TopicPayload {
   int get contentType => throw _privateConstructorUsedError;
   String? get firstImageUrl => throw _privateConstructorUsedError;
   List<String>? get images => throw _privateConstructorUsedError;
+  List<TopicImageMetadataPayload>? get imageMetadata =>
+      throw _privateConstructorUsedError;
   String get url => throw _privateConstructorUsedError;
   UserBriefPayload get author => throw _privateConstructorUsedError;
   List<UserBriefPayload> get participants => throw _privateConstructorUsedError;
@@ -1473,6 +1475,7 @@ abstract class $TopicPayloadCopyWith<$Res> {
     int contentType,
     String? firstImageUrl,
     List<String>? images,
+    List<TopicImageMetadataPayload>? imageMetadata,
     String url,
     UserBriefPayload author,
     List<UserBriefPayload> participants,
@@ -1513,6 +1516,7 @@ class _$TopicPayloadCopyWithImpl<$Res, $Val extends TopicPayload>
     Object? contentType = null,
     Object? firstImageUrl = freezed,
     Object? images = freezed,
+    Object? imageMetadata = freezed,
     Object? url = null,
     Object? author = null,
     Object? participants = null,
@@ -1554,6 +1558,10 @@ class _$TopicPayloadCopyWithImpl<$Res, $Val extends TopicPayload>
                 ? _value.images
                 : images // ignore: cast_nullable_to_non_nullable
                       as List<String>?,
+            imageMetadata: freezed == imageMetadata
+                ? _value.imageMetadata
+                : imageMetadata // ignore: cast_nullable_to_non_nullable
+                      as List<TopicImageMetadataPayload>?,
             url: null == url
                 ? _value.url
                 : url // ignore: cast_nullable_to_non_nullable
@@ -1642,6 +1650,7 @@ abstract class _$$TopicPayloadImplCopyWith<$Res>
     int contentType,
     String? firstImageUrl,
     List<String>? images,
+    List<TopicImageMetadataPayload>? imageMetadata,
     String url,
     UserBriefPayload author,
     List<UserBriefPayload> participants,
@@ -1682,6 +1691,7 @@ class __$$TopicPayloadImplCopyWithImpl<$Res>
     Object? contentType = null,
     Object? firstImageUrl = freezed,
     Object? images = freezed,
+    Object? imageMetadata = freezed,
     Object? url = null,
     Object? author = null,
     Object? participants = null,
@@ -1723,6 +1733,10 @@ class __$$TopicPayloadImplCopyWithImpl<$Res>
             ? _value._images
             : images // ignore: cast_nullable_to_non_nullable
                   as List<String>?,
+        imageMetadata: freezed == imageMetadata
+            ? _value._imageMetadata
+            : imageMetadata // ignore: cast_nullable_to_non_nullable
+                  as List<TopicImageMetadataPayload>?,
         url: null == url
             ? _value.url
             : url // ignore: cast_nullable_to_non_nullable
@@ -1794,6 +1808,7 @@ class _$TopicPayloadImpl implements _TopicPayload {
     this.contentType = 3,
     this.firstImageUrl,
     final List<String>? images,
+    final List<TopicImageMetadataPayload>? imageMetadata,
     required this.url,
     required this.author,
     required final List<UserBriefPayload> participants,
@@ -1809,6 +1824,7 @@ class _$TopicPayloadImpl implements _TopicPayload {
     this.liked,
     this.bookmarked,
   }) : _images = images,
+       _imageMetadata = imageMetadata,
        _participants = participants,
        _categories = categories;
 
@@ -1832,6 +1848,16 @@ class _$TopicPayloadImpl implements _TopicPayload {
     final value = _images;
     if (value == null) return null;
     if (_images is EqualUnmodifiableListView) return _images;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(value);
+  }
+
+  final List<TopicImageMetadataPayload>? _imageMetadata;
+  @override
+  List<TopicImageMetadataPayload>? get imageMetadata {
+    final value = _imageMetadata;
+    if (value == null) return null;
+    if (_imageMetadata is EqualUnmodifiableListView) return _imageMetadata;
     // ignore: implicit_dynamic_type
     return EqualUnmodifiableListView(value);
   }
@@ -1881,7 +1907,7 @@ class _$TopicPayloadImpl implements _TopicPayload {
 
   @override
   String toString() {
-    return 'TopicPayload(id: $id, title: $title, description: $description, contentType: $contentType, firstImageUrl: $firstImageUrl, images: $images, url: $url, author: $author, participants: $participants, categories: $categories, replyCount: $replyCount, viewCount: $viewCount, likeCount: $likeCount, pinWeight: $pinWeight, processStatus: $processStatus, activityText: $activityText, lastUpdateTime: $lastUpdateTime, unseen: $unseen, liked: $liked, bookmarked: $bookmarked)';
+    return 'TopicPayload(id: $id, title: $title, description: $description, contentType: $contentType, firstImageUrl: $firstImageUrl, images: $images, imageMetadata: $imageMetadata, url: $url, author: $author, participants: $participants, categories: $categories, replyCount: $replyCount, viewCount: $viewCount, likeCount: $likeCount, pinWeight: $pinWeight, processStatus: $processStatus, activityText: $activityText, lastUpdateTime: $lastUpdateTime, unseen: $unseen, liked: $liked, bookmarked: $bookmarked)';
   }
 
   @override
@@ -1898,6 +1924,10 @@ class _$TopicPayloadImpl implements _TopicPayload {
             (identical(other.firstImageUrl, firstImageUrl) ||
                 other.firstImageUrl == firstImageUrl) &&
             const DeepCollectionEquality().equals(other._images, _images) &&
+            const DeepCollectionEquality().equals(
+              other._imageMetadata,
+              _imageMetadata,
+            ) &&
             (identical(other.url, url) || other.url == url) &&
             (identical(other.author, author) || other.author == author) &&
             const DeepCollectionEquality().equals(
@@ -1938,6 +1968,7 @@ class _$TopicPayloadImpl implements _TopicPayload {
     contentType,
     firstImageUrl,
     const DeepCollectionEquality().hash(_images),
+    const DeepCollectionEquality().hash(_imageMetadata),
     url,
     author,
     const DeepCollectionEquality().hash(_participants),
@@ -1976,6 +2007,7 @@ abstract class _TopicPayload implements TopicPayload {
     final int contentType,
     final String? firstImageUrl,
     final List<String>? images,
+    final List<TopicImageMetadataPayload>? imageMetadata,
     required final String url,
     required final UserBriefPayload author,
     required final List<UserBriefPayload> participants,
@@ -2007,6 +2039,8 @@ abstract class _TopicPayload implements TopicPayload {
   String? get firstImageUrl;
   @override
   List<String>? get images;
+  @override
+  List<TopicImageMetadataPayload>? get imageMetadata;
   @override
   String get url;
   @override

@@ -103,7 +103,45 @@ jobs:
           from pathlib import Path
           Path('android/key.properties').write_text('storeFile=' + os.environ['RUNNER_TEMP'] + '/build-only.jks\nstorePassword=android\nkeyPassword=android\nkeyAlias=build-only\n')
           PYTHON
-          flutter build apk --release --target-platform android-arm64
+          flutter build apk --release --target-platform android-arm64 --split-per-abi --analyze-size --code-size-directory "$RUNNER_TEMP/mobile-code-size"
+      - name: Collect Android release size analysis
+        if: matrix.platform == 'android'
+        working-directory: apps/mobile/packages/forum_app
+        run: |
+          python3 - <<'PYTHON'
+          import json
+          import os
+          import shutil
+          import subprocess
+          from pathlib import Path
+
+          candidates = sorted(
+              (Path.home() / '.flutter-devtools').glob('apk-code-size-analysis_*.json'),
+              key=lambda path: path.stat().st_mtime_ns,
+          )
+          if not candidates:
+              raise SystemExit('Flutter did not produce the Android APK size analysis JSON')
+          artifact_dir = Path(os.environ['RUNNER_TEMP']) / 'mobile-release-size'
+          artifact_dir.mkdir(parents=True, exist_ok=True)
+          shutil.copy2(candidates[-1], artifact_dir / 'android-arm64-apk-size-analysis.json')
+          apk = Path('build/app/outputs/flutter-apk/app-arm64-v8a-release.apk')
+          metadata = {
+              'gitSha': os.environ['GITHUB_SHA'],
+              'flutterVersion': json.loads(subprocess.check_output(['flutter', '--version', '--machine']))['frameworkVersion'],
+              'buildMode': 'release',
+              'targetPlatform': 'android-arm64',
+              'apkBytes': apk.stat().st_size,
+          }
+          (artifact_dir / 'build-metadata.json').write_text(json.dumps(metadata, indent=2) + '\n')
+          PYTHON
+      - name: Upload Android release size analysis
+        if: matrix.platform == 'android'
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-release-size-${{ github.sha }}
+          path: ${{ runner.temp }}/mobile-release-size/
+          if-no-files-found: error
+          retention-days: 90
       - name: Compile iOS APNs bridge
         if: matrix.platform == 'ios'
         working-directory: apps/mobile/packages/forum_app

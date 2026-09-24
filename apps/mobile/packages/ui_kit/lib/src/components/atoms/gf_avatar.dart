@@ -63,7 +63,15 @@ class GfAvatar extends StatelessWidget {
       child: Theme(
         data: theme.copyWith(extensions: extensions),
         child: td.TAvatar(
-          image: src.isEmpty ? null : NetworkImage(src),
+          image: src.isEmpty
+              ? null
+              : ResizeImage(
+                  NetworkImage(src),
+                  width: (size * MediaQuery.devicePixelRatioOf(context))
+                      .round(),
+                  height: (size * MediaQuery.devicePixelRatioOf(context))
+                      .round(),
+                ),
           child: Icon(Icons.person, size: size * 0.6, color: colors.iconMuted),
         ),
       ),

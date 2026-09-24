@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+
 import '../theme/gf_theme.dart';
 import 'gf_image_viewer.dart';
 
@@ -78,6 +79,14 @@ class _GfMediaCarouselState extends State<GfMediaCarousel> {
                       child: Image.network(
                         widget.images[index],
                         fit: BoxFit.contain,
+                        cacheWidth:
+                            (constraints.maxWidth *
+                                    MediaQuery.devicePixelRatioOf(context))
+                                .round(),
+                        cacheHeight:
+                            (constraints.maxWidth.clamp(200.0, 420.0) *
+                                    MediaQuery.devicePixelRatioOf(context))
+                                .round(),
                         errorBuilder: (_, _, _) => Icon(
                           Icons.broken_image_outlined,
                           color: colors.iconMuted,

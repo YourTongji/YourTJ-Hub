@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:core/core.dart';
+import 'package:dio/dio.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -72,25 +73,46 @@ class GfShell extends ConsumerStatefulWidget {
   ConsumerState<GfShell> createState() => _GfShellState();
 }
 
-class _GfShellState extends ConsumerState<GfShell> {
+class _GfShellState extends ConsumerState<GfShell> with WidgetsBindingObserver {
   Timer? _unreadTimer;
+  bool _pollingUnread = false;
+  CancelToken? _unreadCancel;
   bool _unreadNotifications = false;
   bool _unreadMessages = false;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     unawaited(_purgeStaleOfflineCacheOnBoot());
+    _startUnreadTimer();
     _pollUnread();
-    _unreadTimer = Timer.periodic(
+  }
+
+  void _startUnreadTimer() {
+    _unreadTimer ??= Timer.periodic(
       const Duration(seconds: 30),
       (_) => _pollUnread(),
     );
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _startUnreadTimer();
+      _pollUnread();
+      return;
+    }
+    _unreadTimer?.cancel();
+    _unreadTimer = null;
+    _unreadCancel?.cancel('application backgrounded');
+  }
+
+  @override
   void dispose() {
     _unreadTimer?.cancel();
+    _unreadCancel?.cancel('shell disposed');
+    WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
 
@@ -109,17 +131,21 @@ class _GfShellState extends ConsumerState<GfShell> {
   }
 
   Future<void> _pollUnread() async {
+    if (_pollingUnread) return;
+    _pollingUnread = true;
+    final epoch = ref.read(offlineCacheEpochProvider);
+    final cancel = _unreadCancel = CancelToken();
     try {
       final String? token = await ref.read(tokenStorageProvider).read();
       if (token == null || token.isEmpty) return;
-    } catch (_) {
-      return;
-    }
-    try {
       final status = await ref
           .read(notificationRepositoryProvider)
-          .getUnreadStatus();
-      if (!mounted) return;
+          .getUnreadStatus(cancelToken: cancel);
+      if (!mounted ||
+          cancel.isCancelled ||
+          epoch != ref.read(offlineCacheEpochProvider)) {
+        return;
+      }
       if (_unreadNotifications == status.notifications &&
           _unreadMessages == status.messages) {
         return;
@@ -130,6 +156,9 @@ class _GfShellState extends ConsumerState<GfShell> {
       });
     } catch (_) {
       // Unread state is best-effort and never blocks navigation.
+    } finally {
+      _pollingUnread = false;
+      if (identical(_unreadCancel, cancel)) _unreadCancel = null;
     }
   }
 
@@ -221,7 +250,8 @@ class _GfShellState extends ConsumerState<GfShell> {
                             },
                             selectedSymbol: switch (destination) {
                               GfShellDestination.home => 'house-filled',
-                              GfShellDestination.campus => 'graduation-cap-filled',
+                              GfShellDestination.campus =>
+                                'graduation-cap-filled',
                               GfShellDestination.notifications => 'bell-filled',
                               GfShellDestination.messages => 'mail-filled',
                             },

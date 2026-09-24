@@ -22,6 +22,20 @@ abstract class OfflineChatCache {
   Future<void> clear();
 }
 
+abstract interface class OfflineHomeCache {
+  Future<void> putHomePage({
+    required int accountId,
+    required String baseUrl,
+    required String sort,
+    required PagePayload payload,
+  });
+  Future<PagePayload?> getHomePage({
+    required int accountId,
+    required String baseUrl,
+    required String sort,
+  });
+}
+
 /// 已浏览话题/会话的 drift 离线缓存。
 ///
 /// 不依赖 build_runner 生成代码:数据库承载三张 raw SQL 表
@@ -59,6 +73,15 @@ class AppDatabase extends GeneratedDatabase {
         'cached_at TEXT NOT NULL, '
         'PRIMARY KEY (conv_id, msg_id))',
       );
+      await customStatement(
+        'CREATE TABLE IF NOT EXISTS cached_home_pages ('
+        'account_id INTEGER NOT NULL, '
+        'base_url TEXT NOT NULL, '
+        'sort_key TEXT NOT NULL, '
+        'payload TEXT NOT NULL, '
+        'cached_at TEXT NOT NULL, '
+        'PRIMARY KEY (account_id, base_url, sort_key))',
+      );
     },
   );
 }
@@ -69,7 +92,8 @@ AppDatabase openDatabase() {
 }
 
 /// 基于 drift 的离线缓存(话题 + IM 会话),共享同一数据库实例。
-class DriftOfflineCache implements OfflineTopicCache, OfflineChatCache {
+class DriftOfflineCache
+    implements OfflineTopicCache, OfflineChatCache, OfflineHomeCache {
   DriftOfflineCache(this._db);
 
   final AppDatabase _db;
@@ -77,6 +101,64 @@ class DriftOfflineCache implements OfflineTopicCache, OfflineChatCache {
   static const int _maxTopics = 50;
   static const int _maxConversations = 50;
   static const int _maxMessagesPerConv = 200;
+  static const int _maxHomePages = 20;
+
+  @override
+  Future<void> putHomePage({
+    required int accountId,
+    required String baseUrl,
+    required String sort,
+    required PagePayload payload,
+  }) async {
+    await _db.customStatement(
+      'INSERT OR REPLACE INTO cached_home_pages '
+      '(account_id, base_url, sort_key, payload, cached_at) VALUES (?, ?, ?, ?, ?)',
+      [
+        accountId,
+        baseUrl,
+        sort,
+        jsonEncode(payload.toJson()),
+        DateTime.now().toUtc().toIso8601String(),
+      ],
+    );
+    await _trimHomePages();
+  }
+
+  @override
+  Future<PagePayload?> getHomePage({
+    required int accountId,
+    required String baseUrl,
+    required String sort,
+  }) async {
+    final rows = await _db
+        .customSelect(
+          'SELECT payload FROM cached_home_pages '
+          'WHERE account_id = ? AND base_url = ? AND sort_key = ?',
+          variables: [
+            Variable.withInt(accountId),
+            Variable.withString(baseUrl),
+            Variable.withString(sort),
+          ],
+        )
+        .get();
+    if (rows.isEmpty) return null;
+    final raw = rows.first.data['payload'] as String?;
+    if (raw == null || raw.isEmpty) return null;
+    try {
+      return PagePayload.fromJson(jsonDecode(raw) as Map<String, dynamic>);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _trimHomePages() async {
+    await _db.customStatement(
+      'DELETE FROM cached_home_pages WHERE rowid IN ('
+      'SELECT rowid FROM cached_home_pages ORDER BY cached_at DESC '
+      'LIMIT -1 OFFSET ?)',
+      [_maxHomePages],
+    );
+  }
 
   // ---- OfflineTopicCache ----
 
@@ -249,7 +331,7 @@ class DriftOfflineCache implements OfflineTopicCache, OfflineChatCache {
     }
   }
 
-  /// 清除全部缓存(登出/清理),三条 DELETE 单事务提交,
+  /// 清除全部缓存(登出/清理),四条 DELETE 单事务提交,
   /// 与页面写入互斥,避免清库与写入交错产生残留。
   @override
   Future<void> clear() async {
@@ -257,6 +339,7 @@ class DriftOfflineCache implements OfflineTopicCache, OfflineChatCache {
       await _db.customStatement('DELETE FROM cached_topics');
       await _db.customStatement('DELETE FROM cached_conversations');
       await _db.customStatement('DELETE FROM cached_messages');
+      await _db.customStatement('DELETE FROM cached_home_pages');
     });
   }
 

@@ -18,8 +18,7 @@ dependencies:
     path: ../auth
   ui_kit:
     path: ../ui_kit
-  cached_network_image: ^3.4.1
-  cupertino_icons: ^1.0.8
+  cupertino_icons: ^1.0.9
   dio: ^5.7.0
   crypto: ^3.0.7
   flutter_quill: ^11.5.1

@@ -120,6 +120,12 @@ class GfPostComposer extends StatelessWidget {
                         imageUrl!,
                         width: 88,
                         height: 72,
+                        cacheWidth:
+                            (176 * MediaQuery.devicePixelRatioOf(context))
+                                .round(),
+                        cacheHeight:
+                            (144 * MediaQuery.devicePixelRatioOf(context))
+                                .round(),
                         fit: BoxFit.cover,
                         errorBuilder: (_, _, _) => Container(
                           width: 88,
