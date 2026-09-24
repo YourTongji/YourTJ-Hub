@@ -2686,6 +2686,27 @@ class AppLocalizationsEn extends AppLocalizations {
       'The latest reply changes could not be saved. Continue editing to retry, or leave without these changes. Any previously saved local copy will remain.';
 
   @override
+  String get publishMediaQueueTitle => 'Photo uploads';
+
+  @override
+  String get publishMediaPendingWarning =>
+      'Some photos have not uploaded. Finish uploading or remove them before saving, publishing, switching type or leaving.';
+
+  @override
+  String get publishMediaTemporary =>
+      'Photos waiting to upload are kept only during this edit. Select them again if the app closes.';
+
+  @override
+  String get publishMediaUploading => 'Uploading';
+
+  @override
+  String get publishMediaWaiting => 'Waiting for the previous photo';
+
+  @override
+  String get publishMediaSavedPartial =>
+      'Text and uploaded photos saved on this device';
+
+  @override
   String get messagesDraftLabel => 'Draft';
 
   @override

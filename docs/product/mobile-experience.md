@@ -328,6 +328,16 @@ corresponding planned ownership and lifecycle contracts.
   paragraph: the image lands below the paragraph it is dropped on, the move
   is a single undo step, and long document drags auto-scroll at the editor
   edges.
+- `Current`: publishing can select up to nine photos per batch; simple galleries retain the
+  nine-photo total limit. The foreground queue uploads in selection order, pauses at a failed photo
+  for retry or removal, and ignores the result of a removed photo. Successful URLs are immediately
+  included in local recovery; gallery ordering/removal and article insertion positions remain part
+  of the draft. Article insertions track intervening text edits at the original selection.
+  Pending photos visibly block leaving, manual draft submission, publishing and type changes.
+  Temporary picker files are retained only for the current editor: app termination requires selecting
+  unuploaded photos again, and the UI distinguishes this from saved text and uploaded photos.
+  Backgrounding starts no further queued upload; an already-started request may finish. Resuming
+  continues the current queue, while session/site invalidation rejects its results and later requests.
 - `Current`: Next opens the preview/classification step. The step shows one publish action in the
   AppBar, with the draft action beside it as an icon button. If a long translation or enlarged text
   cannot fit, the next/publish action also uses a labelled icon button; up to three existing
@@ -383,6 +393,14 @@ corresponding planned ownership and lifecycle contracts.
   have visible shortcuts at the top of its home view, also available to guests, unbound users and
   when school services fail. Pushed tools return to the Campus destination. Explore campus retains
   public course previews; shortcuts are shared with search discovery. See [campus semantics](campus.md) for binding, privacy and provider limits.
+- `Current`: while the app stays in the foreground, Campus remembers its selected section,
+  independent academic/notice search text and scroll positions, and selected timetable week when
+  switching sections, bottom destinations or returning from a pushed page. Scroll restoration waits
+  for the selected section's data and clamps to the available content; a fresh section settles at
+  the top immediately, and manual scrolling cancels pending restoration. These choices stay only in
+  page memory; backgrounding, session/account/site changes, binding changes (including the first
+  binding after an observed unbound state) and authorization loss clear them. Private views still unmount and cancel requests when hidden; grades and notice bodies
+  are not retained by this navigation state or added to the device snapshot.
 - `Current`: school authorization uses the current native forum session in a restricted WebView.
   The initial Bearer header goes only to the first-party session handoff; school navigation receives
   no native credential. The server callback returns to a native confirmation, including resuming
