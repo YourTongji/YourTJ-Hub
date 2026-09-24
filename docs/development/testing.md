@@ -88,15 +88,16 @@ path filters directly, so an unrelated PR does not start a Flutter runner.
   markdown compatibility fixtures, packages/api-contract/**); the
   PostgreSQL integration tests in `app/bundles/connect/sqlconnect` are gated by `TEST_PG_DSN` and
   skip when unset (CI stays green without a PG service)
-- ci-backend.yml also runs `ci-backend-pg` only for model, migration, SQL-connection, or Go module
-  changes: a real `postgres:16-alpine` service + the migration
+- ci-backend.yml also runs `ci-backend-pg` only for model, migration, SQL-connection, campus/chat
+  service, or Go module changes: a real `postgres:16-alpine` service + the migration
   schema tests in `app/migration/migration_pg_test.go` (`TestSchemaMigratesOnPostgreSQL`,
   `TestSchemaUpgradeCreatesNewTablesOnPostgreSQL`), gated by `YOURTJ_TEST_PG_URL` (set in CI, skipped
   locally when unset). **Any model/migration change must pass these PG tests** — models must not
   hardcode MySQL-only types (`bigint unsigned` / `datetime` / `tinyint`), which GORM renders verbatim
   and PostgreSQL rejects, silently leaving tables uncreated (issue #8 production regression).
   The same PostgreSQL job covers campus binding timestamps, identity registration uniqueness, and
-  concurrent daily signup limits (`campus` models and `campusservice`, `PostgreSQL$` tests).
+  concurrent daily signup limits (`campus` models and `campusservice`, `PostgreSQL$` tests), plus
+  consistent chat read-state snapshots and send/read counter interleavings (`chatservice`, `PostgreSQL$` tests).
 - ci-frontend.yml: changed frontend paths run pnpm typecheck + site unit tests + Chromium layout tests + build
   (apps/gooseforum/resource/** and shared markdown compatibility fixtures). Browser regressions live in
   `resource/test/*.browser.mjs`, render the production Vue components and CSS through Vite, and stub API

@@ -2079,7 +2079,8 @@ export interface paths {
          * Mark only displayed incoming chat messages as read
          * @description A client sends the actual incoming message IDs that became visible. The server
          *     validates the whole batch as one conversation and one recipient, then marks
-         *     only those IDs read and recomputes the unread count atomically. Duplicate and
+         *     only those IDs read and decrements the stored unread count by newly read rows
+         *     in the same conversation-locked transaction. Duplicate and
          *     already-read IDs are idempotent. Any invalid ID rejects the whole batch with
          *     `chat.markRead.failed`; malformed, empty, zero, or over-100 inputs fail
          *     validation with `common.request.invalidParams`. The legacy mark-read endpoint
@@ -2107,7 +2108,9 @@ export interface paths {
          * @description Read-only member operation for 1–100 explicit message IDs in one
          *     conversation. Incoming and outgoing IDs are allowed. An invalid ID or
          *     non-member conversation fails with `chat.messages.failed` without disclosing
-         *     which check failed. Frozen accounts retain this read-only access.
+         *     which check failed. Flags and the stored conversation unread counter are read
+         *     under the same conversation lock as send/read mutations; this bounded lookup
+         *     does not recount the unread backlog. Frozen accounts retain this read-only access.
          */
         post: operations["getChatMessageReadStates"];
         delete?: never;
