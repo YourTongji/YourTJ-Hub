@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-09-20
+> Last verified: 2026-09-25
 
 ## Contract status
 
@@ -72,6 +72,33 @@ such as unauthenticated access, frozen or unresolvable authenticated accounts, a
 HTTP `401`, `403`, and `429` with the same failure envelope. Topic write's current permissive `UpButterReq`
 wrapper reports malformed or incomplete JSON as
 an HTTP `200` validation failure, not a guaranteed `400`.
+
+Chat send and read mutations commit message rows, conversation summaries and unread counters in one
+database transaction. `POST /api/forum/chat/mark-visible` accepts 1–100 explicit incoming message IDs;
+it validates the entire batch before changing any state, acknowledges duplicate/already-read IDs
+idempotently and subtracts only newly read rows from the stored recipient counter; sends increment
+that counter under the same conversation lock. Neither operation recounts the unread backlog.
+It does not infer that earlier IDs were seen. `POST /api/forum/chat/message-read-states` returns flags
+for selected incoming or outgoing IDs
+without message bodies, reading flags and the stored counter under that same lock for a consistent
+snapshot. Legacy counter drift is not automatically recounted by this bounded lookup. The legacy
+`mark-read` route remains compatible and still clears the whole conversation when older clients call it. These operations use the existing message `is_read` rows;
+there is no persisted highest-read watermark or schema migration.
+
+`GET /api/forum/events` is a `text/event-stream` invalidation channel for an authenticated foreground
+client. The `hello` frame has `resync: true` on every connection; `chat.changed`,
+`notifications.changed` and `unread.changed` carry owner-scoped hints only. The client reconciles
+via REST cursors after hello, reconnection or an interrupted stream; SSE has no replay IDs and never
+carries message bodies, previews or authoritative unread counts. Chat write/read hints are published
+only after their transaction commits, and notification hints after persisted notification mutations.
+Each subscription has a bounded queue; overflow closes the stream, forcing a REST resync rather
+than silently losing an event. The server permits at most five streams per user and 10,000 per
+process. Session rows and token versions are checked without the profile cache at handshake and
+every five minutes, independently of the 15-second transport heartbeat;
+a database failure closes the stream for retry without declaring logout. This hub is process-local:
+serving the same forum from multiple processes requires a shared invalidation transport before
+this stream can guarantee prompt cross-instance updates. REST remains correct independently. The
+delivery and scaling tradeoffs are recorded in [MADR 0036](../decisions/0036-foreground-realtime-invalidation.md).
 
 ## HTTP method contract: HEAD vs GET (issue #411)
 

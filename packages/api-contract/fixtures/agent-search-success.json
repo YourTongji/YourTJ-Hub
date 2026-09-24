@@ -7,6 +7,27 @@
         "id": 9001,
         "title": "Campus life discussion",
         "description": "Everything about campus life.",
+        "firstImageUrl": "/file/img/2025/06/campus.jpg",
+        "images": ["/file/img/2025/06/campus.jpg"],
+        "imageMetadata": [
+          {
+            "url": "/file/img/2025/06/campus.jpg",
+            "width": 1920,
+            "height": 1080,
+            "variants": [
+              {
+                "url": "/file/img/2025/06/campus__w640.jpg",
+                "width": 640,
+                "height": 360
+              },
+              {
+                "url": "/file/img/2025/06/campus__w1280.jpg",
+                "width": 1280,
+                "height": 720
+              }
+            ]
+          }
+        ],
         "url": "/p/9001",
         "pinWeight": 0,
         "processStatus": 0,

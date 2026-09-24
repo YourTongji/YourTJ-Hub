@@ -60,6 +60,7 @@ jobs:
               - 'packages/api-contract/**'
               - '.github/workflows/ci-backend.yml'
             backend_pg:
+              - 'apps/gooseforum/app/service/chatservice/**'
               - 'apps/gooseforum/app/service/campusservice/**'
               - 'apps/gooseforum/app/bundles/connect/sqlconnect/**'
               - 'apps/gooseforum/app/migration/**'
@@ -181,4 +182,5 @@ jobs:
           go test ./app/models/forum/topicUserStat/ -run 'PostgreSQL$' -v
           go test ./app/models/forum/users/ -run 'PostgreSQL$' -v
           go test ./app/models/forum/campus/ -run 'PostgreSQL$' -v
+          go test ./app/service/chatservice/ -run 'PostgreSQL$' -v
           go test ./app/service/campusservice/ -run 'PostgreSQL$' -v

@@ -102,8 +102,10 @@ class _Pages extends FakePageRepository {
   _Pages(super.client, this.hasMore);
   final bool hasMore;
   @override
-  Future<PagePayload> fetch(String path) async {
-    if (!hasMore || !path.startsWith('/p/post/')) return super.fetch(path);
+  Future<PagePayload> fetch(String path, {Object? cancelToken}) async {
+    if (!hasMore || !path.startsWith('/p/post/')) {
+      return super.fetch(path, cancelToken: cancelToken);
+    }
     final json = topicDetailPayloadJson();
     final stream = (json['props'] as Map)['postStream'] as Map;
     stream['hasAfter'] = true;
