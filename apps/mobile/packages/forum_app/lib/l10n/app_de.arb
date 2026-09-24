@@ -888,5 +888,26 @@
         "type": "String"
       }
     }
+  },
+  "scheduleTimeAxis": "Stunden",
+  "scheduleEmptyCell": "{day}, Stunde {section}, Kurs auswählen",
+  "scheduleSectionsN": "Stunden {range}",
+  "scheduleGridScrollHint": "Seitlich wischen, um die ganze Woche zu sehen",
+  "@scheduleEmptyCell": {
+    "placeholders": {
+      "day": {
+        "type": "String"
+      },
+      "section": {
+        "type": "int"
+      }
+    }
+  },
+  "@scheduleSectionsN": {
+    "placeholders": {
+      "range": {
+        "type": "String"
+      }
+    }
   }
 }

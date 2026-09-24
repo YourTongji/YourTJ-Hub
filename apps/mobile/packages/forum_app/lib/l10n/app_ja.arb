@@ -888,5 +888,26 @@
         "type": "String"
       }
     }
+  },
+  "scheduleTimeAxis": "時限",
+  "scheduleEmptyCell": "{day}、{section} 時限目、授業を選択",
+  "scheduleSectionsN": "{range} 時限",
+  "scheduleGridScrollHint": "左右にスワイプして週全体を表示",
+  "@scheduleEmptyCell": {
+    "placeholders": {
+      "day": {
+        "type": "String"
+      },
+      "section": {
+        "type": "int"
+      }
+    }
+  },
+  "@scheduleSectionsN": {
+    "placeholders": {
+      "range": {
+        "type": "String"
+      }
+    }
   }
 }

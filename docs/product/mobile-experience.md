@@ -332,6 +332,16 @@ corresponding planned ownership and lifecycle contracts.
   credit, hour and conflict counts wrap in a compact row. A small Web action opens
   the full [Web scheduler](https://f.yourtj.de/schedule) in the external browser without transferring
   the native credential. Plans are not official enrollment results.
+- `Current`: planner and official timetable grids share a responsive seven-day layout with a fixed
+  section/time rail during horizontal scrolling. Larger screens expand the columns; narrow screens
+  keep readable column widths and explain sideways scrolling. Spanning course blocks show title,
+  room, teachers and week range; single-section and stacked blocks prioritize title, room and week
+  parity, with complete details in their accessible labels. Course colors retain stable slots, while
+  soft borders, an accent line and separate conflict icons follow the Web hierarchy. Row heights and
+  column widths follow accessibility text scaling, including nonlinear scaling of small text. Course
+  details and selectable empty cells support keyboard activation and labeled screen-reader actions;
+  unconfigured empty cells and custom placeholders do not present inert buttons. The week selector
+  has a minimum 48dp action height.
 - `Current`: signed-in plans use the same per-plan revision and three-way merge rules as Web
   (`GET/PUT/DELETE /api/pk/plan-items`). Independent course changes and custom-event fields merge
   automatically; only conflicting values require a choice. A remotely deleted plan with local edits

@@ -4751,6 +4751,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Some cached data could not be cleared. Please retry.'**
   String get campusCacheClearFailed;
+
+  /// No description provided for @scheduleTimeAxis.
+  ///
+  /// In en, this message translates to:
+  /// **'Sections'**
+  String get scheduleTimeAxis;
+
+  /// No description provided for @scheduleEmptyCell.
+  ///
+  /// In en, this message translates to:
+  /// **'{day}, section {section}, choose a course'**
+  String scheduleEmptyCell(String day, int section);
+
+  /// No description provided for @scheduleSectionsN.
+  ///
+  /// In en, this message translates to:
+  /// **'Sections {range}'**
+  String scheduleSectionsN(String range);
+
+  /// No description provided for @scheduleGridScrollHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Swipe sideways to view the full week'**
+  String get scheduleGridScrollHint;
 }
 
 class _AppLocalizationsDelegate
