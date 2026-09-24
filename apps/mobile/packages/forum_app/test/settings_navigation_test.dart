@@ -30,7 +30,7 @@ class _CountingPageRepository extends PageRepository {
   String email = 'alice@example.com';
   Completer<PagePayload>? pending;
   @override
-  Future<PagePayload> fetch(String path) async {
+  Future<PagePayload> fetch(String path, {CancelToken? cancelToken}) async {
     requests++;
     if (fail) throw StateError('Settings temporarily unavailable');
     if (pending != null) return pending!.future;
