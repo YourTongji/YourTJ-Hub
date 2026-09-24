@@ -2502,4 +2502,15 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get badgeDisplayDown => 'Move down';
+
+  @override
+  String get messagesNewMessages => 'New messages · Jump to latest';
+
+  @override
+  String get messagesReadSyncFailed =>
+      'Read status could not sync. Unread messages are preserved.';
+
+  @override
+  String get messagesReadUnavailable =>
+      'This server does not support individual read receipts. Unread messages are preserved.';
 }

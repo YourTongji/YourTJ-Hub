@@ -2530,4 +2530,15 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get badgeDisplayDown => 'Nach unten';
+
+  @override
+  String get messagesNewMessages => 'Neue Nachrichten · Zum Ende';
+
+  @override
+  String get messagesReadSyncFailed =>
+      'Lesestatus konnte nicht synchronisiert werden. Ungelesene Nachrichten bleiben erhalten.';
+
+  @override
+  String get messagesReadUnavailable =>
+      'Dieser Server unterstützt noch keine einzelnen Lesebestätigungen. Ungelesene Nachrichten bleiben erhalten.';
 }

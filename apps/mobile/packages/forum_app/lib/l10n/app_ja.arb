@@ -862,5 +862,8 @@
   "badgeDisplayTitle": "プロフィールのバッジ",
   "badgeDisplayHint": "最大5個まで選び、表示順を変更できます。すべて非表示にもできます。アバターのバッジとは別の設定です。",
   "badgeDisplayUp": "上へ",
-  "badgeDisplayDown": "下へ"
+  "badgeDisplayDown": "下へ",
+  "messagesNewMessages": "新着メッセージ・最新へ",
+  "messagesReadSyncFailed": "既読状態を同期できませんでした。未読は保持されます。",
+  "messagesReadUnavailable": "このサーバーは個別の既読通知に対応していません。未読は保持されます。"
 }

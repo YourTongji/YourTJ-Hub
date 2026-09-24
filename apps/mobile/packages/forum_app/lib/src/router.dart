@@ -9,6 +9,7 @@ import 'package:ui_kit/ui_kit.dart';
 
 import '../l10n/app_localizations.dart';
 import 'navigation/tab_scroll_registry.dart';
+import 'navigation/route_visibility.dart';
 import 'navigation/reading_chrome.dart';
 import 'widgets/account_drawer.dart';
 import 'pages/auth/login_page.dart';
@@ -256,6 +257,7 @@ int? publishTopicIdFromUri(Uri uri) {
 final appNavigatorKey = GlobalKey<NavigatorState>();
 final GoRouter appRouter = GoRouter(
   navigatorKey: appNavigatorKey,
+  observers: [VisibilityRouteObserver()],
   initialLocation: '/',
   routes: <RouteBase>[
     StatefulShellRoute.indexedStack(
@@ -267,16 +269,19 @@ final GoRouter appRouter = GoRouter(
           ) => GfShell(navigationShell: navigationShell),
       branches: <StatefulShellBranch>[
         StatefulShellBranch(
+          observers: [VisibilityRouteObserver()],
           routes: <RouteBase>[
             GoRoute(path: '/', builder: (_, _) => const HomePage()),
           ],
         ),
         StatefulShellBranch(
+          observers: [VisibilityRouteObserver()],
           routes: <RouteBase>[
             GoRoute(path: '/campus', builder: (_, _) => const CampusPage()),
           ],
         ),
         StatefulShellBranch(
+          observers: [VisibilityRouteObserver()],
           routes: [
             GoRoute(
               path: '/notifications',
@@ -285,6 +290,7 @@ final GoRouter appRouter = GoRouter(
           ],
         ),
         StatefulShellBranch(
+          observers: [VisibilityRouteObserver()],
           routes: <RouteBase>[
             GoRoute(
               path: '/messages',

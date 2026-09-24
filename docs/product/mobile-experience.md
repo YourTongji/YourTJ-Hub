@@ -141,9 +141,21 @@ Web inside an authenticated in-app browser. The navigation and management bounda
   and is cleared at the account/session boundary; it is not persisted across app termination. Only one request for
   each bubble can run at once. The API has no message idempotency key, so ambiguous network failures
   cannot guarantee exactly-once delivery when manually retried.
-- `Partial`: the chat API can acknowledge an explicit set of incoming message IDs and read back
-  individual read flags. The Flutter conversation screen still calls the compatible whole-conversation
-  read endpoint; visible-viewport measurement and the unread new-message prompt are not yet connected.
+- `Current`: native conversations acknowledge only incoming, unread server message IDs whose actual
+  bubbles are at least 50% visible for a stable 350 ms in the message viewport. For a bubble taller
+  than the viewport, visibility uses the viewport height. The keyboard-clipped viewport, current
+  route and ancestor navigator routes, active tab, foreground lifecycle and session epoch all gate
+  measurement. List prebuilding, opening a conversation, fetching messages and intermediate positions
+  during a jump do not establish read state. Batches contain at most 100 IDs with one request in
+  flight; stale callbacks cannot update the next session. A transient failure has one automatic retry
+  and an explicit retry, preserving unread state. Unsupported servers show a compatibility message
+  and never fall back to the whole-conversation read endpoint.
+- `Current`: new incoming messages preserve the user's history position and expose an accessible
+  lower-right jump-to-latest button. Jumping only acknowledges bubbles actually visible after layout;
+  unseen history remains unread. Loading older pages preserves the visible bubble anchor across lazy
+  relayout, and newer fetches retain the older-history cursor. `Partial`: physical-device visibility thresholds, keyboard overlays
+  and lifecycle behavior still require device validation. Message delivery still uses the existing
+  polling mechanism; this viewport change does not introduce a realtime transport.
 
 ## Language and presentation
 
