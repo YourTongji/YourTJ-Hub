@@ -32,6 +32,7 @@ import 'package:forum_app/src/pages/topic/mention_search.dart';
 import 'package:forum_app/src/pages/topic/mention_session.dart';
 import 'package:forum_app/src/providers.dart';
 import 'package:forum_app/src/router.dart';
+import 'package:forum_app/src/realtime/realtime_updates.dart';
 import 'package:forum_app/src/navigation/tab_scroll_registry.dart';
 import 'package:forum_app/src/widgets/topic_list.dart';
 import 'package:forum_app/src/widgets/status_views.dart';
@@ -572,6 +573,20 @@ class CountingMessagesPageRepository extends PageRepository {
     }
     fetchCalls++;
     return parsePayload(messagesPayloadJson());
+  }
+}
+
+class DelayedMessagesPageRepository extends PageRepository {
+  DelayedMessagesPageRepository(super.client);
+
+  final requests = <Completer<PagePayload>>[];
+
+  @override
+  Future<PagePayload> fetch(String path, {Object? cancelToken}) {
+    if (path != '/messages') throw StateError('unexpected path: $path');
+    final request = Completer<PagePayload>();
+    requests.add(request);
+    return request.future;
   }
 }
 
@@ -2643,6 +2658,106 @@ void main() {
   });
 
   group('消息轮询', () {
+    testWidgets(
+      'late older conversation snapshot cannot replace event refresh',
+      (tester) async {
+        final client = GfApiClient(
+          dio: Dio(),
+          tokenStorage: MemTokenStorage(),
+          baseUrl: 'http://fake.local',
+        );
+        final pageRepo = DelayedMessagesPageRepository(client);
+        final container = await makeContainer(pageRepo: pageRepo);
+        PagePayload snapshot(String text) {
+          final payload = messagesPayloadJson();
+          final props = payload['props'] as Map<String, dynamic>;
+          final conversations = props['conversations'] as List<dynamic>;
+          (conversations.first as Map<String, dynamic>)['lastMsg'] = text;
+          return parsePayload(payload);
+        }
+
+        await tester.pumpWidget(app(container, const MessagesPage()));
+        await tester.pump();
+        expect(pageRepo.requests.length, 1);
+        container.read(realtimeInvalidationsProvider.notifier).chat(1);
+        await tester.pump();
+        // Coalesce the hint behind the in-flight request and never paint its
+        // obsolete snapshot while waiting for the follow-up refresh.
+        expect(pageRepo.requests.length, 1);
+        pageRepo.requests[0].complete(snapshot('stale snapshot'));
+        await tester.pump();
+        expect(pageRepo.requests.length, 2);
+        expect(find.text('stale snapshot'), findsNothing);
+        pageRepo.requests[1].complete(snapshot('new snapshot'));
+        await tester.pumpAndSettle();
+        expect(find.text('new snapshot'), findsOneWidget);
+        expect(find.text('stale snapshot'), findsNothing);
+        await tester.pumpWidget(const SizedBox.shrink());
+      },
+    );
+
+    testWidgets('healthy stream stops polling and reconciles a chat hint', (
+      tester,
+    ) async {
+      final client = GfApiClient(
+        dio: Dio(),
+        tokenStorage: MemTokenStorage(),
+        baseUrl: 'http://fake.local',
+      );
+      final pageRepo = CountingMessagesPageRepository(client);
+      final container = await makeContainer(pageRepo: pageRepo);
+      await tester.pumpWidget(app(container, const MessagesPage()));
+      await tester.pumpAndSettle();
+      expect(pageRepo.fetchCalls, 1);
+
+      container.read(realtimeHealthyProvider.notifier).setHealthy(true);
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 16));
+      expect(pageRepo.fetchCalls, 1);
+
+      container.read(realtimeInvalidationsProvider.notifier).chat(7);
+      await tester.pumpAndSettle();
+      expect(pageRepo.fetchCalls, 2);
+
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      container.read(realtimeHealthyProvider.notifier).setHealthy(false);
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 15));
+      expect(pageRepo.fetchCalls, 2);
+
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pump();
+      expect(pageRepo.fetchCalls, greaterThanOrEqualTo(3));
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+
+    testWidgets('notification hint reconciles the visible filter', (
+      tester,
+    ) async {
+      final client = GfApiClient(
+        dio: Dio(),
+        tokenStorage: MemTokenStorage(),
+        baseUrl: 'http://fake.local',
+      );
+      final notifications = FilteringNotificationRepository(client);
+      final container = await makeContainer(
+        pageRepo: CountingPageRepository(client),
+        notifRepo: notifications,
+      );
+      await tester.pumpWidget(app(container, const NotificationsPage()));
+      await tester.pumpAndSettle();
+      expect(notifications.filters, ['all']);
+
+      container.read(realtimeInvalidationsProvider.notifier).notifications();
+      await tester.pumpAndSettle();
+      expect(notifications.filters, ['all', 'all']);
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+
     testWidgets('隐藏分支暂停轮询，重新可见后立即刷新', (tester) async {
       final GfApiClient client = GfApiClient(
         dio: Dio(),

@@ -728,7 +728,6 @@ class _LoginPageState extends ConsumerState<LoginPage>
                     top: 4,
                     right: 8,
                     child: GfIconButton(
-                      tooltip: l10n.settingsAppearance,
                       icon: brightness == Brightness.dark
                           ? Icons.light_mode_outlined
                           : Icons.dark_mode_outlined,

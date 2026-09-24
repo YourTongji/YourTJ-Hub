@@ -198,10 +198,12 @@ corresponding planned ownership and lifecycle contracts.
   unseen history remains unread. Loading older pages preserves the visible bubble anchor across lazy
   relayout, and newer fetches retain the older-history cursor. `Partial`: physical-device visibility
   thresholds, keyboard overlays and lifecycle behavior still require device validation.
-- `Partial`: the server offers an authenticated foreground event stream for chat, notifications and
-  unread-state changes. It sends an immediate resync instruction and bounded, owner-scoped change
-  hints; clients fetch actual content and counts from REST. The Flutter app still uses its existing
-  refresh path until its single foreground connection and reconnect reconciliation are integrated.
+- `Current`: the authenticated Flutter shell keeps one chat/notification/unread event connection only
+  while foregrounded. The server sends an immediate resync instruction and owner-scoped change hints;
+  the app reloads actual messages, notification lists and unread badges through REST. Reconnects and
+  resumed sessions reconcile again, and a failed or unsupported stream uses foreground polling until
+  delivery recovers. Account changes cancel the previous connection and discard stale unread responses.
+  Background push delivery is not provided by this stream.
 
 ## Language and presentation
 
