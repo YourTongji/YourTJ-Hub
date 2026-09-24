@@ -63,3 +63,36 @@ abstract class ChatMessagesResponse with _$ChatMessagesResponse {
   factory ChatMessagesResponse.fromJson(Map<String, dynamic> json) =>
       _$ChatMessagesResponseFromJson(json);
 }
+
+/// Acknowledgement of the exact incoming IDs the client displayed.
+@freezed
+abstract class ChatVisibleReadResult with _$ChatVisibleReadResult {
+  const factory ChatVisibleReadResult({
+    required int convId,
+    required List<int> acknowledgedMessageIds,
+    required int unreadCount,
+  }) = _ChatVisibleReadResult;
+
+  factory ChatVisibleReadResult.fromJson(Map<String, dynamic> json) =>
+      _$ChatVisibleReadResultFromJson(json);
+}
+
+@freezed
+abstract class ChatMessageReadState with _$ChatMessageReadState {
+  const factory ChatMessageReadState({required int id, required int isRead}) =
+      _ChatMessageReadState;
+
+  factory ChatMessageReadState.fromJson(Map<String, dynamic> json) =>
+      _$ChatMessageReadStateFromJson(json);
+}
+
+@freezed
+abstract class ChatMessageReadStatesResult with _$ChatMessageReadStatesResult {
+  const factory ChatMessageReadStatesResult({
+    required List<ChatMessageReadState> items,
+    required int unreadCount,
+  }) = _ChatMessageReadStatesResult;
+
+  factory ChatMessageReadStatesResult.fromJson(Map<String, dynamic> json) =>
+      _$ChatMessageReadStatesResultFromJson(json);
+}

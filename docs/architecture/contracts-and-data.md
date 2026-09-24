@@ -73,6 +73,15 @@ HTTP `401`, `403`, and `429` with the same failure envelope. Topic write's curre
 wrapper reports malformed or incomplete JSON as
 an HTTP `200` validation failure, not a guaranteed `400`.
 
+Chat send and read mutations commit message rows, conversation summaries and unread counters in one
+database transaction. `POST /api/forum/chat/mark-visible` accepts 1–100 explicit incoming message IDs;
+it validates the entire batch before changing any state, acknowledges duplicate/already-read IDs
+idempotently and recomputes the recipient's unread count. It does not infer that earlier IDs were
+seen. `POST /api/forum/chat/message-read-states` returns flags for selected incoming or outgoing IDs
+without message bodies. The legacy `mark-read` route remains compatible and still clears the whole
+conversation when older clients call it. These operations use the existing message `is_read` rows;
+there is no persisted highest-read watermark or schema migration.
+
 ## HTTP method contract: HEAD vs GET (issue #411)
 
 The single-binary app is served directly by Gin behind a CDN / reverse proxy
