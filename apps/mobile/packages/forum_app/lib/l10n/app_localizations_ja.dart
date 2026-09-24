@@ -62,6 +62,11 @@ class AppLocalizationsJa extends AppLocalizations {
   String get commonSave => '保存';
 
   @override
+  String imageViewPosition(int index, int count) {
+    return '画像 $index / $count を表示';
+  }
+
+  @override
   String get imageSave => '画像を保存';
 
   @override

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ui_kit/ui_kit.dart';
 
@@ -60,6 +61,8 @@ void main() {
               likeCount: likeCount,
               liked: liked,
               likeTooltip: '点赞',
+              bookmarkTooltip: '收藏',
+              onBookmark: (_) async => true,
               onLike: (target) async {
                 if (!succeed) return false;
                 setState(() {
@@ -74,6 +77,13 @@ void main() {
       ),
     );
     expect(find.text('5'), findsOneWidget);
+    expect(find.byIcon(Icons.thumb_up_outlined), findsNothing);
+    final likeTarget = tester.getSize(find.byTooltip('点赞'));
+    expect(likeTarget.width, greaterThanOrEqualTo(44));
+    expect(likeTarget.height, greaterThanOrEqualTo(44));
+    final bookmarkTarget = tester.getSize(find.byTooltip('收藏'));
+    expect(bookmarkTarget.width, greaterThanOrEqualTo(44));
+    expect(bookmarkTarget.height, greaterThanOrEqualTo(44));
     await tester.tap(find.byTooltip('点赞'));
     await tester.pumpAndSettle();
     expect(find.text('6'), findsOneWidget);
@@ -84,7 +94,7 @@ void main() {
   });
 
   testWidgets(
-    'feed image keeps card navigation and does not open the lightbox',
+    'feed image opens the shared lightbox without navigating the card',
     (tester) async {
       var tapped = false;
       await tester.pumpWidget(
@@ -108,12 +118,63 @@ void main() {
       );
 
       await tester.tap(find.byType(Image).first);
-      await tester.pumpAndSettle();
+      // The lightbox keeps its network image loading animation in widget tests.
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
 
-      expect(tapped, isTrue);
-      expect(find.byType(GfImageViewer), findsNothing);
+      expect(tapped, isFalse);
+      expect(find.byType(GfImageViewer), findsOneWidget);
     },
   );
+
+  testWidgets('author name and image support keyboard activation', (
+    tester,
+  ) async {
+    var authorTaps = 0;
+    var cardTaps = 0;
+    await tester.pumpWidget(
+      gfApp(
+        SizedBox(
+          width: 390,
+          child: GfTopicCard(
+            title: 'Campus',
+            description: 'A short preview',
+            authorName: 'A',
+            authorAvatarUrl: '',
+            onAuthorTap: () => authorTaps++,
+            onTap: () => cardTaps++,
+            imageUrls: const ['https://example.test/preview.png'],
+            imageSemanticLabelBuilder: (index, count) => '查看图片 $index / $count',
+            categories: const [],
+            activityText: 'now',
+            replyCount: 0,
+            viewCount: 1,
+          ),
+        ),
+      ),
+    );
+    final author = find
+        .ancestor(of: find.text('A'), matching: find.byType(InkWell))
+        .first;
+    expect(tester.getSize(author).width, greaterThanOrEqualTo(44));
+    expect(tester.getSize(author).height, greaterThanOrEqualTo(44));
+    Focus.of(tester.element(find.text('A'))).requestFocus();
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pump();
+    expect(authorTaps, 1);
+    expect(cardTaps, 0);
+    final semantics = tester.ensureSemantics();
+    expect(find.bySemanticsLabel('查看图片 1 / 1'), findsOneWidget);
+    Focus.of(tester.element(find.byType(Image).first)).requestFocus();
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.byType(GfImageViewer), findsOneWidget);
+    expect(cardTaps, 0);
+    semantics.dispose();
+  });
 
   testWidgets(
     'compact feed remains readable on narrow screens with large text',

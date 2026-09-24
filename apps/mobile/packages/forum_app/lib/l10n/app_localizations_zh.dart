@@ -60,6 +60,11 @@ class AppLocalizationsZh extends AppLocalizations {
   String get commonSave => '保存';
 
   @override
+  String imageViewPosition(int index, int count) {
+    return '查看图片 $index / $count';
+  }
+
+  @override
   String get imageSave => '保存图片';
 
   @override

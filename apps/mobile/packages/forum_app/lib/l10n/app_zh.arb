@@ -17,6 +17,7 @@
   "navProfile": "我的",
   "commonCancel": "取消",
   "commonSave": "保存",
+  "imageViewPosition": "查看图片 {index} / {count}",
   "imageSave": "保存图片",
   "imageSaved": "图片已保存",
   "imageSaveFailed": "图片保存失败，请稍后重试",
