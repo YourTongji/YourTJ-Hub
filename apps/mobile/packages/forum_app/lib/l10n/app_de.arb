@@ -383,6 +383,7 @@
   "reviewHelpful": "Hilfreich",
   "reviewsEmpty": "Noch keine Bewertungen",
   "wikiTitle": "Wiki",
+  "wikiLinkOpenFailed": "Der Link konnte nicht geöffnet werden. Bitte versuche es erneut.",
   "wikiRecent": "Zuletzt aktualisiert",
   "wikiEditOnGithub": "Auf GitHub bearbeiten",
   "wikiToc": "Inhaltsverzeichnis",

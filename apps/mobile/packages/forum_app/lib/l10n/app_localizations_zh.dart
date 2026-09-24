@@ -1173,6 +1173,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get wikiTitle => 'Wiki';
 
   @override
+  String get wikiLinkOpenFailed => '无法打开链接，请重试。';
+
+  @override
   String get wikiRecent => '最近更新';
 
   @override

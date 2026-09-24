@@ -11,6 +11,7 @@ import '../../../l10n/app_localizations.dart';
 import '../../asset_url.dart';
 import '../../format.dart';
 import '../../images/image_save.dart';
+import '../../link_navigation.dart';
 import '../../providers.dart';
 import '../../server_messages.dart';
 import '../../widgets/status_views.dart';
@@ -165,51 +166,70 @@ class _WikiPageState extends ConsumerState<WikiPage> {
     }
   }
 
-  /// 正文链接策略:站内 wiki 链接推入详情页;`#锚点` 交还 [HtmlWidget]
-  /// 内部滚动;其余绝对链接交给系统浏览器。
-  ///
-  /// 服务端渲染的 href 处于 percent-encoded 态(issue #560):统一起
-  /// [Uri.pathSegments](逐段解码)提取目标路径、[Uri.fragment](保留编码
-  /// 态,须经 [decodeWikiAnchor] 解码)提取锚点,再经 [encodeWikiPath]
-  /// 单出口编码推送。不得用 `Uri.path`——它保留编码态,再编码会把 `%`
-  /// 变成 `%25`(二次编码)。
+  /// Keep same-page anchors inside the HTML renderer. Only the configured
+  /// origin owns native Wiki routes; repository assets are actual file URLs.
   Future<bool> _handleLinkTap(String url) async {
-    final Uri? uri = Uri.tryParse(url);
-    if (uri == null) return false;
-    final bool isHttp =
-        uri.hasScheme && (uri.scheme == 'http' || uri.scheme == 'https');
-    // 站内判定:相对链接须 /wiki/ 前缀;绝对链接保留既有 path 前缀语义
-    //(host 校验超出本修复范围)。`/wiki` 裸路径、`/wiki/` 空 target
-    // 维持现状:不跳转。
-    final List<String> segments = uri.pathSegments;
-    final bool isInternalWiki =
-        segments.isNotEmpty &&
-        segments.first == 'wiki' &&
-        segments.length > 1 &&
-        (isHttp || url.startsWith('/wiki/'));
-    if (isInternalWiki) {
-      // decoded 域目标;锚点不卷入路径(%23)。`Uri.fragment` 保留编码态
-      //(review P2),先解码再重新编码,避免二次编码 %25E7...。
-      final String target = segments.sublist(1).join('/');
-      if (context.mounted && target.isNotEmpty) {
-        final String? fragment = uri.hasFragment ? uri.fragment : null;
-        final String anchor = (fragment != null && fragment.isNotEmpty)
-            ? '#${Uri.encodeComponent(decodeWikiAnchor(fragment))}'
-            : '';
-        context.push('/wiki/${encodeWikiPath(target)}$anchor');
-      }
+    final source = Uri.tryParse(url.trim());
+    if (source == null || url.contains('\\')) return true;
+    if (!source.hasScheme &&
+        !source.hasAuthority &&
+        source.path.isEmpty &&
+        !source.hasQuery &&
+        source.hasFragment) {
+      return false;
+    }
+    final base = Uri.parse(ref.read(apiClientProvider).baseUrl);
+    final pageUri = base.resolve('/wiki/${encodeWikiPath(widget.wikiPath)}');
+    final uri = pageUri.resolveUri(source);
+    if ((uri.scheme != 'http' && uri.scheme != 'https') ||
+        uri.host.isEmpty ||
+        uri.userInfo.isNotEmpty) {
       return true;
     }
-    if (isHttp) {
-      try {
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
-      } catch (_) {
-        // 外部链接打开失败不阻塞阅读。
+    final sameOrigin =
+        uri.scheme == base.scheme &&
+        uri.host == base.host &&
+        uri.port == base.port;
+    final segments = uri.pathSegments;
+    try {
+      if (sameOrigin && segments.isNotEmpty && segments.first == 'wiki') {
+        if (segments.length > 1 && segments[1] == '_assets') {
+          if (!await launchUrl(uri, mode: LaunchMode.externalApplication) &&
+              mounted) {
+            showGfToast(
+              context,
+              AppLocalizations.of(context).wikiLinkOpenFailed,
+              error: true,
+            );
+          }
+        } else {
+          final target = segments.skip(1).join('/');
+          final path = target.isEmpty
+              ? '/wiki'
+              : '/wiki/${encodeWikiPath(target)}';
+          final query = uri.hasQuery ? '?${uri.query}' : '';
+          final anchor = uri.fragment.isEmpty
+              ? ''
+              : '#${Uri.encodeComponent(decodeWikiAnchor(uri.fragment))}';
+          if (mounted) context.push('$path$query$anchor');
+        }
+      } else {
+        await LinkNavigation.open(
+          context,
+          uri.toString(),
+          baseUrl: base.toString(),
+        );
       }
-      return true;
+    } catch (_) {
+      if (mounted) {
+        showGfToast(
+          context,
+          AppLocalizations.of(context).wikiLinkOpenFailed,
+          error: true,
+        );
+      }
     }
-    // `#id` 页内锚点由 HtmlWidget 的 AnchorRegistry 处理。
-    return false;
+    return true;
   }
 
   void _openImageViewer(String url) {
@@ -291,6 +311,9 @@ class _WikiPageState extends ConsumerState<WikiPage> {
             GfErrorRetry(message: resolveErrorMessage(l10n, e), onRetry: _load),
         data: (WikiPageDetail loaded) => _WikiProse(
           page: loaded,
+          baseUrl: Uri.parse(
+            ref.read(apiClientProvider).baseUrl,
+          ).resolve('/wiki/${encodeWikiPath(widget.wikiPath)}'),
           scrollController: _scrollController,
           htmlKey: _htmlKey,
           onLinkTap: _handleLinkTap,
@@ -306,6 +329,7 @@ class _WikiPageState extends ConsumerState<WikiPage> {
 class _WikiProse extends StatelessWidget {
   const _WikiProse({
     required this.page,
+    required this.baseUrl,
     required this.scrollController,
     required this.htmlKey,
     required this.onLinkTap,
@@ -313,6 +337,7 @@ class _WikiProse extends StatelessWidget {
   });
 
   final WikiPageDetail page;
+  final Uri baseUrl;
   final ScrollController scrollController;
   final GlobalKey<HtmlWidgetState> htmlKey;
   final Future<bool> Function(String url) onLinkTap;
@@ -345,6 +370,8 @@ class _WikiProse extends StatelessWidget {
     } else {
       body = HtmlWidget(
         page.content,
+        baseUrl: baseUrl,
+        factoryBuilder: () => _WikiHtmlFactory(baseUrl),
         key: htmlKey,
         buildAsync: false,
         textStyle: typography.body.copyWith(color: colors.baseContent),
@@ -522,5 +549,23 @@ class _WikiPageSkeleton extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+/// With a base URL, HTML links arrive as absolute URLs, but scrollToAnchor
+/// still dispatches a bare fragment. Both forms must resolve the decoded ID.
+class _WikiHtmlFactory extends WidgetFactory {
+  _WikiHtmlFactory(this.pageUri);
+  final Uri pageUri;
+
+  @override
+  Future<bool> onTapUrl(String url) {
+    final uri = Uri.tryParse(url);
+    if (uri != null &&
+        uri.hasFragment &&
+        (url.startsWith('#') || uri.removeFragment() == pageUri)) {
+      return onTapAnchorWrapper(decodeWikiAnchor(uri.fragment));
+    }
+    return super.onTapUrl(url);
   }
 }
