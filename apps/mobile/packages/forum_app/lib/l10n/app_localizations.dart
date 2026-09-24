@@ -4637,6 +4637,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Move down'**
   String get badgeDisplayDown;
+
+  /// No description provided for @messagesEmoji.
+  ///
+  /// In en, this message translates to:
+  /// **'Emoji'**
+  String get messagesEmoji;
+
+  /// No description provided for @messagesKeyboard.
+  ///
+  /// In en, this message translates to:
+  /// **'Keyboard'**
+  String get messagesKeyboard;
 }
 
 class _AppLocalizationsDelegate

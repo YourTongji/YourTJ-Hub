@@ -1,6 +1,8 @@
 import '../../private_notes.dart';
 import '../../widgets/root_surface.dart';
 import '../../messages/chat_outbox.dart';
+import '../../messages/message_content.dart';
+import '../../link_navigation.dart';
 import 'dart:async';
 import 'dart:math' as math;
 
@@ -17,7 +19,6 @@ import '../../navigation/tab_scroll_registry.dart';
 import '../../format.dart';
 import '../../server_messages.dart';
 import '../../widgets/status_views.dart';
-import '../../widgets/sticker_message_span.dart';
 
 /// 私信(IM)页(web messages.index 的移动端形态):
 /// 会话列表 + 消息游标分页 + 15s 轮询 + 已读回执 + 离线缓存 + 发起新会话。
@@ -773,6 +774,8 @@ class _ConversationPageState extends ConsumerState<_ConversationPage> {
                   controller: _input,
                   hintText: l10n.messagesInputHint,
                   sendLabel: l10n.commonSend,
+                  emojiLabel: l10n.messagesEmoji,
+                  keyboardLabel: l10n.messagesKeyboard,
                   canSend: _historyReady,
                   onSend: _send,
                 ),
@@ -1179,10 +1182,6 @@ class _MessageRow extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final InlineSpan? contentSpan = buildStickerMessageSpan(
-      message.content,
-      ref.read(stickerLibraryProvider).urlByName,
-    );
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 5),
       child: Row(
@@ -1198,7 +1197,31 @@ class _MessageRow extends ConsumerWidget {
           Flexible(
             child: GfMessageBubble(
               text: message.content,
-              contentSpan: contentSpan,
+              selectable: true,
+              content: MessageContent(
+                text: message.content,
+                stickers: ref.read(stickerLibraryProvider).urlByName,
+                onOpenLink: (url) async {
+                  try {
+                    await LinkNavigation.open(
+                      context,
+                      url,
+                      baseUrl: ref.read(apiClientProvider).baseUrl,
+                    );
+                  } catch (error) {
+                    if (context.mounted) {
+                      showGfToast(
+                        context,
+                        resolveErrorMessage(
+                          AppLocalizations.of(context),
+                          error,
+                        ),
+                        error: true,
+                      );
+                    }
+                  }
+                },
+              ),
               mine: message.isSelf,
               time: formatChatTime(
                 message.createdAt,

@@ -2408,4 +2408,10 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get badgeDisplayDown => '下移';
+
+  @override
+  String get messagesEmoji => '表情';
+
+  @override
+  String get messagesKeyboard => '键盘';
 }

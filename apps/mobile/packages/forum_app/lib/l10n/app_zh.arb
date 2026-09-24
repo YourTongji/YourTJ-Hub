@@ -1192,5 +1192,7 @@
   "badgeDisplayTitle": "资料卡展示徽章",
   "badgeDisplayHint": "最多选择 5 枚，按下方顺序展示；可全部取消。与头像佩戴徽章独立。",
   "badgeDisplayUp": "上移",
-  "badgeDisplayDown": "下移"
+  "badgeDisplayDown": "下移",
+  "messagesEmoji": "表情",
+  "messagesKeyboard": "键盘"
 }

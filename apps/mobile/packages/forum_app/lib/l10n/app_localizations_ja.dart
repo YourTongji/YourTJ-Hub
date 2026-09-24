@@ -2430,4 +2430,10 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get badgeDisplayDown => '下へ';
+
+  @override
+  String get messagesEmoji => '絵文字';
+
+  @override
+  String get messagesKeyboard => 'キーボード';
 }

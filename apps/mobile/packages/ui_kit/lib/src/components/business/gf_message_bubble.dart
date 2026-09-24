@@ -13,6 +13,8 @@ class GfMessageBubble extends StatelessWidget {
     this.time,
     this.maxWidthFactor = 0.88,
     this.contentSpan,
+    this.content,
+    this.selectable = false,
   });
 
   final String text;
@@ -27,6 +29,8 @@ class GfMessageBubble extends StatelessWidget {
   /// Optional rich content segments replacing the plain [text] body
   /// (sticker message rendering); null keeps the plain-text path.
   final InlineSpan? contentSpan;
+  final Widget? content;
+  final bool selectable;
 
   @override
   Widget build(BuildContext context) {
@@ -37,6 +41,15 @@ class GfMessageBubble extends StatelessWidget {
       height: 1.4,
       color: mine ? colors.primaryContent : colors.baseContent,
     );
+    Widget body = DefaultTextStyle(
+      style: contentStyle,
+      child:
+          content ??
+          (contentSpan == null
+              ? Text(text)
+              : Text.rich(TextSpan(children: <InlineSpan>[contentSpan!]))),
+    );
+    if (selectable) body = SelectionArea(child: body);
     final Widget bubble = Container(
       constraints: BoxConstraints(
         maxWidth: MediaQuery.sizeOf(context).width * maxWidthFactor,
@@ -53,12 +66,7 @@ class GfMessageBubble extends StatelessWidget {
           ),
         ],
       ),
-      child: contentSpan == null
-          ? Text(text, style: contentStyle)
-          : Text.rich(
-              TextSpan(children: <InlineSpan>[contentSpan!]),
-              style: contentStyle,
-            ),
+      child: body,
     );
 
     final Widget withTime = time == null

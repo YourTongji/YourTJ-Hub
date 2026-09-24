@@ -862,5 +862,7 @@
   "badgeDisplayTitle": "プロフィールのバッジ",
   "badgeDisplayHint": "最大5個まで選び、表示順を変更できます。すべて非表示にもできます。アバターのバッジとは別の設定です。",
   "badgeDisplayUp": "上へ",
-  "badgeDisplayDown": "下へ"
+  "badgeDisplayDown": "下へ",
+  "messagesEmoji": "絵文字",
+  "messagesKeyboard": "キーボード"
 }
