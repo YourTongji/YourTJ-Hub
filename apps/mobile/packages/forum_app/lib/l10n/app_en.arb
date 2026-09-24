@@ -17,6 +17,18 @@
   "navProfile": "Me",
   "commonCancel": "Cancel",
   "commonSave": "Save",
+  "imageViewPosition": "View image {index} of {count}",
+  "@imageViewPosition": {
+    "description": "Accessible label for opening an image in the feed gallery.",
+    "placeholders": {
+      "index": {
+        "type": "int"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "imageSave": "Save image",
   "imageSaved": "Image saved",
   "imageSaveFailed": "Couldn’t save the image. Try again later.",
@@ -661,6 +673,7 @@
   "reviewHelpful": "Helpful",
   "reviewsEmpty": "No reviews yet",
   "wikiTitle": "Wiki",
+  "wikiLinkOpenFailed": "Could not open the link. Please try again.",
   "wikiRecent": "Recently updated",
   "wikiEditOnGithub": "Edit on GitHub",
   "wikiToc": "Contents",
@@ -1265,6 +1278,9 @@
   "coursesResetSearch": "Reset search and filters",
   "coursesFilterLoadFailed": "Filter options could not be loaded.",
   "coursesPaginationStalled": "No additional courses arrived. Try loading this page again.",
+  "messagesNewMessages": "New messages · Jump to latest",
+  "messagesReadSyncFailed": "Read status could not sync. Unread messages are preserved.",
+  "messagesReadUnavailable": "This server does not support individual read receipts. Unread messages are preserved.",
   "draftCollapse": "Collapse",
   "draftKindNew": "New topic",
   "draftKindServer": "Cloud draft recovery",
