@@ -1,4 +1,5 @@
 import 'package:core/core.dart';
+import 'package:go_router/go_router.dart';
 
 import '../providers.dart';
 
@@ -137,6 +138,39 @@ String authLoginLocation({String? returnTo}) => Uri(
   path: '/login',
   queryParameters: {'returnTo': safeAuthReturnTo(returnTo) ?? '/'},
 ).toString();
+
+/// Replace the old session stack, then put detail pages above a fresh Home.
+/// Waiting for the delegate's root configuration also handles async redirects;
+/// push() called immediately after go() would still capture the old login stack.
+void restoreAuthContext(
+  GoRouter router,
+  String? returnTo, {
+  required bool Function() isCurrent,
+}) {
+  final destination = safeAuthReturnTo(returnTo) ?? '/';
+  if (const {
+    '/',
+    '/campus',
+    '/messages',
+    '/notifications',
+  }.contains(Uri.parse(destination).path)) {
+    router.go(destination);
+    return;
+  }
+  final previous = router.routerDelegate.currentConfiguration;
+  void restore() {
+    if (identical(router.routerDelegate.currentConfiguration, previous)) return;
+    router.routerDelegate.removeListener(restore);
+    if (isCurrent() &&
+        router.state.uri.toString() == '/' &&
+        router.routerDelegate.currentConfiguration.error == null) {
+      router.push<void>(destination);
+    }
+  }
+
+  router.routerDelegate.addListener(restore);
+  router.go('/');
+}
 
 bool requiresNativeSession(Uri uri) => const {
   '/notifications',

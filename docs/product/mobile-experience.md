@@ -339,8 +339,11 @@ Web inside an authenticated in-app browser. The navigation and management bounda
   private page. Login retains the original native location, including topic reply position, composer
   context and chat recipient, using an explicit route/query allowlist. External, recursive and
   malformed return targets fall back to Home. Successful login replaces the old navigation stack and
-  restores only that context; users still explicitly submit posts, follow users or send messages.
-  Device settings remain public. A session change removes dialogs, menus and sheets owned by the
+  restores only that context; detail pages sit above a fresh Home so Back remains available, while
+  shell destinations open their own branch. Users still explicitly submit posts, follow users or send
+  messages. Keyboard submission shares the button's busy guard for login, TOTP, registration and
+  password recovery. Device settings remain public: guests can change language and appearance without
+  fetching account details or sessions. A session change removes dialogs, menus and sheets owned by the
   previous session from the root and shell navigators, completing pending confirmations as cancelled;
   new-session overlays remain open. `Partial`: native password-manager prompts and physical-device
   keyboard behavior still require device validation; widget tests cover route boundaries, four

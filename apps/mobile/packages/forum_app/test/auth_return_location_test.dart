@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -6,6 +8,45 @@ import 'package:go_router/go_router.dart';
 import 'pages_smoke_test.dart' show MemoryTokenStorage;
 
 void main() {
+  for (final sessionCurrent in [true, false]) {
+    testWidgets(
+      'restoration waits for root redirect and checks session $sessionCurrent',
+      (tester) async {
+        final rootReady = Completer<String?>();
+        var current = true;
+        final router = GoRouter(
+          initialLocation: '/login',
+          redirect: (_, state) =>
+              state.uri.path == '/' ? rootReady.future : null,
+          routes: [
+            GoRoute(
+              path: '/',
+              builder: (_, _) => const Scaffold(body: Text('Home')),
+            ),
+            GoRoute(
+              path: '/login',
+              builder: (_, _) => const Scaffold(body: Text('Login')),
+            ),
+            GoRoute(
+              path: '/drafts',
+              builder: (_, _) => const Scaffold(body: Text('Drafts')),
+            ),
+          ],
+        );
+        addTearDown(router.dispose);
+        await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+        await tester.pumpAndSettle();
+        restoreAuthContext(router, '/drafts', isCurrent: () => current);
+        await tester.pump();
+        current = sessionCurrent;
+        rootReady.complete(null);
+        await tester.pumpAndSettle();
+        expect(router.state.uri.path, sessionCurrent ? '/drafts' : '/');
+        expect(router.canPop(), sessionCurrent);
+      },
+    );
+  }
+
   test('return locations preserve only known native route shapes', () {
     for (final value in [
       '/',

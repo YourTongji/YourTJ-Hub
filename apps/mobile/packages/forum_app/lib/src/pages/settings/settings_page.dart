@@ -24,6 +24,7 @@ import '../../site_theme.dart';
 import '../../push/push_service.dart';
 import '../../widgets/status_views.dart';
 import '../../current_user.dart';
+import '../../navigation/auth_navigation.dart';
 import 'account_closure_dialog.dart';
 import 'profile_edit_dialog.dart';
 import 'username_edit_dialog.dart';
@@ -67,6 +68,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   bool _uploadingAvatar = false;
   bool _accountClosing = false;
   bool _googleOAuthReady = false;
+  bool _hasSession = false;
+  bool _loadingSession = true;
+  int _sessionRequest = 0;
   final ImagePicker _imagePicker = ImagePicker();
 
   @override
@@ -76,12 +80,31 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       (tab) => tab.name == widget.initialSection,
       orElse: () => _SettingsTab.profile,
     );
-    _loadSessions();
-    _loadUser();
+    _loadSession();
+  }
+
+  Future<void> _loadSession() async {
+    final request = ++_sessionRequest;
+    final epoch = ref.read(offlineCacheEpochProvider);
+    final authenticated = await hasSessionToken(ref.read(tokenStorageProvider));
+    if (!mounted ||
+        request != _sessionRequest ||
+        epoch != ref.read(offlineCacheEpochProvider)) {
+      return;
+    }
+    setState(() {
+      _hasSession = authenticated;
+      _loadingSession = false;
+    });
+    if (authenticated) {
+      await Future.wait([_loadUser(), _loadSessions()]);
+    }
   }
 
   /// 加载设置页账户数据(settings.index 数据通道 → 徽章等)。
   Future<void> _loadUser({bool silent = false}) async {
+    if (!_hasSession) return;
+    final epoch = ref.read(offlineCacheEpochProvider);
     final SettingsUserPayload? previous = _user.value;
     if (!silent || previous == null) {
       setState(() => _user = const AsyncValue.loading());
@@ -93,7 +116,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       final SettingsPageProps? props = parsePageProps<SettingsPageProps>(
         payload,
       );
-      if (!mounted) return;
+      if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) return;
       setState(() {
         _googleOAuthReady = props?.googleOAuthReady ?? false;
         _user = props == null
@@ -104,7 +127,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             : AsyncValue.data(props.user);
       });
     } catch (e, st) {
-      if (!mounted) return;
+      if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) return;
       if (silent && previous != null) {
         showGfToast(context, '$e', error: true);
         return;
@@ -687,17 +710,19 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   }
 
   Future<void> _loadSessions({bool silent = false}) async {
+    if (!_hasSession) return;
+    final epoch = ref.read(offlineCacheEpochProvider);
     final List<UserSessionPayload>? previous = _sessions.value;
     if (!silent || previous == null) {
       setState(() => _sessions = const AsyncValue.loading());
     }
     try {
       final sessions = await ref.read(userRepositoryProvider).listSessions();
-      if (mounted) {
+      if (mounted && epoch == ref.read(offlineCacheEpochProvider)) {
         setState(() => _sessions = AsyncValue.data(sessions));
       }
     } catch (e, st) {
-      if (!mounted) return;
+      if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) return;
       if (silent && previous != null) {
         showGfToast(context, '$e', error: true);
         return;
@@ -857,6 +882,16 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen(offlineCacheEpochProvider, (_, _) {
+      setState(() {
+        _hasSession = false;
+        _loadingSession = true;
+        _user = const AsyncValue.loading();
+        _sessions = const AsyncValue.loading();
+        _googleOAuthReady = false;
+      });
+      _loadSession();
+    });
     final AppLocalizations l10n = AppLocalizations.of(context);
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
 
@@ -883,29 +918,64 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           ),
         ],
       ),
-      body: Column(
-        children: [
-          // Tab 栏(对齐 web settingsTabLabel: profile/account/privacy/binding/security)。
-          Container(
-            height: GfTabBar.heightFor(context),
-            alignment: Alignment.centerLeft,
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            child: GfTabBar(
-              tabs: <GfTab>[
-                for (final tab in _SettingsTab.values)
-                  GfTab(label: tab.label(l10n), value: tab),
+      body: _loadingSession
+          ? const GfSettingsSkeleton()
+          : !_hasSession
+          ? _buildDeviceSettings(l10n, isDark: isDark)
+          : Column(
+              children: [
+                // Tab 栏(对齐 web settingsTabLabel: profile/account/privacy/binding/security)。
+                Container(
+                  height: GfTabBar.heightFor(context),
+                  alignment: Alignment.centerLeft,
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  child: GfTabBar(
+                    tabs: <GfTab>[
+                      for (final tab in _SettingsTab.values)
+                        GfTab(label: tab.label(l10n), value: tab),
+                    ],
+                    selected: _tab,
+                    onSelected: (Object value) =>
+                        setState(() => _tab = value as _SettingsTab),
+                  ),
+                ),
+                const GfDivider(),
+                Expanded(child: _buildTabBody(l10n, isDark: isDark)),
               ],
-              selected: _tab,
-              onSelected: (Object value) =>
-                  setState(() => _tab = value as _SettingsTab),
             ),
-          ),
-          const GfDivider(),
-          Expanded(child: _buildTabBody(l10n, isDark: isDark)),
-        ],
-      ),
     );
   }
+
+  Widget _buildDeviceSettings(AppLocalizations l10n, {required bool isDark}) =>
+      ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          GfSettingRow(
+            symbol: 'languages',
+            title: l10n.settingsAppLanguage,
+            description:
+                appLanguageNames[ref.watch(appLocaleProvider)?.languageCode] ??
+                l10n.settingsLanguageSystem,
+            onTap: () => showAppLanguagePicker(context),
+          ),
+          SwitchListTile(
+            title: Text(l10n.settingsDarkMode),
+            value: isDark,
+            onChanged: _toggleDarkMode,
+          ),
+          const SizedBox(height: 16),
+          GfButton(
+            label: l10n.authLoginTitle,
+            onPressed: () => context.push(
+              authLoginLocation(
+                returnTo: widget.initialSection == null
+                    ? '/settings'
+                    : '/settings/${widget.initialSection}',
+              ),
+            ),
+          ),
+        ],
+      );
 
   Widget _buildTabBody(AppLocalizations l10n, {required bool isDark}) {
     final bool needsUser =

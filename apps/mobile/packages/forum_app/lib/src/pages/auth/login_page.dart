@@ -597,7 +597,13 @@ class _LoginPageState extends ConsumerState<LoginPage>
       // Replace the old stack after accepting the new session, then restore
       // only a validated native location. No pending write action is replayed.
       if (saveAutofill) TextInput.finishAutofillContext(shouldSave: true);
-      context.go(_returnTo ?? '/');
+      final epoch = ref.read(offlineCacheEpochProvider);
+      final session = ref.read(offlineCacheEpochProvider.notifier);
+      restoreAuthContext(
+        GoRouter.of(context),
+        _returnTo,
+        isCurrent: () => session.isCurrent(epoch),
+      );
     } finally {
       if (mounted) setState(() => _finishingAuthentication = false);
     }
@@ -986,7 +992,7 @@ class _LoginPageState extends ConsumerState<LoginPage>
                         final inputWidth = MediaQuery.textScalerOf(
                           context,
                         ).scale(140);
-                      if (constraints.maxWidth < 140 + inputWidth) {
+                        if (constraints.maxWidth < 140 + inputWidth) {
                           return Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
@@ -1160,6 +1166,7 @@ class _LoginPageState extends ConsumerState<LoginPage>
   };
 
   Future<void> _submit() async {
+    if (_authController.busy || _oidcBusy || _finishingAuthentication) return;
     if (_authController.phase == LoginPhase.needsTotp) {
       await _authController.submitTotp(_totp.text.trim());
       if (mounted && _authController.phase == LoginPhase.authenticated) {
