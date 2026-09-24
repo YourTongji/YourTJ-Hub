@@ -146,6 +146,14 @@ corresponding planned ownership and lifecycle contracts.
 - `Current`: Home and global search keep the current list after a failed refresh and show a light
   failure notice. Pagination errors remain beside an explicit retry action; retry continues the
   same query/page without discarding prior items. New queries and account changes invalidate old responses.
+- `Current`: Notifications also retain rows after a failed refresh. Filter changes and account
+  generations reject older refresh/pagination responses. Pagination deduplicates IDs and pauses with
+  explicit retry after failure or a response without progress. A failed refresh preserves that pagination
+  error and pause; a successful refresh or explicit retry resumes loading. Single/all-read actions are serialized,
+  display pending state and surface failures; rows remain unread until acknowledged. Confirmed reads
+  cannot be reverted by an earlier fetch. Single-read failures retain a row-level retry action until
+  a successful action or refreshed server state confirms the read; the
+  unread filter removes acknowledged rows and continues pagination when its visible page is drained.
 - `Current`: outgoing chat messages appear immediately as sending bubbles. Failures retain their text
   and expose manual retry without replacing a newer input. Acknowledged bubbles stay visible until
   matched by server history. Existing conversations load their initial server history before enabling
@@ -154,6 +162,9 @@ corresponding planned ownership and lifecycle contracts.
   and is cleared at the account/session boundary; it is not persisted across app termination. Only one request for
   each bubble can run at once. The API has no message idempotency key, so ambiguous network failures
   cannot guarantee exactly-once delivery when manually retried.
+- `Partial`: the chat API can acknowledge an explicit set of incoming message IDs and read back
+  individual read flags. The Flutter conversation screen still calls the compatible whole-conversation
+  read endpoint; visible-viewport measurement and the unread new-message prompt are not yet connected.
 
 ## Language and presentation
 

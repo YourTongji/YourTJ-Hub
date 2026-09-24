@@ -2524,6 +2524,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get badgeDisplayDown => 'Move down';
 
   @override
+  String get notificationsMarkRead => 'Mark as read';
+
+  @override
   String get scheduleWidgetSettingsTitle => 'Home screen schedule';
 
   @override

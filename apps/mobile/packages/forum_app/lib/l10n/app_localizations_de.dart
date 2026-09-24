@@ -2552,6 +2552,9 @@ class AppLocalizationsDe extends AppLocalizations {
   String get badgeDisplayDown => 'Nach unten';
 
   @override
+  String get notificationsMarkRead => 'Als gelesen markieren';
+
+  @override
   String get scheduleWidgetSettingsTitle => 'Startbildschirm-Stundenplan';
 
   @override

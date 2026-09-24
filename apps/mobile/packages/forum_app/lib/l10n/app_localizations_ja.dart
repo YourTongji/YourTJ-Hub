@@ -2452,6 +2452,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String get badgeDisplayDown => '下へ';
 
   @override
+  String get notificationsMarkRead => '既読にする';
+
+  @override
   String get scheduleWidgetSettingsTitle => 'ホーム画面の時間割';
 
   @override
