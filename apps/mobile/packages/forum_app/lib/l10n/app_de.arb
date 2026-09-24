@@ -862,5 +862,26 @@
   "badgeDisplayTitle": "Profilabzeichen",
   "badgeDisplayHint": "Bis zu 5 Abzeichen auswählen und sortieren oder alle abwählen. Unabhängig vom Avatar-Abzeichen.",
   "badgeDisplayUp": "Nach oben",
-  "badgeDisplayDown": "Nach unten"
+  "badgeDisplayDown": "Nach unten",
+  "scheduleTimeAxis": "Stunden",
+  "scheduleEmptyCell": "{day}, Stunde {section}, Kurs auswählen",
+  "scheduleSectionsN": "Stunden {range}",
+  "scheduleGridScrollHint": "Seitlich wischen, um die ganze Woche zu sehen",
+  "@scheduleEmptyCell": {
+    "placeholders": {
+      "day": {
+        "type": "String"
+      },
+      "section": {
+        "type": "int"
+      }
+    }
+  },
+  "@scheduleSectionsN": {
+    "placeholders": {
+      "range": {
+        "type": "String"
+      }
+    }
+  }
 }

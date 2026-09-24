@@ -2408,4 +2408,20 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get badgeDisplayDown => '下移';
+
+  @override
+  String get scheduleTimeAxis => '节次';
+
+  @override
+  String scheduleEmptyCell(String day, int section) {
+    return '$day，第 $section 节，选课';
+  }
+
+  @override
+  String scheduleSectionsN(String range) {
+    return '第 $range 节';
+  }
+
+  @override
+  String get scheduleGridScrollHint => '左右滑动查看整周课表';
 }

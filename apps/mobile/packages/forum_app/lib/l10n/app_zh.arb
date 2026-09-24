@@ -1192,5 +1192,26 @@
   "badgeDisplayTitle": "资料卡展示徽章",
   "badgeDisplayHint": "最多选择 5 枚，按下方顺序展示；可全部取消。与头像佩戴徽章独立。",
   "badgeDisplayUp": "上移",
-  "badgeDisplayDown": "下移"
+  "badgeDisplayDown": "下移",
+  "scheduleTimeAxis": "节次",
+  "scheduleEmptyCell": "{day}，第 {section} 节，选课",
+  "scheduleSectionsN": "第 {range} 节",
+  "scheduleGridScrollHint": "左右滑动查看整周课表",
+  "@scheduleEmptyCell": {
+    "placeholders": {
+      "day": {
+        "type": "String"
+      },
+      "section": {
+        "type": "int"
+      }
+    }
+  },
+  "@scheduleSectionsN": {
+    "placeholders": {
+      "range": {
+        "type": "String"
+      }
+    }
+  }
 }

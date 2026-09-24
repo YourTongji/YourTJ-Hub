@@ -2502,4 +2502,20 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get badgeDisplayDown => 'Move down';
+
+  @override
+  String get scheduleTimeAxis => 'Sections';
+
+  @override
+  String scheduleEmptyCell(String day, int section) {
+    return '$day, section $section, choose a course';
+  }
+
+  @override
+  String scheduleSectionsN(String range) {
+    return 'Sections $range';
+  }
+
+  @override
+  String get scheduleGridScrollHint => 'Swipe sideways to view the full week';
 }

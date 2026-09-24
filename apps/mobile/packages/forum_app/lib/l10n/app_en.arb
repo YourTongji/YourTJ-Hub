@@ -1192,5 +1192,26 @@
   "badgeDisplayTitle": "Profile badges",
   "badgeDisplayHint": "Choose up to 5 badges and their order, or deselect all. Independent of your avatar badge.",
   "badgeDisplayUp": "Move up",
-  "badgeDisplayDown": "Move down"
+  "badgeDisplayDown": "Move down",
+  "scheduleTimeAxis": "Sections",
+  "scheduleEmptyCell": "{day}, section {section}, choose a course",
+  "scheduleSectionsN": "Sections {range}",
+  "scheduleGridScrollHint": "Swipe sideways to view the full week",
+  "@scheduleEmptyCell": {
+    "placeholders": {
+      "day": {
+        "type": "String"
+      },
+      "section": {
+        "type": "int"
+      }
+    }
+  },
+  "@scheduleSectionsN": {
+    "placeholders": {
+      "range": {
+        "type": "String"
+      }
+    }
+  }
 }
