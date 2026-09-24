@@ -862,5 +862,11 @@
   "badgeDisplayTitle": "プロフィールのバッジ",
   "badgeDisplayHint": "最大5個まで選び、表示順を変更できます。すべて非表示にもできます。アバターのバッジとは別の設定です。",
   "badgeDisplayUp": "上へ",
-  "badgeDisplayDown": "下へ"
+  "badgeDisplayDown": "下へ",
+  "coursesFilterSearchHint": "絞り込み項目を検索",
+  "coursesFilterNoMatches": "一致する絞り込み項目がありません",
+  "coursesClearSelection": "選択を解除",
+  "coursesResetSearch": "検索と絞り込みをリセット",
+  "coursesFilterLoadFailed": "絞り込み項目を読み込めませんでした。",
+  "coursesPaginationStalled": "追加のコースを取得できませんでした。もう一度お試しください。"
 }

@@ -29,7 +29,6 @@ class CourseCatalogPage extends ConsumerStatefulWidget {
 }
 
 class _CourseCatalogPageState extends ConsumerState<CourseCatalogPage> {
-  static const double _loadMoreThreshold = 300;
   static const Duration _searchDebounce = Duration(milliseconds: 300);
   static const int _pageSize = 20;
 
@@ -43,6 +42,14 @@ class _CourseCatalogPageState extends ConsumerState<CourseCatalogPage> {
   bool _hasNext = false;
   bool _loadingMore = false;
   int _nextPage = 2;
+  int _generation = 0;
+  bool _refreshing = false;
+  Object? _refreshError, _loadMoreError;
+  _CatalogQuery? _appliedQuery;
+  late final int _sessionEpoch;
+  bool _optionsLoading = true;
+  Object? _optionsError;
+  int _optionsGeneration = 0;
 
   // 筛选值域（SSR 页面通道，best-effort）。
   List<String> _departmentOptions = const <String>[];
@@ -63,10 +70,10 @@ class _CourseCatalogPageState extends ConsumerState<CourseCatalogPage> {
   @override
   void initState() {
     super.initState();
+    _sessionEpoch = ref.read(offlineCacheEpochProvider);
     _searchController.text = widget.initialQuery;
     _loadOptions();
     _load();
-    _scrollController.addListener(_onScroll);
   }
 
   @override
@@ -77,15 +84,36 @@ class _CourseCatalogPageState extends ConsumerState<CourseCatalogPage> {
     super.dispose();
   }
 
-  void _onScroll() {
-    if (!_scrollController.hasClients) return;
-    if (_scrollController.position.extentAfter < _loadMoreThreshold) {
-      _loadMore();
-    }
-  }
+  bool get _activeSession =>
+      mounted && _sessionEpoch == ref.read(offlineCacheEpochProvider);
+
+  bool _current(int generation, int epoch) =>
+      _activeSession &&
+      generation == _generation &&
+      epoch == ref.read(offlineCacheEpochProvider);
+
+  _CatalogQuery _query() => _CatalogQuery(
+    keyword: _searchController.text.trim(),
+    departments: _selectedDepartments.toList()..sort(),
+    terms: _selectedTerms.toList()..sort(),
+    campuses: _selectedCampuses.toList()..sort(),
+    instructors: List.of(_selectedInstructors),
+    onlyWithReviews: _onlyWithReviews,
+  );
 
   void _scheduleSearch(String _) {
     _debounce?.cancel();
+    if (!_activeSession) return;
+    // Invalidate immediately, including the debounce interval: an older request
+    // must not replace results while the user is already entering a new query.
+    setState(() {
+      _generation++;
+      _page = const AsyncValue.loading();
+      _loadingMore = false;
+      _hasNext = false;
+      _refreshing = false;
+      _refreshError = null;
+    });
     _debounce = Timer(_searchDebounce, () {
       if (!mounted) return;
       _load();
@@ -103,15 +131,25 @@ class _CourseCatalogPageState extends ConsumerState<CourseCatalogPage> {
     _load();
   }
 
-  /// 拉取目录筛选值域（院系/学期/校区）。失败静默：chip 仍可点开，
-  /// 空值域时 sheet 内展示无选项提示，不阻塞列表主流程。
+  /// Options use the existing SSR projection; failure has its own retry and
+  /// never masquerades as an empty set of available filters.
   Future<void> _loadOptions() async {
+    if (!_activeSession) return;
+    final generation = ++_optionsGeneration;
+    setState(() {
+      _optionsLoading = true;
+      _optionsError = null;
+    });
     final int epoch = ref.read(offlineCacheEpochProvider);
     try {
       final PagePayload payload = await ref
           .read(pageRepositoryProvider)
           .fetch('/courses');
-      if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) return;
+      if (!mounted ||
+          generation != _optionsGeneration ||
+          epoch != ref.read(offlineCacheEpochProvider)) {
+        return;
+      }
       final Map<String, dynamic> props = payload.props;
       final List<String> departments =
           (props['departments'] as List<dynamic>? ?? const [])
@@ -141,67 +179,124 @@ class _CourseCatalogPageState extends ConsumerState<CourseCatalogPage> {
         _termOptions = terms;
         _campusOptions = campuses;
       });
-    } catch (_) {
-      // 值域加载失败静默，筛选功能降级为可输入/无选项。
+    } catch (error) {
+      if (mounted &&
+          generation == _optionsGeneration &&
+          epoch == ref.read(offlineCacheEpochProvider)) {
+        setState(() => _optionsError = error);
+      }
+    } finally {
+      if (mounted &&
+          generation == _optionsGeneration &&
+          epoch == ref.read(offlineCacheEpochProvider)) {
+        setState(() => _optionsLoading = false);
+      }
     }
   }
 
-  Future<void> _load() async {
-    final int epoch = ref.read(offlineCacheEpochProvider);
-    setState(() => _page = const AsyncValue.loading());
+  Future<void> _load({bool refresh = false}) async {
+    _debounce?.cancel();
+    if (!_activeSession) return;
+    final generation = ++_generation;
+    final epoch = ref.read(offlineCacheEpochProvider);
+    final query = _query();
+    final previous = refresh ? _page.valueOrNull : null;
+    setState(() {
+      _refreshing = previous != null;
+      _refreshError = null;
+      _loadMoreError = null;
+      _loadingMore = false;
+      if (previous == null) {
+        _page = const AsyncValue.loading();
+        _courses = [];
+        _hasNext = false;
+      }
+    });
     try {
-      final CourseListResultPayload result = await _repository.list(
-        keyword: _searchController.text.trim(),
-        departments: _selectedDepartments.toList()..sort(),
-        terms: _selectedTerms.toList()..sort(),
-        campuses: _selectedCampuses.toList()..sort(),
-        instructors: List<String>.of(_selectedInstructors),
-        onlyWithReviews: _onlyWithReviews,
-        page: 1,
-        size: _pageSize,
-      );
-      if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) return;
+      final result = await query.fetch(_repository, 1, _pageSize);
+      if (!_current(generation, epoch)) return;
+      if (result.page != 1) {
+        throw const ApiException(fallbackMessage: 'Unexpected course page');
+      }
+      final seen = <int>{};
       setState(() {
-        _courses = result.list;
+        _courses = result.list.where((course) => seen.add(course.id)).toList();
         _hasNext = result.hasNext;
         _nextPage = 2;
+        _appliedQuery = query;
+        _expandedTermRows.clear();
         _page = AsyncValue.data(result);
       });
-      if (_scrollController.hasClients) {
-        _scrollController.jumpTo(0);
-      }
-    } catch (e, st) {
-      if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) return;
-      setState(() => _page = AsyncValue.error(e, st));
+      if (!refresh && _scrollController.hasClients) _scrollController.jumpTo(0);
+    } catch (error, stack) {
+      if (!_current(generation, epoch)) return;
+      setState(() {
+        if (previous != null) {
+          _refreshError = error;
+        } else {
+          _page = AsyncValue.error(error, stack);
+        }
+      });
+    } finally {
+      if (_current(generation, epoch)) setState(() => _refreshing = false);
     }
   }
 
   Future<void> _loadMore() async {
-    if (_loadingMore || !_hasNext) return;
-    final int epoch = ref.read(offlineCacheEpochProvider);
-    setState(() => _loadingMore = true);
-    try {
-      final CourseListResultPayload result = await _repository.list(
-        keyword: _searchController.text.trim(),
-        departments: _selectedDepartments.toList()..sort(),
-        terms: _selectedTerms.toList()..sort(),
-        campuses: _selectedCampuses.toList()..sort(),
-        instructors: List<String>.of(_selectedInstructors),
-        onlyWithReviews: _onlyWithReviews,
-        page: _nextPage,
-        size: _pageSize,
-      );
-      if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) return;
-      setState(() {
-        _courses = <CourseSummaryPayload>[..._courses, ...result.list];
-        _hasNext = result.hasNext;
-        _nextPage += 1;
-      });
-    } catch (_) {
-      // 加载更多失败静默，滚动可再次触发。
-    } finally {
-      if (mounted) setState(() => _loadingMore = false);
+    final query = _appliedQuery;
+    if (!_activeSession ||
+        _loadingMore ||
+        _refreshing ||
+        !_hasNext ||
+        !_page.hasValue ||
+        query == null) {
+      return;
     }
+    final generation = _generation;
+    final epoch = ref.read(offlineCacheEpochProvider);
+    final page = _nextPage;
+    setState(() {
+      _loadingMore = true;
+      _loadMoreError = null;
+    });
+    try {
+      final result = await query.fetch(_repository, page, _pageSize);
+      if (!_current(generation, epoch)) return;
+      if (result.page != page) {
+        throw const ApiException(fallbackMessage: 'Unexpected course page');
+      }
+      final seen = _courses.map((course) => course.id).toSet();
+      final added = result.list.where((course) => seen.add(course.id)).toList();
+      setState(() {
+        _courses = [..._courses, ...added];
+        _hasNext = result.hasNext;
+        if (added.isEmpty && result.hasNext) {
+          // Keep this page available for explicit retry, without an automatic
+          // request loop when a stale projection stops advancing.
+          _loadMoreError = AppLocalizations.of(
+            context,
+          ).coursesPaginationStalled;
+        } else {
+          _nextPage = page + 1;
+        }
+      });
+    } catch (error) {
+      if (_current(generation, epoch)) setState(() => _loadMoreError = error);
+    } finally {
+      if (_current(generation, epoch)) setState(() => _loadingMore = false);
+    }
+  }
+
+  void _resetFilters() {
+    _searchController.clear();
+    setState(() {
+      _selectedDepartments.clear();
+      _selectedTerms.clear();
+      _selectedCampuses.clear();
+      _selectedInstructors.clear();
+      _onlyWithReviews = false;
+    });
+    _load();
   }
 
   bool get _hasActiveFilters =>
@@ -257,121 +352,26 @@ class _CourseCatalogPageState extends ConsumerState<CourseCatalogPage> {
     required Set<String> initial,
     required ValueChanged<Set<String>> onApplied,
   }) async {
-    final AppLocalizations l10n = AppLocalizations.of(context);
-    final CourseCopy copy = CourseCopy(l10n);
-    final Set<String> draft = <String>{...initial};
-    final Set<String>? result = await showGfBottomSheet<Set<String>>(
+    if (_optionsLoading) return;
+    if (_optionsError != null) {
+      await _loadOptions();
+      return;
+    }
+    final epoch = ref.read(offlineCacheEpochProvider);
+    final result = await showGfBottomSheet<Set<String>>(
       context,
-      height: 460,
-      builder: (BuildContext ctx) => SafeArea(
-        child: StatefulBuilder(
-          builder: (BuildContext ctx, StateSetter setSheet) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: <Widget>[
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 8, 4),
-                  child: Row(
-                    children: <Widget>[
-                      Expanded(
-                        child: Text(
-                          title,
-                          style: GfTheme.typographyOf(
-                            context,
-                          ).heading.copyWith(fontWeight: FontWeight.w700),
-                        ),
-                      ),
-                      TextButton(
-                        onPressed: () => Navigator.pop(ctx, draft),
-                        child: Text(copy.done),
-                      ),
-                    ],
-                  ),
-                ),
-                const GfDivider(),
-                if (options.isEmpty)
-                  Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Center(
-                      child: Text(
-                        copy.noOptions,
-                        style: GfTheme.typographyOf(context).small.copyWith(
-                          color: GfTheme.colorsOf(
-                            context,
-                          ).baseContent.withValues(alpha: 0.55),
-                        ),
-                      ),
-                    ),
-                  )
-                else
-                  Expanded(
-                    child: ListView.builder(
-                      itemCount: options.length,
-                      itemBuilder: (BuildContext ctx, int index) {
-                        final String value = options[index];
-                        final String label = labelByValue[value] ?? value;
-                        final bool checked = draft.contains(value);
-                        return InkWell(
-                          onTap: () {
-                            setSheet(() {
-                              if (checked) {
-                                draft.remove(value);
-                              } else {
-                                draft.add(value);
-                              }
-                            });
-                          },
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 12,
-                            ),
-                            child: Row(
-                              children: <Widget>[
-                                Icon(
-                                  checked
-                                      ? Icons.check_circle
-                                      : Icons.radio_button_unchecked,
-                                  size: 20,
-                                  color: checked
-                                      ? GfTheme.colorsOf(context).primary
-                                      : GfTheme.colorsOf(
-                                          context,
-                                        ).baseContent.withValues(alpha: 0.35),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Text(
-                                    label,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: GfTheme.typographyOf(context).body
-                                        .copyWith(
-                                          color: GfTheme.colorsOf(context)
-                                              .baseContent
-                                              .withValues(
-                                                alpha: checked ? 1 : 0.7,
-                                              ),
-                                          fontWeight: checked
-                                              ? FontWeight.w600
-                                              : FontWeight.w400,
-                                        ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-              ],
-            );
-          },
-        ),
+      height: 520,
+      keyboardAware: true,
+      builder: (_) => _CourseOptionsSheet(
+        title: title,
+        options: options,
+        labels: labelByValue,
+        initial: initial,
       ),
     );
-    if (result != null && mounted) {
+    if (result != null &&
+        mounted &&
+        epoch == ref.read(offlineCacheEpochProvider)) {
       onApplied(result);
     }
   }
@@ -379,6 +379,7 @@ class _CourseCatalogPageState extends ConsumerState<CourseCatalogPage> {
   /// 教师筛选：web 为自由文本输入（逗号分隔），移动端改为底部 sheet 内
   /// 逐条添加 token；已选值以 chip 呈现并可移除。
   Future<void> _pickInstructors() async {
+    final epoch = ref.read(offlineCacheEpochProvider);
     final AppLocalizations l10n = AppLocalizations.of(context);
     final List<String>? result = await showGfBottomSheet<List<String>>(
       context,
@@ -390,7 +391,9 @@ class _CourseCatalogPageState extends ConsumerState<CourseCatalogPage> {
         initial: _selectedInstructors,
       ),
     );
-    if (result != null && mounted) {
+    if (result != null &&
+        mounted &&
+        epoch == ref.read(offlineCacheEpochProvider)) {
       _applyInstructors(result);
     }
   }
@@ -399,6 +402,9 @@ class _CourseCatalogPageState extends ConsumerState<CourseCatalogPage> {
 
   @override
   Widget build(BuildContext context) {
+    if (ref.watch(offlineCacheEpochProvider) != _sessionEpoch) {
+      return const SizedBox.shrink();
+    }
     final AppLocalizations l10n = AppLocalizations.of(context);
     return Scaffold(
       appBar: GfAppBar(
@@ -440,6 +446,23 @@ class _CourseCatalogPageState extends ConsumerState<CourseCatalogPage> {
             ),
           ),
           _buildFilterRow(l10n),
+          if (_optionsLoading) const LinearProgressIndicator(minHeight: 2),
+          if (_optionsError != null)
+            _retryNotice(l10n.coursesFilterLoadFailed, _loadOptions),
+          if (_refreshing) const LinearProgressIndicator(minHeight: 2),
+          if (_refreshError != null)
+            _retryNotice(
+              resolveErrorMessage(l10n, _refreshError!),
+              () => _load(refresh: true),
+            ),
+          if (_hasActiveFilters)
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: _resetFilters,
+                child: Text(l10n.coursesResetSearch),
+              ),
+            ),
           Expanded(
             child: _page.when(
               loading: () => const _CourseListSkeleton(),
@@ -460,37 +483,43 @@ class _CourseCatalogPageState extends ConsumerState<CourseCatalogPage> {
       label: l10n.coursesFilterDepartment,
       count: _selectedDepartments.length,
       selected: _selectedDepartments.isNotEmpty,
-      onTap: () => _pickOptionValues(
-        title: l10n.coursesFilterDepartment,
-        options: _departmentOptions,
-        labelByValue: const <String, String>{},
-        initial: _selectedDepartments,
-        onApplied: _applyDepartments,
-      ),
+      onTap: _optionsLoading || _optionsError != null
+          ? null
+          : () => _pickOptionValues(
+              title: l10n.coursesFilterDepartment,
+              options: _departmentOptions,
+              labelByValue: const <String, String>{},
+              initial: _selectedDepartments,
+              onApplied: _applyDepartments,
+            ),
     );
     final Widget term = _filterChip(
       label: l10n.coursesFilterTerm,
       count: _selectedTerms.length,
       selected: _selectedTerms.isNotEmpty,
-      onTap: () => _pickOptionValues(
-        title: l10n.coursesFilterTerm,
-        options: _termOptions.keys.toList()..sort(),
-        labelByValue: _termOptions,
-        initial: _selectedTerms,
-        onApplied: _applyTerms,
-      ),
+      onTap: _optionsLoading || _optionsError != null
+          ? null
+          : () => _pickOptionValues(
+              title: l10n.coursesFilterTerm,
+              options: _termOptions.keys.toList()..sort(),
+              labelByValue: _termOptions,
+              initial: _selectedTerms,
+              onApplied: _applyTerms,
+            ),
     );
     final Widget campus = _filterChip(
       label: l10n.coursesFilterCampus,
       count: _selectedCampuses.length,
       selected: _selectedCampuses.isNotEmpty,
-      onTap: () => _pickOptionValues(
-        title: l10n.coursesFilterCampus,
-        options: _campusOptions,
-        labelByValue: const <String, String>{},
-        initial: _selectedCampuses,
-        onApplied: _applyCampuses,
-      ),
+      onTap: _optionsLoading || _optionsError != null
+          ? null
+          : () => _pickOptionValues(
+              title: l10n.coursesFilterCampus,
+              options: _campusOptions,
+              labelByValue: const <String, String>{},
+              initial: _selectedCampuses,
+              onApplied: _applyCampuses,
+            ),
     );
     final Widget instructor = _filterChip(
       label: l10n.coursesFilterInstructor,
@@ -508,11 +537,10 @@ class _CourseCatalogPageState extends ConsumerState<CourseCatalogPage> {
       },
     );
 
-    return SizedBox(
-      height: 46,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      child: Row(
         children: <Widget>[
           dept,
           const SizedBox(width: 8),
@@ -532,7 +560,7 @@ class _CourseCatalogPageState extends ConsumerState<CourseCatalogPage> {
   Widget _filterChip({
     required String label,
     required bool selected,
-    required VoidCallback onTap,
+    required VoidCallback? onTap,
     int? count,
     IconData? icon,
   }) {
@@ -541,8 +569,8 @@ class _CourseCatalogPageState extends ConsumerState<CourseCatalogPage> {
       onTap: onTap,
       borderRadius: BorderRadius.circular(999),
       child: Container(
-        height: 32,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
+        constraints: const BoxConstraints(minHeight: 44),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
           color: selected
               ? colors.primary.withValues(alpha: 0.1)
@@ -598,53 +626,76 @@ class _CourseCatalogPageState extends ConsumerState<CourseCatalogPage> {
     );
   }
 
+  Widget _retryNotice(String message, VoidCallback retry) => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 16),
+    child: Row(
+      children: [
+        Expanded(child: Text(message)),
+        TextButton(
+          onPressed: retry,
+          child: Text(AppLocalizations.of(context).commonRetry),
+        ),
+      ],
+    ),
+  );
+
   Widget _buildList(AppLocalizations l10n) {
-    final CourseCopy copy = CourseCopy(l10n);
+    final copy = CourseCopy(l10n);
     return AppRefreshIndicator(
-      onRefresh: _load,
-      child: _courses.isEmpty
-          ? ListView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              children: <Widget>[
-                SizedBox(
-                  height: MediaQuery.sizeOf(context).height * 0.6,
-                  child: GfEmpty(
-                    icon: Icons.menu_book_outlined,
-                    message: _hasActiveFilters
-                        ? copy.noFilterResults
-                        : copy.catalogEmptyTitle,
-                    description: _hasActiveFilters
-                        ? copy.noFilterResultsDescription
-                        : copy.catalogEmptyDescription,
-                  ),
+      onRefresh: () => _load(refresh: true),
+      child: CustomScrollView(
+        key: const Key('course-catalog-list'),
+        controller: _scrollController,
+        physics: const AlwaysScrollableScrollPhysics(),
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+        slivers: [
+          if (_courses.isEmpty)
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 40),
+                child: GfEmpty(
+                  icon: Icons.menu_book_outlined,
+                  message: _hasActiveFilters
+                      ? copy.noFilterResults
+                      : copy.catalogEmptyTitle,
+                  description: _hasActiveFilters
+                      ? copy.noFilterResultsDescription
+                      : copy.catalogEmptyDescription,
                 ),
-              ],
-            )
-          : ListView.separated(
-              key: const Key('course-catalog-list'),
-              controller: _scrollController,
-              physics: const AlwaysScrollableScrollPhysics(),
-              itemCount: _courses.length + 1,
-              separatorBuilder: (_, _) => const GfDivider(),
-              itemBuilder: (BuildContext context, int index) {
-                if (index == _courses.length) {
-                  return _ListFooter(loading: _loadingMore, hasNext: _hasNext);
-                }
-                final CourseSummaryPayload course = _courses[index];
-                return _CourseRow(
-                  course: course,
-                  termsExpanded: _expandedTermRows.contains(course.id),
-                  onToggleTerms: () {
-                    setState(() {
-                      if (!_expandedTermRows.remove(course.id)) {
-                        _expandedTermRows.add(course.id);
-                      }
-                    });
-                  },
-                  onTap: () => context.push('/courses/${course.id}'),
-                );
-              },
+              ),
             ),
+          SliverList.separated(
+            itemCount: _courses.length,
+            separatorBuilder: (_, _) => const GfDivider(),
+            itemBuilder: (context, index) {
+              final course = _courses[index];
+              return _CourseRow(
+                course: course,
+                termsExpanded: _expandedTermRows.contains(course.id),
+                onToggleTerms: () => setState(() {
+                  if (!_expandedTermRows.remove(course.id)) {
+                    _expandedTermRows.add(course.id);
+                  }
+                }),
+                onTap: () => context.push('/courses/${course.id}'),
+              );
+            },
+          ),
+          if (_courses.isNotEmpty || _hasNext)
+            SliverToBoxAdapter(
+              child: GfListFooter(
+                loading: _loadingMore,
+                hasMore: _hasNext,
+                autoLoad: !_refreshing && _refreshError == null,
+                progressKey: (_generation, _courses.length, _nextPage),
+                error: _loadMoreError == null
+                    ? null
+                    : resolveErrorMessage(l10n, _loadMoreError!),
+                onLoadMore: _loadMore,
+              ),
+            ),
+        ],
+      ),
     );
   }
 }
@@ -680,28 +731,6 @@ class _CourseListSkeleton extends StatelessWidget {
         ),
       ),
     );
-  }
-}
-
-class _ListFooter extends StatelessWidget {
-  const _ListFooter({required this.loading, required this.hasNext});
-
-  final bool loading;
-  final bool hasNext;
-
-  @override
-  Widget build(BuildContext context) {
-    if (loading) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 16),
-        child: Center(child: GfLoadingIndicator(small: true)),
-      );
-    }
-    if (!hasNext) {
-      return const SizedBox(height: 24);
-    }
-    // hasNext 且未在加载：等待滚动触发，占位保持一致高度。
-    return const SizedBox(height: 24);
   }
 }
 
@@ -1033,6 +1062,168 @@ class _InstructorPickerSheetState extends State<_InstructorPickerSheet> {
                         ),
                     ],
                   ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Captured criteria belong to one result generation, including all pages.
+class _CatalogQuery {
+  const _CatalogQuery({
+    required this.keyword,
+    required this.departments,
+    required this.terms,
+    required this.campuses,
+    required this.instructors,
+    required this.onlyWithReviews,
+  });
+  final String keyword;
+  final List<String> departments, terms, campuses, instructors;
+  final bool onlyWithReviews;
+  Future<CourseListResultPayload> fetch(
+    CourseRepository repository,
+    int page,
+    int size,
+  ) => repository.list(
+    keyword: keyword,
+    departments: departments,
+    terms: terms,
+    campuses: campuses,
+    instructors: instructors,
+    onlyWithReviews: onlyWithReviews,
+    page: page,
+    size: size,
+  );
+}
+
+class _CourseOptionsSheet extends StatefulWidget {
+  const _CourseOptionsSheet({
+    required this.title,
+    required this.options,
+    required this.labels,
+    required this.initial,
+  });
+  final String title;
+  final List<String> options;
+  final Map<String, String> labels;
+  final Set<String> initial;
+  @override
+  State<_CourseOptionsSheet> createState() => _CourseOptionsSheetState();
+}
+
+class _CourseOptionsSheetState extends State<_CourseOptionsSheet> {
+  final _search = TextEditingController();
+  late final _selected = {...widget.initial};
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final query = _search.text.trim().toLowerCase();
+    final options = widget.options
+        .where(
+          (value) =>
+              value.toLowerCase().contains(query) ||
+              (widget.labels[value] ?? '').toLowerCase().contains(query),
+        )
+        .toList();
+    return SafeArea(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 8, 4),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    widget.title,
+                    style: GfTheme.typographyOf(context).title2,
+                  ),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.pop(context, _selected),
+                  child: Text(l10n.courseCopyDone),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: CustomScrollView(
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+              slivers: [
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: GfSearchField(
+                      key: const Key('course-filter-search'),
+                      controller: _search,
+                      hintText: l10n.coursesFilterSearchHint,
+                      clearLabel: l10n.courseCopyClearSearch,
+                      onChanged: (_) => setState(() {}),
+                      onClear: () => setState(_search.clear),
+                    ),
+                  ),
+                ),
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Wrap(
+                      alignment: WrapAlignment.spaceBetween,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      spacing: 8,
+                      children: [
+                        Text(l10n.courseCopySelectedCount(_selected.length)),
+                        TextButton(
+                          onPressed: _selected.isEmpty
+                              ? null
+                              : () => setState(_selected.clear),
+                          child: Text(l10n.coursesClearSelection),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                if (options.isEmpty)
+                  SliverFillRemaining(
+                    hasScrollBody: false,
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Center(
+                        child: Text(
+                          query.isEmpty
+                              ? l10n.courseCopyNoOptions
+                              : l10n.coursesFilterNoMatches,
+                        ),
+                      ),
+                    ),
+                  )
+                else
+                  SliverList.builder(
+                    itemCount: options.length,
+                    itemBuilder: (context, index) {
+                      final value = options[index];
+                      return CheckboxListTile(
+                        value: _selected.contains(value),
+                        title: Text(widget.labels[value] ?? value),
+                        onChanged: (selected) => setState(() {
+                          if (selected == true) {
+                            _selected.add(value);
+                          } else {
+                            _selected.remove(value);
+                          }
+                        }),
+                      );
+                    },
+                  ),
+              ],
+            ),
           ),
         ],
       ),

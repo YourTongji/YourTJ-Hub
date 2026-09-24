@@ -1192,5 +1192,11 @@
   "badgeDisplayTitle": "Profile badges",
   "badgeDisplayHint": "Choose up to 5 badges and their order, or deselect all. Independent of your avatar badge.",
   "badgeDisplayUp": "Move up",
-  "badgeDisplayDown": "Move down"
+  "badgeDisplayDown": "Move down",
+  "coursesFilterSearchHint": "Search filter options",
+  "coursesFilterNoMatches": "No matching filter options",
+  "coursesClearSelection": "Clear selection",
+  "coursesResetSearch": "Reset search and filters",
+  "coursesFilterLoadFailed": "Filter options could not be loaded.",
+  "coursesPaginationStalled": "No additional courses arrived. Try loading this page again."
 }

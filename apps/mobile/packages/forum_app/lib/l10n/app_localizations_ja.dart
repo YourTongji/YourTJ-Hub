@@ -2430,4 +2430,22 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get badgeDisplayDown => '下へ';
+
+  @override
+  String get coursesFilterSearchHint => '絞り込み項目を検索';
+
+  @override
+  String get coursesFilterNoMatches => '一致する絞り込み項目がありません';
+
+  @override
+  String get coursesClearSelection => '選択を解除';
+
+  @override
+  String get coursesResetSearch => '検索と絞り込みをリセット';
+
+  @override
+  String get coursesFilterLoadFailed => '絞り込み項目を読み込めませんでした。';
+
+  @override
+  String get coursesPaginationStalled => '追加のコースを取得できませんでした。もう一度お試しください。';
 }

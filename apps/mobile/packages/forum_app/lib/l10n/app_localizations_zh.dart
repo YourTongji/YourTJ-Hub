@@ -2408,4 +2408,22 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get badgeDisplayDown => '下移';
+
+  @override
+  String get coursesFilterSearchHint => '搜索筛选项';
+
+  @override
+  String get coursesFilterNoMatches => '没有匹配的筛选项';
+
+  @override
+  String get coursesClearSelection => '清空选择';
+
+  @override
+  String get coursesResetSearch => '重置搜索和筛选';
+
+  @override
+  String get coursesFilterLoadFailed => '筛选项加载失败，请重试。';
+
+  @override
+  String get coursesPaginationStalled => '暂未获取到更多课程，请重试本页。';
 }
