@@ -215,7 +215,7 @@ class FailingPageRepository extends PageRepository {
   FailingPageRepository(super.client);
 
   @override
-  Future<PagePayload> fetch(String path) async =>
+  Future<PagePayload> fetch(String path, {Object? cancelToken}) async =>
       throw StateError('network down');
 }
 
@@ -313,6 +313,7 @@ class RetryChatRepository extends RecordingChatRepository {
 class InitialHistoryChatRepository extends RecordingChatRepository {
   InitialHistoryChatRepository(super.client);
   Completer<ChatMessagesResponse> initial = Completer();
+  CancelToken? initialCancel;
 
   @override
   Future<ChatMessagesResponse> getMessages({
@@ -320,9 +321,14 @@ class InitialHistoryChatRepository extends RecordingChatRepository {
     int beforeId = 0,
     int afterId = 0,
     int limit = 30,
-  }) => afterId == 0
-      ? initial.future
-      : super.getMessages(convId: convId, afterId: afterId);
+    Object? cancelToken,
+  }) {
+    if (afterId == 0) {
+      initialCancel = cancelToken as CancelToken?;
+      return initial.future;
+    }
+    return super.getMessages(convId: convId, afterId: afterId);
+  }
 }
 
 class RecordingChatRepository extends ChatRepository {
@@ -346,6 +352,7 @@ class RecordingChatRepository extends ChatRepository {
     int beforeId = 0,
     int afterId = 0,
     int limit = 30,
+    Object? cancelToken,
   }) async {
     return const ChatMessagesResponse(
       list: <ChatMessagePayload>[],
@@ -393,6 +400,7 @@ class PollingChatRepository extends ChatRepository {
     int beforeId = 0,
     int afterId = 0,
     int limit = 30,
+    Object? cancelToken,
   }) async {
     if (beforeId > 0) {
       beforeCalls++;
@@ -433,6 +441,7 @@ class IncomingChatRepository extends RecordingChatRepository {
     int beforeId = 0,
     int afterId = 0,
     int limit = 30,
+    Object? cancelToken,
   }) async {
     fetchedConvIds.add(convId);
     return const ChatMessagesResponse(
@@ -462,7 +471,7 @@ class CountingPageRepository extends PageRepository {
   int fetchCalls = 0;
 
   @override
-  Future<PagePayload> fetch(String path) async {
+  Future<PagePayload> fetch(String path, {Object? cancelToken}) async {
     fetchCalls++;
     if (path == '/' || path.startsWith('/?sort=')) {
       return parsePayload(homePayloadJson());
@@ -490,7 +499,7 @@ class FailingRefreshPageRepository extends CountingPageRepository {
   FailingRefreshPageRepository(super.client);
   bool fail = false;
   @override
-  Future<PagePayload> fetch(String path) {
+  Future<PagePayload> fetch(String path, {Object? cancelToken}) {
     if (fail) throw const NetworkException(fallbackMessage: 'offline');
     return super.fetch(path);
   }
@@ -505,6 +514,7 @@ class FailingSearchRepository extends PagingTopicRepository {
     required String query,
     String scope = '',
     int page = 1,
+    Object? cancelToken,
   }) {
     if (fail || (failMore && page > 1)) {
       throw const NetworkException(fallbackMessage: 'offline');
@@ -517,7 +527,7 @@ class EditableProfileRepository extends CountingPageRepository {
   EditableProfileRepository(super.client);
   String nickname = 'Alice';
   @override
-  Future<PagePayload> fetch(String path) async {
+  Future<PagePayload> fetch(String path, {Object? cancelToken}) async {
     final page = await super.fetch(path);
     if (!path.startsWith('/u/1')) return page;
     final json = jsonDecode(jsonEncode(page)) as Map<String, dynamic>;
@@ -532,7 +542,7 @@ class CountingMessagesPageRepository extends PageRepository {
   int fetchCalls = 0;
 
   @override
-  Future<PagePayload> fetch(String path) async {
+  Future<PagePayload> fetch(String path, {Object? cancelToken}) async {
     if (path != '/messages') {
       throw UnimplementedError('unexpected page path: $path');
     }
@@ -548,7 +558,7 @@ class FailAfterFirstMessagesRepository extends CountingPageRepository {
   int messagesCalls = 0;
 
   @override
-  Future<PagePayload> fetch(String path) async {
+  Future<PagePayload> fetch(String path, {Object? cancelToken}) async {
     if (path == '/messages') {
       messagesCalls++;
       if (messagesCalls > 1) throw StateError('network down');
@@ -571,7 +581,7 @@ class RedesignPageRepository extends PageRepository {
   final paths = <String>[];
 
   @override
-  Future<PagePayload> fetch(String path) async {
+  Future<PagePayload> fetch(String path, {Object? cancelToken}) async {
     paths.add(path);
     if (path.startsWith('/p/post/')) {
       return parsePayload(topicPayload ?? redesignedTopicPayloadJson());
@@ -591,7 +601,7 @@ class _ShortProfileStreams extends RedesignPageRepository {
   bool fail = false;
   Future<void>? pending;
   @override
-  Future<PagePayload> fetch(String path) async {
+  Future<PagePayload> fetch(String path, {Object? cancelToken}) async {
     await pending;
     if (fail) throw StateError('stream unavailable');
     final payload = redesignedProfilePayloadJson();
@@ -633,7 +643,7 @@ class PagedTopicPageRepository extends PageRepository {
   PagedTopicPageRepository(super.client);
 
   @override
-  Future<PagePayload> fetch(String path) async {
+  Future<PagePayload> fetch(String path, {Object? cancelToken}) async {
     if (path.startsWith('/p/post/')) {
       return parsePayload(pagedTopicPayloadJson());
     }
@@ -645,7 +655,7 @@ class JumpingTopicPageRepository extends CountingPageRepository {
   JumpingTopicPageRepository(super.client);
   final paths = <String>[];
   @override
-  Future<PagePayload> fetch(String path) async {
+  Future<PagePayload> fetch(String path, {Object? cancelToken}) async {
     paths.add(path);
     if (path.endsWith('/2')) return parsePayload(anchoredTopicPayloadJson());
     return super.fetch(path);
@@ -656,7 +666,7 @@ class AnchoredTopicPageRepository extends PageRepository {
   AnchoredTopicPageRepository(super.client);
 
   @override
-  Future<PagePayload> fetch(String path) async {
+  Future<PagePayload> fetch(String path, {Object? cancelToken}) async {
     if (path.startsWith('/p/post/')) {
       return parsePayload(anchoredTopicPayloadJson());
     }
@@ -671,7 +681,8 @@ class DelayedPageRepository extends PageRepository {
   final Completer<PagePayload> response = Completer<PagePayload>();
 
   @override
-  Future<PagePayload> fetch(String path) => response.future;
+  Future<PagePayload> fetch(String path, {Object? cancelToken}) =>
+      response.future;
 
   void complete(Map<String, dynamic> payload) {
     if (!response.isCompleted) response.complete(parsePayload(payload));
@@ -937,7 +948,7 @@ class MidWindowTopicPageRepository extends PageRepository {
   MidWindowTopicPageRepository(super.client);
 
   @override
-  Future<PagePayload> fetch(String path) async {
+  Future<PagePayload> fetch(String path, {Object? cancelToken}) async {
     if (path.startsWith('/p/post/')) {
       return parsePayload(midWindowTopicPayloadJson());
     }
@@ -996,7 +1007,7 @@ class ActivatingConversationPageRepository extends CountingPageRepository {
   int messagesFetches = 0;
 
   @override
-  Future<PagePayload> fetch(String path) async {
+  Future<PagePayload> fetch(String path, {Object? cancelToken}) async {
     if (path != '/messages') return super.fetch(path);
 
     fetchCalls++;
@@ -1021,7 +1032,7 @@ class ErroringProfilePageRepository extends CountingPageRepository {
   ErroringProfilePageRepository(super.client);
 
   @override
-  Future<PagePayload> fetch(String path) async {
+  Future<PagePayload> fetch(String path, {Object? cancelToken}) async {
     if (path.startsWith('/u/')) {
       fetchCalls++;
       throw StateError('profile request failed');
@@ -1039,6 +1050,7 @@ class ControlledSearchRepository extends PagingTopicRepository {
     required String query,
     String scope = '',
     int page = 1,
+    Object? cancelToken,
   }) async {
     if (page > 1) await pending;
     return super.search(query: query, scope: scope, page: page);
@@ -1055,6 +1067,7 @@ class PagingTopicRepository extends TopicRepository {
     required String query,
     String scope = '',
     int page = 1,
+    Object? cancelToken,
   }) async {
     searchPages.add(page);
     if (page <= 1) {
@@ -1110,6 +1123,7 @@ class AggregateSearchRepository extends PagingTopicRepository {
     required String query,
     String scope = '',
     int page = 1,
+    Object? cancelToken,
   }) async {
     scopes.add(scope);
     return SearchPageProps(
@@ -1274,7 +1288,7 @@ class DraftsPageRepository extends PageRepository {
   final String editUrl;
 
   @override
-  Future<PagePayload> fetch(String path) async {
+  Future<PagePayload> fetch(String path, {Object? cancelToken}) async {
     if (path != '/drafts') {
       throw UnimplementedError('unexpected page path: $path');
     }
@@ -1294,6 +1308,7 @@ class FilteringNotificationRepository extends NotificationRepository {
     String filter = 'all',
     int cursor = 0,
     int limit = 20,
+    Object? cancelToken,
   }) async {
     filters.add(filter);
     final NotificationPayload n = NotificationPayload(
@@ -1798,6 +1813,12 @@ void main() {
         }
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 400));
+        expect(
+          chats.initialCancel?.isCancelled,
+          isFalse,
+          reason:
+              'Configuring foreground polling must preserve initial history',
+        );
         await tester.enterText(
           find.descendant(
             of: find.byType(GfChatInput),

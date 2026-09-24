@@ -132,6 +132,12 @@ _$TopicPayloadImpl _$$TopicPayloadImplFromJson(Map<String, dynamic> json) =>
       images: (json['images'] as List<dynamic>?)
           ?.map((e) => e as String)
           .toList(),
+      imageMetadata: (json['imageMetadata'] as List<dynamic>?)
+          ?.map(
+            (e) =>
+                TopicImageMetadataPayload.fromJson(e as Map<String, dynamic>),
+          )
+          .toList(),
       url: json['url'] as String,
       author: UserBriefPayload.fromJson(json['author'] as Map<String, dynamic>),
       participants: (json['participants'] as List<dynamic>)
@@ -160,6 +166,7 @@ Map<String, dynamic> _$$TopicPayloadImplToJson(_$TopicPayloadImpl instance) =>
       'contentType': instance.contentType,
       'firstImageUrl': instance.firstImageUrl,
       'images': instance.images,
+      'imageMetadata': instance.imageMetadata,
       'url': instance.url,
       'author': instance.author,
       'participants': instance.participants,

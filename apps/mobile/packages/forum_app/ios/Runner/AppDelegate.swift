@@ -1,6 +1,7 @@
 import Flutter
 import UIKit
 import UserNotifications
+import Darwin
 
 @main
 @objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
@@ -9,6 +10,8 @@ import UserNotifications
   private var pendingRoute: String?
   private var deliveryEnabled = false
   private var registrationGeneration = 0
+  private var startupLaunchKind = "cold"
+  private var hasBecomeActiveOnce = false
 
   override func application(
     _ application: UIApplication,
@@ -20,6 +23,28 @@ import UserNotifications
 
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
+    if let startupRegistrar = engineBridge.pluginRegistry.registrar(forPlugin: "YourTJStartup") {
+      let startupChannel = FlutterMethodChannel(
+        name: "yourtj/startup",
+        binaryMessenger: startupRegistrar.messenger()
+      )
+      startupChannel.setMethodCallHandler { [weak self] call, result in
+        guard let self else { return }
+        switch call.method {
+        case "getDeviceProfile":
+          result([
+            "device": Self.deviceModelIdentifier,
+            "osVersion": "iOS \(UIDevice.current.systemVersion)",
+            "refreshRateHz": UIScreen.main.maximumFramesPerSecond,
+            "launchKind": self.startupLaunchKind
+          ])
+        case "reportFullyDrawn":
+          result(false)
+        default:
+          result(FlutterMethodNotImplemented)
+        }
+      }
+    }
     guard let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "YourTJPush") else { return }
     let channel = FlutterMethodChannel(name: "yourtj/push", binaryMessenger: registrar.messenger())
     pushChannel = channel
@@ -66,6 +91,26 @@ import UserNotifications
         result(self.pendingRoute)
         self.pendingRoute = nil
       default: result(FlutterMethodNotImplemented)
+      }
+    }
+  }
+
+  override func applicationDidBecomeActive(_ application: UIApplication) {
+    if hasBecomeActiveOnce {
+      startupLaunchKind = "hot"
+    } else {
+      hasBecomeActiveOnce = true
+    }
+    super.applicationDidBecomeActive(application)
+  }
+
+  private static var deviceModelIdentifier: String {
+    var systemInfo = utsname()
+    uname(&systemInfo)
+    let capacity = MemoryLayout.size(ofValue: systemInfo.machine)
+    return withUnsafePointer(to: &systemInfo.machine) {
+      $0.withMemoryRebound(to: CChar.self, capacity: capacity) {
+        String(cString: $0)
       }
     }
   }

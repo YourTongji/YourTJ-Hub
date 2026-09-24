@@ -106,8 +106,17 @@ func MarkAllAsRead(userId uint64) error {
 // 命中后再按 postId（0=话题级）过滤，并逐行写回（payload 各行不同，无法合并为
 // 单条 UPDATE）。游标分批处理，确保高通知量话题不会被固定上限截断。
 func ClearPreviewsByTopic(topicId uint64, postId uint64) error {
+	_, err := ClearPreviewsByTopicWithRecipients(topicId, postId)
+	return err
+}
+
+// ClearPreviewsByTopicWithRecipients also reports owners of rows actually
+// changed, including a partial-success prefix if a later batch fails.
+func ClearPreviewsByTopicWithRecipients(topicId uint64, postId uint64) ([]uint64, error) {
+	recipients := make([]uint64, 0)
+	seen := make(map[uint64]struct{})
 	if topicId == 0 {
-		return nil
+		return recipients, nil
 	}
 	const batchSize = 500
 	var cursorID uint64
@@ -118,10 +127,10 @@ func ClearPreviewsByTopic(topicId uint64, postId uint64) error {
 		}
 		var notifications []Entity
 		if err := query.Find(&notifications).Error; err != nil {
-			return err
+			return recipients, err
 		}
 		if len(notifications) == 0 {
-			return nil
+			return recipients, nil
 		}
 		for _, item := range notifications {
 			cursorID = item.Id
@@ -139,12 +148,16 @@ func ClearPreviewsByTopic(topicId uint64, postId uint64) error {
 			// SQLite/PostgreSQL 的 JSON 列都能正常写入。
 			payloadBytes, err := json.Marshal(item.Payload)
 			if err != nil {
-				return err
+				return recipients, err
 			}
 			if err := builder().Model(&Entity{}).Where(queryopt.Eq("id", item.Id)).Updates(map[string]any{
 				"payload": payloadBytes,
 			}).Error; err != nil {
-				return err
+				return recipients, err
+			}
+			if _, ok := seen[item.UserId]; !ok {
+				seen[item.UserId] = struct{}{}
+				recipients = append(recipients, item.UserId)
 			}
 		}
 	}

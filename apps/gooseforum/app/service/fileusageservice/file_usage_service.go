@@ -10,6 +10,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/markdown2html"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/filemodel/filedata"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/fileUsage"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
 	"gorm.io/gorm"
 )
 
@@ -215,6 +216,39 @@ func fileNameFromURL(value string) string {
 	name := strings.TrimPrefix(parsed.Path, "/file/img/")
 	name = path.Clean("/" + name)
 	return strings.TrimPrefix(name, "/")
+}
+
+// FileNameFromURL resolves a stored image URL to its file_data object name.
+func FileNameFromURL(value string) string {
+	if name := fileNameFromURL(value); name != "" {
+		return name
+	}
+	return fileNameFromPublicURL(value, hotdataserve.GetStorageSettingsConfigCache().PublicUrlPrefix)
+}
+
+func fileNameFromPublicURL(value, publicPrefix string) string {
+	if strings.TrimSpace(publicPrefix) == "" {
+		return ""
+	}
+	publicURL, err := url.Parse(strings.TrimRight(publicPrefix, "/") + "/")
+	if err != nil || publicURL.Scheme == "" || publicURL.Host == "" {
+		return ""
+	}
+	imageURL, err := url.Parse(value)
+	if err != nil || imageURL.User != nil || imageURL.Scheme != publicURL.Scheme || !strings.EqualFold(imageURL.Host, publicURL.Host) {
+		return ""
+	}
+	basePath := strings.TrimRight(publicURL.Path, "/")
+	name, ok := strings.CutPrefix(imageURL.Path, basePath+"/")
+	if !ok || name == "" {
+		return ""
+	}
+	for _, segment := range strings.Split(name, "/") {
+		if segment == "" || segment == "." || segment == ".." {
+			return ""
+		}
+	}
+	return name
 }
 
 // SetStickerUsageTx replaces a sticker reference in the definition transaction.

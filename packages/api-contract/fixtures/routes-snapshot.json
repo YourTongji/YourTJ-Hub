@@ -241,6 +241,10 @@
   },
   {
     "method": "GET",
+    "path": "/api/forum/events"
+  },
+  {
+    "method": "GET",
     "path": "/api/forum/get-site-statistics"
   },
   {

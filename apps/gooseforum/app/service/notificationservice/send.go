@@ -5,6 +5,7 @@ import (
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/eventNotification"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/nativepushservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/realtimeservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/unreadservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/webpushservice"
 	"github.com/spf13/cast"
@@ -33,7 +34,7 @@ func SendCommentNotification(userId uint64, topicId uint64, commentContent strin
 
 	err := eventNotification.Create(notification)
 	if err == nil {
-		unreadservice.Invalidate(userId)
+		notificationCommitted(userId)
 		webpushservice.EnqueueNotification(userId, notification.Id)
 		nativepushservice.EnqueueNotification(userId, notification.Id)
 	}
@@ -63,7 +64,7 @@ func SendPostReplyNotification(userId uint64, postId uint64, postNo uint64, topi
 
 	err := eventNotification.Create(notification)
 	if err == nil {
-		unreadservice.Invalidate(userId)
+		notificationCommitted(userId)
 		webpushservice.EnqueueNotification(userId, notification.Id)
 		nativepushservice.EnqueueNotification(userId, notification.Id)
 	}
@@ -107,7 +108,7 @@ func SendTopicPostNotifications(userIds []uint64, topicId uint64, postId uint64,
 			if notification == nil {
 				continue
 			}
-			unreadservice.Invalidate(notification.UserId)
+			notificationCommitted(notification.UserId)
 			webpushservice.EnqueueNotification(notification.UserId, notification.Id)
 			nativepushservice.EnqueueNotification(notification.UserId, notification.Id)
 		}
@@ -151,7 +152,7 @@ func SendMentionNotifications(userIds []uint64, topicId uint64, postId uint64, p
 	err := eventNotification.CreateBatch(notifications, 100)
 	if err == nil {
 		for _, userId := range userIds {
-			unreadservice.Invalidate(userId)
+			notificationCommitted(userId)
 		}
 	}
 	return err
@@ -177,7 +178,7 @@ func SendBadgeNotification(userId uint64, badgeCode string, badgeName string, ba
 
 	err := eventNotification.Create(notification)
 	if err == nil {
-		unreadservice.Invalidate(userId)
+		notificationCommitted(userId)
 		webpushservice.EnqueueNotification(userId, notification.Id)
 		nativepushservice.EnqueueNotification(userId, notification.Id)
 	}
@@ -204,7 +205,7 @@ func SendLikeNotification(userId uint64, topicId uint64, topicTitle string, post
 
 	err := eventNotification.Create(notification)
 	if err == nil {
-		unreadservice.Invalidate(userId)
+		notificationCommitted(userId)
 		webpushservice.EnqueueNotification(userId, notification.Id)
 		nativepushservice.EnqueueNotification(userId, notification.Id)
 	}
@@ -227,7 +228,7 @@ func SendFollowNotification(userId uint64, followerId uint64, followerName strin
 
 	err := eventNotification.Create(notification)
 	if err == nil {
-		unreadservice.Invalidate(userId)
+		notificationCommitted(userId)
 		webpushservice.EnqueueNotification(userId, notification.Id)
 		nativepushservice.EnqueueNotification(userId, notification.Id)
 	}
@@ -239,7 +240,16 @@ func NullifyContentPreviews(topicId uint64, postId uint64) {
 	if topicId == 0 && postId == 0 {
 		return
 	}
-	if err := eventNotification.ClearPreviewsByTopic(topicId, postId); err != nil {
+	recipients, err := eventNotification.ClearPreviewsByTopicWithRecipients(topicId, postId)
+	for _, userID := range recipients {
+		realtimeservice.PublishNotificationsChanged(userID, "preview-cleared")
+	}
+	if err != nil {
 		slog.Error("clear notification previews failed", "topicId", topicId, "postId", postId, "err", err)
 	}
+}
+
+func notificationCommitted(userID uint64) {
+	unreadservice.Invalidate(userID)
+	realtimeservice.PublishNotificationsChanged(userID, "created")
 }

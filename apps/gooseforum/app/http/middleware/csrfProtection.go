@@ -79,6 +79,22 @@ func CSRFProtection(c *gin.Context) {
 	c.Abort()
 }
 
+// StreamOriginProtection keeps a cookie-authenticated GET stream from being
+// held open by a different same-site origin. Bearer clients have no ambient
+// browser credential and are allowed without an Origin header.
+func StreamOriginProtection(c *gin.Context) {
+	authorization := strings.TrimSpace(c.GetHeader("Authorization"))
+	if strings.HasPrefix(authorization, "Bearer ") && strings.TrimSpace(strings.TrimPrefix(authorization, "Bearer ")) != "" {
+		c.Next()
+		return
+	}
+	if cookie, err := c.Cookie(accessTokenCookieName); err == nil && strings.TrimSpace(cookie) != "" && !sameSiteRequest(c) {
+		c.AbortWithStatus(http.StatusForbidden)
+		return
+	}
+	c.Next()
+}
+
 // sameSiteRequest reports whether the request comes from a site-controlled
 // origin: the Origin header when present, otherwise the Referer origin.
 func sameSiteRequest(c *gin.Context) bool {

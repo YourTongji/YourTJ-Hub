@@ -21,7 +21,7 @@ class _Pages extends PageRepository {
   _Pages(super.client);
   bool fail = false;
   @override
-  Future<PagePayload> fetch(String path) async {
+  Future<PagePayload> fetch(String path, {Object? cancelToken}) async {
     if (fail) throw const NetworkException(fallbackMessage: 'offline');
     return parsePayload({
       'component': PageComponent.drafts,

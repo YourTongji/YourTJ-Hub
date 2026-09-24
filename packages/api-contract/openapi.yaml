@@ -185,6 +185,8 @@ paths:
     $ref: ./paths/user-account.yaml#/unbindOAuth
   /api/forum/unread-status:
     $ref: ./paths/forum-notifications.yaml#/getUnreadStatus
+  /api/forum/events:
+    $ref: ./paths/forum-events.yaml#/streamForumEvents
   /api/forum/notifications:
     $ref: ./paths/forum-notifications.yaml#/getNotifications
   /api/forum/notification/mark-read:
@@ -1861,6 +1863,10 @@ components:
       $ref: ./components/schemas.yaml#/TopicCategoryPayload
     TopicPayload:
       $ref: ./components/schemas.yaml#/TopicPayload
+    ImageMetadata:
+      $ref: ./components/schemas.yaml#/ImageMetadata
+    ImageVariant:
+      $ref: ./components/schemas.yaml#/ImageVariant
     UserSearchPayload:
       $ref: ./components/schemas.yaml#/UserSearchPayload
     WikiAssetCDNSaveRequest:
