@@ -28,6 +28,8 @@ class CampusViewState {
     this.error,
     this.data = const {},
     this.errors = const {},
+    this.snapshot,
+    this.fetching = const {},
   });
   final CampusStatus? status;
   final bool loading;
@@ -36,6 +38,8 @@ class CampusViewState {
   final Object? error;
   final Map<String, CampusDataset> data;
   final Map<String, Object> errors;
+  final CampusSnapshot? snapshot;
+  final Set<String> fetching;
   bool get needsAuthorization =>
       status?.binding?.needsAuthorization == true ||
       errors.values.any(isCampusAuthorizationError);
@@ -72,6 +76,7 @@ class CampusController extends StateNotifier<CampusViewState> {
   int _generation = 0;
   final Set<String> _loading = {};
   String tab = 'today';
+  CampusSnapshot? _snapshot;
 
   Future<CampusCalendarExport?> exportCalendar({
     bool applyAdjustments = true,
@@ -106,6 +111,7 @@ class CampusController extends StateNotifier<CampusViewState> {
     cache.clear();
     _refreshing = false;
     _receivedAt.clear();
+    _snapshot = null;
     unawaited(
       _clearPersistent(
         widgetState: isCampusAuthorizationError(error)
@@ -114,6 +120,8 @@ class CampusController extends StateNotifier<CampusViewState> {
       ),
     );
     state = CampusViewState(
+      snapshot: _snapshot,
+      fetching: Set.of(_loading),
       status: isCampusAuthorizationError(error) ? state.status : null,
       loading: false,
       error: error,
@@ -122,6 +130,7 @@ class CampusController extends StateNotifier<CampusViewState> {
   }
 
   Future<void> refresh({bool reuseCache = false}) async {
+    if (_refreshing || state.busy) return;
     _cancelReads();
     final generation = _generation;
     final cacheFence = cache.generation;
@@ -129,6 +138,8 @@ class CampusController extends StateNotifier<CampusViewState> {
     _expireTeachingDate();
     final previous = state;
     state = CampusViewState(
+      snapshot: _snapshot,
+      fetching: Set.of(_loading),
       status: previous.status,
       loading: previous.status == null,
       refreshing: true,
@@ -141,8 +152,11 @@ class CampusController extends StateNotifier<CampusViewState> {
       if (reuseCache && persistentStore != null && scope != null) {
         persisted = await persistentStore!.read(scope!);
         if (!mounted || generation != _generation) return;
+        _snapshot = persisted;
         if (persisted != null && previous.data.isEmpty) {
           state = CampusViewState(
+            snapshot: _snapshot,
+            fetching: Set.of(_loading),
             status: _offlineStatus(persisted.bindingRevision),
             loading: false,
             refreshing: true,
@@ -161,11 +175,13 @@ class CampusController extends StateNotifier<CampusViewState> {
           ? status.binding
           : null;
       if (binding != null &&
-          persisted != null &&
-          persisted.bindingRevision != binding.revision) {
+          _snapshot != null &&
+          _snapshot!.bindingRevision != binding.revision) {
         await _clearPersistent();
+        if (!mounted || generation != _generation) return;
         widgetCleared = true;
         persisted = null;
+        _snapshot = null;
       }
       final restored = cache.restore(binding?.revision);
       final sameIdentity =
@@ -189,12 +205,16 @@ class CampusController extends StateNotifier<CampusViewState> {
         }
       }
       state = CampusViewState(
+        snapshot: _snapshot,
+        fetching: Set.of(_loading),
         status: status,
         loading: false,
         refreshing: true,
         data: data,
       );
+      _expireTeachingDate();
       if (binding == null) {
+        _snapshot = null;
         await _clearPersistent(
           widgetState: status.binding?.needsAuthorization == true
               ? 'authorizationRequired'
@@ -209,8 +229,15 @@ class CampusController extends StateNotifier<CampusViewState> {
           ...campusPersistentKeys,
           ...(campusTabKeys[tab] ?? const <String>[]),
         };
+        final storeFence = persistentStore?.generation;
+        final dataFence = cache.generation;
         await Future.wait(keys.map((key) => load(key, force: true)));
-        await _commitPersistent(binding.revision);
+        if (!mounted ||
+            generation != _generation ||
+            !cache.isCurrent(dataFence)) {
+          return;
+        }
+        await _commitPersistent(binding.revision, generation, storeFence);
       } else {
         if (persisted == null || tab != 'today') await loadTab(tab);
       }
@@ -220,6 +247,8 @@ class CampusController extends StateNotifier<CampusViewState> {
           _dropPrivateData(e);
         } else {
           state = CampusViewState(
+            snapshot: _snapshot,
+            fetching: Set.of(_loading),
             status: state.status,
             loading: false,
             error: e,
@@ -231,6 +260,8 @@ class CampusController extends StateNotifier<CampusViewState> {
     } finally {
       if (mounted && generation == _generation) {
         state = CampusViewState(
+          snapshot: _snapshot,
+          fetching: Set.of(_loading),
           status: state.status,
           loading: false,
           busy: state.busy,
@@ -267,6 +298,8 @@ class CampusController extends StateNotifier<CampusViewState> {
       cache.forget(key);
     }
     state = CampusViewState(
+      snapshot: _snapshot,
+      fetching: Set.of(_loading),
       status: state.status,
       loading: state.loading,
       busy: state.busy,
@@ -301,8 +334,16 @@ class CampusController extends StateNotifier<CampusViewState> {
     );
   }
 
+  /// Persistent datasets form one atomic device/widget snapshot. Retrying one
+  /// must complete the full refresh before publishing the replacement snapshot.
+  Future<void> retry(String key) =>
+      campusPersistentKeys.contains(key) ? refresh() : load(key, force: true);
+
   Future<void> load(String key, {bool force = false}) async {
     if (state.status?.binding == null || state.needsAuthorization) return;
+    if (!force && _snapshot != null && campusPersistentKeys.contains(key)) {
+      return;
+    }
     final receivedAt = _receivedAt[key];
     if (!force &&
         const ['ready', 'empty'].contains(state.data[key]?.status) &&
@@ -311,6 +352,7 @@ class CampusController extends StateNotifier<CampusViewState> {
       return;
     }
     if (!_loading.add(key)) return;
+    _notifyLoading();
     final generation = _generation;
     final cacheFence = cache.generation;
     final revision = state.status!.binding!.revision;
@@ -331,6 +373,8 @@ class CampusController extends StateNotifier<CampusViewState> {
       _receivedAt[key] = started;
       cache.put(revision, value, started, cacheFence);
       state = CampusViewState(
+        snapshot: _snapshot,
+        fetching: Set.of(_loading),
         status: state.status,
         loading: false,
         busy: state.busy,
@@ -350,6 +394,8 @@ class CampusController extends StateNotifier<CampusViewState> {
         return;
       }
       state = CampusViewState(
+        snapshot: _snapshot,
+        fetching: Set.of(_loading),
         status: state.status,
         loading: false,
         busy: state.busy,
@@ -359,7 +405,10 @@ class CampusController extends StateNotifier<CampusViewState> {
         errors: {...state.errors, key: e},
       );
     } finally {
-      if (generation == _generation) _loading.remove(key);
+      if (mounted && generation == _generation) {
+        _loading.remove(key);
+        _notifyLoading();
+      }
     }
   }
 
@@ -368,8 +417,12 @@ class CampusController extends StateNotifier<CampusViewState> {
     String widgetState = 'needsData',
   }) async {
     if (state.busy) return false;
+    _cancelReads();
+    _refreshing = false;
     final generation = _generation;
     state = CampusViewState(
+      snapshot: _snapshot,
+      fetching: Set.of(_loading),
       status: state.status,
       loading: false,
       busy: true,
@@ -382,6 +435,8 @@ class CampusController extends StateNotifier<CampusViewState> {
       cache.clear();
       _receivedAt.clear();
       await _clearPersistent(widgetState: widgetState);
+      if (!mounted || generation != _generation) return false;
+      _snapshot = null;
       state = const CampusViewState();
       await refresh();
       return mounted && state.error == null;
@@ -392,6 +447,8 @@ class CampusController extends StateNotifier<CampusViewState> {
           return false;
         }
         state = CampusViewState(
+          snapshot: _snapshot,
+          fetching: Set.of(_loading),
           status: state.status,
           loading: false,
           error: e,
@@ -411,27 +468,58 @@ class CampusController extends StateNotifier<CampusViewState> {
     super.dispose();
   }
 
-  Future<void> _commitPersistent(String bindingRevision) async {
-    if (persistentStore == null || widgetBridge == null || scope == null) {
+  Future<void> _commitPersistent(
+    String bindingRevision,
+    int generation,
+    int? storeFence,
+  ) async {
+    if (persistentStore == null || scope == null) return;
+    bool current() =>
+        mounted &&
+        generation == _generation &&
+        storeFence == persistentStore!.generation;
+    if (!current() ||
+        campusPersistentKeys.any(
+          (key) => state.errors.containsKey(key) || state.data[key] == null,
+        )) {
       return;
     }
-    if (campusPersistentKeys.any(
-      (key) => state.errors.containsKey(key) || state.data[key] == null,
-    )) {
+    final CampusSnapshot snapshot;
+    try {
+      snapshot = await persistentStore!.write(
+        scope!,
+        bindingRevision,
+        state.data,
+        committedAt: cache.now(),
+        expectedGeneration: storeFence,
+      );
+    } on CampusSnapshotSuperseded {
+      return;
+    } catch (error) {
+      if (current()) {
+        state = CampusViewState(
+          snapshot: _snapshot,
+          fetching: Set.of(_loading),
+          status: state.status,
+          loading: false,
+          refreshing: state.refreshing,
+          data: state.data,
+          errors: {...state.errors, 'snapshot': error},
+        );
+      }
       return;
     }
-    final snapshot = await persistentStore!.write(
-      scope!,
-      bindingRevision,
-      state.data,
-      committedAt: cache.now(),
-    );
+    if (!current()) return;
+    _snapshot = snapshot;
+    _notifyLoading();
+    if (widgetBridge == null) return;
     CampusCalendarRules? rules;
     try {
       rules = (await repository.calendarRules(cancelToken: _cancel)).rules;
     } catch (_) {
       // Keep the authoritative snapshot and publish unknown future days.
     }
+    if (!current()) return;
     try {
       await widgetBridge!.write(
         ScheduleWidgetProjection.fromSnapshot(
@@ -441,9 +529,37 @@ class CampusController extends StateNotifier<CampusViewState> {
         ),
       );
     } catch (_) {
-      // The campus snapshot is still valid; a later manual refresh retries the
-      // platform projection without sacrificing offline data.
+      // The campus snapshot remains readable if the platform bridge fails.
     }
+  }
+
+  void _notifyLoading() {
+    state = CampusViewState(
+      snapshot: _snapshot,
+      fetching: Set.of(_loading),
+      status: state.status,
+      loading: state.loading,
+      busy: state.busy,
+      refreshing: state.refreshing,
+      error: state.error,
+      data: state.data,
+      errors: state.errors,
+    );
+  }
+
+  /// Called before device-cache deletion, so pending reads cannot refill it.
+  void discardLocal() {
+    _cancelReads();
+    cache.clear();
+    _snapshot = null;
+    _receivedAt.clear();
+    _refreshing = false;
+    state = CampusViewState(
+      snapshot: _snapshot,
+      fetching: Set.of(_loading),
+      status: state.status,
+      loading: false,
+    );
   }
 
   Future<void> _clearPersistent({String widgetState = 'needsData'}) async {
@@ -468,7 +584,7 @@ class CampusController extends StateNotifier<CampusViewState> {
 final campusControllerProvider =
     StateNotifierProvider.autoDispose<CampusController, CampusViewState>((ref) {
       ref.watch(offlineCacheEpochProvider);
-      return CampusController(
+      final controller = CampusController(
         ref.watch(campusRepositoryProvider),
         cache: ref.watch(campusMemoryCacheProvider),
         persistentStore: ref.watch(campusSnapshotStoreProvider),
@@ -485,6 +601,8 @@ final campusControllerProvider =
           _ => null,
         },
       )..refresh(reuseCache: true);
+      ref.listen(campusCacheEpochProvider, (_, _) => controller.discardLocal());
+      return controller;
     });
 
 // A 403 can reject an operation (CSRF/email verification) without invalidating

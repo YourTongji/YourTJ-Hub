@@ -112,12 +112,21 @@ final offlineChatCacheProvider = Provider<OfflineChatCache>((ref) {
   return DriftOfflineCache(ref.watch(offlineDatabaseProvider));
 });
 
+/// Invalidate campus reads without clearing drafts, plans or the forum session.
+final campusCacheEpochProvider = NotifierProvider<OfflineCacheEpoch, int>(
+  OfflineCacheEpoch.new,
+);
+
 final campusSnapshotStoreProvider = Provider<CampusSnapshotStore>((ref) {
-  return CampusSnapshotStore(ref.watch(offlineDatabaseProvider));
+  final store = CampusSnapshotStore(ref.watch(offlineDatabaseProvider));
+  ref.listen(offlineCacheEpochProvider, (_, _) => store.invalidate());
+  return store;
 });
 
 final scheduleWidgetBridgeProvider = Provider<ScheduleWidgetBridge>((ref) {
-  return ScheduleWidgetBridge();
+  final bridge = ScheduleWidgetBridge();
+  ref.listen(offlineCacheEpochProvider, (_, _) => bridge.invalidate());
+  return bridge;
 });
 
 final scheduleWidgetLinkProvider = StreamProvider<Uri?>((ref) {

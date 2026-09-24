@@ -2460,4 +2460,34 @@ class AppLocalizationsJa extends AppLocalizations {
   @override
   String get scheduleWidgetTransparencyDescription =>
       '値を上げると、ホーム画面の背景がより透けて見えます。授業情報の読みやすさを保つため、範囲は 0%～15% です。';
+
+  @override
+  String campusSnapshotUpdated(String time) {
+    return '端末のスナップショット更新：$time';
+  }
+
+  @override
+  String get campusSnapshotStale => 'このスナップショットは古い可能性があります。更新してください。';
+
+  @override
+  String get campusSnapshotOffline => '接続を確認できません。端末のスナップショットを表示しています。';
+
+  @override
+  String get campusSnapshotRefreshFailed => '一部のデータを更新できませんでした。以前の内容を保持しています。';
+
+  @override
+  String get campusDataNeedsRefresh => 'この内容は未更新です。手動で更新してください。';
+
+  @override
+  String get campusCacheClear => 'キャンパスのキャッシュを削除';
+
+  @override
+  String get campusCacheClearDescription =>
+      'この端末のキャンパスデータとホーム画面の時間割を削除します。下書き、履修計画、大学との連携は保持されます。';
+
+  @override
+  String get campusCacheCleared => 'キャンパスのキャッシュを削除しました';
+
+  @override
+  String get campusCacheClearFailed => '一部のキャッシュを削除できませんでした。再試行してください。';
 }

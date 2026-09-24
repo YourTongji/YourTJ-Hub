@@ -1201,5 +1201,21 @@
   "scheduleWidgetDiagnostics": "刷新诊断",
   "scheduleWidgetDiagnosticsDescription": "如果日期或课程状态更新较慢，请检查系统对 YourTJ 的后台运行和电量设置；不同设备的菜单名称可能不同。",
   "scheduleWidgetTransparencyTitle": "小组件背景透明度",
-  "scheduleWidgetTransparencyDescription": "调高后会透出更多桌面背景。范围为 0%–15%，兼顾透出壁纸与课程文字辨识。"
+  "scheduleWidgetTransparencyDescription": "调高后会透出更多桌面背景。范围为 0%–15%，兼顾透出壁纸与课程文字辨识。",
+  "campusSnapshotUpdated": "设备快照更新于 {time}",
+  "campusSnapshotStale": "快照可能已过期，请刷新获取最新数据。",
+  "campusSnapshotOffline": "连接核验失败，正在显示本设备快照。",
+  "campusSnapshotRefreshFailed": "部分数据更新失败，保留上次可用内容。",
+  "campusDataNeedsRefresh": "此内容尚未更新，请手动刷新。",
+  "campusCacheClear": "清除校园缓存",
+  "campusCacheClearDescription": "清除本设备的校园快照和桌面课表。草稿、排课方案与学校绑定不受影响。",
+  "campusCacheCleared": "校园缓存已清除",
+  "campusCacheClearFailed": "部分缓存未能清除，请重试。",
+  "@campusSnapshotUpdated": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  }
 }

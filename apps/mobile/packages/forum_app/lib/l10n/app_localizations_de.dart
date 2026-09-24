@@ -2560,4 +2560,39 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get scheduleWidgetTransparencyDescription =>
       'Bei höheren Werten scheint mehr vom Hintergrund durch. Der Bereich von 0 % bis 15 % verbindet den Hintergrundeffekt mit gut lesbarem Kurstext.';
+
+  @override
+  String campusSnapshotUpdated(String time) {
+    return 'Geräte-Snapshot aktualisiert: $time';
+  }
+
+  @override
+  String get campusSnapshotStale =>
+      'Dieser Snapshot ist möglicherweise veraltet. Bitte aktualisieren.';
+
+  @override
+  String get campusSnapshotOffline =>
+      'Verbindung konnte nicht geprüft werden. Der Geräte-Snapshot wird angezeigt.';
+
+  @override
+  String get campusSnapshotRefreshFailed =>
+      'Einige Daten konnten nicht aktualisiert werden. Bisherige Inhalte bleiben erhalten.';
+
+  @override
+  String get campusDataNeedsRefresh =>
+      'Dieser Inhalt wurde noch nicht aktualisiert. Bitte manuell laden.';
+
+  @override
+  String get campusCacheClear => 'Campus-Cache leeren';
+
+  @override
+  String get campusCacheClearDescription =>
+      'Campus-Snapshots und Stundenplan-Widgets auf diesem Gerät entfernen. Entwürfe, Stundenplanentwürfe und die Hochschulverknüpfung bleiben erhalten.';
+
+  @override
+  String get campusCacheCleared => 'Campus-Cache geleert';
+
+  @override
+  String get campusCacheClearFailed =>
+      'Einige Cache-Daten konnten nicht gelöscht werden. Bitte erneut versuchen.';
 }
