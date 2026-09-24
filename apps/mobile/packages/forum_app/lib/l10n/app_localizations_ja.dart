@@ -2448,4 +2448,8 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get draftLocalEmpty => '書きかけの内容はこの端末に保存され、ここに表示されます。';
+
+  @override
+  String get draftReplyLeaveUnsaved =>
+      '返信の最新の変更を保存できませんでした。編集を続けて再試行するか、この変更を破棄して離れます。保存済みの端末コピーは保持されます。';
 }

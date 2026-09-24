@@ -4673,6 +4673,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Unfinished writing is saved here on this device.'**
   String get draftLocalEmpty;
+
+  /// No description provided for @draftReplyLeaveUnsaved.
+  ///
+  /// In en, this message translates to:
+  /// **'The latest reply changes could not be saved. Continue editing to retry, or leave without these changes. Any previously saved local copy will remain.'**
+  String get draftReplyLeaveUnsaved;
 }
 
 class _AppLocalizationsDelegate

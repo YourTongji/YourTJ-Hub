@@ -868,5 +868,6 @@
   "draftKindServer": "Lokale Kopie eines Cloud-Entwurfs",
   "draftKindEdit": "Themenbearbeitung",
   "draftKindReply": "Antwort",
-  "draftLocalEmpty": "Unfertige Beiträge werden auf diesem Gerät gespeichert und hier angezeigt."
+  "draftLocalEmpty": "Unfertige Beiträge werden auf diesem Gerät gespeichert und hier angezeigt.",
+  "draftReplyLeaveUnsaved": "Die letzten Änderungen an der Antwort konnten nicht gespeichert werden. Weiterbearbeiten und erneut versuchen oder diese Änderungen verwerfen und die Seite verlassen. Eine zuvor gespeicherte lokale Kopie bleibt erhalten."
 }

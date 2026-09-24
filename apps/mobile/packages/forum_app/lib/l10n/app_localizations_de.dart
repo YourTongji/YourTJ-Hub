@@ -2549,4 +2549,8 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get draftLocalEmpty =>
       'Unfertige Beiträge werden auf diesem Gerät gespeichert und hier angezeigt.';
+
+  @override
+  String get draftReplyLeaveUnsaved =>
+      'Die letzten Änderungen an der Antwort konnten nicht gespeichert werden. Weiterbearbeiten und erneut versuchen oder diese Änderungen verwerfen und die Seite verlassen. Eine zuvor gespeicherte lokale Kopie bleibt erhalten.';
 }

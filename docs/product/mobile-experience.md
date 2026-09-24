@@ -244,6 +244,8 @@ Web inside an authenticated in-app browser. The navigation and management bounda
   retryable storage failure are visible. Each new composition has an independent identity;
   changing its content type keeps that identity. Cloud-draft edits, published-topic edits and replies
   use distinct identities. Earlier v1 recovery slots remain listed and can be explicitly reopened.
+  Opening a cloud draft by its server ID while offline also finds its latest device recovery copy,
+  before the server can confirm whether the topic is published or still a draft.
   Starting another composition never replaces a previous one. A restored editor still obtains current
   server metadata before publishing.
 - `Current`: the drafts page presents device and cloud sections in one scroll surface, with a new
@@ -260,8 +262,11 @@ Web inside an authenticated in-app browser. The navigation and management bounda
 - `Current`: one reply recovery copy per topic preserves text, its reply target and uploaded image URL.
   Selecting another target replaces only the generated mention prefix, keeping the body. Collapsing,
   changing floors, leaving the topic and app inactivity preserve the reply; storage failure keeps the
-  editor available with retry. An acknowledged send clears only unchanged submitted text; edits made
-  while sending remain recoverable. The returned post ID opens its anchored reply window after success.
+  editor available with retry. Leaving after a storage failure offers continued editing or an explicit
+  unsaved exit that preserves the previously saved copy. Restored replies rebuild local mention
+  suggestions. An acknowledged send clears only unchanged submitted text; edits made
+  while sending remain recoverable. The returned post ID opens its anchored reply window after success,
+  resets obsolete pagination and updates the reply count used when returning to the feed.
   Reading a topic without editing creates no draft. Session invalidation prevents queued writing from
   crossing the account boundary; cache clearing does not delete writing recovery copies.
 - `Planned`: text-to-image cards. No UI claims this feature exists.

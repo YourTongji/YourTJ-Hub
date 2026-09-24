@@ -2521,4 +2521,8 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get draftLocalEmpty =>
       'Unfinished writing is saved here on this device.';
+
+  @override
+  String get draftReplyLeaveUnsaved =>
+      'The latest reply changes could not be saved. Continue editing to retry, or leave without these changes. Any previously saved local copy will remain.';
 }

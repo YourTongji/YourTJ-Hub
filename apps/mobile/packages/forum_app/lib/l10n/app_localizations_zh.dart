@@ -2426,4 +2426,8 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get draftLocalEmpty => '未完成的创作会保存在本机，显示在这里。';
+
+  @override
+  String get draftReplyLeaveUnsaved =>
+      '最新回复修改未能保存。可以继续编辑并重试，或放弃这些修改后离开；已有的本机副本仍会保留。';
 }
