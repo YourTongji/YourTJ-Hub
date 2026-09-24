@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
   getPkCalendars,
@@ -79,6 +79,18 @@ const displayedScheduleDate = computed(() => {
   return new Date(target).toISOString().slice(0, 10)
 })
 
+// A result and its map pin belong to the exact submitted filters.
+watch([calendarId, day, section, week, dateMode, queryDate, () => props.building], () => {
+  requestVersion++
+  selectionVersion++
+  entries.value = []
+  selected.value = null
+  locationMapped.value = false
+  locationResolved.value = false
+  if (state.value === 'loading') state.value = 'ready'
+  emit('select', null)
+}, { flush: 'sync' })
+
 async function loadCalendars() {
   state.value = 'loading-calendar'
   try {
@@ -95,23 +107,27 @@ async function searchSchedule() {
   const selection = dateMode.value ? dateSelection.value : { day: day.value, week: week.value }
   if (!calendarId.value || !selection || !Number.isInteger(selection.week) || selection.week < 1 || selection.week > 20) return
   const version = ++requestVersion
+  const term = calendarId.value
+  const period = section.value
   selected.value = null
   locationMapped.value = false
   locationResolved.value = false
   emit('select', null)
   state.value = 'loading'
   try {
-    const result = await getPkCoursesByTime(calendarId.value, selection.day, section.value, true)
+    const result = await getPkCoursesByTime(term, selection.day, period, true)
+    if (version !== requestVersion) return
     const courses = result.courses
     const codes = [...new Set(courses.map((course) => course.courseCode).filter(Boolean))]
     const detailMap: Record<string, Awaited<ReturnType<typeof getPkCourseDetails>>[string]> = {}
     for (let i = 0; i < codes.length; i += 500) {
-      Object.assign(detailMap, await getPkCourseDetails(calendarId.value, codes.slice(i, i + 500)))
+      Object.assign(detailMap, await getPkCourseDetails(term, codes.slice(i, i + 500)))
+      if (version !== requestVersion) return
     }
     if (version !== requestVersion) return
-    const slots = section.value === 6
-      ? [10, 11, ...((calendarId.value ?? 0) < 120 ? [12] : [])]
-      : periods.value[section.value - 1] ?? []
+    const slots = period === 6
+      ? [10, 11, ...(term < 120 ? [12] : [])]
+      : periods.value[period - 1] ?? []
     const matched = courses.flatMap((course: PkCourse) =>
       (detailMap[course.courseCode] ?? []).flatMap((detail) =>
         (detail.arrangementInfo ?? [])

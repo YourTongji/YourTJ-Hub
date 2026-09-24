@@ -13,6 +13,28 @@ vi.mock('@/runtime/pk-api', () => ({
   getPkLatestUpdate: api.latest,
 }))
 
+it('discards an in-flight query when its period changes', async () => {
+  api.calendars.mockResolvedValue([{ calendarId: 122, calendarName: 'Current term' }])
+  api.latest.mockResolvedValue({ latestSyncAt: null })
+  let finish!: (value: unknown) => void
+  api.byTime.mockImplementationOnce(() => new Promise(resolve => { finish = resolve }))
+  api.details.mockResolvedValue({ TJCS101: [{ campus: '嘉定校区', teachingClassId: 1,
+    arrangementInfo: [{ arrangementText: '周一第3-4节', occupyDay: 1, occupyTime: [3, 4], occupyWeek: [1], occupyRoom: '安楼A101' }],
+  }] })
+  const wrapper = mount(CampusMapSchedulePanel, {
+    props: { resolveLocation: vi.fn() },
+    global: { plugins: [createI18n({ legacy: false, locale: 'zh', messages: { zh } })] },
+  })
+  await flushPromises()
+  await wrapper.get('.atlas-schedule__submit').trigger('click')
+  await wrapper.findAll('select').at(-1)!.setValue('2')
+  finish({ courses: [{ courseCode: 'TJCS101', courseName: 'Stale course' }] })
+  await flushPromises()
+  expect(wrapper.text()).not.toContain('Stale course')
+  expect(wrapper.get('.atlas-schedule__submit').attributes('disabled')).toBeUndefined()
+  wrapper.unmount()
+})
+
 it('filters synced arrangements and emits the uniquely resolved map target', async () => {
   api.calendars.mockResolvedValue([{ calendarId: 122, calendarName: '2026-2027学年第一学期' }])
   api.latest.mockResolvedValue({ latestSyncAt: '2026-09-23' })
