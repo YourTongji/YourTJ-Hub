@@ -87,6 +87,7 @@ class _CampusConnectionState extends ConsumerState<CampusConnection> {
     await controller.change(
       (cancel) =>
           controller.repository.unbind(binding.revision, cancelToken: cancel),
+      widgetState: 'unbound',
     );
   }
 

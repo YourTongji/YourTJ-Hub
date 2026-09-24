@@ -12,6 +12,7 @@ import 'site_theme.dart';
 import 'theme_mode.dart';
 import 'push/push_service.dart';
 import 'updates/update_host.dart';
+import 'providers.dart';
 
 /// yourtj 移动端根应用。
 ///
@@ -32,6 +33,12 @@ class GfApp extends ConsumerWidget {
 
     // Restore opted-in native delivery and notification navigation.
     ref.watch(pushBootstrapProvider);
+    ref.listen(scheduleWidgetLinkProvider, (_, next) {
+      final uri = next.valueOrNull;
+      if (uri?.scheme == 'yourtj' && uri?.host == 'campus') {
+        appRouter.go('/campus');
+      }
+    });
 
     return MaterialApp.router(
       title: 'YourTJ',

@@ -523,6 +523,11 @@ class AppLocalizationsJa extends AppLocalizations {
   String get searchUnavailable => '検索サービスを利用できません';
 
   @override
+  String searchResultCount(int shown, int total) {
+    return '表示 $shown 件 · 一致 $total 件';
+  }
+
+  @override
   String get searchAll => 'すべて';
 
   @override
@@ -711,6 +716,21 @@ class AppLocalizationsJa extends AppLocalizations {
   String settingsOpFailed(String error) {
     return '操作に失敗しました：$error';
   }
+
+  @override
+  String get settingsDevice => 'この端末';
+
+  @override
+  String get settingsYourAccount => 'アカウント';
+
+  @override
+  String get settingsThemeLight => 'ライト';
+
+  @override
+  String get settingsThemeDark => 'ダーク';
+
+  @override
+  String get settingsRevokeSession => 'このセッションを無効化';
 
   @override
   String get settingsAppearance => '外観';
@@ -2430,6 +2450,82 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get badgeDisplayDown => '下へ';
+
+  @override
+  String get scheduleWidgetSettingsTitle => 'ホーム画面の時間割';
+
+  @override
+  String get scheduleWidgetPrivacyDescription =>
+      'ウィジェットには、この端末に保存された時間割の授業名、時刻、教員、場所が表示されます。時間割を更新するとホーム画面にも反映されます。';
+
+  @override
+  String get scheduleWidgetRefresh => 'オフライン時間割から更新';
+
+  @override
+  String get scheduleWidgetClear => 'ホーム画面データを消去';
+
+  @override
+  String get scheduleWidgetCleared => 'ホーム画面の時間割データを消去しました';
+
+  @override
+  String get scheduleWidgetDiagnostics => '更新診断';
+
+  @override
+  String get scheduleWidgetDiagnosticsDescription =>
+      '日付や授業状態の更新が遅い場合は、YourTJ のバックグラウンド動作とバッテリー設定を確認してください。設定項目の名前は端末によって異なります。';
+
+  @override
+  String get scheduleWidgetTransparencyTitle => 'ウィジェットの背景の透明度';
+
+  @override
+  String get scheduleWidgetTransparencyDescription =>
+      '値を上げると、ホーム画面の背景がより透けて見えます。授業情報の読みやすさを保つため、範囲は 0%～15% です。';
+
+  @override
+  String campusSnapshotUpdated(String time) {
+    return '端末のスナップショット更新：$time';
+  }
+
+  @override
+  String get campusSnapshotStale => 'このスナップショットは古い可能性があります。更新してください。';
+
+  @override
+  String get campusSnapshotOffline => '接続を確認できません。端末のスナップショットを表示しています。';
+
+  @override
+  String get campusSnapshotRefreshFailed => '一部のデータを更新できませんでした。以前の内容を保持しています。';
+
+  @override
+  String get campusDataNeedsRefresh => 'この内容は未更新です。手動で更新してください。';
+
+  @override
+  String get campusCacheClear => 'キャンパスのキャッシュを削除';
+
+  @override
+  String get campusCacheClearDescription =>
+      'この端末のキャンパスデータとホーム画面の時間割を削除します。下書き、履修計画、大学との連携は保持されます。';
+
+  @override
+  String get campusCacheCleared => 'キャンパスのキャッシュを削除しました';
+
+  @override
+  String get campusCacheClearFailed => '一部のキャッシュを削除できませんでした。再試行してください。';
+
+  @override
+  String get scheduleTimeAxis => '時限';
+
+  @override
+  String scheduleEmptyCell(String day, int section) {
+    return '$day、$section 時限目、授業を選択';
+  }
+
+  @override
+  String scheduleSectionsN(String range) {
+    return '$range 時限';
+  }
+
+  @override
+  String get scheduleGridScrollHint => '左右にスワイプして週全体を表示';
 
   @override
   String get messagesEmoji => '絵文字';
