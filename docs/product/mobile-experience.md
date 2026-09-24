@@ -276,6 +276,13 @@ Web inside an authenticated in-app browser. The navigation and management bounda
   Backgrounding clears the foreground memory layer. A Drift device snapshot atomically retains only
   profile, calendar, timetable and server-adjusted today data, scoped by API origin, numeric forum
   account and binding revision. Grades, exams, campus messages/bodies and credentials are excluded.
+  The private campus workspace shows snapshot time, stale/offline state and a manual refresh action.
+  Repeated refreshes coalesce; restored snapshot tabs do not refetch the four persisted datasets when
+  the foreground cache expires. Ordinary block failures keep usable same-day content visible; invalid
+  teaching rules suppress old course results. Missing or expired-day data requests an explicit refresh.
+  Settings can clear only campus memory, device snapshots and desktop data, preserve drafts/plans and
+  school binding, report partial failure and retry. Pending refreshes cannot refill a cleared cache.
+  Snapshot storage is bounded to 1 MiB per document and four scopes; reads discard data older than 30 days.
   Pull-to-refresh keeps the last successful same-identity snapshot when the network fails; logout,
   unbind/rebind, account/site changes and explicit identity invalidation clear both snapshot and Widget
   data. The visible minute clock does not poll the network. School-local date rollover invalidates the

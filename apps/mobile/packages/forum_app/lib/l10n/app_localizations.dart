@@ -4535,6 +4535,60 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Higher values reveal more of your wallpaper. The 0%–15% range balances the background effect with readable course text.'**
   String get scheduleWidgetTransparencyDescription;
+
+  /// No description provided for @campusSnapshotUpdated.
+  ///
+  /// In en, this message translates to:
+  /// **'Device snapshot updated {time}'**
+  String campusSnapshotUpdated(String time);
+
+  /// No description provided for @campusSnapshotStale.
+  ///
+  /// In en, this message translates to:
+  /// **'This snapshot may be outdated. Refresh for the latest data.'**
+  String get campusSnapshotStale;
+
+  /// No description provided for @campusSnapshotOffline.
+  ///
+  /// In en, this message translates to:
+  /// **'Connection verification failed. Showing this device’s snapshot.'**
+  String get campusSnapshotOffline;
+
+  /// No description provided for @campusSnapshotRefreshFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Some data could not be updated. Previous content is retained.'**
+  String get campusSnapshotRefreshFailed;
+
+  /// No description provided for @campusDataNeedsRefresh.
+  ///
+  /// In en, this message translates to:
+  /// **'This content has not been updated. Refresh to load it.'**
+  String get campusDataNeedsRefresh;
+
+  /// No description provided for @campusCacheClear.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear campus cache'**
+  String get campusCacheClear;
+
+  /// No description provided for @campusCacheClearDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove campus snapshots and home-screen schedules from this device. Drafts, schedule plans and the school connection are kept.'**
+  String get campusCacheClearDescription;
+
+  /// No description provided for @campusCacheCleared.
+  ///
+  /// In en, this message translates to:
+  /// **'Campus cache cleared'**
+  String get campusCacheCleared;
+
+  /// No description provided for @campusCacheClearFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Some cached data could not be cleared. Please retry.'**
+  String get campusCacheClearFailed;
 }
 
 class _AppLocalizationsDelegate

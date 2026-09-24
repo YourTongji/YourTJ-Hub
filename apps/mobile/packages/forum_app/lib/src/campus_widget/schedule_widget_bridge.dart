@@ -21,7 +21,25 @@ class ScheduleWidgetBridge {
   static const _timelineReceiver =
       'tj.yourtj.forum_app.widget.CourseTimelineWidgetReceiver';
 
-  Future<void> write(ScheduleWidgetProjection projection) async {
+  int generation = 0;
+  Future<void> _tail = Future.value();
+  void invalidate() => generation++;
+
+  Future<void> _serialize(Future<void> Function() operation) {
+    final result = _tail.then((_) => operation());
+    _tail = result.then<void>((_) {}, onError: (Object _, StackTrace _) {});
+    return result;
+  }
+
+  Future<void> write(ScheduleWidgetProjection projection) {
+    final fence = generation;
+    return _serialize(() async {
+      if (fence != generation) return;
+      await _write(projection);
+    });
+  }
+
+  Future<void> _write(ScheduleWidgetProjection projection) async {
     if (!Platform.isAndroid && !Platform.isIOS) return;
     await HomeWidget.setAppGroupId(appGroupId);
     final encoded = projection.encode();
@@ -82,7 +100,12 @@ class ScheduleWidgetBridge {
     await _reload();
   }
 
-  Future<void> clear({String state = 'needsData'}) async {
+  Future<void> clear({String state = 'needsData'}) {
+    invalidate();
+    return _serialize(() => _clear(state));
+  }
+
+  Future<void> _clear(String state) async {
     if (!Platform.isAndroid && !Platform.isIOS) return;
     await HomeWidget.setAppGroupId(appGroupId);
     await HomeWidget.saveWidgetData<String>(_temporaryKey, null);

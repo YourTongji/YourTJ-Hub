@@ -2448,4 +2448,39 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get scheduleWidgetTransparencyDescription =>
       'Higher values reveal more of your wallpaper. The 0%–15% range balances the background effect with readable course text.';
+
+  @override
+  String campusSnapshotUpdated(String time) {
+    return 'Device snapshot updated $time';
+  }
+
+  @override
+  String get campusSnapshotStale =>
+      'This snapshot may be outdated. Refresh for the latest data.';
+
+  @override
+  String get campusSnapshotOffline =>
+      'Connection verification failed. Showing this device’s snapshot.';
+
+  @override
+  String get campusSnapshotRefreshFailed =>
+      'Some data could not be updated. Previous content is retained.';
+
+  @override
+  String get campusDataNeedsRefresh =>
+      'This content has not been updated. Refresh to load it.';
+
+  @override
+  String get campusCacheClear => 'Clear campus cache';
+
+  @override
+  String get campusCacheClearDescription =>
+      'Remove campus snapshots and home-screen schedules from this device. Drafts, schedule plans and the school connection are kept.';
+
+  @override
+  String get campusCacheCleared => 'Campus cache cleared';
+
+  @override
+  String get campusCacheClearFailed =>
+      'Some cached data could not be cleared. Please retry.';
 }

@@ -160,12 +160,10 @@ void main() {
       repo.pendingProfile = Completer();
       final old = controller.refresh();
       await Future<void>.delayed(Duration.zero);
-      repo.current = const CampusStatus(
-        enabled: true,
-        binding: null,
-        candidate: null,
+      // An identity mutation must preempt a refresh; repeated refresh taps coalesce.
+      await controller.change(
+        (token) => repo.unbind(testBinding.revision, cancelToken: token),
       );
-      await controller.refresh();
       repo.pendingProfile!.complete(campusFixture('profile'));
       await old;
       expect(controller.state.status?.binding, isNull);

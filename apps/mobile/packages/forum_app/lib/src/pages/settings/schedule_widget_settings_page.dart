@@ -57,7 +57,17 @@ class _ScheduleWidgetSettingsPageState
   }
 
   Future<void> _refresh() async {
-    if (_busy || !await _ackPrivacy()) return;
+    if (_busy || !await _ackPrivacy() || !mounted || _busy) return;
+    final store = ref.read(campusSnapshotStoreProvider);
+    final bridge = ref.read(scheduleWidgetBridgeProvider);
+    final storeFence = store.generation;
+    final bridgeFence = bridge.generation;
+    final epoch = ref.read(offlineCacheEpochProvider);
+    bool current() =>
+        mounted &&
+        storeFence == store.generation &&
+        bridgeFence == bridge.generation &&
+        epoch == ref.read(offlineCacheEpochProvider);
     setState(() => _busy = true);
     try {
       final user = await ref.read(currentUserProvider.future);
@@ -70,7 +80,8 @@ class _ScheduleWidgetSettingsPageState
         ).origin,
         accountId: user.id,
       );
-      final snapshot = await ref.read(campusSnapshotStoreProvider).read(scope);
+      if (!current()) return;
+      final snapshot = await store.read(scope);
       if (snapshot == null) throw StateError('No offline campus snapshot');
       CampusCalendarRules? calendarRules;
       try {
@@ -79,15 +90,14 @@ class _ScheduleWidgetSettingsPageState
       } catch (_) {
         // Keep today's authoritative data and leave unresolved future days unknown.
       }
-      await ref
-          .read(scheduleWidgetBridgeProvider)
-          .write(
-            ScheduleWidgetProjection.fromSnapshot(
-              snapshot,
-              scope,
-              calendarRules: calendarRules,
-            ),
-          );
+      if (!current()) return;
+      await bridge.write(
+        ScheduleWidgetProjection.fromSnapshot(
+          snapshot,
+          scope,
+          calendarRules: calendarRules,
+        ),
+      );
       if (mounted) {
         showGfToast(
           context,

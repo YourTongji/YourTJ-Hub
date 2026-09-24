@@ -2360,4 +2360,33 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String get scheduleWidgetTransparencyDescription =>
       '调高后会透出更多桌面背景。范围为 0%–15%，兼顾透出壁纸与课程文字辨识。';
+
+  @override
+  String campusSnapshotUpdated(String time) {
+    return '设备快照更新于 $time';
+  }
+
+  @override
+  String get campusSnapshotStale => '快照可能已过期，请刷新获取最新数据。';
+
+  @override
+  String get campusSnapshotOffline => '连接核验失败，正在显示本设备快照。';
+
+  @override
+  String get campusSnapshotRefreshFailed => '部分数据更新失败，保留上次可用内容。';
+
+  @override
+  String get campusDataNeedsRefresh => '此内容尚未更新，请手动刷新。';
+
+  @override
+  String get campusCacheClear => '清除校园缓存';
+
+  @override
+  String get campusCacheClearDescription => '清除本设备的校园快照和桌面课表。草稿、排课方案与学校绑定不受影响。';
+
+  @override
+  String get campusCacheCleared => '校园缓存已清除';
+
+  @override
+  String get campusCacheClearFailed => '部分缓存未能清除，请重试。';
 }

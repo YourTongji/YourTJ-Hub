@@ -64,7 +64,7 @@ void main() {
       ).origin,
       accountId: 7,
     );
-    final store = CampusSnapshotStore(database);
+    final store = CampusSnapshotStore(database, now: () => now);
     final data = {
       for (final key in campusPersistentKeys) key: campusFixture(key, now: now),
     };

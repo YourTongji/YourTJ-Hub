@@ -33,6 +33,10 @@ void main() {
   };
 
   test('Drift snapshot is atomic, scoped and drops corrupt schema', () async {
+    store = CampusSnapshotStore(
+      database,
+      now: () => DateTime.parse('2026-09-22T00:00:00Z'),
+    );
     final data = snapshotData(DateTime.parse('2026-09-22T00:00:00Z'));
     await store.write(
       scope,

@@ -26,6 +26,7 @@ import '../../push/push_service.dart';
 import '../../widgets/status_views.dart';
 import '../../current_user.dart';
 import 'account_closure_dialog.dart';
+import 'campus_cache_clear_tile.dart';
 import 'profile_edit_dialog.dart';
 import 'username_edit_dialog.dart';
 import 'badge_display_dialog.dart';
@@ -1200,6 +1201,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           title: l10n.profileTrash,
           onTap: () => context.push('/recycle-bin'),
         ),
+        const CampusCacheClearTile(),
+        const GfDivider(),
         GfSettingRow(
           symbol: 'calendar-days',
           title: l10n.scheduleWidgetSettingsTitle,
