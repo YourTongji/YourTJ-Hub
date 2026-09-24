@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show ScrollDirection;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
@@ -722,14 +723,20 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace> {
         builder: (_, controller) {
           final tab = _tab;
           final navigation = _navigation;
+          // A first visit already starts at zero. Settle that immediately:
+          // waiting for missing datasets could later undo a manual refresh/scroll.
           final ready =
-              !state.loading &&
-              !state.refreshing &&
-              (campusTabKeys[tab] ?? []).every(
-                (key) =>
-                    !state.fetching.contains(key) &&
-                    const {'ready', 'empty'}.contains(state.data[key]?.status),
-              );
+              (navigation.offsets[tab] ?? 0) <= 0 ||
+              (!state.loading &&
+                  !state.refreshing &&
+                  (campusTabKeys[tab] ?? []).every(
+                    (key) =>
+                        !state.fetching.contains(key) &&
+                        const {
+                          'ready',
+                          'empty',
+                        }.contains(state.data[key]?.status),
+                  ));
           if (_restoreScroll && ready) {
             WidgetsBinding.instance.addPostFrameCallback((_) {
               if (!mounted ||
@@ -749,9 +756,18 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace> {
               _restoreScroll = false;
             });
           }
-          return NotificationListener<ScrollUpdateNotification>(
+          return NotificationListener<ScrollNotification>(
             onNotification: (notification) {
-              if (notification.depth == 0 && !_restoreScroll && tab == _tab) {
+              if (notification.depth != 0 || tab != _tab) return false;
+              if ((notification is ScrollStartNotification &&
+                      notification.dragDetails != null) ||
+                  (notification is UserScrollNotification &&
+                      notification.direction != ScrollDirection.idle)) {
+                // Explicit reading intent supersedes a saved position, including
+                // while a section is still waiting for its private data.
+                _restoreScroll = false;
+              }
+              if (notification is ScrollUpdateNotification && !_restoreScroll) {
                 navigation.offsets[tab] = notification.metrics.pixels;
               }
               return false;

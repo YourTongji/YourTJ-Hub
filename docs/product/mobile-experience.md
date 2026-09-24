@@ -290,7 +290,8 @@ corresponding planned ownership and lifecycle contracts.
 - `Current`: while the app stays in the foreground, Campus remembers its selected section,
   independent academic/notice search text and scroll positions, and selected timetable week when
   switching sections, bottom destinations or returning from a pushed page. Scroll restoration waits
-  for the selected section's data and clamps to the available content. These choices stay only in
+  for the selected section's data and clamps to the available content; a fresh section settles at
+  the top immediately, and manual scrolling cancels pending restoration. These choices stay only in
   page memory; backgrounding, session/account/site changes, binding changes and authorization loss
   clear them. Private views still unmount and cancel requests when hidden; grades and notice bodies
   are not retained by this navigation state or added to the device snapshot.

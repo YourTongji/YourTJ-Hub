@@ -7,6 +7,7 @@ import 'package:forum_app/src/providers.dart';
 import 'package:forum_app/src/current_user.dart';
 import 'package:forum_app/src/navigation/tab_scroll_registry.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:forum_app/l10n/app_localizations.dart';
 import 'package:forum_app/src/pages/campus/campus_page.dart';
@@ -441,5 +442,57 @@ void main() {
         await tester.pumpAndSettle();
       },
     );
+  }
+  for (final input in ['drag', 'wheel']) {
+    testWidgets('$input cancels restoration while section data is pending', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final visible = ValueNotifier(true);
+      addTearDown(visible.dispose);
+      final repo = _DelayedGrades();
+      await tester.pumpWidget(
+        campusTestApp(
+          repo,
+          child: ValueListenableBuilder<bool>(
+            valueListenable: visible,
+            builder: (_, active, _) =>
+                TickerMode(enabled: active, child: const CampusPage()),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await _select(tester, 'academics');
+      _list(tester).jumpTo(450);
+      await tester.pumpAndSettle();
+      visible.value = false;
+      await tester.pumpAndSettle();
+      repo.grades = Completer();
+      visible.value = true;
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      final list = find.byType(ListView).first;
+      if (input == 'drag') {
+        await tester.drag(list, const Offset(0, -100));
+      } else {
+        await tester.sendEventToBinding(
+          PointerScrollEvent(
+            position: tester.getCenter(list),
+            scrollDelta: const Offset(0, 100),
+          ),
+        );
+      }
+      await tester.pump(const Duration(seconds: 1));
+      final selectedOffset = _list(tester).offset;
+      expect(selectedOffset, lessThan(300));
+      repo.grades!.complete(campusFixture('grades'));
+      await tester.pumpAndSettle();
+      expect(_list(tester).offset, closeTo(selectedOffset, 1));
+      await tester.pumpWidget(const SizedBox());
+      await tester.pumpAndSettle();
+    });
   }
 }
