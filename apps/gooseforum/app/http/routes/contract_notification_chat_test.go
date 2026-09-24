@@ -146,9 +146,10 @@ func TestNotificationListHTTPContract(t *testing.T) {
 			t.Fatal(err)
 		}
 		t.Cleanup(func() { conn.Unscoped().Delete(&actor) })
-		topic := topics.Entity{Id: 512, UserId: user.Id, Status: 1, Title: "期中复习资料汇总"}
+		topic := topics.Entity{Id: 512, UserId: user.Id, Status: 1, FirstPostId: 978605, Title: "期中复习资料汇总"}
 		reply := posts.Entity{Id: 4096, TopicId: 512, PostNo: 8, UserId: user.Id, Content: "**Readable** reply"}
-		for _, row := range []any{&topic, &reply} {
+		first := posts.Entity{Id: 978605, TopicId: topic.Id, PostNo: 1, UserId: user.Id, Content: topic.Title}
+		for _, row := range []any{&topic, &first, &reply} {
 			if err := conn.Create(row).Error; err != nil {
 				t.Fatal(err)
 			}

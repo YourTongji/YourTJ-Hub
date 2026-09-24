@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"gorm.io/gorm"
+
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/eventNotification"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
@@ -19,13 +21,14 @@ func TestProfilePreviewsUseContentAuthorAndRespectVisibility(t *testing.T) {
 		t.Fatal(err)
 	}
 	author := users.EntityComplete{Id: 978501, Username: "preview-author", Nickname: "Preview Author", AvatarUrl: "/avatar/preview.png"}
-	topic := topics.Entity{Id: 978501, UserId: author.Id, Title: "Preview topic", Excerpt: "Topic summary", FirstImageURL: "/file/img/preview.png", Status: 1}
+	topic := topics.Entity{Id: 978501, UserId: author.Id, Title: "Preview topic", Excerpt: "Topic summary", FirstImageURL: "/file/img/preview.png", Status: 1, FirstPostId: 978505}
 	hidden := topics.Entity{Id: 978502, UserId: author.Id, Title: "Hidden", Status: 1, ProcessStatus: 1}
 	reply := posts.Entity{Id: 978501, TopicId: topic.Id, PostNo: 7, UserId: author.Id, Content: "**Readable** reply"}
 	anonymous := posts.Entity{Id: 978502, TopicId: topic.Id, PostNo: 8, UserId: author.Id, Content: "Anonymous reply", IsAnonymous: true}
 	hiddenReply := posts.Entity{Id: 978503, TopicId: hidden.Id, PostNo: 1, UserId: author.Id, Content: "Hidden topic body"}
 	blockedReply := posts.Entity{Id: 978504, TopicId: topic.Id, PostNo: 9, UserId: author.Id, Content: "Blocked body", ProcessStatus: 1}
-	for _, row := range []any{&author, &topic, &hidden, &reply, &anonymous, &hiddenReply, &blockedReply} {
+	first := posts.Entity{Id: 978505, TopicId: topic.Id, PostNo: 1, UserId: author.Id, Content: "Topic body"}
+	for _, row := range []any{&first, &author, &topic, &hidden, &reply, &anonymous, &hiddenReply, &blockedReply} {
 		if err := db.Create(row).Error; err != nil {
 			t.Fatal(err)
 		}
@@ -80,5 +83,62 @@ func TestProfilePreviewsUseContentAuthorAndRespectVisibility(t *testing.T) {
 	}
 	if list[2]["author"] != nil {
 		t.Fatalf("anonymous identity exposed: %s", raw)
+	}
+}
+
+// A retained tombstone still has a normal process status and a NULL deleted_at.
+// Preview reads must honor lifecycle visibility as well as the public first post.
+func TestProfilePreviewsExcludeTombstonesAndHiddenFirstPosts(t *testing.T) {
+	db := dbconnect.Connect()
+	if err := db.AutoMigrate(&topics.Entity{}, &posts.Entity{}); err != nil {
+		t.Fatal(err)
+	}
+	for _, scenario := range []string{"reply tombstone", "topic tombstone", "blocked first post", "deleted first post", "tombstone first post", "missing first post", "foreign first post"} {
+		t.Run(scenario, func(t *testing.T) {
+			topic := topics.Entity{Id: 978510, Status: 1, FirstPostId: 978510, Title: "Private title", Excerpt: "Private summary", FirstImageURL: "/private.png"}
+			first := posts.Entity{Id: 978510, TopicId: topic.Id, PostNo: 1, Content: "Private first body"}
+			reply := posts.Entity{Id: 978511, TopicId: topic.Id, PostNo: 2, Content: "Private reply body"}
+			switch scenario {
+			case "reply tombstone":
+				reply.VisibilityStatus = posts.VisibilityUserDeleted
+				reply.RetentionStatus = posts.RetentionRecoverable
+			case "topic tombstone":
+				topic.VisibilityStatus = topics.VisibilityUserDeleted
+			case "blocked first post":
+				first.ProcessStatus = posts.ProcessStatusBlocked
+			case "deleted first post":
+				first.DeletedAt = gorm.DeletedAt{Time: time.Now(), Valid: true}
+			case "tombstone first post":
+				first.VisibilityStatus = posts.VisibilityUserDeleted
+			case "missing first post":
+				topic.FirstPostId = 978599
+			case "foreign first post":
+				first.TopicId = 978599
+			}
+			for _, row := range []any{&topic, &first, &reply} {
+				if err := db.Create(row).Error; err != nil {
+					t.Fatal(err)
+				}
+				t.Cleanup(func() { db.Unscoped().Delete(row) })
+			}
+			notifications := BuildNotificationPayloads([]*eventNotification.Entity{{EventType: eventNotification.EventTypeLike, Payload: eventNotification.NotificationPayload{TopicId: topic.Id, PostId: reply.Id}}})
+			if len(notifications) != 1 || notifications[0].Content != "" {
+				t.Errorf("non-public reply rehydrated: %+v", notifications)
+			}
+			if got := buildBookmarkPayloads([]mergedBookmarkRef{{kind: "post", postID: reply.Id}}); len(got) != 0 {
+				t.Errorf("non-public reply bookmark: %+v", got)
+			}
+			if scenario != "reply tombstone" {
+				if got := buildUserLikes([]topicUserAction.LikedTopicRef{{TopicID: topic.Id}}); len(got) != 0 {
+					t.Errorf("non-public liked topic: %+v", got)
+				}
+				if got := buildUserBookmarks([]topicUserAction.BookmarkedTopicRef{{TopicID: topic.Id}}); len(got) != 0 {
+					t.Errorf("non-public legacy bookmark: %+v", got)
+				}
+				if got := buildBookmarkPayloads([]mergedBookmarkRef{{kind: "topic", topicID: topic.Id}}); len(got) != 0 {
+					t.Errorf("non-public topic bookmark: %+v", got)
+				}
+			}
+		})
 	}
 }

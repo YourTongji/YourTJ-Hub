@@ -556,12 +556,14 @@ the current cursor appears on refresh. This is a live filtered feed, not a froze
 `thumbnailUrl` presentation fields to liked-topic entries, and optional `author`/`thumbnailUrl`
 to bookmark entries. These are hand-written page contracts in Go, TypeScript and Dart; no new
 `/api` operation or schema migration is involved. Authors are fetched once per batch, content
-visibility filters remain in force, and anonymous reply bookmarks omit author identity. Reply
+visibility requires an active published topic and a matching, active, normal, undeleted first post,
+resolved in one batch. Anonymous reply bookmarks omit author identity. Reply
 excerpts are plain Markdown previews. Missing fields on older servers remain valid. Bookmark
 ordering and cursor semantics are unchanged; activity reply URLs include the post number when known.
 
 `Current`: notification `actor.avatarUrl` is populated from current public user presentation in
 one batch. The existing `content` field uses a visible reply's readable preview for likes with no
-stored content. Deleted/blocked replies and hidden or mismatched parent topics are not hydrated;
+stored content. Deleted/blocked replies, retained deletion tombstones, and hidden or mismatched
+parent topics (including hidden first posts) are not hydrated;
 stored event snapshots and read-state semantics are unchanged. OpenAPI examples and the shared
 notification fixture cover the enriched response without introducing fields.
