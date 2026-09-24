@@ -2693,6 +2693,13 @@ class AppLocalizationsDe extends AppLocalizations {
       'Dieser Server unterstützt noch keine einzelnen Lesebestätigungen. Ungelesene Nachrichten bleiben erhalten.';
 
   @override
+  String get messagesDraftLabel => 'Entwurf';
+
+  @override
+  String get messagesDraftStorageFailed =>
+      'Nachrichtenentwürfe konnten auf diesem Gerät nicht gelesen oder gespeichert werden. Erneut versuchen.';
+
+  @override
   String get draftCollapse => 'Einklappen';
 
   @override
@@ -2737,9 +2744,36 @@ class AppLocalizationsDe extends AppLocalizations {
       'Text und hochgeladene Fotos auf diesem Gerät gespeichert';
 
   @override
-  String get messagesDraftLabel => 'Entwurf';
+  String get draftSearchHint => 'Titel und Text durchsuchen';
 
   @override
-  String get messagesDraftStorageFailed =>
-      'Nachrichtenentwürfe konnten auf diesem Gerät nicht gelesen oder gespeichert werden. Erneut versuchen.';
+  String get draftSearchScope =>
+      'Durchsucht lokale Entwürfe und die aktuelle Cloud-Liste.';
+
+  @override
+  String draftMatchCount(int count) {
+    return 'Angezeigte Entwürfe: $count';
+  }
+
+  @override
+  String get draftNoMatches => 'Keine Entwürfe entsprechen diesen Bedingungen.';
+
+  @override
+  String get draftClearFilters => 'Suche und Filter zurücksetzen';
+
+  @override
+  String get draftDeleteDone =>
+      'Lokaler Entwurf gelöscht. Die letzte Löschung kann rückgängig gemacht werden.';
+
+  @override
+  String get draftDeleteRestored =>
+      'Entwurf auf diesem Gerät wiederhergestellt';
+
+  @override
+  String get draftRestoreConflict =>
+      'Eine vorhandene Kopie wurde unverändert beibehalten.';
+
+  @override
+  String get draftRestoreFailed =>
+      'Wiederherstellung fehlgeschlagen. Erneut rückgängig machen.';
 }

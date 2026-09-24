@@ -358,13 +358,23 @@ corresponding planned ownership and lifecycle contracts.
   Starting another composition never replaces a previous one. A restored editor still obtains current
   server metadata before publishing.
 - `Current`: the drafts page presents device and cloud sections in one scroll surface, with a new
-  composition action, content previews, recovery kind and last-edit time. Replies reopen their topic.
-  Failed cloud refreshes retain the displayed drafts and offer an inline retry. Local snapshots use app-private device
+  composition action, content previews, recovery kind, content type and last-edit time. Continue editing
+  reopens the same writing identity; replies reopen their topic. Returning from new or resumed writing
+  refreshes the list. Title/text search and all/device/cloud/reply
+  filters operate on device copies and the currently loaded cloud list; the cloud endpoint returns at most
+  100 drafts and only its title/description are searchable here. Counts describe displayed copies, so a
+  device recovery copy and its cloud draft count separately. Empty matches offer a filter reset. Local
+  loading is distinct from an empty list; failed local or cloud refreshes retain displayed content with
+  an inline retry. Local snapshots use app-private device
   preferences scoped by API origin and numeric account ID, with no token or background cloud upload.
   Logging out hides them; logging back into the same account restores access. Explicit discard or
   successful server acknowledgement removes the matching recovery snapshot; local deletion is
-  confirmed. Account closure attempts to clear that account's local drafts and searches. Serialized
-  writes order deletion after pending saves. Storage failure is reported when saving; OS termination
+  confirmed. The latest local deletion can be undone from a persistent action while the drafts page stays
+  open; another deletion replaces that undo and leaving the page ends it. Restoration keeps the original
+  identity and metadata, never overwrites an existing copy, and remains retryable on storage failure.
+  Account/site changes clear search and undo state and reject queued stale restoration. Account closure
+  attempts to clear that account's local drafts and searches. Serialized writes order deletion and
+  restoration after pending saves. Storage failure is reported when saving; OS termination
   before the debounce/flush completes can lose the newest unsaved input.
 - `Current`: changed editors offer continue, discard, or save to this device and leave. A server-required
   captcha can be refreshed without discarding content.

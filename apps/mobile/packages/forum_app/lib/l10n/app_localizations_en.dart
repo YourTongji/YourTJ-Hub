@@ -2663,6 +2663,13 @@ class AppLocalizationsEn extends AppLocalizations {
       'This server does not support individual read receipts. Unread messages are preserved.';
 
   @override
+  String get messagesDraftLabel => 'Draft';
+
+  @override
+  String get messagesDraftStorageFailed =>
+      'Could not read or save message drafts on this device. Try again.';
+
+  @override
   String get draftCollapse => 'Collapse';
 
   @override
@@ -2707,9 +2714,35 @@ class AppLocalizationsEn extends AppLocalizations {
       'Text and uploaded photos saved on this device';
 
   @override
-  String get messagesDraftLabel => 'Draft';
+  String get draftSearchHint => 'Search titles and text';
 
   @override
-  String get messagesDraftStorageFailed =>
-      'Could not read or save message drafts on this device. Try again.';
+  String get draftSearchScope =>
+      'Search device drafts and the current cloud list.';
+
+  @override
+  String draftMatchCount(int count) {
+    return 'Drafts shown: $count';
+  }
+
+  @override
+  String get draftNoMatches => 'No drafts match these conditions.';
+
+  @override
+  String get draftClearFilters => 'Clear search and filters';
+
+  @override
+  String get draftDeleteDone =>
+      'Local draft deleted. You can undo the latest deletion.';
+
+  @override
+  String get draftDeleteRestored => 'Draft restored on this device';
+
+  @override
+  String get draftRestoreConflict =>
+      'An existing copy was kept without changes.';
+
+  @override
+  String get draftRestoreFailed =>
+      'Could not restore the draft. Try Undo again.';
 }

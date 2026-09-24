@@ -110,11 +110,11 @@ class WritingStore {
     }
   }
 
-  Future<void> _write(Future<void> Function(SharedPreferences) action) {
+  Future<T> _write<T>(Future<T> Function(SharedPreferences) action) {
     final next = _tail.then(
       (_) async => action(await SharedPreferences.getInstance()),
     );
-    _tail = next.catchError((Object _) {});
+    _tail = next.then<void>((_) {}, onError: (Object _, StackTrace _) {});
     return next;
   }
 
@@ -142,6 +142,29 @@ class WritingStore {
         }
         await _remove(prefs, '${_prefix(scope)}draft:$key');
       });
+
+  /// Undo only a deletion that is still absent. The check and write share the
+  /// mutation queue, so an editor save queued first always wins over recovery.
+  Future<bool> restoreIfAbsent(
+    String scope,
+    LocalDraft draft, {
+    bool Function()? isCurrent,
+  }) => _write((prefs) async {
+    // SharedPreferences updates its cache before a platform write succeeds.
+    // Reload allows retry after a failed restore without mistaking cache for disk.
+    await prefs.reload();
+    if (isCurrent != null && !isCurrent()) {
+      throw StateError('Draft session changed');
+    }
+    if (scope.endsWith(':0')) throw StateError('Draft requires an account');
+    final key = '${_prefix(scope)}draft:${draft.key}';
+    if (prefs.containsKey(key)) return false;
+    if (!await prefs.setString(key, jsonEncode(draft.toJson()))) {
+      throw StateError('Local draft could not be restored');
+    }
+    return true;
+  });
+
   Future<List<LocalDraft>> drafts(String scope) async {
     await _tail;
     if (scope.endsWith(':0')) return [];

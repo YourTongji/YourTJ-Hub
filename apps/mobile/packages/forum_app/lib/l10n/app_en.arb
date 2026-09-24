@@ -1279,6 +1279,8 @@
   "messagesNewMessages": "New messages · Jump to latest",
   "messagesReadSyncFailed": "Read status could not sync. Unread messages are preserved.",
   "messagesReadUnavailable": "This server does not support individual read receipts. Unread messages are preserved.",
+  "messagesDraftLabel": "Draft",
+  "messagesDraftStorageFailed": "Could not read or save message drafts on this device. Try again.",
   "draftCollapse": "Collapse",
   "draftKindNew": "New topic",
   "draftKindServer": "Cloud draft recovery",
@@ -1292,6 +1294,20 @@
   "publishMediaUploading": "Uploading",
   "publishMediaWaiting": "Waiting for the previous photo",
   "publishMediaSavedPartial": "Text and uploaded photos saved on this device",
-  "messagesDraftLabel": "Draft",
-  "messagesDraftStorageFailed": "Could not read or save message drafts on this device. Try again."
+  "draftSearchHint": "Search titles and text",
+  "draftSearchScope": "Search device drafts and the current cloud list.",
+  "draftMatchCount": "Drafts shown: {count}",
+  "draftNoMatches": "No drafts match these conditions.",
+  "draftClearFilters": "Clear search and filters",
+  "draftDeleteDone": "Local draft deleted. You can undo the latest deletion.",
+  "draftDeleteRestored": "Draft restored on this device",
+  "draftRestoreConflict": "An existing copy was kept without changes.",
+  "draftRestoreFailed": "Could not restore the draft. Try Undo again.",
+  "@draftMatchCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  }
 }

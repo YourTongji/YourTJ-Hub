@@ -2581,6 +2581,12 @@ class AppLocalizationsJa extends AppLocalizations {
   String get messagesReadUnavailable => 'このサーバーは個別の既読通知に対応していません。未読は保持されます。';
 
   @override
+  String get messagesDraftLabel => '下書き';
+
+  @override
+  String get messagesDraftStorageFailed => 'この端末のメッセージ下書きを読み書きできません。再試行してください。';
+
+  @override
   String get draftCollapse => '折りたたむ';
 
   @override
@@ -2623,8 +2629,31 @@ class AppLocalizationsJa extends AppLocalizations {
   String get publishMediaSavedPartial => '文章とアップロード済みの写真を端末に保存しました';
 
   @override
-  String get messagesDraftLabel => '下書き';
+  String get draftSearchHint => 'タイトルと本文を検索';
 
   @override
-  String get messagesDraftStorageFailed => 'この端末のメッセージ下書きを読み書きできません。再試行してください。';
+  String get draftSearchScope => '端末の下書きと現在のクラウド一覧を検索します。';
+
+  @override
+  String draftMatchCount(int count) {
+    return '$count 件の下書きを表示';
+  }
+
+  @override
+  String get draftNoMatches => '条件に合う下書きがありません。';
+
+  @override
+  String get draftClearFilters => '検索と絞り込みを解除';
+
+  @override
+  String get draftDeleteDone => '端末の下書きを削除しました。直前の削除を取り消せます。';
+
+  @override
+  String get draftDeleteRestored => '端末の下書きを復元しました';
+
+  @override
+  String get draftRestoreConflict => '既存のコピーがあるため、その内容を保持しました。';
+
+  @override
+  String get draftRestoreFailed => '復元できませんでした。もう一度取り消してください。';
 }

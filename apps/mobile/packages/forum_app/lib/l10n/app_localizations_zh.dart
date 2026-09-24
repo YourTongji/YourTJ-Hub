@@ -2558,6 +2558,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get messagesReadUnavailable => '服务器暂不支持逐条已读；未读消息会保留。';
 
   @override
+  String get messagesDraftLabel => '草稿';
+
+  @override
+  String get messagesDraftStorageFailed => '无法读取或保存本机私信草稿，请重试。';
+
+  @override
   String get draftCollapse => '收起';
 
   @override
@@ -2598,8 +2604,31 @@ class AppLocalizationsZh extends AppLocalizations {
   String get publishMediaSavedPartial => '文字和已上传图片已保存到本机';
 
   @override
-  String get messagesDraftLabel => '草稿';
+  String get draftSearchHint => '搜索标题和正文';
 
   @override
-  String get messagesDraftStorageFailed => '无法读取或保存本机私信草稿，请重试。';
+  String get draftSearchScope => '搜索本机草稿与当前云端列表。';
+
+  @override
+  String draftMatchCount(int count) {
+    return '当前显示 $count 份草稿';
+  }
+
+  @override
+  String get draftNoMatches => '没有符合这些条件的草稿。';
+
+  @override
+  String get draftClearFilters => '清空搜索与筛选';
+
+  @override
+  String get draftDeleteDone => '本机草稿已删除，可撤销最近一次删除。';
+
+  @override
+  String get draftDeleteRestored => '已恢复本机草稿';
+
+  @override
+  String get draftRestoreConflict => '已有本机副本，已保留其内容。';
+
+  @override
+  String get draftRestoreFailed => '恢复失败，请再次点击撤销。';
 }

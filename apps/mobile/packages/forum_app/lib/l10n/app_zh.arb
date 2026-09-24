@@ -1262,6 +1262,8 @@
   "messagesNewMessages": "有新消息，回到底部",
   "messagesReadSyncFailed": "已读状态未同步；你的未读消息会保留。",
   "messagesReadUnavailable": "服务器暂不支持逐条已读；未读消息会保留。",
+  "messagesDraftLabel": "草稿",
+  "messagesDraftStorageFailed": "无法读取或保存本机私信草稿，请重试。",
   "draftCollapse": "收起",
   "draftKindNew": "新话题",
   "draftKindServer": "云端草稿的本机副本",
@@ -1275,6 +1277,13 @@
   "publishMediaUploading": "正在上传",
   "publishMediaWaiting": "等待前一张图片",
   "publishMediaSavedPartial": "文字和已上传图片已保存到本机",
-  "messagesDraftLabel": "草稿",
-  "messagesDraftStorageFailed": "无法读取或保存本机私信草稿，请重试。"
+  "draftSearchHint": "搜索标题和正文",
+  "draftSearchScope": "搜索本机草稿与当前云端列表。",
+  "draftMatchCount": "当前显示 {count} 份草稿",
+  "draftNoMatches": "没有符合这些条件的草稿。",
+  "draftClearFilters": "清空搜索与筛选",
+  "draftDeleteDone": "本机草稿已删除，可撤销最近一次删除。",
+  "draftDeleteRestored": "已恢复本机草稿",
+  "draftRestoreConflict": "已有本机副本，已保留其内容。",
+  "draftRestoreFailed": "恢复失败，请再次点击撤销。"
 }
