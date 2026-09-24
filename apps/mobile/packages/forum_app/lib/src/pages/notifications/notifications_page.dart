@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import '../../private_notes.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -35,6 +36,8 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
   bool _refreshing = false;
   bool _markingAll = false;
   int _generation = 0;
+  CancelToken? _loadCancel;
+  CancelToken? _loadMoreCancel;
   String? _loadMoreError;
   final Set<int> _reading = {};
   final Set<int> _acknowledged = {};
@@ -44,6 +47,9 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
 
   @override
   void dispose() {
+    _generation++;
+    _loadCancel?.cancel('notifications disposed');
+    _loadMoreCancel?.cancel('notifications disposed');
     _registry.unregister(GfShellDestination.notifications, _scroll);
     super.dispose();
   }
@@ -58,6 +64,9 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
 
   Future<void> _load({bool silent = false}) async {
     if (silent && _refreshing) return;
+    _loadCancel?.cancel('notifications request superseded');
+    _loadMoreCancel?.cancel('notifications refresh superseded');
+    final cancel = _loadCancel = CancelToken();
     final generation = ++_generation;
     final epoch = ref.read(offlineCacheEpochProvider);
     final filter = _filter;
@@ -72,7 +81,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
     try {
       final resp = await ref
           .read(notificationRepositoryProvider)
-          .fetchNotifications(filter: filter, cursor: 0);
+          .fetchNotifications(filter: filter, cursor: 0, cancelToken: cancel);
       if (!_current(generation, epoch)) return;
       final confirmedRead = resp.items
           .where((item) => item.isRead)
@@ -87,13 +96,14 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
         _cursor = resp.nextCursor;
       });
     } catch (e, st) {
-      if (!_current(generation, epoch)) return;
+      if (!_current(generation, epoch) || cancel.isCancelled) return;
       if (silent && _list.hasValue) {
         _showError(e);
       } else {
         setState(() => _list = AsyncValue.error(e, st));
       }
     } finally {
+      if (identical(_loadCancel, cancel)) _loadCancel = null;
       if (_current(generation, epoch)) setState(() => _refreshing = false);
     }
   }
@@ -124,6 +134,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
     if (resp == null || !resp.hasNext || _loadingMore || _refreshing) return;
     final generation = _generation;
     final epoch = ref.read(offlineCacheEpochProvider);
+    final cancel = _loadMoreCancel = CancelToken();
     final cursor = _cursor;
     final filter = _filter;
     setState(() {
@@ -133,7 +144,11 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
     try {
       final next = await ref
           .read(notificationRepositoryProvider)
-          .fetchNotifications(filter: filter, cursor: cursor);
+          .fetchNotifications(
+            filter: filter,
+            cursor: cursor,
+            cancelToken: cancel,
+          );
       if (!_current(generation, epoch)) return;
       final seen = _items.map((item) => item.id).toSet();
       final additions = _mergeRead(
@@ -149,7 +164,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
         _list = AsyncValue.data(next);
       });
     } catch (error) {
-      if (!_current(generation, epoch)) return;
+      if (!_current(generation, epoch) || cancel.isCancelled) return;
       setState(
         () => _loadMoreError = resolveErrorMessage(
           AppLocalizations.of(context),
@@ -157,6 +172,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
         ),
       );
     } finally {
+      if (identical(_loadMoreCancel, cancel)) _loadMoreCancel = null;
       if (_current(generation, epoch)) setState(() => _loadingMore = false);
     }
   }
@@ -260,6 +276,9 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
     final AppLocalizations l10n = AppLocalizations.of(context);
     ref.listen<int>(offlineCacheEpochProvider, (_, _) {
       _generation++;
+      _loadCancel?.cancel('notifications session changed');
+      _loadMoreCancel?.cancel('notifications session changed');
+      _loadingMore = false;
       _items.clear();
       _acknowledged.clear();
       _reading.clear();

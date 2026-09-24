@@ -2,7 +2,29 @@
   "result": {
     "url": "/file/img/2026/02/03/9f1c2d3e-0000-4000-8000-000000000000.png",
     "filename": "file.png",
-    "size": 68
+    "size": 8192,
+    "imageMetadata": {
+      "url": "/file/img/2026/02/03/9f1c2d3e-0000-4000-8000-000000000000.png",
+      "width": 1600,
+      "height": 1200,
+      "variants": [
+        {
+          "url": "/file/img/2026/02/03/9f1c2d3e-0000-4000-8000-000000000000__w320.png",
+          "width": 320,
+          "height": 240
+        },
+        {
+          "url": "/file/img/2026/02/03/9f1c2d3e-0000-4000-8000-000000000000__w640.png",
+          "width": 640,
+          "height": 480
+        },
+        {
+          "url": "/file/img/2026/02/03/9f1c2d3e-0000-4000-8000-000000000000__w1280.png",
+          "width": 1280,
+          "height": 960
+        }
+      ]
+    }
   },
   "code": 0,
   "messageCode": "upload.success"

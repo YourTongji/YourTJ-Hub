@@ -1753,6 +1753,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/forum/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Stream foreground chat and notification invalidations
+         * @description A single authenticated foreground SSE connection per app instance. The
+         *     stream emits an immediate hello with resync=true; clients must reconcile
+         *     chat, notification and unread state over REST after every connection or
+         *     reconnect. Events are owner-scoped hints, contain no message bodies or
+         *     notification previews, have no replay IDs, and are never a substitute for
+         *     REST cursors. A full server queue closes the stream rather than silently
+         *     dropping events. Heartbeat comments arrive every 15 seconds; the server
+         *     rotates streams within one hour to renew expiring credentials. Session
+         *     validity is checked at handshake and independently every five minutes;
+         *     transport heartbeats do not query the database. Only
+         *     Bearer authorization or the host-only access_token cookie is accepted;
+         *     query-string tokens are not supported. Cookie requests without a
+         *     verifiable same-origin Origin or Referer are rejected before streaming.
+         *     The stream does not extend online presence.
+         *     This process-local stream requires a shared invalidation transport before
+         *     running the forum as multiple serving instances.
+         */
+        get: operations["streamForumEvents"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/forum/notifications": {
         parameters: {
             query?: never;
@@ -10162,6 +10197,7 @@ export interface components {
             filename: string;
             /** @description Stored byte length. */
             size: number;
+            imageMetadata?: components["schemas"]["ImageMetadata"];
         };
         AdminImgUploadResponse: (components["schemas"]["ApiSuccess"] & {
             result: components["schemas"]["AdminImgUploadResult"];
@@ -11426,6 +11462,8 @@ export interface components {
             /** @description Present only when the topic has a cover image. */
             firstImageUrl?: string;
             images?: string[];
+            /** @description Intrinsic dimensions and available static thumbnail variants for uploaded topic images; absent for legacy or external images. */
+            imageMetadata?: components["schemas"]["ImageMetadata"][];
             url: string;
             pinWeight: number;
             /** @enum {integer} */
@@ -11450,6 +11488,19 @@ export interface components {
             bookmarked?: boolean;
             /** @description Present only for authenticated viewers with unseen tracking. */
             unseen?: boolean;
+        };
+        ImageMetadata: {
+            /** @description The original image URL already present in firstImageUrl or images. */
+            url: string;
+            width: number;
+            height: number;
+            variants?: components["schemas"]["ImageVariant"][];
+        };
+        ImageVariant: {
+            /** @description Public URL for a server-generated derivative. */
+            url: string;
+            width: number;
+            height: number;
         };
         UserSearchPayload: {
             /** Format: uint64 */
@@ -11546,6 +11597,7 @@ export interface components {
              * @description Stored byte size.
              */
             size: number;
+            imageMetadata?: components["schemas"]["ImageMetadata"];
         };
         DirectImageUploadCompleteSuccess: components["schemas"]["ApiSuccess"] & {
             result: components["schemas"]["DirectImageUploadCompleteResult"];
@@ -15120,6 +15172,67 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
+            };
+        };
+    };
+    streamForumEvents: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /**
+             * @description SSE frames: hello {version, heartbeatSeconds, resync, capabilities},
+             *     chat.changed {convId, change}, notifications.changed {change},
+             *     unread.changed {}, and session.invalidated {}. Changes are hints;
+             *     REST remains authoritative.
+             */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example event: hello
+                     *     data: {"version":1,"heartbeatSeconds":15,"resync":true,"capabilities":{"visibleRead":true}}
+                     *
+                     *     event: chat.changed
+                     *     data: {"convId":42,"change":"received"}
+                     */
+                    "text/event-stream": string;
+                };
+            };
+            /** @description Invalid, expired, or revoked session before streaming. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Cookie-authenticated stream without verifiable same origin is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Per-user or total stream connection limit; Retry-After is five seconds. */
+            429: {
+                headers: {
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Session recheck database unavailable before streaming. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

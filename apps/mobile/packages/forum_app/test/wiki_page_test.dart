@@ -52,7 +52,7 @@ class _FakePageRepository extends PageRepository {
   int failuresBeforeSuccess;
 
   @override
-  Future<PagePayload> fetch(String path) async {
+  Future<PagePayload> fetch(String path, {Object? cancelToken}) async {
     fetchedPaths.add(path);
     if (failuresBeforeSuccess > 0) {
       failuresBeforeSuccess--;

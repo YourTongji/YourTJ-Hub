@@ -253,6 +253,9 @@
   "messagesNoMessagesYet": "No messages yet",
   "messagesEmptyDetail": "No messages yet, say hi!",
   "messagesInputHint": "Type a message…",
+  "messagesEmoji": "Emoji",
+  "messagesKeyboard": "Keyboard",
+  "messagesCopyAll": "Copy entire message",
   "messagesSendFailed": "Send failed: {error}",
   "@messagesSendFailed": {
     "placeholders": {

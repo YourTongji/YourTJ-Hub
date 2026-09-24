@@ -990,6 +990,24 @@ abstract class AppLocalizations {
   /// **'Type a message…'**
   String get messagesInputHint;
 
+  /// No description provided for @messagesEmoji.
+  ///
+  /// In en, this message translates to:
+  /// **'Emoji'**
+  String get messagesEmoji;
+
+  /// No description provided for @messagesKeyboard.
+  ///
+  /// In en, this message translates to:
+  /// **'Keyboard'**
+  String get messagesKeyboard;
+
+  /// No description provided for @messagesCopyAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy entire message'**
+  String get messagesCopyAll;
+
   /// No description provided for @messagesSendFailed.
   ///
   /// In en, this message translates to:

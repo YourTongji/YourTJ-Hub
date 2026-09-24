@@ -253,6 +253,9 @@
   "messagesNoMessagesYet": "还没有消息",
   "messagesEmptyDetail": "暂无消息,说点什么吧",
   "messagesInputHint": "输入消息…",
+  "messagesEmoji": "表情",
+  "messagesKeyboard": "键盘",
+  "messagesCopyAll": "复制整条消息",
   "messagesSendFailed": "发送失败:{error}",
   "@messagesSendFailed": {
     "placeholders": {

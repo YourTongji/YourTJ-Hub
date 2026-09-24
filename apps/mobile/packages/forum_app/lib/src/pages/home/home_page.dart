@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:core/core.dart';
@@ -19,6 +21,10 @@ import '../../widgets/status_views.dart';
 import '../../widgets/topic_list.dart';
 import '../../widgets/root_surface.dart';
 import '../../widgets/announcement_banner.dart';
+import '../../app_config.dart';
+import '../../current_user.dart';
+import '../../offline/drift_cache.dart';
+import '../../startup_metrics.dart';
 
 /// 首页:公告 + 话题流(web HomePage.vue 的移动端形态)。
 class HomePage extends ConsumerStatefulWidget {
@@ -44,6 +50,9 @@ class _HomePageState extends ConsumerState<HomePage> {
   bool _announcementCollapsed = false;
   int _loadSequence = 0;
   int _interactionRevision = 0;
+  CancelToken? _loadCancel;
+  CancelToken? _loadMoreCancel;
+  bool _firstCardFrameRecorded = false;
   final _pendingInteractions = <(int, bool)>{};
   final _interactionOverrides = <(int, bool), _InteractionOverride>{};
 
@@ -88,11 +97,18 @@ class _HomePageState extends ConsumerState<HomePage> {
     _tabScrollRegistry = ref.read(tabScrollRegistryProvider)
       ..register(GfShellDestination.home, _scrollToTopController);
     _restoreFeedMode();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        recordStartupMilestone('startup.home_skeleton_frame_submitted');
+      }
+    });
     _load();
   }
 
   @override
   void dispose() {
+    _loadCancel?.cancel('home page disposed');
+    _loadMoreCancel?.cancel('home page disposed');
     _tabScrollRegistry.unregister(
       GfShellDestination.home,
       _scrollToTopController,
@@ -139,13 +155,60 @@ class _HomePageState extends ConsumerState<HomePage> {
     final sequence = ++_loadSequence;
     final revision = _interactionRevision;
     final epoch = ref.read(offlineCacheEpochProvider);
+    _loadCancel?.cancel('home request superseded');
+    _loadMoreCancel?.cancel('home refresh superseded');
     _loadingMore = false;
     _loadMoreError = null;
+    final cancel = _loadCancel = CancelToken();
+    final sort = _sort;
+    final cacheScopeFuture = _homeCacheScope();
+    var cachedPageShown = false;
+    var networkPageShown = false;
     if (!silent) setState(() => _page = const AsyncValue.loading());
+    final cacheShownFuture =
+        (!silent
+                ? () async {
+                    try {
+                      final scope = await cacheScopeFuture;
+                      if (scope == null) return false;
+                      final cache = ref.read(offlineTopicCacheProvider);
+                      if (cache is! OfflineHomeCache) return false;
+                      final cached = await (cache as OfflineHomeCache)
+                          .getHomePage(
+                            accountId: scope.$1,
+                            baseUrl: scope.$2,
+                            sort: sort,
+                          );
+                      if (cached == null ||
+                          networkPageShown ||
+                          !mounted ||
+                          sequence != _loadSequence ||
+                          epoch != ref.read(offlineCacheEpochProvider)) {
+                        return false;
+                      }
+                      final cachedProps = parsePageProps<HomeProps>(cached);
+                      if (cachedProps == null) return false;
+                      setState(() {
+                        _page = AsyncValue.data(cachedProps);
+                        _categories = cached.layout.sidebar.categories;
+                        _topics
+                          ..clear()
+                          ..addAll(
+                            _mergeInteractions(cachedProps.topics, revision),
+                          );
+                      });
+                      _recordFirstHomeContent(cachedProps.topics.isNotEmpty);
+                      return true;
+                    } catch (_) {
+                      return false;
+                    }
+                  }()
+                : Future<bool>.value(false))
+            .then((shown) => cachedPageShown = shown);
     try {
       final PagePayload payload = await ref
           .read(pageRepositoryProvider)
-          .home(sort: _sort);
+          .home(sort: sort, cancelToken: cancel);
       if (!mounted ||
           sequence != _loadSequence ||
           epoch != ref.read(offlineCacheEpochProvider)) {
@@ -153,19 +216,50 @@ class _HomePageState extends ConsumerState<HomePage> {
       }
       final HomeProps? props = parsePageProps<HomeProps>(payload);
       if (props == null) throw const FormatException('home props');
+      networkPageShown = true;
       setState(() {
         _page = AsyncValue.data(props);
         _categories = payload.layout.sidebar.categories;
         _topics.clear();
         _topics.addAll(_mergeInteractions(props.topics, revision));
       });
+      recordStartupMilestone('startup.home_data_parsed');
+      _recordFirstHomeContent(props.topics.isNotEmpty);
+      unawaited(() async {
+        try {
+          final scope = await cacheScopeFuture;
+          if (sequence != _loadSequence ||
+              epoch != ref.read(offlineCacheEpochProvider) ||
+              scope == null) {
+            return;
+          }
+          final cache = ref.read(offlineTopicCacheProvider);
+          if (cache is OfflineHomeCache) {
+            await (cache as OfflineHomeCache).putHomePage(
+              accountId: scope.$1,
+              baseUrl: scope.$2,
+              sort: sort,
+              payload: payload,
+            );
+          }
+        } catch (_) {
+          // Persistent SWR is optional; the network result is already visible.
+        }
+      }());
     } catch (e, st) {
       if (!mounted ||
           sequence != _loadSequence ||
           epoch != ref.read(offlineCacheEpochProvider)) {
         return;
       }
-      if (silent && _page.hasValue) {
+      if (cancel.isCancelled) return;
+      await cacheShownFuture;
+      if (!mounted ||
+          sequence != _loadSequence ||
+          epoch != ref.read(offlineCacheEpochProvider)) {
+        return;
+      }
+      if ((silent || cachedPageShown) && _page.hasValue) {
         showGfToast(
           context,
           AppLocalizations.of(context).refreshFailedRetained,
@@ -174,7 +268,35 @@ class _HomePageState extends ConsumerState<HomePage> {
       } else {
         setState(() => _page = AsyncValue.error(e, st));
       }
+    } finally {
+      if (identical(_loadCancel, cancel)) _loadCancel = null;
     }
+  }
+
+  Future<(int, String)?> _homeCacheScope() async {
+    CurrentUser? user;
+    try {
+      user = await ref.read(currentUserProvider.future);
+    } catch (_) {
+      // A cache identity failure must not block the network request.
+    }
+    final hasToken = await hasSessionToken(ref.read(tokenStorageProvider));
+    final accountId = user?.id ?? (hasToken ? null : 0);
+    if (accountId == null) return null;
+    final baseUrl = AppConfig.apiBaseUrl.isNotEmpty
+        ? AppConfig.apiBaseUrl
+        : GfApiClient.defaultBaseUrl;
+    return (accountId, baseUrl);
+  }
+
+  void _recordFirstHomeContent(bool hasTopics) {
+    if (_firstCardFrameRecorded) return;
+    _firstCardFrameRecorded = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        recordFirstHomeContentAndFullyDrawn(hasTopics: hasTopics);
+      }
+    });
   }
 
   /// 从话题详情返回:先消费详情页带回的话题增量(unseen/点赞/收藏/计数,
@@ -212,6 +334,9 @@ class _HomePageState extends ConsumerState<HomePage> {
     if (_topics.isEmpty) return;
     final sequence = ++_loadSequence;
     final epoch = ref.read(offlineCacheEpochProvider);
+    _loadCancel?.cancel('home return refresh superseded');
+    _loadMoreCancel?.cancel('home return refresh superseded');
+    final cancel = _loadCancel = CancelToken();
     // 在途「加载更多」已随序号失效,其 finally 的同序号守卫不会清理加载态,
     // 这里必须像 _load 一样接管,否则 _loadingMore 卡死、分页失效。
     _loadingMore = false;
@@ -219,7 +344,7 @@ class _HomePageState extends ConsumerState<HomePage> {
     try {
       final PagePayload payload = await ref
           .read(pageRepositoryProvider)
-          .home(sort: _sort);
+          .home(sort: _sort, cancelToken: cancel);
       if (!mounted ||
           sequence != _loadSequence ||
           epoch != ref.read(offlineCacheEpochProvider)) {
@@ -246,11 +371,14 @@ class _HomePageState extends ConsumerState<HomePage> {
           epoch != ref.read(offlineCacheEpochProvider)) {
         return;
       }
+      if (cancel.isCancelled) return;
       showGfToast(
         context,
         AppLocalizations.of(context).refreshFailedRetained,
         error: true,
       );
+    } finally {
+      if (identical(_loadCancel, cancel)) _loadCancel = null;
     }
   }
 
@@ -262,6 +390,7 @@ class _HomePageState extends ConsumerState<HomePage> {
     final sequence = _loadSequence;
     final revision = _interactionRevision;
     final epoch = ref.read(offlineCacheEpochProvider);
+    final cancel = _loadMoreCancel = CancelToken();
     setState(() {
       _loadingMore = true;
       _loadMoreError = null;
@@ -270,7 +399,7 @@ class _HomePageState extends ConsumerState<HomePage> {
       // 真实分页:按后端 nextUrl 请求下一页(页面级数据通道)。
       final PagePayload payload = await ref
           .read(pageRepositoryProvider)
-          .fetch(nextUrl);
+          .fetch(nextUrl, cancelToken: cancel);
       if (!mounted ||
           sequence != _loadSequence ||
           epoch != ref.read(offlineCacheEpochProvider)) {
@@ -300,6 +429,7 @@ class _HomePageState extends ConsumerState<HomePage> {
         );
       }
     } finally {
+      if (identical(_loadMoreCancel, cancel)) _loadMoreCancel = null;
       if (mounted && sequence == _loadSequence) {
         setState(() => _loadingMore = false);
       }
@@ -482,6 +612,7 @@ class _HomePageState extends ConsumerState<HomePage> {
               loading: _loadingMore,
               topics: _topics,
               feedMode: _feedMode,
+              onFirstMediaFrame: recordFirstHomeMediaFrame,
               onLikeTopic: _toggleTopicInteraction,
               onBookmarkTopic: (topic, target) =>
                   _toggleTopicInteraction(topic, target, bookmark: true),

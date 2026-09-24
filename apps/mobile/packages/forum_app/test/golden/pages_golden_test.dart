@@ -40,6 +40,7 @@ class OneNotificationRepository extends NotificationRepository {
     String filter = 'all',
     int cursor = 0,
     int limit = 20,
+    Object? cancelToken,
   }) async {
     final NotificationPayload n = NotificationPayload(
       id: 1,
@@ -290,7 +291,7 @@ class CatalogPageRepository extends PageRepository {
   CatalogPageRepository(super.client);
 
   @override
-  Future<PagePayload> fetch(String path) async {
+  Future<PagePayload> fetch(String path, {Object? cancelToken}) async {
     if (path == '/courses') {
       return PagePayload.fromJson(courseCatalogOptionsJson());
     }
@@ -303,7 +304,7 @@ class WikiDetailPageRepository extends PageRepository {
   WikiDetailPageRepository(super.client);
 
   @override
-  Future<PagePayload> fetch(String path) async {
+  Future<PagePayload> fetch(String path, {Object? cancelToken}) async {
     if (path == '/wiki/guide/start') {
       return PagePayload.fromJson(wikiDetailPayloadJson());
     }

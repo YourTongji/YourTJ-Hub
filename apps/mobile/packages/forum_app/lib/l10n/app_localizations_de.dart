@@ -499,6 +499,15 @@ class AppLocalizationsDe extends AppLocalizations {
   String get messagesInputHint => 'Nachricht eingeben …';
 
   @override
+  String get messagesEmoji => 'Emoji';
+
+  @override
+  String get messagesKeyboard => 'Tastatur';
+
+  @override
+  String get messagesCopyAll => 'Ganze Nachricht kopieren';
+
+  @override
   String messagesSendFailed(String error) {
     return 'Senden fehlgeschlagen: $error';
   }

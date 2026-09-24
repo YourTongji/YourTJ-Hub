@@ -495,6 +495,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get messagesInputHint => 'Type a message…';
 
   @override
+  String get messagesEmoji => 'Emoji';
+
+  @override
+  String get messagesKeyboard => 'Keyboard';
+
+  @override
+  String get messagesCopyAll => 'Copy entire message';
+
+  @override
   String messagesSendFailed(String error) {
     return 'Send failed: $error';
   }

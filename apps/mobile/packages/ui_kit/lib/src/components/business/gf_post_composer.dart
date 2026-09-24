@@ -116,8 +116,15 @@ class GfPostComposer extends StatelessWidget {
                   children: <Widget>[
                     ClipRRect(
                       borderRadius: BorderRadius.circular(radii.field),
-                      child: Image.network(
-                        imageUrl!,
+                      child: Image(
+                        image: ResizeImage(
+                          NetworkImage(imageUrl!),
+                          policy: ResizeImagePolicy.fit,
+                          width: (176 * MediaQuery.devicePixelRatioOf(context))
+                              .round(),
+                          height: (144 * MediaQuery.devicePixelRatioOf(context))
+                              .round(),
+                        ),
                         width: 88,
                         height: 72,
                         fit: BoxFit.cover,

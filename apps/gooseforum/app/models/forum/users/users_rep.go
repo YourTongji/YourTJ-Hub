@@ -46,6 +46,17 @@ func GetWithContext(ctx context.Context, id any) (entity EntityComplete, err err
 	return
 }
 
+// GetSessionStateWithContext reads only the fields needed to revalidate an
+// already-open stream, without loading private profile or credential columns.
+func GetSessionStateWithContext(ctx context.Context, id uint64) (version uint64, actorType int8, err error) {
+	var row struct {
+		TokenVersion uint64 `gorm:"column:token_version"`
+		ActorType    int8   `gorm:"column:actor_type"`
+	}
+	err = dbconnect.ConnectContext(ctx).Table(tableName).Select("token_version", "actor_type").Where(pid, id).First(&row).Error
+	return row.TokenVersion, row.ActorType, err
+}
+
 func Verify(usernameOrEmail string, password string) (*EntityComplete, error) {
 	var user EntityComplete
 	var err error

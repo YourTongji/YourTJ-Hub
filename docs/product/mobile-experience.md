@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-09-20
+> Last verified: 2026-09-25
 
 The Flutter app combines the forum, course catalog, scheduler and Wiki. Ordinary browsing and
 writing use native pages. Management uses the same first-party workspaces and permission checks as
@@ -162,6 +162,17 @@ corresponding planned ownership and lifecycle contracts.
   and is cleared at the account/session boundary; it is not persisted across app termination. Only one request for
   each bubble can run at once. The API has no message idempotency key, so ambiguous network failures
   cannot guarantee exactly-once delivery when manually retried.
+- `Current`: chat text, including sending, acknowledged and failed outbox bubbles, supports native
+  selection/copy and underlined HTTP(S) links using the shared
+  internal-routing/external-confirmation policy. Inline stickers remain supported; chat text is not
+  interpreted as Markdown or HTML. The selection menu also offers whole-message copy, preserving
+  sticker tokens that partial native text selection omits. The emoji accessory replaces the current
+  selection and leaves the caret after insertion. Replacing the draft with text that has no valid
+  selection resets insertion to the end. Opening it dismisses the software keyboard and keeps focus
+  inside the composer for hardware shortcuts; the keyboard control restores
+  focus. Its bounded scrollable grid has touch-sized controls, localized labels and system-back/Escape
+  dismissal. Mobile return inserts a newline; hardware Ctrl/Cmd+Enter sends. Disabling the composer
+  also disables emoji edits. Platform IME transitions still require physical-device verification.
 - `Current`: native conversations acknowledge only incoming, unread server message IDs whose actual
   bubbles are at least 50% visible for a stable 350 ms in the message viewport. For a bubble taller
   than the viewport, visibility uses the viewport height. The keyboard-clipped viewport, current
@@ -174,9 +185,12 @@ corresponding planned ownership and lifecycle contracts.
 - `Current`: new incoming messages preserve the user's history position and expose an accessible
   lower-right jump-to-latest button. Jumping only acknowledges bubbles actually visible after layout;
   unseen history remains unread. Loading older pages preserves the visible bubble anchor across lazy
-  relayout, and newer fetches retain the older-history cursor. `Partial`: physical-device visibility thresholds, keyboard overlays
-  and lifecycle behavior still require device validation. Message delivery still uses the existing
-  polling mechanism; this viewport change does not introduce a realtime transport.
+  relayout, and newer fetches retain the older-history cursor. `Partial`: physical-device visibility
+  thresholds, keyboard overlays and lifecycle behavior still require device validation.
+- `Partial`: the server offers an authenticated foreground event stream for chat, notifications and
+  unread-state changes. It sends an immediate resync instruction and bounded, owner-scoped change
+  hints; clients fetch actual content and counts from REST. The Flutter app still uses its existing
+  refresh path until its single foreground connection and reconnect reconciliation are integrated.
 
 ## Language and presentation
 
