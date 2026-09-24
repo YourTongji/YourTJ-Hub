@@ -2488,7 +2488,8 @@ void main() {
       await tester.tap(find.text('删除本机草稿').last);
       await tester.pumpAndSettle();
       expect(await WritingStore().drafts('site:1'), isEmpty);
-      expect(find.text('本机尚未完成'), findsNothing);
+      expect(find.byKey(const ValueKey('new-3')), findsNothing);
+      expect(find.text('撤销'), findsOneWidget);
     },
   );
 

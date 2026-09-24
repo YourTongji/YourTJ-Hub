@@ -944,5 +944,14 @@
   "publishMediaTemporary": "Ausstehende Fotos bleiben nur während dieser Bearbeitung erhalten. Nach dem Schließen der App müssen Sie sie erneut auswählen.",
   "publishMediaUploading": "Wird hochgeladen",
   "publishMediaWaiting": "Warten auf das vorherige Foto",
-  "publishMediaSavedPartial": "Text und hochgeladene Fotos auf diesem Gerät gespeichert"
+  "publishMediaSavedPartial": "Text und hochgeladene Fotos auf diesem Gerät gespeichert",
+  "draftSearchHint": "Titel und Text durchsuchen",
+  "draftSearchScope": "Durchsucht lokale Entwürfe und die aktuelle Cloud-Liste.",
+  "draftMatchCount": "Angezeigte Entwürfe: {count}",
+  "draftNoMatches": "Keine Entwürfe entsprechen diesen Bedingungen.",
+  "draftClearFilters": "Suche und Filter zurücksetzen",
+  "draftDeleteDone": "Lokaler Entwurf gelöscht. Die letzte Löschung kann rückgängig gemacht werden.",
+  "draftDeleteRestored": "Entwurf auf diesem Gerät wiederhergestellt",
+  "draftRestoreConflict": "Eine vorhandene Kopie wurde unverändert beibehalten.",
+  "draftRestoreFailed": "Wiederherstellung fehlgeschlagen. Erneut rückgängig machen."
 }
