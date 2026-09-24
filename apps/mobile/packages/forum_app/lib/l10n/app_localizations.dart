@@ -4811,6 +4811,42 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Swipe sideways to view the full week'**
   String get scheduleGridScrollHint;
+
+  /// No description provided for @coursesFilterSearchHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Search filter options'**
+  String get coursesFilterSearchHint;
+
+  /// No description provided for @coursesFilterNoMatches.
+  ///
+  /// In en, this message translates to:
+  /// **'No matching filter options'**
+  String get coursesFilterNoMatches;
+
+  /// No description provided for @coursesClearSelection.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear selection'**
+  String get coursesClearSelection;
+
+  /// No description provided for @coursesResetSearch.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset search and filters'**
+  String get coursesResetSearch;
+
+  /// No description provided for @coursesFilterLoadFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Filter options could not be loaded.'**
+  String get coursesFilterLoadFailed;
+
+  /// No description provided for @coursesPaginationStalled.
+  ///
+  /// In en, this message translates to:
+  /// **'No additional courses arrived. Try loading this page again.'**
+  String get coursesPaginationStalled;
 }
 
 class _AppLocalizationsDelegate
