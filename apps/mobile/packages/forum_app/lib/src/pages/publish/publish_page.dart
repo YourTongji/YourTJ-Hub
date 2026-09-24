@@ -140,8 +140,8 @@ class _PublishPageState extends ConsumerState<PublishPage>
             ? newTopicDraftKey()
             : topicDraftKey(widget.topicId!, published: true));
     WidgetsBinding.instance.addObserver(this);
-    _title.addListener(_markDirty);
-    _simple.addListener(_markDirty);
+    _title.addListener(_textChanged);
+    _simple.addListener(_textChanged);
     _converter = widget.markdownConverter ?? MarkdownConverter();
     _currentTopicId = widget.topicId ?? 0;
     _contentType = widget.initialContentType;
@@ -183,6 +183,19 @@ class _PublishPageState extends ConsumerState<PublishPage>
       /* Network editor remains usable if identity storage fails. */
     }
     if (mounted && _sessionCurrent) await _loadEditorData();
+  }
+
+  String _lastTitleText = '';
+  String _lastSimpleText = '';
+
+  // Controller notifications include selection and IME composition changes.
+  // Only changed text is new user work; merely focusing must not save a draft.
+  void _textChanged() {
+    final changed =
+        _lastTitleText != _title.text || _lastSimpleText != _simple.text;
+    _lastTitleText = _title.text;
+    _lastSimpleText = _simple.text;
+    if (changed) _markDirty();
   }
 
   void _markDirty() {
@@ -541,8 +554,8 @@ class _PublishPageState extends ConsumerState<PublishPage>
     _autosave?.cancel();
     _uploads.dispose();
     WidgetsBinding.instance.removeObserver(this);
-    _title.removeListener(_markDirty);
-    _simple.removeListener(_markDirty);
+    _title.removeListener(_textChanged);
+    _simple.removeListener(_textChanged);
     _previewDebounce?.cancel();
     _dragAutoscrollTimer?.cancel();
     _pageScrollController.dispose();
@@ -1194,7 +1207,10 @@ class _PublishPageState extends ConsumerState<PublishPage>
                     ? null
                     : () => _submit(topicStatus: 0),
               ),
-            _buildSubmitAction(l10n),
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: _buildSubmitAction(l10n),
+            ),
           ],
         ),
         body: AbsorbPointer(absorbing: _submitting, child: _buildBody(l10n)),
@@ -1279,12 +1295,16 @@ class _PublishPageState extends ConsumerState<PublishPage>
       return GfErrorRetry(message: _loadError, onRetry: _loadEditorData);
     }
 
+    // Scaffold consumes viewInsets for its resized body; read them from the
+    // page context before entering that body's LayoutBuilder.
+    final keyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 0;
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
         final bool wide = constraints.maxWidth >= _wideWorkspaceBreakpoint;
+        final typing = _mode == _ComposeMode.edit && keyboardOpen;
         final EdgeInsets pagePadding = EdgeInsets.symmetric(
           horizontal: wide ? 24 : 20,
-          vertical: 20,
+          vertical: typing ? 8 : 20,
         );
 
         return SingleChildScrollView(
@@ -1337,14 +1357,21 @@ class _PublishPageState extends ConsumerState<PublishPage>
                       _buildUploadQueue(l10n),
                       const SizedBox(height: 16),
                     ],
-                    _buildComposeGuide(l10n),
-                    const SizedBox(height: 20),
-                    if (_mode == _ComposeMode.edit && _contentType != 3) ...[
+                    if (!typing) ...[
+                      _buildComposeGuide(l10n),
+                      const SizedBox(height: 20),
+                    ],
+                    if (_mode == _ComposeMode.edit &&
+                        _contentType != 3 &&
+                        (!typing || _images.isNotEmpty)) ...[
                       _buildGallery(l10n, editing: true),
                       const SizedBox(height: 16),
                     ],
                     if (_mode == _ComposeMode.edit || wide) ...[
-                      _buildTopicFields(l10n),
+                      KeyedSubtree(
+                        key: const ValueKey('publish-title-fields'),
+                        child: _buildTopicFields(l10n),
+                      ),
                       const SizedBox(height: 4),
                     ],
                     if (wide) ...[

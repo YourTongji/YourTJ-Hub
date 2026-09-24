@@ -324,6 +324,61 @@ void main() {
     );
   }
 
+  for (final editing in [false, true]) {
+    testWidgets('selection alone does not create unsaved work ($editing)', (
+      tester,
+    ) async {
+      final result = await pumpPublishPage(
+        tester,
+        editing: editing,
+        contentType: 2,
+      );
+      for (final input in tester.widgetList<TextField>(
+        find.byType(TextField),
+      )) {
+        input.controller?.selection = const TextSelection.collapsed(offset: 0);
+      }
+      await tester.pump(const Duration(milliseconds: 800));
+      await tester.pumpAndSettle();
+      expect(
+        await WritingStore().drafts(writingScope('http://fake.local', 1)),
+        isEmpty,
+      );
+      await tester.tap(find.byTooltip('返回'));
+      await tester.pumpAndSettle();
+      expect(result.router.state.uri.path, '/');
+    });
+  }
+
+  testWidgets('software keyboard leaves a useful moment writing viewport', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await pumpPublishPage(tester, editing: false, contentType: 2);
+    await tester.tap(find.byType(TextField).first);
+    await tester.pump();
+    final titleFocus = tester
+        .widget<EditableText>(find.byType(EditableText).first)
+        .focusNode;
+    tester.view.viewInsets = const FakeViewPadding(bottom: 300);
+    await tester.pumpAndSettle();
+    expect(
+      tester.widget<EditableText>(find.byType(EditableText).first).focusNode,
+      same(titleFocus),
+    );
+    expect(titleFocus.hasFocus, isTrue);
+    final editor = tester.getRect(find.byKey(const Key('publish-editor')));
+    final viewport = tester.getRect(find.byType(SingleChildScrollView).first);
+    expect(editor.top - viewport.top, lessThan(140));
+    expect(viewport.bottom - editor.top, greaterThan(200));
+    expect(find.byTooltip('收起键盘'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 800));
+  });
+
   for (final published in [true, false]) {
     testWidgets(
       'editing uses a distinct ${published ? 'published topic' : 'server draft'} identity',
