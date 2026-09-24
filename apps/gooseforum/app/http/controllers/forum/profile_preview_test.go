@@ -37,12 +37,16 @@ func TestProfilePreviewsUseContentAuthorAndRespectVisibility(t *testing.T) {
 	}, {EventType: eventNotification.EventTypeLike, Payload: eventNotification.NotificationPayload{ActorId: author.Id, TopicId: hidden.Id, PostId: hiddenReply.Id}},
 		{EventType: eventNotification.EventTypeLike, Payload: eventNotification.NotificationPayload{ActorId: author.Id, TopicId: topic.Id, PostId: blockedReply.Id}},
 		{EventType: eventNotification.EventTypeLike, Payload: eventNotification.NotificationPayload{ActorId: author.Id, TopicId: hidden.Id, PostId: reply.Id}},
+		{EventType: eventNotification.EventTypeLike, Payload: eventNotification.NotificationPayload{ActorId: author.Id, TopicId: topic.Id, PostId: reply.Id, TemplateParams: eventNotification.NotificationTemplateParams{Preview: "Stored preview"}}},
 	})
-	if len(notifications) != 4 || notifications[0].Actor.AvatarURL != author.GetWebAvatarUrl() || notifications[0].Content != "Readable reply" {
+	if len(notifications) != 5 || notifications[0].Actor.AvatarURL != author.GetWebAvatarUrl() || notifications[0].Content != "Readable reply" {
 		t.Fatalf("notification preview: %+v", notifications)
 	}
 	if notifications[1].Content != "" || notifications[2].Content != "" || notifications[3].Content != "" {
 		t.Fatal("inconsistent hidden notification target exposed content")
+	}
+	if notifications[4].Content != "" || notifications[4].Payload.TemplateParams.Preview != "Stored preview" {
+		t.Fatal("stored preview was replaced")
 	}
 	likes := buildUserLikes([]topicUserAction.LikedTopicRef{{ID: 1, TopicID: topic.Id, LikedAt: time.Now()}, {ID: 2, TopicID: hidden.Id}})
 	raw, err := json.Marshal(likes)

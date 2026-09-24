@@ -544,8 +544,8 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                             ),
                           ),
                         if (!_streamLoading && _active.props != null)
-                          // Different streams have different row geometry. Do not reuse
-                          // a SliverList element and adjust the restored scroll offset.
+                          // Key each stream so recycled SliverList geometry cannot
+                          // shift its restored scroll offset.
                           _ProfileBody(
                             key: ValueKey(_stream),
                             props: props,

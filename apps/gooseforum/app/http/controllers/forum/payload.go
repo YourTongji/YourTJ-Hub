@@ -2822,7 +2822,7 @@ func BuildNotificationPayloads(notifications []*eventNotification.Entity) []Noti
 		if p.ActorId > 0 {
 			actorIDs = append(actorIDs, p.ActorId)
 		}
-		if notification.EventType == eventNotification.EventTypeLike && p.Content == "" && p.PostId > 0 {
+		if notification.EventType == eventNotification.EventTypeLike && p.Content == "" && p.TemplateParams.Preview == "" && p.PostId > 0 {
 			postIDs = append(postIDs, p.PostId)
 			topicIDs = append(topicIDs, p.TopicId)
 		}
@@ -2842,7 +2842,7 @@ func BuildNotificationPayloads(notifications []*eventNotification.Entity) []Noti
 				item.Actor.Username = author.Username
 			}
 		}
-		if notification.EventType == eventNotification.EventTypeLike && item.Content == "" {
+		if notification.EventType == eventNotification.EventTypeLike && item.Content == "" && item.Payload.TemplateParams.Preview == "" {
 			post := replies[notification.Payload.PostId]
 			topic := parents[notification.Payload.TopicId]
 			if post != nil && topic != nil && post.TopicId == topic.Id && post.ProcessStatus == 0 && topic.Status == 1 && topic.ProcessStatus == 0 {
