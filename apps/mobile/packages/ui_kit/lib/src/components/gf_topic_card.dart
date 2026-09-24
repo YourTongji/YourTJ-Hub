@@ -7,6 +7,7 @@ import '../theme/gf_theme.dart';
 import 'atoms/gf_avatar.dart';
 import 'gf_card.dart';
 import 'gf_chip.dart';
+import 'gf_image_viewer.dart';
 import 'gf_topic_row.dart';
 
 class GfTopicImageVariant {
@@ -50,6 +51,12 @@ class GfTopicCard extends StatefulWidget {
     required this.viewCount,
     this.likeCount = 0,
     this.onTap,
+    this.onAuthorTap,
+    this.imageSemanticLabelBuilder,
+    this.onSaveImage,
+    this.saveImageLabel = 'Save image',
+    this.onShareImage,
+    this.shareImageLabel = 'Share image',
     this.onLike,
     this.onBookmark,
     this.onFirstMediaFrame,
@@ -76,6 +83,12 @@ class GfTopicCard extends StatefulWidget {
   final int viewCount;
   final int likeCount;
   final VoidCallback? onTap;
+  final VoidCallback? onAuthorTap;
+  final String Function(int index, int count)? imageSemanticLabelBuilder;
+  final Future<void> Function(String imageUrl)? onSaveImage;
+  final String saveImageLabel;
+  final Future<void> Function(String imageUrl)? onShareImage;
+  final String shareImageLabel;
   final Future<bool> Function(bool target)? onLike;
   final Future<bool> Function(bool target)? onBookmark;
   final VoidCallback? onFirstMediaFrame;
@@ -170,6 +183,26 @@ class _GfTopicCardState extends State<GfTopicCard>
     }
   }
 
+  void _openImage(List<String> images, int index) {
+    Navigator.of(context, rootNavigator: true).push(
+      MaterialPageRoute<void>(
+        // The viewer owns its Scaffold and SafeArea; back its translucent
+        // surface with black, matching the Markdown lightbox route.
+        builder: (_) => ColoredBox(
+          color: Colors.black,
+          child: GfImageViewer(
+            images: images,
+            initialIndex: index,
+            onSaveImage: widget.onSaveImage,
+            saveImageLabel: widget.saveImageLabel,
+            onShareImage: widget.onShareImage,
+            shareImageLabel: widget.shareImageLabel,
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final GfColors colors = GfTheme.colorsOf(context);
@@ -191,15 +224,23 @@ class _GfTopicCardState extends State<GfTopicCard>
     final portrait = ratio < 1;
     final singleImage = images.length == 1 && portrait;
 
-    Widget photo(int index, {double? width, double height = 104}) =>
-        _TopicImage(
+    Widget photo(int index, {double? width, double height = 104}) => Semantics(
+      button: true,
+      label:
+          widget.imageSemanticLabelBuilder?.call(index + 1, allImages.length) ??
+          'View image ${index + 1} of ${allImages.length}',
+      child: InkWell(
+        onTap: () => _openImage(allImages, index),
+        child: _TopicImage(
           url: images[index],
           metadata: imageMetadata[images[index]],
           onFirstMediaFrame: widget.onFirstMediaFrame,
           width: width,
           height: height,
           fit: portrait ? BoxFit.cover : BoxFit.contain,
-        );
+        ),
+      ),
+    );
 
     final Widget textContent = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -211,6 +252,7 @@ class _GfTopicCardState extends State<GfTopicCard>
           categories: widget.categories,
           hot: widget.hot,
           pinned: widget.pinned,
+          onAuthorTap: widget.onAuthorTap,
         ),
         const SizedBox(height: 4),
         Row(
@@ -299,7 +341,9 @@ class _GfTopicCardState extends State<GfTopicCard>
                       Positioned(
                         right: 10,
                         bottom: 8,
-                        child: _ImageCount(count: allImages.length),
+                        child: IgnorePointer(
+                          child: _ImageCount(count: allImages.length),
+                        ),
                       ),
                     ],
                   ),
@@ -324,7 +368,9 @@ class _GfTopicCardState extends State<GfTopicCard>
                             Positioned(
                               right: 6,
                               bottom: 6,
-                              child: _ImageCount(count: allImages.length),
+                              child: IgnorePointer(
+                                child: _ImageCount(count: allImages.length),
+                              ),
                             ),
                         ],
                       ),
@@ -347,21 +393,23 @@ class _GfTopicCardState extends State<GfTopicCard>
               value: '${widget.replyCount}',
             ),
             _Metric(
-              icon: Icons.thumb_up_outlined,
-              value: '${widget.likeCount}',
-            ),
-            _Metric(
               icon: Icons.visibility_outlined,
               value: '${widget.viewCount}',
             ),
             if (widget.onLike != null)
               _LikeAction(
+                count: widget.likeCount,
                 liked: _liked,
                 animation: _likeAnimation,
                 activeColor: colors.error,
                 inactiveColor: colors.iconMuted,
                 tooltip: widget.likeTooltip,
                 onPressed: _likeBusy ? null : _toggleLike,
+              )
+            else
+              _Metric(
+                icon: Icons.favorite_border,
+                value: '${widget.likeCount}',
               ),
             if (widget.onBookmark != null)
               _BookmarkAction(
@@ -385,7 +433,21 @@ class _GfTopicCardState extends State<GfTopicCard>
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          GfAvatar(src: widget.authorAvatarUrl, size: 36),
+          Semantics(
+            button: widget.onAuthorTap != null,
+            label: widget.authorName,
+            child: InkWell(
+              onTap: widget.onAuthorTap,
+              borderRadius: BorderRadius.circular(24),
+              child: SizedBox(
+                width: 44,
+                height: 44,
+                child: Center(
+                  child: GfAvatar(src: widget.authorAvatarUrl, size: 36),
+                ),
+              ),
+            ),
+          ),
           const SizedBox(width: 10),
           Expanded(child: textContent),
         ],
@@ -396,6 +458,7 @@ class _GfTopicCardState extends State<GfTopicCard>
 
 class _LikeAction extends StatelessWidget {
   const _LikeAction({
+    required this.count,
     required this.liked,
     required this.animation,
     required this.activeColor,
@@ -405,6 +468,7 @@ class _LikeAction extends StatelessWidget {
   });
 
   final bool liked;
+  final int count;
   final Animation<double> animation;
   final Color activeColor;
   final Color inactiveColor;
@@ -425,42 +489,45 @@ class _LikeAction extends StatelessWidget {
             ? Color.lerp(inactiveColor, activeColor, colorProgress)!
             : inactiveColor;
 
-        return SizedBox(
-          width: 36,
-          height: 36,
-          child: Stack(
-            clipBehavior: Clip.none,
-            alignment: Alignment.center,
+        return IconButton(
+          tooltip: tooltip,
+          onPressed: onPressed,
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+          icon: Row(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              if (liked && progress > 0)
-                Positioned.fill(
-                  child: IgnorePointer(
-                    child: CustomPaint(
-                      painter: _LikeBurstPainter(
-                        progress: progress,
-                        color: activeColor,
+              SizedBox(
+                width: 18,
+                height: 18,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  alignment: Alignment.center,
+                  children: [
+                    if (liked && progress > 0)
+                      Positioned.fill(
+                        child: IgnorePointer(
+                          child: CustomPaint(
+                            painter: _LikeBurstPainter(
+                              progress: progress,
+                              color: activeColor,
+                            ),
+                          ),
+                        ),
+                      ),
+                    Transform.scale(
+                      scale: scale,
+                      child: Icon(
+                        liked ? Icons.favorite : Icons.favorite_border,
+                        size: 18,
+                        color: iconColor,
                       ),
                     ),
-                  ),
-                ),
-              Transform.scale(
-                scale: scale,
-                child: IconButton(
-                  tooltip: tooltip,
-                  onPressed: onPressed,
-                  icon: Icon(
-                    liked ? Icons.favorite : Icons.favorite_border,
-                    size: 18,
-                    color: iconColor,
-                  ),
-                  padding: EdgeInsets.zero,
-                  visualDensity: VisualDensity.compact,
-                  constraints: const BoxConstraints.tightFor(
-                    width: 32,
-                    height: 32,
-                  ),
+                  ],
                 ),
               ),
+              const SizedBox(width: 5),
+              Text('$count', style: TextStyle(color: iconColor, fontSize: 13)),
             ],
           ),
         );
@@ -506,22 +573,21 @@ class _BookmarkAction extends StatelessWidget {
             ? math.sin(animation.value * math.pi) * 0.18
             : 0;
         return SizedBox(
-          width: 36,
-          height: 36,
-          child: Transform.scale(
-            scale: 1 + bounce,
-            child: IconButton(
-              tooltip: tooltip,
-              onPressed: onPressed,
-              icon: Icon(
+          width: 44,
+          height: 44,
+          child: IconButton(
+            tooltip: tooltip,
+            onPressed: onPressed,
+            icon: Transform.scale(
+              scale: 1 + bounce,
+              child: Icon(
                 bookmarked ? Icons.bookmark : Icons.bookmark_border,
                 size: 18,
                 color: bookmarked ? activeColor : inactiveColor,
               ),
-              padding: EdgeInsets.zero,
-              visualDensity: VisualDensity.compact,
-              constraints: const BoxConstraints.tightFor(width: 32, height: 32),
             ),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints.tightFor(width: 44, height: 44),
           ),
         );
       },
@@ -589,6 +655,7 @@ class _AuthorMeta extends StatelessWidget {
     required this.categories,
     required this.hot,
     required this.pinned,
+    this.onAuthorTap,
   });
 
   final String name;
@@ -597,6 +664,7 @@ class _AuthorMeta extends StatelessWidget {
   final List<GfTopicCategory> categories;
   final bool hot;
   final bool pinned;
+  final VoidCallback? onAuthorTap;
 
   @override
   Widget build(BuildContext context) {
@@ -611,14 +679,28 @@ class _AuthorMeta extends StatelessWidget {
               Row(
                 children: <Widget>[
                   Flexible(
-                    child: Text(
-                      name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: colors.baseContent,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
+                    child: InkWell(
+                      onTap: onAuthorTap,
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          minWidth: onAuthorTap == null ? 0 : 44,
+                          minHeight: onAuthorTap == null ? 0 : 44,
+                        ),
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          widthFactor: 1,
+                          heightFactor: 1,
+                          child: Text(
+                            name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: colors.baseContent,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
                       ),
                     ),
                   ),

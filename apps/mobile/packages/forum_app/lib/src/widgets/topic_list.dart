@@ -8,6 +8,7 @@ import '../../l10n/app_localizations.dart';
 import '../format.dart';
 import 'status_views.dart';
 import '../asset_url.dart';
+import '../images/image_save.dart';
 
 enum GfTopicFeedMode { list, card }
 
@@ -187,6 +188,14 @@ Widget _topicCard(
       nickname,
     ),
     authorAvatarUrl: resolveApiAssetUrl(topic.author.avatarUrl),
+    onAuthorTap: topic.author.id > 0
+        ? () => context.push('/u/${topic.author.id}')
+        : null,
+    imageSemanticLabelBuilder: l10n.imageViewPosition,
+    onSaveImage: (url) => saveImageFromUrl(context, url),
+    saveImageLabel: l10n.imageSave,
+    onShareImage: (url) => shareImageFromUrl(context, url),
+    shareImageLabel: l10n.topicShare,
     categories: <GfTopicCategory>[
       for (final CategoryBriefPayload category in topic.categories)
         GfTopicCategory(

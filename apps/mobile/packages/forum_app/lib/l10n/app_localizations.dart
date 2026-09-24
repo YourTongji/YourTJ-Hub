@@ -204,6 +204,12 @@ abstract class AppLocalizations {
   /// **'Save'**
   String get commonSave;
 
+  /// Accessible label for opening an image in the feed gallery.
+  ///
+  /// In en, this message translates to:
+  /// **'View image {index} of {count}'**
+  String imageViewPosition(int index, int count);
+
   /// No description provided for @imageSave.
   ///
   /// In en, this message translates to:

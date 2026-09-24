@@ -65,6 +65,11 @@ class AppLocalizationsDe extends AppLocalizations {
   String get commonSave => 'Speichern';
 
   @override
+  String imageViewPosition(int index, int count) {
+    return 'Bild $index von $count ansehen';
+  }
+
+  @override
   String get imageSave => 'Bild speichern';
 
   @override

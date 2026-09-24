@@ -32,6 +32,11 @@ corresponding planned ownership and lifecycle contracts.
   reviews and post history automatically fetch near the list end. Requests are serialized;
   errors and responses without cursor/item progress retain an explicit retry control instead
   of starting a retry loop. Short pages continue filling the viewport while data advances.
+- `Current`: each visited Home sort retains its own loaded topics, pagination cursor, scroll
+  position, loading and retry state. Switching sorts keeps the filter rail available during
+  loading; late responses update only the sort that requested them. Returning to a visited sort
+  resumes it without refetching. Hidden sorts pause automatic pagination until selected again.
+  Session changes discard all retained feeds.
 - `Current`: topic bodies and replies link only server-resolved mention occurrences to native
   user profiles. The payload carries numeric identities and UTF-16 source ranges; unknown users,
   escaped text, code, existing links and math remain unchanged. Hidden/deleted bodies expose no
@@ -48,7 +53,7 @@ corresponding planned ownership and lifecycle contracts.
   single-HTML payload. A small bell sits in a separate leading column, with title and body aligned
   to the same inset as Web. They grow with their contents and text size; empty announcements take no
   space. Multiple announcements rotate automatically and expose capsule indicators plus previous/
-  next controls when expanded. The banner can collapse to a single-line ticker; the collapsed state
+  next controls when expanded. The banner starts as an expandable single-line ticker; its state
   is shared across the latest, popular and trending tabs. Assistive navigation and reduced motion
   disable automatic rotation. Refresh replaces the active announcement safely.
 - `Current`: feed body text uses 17 logical pixels; Markdown reading and publishing body text use
@@ -76,19 +81,25 @@ corresponding planned ownership and lifecycle contracts.
 - `Current`: Home cards retain both images for two-image topics. A portrait single image sits beside
   the text; a landscape image appears below the text with aspect-preserving fit. Portrait galleries
   show up to three columns; two landscape images share a row; larger landscape galleries overlap
-  up to three previews with a total count. Tapping the feed card opens the topic; the full gallery
-  with zoom is available from inside the topic view.
+  up to three previews with a total count. Tapping the author avatar or name opens the native
+  profile; tapping text opens the topic. Tapping a preview opens the shared lightbox at that image
+  with every topic image available, including images beyond the feed preview limit. Author
+  targets and previews support keyboard activation; previews announce their localized image
+  position, and both author targets have at least 44-by-44 logical-pixel touch areas.
 - `Current`: topic bodies, Markdown and Wiki reading surfaces open the shared image lightbox. It
   supports swipe navigation, pinch and double-tap zoom, actual-size viewing, long-press save and
-  system sharing; feed previews deliberately keep their card navigation and do not open the lightbox.
+  system sharing. Home feed previews use the same lightbox and image actions.
 - `Current`: Home topic cards expose compact authenticated like and bookmark shortcuts beside the
-  reply/view metrics, and the like metric shows the topic's total like count. Actions switch
+  reply/view metrics. A single heart action includes the topic's total like count; both actions
+  retain a minimum 44-by-44 logical-pixel touch target while their icons animate. Actions switch
   their selected icon and the like count immediately (likes adjust the shown total by one)
   before the request resolves; failures restore the previous state and count and show the
   localized error. Home summaries
   batch-load the viewer's like/bookmark state; absent state (anonymous, unavailable or older
   servers) suppresses the shortcuts. Selected states survive offscreen card recycling, and
-  returning from detail refreshes them. In-flight reads cannot overwrite pending or newer successful actions. Likes and bookmarks
+  returning from detail refreshes them. Loaded Home sorts share interaction updates. In-flight
+  reads cannot overwrite pending or newer successful actions or newer state returned from detail.
+  Likes and bookmarks
   settle independently; switching accounts discards all pending interaction state and reloads the feed.
   Metrics and actions wrap at narrow widths and enlarged text sizes.
 - `Current`: simple-content topics show an uncropped, swipeable image gallery above the body. The

@@ -17,6 +17,7 @@
   "navProfile": "マイページ",
   "commonCancel": "キャンセル",
   "commonSave": "保存",
+  "imageViewPosition": "画像 {index} / {count} を表示",
   "imageSave": "画像を保存",
   "imageSaved": "画像を保存しました",
   "imageSaveFailed": "画像を保存できませんでした。後でもう一度お試しください。",

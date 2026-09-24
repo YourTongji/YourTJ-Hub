@@ -17,6 +17,7 @@
   "navProfile": "Mein Profil",
   "commonCancel": "Abbrechen",
   "commonSave": "Speichern",
+  "imageViewPosition": "Bild {index} von {count} ansehen",
   "imageSave": "Bild speichern",
   "imageSaved": "Bild gespeichert",
   "imageSaveFailed": "Bild konnte nicht gespeichert werden. Bitte später erneut versuchen.",

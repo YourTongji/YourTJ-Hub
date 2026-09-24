@@ -17,6 +17,14 @@
   "navProfile": "Me",
   "commonCancel": "Cancel",
   "commonSave": "Save",
+  "imageViewPosition": "View image {index} of {count}",
+  "@imageViewPosition": {
+    "description": "Accessible label for opening an image in the feed gallery.",
+    "placeholders": {
+      "index": {"type": "int"},
+      "count": {"type": "int"}
+    }
+  },
   "imageSave": "Save image",
   "imageSaved": "Image saved",
   "imageSaveFailed": "Couldn’t save the image. Try again later.",
