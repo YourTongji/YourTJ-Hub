@@ -60,6 +60,11 @@ class AppLocalizationsZh extends AppLocalizations {
   String get commonSave => '保存';
 
   @override
+  String imageViewPosition(int index, int count) {
+    return '查看图片 $index / $count';
+  }
+
+  @override
   String get imageSave => '保存图片';
 
   @override
@@ -1195,6 +1200,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get wikiTitle => 'Wiki';
+
+  @override
+  String get wikiLinkOpenFailed => '无法打开链接，请重试。';
 
   @override
   String get wikiRecent => '最近更新';

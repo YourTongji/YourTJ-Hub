@@ -65,6 +65,11 @@ class AppLocalizationsDe extends AppLocalizations {
   String get commonSave => 'Speichern';
 
   @override
+  String imageViewPosition(int index, int count) {
+    return 'Bild $index von $count ansehen';
+  }
+
+  @override
   String get imageSave => 'Bild speichern';
 
   @override
@@ -1222,6 +1227,10 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get wikiTitle => 'Wiki';
+
+  @override
+  String get wikiLinkOpenFailed =>
+      'Der Link konnte nicht geöffnet werden. Bitte versuche es erneut.';
 
   @override
   String get wikiRecent => 'Zuletzt aktualisiert';

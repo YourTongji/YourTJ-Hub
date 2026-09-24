@@ -204,6 +204,12 @@ abstract class AppLocalizations {
   /// **'Save'**
   String get commonSave;
 
+  /// Accessible label for opening an image in the feed gallery.
+  ///
+  /// In en, this message translates to:
+  /// **'View image {index} of {count}'**
+  String imageViewPosition(int index, int count);
+
   /// No description provided for @imageSave.
   ///
   /// In en, this message translates to:
@@ -2303,6 +2309,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Wiki'**
   String get wikiTitle;
+
+  /// No description provided for @wikiLinkOpenFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not open the link. Please try again.'**
+  String get wikiLinkOpenFailed;
 
   /// No description provided for @wikiRecent.
   ///
