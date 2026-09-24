@@ -42,7 +42,7 @@ class _PublishPageRepository extends PageRepository {
   final List<String> paths = <String>[];
 
   @override
-  Future<PagePayload> fetch(String path) async {
+  Future<PagePayload> fetch(String path, {Object? cancelToken}) async {
     paths.add(path);
     if (offline) throw const NetworkException(fallbackMessage: 'offline');
     return payload;

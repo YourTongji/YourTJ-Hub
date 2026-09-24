@@ -53,7 +53,7 @@ class _Pages extends PageRepository {
   }
 
   @override
-  Future<PagePayload> fetch(String path) async =>
+  Future<PagePayload> fetch(String path, {Object? cancelToken}) async =>
       pending == null ? payload() : pending!.future;
 }
 
@@ -97,7 +97,7 @@ class _PagedPages extends _Pages {
   }
 
   @override
-  Future<PagePayload> home({String sort = ''}) async {
+  Future<PagePayload> home({String sort = '', Object? cancelToken}) async {
     homeCalls++;
     if (failHome) throw StateError('home refresh failed');
     if (emptyHomeProps) {
@@ -113,7 +113,7 @@ class _PagedPages extends _Pages {
   }
 
   @override
-  Future<PagePayload> fetch(String path) async {
+  Future<PagePayload> fetch(String path, {Object? cancelToken}) async {
     if (path.endsWith('page=3')) {
       return _topicPage(300, page3LikeCount, hasNext: false, nextUrl: '');
     }
@@ -139,7 +139,7 @@ class _HangingPages extends _PagedPages {
   Completer<void>? gate;
 
   @override
-  Future<PagePayload> fetch(String path) async {
+  Future<PagePayload> fetch(String path, {Object? cancelToken}) async {
     if (path.endsWith('page=2') && gate != null) {
       final waiter = gate!;
       gate = null;
@@ -154,7 +154,7 @@ class _DetailPages extends _Pages {
   bool detailLiked = false;
 
   @override
-  Future<PagePayload> fetch(String path) async {
+  Future<PagePayload> fetch(String path, {Object? cancelToken}) async {
     if (path.startsWith('/p/post/')) {
       final data = topicDetailPayloadJson();
       (data['props']['topic'] as Map<String, dynamic>)['isLiked'] = detailLiked;
@@ -224,7 +224,10 @@ void main() {
           supportedLocales: AppLocalizations.supportedLocales,
           // Isolate return/refresh transitions with explicit pagination;
           // foreground autoload is covered in list_footer/topic_list tests.
-          home: TickerMode(enabled: pages is! _PagedPages, child: const HomePage()),
+          home: TickerMode(
+            enabled: pages is! _PagedPages,
+            child: const HomePage(),
+          ),
         ),
       ),
     );
@@ -624,9 +627,10 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-// 打开详情即记录服务器读取真相:已读、点赞状态与计数。
-    final TopicReturnState? onOpen = container
-        .read(topicReturnStatesProvider)[100];
+    // 打开详情即记录服务器读取真相:已读、点赞状态与计数。
+    final TopicReturnState? onOpen = container.read(
+      topicReturnStatesProvider,
+    )[100];
     expect(onOpen, isNotNull);
     expect(onOpen!.unseen, isFalse);
     expect(onOpen.liked, isFalse);
@@ -641,8 +645,9 @@ void main() {
         .onTap();
     await tester.pumpAndSettle();
 
-    final TopicReturnState? afterLike = container
-        .read(topicReturnStatesProvider)[100];
+    final TopicReturnState? afterLike = container.read(
+      topicReturnStatesProvider,
+    )[100];
     expect(afterLike!.liked, isTrue);
     expect(afterLike.likeCount, 3);
 

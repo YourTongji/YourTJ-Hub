@@ -396,6 +396,10 @@ class _WikiProse extends StatelessWidget {
                 child: Image.network(
                   resolved,
                   fit: BoxFit.contain,
+                  cacheWidth:
+                      (MediaQuery.sizeOf(context).width *
+                              MediaQuery.devicePixelRatioOf(context))
+                          .round(),
                   semanticLabel: alt,
                   errorBuilder: (_, _, _) => Padding(
                     padding: const EdgeInsets.all(24),

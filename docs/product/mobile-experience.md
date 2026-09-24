@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-09-20
+> Last verified: 2026-09-25
 
 The Flutter app combines the forum, course catalog, scheduler and Wiki. Ordinary browsing and
 writing use native pages. Management uses the same first-party workspaces and permission checks as
@@ -162,9 +162,24 @@ corresponding planned ownership and lifecycle contracts.
   and is cleared at the account/session boundary; it is not persisted across app termination. Only one request for
   each bubble can run at once. The API has no message idempotency key, so ambiguous network failures
   cannot guarantee exactly-once delivery when manually retried.
+- `Current`: chat text, including sending, acknowledged and failed outbox bubbles, supports native
+  selection/copy and underlined HTTP(S) links using the shared
+  internal-routing/external-confirmation policy. Inline stickers remain supported; chat text is not
+  interpreted as Markdown or HTML. The selection menu also offers whole-message copy, preserving
+  sticker tokens that partial native text selection omits. The emoji accessory replaces the current
+  selection and leaves the caret after insertion. Replacing the draft with text that has no valid
+  selection resets insertion to the end. Opening it dismisses the software keyboard and keeps focus
+  inside the composer for hardware shortcuts; the keyboard control restores
+  focus. Its bounded scrollable grid has touch-sized controls, localized labels and system-back/Escape
+  dismissal. Mobile return inserts a newline; hardware Ctrl/Cmd+Enter sends. Disabling the composer
+  also disables emoji edits. Platform IME transitions still require physical-device verification.
 - `Partial`: the chat API can acknowledge an explicit set of incoming message IDs and read back
   individual read flags. The Flutter conversation screen still calls the compatible whole-conversation
   read endpoint; visible-viewport measurement and the unread new-message prompt are not yet connected.
+- `Partial`: the server offers an authenticated foreground event stream for chat, notifications and
+  unread-state changes. It sends an immediate resync instruction and bounded, owner-scoped change
+  hints; clients fetch actual content and counts from REST. The Flutter app still uses its existing
+  refresh path until its single foreground connection and reconnect reconciliation are integrated.
 
 ## Language and presentation
 
@@ -396,6 +411,17 @@ corresponding planned ownership and lifecycle contracts.
   edits, and focus reads are throttled to 30 seconds. Clean state has no polling timer.
   Existing cloud snapshots migrate intact on first use; legacy clients receive 410 afterward.
   Account closure erases cloud content and prevents in-flight requests from recreating it.
+- `Current`: the course catalog debounces keyword search and captures filters for each request
+  generation, so late responses and pages cannot replace a newer search. Short lists load the next
+  page automatically while visible. Paging errors keep existing courses and offer explicit retry;
+  duplicate pages stop automatic loading until retried. Pull-to-refresh retains results and shows
+  an inline retry on failure. Department, term and campus pickers search both values and displayed
+  labels, retain selections across search terms, and provide clear-selection controls; teachers
+  remain free-text multi-value filters. Filter options have separate loading/error feedback, and
+  search plus all filters can be reset together. Sheets accommodate the keyboard and large text,
+  with a persistent Done action. Session/site invalidation clears the old catalog, permissions and filters, then loads the new
+  session’s catalog; queued searches and late results cannot cross identities. These interactions use the existing
+  course API and SSR filter options; search service failures remain errors rather than empty results.
 - `Current`: course details retain offering-specific five-star reviews and existing review fields;
   bookmark and write-review actions stay in a bottom dock. Scores share a baseline with their
   five-point denominator. The signed-in user’s own reviews (including anonymous reviews) appear

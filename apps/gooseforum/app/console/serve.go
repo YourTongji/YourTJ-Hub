@@ -35,6 +35,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/nativepushservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/oauthservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/oidcservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/realtimeservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/searchservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/sessionservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/webpushservice"
@@ -384,6 +385,9 @@ func (r *serveRuntime) wait() error {
 	// 错误吞成 nil 导致进程以 0 退出。启动 goroutine 内先 setFatal 再发信号，
 	// 屏障等待只有微秒级；外部信号撞上超长迁移时关停会等迁移结束（更安全）。
 	<-r.startupDone
+	// Active SSE handlers would otherwise consume the entire five-second
+	// graceful-shutdown window while waiting for their next heartbeat.
+	realtimeservice.DefaultHub.CloseAll()
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer shutdownCancel()
 	if err := r.server.Shutdown(shutdownCtx); err != nil {

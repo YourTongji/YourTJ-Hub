@@ -2,6 +2,8 @@ import '../../gen/layout.dart';
 import '../../gen/notification.dart';
 import '../gf_api_client.dart';
 
+import 'package:dio/dio.dart';
+
 /// 通知与未读状态接口。
 class NotificationRepository {
   NotificationRepository(this._client);
@@ -13,11 +15,14 @@ class NotificationRepository {
     String filter = 'all',
     int cursor = 0,
     int limit = 20,
+    CancelToken? cancelToken,
   }) {
     return _client.get<NotificationListResponse>(
       '/api/forum/notifications',
+      cancelToken: cancelToken,
       queryParameters: {'filter': filter, 'cursor': cursor, 'limit': limit},
-      parser: (json) => NotificationListResponse.fromJson(json as Map<String, dynamic>),
+      parser: (json) =>
+          NotificationListResponse.fromJson(json as Map<String, dynamic>),
     );
   }
 
@@ -35,10 +40,12 @@ class NotificationRepository {
   }
 
   /// 未读状态(通知/私信/待审核)。
-  Future<UnreadStatusPayload> getUnreadStatus() {
+  Future<UnreadStatusPayload> getUnreadStatus({CancelToken? cancelToken}) {
     return _client.get<UnreadStatusPayload>(
       '/api/forum/unread-status',
-      parser: (json) => UnreadStatusPayload.fromJson(json as Map<String, dynamic>),
+      cancelToken: cancelToken,
+      parser: (json) =>
+          UnreadStatusPayload.fromJson(json as Map<String, dynamic>),
     );
   }
 }

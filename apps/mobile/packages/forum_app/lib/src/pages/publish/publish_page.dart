@@ -2059,6 +2059,12 @@ class _PublishPageState extends ConsumerState<PublishPage>
                               child: Image.network(
                                 resolveApiAssetUrl(_images[index]),
                                 fit: BoxFit.contain,
+                                cacheWidth:
+                                    (256 *
+                                            MediaQuery.devicePixelRatioOf(
+                                              context,
+                                            ))
+                                        .round(),
                                 errorBuilder: (_, _, _) =>
                                     const Icon(Icons.broken_image_outlined),
                               ),
@@ -2087,6 +2093,10 @@ class _PublishPageState extends ConsumerState<PublishPage>
                         Image.network(
                           resolveApiAssetUrl(url),
                           fit: BoxFit.contain,
+                          cacheWidth:
+                              (MediaQuery.sizeOf(context).width *
+                                      MediaQuery.devicePixelRatioOf(context))
+                                  .round(),
                           errorBuilder: (_, _, _) =>
                               const Icon(Icons.broken_image_outlined),
                         ),
@@ -2256,6 +2266,10 @@ class _ComposerImageBuilder extends EmbedBuilder {
     final Widget image = Image.network(
       resolveApiAssetUrl(embedContext.node.value.data.toString()),
       fit: BoxFit.contain,
+      cacheWidth:
+          (MediaQuery.sizeOf(context).width *
+                  MediaQuery.devicePixelRatioOf(context))
+              .round(),
       errorBuilder: (_, _, _) => const Icon(Icons.broken_image_outlined),
     );
     return LongPressDraggable<ComposerImageDragPayload>(

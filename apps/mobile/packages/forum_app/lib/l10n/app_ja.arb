@@ -155,6 +155,9 @@
   "messagesNoMessagesYet": "まだメッセージはありません",
   "messagesEmptyDetail": "まだメッセージはありません。挨拶してみましょう！",
   "messagesInputHint": "メッセージを入力…",
+  "messagesEmoji": "絵文字",
+  "messagesKeyboard": "キーボード",
+  "messagesCopyAll": "メッセージ全体をコピー",
   "messagesSendFailed": "送信できませんでした：{error}",
   "notificationsTitle": "通知",
   "notificationsEmpty": "通知はありません",
@@ -916,6 +919,12 @@
       }
     }
   },
+  "coursesFilterSearchHint": "絞り込み項目を検索",
+  "coursesFilterNoMatches": "一致する絞り込み項目がありません",
+  "coursesClearSelection": "選択を解除",
+  "coursesResetSearch": "検索と絞り込みをリセット",
+  "coursesFilterLoadFailed": "絞り込み項目を読み込めませんでした。",
+  "coursesPaginationStalled": "追加のコースを取得できませんでした。もう一度お試しください。",
   "draftCollapse": "折りたたむ",
   "draftKindNew": "新しいトピック",
   "draftKindServer": "クラウド下書きの復元用コピー",

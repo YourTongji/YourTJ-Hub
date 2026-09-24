@@ -16,6 +16,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pushDevice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pushSubscription"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/realtimeservice"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
@@ -221,12 +222,20 @@ func TestNotificationMarkReadHTTPContract(t *testing.T) {
 		notificationID := contractTestID()
 		createContractNotification(t, conn, notificationID, user.Id, eventNotification.EventTypePostReply, false,
 			eventNotification.NotificationPayload{Title: "契约待读通知", ActorId: user.Id}, time.Now())
+		stream, err := realtimeservice.DefaultHub.Subscribe(user.Id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer stream.Close()
 		body := fmt.Sprintf(`{"notificationId":%d}`, notificationID)
 		recorder := serveJSON(router, "/api/forum/notification/mark-read", body, contractSessionToken(t, user))
 		if recorder.Code != http.StatusOK {
 			t.Fatalf("mark read status = %d, want 200: %s", recorder.Code, recorder.Body.String())
 		}
 		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "notification-mark-read-success.json"))
+		if event := <-stream.Events(); event.Type != realtimeservice.EventNotificationsChanged || event.Change != "read" {
+			t.Fatalf("read event = %+v", event)
+		}
 	})
 
 	t.Run("missing session returns 401", func(t *testing.T) {
@@ -246,11 +255,19 @@ func TestNotificationMarkAllReadHTTPContract(t *testing.T) {
 		user := createHTTPContractUser(t, conn, contractTestID())
 		createContractNotification(t, conn, contractTestID(), user.Id, eventNotification.EventTypePostReply, false,
 			eventNotification.NotificationPayload{Title: "契约待读通知", ActorId: user.Id}, time.Now())
+		stream, err := realtimeservice.DefaultHub.Subscribe(user.Id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer stream.Close()
 		recorder := serveJSON(router, "/api/forum/notification/mark-all-read", `{}`, contractSessionToken(t, user))
 		if recorder.Code != http.StatusOK {
 			t.Fatalf("mark all read status = %d, want 200: %s", recorder.Code, recorder.Body.String())
 		}
 		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "notification-mark-all-read-success.json"))
+		if event := <-stream.Events(); event.Type != realtimeservice.EventNotificationsChanged || event.Change != "read-all" {
+			t.Fatalf("read-all event = %+v", event)
+		}
 	})
 
 	t.Run("missing session returns 401", func(t *testing.T) {

@@ -485,6 +485,15 @@ class AppLocalizationsJa extends AppLocalizations {
   String get messagesInputHint => 'メッセージを入力…';
 
   @override
+  String get messagesEmoji => '絵文字';
+
+  @override
+  String get messagesKeyboard => 'キーボード';
+
+  @override
+  String get messagesCopyAll => 'メッセージ全体をコピー';
+
+  @override
   String messagesSendFailed(String error) {
     return '送信できませんでした：$error';
   }
@@ -2529,6 +2538,24 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get scheduleGridScrollHint => '左右にスワイプして週全体を表示';
+
+  @override
+  String get coursesFilterSearchHint => '絞り込み項目を検索';
+
+  @override
+  String get coursesFilterNoMatches => '一致する絞り込み項目がありません';
+
+  @override
+  String get coursesClearSelection => '選択を解除';
+
+  @override
+  String get coursesResetSearch => '検索と絞り込みをリセット';
+
+  @override
+  String get coursesFilterLoadFailed => '絞り込み項目を読み込めませんでした。';
+
+  @override
+  String get coursesPaginationStalled => '追加のコースを取得できませんでした。もう一度お試しください。';
 
   @override
   String get draftCollapse => '折りたたむ';

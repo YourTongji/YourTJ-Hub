@@ -8,6 +8,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topicUserAction"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/nativepushservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/permission"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/realtimeservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/unreadservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/userservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/webpushservice"
@@ -85,6 +86,7 @@ func notifyWatchers(topicId uint64, pagePath string, title string, editorId uint
 						continue
 					}
 					unreadservice.Invalidate(notification.UserId)
+					realtimeservice.PublishNotificationsChanged(notification.UserId, "created")
 					webpushservice.EnqueueNotification(notification.UserId, notification.Id)
 					nativepushservice.EnqueueNotification(notification.UserId, notification.Id)
 				}

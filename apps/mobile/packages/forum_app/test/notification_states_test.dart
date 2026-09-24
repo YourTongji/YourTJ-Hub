@@ -28,7 +28,7 @@ GfApiClient _client() => GfApiClient(dio: Dio(), tokenStorage: _Tokens());
 class _Pages extends PageRepository {
   _Pages() : super(_client());
   @override
-  Future<PagePayload> fetch(String path) async =>
+  Future<PagePayload> fetch(String path, {CancelToken? cancelToken}) async =>
       parsePayload(homePayloadJson());
 }
 
@@ -42,6 +42,7 @@ class _Notifications extends NotificationRepository {
     String filter = 'all',
     int cursor = 0,
     int limit = 20,
+    CancelToken? cancelToken,
   }) {
     final result = Completer<NotificationListResponse>();
     requests.add((filter, cursor, result));
