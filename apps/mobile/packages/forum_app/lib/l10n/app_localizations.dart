@@ -4943,6 +4943,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Text and uploaded photos saved on this device'**
   String get publishMediaSavedPartial;
+
+  /// Accessible label for opening an image in the feed gallery.
+  ///
+  /// In en, this message translates to:
+  /// **'View image {index} of {count}'**
+  String imageViewPosition(int index, int count);
+
+  /// No description provided for @wikiLinkOpenFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not open the link. Please try again.'**
+  String get wikiLinkOpenFailed;
+
+  /// No description provided for @messagesNewMessages.
+  ///
+  /// In en, this message translates to:
+  /// **'New messages · Jump to latest'**
+  String get messagesNewMessages;
+
+  /// No description provided for @messagesReadSyncFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Read status could not sync. Unread messages are preserved.'**
+  String get messagesReadSyncFailed;
+
+  /// No description provided for @messagesReadUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'This server does not support individual read receipts. Unread messages are preserved.'**
+  String get messagesReadUnavailable;
 }
 
 class _AppLocalizationsDelegate

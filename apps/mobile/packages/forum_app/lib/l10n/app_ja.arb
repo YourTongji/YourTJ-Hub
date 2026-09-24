@@ -937,5 +937,10 @@
   "publishMediaTemporary": "待機中の写真は今回の編集中のみ保持されます。アプリを閉じた場合は再選択してください。",
   "publishMediaUploading": "アップロード中",
   "publishMediaWaiting": "前の写真を待機中",
-  "publishMediaSavedPartial": "文章とアップロード済みの写真を端末に保存しました"
+  "publishMediaSavedPartial": "文章とアップロード済みの写真を端末に保存しました",
+  "imageViewPosition": "画像 {index} / {count} を表示",
+  "wikiLinkOpenFailed": "リンクを開けませんでした。もう一度お試しください。",
+  "messagesNewMessages": "新着メッセージ・最新へ",
+  "messagesReadSyncFailed": "既読状態を同期できませんでした。未読は保持されます。",
+  "messagesReadUnavailable": "このサーバーは個別の既読通知に対応していません。未読は保持されます。"
 }

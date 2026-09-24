@@ -2573,4 +2573,21 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get publishMediaSavedPartial => '文字和已上传图片已保存到本机';
+
+  @override
+  String imageViewPosition(int index, int count) {
+    return '查看图片 $index / $count';
+  }
+
+  @override
+  String get wikiLinkOpenFailed => '无法打开链接，请重试。';
+
+  @override
+  String get messagesNewMessages => '有新消息，回到底部';
+
+  @override
+  String get messagesReadSyncFailed => '已读状态未同步；你的未读消息会保留。';
+
+  @override
+  String get messagesReadUnavailable => '服务器暂不支持逐条已读；未读消息会保留。';
 }

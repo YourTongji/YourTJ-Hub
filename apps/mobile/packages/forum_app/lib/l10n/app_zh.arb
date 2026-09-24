@@ -1267,5 +1267,10 @@
   "publishMediaTemporary": "待上传图片只在本次编辑中保留，应用关闭后需重新选择。",
   "publishMediaUploading": "正在上传",
   "publishMediaWaiting": "等待前一张图片",
-  "publishMediaSavedPartial": "文字和已上传图片已保存到本机"
+  "publishMediaSavedPartial": "文字和已上传图片已保存到本机",
+  "imageViewPosition": "查看图片 {index} / {count}",
+  "wikiLinkOpenFailed": "无法打开链接，请重试。",
+  "messagesNewMessages": "有新消息，回到底部",
+  "messagesReadSyncFailed": "已读状态未同步；你的未读消息会保留。",
+  "messagesReadUnavailable": "服务器暂不支持逐条已读；未读消息会保留。"
 }
