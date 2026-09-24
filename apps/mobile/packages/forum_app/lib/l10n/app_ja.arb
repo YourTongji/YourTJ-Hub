@@ -17,6 +17,7 @@
   "navProfile": "マイページ",
   "commonCancel": "キャンセル",
   "commonSave": "保存",
+  "imageViewPosition": "画像 {index} / {count} を表示",
   "imageSave": "画像を保存",
   "imageSaved": "画像を保存しました",
   "imageSaveFailed": "画像を保存できませんでした。後でもう一度お試しください。",
@@ -391,6 +392,7 @@
   "reviewHelpful": "参考になった",
   "reviewsEmpty": "まだ評価はありません",
   "wikiTitle": "Wiki",
+  "wikiLinkOpenFailed": "リンクを開けませんでした。もう一度お試しください。",
   "wikiRecent": "最近の更新",
   "wikiEditOnGithub": "GitHubで編集",
   "wikiToc": "目次",
@@ -925,6 +927,9 @@
   "coursesResetSearch": "検索と絞り込みをリセット",
   "coursesFilterLoadFailed": "絞り込み項目を読み込めませんでした。",
   "coursesPaginationStalled": "追加のコースを取得できませんでした。もう一度お試しください。",
+  "messagesNewMessages": "新着メッセージ・最新へ",
+  "messagesReadSyncFailed": "既読状態を同期できませんでした。未読は保持されます。",
+  "messagesReadUnavailable": "このサーバーは個別の既読通知に対応していません。未読は保持されます。",
   "draftCollapse": "折りたたむ",
   "draftKindNew": "新しいトピック",
   "draftKindServer": "クラウド下書きの復元用コピー",
@@ -937,10 +942,5 @@
   "publishMediaTemporary": "待機中の写真は今回の編集中のみ保持されます。アプリを閉じた場合は再選択してください。",
   "publishMediaUploading": "アップロード中",
   "publishMediaWaiting": "前の写真を待機中",
-  "publishMediaSavedPartial": "文章とアップロード済みの写真を端末に保存しました",
-  "imageViewPosition": "画像 {index} / {count} を表示",
-  "wikiLinkOpenFailed": "リンクを開けませんでした。もう一度お試しください。",
-  "messagesNewMessages": "新着メッセージ・最新へ",
-  "messagesReadSyncFailed": "既読状態を同期できませんでした。未読は保持されます。",
-  "messagesReadUnavailable": "このサーバーは個別の既読通知に対応していません。未読は保持されます。"
+  "publishMediaSavedPartial": "文章とアップロード済みの写真を端末に保存しました"
 }
