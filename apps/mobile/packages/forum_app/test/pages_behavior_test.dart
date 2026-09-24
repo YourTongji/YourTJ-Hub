@@ -1700,7 +1700,7 @@ void main() {
       final path = switch (stream) {
         'bookmarks' => '/u/1/bookmarks',
         'invalid' => '/u/1/activity',
-        _ => '/u/1/activity/$stream',
+        _ => '/u/1/$stream',
       };
       expect(repo.paths, contains(path));
       final label = switch (stream) {
@@ -3195,6 +3195,17 @@ void main() {
       expect(find.text('聚合帖子结果'), findsOneWidget);
       expect(find.text('Bob'), findsOneWidget);
       expect(find.text('@bob'), findsOneWidget);
+      // Results are built per row; reveal the later category section first.
+      await tester.scrollUntilVisible(
+        find.text('开发'),
+        200,
+        scrollable: find
+            .descendant(
+              of: find.byType(ListView),
+              matching: find.byType(Scrollable),
+            )
+            .first,
+      );
       expect(find.text('开发'), findsOneWidget);
 
       await tester.tap(find.text('用户').first);
@@ -4554,6 +4565,12 @@ void main() {
             ),
           ),
           GoRoute(
+            path: '/u/:id/following',
+            builder: (_, state) => ProfilePage.connections(
+              userId: int.parse(state.pathParameters['id']!),
+            ),
+          ),
+          GoRoute(
             path: '/u/:id',
             builder: (BuildContext context, GoRouterState state) {
               final int id = int.parse(state.pathParameters['id']!);
@@ -4612,7 +4629,12 @@ void main() {
 
       router.pop();
       await tester.pumpAndSettle();
-      await tester.tap(find.byTooltip('关注'));
+      await tester.ensureVisible(
+        find.descendant(of: find.byType(GfUserCard), matching: find.text('关注')),
+      );
+      await tester.tap(
+        find.descendant(of: find.byType(GfUserCard), matching: find.text('关注')),
+      );
       await tester.pumpAndSettle();
       expect(find.text('Bob'), findsOneWidget);
       await tester.tap(find.text('Bob'));
