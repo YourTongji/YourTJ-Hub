@@ -113,10 +113,11 @@ per conversation and indicated in the conversation list.
 
 ## Campus, courses and local storage
 
-`Planned`: name, calendar and official timetable use a private device snapshot, with last successful
+`Decision needed`: the proposed device snapshot for name, calendar and official timetable shows the last successful
 update time and manual refresh. Revisiting Campus or advancing its local clock does not repeatedly
 request school data. Identity changes invalidate the snapshot; offline display explicitly identifies
-the account and snapshot age. The lifecycle and data boundaries belong in the
+the account and snapshot age. These persistence requirements remain provisional until the replacement
+retention decision is accepted. The lifecycle, decision status and data boundaries belong in the
 [state and cache model](../architecture/mobile-state-and-cache.md), not in generic HTTP caching.
 
 Course results support clear query/filter semantics, searchable long option lists, preserved filter
