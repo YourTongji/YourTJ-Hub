@@ -2581,6 +2581,28 @@ class AppLocalizationsJa extends AppLocalizations {
   String get messagesReadUnavailable => 'このサーバーは個別の既読通知に対応していません。未読は保持されます。';
 
   @override
+  String get draftCollapse => '折りたたむ';
+
+  @override
+  String get draftKindNew => '新しいトピック';
+
+  @override
+  String get draftKindServer => 'クラウド下書きの復元用コピー';
+
+  @override
+  String get draftKindEdit => 'トピックの編集';
+
+  @override
+  String get draftKindReply => '返信';
+
+  @override
+  String get draftLocalEmpty => '書きかけの内容はこの端末に保存され、ここに表示されます。';
+
+  @override
+  String get draftReplyLeaveUnsaved =>
+      '返信の最新の変更を保存できませんでした。編集を続けて再試行するか、この変更を破棄して離れます。保存済みの端末コピーは保持されます。';
+
+  @override
   String get messagesDraftLabel => '下書き';
 
   @override

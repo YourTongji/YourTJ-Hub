@@ -1,3 +1,8 @@
+import 'dart:async';
+import 'dart:convert';
+import 'package:forum_app/src/providers.dart';
+import 'package:forum_app/src/campus_widget/schedule_widget_bridge.dart';
+import 'pages_smoke_test.dart' show NoopOfflineCache;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shared_preferences_platform_interface/shared_preferences_platform_interface.dart';
@@ -26,6 +31,24 @@ class _ExistenceAccurateStore extends SharedPreferencesStorePlatform {
 
   @override
   Future<Map<String, Object>> getAll() async => Map<String, Object>.from(_data);
+}
+
+class _DelayedStore extends _ExistenceAccurateStore {
+  final pending = Completer<void>();
+  bool first = true;
+  @override
+  Future<bool> setValue(String valueType, String key, Object value) async {
+    if (first) {
+      first = false;
+      await pending.future;
+    }
+    return super.setValue(valueType, key, value);
+  }
+}
+
+class _FailingRemovalStore extends _ExistenceAccurateStore {
+  @override
+  Future<bool> remove(String key) async => false;
 }
 
 void main() {
@@ -63,6 +86,89 @@ void main() {
       );
     },
   );
+  test('legacy v1 slots survive and new identities do not collide', () async {
+    final scope = writingScope('https://forum.test', 1);
+    final legacy = draft.toJson()
+      ..remove('version')
+      ..remove('kind')
+      ..remove('replyToPostId')
+      ..remove('replyTargetName')
+      ..remove('replyMentionPrefix');
+    SharedPreferences.setMockInitialValues({
+      'yourtj:writing:v1:$scope:draft:new-3': jsonEncode(legacy),
+    });
+    final loaded = (await WritingStore().drafts(scope)).single;
+    expect(loaded.key, 'new-3');
+    expect(loaded.kind, DraftKind.newTopic);
+    expect(loaded.content, draft.content);
+    final keys = List.generate(50, (_) => newTopicDraftKey()).toSet();
+    expect(keys, hasLength(50));
+    expect(keys, isNot(contains('new-3')));
+    expect({
+      topicDraftKey(42, published: true),
+      topicDraftKey(42, published: false),
+      replyDraftKey(42),
+    }, hasLength(3));
+  });
+
+  test(
+    'a queued mutation is rejected after its account session changes',
+    () async {
+      final platform = _DelayedStore();
+      SharedPreferencesStorePlatform.instance = platform;
+      SharedPreferences.resetStatic();
+      final store = WritingStore();
+      final first = store.save('site:1', draft);
+      var current = true;
+      final stale = store.save('site:2', draft, isCurrent: () => current);
+      final rejected = expectLater(stale, throwsStateError);
+      current = false;
+      platform.pending.complete();
+      await first;
+      await rejected;
+      expect(await store.drafts('site:2'), isEmpty);
+      expect(await store.drafts('site:1'), hasLength(1));
+    },
+  );
+
+  test('cache clearing preserves account-scoped writing', () async {
+    final store = WritingStore();
+    await store.save('site:1', draft);
+    await clearOfflineCache(
+      NoopOfflineCache(),
+      NoopOfflineCache(),
+      ScheduleWidgetBridge(),
+    );
+    expect((await store.drafts('site:1')).single.content, draft.content);
+  });
+
+  test('a failed deletion of an existing recovery copy is reported', () async {
+    SharedPreferencesStorePlatform.instance = _FailingRemovalStore();
+    SharedPreferences.resetStatic();
+    final store = WritingStore();
+    await store.save('site:1', draft);
+    await expectLater(store.delete('site:1', draft.key), throwsStateError);
+  });
+
+  test('a contextual reply title alone does not create a draft', () async {
+    final store = WritingStore();
+    await store.save(
+      'site:1',
+      const LocalDraft(
+        key: 'reply-100',
+        kind: DraftKind.reply,
+        title: 'Topic context',
+        content: '',
+        contentType: 2,
+        topicId: 100,
+        categories: [],
+        images: [],
+        updatedAt: 1,
+      ),
+    );
+    expect(await store.drafts('site:1'), isEmpty);
+  });
+
   test('successful delete runs after pending save', () async {
     final store = WritingStore();
     final saving = store.save('site:1', draft);

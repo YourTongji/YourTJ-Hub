@@ -51,9 +51,13 @@ class _PublishPageRepository extends PageRepository {
 class _FailingWritingStore extends WritingStore {
   bool fail = true;
   @override
-  Future<void> save(String scope, LocalDraft draft) async {
+  Future<void> save(
+    String scope,
+    LocalDraft draft, {
+    bool Function()? isCurrent,
+  }) async {
     if (fail) throw StateError('disk unavailable');
-    await super.save(scope, draft);
+    await super.save(scope, draft, isCurrent: isCurrent);
   }
 }
 
@@ -147,6 +151,7 @@ class _CaptchaAuthRepository extends AuthRepository {
 PagePayload _publishPayload({
   required bool editing,
   int contentType = 0,
+  int? topicStatus,
   List<int>? categoryIds,
   String? content,
   bool viewerAuthenticated = true,
@@ -166,7 +171,7 @@ PagePayload _publishPayload({
         'title': editing ? '原始标题' : '',
         'content': editing ? (content ?? '## 预览标题\n\n**正文内容**') : '',
         'categoryIds': categoryIds ?? (editing ? <int>[2] : null),
-        'topicStatus': editing ? 1 : 0,
+        'topicStatus': topicStatus ?? (editing ? 1 : 0),
         'contentType': contentType,
       },
     },
@@ -220,7 +225,9 @@ void main() {
     WidgetTester tester, {
     required bool editing,
     String editQueryKey = 'topicId',
+    String? localDraftKey,
     int contentType = 0,
+    int? topicStatus,
     List<int>? categoryIds,
     Locale locale = const Locale('zh'),
     String? content,
@@ -243,6 +250,7 @@ void main() {
       _publishPayload(
         editing: editing,
         contentType: contentType,
+        topicStatus: topicStatus,
         categoryIds: categoryIds,
         content: content,
         viewerAuthenticated: viewerAuthenticated,
@@ -266,6 +274,7 @@ void main() {
           path: '/publish',
           builder: (BuildContext context, GoRouterState state) => PublishPage(
             topicId: publishTopicIdFromUri(state.uri),
+            localDraftKey: localDraftKey,
             initialContentType: contentType == 0 ? 3 : contentType,
             markdownConverter: markdownConverter,
           ),
@@ -314,6 +323,131 @@ void main() {
     );
   }
 
+  for (final published in [true, false]) {
+    testWidgets(
+      'editing uses a distinct ${published ? 'published topic' : 'server draft'} identity',
+      (tester) async {
+        await pumpPublishPage(
+          tester,
+          editing: true,
+          topicStatus: published ? 1 : 0,
+        );
+        await tester.enterText(find.byType(TextField).first, '本机修改');
+        await tester.pump(const Duration(milliseconds: 800));
+        await tester.pumpAndSettle();
+        final draft = (await WritingStore().drafts(
+          writingScope('http://fake.local', 1),
+        )).single;
+        expect(draft.key, published ? 'topic-edit-42' : 'server-draft-42');
+        expect(
+          draft.kind,
+          published ? DraftKind.topicEdit : DraftKind.serverDraft,
+        );
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pump(const Duration(milliseconds: 600));
+      },
+    );
+  }
+
+  testWidgets('offline recovery preserves the server-draft identity', (
+    tester,
+  ) async {
+    final scope = writingScope('http://fake.local', 1);
+    await WritingStore().save(
+      scope,
+      const LocalDraft(
+        key: 'server-draft-42',
+        kind: DraftKind.serverDraft,
+        title: '离线草稿',
+        content: '草稿正文',
+        contentType: 3,
+        topicId: 42,
+        categories: [],
+        images: [],
+        updatedAt: 1,
+      ),
+    );
+    await pumpPublishPage(
+      tester,
+      editing: true,
+      offline: true,
+      localDraftKey: 'server-draft-42',
+    );
+    await tester.enterText(find.byType(TextField).first, '离线继续修改');
+    await tester.pump(const Duration(milliseconds: 800));
+    await tester.pumpAndSettle();
+    final draft = (await WritingStore().drafts(scope)).single;
+    expect(draft.kind, DraftKind.serverDraft);
+    expect(draft.key, 'server-draft-42');
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
+  });
+
+  testWidgets('cloud draft URL finds its modern recovery copy while offline', (
+    tester,
+  ) async {
+    final scope = writingScope('http://fake.local', 1);
+    await WritingStore().save(
+      scope,
+      const LocalDraft(
+        key: 'server-draft-42',
+        kind: DraftKind.serverDraft,
+        title: '离线草稿',
+        content: '草稿正文',
+        contentType: 3,
+        topicId: 42,
+        categories: [],
+        images: [],
+        updatedAt: 1,
+      ),
+    );
+    await pumpPublishPage(tester, editing: true, offline: true);
+    expect(find.byType(TextField), findsWidgets);
+    await tester.enterText(find.byType(TextField).first, '离线继续修改');
+    await tester.pump(const Duration(milliseconds: 800));
+    await tester.pumpAndSettle();
+    final draft = (await WritingStore().drafts(scope)).single;
+    expect(draft.kind, DraftKind.serverDraft);
+    expect(draft.key, 'server-draft-42');
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
+  });
+
+  testWidgets('new topics keep independent recovery drafts', (tester) async {
+    await pumpPublishPage(tester, editing: false, contentType: 3);
+    tester
+        .widget<QuillEditor>(find.byType(QuillEditor))
+        .controller
+        .replaceText(0, 0, '第一篇', const TextSelection.collapsed(offset: 3));
+    await tester.pump(const Duration(milliseconds: 800));
+    await tester.pumpAndSettle();
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
+    await tester.pumpAndSettle();
+    await pumpPublishPage(tester, editing: false, contentType: 3);
+    final editor = tester.widget<QuillEditor>(find.byType(QuillEditor));
+    expect(editor.controller.document.toPlainText().trim(), isEmpty);
+    editor.controller.replaceText(
+      0,
+      0,
+      '第二篇',
+      const TextSelection.collapsed(offset: 3),
+    );
+    await tester.pump(const Duration(milliseconds: 800));
+    await tester.pumpAndSettle();
+    final drafts = await WritingStore().drafts(
+      writingScope('http://fake.local', 1),
+    );
+    expect(
+      drafts.map((d) => d.content.trim()),
+      unorderedEquals(['第一篇', '第二篇']),
+    );
+    expect(drafts.map((d) => d.key).toSet(), hasLength(2));
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
+    await tester.pumpAndSettle();
+  });
+
   testWidgets(
     'unfinished article autosaves locally and restores after reopening',
     (tester) async {
@@ -335,7 +469,12 @@ void main() {
       expect(saved.content.trim(), '只写到这里');
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pumpAndSettle();
-      await pumpPublishPage(tester, editing: false, contentType: 3);
+      await pumpPublishPage(
+        tester,
+        editing: false,
+        contentType: 3,
+        localDraftKey: saved.key,
+      );
       expect(
         tester
             .widget<QuillEditor>(find.byType(QuillEditor))
@@ -392,7 +531,12 @@ void main() {
         updatedAt: 1,
       ),
     );
-    await pumpPublishPage(tester, editing: false, offline: true);
+    await pumpPublishPage(
+      tester,
+      editing: false,
+      offline: true,
+      localDraftKey: 'new-3',
+    );
     expect(find.text('A 私有草稿'), findsWidgets);
     expect(
       tester
@@ -406,7 +550,13 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 600));
     await tester.pumpAndSettle();
-    await pumpPublishPage(tester, editing: false, userId: 2, offline: true);
+    await pumpPublishPage(
+      tester,
+      editing: false,
+      userId: 2,
+      offline: true,
+      localDraftKey: 'new-3',
+    );
     expect(find.text('A 私有草稿'), findsNothing);
     expect(find.byType(QuillEditor), findsNothing);
     await tester.pumpWidget(const SizedBox.shrink());
