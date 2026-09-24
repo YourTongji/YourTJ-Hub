@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:ui' show SemanticsAction, Tristate;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:forum_app/src/local/writing_store.dart';
 import 'package:forum_app/src/current_user.dart';
@@ -626,6 +627,220 @@ void main() {
       await tester.pump(const Duration(milliseconds: 600));
     },
   );
+  testWidgets('article input nodes survive toolbar and autosave rebuilds', (
+    tester,
+  ) async {
+    await pumpPublishPage(tester, editing: false, contentType: 3);
+    final original = tester.widget<QuillEditor>(find.byType(QuillEditor));
+    original.controller.replaceText(
+      0,
+      0,
+      'Keep editing',
+      const TextSelection.collapsed(offset: 5),
+    );
+    original.focusNode.requestFocus();
+    await tester.pump();
+    await tester.tap(find.text('文字格式'));
+    await tester.pumpAndSettle();
+    final expanded = tester.widget<QuillEditor>(find.byType(QuillEditor));
+    expect(identical(expanded.focusNode, original.focusNode), isTrue);
+    expect(
+      identical(expanded.scrollController, original.scrollController),
+      isTrue,
+    );
+    expect(expanded.focusNode.hasFocus, isTrue);
+    await tester.pump(const Duration(milliseconds: 800));
+    await tester.pumpAndSettle();
+    expect(
+      tester.widget<QuillEditor>(find.byType(QuillEditor)).focusNode.hasFocus,
+      isTrue,
+    );
+    expect(original.controller.document.toPlainText(), 'Keep editing\n');
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 800));
+  });
+
+  testWidgets(
+    'article preview return restores the active body selection and focus',
+    (tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await pumpPublishPage(tester, editing: false, contentType: 3);
+      final original = tester.widget<QuillEditor>(find.byType(QuillEditor));
+      original.controller.replaceText(
+        0,
+        0,
+        'Selected words',
+        const TextSelection(baseOffset: 0, extentOffset: 8),
+      );
+      original.focusNode.requestFocus();
+      await tester.pumpAndSettle();
+      final selection = original.controller.selection;
+      final before = original.controller.document.toDelta();
+      await tester.tap(find.byKey(const Key('publish-appbar-submit')));
+      await tester.pumpAndSettle();
+      expect(find.byType(QuillEditor), findsNothing);
+      await tester.tap(find.byTooltip('返回'));
+      await tester.pumpAndSettle();
+      final restored = tester.widget<QuillEditor>(find.byType(QuillEditor));
+      expect(restored.focusNode.hasFocus, isTrue);
+      expect(restored.controller.selection, selection);
+      expect(restored.controller.document.toDelta(), before);
+      expect(identical(restored.controller, original.controller), isTrue);
+      expect(restored.controller.hasUndo, isTrue);
+      restored.controller.undo();
+      expect(restored.controller.document.toPlainText(), '\n');
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(const Duration(milliseconds: 800));
+    },
+  );
+
+  testWidgets(
+    'article preview restores reading position without opening keyboard',
+    (tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await pumpPublishPage(
+        tester,
+        editing: true,
+        contentType: 3,
+        content: List.generate(50, (index) => 'Paragraph $index').join('\n\n'),
+      );
+      final editor = tester.widget<QuillEditor>(find.byType(QuillEditor));
+      final scroll = tester
+          .widget<SingleChildScrollView>(
+            find
+                .ancestor(
+                  of: find.byKey(const Key('publish-editor')),
+                  matching: find.byType(SingleChildScrollView),
+                )
+                .first,
+          )
+          .controller!;
+      editor.focusNode.requestFocus();
+      tester.view.viewInsets = const FakeViewPadding(bottom: 250);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('收起键盘'));
+      tester.view.resetViewInsets();
+      await tester.pumpAndSettle();
+      scroll.jumpTo(500);
+      await tester.pumpAndSettle();
+      expect(editor.focusNode.hasFocus, isFalse);
+      final before = editor.controller.document.toDelta();
+      await tester.tap(find.byKey(const Key('publish-appbar-submit')));
+      await tester.pumpAndSettle();
+      scroll.jumpTo(900);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('返回'));
+      await tester.pumpAndSettle();
+      expect(scroll.offset, closeTo(500, 1));
+      expect(editor.focusNode.hasFocus, isFalse);
+      expect(editor.controller.document.toDelta(), before);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(const Duration(milliseconds: 800));
+    },
+  );
+
+  for (final language in ['zh', 'en', 'ja', 'de']) {
+    for (final width in [320.0, 1024.0]) {
+      testWidgets('article toolbar at 200% text in $language on $width', (
+        tester,
+      ) async {
+        tester.view.physicalSize = Size(width, 900);
+        tester.view.devicePixelRatio = 1;
+        tester.platformDispatcher.textScaleFactorTestValue = 2;
+        addTearDown(tester.view.reset);
+        addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+        await pumpPublishPage(
+          tester,
+          editing: false,
+          contentType: 3,
+          locale: Locale(language),
+        );
+        final l10n = AppLocalizations.of(
+          tester.element(find.byType(PublishPage)),
+        );
+        await tester.tap(find.text(l10n.publishFormatting));
+        await tester.pumpAndSettle();
+        expect(find.byTooltip(l10n.publishUndo), findsOneWidget);
+        expect(find.byTooltip(l10n.publishToolBold), findsOneWidget);
+        await tester.tap(find.byKey(const Key('publish-appbar-submit')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byTooltip(l10n.commonBack));
+        await tester.pumpAndSettle();
+        expect(find.byType(QuillEditor), findsOneWidget);
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pump(const Duration(milliseconds: 800));
+      });
+    }
+  }
+
+  testWidgets('article toolbar follows undo history and selected formatting', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    await pumpPublishPage(tester, editing: false, contentType: 3);
+    final l10n = AppLocalizations.of(tester.element(find.byType(PublishPage)));
+    await tester.tap(find.text('文字格式'));
+    await tester.pumpAndSettle();
+    GfIconButton button(String label) => tester.widget<GfIconButton>(
+      find.ancestor(
+        of: find.byTooltip(label),
+        matching: find.byType(GfIconButton),
+      ),
+    );
+    expect(button('撤销').onPressed, isNull);
+    expect(button('重做').onPressed, isNull);
+    final undoSemantics = tester
+        .getSemantics(find.byTooltip(l10n.publishUndo))
+        .getSemanticsData();
+    expect(undoSemantics.label, l10n.publishUndo);
+    expect(undoSemantics.flagsCollection.isEnabled, Tristate.isFalse);
+    expect(undoSemantics.hasAction(SemanticsAction.tap), isFalse);
+    final controller = tester
+        .widget<QuillEditor>(find.byType(QuillEditor))
+        .controller;
+    controller.replaceText(
+      0,
+      0,
+      'Bold\nPlain',
+      const TextSelection(baseOffset: 0, extentOffset: 4),
+    );
+    controller.formatSelection(Attribute.bold);
+    await tester.pump();
+    expect(button('撤销').onPressed, isNotNull);
+    final boldSemantics = tester
+        .getSemantics(find.byTooltip(l10n.publishToolBold))
+        .getSemanticsData();
+    expect(boldSemantics.label, l10n.publishToolBold);
+    expect(boldSemantics.flagsCollection.isButton, isTrue);
+    expect(boldSemantics.flagsCollection.isEnabled, Tristate.isTrue);
+    expect(boldSemantics.hasAction(SemanticsAction.tap), isTrue);
+    expect(boldSemantics.flagsCollection.isToggled, Tristate.isTrue);
+    controller.updateSelection(
+      const TextSelection.collapsed(offset: 7),
+      ChangeSource.local,
+    );
+    await tester.pump();
+    expect(
+      tester
+          .getSemantics(find.byTooltip(l10n.publishToolBold))
+          .getSemanticsData()
+          .flagsCollection
+          .isToggled,
+      Tristate.isFalse,
+    );
+    controller.undo();
+    await tester.pump();
+    expect(button('重做').onPressed, isNotNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 800));
+    semantics.dispose();
+  });
+
   testWidgets('heading level picker applies h1/h2/h3 from the toolbar', (
     tester,
   ) async {
