@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-09-10
+> Last verified: 2026-09-25
 
 ## Deployment shape
 
@@ -32,6 +32,26 @@
   - `main` — production, `/opt/yourtj/main`
   - `dev` — test line, `/opt/yourtj/dev`
   - DB sync is one-way: dev gets a consistent snapshot of main on each deploy (below).
+
+### Foreground event stream
+
+`GET /api/forum/events` holds one authenticated SSE connection for a foreground client. The
+single-binary HTTP listener has a 10-second normal write timeout; the stream handler disables that
+idle deadline and enforces a five-second deadline for each write. It emits a heartbeat every
+15 seconds, rechecks session validity independently every five minutes, closes within one hour
+to renew credentials, and rejects new subscriptions while closing active streams before the
+five-second server shutdown window. The 1Panel reverse proxy must pass `text/event-stream`
+incrementally (`proxy_buffering off` or honor `X-Accel-Buffering: no`) and keep its read timeout
+above 30 seconds. Do not cache this endpoint. The first `hello` after each connection explicitly
+requires REST reconciliation, so an interrupted stream does not rely on event replay.
+
+The in-process hub is valid for each independently served `main`/`dev` instance described above.
+Do not load-balance several serving processes for one forum database until a shared invalidation
+transport is installed; otherwise a write on another process cannot reach this stream promptly.
+Connection limits are five per user and 10,000 per process; a slow reader whose 64-event queue fills
+is disconnected and must reconnect/reconcile. `401` at handshake or `session.invalidated` in-stream
+means the forum session is no longer valid; a dropped connection or `503` from a database outage
+is a retry condition. No token, message body or notification preview is logged by the stream.
 - **Wiki 分站（论坛内嵌）**: wiki 由单二进制直接服务（`/wiki` SSR 视图），无独立部署、无独立
   nginx 容器；旧 VitePress 静态站部署（deploy-wiki.sh / wiki-dist / Waline）已废弃。按 issue
   #219 的用户决策，旧 VitePress 内容不迁移，新原生 Wiki 从空站启动。**存量服务器需退役旧

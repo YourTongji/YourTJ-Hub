@@ -1,14 +1,18 @@
 import '../../private_notes.dart';
 import '../../widgets/root_surface.dart';
 import '../../messages/chat_outbox.dart';
+import '../../messages/message_content.dart';
+import '../../link_navigation.dart';
 import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ui_kit/ui_kit.dart';
+import 'package:dio/dio.dart';
 
 import 'package:core/core.dart';
+
 import '../../asset_url.dart';
 
 import '../../../l10n/app_localizations.dart';
@@ -17,7 +21,6 @@ import '../../navigation/tab_scroll_registry.dart';
 import '../../format.dart';
 import '../../server_messages.dart';
 import '../../widgets/status_views.dart';
-import '../../widgets/sticker_message_span.dart';
 
 /// 私信(IM)页(web messages.index 的移动端形态):
 /// 会话列表 + 消息游标分页 + 15s 轮询 + 已读回执 + 离线缓存 + 发起新会话。
@@ -37,7 +40,8 @@ class MessagesPage extends ConsumerStatefulWidget {
   ConsumerState<MessagesPage> createState() => _MessagesPageState();
 }
 
-class _MessagesPageState extends ConsumerState<MessagesPage> {
+class _MessagesPageState extends ConsumerState<MessagesPage>
+    with WidgetsBindingObserver {
   AsyncValue<List<ChatItemPayload>> _conversations = const AsyncValue.loading();
   List<UserConnectionPayload> _suggestedUsers = const [];
   String _viewerAvatar = '';
@@ -47,11 +51,15 @@ class _MessagesPageState extends ConsumerState<MessagesPage> {
       GfScrollToTopController();
   late final GfTabScrollRegistry _tabScrollRegistry;
   bool _pollingConfigured = false;
+  bool _loadingRequest = false;
+  bool _appActive = true;
+  CancelToken? _loadCancel;
   ChatItemPayload? _targetConversation;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _tabScrollRegistry = ref.read(tabScrollRegistryProvider);
     if (widget.targetUserId == null) {
       _tabScrollRegistry.register(
@@ -65,7 +73,13 @@ class _MessagesPageState extends ConsumerState<MessagesPage> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _syncPolling(TickerMode.valuesOf(context).enabled);
+    _syncPolling(_appActive && TickerMode.valuesOf(context).enabled);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _appActive = state == AppLifecycleState.resumed;
+    _syncPolling(_appActive && TickerMode.valuesOf(context).enabled);
   }
 
   void _syncPolling(bool shouldPoll) {
@@ -113,6 +127,8 @@ class _MessagesPageState extends ConsumerState<MessagesPage> {
   @override
   void dispose() {
     _pollTimer?.cancel();
+    _loadCancel?.cancel('messages page disposed');
+    WidgetsBinding.instance.removeObserver(this);
     _conversationSearch.dispose();
     _tabScrollRegistry.unregister(
       GfShellDestination.messages,
@@ -122,10 +138,15 @@ class _MessagesPageState extends ConsumerState<MessagesPage> {
   }
 
   Future<void> _load({bool silent = false}) async {
+    if (_loadingRequest) return;
+    _loadingRequest = true;
     // 记录发起时的缓存世代;401/登出/换账号后世代自增,返回时丢弃旧会话数据。
     final int epoch = ref.read(offlineCacheEpochProvider);
+    final cancel = _loadCancel = CancelToken();
     try {
-      final props = await ref.read(pageRepositoryProvider).fetch('/messages');
+      final props = await ref
+          .read(pageRepositoryProvider)
+          .fetch('/messages', cancelToken: cancel);
       final MessagesPageProps? parsed = parsePageProps<MessagesPageProps>(
         props,
       );
@@ -145,6 +166,7 @@ class _MessagesPageState extends ConsumerState<MessagesPage> {
       }
     } catch (e, st) {
       // 网络失败:回退离线缓存的会话列表。
+      if (cancel.isCancelled) return;
       if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) return;
       // 无会话令牌(如 401 后进程被杀重启)时不得回退上一账号残留缓存。
       if (!await hasSessionToken(ref.read(tokenStorageProvider))) {
@@ -172,6 +194,9 @@ class _MessagesPageState extends ConsumerState<MessagesPage> {
       if (!silent && mounted) {
         setState(() => _conversations = AsyncValue.error(e, st));
       }
+    } finally {
+      _loadingRequest = false;
+      if (identical(_loadCancel, cancel)) _loadCancel = null;
     }
   }
 
@@ -327,7 +352,8 @@ class _ConversationPage extends ConsumerStatefulWidget {
   ConsumerState<_ConversationPage> createState() => _ConversationPageState();
 }
 
-class _ConversationPageState extends ConsumerState<_ConversationPage> {
+class _ConversationPageState extends ConsumerState<_ConversationPage>
+    with WidgetsBindingObserver {
   final List<ChatMessagePayload> _messages = [];
   final TextEditingController _input = TextEditingController();
   final ScrollController _scrollController = ScrollController();
@@ -340,10 +366,14 @@ class _ConversationPageState extends ConsumerState<_ConversationPage> {
   int _latestId = 0;
   int _nextBeforeId = 0;
   bool _pollingConfigured = false;
+  bool _loadingRequest = false;
+  bool _appActive = true;
+  CancelToken? _loadCancel;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _convId = widget.conv.convId > 0
         ? widget.conv.convId
         : ref.read(chatOutboxProvider(widget.conv.peerId)).conversationId;
@@ -370,7 +400,13 @@ class _ConversationPageState extends ConsumerState<_ConversationPage> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _syncPolling(TickerMode.valuesOf(context).enabled);
+    _syncPolling(_appActive && TickerMode.valuesOf(context).enabled);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _appActive = state == AppLifecycleState.resumed;
+    _syncPolling(_appActive && TickerMode.valuesOf(context).enabled);
   }
 
   void _syncPolling(bool shouldPoll) {
@@ -380,7 +416,10 @@ class _ConversationPageState extends ConsumerState<_ConversationPage> {
 
     _pollTimer?.cancel();
     _pollTimer = null;
-    if (!shouldPoll) return;
+    if (!shouldPoll) {
+      _loadCancel?.cancel('conversation hidden');
+      return;
+    }
     if (wasConfigured) _load(silent: true);
     _pollTimer = Timer.periodic(
       const Duration(seconds: 15),
@@ -404,6 +443,8 @@ class _ConversationPageState extends ConsumerState<_ConversationPage> {
   @override
   void dispose() {
     _pollTimer?.cancel();
+    _loadCancel?.cancel('conversation disposed');
+    WidgetsBinding.instance.removeObserver(this);
     _input.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -427,6 +468,7 @@ class _ConversationPageState extends ConsumerState<_ConversationPage> {
   }
 
   Future<void> _load({bool silent = false}) async {
+    if (_loadingRequest) return;
     if (_convId <= 0) {
       _convId = ref.read(chatOutboxProvider(widget.conv.peerId)).conversationId;
     }
@@ -440,11 +482,13 @@ class _ConversationPageState extends ConsumerState<_ConversationPage> {
       }
       return;
     }
+    _loadingRequest = true;
     if (!silent && !_historyReady && mounted) {
       setState(() => _loading = true);
     }
     // 记录发起时的缓存世代;401/登出/换账号后世代自增,返回时丢弃旧会话数据。
     final int epoch = ref.read(offlineCacheEpochProvider);
+    final cancel = _loadCancel = CancelToken();
     try {
       final bool initial = _latestId == 0;
       final bool pinnedToBottom =
@@ -454,7 +498,11 @@ class _ConversationPageState extends ConsumerState<_ConversationPage> {
               80;
       final ChatMessagesResponse resp = await ref
           .read(chatRepositoryProvider)
-          .getMessages(convId: _convId, afterId: _latestId);
+          .getMessages(
+            convId: _convId,
+            afterId: _latestId,
+            cancelToken: cancel,
+          );
       final Set<int> seenIds = _messages
           .map((ChatMessagePayload message) => message.id)
           .toSet();
@@ -488,6 +536,7 @@ class _ConversationPageState extends ConsumerState<_ConversationPage> {
       }
     } catch (_) {
       // 网络失败:回退离线缓存消息。
+      if (cancel.isCancelled) return;
       if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) return;
       // 无会话令牌(如 401 后进程被杀重启)时不得回退上一账号残留缓存。
       if (!await hasSessionToken(ref.read(tokenStorageProvider))) {
@@ -517,6 +566,9 @@ class _ConversationPageState extends ConsumerState<_ConversationPage> {
       if (mounted && (!silent || !_historyReady)) {
         setState(() => _loading = false);
       }
+    } finally {
+      _loadingRequest = false;
+      if (identical(_loadCancel, cancel)) _loadCancel = null;
     }
   }
 
@@ -686,7 +738,7 @@ class _ConversationPageState extends ConsumerState<_ConversationPage> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.end,
                               children: [
-                                GfMessageBubble(
+                                _ChatMessageBubble(
                                   text: pending.content,
                                   mine: true,
                                 ),
@@ -773,6 +825,8 @@ class _ConversationPageState extends ConsumerState<_ConversationPage> {
                   controller: _input,
                   hintText: l10n.messagesInputHint,
                   sendLabel: l10n.commonSend,
+                  emojiLabel: l10n.messagesEmoji,
+                  keyboardLabel: l10n.messagesKeyboard,
                   canSend: _historyReady,
                   onSend: _send,
                 ),
@@ -1166,6 +1220,53 @@ class _DatePill extends StatelessWidget {
   }
 }
 
+class _ChatMessageBubble extends ConsumerWidget {
+  const _ChatMessageBubble({
+    required this.text,
+    required this.mine,
+    this.time,
+    this.maxWidthFactor = 0.88,
+  });
+
+  final String text;
+  final bool mine;
+  final String? time;
+  final double maxWidthFactor;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return GfMessageBubble(
+      text: text,
+      selectable: true,
+      copyMessageLabel: AppLocalizations.of(context).messagesCopyAll,
+      content: MessageContent(
+        text: text,
+        stickers: ref.read(stickerLibraryProvider).urlByName,
+        onOpenLink: (url) async {
+          try {
+            await LinkNavigation.open(
+              context,
+              url,
+              baseUrl: ref.read(apiClientProvider).baseUrl,
+            );
+          } catch (error) {
+            if (context.mounted) {
+              showGfToast(
+                context,
+                resolveErrorMessage(AppLocalizations.of(context), error),
+                error: true,
+              );
+            }
+          }
+        },
+      ),
+      mine: mine,
+      time: time,
+      maxWidthFactor: maxWidthFactor,
+    );
+  }
+}
+
 class _MessageRow extends ConsumerWidget {
   const _MessageRow({
     required this.message,
@@ -1179,10 +1280,6 @@ class _MessageRow extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final InlineSpan? contentSpan = buildStickerMessageSpan(
-      message.content,
-      ref.read(stickerLibraryProvider).urlByName,
-    );
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 5),
       child: Row(
@@ -1196,9 +1293,8 @@ class _MessageRow extends ConsumerWidget {
             const SizedBox(width: 8),
           ],
           Flexible(
-            child: GfMessageBubble(
+            child: _ChatMessageBubble(
               text: message.content,
-              contentSpan: contentSpan,
               mine: message.isSelf,
               time: formatChatTime(
                 message.createdAt,

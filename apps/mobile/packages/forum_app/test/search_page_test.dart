@@ -44,6 +44,7 @@ class _SearchRepository extends TopicRepository {
     required String query,
     String scope = '',
     int page = 1,
+    CancelToken? cancelToken,
   }) {
     final call = _SearchCall(query, scope, page);
     calls.add(call);

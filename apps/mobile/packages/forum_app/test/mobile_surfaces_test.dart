@@ -22,9 +22,10 @@ import 'pages_smoke_test.dart' show MemoryTokenStorage, FakeTopicRepository;
 class SurfacePageRepository extends PageRepository {
   SurfacePageRepository(super.client);
   @override
-  Future<PagePayload> fetch(String path) async => PagePayload.fromJson(
-    path == '/settings' ? settingsPayloadJson() : homePayloadJson(),
-  );
+  Future<PagePayload> fetch(String path, {Object? cancelToken}) async =>
+      PagePayload.fromJson(
+        path == '/settings' ? settingsPayloadJson() : homePayloadJson(),
+      );
 }
 
 class EmptyNotificationsRepository extends NotificationRepository {
@@ -34,6 +35,7 @@ class EmptyNotificationsRepository extends NotificationRepository {
     String filter = 'all',
     int cursor = 0,
     int limit = 20,
+    Object? cancelToken,
   }) async => const NotificationListResponse(
     items: [],
     nextCursor: 0,

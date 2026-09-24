@@ -66,7 +66,7 @@ class RouterPageRepository extends PageRepository {
   RouterPageRepository(super.client);
 
   @override
-  Future<PagePayload> fetch(String path) async {
+  Future<PagePayload> fetch(String path, {Object? cancelToken}) async {
     if (path == '/' || path.startsWith('/?sort=')) {
       return parsePayload(homePayloadJson());
     }

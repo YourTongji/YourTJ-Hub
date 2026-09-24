@@ -21,7 +21,7 @@ class FakePageRepository extends PageRepository {
   FakePageRepository(super.client);
 
   @override
-  Future<PagePayload> fetch(String path) async {
+  Future<PagePayload> fetch(String path, {Object? cancelToken}) async {
     if (path == '/' || path.startsWith('/?sort=')) {
       return parsePayload(homePayloadJson());
     }
@@ -46,6 +46,7 @@ class FakeTopicRepository extends TopicRepository {
     required String query,
     String scope = '',
     int page = 1,
+    Object? cancelToken,
   }) async {
     final HomeProps home = parsePageProps<HomeProps>(
       parsePayload(homePayloadJson()),
