@@ -90,7 +90,7 @@ class _Profiles extends PageRepository {
   }
 
   @override
-  Future<PagePayload> fetch(String path) async {
+  Future<PagePayload> fetch(String path, {CancelToken? cancelToken}) async {
     paths.add(path);
     if (failures.contains(path)) throw StateError('unavailable');
     return pending[path]?.future ?? response(path);
