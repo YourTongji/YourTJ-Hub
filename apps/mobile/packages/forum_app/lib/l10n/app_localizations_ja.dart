@@ -485,6 +485,15 @@ class AppLocalizationsJa extends AppLocalizations {
   String get messagesInputHint => 'メッセージを入力…';
 
   @override
+  String get messagesEmoji => '絵文字';
+
+  @override
+  String get messagesKeyboard => 'キーボード';
+
+  @override
+  String get messagesCopyAll => 'メッセージ全体をコピー';
+
+  @override
   String messagesSendFailed(String error) {
     return '送信できませんでした：$error';
   }
