@@ -67,12 +67,12 @@ it('shows an external map route for the selected building and keeps the map open
   const page = await openPage()
   const link = page.get('.atlas-detail a.atlas-share')
   const destination = new URL(link.attributes('href')!)
-  expect(destination.hostname).toBe('maps.apple.com')
-  expect(destination.searchParams.get('daddr')).toBe(
-    `${building.properties.center[1]},${building.properties.center[0]}`,
+  expect(destination.hostname).toBe('api.map.baidu.com')
+  expect(destination.searchParams.get('destination')).toBe(
+    `latlng:${building.properties.center[1]},${building.properties.center[0]}|name:${building.properties.name}`,
   )
-  expect(destination.searchParams.get('q')).toBe(building.properties.name)
-  expect(destination.searchParams.get('dirflg')).toBe('w')
+  expect(destination.searchParams.get('coord_type')).toBe('wgs84')
+  expect(destination.searchParams.get('mode')).toBe('walking')
   expect(link.attributes('target')).toBe('_blank')
   expect(link.text()).toBe('Navigate')
   expect(page.get('.atlas-detail h2').exists()).toBe(true)

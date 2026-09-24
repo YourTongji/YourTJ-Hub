@@ -417,6 +417,7 @@ export default {
     placeNote: "Positionen stammen aus Kartendaten. Gebäudeformen und Höhen sind schematisch.",
     share: "Diesen Ort teilen",
     navigate: "Navigieren",
+    navigateWeb: "Route im Browser",
     copied: "Link kopiert",
     water: "Gewässer",
     dataNote: "Kartendaten",

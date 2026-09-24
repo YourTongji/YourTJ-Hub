@@ -417,6 +417,7 @@ export default {
     placeNote: "位置は地図資料に基づきます。建物の形状と高さは模式的です。",
     share: "この場所を共有",
     navigate: "ナビを開始",
+    navigateWeb: "ブラウザで経路を見る",
     copied: "リンクをコピーしました",
     water: "水域",
     dataNote: "地図資料",

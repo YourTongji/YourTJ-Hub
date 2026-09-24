@@ -93,6 +93,7 @@ export function makePlace(feature: CampusFeature): CampusPlace {
 export function navigationHref(
   place: CampusPlace,
   coordinateMode?: string,
+  userAgent = '',
 ): string | undefined {
   const center: unknown = place.center
   if (!Array.isArray(center) || center.length < 2) return undefined
@@ -108,10 +109,25 @@ export function navigationHref(
     latitude > 90
   ) return undefined
 
-  const url = new URL('https://maps.apple.com/')
-  url.searchParams.set('daddr', `${latitude},${longitude}`)
-  url.searchParams.set('dirflg', 'w')
-  url.searchParams.set('q', place.name)
+  if (/Android/i.test(userAgent)) {
+    return `geo:${latitude},${longitude}?q=${encodeURIComponent(`${latitude},${longitude}(${place.name})`)}`
+  }
+  if (/iPhone|iPad|iPod|Macintosh/i.test(userAgent)) {
+    const url = new URL('https://maps.apple.com/')
+    url.searchParams.set('daddr', `${latitude},${longitude}`)
+    url.searchParams.set('dirflg', 'w')
+    url.searchParams.set('q', place.name)
+    return url.href
+  }
+  // Explicit WGS84 avoids shifting OSM destinations to the provider's default datum.
+  // https://lbsyun.baidu.com/docs/webapi?title=mapadjustment%2Furi%2Fweb
+  const url = new URL('https://api.map.baidu.com/direction')
+  url.searchParams.set('origin', '我的位置')
+  url.searchParams.set('destination', `latlng:${latitude},${longitude}|name:${place.name}`)
+  url.searchParams.set('mode', 'walking')
+  url.searchParams.set('coord_type', 'wgs84')
+  url.searchParams.set('output', 'html')
+  url.searchParams.set('src', 'webapp.yourtj.campus')
   return url.href
 }
 

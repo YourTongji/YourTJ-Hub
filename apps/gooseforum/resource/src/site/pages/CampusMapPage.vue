@@ -115,6 +115,11 @@ const activeSearch = computed(
 const suggestions = computed(() => campus.value.suggestions)
 const selectedNavigationHref = computed(() =>
   selected.value
+    ? getNavigationHref(selected.value, campus.value.coordinateMode, navigator.userAgent)
+    : undefined,
+)
+const selectedWebNavigationHref = computed(() =>
+  selected.value && /Android/i.test(navigator.userAgent)
     ? getNavigationHref(selected.value, campus.value.coordinateMode)
     : undefined,
 )
@@ -704,6 +709,13 @@ onBeforeUnmount(() => {
               target="_blank"
               rel="noopener noreferrer"
             >{{ t('campusMap.navigate') }}</a>
+            <a
+              v-if="selectedWebNavigationHref"
+              class="atlas-share"
+              :href="selectedWebNavigationHref"
+              target="_blank"
+              rel="noopener noreferrer"
+            >{{ t('campusMap.navigateWeb') }}</a>
             <button type="button" class="atlas-share" @click="share">
               <Check v-if="copied" :size="16" /><Share2 v-else :size="16" />{{
                 copied ? t('campusMap.copied') : t('campusMap.share')

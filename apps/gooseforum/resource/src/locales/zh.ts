@@ -418,6 +418,7 @@ export default {
     placeNote: "位置依据校园地图资料。建筑形态与高度为示意。",
     share: "分享这个地点",
     navigate: "导航",
+    navigateWeb: "网页版路线",
     copied: "链接已复制",
     water: "水域",
     dataNote: "地图资料",

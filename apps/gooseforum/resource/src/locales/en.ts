@@ -418,6 +418,7 @@ export default {
     placeNote: "Locations follow the map source. Building shapes and heights are illustrative.",
     share: "Share this place",
     navigate: "Navigate",
+    navigateWeb: "Web directions",
     copied: "Link copied",
     water: "Water",
     dataNote: "Map sources",

@@ -20,7 +20,7 @@ const places = buildCatalog(data)
 describe('campus map navigation destinations', () => {
   it('links only real buildings with valid coordinates on calibrated campuses', () => {
     const building = places.find((place) => place.feature.properties.building)!
-    const href = navigationHref(building)
+    const href = navigationHref(building, undefined, 'iPhone')
     expect(href).toBeDefined()
     const url = new URL(href!)
     expect(url.hostname).toBe('maps.apple.com')
@@ -41,6 +41,19 @@ describe('campus map navigation destinations', () => {
     ] as [number, number][]) {
       expect(navigationHref({ ...building, center })).toBeUndefined()
     }
+  })
+  it('offers a native Android destination and a WGS84 web route fallback', () => {
+    const building = places.find((place) => place.feature.properties.building)!
+    const [lon, lat] = building.center
+    expect(navigationHref(building, undefined, 'Android')).toBe(
+      `geo:${lat},${lon}?q=${encodeURIComponent(`${lat},${lon}(${building.name})`)}`,
+    )
+    const web = new URL(navigationHref(building, undefined, '')!)
+    expect(web.hostname).toBe('api.map.baidu.com')
+    expect(web.searchParams.get('destination')).toBe(`latlng:${lat},${lon}|name:${building.name}`)
+    expect(web.searchParams.get('coord_type')).toBe('wgs84')
+    expect(web.searchParams.get('mode')).toBe('walking')
+    expect(web.searchParams.get('output')).toBe('html')
   })
 })
 
