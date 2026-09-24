@@ -25,7 +25,8 @@ abstract class OfflineChatCache {
 /// 已浏览话题/会话的 drift 离线缓存。
 ///
 /// 不依赖 build_runner 生成代码:数据库承载三张 raw SQL 表
-/// (`cached_topics` / `cached_conversations` / `cached_messages`),
+/// (`cached_topics` / `cached_conversations` / `cached_messages` /
+/// `campus_snapshots`),
 /// 建表在 `beforeOpen` 中执行,读写走 customSelect/customStatement。
 class AppDatabase extends GeneratedDatabase {
   AppDatabase(super.e);
@@ -58,6 +59,16 @@ class AppDatabase extends GeneratedDatabase {
         'payload TEXT NOT NULL, '
         'cached_at TEXT NOT NULL, '
         'PRIMARY KEY (conv_id, msg_id))',
+      );
+      await customStatement(
+        'CREATE TABLE IF NOT EXISTS campus_snapshots ('
+        'site TEXT NOT NULL, '
+        'account_id INTEGER NOT NULL, '
+        'binding_revision TEXT NOT NULL, '
+        'schema_version INTEGER NOT NULL, '
+        'payload TEXT NOT NULL, '
+        'committed_at TEXT NOT NULL, '
+        'PRIMARY KEY (site, account_id))',
       );
     },
   );
@@ -257,6 +268,7 @@ class DriftOfflineCache implements OfflineTopicCache, OfflineChatCache {
       await _db.customStatement('DELETE FROM cached_topics');
       await _db.customStatement('DELETE FROM cached_conversations');
       await _db.customStatement('DELETE FROM cached_messages');
+      await _db.customStatement('DELETE FROM campus_snapshots');
     });
   }
 

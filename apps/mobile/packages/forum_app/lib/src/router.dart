@@ -33,6 +33,7 @@ import 'pages/wiki/wiki_search_page.dart';
 import 'pages/schedule/schedule_page.dart';
 import 'pages/search/search_page.dart';
 import 'pages/settings/settings_page.dart';
+import 'pages/settings/schedule_widget_settings_page.dart';
 import 'pages/topic/topic_page.dart';
 import 'providers.dart';
 import 'current_user.dart';
@@ -102,6 +103,7 @@ class _GfShellState extends ConsumerState<GfShell> {
       await clearOfflineCacheQuietly(
         ref.read(offlineTopicCacheProvider),
         ref.read(offlineChatCacheProvider),
+        ref.read(scheduleWidgetBridgeProvider),
       );
     } catch (_) {
       // 兜底清理失败(缓存不可用)不阻塞启动。
@@ -221,7 +223,8 @@ class _GfShellState extends ConsumerState<GfShell> {
                             },
                             selectedSymbol: switch (destination) {
                               GfShellDestination.home => 'house-filled',
-                              GfShellDestination.campus => 'graduation-cap-filled',
+                              GfShellDestination.campus =>
+                                'graduation-cap-filled',
                               GfShellDestination.notifications => 'bell-filled',
                               GfShellDestination.messages => 'mail-filled',
                             },
@@ -348,6 +351,10 @@ final GoRouter appRouter = GoRouter(
           ProfilePage(userId: int.parse(state.pathParameters['userId']!)),
     ),
     GoRoute(path: '/settings', builder: (_, _) => const SettingsPage()),
+    GoRoute(
+      path: '/settings/widgets',
+      builder: (_, _) => const ScheduleWidgetSettingsPage(),
+    ),
     GoRoute(
       path: '/settings/:section',
       builder: (_, state) =>
