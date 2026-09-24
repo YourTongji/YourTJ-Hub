@@ -2,6 +2,7 @@ package chatservice
 
 import (
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -118,5 +119,61 @@ func TestSendMessageRollsBackWhenMessageInsertFails(t *testing.T) {
 	}
 	if config := imUserChatConfigs.GetConfig(peer, sender); config != nil {
 		t.Fatalf("orphan recipient config: %+v", config)
+	}
+}
+
+func TestChatOperationsDoNotRecountUnreadBacklog(t *testing.T) {
+	for _, operation := range []string{"send", "visible-read", "read-states"} {
+		t.Run(operation, func(t *testing.T) {
+			setupMarkReadTestDB(t)
+			conn := db.Connect()
+			backlog := make([]messages.Entity, 256)
+			for i := range backlog {
+				backlog[i] = messages.Entity{Id: uint64(7000 + i), ConvId: markReadTestConvID, SenderId: markReadTestSender, Content: "unread backlog", MsgType: 1, CreatedAt: time.Now()}
+			}
+			if err := conn.Create(&backlog).Error; err != nil {
+				t.Fatal(err)
+			}
+			if err := conn.Model(&imUserChatConfigs.Entity{}).Where("user_id = ? AND conv_id = ?", markReadTestMember, markReadTestConvID).Update("unread_count", len(backlog)+1).Error; err != nil {
+				t.Fatal(err)
+			}
+			counts := 0
+			const callback = "test:observe_unread_recounts"
+			if err := conn.Callback().Query().After("gorm:query").Register(callback, func(tx *gorm.DB) {
+				if tx.Statement.Table == "messages" && strings.Contains(strings.ToLower(tx.Statement.SQL.String()), "count(") {
+					counts++
+				}
+			}); err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { _ = conn.Callback().Query().Remove(callback) })
+			want := uint(len(backlog) + 1)
+			switch operation {
+			case "send":
+				if _, err := SendMessage(markReadTestSender, markReadTestMember, "new", 1); err != nil {
+					t.Fatal(err)
+				}
+				want++
+			case "visible-read":
+				for range 2 {
+					result, err := MarkVisibleRead(markReadTestMember, markReadTestConvID, []uint64{markReadTestMsgID, markReadTestMsgID})
+					if err != nil || result.UnreadCount != want-1 {
+						t.Fatalf("visible read: %+v %v", result, err)
+					}
+				}
+				want--
+			case "read-states":
+				result, err := GetMessageReadStates(markReadTestMember, markReadTestConvID, []uint64{markReadTestMsgID})
+				if err != nil || result.UnreadCount != want {
+					t.Fatalf("read states: %+v %v", result, err)
+				}
+			}
+			if got := imUserChatConfigs.GetConfig(markReadTestMember, markReadTestSender).UnreadCount; got != want {
+				t.Fatalf("unread counter = %d, want %d", got, want)
+			}
+			if counts != 0 {
+				t.Fatalf("%s scanned the unread backlog %d times", operation, counts)
+			}
+		})
 	}
 }

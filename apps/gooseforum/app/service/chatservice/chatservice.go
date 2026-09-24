@@ -35,6 +35,10 @@ type MessageCursorResult struct {
 
 // SendMessage creates or updates a direct conversation and stores a message.
 func SendMessage(senderId, peerId uint64, content string, msgType int8) (uint64, error) {
+	return sendMessage(db.Connect(), senderId, peerId, content, msgType)
+}
+
+func sendMessage(conn *gorm.DB, senderId, peerId uint64, content string, msgType int8) (uint64, error) {
 	if senderId == peerId {
 		return 0, errors.New("cannot send message to yourself")
 	}
@@ -43,7 +47,7 @@ func SendMessage(senderId, peerId uint64, content string, msgType int8) (uint64,
 	// entire transaction before a bounded retry finds the winner's config.
 	for attempt := 0; attempt < 3; attempt++ {
 		var convId uint64
-		err := db.Connect().Transaction(func(tx *gorm.DB) error {
+		err := conn.Transaction(func(tx *gorm.DB) error {
 			var senderConfig imUserChatConfigs.Entity
 			findErr := tx.Where("user_id = ? AND peer_id = ?", senderId, peerId).First(&senderConfig).Error
 			if findErr != nil && !errors.Is(findErr, gorm.ErrRecordNotFound) {
@@ -106,12 +110,8 @@ func SendMessage(senderId, peerId uint64, content string, msgType int8) (uint64,
 				Updates(map[string]any{"updated_at": now, "is_deleted": 0}).Error; err != nil {
 				return err
 			}
-			unread, err := countIncomingUnread(tx, convId, peerId)
-			if err != nil {
-				return err
-			}
 			return tx.Model(&imUserChatConfigs.Entity{}).Where("id = ?", peerConfig.Id).
-				Updates(map[string]any{"unread_count": unread, "updated_at": now, "is_deleted": 0}).Error
+				Updates(map[string]any{"unread_count": gorm.Expr("unread_count + 1"), "updated_at": now, "is_deleted": 0}).Error
 		})
 		if err == nil {
 			imUserChatConfigs.InvalidateConversationAccess(senderId, convId)
@@ -279,12 +279,16 @@ type MessageReadStatesResult struct {
 // MarkVisibleRead only acknowledges the incoming IDs actually displayed by a
 // client. A higher message ID never implies earlier messages were seen.
 func MarkVisibleRead(userId, convId uint64, ids []uint64) (*VisibleReadResult, error) {
+	return markVisibleRead(db.Connect(), userId, convId, ids)
+}
+
+func markVisibleRead(conn *gorm.DB, userId, convId uint64, ids []uint64) (*VisibleReadResult, error) {
 	unique, err := validMessageIDs(ids)
 	if err != nil || userId == 0 || convId == 0 {
 		return nil, errors.New("invalid visible message IDs")
 	}
 	result := &VisibleReadResult{ConvId: convId, AcknowledgedMessageIds: unique}
-	err = db.Connect().Transaction(func(tx *gorm.DB) error {
+	err = conn.Transaction(func(tx *gorm.DB) error {
 		config, err := lockedMember(tx, userId, convId)
 		if err != nil {
 			return err
@@ -297,14 +301,19 @@ func MarkVisibleRead(userId, convId uint64, ids []uint64) (*VisibleReadResult, e
 		if len(owned) != len(unique) {
 			return errors.New("conversation not found")
 		}
-		if err := tx.Model(&messages.Entity{}).
+		updated := tx.Model(&messages.Entity{}).
 			Where("conv_id = ? AND sender_id != ? AND id IN ? AND is_read = 0", convId, userId, unique).
-			Update("is_read", 1).Error; err != nil {
-			return err
+			Update("is_read", 1)
+		if updated.Error != nil {
+			return updated.Error
 		}
-		unread, err := countIncomingUnread(tx, convId, userId)
-		if err != nil {
-			return err
+		// Only newly acknowledged rows decrement the counter. The conversation
+		// lock also serializes sends; clamp legacy counter drift without wrapping.
+		unread := config.UnreadCount
+		if changed := uint(updated.RowsAffected); changed < unread {
+			unread -= changed
+		} else {
+			unread = 0
 		}
 		result.UnreadCount = unread
 		return tx.Model(config).Update("unread_count", unread).Error
@@ -319,18 +328,20 @@ func MarkVisibleRead(userId, convId uint64, ids []uint64) (*VisibleReadResult, e
 // GetMessageReadStates refreshes a loaded message window without downloading
 // message bodies. Both incoming and outgoing IDs are permitted for members.
 func GetMessageReadStates(userId, convId uint64, ids []uint64) (*MessageReadStatesResult, error) {
+	return getMessageReadStates(db.Connect(), userId, convId, ids)
+}
+
+func getMessageReadStates(conn *gorm.DB, userId, convId uint64, ids []uint64) (*MessageReadStatesResult, error) {
 	unique, err := validMessageIDs(ids)
 	if err != nil || userId == 0 || convId == 0 {
 		return nil, errors.New("invalid message IDs")
 	}
 	result := &MessageReadStatesResult{Items: make([]MessageReadState, 0, len(unique))}
-	err = db.Connect().Transaction(func(tx *gorm.DB) error {
-		var config imUserChatConfigs.Entity
-		if err := tx.Where("user_id = ? AND conv_id = ? AND is_deleted = 0", userId, convId).
-			First(&config).Error; err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return errors.New("conversation not found")
-			}
+	err = conn.Transaction(func(tx *gorm.DB) error {
+		// READ COMMITTED otherwise permits separate statements to observe
+		// different commits. Share the bounded conversation lock with mutations.
+		config, err := lockedMember(tx, userId, convId)
+		if err != nil {
 			return err
 		}
 		var found []messages.Entity
@@ -348,11 +359,7 @@ func GetMessageReadStates(userId, convId uint64, ids []uint64) (*MessageReadStat
 		for _, id := range unique {
 			result.Items = append(result.Items, MessageReadState{Id: id, IsRead: byID[id]})
 		}
-		unread, err := countIncomingUnread(tx, convId, userId)
-		if err != nil {
-			return err
-		}
-		result.UnreadCount = unread
+		result.UnreadCount = config.UnreadCount
 		return nil
 	})
 	if err != nil {
@@ -404,14 +411,6 @@ func lockedMember(tx *gorm.DB, userId, convId uint64) (*imUserChatConfigs.Entity
 		return nil, err
 	}
 	return &config, nil
-}
-
-func countIncomingUnread(tx *gorm.DB, convId, readerId uint64) (uint, error) {
-	var count int64
-	err := tx.Model(&messages.Entity{}).
-		Where("conv_id = ? AND sender_id != ? AND is_read = 0", convId, readerId).
-		Count(&count).Error
-	return uint(count), err
 }
 
 func retryableChatWrite(err error) bool {

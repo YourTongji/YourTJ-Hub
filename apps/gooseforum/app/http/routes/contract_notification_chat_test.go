@@ -483,10 +483,10 @@ func TestChatMessageReadStatesHTTPContract(t *testing.T) {
 		createContractMessage(t, conn, 39002, 37701, viewer.Id, "outgoing", 0, time.Now())
 		createContractMessage(t, conn, 39003, 37701, peer.Id, "incoming", 1, time.Now())
 		createContractMessage(t, conn, 39004, 37701, peer.Id, "unseen", 0, time.Now())
-		// The read-only response reports message-row truth even if an older
-		// counter was stale; it does not silently repair the counter.
+		// The read-only response uses the conversation counter maintained by
+		// send/read transactions, without scanning the unread backlog.
 		if err := conn.Model(&imUserChatConfigs.Entity{}).Where("user_id = ? AND conv_id = ?", viewer.Id, 37701).
-			Update("unread_count", 7).Error; err != nil {
+			Update("unread_count", 1).Error; err != nil {
 			t.Fatal(err)
 		}
 		recorder := serveJSON(router, "/api/forum/chat/message-read-states",
