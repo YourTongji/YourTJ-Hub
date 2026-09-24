@@ -89,6 +89,9 @@ class RouterPageRepository extends PageRepository {
 
 void main() {
   testWidgets('app builds with Gf theme and bottom shell', (tester) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(390, 844);
+    addTearDown(tester.view.reset);
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
