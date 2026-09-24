@@ -52,7 +52,7 @@ class _Options implements HttpClientAdapter {
             'props': {
               'initialMode': 'login',
               'redirectUrl': '/',
-              'githubUrl': '',
+              'githubUrl': '/api/auth/github',
               'googleReady': false,
               'tongjiReady': tongji,
               'tongjiUrl': '/api/auth/tongji',
@@ -133,8 +133,11 @@ void main() {
     bool oldSession = false,
     bool register = true,
     bool tongji = false,
+    Locale locale = const Locale('en'),
+    double width = 390,
+    double textScale = 1,
   }) async {
-    await tester.binding.setSurfaceSize(const Size(390, 1100));
+    await tester.binding.setSurfaceSize(Size(width, 1100));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     final storage = MemoryTokenStorage();
     if (oldSession) await storage.write('old-token');
@@ -166,7 +169,13 @@ void main() {
         container: container,
         child: MaterialApp(
           theme: gfThemeData(Brightness.light),
-          locale: const Locale('en'),
+          locale: locale,
+          builder: (context, child) => MediaQuery(
+            data: MediaQuery.of(
+              context,
+            ).copyWith(textScaler: TextScaler.linear(textScale)),
+            child: child!,
+          ),
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: LoginPage(authController: auth, authTokenStorage: staged),
@@ -174,7 +183,10 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    if (register) await tester.tap(find.text('Sign up').first);
+    if (register) {
+      final l10n = AppLocalizations.of(tester.element(find.byType(LoginPage)));
+      await tester.tap(find.text(l10n.loginModeRegister).first);
+    }
     await tester.pumpAndSettle();
     return (auth: auth, options: options, container: container);
   }
@@ -194,6 +206,55 @@ void main() {
     await tester.enterText(input(emailLabel), email);
     await tester.enterText(input('Password'), 'test-password');
     await tester.enterText(input('Confirm password'), 'test-password');
+  }
+
+  for (final language in ['zh', 'en', 'ja', 'de']) {
+    for (final width in [320.0, 390.0]) {
+      testWidgets('$language auth modes at $width and 200% text', (
+        tester,
+      ) async {
+        await pump(
+          tester,
+          register: false,
+          tongji: true,
+          policies: true,
+          locale: Locale(language),
+          width: width,
+          textScale: 2,
+        );
+        final l10n = AppLocalizations.of(
+          tester.element(find.byType(LoginPage)),
+        );
+        expect(tester.takeException(), isNull);
+        await tester.ensureVisible(input(l10n.authPassword));
+        await tester.tap(input(l10n.authPassword));
+        await tester.testTextInput.receiveAction(TextInputAction.next);
+        await tester.pumpAndSettle();
+        expect(find.byKey(const Key('login-captcha')), findsOneWidget);
+        expect(
+          tester.getSize(input(l10n.authCaptcha)).width,
+          greaterThanOrEqualTo(140),
+        );
+        expect(tester.takeException(), isNull);
+        await tester.ensureVisible(find.text(l10n.loginModeRegister).first);
+        await tester.tap(find.text(l10n.loginModeRegister).first);
+        await tester.pumpAndSettle();
+        expect(
+          tester
+              .widget<TextField>(input(l10n.authConfirmPassword))
+              .autofillHints,
+          contains(AutofillHints.newPassword),
+        );
+        expect(tester.takeException(), isNull);
+        await tester.ensureVisible(find.text(l10n.loginModeLogin).first);
+        await tester.tap(find.text(l10n.loginModeLogin).first);
+        await tester.pumpAndSettle();
+        await tester.ensureVisible(find.text(l10n.authForgotPassword));
+        await tester.tap(find.text(l10n.authForgotPassword));
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+      });
+    }
   }
 
   for (final register in [false, true]) {
@@ -371,11 +432,11 @@ void main() {
       final github = tester.widget<OutlinedButton>(
         find.widgetWithText(OutlinedButton, 'Continue with GitHub'),
       );
-      final google = tester.widget<OutlinedButton>(
-        find.widgetWithText(OutlinedButton, 'Continue with Google'),
-      );
       expect(github.onPressed, isNotNull);
-      expect(google.onPressed, isNull);
+      expect(
+        find.widgetWithText(OutlinedButton, 'Continue with Google'),
+        findsNothing,
+      );
     },
   );
 
