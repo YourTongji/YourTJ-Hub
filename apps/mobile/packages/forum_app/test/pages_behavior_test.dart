@@ -17,6 +17,7 @@ import 'package:forum_app/l10n/app_localizations.dart';
 import 'package:forum_app/src/current_user.dart';
 import 'package:forum_app/src/local/writing_store.dart';
 import 'package:forum_app/src/messages/message_content.dart';
+import 'package:forum_app/src/messages/chat_drafts.dart';
 import 'package:forum_app/src/offline/drift_cache.dart';
 import 'package:forum_app/src/pages/auth/login_page.dart';
 import 'package:forum_app/src/pages/drafts/drafts_page.dart';
@@ -308,6 +309,26 @@ class RetryChatRepository extends RecordingChatRepository {
     if (fail) throw const NetworkException(fallbackMessage: 'offline');
     return 9;
   }
+}
+
+class DelayedChatRepository extends RecordingChatRepository {
+  DelayedChatRepository(super.client);
+  final acknowledgement = Completer<int>();
+  @override
+  Future<int> sendMessage({
+    required int peerId,
+    required String content,
+    int msgType = 1,
+  }) {
+    sent.add((peerId, content));
+    return acknowledgement.future;
+  }
+}
+
+class EmptyStickerRepository extends StickerRepository {
+  EmptyStickerRepository(super.client);
+  @override
+  Future<List<StickerItemPayload>> list() async => [];
 }
 
 class InitialHistoryChatRepository extends RecordingChatRepository {
@@ -1781,6 +1802,7 @@ void main() {
               : CountingPageRepository(client),
           chatRepo: chats,
           chatCache: scenario == 'cached' ? SeededMessageCache() : null,
+          currentUserId: 1,
         );
         await tester.pumpWidget(
           app(
@@ -3212,6 +3234,185 @@ void main() {
   });
 
   group('私信列表', () {
+    testWidgets(
+      'acknowledgement after leaving still clears the submitted draft',
+      (tester) async {
+        final client = GfApiClient(
+          dio: Dio(),
+          tokenStorage: MemTokenStorage(),
+          baseUrl: 'http://fake.local',
+        );
+        final chats = DelayedChatRepository(client);
+        final container = await makeContainer(
+          pageRepo: CountingPageRepository(client),
+          chatRepo: chats,
+          currentUserId: 1,
+        );
+        await tester.pumpWidget(
+          app(
+            container,
+            const MessagesPage(targetUserId: 4, targetUsername: 'Dave'),
+          ),
+        );
+        await tester.pumpAndSettle();
+        await tester.enterText(find.byType(TextField), '等待发送结果');
+        await tester.pump();
+        await tester.tap(find.text('发送'));
+        await tester.pump();
+        expect(
+          tester.widget<TextField>(find.byType(TextField)).controller!.text,
+          '等待发送结果',
+        );
+        await tester.pumpWidget(const SizedBox.shrink());
+        chats.acknowledgement.complete(9);
+        await tester.pumpAndSettle();
+        await container.read(chatDraftsProvider).flush();
+        expect(container.read(chatDraftsProvider).items, isEmpty);
+        expect(tester.takeException(), isNull);
+      },
+    );
+
+    testWidgets(
+      'switching accounts hides the previous private draft and input',
+      (tester) async {
+        var scope = 'site:1';
+        final client = GfApiClient(
+          dio: Dio(),
+          tokenStorage: MemTokenStorage(),
+          baseUrl: 'http://fake.local',
+        );
+        final container = await makeContainer(
+          pageRepo: CountingPageRepository(client),
+          chatRepo: RecordingChatRepository(client),
+          extraOverrides: [
+            writingScopeProvider.overrideWith((ref) async {
+              ref.watch(offlineCacheEpochProvider);
+              return scope;
+            }),
+          ],
+        );
+        await tester.pumpWidget(
+          app(
+            container,
+            const MessagesPage(targetUserId: 2, targetUsername: 'Bob'),
+          ),
+        );
+        await tester.pumpAndSettle();
+        await tester.enterText(find.byType(TextField), '账号 A 的私密草稿');
+        await tester.pump(const Duration(seconds: 1));
+        await container.read(chatDraftsProvider).flush();
+        scope = 'site:2';
+        container.read(offlineCacheEpochProvider.notifier).invalidate();
+        await tester.pumpAndSettle();
+        expect(find.textContaining('账号 A 的私密草稿'), findsNothing);
+        expect(container.read(chatDraftsProvider).items, isEmpty);
+        expect(
+          (await ChatDraftStore().read('site:1')).single.value.text,
+          '账号 A 的私密草稿',
+        );
+        await tester.pumpWidget(const SizedBox.shrink());
+      },
+    );
+
+    testWidgets(
+      'successful send clears the composer and persisted conversation draft',
+      (tester) async {
+        final client = GfApiClient(
+          dio: Dio(),
+          tokenStorage: MemTokenStorage(),
+          baseUrl: 'http://fake.local',
+        );
+        final container = await makeContainer(
+          pageRepo: CountingPageRepository(client),
+          chatRepo: RecordingChatRepository(client),
+          currentUserId: 1,
+        );
+        await tester.pumpWidget(
+          app(
+            container,
+            const MessagesPage(targetUserId: 4, targetUsername: 'Dave'),
+          ),
+        );
+        await tester.pumpAndSettle();
+        await tester.enterText(find.byType(TextField), '成功后清除');
+        await container.read(chatDraftsProvider).flush();
+        await tester.pump();
+        await tester.tap(find.text('发送'));
+        await tester.pumpAndSettle();
+        expect(
+          tester.widget<TextField>(find.byType(TextField)).controller!.text,
+          isEmpty,
+        );
+        await container.read(chatDraftsProvider).flush();
+        expect(container.read(chatDraftsProvider).items, isEmpty);
+        expect(
+          await ChatDraftStore().read(
+            await container.read(writingScopeProvider.future),
+          ),
+          isEmpty,
+        );
+        await tester.pumpWidget(const SizedBox.shrink());
+      },
+    );
+
+    testWidgets(
+      'unsent conversation text and selection survive leaving and returning',
+      (tester) async {
+        final client = GfApiClient(
+          dio: Dio(),
+          tokenStorage: MemTokenStorage(),
+          baseUrl: 'http://fake.local',
+        );
+        final container = await makeContainer(
+          pageRepo: CountingPageRepository(client),
+          chatRepo: RecordingChatRepository(client),
+          currentUserId: 1,
+          extraOverrides: [
+            stickerLibraryProvider.overrideWithValue(
+              StickerLibrary(EmptyStickerRepository(client)),
+            ),
+          ],
+        );
+        await tester.pumpWidget(
+          app(
+            container,
+            const MessagesPage(targetUserId: 4, targetUsername: 'Dave'),
+          ),
+        );
+        await tester.pumpAndSettle();
+        final controller = tester
+            .widget<TextField>(find.byType(TextField))
+            .controller!;
+        controller.value = const TextEditingValue(
+          text: '还没写完的私信',
+          selection: TextSelection(baseOffset: 2, extentOffset: 5),
+        );
+        await tester.pump(const Duration(seconds: 1));
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pumpAndSettle();
+        await tester.pumpWidget(app(container, const MessagesPage()));
+        await tester.pumpAndSettle();
+        expect(find.text('草稿 · 还没写完的私信'), findsOneWidget);
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pumpWidget(
+          app(
+            container,
+            const MessagesPage(targetUserId: 4, targetUsername: 'Dave'),
+          ),
+        );
+        await tester.pumpAndSettle();
+        final restored = tester
+            .widget<TextField>(find.byType(TextField))
+            .controller!
+            .value;
+        expect(restored.text, '还没写完的私信');
+        expect(
+          restored.selection,
+          const TextSelection(baseOffset: 2, extentOffset: 5),
+        );
+        await tester.pumpWidget(const SizedBox.shrink());
+      },
+    );
     testWidgets('发送失败保留消息气泡并可重试且保留下一条输入', (tester) async {
       final client = GfApiClient(
         dio: Dio(),
@@ -3233,7 +3434,11 @@ void main() {
       await tester.pump();
       await tester.tap(find.text('发送'));
       await tester.pumpAndSettle();
-      expect(find.text('不能丢失的消息'), findsOneWidget);
+      expect(find.text('不能丢失的消息'), findsNWidgets(2));
+      expect(
+        tester.widget<TextField>(find.byType(TextField)).controller!.text,
+        '不能丢失的消息',
+      );
       final pending = tester.widget<GfMessageBubble>(
         find.byType(GfMessageBubble).last,
       );

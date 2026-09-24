@@ -865,5 +865,7 @@
   "badgeDisplayDown": "下へ",
   "messagesEmoji": "絵文字",
   "messagesKeyboard": "キーボード",
-  "messagesCopyAll": "メッセージ全体をコピー"
+  "messagesCopyAll": "メッセージ全体をコピー",
+  "messagesDraftLabel": "下書き",
+  "messagesDraftStorageFailed": "この端末のメッセージ下書きを読み書きできません。再試行してください。"
 }

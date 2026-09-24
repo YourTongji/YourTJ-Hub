@@ -2539,4 +2539,11 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get messagesCopyAll => 'Ganze Nachricht kopieren';
+
+  @override
+  String get messagesDraftLabel => 'Entwurf';
+
+  @override
+  String get messagesDraftStorageFailed =>
+      'Nachrichtenentwürfe konnten auf diesem Gerät nicht gelesen oder gespeichert werden. Erneut versuchen.';
 }

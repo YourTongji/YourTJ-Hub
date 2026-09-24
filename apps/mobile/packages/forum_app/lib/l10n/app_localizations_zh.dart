@@ -2417,4 +2417,10 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get messagesCopyAll => '复制整条消息';
+
+  @override
+  String get messagesDraftLabel => '草稿';
+
+  @override
+  String get messagesDraftStorageFailed => '无法读取或保存本机私信草稿，请重试。';
 }

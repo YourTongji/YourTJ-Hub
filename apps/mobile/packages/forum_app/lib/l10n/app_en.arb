@@ -1195,5 +1195,7 @@
   "badgeDisplayDown": "Move down",
   "messagesEmoji": "Emoji",
   "messagesKeyboard": "Keyboard",
-  "messagesCopyAll": "Copy entire message"
+  "messagesCopyAll": "Copy entire message",
+  "messagesDraftLabel": "Draft",
+  "messagesDraftStorageFailed": "Could not read or save message drafts on this device. Try again."
 }

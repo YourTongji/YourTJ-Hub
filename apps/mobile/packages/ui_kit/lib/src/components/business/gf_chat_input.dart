@@ -17,6 +17,7 @@ class GfChatInput extends StatefulWidget {
     this.keyboardLabel = 'Keyboard',
     this.enabled = true,
     this.canSend = true,
+    this.clearOnSend = true,
   });
 
   final ValueChanged<String> onSend;
@@ -30,6 +31,9 @@ class GfChatInput extends StatefulWidget {
 
   /// Keep drafting available while the caller prepares the conversation.
   final bool canSend;
+
+  /// Let an owning draft controller clear only after server acknowledgement.
+  final bool clearOnSend;
 
   @override
   State<GfChatInput> createState() => _GfChatInputState();
@@ -113,7 +117,9 @@ class _GfChatInputState extends State<GfChatInput> {
     final submittedValue = _controller.value;
     widget.onSend(text);
     // A synchronous caller may install another draft after accepting the send.
-    if (_controller.value == submittedValue) _controller.clear();
+    if (widget.clearOnSend && _controller.value == submittedValue) {
+      _controller.clear();
+    }
   }
 
   void _toggleInputSurface() {

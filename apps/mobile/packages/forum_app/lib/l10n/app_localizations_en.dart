@@ -2511,4 +2511,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get messagesCopyAll => 'Copy entire message';
+
+  @override
+  String get messagesDraftLabel => 'Draft';
+
+  @override
+  String get messagesDraftStorageFailed =>
+      'Could not read or save message drafts on this device. Try again.';
 }

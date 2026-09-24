@@ -141,6 +141,17 @@ Web inside an authenticated in-app browser. The navigation and management bounda
   and is cleared at the account/session boundary; it is not persisted across app termination. Only one request for
   each bubble can run at once. The API has no message idempotency key, so ambiguous network failures
   cannot guarantee exactly-once delivery when manually retried.
+- `Current`: unsent private-message text and caret/selection are kept per peer in app-private device
+  preferences, scoped by API origin and numeric account ID. Conversation rows show a localized draft
+  preview, including new peers without a server conversation; list search also matches draft text.
+  Input remains editable during sending. A successful acknowledgement clears only the submitted
+  revision, while newer input and failed sends remain available. Retrying the unchanged failed draft
+  reuses its outbox bubble. Saving debounces for 500 ms and flushes on leaving or app inactivity;
+  failures keep the current text in session memory with visible retry. No message is sent by autosave.
+  Signing out hides drafts and invalidates pending saves; the same account/site can restore them on
+  its next session. Account closure attempts to remove that account's local writing. Drafts contain
+  no credential and are not cloud-synchronized. OS termination before a successful save can lose the
+  latest edits; the outbox's separate session-only retention and ambiguous-retry limitation remain.
 - `Current`: chat text, including sending, acknowledged and failed outbox bubbles, supports native
   selection/copy and underlined HTTP(S) links using the shared
   internal-routing/external-confirmation policy. Inline stickers remain supported; chat text is not

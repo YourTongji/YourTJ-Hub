@@ -4655,6 +4655,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Copy entire message'**
   String get messagesCopyAll;
+
+  /// No description provided for @messagesDraftLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Draft'**
+  String get messagesDraftLabel;
+
+  /// No description provided for @messagesDraftStorageFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not read or save message drafts on this device. Try again.'**
+  String get messagesDraftStorageFailed;
 }
 
 class _AppLocalizationsDelegate

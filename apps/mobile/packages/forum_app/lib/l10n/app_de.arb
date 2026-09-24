@@ -865,5 +865,7 @@
   "badgeDisplayDown": "Nach unten",
   "messagesEmoji": "Emoji",
   "messagesKeyboard": "Tastatur",
-  "messagesCopyAll": "Ganze Nachricht kopieren"
+  "messagesCopyAll": "Ganze Nachricht kopieren",
+  "messagesDraftLabel": "Entwurf",
+  "messagesDraftStorageFailed": "Nachrichtenentwürfe konnten auf diesem Gerät nicht gelesen oder gespeichert werden. Erneut versuchen."
 }

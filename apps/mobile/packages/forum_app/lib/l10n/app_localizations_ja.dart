@@ -2439,4 +2439,10 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get messagesCopyAll => 'メッセージ全体をコピー';
+
+  @override
+  String get messagesDraftLabel => '下書き';
+
+  @override
+  String get messagesDraftStorageFailed => 'この端末のメッセージ下書きを読み書きできません。再試行してください。';
 }

@@ -1195,5 +1195,7 @@
   "badgeDisplayDown": "下移",
   "messagesEmoji": "表情",
   "messagesKeyboard": "键盘",
-  "messagesCopyAll": "复制整条消息"
+  "messagesCopyAll": "复制整条消息",
+  "messagesDraftLabel": "草稿",
+  "messagesDraftStorageFailed": "无法读取或保存本机私信草稿，请重试。"
 }
