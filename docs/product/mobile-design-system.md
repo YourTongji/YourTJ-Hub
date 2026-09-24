@@ -48,6 +48,10 @@ compose actions inside the content column and anchor their menu to that column. 
 the retained branch navigator, inputs and reading position; opening a keyboard does not change the
 width breakpoint. `Planned`: contextual panes and bounded reading layouts on every pushed page.
 
+`Current`: the rail shares destination icons and unread state with the bottom bar. Each action
+exposes its name, selected state and activation in one semantic node. Persistent navigation is
+ordered after the active route in the accessibility tree so iOS does not hide it behind that route.
+
 Resizing, rotating or opening the keyboard must not recreate a draft, reset the selected tab, navigate
 away or lose scroll position. No product operation depends solely on hover. Keyboard users can reach
 all controls, see focus, dismiss a transient panel with Escape and use standard editing shortcuts.

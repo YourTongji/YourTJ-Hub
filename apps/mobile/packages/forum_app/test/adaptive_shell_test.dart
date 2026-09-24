@@ -1,3 +1,4 @@
+import 'dart:ui' show Tristate, SemanticsAction;
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -7,6 +8,7 @@ import 'package:forum_app/l10n/app_localizations.dart';
 import 'package:forum_app/src/current_user.dart';
 import 'package:forum_app/src/providers.dart';
 import 'package:forum_app/src/router.dart';
+import 'package:forum_app/src/navigation/reading_window.dart';
 import 'package:forum_app/src/widgets/account_drawer.dart';
 import 'package:forum_app/src/widgets/root_surface.dart';
 import 'package:ui_kit/ui_kit.dart';
@@ -124,7 +126,7 @@ void main() {
         for (final width in [600.0, 768.0, 1024.0, 1440.0]) {
           tester.view.physicalSize = Size(width, 420);
           await tester.pumpAndSettle();
-          expect(find.byType(NavigationRail), findsOneWidget);
+          expect(find.byType(ReadingNavigationRail), findsOneWidget);
           expect(find.byType(GfBottomNavigation), findsNothing);
           expect(
             tester.getSize(find.byKey(const ValueKey('body-/'))).width,
@@ -136,6 +138,22 @@ void main() {
           expect(tester.takeException(), isNull);
         }
         final l10n = AppLocalizations.of(tester.element(find.byType(GfShell)));
+        final semantics = tester.ensureSemantics();
+        await tester.pumpAndSettle();
+        final campusNode = tester.getSemantics(
+          find.byKey(const ValueKey('rail-destination-1')),
+        );
+        expect(campusNode.label, contains(l10n.navCampus));
+        expect(campusNode.flagsCollection.isButton, isTrue);
+        expect(
+          campusNode.getSemanticsData().hasAction(SemanticsAction.tap),
+          isTrue,
+        );
+        final homeNode = tester.getSemantics(
+          find.byKey(const ValueKey('rail-destination-0')),
+        );
+        expect(homeNode.flagsCollection.isSelected, Tristate.isTrue);
+        semantics.dispose();
         final readingBounds = tester.getRect(
           find.byKey(const ValueKey('body-/')),
         );
@@ -149,7 +167,7 @@ void main() {
         await tester.pumpAndSettle();
         tester.view.viewInsets = const FakeViewPadding(bottom: 160);
         await tester.pumpAndSettle();
-        expect(find.byType(NavigationRail), findsOneWidget);
+        expect(find.byType(ReadingNavigationRail), findsOneWidget);
         expect(tester.state(find.byType(_ReadingPage)), same(state));
         expect(state.input.text, 'Retained work');
         expect(tester.takeException(), isNull);
@@ -167,7 +185,7 @@ void main() {
         expect(state.scroll.offset, 300);
         tester.view.physicalSize = const Size(320, 640);
         await tester.pumpAndSettle();
-        expect(find.byType(NavigationRail), findsNothing);
+        expect(find.byType(ReadingNavigationRail), findsNothing);
         expect(find.byType(GfBottomNavigation), findsOneWidget);
         expect(tester.state(find.byType(_ReadingPage)), same(state));
         expect(tester.takeException(), isNull);
