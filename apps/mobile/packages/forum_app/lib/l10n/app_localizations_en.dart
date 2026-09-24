@@ -2524,6 +2524,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get badgeDisplayDown => 'Move down';
 
   @override
+  String get notificationsMarkRead => 'Mark as read';
+
+  @override
   String get scheduleWidgetSettingsTitle => 'Home screen schedule';
 
   @override
@@ -2604,4 +2607,23 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get scheduleGridScrollHint => 'Swipe sideways to view the full week';
+
+  @override
+  String get coursesFilterSearchHint => 'Search filter options';
+
+  @override
+  String get coursesFilterNoMatches => 'No matching filter options';
+
+  @override
+  String get coursesClearSelection => 'Clear selection';
+
+  @override
+  String get coursesResetSearch => 'Reset search and filters';
+
+  @override
+  String get coursesFilterLoadFailed => 'Filter options could not be loaded.';
+
+  @override
+  String get coursesPaginationStalled =>
+      'No additional courses arrived. Try loading this page again.';
 }
