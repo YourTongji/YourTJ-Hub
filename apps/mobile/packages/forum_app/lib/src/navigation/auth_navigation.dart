@@ -59,6 +59,7 @@ String? _parseAuthReturnTo(String? raw) {
     '/search',
     '/publish',
     '/settings',
+    '/settings/widgets',
     '/my-course-reviews',
     '/my-content',
     '/recycle-bin',
@@ -80,6 +81,10 @@ String? _parseAuthReturnTo(String? raw) {
       (parts.length == 2 &&
           {'p', 'u', 'courses'}.contains(parts.first) &&
           positive(parts[1])) ||
+      (parts.length == 3 &&
+          parts.first == 'u' &&
+          positive(parts[1]) &&
+          {'following', 'followers'}.contains(parts[2])) ||
       (parts.length == 3 &&
           parts.first == 'c' &&
           parts[1].isNotEmpty &&

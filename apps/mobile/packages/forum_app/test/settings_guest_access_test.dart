@@ -9,6 +9,7 @@ import 'package:forum_app/l10n/app_localizations.dart';
 import 'package:forum_app/src/pages/settings/settings_page.dart';
 import 'package:forum_app/src/providers.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:go_router/go_router.dart';
 import 'package:ui_kit/ui_kit.dart';
 
 class _Tokens implements TokenStorage {
@@ -24,6 +25,46 @@ class _Tokens implements TokenStorage {
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
+
+  for (final section in <String?>[null, 'account']) {
+    testWidgets('guest settings retains sign-in intent for $section', (
+      tester,
+    ) async {
+      final router = GoRouter(
+        initialLocation: '/settings',
+        routes: [
+          GoRoute(
+            path: '/settings',
+            builder: (_, _) => SettingsPage(initialSection: section),
+          ),
+          GoRoute(path: '/login', builder: (_, _) => const SizedBox()),
+        ],
+      );
+      addTearDown(router.dispose);
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [tokenStorageProvider.overrideWithValue(_Tokens())],
+          child: MaterialApp.router(
+            routerConfig: router,
+            theme: gfThemeData(Brightness.light),
+            locale: const Locale('en'),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final signIn = find.text('Sign in');
+      await tester.ensureVisible(signIn);
+      await tester.tap(signIn);
+      await tester.pumpAndSettle();
+      expect(router.state.uri.path, '/login');
+      expect(
+        router.state.uri.queryParameters['returnTo'],
+        section == null ? '/settings' : '/settings/$section',
+      );
+    });
+  }
 
   for (final (locale, delayed) in [
     ('en', false),
@@ -89,7 +130,7 @@ void main() {
           tester.element(find.byType(SettingsPage)),
         );
         expect(calls, isEmpty);
-        expect(find.text(l10n.settingsDarkMode), findsOneWidget);
+        expect(find.text(l10n.settingsAppearance), findsOneWidget);
         expect(find.text(l10n.settingsAppLanguage), findsOneWidget);
         expect(find.text(l10n.authLoginTitle), findsOneWidget);
         await tester.tap(find.text(l10n.settingsAppLanguage));
