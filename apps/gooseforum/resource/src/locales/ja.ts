@@ -791,6 +791,7 @@ export default {
     refreshComplete: '最新の内容に更新しました',
     refreshFailed: '更新できませんでした。後でもう一度お試しください。',
     tabs: {
+      following: 'フォロー中',
       latest: '最新',
       hot: '人気',
       popular: '注目',

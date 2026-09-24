@@ -791,6 +791,7 @@ export default {
     refreshComplete: 'Feed ist aktuell',
     refreshFailed: 'Aktualisierung fehlgeschlagen. Bitte später erneut versuchen.',
     tabs: {
+      following: 'Gefolgt',
       latest: 'Neueste',
       hot: 'Trending',
       popular: 'Beliebt',

@@ -792,6 +792,7 @@ export default {
     refreshComplete: '已刷新到最新内容',
     refreshFailed: '刷新失败，请稍后重试',
     tabs: {
+      following: '关注',
       latest: '最新',
       hot: '热门',
       popular: '流行',
