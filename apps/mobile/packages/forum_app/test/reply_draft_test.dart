@@ -281,6 +281,45 @@ void main() {
   });
 
   testWidgets(
+    'unavailable ownership keeps unsent text but not an acknowledged empty reply',
+    (tester) async {
+      await pumpTopic(tester, identity: Future<CurrentUser?>.value(null));
+      await open(tester);
+      composer(tester).controller.text = '身份暂不可用时的正文';
+      composer(tester).onCollapse!();
+      await tester.pumpAndSettle();
+      expect(composer(tester).controller.text, '身份暂不可用时的正文');
+      expect(find.text('本机保存失败，请重试'), findsOneWidget);
+      expect(find.text('已保存到本机'), findsNothing);
+      composer(tester).onPublish();
+      await tester.pumpAndSettle();
+      expect(find.byType(GfPostComposer), findsNothing);
+      expect(find.text('刚发出的回复'), findsOneWidget);
+      expect(await store.drafts(scope), isEmpty);
+      await disposePage(tester);
+    },
+  );
+
+  testWidgets('late failed ownership cannot reopen a successfully sent reply', (
+    tester,
+  ) async {
+    final identity = Completer<CurrentUser?>();
+    await pumpTopic(tester, identity: identity.future);
+    await open(tester);
+    composer(tester).controller.text = '等待身份时发送';
+    await autosave(tester);
+    composer(tester).onPublish();
+    await tester.pump();
+    identity.complete(null);
+    await tester.pumpAndSettle();
+    expect(find.byType(GfPostComposer), findsNothing);
+    expect(find.text('刚发出的回复'), findsOneWidget);
+    expect(find.text('本机保存失败，请重试'), findsNothing);
+    expect(await store.drafts(scope), isEmpty);
+    await disposePage(tester);
+  });
+
+  testWidgets(
     'failed send keeps draft and successful send clears only acknowledged text',
     (tester) async {
       await pumpTopic(tester);

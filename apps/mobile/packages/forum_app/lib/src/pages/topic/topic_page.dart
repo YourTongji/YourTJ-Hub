@@ -260,8 +260,18 @@ class _TopicPageState extends ConsumerState<TopicPage>
     );
     try {
       final owner = await _replyOwner;
-      if (owner == null) throw StateError('Draft requires an account');
-      await _writingStore.save(owner, draft, isCurrent: () => _writingCurrent);
+      if (owner == null) {
+        // A sent/cleared reply has no local content to preserve. Ownership was
+        // never resolved for this page, so no owned draft was written or read.
+        // Do not reopen an empty composer after the server acknowledged it.
+        if (!draft.isEmpty) throw StateError('Draft requires an account');
+      } else {
+        await _writingStore.save(
+          owner,
+          draft,
+          isCurrent: () => _writingCurrent,
+        );
+      }
       if (!mounted || !_writingCurrent || generation != _replyDraftGeneration) {
         return false;
       }
@@ -269,7 +279,7 @@ class _TopicPageState extends ConsumerState<TopicPage>
       if (notify) {
         setState(() {
           _replySaveFailed = false;
-          _replySaveStatus = revision == _replyRevision
+          _replySaveStatus = owner != null && revision == _replyRevision
               ? AppLocalizations.of(context).draftLocalSaved
               : '';
         });
@@ -279,7 +289,8 @@ class _TopicPageState extends ConsumerState<TopicPage>
       if (notify &&
           mounted &&
           _writingCurrent &&
-          generation == _replyDraftGeneration) {
+          generation == _replyDraftGeneration &&
+          revision == _replyRevision) {
         setState(() {
           _replySaveFailed = true;
           _replySaveStatus = AppLocalizations.of(context).draftLocalSaveFailed;
