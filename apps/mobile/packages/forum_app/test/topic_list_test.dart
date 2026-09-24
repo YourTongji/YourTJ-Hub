@@ -66,8 +66,11 @@ void main() {
       find.byWidgetPredicate(
         (w) =>
             w is Image &&
-            w.image is NetworkImage &&
-            (w.image as NetworkImage).url.endsWith('two.png'),
+            w.image is ResizeImage &&
+            (w.image as ResizeImage).imageProvider is NetworkImage &&
+            ((w.image as ResizeImage).imageProvider as NetworkImage).url.endsWith(
+              'two.png',
+            ),
       ),
     );
     // The network image loader keeps animating in the test HTTP environment.
