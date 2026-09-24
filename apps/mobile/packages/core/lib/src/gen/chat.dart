@@ -65,6 +65,7 @@ abstract class ChatMessagesResponse with _$ChatMessagesResponse {
 }
 
 /// Acknowledgement of the exact incoming IDs the client displayed.
+/// The stored unread counter decreases only for newly read rows.
 @freezed
 abstract class ChatVisibleReadResult with _$ChatVisibleReadResult {
   const factory ChatVisibleReadResult({
@@ -86,6 +87,8 @@ abstract class ChatMessageReadState with _$ChatMessageReadState {
       _$ChatMessageReadStateFromJson(json);
 }
 
+/// Read flags and the stored unread counter from one conversation lock scope.
+/// This bounded lookup does not recount historical unread messages.
 @freezed
 abstract class ChatMessageReadStatesResult with _$ChatMessageReadStatesResult {
   const factory ChatMessageReadStatesResult({

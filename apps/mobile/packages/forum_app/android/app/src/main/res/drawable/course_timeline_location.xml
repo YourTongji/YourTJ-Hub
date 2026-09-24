@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Flutter Material Icons Icons.place_outlined (U+F2AC), ported for Glance. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24"
+    android:tint="@color/widget_muted">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M12.0 12.0C10.921875 12.0 9.984375 11.109375 9.984375 9.984375C9.984375 8.90625 10.921875 8.015625 12.0 8.015625C13.078125 8.015625 14.015625 8.90625 14.015625 9.984375C14.015625 11.109375 13.078125 12.0 12.0 12.0ZM18.0 10.21875C18.0 6.5625 15.328125 3.984375 12.0 3.984375C8.671875 3.984375 6.0 6.5625 6.0 10.21875C6.0 12.5625 7.96875 15.65625 12.0 19.359375C16.03125 15.65625 18.0 12.5625 18.0 10.21875ZM12.0 2.015625C16.21875 2.015625 20.015625 5.203125 20.015625 10.21875C20.015625 13.5 17.34375 17.4375 12.0 21.984375C6.65625 17.4375 3.984375 13.5 3.984375 10.21875C3.984375 5.203125 7.78125 2.015625 12.0 2.015625Z" />
+</vector>

@@ -177,9 +177,15 @@ class PkRepository {
     required int calendarId,
     required int day,
     required int section,
+    bool includeAll = false,
   }) => _client.postPk<PkCoursesByTimeResult>(
     '$_base/courses-by-time',
-    body: {'calendarId': calendarId, 'day': day, 'section': section},
+    body: {
+      'calendarId': calendarId,
+      'day': day,
+      'section': section,
+      if (includeAll) 'includeAll': true,
+    },
     parser: (json) =>
         PkCoursesByTimeResult.fromJson(Map<String, dynamic>.from(json as Map)),
   );

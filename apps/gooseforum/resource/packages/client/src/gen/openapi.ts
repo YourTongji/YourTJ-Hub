@@ -1769,10 +1769,13 @@ export interface paths {
          *     notification previews, have no replay IDs, and are never a substitute for
          *     REST cursors. A full server queue closes the stream rather than silently
          *     dropping events. Heartbeat comments arrive every 15 seconds; the server
-         *     rotates streams within one hour to renew expiring credentials. Only
+         *     rotates streams within one hour to renew expiring credentials. Session
+         *     validity is checked at handshake and independently every five minutes;
+         *     transport heartbeats do not query the database. Only
          *     Bearer authorization or the host-only access_token cookie is accepted;
-         *     query-string tokens are not supported. A cross-origin cookie request is
-         *     rejected before streaming. The stream does not extend online presence.
+         *     query-string tokens are not supported. Cookie requests without a
+         *     verifiable same-origin Origin or Referer are rejected before streaming.
+         *     The stream does not extend online presence.
          *     This process-local stream requires a shared invalidation transport before
          *     running the forum as multiple serving instances.
          */
@@ -2076,7 +2079,8 @@ export interface paths {
          * Mark only displayed incoming chat messages as read
          * @description A client sends the actual incoming message IDs that became visible. The server
          *     validates the whole batch as one conversation and one recipient, then marks
-         *     only those IDs read and recomputes the unread count atomically. Duplicate and
+         *     only those IDs read and decrements the stored unread count by newly read rows
+         *     in the same conversation-locked transaction. Duplicate and
          *     already-read IDs are idempotent. Any invalid ID rejects the whole batch with
          *     `chat.markRead.failed`; malformed, empty, zero, or over-100 inputs fail
          *     validation with `common.request.invalidParams`. The legacy mark-read endpoint
@@ -2104,7 +2108,9 @@ export interface paths {
          * @description Read-only member operation for 1–100 explicit message IDs in one
          *     conversation. Incoming and outgoing IDs are allowed. An invalid ID or
          *     non-member conversation fails with `chat.messages.failed` without disclosing
-         *     which check failed. Frozen accounts retain this read-only access.
+         *     which check failed. Flags and the stored conversation unread counter are read
+         *     under the same conversation lock as send/read mutations; this bounded lookup
+         *     does not recount the unread backlog. Frozen accounts retain this read-only access.
          */
         post: operations["getChatMessageReadStates"];
         delete?: never;
@@ -15189,7 +15195,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Cross-origin cookie-authenticated stream is forbidden. */
+            /** @description Cookie-authenticated stream without verifiable same origin is forbidden. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -22671,8 +22677,13 @@ export interface operations {
                     calendarId: number;
                     /** @description Weekday 1-7 (Monday-Sunday). */
                     day: number;
-                    /** @description PK row group 1-6 (maps to sections 1-2/3-4/5-6/7-8/9/10). */
+                    /** @description PK row group 1-6 (maps to sections 1-2/3-4/5-6/7-8/9/10-12). */
                     section: number;
+                    /**
+                     * @description Include every course nature for campus map schedule lookup; omitted or false preserves the optional-course picker filter.
+                     * @default false
+                     */
+                    includeAll?: boolean;
                 };
             };
         };

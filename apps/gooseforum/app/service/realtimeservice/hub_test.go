@@ -67,4 +67,8 @@ func TestHubOverflowDisconnectsAndCloseAllUnblocks(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("shutdown did not close stream")
 	}
+	if late, err := hub.Subscribe(11); err == nil {
+		late.Close()
+		t.Fatal("hub accepted a subscription after shutdown")
+	}
 }

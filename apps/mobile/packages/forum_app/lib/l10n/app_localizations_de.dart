@@ -537,6 +537,11 @@ class AppLocalizationsDe extends AppLocalizations {
   String get searchUnavailable => 'Suche nicht verfügbar';
 
   @override
+  String searchResultCount(int shown, int total) {
+    return '$shown angezeigt · $total Treffer';
+  }
+
+  @override
   String get searchAll => 'Alle';
 
   @override
@@ -726,6 +731,21 @@ class AppLocalizationsDe extends AppLocalizations {
   String settingsOpFailed(String error) {
     return 'Aktion fehlgeschlagen: $error';
   }
+
+  @override
+  String get settingsDevice => 'Dieses Gerät';
+
+  @override
+  String get settingsYourAccount => 'Dein Konto';
+
+  @override
+  String get settingsThemeLight => 'Hell';
+
+  @override
+  String get settingsThemeDark => 'Dunkel';
+
+  @override
+  String get settingsRevokeSession => 'Diese Sitzung widerrufen';
 
   @override
   String get settingsAppearance => 'Darstellung';
@@ -2530,6 +2550,88 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get badgeDisplayDown => 'Nach unten';
+
+  @override
+  String get scheduleWidgetSettingsTitle => 'Startbildschirm-Stundenplan';
+
+  @override
+  String get scheduleWidgetPrivacyDescription =>
+      'Widgets zeigen Kursnamen, Zeiten, Lehrkräfte und Orte aus dem auf diesem Gerät gespeicherten Stundenplan. Nach einer Aktualisierung erscheint der neue Stand auf dem Startbildschirm.';
+
+  @override
+  String get scheduleWidgetRefresh => 'Aus Offline-Stundenplan aktualisieren';
+
+  @override
+  String get scheduleWidgetClear => 'Startbildschirmdaten löschen';
+
+  @override
+  String get scheduleWidgetCleared => 'Startbildschirm-Stundenplan gelöscht';
+
+  @override
+  String get scheduleWidgetDiagnostics => 'Aktualisierungsdiagnose';
+
+  @override
+  String get scheduleWidgetDiagnosticsDescription =>
+      'Wenn sich Datum oder Kursstatus verzögert aktualisieren, prüfe die Hintergrundaktivität und Akkueinstellungen für YourTJ. Die Menünamen unterscheiden sich je nach Gerät.';
+
+  @override
+  String get scheduleWidgetTransparencyTitle => 'Widget-Hintergrundtransparenz';
+
+  @override
+  String get scheduleWidgetTransparencyDescription =>
+      'Bei höheren Werten scheint mehr vom Hintergrund durch. Der Bereich von 0 % bis 15 % verbindet den Hintergrundeffekt mit gut lesbarem Kurstext.';
+
+  @override
+  String campusSnapshotUpdated(String time) {
+    return 'Geräte-Snapshot aktualisiert: $time';
+  }
+
+  @override
+  String get campusSnapshotStale =>
+      'Dieser Snapshot ist möglicherweise veraltet. Bitte aktualisieren.';
+
+  @override
+  String get campusSnapshotOffline =>
+      'Verbindung konnte nicht geprüft werden. Der Geräte-Snapshot wird angezeigt.';
+
+  @override
+  String get campusSnapshotRefreshFailed =>
+      'Einige Daten konnten nicht aktualisiert werden. Bisherige Inhalte bleiben erhalten.';
+
+  @override
+  String get campusDataNeedsRefresh =>
+      'Dieser Inhalt wurde noch nicht aktualisiert. Bitte manuell laden.';
+
+  @override
+  String get campusCacheClear => 'Campus-Cache leeren';
+
+  @override
+  String get campusCacheClearDescription =>
+      'Campus-Snapshots und Stundenplan-Widgets auf diesem Gerät entfernen. Entwürfe, Stundenplanentwürfe und die Hochschulverknüpfung bleiben erhalten.';
+
+  @override
+  String get campusCacheCleared => 'Campus-Cache geleert';
+
+  @override
+  String get campusCacheClearFailed =>
+      'Einige Cache-Daten konnten nicht gelöscht werden. Bitte erneut versuchen.';
+
+  @override
+  String get scheduleTimeAxis => 'Stunden';
+
+  @override
+  String scheduleEmptyCell(String day, int section) {
+    return '$day, Stunde $section, Kurs auswählen';
+  }
+
+  @override
+  String scheduleSectionsN(String range) {
+    return 'Stunden $range';
+  }
+
+  @override
+  String get scheduleGridScrollHint =>
+      'Seitlich wischen, um die ganze Woche zu sehen';
 
   @override
   String get messagesNewMessages => 'Neue Nachrichten · Zum Ende';

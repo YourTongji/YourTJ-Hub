@@ -76,10 +76,13 @@ an HTTP `200` validation failure, not a guaranteed `400`.
 Chat send and read mutations commit message rows, conversation summaries and unread counters in one
 database transaction. `POST /api/forum/chat/mark-visible` accepts 1–100 explicit incoming message IDs;
 it validates the entire batch before changing any state, acknowledges duplicate/already-read IDs
-idempotently and recomputes the recipient's unread count. It does not infer that earlier IDs were
-seen. `POST /api/forum/chat/message-read-states` returns flags for selected incoming or outgoing IDs
-without message bodies. The legacy `mark-read` route remains compatible and still clears the whole
-conversation when older clients call it. These operations use the existing message `is_read` rows;
+idempotently and subtracts only newly read rows from the stored recipient counter; sends increment
+that counter under the same conversation lock. Neither operation recounts the unread backlog.
+It does not infer that earlier IDs were seen. `POST /api/forum/chat/message-read-states` returns flags
+for selected incoming or outgoing IDs
+without message bodies, reading flags and the stored counter under that same lock for a consistent
+snapshot. Legacy counter drift is not automatically recounted by this bounded lookup. The legacy
+`mark-read` route remains compatible and still clears the whole conversation when older clients call it. These operations use the existing message `is_read` rows;
 there is no persisted highest-read watermark or schema migration.
 
 `GET /api/forum/events` is a `text/event-stream` invalidation channel for an authenticated foreground
@@ -90,10 +93,12 @@ carries message bodies, previews or authoritative unread counts. Chat write/read
 only after their transaction commits, and notification hints after persisted notification mutations.
 Each subscription has a bounded queue; overflow closes the stream, forcing a REST resync rather
 than silently losing an event. The server permits at most five streams per user and 10,000 per
-process. Session rows and token versions are checked without the profile cache every 15 seconds;
+process. Session rows and token versions are checked without the profile cache at handshake and
+every five minutes, independently of the 15-second transport heartbeat;
 a database failure closes the stream for retry without declaring logout. This hub is process-local:
 serving the same forum from multiple processes requires a shared invalidation transport before
-this stream can guarantee prompt cross-instance updates. REST remains correct independently.
+this stream can guarantee prompt cross-instance updates. REST remains correct independently. The
+delivery and scaling tradeoffs are recorded in [MADR 0036](../decisions/0036-foreground-realtime-invalidation.md).
 
 ## HTTP method contract: HEAD vs GET (issue #411)
 
@@ -519,3 +524,28 @@ user IDs. Each entry includes the username and an exclusive UTF-16 source range.
 resolves a payload's names in one batch after body redaction; clients validate the exact source
 slice and render ordinary internal links without persisting the expansion. Older responses
 without mappings remain readable as plain text.
+
+## Personalized Home page channel
+
+`Current`: `GET /?sort=following` uses the existing `X-Goose-Page: true` page channel and
+`HomeProps`; it adds no `/api` route or payload field. The server publishes a localized
+`following` tab, so Flutter can display it through the existing server-defined sort rail.
+Web guest navigation points to login; direct guest page-channel requests return HTTP 401
+with `auth.required`, and ordinary HTML requests redirect to login with a return address.
+
+The feed queries active follow relationships on every request and preserves the public
+forum-topic and first-post visibility filters. It bypasses the shared public-feed cache.
+Responses use `no-store`; personalized metadata uses `noindex, nofollow`. The opaque cursor
+is a viewer-scoped `(created_at, id)` boundary in descending order, carried in
+`pagination.nextUrl`; clients must follow that URL instead of constructing page offsets.
+Malformed or other-viewer cursors, cursor IDs outside the positive signed 64-bit database range,
+and page numbers greater than one without a cursor return HTTP 400. Failures of the initial topic
+selection query return HTTP 500 rather than a successful empty feed. Author, first-post and
+interaction enrichment retains the shared Home renderer's best-effort behavior; its storage failures
+may produce incomplete fields in an HTTP 200 response. The cursor
+is only a position: changing it cannot bypass the current follow and visibility filters.
+
+Refreshing drops both `page` and `cursor`, re-queries current follows and replaces retained
+Following rows. Existing rows may remain on screen after an unfollow until explicit refresh;
+continuation pages filter the current relationships immediately. Newly followed content above
+the current cursor appears on refresh. This is a live filtered feed, not a frozen snapshot.

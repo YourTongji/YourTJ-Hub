@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Archive Runner with an ephemeral keychain and target-scoped signing settings.
 
-Requires IOS_P12_PATH, IOS_P12_PASSWORD, IOS_PROFILE_PATH, IOS_TEAM_ID,
+Requires IOS_P12_PATH, IOS_P12_PASSWORD, IOS_PROFILE_PATH,
+IOS_WIDGET_PROFILE_PATH, IOS_TEAM_ID,
 MOBILE_VERSION and MOBILE_BUILD_NUMBER. Credentials are never printed.
 """
 from contextlib import ExitStack
@@ -21,9 +22,12 @@ import zipfile
 ROOT = Path(__file__).resolve().parents[2]
 APP = ROOT / "apps/mobile/packages/forum_app"
 BUNDLE_ID = "tj.yourtj.forumApp"
+WIDGET_BUNDLE_ID = "tj.yourtj.forumApp.ScheduleWidgets"
+WIDGET_APP_GROUP = "group.tj.yourtj.forumApp.widgets"
 
 
-def validate_profile(profile, team, now=None):
+def validate_profile(profile, team, now=None, bundle_id=BUNDLE_ID,
+                     require_push=True):
     now = now or datetime.datetime.now(datetime.timezone.utc)
     expires = profile["ExpirationDate"].replace(tzinfo=datetime.timezone.utc)
     entitlements = profile["Entitlements"]
@@ -31,12 +35,15 @@ def validate_profile(profile, team, now=None):
         raise ValueError("Distribution profile has expired")
     if profile["TeamIdentifier"] != [team]:
         raise ValueError("Distribution profile belongs to another team")
-    if entitlements.get("application-identifier") != f"{team}.{BUNDLE_ID}":
+    if entitlements.get("application-identifier") != f"{team}.{bundle_id}":
         raise ValueError("Distribution profile has the wrong app identifier")
     if entitlements.get("get-task-allow") or profile.get("ProvisionedDevices") or profile.get("ProvisionsAllDevices"):
         raise ValueError("An App Store distribution profile is required")
-    if entitlements.get("aps-environment") != "production":
+    if require_push and entitlements.get("aps-environment") != "production":
         raise ValueError("App Store profile must enable production Push Notifications; regenerate the profile")
+    if WIDGET_APP_GROUP not in entitlements.get(
+            "com.apple.security.application-groups", []):
+        raise ValueError("Distribution profile must enable the schedule App Group")
     if not re.fullmatch(r"[A-Fa-f0-9-]{36}", profile["UUID"]):
         raise ValueError("Invalid provisioning profile UUID")
 
@@ -44,6 +51,15 @@ def validate_profile(profile, team, now=None):
 def validate_app_entitlements(entitlements, team):
     if entitlements.get("application-identifier") != f"{team}.{BUNDLE_ID}" or entitlements.get("aps-environment") != "production":
         raise ValueError("Exported app must carry the correct application identifier and production APNs entitlement")
+    if WIDGET_APP_GROUP not in entitlements.get("com.apple.security.application-groups", []):
+        raise ValueError("Exported app must carry the schedule App Group entitlement")
+
+
+def validate_widget_entitlements(entitlements, team):
+    if entitlements.get("application-identifier") != f"{team}.{WIDGET_BUNDLE_ID}":
+        raise ValueError("Exported widget has the wrong application identifier")
+    if WIDGET_APP_GROUP not in entitlements.get("com.apple.security.application-groups", []):
+        raise ValueError("Exported widget must carry the schedule App Group entitlement")
 
 
 def validate_exported_ipa(path, team):
@@ -60,6 +76,14 @@ def validate_exported_ipa(path, team):
             raise ValueError("Expected exactly one exported iOS application")
         raw = subprocess.check_output(["codesign", "-d", "--entitlements", ":-", str(apps[0])], stderr=subprocess.DEVNULL)
         validate_app_entitlements(plistlib.loads(raw), team)
+        widgets = list(apps[0].glob("PlugIns/ScheduleWidgets.appex"))
+        if len(widgets) != 1:
+            raise ValueError("Expected the schedule Widget extension in the IPA")
+        raw = subprocess.check_output(
+            ["codesign", "-d", "--entitlements", ":-", str(widgets[0])],
+            stderr=subprocess.DEVNULL,
+        )
+        validate_widget_entitlements(plistlib.loads(raw), team)
 
 
 def security(*args):
@@ -80,9 +104,16 @@ def main():
     if not re.fullmatch(r"\d+\.\d+\.\d+", version) or not re.fullmatch(r"[1-9]\d*", number):
         raise ValueError("Invalid mobile version/build number")
     profile_path = Path(os.environ["IOS_PROFILE_PATH"]).resolve()
+    widget_profile_path = Path(os.environ["IOS_WIDGET_PROFILE_PATH"]).resolve()
     profile = plistlib.loads(subprocess.check_output(
         ["security", "cms", "-D", "-i", str(profile_path)], stderr=subprocess.DEVNULL))
+    widget_profile = plistlib.loads(subprocess.check_output(
+        ["security", "cms", "-D", "-i", str(widget_profile_path)], stderr=subprocess.DEVNULL))
     validate_profile(profile, team)
+    validate_profile(
+        widget_profile, team, bundle_id=WIDGET_BUNDLE_ID,
+        require_push=False,
+    )
     output = Path(os.environ.get("MOBILE_OUTPUT_DIR", str(ROOT / "apps/mobile/build/release"))).resolve()
     output.mkdir(parents=True, exist_ok=True)
     flutter = os.environ.get("FLUTTER_BIN", "flutter")
@@ -94,7 +125,9 @@ def main():
         "--dart-define=YOURTJ_OIDC_CLIENT_ID=yourtj-mobile",
     ], cwd=APP, check=True)
     signing = APP / "ios/Flutter/ReleaseSigning.xcconfig"
+    widget_signing = APP / "ios/Flutter/WidgetReleaseSigning.xcconfig"
     previous_signing = signing.read_bytes() if signing.exists() else None
+    previous_widget_signing = widget_signing.read_bytes() if widget_signing.exists() else None
     previous_keychains = shlex.split(security("list-keychains", "-d", "user"))
     installed = []
     with tempfile.TemporaryDirectory(prefix="yourtj-signing-") as temporary:
@@ -113,22 +146,31 @@ def main():
             identity = next((fingerprint for fingerprint in fingerprints if fingerprint in identities), None)
             if not identity:
                 raise ValueError("No valid signing identity matches the provisioning profile")
-            for folder in ["Library/MobileDevice/Provisioning Profiles", "Library/Developer/Xcode/UserData/Provisioning Profiles"]:
-                target = Path.home() / folder / f"{profile['UUID']}.mobileprovision"
-                target.parent.mkdir(parents=True, exist_ok=True)
-                if target.exists():
-                    if target.read_bytes() != profile_path.read_bytes():
-                        raise ValueError("An installed profile has the same UUID but different contents")
-                else:
-                    shutil.copyfile(profile_path, target)
-                    installed.append(target)
+            for source, decoded in [(profile_path, profile), (widget_profile_path, widget_profile)]:
+                for folder in ["Library/MobileDevice/Provisioning Profiles", "Library/Developer/Xcode/UserData/Provisioning Profiles"]:
+                    target = Path.home() / folder / f"{decoded['UUID']}.mobileprovision"
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    if target.exists():
+                        if target.read_bytes() != source.read_bytes():
+                            raise ValueError("An installed profile has the same UUID but different contents")
+                    else:
+                        shutil.copyfile(source, target)
+                        installed.append(target)
             signing.write_text(f"DEVELOPMENT_TEAM = {team}\nCODE_SIGN_STYLE = Manual\n"
                                f"CODE_SIGN_IDENTITY = {identity}\nPROVISIONING_PROFILE_SPECIFIER = {profile['UUID']}\n")
+            widget_signing.write_text(
+                '#include "Generated.xcconfig"\n'
+                f"DEVELOPMENT_TEAM = {team}\nCODE_SIGN_STYLE = Manual\n"
+                f"CODE_SIGN_IDENTITY = {identity}\n"
+                f"PROVISIONING_PROFILE_SPECIFIER = {widget_profile['UUID']}\n"
+            )
             archive = output / "YourTJ.xcarchive"
             options = output / "ExportOptions.plist"
             options.write_bytes(plistlib.dumps({
                 "method": "app-store-connect", "teamID": team, "signingStyle": "manual",
-                "signingCertificate": identity, "provisioningProfiles": {BUNDLE_ID: profile["UUID"]},
+                "signingCertificate": identity, "provisioningProfiles": {
+                    BUNDLE_ID: profile["UUID"], WIDGET_BUNDLE_ID: widget_profile["UUID"],
+                },
                 "uploadSymbols": True, "manageAppVersionAndBuildNumber": False,
             }))
             # Never pass PROVISIONING_PROFILE_SPECIFIER globally: SwiftPM and Pods
@@ -155,6 +197,10 @@ def main():
                     cleanup.callback(signing.unlink, missing_ok=True)
                 else:
                     cleanup.callback(signing.write_bytes, previous_signing)
+                if previous_widget_signing is None:
+                    cleanup.callback(widget_signing.unlink, missing_ok=True)
+                else:
+                    cleanup.callback(widget_signing.write_bytes, previous_widget_signing)
                 for path in installed:
                     cleanup.callback(path.unlink, missing_ok=True)
                 if Path(keychain).exists():

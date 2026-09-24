@@ -1062,6 +1062,12 @@ abstract class AppLocalizations {
   /// **'Search unavailable'**
   String get searchUnavailable;
 
+  /// No description provided for @searchResultCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{shown} shown · {total} matches'**
+  String searchResultCount(int shown, int total);
+
   /// No description provided for @searchAll.
   ///
   /// In en, this message translates to:
@@ -1403,6 +1409,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Operation failed: {error}'**
   String settingsOpFailed(String error);
+
+  /// No description provided for @settingsDevice.
+  ///
+  /// In en, this message translates to:
+  /// **'This device'**
+  String get settingsDevice;
+
+  /// No description provided for @settingsYourAccount.
+  ///
+  /// In en, this message translates to:
+  /// **'Your account'**
+  String get settingsYourAccount;
+
+  /// No description provided for @settingsThemeLight.
+  ///
+  /// In en, this message translates to:
+  /// **'Light'**
+  String get settingsThemeLight;
+
+  /// No description provided for @settingsThemeDark.
+  ///
+  /// In en, this message translates to:
+  /// **'Dark'**
+  String get settingsThemeDark;
+
+  /// No description provided for @settingsRevokeSession.
+  ///
+  /// In en, this message translates to:
+  /// **'Revoke this session'**
+  String get settingsRevokeSession;
 
   /// No description provided for @settingsAppearance.
   ///
@@ -4637,6 +4673,138 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Move down'**
   String get badgeDisplayDown;
+
+  /// No description provided for @scheduleWidgetSettingsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Home screen schedule'**
+  String get scheduleWidgetSettingsTitle;
+
+  /// No description provided for @scheduleWidgetPrivacyDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Widgets show course names, times, teachers and locations from the schedule saved on this device. Refreshing the schedule updates the home-screen view.'**
+  String get scheduleWidgetPrivacyDescription;
+
+  /// No description provided for @scheduleWidgetRefresh.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh from offline schedule'**
+  String get scheduleWidgetRefresh;
+
+  /// No description provided for @scheduleWidgetClear.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear home screen data'**
+  String get scheduleWidgetClear;
+
+  /// No description provided for @scheduleWidgetCleared.
+  ///
+  /// In en, this message translates to:
+  /// **'Home screen schedule data cleared'**
+  String get scheduleWidgetCleared;
+
+  /// No description provided for @scheduleWidgetDiagnostics.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh diagnostics'**
+  String get scheduleWidgetDiagnostics;
+
+  /// No description provided for @scheduleWidgetDiagnosticsDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'If the date or class status is slow to update, check YourTJ\'s background activity and battery settings. Menu names vary by device.'**
+  String get scheduleWidgetDiagnosticsDescription;
+
+  /// No description provided for @scheduleWidgetTransparencyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Widget background transparency'**
+  String get scheduleWidgetTransparencyTitle;
+
+  /// No description provided for @scheduleWidgetTransparencyDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Higher values reveal more of your wallpaper. The 0%–15% range balances the background effect with readable course text.'**
+  String get scheduleWidgetTransparencyDescription;
+
+  /// No description provided for @campusSnapshotUpdated.
+  ///
+  /// In en, this message translates to:
+  /// **'Device snapshot updated {time}'**
+  String campusSnapshotUpdated(String time);
+
+  /// No description provided for @campusSnapshotStale.
+  ///
+  /// In en, this message translates to:
+  /// **'This snapshot may be outdated. Refresh for the latest data.'**
+  String get campusSnapshotStale;
+
+  /// No description provided for @campusSnapshotOffline.
+  ///
+  /// In en, this message translates to:
+  /// **'Connection verification failed. Showing this device’s snapshot.'**
+  String get campusSnapshotOffline;
+
+  /// No description provided for @campusSnapshotRefreshFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Some data could not be updated. Previous content is retained.'**
+  String get campusSnapshotRefreshFailed;
+
+  /// No description provided for @campusDataNeedsRefresh.
+  ///
+  /// In en, this message translates to:
+  /// **'This content has not been updated. Refresh to load it.'**
+  String get campusDataNeedsRefresh;
+
+  /// No description provided for @campusCacheClear.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear campus cache'**
+  String get campusCacheClear;
+
+  /// No description provided for @campusCacheClearDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove campus snapshots and home-screen schedules from this device. Drafts, schedule plans and the school connection are kept.'**
+  String get campusCacheClearDescription;
+
+  /// No description provided for @campusCacheCleared.
+  ///
+  /// In en, this message translates to:
+  /// **'Campus cache cleared'**
+  String get campusCacheCleared;
+
+  /// No description provided for @campusCacheClearFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Some cached data could not be cleared. Please retry.'**
+  String get campusCacheClearFailed;
+
+  /// No description provided for @scheduleTimeAxis.
+  ///
+  /// In en, this message translates to:
+  /// **'Sections'**
+  String get scheduleTimeAxis;
+
+  /// No description provided for @scheduleEmptyCell.
+  ///
+  /// In en, this message translates to:
+  /// **'{day}, section {section}, choose a course'**
+  String scheduleEmptyCell(String day, int section);
+
+  /// No description provided for @scheduleSectionsN.
+  ///
+  /// In en, this message translates to:
+  /// **'Sections {range}'**
+  String scheduleSectionsN(String range);
+
+  /// No description provided for @scheduleGridScrollHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Swipe sideways to view the full week'**
+  String get scheduleGridScrollHint;
 
   /// No description provided for @messagesNewMessages.
   ///

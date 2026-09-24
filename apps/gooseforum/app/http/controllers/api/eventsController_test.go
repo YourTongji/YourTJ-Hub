@@ -20,7 +20,7 @@ func TestEventStreamFlushesPastServerWriteTimeout(t *testing.T) {
 	engine := gin.New()
 	engine.GET("/events", func(c *gin.Context) {
 		c.Set("userId", uint64(31))
-		streamEvents(c, hub, func(context.Context, string) (bool, error) { return true, nil }, 25*time.Millisecond)
+		streamEvents(c, hub, func(context.Context, string) (bool, error) { return true, nil }, 25*time.Millisecond, time.Hour)
 	})
 	server := httptest.NewUnstartedServer(engine)
 	server.Config.WriteTimeout = 50 * time.Millisecond
@@ -62,7 +62,7 @@ func TestEventStreamReportsDefinitiveSessionInvalidation(t *testing.T) {
 	engine := gin.New()
 	engine.GET("/events", func(c *gin.Context) {
 		c.Set("userId", uint64(31))
-		streamEvents(c, hub, func(context.Context, string) (bool, error) { return live.Load(), nil }, 10*time.Millisecond)
+		streamEvents(c, hub, func(context.Context, string) (bool, error) { return live.Load(), nil }, 10*time.Millisecond, 20*time.Millisecond)
 	})
 	server := httptest.NewServer(engine)
 	defer server.Close()
@@ -76,8 +76,41 @@ func TestEventStreamReportsDefinitiveSessionInvalidation(t *testing.T) {
 		t.Fatalf("frame=%q", frame)
 	}
 	live.Store(false)
-	if frame := readSSEFrame(t, reader); !strings.Contains(frame, "event: session.invalidated") {
-		t.Fatalf("frame=%q", frame)
+	for range 5 {
+		if frame := readSSEFrame(t, reader); strings.Contains(frame, "event: session.invalidated") {
+			return
+		}
+	}
+	t.Fatal("session invalidation was not delivered after recheck")
+}
+
+func TestEventStreamHeartbeatDoesNotQuerySession(t *testing.T) {
+	hub := realtimeservice.NewHub(1, 1, 2)
+	var checks atomic.Int32
+	engine := gin.New()
+	engine.GET("/events", func(c *gin.Context) {
+		c.Set("userId", uint64(31))
+		streamEvents(c, hub, func(context.Context, string) (bool, error) {
+			checks.Add(1)
+			return true, nil
+		}, 10*time.Millisecond, time.Hour)
+	})
+	server := httptest.NewServer(engine)
+	defer server.Close()
+	response, err := server.Client().Get(server.URL + "/events")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = response.Body.Close() }()
+	reader := bufio.NewReader(response.Body)
+	readSSEFrame(t, reader)
+	for range 3 {
+		if frame := readSSEFrame(t, reader); !strings.HasPrefix(frame, ": ping") {
+			t.Fatalf("expected heartbeat, got %q", frame)
+		}
+	}
+	if got := checks.Load(); got != 1 {
+		t.Fatalf("heartbeat queried session %d times, want only handshake validation", got)
 	}
 }
 
@@ -86,7 +119,7 @@ func TestEventHubCloseLetsHTTPShutdownFinish(t *testing.T) {
 	engine := gin.New()
 	engine.GET("/events", func(c *gin.Context) {
 		c.Set("userId", uint64(31))
-		streamEvents(c, hub, func(context.Context, string) (bool, error) { return true, nil }, time.Hour)
+		streamEvents(c, hub, func(context.Context, string) (bool, error) { return true, nil }, time.Hour, time.Hour)
 	})
 	server := httptest.NewUnstartedServer(engine)
 	server.Start()
@@ -98,6 +131,14 @@ func TestEventHubCloseLetsHTTPShutdownFinish(t *testing.T) {
 	defer func() { _ = response.Body.Close() }()
 	readSSEFrame(t, bufio.NewReader(response.Body))
 	hub.CloseAll()
+	lateResponse, err := server.Client().Get(server.URL + "/events")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = lateResponse.Body.Close()
+	if lateResponse.StatusCode != http.StatusServiceUnavailable {
+		t.Fatalf("late subscription status=%d, want 503", lateResponse.StatusCode)
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	if err := server.Config.Shutdown(ctx); err != nil {

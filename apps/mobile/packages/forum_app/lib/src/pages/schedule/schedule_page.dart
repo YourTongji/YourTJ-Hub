@@ -1222,8 +1222,10 @@ class _TimetableTab extends ConsumerWidget {
                 : null,
             grid: grid,
             times: times,
-            onTapEmptyCell: (day, section) =>
-                _openCellPicker(context, ref, day, section),
+            onTapEmptyCell:
+                ref.read(scheduleStoreProvider.notifier).isMajorSelected
+                ? (day, section) => _openCellPicker(context, ref, day, section)
+                : null,
             onTapCourse: (course) => _openCourseDetail(context, ref, course),
           ),
         ),
@@ -1295,6 +1297,7 @@ class _WeekFilter extends StatelessWidget {
     final AppLocalizations l10n = AppLocalizations.of(context);
     final GfColors colors = GfTheme.colorsOf(context);
     return Container(
+      constraints: const BoxConstraints(minHeight: 48),
       padding: const EdgeInsets.only(left: 12, right: 4),
       decoration: BoxDecoration(
         color: colors.base100,
@@ -1310,7 +1313,7 @@ class _WeekFilter extends StatelessWidget {
               child: DropdownButton<int?>(
                 value: week,
                 isExpanded: true,
-                isDense: true,
+                isDense: false,
                 dropdownColor: colors.base100,
                 items: <DropdownMenuItem<int?>>[
                   DropdownMenuItem<int?>(

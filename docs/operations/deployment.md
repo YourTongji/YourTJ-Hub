@@ -38,7 +38,8 @@
 `GET /api/forum/events` holds one authenticated SSE connection for a foreground client. The
 single-binary HTTP listener has a 10-second normal write timeout; the stream handler disables that
 idle deadline and enforces a five-second deadline for each write. It emits a heartbeat every
-15 seconds, closes within one hour to renew credentials, and closes active streams before the
+15 seconds, rechecks session validity independently every five minutes, closes within one hour
+to renew credentials, and rejects new subscriptions while closing active streams before the
 five-second server shutdown window. The 1Panel reverse proxy must pass `text/event-stream`
 incrementally (`proxy_buffering off` or honor `X-Accel-Buffering: no`) and keep its read timeout
 above 30 seconds. Do not cache this endpoint. The first `hello` after each connection explicitly
