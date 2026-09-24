@@ -312,6 +312,7 @@ class RetryChatRepository extends RecordingChatRepository {
 class InitialHistoryChatRepository extends RecordingChatRepository {
   InitialHistoryChatRepository(super.client);
   Completer<ChatMessagesResponse> initial = Completer();
+  CancelToken? initialCancel;
 
   @override
   Future<ChatMessagesResponse> getMessages({
@@ -320,9 +321,13 @@ class InitialHistoryChatRepository extends RecordingChatRepository {
     int afterId = 0,
     int limit = 30,
     Object? cancelToken,
-  }) => afterId == 0
-      ? initial.future
-      : super.getMessages(convId: convId, afterId: afterId);
+  }) {
+    if (afterId == 0) {
+      initialCancel = cancelToken as CancelToken?;
+      return initial.future;
+    }
+    return super.getMessages(convId: convId, afterId: afterId);
+  }
 }
 
 class RecordingChatRepository extends ChatRepository {
@@ -1807,6 +1812,12 @@ void main() {
         }
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 400));
+        expect(
+          chats.initialCancel?.isCancelled,
+          isFalse,
+          reason:
+              'Configuring foreground polling must preserve initial history',
+        );
         await tester.enterText(
           find.descendant(
             of: find.byType(GfChatInput),

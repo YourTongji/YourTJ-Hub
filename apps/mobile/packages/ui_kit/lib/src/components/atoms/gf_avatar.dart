@@ -67,6 +67,7 @@ class GfAvatar extends StatelessWidget {
               ? null
               : ResizeImage(
                   NetworkImage(src),
+                  policy: ResizeImagePolicy.fit,
                   width: (size * MediaQuery.devicePixelRatioOf(context))
                       .round(),
                   height: (size * MediaQuery.devicePixelRatioOf(context))

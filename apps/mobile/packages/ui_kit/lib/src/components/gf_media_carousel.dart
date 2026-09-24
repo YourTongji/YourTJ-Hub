@@ -76,17 +76,20 @@ class _GfMediaCarouselState extends State<GfMediaCarousel> {
                                 await widget.onSaveImage!(widget.images[index]);
                               }
                             },
-                      child: Image.network(
-                        widget.images[index],
+                      child: Image(
+                        image: ResizeImage(
+                          NetworkImage(widget.images[index]),
+                          policy: ResizeImagePolicy.fit,
+                          width:
+                              (constraints.maxWidth *
+                                      MediaQuery.devicePixelRatioOf(context))
+                                  .round(),
+                          height:
+                              (constraints.maxWidth.clamp(200.0, 420.0) *
+                                      MediaQuery.devicePixelRatioOf(context))
+                                  .round(),
+                        ),
                         fit: BoxFit.contain,
-                        cacheWidth:
-                            (constraints.maxWidth *
-                                    MediaQuery.devicePixelRatioOf(context))
-                                .round(),
-                        cacheHeight:
-                            (constraints.maxWidth.clamp(200.0, 420.0) *
-                                    MediaQuery.devicePixelRatioOf(context))
-                                .round(),
                         errorBuilder: (_, _, _) => Icon(
                           Icons.broken_image_outlined,
                           color: colors.iconMuted,

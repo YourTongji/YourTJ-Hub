@@ -416,8 +416,10 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
 
     _pollTimer?.cancel();
     _pollTimer = null;
-    _loadCancel?.cancel('conversation hidden');
-    if (!shouldPoll) return;
+    if (!shouldPoll) {
+      _loadCancel?.cancel('conversation hidden');
+      return;
+    }
     if (wasConfigured) _load(silent: true);
     _pollTimer = Timer.periodic(
       const Duration(seconds: 15),
