@@ -733,6 +733,21 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
+  String get settingsDevice => 'Dieses Gerät';
+
+  @override
+  String get settingsYourAccount => 'Dein Konto';
+
+  @override
+  String get settingsThemeLight => 'Hell';
+
+  @override
+  String get settingsThemeDark => 'Dunkel';
+
+  @override
+  String get settingsRevokeSession => 'Diese Sitzung widerrufen';
+
+  @override
   String get settingsAppearance => 'Darstellung';
 
   @override
@@ -2600,6 +2615,23 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get campusCacheClearFailed =>
       'Einige Cache-Daten konnten nicht gelöscht werden. Bitte erneut versuchen.';
+
+  @override
+  String get scheduleTimeAxis => 'Stunden';
+
+  @override
+  String scheduleEmptyCell(String day, int section) {
+    return '$day, Stunde $section, Kurs auswählen';
+  }
+
+  @override
+  String scheduleSectionsN(String range) {
+    return 'Stunden $range';
+  }
+
+  @override
+  String get scheduleGridScrollHint =>
+      'Seitlich wischen, um die ganze Woche zu sehen';
 
   @override
   String get coursesFilterSearchHint => 'Filteroptionen suchen';
