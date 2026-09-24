@@ -167,6 +167,7 @@
   "searchNoUsers": "該当するユーザーはいません",
   "searchNoCategories": "該当するカテゴリはありません",
   "searchUnavailable": "検索サービスを利用できません",
+  "searchResultCount": "表示 {shown} 件 · 一致 {total} 件",
   "searchAll": "すべて",
   "searchTopics": "トピック",
   "searchUsers": "ユーザー",
@@ -224,6 +225,11 @@
   "settingsRevokeFailed": "セッションを終了できませんでした：{error}",
   "settingsRevokeAllDone": "すべてのセッションを終了しました",
   "settingsOpFailed": "操作に失敗しました：{error}",
+  "settingsDevice": "この端末",
+  "settingsYourAccount": "アカウント",
+  "settingsThemeLight": "ライト",
+  "settingsThemeDark": "ダーク",
+  "settingsRevokeSession": "このセッションを無効化",
   "settingsAppearance": "外観",
   "settingsDarkMode": "ダークモード",
   "settingsDarkCurrent": "現在：ダーク",
@@ -863,12 +869,59 @@
   "badgeDisplayHint": "最大5個まで選び、表示順を変更できます。すべて非表示にもできます。アバターのバッジとは別の設定です。",
   "badgeDisplayUp": "上へ",
   "badgeDisplayDown": "下へ",
+  "scheduleWidgetSettingsTitle": "ホーム画面の時間割",
+  "scheduleWidgetPrivacyDescription": "ウィジェットには、この端末に保存された時間割の授業名、時刻、教員、場所が表示されます。時間割を更新するとホーム画面にも反映されます。",
+  "scheduleWidgetRefresh": "オフライン時間割から更新",
+  "scheduleWidgetClear": "ホーム画面データを消去",
+  "scheduleWidgetCleared": "ホーム画面の時間割データを消去しました",
+  "scheduleWidgetDiagnostics": "更新診断",
+  "scheduleWidgetDiagnosticsDescription": "日付や授業状態の更新が遅い場合は、YourTJ のバックグラウンド動作とバッテリー設定を確認してください。設定項目の名前は端末によって異なります。",
+  "scheduleWidgetTransparencyTitle": "ウィジェットの背景の透明度",
+  "scheduleWidgetTransparencyDescription": "値を上げると、ホーム画面の背景がより透けて見えます。授業情報の読みやすさを保つため、範囲は 0%～15% です。",
+  "campusSnapshotUpdated": "端末のスナップショット更新：{time}",
+  "campusSnapshotStale": "このスナップショットは古い可能性があります。更新してください。",
+  "campusSnapshotOffline": "接続を確認できません。端末のスナップショットを表示しています。",
+  "campusSnapshotRefreshFailed": "一部のデータを更新できませんでした。以前の内容を保持しています。",
+  "campusDataNeedsRefresh": "この内容は未更新です。手動で更新してください。",
+  "campusCacheClear": "キャンパスのキャッシュを削除",
+  "campusCacheClearDescription": "この端末のキャンパスデータとホーム画面の時間割を削除します。下書き、履修計画、大学との連携は保持されます。",
+  "campusCacheCleared": "キャンパスのキャッシュを削除しました",
+  "campusCacheClearFailed": "一部のキャッシュを削除できませんでした。再試行してください。",
+  "@campusSnapshotUpdated": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "scheduleTimeAxis": "時限",
+  "scheduleEmptyCell": "{day}、{section} 時限目、授業を選択",
+  "scheduleSectionsN": "{range} 時限",
+  "scheduleGridScrollHint": "左右にスワイプして週全体を表示",
+  "@scheduleEmptyCell": {
+    "placeholders": {
+      "day": {
+        "type": "String"
+      },
+      "section": {
+        "type": "int"
+      }
+    }
+  },
+  "@scheduleSectionsN": {
+    "placeholders": {
+      "range": {
+        "type": "String"
+      }
+    }
+  },
   "draftCollapse": "折りたたむ",
   "draftKindNew": "新しいトピック",
   "draftKindServer": "クラウド下書きの復元用コピー",
   "draftKindEdit": "トピックの編集",
   "draftKindReply": "返信",
   "draftLocalEmpty": "書きかけの内容はこの端末に保存され、ここに表示されます。",
+  "draftReplyLeaveUnsaved": "返信の最新の変更を保存できませんでした。編集を続けて再試行するか、この変更を破棄して離れます。保存済みの端末コピーは保持されます。",
   "publishMediaQueueTitle": "写真のアップロード",
   "publishMediaPendingWarning": "未アップロードの写真があります。保存・投稿・種類の変更・終了の前に、アップロードするか削除してください。",
   "publishMediaTemporary": "待機中の写真は今回の編集中のみ保持されます。アプリを閉じた場合は再選択してください。",

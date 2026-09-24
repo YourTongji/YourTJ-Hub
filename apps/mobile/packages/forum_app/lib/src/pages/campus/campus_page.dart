@@ -187,20 +187,90 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace> {
     final l = AppLocalizations.of(context);
     final data = state.data[key];
     final error = state.errors[key];
-    if (error != null) {
-      return GfErrorRetry(
-        message: campusError(l, error),
-        onRetry: () => ref.read(campusControllerProvider.notifier).load(key),
-      );
-    }
-    if (data == null) {
-      return const Padding(padding: EdgeInsets.all(20), child: GfLoading());
-    }
-    if (data.status != 'ready' && data.status != 'empty') {
-      return Text(l.campusUnavailable);
-    }
-    if (data.status == 'empty' && key != 'today') return Text(l.campusNoData);
-    return ready(data);
+    final loading = state.refreshing || state.fetching.contains(key);
+    final usable =
+        data != null && const {'ready', 'empty'}.contains(data.status);
+    Widget refreshPrompt() => Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(l.campusDataNeedsRefresh),
+        TextButton.icon(
+          onPressed: loading
+              ? null
+              : () => ref.read(campusControllerProvider.notifier).refresh(),
+          icon: const Icon(Icons.refresh, size: 18),
+          label: Text(l.commonRefresh),
+        ),
+      ],
+    );
+    final content = data == null
+        ? (loading
+              ? const Padding(padding: EdgeInsets.all(20), child: GfLoading())
+              : refreshPrompt())
+        : !usable
+        ? Text(l.campusUnavailable)
+        : data.status == 'empty' && key != 'today'
+        ? Text(l.campusNoData)
+        : ready(data);
+    if (error == null) return content;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        GfErrorRetry(
+          message: campusError(l, error),
+          onRetry: () => ref.read(campusControllerProvider.notifier).retry(key),
+        ),
+        // Explicitly invalid rules must not present a stale teaching-day result.
+        if (usable &&
+            !(error is ApiException &&
+                const {
+                  'campus.rulesUnavailable',
+                  'campus.rulesInvalid',
+                }.contains(error.messageCode)))
+          content,
+      ],
+    );
+  }
+
+  Widget _snapshotNotice(CampusViewState state) {
+    final l = AppLocalizations.of(context);
+    final snapshot = state.snapshot;
+    final stale =
+        snapshot != null &&
+        (DateTime.now().difference(snapshot.committedAt) >
+                const Duration(days: 1) ||
+            snapshot.data['today']?.teachingDay?.date !=
+                campusDateKey(DateTime.now()));
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (snapshot != null)
+            Text(
+              l.campusSnapshotUpdated(
+                DateFormat.yMd(
+                  l.localeName,
+                ).add_Hm().format(snapshot.committedAt.toLocal()),
+              ),
+              style: GfTheme.typographyOf(context).caption,
+            ),
+          if (state.errors.containsKey('status') && snapshot != null)
+            Text(l.campusSnapshotOffline)
+          else if (state.error != null || state.errors.isNotEmpty)
+            Text(l.campusSnapshotRefreshFailed)
+          else if (stale)
+            Text(l.campusSnapshotStale),
+          TextButton.icon(
+            onPressed: state.refreshing || state.busy
+                ? null
+                : () => ref.read(campusControllerProvider.notifier).refresh(),
+            icon: const Icon(Icons.refresh, size: 18),
+            label: Text(l.commonRefresh),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _messages(CampusDataset data, {bool recent = false}) {
@@ -286,7 +356,7 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace> {
           _dataset(state, 'today', (data) {
             final day = data.teachingDay;
             if (day == null || day.date != campusDateKey(now)) {
-              return const CircularProgressIndicator();
+              return Text(l.campusDataNeedsRefresh);
             }
             final today = data.events;
             final notice = switch (day.kind) {
@@ -460,6 +530,7 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace> {
       content = Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          _snapshotNotice(state),
           if (state.refreshing)
             Padding(
               padding: const EdgeInsets.only(bottom: 16),
