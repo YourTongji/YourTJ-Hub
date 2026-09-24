@@ -94,12 +94,18 @@ class _PublishPageState extends ConsumerState<PublishPage>
 
   late QuillController _quill;
   final GlobalKey<EditorState> _editorKey = GlobalKey<EditorState>();
+  // QuillEditor.basic otherwise creates new input nodes on each page rebuild.
+  final FocusNode _editorFocusNode = FocusNode(debugLabel: 'article-body');
+  final ScrollController _editorScrollController = ScrollController();
   final ScrollController _pageScrollController = ScrollController();
   final GlobalKey _pageScrollViewKey = GlobalKey();
   late StreamSubscription<DocChange> _documentChanges;
   late int _currentTopicId;
 
   _ComposeMode _mode = _ComposeMode.edit;
+  double? _editScrollOffset;
+  bool _restoreEditorFocus = false;
+  int _modeRevision = 0;
   bool _loading = true;
   bool _submitting = false;
   late final ComposerUploadQueue _uploads;
@@ -360,6 +366,13 @@ class _PublishPageState extends ConsumerState<PublishPage>
 
   void _selectMode(_ComposeMode mode) {
     if (mode == _mode) return;
+    final revision = ++_modeRevision;
+    if (mode == _ComposeMode.preview) {
+      _editScrollOffset = _pageScrollController.hasClients
+          ? _pageScrollController.offset
+          : null;
+      _restoreEditorFocus = _contentType == 3 && _editorFocusNode.hasFocus;
+    }
     FocusManager.instance.primaryFocus?.unfocus();
     _previewDebounce?.cancel();
     _previewDebounce = null;
@@ -370,6 +383,25 @@ class _PublishPageState extends ConsumerState<PublishPage>
       _mode = mode;
       _previewMarkdown = preview;
     });
+    if (mode == _ComposeMode.edit) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted ||
+            !_sessionCurrent ||
+            revision != _modeRevision ||
+            _mode != _ComposeMode.edit) {
+          return;
+        }
+        final offset = _editScrollOffset;
+        if (offset != null && _pageScrollController.hasClients) {
+          _pageScrollController.jumpTo(
+            offset.clamp(0.0, _pageScrollController.position.maxScrollExtent),
+          );
+        }
+        if (_restoreEditorFocus && _contentType == 3) {
+          _editorFocusNode.requestFocus();
+        }
+      });
+    }
   }
 
   String get _payloadPath =>
@@ -500,6 +532,8 @@ class _PublishPageState extends ConsumerState<PublishPage>
     _previewDebounce?.cancel();
     _dragAutoscrollTimer?.cancel();
     _pageScrollController.dispose();
+    _editorScrollController.dispose();
+    _editorFocusNode.dispose();
     _captchaCode.dispose();
     _title.dispose();
     _simple.dispose();
@@ -1583,6 +1617,8 @@ class _PublishPageState extends ConsumerState<PublishPage>
               List<dynamic> rejectedData,
             ) => QuillEditor.basic(
               controller: _quill,
+              focusNode: _editorFocusNode,
+              scrollController: _editorScrollController,
               config: QuillEditorConfig(
                 scrollable: false,
                 editorKey: _editorKey,
@@ -1743,73 +1779,89 @@ class _PublishPageState extends ConsumerState<PublishPage>
   Widget _buildToolbar(AppLocalizations l10n) {
     final GfColors colors = GfTheme.colorsOf(context);
 
-    return ColoredBox(
-      color: colors.base200.withValues(alpha: 0.55),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-        child: Row(
-          children: <Widget>[
-            _toolButton(
-              icon: Icons.undo,
-              tooltip: l10n.publishUndo,
-              onPressed: _quill.undo,
-            ),
-            _toolButton(
-              icon: Icons.redo,
-              tooltip: l10n.publishRedo,
-              onPressed: _quill.redo,
-            ),
-            _toolButton(
-              icon: Icons.title,
-              tooltip: l10n.publishHeading,
-              onPressed: () => _toggleFormat(Attribute.h2),
-              onLongPress: () => _showHeadingLevelMenu(l10n),
-            ),
-            _toolButton(
-              icon: Icons.link,
-              tooltip: l10n.publishToolLink,
-              onPressed: _insertLink,
-            ),
+    return ListenableBuilder(
+      listenable: _quill,
+      builder: (context, _) {
+        final attributes = _quill.getSelectionStyle().attributes;
+        bool selected(Attribute attribute) =>
+            attributes[attribute.key]?.value == attribute.value;
+        return ColoredBox(
+          color: colors.base200.withValues(alpha: 0.55),
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+            child: Row(
+              children: <Widget>[
+                _toolButton(
+                  icon: Icons.undo,
+                  tooltip: l10n.publishUndo,
+                  onPressed: _quill.hasUndo ? _quill.undo : null,
+                ),
+                _toolButton(
+                  icon: Icons.redo,
+                  tooltip: l10n.publishRedo,
+                  onPressed: _quill.hasRedo ? _quill.redo : null,
+                ),
+                _toolButton(
+                  icon: Icons.title,
+                  tooltip: l10n.publishHeading,
+                  selected: attributes[Attribute.header.key]?.value != null,
+                  onPressed: () => _toggleFormat(Attribute.h2),
+                  onLongPress: () => _showHeadingLevelMenu(l10n),
+                ),
+                _toolButton(
+                  icon: Icons.link,
+                  tooltip: l10n.publishToolLink,
+                  onPressed: _insertLink,
+                ),
 
-            _toolButton(
-              icon: Icons.format_bold_rounded,
-              tooltip: l10n.publishToolBold,
-              onPressed: () => _toggleFormat(Attribute.bold),
+                _toolButton(
+                  icon: Icons.format_bold_rounded,
+                  tooltip: l10n.publishToolBold,
+                  selected: selected(Attribute.bold),
+                  onPressed: () => _toggleFormat(Attribute.bold),
+                ),
+                _toolButton(
+                  icon: Icons.format_italic_rounded,
+                  tooltip: l10n.publishToolItalic,
+                  selected: selected(Attribute.italic),
+                  onPressed: () => _toggleFormat(Attribute.italic),
+                ),
+                _toolButton(
+                  icon: Icons.format_strikethrough_rounded,
+                  tooltip: l10n.publishToolStrike,
+                  selected: selected(Attribute.strikeThrough),
+                  onPressed: () => _toggleFormat(Attribute.strikeThrough),
+                ),
+                _toolButton(
+                  icon: Icons.format_quote_rounded,
+                  tooltip: l10n.publishToolQuote,
+                  selected: selected(Attribute.blockQuote),
+                  onPressed: () => _toggleFormat(Attribute.blockQuote),
+                ),
+                _toolButton(
+                  icon: Icons.code_rounded,
+                  tooltip: l10n.publishToolCode,
+                  selected: selected(Attribute.inlineCode),
+                  onPressed: () => _toggleFormat(Attribute.inlineCode),
+                ),
+                _toolButton(
+                  icon: Icons.format_list_bulleted_rounded,
+                  tooltip: l10n.publishToolBulletList,
+                  selected: selected(Attribute.ul),
+                  onPressed: () => _toggleFormat(Attribute.ul),
+                ),
+                _toolButton(
+                  icon: Icons.format_list_numbered_rounded,
+                  tooltip: l10n.publishToolOrderedList,
+                  selected: selected(Attribute.ol),
+                  onPressed: () => _toggleFormat(Attribute.ol),
+                ),
+              ],
             ),
-            _toolButton(
-              icon: Icons.format_italic_rounded,
-              tooltip: l10n.publishToolItalic,
-              onPressed: () => _toggleFormat(Attribute.italic),
-            ),
-            _toolButton(
-              icon: Icons.format_strikethrough_rounded,
-              tooltip: l10n.publishToolStrike,
-              onPressed: () => _toggleFormat(Attribute.strikeThrough),
-            ),
-            _toolButton(
-              icon: Icons.format_quote_rounded,
-              tooltip: l10n.publishToolQuote,
-              onPressed: () => _toggleFormat(Attribute.blockQuote),
-            ),
-            _toolButton(
-              icon: Icons.code_rounded,
-              tooltip: l10n.publishToolCode,
-              onPressed: () => _toggleFormat(Attribute.inlineCode),
-            ),
-            _toolButton(
-              icon: Icons.format_list_bulleted_rounded,
-              tooltip: l10n.publishToolBulletList,
-              onPressed: () => _toggleFormat(Attribute.ul),
-            ),
-            _toolButton(
-              icon: Icons.format_list_numbered_rounded,
-              tooltip: l10n.publishToolOrderedList,
-              onPressed: () => _toggleFormat(Attribute.ol),
-            ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 
@@ -1818,14 +1870,32 @@ class _PublishPageState extends ConsumerState<PublishPage>
     required String tooltip,
     required VoidCallback? onPressed,
     VoidCallback? onLongPress,
+    bool? selected,
   }) {
-    return GfIconButton(
-      icon: icon,
-      tooltip: tooltip,
-      size: 44,
-      iconSize: 20,
-      onPressed: onPressed,
-      onLongPress: onLongPress,
+    final colors = GfTheme.colorsOf(context);
+    return Semantics(
+      toggled: selected,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: selected == true
+              ? colors.primary.withValues(alpha: 0.12)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(GfTheme.radiiOf(context).field),
+        ),
+        child: GfIconButton(
+          icon: icon,
+          tooltip: tooltip,
+          size: 44,
+          iconSize: 20,
+          color: onPressed == null
+              ? colors.iconMuted.withValues(alpha: 0.4)
+              : selected == true
+              ? colors.primary
+              : colors.iconMuted,
+          onPressed: onPressed,
+          onLongPress: onLongPress,
+        ),
+      ),
     );
   }
 

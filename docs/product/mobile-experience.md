@@ -202,7 +202,10 @@ Web inside an authenticated in-app browser. The navigation and management bounda
   in a rounded panel below the preview. All three types share these controls and spacing. Article
   formatting tools remain
   folded in a bottom accessory bar above the software keyboard; expanding them preserves the editor
-  selection. The heading tool applies heading 2 with a tap and opens a level sheet on long press that
+  selection and active body focus, including while local save status changes. Format buttons reflect
+  the current selection with visual and accessibility toggle states; undo and redo are disabled when
+  their respective history is empty. The heading tool applies heading 2 with a tap and opens a level
+  sheet on long press that
   offers heading 1–3 (matching the Markdown round-trip); the current level is checked and re-picking
   it clears the heading. The accessory bar holds the draft action and, for articles only, the image
   tool; moments and questions pick images from the compact gallery tile above the body. Rich and
@@ -217,7 +220,11 @@ Web inside an authenticated in-app browser. The navigation and management bounda
 
 - `Current`: publishing and reply composers have a localized hide-keyboard button that preserves
   unsent text. Dragging the publishing page or topic stream also dismisses the keyboard; opening
-  the publishing preview removes editor focus. Rich-text formatting remains available while editing.
+  the publishing preview removes editor focus. Returning to article editing retains the live document,
+  selection and undo history, restores the previous scroll position, and resumes body focus only if
+  the body was focused before preview. Using the hide-keyboard action before preview keeps it dismissed
+  on return. Rich-text
+  formatting remains available while editing.
 
 - `Current`: the type selector keeps Web's moment/question/article values. Moments and questions
   use a simple gallery plus text; articles use an inline rich editor backed by Markdown. Article
