@@ -64,9 +64,20 @@ export function trustExternalDomain(domain: string) {
   }
 }
 
+// Resolver denials apply only to the exact URL observed on this anchor.
+const resolvedRisks = new WeakMap<HTMLAnchorElement, string>()
+export function setExternalLinkPreviewBlocked(anchor: HTMLAnchorElement, blocked: boolean) {
+  if (blocked) resolvedRisks.set(anchor, anchor.href)
+  else resolvedRisks.delete(anchor)
+}
+
 function linkRisk(anchor: HTMLAnchorElement): ExternalLinkRisk {
   const risk = anchor.dataset.externalRisk
-  return risk === 'suspicious' || risk === 'blocked' ? risk : 'normal_external'
+  if (risk === 'blocked' || resolvedRisks.get(anchor) === anchor.href) return 'blocked'
+  if (risk === 'suspicious') return risk
+  const labelUrl = safeUrl(anchor.textContent?.trim(), 'external')
+  if (labelUrl && registrableDomain(new URL(labelUrl).hostname) !== registrableDomain(new URL(anchor.href).hostname)) return 'suspicious'
+  return 'normal_external'
 }
 
 export function openExternalLinkGuard(anchor: HTMLAnchorElement, event: MouseEvent): boolean {

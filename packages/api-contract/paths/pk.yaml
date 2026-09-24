@@ -661,6 +661,7 @@ getSectionTimes:
 
 getPlans:
   get:
+    deprecated: true
     tags: [PK]
     summary: Fetch the caller's cloud schedule plan snapshot
     security:
@@ -668,6 +669,10 @@ getPlans:
       - accessTokenCookie: []
     operationId: pkGetPlans
     description: |
+      After first access to /api/pk/plan-items, this legacy operation returns 410.
+      Existing snapshots migrate without deleting any plan, including recovery copies.
+      An erased (closed) account also reads as an empty snapshot with 200 and null
+      data; its writes and deletes still return 410.
       Login-required read of the caller's PK scheduler plan snapshot (issue #537).
       Returns the four persisted fields (plans/activePlanId/majorSelected/weekView)
       plus the server-side authoritative updatedAt clock (RFC3339Nano UTC) that
@@ -677,6 +682,12 @@ getPlans:
       Rate limited under the dedicated pk.plans quota (independent from the
       course.catalog read quota).
     responses:
+      '410':
+        description: Account uses per-plan synchronization; update the client.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/PkPlanItemResponse
       '200':
         description: Cloud snapshot, or null data when the user has no snapshot yet.
         content:
@@ -712,6 +723,7 @@ getPlans:
 
 putPlans:
   put:
+    deprecated: true
     tags: [PK]
     summary: Replace the caller's cloud schedule plan snapshot wholesale
     security:
@@ -719,6 +731,8 @@ putPlans:
       - accessTokenCookie: []
     operationId: pkPutPlans
     description: |
+      After first access to /api/pk/plan-items, this legacy operation returns 410.
+      Existing snapshots migrate without deleting any plan, including recovery copies.
       Login-required whole-snapshot upsert (issue #537): plans/activePlanId/
       majorSelected/weekView are replaced atomically; created_at stays fixed and
       the server-side updated_at clock is refreshed. Server-side shallow
@@ -734,6 +748,12 @@ putPlans:
           schema:
             $ref: ../components/schemas.yaml#/PkPlansPutRequest
     responses:
+      '410':
+        description: Account uses per-plan synchronization; update the client.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/PkPlanItemResponse
       '200':
         description: Snapshot stored; returns the server-side sync clock.
         content:
@@ -796,6 +816,7 @@ putPlans:
 
 deletePlans:
   delete:
+    deprecated: true
     tags: [PK]
     summary: Delete the caller's cloud schedule plan snapshot
     security:
@@ -803,11 +824,19 @@ deletePlans:
       - accessTokenCookie: []
     operationId: pkDeletePlans
     description: |
+      After first access to /api/pk/plan-items, this legacy operation returns 410.
+      Existing snapshots migrate without deleting any plan, including recovery copies.
       Login-required idempotent delete of the caller's cloud snapshot (issue #537);
       local data is untouched. Same account-close semantics as the push device
       cleanup (anonymize and delete modes both erase the row). Writes require a
       writable account.
     responses:
+      '410':
+        description: Account uses per-plan synchronization; update the client.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/PkPlanItemResponse
       '200':
         description: Snapshot removed (or was already absent).
         content:
@@ -843,6 +872,213 @@ deletePlans:
               $ref: ../components/schemas.yaml#/RateLimitedFailure
       '500':
         description: Internal error.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/PkFailure
+
+planItems:
+  get:
+    tags: [PK]
+    operationId: pkListPlanItems
+    summary: Read independent plan revisions
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    description: |
+      Caller-owned per-plan synchronization. First access atomically migrates every legacy plan
+      and retires the legacy snapshot API for this account. Each plan has an integer CAS revision.
+      At most ten plans per account; each plan payload is limited to 1 MB. Device preferences stay local.
+      Conflicts include the latest item; a missing positive revision returns 410 and cannot recreate it.
+    responses:
+      '200':
+        description: Success.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/PkPlanItemsResponse
+            examples:
+              success:
+                externalValue: ../fixtures/pk-plan-items-success.json
+      '400':
+        description: Invalid input.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/PkFailure
+      '401':
+        description: Authentication required.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+      '403':
+        description: Account cannot write.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+      '409':
+        description: Remote item changed, or quota reached with null data.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/PkPlanItemResponse
+      '410':
+        description: Plan deleted; preserve dirty content locally.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/PkPlanItemResponse
+      '429':
+        description: Rate limited.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/RateLimitedFailure
+      '500':
+        description: Storage unavailable.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/PkFailure
+  put:
+    tags: [PK]
+    operationId: pkPutPlanItem
+    summary: Conditionally save one plan
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    description: |
+      Caller-owned per-plan synchronization. First access atomically migrates every legacy plan
+      and retires the legacy snapshot API for this account. Each plan has an integer CAS revision.
+      At most ten plans per account; each plan payload is limited to 1 MB. Device preferences stay local.
+      Conflicts include the latest item; a missing positive revision returns 410 and cannot recreate it.
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/PkPlanItemPutRequest
+    responses:
+      '200':
+        description: Success.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/PkPlanItemResponse
+            examples:
+              success:
+                externalValue: ../fixtures/pk-plan-item-success.json
+      '400':
+        description: Invalid input.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/PkFailure
+      '401':
+        description: Authentication required.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+      '403':
+        description: Account cannot write.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+      '409':
+        description: Remote item changed, or quota reached with null data.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/PkPlanItemResponse
+            examples:
+              conflict:
+                externalValue: ../fixtures/pk-plan-item-conflict.json
+      '410':
+        description: Plan deleted; preserve dirty content locally.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/PkPlanItemResponse
+      '429':
+        description: Rate limited.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/RateLimitedFailure
+      '500':
+        description: Storage unavailable.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/PkFailure
+  delete:
+    tags: [PK]
+    operationId: pkDeletePlanItem
+    summary: Conditionally delete one plan
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    description: |
+      Caller-owned per-plan synchronization. First access atomically migrates every legacy plan
+      and retires the legacy snapshot API for this account. Each plan has an integer CAS revision.
+      At most ten plans per account; each plan payload is limited to 1 MB. Device preferences stay local.
+      Conflicts include the latest item. Deleting an already-absent plan is idempotent and returns
+      200 regardless of the observed revision; the missing-positive-revision 410 applies only to PUT.
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/PkPlanItemDeleteRequest
+    responses:
+      '200':
+        description: Success.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/PkPlansDeleteResponse
+      '400':
+        description: Invalid input.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/PkFailure
+      '401':
+        description: Authentication required.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+      '403':
+        description: Account cannot write.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+      '409':
+        description: Remote item changed, or quota reached with null data.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/PkPlanItemResponse
+      '410':
+        description: Plan deleted; preserve dirty content locally.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/PkPlanItemResponse
+      '429':
+        description: Rate limited.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/RateLimitedFailure
+      '500':
+        description: Storage unavailable.
         content:
           application/json:
             schema:

@@ -26,7 +26,8 @@ Web inside an authenticated in-app browser. The navigation and management bounda
 
 - `Current`: a bare HTTP(S) URL in its own Markdown paragraph resolves through the server batch API and
   becomes a compact native preview only when typed metadata is ready; failure keeps the ordinary link,
-  and each document stops after three previews. Cards and ordinary Markdown links share internal routing
+  and each document stops after five previews. Below 640px, cover images use a 56px cropped thumbnail;
+  wider cards preserve the complete cover within a 168px rail, matching Web. Cards and ordinary Markdown links share internal routing
   and external confirmation. The confirmation shows the hostname and selectable full URL, supports
   system back, and scopes optional session trust to the Public Suffix List registrable domain. The card
   is covered at 320 logical pixels, dark mode and 2.0 text scale.
@@ -286,16 +287,16 @@ Web inside an authenticated in-app browser. The navigation and management bounda
   credit, hour and conflict counts wrap in a compact row. A small Web action opens
   the full [Web scheduler](https://f.yourtj.de/schedule) in the external browser without transferring
   the native credential. Plans are not official enrollment results.
-- `Current`: signed-in plans cloud-sync with the Web scheduler (`GET/PUT/DELETE /api/pk/plans`,
-  issue #537): local changes upload after a 3s debounce, entering the scheduler reconciles against
-  the cloud snapshot (empty cloud auto-uploads local; conflicting edits show a one-time
-  use-cloud / keep-local dialog), and the server's `updatedAt` clock is the only sync authority.
-  Uploads carry the observed server revision; HTTP 409 triggers another read and a conflict
-  dialog. Initial read failures and unresolved conflicts block writes. Pending local changes
-  survive page exit and transient failures, and the sync clock advances only after local
-  persistence succeeds. Switching accounts requires choosing the cloud copy or explicitly
-  keeping the retained local plans, including when the new account has no cloud snapshot.
-  Signed-out use stays purely local with zero requests; account closure deletes the cloud copy.
+- `Current`: signed-in plans use the same per-plan revision and three-way merge rules as Web
+  (`GET/PUT/DELETE /api/pk/plan-items`). Independent course changes and custom-event fields merge
+  automatically; only conflicting values require a choice. A remotely deleted plan with local edits
+  can be kept as a device-only recovery draft and restored under a new ID, outside cloud quota until
+  restoration. Current plan, major selection and week view are device-local. Each account retains its
+  own cache and merge bases; guest content needs explicit adoption. Changes debounce for 3 seconds,
+  dirty network failures back off up to 60 seconds, foreground/network restoration flush pending
+  edits, and focus reads are throttled to 30 seconds. Clean state has no polling timer.
+  Existing cloud snapshots migrate intact on first use; legacy clients receive 410 afterward.
+  Account closure erases cloud content and prevents in-flight requests from recreating it.
 - `Current`: course details retain offering-specific five-star reviews and existing review fields;
   bookmark and write-review actions stay in a bottom dock. Scores share a baseline with their
   five-point denominator. The signed-in user’s own reviews (including anonymous reviews) appear

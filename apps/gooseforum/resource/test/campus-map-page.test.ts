@@ -31,6 +31,7 @@ vi.mock('../src/site/campus-map/CampusCanvas.vue', async () => {
 })
 const dataset = JSON.parse(readFileSync('src/site/campus-map/data/siping.geojson', 'utf8'))
 const jiading = JSON.parse(readFileSync('src/site/campus-map/data/jiading.geojson', 'utf8'))
+const zhangjiangDataset = JSON.parse(readFileSync('src/site/campus-map/data/zhangjiang.geojson', 'utf8'))
 const outside = { longitude: 103.85, latitude: 1.29, accuracy: 18, timestamp: 42 }
 const shanghaiDateParts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date())
 const shanghaiDate = `${shanghaiDateParts.find(part => part.type === 'year')?.value}-${shanghaiDateParts.find(part => part.type === 'month')?.value}-${shanghaiDateParts.find(part => part.type === 'day')?.value}`
@@ -69,6 +70,38 @@ it.each([['en', 'Basketball'], ['de', 'Basketball'], ['ja', 'バスケットボ�
     expect(page.get('.atlas-place small').text()).toContain(basketball)
   },
 )
+it('shows an external map route for the selected building and keeps the map open', async () => {
+  const building = dataset.features.find((feature) => feature.properties.building)
+  window.history.replaceState(
+    {},
+    '',
+    `/map#place=${encodeURIComponent(String(building.id))}`,
+  )
+  const page = await openPage()
+  const link = page.get('.atlas-detail a.atlas-share')
+  const destination = new URL(link.attributes('href')!)
+  expect(destination.hostname).toBe('api.map.baidu.com')
+  expect(destination.searchParams.get('destination')).toBe(
+    `latlng:${building.properties.center[1]},${building.properties.center[0]}|name:${building.properties.name}`,
+  )
+  expect(destination.searchParams.get('coord_type')).toBe('wgs84')
+  expect(destination.searchParams.get('mode')).toBe('walking')
+  expect(link.attributes('target')).toBe('_blank')
+  expect(link.text()).toBe('Navigate')
+  expect(page.get('.atlas-detail h2').exists()).toBe(true)
+})
+it('does not offer navigation for Zhangjiang schematic buildings', async () => {
+  const building = zhangjiangDataset.features.find((feature) => feature.properties.building)
+  window.history.replaceState(
+    {},
+    '',
+    `/map?campus=zhangjiang#place=${encodeURIComponent(String(building.id))}`,
+  )
+  fetchData.mockResolvedValueOnce({ ok: true, json: async () => zhangjiangDataset })
+  const page = await openPage()
+  expect(page.get('.atlas-detail h2').exists()).toBe(true)
+  expect(page.find('.atlas-detail a.atlas-share').exists()).toBe(false)
+})
 it('reports an outside-campus fix from the uncalibrated plan without promising an overlay', async () => {
   window.history.replaceState({}, '', '/map?campus=zhangjiang')
   const page = await openPage()
@@ -310,7 +343,7 @@ it('shares the public atlas URL from private map mode', async () => {
     value: { writeText: vi.fn().mockRejectedValue(new Error('clipboard unavailable')) },
   })
   const page = await openPage()
-  await page.get('.atlas-share').trigger('click')
+  await page.get('button.atlas-share').trigger('click')
   await flushPromises()
 
   expect(page.get('.atlas-share-url').element).toHaveProperty('value', 'http://localhost:3000/map?campus=siping#place=relation%2F18788114')

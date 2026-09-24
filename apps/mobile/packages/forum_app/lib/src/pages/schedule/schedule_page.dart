@@ -1,4 +1,5 @@
 import 'scheduler_web_tip.dart';
+import 'schedule_sync_panel.dart';
 import '../../widgets/schedule_time_grid.dart';
 // 排课器主页面（/schedule 路由目标）：移动端双 tab（课表 / 选课）+ 方案条 +
 // 学期·年级·专业配置行 + 数据过期同步 + 自定义占位 + PNG/CSV 导出。
@@ -89,8 +90,7 @@ class _SchedulePageState extends ConsumerState<SchedulePage>
   final GlobalKey _gridBoundaryKey = GlobalKey();
 
   // Capture the application controller; page exit flushes pending local edits.
-  late final ScheduleSyncController _syncController;
-  bool _showingSyncConflict = false;
+  late ScheduleSyncController _syncController;
 
   ScheduleState get _state => ref.read(scheduleStoreProvider);
 
@@ -101,7 +101,6 @@ class _SchedulePageState extends ConsumerState<SchedulePage>
   void initState() {
     super.initState();
     _syncController = ref.read(scheduleSyncControllerProvider);
-    _syncController.conflict.addListener(_onSyncConflict);
     WidgetsBinding.instance.addObserver(this);
     ref.read(scheduleStoreProvider.notifier).ready.then((_) {
       if (!mounted) return;
@@ -113,7 +112,6 @@ class _SchedulePageState extends ConsumerState<SchedulePage>
 
   @override
   void dispose() {
-    _syncController.conflict.removeListener(_onSyncConflict);
     unawaited(_syncController.flushPendingUpload());
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
@@ -122,6 +120,9 @@ class _SchedulePageState extends ConsumerState<SchedulePage>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     // paused 尽力冲刷未上行的本地方案（issue #537；best-effort）。
+    if (state == AppLifecycleState.resumed) {
+      unawaited(_syncController.onResume());
+    }
     if (state == AppLifecycleState.paused) {
       unawaited(ref.read(scheduleSyncControllerProvider).flushPendingUpload());
     }
@@ -130,69 +131,6 @@ class _SchedulePageState extends ConsumerState<SchedulePage>
   /// 进页方案云同步对账（issue #537）：未登录零请求；冲突时弹窗二选一。
   Future<void> _syncPlansOnEnter() async {
     await _syncController.syncOnEnter();
-  }
-
-  void _onSyncConflict() {
-    final snapshot = _syncController.conflict.value;
-    if (!mounted || snapshot == null || _showingSyncConflict) return;
-    _showingSyncConflict = true;
-    unawaited(
-      _showPlanSyncConflictDialog(snapshot).whenComplete(() {
-        _showingSyncConflict = false;
-      }),
-    );
-  }
-
-  /// 冲突弹窗（一次性）：「使用云端」整包采用 / 「保留本地」立即上行。
-  Future<void> _showPlanSyncConflictDialog(PkPlansSnapshot snapshot) async {
-    final AppLocalizations l10n = AppLocalizations.of(context);
-    final ScheduleSyncController sync = ref.read(
-      scheduleSyncControllerProvider,
-    );
-    await showGfAlertDialog<void>(
-      context,
-      barrierDismissible: false,
-      builder: (BuildContext dialogContext) => Padding(
-        padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            Text(
-              l10n.scheduleSyncConflictTitle,
-              style: GfTheme.typographyOf(dialogContext).heading,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              l10n.scheduleSyncConflictBody,
-              style: GfTheme.typographyOf(dialogContext).body,
-            ),
-            const SizedBox(height: 18),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: <Widget>[
-                GfButton(
-                  label: l10n.scheduleSyncKeepLocal,
-                  variant: GfButtonVariant.ghost,
-                  onPressed: () {
-                    Navigator.of(dialogContext).pop();
-                    unawaited(sync.keepLocal());
-                  },
-                ),
-                const SizedBox(width: 8),
-                GfButton(
-                  label: l10n.scheduleSyncUseCloud,
-                  onPressed: () {
-                    Navigator.of(dialogContext).pop();
-                    unawaited(sync.adoptRemote(snapshot));
-                  },
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
   }
 
   @override
@@ -255,6 +193,11 @@ class _SchedulePageState extends ConsumerState<SchedulePage>
   @override
   Widget build(BuildContext context) {
     final AppLocalizations l10n = AppLocalizations.of(context);
+    _syncController = ref.watch(scheduleSyncControllerProvider);
+    ref.listen(scheduleSyncControllerProvider, (previous, next) {
+      _syncController = next;
+      unawaited(next.syncOnEnter());
+    });
     final ScheduleState state = ref.watch(scheduleStoreProvider);
     final GfColors colors = GfTheme.colorsOf(context);
     final bool outdated = _notifier.isDataOutdated;
@@ -301,6 +244,7 @@ class _SchedulePageState extends ConsumerState<SchedulePage>
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
               children: <Widget>[
                 const SchedulerWebTip(),
+                const ScheduleSyncPanel(),
                 _PlanBar(notifier: _notifier, state: state),
                 const SizedBox(height: 8),
                 if (state.isConfigCollapsed)

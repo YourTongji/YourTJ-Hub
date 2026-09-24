@@ -33,7 +33,7 @@ func setupUserContentContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 		&reports.Entity{},
 		// AccountClose 的注销前置必需步骤会删除快照（issue #557 review P1），
 		// 本 harness 实测注销成功路径，表必须存在。
-		&pk.ScheduleSnapshotEntity{},
+		&pk.ScheduleSnapshotEntity{}, &pk.PlanSyncOwner{}, &pk.PlanItem{},
 		&campus.Binding{},
 	); err != nil {
 		t.Fatalf("migrate user content contract tables: %v", err)

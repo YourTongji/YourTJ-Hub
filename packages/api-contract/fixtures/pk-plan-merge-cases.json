@@ -1,0 +1,860 @@
+[
+  {
+    "name": "name and new event",
+    "base": {
+      "id": "p",
+      "name": "Plan",
+      "createdAt": 1,
+      "stagedCourses": [],
+      "selectedCourses": [],
+      "customEvents": []
+    },
+    "local": {
+      "id": "p",
+      "name": "Local",
+      "createdAt": 1,
+      "stagedCourses": [],
+      "selectedCourses": [],
+      "customEvents": []
+    },
+    "remote": {
+      "id": "p",
+      "name": "Plan",
+      "createdAt": 1,
+      "stagedCourses": [],
+      "selectedCourses": [],
+      "customEvents": [
+        {
+          "id": "e",
+          "label": "Event",
+          "day": 1,
+          "sections": [
+            1
+          ],
+          "weeks": [
+            1
+          ]
+        }
+      ]
+    },
+    "expected": {
+      "id": "p",
+      "name": "Local",
+      "createdAt": 1,
+      "stagedCourses": [],
+      "selectedCourses": [],
+      "customEvents": [
+        {
+          "id": "e",
+          "label": "Event",
+          "day": 1,
+          "sections": [
+            1
+          ],
+          "weeks": [
+            1
+          ]
+        }
+      ]
+    },
+    "conflicts": [],
+    "choices": {}
+  },
+  {
+    "name": "different courses",
+    "base": {
+      "id": "p",
+      "name": "Plan",
+      "createdAt": 1,
+      "stagedCourses": [],
+      "selectedCourses": [],
+      "customEvents": []
+    },
+    "local": {
+      "id": "p",
+      "name": "Plan",
+      "createdAt": 1,
+      "stagedCourses": [
+        {
+          "courseCode": "a",
+          "courseName": "a",
+          "courseNameReserved": "a",
+          "credit": 1,
+          "courseType": "",
+          "courseNature": [],
+          "teacher": [],
+          "status": 2,
+          "courseDetail": [
+            {
+              "code": "a.1",
+              "campus": "",
+              "arrangementInfo": [],
+              "teachers": [],
+              "teachingLanguage": "",
+              "status": 2
+            }
+          ]
+        }
+      ],
+      "selectedCourses": [
+        "a.1"
+      ],
+      "customEvents": []
+    },
+    "remote": {
+      "id": "p",
+      "name": "Plan",
+      "createdAt": 1,
+      "stagedCourses": [
+        {
+          "courseCode": "b",
+          "courseName": "b",
+          "courseNameReserved": "b",
+          "credit": 1,
+          "courseType": "",
+          "courseNature": [],
+          "teacher": [],
+          "status": 2,
+          "courseDetail": [
+            {
+              "code": "b.1",
+              "campus": "",
+              "arrangementInfo": [],
+              "teachers": [],
+              "teachingLanguage": "",
+              "status": 2
+            }
+          ]
+        }
+      ],
+      "selectedCourses": [
+        "b.1"
+      ],
+      "customEvents": []
+    },
+    "expected": {
+      "id": "p",
+      "name": "Plan",
+      "createdAt": 1,
+      "stagedCourses": [
+        {
+          "courseCode": "a",
+          "courseName": "a",
+          "courseNameReserved": "a",
+          "credit": 1,
+          "courseType": "",
+          "courseNature": [],
+          "teacher": [],
+          "status": 2,
+          "courseDetail": [
+            {
+              "code": "a.1",
+              "campus": "",
+              "arrangementInfo": [],
+              "teachers": [],
+              "teachingLanguage": "",
+              "status": 2
+            }
+          ]
+        },
+        {
+          "courseCode": "b",
+          "courseName": "b",
+          "courseNameReserved": "b",
+          "credit": 1,
+          "courseType": "",
+          "courseNature": [],
+          "teacher": [],
+          "status": 2,
+          "courseDetail": [
+            {
+              "code": "b.1",
+              "campus": "",
+              "arrangementInfo": [],
+              "teachers": [],
+              "teachingLanguage": "",
+              "status": 2
+            }
+          ]
+        }
+      ],
+      "selectedCourses": [
+        "a.1",
+        "b.1"
+      ],
+      "customEvents": []
+    },
+    "conflicts": [],
+    "choices": {}
+  },
+  {
+    "name": "same course different class",
+    "base": {
+      "id": "p",
+      "name": "Plan",
+      "createdAt": 1,
+      "stagedCourses": [
+        {
+          "courseCode": "a",
+          "courseName": "a",
+          "courseNameReserved": "a",
+          "credit": 1,
+          "courseType": "",
+          "courseNature": [],
+          "teacher": [],
+          "status": 2,
+          "courseDetail": [
+            {
+              "code": "a.1",
+              "campus": "",
+              "arrangementInfo": [],
+              "teachers": [],
+              "teachingLanguage": "",
+              "status": 2
+            }
+          ]
+        }
+      ],
+      "selectedCourses": [
+        "a.1"
+      ],
+      "customEvents": []
+    },
+    "local": {
+      "id": "p",
+      "name": "Plan",
+      "createdAt": 1,
+      "stagedCourses": [
+        {
+          "courseCode": "a",
+          "courseName": "a",
+          "courseNameReserved": "a",
+          "credit": 1,
+          "courseType": "",
+          "courseNature": [],
+          "teacher": [],
+          "status": 2,
+          "courseDetail": [
+            {
+              "code": "a.2",
+              "campus": "",
+              "arrangementInfo": [],
+              "teachers": [],
+              "teachingLanguage": "",
+              "status": 2
+            }
+          ]
+        }
+      ],
+      "selectedCourses": [
+        "a.2"
+      ],
+      "customEvents": []
+    },
+    "remote": {
+      "id": "p",
+      "name": "Plan",
+      "createdAt": 1,
+      "stagedCourses": [
+        {
+          "courseCode": "a",
+          "courseName": "a",
+          "courseNameReserved": "a",
+          "credit": 1,
+          "courseType": "",
+          "courseNature": [],
+          "teacher": [],
+          "status": 2,
+          "courseDetail": [
+            {
+              "code": "a.3",
+              "campus": "",
+              "arrangementInfo": [],
+              "teachers": [],
+              "teachingLanguage": "",
+              "status": 2
+            }
+          ]
+        }
+      ],
+      "selectedCourses": [
+        "a.3"
+      ],
+      "customEvents": []
+    },
+    "expected": {
+      "id": "p",
+      "name": "Plan",
+      "createdAt": 1,
+      "stagedCourses": [
+        {
+          "courseCode": "a",
+          "courseName": "a",
+          "courseNameReserved": "a",
+          "credit": 1,
+          "courseType": "",
+          "courseNature": [],
+          "teacher": [],
+          "status": 2,
+          "courseDetail": [
+            {
+              "code": "a.2",
+              "campus": "",
+              "arrangementInfo": [],
+              "teachers": [],
+              "teachingLanguage": "",
+              "status": 2
+            }
+          ]
+        }
+      ],
+      "selectedCourses": [
+        "a.2"
+      ],
+      "customEvents": []
+    },
+    "conflicts": [
+      [
+        "courses",
+        "a"
+      ]
+    ],
+    "choices": {}
+  },
+  {
+    "name": "choose only remote course",
+    "base": {
+      "id": "p",
+      "name": "Plan",
+      "createdAt": 1,
+      "stagedCourses": [
+        {
+          "courseCode": "a",
+          "courseName": "a",
+          "courseNameReserved": "a",
+          "credit": 1,
+          "courseType": "",
+          "courseNature": [],
+          "teacher": [],
+          "status": 2,
+          "courseDetail": [
+            {
+              "code": "a.1",
+              "campus": "",
+              "arrangementInfo": [],
+              "teachers": [],
+              "teachingLanguage": "",
+              "status": 2
+            }
+          ]
+        }
+      ],
+      "selectedCourses": [
+        "a.1"
+      ],
+      "customEvents": []
+    },
+    "local": {
+      "id": "p",
+      "name": "Plan",
+      "createdAt": 1,
+      "stagedCourses": [
+        {
+          "courseCode": "a",
+          "courseName": "a",
+          "courseNameReserved": "a",
+          "credit": 1,
+          "courseType": "",
+          "courseNature": [],
+          "teacher": [],
+          "status": 2,
+          "courseDetail": [
+            {
+              "code": "a.2",
+              "campus": "",
+              "arrangementInfo": [],
+              "teachers": [],
+              "teachingLanguage": "",
+              "status": 2
+            }
+          ]
+        }
+      ],
+      "selectedCourses": [
+        "a.2"
+      ],
+      "customEvents": []
+    },
+    "remote": {
+      "id": "p",
+      "name": "Plan",
+      "createdAt": 1,
+      "stagedCourses": [
+        {
+          "courseCode": "a",
+          "courseName": "a",
+          "courseNameReserved": "a",
+          "credit": 1,
+          "courseType": "",
+          "courseNature": [],
+          "teacher": [],
+          "status": 2,
+          "courseDetail": [
+            {
+              "code": "a.3",
+              "campus": "",
+              "arrangementInfo": [],
+              "teachers": [],
+              "teachingLanguage": "",
+              "status": 2
+            }
+          ]
+        }
+      ],
+      "selectedCourses": [
+        "a.3"
+      ],
+      "customEvents": []
+    },
+    "expected": {
+      "id": "p",
+      "name": "Plan",
+      "createdAt": 1,
+      "stagedCourses": [
+        {
+          "courseCode": "a",
+          "courseName": "a",
+          "courseNameReserved": "a",
+          "credit": 1,
+          "courseType": "",
+          "courseNature": [],
+          "teacher": [],
+          "status": 2,
+          "courseDetail": [
+            {
+              "code": "a.3",
+              "campus": "",
+              "arrangementInfo": [],
+              "teachers": [],
+              "teachingLanguage": "",
+              "status": 2
+            }
+          ]
+        }
+      ],
+      "selectedCourses": [
+        "a.3"
+      ],
+      "customEvents": []
+    },
+    "conflicts": [],
+    "choices": {
+      "[\"courses\",\"a\"]": "remote"
+    }
+  },
+  {
+    "name": "different event fields",
+    "base": {
+      "id": "p",
+      "name": "Plan",
+      "createdAt": 1,
+      "stagedCourses": [],
+      "selectedCourses": [],
+      "customEvents": [
+        {
+          "id": "e",
+          "label": "Event",
+          "day": 1,
+          "sections": [
+            1
+          ],
+          "weeks": [
+            1
+          ]
+        }
+      ]
+    },
+    "local": {
+      "id": "p",
+      "name": "Plan",
+      "createdAt": 1,
+      "stagedCourses": [],
+      "selectedCourses": [],
+      "customEvents": [
+        {
+          "id": "e",
+          "label": "Local",
+          "day": 1,
+          "sections": [
+            1
+          ],
+          "weeks": [
+            1
+          ]
+        }
+      ]
+    },
+    "remote": {
+      "id": "p",
+      "name": "Plan",
+      "createdAt": 1,
+      "stagedCourses": [],
+      "selectedCourses": [],
+      "customEvents": [
+        {
+          "id": "e",
+          "label": "Event",
+          "day": 2,
+          "sections": [
+            1
+          ],
+          "weeks": [
+            1
+          ]
+        }
+      ]
+    },
+    "expected": {
+      "id": "p",
+      "name": "Plan",
+      "createdAt": 1,
+      "stagedCourses": [],
+      "selectedCourses": [],
+      "customEvents": [
+        {
+          "id": "e",
+          "label": "Local",
+          "day": 2,
+          "sections": [
+            1
+          ],
+          "weeks": [
+            1
+          ]
+        }
+      ]
+    },
+    "conflicts": [],
+    "choices": {}
+  },
+  {
+    "name": "same event field conflict",
+    "base": {
+      "id": "p",
+      "name": "Plan",
+      "createdAt": 1,
+      "stagedCourses": [],
+      "selectedCourses": [],
+      "customEvents": [
+        {
+          "id": "e",
+          "label": "Event",
+          "day": 1,
+          "sections": [
+            1
+          ],
+          "weeks": [
+            1
+          ]
+        }
+      ]
+    },
+    "local": {
+      "id": "p",
+      "name": "Plan",
+      "createdAt": 1,
+      "stagedCourses": [],
+      "selectedCourses": [],
+      "customEvents": [
+        {
+          "id": "e",
+          "label": "Local",
+          "day": 1,
+          "sections": [
+            1
+          ],
+          "weeks": [
+            1
+          ]
+        }
+      ]
+    },
+    "remote": {
+      "id": "p",
+      "name": "Plan",
+      "createdAt": 1,
+      "stagedCourses": [],
+      "selectedCourses": [],
+      "customEvents": [
+        {
+          "id": "e",
+          "label": "Remote",
+          "day": 2,
+          "sections": [
+            1
+          ],
+          "weeks": [
+            1
+          ]
+        }
+      ]
+    },
+    "expected": {
+      "id": "p",
+      "name": "Plan",
+      "createdAt": 1,
+      "stagedCourses": [],
+      "selectedCourses": [],
+      "customEvents": [
+        {
+          "id": "e",
+          "label": "Local",
+          "day": 2,
+          "sections": [
+            1
+          ],
+          "weeks": [
+            1
+          ]
+        }
+      ]
+    },
+    "conflicts": [
+      [
+        "events",
+        "e",
+        "label"
+      ]
+    ],
+    "choices": {}
+  },
+  {
+    "name": "choose one event field",
+    "base": {
+      "id": "p",
+      "name": "Plan",
+      "createdAt": 1,
+      "stagedCourses": [],
+      "selectedCourses": [],
+      "customEvents": [
+        {
+          "id": "e",
+          "label": "Event",
+          "day": 1,
+          "sections": [
+            1
+          ],
+          "weeks": [
+            1
+          ]
+        }
+      ]
+    },
+    "local": {
+      "id": "p",
+      "name": "Plan",
+      "createdAt": 1,
+      "stagedCourses": [],
+      "selectedCourses": [],
+      "customEvents": [
+        {
+          "id": "e",
+          "label": "Local",
+          "day": 1,
+          "sections": [
+            1
+          ],
+          "weeks": [
+            1
+          ]
+        }
+      ]
+    },
+    "remote": {
+      "id": "p",
+      "name": "Plan",
+      "createdAt": 1,
+      "stagedCourses": [],
+      "selectedCourses": [],
+      "customEvents": [
+        {
+          "id": "e",
+          "label": "Remote",
+          "day": 2,
+          "sections": [
+            1
+          ],
+          "weeks": [
+            1
+          ]
+        }
+      ]
+    },
+    "expected": {
+      "id": "p",
+      "name": "Plan",
+      "createdAt": 1,
+      "stagedCourses": [],
+      "selectedCourses": [],
+      "customEvents": [
+        {
+          "id": "e",
+          "label": "Remote",
+          "day": 2,
+          "sections": [
+            1
+          ],
+          "weeks": [
+            1
+          ]
+        }
+      ]
+    },
+    "conflicts": [],
+    "choices": {
+      "[\"events\",\"e\",\"label\"]": "remote"
+    }
+  },
+  {
+    "name": "remote deletion of edited plan",
+    "base": {
+      "id": "p",
+      "name": "Plan",
+      "createdAt": 1,
+      "stagedCourses": [],
+      "selectedCourses": [],
+      "customEvents": []
+    },
+    "local": {
+      "id": "p",
+      "name": "Dirty",
+      "createdAt": 1,
+      "stagedCourses": [],
+      "selectedCourses": [],
+      "customEvents": []
+    },
+    "remote": null,
+    "expected": {
+      "id": "p",
+      "name": "Dirty",
+      "createdAt": 1,
+      "stagedCourses": [],
+      "selectedCourses": [],
+      "customEvents": []
+    },
+    "conflicts": [
+      []
+    ],
+    "choices": {}
+  },
+  {
+    "name": "remote deletion of unchanged plan",
+    "base": {
+      "id": "p",
+      "name": "Plan",
+      "createdAt": 1,
+      "stagedCourses": [],
+      "selectedCourses": [],
+      "customEvents": []
+    },
+    "local": {
+      "id": "p",
+      "name": "Plan",
+      "createdAt": 1,
+      "stagedCourses": [],
+      "selectedCourses": [],
+      "customEvents": []
+    },
+    "remote": null,
+    "expected": null,
+    "conflicts": [],
+    "choices": {}
+  },
+  {
+    "name": "local delete versus remote edit",
+    "base": {
+      "id": "p",
+      "name": "Plan",
+      "createdAt": 1,
+      "stagedCourses": [],
+      "selectedCourses": [],
+      "customEvents": []
+    },
+    "local": null,
+    "remote": {
+      "id": "p",
+      "name": "Dirty",
+      "createdAt": 1,
+      "stagedCourses": [],
+      "selectedCourses": [],
+      "customEvents": []
+    },
+    "expected": null,
+    "conflicts": [
+      []
+    ],
+    "choices": {}
+  },
+  {
+    "name": "unbased ID collision",
+    "base": null,
+    "local": {
+      "id": "p",
+      "name": "Dirty",
+      "createdAt": 1,
+      "stagedCourses": [],
+      "selectedCourses": [],
+      "customEvents": []
+    },
+    "remote": {
+      "id": "p",
+      "name": "Plan",
+      "createdAt": 1,
+      "stagedCourses": [],
+      "selectedCourses": [],
+      "customEvents": []
+    },
+    "expected": {
+      "id": "p",
+      "name": "Dirty",
+      "createdAt": 1,
+      "stagedCourses": [],
+      "selectedCourses": [],
+      "customEvents": []
+    },
+    "conflicts": [
+      []
+    ],
+    "choices": {}
+  },
+  {
+    "name": "identical unbased plans",
+    "base": null,
+    "local": {
+      "id": "p",
+      "name": "Plan",
+      "createdAt": 1,
+      "stagedCourses": [],
+      "selectedCourses": [],
+      "customEvents": []
+    },
+    "remote": {
+      "id": "p",
+      "name": "Plan",
+      "createdAt": 1,
+      "stagedCourses": [],
+      "selectedCourses": [],
+      "customEvents": []
+    },
+    "expected": {
+      "id": "p",
+      "name": "Plan",
+      "createdAt": 1,
+      "stagedCourses": [],
+      "selectedCourses": [],
+      "customEvents": []
+    },
+    "conflicts": [],
+    "choices": {}
+  }
+]

@@ -6,6 +6,7 @@ import type { LinkPreview } from '@gooseforum/client'
 import {
   cancelExternalLinkGuard,
   externalDomain,
+  externalLinkGuardState,
   openExternalLinkGuard,
   registrableDomain,
   setExternalLinkGuardInternalOrigins,
@@ -146,6 +147,15 @@ describe('external navigation classification', () => {
     expect(openExternalLinkGuard(trusted, new MouseEvent('click', { cancelable: true }))).toBe(true)
   })
 
+  test('a misleading URL label cannot inherit domain trust', () => {
+    trustExternalDomain('example.org')
+    const anchor = document.createElement('a')
+    anchor.href = 'https://docs.example.org/a'
+    anchor.textContent = 'https://trusted-bank.example/account'
+    expect(openExternalLinkGuard(anchor, new MouseEvent('click', { cancelable: true }))).toBe(true)
+    expect(externalLinkGuardState.pending?.risk).toBe('suspicious')
+  })
+
   test('keeps private-suffix tenants isolated', () => {
     expect(registrableDomain('alice.github.io')).toBe('alice.github.io')
     expect(registrableDomain('bob.github.io')).toBe('bob.github.io')
@@ -190,6 +200,25 @@ describe('rendered link-preview enhancement', () => {
     expect(root.querySelector('p')?.hidden).toBe(false)
     expect(root.querySelector('a')?.getAttribute('href')).toBe(url)
     disposeLinkPreviews(root)
+  })
+
+  test('blocked resolver results prevent a trusted-domain navigation', async () => {
+    const url = 'https://enhancer.example/blocked-review'
+    vi.stubGlobal('IntersectionObserver', undefined)
+    apiMocks.resolveLinkPreviews.mockResolvedValue([{ requestedUrl: url, kind: 'external', status: 'blocked' }])
+    const root = document.createElement('div')
+    root.innerHTML = `<p><a href="${url}">${url}</a></p>`
+    document.body.append(root)
+    trustExternalDomain('enhancer.example')
+    await enhanceLinkPreviews(root)
+    await vi.waitFor(() => expect(root.querySelector('p')?.dataset.gfLinkPreview).toBe('failed'))
+    const click = new MouseEvent('click', { bubbles: true, cancelable: true })
+    root.querySelector('a')!.dispatchEvent(click)
+    expect(click.defaultPrevented).toBe(true)
+    expect(externalLinkGuardState.pending?.risk).toBe('blocked')
+    disposeLinkPreviews(root)
+    cancelExternalLinkGuard()
+    sessionStorage.clear()
   })
 
   test('keeps the mounted card in place when the content was not replaced', async () => {
@@ -327,6 +356,82 @@ describe('editor link-preview hint coordinator', () => {
 
     // 修复前只报第一个可用项（previews.find），作者看到 3 个链接却只被告知 1 个域名。
     expect(changes.at(-1)).toEqual(['one.example', 'three.example'])
+    controller.dispose()
+  })
+
+  test('clears a published hint immediately when its URL changes', async () => {
+    vi.useFakeTimers()
+    const changes: Array<string[] | null> = []
+    const controller = createLinkPreviewHintController({ resolve: async urls => [readyPreview(urls[0])], onChange: hint => changes.push(hint?.domains ?? null) })
+    controller.schedule('https://old.example')
+    await vi.advanceTimersByTimeAsync(400)
+    expect(changes.at(-1)).toEqual(['old.example'])
+    controller.schedule('https://new.example')
+    expect(changes.at(-1)).toBeNull()
+    controller.dispose()
+  })
+
+  test('settle state tracks debounce, in-flight resolve and completion', async () => {
+    vi.useFakeTimers()
+    let release: ((previews: LinkPreview[]) => void) | undefined
+    const resolve = vi.fn(() => new Promise<LinkPreview[]>(resolve => { release = resolve }))
+    const controller = createLinkPreviewHintController({ resolve, onChange: vi.fn() })
+    expect(controller.isSettled()).toBe(true)
+    controller.schedule('https://old.example')
+    expect(controller.isSettled()).toBe(false)
+    await vi.advanceTimersByTimeAsync(400)
+    expect(controller.isSettled()).toBe(false)
+    release?.([readyPreview('https://old.example')])
+    await vi.advanceTimersByTimeAsync(0)
+    expect(controller.isSettled()).toBe(true)
+    controller.dispose()
+  })
+
+  test('a stale in-flight resolve cannot un-settle the newer pending request', async () => {
+    vi.useFakeTimers()
+    const releases: Array<(previews: LinkPreview[]) => void> = []
+    const resolve = vi.fn(() => new Promise<LinkPreview[]>(resolve => releases.push(resolve)))
+    const controller = createLinkPreviewHintController({ resolve, onChange: vi.fn() })
+    controller.schedule('https://old.example')
+    await vi.advanceTimersByTimeAsync(400)
+    controller.schedule('https://new.example')
+    await vi.advanceTimersByTimeAsync(400)
+    expect(controller.isSettled()).toBe(false)
+    releases[0]([readyPreview('https://old.example')])
+    await vi.advanceTimersByTimeAsync(0)
+    expect(controller.isSettled()).toBe(false)
+    releases[1]([readyPreview('https://new.example')])
+    await vi.advanceTimersByTimeAsync(0)
+    expect(controller.isSettled()).toBe(true)
+    controller.dispose()
+  })
+
+  test('unrelated typing preserves published candidates and their pending debounce', async () => {
+    vi.useFakeTimers()
+    const changes: Array<string[] | null> = []
+    const resolve = vi.fn(async urls => [readyPreview(urls[0])])
+    const controller = createLinkPreviewHintController({ resolve, onChange: hint => changes.push(hint?.domains ?? null) })
+    controller.schedule('https://stable.example')
+    await vi.advanceTimersByTimeAsync(200)
+    controller.schedule('https://stable.example\n\nNew paragraph')
+    await vi.advanceTimersByTimeAsync(200)
+    expect(changes.at(-1)).toEqual(['stable.example'])
+    controller.schedule('https://stable.example\n\nNew paragraph continued')
+    expect(changes.at(-1)).toEqual(['stable.example'])
+    await vi.advanceTimersByTimeAsync(800)
+    expect(resolve).toHaveBeenCalledOnce()
+    controller.dispose()
+  })
+
+  test('empty composition result does not resurrect the previous URL', async () => {
+    vi.useFakeTimers()
+    const resolve = vi.fn(async urls => [readyPreview(urls[0])])
+    const controller = createLinkPreviewHintController({ resolve, onChange: vi.fn() })
+    controller.schedule('https://old.example')
+    controller.compositionStart()
+    controller.compositionEnd('')
+    await vi.advanceTimersByTimeAsync(400)
+    expect(resolve).not.toHaveBeenCalled()
     controller.dispose()
   })
 

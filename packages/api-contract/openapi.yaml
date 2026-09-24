@@ -578,6 +578,8 @@ paths:
   /api/pk/section-times:
     get:
       $ref: ./paths/pk.yaml#/getSectionTimes/get
+  /api/pk/plan-items:
+    $ref: ./paths/pk.yaml#/planItems
   /api/pk/plans:
     get:
       $ref: ./paths/pk.yaml#/getPlans/get
@@ -1907,3 +1909,13 @@ components:
       $ref: ./components/schemas.yaml#/AdminStickerImportSuccess
     AdminStickerImportResponse:
       $ref: ./components/schemas.yaml#/AdminStickerImportResponse
+    PkPlanItem:
+      $ref: ./components/schemas.yaml#/PkPlanItem
+    PkPlanItemPutRequest:
+      $ref: ./components/schemas.yaml#/PkPlanItemPutRequest
+    PkPlanItemDeleteRequest:
+      $ref: ./components/schemas.yaml#/PkPlanItemDeleteRequest
+    PkPlanItemResponse:
+      $ref: ./components/schemas.yaml#/PkPlanItemResponse
+    PkPlanItemsResponse:
+      $ref: ./components/schemas.yaml#/PkPlanItemsResponse

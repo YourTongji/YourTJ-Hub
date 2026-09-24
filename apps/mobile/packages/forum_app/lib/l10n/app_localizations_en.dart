@@ -2406,6 +2406,81 @@ class AppLocalizationsEn extends AppLocalizations {
       'Holiday rules could not be loaded. Retry later, or disable adjustments to export the original timetable.';
 
   @override
+  String get planSyncTitle => 'Resolve plan conflicts';
+
+  @override
+  String get planSyncBody =>
+      'Another device changed these items too. Choose each value to keep; other changes merge automatically.';
+
+  @override
+  String get planSyncLocal => 'Keep local';
+
+  @override
+  String get planSyncRemote => 'Use cloud';
+
+  @override
+  String get planSyncDeleted => 'Deleted';
+
+  @override
+  String get planSyncPlan => 'Plan';
+
+  @override
+  String get planSyncName => 'Name';
+
+  @override
+  String get planSyncCreatedAt => 'Created';
+
+  @override
+  String get planSyncCourse => 'Course';
+
+  @override
+  String get planSyncEvent => 'Custom event';
+
+  @override
+  String get planSyncLabel => 'Event name';
+
+  @override
+  String get planSyncDay => 'Day';
+
+  @override
+  String get planSyncSections => 'Periods';
+
+  @override
+  String get planSyncWeeks => 'Weeks';
+
+  @override
+  String get planSyncApply => 'Merge and save';
+
+  @override
+  String get planSyncDrafts => 'Recovery drafts';
+
+  @override
+  String get planSyncDraftHint =>
+      'These drafts stay on this device and do not use cloud plan slots. Restoring creates a new plan.';
+
+  @override
+  String get planSyncRestore => 'Restore as new plan';
+
+  @override
+  String get planSyncAdopt => 'Sync this device’s local plans to this account';
+
+  @override
+  String get planSyncAdoptHint =>
+      'These local plans do not yet belong to this account. Confirm before uploading.';
+
+  @override
+  String get planSyncCapacity =>
+      'The cloud holds at most ten plans. Free a slot and retry.';
+
+  @override
+  String get planSyncRejected =>
+      'Saving was rejected. The account cannot write or the plan data failed validation.';
+
+  @override
+  String get planSyncArchived =>
+      'Local changes were saved as a recovery draft.';
+
+  @override
   String get privateNoteEdit => 'Edit note';
 
   @override
@@ -2414,6 +2489,8 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get privateNoteHint =>
       'Only you can see this. Up to 64 characters; save empty to clear.';
+
+  @override
   String get badgeDisplayTitle => 'Profile badges';
 
   @override

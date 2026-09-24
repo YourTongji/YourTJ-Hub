@@ -1,79 +1,116 @@
-// Schedule cloud synchronization shares the Web reconciliation rules: no writes
-// before a successful read or while a conflict is unresolved; stale writes return
-// 409 and re-open reconciliation. Retained local plans have an account owner.
+// Per-plan revisions and persisted ancestors match the Web scheduler. Only dirty
+// plans retry; preferences never enter a CAS and no clean-state timer polls.
 import 'dart:async';
-
 import 'package:core/core.dart';
 import 'package:auth/auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
+import 'package:connectivity_plus/connectivity_plus.dart';
 import '../providers.dart';
 import 'schedule_store.dart';
 
-/// 方案快照传输抽象（GET/PUT /api/pk/plans；测试注入 fake）。
 abstract class PkPlansTransport {
-  /// 拉取云端快照；云端为空返回 null。
-  Future<PkPlansSnapshot?> fetchPlans();
-
-  /// 整包上行快照；返回服务端新同步时钟 updatedAt。
-  Future<String> uploadPlans(PkPlanSnapshotPayload payload);
+  Future<List<PkPlanItem>> list();
+  Future<PkPlanItem> put(PkPlan plan, int baseRevision);
+  Future<void> remove(String id, int baseRevision);
 }
 
-/// [PkPlansTransport] 的生产实现：桥接 [PkRepository]。
 class PkPlansRepositoryTransport implements PkPlansTransport {
-  PkPlansRepositoryTransport(this._repository);
-
-  final PkRepository _repository;
-
+  PkPlansRepositoryTransport(this.repository);
+  final PkRepository repository;
   @override
-  Future<PkPlansSnapshot?> fetchPlans() => _repository.getPlans();
-
+  Future<List<PkPlanItem>> list() => repository.listPlanItems();
   @override
-  Future<String> uploadPlans(PkPlanSnapshotPayload payload) async =>
-      (await _repository.putPlans(payload)).updatedAt;
+  Future<PkPlanItem> put(PkPlan plan, int baseRevision) =>
+      repository.putPlanItem(plan, baseRevision);
+  @override
+  Future<void> remove(String id, int baseRevision) =>
+      repository.deletePlanItem(id, baseRevision);
 }
 
-/// Reconciles before writing and guards uploads with the observed server revision.
+class PlanSyncConflict {
+  const PlanSyncConflict(
+    this.id,
+    this.base,
+    this.local,
+    this.remote,
+    this.fields,
+  );
+  final String id;
+  final PkPlan? base, local;
+  final PkPlanItem? remote;
+  final List<PkPlanMergeConflict> fields;
+}
+
 class ScheduleSyncController {
   ScheduleSyncController({
     required this.transport,
     required this.tokenStorage,
     required this.store,
     required this.readUserId,
-    Timer Function(Duration delay, void Function() onFire)? debounceTimer,
-  }) : _debounceTimer = debounceTimer ?? _defaultDebounceTimer {
-    scheduleLocalPlansChanged = _onLocalPlansChanged;
+    Timer Function(Duration, void Function())? debounceTimer,
+  }) : _timerFactory = debounceTimer ?? ((delay, fire) => Timer(delay, fire)) {
+    scheduleLocalPlansChanged = _onLocalChange;
   }
-
-  static Timer _defaultDebounceTimer(Duration delay, void Function() onFire) =>
-      Timer(delay, onFire);
-  static const Duration debounceDelay = Duration(seconds: 3);
+  static const debounceDelay = Duration(seconds: 3);
   final PkPlansTransport transport;
   final TokenStorage tokenStorage;
   final ScheduleStoreNotifier store;
   final Future<int?> Function() readUserId;
-  final Timer Function(Duration delay, void Function() onFire) _debounceTimer;
-  final ValueNotifier<PkPlansSnapshot?> conflict = ValueNotifier(null);
-  bool _dirty = false;
-  bool _stopped = false;
-  bool _disposed = false;
-  bool _reconciled = false;
-  bool _entering = false;
-  bool _recheckAfterEntry = false;
-  int _localChangeSeq = 0;
+  final Timer Function(Duration, void Function()) _timerFactory;
+  final conflicts = ValueNotifier<List<PlanSyncConflict>>([]);
+  final drafts = ValueNotifier<Map<String, PkPlan>>({});
+  final needsAdoption = ValueNotifier(false);
+  final blocked = ValueNotifier(false);
+
+  /// Why sync is blocked: 'capacity' (quota/overflow) or 'rejected' (400/403).
+  final blockedReason = ValueNotifier<String?>(null);
+  Map<String, PkPlanItem> _bases = {};
+  String? _placeholderID, _placeholderKey;
   int? _owner;
-  String _baseUpdatedAt = '';
-  Timer? _pendingUpload;
-  Future<void>? _uploadFuture;
+  int _generation = 0, _retrySeconds = 3;
+  bool _disposed = false,
+      _reconciled = false,
+      _authStopped = false,
+      _persistenceFailed = false;
+  DateTime? _lastRead;
+  Timer? _timer;
+  Future<void>? _operation;
+  List<PkPlan> get _plans => store.buildSnapshotPayload().plans;
+  // A placeholder stops masking its plan once that plan has a server base:
+  // clearing it afterwards is an update, never the DELETE of a real plan.
+  List<PkPlan> get _content => _plans
+      .where(
+        (p) =>
+            p.id != _placeholderID ||
+            schedulePlanKey(p) != _placeholderKey ||
+            _bases.containsKey(p.id),
+      )
+      .toList();
+  PkPlan? _local(String id) {
+    for (final p in _content) {
+      if (p.id == id) return p;
+    }
+    return null;
+  }
 
-  bool get isDirty => _dirty || store.syncDirty;
-
+  List<String> get _dirtyIDs => {..._bases.keys, ..._content.map((p) => p.id)}
+      .where(
+        (id) =>
+            schedulePlanKey(_local(id)) != schedulePlanKey(_bases[id]?.plan),
+      )
+      .toList();
+  bool get isDirty => _persistenceFailed || _dirtyIDs.isNotEmpty;
   void dispose() {
     _disposed = true;
+    _generation++;
     cancelPendingUpload();
-    conflict.dispose();
-    if (identical(scheduleLocalPlansChanged, _onLocalPlansChanged)) {
+    conflicts.dispose();
+    drafts.dispose();
+    needsAdoption.dispose();
+    blocked.dispose();
+    blockedReason.dispose();
+    if (identical(scheduleLocalPlansChanged, _onLocalChange)) {
       scheduleLocalPlansChanged = null;
     }
   }
@@ -81,186 +118,464 @@ class ScheduleSyncController {
   Future<int?> _identity() async {
     try {
       final token = await tokenStorage.read();
-      if (_disposed || token == null || token.isEmpty) return null;
-      return await readUserId();
+      return token == null || token.isEmpty ? null : await readUserId();
     } catch (_) {
       return null;
     }
   }
 
-  Future<bool> _isCurrent() async {
-    final id = await _identity();
-    return !_disposed && _owner != null && id == _owner;
+  Future<bool> _current(int run) async {
+    final identity = await _identity();
+    return !_disposed &&
+        run == _generation &&
+        _owner != null &&
+        identity == _owner &&
+        store.syncOwner == _owner;
   }
 
-  Future<PkPlansSnapshot?> syncOnEnter() async {
-    if (_disposed || _entering) return null;
-    _entering = true;
-    _reconciled = false;
+  void _markPlaceholder() {
+    final p = _plans.first;
+    _placeholderID = p.id;
+    _placeholderKey = schedulePlanKey(p);
+  }
+
+  Future<bool> _persist() async {
+    if (_disposed ||
+        _owner == null ||
+        needsAdoption.value ||
+        store.syncOwner != _owner) {
+      return false;
+    }
+    final run = _generation;
+    final baseMap = {
+      for (final e in _bases.entries) e.key: e.value.toJson(),
+    };
+    final draftMap = {
+      for (final e in drafts.value.entries) e.key: e.value.toJson(),
+    };
+    // Degrade instead of failing wholesale: bases keep conflict detection
+    // alive, plans are re-derivable from bases, drafts are the last thing to go.
+    final shapes = <Map<String, dynamic>>[
+      {
+        'bases': baseMap,
+        'plans': _plans.map((p) => p.toJson()).toList(),
+        'drafts': draftMap,
+        'placeholderID': _placeholderID,
+        'placeholderKey': _placeholderKey,
+      },
+      {
+        'bases': baseMap,
+        'plans': <Map<String, dynamic>>[],
+        'drafts': draftMap,
+        'placeholderID': _placeholderID,
+        'placeholderKey': _placeholderKey,
+      },
+      {
+        'bases': baseMap,
+        'plans': <Map<String, dynamic>>[],
+        'drafts': <String, Map<String, dynamic>>{},
+        'placeholderID': _placeholderID,
+        'placeholderKey': _placeholderKey,
+      },
+    ];
+    var saved = false;
+    for (final shape in shapes) {
+      saved = await store.writePlanSyncCache(_owner!, shape);
+      if (saved) break;
+    }
+    if (run == _generation && !_disposed) _persistenceFailed = !saved;
+    return saved;
+  }
+
+  Future<void> _prepare(int owner) async {
+    if (_owner == owner) return;
     cancelPendingUpload();
-    try {
-      await store.ready;
-      if (_uploadFuture != null) await _uploadFuture;
-      _owner = await _identity();
-      if (_owner == null || _disposed) return null;
-      _stopped = false;
-      final remote = await transport.fetchPlans();
-      if (!await _isCurrent()) return null;
-      _baseUpdatedAt = remote?.updatedAt ?? '';
-      if (store.syncOwner != null && store.syncOwner != _owner) {
-        conflict.value =
-            remote ??
-            PkPlansSnapshot(
-              plans: [],
-              activePlanId: '',
-              majorSelected: PkMajorSelection(),
-              weekView: PkWeekView(),
-              updatedAt: '',
-            );
-        return conflict.value;
-      }
-      if (!await store.setSyncOwner(_owner!)) return null;
-      if (remote == null) {
-        _reconciled = true;
-        if (!store.isLocalEmpty || isDirty) {
-          _dirty = true;
-          store.markSyncDirty();
-          await _uploadNow();
-        }
-        return null;
-      }
-      if (!isDirty && store.syncedAt.isEmpty && store.isLocalEmpty) {
-        await adoptRemote(remote);
-        return null;
-      }
-      if (isDirty || store.syncedAt != remote.updatedAt) {
-        conflict.value = remote;
-        return remote;
-      }
-      _reconciled = true;
-      return null;
-    } on ApiException catch (e) {
-      if (e.statusCode == 401) _stopped = true;
-      return null;
-    } catch (_) {
-      return null;
-    } finally {
-      _entering = false;
-      if (_recheckAfterEntry && !_disposed) {
-        _recheckAfterEntry = false;
-        unawaited(syncOnEnter());
+    _generation++;
+    _operation = null;
+    final run = _generation;
+    _owner = owner;
+    _reconciled = false;
+    _authStopped = false;
+    blocked.value = false;
+    blockedReason.value = null;
+    conflicts.value = [];
+    needsAdoption.value = false;
+    _placeholderID = null;
+    _placeholderKey = null;
+    _retrySeconds = 3;
+    _lastRead = null;
+    final cache = store.readPlanSyncCache(owner);
+    _bases = {};
+    drafts.value = {};
+    if (cache != null) {
+      try {
+        _bases = {
+          for (final e in (cache['bases'] as Map).entries)
+            e.key as String: PkPlanItem.fromJson(
+              Map<String, dynamic>.from(e.value as Map),
+            ),
+        };
+        drafts.value = {
+          for (final e in (cache['drafts'] as Map).entries)
+            e.key as String: PkPlan.fromJson(
+              Map<String, dynamic>.from(e.value as Map),
+            ),
+        };
+        _placeholderID = cache['placeholderID'] as String?;
+        _placeholderKey = cache['placeholderKey'] as String?;
+      } catch (_) {
+        _bases = {};
+        drafts.value = {};
       }
     }
-  }
-
-  Future<void> adoptRemote(PkPlansSnapshot snapshot) async {
-    if (_disposed) return;
-    if (_uploadFuture != null) {
-      await _uploadFuture;
-      await syncOnEnter();
+    if (store.syncOwner != null && store.syncOwner != owner) {
+      if (!await store.setSyncOwner(
+        owner,
+        canWrite: () => !_disposed && run == _generation,
+      )) {
+        if (!_disposed && run == _generation) needsAdoption.value = true;
+        return;
+      }
+      final cachedPlans = (cache?['plans'] as List? ?? [])
+          .map((p) => PkPlan.fromJson(Map<String, dynamic>.from(p as Map)))
+          .toList();
+      // A cache persisted under storage pressure carries no plans copy;
+      // rebuild device-local content from the acknowledged bases.
+      final plans = cachedPlans.isNotEmpty
+          ? cachedPlans
+          : [for (final item in _bases.values) item.plan];
+      if (!await _current(run)) return;
+      store.applyPlanItems(plans);
+      if (plans.isEmpty) _markPlaceholder();
+    } else if (store.syncOwner == null &&
+        !(_plans.length == 1 &&
+            _plans.every(
+              (p) =>
+                  p.stagedCourses.isEmpty &&
+                  p.selectedCourses.isEmpty &&
+                  p.customEvents.isEmpty,
+            ))) {
+      if (!_disposed && run == _generation) needsAdoption.value = true;
+      return;
+    } else if (!await store.setSyncOwner(
+      owner,
+      canWrite: () => !_disposed && run == _generation,
+    )) {
+      if (!_disposed && run == _generation) needsAdoption.value = true;
       return;
     }
-    _owner ??= await _identity();
-    if (!await _isCurrent()) return;
-    cancelPendingUpload();
-    store.applyRemoteSnapshot(snapshot);
-    _dirty = !await store.markSyncedAt(snapshot.updatedAt);
-    if (!await _isCurrent()) return;
-    if (!_dirty && !await store.setSyncOwner(_owner!)) return;
-    _baseUpdatedAt = snapshot.updatedAt;
-    conflict.value = null;
-    _reconciled = true;
+    if (!await _current(run)) return;
+    if (cache == null &&
+        !store.syncDirty &&
+        _plans.length == 1 &&
+        _plans.every(
+          (p) => p.stagedCourses.isEmpty && p.customEvents.isEmpty,
+        )) {
+      _markPlaceholder();
+    }
+    await _persist();
   }
 
-  Future<void> keepLocal() async {
-    if (_disposed || conflict.value == null || !await _isCurrent()) return;
-    if (!await store.setSyncOwner(_owner!)) return;
+  void _apply(String id, PkPlan? plan) {
+    final plans = _content.toList();
+    final index = plans.indexWhere((p) => p.id == id);
+    if (index >= 0) {
+      if (plan != null) {
+        plans[index] = plan;
+      } else {
+        plans.removeAt(index);
+      }
+    } else if (plan != null) {
+      plans.add(plan);
+    } else {
+      return;
+    }
+    store.applyPlanItems(plans);
+    if (plans.isEmpty) _markPlaceholder();
+  }
+
+  void _reconcile(String id, PkPlanItem? remote) {
+    final base = _bases[id]?.plan, local = _local(id);
+    final result = mergeSchedulePlan(base, local, remote?.plan);
+    conflicts.value = conflicts.value.where((c) => c.id != id).toList();
+    if (result.conflicts.isNotEmpty) {
+      conflicts.value = [
+        ...conflicts.value,
+        PlanSyncConflict(id, base, local, remote, result.conflicts),
+      ];
+      return;
+    }
+    _apply(id, result.plan);
+    if (remote != null) {
+      _bases[id] = remote;
+    } else if (result.plan == null) {
+      _bases.remove(id);
+    }
+  }
+
+  Future<bool> _archive(String id, PkPlan plan) async {
+    final run = _generation;
+    drafts.value = {...drafts.value, id: plan};
+    // Never remove the final visible copy until recovery storage succeeds.
+    if (!await _persist() || !await _current(run)) return false;
+    _apply(id, null);
+    _bases.remove(id);
+    conflicts.value = conflicts.value.where((c) => c.id != id).toList();
+    return true;
+  }
+
+  void _schedule([int seconds = 3]) {
     cancelPendingUpload();
-    conflict.value = null;
-    _dirty = true;
+    if (_disposed ||
+        _authStopped ||
+        needsAdoption.value ||
+        blocked.value ||
+        !isDirty) {
+      return;
+    }
+    if (_dirtyIDs.every((id) => conflicts.value.any((c) => c.id == id))) return;
+    _timer = _timerFactory(Duration(seconds: seconds), () {
+      _timer = null;
+      unawaited(_run(!_reconciled));
+    });
+  }
+
+  void _fail(Object error) {
+    if (error is ApiException && error.statusCode == 401) {
+      _authStopped = true;
+    } else if (error is ApiException && [400, 403].contains(error.statusCode)) {
+      blocked.value = true;
+      blockedReason.value = 'rejected';
+    } else {
+      _schedule(_retrySeconds);
+      _retrySeconds = (_retrySeconds * 2).clamp(3, 60);
+    }
+  }
+
+  Future<void> _upload(int run) async {
+    for (final id in _dirtyIDs) {
+      if (!await _current(run)) return;
+      if (conflicts.value.any((c) => c.id == id)) continue;
+      final local = _local(id);
+      final plan = local == null ? null : PkPlan.fromJson(local.toJson());
+      final base = _bases[id]?.revision ?? 0;
+      try {
+        if (plan != null) {
+          final item = await transport.put(plan, base);
+          if (!await _current(run)) return;
+          _bases[id] = item;
+        } else {
+          await transport.remove(id, base);
+          if (!await _current(run)) return;
+          _bases.remove(id);
+        }
+        await _persist();
+        if (!await _current(run)) return;
+        _retrySeconds = 3;
+      } catch (error) {
+        if (!await _current(run)) return;
+        if (error is ApiException && error.statusCode == 410) {
+          _reconcile(id, null);
+        } else if (error is ApiException &&
+            error.statusCode == 409 &&
+            error.responseData is Map) {
+          _reconcile(
+            id,
+            PkPlanItem.fromJson(
+              Map<String, dynamic>.from(error.responseData as Map),
+            ),
+          );
+        } else if (error is ApiException && error.statusCode == 409) {
+          blocked.value = true;
+          blockedReason.value = 'capacity';
+          return;
+        } else {
+          _fail(error);
+          return;
+        }
+        await _persist();
+      }
+    }
+    if (await _current(run)) _schedule();
+  }
+
+  Future<void> _perform(bool read, int run) async {
+    try {
+      if (read) {
+        final items = await transport.list();
+        if (!await _current(run)) return;
+        // Server order is plan_id (random); present plans in creation order.
+        int byCreation(PkPlanItem x, PkPlanItem y) {
+          final created = x.plan.createdAt.compareTo(y.plan.createdAt);
+          return created != 0 ? created : x.plan.id.compareTo(y.plan.id);
+        }
+
+        items.sort(byCreation);
+        final remote = {for (final item in items) item.plan.id: item};
+        if (_bases.isEmpty &&
+            store.syncedAt.isNotEmpty &&
+            !store.syncDirty &&
+            items.isNotEmpty) {
+          store.applyPlanItems(items.map((i) => i.plan).toList());
+        }
+        for (final id in {
+          ..._bases.keys,
+          ..._content.map((p) => p.id),
+          ...remote.keys,
+        }) {
+          _reconcile(id, remote[id]);
+        }
+        final overflow = _plans.length - kMaxPlans;
+        if (overflow > 0) {
+          for (final p
+              in _plans
+                  .where((p) => !remote.containsKey(p.id))
+                  .toList()
+                  .reversed
+                  .take(overflow)) {
+            if (!await _archive(p.id, p)) break;
+          }
+          if (!await _current(run)) return;
+          blocked.value = true;
+          blockedReason.value = 'capacity';
+        }
+        _reconciled = true;
+        _lastRead = DateTime.now();
+        await _persist();
+      }
+      await _upload(run);
+    } catch (error) {
+      if (await _current(run)) _fail(error);
+    }
+  }
+
+  Future<void> _run(bool read) {
+    if (_disposed || _authStopped || needsAdoption.value || _owner == null) {
+      return Future.value();
+    }
+    if (_operation != null) return _operation!;
+    cancelPendingUpload();
+    final operation = _perform(read, _generation);
+    _operation = operation;
+    return operation.whenComplete(() {
+      if (identical(_operation, operation)) _operation = null;
+    });
+  }
+
+  Future<void> syncOnEnter() async {
+    if (_disposed) return;
+    await store.ready;
+    final owner = await _identity();
+    if (_disposed || owner == null) return;
+    await _prepare(owner);
+    if (_disposed ||
+        _owner != owner ||
+        needsAdoption.value ||
+        !await _current(_generation)) {
+      return;
+    }
+    blocked.value = false;
+    await _run(true);
+  }
+
+  Future<void> onResume() async {
+    if (_disposed) return;
+    if (isDirty) {
+      await flushPendingUpload();
+    }
+    if (_lastRead == null ||
+        DateTime.now().difference(_lastRead!) >= const Duration(seconds: 30)) {
+      await syncOnEnter();
+    }
+  }
+
+  Future<bool> adoptLocal() async {
+    if (_owner == null || _disposed || await _identity() != _owner) {
+      return false;
+    }
+    final run = _generation;
+    if (!await store.setSyncOwner(
+      _owner!,
+      canWrite: () => !_disposed && run == _generation,
+    )) {
+      return false;
+    }
+    if (!await _current(run)) return false;
+    needsAdoption.value = false;
+    _bases = {};
+    await _persist();
+    await _run(true);
+    return !isDirty;
+  }
+
+  Future<void> resolveConflict(String id, Map<String, String> choices) async {
+    final run = _generation;
+    if (_disposed || !await _current(run)) return;
+    final matches = conflicts.value.where((c) => c.id == id);
+    if (matches.isEmpty) return;
+    final conflict = matches.first;
+    final result = mergeSchedulePlan(
+      conflict.base,
+      _local(id),
+      conflict.remote?.plan,
+      choices,
+    );
+    if (result.conflicts.isNotEmpty) return;
+    if (conflict.remote == null && result.plan != null) {
+      if (!await _archive(id, result.plan!)) return;
+    } else {
+      _apply(id, result.plan);
+      if (conflict.remote != null) {
+        _bases[id] = conflict.remote!;
+      } else {
+        _bases.remove(id);
+      }
+    }
+    conflicts.value = conflicts.value.where((c) => c.id != id).toList();
+    await _persist();
+    if (await _current(run)) await _run(false);
+  }
+
+  bool restoreDraft(String id) {
+    final draft = drafts.value[id];
+    if (_disposed || draft == null) return false;
+    if (_content.length >= kMaxPlans) {
+      blocked.value = true;
+      return false;
+    }
+    final json = draft.toJson()..['id'] = newScheduleId('plan');
+    final plan = PkPlan.fromJson(json);
+    _apply(plan.id, plan);
+    drafts.value = {...drafts.value}..remove(id);
+    blocked.value = false;
+    blockedReason.value = null;
+    _onLocalChange();
+    return true;
+  }
+
+  void _onLocalChange() {
+    if (_disposed) return;
     store.markSyncDirty();
-    _reconciled = true;
-    await _uploadNow();
+    unawaited(_persist());
+    _schedule();
   }
 
   Future<void> flushPendingUpload() async {
     cancelPendingUpload();
-    await _uploadNow();
+    if (_owner == null) {
+      await syncOnEnter();
+    } else {
+      await _run(!_reconciled);
+    }
   }
 
   void cancelPendingUpload() {
-    _pendingUpload?.cancel();
-    _pendingUpload = null;
-  }
-
-  void _scheduleUpload() {
-    cancelPendingUpload();
-    if (_disposed || _stopped || !_reconciled) return;
-    _pendingUpload = _debounceTimer(debounceDelay, () {
-      _pendingUpload = null;
-      unawaited(_uploadNow());
-    });
-  }
-
-  void _onLocalPlansChanged() {
-    if (_disposed) return;
-    _dirty = true;
-    store.markSyncDirty();
-    _localChangeSeq++;
-    _scheduleUpload();
-  }
-
-  Future<void> _uploadNow() {
-    if (_disposed ||
-        _stopped ||
-        !_reconciled ||
-        !isDirty ||
-        _uploadFuture != null) {
-      return Future.value();
-    }
-    final operation = _performUpload();
-    _uploadFuture = operation;
-    return operation.whenComplete(() => _uploadFuture = null);
-  }
-
-  Future<void> _performUpload() async {
-    if (!await _isCurrent()) return;
-    final seq = _localChangeSeq;
-    try {
-      final updatedAt = await transport.uploadPlans(
-        store.buildSnapshotPayload(baseUpdatedAt: _baseUpdatedAt),
-      );
-      if (!await _isCurrent()) return;
-      if (updatedAt.isEmpty) throw StateError('Missing sync revision');
-      _baseUpdatedAt = updatedAt;
-      if (_localChangeSeq != seq) {
-        _scheduleUpload();
-        return;
-      }
-      _dirty = !await store.markSyncedAt(updatedAt);
-    } on ApiException catch (e) {
-      if (!await _isCurrent()) return;
-      if (e.statusCode == 401) {
-        _stopped = true;
-      } else if (e.statusCode == 409) {
-        _reconciled = false;
-        if (_entering) {
-          _recheckAfterEntry = true;
-        } else {
-          unawaited(syncOnEnter());
-        }
-      } else if (e.statusCode == 400 || e.statusCode == 403) {
-        debugPrint('pk plans sync rejected (${e.statusCode})');
-      }
-    } catch (_) {
-      // Keep the local revision pending for a later edit or lifecycle flush.
-    }
+    _timer?.cancel();
+    _timer = null;
   }
 }
 
-final Provider<ScheduleSyncController>
-scheduleSyncControllerProvider = Provider((ref) {
-  // Discard in-flight callbacks and timers when the authenticated session changes.
+final scheduleSyncControllerProvider = Provider<ScheduleSyncController>((ref) {
   ref.watch(offlineCacheEpochProvider);
   final storage = ref.watch(tokenStorageProvider);
   final controller = ScheduleSyncController(
@@ -270,6 +585,22 @@ scheduleSyncControllerProvider = Provider((ref) {
         storage is SecureTokenStorage ? storage.readUserId() : null,
     store: ref.watch(scheduleStoreProvider.notifier),
   );
-  ref.onDispose(controller.dispose);
+  final subscription = Connectivity().onConnectivityChanged
+      .map((types) => types.any((type) => type != ConnectivityResult.none))
+      .distinct()
+      .listen(
+        (online) {
+          if (online && controller.isDirty) {
+            unawaited(controller.flushPendingUpload());
+          }
+        },
+        onError: (_) {
+          /* Dirty retries remain available when platform events fail. */
+        },
+      );
+  ref.onDispose(() {
+    unawaited(subscription.cancel());
+    controller.dispose();
+  });
   return controller;
 });

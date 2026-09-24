@@ -620,8 +620,39 @@ class PkMaterializeResult {
 
 /// SiteManager-only local materialization request; the audience defaults to undergraduate.
 class PkMaterializeRequest {
-  const PkMaterializeRequest({required this.term, this.audience = 'undergraduate'});
+  const PkMaterializeRequest({
+    required this.term,
+    this.audience = 'undergraduate',
+  });
   final String term;
   final String audience;
   Map<String, dynamic> toJson() => {'term': term, 'audience': audience};
+}
+
+/// An independently versioned plan; updatedAt is diagnostic only.
+class PkPlanItem {
+  const PkPlanItem({
+    required this.plan,
+    required this.revision,
+    required this.updatedAt,
+  });
+  final PkPlan plan;
+  final int revision;
+  final String updatedAt;
+  factory PkPlanItem.fromJson(Map<String, dynamic> json) {
+    final revision = (json['revision'] as num).toInt();
+    if (revision < 1 || revision > 9007199254740991) {
+      throw const FormatException('Invalid plan revision');
+    }
+    return PkPlanItem(
+      plan: PkPlan.fromJson(Map<String, dynamic>.from(json['plan'] as Map)),
+      revision: revision,
+      updatedAt: json['updatedAt'] as String,
+    );
+  }
+  Map<String, dynamic> toJson() => {
+    'plan': plan.toJson(),
+    'revision': revision,
+    'updatedAt': updatedAt,
+  };
 }

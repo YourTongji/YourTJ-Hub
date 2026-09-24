@@ -1,4 +1,5 @@
 import '../../gen/pk.dart';
+import '../../schedule/pk_models.dart';
 import '../../gen/schedule_settings.dart';
 import '../api_error.dart';
 import '../gf_api_client.dart';
@@ -282,5 +283,27 @@ class PkRepository {
         parser: (json) => PkPlansDeleteResult.fromJson(
           Map<String, dynamic>.from(json as Map),
         ),
+      );
+
+  Future<List<PkPlanItem>> listPlanItems() => _client.getPk(
+    '/api/pk/plan-items',
+    parser: (data) => (data as List)
+        .map(
+          (item) => PkPlanItem.fromJson(Map<String, dynamic>.from(item as Map)),
+        )
+        .toList(),
+  );
+  Future<PkPlanItem> putPlanItem(PkPlan plan, int baseRevision) =>
+      _client.putPk(
+        '/api/pk/plan-items',
+        body: {'plan': plan.toJson(), 'baseRevision': baseRevision},
+        parser: (data) =>
+            PkPlanItem.fromJson(Map<String, dynamic>.from(data as Map)),
+      );
+  Future<void> deletePlanItem(String id, int baseRevision) =>
+      _client.deletePk<void>(
+        '/api/pk/plan-items',
+        body: {'planId': id, 'baseRevision': baseRevision},
+        parser: (_) {},
       );
 }

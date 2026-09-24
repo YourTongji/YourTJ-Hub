@@ -17,6 +17,10 @@
   },
   {
     "method": "DELETE",
+    "path": "/api/pk/plan-items"
+  },
+  {
+    "method": "DELETE",
     "path": "/api/pk/plans"
   },
   {
@@ -310,6 +314,10 @@
   {
     "method": "GET",
     "path": "/api/pk/latest-update"
+  },
+  {
+    "method": "GET",
+    "path": "/api/pk/plan-items"
   },
   {
     "method": "GET",
@@ -1298,6 +1306,10 @@
   {
     "method": "PUT",
     "path": "/api/forum/course-reviews/:reviewId/helpful"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/pk/plan-items"
   },
   {
     "method": "PUT",
