@@ -53,6 +53,7 @@ class _MessagesPageState extends ConsumerState<MessagesPage>
   bool _pollingConfigured = false;
   int _seenRealtimeRevision = 0;
   bool _foreground = true;
+  int _loadGeneration = 0;
   ChatItemPayload? _targetConversation;
 
   @override
@@ -154,13 +155,16 @@ class _MessagesPageState extends ConsumerState<MessagesPage>
   Future<void> _load({bool silent = false}) async {
     // 记录发起时的缓存世代;401/登出/换账号后世代自增,返回时丢弃旧会话数据。
     final int epoch = ref.read(offlineCacheEpochProvider);
+    final int generation = ++_loadGeneration;
     try {
       final props = await ref.read(pageRepositoryProvider).fetch('/messages');
       final MessagesPageProps? parsed = parsePageProps<MessagesPageProps>(
         props,
       );
       final List<ChatItemPayload> items = parsed?.conversations ?? [];
-      if (mounted && epoch == ref.read(offlineCacheEpochProvider)) {
+      if (mounted &&
+          epoch == ref.read(offlineCacheEpochProvider) &&
+          generation == _loadGeneration) {
         setState(() {
           _conversations = AsyncValue.data(items);
           _suggestedUsers = parsed?.suggestedUsers ?? const [];
@@ -170,15 +174,20 @@ class _MessagesPageState extends ConsumerState<MessagesPage>
       }
       // 会话列表在单事务中批量写入离线缓存(断网可读);仅当前世代允许写入,
       // 避免 401/登出后旧会话在途响应把上一账号数据写回刚清空的缓存。
-      if (epoch == ref.read(offlineCacheEpochProvider)) {
+      if (epoch == ref.read(offlineCacheEpochProvider) &&
+          generation == _loadGeneration) {
         await ref.read(offlineChatCacheProvider).putConversations(items);
       }
     } catch (e, st) {
       // 网络失败:回退离线缓存的会话列表。
-      if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) return;
+      if (!mounted ||
+          epoch != ref.read(offlineCacheEpochProvider) ||
+          generation != _loadGeneration) {
+        return;
+      }
       // 无会话令牌(如 401 后进程被杀重启)时不得回退上一账号残留缓存。
       if (!await hasSessionToken(ref.read(tokenStorageProvider))) {
-        if (!silent && mounted) {
+        if (!silent && mounted && generation == _loadGeneration) {
           setState(() => _conversations = AsyncValue.error(e, st));
         }
         return;
@@ -188,7 +197,11 @@ class _MessagesPageState extends ConsumerState<MessagesPage>
             .read(offlineChatCacheProvider)
             .getConversations();
         // 读缓存期间会话可能已切换,再次校验世代再更新 UI。
-        if (epoch != ref.read(offlineCacheEpochProvider)) return;
+        if (!mounted ||
+            epoch != ref.read(offlineCacheEpochProvider) ||
+            generation != _loadGeneration) {
+          return;
+        }
         if (cached.isNotEmpty) {
           setState(() {
             _conversations = AsyncValue.data(cached);
@@ -199,7 +212,7 @@ class _MessagesPageState extends ConsumerState<MessagesPage>
       } catch (_) {
         // 缓存不可用时继续走错误态。
       }
-      if (!silent && mounted) {
+      if (!silent && mounted && generation == _loadGeneration) {
         setState(() => _conversations = AsyncValue.error(e, st));
       }
     }
@@ -402,6 +415,7 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
   bool get _canObserve =>
       _sessionCurrent &&
       _foreground &&
+      !shellDrawerOpen.value &&
       !_adjustingScroll &&
       TickerMode.valuesOf(context).enabled &&
       routeIsUncovered(context);
@@ -437,6 +451,7 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
     _visibleReads.suspend();
     _visibleReads.changed(restartDwell: true);
     if (!_foreground ||
+        shellDrawerOpen.value ||
         !TickerMode.valuesOf(context).enabled ||
         !routeIsUncovered(context)) {
       return;
@@ -511,6 +526,7 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
     );
     WidgetsBinding.instance.addObserver(this);
     routeVisibilityChanges.addListener(_visibilityChanged);
+    shellDrawerOpen.addListener(_visibilityChanged);
     _load();
     _scrollController.addListener(_onScroll);
     // 表情包库未就绪时拉一次(会话级缓存),完成后刷新气泡分段渲染。
@@ -579,6 +595,7 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
     _pollTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     routeVisibilityChanges.removeListener(_visibilityChanged);
+    shellDrawerOpen.removeListener(_visibilityChanged);
     _visibleReads.dispose();
     _input.dispose();
     _scrollController.dispose();
@@ -849,7 +866,6 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
       }
       final convId = next.chatConvId;
       if (convId != 0 && convId != _convId) {
-        _seenRealtimeRevision = next.chatRevision;
         return;
       }
       if (!_foreground ||

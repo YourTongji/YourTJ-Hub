@@ -80,6 +80,7 @@ class _GfShellState extends ConsumerState<GfShell> with WidgetsBindingObserver {
   late ForegroundRealtimeCoordinator _realtime;
   late int _realtimeEpoch;
   bool _realtimeSessionStarted = false;
+  bool _activeInTree = true;
   Future<void>? _unreadInFlight;
   bool _unreadDirty = false;
   bool _unreadNotifications = false;
@@ -102,18 +103,18 @@ class _GfShellState extends ConsumerState<GfShell> with WidgetsBindingObserver {
       readToken: ref.read(tokenStorageProvider).read,
       connect: ref.read(realtimeConnectProvider),
       onResync: () {
-        if (!mounted) return;
+        if (!mounted || !_activeInTree) return;
         ref.read(realtimeInvalidationsProvider.notifier).resync();
         unawaited(_pollUnread());
       },
       onEvent: _handleRealtimeEvent,
       onFallbackTick: () {
-        if (!mounted) return;
+        if (!mounted || !_activeInTree) return;
         ref.read(realtimeInvalidationsProvider.notifier).notifications();
         unawaited(_pollUnread());
       },
       onHealthChanged: (healthy) {
-        if (mounted) {
+        if (mounted && _activeInTree) {
           ref.read(realtimeHealthyProvider.notifier).setHealthy(healthy);
         }
       },
@@ -122,12 +123,15 @@ class _GfShellState extends ConsumerState<GfShell> with WidgetsBindingObserver {
 
   void _onRouteVisibilityChanged() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) unawaited(_ensureRealtimeForCurrentSession());
+      if (mounted && _activeInTree) {
+        unawaited(_ensureRealtimeForCurrentSession());
+      }
     });
   }
 
   Future<void> _ensureRealtimeForCurrentSession() async {
     if (!mounted ||
+        !_activeInTree ||
         (WidgetsBinding.instance.lifecycleState != null &&
             WidgetsBinding.instance.lifecycleState !=
                 AppLifecycleState.resumed) ||
@@ -145,6 +149,7 @@ class _GfShellState extends ConsumerState<GfShell> with WidgetsBindingObserver {
     try {
       final token = await ref.read(tokenStorageProvider).read();
       if (!mounted ||
+          !_activeInTree ||
           epoch != ref.read(offlineCacheEpochProvider) ||
           !routeIsUncovered(context) ||
           (WidgetsBinding.instance.lifecycleState != null &&
@@ -163,8 +168,25 @@ class _GfShellState extends ConsumerState<GfShell> with WidgetsBindingObserver {
   }
 
   @override
-  void dispose() {
+  void deactivate() {
     _realtime.stop();
+    _realtimeSessionStarted = false;
+    _activeInTree = false;
+    super.deactivate();
+  }
+
+  @override
+  void activate() {
+    super.activate();
+    _activeInTree = true;
+    _onRouteVisibilityChanged();
+  }
+
+  @override
+  void dispose() {
+    _activeInTree = false;
+    _realtime.stop();
+    shellDrawerOpen.value = false;
     routeVisibilityChanges.removeListener(_onRouteVisibilityChanged);
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
@@ -189,13 +211,11 @@ class _GfShellState extends ConsumerState<GfShell> with WidgetsBindingObserver {
             jsonDecode(frame.data) as Map<String, dynamic>,
           );
           ref.read(realtimeInvalidationsProvider.notifier).chat(event.convId);
-          unawaited(_pollUnread());
         } catch (_) {
           // Unknown or malformed hints cannot replace REST as truth.
         }
       case 'notifications.changed':
         ref.read(realtimeInvalidationsProvider.notifier).notifications();
-        unawaited(_pollUnread());
       case 'unread.changed':
         unawaited(_pollUnread());
       case 'session.invalidated':
@@ -302,6 +322,7 @@ class _GfShellState extends ConsumerState<GfShell> with WidgetsBindingObserver {
     return Scaffold(
       drawer: const AccountDrawer(),
       onDrawerChanged: (open) {
+        shellDrawerOpen.value = open;
         ref.read(readingChromeProvider).show();
         if (open) ref.invalidate(accountCardProvider);
       },

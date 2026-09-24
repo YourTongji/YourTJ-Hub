@@ -565,6 +565,20 @@ class CountingMessagesPageRepository extends PageRepository {
   }
 }
 
+class DelayedMessagesPageRepository extends PageRepository {
+  DelayedMessagesPageRepository(super.client);
+
+  final requests = <Completer<PagePayload>>[];
+
+  @override
+  Future<PagePayload> fetch(String path) {
+    if (path != '/messages') throw StateError('unexpected path: $path');
+    final request = Completer<PagePayload>();
+    requests.add(request);
+    return request.future;
+  }
+}
+
 /// 首次 /messages 成功,之后失败(模拟 B 登录后刷新失败)。
 class FailAfterFirstMessagesRepository extends CountingPageRepository {
   FailAfterFirstMessagesRepository(super.client);
@@ -2622,6 +2636,41 @@ void main() {
   });
 
   group('消息轮询', () {
+    testWidgets(
+      'late older conversation snapshot cannot replace event refresh',
+      (tester) async {
+        final client = GfApiClient(
+          dio: Dio(),
+          tokenStorage: MemTokenStorage(),
+          baseUrl: 'http://fake.local',
+        );
+        final pageRepo = DelayedMessagesPageRepository(client);
+        final container = await makeContainer(pageRepo: pageRepo);
+        PagePayload snapshot(String text) {
+          final payload = messagesPayloadJson();
+          final props = payload['props'] as Map<String, dynamic>;
+          final conversations = props['conversations'] as List<dynamic>;
+          (conversations.first as Map<String, dynamic>)['lastMsg'] = text;
+          return parsePayload(payload);
+        }
+
+        await tester.pumpWidget(app(container, const MessagesPage()));
+        await tester.pump();
+        expect(pageRepo.requests.length, 1);
+        container.read(realtimeInvalidationsProvider.notifier).chat(1);
+        await tester.pump();
+        expect(pageRepo.requests.length, 2);
+        pageRepo.requests[1].complete(snapshot('new snapshot'));
+        await tester.pumpAndSettle();
+        expect(find.text('new snapshot'), findsOneWidget);
+        pageRepo.requests[0].complete(snapshot('stale snapshot'));
+        await tester.pumpAndSettle();
+        expect(find.text('new snapshot'), findsOneWidget);
+        expect(find.text('stale snapshot'), findsNothing);
+        await tester.pumpWidget(const SizedBox.shrink());
+      },
+    );
+
     testWidgets('healthy stream stops polling and reconciles a chat hint', (
       tester,
     ) async {
