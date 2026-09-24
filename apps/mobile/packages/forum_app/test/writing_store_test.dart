@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:forum_app/src/providers.dart';
+import 'package:forum_app/src/campus_widget/schedule_widget_bridge.dart';
 import 'pages_smoke_test.dart' show NoopOfflineCache;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -133,7 +134,11 @@ void main() {
   test('cache clearing preserves account-scoped writing', () async {
     final store = WritingStore();
     await store.save('site:1', draft);
-    await clearOfflineCache(NoopOfflineCache(), NoopOfflineCache());
+    await clearOfflineCache(
+      NoopOfflineCache(),
+      NoopOfflineCache(),
+      ScheduleWidgetBridge(),
+    );
     expect((await store.drafts('site:1')).single.content, draft.content);
   });
 

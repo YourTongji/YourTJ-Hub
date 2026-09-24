@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 import 'package:ui_kit/ui_kit.dart';
@@ -5,7 +6,7 @@ import '../../l10n/app_localizations.dart';
 import '../schedule/schedule_grid.dart';
 
 /// Shared planner/official timetable. Only callers own editing or persistence.
-class ScheduleTimeGrid extends StatelessWidget {
+class ScheduleTimeGrid extends StatefulWidget {
   const ScheduleTimeGrid({
     super.key,
     required this.grid,
@@ -21,136 +22,204 @@ class ScheduleTimeGrid extends StatelessWidget {
   final ValueChanged<PkCourseOnTable> onTapCourse;
 
   @override
+  State<ScheduleTimeGrid> createState() => _ScheduleTimeGridState();
+}
+
+class _ScheduleTimeGridState extends State<ScheduleTimeGrid> {
+  final _horizontal = ScrollController();
+
+  @override
+  void dispose() {
+    _horizontal.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final colors = GfTheme.colorsOf(context);
-    // Keep grid labels and cards readable at large accessibility text sizes.
-    final scale = MediaQuery.textScalerOf(context).scale(12) / 12;
-    final scaled = ScheduleGridData(
-      cellCourses: grid.cellCourses,
-      cellSpans: grid.cellSpans,
-      occupiedGrid: grid.occupiedGrid,
-      rowHeights: grid.rowHeights.map((h) => (h * scale).ceil()).toList(),
-      conflicts: grid.conflicts,
-    );
-    return Container(
-      decoration: BoxDecoration(
-        color: colors.base100,
-        borderRadius: BorderRadius.circular(GfTheme.radiiOf(context).box),
-        border: Border.all(color: colors.line),
+    final l = AppLocalizations.of(context);
+    final scaler = MediaQuery.textScalerOf(context);
+    // Small text can scale more than titles under nonlinear accessibility scaling.
+    final scale = [
+      9.5,
+      10.0,
+      11.0,
+      12.0,
+    ].map((size) => scaler.scale(size) / size).fold(1.0, math.max);
+    final minimumHeights = computeRowHeights(
+      GridLayout(
+        cellCourses: widget.grid.cellCourses,
+        cellSpans: widget.grid.cellSpans,
+        occupiedGrid: widget.grid.occupiedGrid,
       ),
-      clipBehavior: Clip.antiAlias,
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: SizedBox(
-          width: (44 + 7 * 62) * scale,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _DayHeaderRow(
-                timeColumnWidth: 44 * scale,
-                dayColumnWidth: 62 * scale,
+      const RowMetrics(baseH: 64, padV: 4, multiCardH: 64),
+    );
+    final scaled = ScheduleGridData(
+      cellCourses: widget.grid.cellCourses,
+      cellSpans: widget.grid.cellSpans,
+      occupiedGrid: widget.grid.occupiedGrid,
+      rowHeights: [
+        for (var row = 0; row < minimumHeights.length; row++)
+          (math.max(minimumHeights[row], widget.grid.rowHeights[row]) * scale)
+              .ceil(),
+      ],
+      conflicts: widget.grid.conflicts,
+    );
+    final bodyHeight = scaled.rowHeights.fold<double>(0, (sum, h) => sum + h);
+    final headerHeight = 36 * scale;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.hasBoundedWidth
+            ? constraints.maxWidth
+            : 588 * scale;
+        final timeWidth = math.min(56 * scale, width * .4);
+        final available = width - timeWidth - 2;
+        final dayWidth = math.max(76 * scale, available / 7);
+        final scrolls = dayWidth * 7 > available + 1;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Container(
+              decoration: BoxDecoration(
+                color: colors.base100,
+                borderRadius: BorderRadius.circular(
+                  GfTheme.radiiOf(context).box,
+                ),
+                border: Border.all(color: colors.line),
               ),
-              SizedBox(
-                height: scaled.rowHeights.fold<double>(0, (sum, h) => sum + h),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    SizedBox(
-                      width: 44 * scale,
-                      child: Column(
-                        children: [
-                          for (
-                            var row = 0;
-                            row < scaled.rowHeights.length;
-                            row++
-                          )
-                            SizedBox(
-                              height: scaled.rowHeights[row].toDouble(),
-                              child: _TimeCell(row: row, times: times),
-                            ),
-                        ],
-                      ),
+              clipBehavior: Clip.antiAlias,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    width: timeWidth,
+                    child: Column(
+                      children: [
+                        _HeaderCell(
+                          label: l.scheduleTimeAxis,
+                          height: headerHeight,
+                        ),
+                        for (var row = 0; row < scaled.rowHeights.length; row++)
+                          SizedBox(
+                            height: scaled.rowHeights[row].toDouble(),
+                            child: _TimeCell(row: row, times: widget.times),
+                          ),
+                      ],
                     ),
-                    for (var day = 0; day < 7; day++)
-                      SizedBox(
-                        width: 62 * scale,
-                        child: _DayColumn(
-                          day: day,
-                          grid: scaled,
-                          conflicts: scaled.conflicts,
-                          onTapEmptyCell: onTapEmptyCell == null
-                              ? null
-                              : (section) => onTapEmptyCell!(day + 1, section),
-                          onTapCourse: onTapCourse,
+                  ),
+                  Expanded(
+                    child: Scrollbar(
+                      controller: _horizontal,
+                      child: SingleChildScrollView(
+                        key: const PageStorageKey('schedule-grid-horizontal'),
+                        controller: _horizontal,
+                        scrollDirection: Axis.horizontal,
+                        child: SizedBox(
+                          width: 7 * dayWidth,
+                          child: Column(
+                            children: [
+                              Row(
+                                children: [
+                                  for (final day in _weekdayLabels(l))
+                                    SizedBox(
+                                      width: dayWidth,
+                                      child: _HeaderCell(
+                                        label: day,
+                                        height: headerHeight,
+                                      ),
+                                    ),
+                                ],
+                              ),
+                              SizedBox(
+                                height: bodyHeight,
+                                child: Row(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  children: [
+                                    for (var day = 0; day < 7; day++)
+                                      SizedBox(
+                                        width: dayWidth,
+                                        child: _DayColumn(
+                                          day: day,
+                                          grid: scaled,
+                                          conflicts: scaled.conflicts,
+                                          onTapEmptyCell:
+                                              widget.onTapEmptyCell == null
+                                              ? null
+                                              : (section) =>
+                                                    widget.onTapEmptyCell!(
+                                                      day + 1,
+                                                      section,
+                                                    ),
+                                          onTapCourse: widget.onTapCourse,
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
-                  ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (scrolls)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  l.scheduleGridScrollHint,
+                  style: GfTheme.typographyOf(context).caption,
                 ),
               ),
-              if (emptyLabel != null)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 10),
-                  child: Text(
-                    emptyLabel!,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 12, color: colors.iconMuted),
-                  ),
-                ),
-            ],
-          ),
-        ),
-      ),
+            if (widget.emptyLabel != null)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Text(widget.emptyLabel!, textAlign: TextAlign.center),
+              ),
+          ],
+        );
+      },
     );
   }
 }
 
-/// 天头部（周一..周日）。
-class _DayHeaderRow extends StatelessWidget {
-  const _DayHeaderRow({
-    required this.timeColumnWidth,
-    required this.dayColumnWidth,
-  });
+List<String> _weekdayLabels(AppLocalizations l) => [
+  l.scheduleDayMon,
+  l.scheduleDayTue,
+  l.scheduleDayWed,
+  l.scheduleDayThu,
+  l.scheduleDayFri,
+  l.scheduleDaySat,
+  l.scheduleDaySun,
+];
 
-  final double timeColumnWidth;
-  final double dayColumnWidth;
-
+class _HeaderCell extends StatelessWidget {
+  const _HeaderCell({required this.label, required this.height});
+  final String label;
+  final double height;
   @override
   Widget build(BuildContext context) {
-    final AppLocalizations l10n = AppLocalizations.of(context);
-    final GfColors colors = GfTheme.colorsOf(context);
-    final List<String> days = <String>[
-      l10n.scheduleDayMon,
-      l10n.scheduleDayTue,
-      l10n.scheduleDayWed,
-      l10n.scheduleDayThu,
-      l10n.scheduleDayFri,
-      l10n.scheduleDaySat,
-      l10n.scheduleDaySun,
-    ];
+    final colors = GfTheme.colorsOf(context);
     return Container(
-      height: 32 * MediaQuery.textScalerOf(context).scale(11) / 11,
+      height: height,
+      alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: colors.base200.withValues(alpha: 0.7),
-        border: Border(bottom: BorderSide(color: colors.line)),
+        color: colors.base200.withValues(alpha: .7),
+        border: Border(
+          bottom: BorderSide(color: colors.line),
+          right: BorderSide(color: colors.line),
+        ),
       ),
-      child: Row(
-        children: <Widget>[
-          SizedBox(width: timeColumnWidth),
-          for (final String day in days)
-            SizedBox(
-              width: dayColumnWidth,
-              child: Center(
-                child: Text(
-                  day,
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: colors.baseContent.withValues(alpha: 0.7),
-                  ),
-                ),
-              ),
-            ),
-        ],
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          color: colors.baseContent,
+        ),
       ),
     );
   }
@@ -175,6 +244,7 @@ class _TimeCell extends StatelessWidget {
       _ => null,
     };
     return Container(
+      width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 1, vertical: 3),
       decoration: BoxDecoration(
         border: Border(
@@ -189,7 +259,7 @@ class _TimeCell extends StatelessWidget {
             Text(
               partLabel,
               style: TextStyle(
-                fontSize: 8,
+                fontSize: 9.5,
                 height: 1.1,
                 fontWeight: FontWeight.w700,
                 color: colors.primary.withValues(alpha: 0.8),
@@ -198,7 +268,7 @@ class _TimeCell extends StatelessWidget {
           Text(
             '${row + 1}',
             style: TextStyle(
-              fontSize: 11,
+              fontSize: 12,
               height: 1.1,
               fontWeight: FontWeight.w700,
               color: colors.baseContent.withValues(alpha: 0.7),
@@ -209,9 +279,9 @@ class _TimeCell extends StatelessWidget {
               '${time.start}\n${time.end}',
               textAlign: TextAlign.center,
               style: TextStyle(
-                fontSize: 7,
+                fontSize: 9.5,
                 height: 1.1,
-                color: colors.baseContent.withValues(alpha: 0.45),
+                color: colors.baseContent.withValues(alpha: 0.75),
               ),
             ),
         ],
@@ -293,6 +363,7 @@ class _DayColumn extends StatelessWidget {
             height: height,
             child: _CourseCell(
               courses: courses,
+              compact: courses.length > 1 || span == 1,
               conflicts: conflicts,
               onTapCourse: onTapCourse,
             ),
@@ -305,10 +376,22 @@ class _DayColumn extends StatelessWidget {
             left: 0,
             right: 0,
             height: grid.rowHeights[row].toDouble(),
-            child: GestureDetector(
+            child: Semantics(
+              button: true,
+              excludeSemantics: true,
+              label: AppLocalizations.of(context).scheduleEmptyCell(
+                _weekdayLabels(AppLocalizations.of(context))[day],
+                row + 1,
+              ),
               onTap: () => onTapEmptyCell!(row + 1),
-              behavior: HitTestBehavior.opaque,
-              child: const SizedBox.expand(),
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  excludeFromSemantics: true,
+                  onTap: () => onTapEmptyCell!(row + 1),
+                  child: const SizedBox.expand(),
+                ),
+              ),
             ),
           ),
         );
@@ -322,11 +405,13 @@ class _DayColumn extends StatelessWidget {
 class _CourseCell extends StatelessWidget {
   const _CourseCell({
     required this.courses,
+    required this.compact,
     required this.conflicts,
     required this.onTapCourse,
   });
 
   final List<PkCourseOnTable> courses;
+  final bool compact;
   final Map<String, List<PkConflictItem>> conflicts;
   final void Function(PkCourseOnTable course) onTapCourse;
 
@@ -335,6 +420,7 @@ class _CourseCell extends StatelessWidget {
     if (courses.length == 1) {
       return _CourseCard(
         course: courses.first,
+        compact: compact,
         conflicts: conflicts,
         onTap: () => onTapCourse(courses.first),
       );
@@ -347,6 +433,7 @@ class _CourseCell extends StatelessWidget {
               padding: const EdgeInsets.only(top: 1, bottom: 1),
               child: _CourseCard(
                 course: courses[i],
+                compact: compact,
                 conflicts: conflicts,
                 onTap: () => onTapCourse(courses[i]),
               ),
@@ -361,11 +448,13 @@ class _CourseCell extends StatelessWidget {
 class _CourseCard extends StatelessWidget {
   const _CourseCard({
     required this.course,
+    required this.compact,
     required this.conflicts,
     required this.onTap,
   });
 
   final PkCourseOnTable course;
+  final bool compact;
   final Map<String, List<PkConflictItem>> conflicts;
   final VoidCallback? onTap;
 
@@ -389,91 +478,125 @@ class _CourseCard extends StatelessWidget {
     );
     final String room = course.occupyRoom ?? '';
 
-    return Container(
-      decoration: BoxDecoration(
-        color: fill,
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(
-          color: custom ? colors.line : colors.primary.withValues(alpha: 0.22),
+    final accent = HSLColor.fromColor(fill)
+        .withLightness(
+          Theme.of(context).brightness == Brightness.dark ? .72 : .38,
+        )
+        .toColor();
+    final parity = detectWeekParity(course.occupyWeek);
+    final compactWeeks = switch (parity) {
+      PkWeekParity.odd => l10n.scheduleParityOdd,
+      PkWeekParity.even => l10n.scheduleParityEven,
+      _ => weeksText,
+    };
+    final action = custom ? null : onTap;
+    final label = [
+      name,
+      _weekdayLabels(l10n)[course.occupyDay - 1],
+      l10n.scheduleSectionsN(formatWeeksText(course.occupyTime)),
+      room,
+      teacherNameOf(course),
+      weeksText,
+      if (conflicted) l10n.scheduleConflictBadge,
+    ].where((part) => part.isNotEmpty).join(' · ');
+    return Semantics(
+      label: label,
+      button: action != null,
+      onTap: action,
+      excludeSemantics: true,
+      child: Container(
+        margin: const EdgeInsets.symmetric(vertical: 1),
+        decoration: BoxDecoration(
+          color: fill,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: custom ? colors.line : accent.withValues(alpha: .22),
+          ),
         ),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          child: Stack(
-            children: <Widget>[
-              Padding(
-                padding: const EdgeInsets.fromLTRB(5, 3, 5, 3),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: <Widget>[
+        clipBehavior: Clip.antiAlias,
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: action,
+            excludeFromSemantics: true,
+            focusColor: accent.withValues(alpha: .22),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 4),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  if (!custom)
+                    Center(
+                      child: Container(
+                        width: 22,
+                        height: 2,
+                        decoration: BoxDecoration(
+                          color: accent,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+                  Text(
+                    name,
+                    maxLines: compact ? 1 : 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 12,
+                      height: 1.2,
+                      fontWeight: FontWeight.w600,
+                      color: colors.baseContent,
+                    ),
+                  ),
+                  if (room.isNotEmpty)
                     Text(
-                      name,
-                      maxLines: 2,
+                      room,
+                      maxLines: compact ? 1 : 2,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         fontSize: 11,
                         height: 1.15,
-                        fontWeight: FontWeight.w600,
+                        fontWeight: FontWeight.w500,
                         color: colors.baseContent,
                       ),
                     ),
-                    if (!custom && (room.isNotEmpty || teacher.isNotEmpty))
-                      Padding(
-                        padding: const EdgeInsets.only(top: 1),
-                        child: Text(
-                          room.isNotEmpty ? room : teacher,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 8,
-                            height: 1.1,
-                            color: colors.baseContent.withValues(alpha: 0.55),
+                  if (!custom && teacher.isNotEmpty && !compact)
+                    Text(
+                      teacher,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 10,
+                        height: 1.15,
+                        color: colors.baseContent.withValues(alpha: .8),
+                      ),
+                    ),
+                  if (weeksText.isNotEmpty || conflicted)
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            compact ? compactWeeks : weeksText,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 9.5,
+                              height: 1.15,
+                              color: colors.baseContent.withValues(alpha: .8),
+                            ),
                           ),
                         ),
-                      ),
-                    if (weeksText.isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 1),
-                        child: Text(
-                          weeksText,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 8,
-                            height: 1.1,
-                            color: colors.baseContent.withValues(alpha: 0.5),
+                        if (conflicted)
+                          Icon(
+                            Icons.warning_amber_rounded,
+                            size: 14,
+                            color: colors.error,
                           ),
-                        ),
-                      ),
-                  ],
-                ),
+                      ],
+                    ),
+                ],
               ),
-              if (conflicted && !custom)
-                Positioned(
-                  right: 2,
-                  top: 2,
-                  child: Container(
-                    width: 13,
-                    height: 13,
-                    decoration: BoxDecoration(
-                      color: colors.error.withValues(alpha: 0.15),
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: colors.error.withValues(alpha: 0.5),
-                      ),
-                    ),
-                    child: Icon(
-                      Icons.warning_amber_rounded,
-                      size: 9,
-                      color: colors.error,
-                    ),
-                  ),
-                ),
-            ],
+            ),
           ),
         ),
       ),
