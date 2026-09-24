@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_quill/flutter_quill.dart';
@@ -2051,18 +2052,34 @@ class _PublishPageState extends ConsumerState<PublishPage>
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  if (item.status == ComposerUploadStatus.uploading)
-                    const SizedBox.square(
-                      dimension: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  else
-                    Icon(
-                      item.status == ComposerUploadStatus.failed
-                          ? Icons.error_outline
-                          : Icons.photo_outlined,
-                      size: 20,
+                  SizedBox.square(
+                    dimension: 48,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          Image.file(
+                            File(item.file.path),
+                            fit: BoxFit.cover,
+                            cacheWidth: 96,
+                            excludeFromSemantics: true,
+                            errorBuilder: (_, _, _) =>
+                                const Icon(Icons.photo_outlined),
+                          ),
+                          if (item.status == ComposerUploadStatus.uploading)
+                            const Center(
+                              child: SizedBox.square(
+                                dimension: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
                     ),
+                  ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Column(
