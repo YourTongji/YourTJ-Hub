@@ -80,7 +80,7 @@ func TestFindCoursesByTimeReady(t *testing.T) {
 		t.Fatalf("rebuildTeacherTimeslots: %v", err)
 	}
 
-	result, err := FindCoursesByTime(99999, 5, 1)
+	result, err := FindCoursesByTime(99999, 5, 1, false)
 	if err != nil {
 		t.Fatalf("FindCoursesByTime: %v", err)
 	}
@@ -103,7 +103,7 @@ func TestFindCoursesByTimeDegraded(t *testing.T) {
 	conn := setupPkServiceTest(t)
 	seedTimeslotFixture(t, conn)
 
-	result, err := FindCoursesByTime(99999, 5, 1)
+	result, err := FindCoursesByTime(99999, 5, 1, false)
 	if err != nil {
 		t.Fatalf("FindCoursesByTime: %v", err)
 	}
@@ -123,7 +123,7 @@ func TestFindCoursesByTimeSection6Degraded(t *testing.T) {
 	conn.Create(&pk.CourseDetailEntity{Id: 900004, Code: "TJCS30101", CourseCode: "TJCS301", CourseName: "艺术鉴赏", CourseLabelId: ptr(uint64(2)), Credit: ptr(2.0), Campus: "JD", Faculty: "CS", TeachingLanguage: "ZH", CalendarId: 99999})
 	conn.Create(&pk.TeacherEntity{Id: 4, TeachingClassId: 900004, TeacherCode: "T009", TeacherName: "王芳", ArrangeInfoText: "王芳(T009) 星期五10-11节[1-16周] 嘉定校区 D404"})
 
-	result, err := FindCoursesByTime(99999, 5, 6)
+	result, err := FindCoursesByTime(99999, 5, 6, false)
 	if err != nil {
 		t.Fatalf("FindCoursesByTime(section 6): %v", err)
 	}
@@ -132,6 +132,46 @@ func TestFindCoursesByTimeSection6Degraded(t *testing.T) {
 	}
 	if len(result.Courses) != 1 || result.Courses[0].CourseCode != "TJCS301" {
 		t.Fatalf("degraded courses = %+v, want [TJCS301]", result.Courses)
+	}
+
+	conn.Create(&pk.CourseDetailEntity{Id: 900005, Code: "TJCS30201", CourseCode: "TJCS302", CourseName: "晚间课程", CourseLabelId: ptr(uint64(2)), Credit: ptr(2.0), Campus: "JD", Faculty: "CS", TeachingLanguage: "ZH", CalendarId: 99999})
+	conn.Create(&pk.TeacherEntity{Id: 5, TeachingClassId: 900005, TeacherCode: "T010", TeacherName: "李华", ArrangeInfoText: "李华(T010) 星期五10-12节[1-16周] 嘉定校区 D404"})
+	if err := rebuildTeacherTimeslots(); err != nil {
+		t.Fatalf("rebuildTeacherTimeslots: %v", err)
+	}
+	indexed, err := FindCoursesByTime(99999, 5, 6, false)
+	if err != nil {
+		t.Fatalf("FindCoursesByTime(indexed section 6): %v", err)
+	}
+	found := false
+	for _, course := range indexed.Courses {
+		if course.CourseCode == "TJCS302" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("indexed section 6 courses = %+v, want TJCS302 from period 10-12", indexed.Courses)
+	}
+}
+
+func TestFindCoursesByTimeIncludeAllCourseNatures(t *testing.T) {
+	conn := setupPkServiceTest(t)
+	seedTimeslotFixture(t, conn)
+
+	result, err := FindCoursesByTime(99999, 1, 1, true)
+	if err != nil {
+		t.Fatalf("FindCoursesByTime(includeAll): %v", err)
+	}
+	if len(result.Courses) != 1 || result.Courses[0].CourseCode != "TJCS101" {
+		t.Fatalf("all-course result = %+v, want required course TJCS101", result.Courses)
+	}
+
+	defaultResult, err := FindCoursesByTime(99999, 1, 1, false)
+	if err != nil {
+		t.Fatalf("FindCoursesByTime(default): %v", err)
+	}
+	if len(defaultResult.Courses) != 0 {
+		t.Fatalf("default result = %+v, want existing optional-only behavior", defaultResult.Courses)
 	}
 }
 

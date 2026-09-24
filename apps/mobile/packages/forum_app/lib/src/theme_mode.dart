@@ -8,17 +8,23 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// 应用启动时恢复上次选择。
 class ThemeModeNotifier extends Notifier<ThemeMode> {
   static const String _prefsKey = 'theme_mode';
+  int _revision = 0;
+  bool _disposed = false;
+  Future<void> _writes = Future.value();
 
   @override
   ThemeMode build() {
+    ref.onDispose(() => _disposed = true);
     _restore();
     return ThemeMode.system;
   }
 
   /// 启动时从本地恢复上次的手动选择(异步,失败静默保持跟随系统)。
   Future<void> _restore() async {
+    final revision = _revision;
     try {
       final SharedPreferences prefs = await SharedPreferences.getInstance();
+      if (_disposed || revision != _revision) return;
       final String? saved = prefs.getString(_prefsKey);
       if (saved == null) return;
       state = ThemeMode.values.firstWhere(
@@ -40,15 +46,18 @@ class ThemeModeNotifier extends Notifier<ThemeMode> {
   }
 
   void setMode(ThemeMode mode) {
+    _revision++;
     state = mode;
-    _persist(mode);
+    // Platform writes may finish out of order; persist each selection only after
+    // the previous write completes. A failed write does not block later choices.
+    _writes = _writes.then((_) => _persist(mode));
   }
 
   void toggleDark(bool dark) {
-    state = dark ? ThemeMode.dark : ThemeMode.light;
-    _persist(state);
+    setMode(dark ? ThemeMode.dark : ThemeMode.light);
   }
 }
 
-final themeModeProvider =
-    NotifierProvider<ThemeModeNotifier, ThemeMode>(ThemeModeNotifier.new);
+final themeModeProvider = NotifierProvider<ThemeModeNotifier, ThemeMode>(
+  ThemeModeNotifier.new,
+);
