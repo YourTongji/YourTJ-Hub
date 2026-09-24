@@ -495,6 +495,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get messagesInputHint => 'Type a message…';
 
   @override
+  String get messagesEmoji => 'Emoji';
+
+  @override
+  String get messagesKeyboard => 'Keyboard';
+
+  @override
+  String get messagesCopyAll => 'Copy entire message';
+
+  @override
   String messagesSendFailed(String error) {
     return 'Send failed: $error';
   }
@@ -2524,6 +2533,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get badgeDisplayDown => 'Move down';
 
   @override
+  String get notificationsMarkRead => 'Mark as read';
+
+  @override
   String get scheduleWidgetSettingsTitle => 'Home screen schedule';
 
   @override
@@ -2606,13 +2618,23 @@ class AppLocalizationsEn extends AppLocalizations {
   String get scheduleGridScrollHint => 'Swipe sideways to view the full week';
 
   @override
-  String get messagesEmoji => 'Emoji';
+  String get coursesFilterSearchHint => 'Search filter options';
 
   @override
-  String get messagesKeyboard => 'Keyboard';
+  String get coursesFilterNoMatches => 'No matching filter options';
 
   @override
-  String get messagesCopyAll => 'Copy entire message';
+  String get coursesClearSelection => 'Clear selection';
+
+  @override
+  String get coursesResetSearch => 'Reset search and filters';
+
+  @override
+  String get coursesFilterLoadFailed => 'Filter options could not be loaded.';
+
+  @override
+  String get coursesPaginationStalled =>
+      'No additional courses arrived. Try loading this page again.';
 
   @override
   String get messagesDraftLabel => 'Draft';

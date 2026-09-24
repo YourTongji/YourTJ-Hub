@@ -18,11 +18,45 @@ import java.security.MessageDigest
 class MainActivity : FlutterActivity() {
     private var oidcEventSink: EventChannel.EventSink? = null
     private var pendingOidcCallback: String? = null
+    private var hasResumedOnce = false
+    private var fullyDrawnReported = false
+    private var startupLaunchKind = "cold"
+
+    companion object {
+        private var hasStartedActivityInProcess = false
+    }
+
+    override fun onCreate(savedInstanceState: android.os.Bundle?) {
+        startupLaunchKind = if (hasStartedActivityInProcess) "warm" else "cold"
+        hasStartedActivityInProcess = true
+        super.onCreate(savedInstanceState)
+    }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         publishScheduleWidgetPreviews(applicationContext)
         PushBridge.attach(this, MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "yourtj/push"))
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "yourtj/startup")
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "getDeviceProfile" -> result.success(
+                        mapOf(
+                            "device" to "${Build.MANUFACTURER} ${Build.MODEL}".trim(),
+                            "osVersion" to "Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})",
+                            "refreshRateHz" to currentDisplayRefreshRate(),
+                            "launchKind" to startupLaunchKind,
+                        ),
+                    )
+                    "reportFullyDrawn" -> {
+                        if (!fullyDrawnReported) {
+                            fullyDrawnReported = true
+                            reportFullyDrawn()
+                        }
+                        result.success(true)
+                    }
+                    else -> result.notImplemented()
+                }
+            }
         pendingOidcCallback = exactOidcCallback(intent)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "yourtj/oidc")
             .setMethodCallHandler { call, result ->
@@ -67,6 +101,7 @@ class MainActivity : FlutterActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        startupLaunchKind = "hot"
         val callback = exactOidcCallback(intent) ?: return
         val sink = oidcEventSink
         if (sink != null) {
@@ -80,6 +115,23 @@ class MainActivity : FlutterActivity() {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == PushBridge.PERMISSION_REQUEST) PushBridge.permissionResult(this)
     }
+
+    override fun onResume() {
+        super.onResume()
+        if (hasResumedOnce) startupLaunchKind = "hot"
+        hasResumedOnce = true
+    }
+
+    @Suppress("DEPRECATION")
+    private fun currentDisplayRefreshRate(): Float {
+        val currentDisplay = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            display
+        } else {
+            windowManager.defaultDisplay
+        }
+        return currentDisplay?.refreshRate ?: 0f
+    }
+
     override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
         oidcEventSink = null
         pendingOidcCallback = null

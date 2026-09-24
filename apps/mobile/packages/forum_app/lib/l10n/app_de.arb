@@ -155,6 +155,9 @@
   "messagesNoMessagesYet": "Noch keine Nachrichten",
   "messagesEmptyDetail": "Noch keine Nachrichten. Sag Hallo!",
   "messagesInputHint": "Nachricht eingeben …",
+  "messagesEmoji": "Emoji",
+  "messagesKeyboard": "Tastatur",
+  "messagesCopyAll": "Ganze Nachricht kopieren",
   "messagesSendFailed": "Senden fehlgeschlagen: {error}",
   "notificationsTitle": "Benachrichtigungen",
   "notificationsEmpty": "Keine Benachrichtigungen",
@@ -869,6 +872,7 @@
   "badgeDisplayHint": "Bis zu 5 Abzeichen auswählen und sortieren oder alle abwählen. Unabhängig vom Avatar-Abzeichen.",
   "badgeDisplayUp": "Nach oben",
   "badgeDisplayDown": "Nach unten",
+  "notificationsMarkRead": "Als gelesen markieren",
   "scheduleWidgetSettingsTitle": "Startbildschirm-Stundenplan",
   "scheduleWidgetPrivacyDescription": "Widgets zeigen Kursnamen, Zeiten, Lehrkräfte und Orte aus dem auf diesem Gerät gespeicherten Stundenplan. Nach einer Aktualisierung erscheint der neue Stand auf dem Startbildschirm.",
   "scheduleWidgetRefresh": "Aus Offline-Stundenplan aktualisieren",
@@ -915,9 +919,12 @@
       }
     }
   },
-  "messagesEmoji": "Emoji",
-  "messagesKeyboard": "Tastatur",
-  "messagesCopyAll": "Ganze Nachricht kopieren",
+  "coursesFilterSearchHint": "Filteroptionen suchen",
+  "coursesFilterNoMatches": "Keine passenden Filteroptionen",
+  "coursesClearSelection": "Auswahl löschen",
+  "coursesResetSearch": "Suche und Filter zurücksetzen",
+  "coursesFilterLoadFailed": "Filteroptionen konnten nicht geladen werden.",
+  "coursesPaginationStalled": "Keine weiteren Kurse erhalten. Laden Sie diese Seite erneut.",
   "messagesDraftLabel": "Entwurf",
   "messagesDraftStorageFailed": "Nachrichtenentwürfe konnten auf diesem Gerät nicht gelesen oder gespeichert werden. Erneut versuchen."
 }

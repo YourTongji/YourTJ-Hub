@@ -253,6 +253,9 @@
   "messagesNoMessagesYet": "No messages yet",
   "messagesEmptyDetail": "No messages yet, say hi!",
   "messagesInputHint": "Type a message…",
+  "messagesEmoji": "Emoji",
+  "messagesKeyboard": "Keyboard",
+  "messagesCopyAll": "Copy entire message",
   "messagesSendFailed": "Send failed: {error}",
   "@messagesSendFailed": {
     "placeholders": {
@@ -273,7 +276,16 @@
   "searchNoCategories": "No matching categories",
   "searchUnavailable": "Search unavailable",
   "searchResultCount": "{shown} shown · {total} matches",
-  "@searchResultCount": {"placeholders": {"shown": {"type": "int"}, "total": {"type": "int"}}},
+  "@searchResultCount": {
+    "placeholders": {
+      "shown": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
   "searchAll": "All",
   "searchTopics": "Topics",
   "searchUsers": "Users",
@@ -1200,6 +1212,7 @@
   "badgeDisplayHint": "Choose up to 5 badges and their order, or deselect all. Independent of your avatar badge.",
   "badgeDisplayUp": "Move up",
   "badgeDisplayDown": "Move down",
+  "notificationsMarkRead": "Mark as read",
   "scheduleWidgetSettingsTitle": "Home screen schedule",
   "scheduleWidgetPrivacyDescription": "Widgets show course names, times, teachers and locations from the schedule saved on this device. Refreshing the schedule updates the home-screen view.",
   "scheduleWidgetRefresh": "Refresh from offline schedule",
@@ -1246,9 +1259,12 @@
       }
     }
   },
-  "messagesEmoji": "Emoji",
-  "messagesKeyboard": "Keyboard",
-  "messagesCopyAll": "Copy entire message",
+  "coursesFilterSearchHint": "Search filter options",
+  "coursesFilterNoMatches": "No matching filter options",
+  "coursesClearSelection": "Clear selection",
+  "coursesResetSearch": "Reset search and filters",
+  "coursesFilterLoadFailed": "Filter options could not be loaded.",
+  "coursesPaginationStalled": "No additional courses arrived. Try loading this page again.",
   "messagesDraftLabel": "Draft",
   "messagesDraftStorageFailed": "Could not read or save message drafts on this device. Try again."
 }

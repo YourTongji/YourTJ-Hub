@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-09-20
+> Last verified: 2026-09-25
 
 The Flutter app combines the forum, course catalog, scheduler and Wiki. Ordinary browsing and
 writing use native pages. Management uses the same first-party workspaces and permission checks as
@@ -146,6 +146,14 @@ corresponding planned ownership and lifecycle contracts.
 - `Current`: Home and global search keep the current list after a failed refresh and show a light
   failure notice. Pagination errors remain beside an explicit retry action; retry continues the
   same query/page without discarding prior items. New queries and account changes invalidate old responses.
+- `Current`: Notifications also retain rows after a failed refresh. Filter changes and account
+  generations reject older refresh/pagination responses. Pagination deduplicates IDs and pauses with
+  explicit retry after failure or a response without progress. A failed refresh preserves that pagination
+  error and pause; a successful refresh or explicit retry resumes loading. Single/all-read actions are serialized,
+  display pending state and surface failures; rows remain unread until acknowledged. Confirmed reads
+  cannot be reverted by an earlier fetch. Single-read failures retain a row-level retry action until
+  a successful action or refreshed server state confirms the read; the
+  unread filter removes acknowledged rows and continues pagination when its visible page is drained.
 - `Current`: outgoing chat messages appear immediately as sending bubbles. Failures retain their text
   and expose manual retry without replacing a newer input. Acknowledged bubbles stay visible until
   matched by server history. Existing conversations load their initial server history before enabling
@@ -195,6 +203,13 @@ corresponding planned ownership and lifecycle contracts.
   focus. Its bounded scrollable grid has touch-sized controls, localized labels and system-back/Escape
   dismissal. Mobile return inserts a newline; hardware Ctrl/Cmd+Enter sends. Disabling the composer
   also disables emoji edits. Platform IME transitions still require physical-device verification.
+- `Partial`: the chat API can acknowledge an explicit set of incoming message IDs and read back
+  individual read flags. The Flutter conversation screen still calls the compatible whole-conversation
+  read endpoint; visible-viewport measurement and the unread new-message prompt are not yet connected.
+- `Partial`: the server offers an authenticated foreground event stream for chat, notifications and
+  unread-state changes. It sends an immediate resync instruction and bounded, owner-scoped change
+  hints; clients fetch actual content and counts from REST. The Flutter app still uses its existing
+  refresh path until its single foreground connection and reconnect reconciliation are integrated.
 
 ## Language and presentation
 
@@ -393,6 +408,17 @@ corresponding planned ownership and lifecycle contracts.
   edits, and focus reads are throttled to 30 seconds. Clean state has no polling timer.
   Existing cloud snapshots migrate intact on first use; legacy clients receive 410 afterward.
   Account closure erases cloud content and prevents in-flight requests from recreating it.
+- `Current`: the course catalog debounces keyword search and captures filters for each request
+  generation, so late responses and pages cannot replace a newer search. Short lists load the next
+  page automatically while visible. Paging errors keep existing courses and offer explicit retry;
+  duplicate pages stop automatic loading until retried. Pull-to-refresh retains results and shows
+  an inline retry on failure. Department, term and campus pickers search both values and displayed
+  labels, retain selections across search terms, and provide clear-selection controls; teachers
+  remain free-text multi-value filters. Filter options have separate loading/error feedback, and
+  search plus all filters can be reset together. Sheets accommodate the keyboard and large text,
+  with a persistent Done action. Session/site invalidation clears the old catalog, permissions and filters, then loads the new
+  session’s catalog; queued searches and late results cannot cross identities. These interactions use the existing
+  course API and SSR filter options; search service failures remain errors rather than empty results.
 - `Current`: course details retain offering-specific five-star reviews and existing review fields;
   bookmark and write-review actions stay in a bottom dock. Scores share a baseline with their
   five-point denominator. The signed-in user’s own reviews (including anonymous reviews) appear

@@ -331,6 +331,9 @@ func apiRoute(ginApp *gin.Engine) {
 	// 不要求登录；待审版本正文在控制器内对非版主屏蔽。
 	forumApi.GET("posts/revisions", middleware.JWTAuth, middleware.NoUpdateUserActivity, UpQueryReq(forum.PostRevisions))
 
+	// Origin is checked before stateful auth: a rejected cookie request must not
+	// refresh its JWT or extend its session while opening a long-lived stream.
+	forumApi.GET("events", middleware.StreamOriginProtection, middleware.JWTAuthCheck, middleware.NoUpdateUserActivity, api.StreamEvents)
 	forumLoginApi := forumApi.Use(middleware.CSRFProtection, middleware.JWTAuthCheck)
 	forumLoginApi.GET("unread-status", middleware.NoUpdateUserActivity, UpButterReq(api.GetUnreadStatus))
 	forumLoginApi.GET("notifications", middleware.NoUpdateUserActivity, UpQueryReq(api.NotificationList))
@@ -427,6 +430,8 @@ func apiRoute(ginApp *gin.Engine) {
 	chatApi.POST("send", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitMessageSend), UpButterReq(api.SendMessage))
 	chatApi.POST("messages", UpButterReq(api.GetMessages))
 	chatApi.POST("mark-read", middleware.CheckWritableAccountAllowPendingActivation, UpButterReq(api.MarkChatRead))
+	chatApi.POST("mark-visible", middleware.CheckWritableAccountAllowPendingActivation, UpButterReq(api.MarkChatVisibleRead))
+	chatApi.POST("message-read-states", UpButterReq(api.GetChatMessageReadStates))
 
 	adminApi := baseApi.Group("admin", middleware.CSRFProtection, middleware.JWTAuthCheck, middleware.CheckWritableAccount)
 

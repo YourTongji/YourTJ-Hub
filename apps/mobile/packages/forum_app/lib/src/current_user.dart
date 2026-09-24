@@ -21,9 +21,9 @@ int? _parseUserIdFromToken(String token) {
   try {
     final parts = token.split('.');
     if (parts.length != 3) return null;
-    final payload = jsonDecode(
-      utf8.decode(base64Url.decode(base64Url.normalize(parts[1]))),
-    ) as Map<String, dynamic>;
+    final payload =
+        jsonDecode(utf8.decode(base64Url.decode(base64Url.normalize(parts[1]))))
+            as Map<String, dynamic>;
     final raw = payload['UserId'];
     if (raw is num) return raw.toInt();
     if (raw is String) return int.tryParse(raw);
@@ -39,6 +39,7 @@ int? _parseUserIdFromToken(String token) {
 /// username 字段(后端 CustomClaims 无该字段时为 null,页面回退到
 /// "我的" 默认展示)。
 final currentUserProvider = FutureProvider<CurrentUser?>((ref) async {
+  ref.watch(offlineCacheEpochProvider);
   final storage = ref.watch(tokenStorageProvider);
   final token = await storage.read();
   if (token == null || token.isEmpty) return null;
