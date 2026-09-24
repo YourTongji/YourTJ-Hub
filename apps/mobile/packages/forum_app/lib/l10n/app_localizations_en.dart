@@ -2663,6 +2663,13 @@ class AppLocalizationsEn extends AppLocalizations {
       'This server does not support individual read receipts. Unread messages are preserved.';
 
   @override
+  String get messagesDraftLabel => 'Draft';
+
+  @override
+  String get messagesDraftStorageFailed =>
+      'Could not read or save message drafts on this device. Try again.';
+
+  @override
   String get draftCollapse => 'Collapse';
 
   @override

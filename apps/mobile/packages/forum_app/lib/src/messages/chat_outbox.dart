@@ -6,10 +6,11 @@ import '../providers.dart';
 enum DeliveryState { sending, sent, failed }
 
 class PendingMessage {
-  PendingMessage(this.id, this.content, this.afterId);
+  PendingMessage(this.id, this.content, this.afterId, {this.draftRevision});
   final int id;
   final String content;
   final int afterId;
+  final int? draftRevision;
   DeliveryState state = DeliveryState.failed;
   Object? error;
 }
@@ -35,10 +36,15 @@ class ChatOutbox extends ChangeNotifier {
   int _latestObservedId = 0;
   bool _disposed = false;
 
-  PendingMessage enqueue(String content, int afterId) {
+  PendingMessage enqueue(String content, int afterId, {int? draftRevision}) {
     final floor = afterId > _latestObservedId ? afterId : _latestObservedId;
     if (items.isEmpty) _matchedIds.clear();
-    final message = PendingMessage(++_serial, content, floor);
+    final message = PendingMessage(
+      ++_serial,
+      content,
+      floor,
+      draftRevision: draftRevision,
+    );
     items.add(message);
     notifyListeners();
     return message;

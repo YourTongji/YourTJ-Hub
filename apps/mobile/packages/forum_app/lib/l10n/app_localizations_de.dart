@@ -2693,6 +2693,13 @@ class AppLocalizationsDe extends AppLocalizations {
       'Dieser Server unterstützt noch keine einzelnen Lesebestätigungen. Ungelesene Nachrichten bleiben erhalten.';
 
   @override
+  String get messagesDraftLabel => 'Entwurf';
+
+  @override
+  String get messagesDraftStorageFailed =>
+      'Nachrichtenentwürfe konnten auf diesem Gerät nicht gelesen oder gespeichert werden. Erneut versuchen.';
+
+  @override
   String get draftCollapse => 'Einklappen';
 
   @override

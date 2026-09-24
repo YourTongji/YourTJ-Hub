@@ -4,6 +4,9 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:forum_app/src/current_user.dart';
 import 'package:forum_app/l10n/app_localizations.dart';
 import 'package:forum_app/src/pages/messages/messages_page.dart';
 import 'package:forum_app/src/providers.dart';
@@ -114,6 +117,9 @@ pumpChat(
   final container = ProviderContainer(
     overrides: [
       tokenStorageProvider.overrideWithValue(storage),
+      currentUserProvider.overrideWith(
+        (ref) async => const CurrentUser(id: 1, username: 'alice'),
+      ),
       pageRepositoryProvider.overrideWithValue(CountingPageRepository(client)),
       chatRepositoryProvider.overrideWithValue(repo),
       offlineTopicCacheProvider.overrideWithValue(NoopCache()),
@@ -159,6 +165,10 @@ pumpChat(
 }
 
 void main() {
+  setUp(() {
+    SharedPreferences.setMockInitialValues({});
+    FlutterSecureStorage.setMockInitialValues({});
+  });
   Future<void> dwell(WidgetTester tester) async {
     await tester.pump(const Duration(milliseconds: 400));
     await tester.pumpAndSettle();

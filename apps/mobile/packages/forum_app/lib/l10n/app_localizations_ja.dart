@@ -2581,6 +2581,12 @@ class AppLocalizationsJa extends AppLocalizations {
   String get messagesReadUnavailable => 'このサーバーは個別の既読通知に対応していません。未読は保持されます。';
 
   @override
+  String get messagesDraftLabel => '下書き';
+
+  @override
+  String get messagesDraftStorageFailed => 'この端末のメッセージ下書きを読み書きできません。再試行してください。';
+
+  @override
   String get draftCollapse => '折りたたむ';
 
   @override

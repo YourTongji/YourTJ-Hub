@@ -932,6 +932,8 @@
   "messagesNewMessages": "新着メッセージ・最新へ",
   "messagesReadSyncFailed": "既読状態を同期できませんでした。未読は保持されます。",
   "messagesReadUnavailable": "このサーバーは個別の既読通知に対応していません。未読は保持されます。",
+  "messagesDraftLabel": "下書き",
+  "messagesDraftStorageFailed": "この端末のメッセージ下書きを読み書きできません。再試行してください。",
   "draftCollapse": "折りたたむ",
   "draftKindNew": "新しいトピック",
   "draftKindServer": "クラウド下書きの復元用コピー",

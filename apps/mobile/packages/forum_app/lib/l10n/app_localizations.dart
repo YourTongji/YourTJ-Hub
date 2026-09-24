@@ -4908,6 +4908,18 @@ abstract class AppLocalizations {
   /// **'This server does not support individual read receipts. Unread messages are preserved.'**
   String get messagesReadUnavailable;
 
+  /// No description provided for @messagesDraftLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Draft'**
+  String get messagesDraftLabel;
+
+  /// No description provided for @messagesDraftStorageFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not read or save message drafts on this device. Try again.'**
+  String get messagesDraftStorageFailed;
+
   /// No description provided for @draftCollapse.
   ///
   /// In en, this message translates to:

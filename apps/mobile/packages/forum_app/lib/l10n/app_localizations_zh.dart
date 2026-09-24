@@ -2558,6 +2558,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get messagesReadUnavailable => '服务器暂不支持逐条已读；未读消息会保留。';
 
   @override
+  String get messagesDraftLabel => '草稿';
+
+  @override
+  String get messagesDraftStorageFailed => '无法读取或保存本机私信草稿，请重试。';
+
+  @override
   String get draftCollapse => '收起';
 
   @override
