@@ -438,6 +438,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get profileReplies => 'Replies';
 
   @override
+  String get profileLikedPosts => 'Liked posts';
+
+  @override
   String get profileLikes => 'Likes';
 
   @override

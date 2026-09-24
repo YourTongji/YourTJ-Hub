@@ -72,6 +72,9 @@ abstract class UserActivityPayload with _$UserActivityPayload {
 @freezed
 abstract class UserLikePayload with _$UserLikePayload {
   const factory UserLikePayload({
+    UserBriefPayload? author,
+    String? excerpt,
+    String? thumbnailUrl,
     required int id,
     required int topicId,
     required String title,
@@ -86,6 +89,8 @@ abstract class UserLikePayload with _$UserLikePayload {
 @freezed
 abstract class UserBookmarkPayload with _$UserBookmarkPayload {
   const factory UserBookmarkPayload({
+    UserBriefPayload? author,
+    String? thumbnailUrl,
     required int id,
     required String type,
     required int topicId,

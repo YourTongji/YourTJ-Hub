@@ -13,6 +13,7 @@ import '../../server_messages.dart';
 
 import '../../../l10n/app_localizations.dart';
 import '../../format.dart';
+import '../../asset_url.dart';
 import '../../providers.dart';
 import '../../navigation/tab_scroll_registry.dart';
 import '../../widgets/root_surface.dart';
@@ -432,7 +433,11 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                               final (
                                 IconData icon,
                                 GfNotificationTone tone,
-                              ) = switch (n.eventType) {
+                              ) = switch (notificationEvent(n)) {
+                                'like' => (
+                                  Icons.favorite,
+                                  GfNotificationTone.like,
+                                ),
                                 'follow' => (
                                   Icons.person_add,
                                   GfNotificationTone.success,
@@ -446,7 +451,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                                   GfNotificationTone.info,
                                 ),
                                 _ => (
-                                  Icons.message,
+                                  Icons.chat_bubble_outline,
                                   GfNotificationTone.primary,
                                 ),
                               };
@@ -461,6 +466,20 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                                 children: [
                                   GfNotificationRow(
                                     icon: icon,
+                                    actorName: notificationActorName(
+                                      n,
+                                      l10n,
+                                      displayName: (id, name) =>
+                                          privateDisplayName(context, id, name),
+                                    ),
+                                    avatarUrl: n.actor.id > 0
+                                        ? resolveApiAssetUrl(
+                                            n.actor.avatarUrl ?? '',
+                                          )
+                                        : null,
+                                    onActorTap: n.actor.id > 0
+                                        ? () => context.push('/u/${n.actor.id}')
+                                        : null,
                                     tone: tone,
                                     title: title,
                                     subtitle: subtitle,

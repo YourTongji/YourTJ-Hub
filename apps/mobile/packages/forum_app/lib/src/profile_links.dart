@@ -45,3 +45,19 @@ List<(String, Uri, String?)> publicProfileLinks(UserCardPayload user) {
   }
   return links;
 }
+
+/// Only known relative profile activity links become native routes.
+String? profileActivityRoute(String raw) {
+  final uri = Uri.tryParse(raw);
+  if (uri == null || uri.hasScheme || uri.hasAuthority) return null;
+  final match = RegExp(
+    r'^/p/(?:post/)?([1-9]\d*)(?:/([1-9]\d*))?/?$',
+  ).firstMatch(uri.path);
+  if (match != null) {
+    final floor = match.group(2) ?? uri.queryParameters['postNo'];
+    final validFloor = int.tryParse(floor ?? '');
+    return '/p/${match.group(1)}${validFloor != null && validFloor > 0 ? '?postNo=$validFloor' : ''}';
+  }
+  final user = RegExp(r'^/u/([1-9]\d*)/?$').firstMatch(uri.path);
+  return user == null ? null : '/u/${user.group(1)}';
+}

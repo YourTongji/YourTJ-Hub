@@ -68,6 +68,13 @@ func TestUserActivityURLForCommentUsesPostTopic(t *testing.T) {
 	}
 }
 
+func TestUserActivityURLForCommentPreservesFloor(t *testing.T) {
+	activity := &userActivities.Entity{Action: int(userActivities.ActionComment), SubjectType: userActivities.SubjectPost, SubjectId: 456}
+	if got := userActivityURL(activity, map[uint64]*posts.Entity{456: {Id: 456, TopicId: 123, PostNo: 7}}); got != "/p/post/123/7#post-456" {
+		t.Fatalf("activity lost floor: %s", got)
+	}
+}
+
 func TestUserActivityURLForTopicUsesSubjectID(t *testing.T) {
 	activity := &userActivities.Entity{
 		Action:      int(userActivities.ActionPost),

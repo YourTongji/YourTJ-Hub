@@ -2116,13 +2116,13 @@ void main() {
       tokenStorage: MemTokenStorage(),
       baseUrl: 'http://fake.local',
     );
-    for (final entry in <int, String>{
-      1: 'user-round',
-      2: 'square-pen',
-      3: 'heart',
-      4: 'user-round-plus',
-      5: 'message-circle',
-      999: 'activity',
+    for (final entry in <int, IconData>{
+      1: Icons.person_outline,
+      2: Icons.edit_outlined,
+      3: Icons.favorite,
+      4: Icons.person_add_outlined,
+      5: Icons.chat_bubble_outline,
+      999: Icons.timeline,
     }.entries) {
       final payload = redesignedProfilePayloadJson();
       final props = payload['props'] as Map<String, dynamic>;
@@ -2138,11 +2138,11 @@ void main() {
         app(container, ProfilePage(key: UniqueKey(), userId: 1)),
       );
       await tester.pumpAndSettle();
-      final rows = tester.widgetList<GfActivityCard>(
-        find.byType(GfActivityCard),
+      final rows = tester.widgetList<GfContentRow>(
+        find.byType(GfContentRow),
       );
       expect(
-        rows.singleWhere((r) => r.title.contains('活动内容')).symbol,
+        rows.singleWhere((r) => r.text.contains('活动内容')).contextIcon,
         entry.value,
       );
     }
@@ -2306,7 +2306,7 @@ void main() {
         .widget<InkWell>(
           find
               .descendant(
-                of: find.byTooltip('获赞'),
+                of: find.byTooltip('赞过'),
                 matching: find.byType(InkWell),
               )
               .first,
@@ -2406,7 +2406,7 @@ void main() {
       scroll.jumpTo(180);
       await tester.pump();
       final offset = scroll.offset;
-      await tester.tap(find.byTooltip('获赞'));
+      await tester.tap(find.byTooltip('赞过'));
       await tester.pumpAndSettle();
       expect(scroll.offset, offset);
       repo.fail = true;
@@ -4401,7 +4401,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(notifRepo.filters, ['all']);
-      expect(find.text('全部通知'), findsOneWidget);
+      expect(find.textContaining('全部通知'), findsOneWidget);
 
       // 切到"未读"。
       await tester.tap(find.text('未读'));
@@ -4411,7 +4411,7 @@ void main() {
         'all',
         'unread',
       ], reason: '切换 tab 应以 filter=unread 重新请求');
-      expect(find.text('未读通知'), findsOneWidget);
+      expect(find.textContaining('未读通知'), findsOneWidget);
     });
   });
 

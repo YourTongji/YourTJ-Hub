@@ -13,8 +13,10 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/chat/imUserChatConfigs"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/chat/messages"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/eventNotification"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pushDevice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pushSubscription"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/realtimeservice"
 	"github.com/gin-gonic/gin"
@@ -133,6 +135,35 @@ func TestUnreadStatusHTTPContract(t *testing.T) {
 }
 
 func TestNotificationListHTTPContract(t *testing.T) {
+	t.Run("like hydrates public avatar and visible reply preview", func(t *testing.T) {
+		conn, router := setupNotificationChatContractTest(t)
+		if err := conn.AutoMigrate(&topics.Entity{}, &posts.Entity{}); err != nil {
+			t.Fatal(err)
+		}
+		user := createHTTPContractUser(t, conn, contractTestID())
+		actor := users.EntityComplete{Id: 978601, Username: "preview_actor", AvatarUrl: "/static/pic/3.webp"}
+		if err := conn.Create(&actor).Error; err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { conn.Unscoped().Delete(&actor) })
+		topic := topics.Entity{Id: 512, UserId: user.Id, Status: 1, Title: "期中复习资料汇总"}
+		reply := posts.Entity{Id: 4096, TopicId: 512, PostNo: 8, UserId: user.Id, Content: "**Readable** reply"}
+		for _, row := range []any{&topic, &reply} {
+			if err := conn.Create(row).Error; err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { conn.Unscoped().Delete(row) })
+		}
+		createContractNotification(t, conn, 978604, user.Id, eventNotification.EventTypeLike, false, eventNotification.NotificationPayload{
+			TemplateKey: eventNotification.TemplateLike, ActorId: actor.Id, ActorName: actor.Username, TopicId: 512, TopicTitle: topic.Title, PostId: 4096, PostNo: 8,
+		}, time.Date(2026, 8, 15, 10, 20, 30, 0, time.UTC))
+		recorder := serveAuthSecurityJSON(router, http.MethodGet, "/api/forum/notifications", "", contractSessionToken(t, user))
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("notifications status = %d: %s", recorder.Code, recorder.Body.String())
+		}
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "notifications-like-preview-success.json"))
+	})
+
 	t.Run("success", func(t *testing.T) {
 		conn, router := setupNotificationChatContractTest(t)
 		user := createHTTPContractUser(t, conn, contractTestID())

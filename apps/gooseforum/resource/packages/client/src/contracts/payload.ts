@@ -654,6 +654,9 @@ export interface UserActivityPayload {
 }
 
 export interface UserLikePayload {
+  author?: TopicPayload['author']
+  excerpt?: string
+  thumbnailUrl?: string
   id: number
   topicId: number
   title: string
@@ -662,6 +665,8 @@ export interface UserLikePayload {
 }
 
 export interface UserBookmarkPayload {
+  author?: TopicPayload['author']
+  thumbnailUrl?: string
   id: number
   type: 'topic' | 'post'
   topicId: number

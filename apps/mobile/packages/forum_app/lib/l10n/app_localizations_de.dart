@@ -442,6 +442,9 @@ class AppLocalizationsDe extends AppLocalizations {
   String get profileReplies => 'Antworten';
 
   @override
+  String get profileLikedPosts => 'Gefällt-mir-Beiträge';
+
+  @override
   String get profileLikes => 'Gefällt mir';
 
   @override

@@ -172,6 +172,76 @@ void _select(WidgetTester tester, String label) {
 }
 
 void main() {
+  testWidgets(
+    'liked content uses its author and bookmarks retain reply floor',
+    (tester) async {
+      final repo = _Profiles()
+        ..configure = (_, props) {
+          final author = {
+            'id': 77,
+            'username': 'post-author',
+            'nickname': 'Post Author',
+            'avatarUrl': '',
+          };
+          props['likes'] = [
+            {
+              'id': 1,
+              'topicId': 9,
+              'title': 'Liked topic',
+              'url': '/p/9',
+              'likedAt': '2026-01-01',
+              'author': author,
+              'excerpt': 'Original body',
+            },
+          ];
+          props['bookmarks'] = [
+            {
+              'id': 1,
+              'type': 'post',
+              'topicId': 9,
+              'postId': 42,
+              'postNo': 7,
+              'title': 'Saved reply',
+              'url': '/p/post/9/7#post-42',
+              'bookmarkedAt': '2026-01-01',
+              'author': author,
+              'excerpt': 'Reply body',
+            },
+          ];
+        };
+      final router = GoRouter(
+        routes: [
+          GoRoute(path: '/', builder: (_, _) => const ProfilePage(userId: 1)),
+          GoRoute(
+            path: '/p/:id',
+            builder: (_, state) =>
+                Text('floor=${state.uri.queryParameters['postNo']}'),
+          ),
+        ],
+      );
+      addTearDown(router.dispose);
+      await _pump(tester, repo, router: router);
+      _select(tester, '赞过');
+      await tester.pumpAndSettle();
+      tester
+          .widget<CustomScrollView>(find.byType(CustomScrollView))
+          .controller!
+          .jumpTo(500);
+      await tester.pumpAndSettle();
+      var row = tester.widget<GfContentRow>(find.byType(GfContentRow).first);
+      expect(row.author, 'Post Author');
+      expect(row.text, 'Original body');
+      _select(tester, '收藏');
+      await tester.pumpAndSettle();
+      row = tester.widget<GfContentRow>(find.byType(GfContentRow).first);
+      expect(row.author, 'Post Author');
+      expect(row.text, 'Reply body');
+      row.onTap!();
+      await tester.pumpAndSettle();
+      expect(find.text('floor=7'), findsOneWidget);
+    },
+  );
+
   testWidgets('profile inactive tabs retain visible text', (tester) async {
     await _pump(tester, _Profiles());
     expect(
@@ -179,7 +249,7 @@ void main() {
       findsOneWidget,
     );
     expect(
-      find.descendant(of: find.byTooltip('获赞'), matching: find.text('获赞')),
+      find.descendant(of: find.byTooltip('赞过'), matching: find.text('赞过')),
       findsOneWidget,
     );
   });
@@ -190,14 +260,14 @@ void main() {
       final semantics = tester.ensureSemantics();
       await _pump(tester, _Profiles());
       final tabText = find.descendant(
-        of: find.byTooltip('获赞'),
-        matching: find.text('获赞'),
+        of: find.byTooltip('赞过'),
+        matching: find.text('赞过'),
       );
       Focus.of(tester.element(tabText)).requestFocus();
       await tester.pump();
       await tester.sendKeyEvent(LogicalKeyboardKey.enter);
       await tester.pumpAndSettle();
-      final node = tester.getSemantics(find.bySemanticsLabel('获赞'));
+      final node = tester.getSemantics(find.bySemanticsLabel('赞过'));
       expect(
         node.getSemanticsData().flagsCollection.isSelected,
         Tristate.isTrue,
@@ -217,7 +287,7 @@ void main() {
           .controller!;
       scroll.jumpTo(1100);
       await tester.pump();
-      _select(tester, '获赞');
+      _select(tester, '赞过');
       await tester.pumpAndSettle();
       scroll.jumpTo(850);
       await tester.pump();
@@ -225,7 +295,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(repo.paths.where((path) => path == '/u/1/activity'), hasLength(1));
       expect(scroll.offset, 1100);
-      _select(tester, '获赞');
+      _select(tester, '赞过');
       await tester.pumpAndSettle();
       expect(repo.paths.where((path) => path.endsWith('/likes')), hasLength(1));
       expect(scroll.offset, 850);
@@ -239,14 +309,14 @@ void main() {
       final pending = Completer<PagePayload>();
       repo.pending['/u/1/activity/likes'] = pending;
       await _pump(tester, repo);
-      _select(tester, '获赞');
+      _select(tester, '赞过');
       await tester.pump();
       _select(tester, '主题');
       await tester.pumpAndSettle();
       pending.complete(repo.response('/u/1/activity/likes'));
       await tester.pumpAndSettle();
       expect(find.text('like-0'), findsNothing);
-      _select(tester, '获赞');
+      _select(tester, '赞过');
       await tester.pumpAndSettle();
       expect(repo.paths.where((path) => path.endsWith('/likes')), hasLength(1));
       tester
@@ -458,7 +528,7 @@ void main() {
       final pending = Completer<PagePayload>();
       repo.pending['/u/1/activity/likes'] = pending;
       final container = await _pump(tester, repo);
-      _select(tester, '获赞');
+      _select(tester, '赞过');
       await tester.pump();
       final old = repo.response('/u/1/activity/likes');
       repo.pending.clear();

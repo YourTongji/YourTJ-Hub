@@ -1,0 +1,41 @@
+{
+  "result": {
+    "items": [
+      {
+        "id": 978604,
+        "eventType": "like",
+        "isRead": false,
+        "createdAt": "2026-08-15T10:20:30Z",
+        "title": "",
+        "content": "Readable reply",
+        "actor": {
+          "id": 978601,
+          "username": "preview_actor",
+          "avatarUrl": "/static/pic/3.webp"
+        },
+        "topic": {
+          "id": 512,
+          "title": "期中复习资料汇总",
+          "url": "/p/post/512/8"
+        },
+        "payload": {
+          "templateParams": {},
+          "actorId": 978601,
+          "actorName": "preview_actor",
+          "topicId": 512,
+          "topicTitle": "期中复习资料汇总",
+          "postId": 4096,
+          "postNo": 8,
+          "metadata": {
+            "followerName": ""
+          },
+          "templateKey": "notifications.templates.like"
+        }
+      }
+    ],
+    "nextCursor": 0,
+    "hasNext": false,
+    "unreadCount": 1
+  },
+  "code": 0
+}

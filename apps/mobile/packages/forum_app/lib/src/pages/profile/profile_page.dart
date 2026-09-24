@@ -19,6 +19,7 @@ import '../../profile_links.dart';
 import '../../server_messages.dart';
 import '../../widgets/status_views.dart';
 import '../../widgets/skeletons.dart';
+import '../../widgets/topic_list.dart';
 
 Color _userBadgeColor(UserBadgePayload badge) {
   const Map<String, Color> colors = <String, Color>{
@@ -286,7 +287,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
             : [
                 ('timeline', l10n.profileActivity),
                 ('topics', l10n.profileTopics),
-                ('likes', l10n.profileLikes),
+                ('likes', l10n.profileLikedPosts),
                 if (props.isOwnProfile) ('bookmarks', l10n.profileBookmarks),
                 ('badges', l10n.profileBadges),
               ])
@@ -543,7 +544,13 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                             ),
                           ),
                         if (!_streamLoading && _active.props != null)
-                          _ProfileBody(props: props, selectedKey: _stream),
+                          // Different streams have different row geometry. Do not reuse
+                          // a SliverList element and adjust the restored scroll offset.
+                          _ProfileBody(
+                            key: ValueKey(_stream),
+                            props: props,
+                            selectedKey: _stream,
+                          ),
                         if (!_streamLoading &&
                             _streamError == null &&
                             props.pagination.hasNext)
@@ -860,10 +867,11 @@ class _ProfileTabs extends StatelessWidget {
 }
 
 class _ProfileBody extends StatelessWidget {
-  const _ProfileBody({required this.props, required this.selectedKey});
-
-  static final RegExp _topicRoutePattern = RegExp(r'/p/(?:post/)?(\d+)');
-  static final RegExp _userRoutePattern = RegExp(r'/u/(\d+)');
+  const _ProfileBody({
+    super.key,
+    required this.props,
+    required this.selectedKey,
+  });
 
   final UserProfileProps props;
   final String selectedKey;
@@ -936,32 +944,31 @@ class _ProfileBody extends StatelessWidget {
           5 => 'comment',
           _ => activity.label,
         };
-        return GfActivityCard(
-          symbol: switch (action) {
-            'signup' => 'user-round',
-            'post' => 'square-pen',
-            'like' => 'heart',
-            'follow' => 'user-round-plus',
-            'comment' => 'message-circle',
-            _ => 'activity',
+        return GfContentRow(
+          author: privateDisplayName(
+            context,
+            props.user.userId,
+            props.user.username,
+            props.user.nickname,
+          ),
+          avatarUrl: resolveApiAssetUrl(props.user.avatarUrl),
+          contextIcon: switch (action) {
+            'signup' => Icons.person_outline,
+            'post' => Icons.edit_outlined,
+            'like' => Icons.favorite,
+            'follow' => Icons.person_add_outlined,
+            'comment' => Icons.chat_bubble_outline,
+            _ => Icons.timeline,
           },
-          color: switch (action) {
-            'like' => const Color(0xFFE11D48),
-            'follow' => const Color(0xFF7C3AED),
-            'comment' => const Color(0xFF059669),
-            _ => GfTheme.colorsOf(context).primary,
+          contextLabel: switch (action) {
+            'signup' => l10n.profileActionSignup,
+            'post' => l10n.profileActionPost,
+            'like' => l10n.profileActionLike,
+            'follow' => l10n.profileActionFollow,
+            'comment' => l10n.profileActionComment,
+            _ => activity.label,
           },
-          title: [
-            switch (action) {
-              'signup' => l10n.profileActionSignup,
-              'post' => l10n.profileActionPost,
-              'like' => l10n.profileActionLike,
-              'follow' => l10n.profileActionFollow,
-              'comment' => l10n.profileActionComment,
-              _ => activity.label,
-            },
-            activity.contentPreview,
-          ].where((s) => s.isNotEmpty).join(' · '),
+          text: activity.contentPreview,
           time: timeAgo(activity.createdAt, l10n: l10n),
           onTap: route == null ? null : () => context.push(route),
         );
@@ -975,11 +982,8 @@ class _ProfileBody extends StatelessWidget {
     }
     return SliverList.builder(
       itemCount: props.topics.length,
-      itemBuilder: (BuildContext context, int index) => _topicRow(
-        context,
-        props.topics[index],
-        showDivider: index < props.topics.length - 1,
-      ),
+      itemBuilder: (BuildContext context, int index) =>
+          buildTopicFeedCard(context, props.topics[index]),
     );
   }
 
@@ -991,11 +995,14 @@ class _ProfileBody extends StatelessWidget {
       itemCount: props.likes.length,
       itemBuilder: (BuildContext context, int index) {
         final UserLikePayload like = props.likes[index];
-        return GfSettingRow(
-          icon: Icons.favorite_border,
+        return _contentRow(
+          context,
+          author: like.author,
           title: like.title,
-          description: timeAgo(like.likedAt, l10n: l10n),
-          onTap: () => context.push('/p/${like.topicId}'),
+          excerpt: like.excerpt ?? '',
+          thumbnail: like.thumbnailUrl ?? '',
+          time: like.likedAt,
+          route: '/p/${like.topicId}',
         );
       },
     );
@@ -1009,13 +1016,16 @@ class _ProfileBody extends StatelessWidget {
       itemCount: props.bookmarks.length,
       itemBuilder: (BuildContext context, int index) {
         final UserBookmarkPayload bookmark = props.bookmarks[index];
-        return GfSettingRow(
-          icon: Icons.bookmark_border,
+        return _contentRow(
+          context,
+          author: bookmark.author,
           title: bookmark.title,
-          description: bookmark.excerpt?.isNotEmpty == true
-              ? bookmark.excerpt
-              : timeAgo(bookmark.bookmarkedAt, l10n: l10n),
-          onTap: () => context.push('/p/${bookmark.topicId}'),
+          excerpt: bookmark.excerpt ?? '',
+          thumbnail: bookmark.thumbnailUrl ?? '',
+          time: bookmark.bookmarkedAt,
+          route: bookmark.postNo != null && bookmark.postNo! > 0
+              ? '/p/${bookmark.topicId}?postNo=${bookmark.postNo}'
+              : '/p/${bookmark.topicId}',
         );
       },
     );
@@ -1046,49 +1056,40 @@ class _ProfileBody extends StatelessWidget {
     );
   }
 
-  Widget _topicRow(
-    BuildContext context,
-    TopicPayload topic, {
-    required bool showDivider,
-  }) {
-    return GfTopicRow(
-      title: topic.title,
-      description: topic.description,
-      categories: <GfTopicCategory>[
-        for (final CategoryBriefPayload category in topic.categories)
-          GfTopicCategory(
-            name: category.name,
-            color: colorFromHex(category.color),
+  Widget _contentRow(
+    BuildContext context, {
+    required UserBriefPayload? author,
+    required String title,
+    required String excerpt,
+    required String thumbnail,
+    required String time,
+    required String route,
+  }) => GfContentRow(
+    author: author == null
+        ? ''
+        : privateDisplayName(
+            context,
+            author.id,
+            author.username,
+            author.nickname,
           ),
-      ],
-      participantAvatarUrls: <String>[
-        for (final UserBriefPayload participant in topic.participants)
-          resolveApiAssetUrl(participant.avatarUrl),
-      ],
-      activityText: timeAgo(
-        topic.activityText.isNotEmpty
-            ? topic.activityText
-            : topic.lastUpdateTime,
-        l10n: AppLocalizations.of(context),
-      ),
-      replyCount: topic.replyCount,
-      viewCount: topic.viewCount,
-      hot: topic.viewCount > 500,
-      pinned: topic.pinWeight > 0,
-      unseen: topic.unseen == true,
-      showDivider: showDivider,
-      onTap: () => context.push('/p/${topic.id}'),
-    );
-  }
+    avatarUrl: resolveApiAssetUrl(author?.avatarUrl ?? ''),
+    title: title,
+    text: excerpt,
+    thumbnailUrl: resolveApiAssetUrl(thumbnail),
+    time: timeAgo(time, l10n: AppLocalizations.of(context)),
+    onAuthorTap: author == null || author.id <= 0
+        ? null
+        : () => context.push('/u/${author.id}'),
+    onTap: () => context.push(route),
+  );
 
   String? _activityRoute(UserActivityPayload activity) {
+    final route = profileActivityRoute(activity.url);
+    if (route != null) return route;
     if (activity.subjectType == 'topic' && activity.subjectId > 0) {
       return '/p/${activity.subjectId}';
     }
-    final RegExpMatch? topicMatch = _topicRoutePattern.firstMatch(activity.url);
-    if (topicMatch != null) return '/p/${topicMatch.group(1)}';
-    final RegExpMatch? userMatch = _userRoutePattern.firstMatch(activity.url);
-    if (userMatch != null) return '/u/${userMatch.group(1)}';
     return null;
   }
 }

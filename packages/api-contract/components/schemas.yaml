@@ -4939,8 +4939,10 @@ NotificationPayload:
       type: string
     content:
       type: string
+      description: Stored preview; for likes without one, a readable excerpt of the currently visible referenced reply.
     actor:
       $ref: '#/TopicAuthorPayload'
+      description: Actor identity with the current public avatar hydrated in a batch when the actor exists.
     topic:
       $ref: '#/NotificationTopicRef'
     payload:

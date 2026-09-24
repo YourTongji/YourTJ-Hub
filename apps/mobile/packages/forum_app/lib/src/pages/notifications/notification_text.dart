@@ -16,30 +16,9 @@ import '../../../l10n/app_localizations.dart';
     return text.startsWith('notifications.') ? '' : text;
   }
 
-  final rawActor =
-      [
-            item.actor.username,
-            item.payload.actorName,
-            item.payload.metadata?.followerName,
-          ]
-          .map(literal)
-          .firstWhere(
-            (s) => s.isNotEmpty,
-            orElse: () => l10n.notificationSomeone,
-          );
-  final actor = displayName?.call(item.actor.id, rawActor) ?? rawActor;
+  final actor = notificationActorName(item, l10n, displayName: displayName);
   final key = item.payload.templateKey ?? '';
-  final event = switch (key) {
-    'notifications.templates.comment' => 'comment',
-    'notifications.templates.mention' => 'mention',
-    'notifications.templates.postReply' => 'post_reply',
-    'notifications.templates.topicPost' => 'topic_post',
-    'notifications.templates.follow' => 'follow',
-    'notifications.templates.badge' => 'badge',
-    'notifications.templates.like' => 'like',
-    'notifications.templates.wikiUpdated' => 'wiki_updated',
-    _ => item.eventType,
-  };
+  final event = notificationEvent(item);
   final badge = literal(item.payload.metadata?.badgeName);
   final legacyTitle = [
     item.title,
@@ -78,4 +57,36 @@ import '../../../l10n/app_localizations.dart';
           .map(literal)
           .firstWhere((s) => s.isNotEmpty && s != title, orElse: () => '');
   return (title, subtitle);
+}
+
+String notificationEvent(NotificationPayload item) =>
+    switch (item.payload.templateKey ?? '') {
+      'notifications.templates.comment' => 'comment',
+      'notifications.templates.mention' => 'mention',
+      'notifications.templates.postReply' => 'post_reply',
+      'notifications.templates.topicPost' => 'topic_post',
+      'notifications.templates.follow' => 'follow',
+      'notifications.templates.badge' => 'badge',
+      'notifications.templates.like' => 'like',
+      'notifications.templates.wikiUpdated' => 'wiki_updated',
+      _ => item.eventType,
+    };
+
+String notificationActorName(
+  NotificationPayload item,
+  AppLocalizations l10n, {
+  String Function(int id, String username)? displayName,
+}) {
+  final name =
+      [
+            item.actor.username,
+            item.payload.actorName,
+            item.payload.metadata?.followerName,
+          ]
+          .map((value) => (value ?? '').trim())
+          .firstWhere(
+            (value) => value.isNotEmpty,
+            orElse: () => l10n.notificationSomeone,
+          );
+  return displayName?.call(item.actor.id, name) ?? name;
 }

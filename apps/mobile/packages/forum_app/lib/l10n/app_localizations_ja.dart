@@ -428,6 +428,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String get profileReplies => '返信';
 
   @override
+  String get profileLikedPosts => 'いいねした投稿';
+
+  @override
   String get profileLikes => 'いいね';
 
   @override
