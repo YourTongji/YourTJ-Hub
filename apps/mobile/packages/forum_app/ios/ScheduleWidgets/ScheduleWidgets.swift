@@ -560,8 +560,7 @@ private struct CompactCoursePreview: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(RoundedRectangle(cornerRadius: 7).fill(stripe.opacity(colorScheme == .dark ? 0.18 : 0.07)))
         .overlay(
-            RoundedRectangle(cornerRadius: 2).fill(stripe)
-                .frame(width: 3).padding(.leading, 4).widgetAccent(),
+            CourseStripe(color: stripe, verticalInset: 3),
             alignment: .leading
         )
     }
@@ -875,6 +874,20 @@ private struct EmptyDay: View {
     }
 }
 
+private struct CourseStripe: View {
+    let color: Color
+    let verticalInset: CGFloat
+
+    var body: some View {
+        Capsule()
+            .fill(color)
+            .frame(width: 3)
+            .padding(.vertical, verticalInset)
+            .padding(.leading, 4)
+            .widgetAccent()
+    }
+}
+
 private struct CourseRow: View {
     @Environment(\.colorScheme) private var colorScheme
     let course: Projection.Course
@@ -913,9 +926,7 @@ private struct CourseRow: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(RoundedRectangle(cornerRadius: 9).fill(stripe.opacity(colorScheme == .dark ? 0.18 : 0.07)))
         .overlay(
-            RoundedRectangle(cornerRadius: 2)
-                .fill(stripe)
-                .frame(width: 3).padding(.leading, 4).widgetAccent(),
+            CourseStripe(color: stripe, verticalInset: compact ? 4 : 5),
             alignment: .leading
         )
     }
