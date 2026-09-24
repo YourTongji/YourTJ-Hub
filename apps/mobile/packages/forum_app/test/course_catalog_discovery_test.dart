@@ -65,7 +65,7 @@ class _Pages extends FakePageRepository {
   bool fail = false;
   int calls = 0;
   @override
-  Future<PagePayload> fetch(String path) async {
+  Future<PagePayload> fetch(String path, {CancelToken? cancelToken}) async {
     calls++;
     if (fail) throw const NetworkException(fallbackMessage: 'offline');
     return super.fetch(path);
