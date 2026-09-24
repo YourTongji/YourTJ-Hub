@@ -157,17 +157,33 @@ class CampusWeekTimetable extends StatefulWidget {
     required this.week,
     required this.maxWeek,
     required this.times,
+    this.selectedWeek,
+    this.onWeekChanged,
   });
   final CampusDataset data;
   final int week;
   final int maxWeek;
   final List<SectionTime> times;
+  final int? selectedWeek;
+  final ValueChanged<int>? onWeekChanged;
   @override
   State<CampusWeekTimetable> createState() => _CampusWeekTimetableState();
 }
 
 class _CampusWeekTimetableState extends State<CampusWeekTimetable> {
-  late int week = widget.week;
+  late int week = (widget.selectedWeek ?? widget.week).clamp(1, widget.maxWeek);
+
+  void _selectWeek(int value) {
+    setState(() => week = value.clamp(1, widget.maxWeek));
+    widget.onWeekChanged?.call(week);
+  }
+
+  @override
+  void didUpdateWidget(CampusWeekTimetable oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    week = (widget.selectedWeek ?? week).clamp(1, widget.maxWeek);
+  }
+
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
@@ -184,7 +200,7 @@ class _CampusWeekTimetableState extends State<CampusWeekTimetable> {
           children: [
             IconButton(
               tooltip: MaterialLocalizations.of(context).previousPageTooltip,
-              onPressed: week > 1 ? () => setState(() => week--) : null,
+              onPressed: week > 1 ? () => _selectWeek(week - 1) : null,
               icon: const Icon(Icons.chevron_left),
             ),
             Text(
@@ -194,12 +210,12 @@ class _CampusWeekTimetableState extends State<CampusWeekTimetable> {
             IconButton(
               tooltip: MaterialLocalizations.of(context).nextPageTooltip,
               onPressed: week < widget.maxWeek
-                  ? () => setState(() => week++)
+                  ? () => _selectWeek(week + 1)
                   : null,
               icon: const Icon(Icons.chevron_right),
             ),
             TextButton(
-              onPressed: () => setState(() => week = widget.week),
+              onPressed: () => _selectWeek(widget.week),
               child: Text(l.scheduleCurrentWeek),
             ),
           ],

@@ -363,6 +363,14 @@ corresponding planned ownership and lifecycle contracts.
   have visible shortcuts at the top of its home view, also available to guests, unbound users and
   when school services fail. Pushed tools return to the Campus destination. Explore campus retains
   public course previews; shortcuts are shared with search discovery. See [campus semantics](campus.md) for binding, privacy and provider limits.
+- `Current`: while the app stays in the foreground, Campus remembers its selected section,
+  independent academic/notice search text and scroll positions, and selected timetable week when
+  switching sections, bottom destinations or returning from a pushed page. Scroll restoration waits
+  for the selected section's data and clamps to the available content; a fresh section settles at
+  the top immediately, and manual scrolling cancels pending restoration. These choices stay only in
+  page memory; backgrounding, session/account/site changes, binding changes (including the first
+  binding after an observed unbound state) and authorization loss clear them. Private views still unmount and cancel requests when hidden; grades and notice bodies
+  are not retained by this navigation state or added to the device snapshot.
 - `Current`: school authorization uses the current native forum session in a restricted WebView.
   The initial Bearer header goes only to the first-party session handoff; school navigation receives
   no native credential. The server callback returns to a native confirmation, including resuming
