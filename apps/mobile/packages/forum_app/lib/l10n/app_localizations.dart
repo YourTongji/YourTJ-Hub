@@ -4673,6 +4673,42 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Unfinished writing is saved here on this device.'**
   String get draftLocalEmpty;
+
+  /// No description provided for @publishMediaQueueTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Photo uploads'**
+  String get publishMediaQueueTitle;
+
+  /// No description provided for @publishMediaPendingWarning.
+  ///
+  /// In en, this message translates to:
+  /// **'Some photos have not uploaded. Finish uploading or remove them before saving, publishing, switching type or leaving.'**
+  String get publishMediaPendingWarning;
+
+  /// No description provided for @publishMediaTemporary.
+  ///
+  /// In en, this message translates to:
+  /// **'Photos waiting to upload are kept only during this edit. Select them again if the app closes.'**
+  String get publishMediaTemporary;
+
+  /// No description provided for @publishMediaUploading.
+  ///
+  /// In en, this message translates to:
+  /// **'Uploading'**
+  String get publishMediaUploading;
+
+  /// No description provided for @publishMediaWaiting.
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for the previous photo'**
+  String get publishMediaWaiting;
+
+  /// No description provided for @publishMediaSavedPartial.
+  ///
+  /// In en, this message translates to:
+  /// **'Text and uploaded photos saved on this device'**
+  String get publishMediaSavedPartial;
 }
 
 class _AppLocalizationsDelegate

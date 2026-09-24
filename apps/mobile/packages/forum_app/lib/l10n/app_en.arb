@@ -1198,5 +1198,11 @@
   "draftKindServer": "Cloud draft recovery",
   "draftKindEdit": "Topic edit",
   "draftKindReply": "Reply",
-  "draftLocalEmpty": "Unfinished writing is saved here on this device."
+  "draftLocalEmpty": "Unfinished writing is saved here on this device.",
+  "publishMediaQueueTitle": "Photo uploads",
+  "publishMediaPendingWarning": "Some photos have not uploaded. Finish uploading or remove them before saving, publishing, switching type or leaving.",
+  "publishMediaTemporary": "Photos waiting to upload are kept only during this edit. Select them again if the app closes.",
+  "publishMediaUploading": "Uploading",
+  "publishMediaWaiting": "Waiting for the previous photo",
+  "publishMediaSavedPartial": "Text and uploaded photos saved on this device"
 }

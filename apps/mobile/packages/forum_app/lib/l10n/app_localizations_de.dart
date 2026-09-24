@@ -2549,4 +2549,25 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get draftLocalEmpty =>
       'Unfertige Beiträge werden auf diesem Gerät gespeichert und hier angezeigt.';
+
+  @override
+  String get publishMediaQueueTitle => 'Fotos hochladen';
+
+  @override
+  String get publishMediaPendingWarning =>
+      'Einige Fotos sind noch nicht hochgeladen. Laden Sie sie hoch oder entfernen Sie sie, bevor Sie speichern, veröffentlichen, den Typ wechseln oder die Seite verlassen.';
+
+  @override
+  String get publishMediaTemporary =>
+      'Ausstehende Fotos bleiben nur während dieser Bearbeitung erhalten. Nach dem Schließen der App müssen Sie sie erneut auswählen.';
+
+  @override
+  String get publishMediaUploading => 'Wird hochgeladen';
+
+  @override
+  String get publishMediaWaiting => 'Warten auf das vorherige Foto';
+
+  @override
+  String get publishMediaSavedPartial =>
+      'Text und hochgeladene Fotos auf diesem Gerät gespeichert';
 }

@@ -229,6 +229,16 @@ Web inside an authenticated in-app browser. The navigation and management bounda
   paragraph: the image lands below the paragraph it is dropped on, the move
   is a single undo step, and long document drags auto-scroll at the editor
   edges.
+- `Current`: publishing can select up to nine photos per batch; simple galleries retain the
+  nine-photo total limit. The foreground queue uploads in selection order, pauses at a failed photo
+  for retry or removal, and ignores the result of a removed photo. Successful URLs are immediately
+  included in local recovery; gallery ordering/removal and article insertion positions remain part
+  of the draft. Article insertions track intervening text edits at the original selection.
+  Pending photos visibly block leaving, manual draft submission, publishing and type changes.
+  Temporary picker files are retained only for the current editor: app termination requires selecting
+  unuploaded photos again, and the UI distinguishes this from saved text and uploaded photos.
+  Backgrounding starts no further queued upload; an already-started request may finish. Resuming
+  continues the current queue, while session/site invalidation rejects its results and later requests.
 - `Current`: Next opens the preview/classification step. The step shows one publish action in the
   AppBar, with the draft action beside it as an icon button. If a long translation or enlarged text
   cannot fit, the next/publish action also uses a labelled icon button; up to three existing
