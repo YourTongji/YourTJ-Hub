@@ -334,6 +334,11 @@ class CampusController extends StateNotifier<CampusViewState> {
     );
   }
 
+  /// Persistent datasets form one atomic device/widget snapshot. Retrying one
+  /// must complete the full refresh before publishing the replacement snapshot.
+  Future<void> retry(String key) =>
+      campusPersistentKeys.contains(key) ? refresh() : load(key, force: true);
+
   Future<void> load(String key, {bool force = false}) async {
     if (state.status?.binding == null || state.needsAuthorization) return;
     if (!force && _snapshot != null && campusPersistentKeys.contains(key)) {

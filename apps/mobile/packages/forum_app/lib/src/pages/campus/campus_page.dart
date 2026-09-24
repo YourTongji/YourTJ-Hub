@@ -218,14 +218,15 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace> {
       children: [
         GfErrorRetry(
           message: campusError(l, error),
-          onRetry: () => ref
-              .read(campusControllerProvider.notifier)
-              .load(key, force: true),
+          onRetry: () => ref.read(campusControllerProvider.notifier).retry(key),
         ),
         // Explicitly invalid rules must not present a stale teaching-day result.
         if (usable &&
             !(error is ApiException &&
-                error.messageCode == 'campus.rulesUnavailable'))
+                const {
+                  'campus.rulesUnavailable',
+                  'campus.rulesInvalid',
+                }.contains(error.messageCode)))
           content,
       ],
     );

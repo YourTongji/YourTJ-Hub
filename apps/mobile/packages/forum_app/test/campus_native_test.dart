@@ -241,46 +241,48 @@ void main() {
       controller.dispose();
     },
   );
-  testWidgets('holiday is explained and failed rules do not show old classes', (
-    tester,
-  ) async {
-    final repo = FakeCampusRepository()
-      ..todayOverride = CampusDataset(
-        key: 'today',
-        status: 'empty',
-        updatedAt: '',
-        metrics: [],
-        columns: [],
-        rows: [],
-        events: [],
-        series: [],
-        teachingDay: CampusTeachingDay(
-          date: campusDateKey(DateTime.now()),
-          sourceDate: '',
-          kind: 'holiday',
-          label: '国庆节',
-          sectionCount: 11,
-        ),
+  for (final code in ['campus.rulesUnavailable', 'campus.rulesInvalid']) {
+    testWidgets('holiday is explained and $code hides old classes', (
+      tester,
+    ) async {
+      final repo = FakeCampusRepository()
+        ..todayOverride = CampusDataset(
+          key: 'today',
+          status: 'empty',
+          updatedAt: '',
+          metrics: [],
+          columns: [],
+          rows: [],
+          events: [],
+          series: [],
+          teachingDay: CampusTeachingDay(
+            date: campusDateKey(DateTime.now()),
+            sourceDate: '',
+            kind: 'holiday',
+            label: '国庆节',
+            sectionCount: 11,
+          ),
+        );
+      await tester.pumpWidget(campusTestApp(repo));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('国庆节：今天放假停课。'));
+      expect(find.text('国庆节：今天放假停课。'), findsOneWidget);
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(CampusPage)),
       );
-    await tester.pumpWidget(campusTestApp(repo));
-    await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('国庆节：今天放假停课。'));
-    expect(find.text('国庆节：今天放假停课。'), findsOneWidget);
-    final container = ProviderScope.containerOf(
-      tester.element(find.byType(CampusPage)),
-    );
-    repo.todayError = const ApiException(
-      fallbackMessage: 'Rules unavailable',
-      messageCode: 'campus.rulesUnavailable',
-    );
-    await container.read(campusControllerProvider.notifier).refresh();
-    await tester.pumpAndSettle();
-    final l = AppLocalizations.of(tester.element(find.byType(CampusPage)));
-    expect(find.text(l.campusRulesUnavailable), findsOneWidget);
-    expect(find.text('国庆节：今天放假停课。'), findsNothing);
-    await tester.pumpWidget(const SizedBox());
-    await tester.pumpAndSettle();
-  });
+      repo.todayError = ApiException(
+        fallbackMessage: 'Rules unavailable',
+        messageCode: code,
+      );
+      await container.read(campusControllerProvider.notifier).refresh();
+      await tester.pumpAndSettle();
+      final l = AppLocalizations.of(tester.element(find.byType(CampusPage)));
+      expect(find.text(l.campusRulesUnavailable), findsOneWidget);
+      expect(find.text('国庆节：今天放假停课。'), findsNothing);
+      await tester.pumpWidget(const SizedBox());
+      await tester.pumpAndSettle();
+    });
+  }
   test('school clock and grid preserve distinct records and filter weeks', () {
     expect(campusNow(DateTime.parse('2026-09-19T18:00:00Z')).day, 20);
     final events = campusFixture('timetable').events;

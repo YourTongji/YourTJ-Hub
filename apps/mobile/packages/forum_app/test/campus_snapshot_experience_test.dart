@@ -355,6 +355,67 @@ void main() {
   );
 
   testWidgets(
+    'persistent block retry commits the snapshot and republishes its widget',
+    (tester) async {
+      store = CampusSnapshotStore(db);
+      final now = DateTime.now();
+      final old = now.subtract(const Duration(minutes: 6));
+      final previous = dataAt(now);
+      previous['profile'] = const CampusDataset(
+        key: 'profile',
+        status: 'ready',
+        updatedAt: '',
+        metrics: [CampusMetric(label: '姓名', value: '旧资料', unit: '')],
+        columns: [],
+        rows: [],
+        events: [],
+        series: [],
+      );
+      await store.write(
+        appScope,
+        testBinding.revision,
+        previous,
+        committedAt: old,
+      );
+      final repo = ControlledCampusRepository()
+        ..errors['today'] = const ApiException(fallbackMessage: 'offline');
+      final bridge = RecordingWidgetBridge();
+      await tester.pumpWidget(testApp(db, store, repo, bridge));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('刷新').first);
+      await tester.tap(find.text('刷新').first);
+      await tester.pumpAndSettle();
+      expect((await store.read(appScope))!.committedAt, old.toUtc());
+      expect(bridge.writes, 0);
+      repo.errors.clear();
+      final retry = find.descendant(
+        of: find.byType(GfErrorRetry),
+        matching: find.text('重试'),
+      );
+      await tester.ensureVisible(retry);
+      await tester.tap(retry);
+      await tester.pumpAndSettle();
+      final committed = (await store.read(appScope))!;
+      expect(committed.data['profile']!.metrics.single.value, '演示同学');
+      expect(committed.committedAt.isAfter(old), isTrue);
+      expect(bridge.writes, 1);
+      await tester.pumpWidget(const SizedBox());
+      await tester.pumpAndSettle();
+      final cache = CampusMemoryCache();
+      final restored = CampusController(
+        repo,
+        cache: cache,
+        persistentStore: store,
+        scope: appScope,
+      );
+      await restored.refresh(reuseCache: true);
+      expect(restored.state.data['profile']!.metrics.single.value, '演示同学');
+      restored.dispose();
+      cache.dispose();
+    },
+  );
+
+  testWidgets(
     'old teaching date shows manual refresh instead of a spinner at large text',
     (tester) async {
       store = CampusSnapshotStore(db);
