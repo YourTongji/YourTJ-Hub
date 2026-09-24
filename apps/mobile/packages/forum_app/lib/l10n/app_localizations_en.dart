@@ -2507,4 +2507,70 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get badgeDisplayDown => 'Move down';
+
+  @override
+  String get scheduleWidgetSettingsTitle => 'Home screen schedule';
+
+  @override
+  String get scheduleWidgetPrivacyDescription =>
+      'Widgets show course names, times, teachers and locations from the schedule saved on this device. Refreshing the schedule updates the home-screen view.';
+
+  @override
+  String get scheduleWidgetRefresh => 'Refresh from offline schedule';
+
+  @override
+  String get scheduleWidgetClear => 'Clear home screen data';
+
+  @override
+  String get scheduleWidgetCleared => 'Home screen schedule data cleared';
+
+  @override
+  String get scheduleWidgetDiagnostics => 'Refresh diagnostics';
+
+  @override
+  String get scheduleWidgetDiagnosticsDescription =>
+      'If the date or class status is slow to update, check YourTJ\'s background activity and battery settings. Menu names vary by device.';
+
+  @override
+  String get scheduleWidgetTransparencyTitle =>
+      'Widget background transparency';
+
+  @override
+  String get scheduleWidgetTransparencyDescription =>
+      'Higher values reveal more of your wallpaper. The 0%–15% range balances the background effect with readable course text.';
+
+  @override
+  String campusSnapshotUpdated(String time) {
+    return 'Device snapshot updated $time';
+  }
+
+  @override
+  String get campusSnapshotStale =>
+      'This snapshot may be outdated. Refresh for the latest data.';
+
+  @override
+  String get campusSnapshotOffline =>
+      'Connection verification failed. Showing this device’s snapshot.';
+
+  @override
+  String get campusSnapshotRefreshFailed =>
+      'Some data could not be updated. Previous content is retained.';
+
+  @override
+  String get campusDataNeedsRefresh =>
+      'This content has not been updated. Refresh to load it.';
+
+  @override
+  String get campusCacheClear => 'Clear campus cache';
+
+  @override
+  String get campusCacheClearDescription =>
+      'Remove campus snapshots and home-screen schedules from this device. Drafts, schedule plans and the school connection are kept.';
+
+  @override
+  String get campusCacheCleared => 'Campus cache cleared';
+
+  @override
+  String get campusCacheClearFailed =>
+      'Some cached data could not be cleared. Please retry.';
 }

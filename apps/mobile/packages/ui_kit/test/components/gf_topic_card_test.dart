@@ -236,7 +236,10 @@ void main() {
         ),
       );
       final photos = find.byWidgetPredicate(
-        (w) => w is Image && w.image is NetworkImage,
+        (w) =>
+            w is Image &&
+            w.image is ResizeImage &&
+            (w.image as ResizeImage).imageProvider is NetworkImage,
       );
       expect(photos, findsNWidgets(count > 3 ? 3 : count));
       if (count == 0) return;
@@ -293,9 +296,76 @@ void main() {
     final images = tester
         .widgetList<Image>(find.byType(Image))
         .map((image) => image.image)
+        .whereType<ResizeImage>()
+        .map((image) => image.imageProvider)
         .whereType<NetworkImage>()
         .map((image) => image.url);
     expect(images, contains('https://example.test/one.png'));
     expect(images, contains('https://example.test/two.png'));
+  });
+
+  testWidgets('feed picks the closest DPR-sized variant before image decode', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      gfApp(
+        MediaQuery(
+          data: const MediaQueryData(devicePixelRatio: 2),
+          child: SizedBox(
+            width: 390,
+            child: GfTopicCard(
+              title: 'Campus',
+              description: 'Stable image geometry',
+              authorName: 'Student',
+              authorAvatarUrl: '',
+              categories: const [],
+              imageUrls: const ['https://example.test/original.jpg'],
+              imageMetadata: const [
+                GfTopicImageMetadata(
+                  url: 'https://example.test/original.jpg',
+                  width: 2048,
+                  height: 1152,
+                  variants: [
+                    GfTopicImageVariant(
+                      url: 'https://example.test/image__w320.jpg',
+                      width: 320,
+                      height: 180,
+                    ),
+                    GfTopicImageVariant(
+                      url: 'https://example.test/image__w640.jpg',
+                      width: 640,
+                      height: 360,
+                    ),
+                  ],
+                ),
+              ],
+              activityText: 'now',
+              replyCount: 0,
+              viewCount: 1,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final image = tester.widget<Image>(find.byType(Image).first);
+    final resize = image.image as ResizeImage;
+    expect((resize.imageProvider as NetworkImage).url, contains('__w640.jpg'));
+    final renderedWidth = tester.getSize(find.byType(Image).first).width;
+    expect(
+      resize.width,
+      (renderedWidth *
+              MediaQuery.devicePixelRatioOf(
+                tester.element(find.byType(Image).first),
+              ))
+          .round(),
+    );
+    expect(resize.width, lessThanOrEqualTo(640));
+    expect(resize.height, (resize.width! * 360 / 640).round());
+    expect(
+      tester.getSize(find.byType(Image).first).height,
+      renderedWidth * 1152 / 2048,
+    );
+    expect(tester.takeException(), isNull);
   });
 }

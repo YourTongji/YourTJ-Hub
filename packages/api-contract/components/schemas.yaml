@@ -921,6 +921,11 @@ TopicPayload:
       type: array
       items:
         type: string
+    imageMetadata:
+      type: array
+      description: Intrinsic dimensions and available static thumbnail variants for uploaded topic images; absent for legacy or external images.
+      items:
+        $ref: '#/ImageMetadata'
     url:
       type: string
     pinWeight:
@@ -961,6 +966,40 @@ TopicPayload:
     unseen:
       type: boolean
       description: Present only for authenticated viewers with unseen tracking.
+  additionalProperties: false
+
+ImageMetadata:
+  type: object
+  required: [url, width, height]
+  properties:
+    url:
+      type: string
+      description: The original image URL already present in firstImageUrl or images.
+    width:
+      type: integer
+      minimum: 1
+    height:
+      type: integer
+      minimum: 1
+    variants:
+      type: array
+      items:
+        $ref: '#/ImageVariant'
+  additionalProperties: false
+
+ImageVariant:
+  type: object
+  required: [url, width, height]
+  properties:
+    url:
+      type: string
+      description: Public URL for a server-generated derivative.
+    width:
+      type: integer
+      minimum: 1
+    height:
+      type: integer
+      minimum: 1
   additionalProperties: false
 
 UserSearchPayload:
@@ -8788,6 +8827,8 @@ AdminImgUploadResult:
     size:
       type: integer
       description: Stored byte length.
+    imageMetadata:
+      $ref: '#/ImageMetadata'
   additionalProperties: false
 
 AdminImgUploadResponse:
@@ -9604,6 +9645,8 @@ DirectImageUploadCompleteResult:
       format: int64
       minimum: 1
       description: Stored byte size.
+    imageMetadata:
+      $ref: '#/ImageMetadata'
   additionalProperties: false
 
 DirectImageUploadCompleteSuccess:

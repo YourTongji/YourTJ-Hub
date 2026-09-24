@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:core/core.dart';
+import 'package:dio/dio.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -33,6 +34,7 @@ import 'pages/wiki/wiki_search_page.dart';
 import 'pages/schedule/schedule_page.dart';
 import 'pages/search/search_page.dart';
 import 'pages/settings/settings_page.dart';
+import 'pages/settings/schedule_widget_settings_page.dart';
 import 'pages/topic/topic_page.dart';
 import 'providers.dart';
 import 'current_user.dart';
@@ -72,25 +74,46 @@ class GfShell extends ConsumerStatefulWidget {
   ConsumerState<GfShell> createState() => _GfShellState();
 }
 
-class _GfShellState extends ConsumerState<GfShell> {
+class _GfShellState extends ConsumerState<GfShell> with WidgetsBindingObserver {
   Timer? _unreadTimer;
+  bool _pollingUnread = false;
+  CancelToken? _unreadCancel;
   bool _unreadNotifications = false;
   bool _unreadMessages = false;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     unawaited(_purgeStaleOfflineCacheOnBoot());
+    _startUnreadTimer();
     _pollUnread();
-    _unreadTimer = Timer.periodic(
+  }
+
+  void _startUnreadTimer() {
+    _unreadTimer ??= Timer.periodic(
       const Duration(seconds: 30),
       (_) => _pollUnread(),
     );
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _startUnreadTimer();
+      _pollUnread();
+      return;
+    }
+    _unreadTimer?.cancel();
+    _unreadTimer = null;
+    _unreadCancel?.cancel('application backgrounded');
+  }
+
+  @override
   void dispose() {
     _unreadTimer?.cancel();
+    _unreadCancel?.cancel('shell disposed');
+    WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
 
@@ -102,6 +125,7 @@ class _GfShellState extends ConsumerState<GfShell> {
       await clearOfflineCacheQuietly(
         ref.read(offlineTopicCacheProvider),
         ref.read(offlineChatCacheProvider),
+        ref.read(scheduleWidgetBridgeProvider),
       );
     } catch (_) {
       // 兜底清理失败(缓存不可用)不阻塞启动。
@@ -109,17 +133,21 @@ class _GfShellState extends ConsumerState<GfShell> {
   }
 
   Future<void> _pollUnread() async {
+    if (_pollingUnread) return;
+    _pollingUnread = true;
+    final epoch = ref.read(offlineCacheEpochProvider);
+    final cancel = _unreadCancel = CancelToken();
     try {
       final String? token = await ref.read(tokenStorageProvider).read();
       if (token == null || token.isEmpty) return;
-    } catch (_) {
-      return;
-    }
-    try {
       final status = await ref
           .read(notificationRepositoryProvider)
-          .getUnreadStatus();
-      if (!mounted) return;
+          .getUnreadStatus(cancelToken: cancel);
+      if (!mounted ||
+          cancel.isCancelled ||
+          epoch != ref.read(offlineCacheEpochProvider)) {
+        return;
+      }
       if (_unreadNotifications == status.notifications &&
           _unreadMessages == status.messages) {
         return;
@@ -130,6 +158,9 @@ class _GfShellState extends ConsumerState<GfShell> {
       });
     } catch (_) {
       // Unread state is best-effort and never blocks navigation.
+    } finally {
+      _pollingUnread = false;
+      if (identical(_unreadCancel, cancel)) _unreadCancel = null;
     }
   }
 
@@ -221,7 +252,8 @@ class _GfShellState extends ConsumerState<GfShell> {
                             },
                             selectedSymbol: switch (destination) {
                               GfShellDestination.home => 'house-filled',
-                              GfShellDestination.campus => 'graduation-cap-filled',
+                              GfShellDestination.campus =>
+                                'graduation-cap-filled',
                               GfShellDestination.notifications => 'bell-filled',
                               GfShellDestination.messages => 'mail-filled',
                             },
@@ -342,12 +374,24 @@ final GoRouter appRouter = GoRouter(
         initialPostNo: int.tryParse(state.uri.queryParameters['postNo'] ?? ''),
       ),
     ),
+    for (final stream in ['following', 'followers'])
+      GoRoute(
+        path: '/u/:userId/$stream',
+        builder: (_, state) => ProfilePage.connections(
+          userId: int.parse(state.pathParameters['userId']!),
+          initialStream: stream,
+        ),
+      ),
     GoRoute(
       path: '/u/:userId',
       builder: (BuildContext context, GoRouterState state) =>
           ProfilePage(userId: int.parse(state.pathParameters['userId']!)),
     ),
     GoRoute(path: '/settings', builder: (_, _) => const SettingsPage()),
+    GoRoute(
+      path: '/settings/widgets',
+      builder: (_, _) => const ScheduleWidgetSettingsPage(),
+    ),
     GoRoute(
       path: '/settings/:section',
       builder: (_, state) =>
@@ -364,14 +408,13 @@ final GoRouter appRouter = GoRouter(
     ),
     GoRoute(
       path: '/profile',
-      builder: (_, state) => ProfilePage(
-        initialStream: switch (state.uri.queryParameters['stream']) {
-          'bookmarks' => 'bookmarks',
-          'following' => 'following',
-          'followers' => 'followers',
-          _ => 'timeline',
-        },
-      ),
+      builder: (_, state) => switch (state.uri.queryParameters['stream']) {
+        'following' || 'followers' => ProfilePage.connections(
+          initialStream: state.uri.queryParameters['stream']!,
+        ),
+        'bookmarks' => const ProfilePage(initialStream: 'bookmarks'),
+        _ => const ProfilePage(),
+      },
     ),
     GoRoute(
       path: '/moderation',

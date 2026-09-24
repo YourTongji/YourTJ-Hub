@@ -53,7 +53,7 @@ class _Pages extends PageRepository {
   }
 
   @override
-  Future<PagePayload> fetch(String path) async =>
+  Future<PagePayload> fetch(String path, {Object? cancelToken}) async =>
       pending == null ? payload() : pending!.future;
 }
 
@@ -97,7 +97,7 @@ class _PagedPages extends _Pages {
   }
 
   @override
-  Future<PagePayload> home({String sort = ''}) async {
+  Future<PagePayload> home({String sort = '', Object? cancelToken}) async {
     homeCalls++;
     if (failHome) throw StateError('home refresh failed');
     if (emptyHomeProps) {
@@ -113,7 +113,7 @@ class _PagedPages extends _Pages {
   }
 
   @override
-  Future<PagePayload> fetch(String path) async {
+  Future<PagePayload> fetch(String path, {Object? cancelToken}) async {
     if (path.endsWith('page=3')) {
       return _topicPage(300, page3LikeCount, hasNext: false, nextUrl: '');
     }
@@ -139,7 +139,7 @@ class _HangingPages extends _PagedPages {
   Completer<void>? gate;
 
   @override
-  Future<PagePayload> fetch(String path) async {
+  Future<PagePayload> fetch(String path, {Object? cancelToken}) async {
     if (path.endsWith('page=2') && gate != null) {
       final waiter = gate!;
       gate = null;
@@ -150,6 +150,7 @@ class _HangingPages extends _PagedPages {
 }
 
 class _SortedPages extends _Pages {
+  final requestTokens = <String, CancelToken?>{};
   final calls = <String, int>{};
   final nextCalls = <String>[];
   int latestTopicCount = 25;
@@ -188,15 +189,17 @@ class _SortedPages extends _Pages {
   }
 
   @override
-  Future<PagePayload> home({String sort = ''}) async {
+  Future<PagePayload> home({String sort = '', Object? cancelToken}) async {
     final key = sort.isEmpty ? 'latest' : sort;
+    requestTokens[key] = cancelToken as CancelToken?;
     calls.update(key, (count) => count + 1, ifAbsent: () => 1);
     if (key == 'hot' && hotRequest != null) return hotRequest!.future;
     return sorted(key);
   }
 
   @override
-  Future<PagePayload> fetch(String path) async {
+  Future<PagePayload> fetch(String path, {Object? cancelToken}) async {
+    requestTokens['page:$path'] = cancelToken as CancelToken?;
     nextCalls.add(path);
     final query = Uri.parse(path).queryParameters;
     if (query['page'] == '2' && nextRequest != null) return nextRequest!.future;
@@ -209,7 +212,7 @@ class _DetailPages extends _Pages {
   bool detailLiked = false;
 
   @override
-  Future<PagePayload> fetch(String path) async {
+  Future<PagePayload> fetch(String path, {Object? cancelToken}) async {
     if (path.startsWith('/p/post/')) {
       final data = topicDetailPayloadJson();
       (data['props']['topic'] as Map<String, dynamic>)['isLiked'] = detailLiked;
@@ -362,6 +365,7 @@ void main() {
       await tester.tap(find.text('最新'));
       await tester.pump();
       expect(find.text('latest 0'), findsOneWidget);
+      expect(pages.requestTokens['hot']!.isCancelled, isFalse);
       pages.hotRequest!.complete(pages.sorted('hot'));
       await tester.pumpAndSettle();
       expect(find.text('latest 0'), findsOneWidget);
@@ -382,6 +386,10 @@ void main() {
     await tester.pump();
     await tester.tap(find.text('热门'));
     await tester.pumpAndSettle();
+    expect(
+      pages.requestTokens['page:/?sort=latest&page=2']!.isCancelled,
+      isFalse,
+    );
     pages.nextRequest!.complete(pages.sorted('latest', next: true));
     await tester.pumpAndSettle();
     expect(

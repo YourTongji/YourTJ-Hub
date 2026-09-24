@@ -10082,6 +10082,7 @@ export interface components {
             filename: string;
             /** @description Stored byte length. */
             size: number;
+            imageMetadata?: components["schemas"]["ImageMetadata"];
         };
         AdminImgUploadResponse: (components["schemas"]["ApiSuccess"] & {
             result: components["schemas"]["AdminImgUploadResult"];
@@ -11346,6 +11347,8 @@ export interface components {
             /** @description Present only when the topic has a cover image. */
             firstImageUrl?: string;
             images?: string[];
+            /** @description Intrinsic dimensions and available static thumbnail variants for uploaded topic images; absent for legacy or external images. */
+            imageMetadata?: components["schemas"]["ImageMetadata"][];
             url: string;
             pinWeight: number;
             /** @enum {integer} */
@@ -11370,6 +11373,19 @@ export interface components {
             bookmarked?: boolean;
             /** @description Present only for authenticated viewers with unseen tracking. */
             unseen?: boolean;
+        };
+        ImageMetadata: {
+            /** @description The original image URL already present in firstImageUrl or images. */
+            url: string;
+            width: number;
+            height: number;
+            variants?: components["schemas"]["ImageVariant"][];
+        };
+        ImageVariant: {
+            /** @description Public URL for a server-generated derivative. */
+            url: string;
+            width: number;
+            height: number;
         };
         UserSearchPayload: {
             /** Format: uint64 */
@@ -11466,6 +11482,7 @@ export interface components {
              * @description Stored byte size.
              */
             size: number;
+            imageMetadata?: components["schemas"]["ImageMetadata"];
         };
         DirectImageUploadCompleteSuccess: components["schemas"]["ApiSuccess"] & {
             result: components["schemas"]["DirectImageUploadCompleteResult"];

@@ -532,6 +532,10 @@ class _GfLinkPreviewCardState extends ConsumerState<GfLinkPreviewCard> {
                       faviconUrl,
                       width: 16,
                       height: 16,
+                      cacheWidth: (32 * MediaQuery.devicePixelRatioOf(context))
+                          .round(),
+                      cacheHeight: (32 * MediaQuery.devicePixelRatioOf(context))
+                          .round(),
                       fit: BoxFit.contain,
                       errorBuilder: (_, _, _) => const SizedBox.shrink(),
                     ),
@@ -645,6 +649,14 @@ class _GfLinkPreviewCardState extends ConsumerState<GfLinkPreviewCard> {
                           child: Image.network(
                             coverUrl,
                             fit: railCover ? BoxFit.contain : BoxFit.cover,
+                            cacheWidth:
+                                (coverWidth *
+                                        MediaQuery.devicePixelRatioOf(context))
+                                    .round(),
+                            cacheHeight:
+                                (coverWidth *
+                                        MediaQuery.devicePixelRatioOf(context))
+                                    .round(),
                             errorBuilder: (_, _, _) {
                               // 封面挂了就把让位空间一起收回，不留死白。
                               WidgetsBinding.instance.addPostFrameCallback((_) {

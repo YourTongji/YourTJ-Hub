@@ -86,7 +86,8 @@ not the repository-level token.
 | `ANDROID_KEY_ALIAS` | `yourtj-release` |
 | `IOS_DISTRIBUTION_P12_BASE64` | Base64 of the Apple Distribution certificate **and private key**, exported as a macOS-compatible PKCS#12 file |
 | `IOS_P12_PASSWORD` | PKCS#12 export password |
-| `IOS_PROFILE_BASE64` | Base64 of the App Store provisioning profile for `tj.yourtj.forumApp` |
+| `IOS_PROFILE_BASE64` | Base64 of the App Store provisioning profile for `tj.yourtj.forumApp`, with production Push Notifications and App Group `group.tj.yourtj.forumApp.widgets` |
+| `IOS_WIDGET_PROFILE_BASE64` | Base64 of the App Store provisioning profile for `tj.yourtj.forumApp.ScheduleWidgets`, with App Group `group.tj.yourtj.forumApp.widgets` |
 | `ASC_PRIVATE_KEY_BASE64` | Base64 of the App Store Connect `.p8` API key |
 | `ASC_KEY_ID` | API key ID |
 | `ASC_ISSUER_ID` | API issuer ID |
@@ -156,6 +157,8 @@ The workflow pins and checksum-verifies ASC CLI 5.0.0, then signs using an ephem
 Provisioning overrides apply only to the Runner release target, not Pods/SwiftPM dependencies.
 Private inputs, temporary profiles and keychain changes are cleaned up even after build failure.
 The exported IPA and dSYMs are retained as workflow artifacts for 30 days; private keys are excluded.
+The archive installs and validates separate App Store profiles for Runner and the ScheduleWidgets
+extension, then verifies the extension bundle and shared App Group entitlement inside the exported IPA.
 
 App Store Connect app ID is `6809457637`, team `4HJTS3G3T2`, bundle `tj.yourtj.forumApp`. The job
 finds the exact version/build before uploading, waits for processing, submits to the existing

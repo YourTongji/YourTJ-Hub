@@ -1,10 +1,13 @@
 import '../../private_notes.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:dio/dio.dart';
 import 'package:ui_kit/ui_kit.dart';
 
 import 'package:core/core.dart';
+
 import '../../widgets/app_refresh_indicator.dart';
 import '../../asset_url.dart';
 import '../../server_messages.dart';
@@ -33,6 +36,8 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   bool _loadingMore = false;
   String? _loadMoreError;
   int _generation = 0;
+  CancelToken? _searchCancel;
+  CancelToken? _loadMoreCancel;
   List<String> _recent = [];
   int _historyGeneration = 0;
 
@@ -109,6 +114,8 @@ class _SearchPageState extends ConsumerState<SearchPage> {
 
   @override
   void dispose() {
+    _searchCancel?.cancel('search page disposed');
+    _loadMoreCancel?.cancel('search page disposed');
     _query.dispose();
     super.dispose();
   }
@@ -116,6 +123,8 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   void _clearSearch() {
     // Invalidates initial, refresh and pagination requests already in flight.
     _generation++;
+    _searchCancel?.cancel('search cleared');
+    _loadMoreCancel?.cancel('search cleared');
     _query.clear();
     setState(() {
       _result = null;
@@ -133,6 +142,9 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     _remember(q);
     final epoch = ref.read(offlineCacheEpochProvider);
     final generation = ++_generation;
+    _searchCancel?.cancel('search request superseded');
+    _loadMoreCancel?.cancel('search query changed');
+    final cancel = _searchCancel = CancelToken();
     setState(() {
       _result = const AsyncValue.loading();
       _page = 1;
@@ -142,7 +154,12 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     try {
       final SearchPageProps props = await ref
           .read(topicRepositoryProvider)
-          .search(query: q, scope: _scope == 'all' ? '' : _scope, page: 1);
+          .search(
+            query: q,
+            scope: _scope == 'all' ? '' : _scope,
+            page: 1,
+            cancelToken: cancel,
+          );
       if (mounted &&
           generation == _generation &&
           epoch == ref.read(offlineCacheEpochProvider)) {
@@ -154,6 +171,8 @@ class _SearchPageState extends ConsumerState<SearchPage> {
           epoch == ref.read(offlineCacheEpochProvider)) {
         setState(() => _result = AsyncValue.error(e, st));
       }
+    } finally {
+      if (identical(_searchCancel, cancel)) _searchCancel = null;
     }
   }
 
@@ -162,6 +181,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     if (props == null || _loadingMore || _page >= props.totalPages) return;
     final epoch = ref.read(offlineCacheEpochProvider);
     final generation = _generation;
+    final cancel = _loadMoreCancel = CancelToken();
     setState(() {
       _loadingMore = true;
       _loadMoreError = null;
@@ -173,6 +193,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
             query: props.query,
             scope: _scope == 'all' ? '' : _scope,
             page: _page + 1,
+            cancelToken: cancel,
           );
       if (mounted &&
           generation == _generation &&
@@ -198,6 +219,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
         );
       }
     } finally {
+      if (identical(_loadMoreCancel, cancel)) _loadMoreCancel = null;
       if (mounted &&
           generation == _generation &&
           epoch == ref.read(offlineCacheEpochProvider)) {
@@ -217,11 +239,19 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     if (q.isEmpty) return;
     final epoch = ref.read(offlineCacheEpochProvider);
     final generation = ++_generation;
+    _searchCancel?.cancel('search refresh superseded');
+    _loadMoreCancel?.cancel('search refresh superseded');
+    final cancel = _searchCancel = CancelToken();
     setState(() => _loadingMore = false);
     try {
       final SearchPageProps props = await ref
           .read(topicRepositoryProvider)
-          .search(query: q, scope: _scope == 'all' ? '' : _scope, page: 1);
+          .search(
+            query: q,
+            scope: _scope == 'all' ? '' : _scope,
+            page: 1,
+            cancelToken: cancel,
+          );
       if (mounted &&
           generation == _generation &&
           epoch == ref.read(offlineCacheEpochProvider)) {
@@ -245,6 +275,8 @@ class _SearchPageState extends ConsumerState<SearchPage> {
           setState(() => _result = AsyncValue.error(e, st));
         }
       }
+    } finally {
+      if (identical(_searchCancel, cancel)) _searchCancel = null;
     }
   }
 
@@ -252,6 +284,8 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   Widget build(BuildContext context) {
     ref.listen(offlineCacheEpochProvider, (_, next) {
       _generation++;
+      _searchCancel?.cancel('search session changed');
+      _loadMoreCancel?.cancel('search session changed');
       _historyGeneration++;
       setState(() {
         _recent = [];
@@ -567,66 +601,100 @@ class _SearchResults extends StatelessWidget {
         props.categories.isNotEmpty;
     final bool hasResults = showUsers || showTopics || showCategories;
 
+    final slivers = <Widget>[
+      if ((props.failedScopes ?? const <String>[]).isNotEmpty)
+        SliverToBoxAdapter(child: _PartialFailure(scopes: props.failedScopes!)),
+      if (!hasResults)
+        SliverFillRemaining(
+          hasScrollBody: false,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 44),
+            child: GfEmpty(
+              message: scope == 'users'
+                  ? l10n.searchNoUsers
+                  : scope == 'categories'
+                  ? l10n.searchNoCategories
+                  : '“${props.query}” · ${l10n.commonEmpty}',
+            ),
+          ),
+        ),
+      if (showUsers) ...<Widget>[
+        SliverToBoxAdapter(
+          child: GfSectionHeader(
+            title: l10n.searchUsers,
+            description: formatNumber(props.usersTotal),
+            icon: Icons.people_outline,
+          ),
+        ),
+        SliverList(
+          delegate: SliverChildBuilderDelegate((context, index) {
+            if (index.isOdd) return const GfDivider();
+            return _UserRows.item(context, props.users[index ~/ 2]);
+          }, childCount: props.users.length * 2 - 1),
+        ),
+      ],
+      if (showTopics) ...<Widget>[
+        if (scope == 'all')
+          SliverToBoxAdapter(
+            child: GfSectionHeader(
+              title: l10n.searchTopics,
+              description: formatNumber(props.total),
+              icon: Icons.forum_outlined,
+            ),
+          ),
+        SliverList.builder(
+          itemCount: props.topics.length,
+          itemBuilder: (context, index) => _TopicRows.item(
+            context,
+            props.topics[index],
+            index < props.topics.length - 1,
+          ),
+        ),
+        if (props.totalPages > 1)
+          SliverToBoxAdapter(
+            child: GfListFooter(
+              progressKey: props.topics.length,
+              loading: loadingMore,
+              error: loadMoreError,
+              hasMore: hasMore,
+              onLoadMore: onLoadMore,
+            ),
+          ),
+      ],
+      if (showCategories) ...<Widget>[
+        SliverToBoxAdapter(
+          child: GfSectionHeader(
+            title: l10n.searchCategories,
+            description: formatNumber(props.categoriesTotal),
+            icon: Icons.folder_open_outlined,
+          ),
+        ),
+        SliverPadding(
+          padding: const EdgeInsets.all(12),
+          sliver: SliverGrid.builder(
+            itemCount: props.categories.length,
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              crossAxisSpacing: 8,
+              mainAxisSpacing: 8,
+              mainAxisExtent: 82,
+            ),
+            itemBuilder: (context, index) =>
+                _CategoryGrid.item(context, props.categories[index]),
+          ),
+        ),
+      ],
+    ];
+
     return AppRefreshIndicator(
       onRefresh: onRefresh,
-      child: ListView(
+      child: CustomScrollView(
         controller: controller,
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(12, 0, 12, 24),
-        children: <Widget>[
-          if ((props.failedScopes ?? const <String>[]).isNotEmpty)
-            _PartialFailure(scopes: props.failedScopes!),
-          GfCard(
-            emphasized: true,
-            child: hasResults
-                ? Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: <Widget>[
-                      if (showUsers) ...<Widget>[
-                        GfSectionHeader(
-                          title: l10n.searchUsers,
-                          description: formatNumber(props.usersTotal),
-                          icon: Icons.people_outline,
-                        ),
-                        _UserRows(users: props.users),
-                      ],
-                      if (showTopics) ...<Widget>[
-                        if (scope == 'all')
-                          GfSectionHeader(
-                            title: l10n.searchTopics,
-                            description: formatNumber(props.total),
-                            icon: Icons.forum_outlined,
-                          ),
-                        _TopicRows(topics: props.topics),
-                        if (props.totalPages > 1)
-                          GfListFooter(
-                            progressKey: props.topics.length,
-                            loading: loadingMore,
-                            error: loadMoreError,
-                            hasMore: hasMore,
-                            onLoadMore: onLoadMore,
-                          ),
-                      ],
-                      if (showCategories) ...<Widget>[
-                        GfSectionHeader(
-                          title: l10n.searchCategories,
-                          description: formatNumber(props.categoriesTotal),
-                          icon: Icons.folder_open_outlined,
-                        ),
-                        _CategoryGrid(categories: props.categories),
-                      ],
-                    ],
-                  )
-                : Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 44),
-                    child: GfEmpty(
-                      message: scope == 'users'
-                          ? l10n.searchNoUsers
-                          : scope == 'categories'
-                          ? l10n.searchNoCategories
-                          : '“${props.query}” · ${l10n.commonEmpty}',
-                    ),
-                  ),
+        slivers: <Widget>[
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 24),
+            sliver: SliverMainAxisGroup(slivers: slivers),
           ),
         ],
       ),
@@ -669,206 +737,163 @@ class _PartialFailure extends StatelessWidget {
   }
 }
 
-class _UserRows extends StatelessWidget {
-  const _UserRows({required this.users});
-
-  final List<UserSearchPayload> users;
-
-  @override
-  Widget build(BuildContext context) {
+abstract final class _UserRows {
+  static Widget item(BuildContext context, UserSearchPayload user) {
     final GfColors colors = GfTheme.colorsOf(context);
-    return Column(
-      children: <Widget>[
-        for (int index = 0; index < users.length; index++) ...<Widget>[
-          InkWell(
-            onTap: () => context.push('/u/${users[index].id}'),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              child: Row(
+    return InkWell(
+      onTap: () => context.push('/u/${user.id}'),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          children: <Widget>[
+            GfAvatar(src: resolveApiAssetUrl(user.avatarUrl), size: 40),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  GfAvatar(
-                    src: resolveApiAssetUrl(users[index].avatarUrl),
-                    size: 40,
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        Text(
-                          privateDisplayName(
-                            context,
-                            users[index].id,
-                            users[index].username,
-                            users[index].nickname,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          '@${users[index].username}',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: colors.baseContent.withValues(alpha: 0.55),
-                            fontSize: 12,
-                          ),
-                        ),
-                        if (users[index].bio.isNotEmpty) ...<Widget>[
-                          const SizedBox(height: 2),
-                          Text(
-                            users[index].bio,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: colors.baseContent.withValues(alpha: 0.45),
-                              fontSize: 12,
-                            ),
-                          ),
-                        ],
-                      ],
+                  Text(
+                    privateDisplayName(
+                      context,
+                      user.id,
+                      user.username,
+                      user.nickname,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '@${user.username}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: colors.baseContent.withValues(alpha: 0.55),
+                      fontSize: 12,
+                    ),
+                  ),
+                  if (user.bio.isNotEmpty) ...<Widget>[
+                    const SizedBox(height: 2),
+                    Text(
+                      user.bio,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: colors.baseContent.withValues(alpha: 0.45),
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
-          ),
-          if (index < users.length - 1) Divider(height: 1, color: colors.line),
-        ],
-      ],
-    );
-  }
-}
-
-class _TopicRows extends StatelessWidget {
-  const _TopicRows({required this.topics});
-
-  final List<TopicPayload> topics;
-
-  @override
-  Widget build(BuildContext context) {
-    final AppLocalizations l10n = AppLocalizations.of(context);
-    return Column(
-      children: <Widget>[
-        for (int index = 0; index < topics.length; index++)
-          GfTopicRow(
-            title: topics[index].title,
-            description: topics[index].description,
-            categories: <GfTopicCategory>[
-              for (final CategoryBriefPayload category
-                  in topics[index].categories)
-                GfTopicCategory(
-                  name: category.name,
-                  color: colorFromHex(category.color),
-                ),
-            ],
-            participantAvatarUrls: <String>[
-              for (final UserBriefPayload participant
-                  in topics[index].participants)
-                resolveApiAssetUrl(participant.avatarUrl),
-            ],
-            activityText: timeAgo(topics[index].activityText, l10n: l10n),
-            replyCount: topics[index].replyCount,
-            viewCount: topics[index].viewCount,
-            hot: topics[index].viewCount > 500,
-            pinned: topics[index].pinWeight > 0,
-            unseen: topics[index].unseen == true,
-            showDivider: index < topics.length - 1,
-            onTap: () => context.push('/p/${topics[index].id}'),
-          ),
-      ],
-    );
-  }
-}
-
-class _CategoryGrid extends StatelessWidget {
-  const _CategoryGrid({required this.categories});
-
-  final List<CategorySearchPayload> categories;
-
-  @override
-  Widget build(BuildContext context) {
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      padding: const EdgeInsets.all(12),
-      itemCount: categories.length,
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        crossAxisSpacing: 8,
-        mainAxisSpacing: 8,
-        mainAxisExtent: 82,
+          ],
+        ),
       ),
-      itemBuilder: (BuildContext context, int index) {
-        final CategorySearchPayload category = categories[index];
-        final GfColors colors = GfTheme.colorsOf(context);
-        return Material(
-          color: colors.base100,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(GfTheme.radiiOf(context).field),
-            side: BorderSide(color: colors.line),
+    );
+  }
+}
+
+abstract final class _TopicRows {
+  static Widget item(
+    BuildContext context,
+    TopicPayload topic,
+    bool showDivider,
+  ) {
+    final AppLocalizations l10n = AppLocalizations.of(context);
+    return GfTopicRow(
+      title: topic.title,
+      description: topic.description,
+      categories: <GfTopicCategory>[
+        for (final CategoryBriefPayload category in topic.categories)
+          GfTopicCategory(
+            name: category.name,
+            color: colorFromHex(category.color),
           ),
-          clipBehavior: Clip.antiAlias,
-          child: InkWell(
-            onTap: () => context.push('/c/${category.slug}/${category.id}'),
-            child: Padding(
-              padding: const EdgeInsets.all(10),
-              child: Row(
-                children: <Widget>[
-                  Container(
-                    width: 36,
-                    height: 36,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: colorFromHex(category.color),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      category.icon.isEmpty ? '#' : category.icon,
-                      style: const TextStyle(fontSize: 17),
-                    ),
-                  ),
-                  const SizedBox(width: 9),
-                  Expanded(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        Text(
-                          category.name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        if (category.desc.isNotEmpty) ...<Widget>[
-                          const SizedBox(height: 3),
-                          Text(
-                            category.desc,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: colors.baseContent.withValues(alpha: 0.55),
-                              fontSize: 12,
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ],
+      ],
+      participantAvatarUrls: <String>[
+        for (final UserBriefPayload participant in topic.participants)
+          resolveApiAssetUrl(participant.avatarUrl),
+      ],
+      activityText: timeAgo(topic.activityText, l10n: l10n),
+      replyCount: topic.replyCount,
+      viewCount: topic.viewCount,
+      hot: topic.viewCount > 500,
+      pinned: topic.pinWeight > 0,
+      unseen: topic.unseen == true,
+      showDivider: showDivider,
+      onTap: () => context.push('/p/${topic.id}'),
+    );
+  }
+}
+
+abstract final class _CategoryGrid {
+  static Widget item(BuildContext context, CategorySearchPayload category) {
+    final GfColors colors = GfTheme.colorsOf(context);
+    return Material(
+      color: colors.base100,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(GfTheme.radiiOf(context).field),
+        side: BorderSide(color: colors.line),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () => context.push('/c/${category.slug}/${category.id}'),
+        child: Padding(
+          padding: const EdgeInsets.all(10),
+          child: Row(
+            children: <Widget>[
+              Container(
+                width: 36,
+                height: 36,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: colorFromHex(category.color),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  category.icon.isEmpty ? '#' : category.icon,
+                  style: const TextStyle(fontSize: 17),
+                ),
               ),
-            ),
+              const SizedBox(width: 9),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      category.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    if (category.desc.isNotEmpty) ...<Widget>[
+                      const SizedBox(height: 3),
+                      Text(
+                        category.desc,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: colors.baseContent.withValues(alpha: 0.55),
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 }

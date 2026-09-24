@@ -24,6 +24,7 @@ class GfTopicList extends StatelessWidget {
     this.feedMode = GfTopicFeedMode.list,
     this.onLikeTopic,
     this.onBookmarkTopic,
+    this.onFirstMediaFrame,
     this.onReturnFromTopic,
     required this.hasMore,
     required this.onLoadMore,
@@ -38,6 +39,7 @@ class GfTopicList extends StatelessWidget {
   final GfTopicFeedMode feedMode;
   final Future<bool> Function(TopicPayload topic, bool target)? onLikeTopic;
   final Future<bool> Function(TopicPayload topic, bool target)? onBookmarkTopic;
+  final VoidCallback? onFirstMediaFrame;
   final VoidCallback? onReturnFromTopic;
   final bool hasMore;
   final VoidCallback onLoadMore;
@@ -98,6 +100,7 @@ class GfTopicList extends StatelessWidget {
                 context,
                 topic,
                 onReturn: onReturnFromTopic,
+                onFirstMediaFrame: onFirstMediaFrame,
                 onLike: onLikeTopic == null || topic.liked == null
                     ? null
                     : (target) => onLikeTopic!(topic, target),
@@ -160,6 +163,7 @@ Widget _topicCard(
   BuildContext context,
   TopicPayload topic, {
   VoidCallback? onReturn,
+  VoidCallback? onFirstMediaFrame,
   Future<bool> Function(bool target)? onLike,
   Future<bool> Function(bool target)? onBookmark,
 }) {
@@ -200,6 +204,24 @@ Widget _topicCard(
         ),
     ],
     imageUrls: images,
+    onFirstMediaFrame: onFirstMediaFrame,
+    imageMetadata: <GfTopicImageMetadata>[
+      for (final TopicImageMetadataPayload metadata
+          in topic.imageMetadata ?? const <TopicImageMetadataPayload>[])
+        GfTopicImageMetadata(
+          url: resolveApiAssetUrl(metadata.url),
+          width: metadata.width,
+          height: metadata.height,
+          variants: <GfTopicImageVariant>[
+            for (final TopicImageVariantPayload variant in metadata.variants)
+              GfTopicImageVariant(
+                url: resolveApiAssetUrl(variant.url),
+                width: variant.width,
+                height: variant.height,
+              ),
+          ],
+        ),
+    ],
     activityText: timeAgo(
       topic.activityText.isNotEmpty ? topic.activityText : topic.lastUpdateTime,
       l10n: l10n,
