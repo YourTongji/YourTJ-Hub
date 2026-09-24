@@ -4,6 +4,7 @@ import 'package:ui_kit/ui_kit.dart';
 
 import '../../l10n/app_localizations.dart';
 import '../navigation/reading_chrome.dart';
+import '../navigation/reading_window.dart';
 import 'account_drawer.dart';
 import 'compose_menu.dart';
 
@@ -44,13 +45,16 @@ class RootSurface extends ConsumerWidget {
         ? Duration.zero
         : const Duration(milliseconds: 200);
     final bottom = MediaQuery.paddingOf(context).bottom;
+    final hasRail = ReadingWindowScope.hasRailOf(context);
     return Scaffold(
       body: SafeArea(
         bottom: false,
         child: ClipRect(
           child: Stack(
             children: [
-              Positioned.fill(child: body(56 + toolbarHeight, 80 + bottom)),
+              Positioned.fill(
+                child: body(56 + toolbarHeight, (hasRail ? 24 : 80) + bottom),
+              ),
               Positioned(
                 top: 0,
                 left: 0,
@@ -121,15 +125,17 @@ class RootSurface extends ConsumerWidget {
                   duration: duration,
                   curve: Curves.easeOut,
                   right: 16,
-                  bottom: (hidden ? 16 : 72) + bottom,
+                  bottom: (hidden || hasRail ? 16 : 72) + bottom,
                   child: FloatingActionButton(
                     heroTag: null,
                     tooltip:
                         actionLabel ?? AppLocalizations.of(context).navPublish,
                     onPressed:
                         onAction ??
-                        () =>
-                            showComposeMenu(context, bottom: hidden ? 16 : 72),
+                        () => showComposeMenu(
+                          context,
+                          bottom: hidden || hasRail ? 16 : 72,
+                        ),
                     child: GfSymbol(
                       actionSymbol,
                       color: colors.primaryContent,
