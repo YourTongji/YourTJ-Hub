@@ -31,6 +31,7 @@ import 'package:forum_app/src/pages/topic/mention_search.dart';
 import 'package:forum_app/src/pages/topic/mention_session.dart';
 import 'package:forum_app/src/providers.dart';
 import 'package:forum_app/src/router.dart';
+import 'package:forum_app/src/realtime/realtime_updates.dart';
 import 'package:forum_app/src/navigation/tab_scroll_registry.dart';
 import 'package:forum_app/src/widgets/topic_list.dart';
 import 'package:forum_app/src/widgets/status_views.dart';
@@ -2621,6 +2622,68 @@ void main() {
   });
 
   group('消息轮询', () {
+    testWidgets('healthy stream stops polling and reconciles a chat hint', (
+      tester,
+    ) async {
+      final client = GfApiClient(
+        dio: Dio(),
+        tokenStorage: MemTokenStorage(),
+        baseUrl: 'http://fake.local',
+      );
+      final pageRepo = CountingMessagesPageRepository(client);
+      final container = await makeContainer(pageRepo: pageRepo);
+      await tester.pumpWidget(app(container, const MessagesPage()));
+      await tester.pumpAndSettle();
+      expect(pageRepo.fetchCalls, 1);
+
+      container.read(realtimeHealthyProvider.notifier).setHealthy(true);
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 16));
+      expect(pageRepo.fetchCalls, 1);
+
+      container.read(realtimeInvalidationsProvider.notifier).chat(7);
+      await tester.pumpAndSettle();
+      expect(pageRepo.fetchCalls, 2);
+
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      container.read(realtimeHealthyProvider.notifier).setHealthy(false);
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 15));
+      expect(pageRepo.fetchCalls, 2);
+
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pump();
+      expect(pageRepo.fetchCalls, greaterThanOrEqualTo(3));
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+
+    testWidgets('notification hint reconciles the visible filter', (
+      tester,
+    ) async {
+      final client = GfApiClient(
+        dio: Dio(),
+        tokenStorage: MemTokenStorage(),
+        baseUrl: 'http://fake.local',
+      );
+      final notifications = FilteringNotificationRepository(client);
+      final container = await makeContainer(
+        pageRepo: CountingPageRepository(client),
+        notifRepo: notifications,
+      );
+      await tester.pumpWidget(app(container, const NotificationsPage()));
+      await tester.pumpAndSettle();
+      expect(notifications.filters, ['all']);
+
+      container.read(realtimeInvalidationsProvider.notifier).notifications();
+      await tester.pumpAndSettle();
+      expect(notifications.filters, ['all', 'all']);
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+
     testWidgets('隐藏分支暂停轮询，重新可见后立即刷新', (tester) async {
       final GfApiClient client = GfApiClient(
         dio: Dio(),

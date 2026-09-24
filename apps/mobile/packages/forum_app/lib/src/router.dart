@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:core/core.dart';
 
@@ -37,6 +38,8 @@ import 'pages/settings/settings_page.dart';
 import 'pages/topic/topic_page.dart';
 import 'providers.dart';
 import 'current_user.dart';
+import 'realtime/foreground_realtime.dart';
+import 'realtime/realtime_updates.dart';
 
 extension on GfShellDestination {
   IconData get icon => switch (this) {
@@ -73,26 +76,86 @@ class GfShell extends ConsumerStatefulWidget {
   ConsumerState<GfShell> createState() => _GfShellState();
 }
 
-class _GfShellState extends ConsumerState<GfShell> {
-  Timer? _unreadTimer;
+class _GfShellState extends ConsumerState<GfShell> with WidgetsBindingObserver {
+  late final ForegroundRealtimeCoordinator _realtime;
+  Future<void>? _unreadInFlight;
+  bool _unreadDirty = false;
   bool _unreadNotifications = false;
   bool _unreadMessages = false;
 
   @override
   void initState() {
     super.initState();
-    unawaited(_purgeStaleOfflineCacheOnBoot());
-    _pollUnread();
-    _unreadTimer = Timer.periodic(
-      const Duration(seconds: 30),
-      (_) => _pollUnread(),
+    WidgetsBinding.instance.addObserver(this);
+    final client = ref.read(apiClientProvider);
+    _realtime = ForegroundRealtimeCoordinator(
+      readToken: ref.read(tokenStorageProvider).read,
+      connect: (token, cancel, onActivity) => ForumRealtimeTransport(
+        client,
+      ).connect(token: token, cancelToken: cancel, onActivity: onActivity),
+      onResync: () {
+        if (!mounted) return;
+        ref.read(realtimeInvalidationsProvider.notifier).resync();
+        unawaited(_pollUnread());
+      },
+      onEvent: _handleRealtimeEvent,
+      onFallbackTick: () {
+        if (!mounted) return;
+        ref.read(realtimeInvalidationsProvider.notifier).notifications();
+        unawaited(_pollUnread());
+      },
+      onHealthChanged: (healthy) {
+        if (mounted) {
+          ref.read(realtimeHealthyProvider.notifier).setHealthy(healthy);
+        }
+      },
     );
+    unawaited(_purgeStaleOfflineCacheOnBoot());
+    unawaited(_pollUnread());
+    if (WidgetsBinding.instance.lifecycleState == null ||
+        WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed) {
+      _realtime.start();
+    }
   }
 
   @override
   void dispose() {
-    _unreadTimer?.cancel();
+    _realtime.stop();
+    WidgetsBinding.instance.removeObserver(this);
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _realtime.start();
+      unawaited(_pollUnread());
+    } else {
+      _realtime.stop();
+    }
+  }
+
+  void _handleRealtimeEvent(ForumSseFrame frame) {
+    if (!mounted) return;
+    switch (frame.event) {
+      case 'chat.changed':
+        try {
+          final event = ForumRealtimeChatChanged.fromJson(
+            jsonDecode(frame.data) as Map<String, dynamic>,
+          );
+          ref.read(realtimeInvalidationsProvider.notifier).chat(event.convId);
+          unawaited(_pollUnread());
+        } catch (_) {
+          // Unknown or malformed hints cannot replace REST as truth.
+        }
+      case 'notifications.changed':
+        ref.read(realtimeInvalidationsProvider.notifier).notifications();
+        unawaited(_pollUnread());
+      case 'unread.changed':
+        unawaited(_pollUnread());
+      case 'session.invalidated':
+        ref.read(apiClientProvider).onUnauthorized?.call();
+    }
   }
 
   /// 启动兜底:无令牌(上次 401 清库可能被进程中断)时清空离线缓存,
@@ -109,7 +172,27 @@ class _GfShellState extends ConsumerState<GfShell> {
     }
   }
 
-  Future<void> _pollUnread() async {
+  Future<void> _pollUnread() {
+    if (_unreadInFlight case final inFlight?) {
+      _unreadDirty = true;
+      return inFlight;
+    }
+    final request = _fetchUnread();
+    _unreadInFlight = request;
+    unawaited(
+      request.whenComplete(() {
+        _unreadInFlight = null;
+        if (_unreadDirty && mounted) {
+          _unreadDirty = false;
+          unawaited(_pollUnread());
+        }
+      }),
+    );
+    return request;
+  }
+
+  Future<void> _fetchUnread() async {
+    final epoch = ref.read(offlineCacheEpochProvider);
     try {
       final String? token = await ref.read(tokenStorageProvider).read();
       if (token == null || token.isEmpty) return;
@@ -120,7 +203,7 @@ class _GfShellState extends ConsumerState<GfShell> {
       final status = await ref
           .read(notificationRepositoryProvider)
           .getUnreadStatus();
-      if (!mounted) return;
+      if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) return;
       if (_unreadNotifications == status.notifications &&
           _unreadMessages == status.messages) {
         return;
@@ -159,6 +242,9 @@ class _GfShellState extends ConsumerState<GfShell> {
         ref.invalidate(currentUserProvider);
         context.go('/login');
       }
+    });
+    ref.listen(offlineCacheEpochProvider, (int? previous, int next) {
+      if (next != previous) _realtime.stop();
     });
 
     final chrome = ref.watch(readingChromeProvider);
@@ -222,7 +308,8 @@ class _GfShellState extends ConsumerState<GfShell> {
                             },
                             selectedSymbol: switch (destination) {
                               GfShellDestination.home => 'house-filled',
-                              GfShellDestination.campus => 'graduation-cap-filled',
+                              GfShellDestination.campus =>
+                                'graduation-cap-filled',
                               GfShellDestination.notifications => 'bell-filled',
                               GfShellDestination.messages => 'mail-filled',
                             },

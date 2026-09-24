@@ -3,6 +3,7 @@ import '../../widgets/root_surface.dart';
 import '../../messages/chat_outbox.dart';
 import '../../messages/visible_chat_reads.dart';
 import '../../navigation/route_visibility.dart';
+import '../../realtime/realtime_updates.dart';
 import 'dart:async';
 import 'dart:math' as math;
 
@@ -22,7 +23,7 @@ import '../../widgets/status_views.dart';
 import '../../widgets/sticker_message_span.dart';
 
 /// 私信(IM)页(web messages.index 的移动端形态):
-/// 会话列表 + 消息游标分页 + 15s 轮询 + 已读回执 + 离线缓存 + 发起新会话。
+/// 会话列表 + 消息游标分页 + 前台事件对账（失联时轮询）+ 可见已读 + 离线缓存。
 class MessagesPage extends ConsumerStatefulWidget {
   const MessagesPage({
     super.key,
@@ -39,7 +40,8 @@ class MessagesPage extends ConsumerStatefulWidget {
   ConsumerState<MessagesPage> createState() => _MessagesPageState();
 }
 
-class _MessagesPageState extends ConsumerState<MessagesPage> {
+class _MessagesPageState extends ConsumerState<MessagesPage>
+    with WidgetsBindingObserver {
   AsyncValue<List<ChatItemPayload>> _conversations = const AsyncValue.loading();
   List<UserConnectionPayload> _suggestedUsers = const [];
   String _viewerAvatar = '';
@@ -49,12 +51,21 @@ class _MessagesPageState extends ConsumerState<MessagesPage> {
       GfScrollToTopController();
   late final GfTabScrollRegistry _tabScrollRegistry;
   bool _pollingConfigured = false;
+  int _seenRealtimeRevision = 0;
+  bool _foreground = true;
   ChatItemPayload? _targetConversation;
 
   @override
   void initState() {
     super.initState();
     _tabScrollRegistry = ref.read(tabScrollRegistryProvider);
+    WidgetsBinding.instance.addObserver(this);
+    _foreground =
+        WidgetsBinding.instance.lifecycleState == null ||
+        WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
+    _seenRealtimeRevision = ref
+        .read(realtimeInvalidationsProvider)
+        .chatRevision;
     if (widget.targetUserId == null) {
       _tabScrollRegistry.register(
         GfShellDestination.messages,
@@ -67,7 +78,13 @@ class _MessagesPageState extends ConsumerState<MessagesPage> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _syncPolling(TickerMode.valuesOf(context).enabled);
+    final active = TickerMode.valuesOf(context).enabled;
+    _syncPolling(active && _foreground && !ref.read(realtimeHealthyProvider));
+    final revision = ref.read(realtimeInvalidationsProvider).chatRevision;
+    if (active && revision != _seenRealtimeRevision) {
+      _seenRealtimeRevision = revision;
+      unawaited(_load(silent: true));
+    }
   }
 
   void _syncPolling(bool shouldPoll) {
@@ -82,6 +99,16 @@ class _MessagesPageState extends ConsumerState<MessagesPage> {
     _pollTimer = Timer.periodic(
       const Duration(seconds: 15),
       (_) => _load(silent: true),
+    );
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _foreground = state == AppLifecycleState.resumed;
+    _syncPolling(
+      _foreground &&
+          TickerMode.valuesOf(context).enabled &&
+          !ref.read(realtimeHealthyProvider),
     );
   }
 
@@ -115,6 +142,7 @@ class _MessagesPageState extends ConsumerState<MessagesPage> {
   @override
   void dispose() {
     _pollTimer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
     _conversationSearch.dispose();
     _tabScrollRegistry.unregister(
       GfShellDestination.messages,
@@ -265,6 +293,20 @@ class _MessagesPageState extends ConsumerState<MessagesPage> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen(realtimeHealthyProvider, (_, healthy) {
+      _syncPolling(
+        _foreground && TickerMode.valuesOf(context).enabled && !healthy,
+      );
+    });
+    ref.listen(realtimeInvalidationsProvider, (previous, next) {
+      if (previous?.chatRevision == next.chatRevision ||
+          !_foreground ||
+          !TickerMode.valuesOf(context).enabled) {
+        return;
+      }
+      _seenRealtimeRevision = next.chatRevision;
+      unawaited(_load(silent: true));
+    });
     final AppLocalizations l10n = AppLocalizations.of(context);
     final ChatItemPayload? targetConversation = _targetConversation;
     if (targetConversation != null) {
@@ -343,6 +385,7 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
   int _latestId = 0;
   int _nextBeforeId = 0;
   bool _pollingConfigured = false;
+  int _seenRealtimeRevision = 0;
   final _viewportKey = GlobalKey();
   final Map<int, GlobalKey> _bubbleKeys = {};
   late final VisibleChatReads _visibleReads;
@@ -393,13 +436,27 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
     if (!_sessionCurrent) return;
     _visibleReads.suspend();
     _visibleReads.changed(restartDwell: true);
+    if (!_foreground ||
+        !TickerMode.valuesOf(context).enabled ||
+        !routeIsUncovered(context)) {
+      return;
+    }
+    final revision = ref.read(realtimeInvalidationsProvider).chatRevision;
+    if (revision != _seenRealtimeRevision) {
+      _seenRealtimeRevision = revision;
+      unawaited(_load(silent: true));
+    }
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     _foreground = state == AppLifecycleState.resumed;
     _visibleReads.suspend();
-    _syncPolling(_foreground && TickerMode.valuesOf(context).enabled);
+    _syncPolling(
+      _foreground &&
+          TickerMode.valuesOf(context).enabled &&
+          !ref.read(realtimeHealthyProvider),
+    );
     if (_foreground) _visibleReads.changed(restartDwell: true);
   }
 
@@ -413,6 +470,9 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
         ? widget.conv.convId
         : ref.read(chatOutboxProvider(widget.conv.peerId)).conversationId;
     _sessionEpoch = ref.read(offlineCacheEpochProvider);
+    _seenRealtimeRevision = ref
+        .read(realtimeInvalidationsProvider)
+        .chatRevision;
     _foreground =
         WidgetsBinding.instance.lifecycleState == null ||
         WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
@@ -476,9 +536,14 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _syncPolling(
-      _foreground && _sessionCurrent && TickerMode.valuesOf(context).enabled,
-    );
+    final active =
+        _foreground && _sessionCurrent && TickerMode.valuesOf(context).enabled;
+    _syncPolling(active && !ref.read(realtimeHealthyProvider));
+    final revision = ref.read(realtimeInvalidationsProvider).chatRevision;
+    if (active && revision != _seenRealtimeRevision) {
+      _seenRealtimeRevision = revision;
+      unawaited(_load(silent: true));
+    }
     _visibleReads.changed(restartDwell: true);
   }
 
@@ -770,6 +835,31 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
 
   @override
   Widget build(BuildContext context) {
+    ref.listen(realtimeHealthyProvider, (_, healthy) {
+      _syncPolling(
+        _foreground &&
+            _sessionCurrent &&
+            TickerMode.valuesOf(context).enabled &&
+            !healthy,
+      );
+    });
+    ref.listen(realtimeInvalidationsProvider, (previous, next) {
+      if (previous?.chatRevision == next.chatRevision || !_sessionCurrent) {
+        return;
+      }
+      final convId = next.chatConvId;
+      if (convId != 0 && convId != _convId) {
+        _seenRealtimeRevision = next.chatRevision;
+        return;
+      }
+      if (!_foreground ||
+          !TickerMode.valuesOf(context).enabled ||
+          !routeIsUncovered(context)) {
+        return;
+      }
+      _seenRealtimeRevision = next.chatRevision;
+      unawaited(_load(silent: true));
+    });
     final AppLocalizations l10n = AppLocalizations.of(context);
     final GfColors colors = GfTheme.colorsOf(context);
     final outbox = ref.watch(chatOutboxProvider(widget.conv.peerId));

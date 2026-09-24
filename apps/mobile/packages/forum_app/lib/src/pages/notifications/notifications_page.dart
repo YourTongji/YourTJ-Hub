@@ -16,6 +16,7 @@ import '../../providers.dart';
 import '../../navigation/tab_scroll_registry.dart';
 import '../../widgets/root_surface.dart';
 import '../../widgets/status_views.dart';
+import '../../realtime/realtime_updates.dart';
 
 /// 通知页(web notifications.index 的移动端形态):
 /// 通知列表 + 未读标记 + 全部已读 + all/unread 筛选 + 点击跳转。
@@ -34,6 +35,8 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
   bool _loadingMore = false;
   final _scroll = GfScrollToTopController();
   late final GfTabScrollRegistry _registry;
+  int _seenRealtimeRevision = 0;
+  int _loadGeneration = 0;
 
   @override
   void dispose() {
@@ -46,16 +49,41 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
     super.initState();
     _registry = ref.read(tabScrollRegistryProvider)
       ..register(GfShellDestination.notifications, _scroll);
+    _seenRealtimeRevision = ref
+        .read(realtimeInvalidationsProvider)
+        .notificationsRevision;
     _load();
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final revision = ref
+        .read(realtimeInvalidationsProvider)
+        .notificationsRevision;
+    if (TickerMode.valuesOf(context).enabled &&
+        revision != _seenRealtimeRevision) {
+      _seenRealtimeRevision = revision;
+      _load(silent: true);
+    }
+  }
+
   Future<void> _load({bool silent = false}) async {
+    final generation = ++_loadGeneration;
+    final filter = _filter;
+    final epoch = ref.read(offlineCacheEpochProvider);
+    if (_loadingMore) setState(() => _loadingMore = false);
     if (!silent) setState(() => _list = const AsyncValue.loading());
     try {
       final resp = await ref
           .read(notificationRepositoryProvider)
-          .fetchNotifications(filter: _filter, cursor: 0);
-      if (!mounted) return;
+          .fetchNotifications(filter: filter, cursor: 0);
+      if (!mounted ||
+          generation != _loadGeneration ||
+          filter != _filter ||
+          epoch != ref.read(offlineCacheEpochProvider)) {
+        return;
+      }
       setState(() {
         _list = AsyncValue.data(resp);
         _items.clear();
@@ -63,19 +91,32 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
         _cursor = resp.nextCursor;
       });
     } catch (e, st) {
-      if (mounted) setState(() => _list = AsyncValue.error(e, st));
+      if (mounted &&
+          generation == _loadGeneration &&
+          epoch == ref.read(offlineCacheEpochProvider) &&
+          !silent) {
+        setState(() => _list = AsyncValue.error(e, st));
+      }
     }
   }
 
   Future<void> _loadMore() async {
     final resp = _list.value;
     if (resp == null || !resp.hasNext || _loadingMore) return;
+    final generation = _loadGeneration;
+    final filter = _filter;
+    final epoch = ref.read(offlineCacheEpochProvider);
     setState(() => _loadingMore = true);
     try {
       final next = await ref
           .read(notificationRepositoryProvider)
-          .fetchNotifications(filter: _filter, cursor: _cursor);
-      if (!mounted) return;
+          .fetchNotifications(filter: filter, cursor: _cursor);
+      if (!mounted ||
+          generation != _loadGeneration ||
+          filter != _filter ||
+          epoch != ref.read(offlineCacheEpochProvider)) {
+        return;
+      }
       setState(() {
         _items.addAll(next.items);
         _cursor = next.nextCursor;
@@ -84,7 +125,9 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
     } catch (_) {
       // 静默。
     } finally {
-      if (mounted) setState(() => _loadingMore = false);
+      if (mounted && generation == _loadGeneration) {
+        setState(() => _loadingMore = false);
+      }
     }
   }
 
@@ -127,6 +170,14 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen(realtimeInvalidationsProvider, (previous, next) {
+      if (previous?.notificationsRevision == next.notificationsRevision ||
+          !TickerMode.valuesOf(context).enabled) {
+        return;
+      }
+      _seenRealtimeRevision = next.notificationsRevision;
+      _load(silent: true);
+    });
     final AppLocalizations l10n = AppLocalizations.of(context);
 
     return RootSurface(
