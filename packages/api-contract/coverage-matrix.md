@@ -4,11 +4,11 @@
 
 路由快照来自 `TestRoutesSnapshot`（`fixtures/routes-snapshot.json`，默认配置装配，不含 OIDC `/api/oauth/*` 端点——OIDC 另有专项）。
 
-- 快照路由总数：333
-- /api JSON 路由：267，已入契约：268（100%），已知未覆盖：0
+- 快照路由总数：334
+- /api JSON 路由：268，已入契约：269（100%），已知未覆盖：0
 - 非 API 排除路由：65
 
-## 已覆盖（268）
+## 已覆盖（269）
 
 | Method | Path | operationId |
 | --- | --- | --- |
@@ -64,6 +64,7 @@
 | GET | `/api/forum/courses/:courseId/related` | `getCourseRelated` |
 | GET | `/api/forum/courses/:courseId/reviews` | `listCourseReviews` |
 | GET | `/api/forum/courses/:courseId/summary` | `getCourseSummary` |
+| GET | `/api/forum/events` | `streamForumEvents` |
 | GET | `/api/forum/get-site-statistics` | `getSiteStatistics` |
 | GET | `/api/forum/my-course-reviews` | `listOwnCourseReviews` |
 | GET | `/api/forum/notifications` | `getNotifications` |
