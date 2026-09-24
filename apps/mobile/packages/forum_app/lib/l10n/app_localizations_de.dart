@@ -2293,7 +2293,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get campusPrivacy =>
-      'Ein Konto, eine offizielle Identität. Hochschuldaten sind privat und werden nicht auf dem Gerät gespeichert.';
+      'Ein Konto, eine Hochschulidentität. Name, Kalender und Stundenplan werden für die Offline-Nutzung auf diesem Gerät gespeichert. Unten können Sie diese Daten löschen.';
 
   @override
   String get campusDisabled => 'Die Campus-Verbindung ist hier nicht aktiviert';

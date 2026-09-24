@@ -18,7 +18,10 @@ class GfIconButton extends StatelessWidget {
     this.size = 44,
     this.iconSize = 20,
     this.color,
-  }) : assert(icon != null || symbol != null, 'Either icon or symbol must be provided');
+  }) : assert(
+         icon != null || symbol != null,
+         'Either icon or symbol must be provided',
+       );
 
   final IconData? icon;
   final String? symbol;
@@ -33,7 +36,9 @@ class GfIconButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final GfColors colors = GfTheme.colorsOf(context);
     final GfRadii radii = GfTheme.radiiOf(context);
-    final Color iconColor = color ?? colors.iconMuted;
+    final Color iconColor = onPressed == null
+        ? (color ?? colors.iconMuted).withValues(alpha: .38)
+        : color ?? colors.iconMuted;
 
     final Widget iconWidget = symbol != null
         ? GfSymbol(symbol!, size: iconSize, color: iconColor)
@@ -68,14 +73,22 @@ class GfIconButton extends StatelessWidget {
     );
 
     if (tooltip == null) return button;
-    return Tooltip(
-      // Long-press-capable buttons opt out of the Tooltip's long-press
-      // gesture so the surrounding GestureDetector can receive it.
-      triggerMode: onLongPress == null
-          ? TooltipTriggerMode.longPress
-          : TooltipTriggerMode.manual,
-      message: tooltip!,
-      child: button,
+    return MergeSemantics(
+      child: Semantics(
+        label: tooltip,
+        button: true,
+        enabled: onPressed != null,
+        child: Tooltip(
+          excludeFromSemantics: true,
+          // Long-press-capable buttons opt out of the Tooltip's long-press
+          // gesture so the surrounding GestureDetector can receive it.
+          triggerMode: onLongPress == null
+              ? TooltipTriggerMode.longPress
+              : TooltipTriggerMode.manual,
+          message: tooltip!,
+          child: button,
+        ),
+      ),
     );
   }
 }

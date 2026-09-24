@@ -711,6 +711,9 @@ class _LoginPageState extends ConsumerState<LoginPage>
                       icon: brightness == Brightness.dark
                           ? Icons.light_mode_outlined
                           : Icons.dark_mode_outlined,
+                      tooltip: brightness == Brightness.dark
+                          ? l10n.commonUseLightTheme
+                          : l10n.commonUseDarkTheme,
                       onPressed: () => ref
                           .read(themeModeProvider.notifier)
                           .toggleDark(brightness != Brightness.dark),

@@ -4233,7 +4233,7 @@ abstract class AppLocalizations {
   /// No description provided for @campusPrivacy.
   ///
   /// In en, this message translates to:
-  /// **'One account, one official identity. School data is private and is not saved on your device.'**
+  /// **'One account, one school identity. Name, calendar and timetable snapshots are stored on this device for offline use. You can clear them below.'**
   String get campusPrivacy;
 
   /// No description provided for @campusDisabled.
