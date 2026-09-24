@@ -1204,5 +1204,21 @@
   "publishMediaTemporary": "Photos waiting to upload are kept only during this edit. Select them again if the app closes.",
   "publishMediaUploading": "Uploading",
   "publishMediaWaiting": "Waiting for the previous photo",
-  "publishMediaSavedPartial": "Text and uploaded photos saved on this device"
+  "publishMediaSavedPartial": "Text and uploaded photos saved on this device",
+  "draftSearchHint": "Search titles and text",
+  "draftSearchScope": "Search device drafts and the current cloud list.",
+  "draftMatchCount": "Drafts shown: {count}",
+  "draftNoMatches": "No drafts match these conditions.",
+  "draftClearFilters": "Clear search and filters",
+  "draftDeleteDone": "Local draft deleted. You can undo the latest deletion.",
+  "draftDeleteRestored": "Draft restored on this device",
+  "draftRestoreConflict": "An existing copy was kept without changes.",
+  "draftRestoreFailed": "Could not restore the draft. Try Undo again.",
+  "@draftMatchCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  }
 }

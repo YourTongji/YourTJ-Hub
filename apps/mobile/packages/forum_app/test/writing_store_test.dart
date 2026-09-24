@@ -50,6 +50,18 @@ class _FailingRemovalStore extends _ExistenceAccurateStore {
   Future<bool> remove(String key) async => false;
 }
 
+class _FailOnceStore extends _ExistenceAccurateStore {
+  bool failNext = true;
+  @override
+  Future<bool> setValue(String valueType, String key, Object value) async {
+    if (failNext) {
+      failNext = false;
+      return false;
+    }
+    return super.setValue(valueType, key, value);
+  }
+}
+
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
   const draft = LocalDraft(
@@ -61,6 +73,89 @@ void main() {
     categories: [],
     images: ['https://example.com/a.png'],
     updatedAt: 1,
+  );
+  test(
+    'undo restores all metadata only while the deleted identity is absent',
+    () async {
+      final store = WritingStore();
+      await store.save('site:1', draft);
+      await store.delete('site:1', draft.key);
+      expect(await store.restoreIfAbsent('site:1', draft), isTrue);
+      expect((await store.drafts('site:1')).single.toJson(), draft.toJson());
+      final newer = LocalDraft.fromJson({
+        ...draft.toJson(),
+        'content': 'new body',
+        'updatedAt': 2,
+      });
+      await store.save('site:1', newer);
+      expect(await store.restoreIfAbsent('site:1', draft), isFalse);
+      expect((await store.drafts('site:1')).single.content, 'new body');
+      expect(await store.drafts('site:2'), isEmpty);
+      await expectLater(
+        store.restoreIfAbsent('site:0', draft),
+        throwsStateError,
+      );
+    },
+  );
+  test(
+    'undo waits for an editor save and never overwrites that newer copy',
+    () async {
+      final platform = _DelayedStore();
+      SharedPreferencesStorePlatform.instance = platform;
+      SharedPreferences.resetStatic();
+      final store = WritingStore();
+      final newer = LocalDraft.fromJson({
+        ...draft.toJson(),
+        'content': 'new body',
+      });
+      final save = store.save('site:1', newer);
+      final undo = store.restoreIfAbsent('site:1', draft);
+      platform.pending.complete();
+      await save;
+      expect(await undo, isFalse);
+      expect((await store.drafts('site:1')).single.content, 'new body');
+    },
+  );
+  test(
+    'queued undo fails after session invalidation without restoring old content',
+    () async {
+      final platform = _DelayedStore();
+      SharedPreferencesStorePlatform.instance = platform;
+      SharedPreferences.resetStatic();
+      final store = WritingStore();
+      final save = store.save('site:2', draft);
+      var current = true;
+      final undo = store.restoreIfAbsent(
+        'site:1',
+        draft,
+        isCurrent: () => current,
+      );
+      final failed = expectLater(undo, throwsStateError);
+      current = false;
+      platform.pending.complete();
+      await save;
+      await failed;
+      expect(await store.drafts('site:1'), isEmpty);
+      expect(await store.drafts('site:2'), hasLength(1));
+    },
+  );
+  test(
+    'failed platform restoration remains retryable despite preferences cache',
+    () async {
+      SharedPreferencesStorePlatform.instance = _FailOnceStore();
+      SharedPreferences.resetStatic();
+      final store = WritingStore();
+      await expectLater(
+        store.restoreIfAbsent('site:1', draft),
+        throwsStateError,
+      );
+      expect(await store.restoreIfAbsent('site:1', draft), isTrue);
+      SharedPreferences.resetStatic();
+      expect(
+        (await WritingStore().drafts('site:1')).single.toJson(),
+        draft.toJson(),
+      );
+    },
   );
   test(
     'incomplete draft survives a store restart and is isolated by site and account',

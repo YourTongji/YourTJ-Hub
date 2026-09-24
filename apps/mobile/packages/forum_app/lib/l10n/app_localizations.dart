@@ -4709,6 +4709,60 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Text and uploaded photos saved on this device'**
   String get publishMediaSavedPartial;
+
+  /// No description provided for @draftSearchHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Search titles and text'**
+  String get draftSearchHint;
+
+  /// No description provided for @draftSearchScope.
+  ///
+  /// In en, this message translates to:
+  /// **'Search device drafts and the current cloud list.'**
+  String get draftSearchScope;
+
+  /// No description provided for @draftMatchCount.
+  ///
+  /// In en, this message translates to:
+  /// **'Drafts shown: {count}'**
+  String draftMatchCount(int count);
+
+  /// No description provided for @draftNoMatches.
+  ///
+  /// In en, this message translates to:
+  /// **'No drafts match these conditions.'**
+  String get draftNoMatches;
+
+  /// No description provided for @draftClearFilters.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear search and filters'**
+  String get draftClearFilters;
+
+  /// No description provided for @draftDeleteDone.
+  ///
+  /// In en, this message translates to:
+  /// **'Local draft deleted. You can undo the latest deletion.'**
+  String get draftDeleteDone;
+
+  /// No description provided for @draftDeleteRestored.
+  ///
+  /// In en, this message translates to:
+  /// **'Draft restored on this device'**
+  String get draftDeleteRestored;
+
+  /// No description provided for @draftRestoreConflict.
+  ///
+  /// In en, this message translates to:
+  /// **'An existing copy was kept without changes.'**
+  String get draftRestoreConflict;
+
+  /// No description provided for @draftRestoreFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not restore the draft. Try Undo again.'**
+  String get draftRestoreFailed;
 }
 
 class _AppLocalizationsDelegate
