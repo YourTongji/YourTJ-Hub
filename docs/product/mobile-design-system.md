@@ -134,6 +134,12 @@ in-flight responses so the just-cleared data cannot immediately reappear.
 
 ## Accessibility and localization
 
+`Current`: shared icon buttons merge their localized label, button role, enabled state and action
+into one accessibility node. Disabled icons use a subdued foreground. The login theme switch
+announces the theme it will select. Campus connection explains which snapshots remain on-device
+and provides the same confirmed cache-clearing control as Settings; the control preserves drafts,
+schedule plans and the school binding.
+
 `Planned`: every icon-only control has a localized semantic label and toggle state where applicable.
 Traversal follows reading order; sheet opening/closing restores focus sensibly. Dynamic changes such
 as send failure or refresh failure are announced without repeatedly announcing the whole list.

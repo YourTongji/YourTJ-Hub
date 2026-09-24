@@ -754,7 +754,7 @@
   "campusConfirmBinding": "Verbindung bestätigen",
   "campusConfirmUpdate": "Erneuerten Zugriff bestätigen",
   "campusConfirmBody": "Prüfen Sie die Hochschulidentität. Nach der Bestätigung dient sie zur Anmeldung und ersetzt eine zuvor verknüpfte Identität. Die E-Mail-Adresse bleibt unverändert.",
-  "campusPrivacy": "Ein Konto, eine offizielle Identität. Hochschuldaten sind privat und werden nicht auf dem Gerät gespeichert.",
+  "campusPrivacy": "Ein Konto, eine Hochschulidentität. Name, Kalender und Stundenplan werden für die Offline-Nutzung auf diesem Gerät gespeichert. Unten können Sie diese Daten löschen.",
   "campusDisabled": "Die Campus-Verbindung ist hier nicht aktiviert",
   "campusUnavailable": "Hochschuldaten sind derzeit nicht verfügbar. Bitte später erneut versuchen.",
   "campusNoData": "Noch keine Einträge",

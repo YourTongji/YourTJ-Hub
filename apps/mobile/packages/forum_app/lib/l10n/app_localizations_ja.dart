@@ -2211,7 +2211,7 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get campusPrivacy =>
-      '一つのアカウントに一つの大学アカウントを連携できます。情報は本人のみが閲覧でき、端末には保存されません。';
+      '一つのアカウントに一つの大学アカウントを連携できます。氏名・学年暦・時間割はオフライン閲覧のため端末に保存されます。下から削除できます。';
 
   @override
   String get campusDisabled => 'このサイトでは大学連携が有効になっていません';

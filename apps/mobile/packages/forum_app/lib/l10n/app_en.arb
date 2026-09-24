@@ -1101,7 +1101,7 @@
   "campusConfirmBinding": "Confirm connection",
   "campusConfirmUpdate": "Confirm authorization update",
   "campusConfirmBody": "Verify the school identity before confirming. It will be usable for sign-in, replacing any previous linked identity. Your account email stays unchanged.",
-  "campusPrivacy": "One account, one official identity. School data is private and is not saved on your device.",
+  "campusPrivacy": "One account, one school identity. Name, calendar and timetable snapshots are stored on this device for offline use. You can clear them below.",
   "campusDisabled": "Campus connection is not enabled on this site",
   "campusUnavailable": "School data is temporarily unavailable. Try again later.",
   "campusNoData": "No records yet",
