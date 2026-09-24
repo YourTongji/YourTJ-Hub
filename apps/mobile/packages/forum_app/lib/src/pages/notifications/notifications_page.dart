@@ -171,7 +171,11 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
           .read(notificationRepositoryProvider)
           .markAllNotificationsRead();
       if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) return;
-      if (!ok) throw StateError(AppLocalizations.of(context).commonLoadFailed);
+      if (!ok) {
+        throw const ApiException(
+          fallbackMessage: 'Notification read was not acknowledged',
+        );
+      }
       setState(() {
         _acknowledged.addAll(ids);
         _readErrors.clear();
@@ -212,7 +216,11 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
           .read(notificationRepositoryProvider)
           .markNotificationRead(notificationId: n.id);
       if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) return;
-      if (!ok) throw StateError(AppLocalizations.of(context).commonLoadFailed);
+      if (!ok) {
+        throw const ApiException(
+          fallbackMessage: 'Notification read was not acknowledged',
+        );
+      }
       setState(() {
         _acknowledged.add(n.id);
         for (int i = 0; i < _items.length; i++) {

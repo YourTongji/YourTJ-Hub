@@ -88,8 +88,9 @@ NotificationListResponse _page(
 
 Future<ProviderContainer> _mount(
   WidgetTester tester,
-  _Notifications repo,
-) async {
+  _Notifications repo, {
+  Locale locale = const Locale('en'),
+}) async {
   final container = ProviderContainer(
     overrides: [
       notificationRepositoryProvider.overrideWithValue(repo),
@@ -104,7 +105,7 @@ Future<ProviderContainer> _mount(
       child: MaterialApp(
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
-        locale: const Locale('en'),
+        locale: locale,
         home: const NotificationsPage(),
       ),
     ),
@@ -114,6 +115,47 @@ Future<ProviderContainer> _mount(
 }
 
 void main() {
+  for (final locale in [const Locale('en'), const Locale('zh')]) {
+    for (final all in [false, true]) {
+      testWidgets(
+        '${locale.languageCode} ${all ? 'all' : 'single'} false read acknowledgement is localized',
+        (tester) async {
+          final repo = _Notifications();
+          await _mount(tester, repo, locale: locale);
+          repo.requests.first.$3.complete(_page('Unread notification'));
+          await tester.pumpAndSettle();
+          if (all) {
+            tester
+                .widget<GfIconButton>(
+                  find.widgetWithIcon(GfIconButton, Icons.done_all_rounded),
+                )
+                .onPressed!();
+            repo.markAll.single.complete(false);
+          } else {
+            tester
+                .widget<GfNotificationRow>(find.byType(GfNotificationRow))
+                .onMarkRead!();
+            repo.markOne.single.$2.complete(false);
+          }
+          await tester.pumpAndSettle();
+          final l = AppLocalizations.of(
+            tester.element(find.byType(NotificationsPage)),
+          );
+          expect(find.text(l.commonLoadFailed), findsWidgets);
+          expect(find.textContaining('Bad state:'), findsNothing);
+          expect(
+            tester
+                .widget<GfNotificationRow>(find.byType(GfNotificationRow))
+                .unread,
+            isTrue,
+          );
+          expect(repo.requests, hasLength(1));
+          if (!all) expect(find.text(l.commonRetry), findsOneWidget);
+        },
+      );
+    }
+  }
+
   testWidgets(
     'single read retains unread on failure and rejects an older read response',
     (tester) async {
