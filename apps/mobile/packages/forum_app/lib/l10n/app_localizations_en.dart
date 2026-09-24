@@ -533,6 +533,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get searchUnavailable => 'Search unavailable';
 
   @override
+  String searchResultCount(int shown, int total) {
+    return '$shown shown · $total matches';
+  }
+
+  @override
   String get searchAll => 'All';
 
   @override

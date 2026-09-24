@@ -167,6 +167,7 @@
   "searchNoUsers": "Keine passenden Nutzer",
   "searchNoCategories": "Keine passenden Kategorien",
   "searchUnavailable": "Suche nicht verfügbar",
+  "searchResultCount": "{shown} angezeigt · {total} Treffer",
   "searchAll": "Alle",
   "searchTopics": "Themen",
   "searchUsers": "Benutzer",

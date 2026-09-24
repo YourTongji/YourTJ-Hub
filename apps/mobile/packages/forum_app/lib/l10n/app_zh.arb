@@ -272,6 +272,7 @@
   "searchNoUsers": "没有匹配的用户",
   "searchNoCategories": "没有匹配的分类",
   "searchUnavailable": "搜索暂不可用",
+  "searchResultCount": "已显示 {shown} 项 · 匹配 {total} 项",
   "searchAll": "全部",
   "searchTopics": "帖子",
   "searchUsers": "用户",

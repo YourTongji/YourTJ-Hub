@@ -3195,6 +3195,17 @@ void main() {
       expect(find.text('聚合帖子结果'), findsOneWidget);
       expect(find.text('Bob'), findsOneWidget);
       expect(find.text('@bob'), findsOneWidget);
+      // Results are built per row; reveal the later category section first.
+      await tester.scrollUntilVisible(
+        find.text('开发'),
+        200,
+        scrollable: find
+            .descendant(
+              of: find.byType(ListView),
+              matching: find.byType(Scrollable),
+            )
+            .first,
+      );
       expect(find.text('开发'), findsOneWidget);
 
       await tester.tap(find.text('用户').first);

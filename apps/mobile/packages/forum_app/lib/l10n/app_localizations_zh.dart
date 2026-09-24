@@ -521,6 +521,11 @@ class AppLocalizationsZh extends AppLocalizations {
   String get searchUnavailable => '搜索暂不可用';
 
   @override
+  String searchResultCount(int shown, int total) {
+    return '已显示 $shown 项 · 匹配 $total 项';
+  }
+
+  @override
   String get searchAll => '全部';
 
   @override

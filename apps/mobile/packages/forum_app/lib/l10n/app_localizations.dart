@@ -1062,6 +1062,12 @@ abstract class AppLocalizations {
   /// **'Search unavailable'**
   String get searchUnavailable;
 
+  /// No description provided for @searchResultCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{shown} shown · {total} matches'**
+  String searchResultCount(int shown, int total);
+
   /// No description provided for @searchAll.
   ///
   /// In en, this message translates to:
