@@ -208,6 +208,22 @@ func TestUserCardHTTPContract(t *testing.T) {
 		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "user-card-success.json"))
 	})
 
+	t.Run("closed account returns tombstone card", func(t *testing.T) {
+		conn, router := setupAccountContractTest(t)
+		// 固定 id 避开 success 子用例（1024）在进程级公开资料缓存中的命中。
+		user := createHTTPContractUser(t, conn, 1025)
+		// 软删即注销（users.IsAccountClosed 判定 deleted_at.Valid）。建号后不先
+		// 请求 user-card，避免预热 userPublicProfileCache 命中全量卡片而非 tombstone。
+		if err := conn.Delete(user).Error; err != nil {
+			t.Fatalf("soft delete closed account user: %v", err)
+		}
+		recorder := serveAuthSecurityJSON(router, http.MethodGet, "/api/user-card?userId=1025", "", "")
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("closed account card status = %d, want 200: %s", recorder.Code, recorder.Body.String())
+		}
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "user-card-closed.json"))
+	})
+
 	t.Run("unknown user returns business failure", func(t *testing.T) {
 		_, router := setupAccountContractTest(t)
 		recorder := serveAuthSecurityJSON(router, http.MethodGet, "/api/user-card?userId=987654321", "", "")

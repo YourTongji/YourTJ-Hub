@@ -59,6 +59,9 @@ getUserCard:
                 externalValue: ../fixtures/user-card-success.json
               userNotFound:
                 externalValue: ../fixtures/admin-save-user-badges-user-not-found.json
+              closedAccount:
+                summary: "Soft-deleted (closed) account tombstone card: minimal fields, badges/displayBadges always arrays."
+                externalValue: ../fixtures/user-card-closed.json
       '400':
         description: Missing or malformed userId query parameter.
         content:
