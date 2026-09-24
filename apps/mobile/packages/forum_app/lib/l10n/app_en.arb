@@ -1192,5 +1192,11 @@
   "badgeDisplayTitle": "Profile badges",
   "badgeDisplayHint": "Choose up to 5 badges and their order, or deselect all. Independent of your avatar badge.",
   "badgeDisplayUp": "Move up",
-  "badgeDisplayDown": "Move down"
+  "badgeDisplayDown": "Move down",
+  "draftCollapse": "Collapse",
+  "draftKindNew": "New topic",
+  "draftKindServer": "Cloud draft recovery",
+  "draftKindEdit": "Topic edit",
+  "draftKindReply": "Reply",
+  "draftLocalEmpty": "Unfinished writing is saved here on this device."
 }

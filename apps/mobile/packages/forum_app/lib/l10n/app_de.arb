@@ -862,5 +862,11 @@
   "badgeDisplayTitle": "Profilabzeichen",
   "badgeDisplayHint": "Bis zu 5 Abzeichen auswählen und sortieren oder alle abwählen. Unabhängig vom Avatar-Abzeichen.",
   "badgeDisplayUp": "Nach oben",
-  "badgeDisplayDown": "Nach unten"
+  "badgeDisplayDown": "Nach unten",
+  "draftCollapse": "Einklappen",
+  "draftKindNew": "Neues Thema",
+  "draftKindServer": "Lokale Kopie eines Cloud-Entwurfs",
+  "draftKindEdit": "Themenbearbeitung",
+  "draftKindReply": "Antwort",
+  "draftLocalEmpty": "Unfertige Beiträge werden auf diesem Gerät gespeichert und hier angezeigt."
 }

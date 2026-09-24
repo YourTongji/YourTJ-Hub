@@ -2530,4 +2530,23 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get badgeDisplayDown => 'Nach unten';
+
+  @override
+  String get draftCollapse => 'Einklappen';
+
+  @override
+  String get draftKindNew => 'Neues Thema';
+
+  @override
+  String get draftKindServer => 'Lokale Kopie eines Cloud-Entwurfs';
+
+  @override
+  String get draftKindEdit => 'Themenbearbeitung';
+
+  @override
+  String get draftKindReply => 'Antwort';
+
+  @override
+  String get draftLocalEmpty =>
+      'Unfertige Beiträge werden auf diesem Gerät gespeichert und hier angezeigt.';
 }

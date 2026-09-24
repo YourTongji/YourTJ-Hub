@@ -74,6 +74,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
   late final OfflineCacheEpoch _session;
   late final int _epoch;
   late String _draftKey;
+  DraftKind? _draftKind;
   String? _owner;
   Timer? _autosave;
   int _revision = 0;
@@ -120,8 +121,8 @@ class _PublishPageState extends ConsumerState<PublishPage>
     _draftKey =
         widget.localDraftKey ??
         (widget.topicId == null
-            ? 'new-${widget.initialContentType}'
-            : 'topic-${widget.topicId}');
+            ? newTopicDraftKey()
+            : topicDraftKey(widget.topicId!, published: true));
     WidgetsBinding.instance.addObserver(this);
     _title.addListener(_markDirty);
     _simple.addListener(_markDirty);
@@ -159,8 +160,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
       _saveStatusScheduled = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _saveStatusScheduled = false;
-        // 无账号会话（guest）没有本机持久化，_saveLocal 直接成功返回且不会
-        // 更新状态；这里不展示“正在保存…”，避免永久悬挂的保存状态条（#705）。
+        // A guest has no persistent owner; do not show a pending save forever.
         if (mounted &&
             _sessionCurrent &&
             !_finished &&
@@ -187,7 +187,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
       return true;
     }
     final owner = _owner;
-    if (owner == null) return true;
+    if (owner == null) return false;
     final revision = _revision;
     final l10n = notify ? AppLocalizations.of(context) : null;
     if (notify && mounted) {
@@ -199,6 +199,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
     try {
       final draft = LocalDraft(
         key: _draftKey,
+        kind: _draftKind ?? DraftKind.newTopic,
         title: _title.text,
         content: _contentType == 3
             ? _converter.documentToMarkdown(_quill.document)
@@ -209,7 +210,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
         images: List.of(_images),
         updatedAt: DateTime.now().millisecondsSinceEpoch,
       );
-      await _localStore.save(owner, draft);
+      await _localStore.save(owner, draft, isCurrent: () => _sessionCurrent);
       if (!mounted || !_sessionCurrent || _finished) return false;
       _savedRevision = revision;
       if (notify && revision == _revision) {
@@ -232,9 +233,19 @@ class _PublishPageState extends ConsumerState<PublishPage>
     if (owner == null || _dirty) return;
     final drafts = await _localStore.drafts(owner);
     if (!mounted || !_sessionCurrent || _dirty) return;
-    final matching = drafts.where((draft) => draft.key == _draftKey);
+    var matching = drafts.where(
+      (draft) => draft.key == _draftKey && draft.kind != DraftKind.reply,
+    );
+    // Legacy v1 topic snapshots had one undifferentiated recovery slot.
+    if (matching.isEmpty &&
+        widget.localDraftKey == null &&
+        _currentTopicId > 0) {
+      matching = drafts.where((draft) => draft.key == 'topic-$_currentTopicId');
+    }
     if (matching.isEmpty) return;
     final draft = matching.first;
+    _draftKey = draft.key;
+    _draftKind ??= draft.kind;
     _contentType = draft.contentType;
     _currentTopicId = draft.topicId;
     _title.text = draft.title;
@@ -371,7 +382,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
           );
         }
         existingImages = existing.topic.images ?? const [];
-        if (!mounted) return;
+        if (!mounted || !_sessionCurrent) return;
       }
       if (_owner == null &&
           payload.layout.viewer.isAuthenticated &&
@@ -380,6 +391,17 @@ class _PublishPageState extends ConsumerState<PublishPage>
           Uri.parse(ref.read(apiClientProvider).baseUrl).origin,
           payload.layout.viewer.id,
         );
+      }
+      if (props.isEditing) {
+        _draftKind = props.topic.topicStatus == 0
+            ? DraftKind.serverDraft
+            : DraftKind.topicEdit;
+        if (widget.localDraftKey == null && !_localRestored) {
+          _draftKey = topicDraftKey(
+            props.topicId,
+            published: props.topic.topicStatus != 0,
+          );
+        }
       }
       final keepEditing = _dirty;
       if (!keepEditing) {
@@ -479,11 +501,24 @@ class _PublishPageState extends ConsumerState<PublishPage>
       );
       if (!mounted || choice == null || choice == 'continue') return;
       if (choice == 'save') {
+        if (_owner == null) {
+          setState(() {
+            _localSaveFailed = true;
+            _localStatus = l10n.draftLocalSaveFailed;
+          });
+          return;
+        }
         if (!await _saveLocal() || !mounted || !_sessionCurrent) return;
       } else {
         _autosave?.cancel();
         try {
-          if (_owner != null) await _localStore.delete(_owner!, _draftKey);
+          if (_owner != null) {
+            await _localStore.delete(
+              _owner!,
+              _draftKey,
+              isCurrent: () => _sessionCurrent,
+            );
+          }
         } catch (_) {
           if (mounted) {
             setState(() {
@@ -845,7 +880,13 @@ class _PublishPageState extends ConsumerState<PublishPage>
       // The server write succeeded; deletion must follow any in-flight autosave.
       _finished = true;
       try {
-        if (_owner != null) await _localStore.delete(_owner!, _draftKey);
+        if (_owner != null) {
+          await _localStore.delete(
+            _owner!,
+            _draftKey,
+            isCurrent: () => _sessionCurrent,
+          );
+        }
       } catch (_) {
         /* Keep recovery data if deletion fails; server ack remains valid. */
       }
@@ -859,7 +900,10 @@ class _PublishPageState extends ConsumerState<PublishPage>
         return;
       }
       _finished = false;
-      _draftKey = 'topic-$_currentTopicId';
+      _draftKey = topicDraftKey(_currentTopicId, published: topicStatus == 1);
+      _draftKind = topicStatus == 1
+          ? DraftKind.topicEdit
+          : DraftKind.serverDraft;
       _localStatus = '';
       setState(() {
         _message = topicStatus == 1

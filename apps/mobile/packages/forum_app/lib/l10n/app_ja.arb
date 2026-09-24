@@ -862,5 +862,11 @@
   "badgeDisplayTitle": "プロフィールのバッジ",
   "badgeDisplayHint": "最大5個まで選び、表示順を変更できます。すべて非表示にもできます。アバターのバッジとは別の設定です。",
   "badgeDisplayUp": "上へ",
-  "badgeDisplayDown": "下へ"
+  "badgeDisplayDown": "下へ",
+  "draftCollapse": "折りたたむ",
+  "draftKindNew": "新しいトピック",
+  "draftKindServer": "クラウド下書きの復元用コピー",
+  "draftKindEdit": "トピックの編集",
+  "draftKindReply": "返信",
+  "draftLocalEmpty": "書きかけの内容はこの端末に保存され、ここに表示されます。"
 }

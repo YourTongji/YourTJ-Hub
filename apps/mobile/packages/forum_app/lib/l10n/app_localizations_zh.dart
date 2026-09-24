@@ -2408,4 +2408,22 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get badgeDisplayDown => '下移';
+
+  @override
+  String get draftCollapse => '收起';
+
+  @override
+  String get draftKindNew => '新话题';
+
+  @override
+  String get draftKindServer => '云端草稿的本机副本';
+
+  @override
+  String get draftKindEdit => '话题修改';
+
+  @override
+  String get draftKindReply => '回复';
+
+  @override
+  String get draftLocalEmpty => '未完成的创作会保存在本机，显示在这里。';
 }

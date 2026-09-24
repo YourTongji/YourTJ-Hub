@@ -1192,5 +1192,11 @@
   "badgeDisplayTitle": "资料卡展示徽章",
   "badgeDisplayHint": "最多选择 5 枚，按下方顺序展示；可全部取消。与头像佩戴徽章独立。",
   "badgeDisplayUp": "上移",
-  "badgeDisplayDown": "下移"
+  "badgeDisplayDown": "下移",
+  "draftCollapse": "收起",
+  "draftKindNew": "新话题",
+  "draftKindServer": "云端草稿的本机副本",
+  "draftKindEdit": "话题修改",
+  "draftKindReply": "回复",
+  "draftLocalEmpty": "未完成的创作会保存在本机，显示在这里。"
 }

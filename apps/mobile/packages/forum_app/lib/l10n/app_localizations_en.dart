@@ -2502,4 +2502,23 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get badgeDisplayDown => 'Move down';
+
+  @override
+  String get draftCollapse => 'Collapse';
+
+  @override
+  String get draftKindNew => 'New topic';
+
+  @override
+  String get draftKindServer => 'Cloud draft recovery';
+
+  @override
+  String get draftKindEdit => 'Topic edit';
+
+  @override
+  String get draftKindReply => 'Reply';
+
+  @override
+  String get draftLocalEmpty =>
+      'Unfinished writing is saved here on this device.';
 }
