@@ -50,6 +50,14 @@ export const DEFAULT_SECTION_TIMES_11: SectionTime[] = [
   { section: 11, start: '20:10', end: '20:55' },
 ]
 
+/** 自该校历号（含）起为现行 11 节制；更小的校历号为历史 12 节制学期（与 getSectionTimes 契约描述一致）。 */
+export const ELEVEN_SECTION_MIN_CALENDAR_ID = 120
+
+/** 该校历是否存在第 12 节：仅历史 12 节制学期（calendarId < 120）存在；未知校历号按历史学期处理。 */
+export function hasTwelfthSection(calendarId?: number): boolean {
+  return (calendarId ?? 0) < ELEVEN_SECTION_MIN_CALENDAR_ID
+}
+
 /**
  * 按节次制取作息表：11 节制（现行）优先使用后台覆盖（overrides，按 section 对齐补齐缺口），
  * 缺失时回退默认表；12 节制为历史学期，始终返回内置历史表、忽略覆盖。

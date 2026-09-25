@@ -8,6 +8,7 @@ import {
   getPkLatestUpdate,
 } from '@/runtime/pk-api'
 import type { PkCalendar, PkCourse } from '@/site/types/pk'
+import { hasTwelfthSection } from '@/site/utils/sectionTimes'
 import type { CampusMapTarget } from '@/site/campus-map/official-location'
 
 interface ScheduleEntry {
@@ -52,7 +53,7 @@ const filteredEntries = computed(() => {
   )
 })
 const periods = computed(() => {
-  const legacy = (calendarId.value ?? 0) < 120
+  const legacy = hasTwelfthSection(calendarId.value)
   return [
     [1, 2], [3, 4], [5, 6], [7, 8], [9, 9], [10, legacy ? 12 : 11],
   ]
@@ -126,7 +127,7 @@ async function searchSchedule() {
     }
     if (version !== requestVersion) return
     const slots = period === 6
-      ? [10, 11, ...(term < 120 ? [12] : [])]
+      ? [10, 11, ...(hasTwelfthSection(term) ? [12] : [])]
       : periods.value[period - 1] ?? []
     const matched = courses.flatMap((course: PkCourse) =>
       (detailMap[course.courseCode] ?? []).flatMap((detail) =>
