@@ -668,7 +668,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
             shape: const StadiumBorder(),
             foregroundColor: GfTheme.colorsOf(context).baseContent,
             side: BorderSide(color: GfTheme.colorsOf(context).line),
-            textStyle: const TextStyle(
+            textStyle: Theme.of(context).textTheme.labelLarge?.copyWith(
               fontSize: 14,
               fontWeight: FontWeight.w700,
             ),
@@ -879,7 +879,6 @@ class _ProfileTabs extends StatelessWidget {
                   child: InkWell(
                     onTap: () => onChanged(i),
                     child: Container(
-                      alignment: Alignment.center,
                       constraints: BoxConstraints(
                         minWidth: math.max(
                           72,

@@ -107,9 +107,12 @@ class _FollowActions extends TopicRepository {
         ),
       );
   final pending = Completer<bool>();
+  int calls = 0;
   @override
-  Future<bool> followUser({required int userId, required bool isFollowing}) =>
-      pending.future;
+  Future<bool> followUser({required int userId, required bool isFollowing}) {
+    calls++;
+    return pending.future;
+  }
 }
 
 Future<ProviderContainer> _pump(
@@ -173,6 +176,32 @@ void _select(WidgetTester tester, String label) {
 }
 
 void main() {
+  testWidgets('guest connection action opens login without following', (
+    tester,
+  ) async {
+    final repo = _Profiles();
+    final actions = _FollowActions();
+    final router = GoRouter(
+      initialLocation: '/u/1/following',
+      routes: [
+        GoRoute(
+          path: '/u/1/following',
+          builder: (_, _) => const ProfilePage.connections(userId: 1),
+        ),
+        GoRoute(
+          path: '/login',
+          builder: (_, _) => const Scaffold(body: Text('login-target')),
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
+    await _pump(tester, repo, router: router, topics: actions);
+    await tester.tap(find.widgetWithText(GfFollowButton, '关注'));
+    await tester.pumpAndSettle();
+    expect(find.text('login-target'), findsOneWidget);
+    expect(actions.calls, 0);
+  });
+
   testWidgets('pending connection mutation is discarded at account boundary', (
     tester,
   ) async {
@@ -211,7 +240,12 @@ void main() {
         currentUser: const CurrentUser(id: 1, username: 'alice'),
       );
       expect(find.text('@bob'), findsOneWidget);
-      await tester.tap(find.widgetWithText(GfFollowButton, '关注'));
+      final toggle = tester
+          .widget<GfFollowButton>(find.byType(GfFollowButton))
+          .onPressed!;
+      toggle();
+      toggle();
+      expect(actions.calls, 1);
       await tester.pump();
       expect(
         tester.widget<GfFollowButton>(find.byType(GfFollowButton)).busy,

@@ -128,7 +128,10 @@ class GfFollowButton extends StatelessWidget {
         backgroundColor: following ? colors.base100 : colors.baseContent,
         foregroundColor: following ? colors.baseContent : colors.base100,
         side: BorderSide(color: following ? colors.line : colors.baseContent),
-        textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+        textStyle: Theme.of(context).textTheme.labelLarge?.copyWith(
+          fontSize: 14,
+          fontWeight: FontWeight.w700,
+        ),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
