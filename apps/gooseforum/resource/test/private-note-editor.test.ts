@@ -72,3 +72,37 @@ it('closes on Escape and restores focus to the trigger', async () => {
   expect(document.body.querySelector('[role="dialog"]')).toBeNull()
   expect(document.activeElement).toBe(triggerButton.element); wrapper.unmount()
 })
+it('ignores dismissal while a save is pending and retains the typed note on failure', async () => {
+  let reject!: (reason: unknown) => void
+  mocks.save.mockImplementationOnce(() => new Promise((_, deny) => { reject = deny }))
+  const wrapper = mount(PrivateNoteEditor, { props: { userId: 2, username: 'alice' }, global: { plugins: [plugin()] } })
+  await wrapper.get('[data-testid="private-note-edit"]').trigger('click'); await dialog().get('input').setValue('in flight')
+  await dialog().get('form').trigger('submit'); await flushPromises()
+  window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })); await flushPromises()
+  expect(document.body.querySelector('[role="dialog"]')).not.toBeNull()
+  document.body.dispatchEvent(new Event('pointerdown', { bubbles: true })); await flushPromises()
+  expect(document.body.querySelector('[role="dialog"]')).not.toBeNull()
+  reject(new Error('offline')); await flushPromises()
+  expect(dialog().get('[role="alert"]').text()).toBe('offline')
+  expect(dialog().get('input').element.value).toBe('in flight')
+  await dialog().get('form').trigger('submit'); await flushPromises()
+  expect(document.body.querySelector('[role="dialog"]')).toBeNull()
+  expect(mocks.save).toHaveBeenLastCalledWith(2, 'in flight'); wrapper.unmount()
+})
+it('clamps the panel inside the viewport when the trigger scrolls off-screen', async () => {
+  const wrapper = mount(PrivateNoteEditor, { props: { userId: 2, username: 'alice' }, global: { plugins: [plugin()] } })
+  const triggerEl = wrapper.get('[data-testid="private-note-edit"]').element as HTMLElement
+  await wrapper.get('[data-testid="private-note-edit"]').trigger('click'); await flushPromises()
+  const panelEl = dialog().element as HTMLElement
+  const rect = (top: number, bottom: number): DOMRect => ({ top, bottom, left: 40, right: 72, width: 32, height: bottom - top, x: 40, y: top, toJSON: () => ({}) }) as unknown as DOMRect
+  const panelRect = vi.spyOn(panelEl, 'getBoundingClientRect').mockReturnValue(rect(0, 200))
+  const anchor = vi.spyOn(triggerEl, 'getBoundingClientRect')
+  vi.spyOn(window, 'innerHeight', 'get').mockReturnValue(600)
+  anchor.mockReturnValue(rect(-300, -250))
+  window.dispatchEvent(new Event('scroll')); await flushPromises()
+  expect(panelEl.style.top).toBe('16px')
+  anchor.mockReturnValue(rect(900, 950))
+  window.dispatchEvent(new Event('scroll')); await flushPromises()
+  expect(panelRect).toHaveBeenCalled()
+  expect(panelEl.style.top).toBe('384px'); wrapper.unmount()
+})

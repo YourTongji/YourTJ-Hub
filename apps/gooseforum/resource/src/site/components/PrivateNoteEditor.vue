@@ -31,14 +31,12 @@ function positionPanel() {
   const width = Math.min(352, Math.max(0, window.innerWidth - margin * 2))
   const rightLimit = Math.max(margin, window.innerWidth - width - margin)
   const left = Math.min(Math.max(anchor.left, margin), rightLimit)
-  let top = anchor.bottom + 8
-  panelStyle.value = { top: `${top}px`, left: `${left}px`, width: `${width}px` }
-
   const height = panel.value.getBoundingClientRect().height
-  if (top + height > window.innerHeight - margin) {
-    top = Math.max(margin, anchor.top - height - 8)
-    panelStyle.value = { top: `${top}px`, left: `${left}px`, width: `${width}px` }
-  }
+  let top = anchor.bottom + 8
+  if (top + height > window.innerHeight - margin) top = anchor.top - height - 8
+  const bottomLimit = Math.max(margin, window.innerHeight - height - margin)
+  top = Math.min(Math.max(top, margin), bottomLimit)
+  panelStyle.value = { top: `${top}px`, left: `${left}px`, width: `${width}px` }
 }
 
 async function edit() {
@@ -52,6 +50,7 @@ async function edit() {
 }
 
 function close(restoreFocus = false) {
+  if (busy.value) return
   open.value = false
   if (restoreFocus) void nextTick(() => trigger.value?.focus())
 }
@@ -95,6 +94,7 @@ async function save() {
   error.value = ''
   try {
     await privateNotes.update(props.userId, props.username, value.value)
+    busy.value = false
     close(true)
   } catch (err) {
     error.value = err instanceof Error ? err.message : t('api.operationFailed')
@@ -133,56 +133,54 @@ async function save() {
     </button>
 
     <Teleport to="body">
-      <Transition name="private-note-panel">
-        <div
-          v-if="open"
-          ref="panel"
-          role="dialog"
-          :aria-label="t('privateNote.edit')"
-          class="gf-menu-surface fixed z-[120] max-h-[calc(100vh-2rem)] overflow-y-auto rounded-xl border border-line bg-base-100 p-4 text-base-content shadow-xl"
-          :style="panelStyle"
-          @pointerdown.stop
-          @keydown.esc.stop.prevent="close(true)"
-        >
-          <div class="flex items-start justify-between gap-3">
-            <div class="min-w-0">
-              <p class="text-sm font-semibold">{{ t('privateNote.edit') }}</p>
-              <p class="mt-1 text-xs leading-relaxed text-base-content/60">{{ t('privateNote.hint') }}</p>
-            </div>
-            <button
-              type="button"
-              class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-base-content/55 hover:bg-base-200 hover:text-base-content focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
-              :aria-label="t('common.cancel')"
-              @click="close(true)"
-            >
-              <X class="h-4 w-4" aria-hidden="true" />
+      <div
+        v-if="open"
+        ref="panel"
+        role="dialog"
+        :aria-label="t('privateNote.edit')"
+        class="gf-menu-surface fixed z-[120] max-h-[calc(100vh-2rem)] overflow-y-auto rounded-xl border border-line bg-base-100 p-4 text-base-content shadow-xl"
+        :style="panelStyle"
+        @pointerdown.stop
+        @keydown.esc.stop.prevent="close(true)"
+      >
+        <div class="flex items-start justify-between gap-3">
+          <div class="min-w-0">
+            <p class="text-sm font-semibold">{{ t('privateNote.edit') }}</p>
+            <p class="mt-1 text-xs leading-relaxed text-base-content/60">{{ t('privateNote.hint') }}</p>
+          </div>
+          <button
+            type="button"
+            class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-base-content/55 hover:bg-base-200 hover:text-base-content focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+            :aria-label="t('common.cancel')"
+            @click="close(true)"
+          >
+            <X class="h-4 w-4" aria-hidden="true" />
+          </button>
+        </div>
+        <form class="mt-3 space-y-3" @submit.prevent="save">
+          <label class="block text-sm font-medium">
+            {{ t('privateNote.label') }}
+            <input
+              ref="input"
+              v-model="value"
+              type="text"
+              class="gf-input mt-1 w-full"
+              :disabled="busy || !ready"
+              :aria-label="t('privateNote.label')"
+            />
+          </label>
+          <p class="text-xs text-base-content/60">{{ Array.from(value.trim()).length }}/64</p>
+          <div class="flex gap-2">
+            <button type="submit" class="gf-button gf-button-primary min-h-10 flex-1" :disabled="busy || !ready || Array.from(value.trim()).length > 64">
+              {{ t('common.save') }}
+            </button>
+            <button type="button" class="gf-button min-h-10" :disabled="busy" @click="close(true)">
+              {{ t('common.cancel') }}
             </button>
           </div>
-          <form class="mt-3 space-y-3" @submit.prevent="save">
-            <label class="block text-sm font-medium">
-              {{ t('privateNote.label') }}
-              <input
-                ref="input"
-                v-model="value"
-                type="text"
-                class="gf-input mt-1 w-full"
-                :disabled="busy || !ready"
-                :aria-label="t('privateNote.label')"
-              />
-            </label>
-            <p class="text-xs text-base-content/60">{{ Array.from(value.trim()).length }}/64</p>
-            <div class="flex gap-2">
-              <button type="submit" class="gf-button gf-button-primary min-h-10 flex-1" :disabled="busy || !ready || Array.from(value.trim()).length > 64">
-                {{ t('common.save') }}
-              </button>
-              <button type="button" class="gf-button min-h-10" :disabled="busy" @click="close(true)">
-                {{ t('common.cancel') }}
-              </button>
-            </div>
-            <p v-if="error" role="alert" class="text-sm text-error">{{ error }}</p>
-          </form>
-        </div>
-      </Transition>
+          <p v-if="error" role="alert" class="text-sm text-error">{{ error }}</p>
+        </form>
+      </div>
     </Teleport>
   </div>
 </template>
