@@ -376,11 +376,12 @@ support.
 ## Private user notes
 
 `Current`: A signed-in user can edit a private note from another user's Web profile/card or App
-profile. The note is visible only to its author and displays as `note(username)` across user-name
+profile. The note is visible only to its author and displays as `note(display name)` across user-name
 surfaces, including topic/reply authors, reply references, profiles, connections, search results,
 conversations, notification actors, mention candidates, revision editors, and Web moderation/admin
-lists. Usernames used as identifiers, editor mention text, existing Markdown, exports and public
-payloads remain canonical. Clearing the note restores the existing nickname/username fallback.
+lists. The display name is the current nickname, falling back to the username. Usernames used as
+identifiers, editor mention text, existing Markdown, exports and public payloads remain canonical.
+Clearing the note restores the existing nickname/username fallback.
 
 Notes are trimmed plain text, up to 64 Unicode characters, without control/formatting characters;
 each account can keep up to 1000 notes. Writes are throttled like other write endpoints: exceeding

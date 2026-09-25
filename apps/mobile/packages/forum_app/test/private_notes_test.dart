@@ -102,7 +102,7 @@ void main() {
         ),
       ),
     );
-    expect(find.text('Lab partner(alice)'), findsOneWidget);
+    expect(find.text('Lab partner(Nickname)'), findsOneWidget);
     notes.value = {};
     await tester.pump();
     expect(find.text('Nickname'), findsOneWidget);

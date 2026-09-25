@@ -5,14 +5,14 @@ import type { PrivateNotesPayload } from '@gooseforum/client'
 const snapshot = (ownerId = 1, note = '实验搭档'): PrivateNotesPayload => ({ ownerId, notes: [{ targetUserId: 2, username: 'alice', note }] })
 const deferred = () => { let resolve!: (value: PrivateNotesPayload) => void; const promise = new Promise<PrivateNotesPayload>(r => { resolve = r }); return { promise, resolve } }
 describe('private user display notes', () => {
-  it('uses a private note with canonical username without changing public data', async () => {
+  it('uses a private note with the current display name without changing public data', async () => {
     const data = snapshot(); const store = createPrivateNoteStore(async () => data)
     expect(store.name(2, 'alice', '昵称')).toBe('昵称')
     store.setOwner(1); await store.refresh()
-    expect(store.name(2, 'alice', '昵称')).toBe('实验搭档(alice)')
+    expect(store.name(2, 'alice', '昵称')).toBe('实验搭档(昵称)')
     expect(store.name(3, 'bob')).toBe('bob')
     expect(store.name(2, 'renamed')).toBe('实验搭档(renamed)')
-    expect(store.name(2, '', '昵称')).toBe('实验搭档(alice)')
+    expect(store.name(2, '', '昵称')).toBe('实验搭档(昵称)')
     expect(data.notes[0]?.note).toBe('实验搭档')
     store.setOwner(0); expect(store.name(2, 'alice', '昵称')).toBe('昵称')
   })
