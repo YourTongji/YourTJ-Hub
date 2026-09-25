@@ -23,6 +23,7 @@ watch(() => [props.userId, privateNotes.state.ownerId], () => {
 })
 
 function positionPanel() {
+  if (!open.value) return
   const anchor = trigger.value?.getBoundingClientRect()
   if (!anchor || !panel.value) return
 
