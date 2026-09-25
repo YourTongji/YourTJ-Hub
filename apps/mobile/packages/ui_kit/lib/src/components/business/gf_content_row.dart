@@ -17,8 +17,10 @@ class GfContentRow extends StatelessWidget {
     this.thumbnailUrl = '',
     this.onTap,
     this.onAuthorTap,
+    this.footer,
   });
   final String author, avatarUrl, time, text, title, contextLabel, thumbnailUrl;
+  final Widget? footer;
   final IconData? contextIcon;
   final VoidCallback? onTap, onAuthorTap;
 
@@ -157,6 +159,7 @@ class GfContentRow extends StatelessWidget {
                               ],
                             ),
                           ),
+                        ?footer,
                       ],
                     ),
                   ),

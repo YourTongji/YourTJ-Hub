@@ -55,6 +55,9 @@ abstract class ExternalLinkPayload with _$ExternalLinkPayload {
 @freezed
 abstract class UserActivityPayload with _$UserActivityPayload {
   const factory UserActivityPayload({
+    bool? liked,
+    bool? bookmarked,
+    int? likeCount,
     required int id,
     required int action,
     required String subjectType,

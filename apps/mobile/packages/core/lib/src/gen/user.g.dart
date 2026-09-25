@@ -95,6 +95,9 @@ Map<String, dynamic> _$$ExternalLinkPayloadImplToJson(
 _$UserActivityPayloadImpl _$$UserActivityPayloadImplFromJson(
   Map<String, dynamic> json,
 ) => _$UserActivityPayloadImpl(
+  liked: json['liked'] as bool?,
+  bookmarked: json['bookmarked'] as bool?,
+  likeCount: (json['likeCount'] as num?)?.toInt(),
   id: (json['id'] as num).toInt(),
   action: (json['action'] as num).toInt(),
   subjectType: json['subjectType'] as String,
@@ -108,6 +111,9 @@ _$UserActivityPayloadImpl _$$UserActivityPayloadImplFromJson(
 Map<String, dynamic> _$$UserActivityPayloadImplToJson(
   _$UserActivityPayloadImpl instance,
 ) => <String, dynamic>{
+  'liked': instance.liked,
+  'bookmarked': instance.bookmarked,
+  'likeCount': instance.likeCount,
   'id': instance.id,
   'action': instance.action,
   'subjectType': instance.subjectType,

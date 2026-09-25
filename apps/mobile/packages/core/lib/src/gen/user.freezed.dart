@@ -970,6 +970,9 @@ UserActivityPayload _$UserActivityPayloadFromJson(Map<String, dynamic> json) {
 
 /// @nodoc
 mixin _$UserActivityPayload {
+  bool? get liked => throw _privateConstructorUsedError;
+  bool? get bookmarked => throw _privateConstructorUsedError;
+  int? get likeCount => throw _privateConstructorUsedError;
   int get id => throw _privateConstructorUsedError;
   int get action => throw _privateConstructorUsedError;
   String get subjectType => throw _privateConstructorUsedError;
@@ -997,6 +1000,9 @@ abstract class $UserActivityPayloadCopyWith<$Res> {
   ) = _$UserActivityPayloadCopyWithImpl<$Res, UserActivityPayload>;
   @useResult
   $Res call({
+    bool? liked,
+    bool? bookmarked,
+    int? likeCount,
     int id,
     int action,
     String subjectType,
@@ -1023,6 +1029,9 @@ class _$UserActivityPayloadCopyWithImpl<$Res, $Val extends UserActivityPayload>
   @pragma('vm:prefer-inline')
   @override
   $Res call({
+    Object? liked = freezed,
+    Object? bookmarked = freezed,
+    Object? likeCount = freezed,
     Object? id = null,
     Object? action = null,
     Object? subjectType = null,
@@ -1034,6 +1043,18 @@ class _$UserActivityPayloadCopyWithImpl<$Res, $Val extends UserActivityPayload>
   }) {
     return _then(
       _value.copyWith(
+            liked: freezed == liked
+                ? _value.liked
+                : liked // ignore: cast_nullable_to_non_nullable
+                      as bool?,
+            bookmarked: freezed == bookmarked
+                ? _value.bookmarked
+                : bookmarked // ignore: cast_nullable_to_non_nullable
+                      as bool?,
+            likeCount: freezed == likeCount
+                ? _value.likeCount
+                : likeCount // ignore: cast_nullable_to_non_nullable
+                      as int?,
             id: null == id
                 ? _value.id
                 : id // ignore: cast_nullable_to_non_nullable
@@ -1082,6 +1103,9 @@ abstract class _$$UserActivityPayloadImplCopyWith<$Res>
   @override
   @useResult
   $Res call({
+    bool? liked,
+    bool? bookmarked,
+    int? likeCount,
     int id,
     int action,
     String subjectType,
@@ -1107,6 +1131,9 @@ class __$$UserActivityPayloadImplCopyWithImpl<$Res>
   @pragma('vm:prefer-inline')
   @override
   $Res call({
+    Object? liked = freezed,
+    Object? bookmarked = freezed,
+    Object? likeCount = freezed,
     Object? id = null,
     Object? action = null,
     Object? subjectType = null,
@@ -1118,6 +1145,18 @@ class __$$UserActivityPayloadImplCopyWithImpl<$Res>
   }) {
     return _then(
       _$UserActivityPayloadImpl(
+        liked: freezed == liked
+            ? _value.liked
+            : liked // ignore: cast_nullable_to_non_nullable
+                  as bool?,
+        bookmarked: freezed == bookmarked
+            ? _value.bookmarked
+            : bookmarked // ignore: cast_nullable_to_non_nullable
+                  as bool?,
+        likeCount: freezed == likeCount
+            ? _value.likeCount
+            : likeCount // ignore: cast_nullable_to_non_nullable
+                  as int?,
         id: null == id
             ? _value.id
             : id // ignore: cast_nullable_to_non_nullable
@@ -1159,6 +1198,9 @@ class __$$UserActivityPayloadImplCopyWithImpl<$Res>
 @JsonSerializable()
 class _$UserActivityPayloadImpl implements _UserActivityPayload {
   const _$UserActivityPayloadImpl({
+    this.liked,
+    this.bookmarked,
+    this.likeCount,
     required this.id,
     required this.action,
     required this.subjectType,
@@ -1172,6 +1214,12 @@ class _$UserActivityPayloadImpl implements _UserActivityPayload {
   factory _$UserActivityPayloadImpl.fromJson(Map<String, dynamic> json) =>
       _$$UserActivityPayloadImplFromJson(json);
 
+  @override
+  final bool? liked;
+  @override
+  final bool? bookmarked;
+  @override
+  final int? likeCount;
   @override
   final int id;
   @override
@@ -1191,7 +1239,7 @@ class _$UserActivityPayloadImpl implements _UserActivityPayload {
 
   @override
   String toString() {
-    return 'UserActivityPayload(id: $id, action: $action, subjectType: $subjectType, subjectId: $subjectId, contentPreview: $contentPreview, url: $url, label: $label, createdAt: $createdAt)';
+    return 'UserActivityPayload(liked: $liked, bookmarked: $bookmarked, likeCount: $likeCount, id: $id, action: $action, subjectType: $subjectType, subjectId: $subjectId, contentPreview: $contentPreview, url: $url, label: $label, createdAt: $createdAt)';
   }
 
   @override
@@ -1199,6 +1247,11 @@ class _$UserActivityPayloadImpl implements _UserActivityPayload {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
             other is _$UserActivityPayloadImpl &&
+            (identical(other.liked, liked) || other.liked == liked) &&
+            (identical(other.bookmarked, bookmarked) ||
+                other.bookmarked == bookmarked) &&
+            (identical(other.likeCount, likeCount) ||
+                other.likeCount == likeCount) &&
             (identical(other.id, id) || other.id == id) &&
             (identical(other.action, action) || other.action == action) &&
             (identical(other.subjectType, subjectType) ||
@@ -1217,6 +1270,9 @@ class _$UserActivityPayloadImpl implements _UserActivityPayload {
   @override
   int get hashCode => Object.hash(
     runtimeType,
+    liked,
+    bookmarked,
+    likeCount,
     id,
     action,
     subjectType,
@@ -1246,6 +1302,9 @@ class _$UserActivityPayloadImpl implements _UserActivityPayload {
 
 abstract class _UserActivityPayload implements UserActivityPayload {
   const factory _UserActivityPayload({
+    final bool? liked,
+    final bool? bookmarked,
+    final int? likeCount,
     required final int id,
     required final int action,
     required final String subjectType,
@@ -1259,6 +1318,12 @@ abstract class _UserActivityPayload implements UserActivityPayload {
   factory _UserActivityPayload.fromJson(Map<String, dynamic> json) =
       _$UserActivityPayloadImpl.fromJson;
 
+  @override
+  bool? get liked;
+  @override
+  bool? get bookmarked;
+  @override
+  int? get likeCount;
   @override
   int get id;
   @override

@@ -115,6 +115,60 @@ class _FollowActions extends TopicRepository {
   }
 }
 
+class _ContentActions extends _FollowActions {
+  final writes = <(int, bool, int)>[];
+  final write = Completer<bool>();
+  @override
+  Future<bool> likeTopic({required int topicId, required int action}) {
+    writes.add((topicId, false, action));
+    return write.future;
+  }
+
+  @override
+  Future<bool> bookmarkTopic({required int topicId, required int action}) {
+    writes.add((topicId, true, action));
+    return write.future;
+  }
+}
+
+void _contentFixture(String path, Map<String, dynamic> props) {
+  final home = homePayloadJson()['props'] as Map<String, dynamic>;
+  props['topics'] = [
+    {
+      ...(home['topics'] as List).first as Map<String, dynamic>,
+      'id': 100,
+      'liked': false,
+      'bookmarked': false,
+      'likeCount': 2,
+    },
+  ];
+  props['activities'] = [
+    {
+      ...(props['activities'] as List).first as Map<String, dynamic>,
+      'action': 2,
+      'subjectType': 'Topic',
+      'subjectId': 100,
+      'liked': false,
+      'bookmarked': false,
+      'likeCount': 2,
+    },
+  ];
+}
+
+Future<void> _showContent(WidgetTester tester, Type type) async {
+  await tester.scrollUntilVisible(
+    find.byType(type).first,
+    300,
+    scrollable: find
+        .descendant(
+          of: find.byType(CustomScrollView).first,
+          matching: find.byType(Scrollable),
+        )
+        .first,
+  );
+  await tester.pumpAndSettle();
+}
+
 Future<ProviderContainer> _pump(
   WidgetTester tester,
   _Profiles repo, {
@@ -176,6 +230,263 @@ void _select(WidgetTester tester, String label) {
 }
 
 void main() {
+  testWidgets('activity interaction footer fits narrow large-text screens', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(320, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await _pump(
+      tester,
+      _Profiles()..configure = _contentFixture,
+      scale: 2,
+      currentUser: const CurrentUser(id: 1, username: 'alice'),
+    );
+    await _showContent(tester, GfContentRow);
+    expect(tester.takeException(), isNull);
+    expect(
+      find.descendant(
+        of: find.byType(GfContentRow),
+        matching: find.byIcon(Icons.favorite_border),
+      ),
+      findsOneWidget,
+    );
+  });
+
+  for (final fail in [false, true]) {
+    testWidgets(
+      'profile write survives late refresh and reconciles later (fail=$fail)',
+      (tester) async {
+        final repo = _Profiles()..configure = _contentFixture;
+        final actions = _ContentActions();
+        await _pump(
+          tester,
+          repo,
+          topics: actions,
+          currentUser: const CurrentUser(id: 1, username: 'alice'),
+          home: const ProfilePage(userId: 1, initialStream: 'topics'),
+        );
+        await _showContent(tester, GfTopicCard);
+        final card = tester.widget<GfTopicCard>(find.byType(GfTopicCard).first);
+        final result = card.onLike!(true);
+        await tester.pump();
+        expect(
+          tester.widget<GfTopicCard>(find.byType(GfTopicCard).first).liked,
+          isTrue,
+        );
+        expect(
+          await card.onBookmark!(true),
+          isFalse,
+        ); // serialize same-content writes
+        final pending = Completer<PagePayload>();
+        repo.pending['/u/1/activity/topics'] = pending;
+        final refresh = tester
+            .widget<AppRefreshIndicator>(find.byType(AppRefreshIndicator))
+            .onRefresh();
+        await tester.pump();
+        if (fail) {
+          actions.write.completeError(StateError('write failed'));
+        } else {
+          actions.write.complete(true);
+        }
+        expect(await result, !fail);
+        final stale = repo.response('/u/1/activity/topics');
+        pending.complete(stale);
+        await refresh;
+        await tester.pumpAndSettle();
+        final restored = tester.widget<GfTopicCard>(
+          find.byType(GfTopicCard).first,
+        );
+        expect(restored.liked, !fail);
+        expect(restored.likeCount, fail ? 2 : 3);
+        repo.pending.clear();
+        await tester
+            .widget<AppRefreshIndicator>(find.byType(AppRefreshIndicator))
+            .onRefresh();
+        await tester.pumpAndSettle();
+        expect(
+          tester.widget<GfTopicCard>(find.byType(GfTopicCard).first).liked,
+          isFalse,
+        );
+        expect(actions.writes, [(100, false, 1)]);
+      },
+    );
+  }
+  testWidgets(
+    'detail return updates retained topics and activity without refetch or scroll reset',
+    (tester) async {
+      final repo = _Profiles()..configure = _contentFixture;
+      final router = GoRouter(
+        initialLocation: '/u/1',
+        routes: [
+          GoRoute(
+            path: '/u/1',
+            builder: (_, _) =>
+                const ProfilePage(userId: 1, initialStream: 'topics'),
+          ),
+          GoRoute(
+            path: '/p/:id',
+            builder: (_, _) => const Scaffold(body: Text('detail')),
+          ),
+        ],
+      );
+      addTearDown(router.dispose);
+      final container = await _pump(
+        tester,
+        repo,
+        router: router,
+        currentUser: const CurrentUser(id: 1, username: 'alice'),
+      );
+      await _showContent(tester, GfTopicCard);
+      final controller = tester
+          .widget<CustomScrollView>(find.byType(CustomScrollView).first)
+          .controller!;
+      final offset = controller.offset;
+      tester.widget<GfTopicCard>(find.byType(GfTopicCard).first).onTap!();
+      await tester.pumpAndSettle();
+      container.read(topicReturnStatesProvider)[100] = (
+        unseen: false,
+        liked: true,
+        bookmarked: true,
+        likeCount: 3,
+        replyCount: 0,
+        viewCount: 1,
+      );
+      router.pop();
+      await tester.pumpAndSettle();
+      final card = tester.widget<GfTopicCard>(find.byType(GfTopicCard).first);
+      expect(card.liked, isTrue);
+      expect(card.bookmarked, isTrue);
+      expect(card.likeCount, 3);
+      expect(controller.offset, offset);
+      expect(repo.paths, ['/u/1/activity/topics']);
+      _select(tester, '动态');
+      await tester.pumpAndSettle();
+      await _showContent(tester, GfContentRow);
+      // This fresh read is authoritative, then the next detail handoff updates it.
+      tester.widget<GfContentRow>(find.byType(GfContentRow).first).onTap!();
+      await tester.pumpAndSettle();
+      container.read(topicReturnStatesProvider)[100] = (
+        unseen: false,
+        liked: true,
+        bookmarked: false,
+        likeCount: 4,
+        replyCount: 0,
+        viewCount: 1,
+      );
+      router.pop();
+      await tester.pumpAndSettle();
+      final row = find.byType(GfContentRow).first;
+      expect(
+        find.descendant(of: row, matching: find.byIcon(Icons.favorite)),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: row, matching: find.text('4')),
+        findsOneWidget,
+      );
+      _select(tester, '主题');
+      await tester.pumpAndSettle();
+      expect(
+        tester.widget<GfTopicCard>(find.byType(GfTopicCard).first).bookmarked,
+        isFalse,
+      );
+    },
+  );
+
+  testWidgets(
+    'reply return state stays separate from a topic with the same ID',
+    (tester) async {
+      final repo = _Profiles()
+        ..configure = (path, props) {
+          _contentFixture(path, props);
+          (props['activities'] as List).first['action'] = 5;
+          (props['activities'] as List).first['subjectType'] = 'Post';
+        };
+      final router = GoRouter(
+        initialLocation: '/u/1',
+        routes: [
+          GoRoute(
+            path: '/u/1',
+            builder: (_, _) => const ProfilePage(userId: 1),
+          ),
+          GoRoute(
+            path: '/p/:id',
+            builder: (_, _) => const Scaffold(body: Text('detail')),
+          ),
+        ],
+      );
+      addTearDown(router.dispose);
+      final container = await _pump(
+        tester,
+        repo,
+        router: router,
+        currentUser: const CurrentUser(id: 1, username: 'alice'),
+      );
+      await _showContent(tester, GfContentRow);
+      tester.widget<GfContentRow>(find.byType(GfContentRow).first).onTap!();
+      await tester.pumpAndSettle();
+      container.read(postReturnStatesProvider)[100] = (
+        liked: true,
+        bookmarked: true,
+        likeCount: 9,
+      );
+      router.pop();
+      await tester.pumpAndSettle();
+      expect(
+        find.descendant(
+          of: find.byType(GfContentRow).first,
+          matching: find.byIcon(Icons.favorite),
+        ),
+        findsOneWidget,
+      );
+      _select(tester, '主题');
+      await tester.pumpAndSettle();
+      await _showContent(tester, GfTopicCard);
+      expect(
+        tester.widget<GfTopicCard>(find.byType(GfTopicCard).first).liked,
+        isFalse,
+      );
+    },
+  );
+
+  testWidgets('profile topics expose viewer interaction actions', (
+    tester,
+  ) async {
+    final repo = _Profiles()
+      ..configure = (_, props) {
+        final home = homePayloadJson()['props'] as Map<String, dynamic>;
+        props['topics'] = [
+          {
+            ...(home['topics'] as List).first as Map<String, dynamic>,
+            'liked': true,
+            'bookmarked': true,
+          },
+        ];
+      };
+    await _pump(
+      tester,
+      repo,
+      home: const ProfilePage(userId: 1, initialStream: 'topics'),
+    );
+    await tester.scrollUntilVisible(
+      find.byType(GfTopicCard).first,
+      300,
+      scrollable: find
+          .descendant(
+            of: find.byType(CustomScrollView).first,
+            matching: find.byType(Scrollable),
+          )
+          .first,
+    );
+    final card = tester.widget<GfTopicCard>(find.byType(GfTopicCard).first);
+    expect(card.liked, isTrue);
+    expect(card.bookmarked, isTrue);
+    expect(card.onLike, isNotNull);
+    expect(card.onBookmark, isNotNull);
+  });
+
   testWidgets('older tab response cannot overwrite a newer relationship read', (
     tester,
   ) async {

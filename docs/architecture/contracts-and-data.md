@@ -561,6 +561,13 @@ resolved in one batch. Anonymous reply bookmarks omit author identity. Reply
 excerpts are plain Markdown previews. Missing fields on older servers remain valid. Bookmark
 ordering and cursor semantics are unchanged; activity reply URLs include the post number when known.
 
+`Current`: profile topics use the same batched current-viewer interaction hydration as the home
+feed. Activity entries optionally expose `liked`, `bookmarked` and `likeCount`; comment activities
+resolve reply state, while topic publication/like activities resolve topic state. Guests and
+unavailable targets omit personal state. These additions use the existing hand-written page
+contracts, with no API route or database schema change.
+
+
 `Current`: notification `actor.avatarUrl` is populated from current public user presentation in
 one batch. The existing `content` field uses a visible reply's readable preview for likes with no
 stored content. Deleted/blocked replies, retained deletion tombstones, and hidden or mismatched

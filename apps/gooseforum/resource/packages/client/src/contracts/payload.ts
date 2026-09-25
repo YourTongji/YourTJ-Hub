@@ -643,6 +643,10 @@ export interface UserBadgePayload extends BadgePayload {
 }
 
 export interface UserActivityPayload {
+  /** Current viewer state; omitted for guests or unavailable content. */
+  liked?: boolean
+  bookmarked?: boolean
+  likeCount?: number
   id: number
   action: number
   subjectType: string

@@ -773,3 +773,10 @@ revision history use `note(username)` for the current viewer. Notes are fetched 
 core contract and remain only in a session-scoped memory provider; changing account invalidates
 pending responses and never reuses notes from the offline forum cache. Limits and account-erasure
 semantics are defined in [Identity and access](identity-and-access.md#private-user-notes).
+
+`Current`: personal profile topics and activity entries show the current viewer's like and bookmark
+state and allow toggling each action. Topic and reply identifiers are kept separate. Successful
+detail-page actions update all retained profile streams on return without collapsing pagination or
+resetting scroll; pending writes and older reads cannot undo each other. Failed actions roll back,
+a fresh refresh reconciles external changes, and account changes discard personal state. Older
+servers that omit interaction fields retain read-only content previews.

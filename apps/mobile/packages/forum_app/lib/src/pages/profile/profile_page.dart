@@ -22,6 +22,17 @@ import '../../widgets/status_views.dart';
 import '../../widgets/skeletons.dart';
 import '../../widgets/topic_list.dart';
 
+typedef _ContentKey = (bool, int); // isReply, content ID
+_ContentKey? _activityKey(UserActivityPayload activity) {
+  final type = activity.subjectType.toLowerCase();
+  if (activity.action == 5 && type == 'post') return (true, activity.subjectId);
+  if ((activity.action == 2 || activity.action == 3) &&
+      (type == 'topic' || type == 'post')) {
+    return (false, activity.subjectId);
+  }
+  return null;
+}
+
 Color _userBadgeColor(UserBadgePayload badge) {
   const Map<String, Color> colors = <String, Color>{
     'blue': Color(0xFF1D4ED8),
@@ -106,6 +117,12 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   int _connectionRead = 0;
   final _connectionRevisions = <int, int>{};
   final _connectionAcceptedReads = <int, int>{};
+  final _seenTopicReturns = <int, TopicReturnState>{};
+  final _seenPostReturns = <int, PostReturnState>{};
+  int _interactionRevision = 0;
+  final _interactionBusy = <_ContentKey>{};
+  final _interactions =
+      <_ContentKey, ({int revision, PostReturnState state})>{};
   bool _loginRequired = false;
   bool _canAccessAdmin = false;
   bool _canModerate = false;
@@ -120,6 +137,8 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   void initState() {
     super.initState();
     _stream = widget.initialStream;
+    _seenTopicReturns.addAll(ref.read(topicReturnStatesProvider));
+    _seenPostReturns.addAll(ref.read(postReturnStatesProvider));
 
     _load();
   }
@@ -138,6 +157,11 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
 
   void _resetStreams() {
     _streams.clear();
+    _interactionBusy.clear();
+    _interactions.clear();
+    _seenTopicReturns.clear();
+    _seenPostReturns.clear();
+    _interactionRevision++;
     _connectionFollowing.clear();
     _connectionBusy.clear();
     _connectionRevisions.clear();
@@ -159,6 +183,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     final request = ++state.request;
     final epoch = ref.read(offlineCacheEpochProvider);
     final followRevision = _followRevision;
+    final interactionRevision = _interactionRevision;
     final connectionRevisions = Map<int, int>.of(_connectionRevisions);
     final connectionRead = ++_connectionRead;
     final previous = state.props;
@@ -191,6 +216,39 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       var props = parsePageProps<UserProfileProps>(payload);
       if (props == null) {
         throw FormatException(AppLocalizations.of(context).commonParseFailed);
+      }
+      void accept(_ContentKey? key, bool? liked, bool? bookmarked, int count) {
+        if (key == null ||
+            liked == null ||
+            bookmarked == null ||
+            _interactionBusy.contains(key)) {
+          return;
+        }
+        final update = _interactions[key];
+        if (update == null || update.revision <= interactionRevision) {
+          _setInteraction(key, (
+            liked: liked,
+            bookmarked: bookmarked,
+            likeCount: count,
+          ));
+        }
+      }
+
+      for (final topic in props.topics) {
+        accept(
+          (false, topic.id),
+          topic.liked,
+          topic.bookmarked,
+          topic.likeCount,
+        );
+      }
+      for (final activity in props.activities) {
+        accept(
+          _activityKey(activity),
+          activity.liked,
+          activity.bookmarked,
+          activity.likeCount ?? 0,
+        );
       }
       // Accept only rows actually returned by this read, not retained pages.
       // Reads started before/during a mutation cannot undo it; a later refresh
@@ -236,7 +294,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
           ),
         );
       }
-      final loaded = props;
+      final loaded = _mergeInteractionState(props, interactionRevision);
       setState(() {
         state.props = loaded;
         // Inactive streams may finish, but cannot replace the visible identity
@@ -417,6 +475,184 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
           _connectionBusy.remove(user.id);
           _connectionRevisions[user.id] =
               (_connectionRevisions[user.id] ?? 0) + 1;
+        });
+      }
+    }
+  }
+
+  UserProfileProps _mergeInteractionState(
+    UserProfileProps props,
+    int readRevision, {
+    _ContentKey? only,
+  }) {
+    PostReturnState? state(_ContentKey? key) {
+      if (key == null) return null;
+      if (only != null && only != key) return null;
+      final value = _interactions[key];
+      return value != null &&
+              (_interactionBusy.contains(key) || value.revision > readRevision)
+          ? value.state
+          : null;
+    }
+
+    return props.copyWith(
+      topics: [
+        for (final topic in props.topics)
+          if (state((false, topic.id)) case final update?)
+            topic.copyWith(
+              liked: update.liked,
+              bookmarked: update.bookmarked,
+              likeCount: update.likeCount,
+            )
+          else
+            topic,
+      ],
+      activities: [
+        for (final activity in props.activities)
+          if (state(_activityKey(activity)) case final update?)
+            activity.copyWith(
+              liked: update.liked,
+              bookmarked: update.bookmarked,
+              likeCount: update.likeCount,
+            )
+          else
+            activity,
+      ],
+    );
+  }
+
+  void _setInteraction(_ContentKey key, PostReturnState value) {
+    _interactions[key] = (revision: ++_interactionRevision, state: value);
+    for (final stream in _streams.values) {
+      if (stream.props != null) {
+        stream.props = _mergeInteractionState(stream.props!, -1, only: key);
+      }
+    }
+  }
+
+  void _syncReturnedInteractions() {
+    if (!mounted || ref.read(currentUserProvider).valueOrNull == null) return;
+    setState(() {
+      for (final entry in ref.read(topicReturnStatesProvider).entries) {
+        final state = entry.value;
+        if (_seenTopicReturns[entry.key] == state) continue;
+        _seenTopicReturns[entry.key] = state;
+        if (state.liked != null && state.bookmarked != null) {
+          _setInteraction(
+            (false, entry.key),
+            (
+              liked: state.liked!,
+              bookmarked: state.bookmarked!,
+              likeCount: state.likeCount,
+            ),
+          );
+        }
+      }
+      for (final entry in ref.read(postReturnStatesProvider).entries) {
+        if (_seenPostReturns[entry.key] == entry.value) continue;
+        _seenPostReturns[entry.key] = entry.value;
+        _setInteraction((true, entry.key), entry.value);
+      }
+    });
+  }
+
+  Future<bool> _toggleInteraction(
+    _ContentKey key,
+    PostReturnState previous,
+    bool bookmark,
+    bool target,
+  ) async {
+    if (ref.read(currentUserProvider).valueOrNull == null) {
+      await context.push(
+        authLoginLocation(returnTo: GoRouterState.of(context).uri.toString()),
+      );
+      return false;
+    }
+    if (!_interactionBusy.add(key)) return false;
+    final failedMessage = AppLocalizations.of(context).commonLoadFailed;
+    final epoch = ref.read(offlineCacheEpochProvider);
+    final generation = _connectionEpoch;
+    bool current() =>
+        mounted &&
+        generation == _connectionEpoch &&
+        epoch == ref.read(offlineCacheEpochProvider);
+    final next = (
+      liked: bookmark ? previous.liked : target,
+      bookmarked: bookmark ? target : previous.bookmarked,
+      likeCount:
+          previous.likeCount +
+          (bookmark || previous.liked == target
+              ? 0
+              : target
+              ? 1
+              : -1),
+    );
+    setState(() => _setInteraction(key, next));
+    try {
+      bool success;
+      if (key.$1) {
+        final repo = ref.read(postRepositoryProvider);
+        if (bookmark) {
+          success = await repo.bookmarkPost(
+            postId: key.$2,
+            action: target ? 1 : 2,
+          );
+        } else {
+          success = await repo.likePost(postId: key.$2, action: target ? 1 : 2);
+        }
+      } else {
+        final repo = ref.read(topicRepositoryProvider);
+        if (bookmark) {
+          success = await repo.bookmarkTopic(
+            topicId: key.$2,
+            action: target ? 1 : 2,
+          );
+        } else {
+          success = await repo.likeTopic(
+            topicId: key.$2,
+            action: target ? 1 : 2,
+          );
+        }
+      }
+      if (!current()) return false;
+      if (!success) throw StateError(failedMessage);
+      // Publish successful state for the home/detail return handoff as well.
+      if (key.$1) {
+        ref.read(postReturnStatesProvider)[key.$2] = next;
+      } else {
+        final old = ref.read(topicReturnStatesProvider)[key.$2];
+        if (old != null) {
+          ref.read(topicReturnStatesProvider)[key.$2] = (
+            unseen: old.unseen,
+            liked: next.liked,
+            bookmarked: next.bookmarked,
+            likeCount: next.likeCount,
+            replyCount: old.replyCount,
+            viewCount: old.viewCount,
+          );
+        }
+      }
+      return true;
+    } catch (error) {
+      if (mounted && current()) {
+        setState(() => _setInteraction(key, previous));
+        showGfToast(
+          context,
+          resolveErrorMessage(AppLocalizations.of(context), error),
+          error: true,
+        );
+      }
+      return false;
+    } finally {
+      if (current()) {
+        setState(() {
+          _interactionBusy.remove(key);
+          // Fence reads started while the write was in flight, including rollback.
+          final value = _interactions[key]!;
+          _interactions[key] = (
+            revision: ++_interactionRevision,
+            state: value.state,
+          );
         });
       }
     }
@@ -631,6 +867,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                             following: _connectionFollowing,
                             busy: _connectionBusy,
                             onFollow: _toggleConnection,
+                            onReturn: _syncReturnedInteractions,
+                            onInteraction: _toggleInteraction,
+                            interactionBusy: _interactionBusy,
                           ),
                         if (!_streamLoading &&
                             _streamError == null &&
@@ -976,6 +1215,9 @@ class _ProfileBody extends StatelessWidget {
     required this.following,
     required this.busy,
     required this.onFollow,
+    required this.onReturn,
+    required this.onInteraction,
+    required this.interactionBusy,
   });
 
   final UserProfileProps props;
@@ -983,6 +1225,10 @@ class _ProfileBody extends StatelessWidget {
   final Map<int, bool> following;
   final Set<int> busy;
   final ValueChanged<UserConnectionPayload> onFollow;
+  final VoidCallback onReturn;
+  final Set<_ContentKey> interactionBusy;
+  final Future<bool> Function(_ContentKey, PostReturnState, bool, bool)
+  onInteraction;
 
   @override
   Widget build(BuildContext context) {
@@ -1078,7 +1324,80 @@ class _ProfileBody extends StatelessWidget {
           },
           text: activity.contentPreview,
           time: timeAgo(activity.createdAt, l10n: l10n),
-          onTap: route == null ? null : () => context.push(route),
+          footer:
+              _activityKey(activity) == null ||
+                  activity.liked == null ||
+                  activity.bookmarked == null
+              ? null
+              : Row(
+                  children: [
+                    Semantics(
+                      toggled: activity.liked,
+                      label: l10n.topicLike,
+                      child: TextButton.icon(
+                        onPressed:
+                            interactionBusy.contains(_activityKey(activity))
+                            ? null
+                            : () => onInteraction(
+                                _activityKey(activity)!,
+                                (
+                                  liked: activity.liked!,
+                                  bookmarked: activity.bookmarked!,
+                                  likeCount: activity.likeCount ?? 0,
+                                ),
+                                false,
+                                !activity.liked!,
+                              ),
+                        icon: Icon(
+                          activity.liked!
+                              ? Icons.favorite
+                              : Icons.favorite_border,
+                          size: 18,
+                          color: activity.liked!
+                              ? GfTheme.colorsOf(context).error
+                              : GfTheme.colorsOf(context).iconMuted,
+                        ),
+                        label: Text('${activity.likeCount ?? 0}'),
+                        style: TextButton.styleFrom(
+                          foregroundColor: GfTheme.colorsOf(context).iconMuted,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: activity.bookmarked!
+                          ? l10n.topicBookmarked
+                          : l10n.topicBookmark,
+                      onPressed:
+                          interactionBusy.contains(_activityKey(activity))
+                          ? null
+                          : () => onInteraction(
+                              _activityKey(activity)!,
+                              (
+                                liked: activity.liked!,
+                                bookmarked: activity.bookmarked!,
+                                likeCount: activity.likeCount ?? 0,
+                              ),
+                              true,
+                              !activity.bookmarked!,
+                            ),
+                      icon: Icon(
+                        activity.bookmarked!
+                            ? Icons.bookmark
+                            : Icons.bookmark_border,
+                        size: 18,
+                        color: activity.bookmarked!
+                            ? GfTheme.colorsOf(context).primary
+                            : GfTheme.colorsOf(context).iconMuted,
+                      ),
+                    ),
+                  ],
+                ),
+          onTap: route == null
+              ? null
+              : () async {
+                  await context.push(route);
+                  onReturn();
+                },
         );
       },
     );
@@ -1090,8 +1409,27 @@ class _ProfileBody extends StatelessWidget {
     }
     return SliverList.builder(
       itemCount: props.topics.length,
-      itemBuilder: (BuildContext context, int index) =>
-          buildTopicFeedCard(context, props.topics[index]),
+      itemBuilder: (BuildContext context, int index) {
+        final topic = props.topics[index];
+        final key = (false, topic.id);
+        final known = topic.liked != null && topic.bookmarked != null;
+        final state = (
+          liked: topic.liked ?? false,
+          bookmarked: topic.bookmarked ?? false,
+          likeCount: topic.likeCount,
+        );
+        return buildTopicFeedCard(
+          context,
+          topic,
+          onReturn: onReturn,
+          onLike: known
+              ? (target) => onInteraction(key, state, false, target)
+              : null,
+          onBookmark: known
+              ? (target) => onInteraction(key, state, true, target)
+              : null,
+        );
+      },
     );
   }
 

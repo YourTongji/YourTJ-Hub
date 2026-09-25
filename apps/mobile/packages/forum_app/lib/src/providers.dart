@@ -67,6 +67,13 @@ final topicReturnStatesProvider = Provider<Map<int, TopicReturnState>>((ref) {
   return <int, TopicReturnState>{};
 });
 
+/// Reply state handed back to profile activity without confusing post/topic IDs.
+typedef PostReturnState = ({bool liked, bool bookmarked, int likeCount});
+final postReturnStatesProvider = Provider<Map<int, PostReturnState>>((ref) {
+  ref.watch(offlineCacheEpochProvider);
+  return <int, PostReturnState>{};
+});
+
 /// Dio 实例(测试可 override 注入 mock adapter)。
 final dioProvider = Provider<Dio>((ref) => _localizedDio(ref));
 
