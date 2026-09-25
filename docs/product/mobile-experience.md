@@ -463,7 +463,8 @@ identity survive this layout change. The header keeps a small outer margin for i
   Backgrounding clears the foreground memory layer. A Drift device snapshot atomically retains only
   profile, calendar, timetable and server-adjusted today data, scoped by API origin, numeric forum
   account and binding revision. Grades, exams, campus messages/bodies and credentials are excluded.
-  The private campus workspace shows snapshot time, stale/offline state and a manual refresh action.
+  The private campus workspace places a compact refresh icon to the right of the snapshot time,
+  preserving a 44-pixel touch target; stale/offline notices remain below the same-row metadata.
   Repeated refreshes coalesce; restored snapshot tabs do not refetch the four persisted datasets when
   the foreground cache expires. Ordinary block failures keep usable same-day content visible; invalid
   teaching rules suppress old course results. Missing or expired-day data requests an explicit refresh.
