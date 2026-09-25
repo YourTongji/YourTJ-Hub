@@ -1331,9 +1331,8 @@ class _ProfileBody extends StatelessWidget {
               ? null
               : Row(
                   children: [
-                    Semantics(
-                      toggled: activity.liked,
-                      label: l10n.topicLike,
+                    Tooltip(
+                      message: l10n.topicLike,
                       child: TextButton.icon(
                         onPressed:
                             interactionBusy.contains(_activityKey(activity))
