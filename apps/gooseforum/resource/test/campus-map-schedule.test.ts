@@ -117,3 +117,54 @@ it('converts a selected date to the course module week and weekday', async () =>
   expect(wrapper.text()).toContain('课程日期：2026-09-14')
   wrapper.unmount()
 })
+
+it('keeps period-12 arrangements for historical 12-section calendars', async () => {
+  api.calendars.mockResolvedValue([{ calendarId: 119, calendarName: '2024-2025学年第二学期' }])
+  api.latest.mockResolvedValue({ latestSyncAt: '2026-09-23' })
+  api.byTime.mockResolvedValue({ courses: [{ courseCode: 'TJCS301', courseName: '艺术鉴赏' }] })
+  api.details.mockResolvedValue({
+    TJCS301: [{ campus: '嘉定校区', teachingClassId: 2, arrangementInfo: [
+      { arrangementText: '周一第10-12节', occupyDay: 1, occupyTime: [10, 11, 12], occupyWeek: [1], occupyRoom: 'D404' },
+    ] }],
+  })
+  const wrapper = mount(CampusMapSchedulePanel, {
+    props: { resolveLocation: vi.fn() },
+    global: { plugins: [createI18n({ legacy: false, locale: 'zh', messages: { zh } })] },
+  })
+  await flushPromises()
+  await wrapper.findAll('select')[3]!.setValue('6')
+  await wrapper.get('.atlas-schedule__submit').trigger('click')
+  await flushPromises()
+
+  expect(api.byTime).toHaveBeenCalledWith(119, 1, 6, true)
+  expect(wrapper.findAll('.atlas-schedule__list button')).toHaveLength(1)
+  expect(wrapper.text()).toContain('周一第10-12节')
+  expect(wrapper.findAll('select')[3]!.findAll('option')[5]!.text()).toContain('第 10–12 节')
+  wrapper.unmount()
+})
+
+it('drops period-12-only arrangements for current 11-section calendars', async () => {
+  api.calendars.mockResolvedValue([{ calendarId: 122, calendarName: '2026-2027学年第一学期' }])
+  api.latest.mockResolvedValue({ latestSyncAt: '2026-09-23' })
+  api.byTime.mockResolvedValue({ courses: [{ courseCode: 'TJCS101', courseName: '程序设计' }] })
+  api.details.mockResolvedValue({
+    TJCS101: [{ campus: '嘉定校区', teachingClassId: 1, arrangementInfo: [
+      { arrangementText: '周一第10-11节', occupyDay: 1, occupyTime: [10, 11], occupyWeek: [1], occupyRoom: '安楼A101' },
+      { arrangementText: '周一第12节', occupyDay: 1, occupyTime: [12], occupyWeek: [1], occupyRoom: '安楼A102' },
+    ] }],
+  })
+  const wrapper = mount(CampusMapSchedulePanel, {
+    props: { resolveLocation: vi.fn() },
+    global: { plugins: [createI18n({ legacy: false, locale: 'zh', messages: { zh } })] },
+  })
+  await flushPromises()
+  await wrapper.findAll('select')[3]!.setValue('6')
+  await wrapper.get('.atlas-schedule__submit').trigger('click')
+  await flushPromises()
+
+  expect(api.byTime).toHaveBeenCalledWith(122, 1, 6, true)
+  expect(wrapper.findAll('.atlas-schedule__list button')).toHaveLength(1)
+  expect(wrapper.text()).toContain('安楼A101')
+  expect(wrapper.text()).not.toContain('安楼A102')
+  wrapper.unmount()
+})
