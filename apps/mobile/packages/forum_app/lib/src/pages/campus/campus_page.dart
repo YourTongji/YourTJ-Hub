@@ -318,32 +318,49 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace> {
             snapshot.data['today']?.teachingDay?.date !=
                 campusDateKey(DateTime.now()));
     return Padding(
-      padding: const EdgeInsets.only(bottom: 20),
+      padding: const EdgeInsets.only(bottom: 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (snapshot != null)
-            Text(
-              l.campusSnapshotUpdated(
-                DateFormat.yMd(
-                  l.localeName,
-                ).add_Hm().format(snapshot.committedAt.toLocal()),
+          Row(
+            children: [
+              Expanded(
+                child: snapshot == null
+                    ? const SizedBox.shrink()
+                    : Text(
+                        l.campusSnapshotUpdated(
+                          DateFormat.yMd(
+                            l.localeName,
+                          ).add_Hm().format(snapshot.committedAt.toLocal()),
+                        ),
+                        style: GfTheme.typographyOf(context).caption.copyWith(
+                          color: GfTheme.colorsOf(context).iconMuted,
+                        ),
+                      ),
               ),
-              style: GfTheme.typographyOf(context).caption,
-            ),
+              const SizedBox(width: 8),
+              IconButton(
+                tooltip: l.commonRefresh,
+                onPressed: state.refreshing || state.busy
+                    ? null
+                    : () =>
+                          ref.read(campusControllerProvider.notifier).refresh(),
+                style: IconButton.styleFrom(
+                  foregroundColor: GfTheme.colorsOf(context).primary,
+                  minimumSize: const Size(44, 44),
+                  padding: EdgeInsets.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                icon: const Icon(Icons.refresh, size: 18),
+              ),
+            ],
+          ),
           if (state.errors.containsKey('status') && snapshot != null)
             Text(l.campusSnapshotOffline)
           else if (state.error != null || state.errors.isNotEmpty)
             Text(l.campusSnapshotRefreshFailed)
           else if (stale)
             Text(l.campusSnapshotStale),
-          TextButton.icon(
-            onPressed: state.refreshing || state.busy
-                ? null
-                : () => ref.read(campusControllerProvider.notifier).refresh(),
-            icon: const Icon(Icons.refresh, size: 18),
-            label: Text(l.commonRefresh),
-          ),
         ],
       ),
     );

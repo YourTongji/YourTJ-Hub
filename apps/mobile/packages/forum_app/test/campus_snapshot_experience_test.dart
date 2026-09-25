@@ -396,8 +396,8 @@ void main() {
         testApp(db, store, repo, RecordingWidgetBridge()),
       );
       await tester.pumpAndSettle();
-      await tester.ensureVisible(find.text('刷新').first);
-      await tester.tap(find.text('刷新').first);
+      await tester.ensureVisible(find.byTooltip('刷新').first);
+      await tester.tap(find.byTooltip('刷新').first);
       await tester.pumpAndSettle();
       expect(find.text('部分数据更新失败，保留上次可用内容。'), findsOneWidget);
       await tester.ensureVisible(find.text('第四周周二的数学'));
@@ -436,8 +436,8 @@ void main() {
       final bridge = RecordingWidgetBridge();
       await tester.pumpWidget(testApp(db, store, repo, bridge));
       await tester.pumpAndSettle();
-      await tester.ensureVisible(find.text('刷新').first);
-      await tester.tap(find.text('刷新').first);
+      await tester.ensureVisible(find.byTooltip('刷新').first);
+      await tester.tap(find.byTooltip('刷新').first);
       await tester.pumpAndSettle();
       expect((await store.read(appScope))!.committedAt, old.toUtc());
       expect(bridge.writes, 0);
