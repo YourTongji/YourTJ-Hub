@@ -74,7 +74,7 @@ jobs:
       - name: Check i18n keys
         if: steps.filter.outputs.frontend == 'true'
         working-directory: apps/gooseforum/resource
-        run: pnpm check:i18n
+        run: pnpm check
       - name: Build
         if: steps.filter.outputs.frontend == 'true'
         working-directory: apps/gooseforum/resource
