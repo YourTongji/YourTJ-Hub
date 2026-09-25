@@ -2034,6 +2034,8 @@ mixin _$UserConnectionPayload {
   String get avatarUrl => throw _privateConstructorUsedError;
   String get bio => throw _privateConstructorUsedError;
   String get url => throw _privateConstructorUsedError;
+  bool? get isFollowing => throw _privateConstructorUsedError;
+  bool get isSelf => throw _privateConstructorUsedError;
 
   /// Serializes this UserConnectionPayload to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
@@ -2059,6 +2061,8 @@ abstract class $UserConnectionPayloadCopyWith<$Res> {
     String avatarUrl,
     String bio,
     String url,
+    bool? isFollowing,
+    bool isSelf,
   });
 }
 
@@ -2086,6 +2090,8 @@ class _$UserConnectionPayloadCopyWithImpl<
     Object? avatarUrl = null,
     Object? bio = null,
     Object? url = null,
+    Object? isFollowing = freezed,
+    Object? isSelf = null,
   }) {
     return _then(
       _value.copyWith(
@@ -2113,6 +2119,14 @@ class _$UserConnectionPayloadCopyWithImpl<
                 ? _value.url
                 : url // ignore: cast_nullable_to_non_nullable
                       as String,
+            isFollowing: freezed == isFollowing
+                ? _value.isFollowing
+                : isFollowing // ignore: cast_nullable_to_non_nullable
+                      as bool?,
+            isSelf: null == isSelf
+                ? _value.isSelf
+                : isSelf // ignore: cast_nullable_to_non_nullable
+                      as bool,
           )
           as $Val,
     );
@@ -2135,6 +2149,8 @@ abstract class _$$UserConnectionPayloadImplCopyWith<$Res>
     String avatarUrl,
     String bio,
     String url,
+    bool? isFollowing,
+    bool isSelf,
   });
 }
 
@@ -2159,6 +2175,8 @@ class __$$UserConnectionPayloadImplCopyWithImpl<$Res>
     Object? avatarUrl = null,
     Object? bio = null,
     Object? url = null,
+    Object? isFollowing = freezed,
+    Object? isSelf = null,
   }) {
     return _then(
       _$UserConnectionPayloadImpl(
@@ -2186,6 +2204,14 @@ class __$$UserConnectionPayloadImplCopyWithImpl<$Res>
             ? _value.url
             : url // ignore: cast_nullable_to_non_nullable
                   as String,
+        isFollowing: freezed == isFollowing
+            ? _value.isFollowing
+            : isFollowing // ignore: cast_nullable_to_non_nullable
+                  as bool?,
+        isSelf: null == isSelf
+            ? _value.isSelf
+            : isSelf // ignore: cast_nullable_to_non_nullable
+                  as bool,
       ),
     );
   }
@@ -2201,6 +2227,8 @@ class _$UserConnectionPayloadImpl implements _UserConnectionPayload {
     required this.avatarUrl,
     required this.bio,
     required this.url,
+    this.isFollowing,
+    this.isSelf = false,
   });
 
   factory _$UserConnectionPayloadImpl.fromJson(Map<String, dynamic> json) =>
@@ -2218,10 +2246,15 @@ class _$UserConnectionPayloadImpl implements _UserConnectionPayload {
   final String bio;
   @override
   final String url;
+  @override
+  final bool? isFollowing;
+  @override
+  @JsonKey()
+  final bool isSelf;
 
   @override
   String toString() {
-    return 'UserConnectionPayload(id: $id, username: $username, nickname: $nickname, avatarUrl: $avatarUrl, bio: $bio, url: $url)';
+    return 'UserConnectionPayload(id: $id, username: $username, nickname: $nickname, avatarUrl: $avatarUrl, bio: $bio, url: $url, isFollowing: $isFollowing, isSelf: $isSelf)';
   }
 
   @override
@@ -2237,13 +2270,25 @@ class _$UserConnectionPayloadImpl implements _UserConnectionPayload {
             (identical(other.avatarUrl, avatarUrl) ||
                 other.avatarUrl == avatarUrl) &&
             (identical(other.bio, bio) || other.bio == bio) &&
-            (identical(other.url, url) || other.url == url));
+            (identical(other.url, url) || other.url == url) &&
+            (identical(other.isFollowing, isFollowing) ||
+                other.isFollowing == isFollowing) &&
+            (identical(other.isSelf, isSelf) || other.isSelf == isSelf));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
   @override
-  int get hashCode =>
-      Object.hash(runtimeType, id, username, nickname, avatarUrl, bio, url);
+  int get hashCode => Object.hash(
+    runtimeType,
+    id,
+    username,
+    nickname,
+    avatarUrl,
+    bio,
+    url,
+    isFollowing,
+    isSelf,
+  );
 
   /// Create a copy of UserConnectionPayload
   /// with the given fields replaced by the non-null parameter values.
@@ -2271,6 +2316,8 @@ abstract class _UserConnectionPayload implements UserConnectionPayload {
     required final String avatarUrl,
     required final String bio,
     required final String url,
+    final bool? isFollowing,
+    final bool isSelf,
   }) = _$UserConnectionPayloadImpl;
 
   factory _UserConnectionPayload.fromJson(Map<String, dynamic> json) =
@@ -2288,6 +2335,10 @@ abstract class _UserConnectionPayload implements UserConnectionPayload {
   String get bio;
   @override
   String get url;
+  @override
+  bool? get isFollowing;
+  @override
+  bool get isSelf;
 
   /// Create a copy of UserConnectionPayload
   /// with the given fields replaced by the non-null parameter values.

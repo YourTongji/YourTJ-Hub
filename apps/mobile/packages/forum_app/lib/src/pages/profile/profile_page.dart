@@ -99,6 +99,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   String _stream = 'timeline';
   bool _following = false;
   bool _followBusy = false;
+  final _connectionFollowing = <int, bool>{};
+  final _connectionBusy = <int>{};
+  int _connectionEpoch = 0;
   bool _loginRequired = false;
   bool _canAccessAdmin = false;
   bool _canModerate = false;
@@ -131,6 +134,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
 
   void _resetStreams() {
     _streams.clear();
+    _connectionFollowing.clear();
+    _connectionBusy.clear();
+    _connectionEpoch++;
     _headerProps = null;
     _minimumScrollOffset = 0;
     _followBusy = false;
@@ -345,6 +351,42 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     }
   }
 
+  Future<void> _toggleConnection(UserConnectionPayload user) async {
+    if (user.isSelf || _connectionBusy.contains(user.id)) return;
+    if (ref.read(currentUserProvider).valueOrNull == null) {
+      await context.push('/login');
+      return;
+    }
+    final previous = _connectionFollowing[user.id] ?? user.isFollowing;
+    if (previous == null) return;
+    final epoch = _connectionEpoch;
+    final session = ref.read(offlineCacheEpochProvider);
+    bool current() =>
+        mounted &&
+        epoch == _connectionEpoch &&
+        session == ref.read(offlineCacheEpochProvider);
+    setState(() {
+      _connectionFollowing[user.id] = !previous;
+      _connectionBusy.add(user.id);
+    });
+    try {
+      await ref
+          .read(topicRepositoryProvider)
+          .followUser(userId: user.id, isFollowing: previous);
+    } catch (error) {
+      if (mounted && current()) {
+        setState(() => _connectionFollowing[user.id] = previous);
+        showGfToast(
+          context,
+          resolveErrorMessage(AppLocalizations.of(context), error),
+          error: true,
+        );
+      }
+    } finally {
+      if (current()) setState(() => _connectionBusy.remove(user.id));
+    }
+  }
+
   Future<void> _openProfileTool(String route) async {
     await context.push(route);
     if (mounted) await _load();
@@ -360,13 +402,44 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     });
     return Scaffold(
       appBar: GfAppBar(
-        title: Text(
-          widget.connectionsOnly
-              ? (_stream == 'followers'
-                    ? l10n.profileFollowers
-                    : l10n.profileFollowingCount)
-              : l10n.profileTitle,
-        ),
+        centerTitle: false,
+        title: _page.valueOrNull == null
+            ? Text(l10n.profileTitle)
+            : Builder(
+                builder: (context) {
+                  final user = (_headerProps ?? _page.valueOrNull!).user;
+                  return Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        privateDisplayName(
+                          context,
+                          user.userId,
+                          user.username,
+                          user.nickname,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      if (MediaQuery.textScalerOf(context).scale(13) <= 18)
+                        Text(
+                          widget.connectionsOnly
+                              ? '@${user.username}'
+                              : '${formatNumber(user.topicCount)} ${l10n.profileTopics}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 13,
+                            height: 1.2,
+                            fontWeight: FontWeight.w400,
+                            color: GfTheme.colorsOf(context).iconMuted,
+                          ),
+                        ),
+                    ],
+                  );
+                },
+              ),
         automaticallyImplyLeading: true,
         actions:
             !widget.connectionsOnly &&
@@ -462,39 +535,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                       controller: controller,
                       physics: const AlwaysScrollableScrollPhysics(),
                       slivers: <Widget>[
-                        if (widget.connectionsOnly)
-                          SliverToBoxAdapter(
-                            child: Padding(
-                              padding: const EdgeInsets.fromLTRB(
-                                20,
-                                12,
-                                20,
-                                12,
-                              ),
-                              child: Text(
-                                '@${(_headerProps ?? props).user.username}',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  color: GfTheme.colorsOf(context).iconMuted,
-                                ),
-                              ),
-                            ),
-                          ),
                         if (!widget.connectionsOnly)
                           SliverToBoxAdapter(
                             child: _profileCard(_headerProps ?? props),
-                          ),
-                        if (!widget.connectionsOnly && props.isOwnProfile)
-                          SliverToBoxAdapter(
-                            child: ListTile(
-                              leading: GfSymbol(
-                                'star',
-                                color: GfTheme.colorsOf(context).primary,
-                              ),
-                              title: Text(l10n.myCourseReviewsTitle),
-                              trailing: const Icon(Icons.chevron_right),
-                              onTap: () => context.push('/my-course-reviews'),
-                            ),
                           ),
                         const SliverToBoxAdapter(child: GfDivider()),
                         if (tabs.isNotEmpty)
@@ -550,6 +593,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                             key: ValueKey(_stream),
                             props: props,
                             selectedKey: _stream,
+                            following: _connectionFollowing,
+                            busy: _connectionBusy,
+                            onFollow: _toggleConnection,
                           ),
                         if (!_streamLoading &&
                             _streamError == null &&
@@ -616,12 +662,19 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     final List<Widget> actions = <Widget>[];
     if (user.isSelf || props.isOwnProfile) {
       actions.add(
-        GfButton(
-          icon: const GfSymbol('square-pen', size: 18),
-          label: l10n.settingsEditProfile,
-          variant: GfButtonVariant.outline,
-          size: GfButtonSize.small,
+        OutlinedButton(
+          style: OutlinedButton.styleFrom(
+            minimumSize: const Size(96, 44),
+            shape: const StadiumBorder(),
+            foregroundColor: GfTheme.colorsOf(context).baseContent,
+            side: BorderSide(color: GfTheme.colorsOf(context).line),
+            textStyle: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
           onPressed: () => _openProfileTool('/settings/profile'),
+          child: Text(l10n.settingsEditProfile, textAlign: TextAlign.center),
         ),
       );
     } else {
@@ -630,28 +683,20 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       );
       if (props.canFollow) {
         actions.add(
-          GfButton(
+          GfFollowButton(
+            following: _following,
             label: _following ? l10n.profileFollowing : l10n.profileFollow,
-            icon: GfSymbol(
-              _following ? 'user-round-check' : 'user-round-plus',
-              size: 18,
-            ),
-            loading: _followBusy,
-            variant: _following
-                ? GfButtonVariant.outline
-                : GfButtonVariant.primary,
-            size: GfButtonSize.small,
+            busy: _followBusy,
             onPressed: () => _toggleFollow(user),
           ),
         );
       }
       if (props.canMessage && props.messageUrl.trim().isNotEmpty) {
         actions.add(
-          GfButton(
-            icon: const GfSymbol('mail', size: 18),
-            label: l10n.messagesNew,
-            variant: GfButtonVariant.outline,
-            size: GfButtonSize.small,
+          IconButton.outlined(
+            icon: const GfSymbol('mail', size: 20),
+            tooltip: l10n.messagesNew,
+            constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
             onPressed: () => context.push(props.messageUrl),
           ),
         );
@@ -721,19 +766,24 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
             ),
       coloredBadges: badges.values.toList(growable: false),
       stats: <(String, String)>[
+        (l10n.profileFollowingCount, formatNumber(user.followingCount)),
+        (l10n.profileFollowers, formatNumber(user.followerCount)),
         (l10n.profileTopics, formatNumber(user.topicCount)),
         (l10n.profileReplies, formatNumber(user.replyCount)),
         (l10n.profileLikes, formatNumber(user.likeReceivedCount)),
-        (l10n.profileFollowers, formatNumber(user.followerCount)),
-        (l10n.profileFollowingCount, formatNumber(user.followingCount)),
       ],
       statActions: {
-        3: () => context.push('/u/${user.userId}/followers'),
-        4: () => context.push('/u/${user.userId}/following'),
+        0: () => context.push('/u/${user.userId}/following'),
+        1: () => context.push('/u/${user.userId}/followers'),
       },
       actions: actions.isEmpty
           ? null
-          : Wrap(spacing: 8, runSpacing: 8, children: actions),
+          : Wrap(
+              alignment: WrapAlignment.end,
+              spacing: 8,
+              runSpacing: 8,
+              children: actions,
+            ),
     );
   }
 }
@@ -813,54 +863,72 @@ class _ProfileTabs extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = GfTheme.colorsOf(context);
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: [
-          for (int i = 0; i < tabs.length; i++)
-            Tooltip(
-              message: tabs[i].label ?? tabs[i].key,
-              excludeFromSemantics: true,
-              child: Semantics(
-                selected: i == index,
-                button: true,
-                label: tabs[i].label ?? tabs[i].key,
-                child: InkWell(
-                  onTap: () => onChanged(i),
-                  child: Container(
-                    alignment: Alignment.center,
-                    constraints: const BoxConstraints(
-                      minWidth: 72,
-                      minHeight: 48,
-                    ),
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    decoration: BoxDecoration(
-                      border: Border(
-                        bottom: BorderSide(
-                          color: i == index
-                              ? colors.primary
-                              : Colors.transparent,
-                          width: 3,
+    return LayoutBuilder(
+      builder: (context, constraints) => SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            for (int i = 0; i < tabs.length; i++)
+              Tooltip(
+                message: tabs[i].label ?? tabs[i].key,
+                excludeFromSemantics: true,
+                child: Semantics(
+                  selected: i == index,
+                  button: true,
+                  label: tabs[i].label ?? tabs[i].key,
+                  child: InkWell(
+                    onTap: () => onChanged(i),
+                    child: Container(
+                      alignment: Alignment.center,
+                      constraints: BoxConstraints(
+                        minWidth: math.max(
+                          72,
+                          constraints.maxWidth / tabs.length,
                         ),
+                        minHeight: 48,
                       ),
-                    ),
-                    child: ExcludeSemantics(
-                      child: Text(
-                        tabs[i].label ?? tabs[i].key,
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: i == index
-                              ? colors.baseContent
-                              : colors.iconMuted,
-                        ),
+                      height: math.max(
+                        52,
+                        MediaQuery.textScalerOf(context).scale(16) * 1.4 + 24,
+                      ),
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 20),
+                            child: ExcludeSemantics(
+                              child: Text(
+                                tabs[i].label ?? tabs[i].key,
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  color: i == index
+                                      ? colors.baseContent
+                                      : colors.iconMuted,
+                                ),
+                              ),
+                            ),
+                          ),
+                          if (i == index)
+                            Positioned(
+                              bottom: 0,
+                              width: 40,
+                              height: 3,
+                              child: DecoratedBox(
+                                decoration: BoxDecoration(
+                                  color: colors.primary,
+                                  borderRadius: BorderRadius.circular(3),
+                                ),
+                              ),
+                            ),
+                        ],
                       ),
                     ),
                   ),
                 ),
               ),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -871,10 +939,16 @@ class _ProfileBody extends StatelessWidget {
     super.key,
     required this.props,
     required this.selectedKey,
+    required this.following,
+    required this.busy,
+    required this.onFollow,
   });
 
   final UserProfileProps props;
   final String selectedKey;
+  final Map<int, bool> following;
+  final Set<int> busy;
+  final ValueChanged<UserConnectionPayload> onFollow;
 
   @override
   Widget build(BuildContext context) {
@@ -1041,15 +1115,26 @@ class _ProfileBody extends StatelessWidget {
       itemCount: users.length,
       itemBuilder: (BuildContext context, int index) {
         final UserConnectionPayload user = users[index];
-        return GfSettingRow(
-          leading: GfAvatar(src: resolveApiAssetUrl(user.avatarUrl), size: 36),
-          title: privateDisplayName(
+        return GfConnectionRow(
+          avatarUrl: resolveApiAssetUrl(user.avatarUrl),
+          name: privateDisplayName(
             context,
             user.id,
             user.username,
             user.nickname,
           ),
-          description: user.bio.isEmpty ? '@${user.username}' : user.bio,
+          username: user.username,
+          bio: user.bio,
+          action: user.isSelf || user.isFollowing == null
+              ? null
+              : GfFollowButton(
+                  following: following[user.id] ?? user.isFollowing!,
+                  label: (following[user.id] ?? user.isFollowing!)
+                      ? AppLocalizations.of(context).profileFollowing
+                      : AppLocalizations.of(context).profileFollow,
+                  busy: busy.contains(user.id),
+                  onPressed: () => onFollow(user),
+                ),
           onTap: () => context.push('/u/${user.id}'),
         );
       },

@@ -115,6 +115,8 @@ abstract class UserConnectionPayload with _$UserConnectionPayload {
     required String avatarUrl,
     required String bio,
     required String url,
+    bool? isFollowing,
+    @Default(false) bool isSelf,
   }) = _UserConnectionPayload;
 
   factory UserConnectionPayload.fromJson(Map<String, dynamic> json) =>

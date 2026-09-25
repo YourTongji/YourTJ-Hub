@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../../theme/gf_theme.dart';
 import '../atoms/gf_avatar.dart';
 import '../atoms/gf_badge.dart';
-import '../gf_symbol.dart';
 
 @immutable
 class GfUserBadge {
@@ -13,9 +12,8 @@ class GfUserBadge {
   final Color? color;
 }
 
-/// User profile header card mirroring web UserPage.vue mobile layout:
-/// a cover, overlapping avatar, identity, trimmed bio and a separate signature.
-/// The overlap is part of layout, so no translated blank space remains below.
+/// Social profile header: cover and overlapping avatar, trailing actions,
+/// identity, public details and compact inline statistics.
 class GfUserCard extends StatelessWidget {
   const GfUserCard({
     super.key,
@@ -41,13 +39,13 @@ class GfUserCard extends StatelessWidget {
   final String? signature;
   final String? coverUrl;
 
-  /// Badge labels shown next to the name (e.g. Admin, online).
+  /// Supplemental badge labels below public details (e.g. Admin, online).
   final List<String> badges;
 
   /// Badges that preserve a source-defined color.
   final List<GfUserBadge> coloredBadges;
 
-  /// (label, value) pairs rendered in a compact, equal-width stats row.
+  /// (label, value) pairs rendered inline, wrapping with available width.
   final List<(String, String)> stats;
 
   /// Optional navigation actions keyed by the zero-based statistic index.
@@ -70,73 +68,80 @@ class GfUserCard extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        Stack(
-          children: [
-            Container(
-              height: 184,
-              padding: const EdgeInsets.only(bottom: 44),
-              child: Container(
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  color: colors.base300,
-                  image: coverUrl == null || coverUrl!.isEmpty
-                      ? null
-                      : DecorationImage(
-                          image: ResizeImage(
-                            NetworkImage(coverUrl!),
-                            policy: ResizeImagePolicy.fit,
-                            width:
-                                (MediaQuery.sizeOf(context).width *
-                                        MediaQuery.devicePixelRatioOf(context))
-                                    .round(),
-                            height:
-                                (184 * MediaQuery.devicePixelRatioOf(context))
-                                    .round(),
-                          ),
-                          fit: BoxFit.cover,
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final coverHeight = (constraints.maxWidth / 3).clamp(112.0, 200.0);
+            return Stack(
+              children: [
+                Column(
+                  children: [
+                    SizedBox(
+                      width: double.infinity,
+                      height: coverHeight,
+                      child: ColoredBox(
+                        color: colors.base300,
+                        child: coverUrl?.isNotEmpty == true
+                            ? Image.network(
+                                coverUrl!,
+                                fit: BoxFit.cover,
+                                cacheWidth:
+                                    (constraints.maxWidth *
+                                            MediaQuery.devicePixelRatioOf(
+                                              context,
+                                            ))
+                                        .round(),
+                                errorBuilder: (_, _, _) =>
+                                    const SizedBox.shrink(),
+                              )
+                            : null,
+                      ),
+                    ),
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(minHeight: 64),
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(128, 12, 16, 4),
+                        child: Align(
+                          alignment: Alignment.topRight,
+                          child: actions,
                         ),
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-            ),
-            Positioned(
-              left: 20,
-              top: 96,
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: colors.base100,
+                Positioned(
+                  left: 16,
+                  top: coverHeight - 48,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: colors.base100,
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(4),
+                      child: GfAvatar(
+                        src: avatarUrl,
+                        size: 88,
+                        badge: avatarBadge,
+                      ),
+                    ),
+                  ),
                 ),
-                child: Padding(
-                  padding: const EdgeInsets.all(4),
-                  child: GfAvatar(src: avatarUrl, size: 80, badge: avatarBadge),
-                ),
-              ),
-            ),
-          ],
+              ],
+            );
+          },
         ),
         Padding(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              Wrap(
-                spacing: 8,
-                runSpacing: 4,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: <Widget>[
-                  Text(
-                    name,
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.w700,
-                      color: colors.baseContent,
-                    ),
-                  ),
-                  for (final String badge in badges)
-                    GfBadge(label: badge, variant: GfBadgeVariant.info),
-                  for (final GfUserBadge badge in coloredBadges)
-                    GfBadge(label: badge.label, color: badge.color),
-                ],
+              Text(
+                name,
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w700,
+                  color: colors.baseContent,
+                ),
               ),
               const SizedBox(height: 4),
               Text(
@@ -152,123 +157,90 @@ class GfUserCard extends StatelessWidget {
                   bio!.trim(),
                   style: TextStyle(
                     fontSize: 16,
-                    color: colors.baseContent.withValues(alpha: 0.75),
+                    height: 1.4,
+                    color: colors.baseContent,
                   ),
                 ),
               ],
-              if (signature?.trim().isNotEmpty == true) ...[
+              if (signature?.trim().isNotEmpty == true &&
+                  signature!.trim() != bio?.trim()) ...[
                 const SizedBox(height: 8),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    GfSymbol(
-                      'feather',
-                      size: 18,
-                      color: colors.primary.withValues(alpha: 0.6),
-                    ),
-                    const SizedBox(width: 8),
-                    Flexible(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            signature!.trim(),
-                            style: TextStyle(
-                              fontSize: 16,
-                              height: 1.45,
-                              fontWeight: FontWeight.w500,
-                              color: colors.iconMuted,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          CustomPaint(
-                            size: const Size(160, 5),
-                            painter: _SignatureLine(
-                              colors.primary.withValues(alpha: 0.4),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
+                Text(
+                  signature!.trim(),
+                  style: TextStyle(
+                    fontSize: 16,
+                    height: 1.4,
+                    color: colors.iconMuted,
+                  ),
                 ),
               ],
               if (details != null) ...<Widget>[
                 const SizedBox(height: 8),
                 details!,
               ],
-              if (actions != null) ...<Widget>[
-                const SizedBox(height: 12),
-                actions!,
+              if (badges.isNotEmpty || coloredBadges.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 4,
+                  children: [
+                    for (final badge in badges)
+                      GfBadge(label: badge, variant: GfBadgeVariant.info),
+                    for (final badge in coloredBadges)
+                      GfBadge(label: badge.label, color: badge.color),
+                  ],
+                ),
               ],
               if (stats.isNotEmpty) ...<Widget>[
                 const SizedBox(height: 16),
-                LayoutBuilder(
-                  builder: (context, constraints) {
-                    final scaledWidth = MediaQuery.textScalerOf(
-                      context,
-                    ).scale(112);
-                    final columns =
-                        MediaQuery.textScalerOf(context).scale(14) <= 20 &&
-                            constraints.maxWidth >= 320
-                        ? stats.length
-                        : (constraints.maxWidth / scaledWidth).floor().clamp(
-                            1,
-                            stats.length,
-                          );
-                    return Wrap(
-                      runSpacing: 16,
-                      children: [
-                        for (int i = 0; i < stats.length; i++)
-                          SizedBox(
-                            width: constraints.maxWidth / columns,
-                            child: MergeSemantics(
-                              child: Semantics(
-                                button: statActions[i] != null,
-                                child: InkWell(
-                                  onTap: statActions[i],
-                                  borderRadius: BorderRadius.circular(8),
-                                  child: ConstrainedBox(
-                                    constraints: const BoxConstraints(
-                                      minHeight: 48,
+                Wrap(
+                  spacing: 20,
+                  runSpacing: 0,
+                  children: [
+                    for (int i = 0; i < stats.length; i++)
+                      MergeSemantics(
+                        child: Semantics(
+                          button: statActions[i] != null,
+                          child: InkWell(
+                            onTap: statActions[i],
+                            borderRadius: BorderRadius.circular(8),
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(
+                                minHeight: 48,
+                                minWidth: 48,
+                              ),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 12,
+                                ),
+                                child: Wrap(
+                                  spacing: 4,
+                                  crossAxisAlignment: WrapCrossAlignment.center,
+                                  children: [
+                                    Text(
+                                      stats[i].$2,
+                                      style: TextStyle(
+                                        fontSize: 15,
+                                        height: 1.4,
+                                        fontWeight: FontWeight.w700,
+                                        color: colors.baseContent,
+                                      ),
                                     ),
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          stats[i].$2,
-                                          style: TextStyle(
-                                            fontSize: 18,
-                                            height: 1.35,
-                                            fontWeight: FontWeight.w600,
-                                            color: colors.baseContent,
-                                            fontFeatures: const [
-                                              FontFeature.tabularFigures(),
-                                            ],
-                                          ),
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          stats[i].$1,
-                                          style: TextStyle(
-                                            fontSize: 14,
-                                            height: 1.35,
-                                            color: colors.baseContent
-                                                .withValues(alpha: 0.72),
-                                          ),
-                                        ),
-                                      ],
+                                    Text(
+                                      stats[i].$1,
+                                      style: TextStyle(
+                                        fontSize: 15,
+                                        color: colors.iconMuted,
+                                      ),
                                     ),
-                                  ),
+                                  ],
                                 ),
                               ),
                             ),
                           ),
-                      ],
-                    );
-                  },
+                        ),
+                      ),
+                  ],
                 ),
               ],
             ],
@@ -277,27 +249,4 @@ class GfUserCard extends StatelessWidget {
       ],
     );
   }
-}
-
-class _SignatureLine extends CustomPainter {
-  const _SignatureLine(this.color);
-  final Color color;
-  @override
-  void paint(Canvas canvas, Size size) {
-    final path = Path()..moveTo(0, size.height / 2);
-    for (double x = 0; x < size.width; x += 40) {
-      path.cubicTo(x + 10, 0, x + 30, size.height, x + 40, size.height / 2);
-    }
-    canvas.drawPath(
-      path,
-      Paint()
-        ..color = color
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.5
-        ..strokeCap = StrokeCap.round,
-    );
-  }
-
-  @override
-  bool shouldRepaint(_SignatureLine oldDelegate) => oldDelegate.color != color;
 }

@@ -189,6 +189,8 @@ _$UserConnectionPayloadImpl _$$UserConnectionPayloadImplFromJson(
   avatarUrl: json['avatarUrl'] as String,
   bio: json['bio'] as String,
   url: json['url'] as String,
+  isFollowing: json['isFollowing'] as bool?,
+  isSelf: json['isSelf'] as bool? ?? false,
 );
 
 Map<String, dynamic> _$$UserConnectionPayloadImplToJson(
@@ -200,6 +202,8 @@ Map<String, dynamic> _$$UserConnectionPayloadImplToJson(
   'avatarUrl': instance.avatarUrl,
   'bio': instance.bio,
   'url': instance.url,
+  'isFollowing': instance.isFollowing,
+  'isSelf': instance.isSelf,
 };
 
 _$UserProfilePropsImpl _$$UserProfilePropsImplFromJson(

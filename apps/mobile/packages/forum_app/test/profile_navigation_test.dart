@@ -120,10 +120,11 @@ Future<ProviderContainer> _pump(
   TopicRepository? topics,
   bool settle = true,
   double scale = 1,
+  CurrentUser? currentUser,
 }) async {
   final container = ProviderContainer(
     overrides: [
-      currentUserProvider.overrideWith((ref) async => null),
+      currentUserProvider.overrideWith((ref) async => currentUser),
       pageRepositoryProvider.overrideWithValue(repo),
       if (topics != null) topicRepositoryProvider.overrideWithValue(topics),
     ],
@@ -172,6 +173,98 @@ void _select(WidgetTester tester, String label) {
 }
 
 void main() {
+  testWidgets('pending connection mutation is discarded at account boundary', (
+    tester,
+  ) async {
+    final repo = _Profiles();
+    final actions = _FollowActions();
+    final container = await _pump(
+      tester,
+      repo,
+      home: const ProfilePage.connections(userId: 1),
+      topics: actions,
+      currentUser: const CurrentUser(id: 1, username: 'alice'),
+    );
+    await tester.tap(find.widgetWithText(GfFollowButton, '关注'));
+    await tester.pump();
+    container.read(offlineCacheEpochProvider.notifier).invalidate();
+    await tester.pumpAndSettle();
+    actions.pending.complete(true);
+    await tester.pumpAndSettle();
+    expect(find.widgetWithText(GfFollowButton, '关注'), findsOneWidget);
+    expect(
+      tester.widget<GfFollowButton>(find.byType(GfFollowButton)).busy,
+      isFalse,
+    );
+  });
+
+  testWidgets(
+    'connection follow rolls back on failure without opening profile',
+    (tester) async {
+      final repo = _Profiles();
+      final actions = _FollowActions();
+      await _pump(
+        tester,
+        repo,
+        home: const ProfilePage.connections(userId: 1),
+        topics: actions,
+        currentUser: const CurrentUser(id: 1, username: 'alice'),
+      );
+      expect(find.text('@bob'), findsOneWidget);
+      await tester.tap(find.widgetWithText(GfFollowButton, '关注'));
+      await tester.pump();
+      expect(
+        tester.widget<GfFollowButton>(find.byType(GfFollowButton)).busy,
+        isTrue,
+      );
+      actions.pending.completeError(StateError('unavailable'));
+      await tester.pumpAndSettle();
+      expect(find.widgetWithText(GfFollowButton, '关注'), findsOneWidget);
+      expect(
+        tester.widget<GfFollowButton>(find.byType(GfFollowButton)).busy,
+        isFalse,
+      );
+      expect(repo.paths, ['/u/1/following']);
+    },
+  );
+
+  testWidgets(
+    'late connection read cannot undo follow and self has no action',
+    (tester) async {
+      final repo = _Profiles();
+      final actions = _FollowActions();
+      await _pump(
+        tester,
+        repo,
+        home: const ProfilePage.connections(userId: 1),
+        topics: actions,
+        currentUser: const CurrentUser(id: 1, username: 'alice'),
+      );
+      await tester.tap(find.widgetWithText(GfFollowButton, '关注'));
+      await tester.pump();
+      final pending = Completer<PagePayload>();
+      repo.pending['/u/1/following'] = pending;
+      final refresh = tester
+          .widget<AppRefreshIndicator>(find.byType(AppRefreshIndicator))
+          .onRefresh();
+      await tester.pump();
+      actions.pending.complete(true);
+      await tester.pump();
+      pending.complete(repo.response('/u/1/following'));
+      await refresh;
+      await tester.pumpAndSettle();
+      expect(find.widgetWithText(GfFollowButton, '已关注'), findsOneWidget);
+      repo.pending.clear();
+      repo.configure = (_, props) =>
+          (props['following'] as List).first['isSelf'] = true;
+      await tester
+          .widget<AppRefreshIndicator>(find.byType(AppRefreshIndicator))
+          .onRefresh();
+      await tester.pumpAndSettle();
+      expect(find.byType(GfFollowButton), findsNothing);
+    },
+  );
+
   testWidgets(
     'liked content uses its author and bookmarks retain reply floor',
     (tester) async {
@@ -619,7 +712,7 @@ void main() {
         };
       final actions = _FollowActions();
       await _pump(tester, repo, topics: actions);
-      await tester.tap(find.widgetWithText(GfButton, '关注'));
+      await tester.tap(find.widgetWithText(GfFollowButton, '关注'));
       await tester.pump();
       final refresh = Completer<PagePayload>();
       repo.pending['/u/1/activity'] = refresh;
@@ -632,7 +725,7 @@ void main() {
       refresh.complete(repo.response('/u/1/activity'));
       await refreshDone;
       await tester.pumpAndSettle();
-      expect(find.widgetWithText(GfButton, '已关注'), findsOneWidget);
+      expect(find.widgetWithText(GfFollowButton, '已关注'), findsOneWidget);
     },
   );
 }
