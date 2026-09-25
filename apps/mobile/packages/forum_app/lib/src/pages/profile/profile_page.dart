@@ -1,4 +1,5 @@
 import '../../private_notes.dart';
+import '../../navigation/auth_navigation.dart';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -102,6 +103,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   final _connectionFollowing = <int, bool>{};
   final _connectionBusy = <int>{};
   int _connectionEpoch = 0;
+  int _connectionRead = 0;
+  final _connectionRevisions = <int, int>{};
+  final _connectionAcceptedReads = <int, int>{};
   bool _loginRequired = false;
   bool _canAccessAdmin = false;
   bool _canModerate = false;
@@ -136,6 +140,8 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     _streams.clear();
     _connectionFollowing.clear();
     _connectionBusy.clear();
+    _connectionRevisions.clear();
+    _connectionAcceptedReads.clear();
     _connectionEpoch++;
     _headerProps = null;
     _minimumScrollOffset = 0;
@@ -153,6 +159,8 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     final request = ++state.request;
     final epoch = ref.read(offlineCacheEpochProvider);
     final followRevision = _followRevision;
+    final connectionRevisions = Map<int, int>.of(_connectionRevisions);
+    final connectionRead = ++_connectionRead;
     final previous = state.props;
     bool current() =>
         mounted &&
@@ -183,6 +191,24 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       var props = parsePageProps<UserProfileProps>(payload);
       if (props == null) {
         throw FormatException(AppLocalizations.of(context).commonParseFailed);
+      }
+      // Accept only rows actually returned by this read, not retained pages.
+      // Reads started before/during a mutation cannot undo it; a later refresh
+      // can reconcile changes made elsewhere, shared across both retained tabs.
+      final connections = switch (key) {
+        'following' => props.following,
+        'followers' => props.followers,
+        _ => const <UserConnectionPayload>[],
+      };
+      for (final user in connections) {
+        if (user.isFollowing != null &&
+            !_connectionBusy.contains(user.id) &&
+            (connectionRevisions[user.id] ?? 0) ==
+                (_connectionRevisions[user.id] ?? 0) &&
+            connectionRead > (_connectionAcceptedReads[user.id] ?? 0)) {
+          _connectionFollowing[user.id] = user.isFollowing!;
+          _connectionAcceptedReads[user.id] = connectionRead;
+        }
       }
       if (nextUrl != null && previous != null) {
         props = props.copyWith(
@@ -354,7 +380,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   Future<void> _toggleConnection(UserConnectionPayload user) async {
     if (user.isSelf || _connectionBusy.contains(user.id)) return;
     if (ref.read(currentUserProvider).valueOrNull == null) {
-      await context.push('/login');
+      await context.push(
+        authLoginLocation(returnTo: GoRouterState.of(context).uri.toString()),
+      );
       return;
     }
     final previous = _connectionFollowing[user.id] ?? user.isFollowing;
@@ -368,6 +396,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     setState(() {
       _connectionFollowing[user.id] = !previous;
       _connectionBusy.add(user.id);
+      _connectionRevisions[user.id] = (_connectionRevisions[user.id] ?? 0) + 1;
     });
     try {
       await ref
@@ -383,7 +412,13 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
         );
       }
     } finally {
-      if (current()) setState(() => _connectionBusy.remove(user.id));
+      if (current()) {
+        setState(() {
+          _connectionBusy.remove(user.id);
+          _connectionRevisions[user.id] =
+              (_connectionRevisions[user.id] ?? 0) + 1;
+        });
+      }
     }
   }
 

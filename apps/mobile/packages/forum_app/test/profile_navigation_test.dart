@@ -176,6 +176,63 @@ void _select(WidgetTester tester, String label) {
 }
 
 void main() {
+  testWidgets('older tab response cannot overwrite a newer relationship read', (
+    tester,
+  ) async {
+    final repo = _Profiles()
+      ..configure = (path, props) {
+        if (path.endsWith('/followers')) {
+          props['followers'] = [
+            {
+              ...(props['following'] as List).first as Map<String, dynamic>,
+              'isFollowing': true,
+            },
+          ];
+        }
+      };
+    await _pump(tester, repo, home: const ProfilePage.connections(userId: 1));
+    final pending = Completer<PagePayload>();
+    repo.pending['/u/1/following'] = pending;
+    final refresh = tester
+        .widget<AppRefreshIndicator>(find.byType(AppRefreshIndicator))
+        .onRefresh();
+    await tester.pump();
+    _select(tester, '粉丝');
+    await tester.pumpAndSettle();
+    expect(find.widgetWithText(GfFollowButton, '已关注'), findsOneWidget);
+    pending.complete(repo.response('/u/1/following'));
+    await refresh;
+    await tester.pumpAndSettle();
+    _select(tester, '关注');
+    await tester.pumpAndSettle();
+    expect(find.widgetWithText(GfFollowButton, '已关注'), findsOneWidget);
+  });
+
+  testWidgets('post-mutation refresh reconciles external follow changes', (
+    tester,
+  ) async {
+    final repo = _Profiles();
+    final actions = _FollowActions();
+    await _pump(
+      tester,
+      repo,
+      home: const ProfilePage.connections(userId: 1),
+      topics: actions,
+      currentUser: const CurrentUser(id: 1, username: 'alice'),
+    );
+    await tester.tap(find.widgetWithText(GfFollowButton, '关注'));
+    await tester.pump();
+    actions.pending.complete(true);
+    await tester.pumpAndSettle();
+    expect(find.widgetWithText(GfFollowButton, '已关注'), findsOneWidget);
+    // Another device unfollowed after this mutation settled.
+    await tester
+        .widget<AppRefreshIndicator>(find.byType(AppRefreshIndicator))
+        .onRefresh();
+    await tester.pumpAndSettle();
+    expect(find.widgetWithText(GfFollowButton, '关注'), findsOneWidget);
+  });
+
   testWidgets('guest connection action opens login without following', (
     tester,
   ) async {
@@ -199,6 +256,7 @@ void main() {
     await tester.tap(find.widgetWithText(GfFollowButton, '关注'));
     await tester.pumpAndSettle();
     expect(find.text('login-target'), findsOneWidget);
+    expect(router.state.uri.queryParameters['returnTo'], '/u/1/following');
     expect(actions.calls, 0);
   });
 
