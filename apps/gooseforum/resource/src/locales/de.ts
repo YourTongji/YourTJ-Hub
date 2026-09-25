@@ -33,9 +33,11 @@ export default {
   },
   badgeDisplay: {
     title: "Profilabzeichen",
-    hint: "Bis zu 5 Abzeichen auswählen und sortieren oder alle abwählen. Unabhängig vom Avatar-Abzeichen.",
-    up: "Nach oben",
-    down: "Nach unten",
+    hint: "Aktiviere ein Abzeichen per Kontrollkästchen. Ziehe ausgewählte Abzeichen, um sie zu sortieren. Bis zu 5; unabhängig vom Avatar-Abzeichen.",
+    selected: "Angezeigt {count}/5",
+    available: "Zum Hinzufügen verfügbar",
+    empty: "Noch keine Profilabzeichen ausgewählt. Aktiviere unten ein Abzeichen, um es hinzuzufügen.",
+    reorder: "Ziehe {name} oder nutze Alt+Pfeil nach oben/unten zum Sortieren",
     save: "Profilabzeichen speichern"
   },
   tongjiRegistration: {

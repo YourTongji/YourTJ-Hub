@@ -400,5 +400,7 @@ Private-note editing waits for a successful read of the current owner’s notes.
 profile-card badges in an explicit order. Unconfigured profiles retain their first
 five earned badges; saving an empty selection hides the card badges. Only active,
 owned badges can be selected, and revoked or disabled badges disappear from the
-selection. The complete earned-badge collection remains available separately.
+selection. Web settings show each badge once with its enabled checkbox; selected
+badges can be dragged to change their order. The complete earned-badge collection
+remains available separately.
 Avatar badge chips use each badge's preset background in light and dark themes.

@@ -33,9 +33,11 @@ export default {
   },
   badgeDisplay: {
     title: "资料卡展示徽章",
-    hint: "最多选择 5 枚，按下方顺序展示；可全部取消。与头像佩戴徽章独立。",
-    up: "上移",
-    down: "下移",
+    hint: "勾选或取消勾选即可启用或隐藏；拖动已选徽章调整展示顺序。最多展示 5 枚，与头像佩戴徽章独立。",
+    selected: "已展示 {count}/5",
+    available: "可添加",
+    empty: "还没有选择展示徽章。勾选下方徽章即可添加。",
+    reorder: "拖动 {name}，或按 Alt+上/下键调整顺序",
     save: "保存展示徽章"
   },
   tongjiRegistration: {
