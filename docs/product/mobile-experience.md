@@ -162,6 +162,17 @@ ordered after the active route in the accessibility tree so iOS does not hide it
   share a compact footer, wrapping on narrow screens or large text. Reply references use Web's
   subtle background and left rule, an author/avatar/floor header, and a four-line preview with
   expand/collapse controls only when the rendered text overflows.
+- `Current`: profiles use a 3:1 cover (112–200 logical pixels tall), an overlapping avatar,
+  trailing edit/follow/message actions, distinct name and handle, readable bio and inline statistics.
+  Following and follower counts open the corresponding lists. Extra account tools, including course
+  reviews, remain in the profile menu. Profile and connection headers identify the viewed person.
+  Connection rows show a 48-pixel avatar, name, handle and up to three bio lines, with a pill follow
+  action. Narrow layouts and enlarged text move the action below the bio. Follow actions serialize
+  per person, update immediately and roll back on failure; late reads cannot overwrite local actions.
+  Reads started after a settled mutation reconcile remote changes across retained connection tabs.
+  Session changes clear pending relationship state. Self rows and old-server rows without relationship
+  state omit the action; guests are directed to sign-in and return to the viewed list before following,
+  without automatically replaying the action.
 - `Current`: notification entries use a small event glyph (pink heart for likes), the actor's
   avatar, a bold actor name within the localized action, inline time and a muted three-line preview.
   Avatar URLs are resolved in a server batch; likes without a stored preview use the visible reply excerpt.
@@ -762,3 +773,10 @@ revision history use `note(username)` for the current viewer. Notes are fetched 
 core contract and remain only in a session-scoped memory provider; changing account invalidates
 pending responses and never reuses notes from the offline forum cache. Limits and account-erasure
 semantics are defined in [Identity and access](identity-and-access.md#private-user-notes).
+
+`Current`: personal profile topics and activity entries show the current viewer's like and bookmark
+state and allow toggling each action. Topic and reply identifiers are kept separate. Successful
+detail-page actions update all retained profile streams on return without collapsing pagination or
+resetting scroll; pending writes and older reads cannot undo each other. Failed actions roll back,
+a fresh refresh reconciles external changes, and account changes discard personal state. Older
+servers that omit interaction fields retain read-only content previews.

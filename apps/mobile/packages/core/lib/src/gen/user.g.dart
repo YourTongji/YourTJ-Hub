@@ -95,6 +95,9 @@ Map<String, dynamic> _$$ExternalLinkPayloadImplToJson(
 _$UserActivityPayloadImpl _$$UserActivityPayloadImplFromJson(
   Map<String, dynamic> json,
 ) => _$UserActivityPayloadImpl(
+  liked: json['liked'] as bool?,
+  bookmarked: json['bookmarked'] as bool?,
+  likeCount: (json['likeCount'] as num?)?.toInt(),
   id: (json['id'] as num).toInt(),
   action: (json['action'] as num).toInt(),
   subjectType: json['subjectType'] as String,
@@ -108,6 +111,9 @@ _$UserActivityPayloadImpl _$$UserActivityPayloadImplFromJson(
 Map<String, dynamic> _$$UserActivityPayloadImplToJson(
   _$UserActivityPayloadImpl instance,
 ) => <String, dynamic>{
+  'liked': instance.liked,
+  'bookmarked': instance.bookmarked,
+  'likeCount': instance.likeCount,
   'id': instance.id,
   'action': instance.action,
   'subjectType': instance.subjectType,
@@ -189,6 +195,8 @@ _$UserConnectionPayloadImpl _$$UserConnectionPayloadImplFromJson(
   avatarUrl: json['avatarUrl'] as String,
   bio: json['bio'] as String,
   url: json['url'] as String,
+  isFollowing: json['isFollowing'] as bool?,
+  isSelf: json['isSelf'] as bool? ?? false,
 );
 
 Map<String, dynamic> _$$UserConnectionPayloadImplToJson(
@@ -200,6 +208,8 @@ Map<String, dynamic> _$$UserConnectionPayloadImplToJson(
   'avatarUrl': instance.avatarUrl,
   'bio': instance.bio,
   'url': instance.url,
+  'isFollowing': instance.isFollowing,
+  'isSelf': instance.isSelf,
 };
 
 _$UserProfilePropsImpl _$$UserProfilePropsImplFromJson(

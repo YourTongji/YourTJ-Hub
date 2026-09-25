@@ -22,6 +22,56 @@ void main() {
 
   for (final brightness in Brightness.values) {
     testWidgets(
+      'Connections ${brightness.name}',
+      skip: skipGoldens,
+      tags: 'golden',
+      (tester) async {
+        await pumpGfGolden(
+          tester,
+          Column(
+            children: [
+              GfConnectionRow(
+                name: 'Grey Goose',
+                username: 'greygoose',
+                avatarUrl: '',
+                bio: '在同济，记录日常，也分享一点新发现。',
+                action: GfFollowButton(
+                  following: true,
+                  label: '已关注',
+                  onPressed: () {},
+                ),
+              ),
+              GfConnectionRow(
+                name: 'Alice',
+                username: 'alice',
+                avatarUrl: '',
+                bio: 'Building a campus community. 分享校园生活与新想法。',
+                action: GfFollowButton(
+                  following: false,
+                  label: '关注',
+                  onPressed: () {},
+                ),
+              ),
+              const GfConnectionRow(
+                name: 'Bob',
+                username: 'bob',
+                avatarUrl: '',
+                bio: '',
+              ),
+            ],
+          ),
+          brightness: brightness,
+        );
+        await expectLater(
+          find.byType(Scaffold),
+          matchesGoldenFile('golden/gf_connections_${brightness.name}.png'),
+        );
+      },
+    );
+  }
+
+  for (final brightness in Brightness.values) {
+    testWidgets(
       'Content preview ${brightness.name}',
       skip: skipGoldens,
       tags: 'golden',
@@ -97,29 +147,29 @@ void main() {
                   GfSocialIcon('zhihu'),
                 ],
               ),
-              actions: Row(
+              actions: Wrap(
+                alignment: WrapAlignment.end,
                 spacing: 8,
+                runSpacing: 8,
                 children: [
-                  GfButton(
+                  GfFollowButton(
+                    following: true,
                     label: '已关注',
-                    variant: GfButtonVariant.secondary,
-                    icon: const GfSymbol('user-round-check', size: 18),
                     onPressed: () {},
                   ),
-                  GfButton(
-                    label: '新消息',
-                    variant: GfButtonVariant.secondary,
-                    icon: const GfSymbol('mail', size: 18),
+                  IconButton.outlined(
+                    icon: const GfSymbol('mail', size: 20),
+                    tooltip: '新私信',
                     onPressed: () {},
                   ),
                 ],
               ),
               stats: const [
-                ('主题', '24'),
-                ('回复', '108'),
-                ('点赞', '256'),
                 ('关注', '108'),
                 ('粉丝', '13'),
+                ('主题', '24'),
+                ('回复', '108'),
+                ('获赞', '256'),
               ],
             ),
           ),

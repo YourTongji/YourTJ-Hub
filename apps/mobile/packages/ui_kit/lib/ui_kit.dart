@@ -74,3 +74,5 @@ export 'src/components/business/gf_achievement_card.dart';
 export 'src/components/gf_search_field.dart';
 
 export 'src/components/business/gf_content_row.dart';
+
+export 'src/components/business/gf_connection_row.dart';

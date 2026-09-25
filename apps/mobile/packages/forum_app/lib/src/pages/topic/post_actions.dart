@@ -27,11 +27,39 @@ class PostActions extends ConsumerStatefulWidget {
 
 class _PostActionsState extends ConsumerState<PostActions> {
   bool _busy = false;
+  int? _actionEpoch;
   bool get _removed =>
       widget.post.isAuthorDeleted || widget.post.isModeratorRemoved;
+  void _recordState({bool? liked, bool? bookmarked}) {
+    if (!mounted ||
+        (_busy && _actionEpoch != ref.read(offlineCacheEpochProvider))) {
+      return;
+    }
+    final post = widget.post;
+    if (_removed || post.isHidden) return;
+    final states = ref.read(postReturnStatesProvider);
+    final previous = (liked != null || bookmarked != null)
+        ? states[post.id]
+        : null;
+    final oldLiked = previous?.liked ?? post.isLiked;
+    final count = previous?.likeCount ?? post.likeCount;
+    states[post.id] = (
+      liked: liked ?? oldLiked,
+      bookmarked: bookmarked ?? previous?.bookmarked ?? post.isBookmarked,
+      likeCount:
+          count +
+          (liked == null || liked == oldLiked
+              ? 0
+              : liked
+              ? 1
+              : -1),
+    );
+  }
+
   Future<void> _run(Future<void> Function() action) async {
     if (_busy) return;
     final epoch = ref.read(offlineCacheEpochProvider);
+    _actionEpoch = epoch;
     setState(() => _busy = true);
     try {
       await action();
@@ -168,6 +196,7 @@ class _PostActionsState extends ConsumerState<PostActions> {
                             postId: post.id,
                             action: post.isLiked ? 2 : 1,
                           );
+                      _recordState(liked: !post.isLiked);
                     }),
               icon: Icon(
                 post.isLiked ? Icons.favorite : Icons.favorite_border,
@@ -190,6 +219,7 @@ class _PostActionsState extends ConsumerState<PostActions> {
                           postId: post.id,
                           action: post.isBookmarked ? 2 : 1,
                         );
+                    _recordState(bookmarked: !post.isBookmarked);
                   }),
             icon: Icon(
               post.isBookmarked ? Icons.bookmark : Icons.bookmark_border,

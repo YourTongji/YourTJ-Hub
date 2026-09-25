@@ -442,6 +442,10 @@ type UserProfileProps struct {
 }
 
 type UserActivityPayload struct {
+	// Viewer state is absent for guests, unavailable targets and older servers.
+	Liked          *bool  `json:"liked,omitempty"`
+	Bookmarked     *bool  `json:"bookmarked,omitempty"`
+	LikeCount      *int64 `json:"likeCount,omitempty"`
 	ID             uint64 `json:"id"`
 	Action         int    `json:"action"`
 	SubjectType    string `json:"subjectType"`
@@ -1932,7 +1936,7 @@ func buildUserProfileProps(c *gin.Context, user users.EntityComplete, section st
 			if hasNext {
 				topicPage = topicPage[:userProfileTopicPageSize]
 			}
-			topicPayloads = buildTopicPayloads(transform.Topics2Vo(topicPage, hotdataserve.CategoryMap()))
+			topicPayloads = buildTrackedTopicPayloads(currentUserID, transform.Topics2Vo(topicPage, hotdataserve.CategoryMap()))
 			pagination = buildUserActivityTopicPagination(user.Id, topicPage, hasNext)
 		case userProfileActivityLikes:
 			refs, nextCursor := topicUserAction.ListLikedTopicRefsBefore(user.Id, c.Query("cursor"), userProfileTimelinePageSize)
@@ -1949,7 +1953,7 @@ func buildUserProfileProps(c *gin.Context, user users.EntityComplete, section st
 			if hasNext {
 				timeline = timeline[:userProfileTimelinePageSize]
 			}
-			activities = buildUserActivities(timeline)
+			activities = buildUserActivities(timeline, currentUserID)
 			pagination = buildUserActivityTimelinePagination(user.Id, timeline, hasNext)
 		}
 	case userProfileSectionFollowing, userProfileSectionFollowers:
@@ -1977,9 +1981,9 @@ func buildUserProfileProps(c *gin.Context, user users.EntityComplete, section st
 	default:
 		badges = userBadges
 		latestTopics, _ := topics.GetLatestPublishedByUserId(user.Id, 8)
-		topicPayloads = buildTopicPayloads(transform.Topics2Vo(latestTopics, hotdataserve.CategoryMap()))
+		topicPayloads = buildTrackedTopicPayloads(currentUserID, transform.Topics2Vo(latestTopics, hotdataserve.CategoryMap()))
 		timeline, _ := userActivities.GetUserTimeline(user.Id, 0, 5)
-		activities = buildUserActivities(timeline)
+		activities = buildUserActivities(timeline, currentUserID)
 	}
 
 	return UserProfileProps{
@@ -2427,7 +2431,7 @@ func buildPostAnchorURL(topicID, postNo, postID uint64) string {
 	return fmt.Sprintf("/p/post/%d/%d#post-%d", topicID, postNo, postID)
 }
 
-func buildUserActivities(activities []*userActivities.Entity) []UserActivityPayload {
+func buildUserActivities(activities []*userActivities.Entity, viewerID uint64) []UserActivityPayload {
 	res := make([]UserActivityPayload, 0, len(activities))
 	replyByID := userActivityReplyMap(activities)
 	for _, activity := range activities {
@@ -2450,7 +2454,64 @@ func buildUserActivities(activities []*userActivities.Entity) []UserActivityPayl
 			CreatedAt:      activity.CreatedAt.Format(time.RFC3339),
 		})
 	}
+	fillActivityInteractions(res, replyByID, viewerID)
 	return res
+}
+
+// Activity actions describe history; interaction state always belongs to the
+// current viewer and to the actual topic/reply, never to the profile owner.
+func fillActivityInteractions(rows []UserActivityPayload, replies map[uint64]*posts.Entity, viewerID uint64) {
+	if viewerID == 0 {
+		return
+	}
+	topicIDs, postIDs := []uint64{}, []uint64{}
+	for _, row := range rows {
+		if row.Action == int(userActivities.ActionComment) && row.SubjectType == userActivities.SubjectPost {
+			if post := replies[row.SubjectID]; publicPreviewPost(post) {
+				postIDs = append(postIDs, post.Id)
+				topicIDs = append(topicIDs, post.TopicId)
+			}
+		} else if (row.Action == int(userActivities.ActionPost) || row.Action == int(userActivities.ActionLike)) && (row.SubjectType == userActivities.SubjectTopic || row.SubjectType == userActivities.SubjectPost) {
+			topicIDs = append(topicIDs, row.SubjectID)
+		}
+	}
+	visible := publicPreviewTopics(topicIDs)
+	topicStates, err := topicUserAction.GetByTopicIDs(viewerID, topicIDs)
+	if err != nil {
+		slog.Warn("resolve profile interaction state failed", "error", err)
+		return
+	}
+	postStates := postUserAction.GetStateMapByUserAndPostIds(viewerID, postIDs)
+	counts := postUserAction.CountLikesByPostIds(postIDs)
+	for i := range rows {
+		row := &rows[i]
+		var liked, bookmarked bool
+		var count int64
+		if row.Action == int(userActivities.ActionComment) && row.SubjectType == userActivities.SubjectPost {
+			post := replies[row.SubjectID]
+			if !publicPreviewPost(post) || visible[post.TopicId] == nil {
+				continue
+			}
+			state := postStates[post.Id]
+			liked = state.LikedAt != nil
+			bookmarked = state.BookmarkedAt != nil
+			count = int64(counts[post.Id])
+		} else if (row.Action == int(userActivities.ActionPost) || row.Action == int(userActivities.ActionLike)) && (row.SubjectType == userActivities.SubjectTopic || row.SubjectType == userActivities.SubjectPost) {
+			topic := visible[row.SubjectID]
+			if topic == nil {
+				continue
+			}
+			state := topicStates[topic.Id]
+			liked = state.LikedAt != nil
+			bookmarked = state.BookmarkedAt != nil
+			count = int64(topic.LikeCount)
+		} else {
+			continue
+		}
+		row.Liked = &liked
+		row.Bookmarked = &bookmarked
+		row.LikeCount = &count
+	}
 }
 
 func userActivityReplyMap(activities []*userActivities.Entity) map[uint64]*posts.Entity {

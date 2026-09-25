@@ -120,6 +120,39 @@ void main() {
       baseUrl: 'https://example.test',
     ),
   );
+  testWidgets(
+    'reply return handoff preserves both successful interaction fields',
+    (tester) async {
+      final repository = repo();
+      await pump(
+        tester,
+        repository,
+        PostActions(
+          post: post(),
+          onChanged: () async {},
+          onReply: () {},
+          onReport: () {},
+        ),
+      );
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(PostActions)),
+      );
+      await tester.tap(find.byTooltip('Like'));
+      await tester.pumpAndSettle();
+      expect(container.read(postReturnStatesProvider)[42], (
+        liked: true,
+        bookmarked: false,
+        likeCount: 4,
+      ));
+      await tester.tap(find.byTooltip('Bookmark'));
+      await tester.pumpAndSettle();
+      expect(container.read(postReturnStatesProvider)[42], (
+        liked: true,
+        bookmarked: true,
+        likeCount: 4,
+      ));
+    },
+  );
   testWidgets('share platform failure is handled without losing the page', (
     tester,
   ) async {

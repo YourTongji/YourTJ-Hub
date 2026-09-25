@@ -351,6 +351,9 @@ class _HomePageState extends ConsumerState<HomePage> {
   /// _load(silent: true) 的整页重置语义,两条静默路径分开接线。
   Future<void> _refreshAfterReturn(_HomeFeedState feed) async {
     if (!mounted) return;
+    // Replies are only needed by retained profile activity pages. Once back at
+    // the home feed, discard their detail handoff along with the topic handoff.
+    ref.read(postReturnStatesProvider).clear();
     final returnReadRevision = _interactionRevision;
     final epoch = ref.read(offlineCacheEpochProvider);
     final Map<int, TopicReturnState> returned = Map.of(

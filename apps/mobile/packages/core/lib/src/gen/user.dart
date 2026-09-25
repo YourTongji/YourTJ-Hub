@@ -55,6 +55,9 @@ abstract class ExternalLinkPayload with _$ExternalLinkPayload {
 @freezed
 abstract class UserActivityPayload with _$UserActivityPayload {
   const factory UserActivityPayload({
+    bool? liked,
+    bool? bookmarked,
+    int? likeCount,
     required int id,
     required int action,
     required String subjectType,
@@ -115,6 +118,8 @@ abstract class UserConnectionPayload with _$UserConnectionPayload {
     required String avatarUrl,
     required String bio,
     required String url,
+    bool? isFollowing,
+    @Default(false) bool isSelf,
   }) = _UserConnectionPayload;
 
   factory UserConnectionPayload.fromJson(Map<String, dynamic> json) =>

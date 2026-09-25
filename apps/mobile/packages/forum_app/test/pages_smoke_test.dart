@@ -235,7 +235,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Alice'), findsOneWidget);
+    expect(find.text('Alice'), findsNWidgets(2));
     expect(find.text('同济学生'), findsOneWidget);
   });
 

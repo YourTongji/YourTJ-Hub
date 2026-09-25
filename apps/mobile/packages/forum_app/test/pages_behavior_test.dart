@@ -2138,9 +2138,7 @@ void main() {
         app(container, ProfilePage(key: UniqueKey(), userId: 1)),
       );
       await tester.pumpAndSettle();
-      final rows = tester.widgetList<GfContentRow>(
-        find.byType(GfContentRow),
-      );
+      final rows = tester.widgetList<GfContentRow>(find.byType(GfContentRow));
       expect(
         rows.singleWhere((r) => r.text.contains('活动内容')).contextIcon,
         entry.value,
@@ -2203,29 +2201,31 @@ void main() {
     );
     await tester.pumpWidget(app(container, const ProfilePage(userId: 2)));
     await tester.pumpAndSettle();
-    final followed = find.widgetWithText(GfButton, '已关注');
+    final followed = find.widgetWithText(GfFollowButton, '已关注');
     expect(followed, findsOneWidget);
     await tester.tap(followed);
     await tester.pumpAndSettle();
     expect(repo.currentStates, [true]);
-    expect(find.widgetWithText(GfButton, '关注'), findsOneWidget);
+    expect(find.widgetWithText(GfFollowButton, '关注'), findsOneWidget);
     repo.pending = Completer<bool>();
     final retry = tester
-        .widget<GfButton>(find.widgetWithText(GfButton, '关注'))
+        .widget<GfFollowButton>(find.widgetWithText(GfFollowButton, '关注'))
         .onPressed!;
     retry();
     retry();
     await tester.pump();
     expect(repo.currentStates, [true, false]);
     expect(
-      tester.widget<GfButton>(find.widgetWithText(GfButton, '已关注')).loading,
+      tester
+          .widget<GfFollowButton>(find.widgetWithText(GfFollowButton, '已关注'))
+          .busy,
       isTrue,
     );
     repo.pending!.completeError(StateError('follow failed'));
     await tester.pumpAndSettle();
     await tester.pump(const Duration(seconds: 4));
     await tester.pumpAndSettle();
-    expect(find.widgetWithText(GfButton, '关注'), findsOneWidget);
+    expect(find.widgetWithText(GfFollowButton, '关注'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -2271,7 +2271,7 @@ void main() {
       await tester.pumpAndSettle();
       final avatar = tester
           .widgetList<GfAvatar>(find.byType(GfAvatar))
-          .firstWhere((a) => a.size == 80);
+          .firstWhere((a) => a.size == 88);
       expect(avatar.badge, isNotNull);
       expect(
         find.byWidgetPredicate((w) => w is GfSymbol && w.name == 'github'),
@@ -2608,7 +2608,7 @@ void main() {
         addTearDown(router.dispose);
         await tester.pumpWidget(routerApp(container, router));
         await tester.pumpAndSettle();
-        expect(find.text('Alice'), findsOneWidget);
+        expect(find.text('Alice'), findsNWidgets(2));
         await tester.tap(find.byTooltip('更多功能'));
         await tester.pumpAndSettle();
         await tester.tap(find.text('设置').last);
@@ -2617,7 +2617,7 @@ void main() {
         repo.nickname = 'Updated profile';
         router.pop();
         await tester.pumpAndSettle();
-        expect(find.text('Updated profile'), findsOneWidget);
+        expect(find.text('Updated profile'), findsNWidgets(2));
         expect(find.text('Alice'), findsNothing);
       },
     );
@@ -4257,8 +4257,8 @@ void main() {
       await tester.pumpWidget(routerApp(container, router));
       await tester.pumpAndSettle();
 
-      expect(find.text('Bob'), findsOneWidget);
-      await tester.tap(find.text('新私信'));
+      expect(find.text('Bob'), findsNWidgets(2));
+      await tester.tap(find.byTooltip('新私信'));
       await tester.pumpAndSettle();
 
       expect(router.state.uri.path, '/messages');
@@ -4270,7 +4270,7 @@ void main() {
       router.pop();
       await tester.pumpAndSettle();
       expect(router.state.uri.path, '/u/2');
-      expect(find.text('Bob'), findsOneWidget);
+      expect(find.text('Bob'), findsNWidgets(2));
 
       await tester.pumpWidget(const SizedBox.shrink());
     });
@@ -5226,17 +5226,17 @@ void main() {
       await tester.pumpWidget(app(container, const ProfilePage(userId: 2)));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.widgetWithText(GfButton, '关注'));
+      await tester.tap(find.widgetWithText(GfFollowButton, '关注'));
       await tester.pump();
       expect(topicRepo.userIds, <int>[2]);
       expect(topicRepo.currentStates, <bool>[false]);
-      expect(find.widgetWithText(GfButton, '已关注'), findsOneWidget);
+      expect(find.widgetWithText(GfFollowButton, '已关注'), findsOneWidget);
 
-      await tester.tap(find.widgetWithText(GfButton, '已关注'));
+      await tester.tap(find.widgetWithText(GfFollowButton, '已关注'));
       await tester.pump();
       expect(topicRepo.userIds, <int>[2, 2]);
       expect(topicRepo.currentStates, <bool>[false, true]);
-      expect(find.widgetWithText(GfButton, '关注'), findsOneWidget);
+      expect(find.widgetWithText(GfFollowButton, '关注'), findsOneWidget);
     });
   });
 
@@ -5295,7 +5295,7 @@ void main() {
       repo.complete(userProfilePayloadJson());
       await tester.pumpAndSettle();
       expect(find.byType(GfProfileSkeleton), findsNothing);
-      expect(find.text('Alice'), findsOneWidget);
+      expect(find.text('Alice'), findsNWidgets(2));
     });
   });
 
@@ -5911,7 +5911,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(
         find.text('Alice'),
-        findsOneWidget,
+        findsNWidgets(2),
         reason: 'A 的 profile 应显示 Alice',
       );
 
@@ -5930,7 +5930,7 @@ void main() {
       // B 打开 profile:必须用 B 的 id(=2)请求,显示 Bob,而非缓存的 A。
       router.go('/profile');
       await tester.pumpAndSettle();
-      expect(find.text('Bob'), findsOneWidget, reason: 'B 的 profile 应显示 Bob');
+      expect(find.text('Bob'), findsNWidgets(2), reason: 'B 的 profile 应显示 Bob');
       expect(find.text('Alice'), findsNothing, reason: '不得残留 A 的 profile');
 
       await tester.pumpWidget(const SizedBox.shrink());

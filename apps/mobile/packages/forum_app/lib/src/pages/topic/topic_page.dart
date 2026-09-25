@@ -380,6 +380,7 @@ class _TopicPageState extends ConsumerState<TopicPage>
         _likeCount = props.topic.likeCount;
       });
       _recordReturnState();
+      _recordPostReturnStates(props.postStream.posts);
       unawaited(() async {
         if (!mounted ||
             generation != _windowGeneration ||
@@ -495,6 +496,7 @@ class _TopicPageState extends ConsumerState<TopicPage>
           epoch != ref.read(offlineCacheEpochProvider)) {
         return;
       }
+      _recordPostReturnStates(window.posts);
       final ids = _posts.map((post) => post.id).toSet();
       setState(() {
         _posts.addAll(window.posts.where((post) => ids.add(post.id)));
@@ -662,6 +664,24 @@ class _TopicPageState extends ConsumerState<TopicPage>
       replyCount: topic.replyCount,
       viewCount: topic.viewCount,
     );
+  }
+
+  // Only server reads reach this path; offline fallback must not overwrite a
+  // newer activity state when the profile is still retained beneath this page.
+  void _recordPostReturnStates(List<PostPayload> posts) {
+    if (!_viewerAuthenticated) return;
+    final states = ref.read(postReturnStatesProvider);
+    for (final post in posts) {
+      if (post.isHidden || post.isAuthorDeleted || post.isModeratorRemoved) {
+        states.remove(post.id);
+      } else {
+        states[post.id] = (
+          liked: post.isLiked,
+          bookmarked: post.isBookmarked,
+          likeCount: post.likeCount,
+        );
+      }
+    }
   }
 
   Future<void> _toggleWatch() async {
