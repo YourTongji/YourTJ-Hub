@@ -770,7 +770,8 @@ GitHub; AppAuth's Android receiver does not claim it, and no WebView is used for
 
 `Current`: User profiles provide a private-note editor with retry and clear behavior. Names in topic
 lists, replies, profile connections, search, conversations, notifications, mention candidates and
-revision history use `note(username)` for the current viewer. Notes are fetched through the shared
+revision history use `note(display name)` for the current viewer, the display name being the current
+nickname falling back to the username. Notes are fetched through the shared
 core contract and remain only in a session-scoped memory provider; changing account invalidates
 pending responses and never reuses notes from the offline forum cache. Limits and account-erasure
 semantics are defined in [Identity and access](identity-and-access.md#private-user-notes).

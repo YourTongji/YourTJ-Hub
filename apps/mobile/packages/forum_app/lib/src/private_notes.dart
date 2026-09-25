@@ -47,9 +47,14 @@ String privateDisplayName(
   String? nickname,
 ]) {
   final note = PrivateNotesScope.of(context)?.notes[id];
-  return note == null
-      ? (nickname?.isNotEmpty == true ? nickname! : username)
-      : '${note.note}(${username.isEmpty ? note.username : username})';
+  if (note == null) return nickname?.isNotEmpty == true ? nickname! : username;
+
+  final displayName = nickname?.isNotEmpty == true
+      ? nickname!
+      : username.isNotEmpty
+      ? username
+      : note.username;
+  return '${note.note}($displayName)';
 }
 
 class PrivateNotesHost extends ConsumerStatefulWidget {

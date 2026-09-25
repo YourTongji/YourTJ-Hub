@@ -514,7 +514,8 @@ including the owner's 1000-note quota. Account closure deletes notes owned by or
 account in the same transaction as marking the user closed. Private reads obtain current canonical
 usernames from the users domain and exclude closed targets. Public user models/caches do not carry
 viewer notes; Web and native renderers apply a private in-memory overlay without changing saved
-content or identity values. The authenticated `/api/user-notes` and `/api/user-note` operations are
+content or identity values. A noted display name uses the current nickname, falling back to the
+canonical username. The authenticated `/api/user-notes` and `/api/user-note` operations are
 covered by OpenAPI, generated TS, Dart mirrors and route/fixture tests.
 
 ## Native post mentions
