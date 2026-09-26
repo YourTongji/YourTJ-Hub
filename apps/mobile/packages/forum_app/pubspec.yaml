@@ -46,6 +46,9 @@ dependencies:
   file_selector: ^1.1.0
   path_provider: ^2.1.6
   tldts: 0.0.1-beta
+  flutter_native_splash: ^2.4.8
+  flutter_svg: ^2.3.0
+  animated_text_effects: ^0.0.7
 dev_dependencies:
   flutter_secure_storage_platform_interface: ^1.1.2
   shared_preferences_platform_interface: ^2.4.2
@@ -57,9 +60,24 @@ dev_dependencies:
     sdk: flutter
   flutter_lints: ^6.0.0
 
+flutter_native_splash:
+  color: "#F7FBFA"
+  color_dark: "#0B1112"
+  image: assets/splash/brand_mark.png
+  android: true
+  ios: true
+  web: false
+  android_12:
+    color: "#F7FBFA"
+    color_dark: "#0B1112"
+    image: assets/splash/brand_mark_android12.png
+
 flutter:
   generate: true
   uses-material-design: true
   assets:
     - assets/images/brand-default.png
     - assets/launcher/icon.png
+    - assets/splash/brand_mark.png
+    - assets/splash/brand_mark.svg
+    - assets/splash/logo_motion.webp

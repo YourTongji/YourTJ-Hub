@@ -1,6 +1,8 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:forum_app/src/theme_mode.dart';
@@ -12,6 +14,7 @@ class _DelayedPreferences extends InMemorySharedPreferencesStore {
 
   final bool failFirst;
   final firstWrite = Completer<void>();
+  final secondWrite = Completer<void>();
   final started = <Object>[];
 
   @override
@@ -21,13 +24,36 @@ class _DelayedPreferences extends InMemorySharedPreferencesStore {
       await firstWrite.future;
       if (failFirst) throw StateError('Device storage unavailable');
     }
-    return super.setValue(type, key, value);
+    final written = await super.setValue(type, key, value);
+    if (started.length == 2) secondWrite.complete();
+    return written;
   }
 }
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   setUp(() => SharedPreferences.setMockInitialValues({}));
+
+  test('sends the saved Android theme to the system splash screen', () async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.android;
+    const channel = MethodChannel('yourtj/startup');
+    final nativeMode = Completer<String>();
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      nativeMode.complete((call.arguments as Map)['mode'] as String);
+      return true;
+    });
+    addTearDown(() {
+      messenger.setMockMethodCallHandler(channel, null);
+      debugDefaultTargetPlatformOverride = null;
+    });
+
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    container.read(themeModeProvider.notifier).setMode(ThemeMode.dark);
+    expect(await nativeMode.future, 'dark');
+  });
 
   test(
     'a new theme choice wins over asynchronous preference restoration',
@@ -53,7 +79,7 @@ void main() {
       await Future<void>.delayed(Duration.zero);
       final whileFirstPending = List<Object>.of(store.started);
       store.firstWrite.complete();
-      await Future<void>.delayed(Duration.zero);
+      await store.secondWrite.future;
       expect(whileFirstPending, ['dark']);
       expect((await store.getAll())['flutter.theme_mode'], 'system');
       expect(container.read(themeModeProvider), ThemeMode.system);

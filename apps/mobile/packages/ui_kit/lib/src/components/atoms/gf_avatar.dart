@@ -29,6 +29,21 @@ class GfAvatar extends StatelessWidget {
   /// Optional corner badge (e.g. online dot, badge icon).
   final Widget? badge;
 
+  /// Image key shared by visible avatars and their startup prefetch.
+  static ImageProvider<Object>? imageProviderFor(
+    String src, {
+    required double size,
+    required double devicePixelRatio,
+  }) {
+    if (src.isEmpty) return null;
+    return ResizeImage(
+      NetworkImage(src),
+      policy: ResizeImagePolicy.fit,
+      width: (size * devicePixelRatio).round(),
+      height: (size * devicePixelRatio).round(),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final GfColors colors = GfTheme.colorsOf(context);
@@ -63,16 +78,11 @@ class GfAvatar extends StatelessWidget {
       child: Theme(
         data: theme.copyWith(extensions: extensions),
         child: td.TAvatar(
-          image: src.isEmpty
-              ? null
-              : ResizeImage(
-                  NetworkImage(src),
-                  policy: ResizeImagePolicy.fit,
-                  width: (size * MediaQuery.devicePixelRatioOf(context))
-                      .round(),
-                  height: (size * MediaQuery.devicePixelRatioOf(context))
-                      .round(),
-                ),
+          image: imageProviderFor(
+            src,
+            size: size,
+            devicePixelRatio: MediaQuery.devicePixelRatioOf(context),
+          ),
           child: Icon(Icons.person, size: size * 0.6, color: colors.iconMuted),
         ),
       ),

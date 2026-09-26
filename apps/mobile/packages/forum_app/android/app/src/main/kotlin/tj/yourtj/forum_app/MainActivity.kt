@@ -1,12 +1,16 @@
 package tj.yourtj.forum_app
 
+import android.app.UiModeManager
+import android.content.Context
 import android.content.Intent
+import android.content.res.Configuration
 import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import androidx.core.content.FileProvider
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.EventChannel
@@ -14,6 +18,40 @@ import io.flutter.plugin.common.MethodChannel
 import tj.yourtj.forum_app.widget.publishScheduleWidgetPreviews
 import java.io.File
 import java.security.MessageDigest
+
+internal object NativeThemeMode {
+    fun isDark(context: Context): Boolean {
+        val saved = context.getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
+            .getString("flutter.theme_mode", "system")
+        return when (saved) {
+            "dark" -> true
+            "light" -> false
+            else -> systemIsDark(context)
+        }
+    }
+
+    private fun systemIsDark(context: Context): Boolean {
+        val mode = context.getSystemService(UiModeManager::class.java).nightMode
+        return when (mode) {
+            UiModeManager.MODE_NIGHT_YES -> true
+            UiModeManager.MODE_NIGHT_NO -> false
+            else -> context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
+        }
+    }
+
+    fun apply(context: Context, mode: String) {
+        val nativeMode = when (mode) {
+            "dark" -> UiModeManager.MODE_NIGHT_YES
+            "light" -> UiModeManager.MODE_NIGHT_NO
+            // AUTO clears the app override so Android follows the device theme.
+            "system" -> UiModeManager.MODE_NIGHT_AUTO
+            else -> return
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            context.getSystemService(UiModeManager::class.java).setApplicationNightMode(nativeMode)
+        }
+    }
+}
 
 class MainActivity : FlutterActivity() {
     private var oidcEventSink: EventChannel.EventSink? = null
@@ -29,6 +67,8 @@ class MainActivity : FlutterActivity() {
     override fun onCreate(savedInstanceState: android.os.Bundle?) {
         startupLaunchKind = if (hasStartedActivityInProcess) "warm" else "cold"
         hasStartedActivityInProcess = true
+        setTheme(if (NativeThemeMode.isDark(this)) R.style.LaunchThemeDark else R.style.LaunchThemeLight)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) installSplashScreen()
         super.onCreate(savedInstanceState)
     }
 
@@ -39,6 +79,10 @@ class MainActivity : FlutterActivity() {
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "yourtj/startup")
             .setMethodCallHandler { call, result ->
                 when (call.method) {
+                    "setThemeMode" -> {
+                        NativeThemeMode.apply(this, call.argument<String>("mode") ?: "")
+                        result.success(true)
+                    }
                     "getDeviceProfile" -> result.success(
                         mapOf(
                             "device" to "${Build.MANUFACTURER} ${Build.MODEL}".trim(),

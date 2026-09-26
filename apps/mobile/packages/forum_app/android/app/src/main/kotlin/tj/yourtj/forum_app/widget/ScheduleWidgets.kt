@@ -3,6 +3,7 @@ package tj.yourtj.forum_app.widget
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProviderInfo
 import android.content.Context
+import android.content.Intent
 import android.content.res.Configuration
 import android.net.Uri
 import androidx.compose.runtime.Composable
@@ -25,6 +26,7 @@ import androidx.glance.appwidget.GlanceAppWidgetManager.Companion.SET_WIDGET_PRE
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
 import androidx.glance.appwidget.SizeMode
 import androidx.glance.appwidget.action.ActionCallback
+import androidx.glance.appwidget.action.actionStartActivity
 import androidx.glance.appwidget.action.actionRunCallback
 import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.lazy.LazyColumn
@@ -58,8 +60,8 @@ import es.antonborri.home_widget.HomeWidgetGlanceStateDefinition
 import es.antonborri.home_widget.HomeWidgetGlanceWidgetReceiver
 import es.antonborri.home_widget.HomeWidgetPlugin
 import es.antonborri.home_widget.HomeWidgetScheduler
-import es.antonborri.home_widget.actionStartActivity
-import tj.yourtj.forum_app.MainActivity
+import es.antonborri.home_widget.HomeWidgetLaunchIntent
+import tj.yourtj.forum_app.ThemeRouterActivity
 import tj.yourtj.forum_app.R
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -148,7 +150,10 @@ abstract class ScheduleGlanceWidget : GlanceAppWidget() {
                 .background(widgetBackground(context, transparency))
                 .cornerRadius(24.dp)
                 .semantics { contentDescription = description }
-                .clickable(actionStartActivity<MainActivity>(context, uri))
+                .clickable(actionStartActivity(Intent(context, ThemeRouterActivity::class.java).apply {
+                    data = uri
+                    action = HomeWidgetLaunchIntent.HOME_WIDGET_LAUNCH_ACTION
+                }))
         ) {
             Box(
                 modifier = GlanceModifier

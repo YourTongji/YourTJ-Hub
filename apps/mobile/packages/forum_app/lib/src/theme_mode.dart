@@ -1,4 +1,8 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -8,6 +12,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// 应用启动时恢复上次选择。
 class ThemeModeNotifier extends Notifier<ThemeMode> {
   static const String _prefsKey = 'theme_mode';
+  static const MethodChannel _startupChannel = MethodChannel('yourtj/startup');
   int _revision = 0;
   bool _disposed = false;
   Future<void> _writes = Future.value();
@@ -27,10 +32,12 @@ class ThemeModeNotifier extends Notifier<ThemeMode> {
       if (_disposed || revision != _revision) return;
       final String? saved = prefs.getString(_prefsKey);
       if (saved == null) return;
-      state = ThemeMode.values.firstWhere(
-        (m) => m.name == saved,
+      final mode = ThemeMode.values.firstWhere(
+        (mode) => mode.name == saved,
         orElse: () => ThemeMode.system,
       );
+      state = mode;
+      if (mode != ThemeMode.system) unawaited(_syncNativeMode(mode));
     } catch (_) {
       // 无本地存储(如测试环境)时静默保持默认。
     }
@@ -40,8 +47,22 @@ class ThemeModeNotifier extends Notifier<ThemeMode> {
     try {
       final SharedPreferences prefs = await SharedPreferences.getInstance();
       await prefs.setString(_prefsKey, mode.name);
+      await _syncNativeMode(mode);
     } catch (_) {
       // 持久化失败不影响本次会话内的切换。
+    }
+  }
+
+  Future<void> _syncNativeMode(ThemeMode mode) async {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return;
+    try {
+      await _startupChannel.invokeMethod<bool>('setThemeMode', {
+        'mode': mode.name,
+      });
+    } on PlatformException {
+      // Keep the Flutter theme usable if the device rejects native syncing.
+    } on MissingPluginException {
+      // The native bridge is unavailable in widget tests and non-app engines.
     }
   }
 

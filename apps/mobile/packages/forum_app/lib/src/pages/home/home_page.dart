@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:core/core.dart';
 import 'package:ui_kit/ui_kit.dart';
 
+import '../../asset_url.dart';
 import '../../widgets/app_refresh_indicator.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../providers.dart';
@@ -194,6 +195,7 @@ class _HomePageState extends ConsumerState<HomePage> {
   Future<void> _load({bool silent = false, String? sort}) async {
     final feed = _feeds[sort ?? _sort]!;
     if (!mounted) return;
+    final shouldPrecacheAvatars = !feed.page.hasValue;
     final sequence = ++feed.loadSequence;
     final revision = _interactionRevision;
     final epoch = ref.read(offlineCacheEpochProvider);
@@ -230,6 +232,15 @@ class _HomePageState extends ConsumerState<HomePage> {
                       }
                       final cachedProps = parsePageProps<HomeProps>(cached);
                       if (cachedProps == null) return false;
+                      if (shouldPrecacheAvatars) {
+                        await _precacheFirstAvatars(cachedProps.topics);
+                      }
+                      if (networkPageShown ||
+                          !mounted ||
+                          sequence != feed.loadSequence ||
+                          epoch != ref.read(offlineCacheEpochProvider)) {
+                        return false;
+                      }
                       setState(() {
                         feed.page = AsyncValue.data(cachedProps);
                         _navigationProps ??= cachedProps;
@@ -260,6 +271,14 @@ class _HomePageState extends ConsumerState<HomePage> {
       final HomeProps? props = parsePageProps<HomeProps>(payload);
       if (props == null) throw const FormatException('home props');
       networkPageShown = true;
+      if (shouldPrecacheAvatars) {
+        await _precacheFirstAvatars(props.topics);
+      }
+      if (!mounted ||
+          sequence != feed.loadSequence ||
+          epoch != ref.read(offlineCacheEpochProvider)) {
+        return;
+      }
       setState(() {
         feed.page = AsyncValue.data(props);
         _navigationProps = props;
@@ -315,6 +334,35 @@ class _HomePageState extends ConsumerState<HomePage> {
     } finally {
       if (identical(feed.loadCancel, cancel)) feed.loadCancel = null;
     }
+  }
+
+  Future<void> _precacheFirstAvatars(List<TopicPayload> topics) async {
+    if (!mounted || topics.isEmpty) return;
+    final devicePixelRatio = MediaQuery.devicePixelRatioOf(context);
+    final urls = <String>{
+      for (final topic in topics.take(4))
+        if (topic.author.avatarUrl.isNotEmpty)
+          resolveApiAssetUrl(topic.author.avatarUrl),
+    };
+    final providers = <ImageProvider<Object>>[];
+    for (final url in urls) {
+      final provider = GfAvatar.imageProviderFor(
+        url,
+        size: 36,
+        devicePixelRatio: devicePixelRatio,
+      );
+      if (provider != null) providers.add(provider);
+    }
+    if (providers.isEmpty) return;
+
+    await Future.wait<void>(
+      providers.map(
+        (provider) => precacheImage(provider, context, onError: (_, _) {}),
+      ),
+    ).timeout(
+      const Duration(milliseconds: 240),
+      onTimeout: () => const <void>[],
+    );
   }
 
   Future<(int, String)?> _homeCacheScope() async {
@@ -748,7 +796,7 @@ class _HomeToolbar extends ConsumerWidget {
     required this.onFeedModeSelected,
   });
 
-  final HomeProps props;
+  final HomeProps? props;
   final List<CategoryNavPayload> categories;
   final String selected;
   final GfTopicFeedMode feedMode;
@@ -758,9 +806,16 @@ class _HomeToolbar extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     // 选中项:显式 selected 优先;为空时回退到服务端标记的 active tab。
+    final tabs =
+        props?.tabs ??
+        const <TabItemPayload>[
+          TabItemPayload(key: 'latest', url: '', active: true),
+          TabItemPayload(key: 'hot', url: '', active: false),
+          TabItemPayload(key: 'popular', url: '', active: false),
+        ];
     String effective = selected;
     if (effective.isEmpty) {
-      for (final tab in props.tabs) {
+      for (final tab in tabs) {
         if (tab.active) {
           effective = tab.key;
           break;
@@ -789,7 +844,7 @@ class _HomeToolbar extends ConsumerWidget {
                   Expanded(
                     child: GfTabBar(
                       tabs: <GfTab>[
-                        for (final tab in props.tabs)
+                        for (final tab in tabs)
                           GfTab(
                             // 后端 tabs[].label 可能为空(web 端按 key fallback 到
                             // i18n),空 label 会让选中态深色底渲染成黑块,必须兜底。

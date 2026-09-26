@@ -18,6 +18,21 @@ behavioral acceptance rules. Its `Planned` requirements are tracked separately f
 behaviors below; [state and cache boundaries](../architecture/mobile-state-and-cache.md) describe the
 corresponding planned ownership and lifecycle contracts.
 
+## Launch experience
+
+`Current`: Android and iOS show the settled first frame of the animated YourTJ mark immediately in
+the operating system's light or dark appearance. Flutter plays the matching transparent animation
+from that frame and uses the resolved app theme for its brand surface and system bars. The logo
+settles from screen center to 43% screen height; “未济非终，皆有可能” fades in after 450 ms. The
+brand surface exits in a short fade and rise after its one-pass 780 ms logo segment, without waiting
+for network completion; reduced-motion preferences skip the Flutter animation. Session, unread and
+Home feed requests run under the brand surface. The Home shell, bottom navigation and interactive
+latest/following/hot/popular tabs are mounted before server-defined tabs arrive; their selected label
+transitions in place as the brand underline glides to the new tab. The feed shows its skeleton, then
+adopts the server tabs when ready. The first four author avatars are precached with a 240 ms ceiling
+before initial cached or network rows are shown. Remaining rows and images fill in place.
+Technical loading details are not shown.
+
 ## Navigation and reading
 
 `Current`: root layout uses the available window width. Below 600 logical pixels it retains bottom
