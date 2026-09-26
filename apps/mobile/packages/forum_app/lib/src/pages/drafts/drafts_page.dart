@@ -320,7 +320,7 @@ class _DraftsPageState extends ConsumerState<DraftsPage> {
       onTap: _managing ? null : () => _openLocal(draft),
       trailing: IconButton(
         tooltip: l10n.draftDeleteLocal,
-        icon: const Icon(Icons.delete_outline),
+        icon: const GfSymbol('trash-2'),
         onPressed: _managing ? null : () => _delete(draft),
       ),
     );
@@ -408,7 +408,7 @@ class _DraftsPageState extends ConsumerState<DraftsPage> {
                       alignment: AlignmentDirectional.centerEnd,
                       child: TextButton.icon(
                         onPressed: _managing ? null : _undoDelete,
-                        icon: const Icon(Icons.undo),
+                        icon: const GfSymbol('undo-2'),
                         label: Text(l10n.publishUndo),
                       ),
                     ),

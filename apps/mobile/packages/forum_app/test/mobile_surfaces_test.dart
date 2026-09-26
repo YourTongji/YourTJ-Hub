@@ -182,8 +182,14 @@ void main() {
         router.go('/notifications');
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);
+        final emptyStateSymbol = find.descendant(
+          of: find.byType(GfEmpty),
+          matching: find.byWidgetPredicate(
+            (widget) => widget is GfSymbol && widget.name == 'bell',
+          ),
+        );
         expect(
-          tester.getRect(find.byIcon(Icons.notifications_none_rounded)).top,
+          tester.getRect(emptyStateSymbol).top,
           greaterThanOrEqualTo(tester.getRect(find.byType(GfTabBar)).bottom),
         );
         await tester.ensureVisible(find.text(l10n.navHome));

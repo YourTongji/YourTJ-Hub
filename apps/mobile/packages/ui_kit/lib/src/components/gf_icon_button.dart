@@ -1,12 +1,13 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
-import 'package:tdesign_flutter/tdesign_flutter.dart' as td;
 
 import '../theme/gf_theme.dart';
 
 import 'gf_symbol.dart';
 
-/// Icon-only button mirroring web `.gf-icon-button` (components.css):
-/// rounded `gf-radius-field`, `icon-muted` color, hover `base-200`.
+/// Quiet circular action with a minimum 44px target. Native button behavior
+/// keeps focus, keyboard activation and long press independent of the glyph.
 class GfIconButton extends StatelessWidget {
   const GfIconButton({
     super.key,
@@ -35,7 +36,7 @@ class GfIconButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final GfColors colors = GfTheme.colorsOf(context);
-    final GfRadii radii = GfTheme.radiiOf(context);
+    final targetSize = math.max(44.0, size);
     final Color iconColor = onPressed == null
         ? (color ?? colors.iconMuted).withValues(alpha: .38)
         : color ?? colors.iconMuted;
@@ -45,30 +46,33 @@ class GfIconButton extends StatelessWidget {
         : Icon(icon, size: iconSize, color: iconColor);
 
     final Widget button = SizedBox.square(
-      dimension: size,
-      child: td.TButton(
-        size: td.TButtonSize.small,
-        variant: td.TButtonVariant.text,
-        colorScheme: td.TButtonColorScheme.defaultTheme,
-        icon: iconWidget,
+      dimension: targetSize,
+      child: TextButton(
         onPressed: onPressed,
-        onLongPress: onLongPress,
+        onLongPress: onPressed == null ? null : onLongPress,
         style: ButtonStyle(
-          padding: const WidgetStatePropertyAll<EdgeInsetsGeometry>(
-            EdgeInsets.zero,
-          ),
-          minimumSize: WidgetStatePropertyAll<Size>(Size.square(size)),
-          maximumSize: WidgetStatePropertyAll<Size>(Size.square(size)),
-          foregroundColor: WidgetStatePropertyAll<Color>(iconColor),
-          backgroundColor: const WidgetStatePropertyAll<Color>(
-            Colors.transparent,
-          ),
-          shape: WidgetStatePropertyAll<OutlinedBorder>(
-            RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(radii.field),
-            ),
-          ),
+          padding: const WidgetStatePropertyAll(EdgeInsets.zero),
+          minimumSize: WidgetStatePropertyAll(Size.square(targetSize)),
+          maximumSize: WidgetStatePropertyAll(Size.square(targetSize)),
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          visualDensity: VisualDensity.standard,
+          foregroundColor: WidgetStatePropertyAll(iconColor),
+          backgroundColor: const WidgetStatePropertyAll(Colors.transparent),
+          overlayColor: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.focused)) {
+              return colors.primary.withValues(alpha: 0.16);
+            }
+            if (states.contains(WidgetState.pressed)) {
+              return colors.baseContent.withValues(alpha: 0.10);
+            }
+            if (states.contains(WidgetState.hovered)) {
+              return colors.baseContent.withValues(alpha: 0.06);
+            }
+            return Colors.transparent;
+          }),
+          shape: const WidgetStatePropertyAll(CircleBorder()),
         ),
+        child: iconWidget,
       ),
     );
 
@@ -81,7 +85,7 @@ class GfIconButton extends StatelessWidget {
         child: Tooltip(
           excludeFromSemantics: true,
           // Long-press-capable buttons opt out of the Tooltip's long-press
-          // gesture so the surrounding GestureDetector can receive it.
+          // gesture so the native button receives it.
           triggerMode: onLongPress == null
               ? TooltipTriggerMode.longPress
               : TooltipTriggerMode.manual,

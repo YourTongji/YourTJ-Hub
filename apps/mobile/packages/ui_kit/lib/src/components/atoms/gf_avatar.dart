@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:tdesign_flutter/tdesign_flutter.dart' as td;
 
 import '../../theme/gf_theme.dart';
+import '../gf_symbol.dart';
 
 /// Circular user avatar with the sizes used across the web app
 /// (UserAvatar.vue): 24 (sm stack) / 32 (md stack) / 40 (rows, chat) /
@@ -33,21 +33,10 @@ class GfAvatar extends StatelessWidget {
   Widget build(BuildContext context) {
     final GfColors colors = GfTheme.colorsOf(context);
     final GfBorders borders = GfTheme.bordersOf(context);
-    final ThemeData theme = Theme.of(context);
-    final List<ThemeExtension<dynamic>> extensions = theme.extensions.values
-        .toList(growable: true);
-    extensions
-      ..removeWhere(
-        (ThemeExtension<dynamic> item) => item is td.TAvatarThemeData,
-      )
-      ..add(
-        td.TAvatarThemeData(
-          dimension: size,
-          iconSize: size * 0.6,
-          backgroundColor: colors.base200,
-          foregroundColor: colors.iconMuted,
-        ),
-      );
+    final fallback = Center(
+      child: GfSymbol('user-round', size: size * 0.56, color: colors.iconMuted),
+    );
+    final cacheSize = (size * MediaQuery.devicePixelRatioOf(context)).round();
 
     final Widget avatar = Container(
       width: size,
@@ -60,22 +49,18 @@ class GfAvatar extends StatelessWidget {
             : null,
       ),
       clipBehavior: Clip.antiAlias,
-      child: Theme(
-        data: theme.copyWith(extensions: extensions),
-        child: td.TAvatar(
-          image: src.isEmpty
-              ? null
-              : ResizeImage(
-                  NetworkImage(src),
-                  policy: ResizeImagePolicy.fit,
-                  width: (size * MediaQuery.devicePixelRatioOf(context))
-                      .round(),
-                  height: (size * MediaQuery.devicePixelRatioOf(context))
-                      .round(),
-                ),
-          child: Icon(Icons.person, size: size * 0.6, color: colors.iconMuted),
-        ),
-      ),
+      child: src.isEmpty
+          ? fallback
+          : Image.network(
+              src,
+              fit: BoxFit.cover,
+              cacheWidth: cacheSize,
+              cacheHeight: cacheSize,
+              excludeFromSemantics: true,
+              frameBuilder: (_, child, frame, wasSynchronouslyLoaded) =>
+                  wasSynchronouslyLoaded || frame != null ? child : fallback,
+              errorBuilder: (_, _, _) => fallback,
+            ),
     );
 
     if (badge == null) return avatar;

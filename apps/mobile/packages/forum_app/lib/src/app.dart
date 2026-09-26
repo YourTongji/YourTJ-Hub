@@ -14,6 +14,7 @@ import 'theme_mode.dart';
 import 'push/push_service.dart';
 import 'updates/update_host.dart';
 import 'providers.dart';
+import 'widgets/app_system_ui_overlay.dart';
 
 /// yourtj 移动端根应用。
 ///
@@ -49,12 +50,14 @@ class GfApp extends ConsumerWidget {
       darkTheme: gfThemeData(Brightness.dark, overrides: runtime?.dark),
       themeMode: mode,
       routerConfig: appRouter,
-      builder: (context, child) => MobileUpdateHost(
-        key: appUpdateHostKey,
-        navigatorKey: appNavigatorKey,
-        child: SessionOverlayHost(
-          registry: appSessionOverlays,
-          child: PrivateNotesHost(child: child ?? const SizedBox.shrink()),
+      builder: (context, child) => AppSystemUiOverlay(
+        child: MobileUpdateHost(
+          key: appUpdateHostKey,
+          navigatorKey: appNavigatorKey,
+          child: SessionOverlayHost(
+            registry: appSessionOverlays,
+            child: PrivateNotesHost(child: child ?? const SizedBox.shrink()),
+          ),
         ),
       ),
       // The same four languages as Web, resolved without a locale flash on switching.

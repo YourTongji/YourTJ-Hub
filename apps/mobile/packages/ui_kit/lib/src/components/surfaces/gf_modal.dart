@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:tdesign_flutter/tdesign_flutter.dart' as td;
 
 import '../../theme/gf_theme.dart';
 
-/// Modal dialog surface mirroring web `.gf-modal` (motion.css): neutral/40
-/// scrim (via `ColorScheme.scrim`) and base-100 panel with radius box.
-/// [showGfModal] supplies the native dialog route and keyboard avoidance.
+/// Bounded, softly rounded modal content. [showGfModal] owns the single native
+/// dialog route, keyboard avoidance and focus restoration.
 class GfModal extends StatelessWidget {
   const GfModal({
     super.key,
@@ -20,25 +18,19 @@ class GfModal extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final GfColors colors = GfTheme.colorsOf(context);
-    final GfRadii radii = GfTheme.radiiOf(context);
-    final GfBorders borders = GfTheme.bordersOf(context);
-    return td.TDialog(
-      backgroundColor: colors.base100,
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(radii.box),
-        side: BorderSide(color: colors.line, width: borders.width),
+    return Material(
+      color: GfTheme.colorsOf(context).base100,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      clipBehavior: Clip.antiAlias,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: width ?? 560),
+        child: SingleChildScrollView(padding: padding, child: child),
       ),
-      width: width,
-      contentPadding: padding,
-      content: child,
     );
   }
 }
 
-/// Shows [builder]'s widget in a [GfModal] above the keyboard and returns its
-/// dialog result. The builder receives the dialog's safe-area context.
+/// Shows a modal above shell navigation with native safe-area and IME insets.
 Future<T?> showGfModal<T>(
   BuildContext context, {
   required WidgetBuilder builder,
@@ -46,11 +38,10 @@ Future<T?> showGfModal<T>(
 }) {
   return showDialog<T>(
     context: context,
-    // Keep modal layers above the persistent shell chrome for the same reason
-    // as bottom sheets: branch overlays sit below the root shell Scaffold.
     useRootNavigator: true,
     builder: (context) => Dialog(
       backgroundColor: Colors.transparent,
+      surfaceTintColor: Colors.transparent,
       elevation: 0,
       insetPadding: const EdgeInsets.all(16),
       child: GfModal(child: Builder(builder: builder)),

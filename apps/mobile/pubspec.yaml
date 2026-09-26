@@ -12,10 +12,6 @@ dependency_overrides:
   # Keep Runner on iOS 13; the Widget Extension separately requires iOS 14.
   home_widget:
     path: third_party/home_widget
-  # TDesign's adaptation helper pins older picker plugins even though its API is
-  # compatible with the versions already used and verified by forum_app.
-  image_picker: 1.2.3
-  image_picker_android: 0.8.13+19
 melos:
   scripts:
     analyze:

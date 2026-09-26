@@ -3,9 +3,8 @@ import 'package:flutter/services.dart';
 
 import '../../theme/gf_theme.dart';
 
-/// Chat message bubble mirroring web MessagesPage.vue mobile layout:
-/// max-width 88%, own messages right-aligned with a primary fill, others
-/// left-aligned with a base-300 fill; radius box (8), `px-3 py-2`, 14px text.
+/// Rounded chat content bounded by its conversation pane. Native text selection
+/// and rich inline stickers share the same message body.
 class GfMessageBubble extends StatelessWidget {
   const GfMessageBubble({
     super.key,
@@ -17,10 +16,12 @@ class GfMessageBubble extends StatelessWidget {
     this.bubbleKey,
     this.content,
     this.selectable = false,
+    this.showBubble = true,
     this.copyMessageLabel = 'Copy message',
   });
 
-  /// Optional key on the painted bubble, excluding alignment and timestamp.
+  /// Optional key on the message body, excluding alignment and timestamp.
+  /// Retained when [showBubble] is false for context-menu and gesture bounds.
   final GlobalKey? bubbleKey;
 
   final String text;
@@ -37,6 +38,10 @@ class GfMessageBubble extends StatelessWidget {
   final InlineSpan? contentSpan;
   final Widget? content;
   final bool selectable;
+
+  /// Paint and pad the message surface. Standalone stickers can opt out while
+  /// retaining message alignment, width constraints, selection and timestamp.
+  final bool showBubble;
   final String copyMessageLabel;
 
   @override
@@ -44,9 +49,9 @@ class GfMessageBubble extends StatelessWidget {
     final GfColors colors = GfTheme.colorsOf(context);
 
     final TextStyle contentStyle = TextStyle(
-      fontSize: 15,
+      fontSize: 16,
       height: 1.4,
-      color: mine ? colors.primaryContent : colors.baseContent,
+      color: mine && showBubble ? colors.primaryContent : colors.baseContent,
     );
     Widget body = DefaultTextStyle(
       style: contentStyle,
@@ -77,48 +82,52 @@ class GfMessageBubble extends StatelessWidget {
         child: body,
       );
     }
-    final Widget bubble = Container(
-      key: bubbleKey,
-      constraints: BoxConstraints(
-        maxWidth: MediaQuery.sizeOf(context).width * maxWidthFactor,
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: mine ? colors.primary : colors.base300,
-        borderRadius: BorderRadius.circular(8),
-        boxShadow: <BoxShadow>[
-          BoxShadow(
-            color: colors.neutral.withValues(alpha: 0.05),
-            blurRadius: 4,
-            offset: const Offset(0, 1),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final availableWidth = constraints.hasBoundedWidth
+            ? constraints.maxWidth
+            : MediaQuery.sizeOf(context).width;
+        final Widget bubble = Container(
+          key: bubbleKey,
+          constraints: BoxConstraints(
+            maxWidth: availableWidth * maxWidthFactor,
           ),
-        ],
-      ),
-      child: body,
-    );
+          padding: showBubble
+              ? const EdgeInsets.symmetric(horizontal: 14, vertical: 10)
+              : null,
+          decoration: showBubble
+              ? BoxDecoration(
+                  color: mine ? colors.primary : colors.base300,
+                  borderRadius: BorderRadius.circular(20),
+                )
+              : null,
+          child: body,
+        );
 
-    final Widget withTime = time == null
-        ? bubble
-        : Column(
-            crossAxisAlignment: mine
-                ? CrossAxisAlignment.end
-                : CrossAxisAlignment.start,
-            children: <Widget>[
-              bubble,
-              const SizedBox(height: 4),
-              Text(
-                time!,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: colors.baseContent.withValues(alpha: 0.55),
-                ),
-              ),
-            ],
-          );
+        final Widget withTime = time == null
+            ? bubble
+            : Column(
+                crossAxisAlignment: mine
+                    ? CrossAxisAlignment.end
+                    : CrossAxisAlignment.start,
+                children: <Widget>[
+                  bubble,
+                  const SizedBox(height: 4),
+                  Text(
+                    time!,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: colors.baseContent.withValues(alpha: 0.55),
+                    ),
+                  ),
+                ],
+              );
 
-    return Align(
-      alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
-      child: withTime,
+        return Align(
+          alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
+          child: withTime,
+        );
+      },
     );
   }
 }

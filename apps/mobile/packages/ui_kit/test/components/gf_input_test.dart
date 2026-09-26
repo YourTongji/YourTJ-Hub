@@ -6,6 +6,62 @@ import 'package:ui_kit/ui_kit.dart';
 import '../helpers.dart';
 
 void main() {
+  for (final brightness in Brightness.values) {
+    testWidgets('form fields use a quiet rounded surface in $brightness', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        gfApp(const GfInput(labelText: 'Account'), brightness: brightness),
+      );
+      final context = tester.element(find.byType(TextField));
+      final field = tester.widget<TextField>(find.byType(TextField));
+      final decoration = field.decoration!.applyDefaults(
+        Theme.of(context).inputDecorationTheme,
+      );
+      expect(
+        WidgetStateProperty.resolveAs<Color>(decoration.fillColor!, {}),
+        GfTheme.colorsOf(context).base300,
+      );
+      expect(
+        decoration.border!.isOutline,
+        isFalse,
+        reason:
+            'Filled labels stay inside the surface, without a border notch.',
+      );
+      for (final border in [
+        decoration.enabledBorder,
+        decoration.focusedBorder,
+        decoration.errorBorder,
+        decoration.focusedErrorBorder,
+        decoration.disabledBorder,
+      ]) {
+        expect(
+          (border! as UnderlineInputBorder).borderRadius,
+          BorderRadius.circular(16),
+        );
+      }
+      expect(decoration.constraints!.minHeight, greaterThanOrEqualTo(48));
+      await tester.tap(find.byType(TextField));
+      await tester.pumpAndSettle();
+      final surfaces = tester.widgetList<AnimatedContainer>(
+        find.descendant(
+          of: find.byType(GfInput),
+          matching: find.byType(AnimatedContainer),
+        ),
+      );
+      expect(
+        surfaces.where(
+          (surface) =>
+              surface.decoration is BoxDecoration &&
+              ((surface.decoration! as BoxDecoration).boxShadow?.isNotEmpty ??
+                  false),
+        ),
+        isEmpty,
+      );
+      expect(tester.takeException(), isNull);
+    });
+  }
+
   testWidgets('forwards native form properties and input callbacks', (
     tester,
   ) async {

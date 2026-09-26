@@ -368,7 +368,12 @@ void main() {
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
     await tester.tap(
-      find.descendant(of: row, matching: find.byIcon(Icons.delete_outline)),
+      find.descendant(
+        of: row,
+        matching: find.byWidgetPredicate(
+          (widget) => widget is GfSymbol && widget.name == 'trash-2',
+        ),
+      ),
     );
     await tester.pumpAndSettle();
     final l10n = AppLocalizations.of(tester.element(find.byType(AlertDialog)));

@@ -667,7 +667,7 @@ class _CourseCatalogPageState extends ConsumerState<_CourseCatalogContent> {
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 40),
                 child: GfEmpty(
-                  icon: Icons.menu_book_outlined,
+                  symbol: 'book-open',
                   message: _hasActiveFilters
                       ? copy.noFilterResults
                       : copy.catalogEmptyTitle,
@@ -1013,11 +1013,12 @@ class _InstructorPickerSheetState extends State<_InstructorPickerSheet> {
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
             child: GfInput(
               controller: _input,
+              labelText: widget.title,
               hintText: copy.instructorInputHint,
               textInputAction: TextInputAction.done,
               onSubmitted: (_) => _addDraft(),
               suffixIcon: IconButton(
-                icon: const Icon(Icons.add),
+                icon: const GfSymbol('plus', size: 20),
                 tooltip: copy.instructorAdd,
                 onPressed: _addDraft,
               ),
@@ -1063,8 +1064,8 @@ class _InstructorPickerSheetState extends State<_InstructorPickerSheet> {
                                 InkWell(
                                   onTap: () =>
                                       setState(() => _draft.remove(name)),
-                                  child: Icon(
-                                    Icons.close,
+                                  child: GfSymbol(
+                                    'x',
                                     size: 16,
                                     color: colors.iconMuted,
                                   ),

@@ -1,9 +1,9 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:tdesign_flutter/tdesign_flutter.dart';
 
 import '../components/gf_motion.dart';
 import 'gf_colors.dart';
+import 'gf_filled_input_border.dart';
 import 'gf_theme_extensions.dart';
 import 'gf_shadows.dart';
 import 'gf_typography.dart';
@@ -18,7 +18,6 @@ import 'gf_typography.dart';
 ThemeData gfThemeData(Brightness brightness, {GfColors? overrides}) {
   // 运行时覆盖色板（站点主题同步）；缺省用内置 tokens.json 镜像（唯一事实源）。
   final GfColors colors = overrides ?? GfColors.forBrightness(brightness);
-  final ThemeData tdesignTheme = _buildTDesignTheme(colors, brightness);
 
   final ColorScheme colorScheme = ColorScheme(
     brightness: brightness,
@@ -42,41 +41,38 @@ ThemeData gfThemeData(Brightness brightness, {GfColors? overrides}) {
     outline: colors.line,
     outlineVariant: colors.line,
     shadow: colors.neutral,
-    scrim: colors.neutral.withValues(alpha: 0.4),
+    // Neutral is a light foreground in dark mode. A modal must always dim its
+    // background, so its scrim cannot inherit that theme-dependent foreground.
+    scrim: Colors.black.withValues(alpha: 0.4),
     inverseSurface: colors.neutral,
     onInverseSurface: colors.neutralContent,
     inversePrimary: colors.primary,
     surfaceTint: colors.primary,
   );
 
-  const OutlineInputBorder noBorder = OutlineInputBorder(
-    borderSide: BorderSide.none,
-  );
-
+  const inputBorder = GfFilledInputBorder();
   final GfTypography typography = GfTypography.standard(colors.baseContent);
-  final List<ThemeExtension<dynamic>> extensions = tdesignTheme
-      .extensions
-      .values
-      .toList(growable: true);
-  extensions
-    ..removeWhere((ThemeExtension<dynamic> item) => item is TInputThemeData)
-    ..add(const TInputThemeData(showClearButton: false))
-    ..add(GfRadii.standard)
-    ..add(GfBorders.standard)
-    ..add(GfSizes.standard)
-    ..add(GfShadows.standard)
-    ..add(typography);
 
-  return tdesignTheme.copyWith(
+  return ThemeData(
+    useMaterial3: true,
     brightness: brightness,
     colorScheme: colorScheme,
-    // TDesign mobile pages use a quiet page canvas and raised white/black
-    // content surfaces. This also makes rows, cards and dialogs visually
-    // distinct without inventing a second set of brand tokens.
     scaffoldBackgroundColor: colors.base100,
     canvasColor: colors.base100,
     dividerColor: colors.line,
-    extensions: extensions,
+    extensions: <ThemeExtension<dynamic>>[
+      GfRadii.standard,
+      GfBorders.standard,
+      GfSizes.standard,
+      GfShadows.standard,
+      typography,
+    ],
+    iconTheme: IconThemeData(color: colors.baseContent, size: 24),
+    textSelectionTheme: TextSelectionThemeData(
+      cursorColor: colors.primary,
+      selectionColor: colors.primary.withValues(alpha: 0.2),
+      selectionHandleColor: colors.primary,
+    ),
     // Navigation bars keep the web header's flat, strong-title treatment in
     // a mobile-native 56px height.
     appBarTheme: AppBarTheme(
@@ -89,12 +85,11 @@ ThemeData gfThemeData(Brightness brightness, {GfColors? overrides}) {
       toolbarHeight: 56,
       titleTextStyle: TextStyle(
         fontSize: 18,
-        fontWeight: FontWeight.w700,
+        fontWeight: FontWeight.w600,
         color: colors.baseContent,
       ),
     ),
-    // Retain Material fallbacks for third-party or legacy leaf widgets. The
-    // application shell itself is rendered by TDesign-backed Gf wrappers.
+    // Native controls and Gf wrappers share the same application-owned styles.
     floatingActionButtonTheme: FloatingActionButtonThemeData(
       backgroundColor: colors.primary,
       foregroundColor: colors.primaryContent,
@@ -166,13 +161,18 @@ ThemeData gfThemeData(Brightness brightness, {GfColors? overrides}) {
     // Buttons follow gf-button-* semantics (see GfButton).
     filledButtonTheme: FilledButtonThemeData(
       style: ButtonStyle(
-        backgroundColor: WidgetStatePropertyAll(colors.primary),
-        foregroundColor: WidgetStatePropertyAll(colors.primaryContent),
-        shape: WidgetStatePropertyAll(
-          RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(GfRadii.standard.field),
-          ),
+        tapTargetSize: MaterialTapTargetSize.padded,
+        backgroundColor: WidgetStateProperty.resolveWith(
+          (states) => states.contains(WidgetState.disabled)
+              ? colors.base300
+              : colors.primary,
         ),
+        foregroundColor: WidgetStateProperty.resolveWith(
+          (states) => states.contains(WidgetState.disabled)
+              ? colors.baseContent.withValues(alpha: 0.38)
+              : colors.primaryContent,
+        ),
+        shape: WidgetStatePropertyAll(StadiumBorder()),
         textStyle: WidgetStatePropertyAll(
           TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
         ),
@@ -180,43 +180,84 @@ ThemeData gfThemeData(Brightness brightness, {GfColors? overrides}) {
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: ButtonStyle(
-        foregroundColor: WidgetStatePropertyAll(colors.baseContent),
-        side: WidgetStatePropertyAll(
-          BorderSide(color: colors.line, width: GfBorders.standard.width),
+        tapTargetSize: MaterialTapTargetSize.padded,
+        foregroundColor: WidgetStateProperty.resolveWith(
+          (states) => states.contains(WidgetState.disabled)
+              ? colors.baseContent.withValues(alpha: 0.38)
+              : colors.baseContent,
         ),
-        shape: WidgetStatePropertyAll(
-          RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(GfRadii.standard.field),
+        side: WidgetStateProperty.resolveWith(
+          (states) => BorderSide(
+            color: states.contains(WidgetState.disabled)
+                ? colors.line.withValues(alpha: 0.5)
+                : colors.line,
+            width: GfBorders.standard.width,
           ),
         ),
+        shape: WidgetStatePropertyAll(StadiumBorder()),
       ),
     ),
     textButtonTheme: TextButtonThemeData(
       style: ButtonStyle(
-        foregroundColor: WidgetStatePropertyAll(colors.primary),
-        shape: WidgetStatePropertyAll(
-          RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(GfRadii.standard.field),
-          ),
+        tapTargetSize: MaterialTapTargetSize.padded,
+        foregroundColor: WidgetStateProperty.resolveWith(
+          (states) => states.contains(WidgetState.disabled)
+              ? colors.baseContent.withValues(alpha: 0.38)
+              : colors.primary,
         ),
+        shape: WidgetStatePropertyAll(StadiumBorder()),
       ),
     ),
-    // Inputs follow gf-radius-field semantics.
+    // Form fields have a quiet filled silhouette. Every state keeps the same
+    // geometry; only focus and validation add a fine outline, never a glow.
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
-      fillColor: colors.base100,
-      border: noBorder,
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(GfRadii.standard.field),
-        borderSide: BorderSide(
-          color: colors.line,
-          width: GfBorders.standard.width,
+      fillColor: WidgetStateColor.resolveWith(
+        (states) => states.contains(WidgetState.disabled)
+            ? colors.base300.withValues(alpha: 0.55)
+            : colors.base300,
+      ),
+      isDense: true,
+      constraints: const BoxConstraints(minHeight: 52),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      hintStyle: TextStyle(fontSize: 16, color: colors.iconMuted),
+      labelStyle: TextStyle(fontSize: 16, color: colors.iconMuted),
+      floatingLabelStyle: WidgetStateTextStyle.resolveWith(
+        (states) => TextStyle(
+          fontSize: 14,
+          color: states.contains(WidgetState.error)
+              ? colors.error
+              : states.contains(WidgetState.focused)
+              ? colors.primary
+              : colors.iconMuted,
         ),
       ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(GfRadii.standard.field),
+      helperStyle: TextStyle(fontSize: 13, color: colors.iconMuted),
+      errorStyle: TextStyle(fontSize: 13, color: colors.error),
+      helperMaxLines: 3,
+      errorMaxLines: 4,
+      prefixIconColor: colors.iconMuted,
+      suffixIconColor: colors.iconMuted,
+      prefixIconConstraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+      suffixIconConstraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+      border: inputBorder,
+      enabledBorder: inputBorder,
+      disabledBorder: inputBorder,
+      focusedBorder: inputBorder.copyWith(
         borderSide: BorderSide(color: colors.primary, width: 1.5),
       ),
+      errorBorder: inputBorder.copyWith(
+        borderSide: BorderSide(color: colors.error),
+      ),
+      focusedErrorBorder: inputBorder.copyWith(
+        borderSide: BorderSide(color: colors.error, width: 1.5),
+      ),
+    ),
+    checkboxTheme: CheckboxThemeData(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(5)),
+      side: BorderSide(color: colors.iconMuted, width: 1.5),
+      visualDensity: VisualDensity.standard,
+      materialTapTargetSize: MaterialTapTargetSize.padded,
     ),
     chipTheme: ChipThemeData(
       backgroundColor: colors.base300,
@@ -241,20 +282,15 @@ ThemeData gfThemeData(Brightness brightness, {GfColors? overrides}) {
         borderRadius: BorderRadius.circular(GfRadii.standard.box),
       ),
     ),
-    // Dialogs / bottom sheets follow gf-floating-surface semantics.
+    // Floating surfaces have a softer silhouette than compact inline controls.
     dialogTheme: DialogThemeData(
       backgroundColor: colors.base100,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(GfRadii.standard.box),
-        side: BorderSide(color: colors.line, width: GfBorders.standard.width),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
     ),
     bottomSheetTheme: BottomSheetThemeData(
       backgroundColor: colors.base100,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(
-          top: Radius.circular(GfRadii.standard.box),
-        ),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
     ),
     // Popup menus are actions anchored to a trigger. Material's current
@@ -265,7 +301,8 @@ ThemeData gfThemeData(Brightness brightness, {GfColors? overrides}) {
       position: PopupMenuPosition.under,
       color: colors.base100,
       surfaceTintColor: Colors.transparent,
-      textStyle: TextStyle(color: colors.baseContent, fontSize: 14),
+      textStyle: TextStyle(color: colors.baseContent, fontSize: 15),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
     ),
     // Motion mirrors `resource/src/runtime/motion.ts` (see GfMotion):
     // page transitions use the standard 0.22s ease (web page-enter motion).
@@ -277,7 +314,7 @@ ThemeData gfThemeData(Brightness brightness, {GfColors? overrides}) {
         TargetPlatform.iOS: const CupertinoPageTransitionsBuilder(),
       },
     ),
-    splashFactory: InkSparkle.splashFactory,
+    splashFactory: InkRipple.splashFactory,
     textTheme: TextTheme(
       displaySmall: typography.display,
       headlineMedium: typography.title1,
@@ -293,105 +330,4 @@ ThemeData gfThemeData(Brightness brightness, {GfColors? overrides}) {
       labelSmall: typography.label,
     ),
   );
-}
-
-/// Builds TDesign's complete component-extension graph from the authoritative
-/// YourTJ palette. TDesign remains an implementation detail: web-synchronised
-/// Gf tokens own the colours, radii and spacing, while TDesign supplies the
-/// mobile component behaviour and visual grammar.
-ThemeData _buildTDesignTheme(GfColors colors, Brightness brightness) {
-  Color blend(Color foreground, Color background, double opacity) {
-    return Color.alphaBlend(foreground.withValues(alpha: opacity), background);
-  }
-
-  final TThemeData token = TThemeData.defaultData().copyWithTThemeData(
-    'yourtj-${brightness.name}',
-    colorMap: <String, Color>{
-      'brandColor1': blend(colors.primary, colors.base100, 0.08),
-      'brandColor2': blend(colors.primary, colors.base100, 0.14),
-      'brandColor3': blend(colors.primary, colors.base100, 0.28),
-      'brandColor4': blend(colors.primary, colors.base100, 0.45),
-      'brandColor5': blend(colors.primary, colors.base100, 0.70),
-      'brandColor6': colors.primary,
-      'brandColor7': colors.primary,
-      'brandColor8': blend(colors.primary, colors.neutral, 0.82),
-      'brandLightColor': blend(colors.primary, colors.base100, 0.10),
-      'brandFocusColor': blend(colors.primary, colors.base100, 0.16),
-      'brandDisabledColor': blend(colors.primary, colors.base100, 0.30),
-      'brandHoverColor': colors.primary,
-      'brandNormalColor': colors.primary,
-      'brandClickColor': blend(colors.primary, colors.neutral, 0.82),
-      'errorLightColor': blend(colors.error, colors.base100, 0.10),
-      'errorFocusColor': blend(colors.error, colors.base100, 0.16),
-      'errorDisabledColor': blend(colors.error, colors.base100, 0.30),
-      'errorHoverColor': colors.error,
-      'errorNormalColor': colors.error,
-      'errorClickColor': blend(colors.error, colors.neutral, 0.82),
-      'warningLightColor': blend(colors.warning, colors.base100, 0.10),
-      'warningFocusColor': blend(colors.warning, colors.base100, 0.16),
-      'warningDisabledColor': blend(colors.warning, colors.base100, 0.30),
-      'warningHoverColor': colors.warning,
-      'warningNormalColor': colors.warning,
-      'warningClickColor': blend(colors.warning, colors.neutral, 0.82),
-      'successLightColor': blend(colors.success, colors.base100, 0.10),
-      'successFocusColor': blend(colors.success, colors.base100, 0.16),
-      'successDisabledColor': blend(colors.success, colors.base100, 0.30),
-      'successHoverColor': colors.success,
-      'successNormalColor': colors.success,
-      'successClickColor': blend(colors.success, colors.neutral, 0.82),
-      'whiteColor1': colors.base100,
-      'fontGyColor1': colors.baseContent,
-      'fontGyColor2': colors.baseContent.withValues(alpha: 0.72),
-      'fontGyColor3': colors.baseContent.withValues(alpha: 0.48),
-      'fontGyColor4': colors.baseContent.withValues(alpha: 0.32),
-      'fontWhColor1': colors.primaryContent,
-      'fontWhColor2': colors.primaryContent.withValues(alpha: 0.72),
-      'bgColorPage': colors.base200,
-      'bgColorContainer': colors.base100,
-      'bgColorContainerSelect': colors.base100,
-      'bgColorContainerHover': colors.base200,
-      'bgColorContainerActive': colors.base300,
-      'bgColorSecondaryContainer': colors.base200,
-      'bgColorSecondaryContainerHover': colors.base300,
-      'bgColorSecondaryContainerActive': colors.base300,
-      'bgColorComponent': colors.base300,
-      'bgColorComponentHover': blend(colors.baseContent, colors.base300, 0.06),
-      'bgColorComponentActive': blend(colors.baseContent, colors.base300, 0.12),
-      'bgColorComponentDisabled': colors.base200,
-      'componentStrokeColor': colors.line,
-      'componentBorderColor': colors.line,
-      'textColorPrimary': colors.baseContent,
-      'textColorSecondary': colors.baseContent.withValues(alpha: 0.72),
-      'textColorPlaceholder': colors.baseContent.withValues(alpha: 0.48),
-      'textDisabledColor': colors.baseContent.withValues(alpha: 0.32),
-      'textColorAnti': colors.primaryContent,
-      'textColorBrand': colors.primary,
-      'textColorLink': colors.primary,
-    },
-    radiusMap: const <String, double>{
-      'radiusSmall': 4,
-      'radiusDefault': 8,
-      'radiusLarge': 8,
-      'radiusExtraLarge': 12,
-      'radiusRound': 9999,
-      'radiusCircle': 9999,
-    },
-    marginMap: const <String, double>{
-      'spacer4': 4,
-      'spacer8': 8,
-      'spacer12': 12,
-      'spacer16': 16,
-      'spacer24': 24,
-      'spacer32': 32,
-      'spacer40': 40,
-      'spacer48': 48,
-      'spacer64': 64,
-      'spacer96': 96,
-      'spacer160': 160,
-    },
-  );
-
-  return brightness == Brightness.dark
-      ? TThemeBuilder.dark(token)
-      : TThemeBuilder.light(token);
 }

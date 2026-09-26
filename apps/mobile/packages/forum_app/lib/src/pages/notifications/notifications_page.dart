@@ -329,6 +329,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
 
     return RootSurface(
       title: l10n.notificationsTitle,
+      showComposeAction: false,
       actions: <Widget>[
         if (_markingAll)
           SizedBox(
@@ -399,13 +400,25 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                                     bottom: bottom,
                                   ),
                                   child: GfEmpty(
-                                    message: l10n.notificationsEmpty,
-                                    description:
-                                        l10n.notificationsEmptyDescription,
-                                    icon: Icons.notifications_none_rounded,
+                                    message: _filter == 'unread'
+                                        ? l10n.notificationsUnreadEmpty
+                                        : l10n.notificationsEmpty,
+                                    description: _filter == 'unread'
+                                        ? l10n.notificationsUnreadEmptyDescription
+                                        : l10n.notificationsEmptyDescription,
+                                    symbol: 'bell',
                                     action: GfButton(
-                                      label: l10n.navHome,
-                                      onPressed: () => context.go('/'),
+                                      label: _filter == 'unread'
+                                          ? l10n.notificationsAll
+                                          : l10n.navHome,
+                                      onPressed: () {
+                                        if (_filter == 'unread') {
+                                          setState(() => _filter = 'all');
+                                          _load();
+                                        } else {
+                                          context.go('/');
+                                        }
+                                      },
                                     ),
                                   ),
                                 ),

@@ -110,7 +110,7 @@ YOURTJ_TEST_ARTIFACTS=/absolute/path/to/screenshots flutter drive \
 ## 边界
 
 - 后端访问只经 `core` 的 API 客户端/repository;业务状态归本包(Riverpod,`lib/src/providers.dart`)。
-- 不直接依赖 TDesign:`forum_app` 不 import `tdesign_flutter`,组件统一走 `ui_kit` 的 Gf* API。
+- 组件统一走 `ui_kit` 的 Gf* API；原生 `TextFormField` 继承共享填充输入主题，页面不引入第三方组件库默认皮肤。
 - 契约镜像位于 `core/lib/src/gen/*.dart`(见 docs/architecture/contracts-and-data.md)。
 
 ## 原生校园验证

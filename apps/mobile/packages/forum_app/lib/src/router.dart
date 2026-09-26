@@ -341,10 +341,10 @@ class _GfShellState extends ConsumerState<GfShell> with WidgetsBindingObserver {
             GfShellDestination.messages => 'mail',
           },
           selectedSymbol: switch (destination) {
-            GfShellDestination.home => 'house-filled',
-            GfShellDestination.campus => 'graduation-cap-filled',
-            GfShellDestination.notifications => 'bell-filled',
-            GfShellDestination.messages => 'mail-filled',
+            GfShellDestination.home => 'house',
+            GfShellDestination.campus => 'graduation-cap',
+            GfShellDestination.notifications => 'bell',
+            GfShellDestination.messages => 'mail',
           },
           label: destination.label(l10n),
           badge: destination == GfShellDestination.notifications
@@ -549,8 +549,10 @@ final GoRouter appRouter = GoRouter(
     ),
     GoRoute(
       path: '/settings/:section',
-      builder: (_, state) =>
-          SettingsPage(initialSection: state.pathParameters['section']),
+      builder: (_, state) => SettingsPage(
+        initialSection: state.pathParameters['section'],
+        autoEditProfile: state.uri.queryParameters['edit'] == '1',
+      ),
     ),
     GoRoute(
       path: '/my-course-reviews',

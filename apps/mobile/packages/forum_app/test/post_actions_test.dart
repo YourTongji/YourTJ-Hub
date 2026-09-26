@@ -203,7 +203,7 @@ void main() {
           onReport: () {},
         ),
       );
-      await tester.tap(find.byIcon(Icons.favorite_border));
+      await tester.tap(find.byTooltip('Like'));
       await tester.pumpAndSettle();
       await tester.tap(find.byTooltip('Bookmark'));
       await tester.pumpAndSettle();
@@ -270,7 +270,12 @@ void main() {
         onReport: () {},
       ),
     );
-    expect(find.byIcon(Icons.favorite_border), findsNothing);
+    expect(
+      find.byWidgetPredicate(
+        (widget) => widget is GfSymbol && widget.name == 'heart',
+      ),
+      findsNothing,
+    );
     expect(find.byTooltip('Reply'), findsNothing);
     await tester.tap(find.byTooltip('More options'));
     await tester.pumpAndSettle();

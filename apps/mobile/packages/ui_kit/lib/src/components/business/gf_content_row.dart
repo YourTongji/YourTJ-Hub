@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import '../../theme/gf_theme.dart';
 import '../atoms/gf_avatar.dart';
+import '../gf_symbol.dart';
 
-/// A flat content timeline entry. The author belongs to the displayed content,
-/// never to the person who bookmarked/liked it. Missing authors stay anonymous.
+/// A flat preview with one compact identity/action line and an aligned body.
+/// When [contextLabel] is present, [author] identifies the activity actor;
+/// otherwise it identifies the content author. Missing authors stay anonymous.
 class GfContentRow extends StatelessWidget {
   const GfContentRow({
     super.key,
@@ -14,6 +16,7 @@ class GfContentRow extends StatelessWidget {
     this.title = '',
     this.contextLabel = '',
     this.contextIcon,
+    this.contextSymbol,
     this.thumbnailUrl = '',
     this.onTap,
     this.onAuthorTap,
@@ -22,94 +25,108 @@ class GfContentRow extends StatelessWidget {
   final String author, avatarUrl, time, text, title, contextLabel, thumbnailUrl;
   final Widget? footer;
   final IconData? contextIcon;
+  final String? contextSymbol;
   final VoidCallback? onTap, onAuthorTap;
 
   @override
   Widget build(BuildContext context) {
     final colors = GfTheme.colorsOf(context);
-    final muted = TextStyle(fontSize: 13, color: colors.iconMuted);
+    final muted = TextStyle(fontSize: 13, height: 1.4, color: colors.iconMuted);
     return Material(
       color: colors.base100,
       child: InkWell(
         onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          decoration: BoxDecoration(
-            border: Border(bottom: BorderSide(color: colors.line, width: .5)),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (contextLabel.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(left: 56, bottom: 8),
-                  child: Row(
-                    children: [
-                      if (contextIcon != null) ...[
-                        Icon(contextIcon, size: 14, color: colors.iconMuted),
-                        const SizedBox(width: 6),
-                      ],
-                      Expanded(
-                        child: Text(
-                          contextLabel,
-                          style: muted,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              Row(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: EdgeInsets.fromLTRB(16, 12, 16, footer == null ? 12 : 4),
+              child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Semantics(
                     button: onAuthorTap != null,
-                    label: author,
+                    label: onAuthorTap == null ? null : author,
                     child: InkWell(
                       onTap: onAuthorTap,
                       customBorder: const CircleBorder(),
-                      child: GfAvatar(src: avatarUrl, size: 44),
+                      child: SizedBox.square(
+                        dimension: 44,
+                        child: Center(
+                          child: GfAvatar(src: avatarUrl, size: 40),
+                        ),
+                      ),
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 10),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text.rich(
-                          TextSpan(
-                            children: [
-                              if (author.isNotEmpty)
-                                TextSpan(
-                                  text: author,
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w700,
-                                    color: colors.baseContent,
-                                  ),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 2,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            if (author.isNotEmpty)
+                              Text(
+                                author,
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  height: 1.4,
+                                  fontWeight: FontWeight.w700,
+                                  color: colors.baseContent,
                                 ),
-                              if (time.isNotEmpty)
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            if (contextLabel.isNotEmpty)
+                              Text.rich(
                                 TextSpan(
-                                  text:
-                                      '${author.isNotEmpty ? ' · ' : ''}$time',
-                                  style: muted,
+                                  children: [
+                                    if (contextSymbol != null ||
+                                        contextIcon != null)
+                                      WidgetSpan(
+                                        alignment: PlaceholderAlignment.middle,
+                                        child: Padding(
+                                          padding:
+                                              const EdgeInsetsDirectional.only(
+                                                end: 4,
+                                              ),
+                                          child: contextSymbol != null
+                                              ? GfSymbol(
+                                                  contextSymbol!,
+                                                  size: 13,
+                                                  color: colors.iconMuted,
+                                                )
+                                              : Icon(
+                                                  contextIcon,
+                                                  size: 13,
+                                                  color: colors.iconMuted,
+                                                ),
+                                        ),
+                                      ),
+                                    TextSpan(text: contextLabel),
+                                  ],
                                 ),
-                            ],
-                          ),
-                          style: const TextStyle(fontSize: 15),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
+                                style: muted,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            if (time.isNotEmpty) Text(time, style: muted),
+                          ],
                         ),
                         if (title.isNotEmpty)
                           Padding(
-                            padding: const EdgeInsets.only(top: 4),
+                            padding: const EdgeInsets.only(top: 5),
                             child: Text(
                               title,
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
                                 fontSize: 16,
-                                height: 1.35,
+                                height: 1.4,
                                 fontWeight: FontWeight.w600,
                                 color: colors.baseContent,
                               ),
@@ -117,7 +134,7 @@ class GfContentRow extends StatelessWidget {
                           ),
                         if (text.isNotEmpty || thumbnailUrl.isNotEmpty)
                           Padding(
-                            padding: const EdgeInsets.only(top: 4),
+                            padding: const EdgeInsets.only(top: 5),
                             child: Row(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
@@ -127,18 +144,18 @@ class GfContentRow extends StatelessWidget {
                                     maxLines: 3,
                                     overflow: TextOverflow.ellipsis,
                                     style: TextStyle(
-                                      fontSize: 15,
-                                      height: 1.4,
-                                      color: colors.baseContent.withValues(
-                                        alpha: .8,
-                                      ),
+                                      fontSize: 16,
+                                      height: 1.45,
+                                      color: title.isEmpty
+                                          ? colors.baseContent
+                                          : colors.iconMuted,
                                     ),
                                   ),
                                 ),
                                 if (thumbnailUrl.isNotEmpty) ...[
                                   const SizedBox(width: 10),
                                   ClipRRect(
-                                    borderRadius: BorderRadius.circular(10),
+                                    borderRadius: BorderRadius.circular(12),
                                     child: Image.network(
                                       thumbnailUrl,
                                       width: 64,
@@ -159,14 +176,25 @@ class GfContentRow extends StatelessWidget {
                               ],
                             ),
                           ),
-                        ?footer,
+                        if (footer != null)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 2),
+                            child: footer!,
+                          ),
                       ],
                     ),
                   ),
                 ],
               ),
-            ],
-          ),
+            ),
+            Padding(
+              padding: const EdgeInsetsDirectional.only(start: 70, end: 16),
+              child: SizedBox(
+                height: .5,
+                child: ColoredBox(color: colors.line),
+              ),
+            ),
+          ],
         ),
       ),
     );

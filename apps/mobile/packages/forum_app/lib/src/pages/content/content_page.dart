@@ -118,10 +118,17 @@ class _ContentPageState extends ConsumerState<ContentPage> {
           context: context,
           builder: (context) => AlertDialog(
             title: Text(AppLocalizations.of(context).contentPassword),
-            content: TextField(
+            scrollable: true,
+            content: GfInput(
+              labelText: AppLocalizations.of(context).contentPassword,
               onChanged: (value) => enteredPassword = value,
               obscureText: true,
               autofocus: true,
+              autofillHints: const [AutofillHints.password],
+              autocorrect: false,
+              enableSuggestions: false,
+              textInputAction: TextInputAction.done,
+              onSubmitted: (value) => Navigator.pop(context, value),
             ),
             actions: [
               TextButton(

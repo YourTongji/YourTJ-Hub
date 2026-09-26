@@ -11,6 +11,7 @@ import 'package:go_router/go_router.dart';
 import 'package:forum_app/l10n/app_localizations.dart';
 import 'package:forum_app/src/current_user.dart';
 import 'package:forum_app/src/pages/profile/profile_page.dart';
+import 'package:forum_app/src/private_notes.dart';
 import 'package:forum_app/src/providers.dart';
 import 'package:forum_app/src/router.dart';
 import 'package:forum_app/src/widgets/status_views.dart';
@@ -230,29 +231,241 @@ void _select(WidgetTester tester, String label) {
 }
 
 void main() {
-  testWidgets('activity interaction footer fits narrow large-text screens', (
+  testWidgets('immersive cover shares its sliver with the complete avatar', (
     tester,
   ) async {
-    tester.view.physicalSize = const Size(320, 900);
+    tester.view.physicalSize = const Size(390, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
     await _pump(
       tester,
-      _Profiles()..configure = _contentFixture,
-      scale: 2,
-      currentUser: const CurrentUser(id: 1, username: 'alice'),
+      _Profiles(),
+      home: const MediaQuery(
+        data: MediaQueryData(
+          size: Size(390, 900),
+          padding: EdgeInsets.only(top: 47),
+        ),
+        child: ProfilePage(userId: 1),
+      ),
     );
-    await _showContent(tester, GfContentRow);
-    expect(tester.takeException(), isNull);
-    expect(
+    final cover = tester.getRect(find.byKey(const Key('profile-cover-image')));
+    final avatar = tester.getRect(
+      find.byWidgetPredicate((w) => w is GfAvatar && w.size == 88),
+    );
+    expect(cover.top, 0);
+    expect(cover.width, 390);
+    expect(cover.height, GfUserCard.coverHeightFor(390, topInset: 47));
+    expect(avatar.top, cover.bottom - 44);
+    expect(avatar.bottom, cover.bottom + 44);
+    final name = tester.getRect(
       find.descendant(
-        of: find.byType(GfContentRow),
-        matching: find.byIcon(Icons.favorite_border),
+        of: find.byType(GfUserCard),
+        matching: find.text('Alice'),
+      ),
+    );
+    expect(name.top - cover.bottom, 56);
+    expect(name.top - avatar.bottom - 4, 8);
+    expect(
+      find.ancestor(
+        of: find.byWidgetPredicate((w) => w is GfAvatar && w.size == 88),
+        matching: find.byType(SliverAppBar),
       ),
       findsOneWidget,
     );
+    expect(find.byType(GfGlassSurface), findsWidgets);
+    expect(
+      tester
+          .widget<AppRefreshIndicator>(find.byType(AppRefreshIndicator))
+          .edgeOffset,
+      103,
+    );
+    final appBar = tester.widget<AppBar>(find.byType(AppBar));
+    expect(
+      find.descendant(of: find.byWidget(appBar), matching: find.text('Alice')),
+      findsNothing,
+    );
+    expect(tester.takeException(), isNull);
   });
+
+  testWidgets('own profile keeps edit target clear at 320px and 2x text', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(320, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await _pump(
+      tester,
+      _Profiles(),
+      scale: 2,
+      home: Theme(
+        data: gfThemeData(Brightness.light),
+        child: const ProfilePage(userId: 1),
+      ),
+    );
+    final name = tester.getRect(
+      find.descendant(
+        of: find.byType(GfUserCard),
+        matching: find.text('Alice'),
+      ),
+    );
+    final avatar = tester.getRect(
+      find.byWidgetPredicate(
+        (widget) => widget is GfAvatar && widget.size == 88,
+      ),
+    );
+    final edit = tester.getRect(
+      find.descendant(
+        of: find.byType(GfUserCardHeader),
+        matching: find.byType(OutlinedButton),
+      ),
+    );
+    expect(edit.height, greaterThanOrEqualTo(44));
+    expect(name.top, greaterThanOrEqualTo(avatar.bottom + 4 + 8));
+    expect(name.top, greaterThanOrEqualTo(edit.bottom + 4 - .01));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('collapsed profile reveals title with tabs below the toolbar', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await _pump(
+      tester,
+      _Profiles(),
+      home: const MediaQuery(
+        data: MediaQueryData(
+          size: Size(390, 900),
+          padding: EdgeInsets.only(top: 47),
+        ),
+        child: ProfilePage(userId: 1),
+      ),
+    );
+    await tester.drag(find.byType(CustomScrollView), const Offset(0, -650));
+    await tester.pumpAndSettle();
+    expect(
+      find.descendant(of: find.byType(AppBar), matching: find.text('Alice')),
+      findsOneWidget,
+    );
+    expect(find.byType(GfGlassSurface), findsNothing);
+    expect(tester.getRect(find.byTooltip('动态')).top, greaterThanOrEqualTo(103));
+    _select(tester, '徽章');
+    await tester.pumpAndSettle();
+    expect(tester.getRect(find.byTooltip('徽章')).top, greaterThanOrEqualTo(103));
+    expect(tester.takeException(), isNull);
+  });
+
+  for (final following in [false, true]) {
+    testWidgets(
+      'peer profile keeps wrapped actions above identity at 320px and 2x text (following=$following)',
+      (tester) async {
+        tester.view.physicalSize = const Size(320, 1000);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        final repo = _Profiles()
+          ..configure = (_, props) {
+            props.addAll(
+              peerProfilePayloadJson()['props'] as Map<String, dynamic>,
+            );
+            (props['user'] as Map<String, dynamic>)['isFollowing'] = following;
+          };
+        await _pump(
+          tester,
+          repo,
+          scale: 2,
+          currentUser: const CurrentUser(id: 1, username: 'alice'),
+          home: Theme(
+            data: gfThemeData(Brightness.light),
+            child: const PrivateNotesScope(
+              ownerId: 1,
+              notes: {},
+              child: ProfilePage(userId: 2),
+            ),
+          ),
+        );
+        final header = tester.getRect(find.byType(GfUserCardHeader));
+        final name = tester.getRect(
+          find.descendant(
+            of: find.byType(GfUserCard),
+            matching: find.text('Bob'),
+          ),
+        );
+        final l10n = AppLocalizations.of(
+          tester.element(find.byType(ProfilePage)),
+        );
+        final actions = [
+          tester.getRect(find.byType(PrivateNoteButton)),
+          tester.getRect(find.byType(GfFollowButton)),
+          tester.getRect(find.byTooltip(l10n.messagesNew)),
+        ];
+        expect(actions.map((rect) => rect.top).toSet().length, greaterThan(1));
+        for (final action in actions) {
+          expect(action.width, greaterThanOrEqualTo(44));
+          expect(action.height, greaterThanOrEqualTo(44));
+          expect(action.bottom, lessThanOrEqualTo(header.bottom));
+          expect(action.bottom, lessThanOrEqualTo(name.top - 4));
+        }
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
+  for (final (width, scale) in [(390.0, 1.0), (320.0, 2.0)]) {
+    testWidgets(
+      'activity actions align together beneath the body at $width/$scale',
+      (tester) async {
+        tester.view.physicalSize = Size(width, 900);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        await _pump(
+          tester,
+          _Profiles()..configure = _contentFixture,
+          scale: scale,
+          currentUser: const CurrentUser(id: 1, username: 'alice'),
+        );
+        await _showContent(tester, GfContentRow);
+        expect(tester.takeException(), isNull);
+        final row = find.byType(GfContentRow).first;
+        final body = tester.getRect(
+          find.descendant(of: row, matching: find.text('activity-0')),
+        );
+        final like = tester.getRect(
+          find.descendant(of: row, matching: find.byTooltip('点赞')),
+        );
+        final bookmark = tester.getRect(
+          find.descendant(
+            of: row,
+            matching: find.byWidgetPredicate(
+              (widget) => widget is IconButton && widget.tooltip == '收藏',
+            ),
+          ),
+        );
+        expect(like.left, body.left);
+        expect(bookmark.left - like.right, closeTo(8, .01));
+        expect(bookmark.center.dy, like.center.dy);
+        expect(like.top, greaterThanOrEqualTo(body.bottom));
+        for (final target in [like, bookmark]) {
+          expect(target.width, greaterThanOrEqualTo(44));
+          expect(target.height, greaterThanOrEqualTo(44));
+        }
+        expect(like.overlaps(bookmark), isFalse);
+        expect(
+          find.descendant(
+            of: find.byType(GfContentRow),
+            matching: find.byWidgetPredicate(
+              (widget) => widget is GfSymbol && widget.name == 'heart',
+            ),
+          ),
+          findsOneWidget,
+        );
+      },
+    );
+  }
 
   for (final fail in [false, true]) {
     testWidgets(
@@ -379,7 +592,12 @@ void main() {
       await tester.pumpAndSettle();
       final row = find.byType(GfContentRow).first;
       expect(
-        find.descendant(of: row, matching: find.byIcon(Icons.favorite)),
+        find.descendant(
+          of: row,
+          matching: find.byWidgetPredicate(
+            (widget) => widget is GfSymbol && widget.name == 'heart-filled',
+          ),
+        ),
         findsOneWidget,
       );
       expect(
@@ -437,7 +655,9 @@ void main() {
       expect(
         find.descendant(
           of: find.byType(GfContentRow).first,
-          matching: find.byIcon(Icons.favorite),
+          matching: find.byWidgetPredicate(
+            (widget) => widget is GfSymbol && widget.name == 'heart-filled',
+          ),
         ),
         findsOneWidget,
       );

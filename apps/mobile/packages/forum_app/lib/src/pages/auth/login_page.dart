@@ -699,68 +699,72 @@ class _LoginPageState extends ConsumerState<LoginPage>
       canPop: !_authBlocked && !_finishingAuthentication,
       child: Scaffold(
         backgroundColor: colors.base100,
-        body: Stack(
-          fit: StackFit.expand,
-          children: <Widget>[
-            SafeArea(
-              child: Stack(
-                children: <Widget>[
-                  Positioned(
-                    top: 4,
-                    left: 8,
-                    child: GfIconButton(
-                      icon: Icons.arrow_back,
-                      tooltip: l10n.commonBack,
-                      size: 44,
-                      onPressed: _leaveAuth,
+        body: SafeArea(
+          child: Column(
+            children: <Widget>[
+              // Keep navigation outside the form's scroll/hit-test area, even
+              // when an error, large text or the keyboard makes the form tall.
+              SizedBox(
+                height: 52,
+                child: Stack(
+                  children: <Widget>[
+                    Positioned(
+                      top: 4,
+                      left: 8,
+                      child: GfIconButton(
+                        symbol: 'chevron-left',
+                        tooltip: l10n.commonBack,
+                        size: 44,
+                        onPressed: _leaveAuth,
+                      ),
                     ),
-                  ),
-                  Positioned(
-                    top: 4,
-                    right: 56,
-                    child: IconButton(
-                      icon: const GfSymbol('languages'),
-                      tooltip: l10n.settingsAppLanguage,
-                      onPressed: () => showAppLanguagePicker(context),
+                    Positioned(
+                      top: 4,
+                      right: 56,
+                      child: IconButton(
+                        icon: const GfSymbol('languages'),
+                        tooltip: l10n.settingsAppLanguage,
+                        onPressed: () => showAppLanguagePicker(context),
+                      ),
                     ),
-                  ),
-                  Positioned(
-                    top: 4,
-                    right: 8,
-                    child: GfIconButton(
-                      icon: brightness == Brightness.dark
-                          ? Icons.light_mode_outlined
-                          : Icons.dark_mode_outlined,
-                      tooltip: brightness == Brightness.dark
-                          ? l10n.commonUseLightTheme
-                          : l10n.commonUseDarkTheme,
-                      onPressed: () => ref
-                          .read(themeModeProvider.notifier)
-                          .toggleDark(brightness != Brightness.dark),
+                    Positioned(
+                      top: 4,
+                      right: 8,
+                      child: GfIconButton(
+                        symbol: brightness == Brightness.dark ? 'sun' : 'moon',
+                        tooltip: brightness == Brightness.dark
+                            ? l10n.commonUseLightTheme
+                            : l10n.commonUseDarkTheme,
+                        onPressed: () => ref
+                            .read(themeModeProvider.notifier)
+                            .toggleDark(brightness != Brightness.dark),
+                      ),
                     ),
-                  ),
-                  Center(
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.fromLTRB(20, 64, 20, 32),
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 520),
-                        child: GfCard(
-                          showDivider: false,
-                          padding: const EdgeInsets.fromLTRB(4, 16, 4, 24),
-                          child: ListenableBuilder(
-                            listenable: _authController,
-                            builder: (BuildContext context, Widget? child) {
-                              return _buildCardContent(context, l10n, colors);
-                            },
-                          ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: Center(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 520),
+                      child: GfCard(
+                        showDivider: false,
+                        padding: const EdgeInsets.fromLTRB(4, 16, 4, 24),
+                        child: ListenableBuilder(
+                          listenable: _authController,
+                          builder: (BuildContext context, Widget? child) {
+                            return _buildCardContent(context, l10n, colors);
+                          },
                         ),
                       ),
                     ),
                   ),
-                ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -841,7 +845,7 @@ class _LoginPageState extends ConsumerState<LoginPage>
                 labelText: _mode == _AuthMode.login
                     ? l10n.authUsernameOrEmail
                     : l10n.authUsername,
-                prefixIcon: const Icon(Icons.person_outline, size: 20),
+                prefixIcon: const GfSymbol('user-round', size: 20),
               ),
             ),
             const SizedBox(height: 12),
@@ -868,7 +872,7 @@ class _LoginPageState extends ConsumerState<LoginPage>
                       _registration?.allowedDomains.isNotEmpty == true
                   ? l10n.authEmailPrefix
                   : l10n.authEmail,
-              prefixIcon: const Icon(Icons.mail_outline, size: 20),
+              prefixIcon: const GfSymbol('mail', size: 20),
             ),
             if (_mode == _AuthMode.register &&
                 _registration?.allowedDomains.isNotEmpty == true) ...[
@@ -877,6 +881,9 @@ class _LoginPageState extends ConsumerState<LoginPage>
                 key: const Key('register-email-domain'),
                 initialValue: _emailDomain,
                 isExpanded: true,
+                itemHeight: null,
+                borderRadius: BorderRadius.circular(16),
+                icon: const GfSymbol('chevron-down', size: 20),
                 decoration: InputDecoration(labelText: l10n.authEmailDomain),
                 items: _registration!.allowedDomains
                     .map(
@@ -913,7 +920,7 @@ class _LoginPageState extends ConsumerState<LoginPage>
                       ? _completePasswordStage
                       : () => FocusScope.of(context).nextFocus(),
                   labelText: l10n.authPassword,
-                  prefixIcon: const Icon(Icons.lock_outline, size: 20),
+                  prefixIcon: const GfSymbol('key-round', size: 20),
                   onChanged: _onPasswordChanged,
                 ),
               ),
@@ -1031,7 +1038,7 @@ class _LoginPageState extends ConsumerState<LoginPage>
               enableSuggestions: false,
               textInputAction: TextInputAction.done,
               labelText: l10n.authTwoFactorCode,
-              prefixIcon: const Icon(Icons.shield_outlined, size: 20),
+              prefixIcon: const GfSymbol('shield-check', size: 20),
               onSubmitted: (_) => _submit(),
             ),
           ],
@@ -1110,10 +1117,6 @@ class _LoginPageState extends ConsumerState<LoginPage>
             icon: GfSymbol(
               provider == 'tongji' ? 'graduation-cap' : provider,
               size: 22,
-            ),
-            style: OutlinedButton.styleFrom(
-              minimumSize: const Size.fromHeight(48),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
             ),
             label: Text(switch (provider) {
               'tongji' => l10n.loginTongji,

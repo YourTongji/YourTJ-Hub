@@ -3,6 +3,7 @@ import '../../navigation/auth_navigation.dart';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -21,6 +22,7 @@ import '../../server_messages.dart';
 import '../../widgets/status_views.dart';
 import '../../widgets/skeletons.dart';
 import '../../widgets/topic_list.dart';
+import '../../widgets/user_badge.dart';
 
 typedef _ContentKey = (bool, int); // isReply, content ID
 _ContentKey? _activityKey(UserActivityPayload activity) {
@@ -31,31 +33,6 @@ _ContentKey? _activityKey(UserActivityPayload activity) {
     return (false, activity.subjectId);
   }
   return null;
-}
-
-Color _userBadgeColor(UserBadgePayload badge) {
-  const Map<String, Color> colors = <String, Color>{
-    'blue': Color(0xFF1D4ED8),
-    'emerald': Color(0xFF047857),
-    'teal': Color(0xFF0F766E),
-    'sky': Color(0xFF0369A1),
-    'cyan': Color(0xFF0E7490),
-    'rose': Color(0xFFBE123C),
-    'violet': Color(0xFF6D28D9),
-    'purple': Color(0xFF7E22CE),
-    'fuchsia': Color(0xFFA21CAF),
-    'indigo': Color(0xFF4338CA),
-    'amber': Color(0xFFB45309),
-    'orange': Color(0xFFC2410C),
-    'yellow': Color(0xFFA16207),
-    'slate': Color(0xFF334155),
-  };
-  return colors[badge.color] ??
-      (badge.level == 'gold'
-          ? colors['amber']!
-          : badge.level == 'special'
-          ? colors['indigo']!
-          : colors['blue']!);
 }
 
 /// User profile aligned with the web identity card while keeping mobile
@@ -663,6 +640,485 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     if (mounted) await _load();
   }
 
+  Widget _profileTitle(BuildContext context, AppLocalizations l10n) =>
+      _page.valueOrNull == null
+      ? Text(l10n.profileTitle)
+      : Builder(
+          builder: (context) {
+            final user = (_headerProps ?? _page.valueOrNull!).user;
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  privateDisplayName(
+                    context,
+                    user.userId,
+                    user.username,
+                    user.nickname,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                if (MediaQuery.textScalerOf(context).scale(13) <= 18)
+                  Text(
+                    widget.connectionsOnly
+                        ? '@${user.username}'
+                        : '${formatNumber(user.topicCount)} ${l10n.profileTopics}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 13,
+                      height: 1.2,
+                      fontWeight: FontWeight.w400,
+                      color: GfTheme.colorsOf(context).iconMuted,
+                    ),
+                  ),
+              ],
+            );
+          },
+        );
+
+  List<Widget> _profileActions(
+    BuildContext context,
+    AppLocalizations l10n, {
+    bool glass = false,
+  }) =>
+      !widget.connectionsOnly &&
+          (_isShellProfile || _page.valueOrNull?.isOwnProfile == true)
+      ? <Widget>[
+          _profileMenu(context, l10n, glass: glass),
+          if (glass)
+            GfGlassIconButton(
+              symbol: 'bell',
+              tooltip: l10n.notificationsTitle,
+              onPressed: () => context.push('/notifications'),
+            )
+          else
+            GfIconButton(
+              symbol: 'bell',
+              tooltip: l10n.notificationsTitle,
+              onPressed: () => context.push('/notifications'),
+            ),
+        ]
+      : const <Widget>[];
+
+  Widget _profileMenu(
+    BuildContext context,
+    AppLocalizations l10n, {
+    required bool glass,
+  }) {
+    final menu = PopupMenuButton<String>(
+      tooltip: l10n.profileMore,
+      icon: GfSymbol(
+        'ellipsis',
+        color: glass ? Colors.white : GfTheme.colorsOf(context).baseContent,
+      ),
+      useRootNavigator: true,
+      onSelected: _openProfileTool,
+      itemBuilder: (_) => [
+        PopupMenuItem(value: '/drafts', child: Text(l10n.draftsTitle)),
+        PopupMenuItem(
+          value: '/my-course-reviews',
+          child: Text(l10n.myCourseReviewsTitle),
+        ),
+        PopupMenuItem(value: '/my-content', child: Text(l10n.profileContent)),
+        PopupMenuItem(value: '/recycle-bin', child: Text(l10n.profileTrash)),
+        if (_canModerate)
+          PopupMenuItem(
+            value: '/moderation',
+            child: Text(l10n.profileModeration),
+          ),
+        if (_canAccessAdmin)
+          PopupMenuItem(value: '/admin', child: Text(l10n.profileAdmin)),
+        if (_canManageCourses) ...[
+          PopupMenuItem(
+            value: '/moderation/courses',
+            child: Text(l10n.coursesManagement),
+          ),
+          PopupMenuItem(
+            value: '/moderation/course-reviews',
+            child: Text(l10n.coursesReviewModeration),
+          ),
+        ],
+        const PopupMenuDivider(),
+        PopupMenuItem(
+          value: '/settings/account',
+          child: Text(l10n.profileSecurity),
+        ),
+        PopupMenuItem(value: '/settings', child: Text(l10n.settingsTitle)),
+      ],
+    );
+    return glass ? GfGlassSurface(child: menu) : menu;
+  }
+
+  Widget? _profileButtons(UserProfileProps props) {
+    final l10n = AppLocalizations.of(context);
+    final user = props.user;
+    final List<Widget> actions = <Widget>[];
+    if (user.isSelf || props.isOwnProfile) {
+      actions.add(
+        OutlinedButton(
+          style: OutlinedButton.styleFrom(
+            minimumSize: const Size(96, 44),
+            shape: const StadiumBorder(),
+            foregroundColor: GfTheme.colorsOf(context).baseContent,
+            side: BorderSide(color: GfTheme.colorsOf(context).line),
+            textStyle: Theme.of(context).textTheme.labelLarge?.copyWith(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          onPressed: () => _openProfileTool('/settings/profile?edit=1'),
+          child: Text(l10n.settingsEditProfile, textAlign: TextAlign.center),
+        ),
+      );
+    } else {
+      final notes = PrivateNotesScope.of(context);
+      if (notes != null && notes.ownerId > 0 && notes.ownerId != user.userId) {
+        actions.add(
+          PrivateNoteButton(userId: user.userId, username: user.username),
+        );
+      }
+      if (props.canFollow) {
+        actions.add(
+          GfFollowButton(
+            following: _following,
+            label: _following ? l10n.profileFollowing : l10n.profileFollow,
+            busy: _followBusy,
+            onPressed: () => _toggleFollow(user),
+          ),
+        );
+      }
+      if (props.canMessage && props.messageUrl.trim().isNotEmpty) {
+        actions.add(
+          IconButton.outlined(
+            icon: const GfSymbol('mail', size: 20),
+            tooltip: l10n.messagesNew,
+            constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+            onPressed: () => context.push(props.messageUrl),
+          ),
+        );
+      }
+    }
+
+    return actions.isEmpty
+        ? null
+        : Wrap(
+            alignment: WrapAlignment.end,
+            spacing: 8,
+            runSpacing: 8,
+            children: actions,
+          );
+  }
+
+  double _actionBandHeight(
+    BuildContext context,
+    UserProfileProps props,
+    double width,
+  ) {
+    final scaler = MediaQuery.textScalerOf(context);
+    if (props.user.isSelf || props.isOwnProfile) {
+      return GfUserCardHeader.actionHeightFor(scaler);
+    }
+
+    // Match the action Wrap's available width, padding and actual labels before
+    // assigning the sliver extent. A fixed band clips multi-row peer actions.
+    final availableWidth = math.max(
+      1.0,
+      width - GfUserCardHeader.actionPadding.horizontal,
+    );
+    final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
+    final direction = Directionality.of(context);
+    final labelStyle =
+        theme.textTheme.labelLarge ?? const TextStyle(fontSize: 14);
+    final buttons = <Size>[];
+
+    Size measure(
+      String label, {
+      required TextStyle textStyle,
+      required EdgeInsetsGeometry padding,
+      required Size minimumSize,
+      ButtonStyle? themeStyle,
+      double extraWidth = 0,
+    }) {
+      final density = themeStyle?.visualDensity ?? theme.visualDensity;
+      final adjustment = density.baseSizeAdjustment;
+      final insets = padding
+          .add(
+            EdgeInsets.symmetric(
+              horizontal: math.max(0, adjustment.dx),
+              vertical: adjustment.dy,
+            ),
+          )
+          .clamp(EdgeInsets.zero, EdgeInsetsGeometry.infinity)
+          .resolve(direction);
+      final painter =
+          TextPainter(
+            text: TextSpan(
+              text: label,
+              style: MediaQuery.boldTextOf(context)
+                  ? textStyle.merge(
+                      const TextStyle(fontWeight: FontWeight.bold),
+                    )
+                  : textStyle,
+            ),
+            textDirection: direction,
+            textScaler: scaler,
+            locale: Localizations.localeOf(context),
+          )..layout(
+            maxWidth: math.max(
+              1,
+              availableWidth - insets.horizontal - extraWidth,
+            ),
+          );
+      final padded =
+          (themeStyle?.tapTargetSize ?? theme.materialTapTargetSize) ==
+          MaterialTapTargetSize.padded;
+      final size = Size(
+        math
+            .min(
+              availableWidth,
+              math.max(
+                minimumSize.width + adjustment.dx,
+                painter.width + insets.horizontal + extraWidth,
+              ),
+            )
+            .ceilToDouble(),
+        math
+            .max(
+              padded ? 48 + adjustment.dy : 0,
+              math.max(
+                minimumSize.height + adjustment.dy,
+                painter.height + insets.vertical,
+              ),
+            )
+            .ceilToDouble(),
+      );
+      painter.dispose();
+      return size;
+    }
+
+    final notes = PrivateNotesScope.of(context);
+    if (notes != null &&
+        notes.ownerId > 0 &&
+        notes.ownerId != props.user.userId) {
+      final style = TextButtonTheme.of(context).style;
+      final states = <WidgetState>{
+        if (!notes.ready && !notes.failed) WidgetState.disabled,
+      };
+      buttons.add(
+        measure(
+          notes.failed ? l10n.commonRetry : l10n.privateNoteEdit,
+          textStyle: style?.textStyle?.resolve(states) ?? labelStyle,
+          padding:
+              style?.padding?.resolve(states) ??
+              ButtonStyleButton.scaledPadding(
+                theme.useMaterial3
+                    ? const EdgeInsets.symmetric(horizontal: 12, vertical: 8)
+                    : const EdgeInsets.all(8),
+                const EdgeInsets.symmetric(horizontal: 8),
+                const EdgeInsets.symmetric(horizontal: 4),
+                scaler.scale(labelStyle.fontSize ?? 14) / 14,
+              ),
+          minimumSize:
+              style?.minimumSize?.resolve(states) ??
+              Size(64, theme.useMaterial3 ? 40 : 36),
+          themeStyle: style,
+        ),
+      );
+    }
+    if (props.canFollow) {
+      buttons.add(
+        measure(
+          _following ? l10n.profileFollowing : l10n.profileFollow,
+          textStyle: labelStyle.copyWith(
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          minimumSize: const Size(96, 44),
+          themeStyle: OutlinedButtonTheme.of(context).style,
+          extraWidth: _followBusy ? 24 : 0,
+        ),
+      );
+    }
+    if (props.canMessage && props.messageUrl.trim().isNotEmpty) {
+      buttons.add(const Size(48, 48));
+    }
+
+    double rowWidth = 0;
+    double rowHeight = 0;
+    double totalHeight = 0;
+    for (final button in buttons) {
+      if (rowWidth > 0 && rowWidth + 8 + button.width > availableWidth) {
+        totalHeight += rowHeight + 8;
+        rowWidth = 0;
+        rowHeight = 0;
+      }
+      rowWidth += (rowWidth > 0 ? 8 : 0) + button.width;
+      rowHeight = math.max(rowHeight, button.height);
+    }
+    return math.max(
+      GfUserCardHeader.minimumActionHeight,
+      totalHeight + rowHeight + GfUserCardHeader.actionPadding.vertical,
+    );
+  }
+
+  Widget? _wornBadge(UserCardPayload user) => user.wornBadge == null
+      ? null
+      : GfBadgeIcon(
+          url: resolveApiAssetUrl(
+            user.wornBadge!.iconUrl.isEmpty
+                ? '/static/badges/contributor.svg'
+                : user.wornBadge!.iconUrl,
+          ),
+          label: user.wornBadge!.name,
+        );
+
+  Widget _immersiveHeader(
+    BuildContext context,
+    UserProfileProps props,
+  ) => SliverLayoutBuilder(
+    builder: (context, constraints) {
+      final colors = GfTheme.colorsOf(context);
+      final l10n = AppLocalizations.of(context);
+      final topInset = MediaQuery.paddingOf(context).top;
+      final width = constraints.crossAxisExtent;
+      final coverHeight = GfUserCard.coverHeightFor(width, topInset: topInset);
+      bool expanded(BuildContext context) {
+        final settings = context
+            .dependOnInheritedWidgetOfExactType<FlexibleSpaceBarSettings>();
+        return settings == null ||
+            settings.currentExtent > settings.minExtent + 12;
+      }
+
+      final actionHeight = _actionBandHeight(context, props, width);
+      return SliverAppBar(
+        key: const Key('profile-cover-navigation'),
+        pinned: true,
+        expandedHeight: coverHeight + actionHeight - topInset,
+        toolbarHeight: 56,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        backgroundColor: colors.base100,
+        foregroundColor: colors.baseContent,
+        automaticallyImplyLeading: false,
+        titleSpacing: 12,
+        titleTextStyle: TextStyle(
+          color: colors.baseContent,
+          fontSize: 18,
+          fontWeight: FontWeight.w700,
+        ),
+        leadingWidth: 64,
+        leading: Navigator.canPop(context)
+            ? Builder(
+                builder: (context) => Padding(
+                  padding: const EdgeInsetsDirectional.only(
+                    start: 12,
+                    top: 6,
+                    bottom: 6,
+                  ),
+                  child: expanded(context)
+                      ? GfGlassIconButton(
+                          symbol: 'arrow-left',
+                          tooltip: l10n.commonBack,
+                          onPressed: () => Navigator.maybePop(context),
+                        )
+                      : GfIconButton(
+                          symbol: 'arrow-left',
+                          tooltip: l10n.commonBack,
+                          onPressed: () => Navigator.maybePop(context),
+                        ),
+                ),
+              )
+            : null,
+        title: Builder(
+          builder: (context) => expanded(context)
+              ? const SizedBox.shrink()
+              : _profileTitle(context, l10n),
+        ),
+        actions: [
+          Builder(
+            builder: (context) => Padding(
+              padding: const EdgeInsetsDirectional.only(end: 12),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                spacing: 8,
+                children: _profileActions(
+                  context,
+                  l10n,
+                  glass: expanded(context),
+                ),
+              ),
+            ),
+          ),
+        ],
+        flexibleSpace: Builder(
+          builder: (context) {
+            final isExpanded = expanded(context);
+            return AnnotatedRegion<SystemUiOverlayStyle>(
+              value:
+                  isExpanded || Theme.of(context).brightness == Brightness.dark
+                  ? SystemUiOverlayStyle.light
+                  : SystemUiOverlayStyle.dark,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  FlexibleSpaceBar(
+                    collapseMode: CollapseMode.pin,
+                    // Keep the cover, complete avatar and action band in the same
+                    // sliver; a negative overflow into a later sliver is occluded.
+                    background: IgnorePointer(
+                      ignoring: !isExpanded,
+                      child: ExcludeSemantics(
+                        excluding: !isExpanded,
+                        child: GfUserCardHeader(
+                          coverHeight: coverHeight,
+                          actionHeight: actionHeight,
+                          coverUrl: resolveApiAssetUrl(
+                            props.user.profileCoverUrl,
+                          ),
+                          avatarUrl: resolveApiAssetUrl(props.user.avatarUrl),
+                          avatarBadge: _wornBadge(props.user),
+                          actions: _profileButtons(props),
+                        ),
+                      ),
+                    ),
+                  ),
+                  if (isExpanded)
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      top: 0,
+                      height: topInset + 64,
+                      child: const IgnorePointer(
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                Color(0x99000000),
+                                Color(0x88000000),
+                                Colors.transparent,
+                              ],
+                              stops: [0, .6, 1],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            );
+          },
+        ),
+      );
+    },
+  );
+
   @override
   Widget build(BuildContext context) {
     final AppLocalizations l10n = AppLocalizations.of(context);
@@ -672,111 +1128,13 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       _load();
     });
     return Scaffold(
-      appBar: GfAppBar(
-        centerTitle: false,
-        title: _page.valueOrNull == null
-            ? Text(l10n.profileTitle)
-            : Builder(
-                builder: (context) {
-                  final user = (_headerProps ?? _page.valueOrNull!).user;
-                  return Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        privateDisplayName(
-                          context,
-                          user.userId,
-                          user.username,
-                          user.nickname,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      if (MediaQuery.textScalerOf(context).scale(13) <= 18)
-                        Text(
-                          widget.connectionsOnly
-                              ? '@${user.username}'
-                              : '${formatNumber(user.topicCount)} ${l10n.profileTopics}',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 13,
-                            height: 1.2,
-                            fontWeight: FontWeight.w400,
-                            color: GfTheme.colorsOf(context).iconMuted,
-                          ),
-                        ),
-                    ],
-                  );
-                },
-              ),
-        automaticallyImplyLeading: true,
-        actions:
-            !widget.connectionsOnly &&
-                (_isShellProfile || _page.valueOrNull?.isOwnProfile == true)
-            ? <Widget>[
-                PopupMenuButton<String>(
-                  tooltip: l10n.profileMore,
-                  useRootNavigator: true,
-                  onSelected: _openProfileTool,
-                  itemBuilder: (_) => [
-                    PopupMenuItem(
-                      value: '/drafts',
-                      child: Text(l10n.draftsTitle),
-                    ),
-                    PopupMenuItem(
-                      value: '/my-course-reviews',
-                      child: Text(l10n.myCourseReviewsTitle),
-                    ),
-                    PopupMenuItem(
-                      value: '/my-content',
-                      child: Text(l10n.profileContent),
-                    ),
-                    PopupMenuItem(
-                      value: '/recycle-bin',
-                      child: Text(l10n.profileTrash),
-                    ),
-                    if (_canModerate)
-                      PopupMenuItem(
-                        value: '/moderation',
-                        child: Text(l10n.profileModeration),
-                      ),
-                    if (_canAccessAdmin)
-                      PopupMenuItem(
-                        value: '/admin',
-                        child: Text(l10n.profileAdmin),
-                      ),
-                    if (_canManageCourses) ...[
-                      PopupMenuItem(
-                        value: '/moderation/courses',
-                        child: Text(l10n.coursesManagement),
-                      ),
-                      PopupMenuItem(
-                        value: '/moderation/course-reviews',
-                        child: Text(l10n.coursesReviewModeration),
-                      ),
-                    ],
-                    const PopupMenuDivider(),
-                    PopupMenuItem(
-                      value: '/settings/account',
-                      child: Text(l10n.profileSecurity),
-                    ),
-                    PopupMenuItem(
-                      value: '/settings',
-                      child: Text(l10n.settingsTitle),
-                    ),
-                  ],
-                ),
-                GfIconButton(
-                  icon: Icons.notifications_outlined,
-                  tooltip: l10n.notificationsTitle,
-                  size: 44,
-                  onPressed: () => context.push('/notifications'),
-                ),
-              ]
-            : const <Widget>[],
-      ),
+      appBar: !widget.connectionsOnly && _page.valueOrNull != null
+          ? null
+          : GfAppBar(
+              centerTitle: false,
+              title: _profileTitle(context, l10n),
+              actions: _profileActions(context, l10n),
+            ),
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 760),
@@ -801,11 +1159,16 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                 threshold: 360,
                 builder: (BuildContext context, ScrollController controller) {
                   return AppRefreshIndicator(
+                    edgeOffset: widget.connectionsOnly
+                        ? 0
+                        : MediaQuery.paddingOf(context).top + 56,
                     onRefresh: () => _load(),
                     child: CustomScrollView(
                       controller: controller,
                       physics: const AlwaysScrollableScrollPhysics(),
                       slivers: <Widget>[
+                        if (!widget.connectionsOnly)
+                          _immersiveHeader(context, _headerProps ?? props),
                         if (!widget.connectionsOnly)
                           SliverToBoxAdapter(
                             child: _profileCard(_headerProps ?? props),
@@ -833,7 +1196,16 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                                       onChanged: (index) => _selectStream(
                                         tabs[index].key,
                                         controller,
-                                        constraints.precedingScrollExtent,
+                                        math.max(
+                                          0,
+                                          constraints.precedingScrollExtent -
+                                              (widget.connectionsOnly
+                                                  ? 0
+                                                  : MediaQuery.paddingOf(
+                                                          context,
+                                                        ).top +
+                                                        56),
+                                        ),
                                       ),
                                     ),
                                   ),
@@ -923,62 +1295,39 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     if (user.isAdmin) {
       badges['admin'] = GfUserBadge(
         label: l10n.profileRoleAdmin,
-        color: Color(0xFFB45309),
+        color: const Color(0xFFB45309),
+        icon: const GfSymbol(
+          'shield-check',
+          size: 22,
+          color: Color(0xFFB45309),
+        ),
+        description: l10n.profileRoleAdminDescription,
+        onTap: () => showBadgeDetails(
+          context,
+          title: l10n.profileRoleAdmin,
+          description: l10n.profileRoleAdminDescription,
+          color: const Color(0xFFB45309),
+          icon: const GfSymbol(
+            'shield-check',
+            size: 40,
+            color: Color(0xFFB45309),
+          ),
+        ),
       );
     }
 
     for (final badge in (user.displayBadges ?? user.badges.take(5))) {
       badges['earned:${badge.code}'] = GfUserBadge(
         label: badge.name,
-        color: _userBadgeColor(badge),
+        color: userBadgeColor(badge),
+        icon: UserBadgeArtwork(badge, size: 24),
+        description: badge.description,
+        onTap: () => showUserBadgeDetails(context, badge),
       );
     }
-    final List<Widget> actions = <Widget>[];
-    if (user.isSelf || props.isOwnProfile) {
-      actions.add(
-        OutlinedButton(
-          style: OutlinedButton.styleFrom(
-            minimumSize: const Size(96, 44),
-            shape: const StadiumBorder(),
-            foregroundColor: GfTheme.colorsOf(context).baseContent,
-            side: BorderSide(color: GfTheme.colorsOf(context).line),
-            textStyle: Theme.of(context).textTheme.labelLarge?.copyWith(
-              fontSize: 14,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          onPressed: () => _openProfileTool('/settings/profile'),
-          child: Text(l10n.settingsEditProfile, textAlign: TextAlign.center),
-        ),
-      );
-    } else {
-      actions.add(
-        PrivateNoteButton(userId: user.userId, username: user.username),
-      );
-      if (props.canFollow) {
-        actions.add(
-          GfFollowButton(
-            following: _following,
-            label: _following ? l10n.profileFollowing : l10n.profileFollow,
-            busy: _followBusy,
-            onPressed: () => _toggleFollow(user),
-          ),
-        );
-      }
-      if (props.canMessage && props.messageUrl.trim().isNotEmpty) {
-        actions.add(
-          IconButton.outlined(
-            icon: const GfSymbol('mail', size: 20),
-            tooltip: l10n.messagesNew,
-            constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
-            onPressed: () => context.push(props.messageUrl),
-          ),
-        );
-      }
-    }
-
     final links = publicProfileLinks(user);
     return GfUserCard(
+      showHeader: false,
       coverUrl: resolveApiAssetUrl(user.profileCoverUrl),
       avatarUrl: resolveApiAssetUrl(user.avatarUrl),
       avatarBadge: user.wornBadge == null
@@ -1007,34 +1356,40 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
               runSpacing: 4,
               children: [
                 for (final (label, uri, provider) in links)
-                  TextButton.icon(
-                    style: TextButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                  MergeSemantics(
+                    child: Semantics(
+                      label: label,
+                      button: true,
+                      child: Tooltip(
+                        message: label,
+                        excludeFromSemantics: true,
+                        child: IconButton(
+                          constraints: const BoxConstraints(
+                            minWidth: 44,
+                            minHeight: 44,
+                          ),
+                          icon: GfSocialIcon(provider, size: 20),
+                          onPressed: () async {
+                            try {
+                              if (!await launchUrl(
+                                uri,
+                                mode: LaunchMode.externalApplication,
+                              )) {
+                                throw StateError('Could not open profile link');
+                              }
+                            } catch (error) {
+                              if (mounted) {
+                                showGfToast(
+                                  context,
+                                  resolveErrorMessage(l10n, error),
+                                  error: true,
+                                );
+                              }
+                            }
+                          },
+                        ),
+                      ),
                     ),
-                    icon: GfSocialIcon(provider, size: 20),
-                    label: Text(
-                      label,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    onPressed: () async {
-                      try {
-                        if (!await launchUrl(
-                          uri,
-                          mode: LaunchMode.externalApplication,
-                        )) {
-                          throw StateError('Could not open profile link');
-                        }
-                      } catch (error) {
-                        if (mounted) {
-                          showGfToast(
-                            context,
-                            resolveErrorMessage(l10n, error),
-                            error: true,
-                          );
-                        }
-                      }
-                    },
                   ),
               ],
             ),
@@ -1050,14 +1405,6 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
         0: () => context.push('/u/${user.userId}/following'),
         1: () => context.push('/u/${user.userId}/followers'),
       },
-      actions: actions.isEmpty
-          ? null
-          : Wrap(
-              alignment: WrapAlignment.end,
-              spacing: 8,
-              runSpacing: 8,
-              children: actions,
-            ),
     );
   }
 }
@@ -1085,7 +1432,7 @@ class _ProfileErrorBody extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12),
             child: GfButton(
-              icon: const Icon(Icons.login, size: 18),
+              icon: const GfSymbol('user-round', size: 18),
               label: l10n.loginModeLogin,
               onPressed: () => context.push('/login'),
             ),
@@ -1236,28 +1583,8 @@ class _ProfileBody extends StatelessWidget {
     return switch (selectedKey) {
       'badges' =>
         props.badges.isEmpty
-            ? _empty(Icons.workspace_premium_outlined, l10n.profileNoBadges)
-            : SliverPadding(
-                padding: const EdgeInsets.all(16),
-                sliver: SliverList.separated(
-                  itemCount: props.badges.length,
-                  separatorBuilder: (_, _) => const SizedBox(height: 10),
-                  itemBuilder: (_, index) {
-                    final badge = props.badges[index];
-                    return GfAchievementCard(
-                      title: badge.name,
-                      description: badge.description,
-                      color: _userBadgeColor(badge),
-                      icon: GfBadgeIcon(
-                        url: resolveApiAssetUrl(badge.iconUrl),
-                        label: badge.name,
-                        framed: false,
-                        size: 28,
-                      ),
-                    );
-                  },
-                ),
-              ),
+            ? _empty('award', l10n.profileNoBadges)
+            : _badgeGallery(context),
       'topics' => _topicRows(context, l10n),
       'likes' => _likeRows(context, l10n),
       'bookmarks' => _bookmarkRows(context, l10n),
@@ -1275,15 +1602,61 @@ class _ProfileBody extends StatelessWidget {
     };
   }
 
-  Widget _empty(IconData icon, String message) {
+  Widget _badgeGallery(BuildContext context) => SliverLayoutBuilder(
+    builder: (context, constraints) {
+      final width = constraints.crossAxisExtent - 32;
+      final textScale = MediaQuery.textScalerOf(context).scale(14) / 14;
+      final columns = ((width + 12) / (148 * textScale + 12)).floor().clamp(
+        1,
+        4,
+      );
+      final rows = (props.badges.length / columns).ceil();
+      return SliverPadding(
+        padding: const EdgeInsets.all(16),
+        sliver: SliverList.separated(
+          itemCount: rows,
+          separatorBuilder: (_, _) => const SizedBox(height: 12),
+          itemBuilder: (context, row) => IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (var column = 0; column < columns; column++) ...[
+                  if (column > 0) const SizedBox(width: 12),
+                  Expanded(
+                    child: row * columns + column >= props.badges.length
+                        ? const SizedBox.shrink()
+                        : _badgeCard(
+                            context,
+                            props.badges[row * columns + column],
+                          ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      );
+    },
+  );
+
+  Widget _badgeCard(BuildContext context, UserBadgePayload badge) =>
+      GfAchievementCard(
+        title: badge.name,
+        description: badge.description,
+        color: userBadgeColor(badge),
+        icon: UserBadgeArtwork(badge),
+        onTap: () => showUserBadgeDetails(context, badge),
+      );
+
+  Widget _empty(String symbol, String message) {
     return SliverToBoxAdapter(
-      child: GfEmpty(icon: icon, message: message),
+      child: GfEmpty(symbol: symbol, message: message),
     );
   }
 
   Widget _activityRows(BuildContext context, AppLocalizations l10n) {
     if (props.activities.isEmpty) {
-      return _empty(Icons.auto_awesome_outlined, l10n.profileEmptyActivity);
+      return _empty('sparkles', l10n.profileEmptyActivity);
     }
     return SliverList.builder(
       itemCount: props.activities.length,
@@ -1306,13 +1679,13 @@ class _ProfileBody extends StatelessWidget {
             props.user.nickname,
           ),
           avatarUrl: resolveApiAssetUrl(props.user.avatarUrl),
-          contextIcon: switch (action) {
-            'signup' => Icons.person_outline,
-            'post' => Icons.edit_outlined,
-            'like' => Icons.favorite,
-            'follow' => Icons.person_add_outlined,
-            'comment' => Icons.chat_bubble_outline,
-            _ => Icons.timeline,
+          contextSymbol: switch (action) {
+            'signup' => 'user-round',
+            'post' => 'square-pen',
+            'like' => 'heart',
+            'follow' => 'user-round-plus',
+            'comment' => 'message-circle',
+            _ => 'sparkles',
           },
           contextLabel: switch (action) {
             'signup' => l10n.profileActionSignup,
@@ -1329,7 +1702,11 @@ class _ProfileBody extends StatelessWidget {
                   activity.liked == null ||
                   activity.bookmarked == null
               ? null
-              : Row(
+              : Wrap(
+                  alignment: WrapAlignment.start,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 8,
+                  runSpacing: 4,
                   children: [
                     Tooltip(
                       message: l10n.topicLike,
@@ -1347,17 +1724,22 @@ class _ProfileBody extends StatelessWidget {
                                 false,
                                 !activity.liked!,
                               ),
-                        icon: Icon(
-                          activity.liked!
-                              ? Icons.favorite
-                              : Icons.favorite_border,
+                        icon: GfSymbol(
+                          activity.liked! ? 'heart-filled' : 'heart',
                           size: 18,
                           color: activity.liked!
                               ? GfTheme.colorsOf(context).error
                               : GfTheme.colorsOf(context).iconMuted,
                         ),
-                        label: Text('${activity.likeCount ?? 0}'),
+                        label: Text(
+                          formatNumber(activity.likeCount ?? 0),
+                          semanticsLabel: '${activity.likeCount ?? 0}',
+                        ),
                         style: TextButton.styleFrom(
+                          minimumSize: const Size(44, 44),
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          textStyle: const TextStyle(fontSize: 13),
                           foregroundColor: GfTheme.colorsOf(context).iconMuted,
                         ),
                       ),
@@ -1379,10 +1761,8 @@ class _ProfileBody extends StatelessWidget {
                               true,
                               !activity.bookmarked!,
                             ),
-                      icon: Icon(
-                        activity.bookmarked!
-                            ? Icons.bookmark
-                            : Icons.bookmark_border,
+                      icon: GfSymbol(
+                        activity.bookmarked! ? 'bookmark-filled' : 'bookmark',
                         size: 18,
                         color: activity.bookmarked!
                             ? GfTheme.colorsOf(context).primary
@@ -1404,7 +1784,7 @@ class _ProfileBody extends StatelessWidget {
 
   Widget _topicRows(BuildContext context, AppLocalizations l10n) {
     if (props.topics.isEmpty) {
-      return _empty(Icons.article_outlined, l10n.profileEmptyTopics);
+      return _empty('file-text', l10n.profileEmptyTopics);
     }
     return SliverList.builder(
       itemCount: props.topics.length,
@@ -1434,7 +1814,7 @@ class _ProfileBody extends StatelessWidget {
 
   Widget _likeRows(BuildContext context, AppLocalizations l10n) {
     if (props.likes.isEmpty) {
-      return _empty(Icons.favorite_border, l10n.profileEmptyLikes);
+      return _empty('heart', l10n.profileEmptyLikes);
     }
     return SliverList.builder(
       itemCount: props.likes.length,
@@ -1455,7 +1835,7 @@ class _ProfileBody extends StatelessWidget {
 
   Widget _bookmarkRows(BuildContext context, AppLocalizations l10n) {
     if (props.bookmarks.isEmpty) {
-      return _empty(Icons.bookmark_border, l10n.profileEmptyBookmarks);
+      return _empty('bookmark', l10n.profileEmptyBookmarks);
     }
     return SliverList.builder(
       itemCount: props.bookmarks.length,
@@ -1481,7 +1861,7 @@ class _ProfileBody extends StatelessWidget {
     List<UserConnectionPayload> users,
     String emptyMessage,
   ) {
-    if (users.isEmpty) return _empty(Icons.people_outline, emptyMessage);
+    if (users.isEmpty) return _empty('users-round', emptyMessage);
     return SliverList.builder(
       itemCount: users.length,
       itemBuilder: (BuildContext context, int index) {

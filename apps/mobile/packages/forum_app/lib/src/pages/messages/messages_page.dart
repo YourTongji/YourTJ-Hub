@@ -1,9 +1,14 @@
+import '../../widgets/stickers/sticker_picker.dart';
+import '../../widgets/stickers/sticker_strings.dart';
+import '../../widgets/stickers/sticker_library_page.dart';
+import '../../widgets/stickers/resolved_sticker_content.dart';
 import '../../private_notes.dart';
 import '../../widgets/root_surface.dart';
 import '../../messages/chat_outbox.dart';
 import '../../messages/chat_drafts.dart';
 import '../../messages/visible_chat_reads.dart';
 import '../../messages/message_content.dart';
+import '../../widgets/sticker_message_span.dart';
 import '../../navigation/route_visibility.dart';
 import '../../realtime/realtime_updates.dart';
 import '../../link_navigation.dart';
@@ -1207,8 +1212,8 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
                                             onPressed: _historyReady
                                                 ? () => _sendPending(pending)
                                                 : null,
-                                            icon: const Icon(
-                                              Icons.error_outline,
+                                            icon: const GfSymbol(
+                                              'circle-alert',
                                               size: 18,
                                             ),
                                             label: Text(l10n.messagesRetry),
@@ -1271,7 +1276,7 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
                         heroTag: null,
                         tooltip: l10n.messagesNewMessages,
                         onPressed: _scrollToBottom,
-                        child: const Icon(Icons.arrow_downward),
+                        child: const GfSymbol('arrow-down'),
                       ),
                     ),
                 ],
@@ -1311,7 +1316,7 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
                         Expanded(child: Text(l10n.commonLoadFailed)),
                         TextButton.icon(
                           onPressed: _load,
-                          icon: const Icon(Icons.refresh, size: 18),
+                          icon: const GfSymbol('refresh-cw', size: 18),
                           label: Text(l10n.commonRetry),
                         ),
                       ],
@@ -1320,6 +1325,13 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
                 _ChatDraftStatus(drafts: _drafts, peerId: widget.conv.peerId),
                 GfChatInput(
                   controller: _input,
+                  accessoryBuilder: (insert) => StickerPicker(onInsert: insert),
+                  onAttach: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const StickerLibraryPage(),
+                    ),
+                  ),
+                  attachLabel: StickerStrings(context).add,
                   clearOnSend: false,
                   enabled: _drafts.current,
                   hintText: l10n.messagesInputHint,
@@ -1578,7 +1590,7 @@ class _ConversationEmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GfEmpty(
-      icon: Icons.chat_bubble_outline,
+      symbol: 'message-circle',
       message: title,
       description: description,
       action: GfButton(
@@ -1604,8 +1616,8 @@ class _NewChatEmptyState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
-            Icon(
-              Icons.person_search_outlined,
+            GfSymbol(
+              'users-round',
               size: 32,
               color: colors.baseContent.withValues(alpha: 0.30),
             ),
@@ -1707,8 +1719,8 @@ class _ChatEmptyState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
-            Icon(
-              Icons.chat_bubble_outline,
+            GfSymbol(
+              'message-circle',
               size: 40,
               color: colors.baseContent.withValues(alpha: 0.32),
             ),
@@ -1783,35 +1795,40 @@ class _ChatMessageBubble extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return GfMessageBubble(
-      bubbleKey: bubbleKey,
-      text: text,
-      selectable: true,
-      copyMessageLabel: AppLocalizations.of(context).messagesCopyAll,
-      content: MessageContent(
+    return ResolvedStickerContent(
+      content: text,
+      errorAlignment: mine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+      builder: (stickers) => GfMessageBubble(
+        bubbleKey: bubbleKey,
         text: text,
-        stickers: ref.read(stickerLibraryProvider).urlByName,
-        onOpenLink: (url) async {
-          try {
-            await LinkNavigation.open(
-              context,
-              url,
-              baseUrl: ref.read(apiClientProvider).baseUrl,
-            );
-          } catch (error) {
-            if (context.mounted) {
-              showGfToast(
+        showBubble: !isStickerOnlyMessage(text, stickers),
+        selectable: true,
+        copyMessageLabel: AppLocalizations.of(context).messagesCopyAll,
+        content: MessageContent(
+          text: text,
+          stickers: stickers,
+          onOpenLink: (url) async {
+            try {
+              await LinkNavigation.open(
                 context,
-                resolveErrorMessage(AppLocalizations.of(context), error),
-                error: true,
+                url,
+                baseUrl: ref.read(apiClientProvider).baseUrl,
               );
+            } catch (error) {
+              if (context.mounted) {
+                showGfToast(
+                  context,
+                  resolveErrorMessage(AppLocalizations.of(context), error),
+                  error: true,
+                );
+              }
             }
-          }
-        },
+          },
+        ),
+        mine: mine,
+        time: time,
+        maxWidthFactor: maxWidthFactor,
       ),
-      mine: mine,
-      time: time,
-      maxWidthFactor: maxWidthFactor,
     );
   }
 }

@@ -14,6 +14,8 @@ class _Content extends ContentRepository {
   _Content(super.client);
   final pending = Completer<UserContentPage>();
   int deletions = 0;
+  bool requirePassword = false;
+  final passwords = <String?>[];
   @override
   Future<List<ContentDeletionResult>> delete({
     required String contentType,
@@ -21,6 +23,13 @@ class _Content extends ContentRepository {
     String? password,
   }) async {
     deletions++;
+    passwords.add(password);
+    if (requirePassword && password == null) {
+      throw const ApiException(
+        messageCode: 'content.confirmRequired',
+        fallbackMessage: 'Password confirmation required',
+      );
+    }
     return [
       for (final id in ids) ContentDeletionResult(contentId: id, success: true),
     ];
@@ -35,6 +44,65 @@ class _Content extends ContentRepository {
 }
 
 void main() {
+  testWidgets(
+    'content confirmation offers a labeled password field and keyboard submit',
+    (tester) async {
+      final repo = _Content(
+        GfApiClient(
+          dio: Dio(),
+          tokenStorage: MemoryTokenStorage(),
+          baseUrl: 'https://example.test',
+        ),
+      )..requirePassword = true;
+      repo.pending.complete(
+        const UserContentPage(
+          items: [
+            UserContentItem(id: 1, contentType: 'topic', title: 'Owned topic'),
+          ],
+          hasMore: false,
+          nextCursorId: 0,
+        ),
+      );
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [contentRepositoryProvider.overrideWithValue(repo)],
+          child: MaterialApp(
+            theme: gfThemeData(Brightness.light),
+            locale: const Locale('en'),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: const ContentPage(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byType(Checkbox).first);
+      await tester.pump();
+      await tester.tap(find.text('Delete'));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find
+            .descendant(
+              of: find.byType(AlertDialog),
+              matching: find.text('Delete'),
+            )
+            .last,
+      );
+      await tester.pumpAndSettle();
+      final field = tester.widget<TextField>(find.byType(TextField));
+      final l = AppLocalizations.of(tester.element(find.byType(ContentPage)));
+      expect(field.decoration?.labelText, l.contentPassword);
+      expect(field.autofillHints, contains(AutofillHints.password));
+      expect(field.autocorrect, isFalse);
+      expect(field.enableSuggestions, isFalse);
+      await tester.enterText(find.byType(TextField), ' secret with spaces ');
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pumpAndSettle();
+      expect(repo.passwords, [null, ' secret with spaces ']);
+      expect(find.byType(AlertDialog), findsNothing);
+    },
+  );
+
   testWidgets('account boundary discards an in-flight private content list', (
     tester,
   ) async {

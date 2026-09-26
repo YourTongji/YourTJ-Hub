@@ -6,7 +6,6 @@ import 'package:core/core.dart';
 
 import '../../widgets/app_refresh_indicator.dart';
 import '../../../l10n/app_localizations.dart';
-import '../../format.dart';
 import '../../providers.dart';
 import '../../server_messages.dart';
 import '../../widgets/status_views.dart';
@@ -93,7 +92,12 @@ class _CategoryPageState extends ConsumerState<CategoryPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: GfAppBar(title: Text(AppLocalizations.of(context).categoryTitle)),
+      appBar: GfAppBar(
+        title: Text(
+          _page.valueOrNull?.category.name ??
+              AppLocalizations.of(context).categoryTitle,
+        ),
+      ),
       body: _page.when(
         loading: () => const GfLoading(),
         error: (e, _) => GfErrorRetry(
@@ -104,37 +108,16 @@ class _CategoryPageState extends ConsumerState<CategoryPage> {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.folder_outlined,
-                          size: 18,
-                          color: colorFromHex(props.category.color),
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          props.category.name,
-                          style: GfTheme.typographyOf(context).title2,
-                        ),
-                      ],
+              if (props.category.description.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                  child: Text(
+                    props.category.description,
+                    style: GfTheme.typographyOf(context).small.copyWith(
+                      color: GfTheme.colorsOf(context).iconMuted,
                     ),
-                    if (props.category.description.isNotEmpty) ...[
-                      const SizedBox(height: 6),
-                      Text(
-                        props.category.description,
-                        style: GfTheme.typographyOf(context).small.copyWith(
-                          color: GfTheme.colorsOf(context).iconMuted,
-                        ),
-                      ),
-                    ],
-                  ],
+                  ),
                 ),
-              ),
               Expanded(
                 child: GfScrollToTop(
                   semanticLabel: AppLocalizations.of(context).commonBackToTop,
@@ -145,6 +128,8 @@ class _CategoryPageState extends ConsumerState<CategoryPage> {
                           controller: controller,
                           loading: _loadingMore,
                           topics: _topics,
+                          feedMode: GfTopicFeedMode.card,
+                          hiddenCategoryId: widget.categoryId,
                           hasMore: props.pagination.hasNext,
                           onLoadMore: _loadMore,
                         ),

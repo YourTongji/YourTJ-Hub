@@ -49,7 +49,7 @@ class SiteInfoIndexPage extends StatelessWidget {
             ListTile(
               leading: Icon(kind.icon),
               title: Text(kind.label(l10n)),
-              trailing: const Icon(Icons.chevron_right),
+              trailing: const GfSymbol('chevron-right'),
               onTap: () => context.push('/${kind.name}'),
             ),
         ],
@@ -137,7 +137,7 @@ class _SiteInfoPageState extends ConsumerState<SiteInfoPage> {
     leading: image.isEmpty ? null : GfAvatar(src: resolveApiAssetUrl(image)),
     title: Text(title),
     subtitle: description.isEmpty ? null : Text(description),
-    trailing: url.isEmpty ? null : const Icon(Icons.open_in_new, size: 18),
+    trailing: url.isEmpty ? null : const GfSymbol('external-link', size: 18),
     onTap: url.isEmpty ? null : () => _open(url),
   );
 

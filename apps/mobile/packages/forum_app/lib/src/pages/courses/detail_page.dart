@@ -323,6 +323,8 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
       context,
       height: 600,
       keyboardAware: true,
+      barrierDismissible: false,
+      enableDrag: false,
       builder: (BuildContext ctx) => CourseReviewFormSheet(
         pageContext: context,
         repository: _repository,
@@ -351,6 +353,8 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
       context,
       height: 600,
       keyboardAware: true,
+      barrierDismissible: false,
+      enableDrag: false,
       builder: (BuildContext ctx) => CourseReviewFormSheet(
         pageContext: context,
         repository: _repository,
@@ -586,10 +590,7 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
                 child: Center(child: GfLoadingIndicator()),
               )
             else if (_reviewsLoaded && _reviews.isEmpty)
-              GfEmpty(
-                icon: Icons.rate_review_outlined,
-                message: l10n.reviewsEmpty,
-              ),
+              GfEmpty(symbol: 'square-pen', message: l10n.reviewsEmpty),
           ],
         ),
       ),
@@ -638,9 +639,10 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
         ?.where((CourseOfferingPayload o) => o.id == offeringId)
         .firstOrNull;
     if (offering == null) return '#$offeringId';
-    final String classLabel = (offering.className?.isNotEmpty ?? false)
-        ? offering.className!
-        : (offering.classCode ?? '');
+    final String classLabel = <String>[
+      offering.className?.trim() ?? '',
+      offering.classCode?.trim() ?? '',
+    ].where((part) => part.isNotEmpty).toSet().join(' · ');
     return <String>[
       shortTerm(
         offering.termCode,
@@ -648,8 +650,9 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
       ),
       classLabel,
       offering.campus ?? '',
-      offering.instructors?.join('、') ?? '',
-    ].where((String s) => s.isNotEmpty).join(' · ');
+      offering.faculty?.trim() ?? '',
+      ...?offering.instructors?.map((name) => name.trim()),
+    ].where((String s) => s.isNotEmpty).toSet().join(' · ');
   }
 }
 
@@ -774,7 +777,11 @@ class _CourseHeader extends StatelessWidget {
   }
 
   String _teacherLabel(CourseCopy copy) {
-    final List<String> team = detail.teamInstructors ?? const <String>[];
+    final List<String> team = (detail.teamInstructors ?? const <String>[])
+        .map((name) => name.trim())
+        .where((name) => name.isNotEmpty)
+        .toSet()
+        .toList();
     if (detail.reviewScope == 'team' && team.isNotEmpty) {
       final String joined = team.join('、');
       return team.length > 1
@@ -846,7 +853,7 @@ class _OfferingFocusBanner extends StatelessWidget {
       ),
       child: Row(
         children: <Widget>[
-          Icon(Icons.filter_alt_outlined, size: 16, color: colors.primary),
+          GfSymbol('sliders-horizontal', size: 16, color: colors.primary),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
@@ -878,9 +885,10 @@ class _OfferingFocusBanner extends StatelessWidget {
         ?.where((CourseOfferingPayload o) => o.id == offeringId)
         .firstOrNull;
     if (offering == null) return '#$offeringId';
-    final String classLabel = (offering.className?.isNotEmpty ?? false)
-        ? offering.className!
-        : (offering.classCode ?? '');
+    final String classLabel = <String>[
+      offering.className?.trim() ?? '',
+      offering.classCode?.trim() ?? '',
+    ].where((part) => part.isNotEmpty).toSet().join(' · ');
     return <String>[
       shortTerm(
         offering.termCode,
@@ -1073,7 +1081,7 @@ class _DistributionRow extends StatelessWidget {
 
 /// AI 课程总结卡（对齐 web AISummaryCard.vue 状态机，轻量版）。
 ///
-/// disabled → 不渲染；cached/generated → 展开展示；none → 折叠，首次展开触发
+/// disabled → 不渲染；cached/generated → 默认折叠；none → 首次展开触发
 /// 生成；insufficient_data → 安静提示；ready 态刷新保留内容、失败瞬态提示。
 class _AiSummaryCard extends ConsumerStatefulWidget {
   const _AiSummaryCard({required this.courseId});
@@ -1122,7 +1130,6 @@ class _AiSummaryCardState extends ConsumerState<_AiSummaryCard> {
             setState(() {
               _status = 'ready';
               _summary = result.summary;
-              _expanded = true;
             });
           }
           break;
@@ -1228,7 +1235,7 @@ class _AiSummaryCardState extends ConsumerState<_AiSummaryCard> {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             child: Row(
               children: <Widget>[
-                Icon(Icons.auto_awesome, size: 16, color: colors.primary),
+                GfSymbol('sparkles', size: 16, color: colors.primary),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
@@ -1247,8 +1254,8 @@ class _AiSummaryCardState extends ConsumerState<_AiSummaryCard> {
                       variant: GfBadgeVariant.muted,
                     ),
                   ),
-                Icon(
-                  _expanded ? Icons.expand_less : Icons.expand_more,
+                GfSymbol(
+                  _expanded ? 'chevron-up' : 'chevron-down',
                   size: 18,
                   color: colors.baseContent.withValues(alpha: 0.45),
                 ),
@@ -1256,7 +1263,7 @@ class _AiSummaryCardState extends ConsumerState<_AiSummaryCard> {
             ),
           ),
         ),
-        if (ready)
+        if (ready && _expanded)
           Align(
             alignment: Alignment.centerRight,
             child: Padding(
@@ -1268,7 +1275,7 @@ class _AiSummaryCardState extends ConsumerState<_AiSummaryCard> {
                         height: 16,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : const Icon(Icons.refresh, size: 18),
+                    : const GfSymbol('refresh-cw', size: 18),
                 tooltip: copy.summaryRefresh,
                 onPressed: _refreshing ? null : () => _load(refresh: true),
                 visualDensity: VisualDensity.compact,
@@ -1306,8 +1313,8 @@ class _AiSummaryCardState extends ConsumerState<_AiSummaryCard> {
     if (_status == 'insufficient') {
       return Row(
         children: <Widget>[
-          Icon(
-            Icons.auto_awesome,
+          GfSymbol(
+            'sparkles',
             size: 14,
             color: colors.baseContent.withValues(alpha: 0.35),
           ),
@@ -1850,8 +1857,8 @@ class _OfferingTermGroup extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
             child: Row(
               children: <Widget>[
-                Icon(
-                  collapsed ? Icons.chevron_right : Icons.expand_more,
+                GfSymbol(
+                  collapsed ? 'chevron-right' : 'chevron-down',
                   size: 18,
                   color: colors.baseContent.withValues(alpha: 0.45),
                 ),
@@ -1902,13 +1909,15 @@ class _OfferingRow extends StatelessWidget {
     final GfColors colors = GfTheme.colorsOf(context);
     final GfTypography type = GfTheme.typographyOf(context);
 
-    final String classLabel = (offering.className?.isNotEmpty ?? false)
-        ? offering.className!
-        : (offering.classCode ?? '');
+    final String classLabel = <String>[
+      offering.className?.trim() ?? '',
+      offering.classCode?.trim() ?? '',
+    ].where((part) => part.isNotEmpty).toSet().join(' · ');
     final List<String> meta = <String>[
       offering.campus ?? '',
-      offering.instructors?.join('、') ?? '',
-    ].where((String s) => s.isNotEmpty).toList();
+      offering.faculty?.trim() ?? '',
+      ...?offering.instructors?.map((name) => name.trim()),
+    ].where((String s) => s.isNotEmpty).toSet().toList();
     final double? ratingAvg = offering.ratingAvg;
     final int reviewCount = offering.reviewCount ?? 0;
 
@@ -2160,8 +2169,8 @@ class _RelatedGroup extends StatelessWidget {
                     ),
                   ],
                   const SizedBox(width: 8),
-                  Icon(
-                    Icons.chevron_right,
+                  GfSymbol(
+                    'chevron-right',
                     size: 16,
                     color: colors.baseContent.withValues(alpha: 0.35),
                   ),
@@ -2231,8 +2240,8 @@ class _LineageRow extends StatelessWidget {
           name(item.fromName, clickable: fromClickable),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 8),
-            child: Icon(
-              Icons.arrow_forward,
+            child: GfSymbol(
+              'chevron-right',
               size: 14,
               color: colors.baseContent.withValues(alpha: 0.35),
             ),

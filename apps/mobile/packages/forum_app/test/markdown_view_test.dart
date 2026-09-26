@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:forum_app/src/widgets/stickers/sticker_image.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:markdown_widget/markdown_widget.dart';
@@ -40,6 +41,8 @@ class _FakeStickerRepository extends StickerRepository {
   Future<List<StickerItemPayload>> list() async => const <StickerItemPayload>[
     StickerItemPayload(name: 'smile', url: '/file/img/stickers/smile.png'),
   ];
+  @override
+  Future<List<StickerItemPayload>> resolve(List<String> names) async => [];
 }
 
 class _FakeLinkPreviewRepository extends LinkPreviewRepository {
@@ -563,6 +566,10 @@ void main() {
       '你好 ![sticker:smile](/file/img/stickers/smile.png)',
     );
     expect(find.byType(Image), findsOneWidget);
+    expect(find.byType(StickerImage), findsOneWidget);
+    await tester.tap(find.byType(StickerImage));
+    await tester.pump();
+    expect(find.byType(GfImageViewer), findsNothing);
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 600));
@@ -590,4 +597,43 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 600));
   });
+  testWidgets(
+    'ordinary photo viewer excludes stickers including supplied gallery entries',
+    (tester) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            stickerLibraryProvider.overrideWithValue(
+              StickerLibrary(_FakeStickerRepository()),
+            ),
+          ],
+          child: MaterialApp(
+            theme: gfThemeData(Brightness.light),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: const Scaffold(
+              body: GfMarkdownView(
+                data: '[:sticker:smile:]\n\n![photo](/file/img/photo.png)',
+                images: ['/file/img/stickers/smile.png', '/file/img/photo.png'],
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      final photo = find.byWidgetPredicate(
+        (widget) => widget is Image && widget.image is ResizeImage,
+      );
+      expect(photo, findsOneWidget);
+      await tester.tap(photo);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      final viewer = tester.widget<GfImageViewer>(find.byType(GfImageViewer));
+      expect(viewer.images, hasLength(1));
+      expect(viewer.images.single, endsWith('/file/img/photo.png'));
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(const Duration(milliseconds: 600));
+    },
+  );
 }

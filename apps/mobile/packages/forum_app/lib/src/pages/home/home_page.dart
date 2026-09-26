@@ -45,9 +45,10 @@ typedef _InteractionOverride = ({
 /// Each visited sort owns its request generation, pagination and reading
 /// position. Switching tabs never supersedes another tab's in-flight read.
 class _HomeFeedState {
-  _HomeFeedState(this.sort);
+  _HomeFeedState(this.sort, {this.category});
 
   final String sort;
+  final CategoryNavPayload? category;
   AsyncValue<HomeProps> page = const AsyncValue.loading();
   final List<TopicPayload> topics = [];
   bool loadingMore = false;
@@ -68,8 +69,14 @@ class _HomePageState extends ConsumerState<HomePage> {
   static const String _feedModeKey = 'goose:home-feed-mode';
 
   String _sort = '';
+  CategoryNavPayload? _category;
+  String _allSort = '';
+  final _categorySorts = <int, String>{};
+  String _key(String sort, CategoryNavPayload? category) =>
+      category == null ? sort : 'category:${category.id}:$sort';
+  String get _activeKey => _key(_sort, _category);
   final _feeds = <String, _HomeFeedState>{'': _HomeFeedState('')};
-  _HomeFeedState get _activeFeed => _feeds[_sort]!;
+  _HomeFeedState get _activeFeed => _feeds[_activeKey]!;
   HomeProps? _navigationProps;
   bool _announcementCollapsed = true;
   int _interactionRevision = 0;
@@ -191,8 +198,39 @@ class _HomePageState extends ConsumerState<HomePage> {
     setState(() => _announcementCollapsed = collapsed);
   }
 
-  Future<void> _load({bool silent = false, String? sort}) async {
-    final feed = _feeds[sort ?? _sort]!;
+  Future<PagePayload> _fetchFeed(_HomeFeedState feed, CancelToken cancel) {
+    final repository = ref.read(pageRepositoryProvider);
+    final category = feed.category;
+    if (category == null) {
+      return repository.home(sort: feed.sort, cancelToken: cancel);
+    }
+    final uri = Uri.parse(category.url);
+    final path = feed.sort.isEmpty || feed.sort == 'latest'
+        ? uri.path
+        : '${uri.path}/l/${Uri.encodeComponent(feed.sort)}';
+    return repository.fetch(
+      uri.replace(path: path).toString(),
+      cancelToken: cancel,
+    );
+  }
+
+  HomeProps? _feedProps(PagePayload payload, _HomeFeedState feed) {
+    if (feed.category == null) return parsePageProps<HomeProps>(payload);
+    final category = parsePageProps<CategoryPageProps>(payload);
+    if (category == null || category.category.id != feed.category!.id) {
+      return null;
+    }
+    return HomeProps(
+      sort: category.sort,
+      tabs: category.tabs,
+      topics: category.topics,
+      pagination: category.pagination,
+      announcement: const AnnouncementPayload(enabled: false, html: ''),
+    );
+  }
+
+  Future<void> _load({bool silent = false, _HomeFeedState? target}) async {
+    final feed = target ?? _activeFeed;
     if (!mounted) return;
     final sequence = ++feed.loadSequence;
     final revision = _interactionRevision;
@@ -203,7 +241,9 @@ class _HomePageState extends ConsumerState<HomePage> {
     feed.loadMoreError = null;
     final cancel = feed.loadCancel = CancelToken();
     final requestedSort = feed.sort;
-    final cacheScopeFuture = _homeCacheScope();
+    final cacheScopeFuture = feed.category == null
+        ? _homeCacheScope()
+        : Future<(int, String)?>.value(null);
     var cachedPageShown = false;
     var networkPageShown = false;
     if (!silent) setState(() => feed.page = const AsyncValue.loading());
@@ -249,21 +289,21 @@ class _HomePageState extends ConsumerState<HomePage> {
                 : Future<bool>.value(false))
             .then((shown) => cachedPageShown = shown);
     try {
-      final PagePayload payload = await ref
-          .read(pageRepositoryProvider)
-          .home(sort: requestedSort, cancelToken: cancel);
+      final PagePayload payload = await _fetchFeed(feed, cancel);
       if (!mounted ||
           sequence != feed.loadSequence ||
           epoch != ref.read(offlineCacheEpochProvider)) {
         return;
       }
-      final HomeProps? props = parsePageProps<HomeProps>(payload);
+      final HomeProps? props = _feedProps(payload, feed);
       if (props == null) throw const FormatException('home props');
       networkPageShown = true;
       setState(() {
         feed.page = AsyncValue.data(props);
-        _navigationProps = props;
-        _categories = payload.layout.sidebar.categories;
+        if (feed.category == null) {
+          _navigationProps = props;
+          _categories = payload.layout.sidebar.categories;
+        }
         feed.topics.clear();
         feed.topics.addAll(_mergeInteractions(props.topics, revision));
       });
@@ -388,15 +428,13 @@ class _HomePageState extends ConsumerState<HomePage> {
     feed.loadingMore = false;
     feed.loadMoreError = null;
     try {
-      final PagePayload payload = await ref
-          .read(pageRepositoryProvider)
-          .home(sort: feed.sort, cancelToken: cancel);
+      final PagePayload payload = await _fetchFeed(feed, cancel);
       if (!mounted ||
           sequence != feed.loadSequence ||
           epoch != ref.read(offlineCacheEpochProvider)) {
         return;
       }
-      final HomeProps? props = parsePageProps<HomeProps>(payload);
+      final HomeProps? props = _feedProps(payload, feed);
       if (props == null) throw const FormatException('home props');
       final Map<int, TopicPayload> incoming = {
         for (final TopicPayload topic in props.topics) topic.id: topic,
@@ -453,7 +491,7 @@ class _HomePageState extends ConsumerState<HomePage> {
           epoch != ref.read(offlineCacheEpochProvider)) {
         return;
       }
-      final HomeProps? next = parsePageProps<HomeProps>(payload);
+      final HomeProps? next = _feedProps(payload, feed);
       if (next == null) throw const FormatException('home pagination');
       setState(() {
         final seen = feed.topics.map((topic) => topic.id).toSet();
@@ -613,19 +651,62 @@ class _HomePageState extends ConsumerState<HomePage> {
     }
   }
 
-  void _switchSort(String sort) {
-    if (sort == 'latest') sort = '';
-    if (sort == _sort) return;
-    final firstVisit = !_feeds.containsKey(sort);
+  void _activateFeed() {
+    final key = _activeKey;
+    final firstVisit = !_feeds.containsKey(key);
     setState(() {
-      _sort = sort;
-      _feeds.putIfAbsent(sort, () => _HomeFeedState(sort));
+      _feeds.putIfAbsent(key, () => _HomeFeedState(_sort, category: _category));
     });
     _tabScrollRegistry.register(
       GfShellDestination.home,
       _scrollToTopController,
     );
     if (firstVisit) _load();
+  }
+
+  void _switchSort(String sort) {
+    if (sort == 'latest') sort = '';
+    if (sort == _sort) return;
+    _sort = sort;
+    if (_category == null) _allSort = sort;
+    _activateFeed();
+  }
+
+  void _switchCategory(CategoryNavPayload? category) {
+    if (_category?.id == category?.id) return;
+    if (_category == null) {
+      _allSort = _sort;
+    } else {
+      _categorySorts[_category!.id] = _sort;
+    }
+    _category = category;
+    _sort = category == null ? _allSort : (_categorySorts[category.id] ?? '');
+    _activateFeed();
+  }
+
+  void _filterCategory(int id) {
+    for (final category in _categories) {
+      if (category.id == id) {
+        _switchCategory(category);
+        return;
+      }
+    }
+    // Visible topic categories may be absent from a curated sidebar.
+    for (final topic in _activeFeed.topics) {
+      for (final category in topic.categories) {
+        if (category.id == id && category.url.isNotEmpty) {
+          _switchCategory(
+            CategoryNavPayload(
+              id: category.id,
+              label: category.name,
+              color: category.color,
+              url: category.url,
+            ),
+          );
+          return;
+        }
+      }
+    }
   }
 
   @override
@@ -637,6 +718,9 @@ class _HomePageState extends ConsumerState<HomePage> {
       for (final feed in _feeds.values) {
         feed.cancel();
       }
+      _category = null;
+      _sort = _allSort;
+      _categorySorts.clear();
       _feeds
         ..clear()
         ..[_sort] = _HomeFeedState(_sort);
@@ -650,7 +734,32 @@ class _HomePageState extends ConsumerState<HomePage> {
     });
     final AppLocalizations l10n = AppLocalizations.of(context);
     return RootSurface(
-      titleWidget: const GfLogo(size: 32),
+      titleWidget: _category == null
+          ? const GfLogo(size: 32)
+          : Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const GfLogo(size: 24),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text(
+                    _category!.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  key: const ValueKey('home-clear-category'),
+                  tooltip: l10n.homeAllCategories,
+                  onPressed: () => _switchCategory(null),
+                  icon: const GfSymbol('x', size: 18),
+                ),
+              ],
+            ),
       actions: [
         IconButton(
           tooltip: l10n.commonSearch,
@@ -658,12 +767,32 @@ class _HomePageState extends ConsumerState<HomePage> {
           onPressed: () => context.push('/search'),
         ),
       ],
-      toolbarHeight:
-          GfTabBar.heightFor(context) + (_categories.isEmpty ? 0 : 56),
+      toolbarHeight: GfTabBar.heightFor(context),
       toolbar: _navigationProps != null
           ? _HomeToolbar(
-              props: _navigationProps!,
+              props:
+                  _activeFeed.page.valueOrNull ??
+                  (_category == null
+                      ? _navigationProps!
+                      : _navigationProps!.copyWith(
+                          tabs: [
+                            TabItemPayload(
+                              key: 'latest',
+                              label: '',
+                              url: '',
+                              active: true,
+                            ),
+                            TabItemPayload(
+                              key: 'new',
+                              label: '',
+                              url: '',
+                              active: false,
+                            ),
+                          ],
+                        )),
               categories: _categories,
+              activeCategory: _category,
+              onCategorySelected: _switchCategory,
               selected: _sort.isEmpty ? 'latest' : _sort,
               feedMode: _feedMode,
               onSelected: _switchSort,
@@ -671,7 +800,7 @@ class _HomePageState extends ConsumerState<HomePage> {
             )
           : const SizedBox.shrink(),
       body: (top, bottom) => IndexedStack(
-        index: _feeds.keys.toList().indexOf(_sort),
+        index: _feeds.keys.toList().indexOf(_activeKey),
         children: [
           for (final feed in _feeds.values)
             TickerMode(
@@ -707,12 +836,12 @@ class _HomePageState extends ConsumerState<HomePage> {
         padding: EdgeInsets.only(top: top, bottom: bottom),
         child: GfErrorRetry(
           message: resolveErrorMessage(l10n, e),
-          onRetry: () => _load(sort: feed.sort),
+          onRetry: () => _load(target: feed),
         ),
       ),
       data: (props) => AppRefreshIndicator(
         edgeOffset: top,
-        onRefresh: () => _load(silent: true, sort: feed.sort),
+        onRefresh: () => _load(silent: true, target: feed),
         child: GfTopicList(
           loadMoreError: feed.loadMoreError,
           controller: controller,
@@ -724,6 +853,8 @@ class _HomePageState extends ConsumerState<HomePage> {
           ),
           loading: feed.loadingMore,
           topics: feed.topics,
+          hiddenCategoryId: feed.category?.id,
+          onCategorySelected: _filterCategory,
           feedMode: _feedMode,
           onFirstMediaFrame: recordFirstHomeMediaFrame,
           onLikeTopic: _toggleTopicInteraction,
@@ -746,9 +877,13 @@ class _HomeToolbar extends ConsumerWidget {
     required this.feedMode,
     required this.onSelected,
     required this.onFeedModeSelected,
+    required this.activeCategory,
+    required this.onCategorySelected,
   });
 
   final HomeProps props;
+  final CategoryNavPayload? activeCategory;
+  final ValueChanged<CategoryNavPayload?> onCategorySelected;
   final List<CategoryNavPayload> categories;
   final String selected;
   final GfTopicFeedMode feedMode;
@@ -770,151 +905,122 @@ class _HomeToolbar extends ConsumerWidget {
     final AppLocalizations l10n = AppLocalizations.of(context);
     final GfColors colors = GfTheme.colorsOf(context);
 
-    // Mobile keeps the Web information hierarchy in one compact row: sort
-    // tabs on the left and the list/card view switch on the right. Publishing
-    // already has a persistent center entry in the bottom navigation.
-    return Container(
+    return ColoredBox(
       color: colors.base100,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          // Keep the overlay inset and visible tabs at the same scaled height.
-          SizedBox(
-            height: GfTabBar.heightFor(context),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: <Widget>[
-                  Expanded(
-                    child: GfTabBar(
-                      tabs: <GfTab>[
-                        for (final tab in props.tabs)
-                          GfTab(
-                            // 后端 tabs[].label 可能为空(web 端按 key fallback 到
-                            // i18n),空 label 会让选中态深色底渲染成黑块,必须兜底。
-                            label: _sortTabLabel(
-                              context,
-                              tab.key,
-                              tab.label ?? '',
-                            ),
-                            value: tab.key,
-                          ),
-                      ],
-                      selected: effective,
-                      onSelected: (Object value) => onSelected(value as String),
-                    ),
+      child: Row(
+        children: [
+          Expanded(
+            child: GfTabBar(
+              tabs: [
+                for (final tab in props.tabs)
+                  GfTab(
+                    label: _sortTabLabel(context, tab.key, tab.label ?? ''),
+                    value: tab.key,
                   ),
-                  const SizedBox(width: 8),
-                  PopupMenuButton<GfTopicFeedMode>(
-                    tooltip: l10n.topicFeedModeList,
-                    useRootNavigator: true,
-                    icon: const GfSymbol('sliders-horizontal', size: 20),
-                    onSelected: onFeedModeSelected,
-                    itemBuilder: (_) => [
-                      PopupMenuItem(
-                        value: GfTopicFeedMode.list,
-                        child: Text(l10n.topicFeedModeList),
-                      ),
-                      PopupMenuItem(
-                        value: GfTopicFeedMode.card,
-                        child: Text(l10n.topicFeedModeCard),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
+              ],
+              selected: effective,
+              onSelected: (value) => onSelected(value as String),
             ),
           ),
-          // 分类快捷入口(与 web 侧边栏 categories 同源):横向滑动 pills,
-          // 点击跳转分类页;后端未配置分类时整行不占位。
-          if (categories.isNotEmpty)
-            SizedBox(
-              height: 56,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 6,
-                ),
-                itemCount: categories.length,
-                separatorBuilder: (_, _) => const SizedBox(width: 8),
-                itemBuilder: (BuildContext context, int index) {
-                  final CategoryNavPayload category = categories[index];
-                  return _CategoryPill(
-                    label: category.label,
-                    color: colorFromHex(category.color),
-                    onTap: () => context.push(category.url),
-                  );
-                },
-              ),
-            ),
+          IconButton(
+            tooltip: l10n.homeFeedOptions,
+            icon: const GfSymbol('sliders-horizontal', size: 20),
+            onPressed: () => _showOptions(context),
+          ),
+          const SizedBox(width: 4),
         ],
       ),
     );
   }
 
-  /// 排序 tab 文案:与 web `sortTabLabel(key, label)` 一致——后端 label
-  /// 为空时按 key 回退到 i18n(最新/热门/流行)。
+  Future<void> _showOptions(BuildContext context) async {
+    final l10n = AppLocalizations.of(context);
+    final selected = await showGfBottomSheet<Object>(
+      context,
+      builder: (sheetContext) => SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(8, 4, 8, 12),
+              child: Text(
+                l10n.homeFeedOptions,
+                style: GfTheme.typographyOf(context).title2,
+              ),
+            ),
+            for (final mode in GfTopicFeedMode.values)
+              ListTile(
+                leading: GfSymbol(
+                  mode == GfTopicFeedMode.card ? 'layout-grid' : 'list',
+                ),
+                title: Text(
+                  mode == GfTopicFeedMode.card
+                      ? l10n.topicFeedModeCard
+                      : l10n.topicFeedModeList,
+                ),
+                trailing: feedMode == mode
+                    ? const GfSymbol('check', size: 20)
+                    : null,
+                selected: feedMode == mode,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                onTap: () => Navigator.pop(sheetContext, mode),
+              ),
+            if (categories.isNotEmpty) ...[
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 8),
+                child: Divider(),
+              ),
+              ListTile(
+                leading: const GfSymbol('house', size: 20),
+                title: Text(l10n.homeAllCategories),
+                selected: activeCategory == null,
+                trailing: activeCategory == null
+                    ? const GfSymbol('check', size: 20)
+                    : null,
+                onTap: () => Navigator.pop(sheetContext, 'all-categories'),
+              ),
+              for (final category in categories)
+                ListTile(
+                  leading: Container(
+                    width: 10,
+                    height: 10,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: colorFromHex(category.color),
+                    ),
+                  ),
+                  title: Text(category.label),
+                  selected: activeCategory?.id == category.id,
+                  trailing: activeCategory?.id == category.id
+                      ? const GfSymbol('check', size: 20)
+                      : null,
+                  onTap: () => Navigator.pop(sheetContext, category),
+                ),
+            ],
+          ],
+        ),
+      ),
+    );
+    if (!context.mounted) return;
+    if (selected is GfTopicFeedMode) onFeedModeSelected(selected);
+    if (selected is CategoryNavPayload) onCategorySelected(selected);
+    if (selected == 'all-categories') onCategorySelected(null);
+  }
+
+  /// Known feed labels follow the app locale; custom server tabs retain their label.
   String _sortTabLabel(BuildContext context, String key, String label) {
-    if (label.isNotEmpty) return label;
     final AppLocalizations l10n = AppLocalizations.of(context);
     return switch (key) {
       'latest' => l10n.sortLatest,
       'hot' => l10n.sortHot,
       'popular' => l10n.sortPopular,
-      _ => key,
+      'following' => l10n.sortFollowing,
+      'new' => l10n.sortNew,
+      _ => label.isNotEmpty ? label : key,
     };
-  }
-}
-
-/// 首页顶栏分类入口 pill:色点 + 分类名,镜像 GfChip 的视觉规格,
-/// 但可点击并按内容自适应宽度,横向滑动承载多个分类。
-class _CategoryPill extends StatelessWidget {
-  const _CategoryPill({
-    required this.label,
-    required this.color,
-    required this.onTap,
-  });
-
-  final String label;
-  final Color color;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final GfColors colors = GfTheme.colorsOf(context);
-    return Material(
-      color: colors.base300,
-      borderRadius: BorderRadius.circular(999),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(999),
-        child: Container(
-          constraints: const BoxConstraints(minHeight: 44),
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          alignment: Alignment.center,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              Container(
-                width: 6,
-                height: 6,
-                decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-              ),
-              const SizedBox(width: 5),
-              Text(
-                label,
-                style: TextStyle(
-                  color: colors.baseContent.withValues(alpha: 0.75),
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
   }
 }

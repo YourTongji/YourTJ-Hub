@@ -837,7 +837,11 @@ void main() {
       final surface = find
           .ancestor(of: heading, matching: find.byType(Material))
           .first;
-      expect(tester.getTopLeft(heading).dy - tester.getTopLeft(surface).dy, 14);
+      // The shared sheet reserves 28 px for its drag handle before content.
+      expect(
+        tester.getTopLeft(heading).dy - tester.getTopLeft(surface).dy,
+        28 + 14,
+      );
       expect(tester.getBottomLeft(surface).dy, 844);
       expect(tester.getBottomLeft(find.text('110001.02')).dy, lessThan(810));
       expect(tester.takeException(), isNull);

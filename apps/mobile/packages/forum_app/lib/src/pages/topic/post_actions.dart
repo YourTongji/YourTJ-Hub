@@ -198,8 +198,8 @@ class _PostActionsState extends ConsumerState<PostActions> {
                           );
                       _recordState(liked: !post.isLiked);
                     }),
-              icon: Icon(
-                post.isLiked ? Icons.favorite : Icons.favorite_border,
+              icon: GfSymbol(
+                post.isLiked ? 'heart-filled' : 'heart',
                 size: 18,
                 color: post.isLiked ? colors.error : colors.iconMuted,
               ),
@@ -221,8 +221,8 @@ class _PostActionsState extends ConsumerState<PostActions> {
                         );
                     _recordState(bookmarked: !post.isBookmarked);
                   }),
-            icon: Icon(
-              post.isBookmarked ? Icons.bookmark : Icons.bookmark_border,
+            icon: GfSymbol(
+              post.isBookmarked ? 'bookmark-filled' : 'bookmark',
               size: 18,
             ),
           ),
@@ -230,10 +230,11 @@ class _PostActionsState extends ConsumerState<PostActions> {
             IconButton(
               tooltip: l10n.topicReply,
               onPressed: _busy ? null : widget.onReply,
-              icon: const Icon(Icons.reply_outlined, size: 18),
+              icon: const GfSymbol('corner-down-left', size: 18),
             ),
         ],
         PopupMenuButton<String>(
+          icon: const GfSymbol('ellipsis', size: 22),
           tooltip: l10n.profileMore,
           useRootNavigator: true,
           enabled: !_busy,
@@ -258,7 +259,7 @@ class _PostActionsState extends ConsumerState<PostActions> {
           IconButton(
             tooltip: l10n.topicReport,
             onPressed: _busy ? null : widget.onReport,
-            icon: const Icon(Icons.flag_outlined, size: 18),
+            icon: const GfSymbol('flag', size: 18),
           ),
       ],
     );

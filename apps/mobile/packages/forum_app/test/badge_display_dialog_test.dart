@@ -1,8 +1,11 @@
+import 'dart:async';
+import 'dart:ui' show SemanticsAction;
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:forum_app/l10n/app_localizations.dart';
 import 'package:forum_app/src/pages/settings/badge_display_dialog.dart';
+import 'package:ui_kit/ui_kit.dart';
 
 UserBadgePayload badge(int i) => UserBadgePayload(
   code: 'b$i',
@@ -30,18 +33,20 @@ void main() {
   ) async {
     await tester.pumpWidget(
       MaterialApp(
+        theme: gfThemeData(Brightness.light),
         locale: const Locale('en'),
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         home: Builder(
           builder: (context) => Scaffold(
             body: TextButton(
-              onPressed: () => showDialog<bool>(
-                context: context,
-                builder: (_) => BadgeDisplayDialog(
-                  badges: List.generate(6, badge),
-                  selected: selected,
-                  onSave: save,
+              onPressed: () => Navigator.of(context).push<bool>(
+                MaterialPageRoute(
+                  builder: (_) => BadgeDisplayDialog(
+                    badges: List.generate(6, badge),
+                    selected: selected,
+                    onSave: save,
+                  ),
                 ),
               ),
               child: const Text('Edit'),
@@ -54,14 +59,57 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  testWidgets(
+    'badge reorder semantics describe values and freeze during save',
+    (tester) async {
+      final semantics = tester.ensureSemantics();
+      final pending = Completer<void>();
+      await pump(tester, [badge(0), badge(1)], (_) => pending.future);
+      final l = AppLocalizations.of(
+        tester.element(find.byType(BadgeDisplayDialog)),
+      );
+      final handles = find.byWidgetPredicate(
+        (widget) =>
+            widget is Semantics &&
+            widget.properties.label == l.badgeDisplayReorder,
+      );
+      final first = tester.getSemantics(handles.first).getSemanticsData();
+      expect(first.value, '1');
+      expect(first.increasedValue, '2');
+      expect(first.hasAction(SemanticsAction.increase), isTrue);
+      expect(first.hasAction(SemanticsAction.decrease), isFalse);
+      final last = tester.getSemantics(handles.last).getSemanticsData();
+      expect(last.value, '2');
+      expect(last.decreasedValue, '1');
+      expect(last.hasAction(SemanticsAction.decrease), isTrue);
+      expect(last.hasAction(SemanticsAction.increase), isFalse);
+      await tester.tap(find.text('Save'));
+      await tester.pump();
+      final saving = tester.getSemantics(handles.first).getSemanticsData();
+      expect(saving.hasAction(SemanticsAction.increase), isFalse);
+      expect(saving.hasAction(SemanticsAction.decrease), isFalse);
+      expect(tester.takeException(), isNull);
+      pending.complete();
+      await tester.pumpAndSettle();
+      semantics.dispose();
+    },
+  );
+
   testWidgets('save preserves explicit badge order', (tester) async {
     List<String>? saved;
     await pump(tester, [badge(0), badge(1)], (codes) async {
       saved = codes;
     });
-    final move = find.byTooltip('Move down').first;
-    await tester.ensureVisible(move);
-    await tester.tap(move);
+    expect(find.text('Badge 0'), findsOneWidget);
+    expect(find.text('Badge 1'), findsOneWidget);
+    final handle = find.byType(ReorderableDragStartListener).first;
+    final gesture = await tester.startGesture(tester.getCenter(handle));
+    await tester.pump();
+    await gesture.moveBy(const Offset(0, 20));
+    await tester.pump(const Duration(milliseconds: 100));
+    await gesture.moveBy(const Offset(0, 130));
+    await tester.pump(const Duration(milliseconds: 400));
+    await gesture.up();
     await tester.pumpAndSettle();
     await tester.tap(find.text('Save'));
     await tester.pumpAndSettle();
@@ -76,9 +124,14 @@ void main() {
       saved = codes;
       if (attempts++ == 0) throw StateError('offline');
     });
+    await tester.scrollUntilVisible(
+      find.byKey(const Key('badge-select-b5')),
+      150,
+      scrollable: find.byType(Scrollable).first,
+    );
     expect(
       tester
-          .widget<CheckboxListTile>(find.byKey(const Key('badge-select-b5')))
+          .widget<Checkbox>(find.byKey(const Key('badge-select-b5')))
           .onChanged,
       isNull,
     );

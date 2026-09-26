@@ -274,7 +274,7 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace> {
           onPressed: loading
               ? null
               : () => ref.read(campusControllerProvider.notifier).refresh(),
-          icon: const Icon(Icons.refresh, size: 18),
+          icon: const GfSymbol('refresh-cw', size: 18),
           label: Text(l.commonRefresh),
         ),
       ],
@@ -351,7 +351,7 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace> {
                   padding: EdgeInsets.zero,
                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
-                icon: const Icon(Icons.refresh, size: 18),
+                icon: const GfSymbol('refresh-cw', size: 18),
               ),
             ],
           ),
@@ -439,7 +439,7 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace> {
             onPressed: () => setState(
               () => _wish = (_wish + 1 + math.Random().nextInt(3)) % 4,
             ),
-            icon: const Icon(Icons.refresh, size: 16),
+            icon: const GfSymbol('refresh-cw', size: 16),
             label: Text(l.campusAnotherWish),
           ),
         ),

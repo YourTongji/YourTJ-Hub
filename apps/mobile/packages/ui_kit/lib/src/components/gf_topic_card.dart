@@ -7,6 +7,7 @@ import '../theme/gf_theme.dart';
 import 'atoms/gf_avatar.dart';
 import 'gf_card.dart';
 import 'gf_chip.dart';
+import 'gf_symbol.dart';
 import 'gf_image_viewer.dart';
 import 'gf_topic_row.dart';
 
@@ -254,7 +255,6 @@ class _GfTopicCardState extends State<GfTopicCard>
           pinned: widget.pinned,
           onAuthorTap: widget.onAuthorTap,
         ),
-        const SizedBox(height: 4),
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
@@ -273,7 +273,7 @@ class _GfTopicCardState extends State<GfTopicCard>
                           style: TextStyle(
                             color: colors.baseContent,
                             fontSize: 17,
-                            height: 1.45,
+                            height: 1.35,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
@@ -293,7 +293,7 @@ class _GfTopicCardState extends State<GfTopicCard>
                     ],
                   ),
                   if (widget.description.isNotEmpty) ...<Widget>[
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 2),
                     Text(
                       widget.description,
                       maxLines: 2,
@@ -381,21 +381,15 @@ class _GfTopicCardState extends State<GfTopicCard>
             },
           ),
         ],
-        const SizedBox(height: 4),
+        const SizedBox(height: 2),
         Wrap(
           alignment: WrapAlignment.spaceBetween,
           crossAxisAlignment: WrapCrossAlignment.center,
           spacing: 8,
           runSpacing: 4,
           children: <Widget>[
-            _Metric(
-              icon: Icons.chat_bubble_outline,
-              value: '${widget.replyCount}',
-            ),
-            _Metric(
-              icon: Icons.visibility_outlined,
-              value: '${widget.viewCount}',
-            ),
+            _Metric(icon: 'message-circle', value: '${widget.replyCount}'),
+            _Metric(icon: 'eye', value: '${widget.viewCount}'),
             if (widget.onLike != null)
               _LikeAction(
                 count: widget.likeCount,
@@ -407,10 +401,7 @@ class _GfTopicCardState extends State<GfTopicCard>
                 onPressed: _likeBusy ? null : _toggleLike,
               )
             else
-              _Metric(
-                icon: Icons.favorite_border,
-                value: '${widget.likeCount}',
-              ),
+              _Metric(icon: 'heart', value: '${widget.likeCount}'),
             if (widget.onBookmark != null)
               _BookmarkAction(
                 bookmarked: _bookmarked,
@@ -428,22 +419,25 @@ class _GfTopicCardState extends State<GfTopicCard>
     );
 
     return GfCard(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 4),
       onTap: widget.onTap,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Semantics(
-            button: widget.onAuthorTap != null,
-            label: widget.authorName,
-            child: InkWell(
-              onTap: widget.onAuthorTap,
-              borderRadius: BorderRadius.circular(24),
-              child: SizedBox(
-                width: 44,
-                height: 44,
-                child: Center(
-                  child: GfAvatar(src: widget.authorAvatarUrl, size: 36),
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Semantics(
+              button: widget.onAuthorTap != null,
+              label: widget.authorName,
+              child: InkWell(
+                onTap: widget.onAuthorTap,
+                borderRadius: BorderRadius.circular(24),
+                child: SizedBox(
+                  width: 44,
+                  height: 44,
+                  child: Center(
+                    child: GfAvatar(src: widget.authorAvatarUrl, size: 36),
+                  ),
                 ),
               ),
             ),
@@ -517,8 +511,8 @@ class _LikeAction extends StatelessWidget {
                       ),
                     Transform.scale(
                       scale: scale,
-                      child: Icon(
-                        liked ? Icons.favorite : Icons.favorite_border,
+                      child: GfSymbol(
+                        liked ? 'heart-filled' : 'heart',
                         size: 18,
                         color: iconColor,
                       ),
@@ -580,8 +574,8 @@ class _BookmarkAction extends StatelessWidget {
             onPressed: onPressed,
             icon: Transform.scale(
               scale: 1 + bounce,
-              child: Icon(
-                bookmarked ? Icons.bookmark : Icons.bookmark_border,
+              child: GfSymbol(
+                bookmarked ? 'bookmark-filled' : 'bookmark',
                 size: 18,
                 color: bookmarked ? activeColor : inactiveColor,
               ),
@@ -669,99 +663,102 @@ class _AuthorMeta extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final GfColors colors = GfTheme.colorsOf(context);
+    Widget metadataSlot(Widget child) => ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: 44),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        widthFactor: 1,
+        heightFactor: 1,
+        child: child,
+      ),
+    );
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
         Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          // Share one metadata run instead of stacking two 44px hit regions.
+          // Wrap keeps long names, multiple categories and large text readable.
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 0,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: <Widget>[
-              Row(
-                children: <Widget>[
-                  Flexible(
-                    child: InkWell(
-                      onTap: onAuthorTap,
-                      child: ConstrainedBox(
-                        constraints: BoxConstraints(
-                          minWidth: onAuthorTap == null ? 0 : 44,
-                          minHeight: onAuthorTap == null ? 0 : 44,
-                        ),
-                        child: Align(
-                          alignment: Alignment.centerLeft,
-                          widthFactor: 1,
-                          heightFactor: 1,
-                          child: Text(
-                            name,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: colors.baseContent,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
+              InkWell(
+                onTap: onAuthorTap,
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    minWidth: onAuthorTap == null ? 0 : 44,
+                    minHeight: 44,
                   ),
-                  const SizedBox(width: 8),
-                  Flexible(
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    widthFactor: 1,
+                    heightFactor: 1,
                     child: Text(
-                      activityText,
+                      name,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        color: colors.baseContent.withValues(alpha: 0.55),
-                        fontSize: 13,
+                        color: colors.baseContent,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ),
-                ],
+                ),
               ),
-              if (categories.isNotEmpty || hot) ...<Widget>[
-                const SizedBox(height: 4),
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 4,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: <Widget>[
-                    for (final GfTopicCategory category in categories)
-                      GfChip(label: category.name, color: category.color),
-                    if (hot)
-                      Container(
-                        height: 20,
-                        padding: const EdgeInsets.symmetric(horizontal: 7),
-                        decoration: BoxDecoration(
-                          color: colors.warning.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: <Widget>[
-                            Icon(
-                              Icons.auto_awesome,
-                              size: 12,
-                              color: colors.warning,
-                            ),
-                            const SizedBox(width: 3),
-                            Text(
-                              'hot',
-                              style: TextStyle(
-                                color: colors.warning,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
+              if (activityText.isNotEmpty)
+                metadataSlot(
+                  Text(
+                    activityText,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: colors.baseContent.withValues(alpha: 0.55),
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+              for (final GfTopicCategory category in categories)
+                metadataSlot(
+                  GfChip(
+                    label: category.name,
+                    color: category.color,
+                    onTap: category.onTap,
+                  ),
+                ),
+              if (hot)
+                Container(
+                  height: 20,
+                  padding: const EdgeInsets.symmetric(horizontal: 7),
+                  decoration: BoxDecoration(
+                    color: colors.warning.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      Icon(Icons.auto_awesome, size: 12, color: colors.warning),
+                      const SizedBox(width: 3),
+                      Text(
+                        'hot',
+                        style: TextStyle(
+                          color: colors.warning,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
-                  ],
+                    ],
+                  ),
                 ),
-              ],
             ],
           ),
         ),
-        if (pinned) Icon(Icons.push_pin, size: 16, color: colors.error),
+        if (pinned)
+          Padding(
+            padding: const EdgeInsets.only(top: 10),
+            child: GfSymbol('pin', size: 16, color: colors.iconMuted),
+          ),
       ],
     );
   }
@@ -883,7 +880,7 @@ ResizeImage _feedImageProvider(String url, int pixelWidth, int? pixelHeight) {
 class _Metric extends StatelessWidget {
   const _Metric({required this.icon, required this.value});
 
-  final IconData icon;
+  final String icon;
   final String value;
 
   @override
@@ -894,7 +891,7 @@ class _Metric extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
-          Icon(icon, size: 16, color: colors.iconMuted),
+          GfSymbol(icon, size: 18, color: colors.iconMuted),
           const SizedBox(width: 5),
           Text(
             value,

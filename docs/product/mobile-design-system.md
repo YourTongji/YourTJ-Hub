@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-09-25
+> Last verified: 2026-09-26
 
 This standard applies the native reading direction in [0037](../decisions/0037-adaptive-mobile-reading-window.md)
 to the Flutter app. [Mobile experience](mobile-experience.md) records implemented behavior. Rules marked
@@ -14,9 +14,9 @@ to the Flutter app. [Mobile experience](mobile-experience.md) records implemente
 
 ## Content and visual hierarchy
 
-`Planned`: the first viewport prioritizes readable posts. Home uses one compact identity/search header
+`Current`: the first viewport prioritizes readable posts. Home uses one compact identity/search header
 and one persistent feed selector. Announcements remain reachable through an expandable summary;
-category discovery must not require a permanently tall second navigation area. Returning to a stream
+category selection filters Home in place, with a visible current filter and a clear-to-all action. Returning to a stream
 restores its items, cursor and reading position. Latest, popular, trending and following are distinct
 streams; following contains posts from followed authors in `created_at DESC, id DESC` order, with
 pagination cursors based on that tuple. Latest retains its existing
@@ -58,13 +58,20 @@ are separate from account editing, binding and security. Appearance offers Syste
 
 ## Transient surfaces and input
 
+`Current`: repository-owned Flutter components define filled 16-pixel form fields, capsule search/chat,
+pill buttons, 24-pixel dialogs and consistent outline symbols. Native text selection, autofill,
+input purposes and focus remain intact. Search, short reply and long-form writing use distinct
+surfaces with shared colors and state treatment; the component model is recorded in
+[0039](../decisions/0039-native-gf-component-foundation.md).
+
 Focusing an editor is not an edit. Keyboard layouts prioritize the active writing surface over
 introductory guidance, retain focus, and keep the primary action reachable. Implemented behavior
 lives in [mobile experience](mobile-experience.md#publishing).
 
-`Planned`: use a bottom sheet for short contextual choices, a dialog for consequential confirmation,
-and a page for sustained editing. Sheets share drag handle, heading, close affordance, corner shape,
-safe-area handling and a bounded scrolling body. Expanded windows constrain sheet/dialog width.
+`Current`: profile and password editing use pages and preserve input on failed saves. Shared short
+choice sheets use a drag handle, 24-pixel top corners, one safe-area boundary and a 640-pixel width
+limit. `Partial`: legacy forms still use bounded scrollable sheets; profile, password and course
+review editing confirm discarding changed input.
 Transient feedback uses the existing shared banner; field-specific errors stay beside the field.
 Retry belongs beside the failed operation. A success banner must not precede server acknowledgement
 or a confirmed local write.

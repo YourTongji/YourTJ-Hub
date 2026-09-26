@@ -29,6 +29,7 @@ GfApiClient _client() =>
 
 class _Pages extends PageRepository {
   _Pages() : super(_client());
+  List<Map<String, Object>> categories = const [];
   bool liked = true;
   int likeCount = 5;
   bool bookmarked = true;
@@ -36,6 +37,8 @@ class _Pages extends PageRepository {
   Completer<PagePayload>? pending;
   PagePayload payload() {
     final data = homePayloadJson();
+    final layout = data['layout'] as Map<String, dynamic>;
+    (layout['sidebar'] as Map<String, dynamic>)['categories'] = categories;
     final props = data['props'] as Map<String, dynamic>;
     final first = (props['topics'] as List).first as Map<String, dynamic>;
     props['topics'] = [
@@ -265,6 +268,7 @@ void main() {
     _Pages pages,
     _Topics topics, {
     bool settle = true,
+    double textScale = 1,
   }) async {
     SharedPreferences.setMockInitialValues({});
     final container = ProviderContainer(
@@ -281,6 +285,12 @@ void main() {
           locale: const Locale('zh'),
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
+          builder: (context, child) => MediaQuery(
+            data: MediaQuery.of(
+              context,
+            ).copyWith(textScaler: TextScaler.linear(textScale)),
+            child: child!,
+          ),
           // Isolate return/refresh transitions with explicit pagination;
           // foreground autoload is covered in list_footer/topic_list tests.
           home: TickerMode(
@@ -299,13 +309,47 @@ void main() {
     return container;
   }
 
+  for (final scale in [1.0, 2.0]) {
+    testWidgets('home categories stay compact and readable at ${scale}x text', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(320, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final pages = _Pages()
+        ..categories = [
+          {'id': 1, 'label': '论坛运营', 'color': '#2563eb', 'url': '/c/ops/1'},
+          {'id': 2, 'label': '闲聊茶馆', 'color': '#f59e0b', 'url': '/c/chat/2'},
+        ];
+      await pump(tester, pages, _Topics(pages), textScale: scale);
+      expect(find.text('论坛运营'), findsNothing);
+      final headerBottom = tester.getRect(find.byType(GfTabBar)).bottom;
+      expect(
+        tester.getRect(find.text('Topic 0')).top,
+        greaterThanOrEqualTo(headerBottom),
+      );
+      await tester.tap(find.byTooltip('分类与显示'));
+      await tester.pumpAndSettle();
+      final label = find.text('论坛运营');
+      expect(label, findsOneWidget);
+      expect(find.text('闲聊茶馆'), findsOneWidget);
+      final target = find.ancestor(of: label, matching: find.byType(ListTile));
+      expect(tester.getSize(target).height, greaterThanOrEqualTo(44));
+      expect(tester.takeException(), isNull);
+    });
+  }
+
   testWidgets('server state and toggles survive card recycling', (
     tester,
   ) async {
     final pages = _Pages();
     final topics = _Topics(pages);
     await pump(tester, pages, topics);
-    expect(find.byIcon(Icons.favorite), findsWidgets);
+    expect(
+      find.byWidgetPredicate((w) => w is GfSymbol && w.name == 'heart-filled'),
+      findsWidgets,
+    );
     await tester.tap(find.byTooltip('点赞').first);
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('取消收藏').first);
@@ -519,14 +563,20 @@ void main() {
     pages.pending!.complete(stale);
     await refresh;
     await tester.pumpAndSettle();
-    expect(find.byIcon(Icons.favorite), findsOneWidget);
+    expect(
+      find.byWidgetPredicate((w) => w is GfSymbol && w.name == 'heart-filled'),
+      findsOneWidget,
+    );
     pages.pending = null;
     pages.liked = false;
     await tester
         .widget<AppRefreshIndicator>(find.byType(AppRefreshIndicator))
         .onRefresh();
     await tester.pumpAndSettle();
-    expect(find.byIcon(Icons.favorite), findsNothing);
+    expect(
+      find.byWidgetPredicate((w) => w is GfSymbol && w.name == 'heart-filled'),
+      findsNothing,
+    );
   });
   testWidgets('unknown server state never exposes a false toggle', (
     tester,
@@ -556,7 +606,10 @@ void main() {
     expect(topics.likes, [1]);
     topics.pending!.complete(true);
     await tester.pumpAndSettle();
-    expect(find.byIcon(Icons.favorite), findsOneWidget);
+    expect(
+      find.byWidgetPredicate((w) => w is GfSymbol && w.name == 'heart-filled'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('refresh while like is pending preserves its icon and count', (
@@ -571,14 +624,20 @@ void main() {
         .widget<AppRefreshIndicator>(find.byType(AppRefreshIndicator))
         .onRefresh();
     await tester.pumpAndSettle();
-    expect(find.byIcon(Icons.favorite), findsOneWidget);
+    expect(
+      find.byWidgetPredicate((w) => w is GfSymbol && w.name == 'heart-filled'),
+      findsOneWidget,
+    );
     expect(
       tester.widget<GfTopicCard>(find.byType(GfTopicCard).first).likeCount,
       6,
     );
     topics.pending!.complete(true);
     await tester.pumpAndSettle();
-    expect(find.byIcon(Icons.favorite), findsOneWidget);
+    expect(
+      find.byWidgetPredicate((w) => w is GfSymbol && w.name == 'heart-filled'),
+      findsOneWidget,
+    );
   });
 
   testWidgets(
@@ -643,7 +702,10 @@ void main() {
     container.read(offlineCacheEpochProvider.notifier).invalidate();
     topics.pending!.complete(true);
     await tester.pumpAndSettle();
-    expect(find.byIcon(Icons.favorite), findsNothing);
+    expect(
+      find.byWidgetPredicate((w) => w is GfSymbol && w.name == 'heart-filled'),
+      findsNothing,
+    );
   });
   testWidgets(
     'returning from a topic keeps loaded pages and updates in place',

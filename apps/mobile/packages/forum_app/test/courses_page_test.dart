@@ -7,6 +7,7 @@ import 'package:core/core.dart';
 import 'package:forum_app/l10n/app_localizations.dart';
 import 'package:forum_app/src/pages/courses/catalog_page.dart';
 import 'package:forum_app/src/pages/courses/detail_page.dart';
+import 'package:forum_app/src/pages/courses/review_form_sheet.dart';
 import 'package:forum_app/src/pages/courses/course_common.dart';
 import 'package:forum_app/l10n/app_localizations_zh.dart';
 import 'package:forum_app/src/providers.dart';
@@ -63,6 +64,7 @@ class FakeCourseRepository extends CourseRepository {
     this.reviewPayloads = const [],
     this.listPages = const {},
     this.summaryStatus = 'none',
+    this.summaryPayload,
     this.failBookmark = false,
   });
 
@@ -73,6 +75,7 @@ class FakeCourseRepository extends CourseRepository {
   /// page → (courses, hasNext)。
   final Map<int, (List<CourseSummaryPayload>, bool)> listPages;
   final String summaryStatus;
+  final CourseAiSummaryPayload? summaryPayload;
   bool failBookmark;
   Object? createError;
 
@@ -144,7 +147,10 @@ class FakeCourseRepository extends CourseRepository {
     bool refresh = false,
     bool check = false,
   }) async {
-    return CourseAiSummaryResult(status: summaryStatus);
+    return CourseAiSummaryResult(
+      status: summaryStatus,
+      summary: summaryPayload,
+    );
   }
 
   @override
@@ -512,10 +518,10 @@ void main() {
       await tester.pumpAndSettle();
 
       await tester.enterText(find.byType(TextField).last, '张三');
-      await tester.tap(find.byIcon(Icons.add));
+      await tester.tap(find.byTooltip('添加'));
       await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextField).last, '李四');
-      await tester.tap(find.byIcon(Icons.add));
+      await tester.tap(find.byTooltip('添加'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('完成'));
       await tester.pumpAndSettle();
@@ -626,7 +632,7 @@ void main() {
       // 开课班级：学期分组 + 班级行。
       expect(find.text('开课班级'), findsOneWidget);
       expect(find.text('2025-2026 第一学期'), findsOneWidget);
-      expect(find.text('01班'), findsOneWidget);
+      expect(find.text('01班 · 10000101'), findsOneWidget);
       expect(find.text('02班'), findsOneWidget);
 
       // 相关课程 + 沿革 chips。
@@ -745,6 +751,75 @@ void main() {
         tester.getTopLeft(find.text('很不错')).dy,
         lessThan(tester.getTopLeft(find.text('好课')).dy),
       );
+    });
+
+    testWidgets('review cancellation confirms unsaved content', (tester) async {
+      final course = FakeCourseRepository(
+        _client(),
+        detailPayload: _detailPayload(),
+      );
+      await pumpDetail(tester, course);
+      await tester.tap(find.text('写课评'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField).last, '未保存的课评');
+      await tester.tap(find.text('取消'));
+      await tester.pumpAndSettle();
+      final l = AppLocalizations.of(
+        tester.element(find.byType(CourseDetailPage)),
+      );
+      expect(find.text(l.settingsUnsavedTitle), findsOneWidget);
+      await tester.tap(find.text(l.settingsKeepEditing));
+      await tester.pumpAndSettle();
+      expect(find.text('未保存的课评'), findsOneWidget);
+      await tester.tap(find.text('取消'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(l.settingsDiscardChanges));
+      await tester.pumpAndSettle();
+      expect(find.byType(CourseReviewFormSheet), findsNothing);
+    });
+
+    testWidgets('review rating has a 48 pixel named touch target', (
+      tester,
+    ) async {
+      final course = FakeCourseRepository(
+        _client(),
+        detailPayload: _detailPayload(),
+      );
+      await pumpDetail(tester, course);
+      await tester.tap(find.text('写课评'));
+      await tester.pumpAndSettle();
+      final target = find.byKey(const ValueKey('review-rating-5'));
+      expect(target, findsOneWidget);
+      expect(tester.getSize(target), const Size(48, 48));
+      expect(tester.getSemantics(target).label, contains('5'));
+    });
+
+    testWidgets('cached AI summary starts collapsed without a refresh row', (
+      tester,
+    ) async {
+      final course = FakeCourseRepository(
+        _client(),
+        detailPayload: _detailPayload(),
+        summaryStatus: 'cached',
+        summaryPayload: const CourseAiSummaryPayload(
+          consensus: 'recommend',
+          keywords: ['重点清晰'],
+          pros: ['材料完整'],
+          cons: [],
+          representativeReviews: [],
+        ),
+      );
+      await pumpDetail(tester, course);
+      final l = AppLocalizations.of(
+        tester.element(find.byType(CourseDetailPage)),
+      );
+      expect(find.text('重点清晰'), findsNothing);
+      expect(find.byTooltip(CourseCopy(l).summaryRefresh), findsNothing);
+      await tester.ensureVisible(find.text(l.courseDetailAiSummary));
+      await tester.tap(find.text(l.courseDetailAiSummary));
+      await tester.pumpAndSettle();
+      expect(find.text('重点清晰'), findsOneWidget);
+      expect(find.byTooltip(CourseCopy(l).summaryRefresh), findsOneWidget);
     });
 
     testWidgets('review failure explains server reason above the open sheet', (

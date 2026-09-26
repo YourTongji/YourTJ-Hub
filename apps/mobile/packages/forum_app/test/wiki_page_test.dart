@@ -435,12 +435,12 @@ void main() {
 
     // 首页结构:命名空间区 + 最近更新区。
     expect(wiki.homeCalls, 1);
-    expect(find.text('命名空间'), findsOneWidget);
+    expect(find.text('内容分类'), findsOneWidget);
     expect(find.text('指南'), findsOneWidget);
     expect(find.text('社区使用指南'), findsOneWidget);
     expect(find.text('最近更新'), findsOneWidget);
     expect(find.text('内容规范'), findsOneWidget);
-    expect(find.text('guide/content'), findsOneWidget);
+    expect(find.text('guide/content'), findsNothing);
 
     // 点最近更新条目 → 以 wiki 路径推入详情页并走页面通道。
     await tester.tap(find.text('内容规范'));
@@ -555,7 +555,7 @@ void main() {
       initialLocation: '/wiki/guide/getting-started',
     );
 
-    expect(find.text('在 GitHub 编辑'), findsNothing);
+    expect(find.byTooltip('在 GitHub 编辑'), findsNothing);
     expect(find.text('目录'), findsOneWidget);
   });
 
@@ -577,7 +577,7 @@ void main() {
       initialLocation: '/wiki/guide/getting-started',
     );
 
-    expect(find.text('在 GitHub 编辑'), findsOneWidget);
+    expect(find.byTooltip('在 GitHub 编辑'), findsOneWidget);
   });
   testWidgets('正文内相对站内链接:中文路径单次编码跳转(issue #560)', (tester) async {
     const String encodedTarget =

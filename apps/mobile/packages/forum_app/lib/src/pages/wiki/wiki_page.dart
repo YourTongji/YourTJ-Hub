@@ -265,6 +265,14 @@ class _WikiPageState extends ConsumerState<WikiPage> {
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),
+        actions: [
+          if (page != null && page.canEdit && page.editUrl.isNotEmpty)
+            IconButton(
+              tooltip: l10n.wikiEditOnGithub,
+              icon: const GfSymbol('external-link', size: 20),
+              onPressed: () => _openEdit(page.editUrl),
+            ),
+        ],
       ),
       bottomNavigationBar: page == null
           ? null
@@ -293,14 +301,6 @@ class _WikiPageState extends ConsumerState<WikiPage> {
                         onPressed: () => context.push('/wiki/search'),
                       ),
                     ),
-                    if (page.canEdit && page.editUrl.isNotEmpty)
-                      Expanded(
-                        child: TextButton.icon(
-                          icon: const GfSymbol('external-link', size: 18),
-                          label: Text(l10n.wikiEditOnGithub),
-                          onPressed: () => _openEdit(page.editUrl),
-                        ),
-                      ),
                   ],
                 ),
               ),
@@ -430,7 +430,7 @@ class _WikiProse extends StatelessWidget {
                   semanticLabel: alt,
                   errorBuilder: (_, _, _) => Padding(
                     padding: const EdgeInsets.all(24),
-                    child: Icon(Icons.broken_image, color: faint),
+                    child: GfSymbol('image-off', color: faint),
                   ),
                 ),
               ),

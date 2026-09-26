@@ -279,6 +279,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String get publishTitleField => 'タイトル';
 
   @override
+  String get publishAddTitle => 'タイトルを追加';
+
+  @override
   String get publishTitleHint => 'タイトルを入力（5～100文字）';
 
   @override
@@ -1225,7 +1228,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String get wikiToc => '目次';
 
   @override
-  String get wikiNamespaces => '名前空間';
+  String get wikiNamespaces => 'コンテンツ分類';
 
   @override
   String wikiViewCount(int count) {
@@ -1696,7 +1699,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String get notificationSomeone => '誰か';
 
   @override
-  String get profileRoleAdmin => '管理画面';
+  String get profileRoleAdmin => '管理者';
 
   @override
   String get profileActionSignup => 'コミュニティに参加';
@@ -2468,8 +2471,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String get badgeDisplayTitle => 'プロフィールのバッジ';
 
   @override
-  String get badgeDisplayHint =>
-      '最大5個まで選び、表示順を変更できます。すべて非表示にもできます。アバターのバッジとは別の設定です。';
+  String get badgeDisplayHint => '最大5個まで表示できます。すべて解除も可能です。アバターのバッジとは別です。';
 
   @override
   String get badgeDisplayUp => '上へ';
@@ -2659,4 +2661,90 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get draftRestoreFailed => '復元できませんでした。もう一度取り消してください。';
+
+  @override
+  String get settingsDataStorage => 'データとストレージ';
+
+  @override
+  String get settingsProfileDisplay => 'プロフィールと表示';
+
+  @override
+  String get settingsNotSet => '未設定';
+
+  @override
+  String get settingsUnsavedTitle => '変更を破棄しますか？';
+
+  @override
+  String get settingsUnsavedBody => '変更は保存されていません。戻ると失われます。';
+
+  @override
+  String get settingsKeepEditing => '編集を続ける';
+
+  @override
+  String get settingsDiscardChanges => '変更を破棄';
+
+  @override
+  String get settingsPushPreference => 'プッシュ通知を許可';
+
+  @override
+  String get settingsPushDelivery => 'この端末への配信状況';
+
+  @override
+  String get settingsPushReady => '通知を受信できます';
+
+  @override
+  String get settingsPushOff => '未設定';
+
+  @override
+  String get settingsPushIOSConsent =>
+      'Apple Push Notificationサービスは、通知の配信のために端末のプッシュ識別子と通知内容を処理します。';
+
+  @override
+  String get settingsPushAndroidConsent =>
+      'JPushと端末メーカーは、通知の配信のために端末のプッシュ識別子と通知内容を処理します。';
+
+  @override
+  String get settingsDeviceUnknown => 'その他の端末';
+
+  @override
+  String get settingsDeviceCurrent => 'この端末';
+
+  @override
+  String get badgeDisplayReorder => 'ドラッグして並べ替え';
+
+  @override
+  String badgeDisplaySelectedCount(int count) {
+    return '表示中 $count/5';
+  }
+
+  @override
+  String get sortFollowing => 'フォロー中';
+
+  @override
+  String get notificationsUnreadEmpty => '未読の通知はありません';
+
+  @override
+  String get notificationsUnreadEmptyDescription => 'すべての通知を確認しました。';
+
+  @override
+  String get homeFeedOptions => 'カテゴリと表示';
+
+  @override
+  String get homeAllCategories => 'すべてのカテゴリ';
+
+  @override
+  String get sortNew => '新しい投稿';
+
+  @override
+  String get profileRoleAdminDescription => 'コミュニティを管理し、フォーラムの運営を支えます。';
+
+  @override
+  String profileBadgeEarnedOn(String date) {
+    return '$date に獲得';
+  }
+
+  @override
+  String settingsProfilePartialSave(String saved) {
+    return '保存済み：$saved。残りの変更は保持されています。もう一度保存してください。';
+  }
 }

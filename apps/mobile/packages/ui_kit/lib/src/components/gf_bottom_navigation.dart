@@ -134,9 +134,23 @@ class _Destination extends StatelessWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: <Widget>[
-                SizedBox(
-                  width: 28,
-                  height: 28,
+                AnimatedContainer(
+                  key: selected
+                      ? const ValueKey<String>(
+                          'gf-bottom-navigation-selected-indicator',
+                        )
+                      : null,
+                  duration: MediaQuery.disableAnimationsOf(context)
+                      ? Duration.zero
+                      : const Duration(milliseconds: 160),
+                  width: 48,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: selected
+                        ? colors.primary.withValues(alpha: 0.09)
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
                   child: Stack(
                     clipBehavior: Clip.none,
                     children: <Widget>[
@@ -144,13 +158,13 @@ class _Destination extends StatelessWidget {
                         child: (selected && item.selectedSymbol != null)
                             ? GfSymbol(
                                 item.selectedSymbol!,
-                                size: 26,
+                                size: 24,
                                 color: foreground,
                               )
                             : (item.symbol != null
                                   ? GfSymbol(
                                       item.symbol!,
-                                      size: 26,
+                                      size: 24,
                                       color: foreground,
                                     )
                                   : Icon(
@@ -161,8 +175,8 @@ class _Destination extends StatelessWidget {
                       ),
                       if (item.badge)
                         Positioned(
-                          top: 0,
-                          right: 0,
+                          top: 3,
+                          right: 8,
                           child: Container(
                             width: 7,
                             height: 7,
@@ -179,20 +193,6 @@ class _Destination extends StatelessWidget {
                     ],
                   ),
                 ),
-                if (!showLabel)
-                  Container(
-                    key: selected
-                        ? const ValueKey<String>(
-                            'gf-bottom-navigation-selected-indicator',
-                          )
-                        : null,
-                    width: selected ? 4 : 0,
-                    height: 3,
-                    decoration: BoxDecoration(
-                      color: foreground,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
                 if (showLabel) const SizedBox(height: 2),
                 if (showLabel)
                   Text(

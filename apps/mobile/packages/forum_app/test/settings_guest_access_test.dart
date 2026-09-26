@@ -132,7 +132,13 @@ void main() {
         expect(calls, isEmpty);
         expect(find.text(l10n.settingsAppearance), findsOneWidget);
         expect(find.text(l10n.settingsAppLanguage), findsOneWidget);
+        await tester.scrollUntilVisible(
+          find.text(l10n.authLoginTitle),
+          150,
+          scrollable: find.byType(Scrollable).first,
+        );
         expect(find.text(l10n.authLoginTitle), findsOneWidget);
+        await tester.ensureVisible(find.text(l10n.settingsAppLanguage));
         await tester.tap(find.text(l10n.settingsAppLanguage));
         await tester.pumpAndSettle();
         expect(find.text('English'), findsOneWidget);

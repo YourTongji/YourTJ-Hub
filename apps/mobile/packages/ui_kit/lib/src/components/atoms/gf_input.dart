@@ -3,10 +3,9 @@ import 'package:flutter/services.dart';
 
 import '../../theme/gf_theme.dart';
 
-/// Text field aligned with web `.gf-input` (components.css): 1px line border,
-/// radius field (8), base-100 fill, 16px text; on focus the border turns
-/// primary and a 4px primary/20 ring appears (web `ring-4 ring-primary/20`).
-class GfInput extends StatefulWidget {
+/// Native text input with the shared filled form surface. Focus, validation,
+/// selection and autofill stay with TextField; Gf owns only the presentation.
+class GfInput extends StatelessWidget {
   const GfInput({
     super.key,
     this.controller,
@@ -71,134 +70,48 @@ class GfInput extends StatefulWidget {
   final int maxLines;
 
   @override
-  State<GfInput> createState() => _GfInputState();
-}
-
-class _GfInputState extends State<GfInput> {
-  FocusNode? _internalFocusNode;
-  bool _focused = false;
-
-  FocusNode get _effectiveFocusNode =>
-      widget.focusNode ?? (_internalFocusNode ??= FocusNode());
-
-  @override
-  void initState() {
-    super.initState();
-    _effectiveFocusNode.addListener(_onFocusChange);
-  }
-
-  @override
-  void didUpdateWidget(GfInput oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.focusNode != widget.focusNode) {
-      (oldWidget.focusNode ?? _internalFocusNode)?.removeListener(
-        _onFocusChange,
-      );
-      _effectiveFocusNode.addListener(_onFocusChange);
-    }
-  }
-
-  @override
-  void dispose() {
-    widget.focusNode?.removeListener(_onFocusChange);
-    _internalFocusNode?.dispose();
-    super.dispose();
-  }
-
-  void _onFocusChange() {
-    if (!mounted) return;
-    final bool focused = _effectiveFocusNode.hasFocus;
-    if (focused != _focused) {
-      setState(() => _focused = focused);
-    }
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final GfColors colors = GfTheme.colorsOf(context);
-    final GfRadii radii = GfTheme.radiiOf(context);
-    final GfBorders borders = GfTheme.bordersOf(context);
-
-    return AnimatedContainer(
-      duration: MediaQuery.disableAnimationsOf(context)
-          ? Duration.zero
-          : const Duration(milliseconds: 150),
-      curve: Curves.easeOut,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(radii.field),
-        boxShadow: _focused
-            ? <BoxShadow>[
-                BoxShadow(
-                  color: colors.primary.withValues(alpha: 0.20),
-                  blurRadius: 0,
-                  spreadRadius: 4,
-                ),
-              ]
-            : null,
-      ),
-      // Native TextField exposes credential/autofill/IME semantics that the
-      // pinned TDesign input does not forward. Gf tokens own its appearance.
-      child: TextField(
-        onTap: widget.onTap,
-        controller: widget.controller,
-        focusNode: _effectiveFocusNode,
-        enabled: widget.enabled,
-        readOnly: widget.readOnly,
-        obscureText: widget.obscureText,
-        keyboardType: widget.keyboardType ?? TextInputType.text,
-        textInputAction: widget.textInputAction,
-        autofillHints: widget.autofillHints,
-        autocorrect: widget.autocorrect,
-        enableSuggestions: widget.enableSuggestions,
-        textCapitalization: widget.textCapitalization,
-        textAlignVertical: widget.textAlignVertical,
-        maxLength: widget.maxLength,
-        autofocus: widget.autofocus,
-        textAlign: widget.textAlign,
-        minLines: widget.minLines,
-        maxLines: widget.maxLines,
-        onChanged: widget.onChanged,
-        onSubmitted: widget.onSubmitted,
-        onEditingComplete: widget.onEditingComplete,
-        inputFormatters: widget.inputFormatters,
-        style:
-            widget.style ?? TextStyle(fontSize: 16, color: colors.baseContent),
-        cursorColor: widget.cursorColor,
-        decoration: (widget.decoration ?? const InputDecoration()).copyWith(
-          hintText: widget.hintText ?? widget.decoration?.hintText,
-          labelText: widget.labelText ?? widget.decoration?.labelText,
-          prefixIcon: widget.prefixIcon ?? widget.decoration?.prefixIcon,
-          suffixIcon: widget.suffixIcon ?? widget.decoration?.suffixIcon,
-          filled: true,
-          fillColor: colors.base100,
-          isDense: false,
-          constraints:
-              widget.decoration?.constraints ??
-              const BoxConstraints(minHeight: 48),
-          contentPadding:
-              widget.decoration?.contentPadding ??
-              const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(radii.field),
-            borderSide: BorderSide(color: colors.line, width: borders.width),
+    final theme = Theme.of(context);
+    final colors = GfTheme.colorsOf(context);
+    return TextField(
+      onTap: onTap,
+      controller: controller,
+      focusNode: focusNode,
+      enabled: enabled,
+      readOnly: readOnly,
+      obscureText: obscureText,
+      keyboardType: keyboardType,
+      textInputAction: textInputAction,
+      autofillHints: autofillHints,
+      autocorrect: autocorrect,
+      enableSuggestions: enableSuggestions,
+      textCapitalization: textCapitalization,
+      textAlignVertical: textAlignVertical,
+      maxLength: maxLength,
+      autofocus: autofocus,
+      textAlign: textAlign,
+      minLines: minLines,
+      maxLines: maxLines,
+      onChanged: onChanged,
+      onSubmitted: onSubmitted,
+      onEditingComplete: onEditingComplete,
+      inputFormatters: inputFormatters,
+      style:
+          style ??
+          TextStyle(
+            fontSize: 16,
+            height: 1.4,
+            color: enabled
+                ? colors.baseContent
+                : colors.baseContent.withValues(alpha: 0.38),
           ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(radii.field),
-            borderSide: BorderSide(color: colors.line, width: borders.width),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(radii.field),
-            borderSide: BorderSide(color: colors.primary, width: 1.5),
-          ),
-          disabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(radii.field),
-            borderSide: BorderSide(
-              color: colors.line.withValues(alpha: 0.5),
-              width: borders.width,
-            ),
-          ),
-          counterText: widget.maxLength != null ? '' : null,
-        ),
+      cursorColor: cursorColor ?? theme.colorScheme.primary,
+      decoration: (decoration ?? const InputDecoration()).copyWith(
+        hintText: hintText ?? decoration?.hintText,
+        labelText: labelText ?? decoration?.labelText,
+        prefixIcon: prefixIcon ?? decoration?.prefixIcon,
+        suffixIcon: suffixIcon ?? decoration?.suffixIcon,
+        counterText: decoration?.counterText ?? (maxLength != null ? '' : null),
       ),
     );
   }

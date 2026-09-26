@@ -287,9 +287,14 @@ final contentRepositoryProvider = Provider<ContentRepository>(
   (ref) => ContentRepository(ref.watch(apiClientProvider)),
 );
 
-/// 表情包公开库(会话级缓存,一次 app 运行拉取一次,失败下次重试)。
+/// Site/session-scoped sticker resolution; a new account never inherits assets.
 final stickerLibraryProvider = Provider<StickerLibrary>((ref) {
-  return StickerLibrary(StickerRepository(ref.watch(apiClientProvider)));
+  ref.watch(offlineCacheEpochProvider);
+  final library = StickerLibrary(
+    StickerRepository(ref.watch(apiClientProvider)),
+  );
+  ref.onDispose(library.dispose);
+  return library;
 });
 
 final campusRepositoryProvider = Provider<CampusRepository>((ref) {

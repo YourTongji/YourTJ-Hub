@@ -197,7 +197,7 @@ class _NamespaceCard extends StatelessWidget {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: <Widget>[
-                    Icon(Icons.description_outlined, size: 12, color: muted),
+                    GfSymbol('file-text', size: 12, color: muted),
                     const SizedBox(width: 3),
                     Text(
                       '${namespace.pageCount}',
@@ -224,7 +224,7 @@ class _NamespaceCard extends StatelessWidget {
             const SizedBox(height: 8),
             Row(
               children: <Widget>[
-                Icon(Icons.schedule, size: 12, color: faint),
+                GfSymbol('clock', size: 12, color: faint),
                 const SizedBox(width: 4),
                 Text(
                   formatDateTime(namespace.updatedAt),
@@ -254,7 +254,6 @@ class _RecentRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final GfColors colors = GfTheme.colorsOf(context);
     final GfTypography typography = GfTheme.typographyOf(context);
-    final Color muted = colors.baseContent.withValues(alpha: 0.55);
     final Color faint = colors.baseContent.withValues(alpha: 0.45);
     return GfCard(
       onTap: onTap,
@@ -269,26 +268,13 @@ class _RecentRow extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: typography.bodyStrong,
           ),
-          const SizedBox(height: 4),
-          Row(
-            children: <Widget>[
-              Expanded(
-                child: Text(
-                  page.path,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: typography.small.copyWith(color: muted),
-                ),
-              ),
-              if (page.updatedAt.isNotEmpty) ...<Widget>[
-                const SizedBox(width: 8),
-                Text(
-                  timeAgo(page.updatedAt, l10n: AppLocalizations.of(context)),
-                  style: typography.caption.copyWith(color: faint),
-                ),
-              ],
-            ],
-          ),
+          if (page.updatedAt.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(
+              timeAgo(page.updatedAt, l10n: AppLocalizations.of(context)),
+              style: typography.caption.copyWith(color: faint),
+            ),
+          ],
         ],
       ),
     );

@@ -29,6 +29,8 @@ class GfTopicList extends StatelessWidget {
     required this.hasMore,
     required this.onLoadMore,
     this.loadMoreError,
+    this.hiddenCategoryId,
+    this.onCategorySelected,
   });
 
   final bool loading;
@@ -44,6 +46,8 @@ class GfTopicList extends StatelessWidget {
   final bool hasMore;
   final VoidCallback onLoadMore;
   final String? loadMoreError;
+  final int? hiddenCategoryId;
+  final ValueChanged<int>? onCategorySelected;
 
   @override
   Widget build(BuildContext context) {
@@ -99,6 +103,8 @@ class GfTopicList extends StatelessWidget {
             ? buildTopicFeedCard(
                 context,
                 topic,
+                hiddenCategoryId: hiddenCategoryId,
+                onCategorySelected: onCategorySelected,
                 onReturn: onReturnFromTopic,
                 onFirstMediaFrame: onFirstMediaFrame,
                 onLike: onLikeTopic == null || topic.liked == null
@@ -112,6 +118,8 @@ class GfTopicList extends StatelessWidget {
                 context,
                 topic,
                 isLast: index == topics.length - 1,
+                onCategorySelected: onCategorySelected,
+                hiddenCategoryId: hiddenCategoryId,
                 onReturn: onReturnFromTopic,
               );
       },
@@ -124,12 +132,21 @@ Widget _topicRow(
   BuildContext context,
   TopicPayload topic, {
   required bool isLast,
+  int? hiddenCategoryId,
+  ValueChanged<int>? onCategorySelected,
   VoidCallback? onReturn,
 }) {
   final AppLocalizations l10n = AppLocalizations.of(context);
   final List<GfTopicCategory> categories = <GfTopicCategory>[
     for (final CategoryBriefPayload cat in topic.categories)
-      GfTopicCategory(name: cat.name, color: colorFromHex(cat.color)),
+      if (cat.id != hiddenCategoryId)
+        GfTopicCategory(
+          name: cat.name,
+          color: colorFromHex(cat.color),
+          onTap: onCategorySelected == null
+              ? null
+              : () => onCategorySelected(cat.id),
+        ),
   ];
 
   final List<String> participantAvatarUrls = <String>[
@@ -148,7 +165,6 @@ Widget _topicRow(
     ),
     replyCount: topic.replyCount,
     viewCount: topic.viewCount,
-    hot: topic.viewCount > 500,
     pinned: topic.pinWeight > 0,
     unseen: topic.unseen == true,
     showDivider: !isLast,
@@ -167,6 +183,8 @@ Widget buildTopicFeedCard(
   VoidCallback? onFirstMediaFrame,
   Future<bool> Function(bool target)? onLike,
   Future<bool> Function(bool target)? onBookmark,
+  int? hiddenCategoryId,
+  ValueChanged<int>? onCategorySelected,
 }) {
   final AppLocalizations l10n = AppLocalizations.of(context);
   final String nickname = topic.author.nickname?.trim() ?? '';
@@ -199,10 +217,14 @@ Widget buildTopicFeedCard(
     shareImageLabel: l10n.topicShare,
     categories: <GfTopicCategory>[
       for (final CategoryBriefPayload category in topic.categories)
-        GfTopicCategory(
-          name: category.name,
-          color: colorFromHex(category.color),
-        ),
+        if (category.id != hiddenCategoryId)
+          GfTopicCategory(
+            name: category.name,
+            color: colorFromHex(category.color),
+            onTap: onCategorySelected == null
+                ? null
+                : () => onCategorySelected(category.id),
+          ),
     ],
     imageUrls: images,
     onFirstMediaFrame: onFirstMediaFrame,
@@ -237,7 +259,6 @@ Widget buildTopicFeedCard(
     likeTooltip: l10n.topicLike,
     bookmarkTooltip: l10n.topicBookmark,
     bookmarkedTooltip: l10n.topicBookmarked,
-    hot: topic.viewCount > 500,
     pinned: topic.pinWeight > 0,
     unseen: topic.unseen == true,
     onTap: () async {

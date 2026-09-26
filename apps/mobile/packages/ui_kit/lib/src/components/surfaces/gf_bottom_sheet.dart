@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 /// Shows a themed bottom sheet and returns the value passed to `Navigator.pop`.
 ///
 /// Short sheets fit their content; long sheets must provide a scrollable body.
-/// [height] is a preferred content height, constrained to the available viewport.
+/// [height] includes the optional handle and is constrained to the viewport.
 /// This boundary owns safe areas and, when [keyboardAware], keyboard avoidance.
 /// Builders must not add `viewInsets` again.
 Future<T?> showGfBottomSheet<T>(
@@ -11,6 +11,7 @@ Future<T?> showGfBottomSheet<T>(
   required WidgetBuilder builder,
   bool barrierDismissible = true,
   bool enableDrag = true,
+  bool? showDragHandle,
   double? height,
   bool keyboardAware = false,
 }) {
@@ -25,6 +26,7 @@ Future<T?> showGfBottomSheet<T>(
     isDismissible: barrierDismissible,
     enableDrag: enableDrag,
     isScrollControlled: true,
+    constraints: const BoxConstraints(maxWidth: 640),
     useSafeArea: true,
     // Paint inside the keyboard padding, including the home-indicator area.
     // Padding inside the route's painted Material leaves a blank surface behind
@@ -56,7 +58,32 @@ Future<T?> showGfBottomSheet<T>(
           child: SizedBox(
             width: double.infinity,
             height: height,
-            child: Builder(builder: builder),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (showDragHandle ?? enableDrag)
+                  ExcludeSemantics(
+                    child: SizedBox(
+                      height: 28,
+                      child: Center(
+                        child: Container(
+                          width: 32,
+                          height: 4,
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.onSurfaceVariant
+                                .withValues(alpha: 0.3),
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                if (height != null)
+                  Expanded(child: Builder(builder: builder))
+                else
+                  Flexible(child: Builder(builder: builder)),
+              ],
+            ),
           ),
         ),
       ),

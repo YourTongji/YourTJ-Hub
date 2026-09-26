@@ -266,10 +266,18 @@ void main() {
             .first,
       );
       expect(content.height, 100);
-      expect(content.top, panel.top, reason: 'No notch padding inside a sheet');
+      expect(
+        content.top,
+        panel.top + 28,
+        reason: 'Only the shared drag handle precedes content',
+      );
       expect(content.bottom, 844 - 34);
       expect(panel.bottom, 844, reason: 'Surface paints behind home indicator');
-      expect(panel.height, 134, reason: 'No default 240px empty panel');
+      expect(
+        panel.height,
+        162,
+        reason: 'Content, drag handle and bottom safe area only',
+      );
       expect(tester.takeException(), isNull);
     });
 
@@ -315,7 +323,7 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      expect(tester.getTopLeft(find.text('Pick class')).dy, 59 + 16);
+      expect(tester.getTopLeft(find.text('Pick class')).dy, 59 + 28 + 16);
       expect(tester.getBottomLeft(find.byType(ListView)).dy, 844 - 34);
       await tester.scrollUntilVisible(find.text('Class 29'), 300);
       await tester.tap(find.text('Class 29'));
@@ -393,7 +401,7 @@ void main() {
           ),
         );
         await tester.pumpAndSettle();
-        expect(tester.getTopLeft(find.text('Review')).dy, 59);
+        expect(tester.getTopLeft(find.text('Review')).dy, 59 + 28);
         expect(
           tester.getBottomLeft(find.byKey(const Key('save'))).dy,
           844 - 336,

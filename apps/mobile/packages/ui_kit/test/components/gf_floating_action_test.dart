@@ -6,21 +6,28 @@ import '../helpers.dart';
 
 void main() {
   group('GfFloatingAction', () {
-    testWidgets('circular variant builds and fires onPressed in both themes',
-        (tester) async {
+    testWidgets('circular variant builds and fires onPressed in both themes', (
+      tester,
+    ) async {
       await forEachBrightness(tester, (tester, brightness) async {
         int taps = 0;
         await tester.pumpWidget(
           gfApp(
-            GfFloatingAction(
-              onPressed: () => taps++,
-              bottomInset: 0,
-            ),
+            GfFloatingAction(onPressed: () => taps++, bottomInset: 0),
             brightness: brightness,
           ),
         );
-        expect(find.byIcon(Icons.edit), findsOneWidget);
-        await tester.tap(find.byIcon(Icons.edit));
+        expect(
+          find.byWidgetPredicate(
+            (widget) => widget is GfSymbol && widget.name == 'square-pen',
+          ),
+          findsOneWidget,
+        );
+        await tester.tap(
+          find.byWidgetPredicate(
+            (widget) => widget is GfSymbol && widget.name == 'square-pen',
+          ),
+        );
         expect(taps, 1);
       });
     });
@@ -42,14 +49,13 @@ void main() {
     testWidgets('disabled variant blocks taps', (tester) async {
       int taps = 0;
       await tester.pumpWidget(
-        gfApp(
-          GfFloatingAction(
-            onPressed: () => taps++,
-            enabled: false,
-          ),
+        gfApp(GfFloatingAction(onPressed: () => taps++, enabled: false)),
+      );
+      await tester.tap(
+        find.byWidgetPredicate(
+          (widget) => widget is GfSymbol && widget.name == 'square-pen',
         ),
       );
-      await tester.tap(find.byIcon(Icons.edit));
       expect(taps, 0);
     });
   });

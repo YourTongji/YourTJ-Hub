@@ -116,6 +116,37 @@ Future<ProviderContainer> _mount(
 }
 
 void main() {
+  testWidgets('empty unread explains the filter and opens all notifications', (
+    tester,
+  ) async {
+    final repo = _Notifications();
+    await _mount(tester, repo);
+    repo.requests.first.$3.complete(_page('existing'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Unread'));
+    await tester.pump();
+    repo.requests.last.$3.complete(
+      const NotificationListResponse(
+        items: [],
+        nextCursor: 0,
+        hasNext: false,
+        unreadCount: 0,
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('You’re all caught up'), findsOneWidget);
+    expect(find.byType(FloatingActionButton), findsNothing);
+    await tester.tap(find.widgetWithText(GfButton, 'All'));
+    await tester.pump();
+    expect(repo.requests.last.$1, 'all');
+    repo.requests.last.$3.complete(_page('existing'));
+    await tester.pumpAndSettle();
+    expect(
+      tester.widget<GfNotificationRow>(find.byType(GfNotificationRow)).title,
+      contains('existing'),
+    );
+  });
+
   testWidgets(
     'social notifications show actor and template-specific like mark',
     (tester) async {

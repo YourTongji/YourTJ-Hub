@@ -133,6 +133,7 @@
   "publishPublish": "发布",
   "publishSaveDraft": "保存草稿",
   "publishTitleField": "标题",
+  "publishAddTitle": "添加标题",
   "publishTitleHint": "请输入标题(5-100 字)",
   "publishBodyPlaceholder": "正文内容…",
   "publishTitleRequired": "标题不能为空",
@@ -659,7 +660,7 @@
   "wikiRecent": "最近更新",
   "wikiEditOnGithub": "在 GitHub 编辑",
   "wikiToc": "目录",
-  "wikiNamespaces": "命名空间",
+  "wikiNamespaces": "内容分类",
   "wikiViewCount": "{count} 次浏览",
   "@wikiViewCount": {
     "placeholders": {
@@ -1204,7 +1205,7 @@
   "privateNoteLabel": "私有备注",
   "privateNoteHint": "仅自己可见，最多 64 个字符；留空保存即可清除。",
   "badgeDisplayTitle": "资料卡展示徽章",
-  "badgeDisplayHint": "最多选择 5 枚，按下方顺序展示；可全部取消。与头像佩戴徽章独立。",
+  "badgeDisplayHint": "最多展示 5 枚，可全部取消；与头像佩戴徽章独立。",
   "badgeDisplayUp": "上移",
   "badgeDisplayDown": "下移",
   "notificationsMarkRead": "标为已读",
@@ -1286,5 +1287,38 @@
   "draftDeleteDone": "本机草稿已删除，可撤销最近一次删除。",
   "draftDeleteRestored": "已恢复本机草稿",
   "draftRestoreConflict": "已有本机副本，已保留其内容。",
-  "draftRestoreFailed": "恢复失败，请再次点击撤销。"
+  "draftRestoreFailed": "恢复失败，请再次点击撤销。",
+  "settingsDataStorage": "数据与存储",
+  "settingsProfileDisplay": "个人资料与展示",
+  "settingsNotSet": "未设置",
+  "settingsUnsavedTitle": "放弃未保存的更改？",
+  "settingsUnsavedBody": "更改尚未保存，返回后将丢弃这些内容。",
+  "settingsKeepEditing": "继续编辑",
+  "settingsDiscardChanges": "放弃更改",
+  "settingsPushPreference": "允许推送通知",
+  "settingsPushDelivery": "此设备送达状态",
+  "settingsPushReady": "可以接收通知",
+  "settingsPushOff": "尚未开启",
+  "settingsPushIOSConsent": "通过 Apple 推送通知服务接收通知，会处理设备推送标识及通知内容。",
+  "settingsPushAndroidConsent": "通过极光及手机厂商接收通知，会处理设备推送标识及通知内容。",
+  "settingsDeviceUnknown": "其他设备",
+  "settingsDeviceCurrent": "当前设备",
+  "badgeDisplayReorder": "拖动调整展示顺序",
+  "badgeDisplaySelectedCount": "已展示 {count}/5",
+  "sortFollowing": "关注",
+  "notificationsUnreadEmpty": "暂无未读通知",
+  "notificationsUnreadEmptyDescription": "所有通知都已查看。",
+  "homeFeedOptions": "分类与显示",
+  "@badgeDisplaySelectedCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "homeAllCategories": "全部分类",
+  "sortNew": "新发布",
+  "profileRoleAdminDescription": "维护社区秩序，保障论坛正常运行。",
+  "profileBadgeEarnedOn": "获得于 {date}",
+  "settingsProfilePartialSave": "已保存：{saved}。其余修改仍保留，请重试保存。"
 }

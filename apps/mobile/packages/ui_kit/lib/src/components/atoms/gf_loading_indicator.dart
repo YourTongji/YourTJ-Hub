@@ -1,7 +1,8 @@
-import 'package:flutter/material.dart';
-import 'package:tdesign_flutter/tdesign_flutter.dart' as td;
+import 'package:flutter/cupertino.dart';
 
-/// Compact loading primitive backed by TDesign.
+import '../../theme/gf_theme.dart';
+
+/// Quiet native progress with optional supporting text.
 class GfLoadingIndicator extends StatelessWidget {
   const GfLoadingIndicator({super.key, this.message, this.small = false});
 
@@ -10,9 +11,31 @@ class GfLoadingIndicator extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return td.TLoading(
-      size: small ? td.TLoadingSize.small : td.TLoadingSize.large,
-      text: message,
+    final colors = GfTheme.colorsOf(context);
+    return Semantics(
+      liveRegion: message != null,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          CupertinoActivityIndicator(
+            radius: small ? 8 : 11,
+            color: colors.iconMuted,
+            animating: !MediaQuery.disableAnimationsOf(context),
+          ),
+          if (message != null) ...[
+            const SizedBox(height: 10),
+            Text(
+              message!,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: colors.iconMuted,
+                fontSize: 14,
+                height: 1.4,
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 }

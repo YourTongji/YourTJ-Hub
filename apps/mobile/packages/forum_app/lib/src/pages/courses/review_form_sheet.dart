@@ -3,6 +3,7 @@ import 'package:core/core.dart';
 import 'package:ui_kit/ui_kit.dart';
 import '../../../l10n/app_localizations.dart';
 import 'course_common.dart';
+import '../../widgets/confirm_discard_edit.dart';
 
 // ---- 写评 / 编辑表单 sheet ----
 
@@ -37,6 +38,26 @@ class CourseReviewFormSheetState extends State<CourseReviewFormSheet> {
   late int _rating;
   late bool _anonymous;
   bool _submitting = false;
+  bool _allowPop = false, _closing = false;
+  late final (int?, int, String, bool) _initial;
+
+  bool get _dirty =>
+      _initial != (_offeringId, _rating, _contentController.text, _anonymous);
+
+  void _finish([ReviewPayload? result]) {
+    setState(() => _allowPop = true);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) Navigator.pop(context, result);
+    });
+  }
+
+  Future<void> _close() async {
+    if (_submitting || _closing) return;
+    _closing = true;
+    final leave = !_dirty || await confirmDiscardEdit(context);
+    _closing = false;
+    if (mounted && leave) _finish();
+  }
 
   late final CourseRepository _repo = widget.repository;
 
@@ -54,6 +75,8 @@ class CourseReviewFormSheetState extends State<CourseReviewFormSheet> {
       _rating = 0;
       _anonymous = true;
     }
+    _initial = (_offeringId, _rating, _contentController.text, _anonymous);
+    _contentController.addListener(() => setState(() {}));
   }
 
   @override
@@ -68,6 +91,7 @@ class CourseReviewFormSheetState extends State<CourseReviewFormSheet> {
   }
 
   Future<void> _submit() async {
+    if (_submitting) return;
     final CourseCopy copy = CourseCopy(AppLocalizations.of(context));
     if (_rating < 1) {
       _toast(copy.ratingRequired, error: true);
@@ -107,7 +131,7 @@ class CourseReviewFormSheetState extends State<CourseReviewFormSheet> {
         );
       }
       if (!mounted) return;
-      Navigator.pop(context, result);
+      _finish(result);
     } catch (e) {
       if (!mounted) return;
       setState(() => _submitting = false);
@@ -125,158 +149,175 @@ class CourseReviewFormSheetState extends State<CourseReviewFormSheet> {
     final GfTypography type = GfTheme.typographyOf(context);
     final bool editing = widget.editing != null;
 
-    return SafeArea(
-      child: LayoutBuilder(
-        builder: (context, constraints) => SingleChildScrollView(
-          child: SizedBox(
-            // Keep a usable editing area when keyboard and large text leave
-            // too little room for the fixed heading/actions. The outer scroll
-            // makes every control reachable without reparenting the editor.
-            height:
-                constraints.maxHeight <
-                    MediaQuery.textScalerOf(context).scale(280)
-                ? MediaQuery.textScalerOf(context).scale(280)
-                : constraints.maxHeight,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: <Widget>[
-                  Text(
-                    editing ? copy.editReviewTitle : copy.writeReviewTitle,
-                    style: type.heading.copyWith(fontWeight: FontWeight.w700),
-                  ),
-                  const SizedBox(height: 10),
-                  // 开课实例选择（编辑模式只读展示）。
-                  Expanded(
-                    child: ListView(
-                      shrinkWrap: true,
-                      children: <Widget>[
-                        Text(
-                          copy.selectOffering,
-                          style: type.caption.copyWith(
-                            color: colors.baseContent.withValues(alpha: 0.7),
+    return PopScope(
+      canPop: _allowPop || (!_submitting && !_dirty),
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _close();
+      },
+      child: SafeArea(
+        child: LayoutBuilder(
+          builder: (context, constraints) => SingleChildScrollView(
+            child: SizedBox(
+              // Keep a usable editing area when keyboard and large text leave
+              // too little room for the fixed heading/actions. The outer scroll
+              // makes every control reachable without reparenting the editor.
+              height:
+                  constraints.maxHeight <
+                      MediaQuery.textScalerOf(context).scale(280)
+                  ? MediaQuery.textScalerOf(context).scale(280)
+                  : constraints.maxHeight,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: <Widget>[
+                    Text(
+                      editing ? copy.editReviewTitle : copy.writeReviewTitle,
+                      style: type.heading.copyWith(fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 10),
+                    // 开课实例选择（编辑模式只读展示）。
+                    Expanded(
+                      child: ListView(
+                        shrinkWrap: true,
+                        children: <Widget>[
+                          Text(
+                            copy.selectOffering,
+                            style: type.caption.copyWith(
+                              color: colors.baseContent.withValues(alpha: 0.7),
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 6),
-                        for (final CourseOfferingPayload offering
-                            in widget.offerings)
-                          _offeringOption(offering, copy, colors, type),
-                        const SizedBox(height: 12),
-                        Text(
-                          copy.ratingLabel,
-                          style: type.caption.copyWith(
-                            color: colors.baseContent.withValues(alpha: 0.7),
+                          const SizedBox(height: 6),
+                          for (final CourseOfferingPayload offering
+                              in widget.offerings)
+                            _offeringOption(offering, copy, colors, type),
+                          const SizedBox(height: 12),
+                          Text(
+                            copy.ratingLabel,
+                            style: type.caption.copyWith(
+                              color: colors.baseContent.withValues(alpha: 0.7),
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 4),
-                        Row(
-                          children: <Widget>[
-                            for (int star = 1; star <= 5; star++)
-                              Padding(
-                                padding: const EdgeInsets.only(right: 4),
-                                child: InkWell(
-                                  borderRadius: BorderRadius.circular(999),
+                          const SizedBox(height: 4),
+                          Wrap(
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            children: <Widget>[
+                              for (int star = 1; star <= 5; star++)
+                                Semantics(
+                                  key: ValueKey('review-rating-$star'),
+                                  label: '${copy.ratingLabel}: $star / 5',
+                                  button: true,
+                                  selected: _rating == star,
+                                  enabled: !_submitting,
                                   onTap: _submitting
                                       ? null
                                       : () => setState(() => _rating = star),
-                                  child: Icon(
-                                    star <= _rating
-                                        ? Icons.star
-                                        : Icons.star_border,
-                                    size: 30,
-                                    color: star <= _rating
-                                        ? colors.warning
-                                        : colors.baseContent.withValues(
-                                            alpha: 0.25,
-                                          ),
+                                  child: InkWell(
+                                    excludeFromSemantics: true,
+                                    borderRadius: BorderRadius.circular(24),
+                                    onTap: _submitting
+                                        ? null
+                                        : () => setState(() => _rating = star),
+                                    child: SizedBox(
+                                      width: 48,
+                                      height: 48,
+                                      child: Center(
+                                        child: Icon(
+                                          star <= _rating
+                                              ? Icons.star
+                                              : Icons.star_border,
+                                          size: 28,
+                                          color: star <= _rating
+                                              ? colors.warning
+                                              : colors.iconMuted,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              if (_rating > 0)
+                                Padding(
+                                  padding: const EdgeInsets.only(left: 8),
+                                  child: Text(
+                                    '$_rating.0',
+                                    style: type.small.copyWith(
+                                      color: colors.iconMuted,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            copy.contentLabel,
+                            style: type.caption.copyWith(
+                              color: colors.baseContent.withValues(alpha: 0.7),
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          GfTextarea(
+                            controller: _contentController,
+                            hintText: copy.contentPlaceholder,
+                            maxLength: 2000,
+                            enabled: !_submitting,
+                          ),
+                          const SizedBox(height: 4),
+                          Row(
+                            children: <Widget>[
+                              GfSymbol(
+                                _anonymous ? 'eye-off' : 'eye',
+                                size: 16,
+                                color: colors.baseContent.withValues(
+                                  alpha: 0.5,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  copy.anonymousLabel,
+                                  style: type.small.copyWith(
+                                    color: colors.baseContent.withValues(
+                                      alpha: 0.7,
+                                    ),
                                   ),
                                 ),
                               ),
-                            if (_rating > 0) ...<Widget>[
-                              const SizedBox(width: 8),
-                              Text(
-                                '$_rating.0',
-                                style: type.small.copyWith(
-                                  fontWeight: FontWeight.w600,
-                                  color: colors.baseContent.withValues(
-                                    alpha: 0.7,
-                                  ),
-                                ),
+                              Switch(
+                                value: _anonymous,
+                                onChanged: _submitting
+                                    ? null
+                                    : (bool value) =>
+                                          setState(() => _anonymous = value),
                               ),
                             ],
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          copy.contentLabel,
-                          style: type.caption.copyWith(
-                            color: colors.baseContent.withValues(alpha: 0.7),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: <Widget>[
+                        Expanded(
+                          child: GfButton(
+                            label: l10n.commonCancel,
+                            variant: GfButtonVariant.ghost,
+                            onPressed: _submitting ? null : _close,
                           ),
                         ),
-                        const SizedBox(height: 6),
-                        GfTextarea(
-                          controller: _contentController,
-                          hintText: copy.contentPlaceholder,
-                          maxLength: 2000,
-                          enabled: !_submitting,
-                        ),
-                        const SizedBox(height: 4),
-                        Row(
-                          children: <Widget>[
-                            Icon(
-                              _anonymous
-                                  ? Icons.visibility_off_outlined
-                                  : Icons.visibility_outlined,
-                              size: 16,
-                              color: colors.baseContent.withValues(alpha: 0.5),
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                copy.anonymousLabel,
-                                style: type.small.copyWith(
-                                  color: colors.baseContent.withValues(
-                                    alpha: 0.7,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            Switch(
-                              value: _anonymous,
-                              onChanged: _submitting
-                                  ? null
-                                  : (bool value) =>
-                                        setState(() => _anonymous = value),
-                            ),
-                          ],
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: GfButton(
+                            label: editing
+                                ? l10n.commonSave
+                                : l10n.reviewSubmit,
+                            loading: _submitting,
+                            onPressed: _submit,
+                          ),
                         ),
                       ],
                     ),
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: <Widget>[
-                      Expanded(
-                        child: GfButton(
-                          label: l10n.commonCancel,
-                          variant: GfButtonVariant.ghost,
-                          onPressed: _submitting
-                              ? null
-                              : () => Navigator.pop(context),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: GfButton(
-                          label: editing ? l10n.commonSave : l10n.reviewSubmit,
-                          loading: _submitting,
-                          onPressed: _submit,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
@@ -291,13 +332,16 @@ class CourseReviewFormSheetState extends State<CourseReviewFormSheet> {
     GfColors colors,
     GfTypography type,
   ) {
-    final String classLabel = (offering.className?.isNotEmpty ?? false)
-        ? offering.className!
-        : (offering.classCode ?? '');
+    final classParts = <String>[
+      offering.className?.trim() ?? '',
+      offering.classCode?.trim() ?? '',
+    ].where((part) => part.isNotEmpty).toSet();
+    final String classLabel = classParts.join(' · ');
     final String detailLine = <String>[
-      offering.campus ?? '',
-      offering.instructors?.join('、') ?? '',
-    ].where((String s) => s.isNotEmpty).join(' · ');
+      offering.campus?.trim() ?? '',
+      offering.faculty?.trim() ?? '',
+      ...?offering.instructors?.map((name) => name.trim()),
+    ].where((part) => part.isNotEmpty).toSet().join(' · ');
     final bool selected = _offeringId == offering.id;
     return InkWell(
       onTap: _submitting || widget.editing != null
@@ -307,8 +351,8 @@ class CourseReviewFormSheetState extends State<CourseReviewFormSheet> {
         margin: const EdgeInsets.only(bottom: 6),
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         decoration: BoxDecoration(
-          color: selected ? colors.info.withValues(alpha: 0.1) : colors.base100,
-          borderRadius: BorderRadius.circular(8),
+          color: colors.base200,
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: selected
                 ? colors.primary.withValues(alpha: 0.4)
@@ -333,14 +377,14 @@ class CourseReviewFormSheetState extends State<CourseReviewFormSheet> {
                 children: <Widget>[
                   Text(
                     <String>[
-                      shortTerm(
-                        offering.termCode,
-                        locale: AppLocalizations.of(context).localeName,
-                      ),
+                      (offering.termName?.trim().isNotEmpty ?? false)
+                          ? offering.termName!.trim()
+                          : shortTerm(
+                              offering.termCode,
+                              locale: AppLocalizations.of(context).localeName,
+                            ),
                       classLabel,
                     ].join(' · '),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
                     style: type.small.copyWith(
                       fontWeight: FontWeight.w600,
                       color: colors.baseContent,
@@ -350,8 +394,6 @@ class CourseReviewFormSheetState extends State<CourseReviewFormSheet> {
                     const SizedBox(height: 1),
                     Text(
                       detailLine,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
                       style: type.meta.copyWith(
                         color: colors.baseContent.withValues(alpha: 0.55),
                       ),
