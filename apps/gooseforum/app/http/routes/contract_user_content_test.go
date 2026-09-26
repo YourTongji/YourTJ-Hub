@@ -1,13 +1,14 @@
 package routes
 
 import (
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/campus"
+	"fmt"
 	"net/http"
 	"testing"
 	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/api"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/middleware"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/campus"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/contentDeleteEvent"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/eventNotification"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/moderationLog"
@@ -49,6 +50,9 @@ func setupUserContentContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 	loginAPI.POST("/user/content-purge", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.PurgeContent))
 	loginAPI.POST("/user/content-event", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.ReportContentEvent))
 	loginAPI.POST("/user/account-close", middleware.CheckWritableAccountAllowPendingActivation, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.AccountClose))
+	// user-card 允许匿名访问的公开只读面：注销缓存即时性用例（issue #794）
+	// 需要预热公开资料缓存后再注销比对，路由与生产 baseApi 注册保持一致。
+	router.GET("/api/user-card", middleware.JWTAuth, UpQueryReq(api.GetUserCard))
 	return conn, router
 }
 
@@ -365,6 +369,41 @@ func TestAccountCloseHTTPContract(t *testing.T) {
 		followUp := serveAuthSecurityJSON(router, http.MethodGet, "/api/forum/user/my-content?contentType=topic", "", token)
 		if followUp.Code != http.StatusUnauthorized {
 			t.Fatalf("post-close session status = %d, want 401", followUp.Code)
+		}
+	})
+
+	// issue #794：注销必须即时失效公开资料缓存（userPublicProfileCache）。
+	// userDeleteController 不自证该缓存（与 adminController 删除用户路径对比），
+	// 若注销前 user-card 已预热缓存，注销后 GetUserPublicProfile 会在缓存 TTL
+	// （2 分钟）内继续命中全量卡片而非 isAccountClosed tombstone——注销 UX 承诺
+	// 的资料下线出现残留窗口。本用例：预热 → 注销 → 立即再请求，断言 tombstone。
+	t.Run("close invalidates pre-warmed public profile cache", func(t *testing.T) {
+		conn, router := setupUserContentContractTest(t)
+		user := createHTTPContractUser(t, conn, contractTestID())
+		token := contractSessionToken(t, user)
+
+		// 注销前请求一次 user-card，等价于该用户资料曾被浏览，预热公开资料缓存。
+		warmed := serveAuthSecurityJSON(router, http.MethodGet, "/api/user-card?userId="+fmt.Sprint(user.Id), "", "")
+		if warmed.Code != http.StatusOK {
+			t.Fatalf("pre-close user-card status = %d, want 200: %s", warmed.Code, warmed.Body.String())
+		}
+		warmedCard := decodeUserCardIsAccountClosed(t, warmed)
+		if warmedCard {
+			t.Fatal("pre-close user card isAccountClosed = true, want false")
+		}
+
+		recorder := serveJSON(router, "/api/forum/user/account-close", `{"mode":"anonymize","password":"secret123"}`, token)
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("account-close status = %d, want 200: %s", recorder.Code, recorder.Body.String())
+		}
+
+		// 注销后立即再请求 user-card：必须命中 tombstone，而非缓存中的全量卡片。
+		after := serveAuthSecurityJSON(router, http.MethodGet, "/api/user-card?userId="+fmt.Sprint(user.Id), "", "")
+		if after.Code != http.StatusOK {
+			t.Fatalf("post-close user-card status = %d, want 200: %s", after.Code, after.Body.String())
+		}
+		if closed := decodeUserCardIsAccountClosed(t, after); !closed {
+			t.Fatalf("post-close user card isAccountClosed = false, want true (public profile cache not invalidated); body=%s", after.Body.String())
 		}
 	})
 
