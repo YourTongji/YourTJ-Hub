@@ -15,7 +15,9 @@ to the Flutter app. [Mobile experience](mobile-experience.md) records implemente
 ## Content and visual hierarchy
 
 `Current`: the first viewport prioritizes readable posts. Home uses one compact identity/search header
-and one persistent feed selector. Announcements remain reachable through an expandable summary;
+and persistent sort tabs with an immediately visible horizontal category row. Category buttons have
+compact rounded surfaces, full single-line labels and touch targets that grow with system text.
+Selection uses a tinted surface and check mark. Announcements remain reachable through an expandable summary;
 category selection filters Home in place, with a visible current filter and a clear-to-all action. Returning to a stream
 restores its items, cursor and reading position. Latest, popular, trending and following are distinct
 streams; following contains posts from followed authors in `created_at DESC, id DESC` order, with
@@ -52,9 +54,13 @@ all controls, see focus, dismiss a transient panel with Escape and use standard 
 When both list and detail are visible, back first closes the detail context; narrow windows use a
 normal pushed route. System safe areas and keyboard insets are consumed exactly once.
 
-`Planned`: public profile tabs expose stable readable labels, a restrained selected underline and
-independent stream state. Following/follower statistics open the matching lists. Device preferences
-are separate from account editing, binding and security. Appearance offers System, Light and Dark.
+`Current`: public profile tabs form a continuous row. The active item expands its icon and localized
+label; other items retain accessible icon controls. The selected underline moves with the changing
+cell widths, with reduced-motion support. Loading affects only the content stream; the identity and
+tab row remain stable. Loaded pages and scroll positions are independent per stream, while obsolete
+requests are cancelled or ignored. Following/follower statistics open the matching lists.
+Device preferences are separate from account editing, binding and security. Appearance offers System,
+Light and Dark, and an already open choice sheet updates with the selected theme.
 
 ## Transient surfaces and input
 
@@ -157,7 +163,9 @@ transitions and automatic rotation. Text contrast targets WCAG AA; focus and ess
 controls remain visible in both themes.
 
 Chinese, English, Japanese and German share layout rules: labels wrap or move into a second row rather
-than shrink; tabs can scroll without hiding their names; metadata wraps before primary content.
+than shrink; tabs can scroll without hiding their names. Feed author metadata stays on one row:
+long display names use ellipsis with their full accessible label, and categories scroll horizontally.
+Other metadata can wrap before primary content.
 Pluralization and numbers use locale-aware messages. User content retains its language. Relative
 directional padding supports future right-to-left layouts even though no RTL locale is currently
 shipped. Avoid fixed-height text containers, substring-based truncation and concatenated sentences.

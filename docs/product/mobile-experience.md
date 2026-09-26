@@ -18,6 +18,18 @@ behavioral acceptance rules. Its `Planned` requirements are tracked separately f
 behaviors below; [state and cache boundaries](../architecture/mobile-state-and-cache.md) describe the
 corresponding planned ownership and lifecycle contracts.
 
+## Launch experience
+
+`Current`: Android and iOS display a static YourTJ brand mark in their native launch surface.
+Android selects light/dark launch resources using the saved app appearance; Flutter continues with
+the resolved app theme, a transparent animated mark and the caption “未济非终，皆有可能”. The
+animation yields to the interactive app within 1.2 seconds and is skipped for reduced motion.
+Session and Home requests run beneath the launch surface. Home mounts its base sort tabs before
+server navigation arrives, then fills the existing skeleton. Initial cached/network rows prefetch
+at most four author avatars with a 240-millisecond ceiling using the same image keys as the visible
+avatars. Request and account guards still apply after prefetching. Startup system-bar styling is
+local to the launch surface; the normal route-aware fallback resumes when the launch surface leaves.
+
 ## Navigation and reading
 
 `Current`: root layout uses the available window width. Below 600 logical pixels it retains bottom
@@ -73,8 +85,9 @@ ordered after the active route in the accessibility tree so iOS does not hide it
   18 pixels with a 1.55 line height and system text scaling. Code uses 16 pixels and tables use
   17 pixels; headings keep a distinct hierarchy and follow the active theme. The first post supports
   text selection. Feed cards use
-  compact vertical padding and one timestamp. Author, time and category labels share a wrapping
-  metadata row, retaining separate touch targets without stacking full-height rows when they fit.
+  compact vertical padding and one timestamp. Author, time and category labels share one metadata
+  row. Long author names ellipsize, and the category group scrolls horizontally when space is tight,
+  retaining separate touch targets.
   Metadata is vertically centered in its 44-pixel targets, aligned near the avatar top without
   overlapping the title below. Titles use a compact 1.35 line height with a 2-pixel gap before the
   excerpt. A 2-pixel gap leads into the action row, followed by a 4-pixel bottom inset, keeping
@@ -123,9 +136,9 @@ ordered after the active route in the accessibility tree so iOS does not hide it
   Metrics and actions wrap at narrow widths and enlarged text sizes.
 - `Current`: simple-content topics show an uncropped, swipeable image gallery above the body. The
   same gallery is used in the publishing preview.
-- `Current`: the Home feed selector opens a contextual panel containing the site's categories and
-  list/card preferences. Category pills filter the existing Home stream in place. The current
-  category appears in the selector with a clear-to-all action; unavailable categories take no space.
+- `Current`: Home displays categories in a horizontal row below the feed sorts. Category pills
+  filter the existing stream in place, with a highlighted selection and an All categories action.
+  The display menu contains list/card preferences; unavailable categories take no space.
 - `Current`: root headers, filter rails and bottom navigation overlay the reading viewport. They
   hide after 48 logical pixels downward and return after 12 pixels upward, with 200 ms transitions.
   Hidden headers are clipped at the system safe-area edge; the reading viewport stays stable.
@@ -289,7 +302,7 @@ ordered after the active route in the accessibility tree so iOS does not hide it
   32/40/44/48 pixels by size, within touch targets of at least 48 pixels. Both grow for wrapped or
   enlarged labels; disabled actions remain visibly muted. Category chips have a compact 24-pixel
   fill at normal text size and at least 44-pixel targets when interactive. Home keeps category
-  discovery and list/card preferences in one contextual panel beside the feed selector. Home and notification tabs
+  discovery directly above the stream and list/card preferences in the display menu. Home and notification tabs
   grow with system text size, and the overlay's content inset uses the same measured height.
 - `Current`: empty and retry states share a soft icon surface, readable explanation and optional
   next action, with scrolling on short screens. Empty all-notifications link back to Home; empty unread notifications explain that everything is read and offer the All tab; empty drafts
@@ -678,15 +691,15 @@ identity survive this layout change. The header keeps a small outer margin for i
   and the six Web social providers. Saving preserves unedited fields and unknown social providers;
   website/social destinations accept HTTP(S), and social usernames expand to provider URLs.
   Public profiles display website/social links as icon-only controls and open them in the system
-  browser. Provider marks retain at least 44-pixel touch targets, with their names available to
-  screen readers and long-press tooltips. Worn badges appear on the avatar independently of the badge list;
+  browser. Provider marks form a compact, left-aligned group of adjacent 44-pixel touch targets,
+  with their names available to screen readers and long-press tooltips. Worn badges appear on the avatar independently of the badge list;
   administrator identity has a localized role label. Returning
   from settings refreshes profile identity and media immediately.
 
 - `Current`: public profile covers extend behind the status bar and navigation. Back, overflow
   and notifications use circular frosted controls with 44-pixel targets. Scrolling reveals an opaque
-  title bar and keeps content tabs below it; a status-area scrim protects white system indicators
-  during collapse. The application supplies a theme-aware status-bar fallback, so returning from
+  title bar with the name and topic count left-aligned beside the back control, and keeps content
+  tabs below it; a status-area scrim protects white system indicators during collapse. The application supplies a theme-aware status-bar fallback, so returning from
   an immersive cover to a plain feed restores legible system indicators. Cover, avatar and profile actions share one header layer so the avatar stays
   fully visible. The compact action band keeps the display name eight pixels below the avatar
   ring; account ID, bio and statistics use tighter related-content spacing. The band grows for
@@ -701,12 +714,15 @@ identity survive this layout change. The header keeps a small outer margin for i
   and text size; large text reduces the column count and card height grows with the title. The dark
   theme retains a softly lit inner face so fixed-color server artwork stays legible.
 
-- `Current`: the root avatar opens an account drawer with a generous left inset, larger line icons,
-  nickname and account handle. Following/follower counts come from the user's card and open the
-  matching native connection lists. Unavailable counts show a placeholder with retry instead of zero; opening
-  the drawer refreshes the card, and account changes discard previous identity data. Profile,
-  bookmarks, drafts, my content, recycle bin and my course reviews are direct entries. Settings and
-  permission-gated workspaces remain available. The profile overflow retains its infrequent entries.
+- `Current`: the root avatar opens an account drawer with aligned 24-pixel outline icons, compact
+  rows and a clear nickname/account-handle hierarchy. A rightward drag beginning in the leading
+  55% of the viewport can open it; vertical scrolling and interactive horizontal child controls keep
+  their gestures. Following/follower counts open the matching native connection lists. Unavailable
+  counts show a placeholder with retry instead of zero. Opening the drawer refreshes the card, and
+  account changes discard previous identity data. Profile, bookmarks, drafts, my content, recycle bin,
+  course reviews, settings, community information and permission-gated workspaces remain available.
+  The appearance shortcut opens System/Light/Dark choices; the open sheet follows theme changes
+  immediately. The profile overflow retains its infrequent entries.
   Account controls are outside the public profile.
 - `Current`: activity entries distinguish signup, post, like, follow and comment with matching
   icons and localized captions in flat rows with a content preview and compact timestamp.
@@ -736,10 +752,13 @@ identity survive this layout change. The header keeps a small outer margin for i
 - `Current`: users with follow permission retain the follow button for already-followed accounts,
   including administrators. It displays the followed state and toggles to unfollow, prevents duplicate
   in-flight requests and restores the previous state when a request fails.
-- `Current`: profile content tabs always show their localized text, with a stable selected underline
-  and a pinned rail. Activity, topics, likes, own bookmarks and badges fetch their corresponding
-  server streams. Each stream retains its pages, scroll position, loading and retry state while the
-  page is open. Inactive reads cannot replace the selected stream; refresh and account changes
+- `Current`: profile content tabs form a continuous pinned rail. The selected item expands its icon
+  and localized label; inactive items show icons with accessible names. The underline animates with
+  the tab widths, respecting reduced motion. Activity, content, likes, own bookmarks and badges fetch
+  their corresponding streams. The header and tabs stay visible while an unloaded stream displays
+  skeleton rows. Each stream retains loaded pages and scroll position; leaving a stream cancels
+  unfinished reads, which restart if needed on return. Inactive reads cannot replace the selected
+  stream; refresh and account changes
   invalidate older responses. Failed refreshes and pagination keep already loaded rows. Pagination
   follows only relative server URLs for the same user and stream, deduplicating overlapping rows.
 - `Current`: following and follower statistics are keyboard-accessible navigation controls with
@@ -860,13 +879,16 @@ servers that omit interaction fields retain read-only content previews.
 ## Sticker library
 
 - `Current`: messages, replies and publishing share a Recent / My / Official sticker picker. Official
-  packs come from the administrator's enabled library, with a source and license link. Recent use
+  packs come from the administrator's enabled library, with a source and license link. Bundled presets
+  retain their manifest's source pack; upgrades restore the default grouping on previously seeded
+  official entries while preserving custom groups. Recent use
   keeps up to 30 distinct items in the current account/site session. Picking inserts at the caret or replaces the
   current selection; it does not send or publish. Unicode emoji and image stickers remain distinct.
 - `Current`: the personal library supports image upload, collecting a shared sticker by long press,
   private display names, reordering and removal. It holds up to 200 stickers; images are limited to
   4 MiB and an account can create up to 1000 retained personal assets. Uploads use the authenticated
-  file service. Failed requests retain the current input and expose retry.
+  file service. Failed requests retain the current input and expose retry. Concurrent collection
+  writes are rejected explicitly so a skipped operation cannot report success.
 - `Current`: personal membership is account-private. Shared personal token names can be resolved by
   recipients; the public directory lists official stickers only. Removing a library entry keeps
   shared posts and messages renderable. Account closure removes collection membership while shared
@@ -878,9 +900,10 @@ servers that omit interaction fields retain read-only content previews.
 - `Current`: disabled official stickers stay in personal management for ordering/removal and are
   unavailable for insertion; permanently deleted official stickers leave the collection. Older servers
   without personal-library endpoints show a compatibility message while official stickers remain usable.
-- `Current`: Web post and Wiki sticker images are excluded from lightbox clicks and gallery
+- `Current`: Web post and reply sticker images are excluded from lightbox clicks and gallery
   collection; chat stickers are also non-interactive. Ordinary photos retain image preview, and
-  images explicitly linked to another page retain their link destination.
+  images explicitly linked to another page retain their link destination. Sticker recognition uses
+  renderer-owned provenance; an ordinary image's author-supplied alt text does not change its behavior.
 - `Partial`: Web renders shared personal stickers, but personal-library management is a native App
   surface. Physical-device keyboard transitions and both-platform visual acceptance remain separate
   from widget and simulator coverage.
@@ -888,14 +911,22 @@ servers that omit interaction fields retain read-only content previews.
 
 ## Shared visual treatment
 
-`Current`: root feed controls occupy one row; category discovery and list/card selection share the
-same contextual panel. Selecting a category from that panel or a Home post badge filters the existing
-Home stream without pushing a route. The current category and a clear-to-all action stay visible.
+`Current`: Home shows animated feed sort tabs followed by a horizontally scrollable category row.
+Category buttons use 12-pixel corners, a compact 36-pixel visual height and a minimum 48-pixel touch
+target, growing with system text size. Labels remain on one line. The selected category uses a tinted
+background, outline and check mark; the All categories button clears the filter. A newly selected
+category scrolls into view, including selections made from a post badge. Selecting a button
+or a Home post badge filters the existing Home stream without pushing a route. The display menu
+contains the list/card choice, while categories remain directly available on Home.
 Each category and its supported sort retain their own items, pagination and reading position; clearing
 the filter restores the previous global sort and position. Category feeds reuse the category payload
 and its latest/new ordering, while the unfiltered feed retains Following and other Home sorts.
 Known sort labels follow the selected app language. Category and search results use the author-led
-topic card, with the current category omitted from repeated card labels.
+topic card, with the current category omitted from repeated card labels. Topic headers keep the
+name, timestamp and categories on one row: long display names ellipsize before metadata can wrap.
+Very narrow or enlarged-text layouts let the category group scroll horizontally; author and category
+touch targets remain separate and at least 44 pixels. Full names remain available to accessibility
+and through the author profile.
 Unread notifications have a filter-specific empty state and no unrelated publishing action.
 Wiki recent items prioritize titles and update times; repository editing stays in the detail header.
 
