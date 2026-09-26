@@ -445,12 +445,14 @@ void main() {
       signedIn: true,
       section: 'profile',
       autoEditProfile: true,
+      withOrigin: true,
     );
     expect(find.byKey(const ValueKey('profile-nickname')), findsOneWidget);
     await tester.tap(find.byTooltip('取消'));
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('profile-nickname')), findsNothing);
-    expect(find.text('编辑资料'), findsOneWidget);
+    expect(find.byKey(const Key('open-settings')), findsOneWidget);
+    expect(find.byType(SettingsPage), findsNothing);
   });
 
   for (final save in [false, true]) {
@@ -526,8 +528,8 @@ void main() {
     expect(find.text('New destination'), findsOneWidget);
     navigator.pop();
     await tester.pumpAndSettle();
-    expect(find.byType(SettingsPage), findsOneWidget);
-    expect(find.byKey(const Key('open-settings')), findsNothing);
+    expect(find.byType(SettingsPage), findsNothing);
+    expect(find.byKey(const Key('open-settings')), findsOneWidget);
   });
 
   testWidgets('invalidated profile shortcut does not pop its settings route', (

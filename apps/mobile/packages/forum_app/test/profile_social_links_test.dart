@@ -89,23 +89,40 @@ Future<void> _pumpProfile(
 }
 
 void main() {
-  testWidgets('profile social icons form a compact left-aligned group', (
+  testWidgets('profile details and social icons share one scrollable row', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(390, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     await _pumpProfile(tester);
-    final card = tester.getRect(find.byType(GfUserCard));
+    final row = find.byKey(const ValueKey('profile-meta-row'));
+    expect(row, findsOneWidget);
+    expect(
+      tester.widget<SingleChildScrollView>(row).scrollDirection,
+      Axis.horizontal,
+    );
+    final tooltipFinder = find.descendant(
+      of: row,
+      matching: find.byType(Tooltip),
+    );
+    final tooltipMessages = tester
+        .widgetList<Tooltip>(tooltipFinder)
+        .map((tooltip) => tooltip.message)
+        .toList();
+    expect(tooltipMessages.skip(2).take(3), [
+      'Personal site',
+      'GitHub',
+      'X / Twitter',
+    ]);
     final website = tester.getRect(find.byTooltip('Personal site'));
     final github = tester.getRect(find.byTooltip('GitHub'));
     final twitter = tester.getRect(find.byTooltip('X / Twitter'));
-    expect(website.left, closeTo(card.left + 16, .01));
     expect(github.top, website.top);
     expect(twitter.top, github.top);
-    expect(github.left, closeTo(website.right, .01));
-    expect(twitter.left, closeTo(github.right, .01));
-    expect(twitter.center.dx - github.center.dx, closeTo(44, .01));
+    expect(github.left, greaterThanOrEqualTo(website.right));
+    expect(twitter.left, greaterThanOrEqualTo(github.right));
+    expect(twitter.center.dx - github.center.dx, closeTo(52, .01));
     for (final target in [website, github, twitter]) {
       expect(target.width, greaterThanOrEqualTo(44));
       expect(target.height, greaterThanOrEqualTo(44));
@@ -116,7 +133,7 @@ void main() {
 
   for (final brightness in Brightness.values) {
     testWidgets(
-      'profile links use named icon targets on a narrow scaled ${brightness.name} screen',
+      'profile links retain named touch targets on a narrow scaled ${brightness.name} screen',
       (tester) async {
         tester.view.physicalSize = const Size(320, 900);
         tester.view.devicePixelRatio = 1;

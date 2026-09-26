@@ -1406,19 +1406,20 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
           return width;
         }
 
-        final iconExtent = links.length >= 6
-            ? 24.0
+        final iconSize = links.length >= 6
+            ? 16.0
             : links.length >= 4
-            ? 28.0
-            : 32.0;
+            ? 18.0
+            : 20.0;
         double requiredWidth(String? joined, String? active) {
-          var width = links.length * iconExtent;
+          var width = links.length * 44.0;
           if (joined != null) width += 18 + textWidth(joined);
           if (active != null) width += 18 + textWidth(active);
           if (joined != null && active != null) width += 8;
           if (links.isNotEmpty && (joined != null || active != null)) {
             width += 8;
           }
+          if (links.length > 1) width += (links.length - 1) * 8;
           return width;
         }
 
@@ -1426,10 +1427,6 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
             requiredWidth(joinedAt, lastActive) > constraints.maxWidth;
         final joinedText = compact ? compactJoined : joinedAt;
         final activeText = compact ? compactActive : lastActive;
-        final rowWidth = math.max(
-          constraints.maxWidth,
-          requiredWidth(joinedText, activeText),
-        );
         Widget timestamp(String icon, String visible, String full) => Tooltip(
           message: full,
           excludeFromSemantics: true,
@@ -1450,12 +1447,14 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
 
         return SizedBox(
           width: constraints.maxWidth,
-          child: FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.centerLeft,
-            child: SizedBox(
-              width: rowWidth,
+          child: SingleChildScrollView(
+            key: const ValueKey('profile-meta-row'),
+            scrollDirection: Axis.horizontal,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minWidth: constraints.maxWidth),
               child: Row(
+                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
                   if (joinedText != null)
                     timestamp('calendar-days', joinedText, joinedAt!),
@@ -1464,53 +1463,53 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                   if (activeText != null)
                     timestamp('clock', activeText, lastActive!),
                   if (links.isNotEmpty &&
-                      (joinedText != null || activeText != null)) ...[
+                      (joinedText != null || activeText != null))
                     const SizedBox(width: 8),
-                    const Spacer(),
-                  ],
-                  for (final (label, uri, provider) in links)
-                    Semantics(
-                      label: label,
-                      button: true,
-                      child: Tooltip(
-                        message: label,
-                        excludeFromSemantics: true,
-                        child: IconButton(
-                          style: IconButton.styleFrom(
-                            padding: EdgeInsets.zero,
-                            fixedSize: Size.square(iconExtent),
-                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                            visualDensity: VisualDensity.compact,
-                          ),
-                          constraints: BoxConstraints.tightFor(
-                            width: iconExtent,
-                            height: iconExtent,
-                          ),
-                          icon: GfSocialIcon(
-                            provider,
-                            size: iconExtent == 24 ? 18 : 20,
-                          ),
-                          onPressed: () async {
-                            try {
-                              if (!await launchUrl(
-                                uri,
-                                mode: LaunchMode.externalApplication,
-                              )) {
-                                throw StateError('Could not open profile link');
+                  for (final (index, link) in links.indexed) ...[
+                    if (index > 0) const SizedBox(width: 8),
+                    MergeSemantics(
+                      child: Semantics(
+                        label: link.$1,
+                        button: true,
+                        child: Tooltip(
+                          message: link.$1,
+                          excludeFromSemantics: true,
+                          child: IconButton(
+                            style: IconButton.styleFrom(
+                              padding: EdgeInsets.zero,
+                              fixedSize: const Size.square(44),
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+                            constraints: const BoxConstraints.tightFor(
+                              width: 44,
+                              height: 44,
+                            ),
+                            icon: GfSocialIcon(link.$3, size: iconSize),
+                            onPressed: () async {
+                              try {
+                                if (!await launchUrl(
+                                  link.$2,
+                                  mode: LaunchMode.externalApplication,
+                                )) {
+                                  throw StateError(
+                                    'Could not open profile link',
+                                  );
+                                }
+                              } catch (error) {
+                                if (mounted) {
+                                  showGfToast(
+                                    context,
+                                    resolveErrorMessage(l10n, error),
+                                    error: true,
+                                  );
+                                }
                               }
-                            } catch (error) {
-                              if (mounted) {
-                                showGfToast(
-                                  context,
-                                  resolveErrorMessage(l10n, error),
-                                  error: true,
-                                );
-                              }
-                            }
-                          },
+                            },
+                          ),
                         ),
                       ),
                     ),
+                  ],
                 ],
               ),
             ),

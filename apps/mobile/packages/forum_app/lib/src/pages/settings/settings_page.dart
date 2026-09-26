@@ -94,6 +94,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   bool _uploadingAvatar = false;
   bool _accountClosing = false;
   bool _googleOAuthReady = false;
+  bool _autoEditProfileActive = false;
   _ProfileEditSession _autoEditSession = _ProfileEditSession();
   final ImagePicker _imagePicker = ImagePicker();
   final Set<Route<dynamic>> _profileEditRoutes = {};
@@ -101,6 +102,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   @override
   void initState() {
     super.initState();
+    _autoEditProfileActive = widget.autoEditProfile;
     for (final section in _SettingsTab.values) {
       if (section.name == widget.initialSection) _tab = section;
     }
@@ -953,12 +955,13 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         _user = const AsyncValue.loading();
         _sessions = const AsyncValue.loading();
         _googleOAuthReady = false;
+        _autoEditProfileActive = false;
         _autoEditSession = _ProfileEditSession();
       });
       unawaited(_loadSession());
     });
     final l10n = AppLocalizations.of(context);
-    if (widget.autoEditProfile &&
+    if (_autoEditProfileActive &&
         _tab == _SettingsTab.profile &&
         _signedIn != false) {
       final user = _user.valueOrNull;

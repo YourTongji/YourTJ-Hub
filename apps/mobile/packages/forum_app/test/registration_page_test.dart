@@ -459,7 +459,11 @@ void main() {
           await tester.pumpAndSettle();
         }
         await tester.enterText(input(label), 'retained');
-        await tester.tap(find.text('YourTJ'));
+        await tester.tap(
+          find.byWidgetPredicate(
+            (widget) => widget is Image && widget.semanticLabel == 'YourTJ',
+          ),
+        );
         await tester.pumpAndSettle();
         expect(
           tester.widget<TextField>(input(label)).focusNode!.hasFocus,
