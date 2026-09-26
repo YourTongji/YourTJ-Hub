@@ -771,6 +771,14 @@ onBeforeUnmount(() => {
   transform: translateY(-4px);
 }
 
+/* 尊重 prefers-reduced-motion：关闭折叠/展开过渡，仅剩瞬态切换。 */
+@media (prefers-reduced-motion: reduce) {
+  .gf-announcement-enter-active,
+  .gf-announcement-leave-active {
+    transition: none;
+  }
+}
+
 .gf-home-refresh-button {
   transition-property: background-color, border-color, color, opacity, transform;
   transition-duration: 150ms;
