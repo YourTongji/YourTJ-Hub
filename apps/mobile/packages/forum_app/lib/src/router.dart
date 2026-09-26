@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:core/core.dart';
 import 'package:dio/dio.dart';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -82,6 +83,8 @@ class GfShell extends ConsumerStatefulWidget {
 }
 
 class _GfShellState extends ConsumerState<GfShell> with WidgetsBindingObserver {
+  final _scaffoldKey = GlobalKey<ScaffoldState>();
+  final Map<int, Offset> _drawerSwipeOrigins = {};
   late ForegroundRealtimeCoordinator _realtime;
   late int _realtimeEpoch;
   bool _realtimeSessionStarted = false;
@@ -305,9 +308,43 @@ class _GfShellState extends ConsumerState<GfShell> with WidgetsBindingObserver {
     widget.navigationShell.goBranch(index);
   }
 
+  void _onDrawerPointerDown(PointerDownEvent event, double dragWidth) {
+    if (event.kind != PointerDeviceKind.touch ||
+        event.position.dx > dragWidth ||
+        _drawerSwipeOrigins.isNotEmpty ||
+        _scaffoldKey.currentState?.isDrawerOpen == true) {
+      return;
+    }
+    _drawerSwipeOrigins[event.pointer] = event.position;
+  }
+
+  void _onDrawerPointerMove(PointerMoveEvent event) {
+    final origin = _drawerSwipeOrigins[event.pointer];
+    if (origin == null) return;
+    final delta = event.position - origin;
+    if (delta.dx < -kTouchSlop ||
+        (delta.dy.abs() >= kTouchSlop && delta.dy.abs() > delta.dx)) {
+      _drawerSwipeOrigins.remove(event.pointer);
+      return;
+    }
+    if (delta.dx < kTouchSlop || delta.dx < delta.dy.abs() * 1.2) return;
+
+    _drawerSwipeOrigins.remove(event.pointer);
+    // Horizontal scrollables inside the branch Navigator can win Flutter's
+    // gesture arena before Scaffold's drawer recognizer. Once this is clearly
+    // a rightward swipe in the leading area, cancel the child drag and open.
+    GestureBinding.instance.cancelPointer(event.pointer);
+    _scaffoldKey.currentState?.openDrawer();
+  }
+
+  void _onDrawerPointerEnd(PointerEvent event) {
+    _drawerSwipeOrigins.remove(event.pointer);
+  }
+
   @override
   Widget build(BuildContext context) {
     final AppLocalizations l10n = AppLocalizations.of(context);
+    final drawerDragWidth = MediaQuery.sizeOf(context).width * .55;
 
     ref.listen(unauthorizedEventsProvider, (int? previous, int next) {
       if (next > (previous ?? 0) &&
@@ -358,58 +395,69 @@ class _GfShellState extends ConsumerState<GfShell> with WidgetsBindingObserver {
         ? Duration.zero
         : const Duration(milliseconds: 200);
     return Scaffold(
+      key: _scaffoldKey,
       drawer: const AccountDrawer(),
+      drawerEnableOpenDragGesture: true,
+      drawerDragStartBehavior: DragStartBehavior.down,
+      drawerEdgeDragWidth: drawerDragWidth,
       onDrawerChanged: (open) {
         shellDrawerOpen.value = open;
         ref.read(readingChromeProvider).show();
         if (open) ref.invalidate(accountCardProvider);
       },
-      body: NotificationListener<ScrollNotification>(
-        onNotification: (notification) {
-          if (notification.depth != 0 ||
-              notification.metrics.axis != Axis.vertical) {
+      body: Listener(
+        behavior: HitTestBehavior.translucent,
+        onPointerDown: (event) => _onDrawerPointerDown(event, drawerDragWidth),
+        onPointerMove: _onDrawerPointerMove,
+        onPointerUp: _onDrawerPointerEnd,
+        onPointerCancel: _onDrawerPointerEnd,
+        child: NotificationListener<ScrollNotification>(
+          onNotification: (notification) {
+            if (notification.depth != 0 ||
+                notification.metrics.axis != Axis.vertical) {
+              return false;
+            }
+            if (notification is ScrollUpdateNotification) {
+              ref
+                  .read(readingChromeProvider)
+                  .update(
+                    notification.scrollDelta ?? 0,
+                    notification.metrics.pixels,
+                    locked:
+                        MediaQuery.viewInsetsOf(context).bottom > 0 ||
+                        ModalRoute.of(context)?.isCurrent == false,
+                  );
+            }
             return false;
-          }
-          if (notification is ScrollUpdateNotification) {
-            ref
-                .read(readingChromeProvider)
-                .update(
-                  notification.scrollDelta ?? 0,
-                  notification.metrics.pixels,
-                  locked:
-                      MediaQuery.viewInsetsOf(context).bottom > 0 ||
-                      ModalRoute.of(context)?.isCurrent == false,
-                );
-          }
-          return false;
-        },
-        child: ReadingWindow(
-          maxContentWidth: widget.navigationShell.currentIndex == 1
-              ? 1120
-              : 720,
-          rail: ReadingNavigationRail(
-            currentIndex: widget.navigationShell.currentIndex,
-            onSelected: _selectDestination,
-            items: destinations,
-          ),
-          bottomNavigation: AnimatedSlide(
-            offset: chrome.hidden ? const Offset(0, 1) : Offset.zero,
-            duration: duration,
-            curve: Curves.easeOut,
-            child: IgnorePointer(
-              ignoring: chrome.hidden,
-              child: ExcludeSemantics(
-                excluding: chrome.hidden,
-                child: GfBottomNavigation(
-                  currentIndex: widget.navigationShell.currentIndex,
-                  onSelected: _selectDestination,
-                  showLabels: false,
-                  items: destinations,
+          },
+          child: ReadingWindow(
+            maxContentWidth: widget.navigationShell.currentIndex == 1
+                ? 1120
+                : 720,
+            rail: ReadingNavigationRail(
+              currentIndex: widget.navigationShell.currentIndex,
+              onSelected: _selectDestination,
+              items: destinations,
+            ),
+            bottomNavigation: AnimatedSlide(
+              offset: chrome.hidden ? const Offset(0, 1) : Offset.zero,
+              duration: duration,
+              curve: Curves.easeOut,
+              child: IgnorePointer(
+                ignoring: chrome.hidden,
+                child: ExcludeSemantics(
+                  excluding: chrome.hidden,
+                  child: GfBottomNavigation(
+                    currentIndex: widget.navigationShell.currentIndex,
+                    onSelected: _selectDestination,
+                    showLabels: false,
+                    items: destinations,
+                  ),
                 ),
               ),
             ),
+            child: widget.navigationShell,
           ),
-          child: widget.navigationShell,
         ),
       ),
     );

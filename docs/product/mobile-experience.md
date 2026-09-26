@@ -629,12 +629,16 @@ identity survive this layout change. The header keeps a small outer margin for i
   administrator identity has a localized role label. Returning
   from settings refreshes profile identity and media immediately.
 
-- `Current`: the root avatar opens an account drawer with a generous left inset, larger line icons,
-  nickname and account handle. Following/follower counts come from the user's card and open the
-  matching native connection lists. Unavailable counts show a placeholder with retry instead of zero; opening
-  the drawer refreshes the card, and account changes discard previous identity data. Profile,
-  bookmarks, drafts, my content, recycle bin and my course reviews are direct entries. Settings and
-  permission-gated workspaces remain available. The profile overflow retains its infrequent entries.
+- `Current`: the root avatar opens an account drawer with aligned 24 dp ReIcon rows, compact spacing
+  and a clear nickname/account-handle hierarchy. A rightward touch drag starting in the leading
+  55% of the viewport opens it, including when it begins over a horizontal feed control.
+  Following/follower counts come from the user's card and open the matching native connection lists.
+  Unavailable counts show a placeholder with retry instead of zero. Opening the drawer refreshes the
+  card; account changes discard previous identity data. Profile, bookmarks, drafts, my content,
+  recycle bin and my course reviews are direct entries. Settings, community information, appearance
+  shortcuts and permission-gated workspaces remain available. The appearance shortcut opens a sheet
+  for light, dark or system theme selection; the open sheet follows theme changes. The profile
+  overflow retains its infrequent entries.
   Account controls are outside the public profile.
 - `Current`: activity entries distinguish signup, post, like, follow and comment with matching
   icons and localized captions in bordered cards with a content preview and compact timestamp.

@@ -9,6 +9,7 @@ import '../asset_url.dart';
 import '../current_user.dart';
 import '../format.dart';
 import '../providers.dart';
+import '../theme_mode.dart';
 
 final accountLayoutProvider = FutureProvider.autoDispose<LayoutPayload>((
   ref,
@@ -75,13 +76,24 @@ class AccountDrawer extends ConsumerWidget {
         style: type.small.copyWith(fontSize: 15),
       ),
     );
-    Widget entry(String icon, String title, String path) => ListTile(
-      contentPadding: const EdgeInsets.symmetric(horizontal: 32, vertical: 6),
-      minLeadingWidth: 28,
-      horizontalTitleGap: 24,
-      leading: GfSymbol(icon, size: 28, color: colors.baseContent),
-      title: Text(title, style: type.bodyStrong.copyWith(fontSize: 20)),
-      onTap: () => open(path),
+    Widget entry(
+      String icon,
+      String title,
+      String? path, {
+      Widget? trailing,
+      VoidCallback? onTap,
+    }) => ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 24),
+      minTileHeight: 56,
+      minLeadingWidth: 24,
+      horizontalTitleGap: 16,
+      leading: GfSymbol(icon, size: 24, color: colors.baseContent),
+      title: Text(
+        title,
+        style: type.bodyStrong.copyWith(fontSize: 18, height: 1.3),
+      ),
+      trailing: trailing,
+      onTap: onTap ?? (path == null ? null : () => open(path)),
     );
     return Drawer(
       width: (MediaQuery.sizeOf(context).width * .84).clamp(0.0, 400.0),
@@ -89,10 +101,10 @@ class AccountDrawer extends ConsumerWidget {
       shape: const RoundedRectangleBorder(),
       child: SafeArea(
         child: ListView(
-          padding: const EdgeInsets.symmetric(vertical: 16),
+          padding: const EdgeInsets.symmetric(vertical: 12),
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(32, 12, 28, 16),
+              padding: const EdgeInsets.fromLTRB(24, 12, 24, 12),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -106,22 +118,22 @@ class AccountDrawer extends ConsumerWidget {
                       size: 56,
                     ),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 12),
                   Text(
                     signedIn
                         ? (user?.nickname.isNotEmpty == true
                               ? user!.nickname
                               : viewer!.username)
                         : 'YourTJ',
-                    style: type.title1,
+                    style: type.title2.copyWith(fontSize: 20),
                   ),
                   if (signedIn)
                     Text(
                       '@${viewer!.username}',
-                      style: type.body.copyWith(color: colors.iconMuted),
+                      style: type.small.copyWith(color: colors.iconMuted),
                     ),
                   if (signedIn) ...[
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 8),
                     Wrap(
                       spacing: 18,
                       crossAxisAlignment: WrapCrossAlignment.center,
@@ -182,15 +194,77 @@ class AccountDrawer extends ConsumerWidget {
                 ),
               ],
             ],
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 16, horizontal: 32),
-              child: Divider(),
-            ),
+            const SizedBox(height: 12),
             entry('settings', l10n.settingsTitle, '/settings'),
             entry('book-open', l10n.siteInfoTitle, '/about'),
+            entry(
+              'moon',
+              l10n.settingsAppearance,
+              null,
+              trailing: GfSymbol(
+                'chevron-down',
+                size: 18,
+                color: colors.iconMuted,
+              ),
+              onTap: () => _showThemeModeSheet(context, ref),
+            ),
           ],
         ),
       ),
     );
   }
 }
+
+Future<void> _showThemeModeSheet(BuildContext context, WidgetRef ref) =>
+    showGfBottomSheet<void>(
+      context,
+      builder: (_) => Consumer(
+        builder: (context, ref, _) {
+          final l10n = AppLocalizations.of(context);
+          final mode = ref.watch(themeModeProvider);
+          final type = GfTheme.typographyOf(context);
+          const choices = <ThemeMode>[
+            ThemeMode.light,
+            ThemeMode.dark,
+            ThemeMode.system,
+          ];
+          return SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 20, 16, 12),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(l10n.settingsAppearance, style: type.title2),
+                  const SizedBox(height: 12),
+                  RadioGroup<ThemeMode>(
+                    groupValue: mode,
+                    onChanged: (value) {
+                      if (value != null) {
+                        ref.read(themeModeProvider.notifier).setMode(value);
+                      }
+                    },
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        for (final choice in choices)
+                          RadioListTile<ThemeMode>(
+                            value: choice,
+                            controlAffinity: ListTileControlAffinity.trailing,
+                            contentPadding: EdgeInsets.zero,
+                            title: Text(switch (choice) {
+                              ThemeMode.system => l10n.settingsLanguageSystem,
+                              ThemeMode.light => l10n.settingsThemeLight,
+                              ThemeMode.dark => l10n.settingsThemeDark,
+                            }, style: type.body),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
