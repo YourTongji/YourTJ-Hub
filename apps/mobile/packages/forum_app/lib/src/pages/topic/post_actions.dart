@@ -9,6 +9,8 @@ import '../../server_messages.dart';
 import 'post_edit_sheet.dart';
 import 'post_history_sheet.dart';
 
+const double _postActionIconSize = 20;
+
 class PostActions extends ConsumerStatefulWidget {
   const PostActions({
     super.key,
@@ -180,87 +182,87 @@ class _PostActionsState extends ConsumerState<PostActions> {
     final post = widget.post;
     final available = !_removed && !post.isHidden;
     final colors = GfTheme.colorsOf(context);
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (available) ...[
-          Tooltip(
-            message: l10n.topicLike,
-            child: TextButton.icon(
-              onPressed: _busy
-                  ? null
-                  : () => _run(() async {
-                      await ref
-                          .read(postRepositoryProvider)
-                          .likePost(
-                            postId: post.id,
-                            action: post.isLiked ? 2 : 1,
-                          );
-                      _recordState(liked: !post.isLiked);
-                    }),
-              icon: Icon(
-                post.isLiked ? Icons.favorite : Icons.favorite_border,
-                size: 18,
-                color: post.isLiked ? colors.error : colors.iconMuted,
-              ),
-              label: Text('${post.likeCount}'),
-            ),
-          ),
-          IconButton(
-            tooltip: post.isBookmarked
-                ? l10n.topicBookmarked
-                : l10n.topicBookmark,
+    final controls = <Widget>[
+      if (available) ...[
+        Tooltip(
+          message: l10n.topicLike,
+          child: TextButton.icon(
             onPressed: _busy
                 ? null
                 : () => _run(() async {
                     await ref
                         .read(postRepositoryProvider)
-                        .bookmarkPost(
+                        .likePost(
                           postId: post.id,
-                          action: post.isBookmarked ? 2 : 1,
+                          action: post.isLiked ? 2 : 1,
                         );
-                    _recordState(bookmarked: !post.isBookmarked);
+                    _recordState(liked: !post.isLiked);
                   }),
-            icon: Icon(
-              post.isBookmarked ? Icons.bookmark : Icons.bookmark_border,
-              size: 18,
+            icon: GfSymbol(
+              post.isLiked ? 'heart-filled' : 'heart',
+              size: _postActionIconSize,
+              color: post.isLiked ? colors.error : colors.iconMuted,
             ),
+            label: Text('${post.likeCount}'),
           ),
-          if (widget.onReply != null)
-            IconButton(
-              tooltip: l10n.topicReply,
-              onPressed: _busy ? null : widget.onReply,
-              icon: const Icon(Icons.reply_outlined, size: 18),
-            ),
-        ],
-        PopupMenuButton<String>(
-          tooltip: l10n.profileMore,
-          useRootNavigator: true,
-          enabled: !_busy,
-          onSelected: _action,
-          itemBuilder: (_) => [
-            if (post.isOwnPost && available)
-              PopupMenuItem(value: 'edit', child: Text(l10n.commonEdit)),
-            if (post.isOwnPost && available)
-              PopupMenuItem(value: 'delete', child: Text(l10n.contentDelete)),
-            PopupMenuItem(value: 'history', child: Text(l10n.topicHistory)),
-            PopupMenuItem(value: 'share', child: Text(l10n.topicShare)),
-            if (post.canModerate && post.processStatus == 0)
-              PopupMenuItem(value: 'ban', child: Text(l10n.topicModerateBan)),
-            if (post.canModerate && post.processStatus == 1)
-              PopupMenuItem(
-                value: 'unban',
-                child: Text(l10n.topicModerateUnban),
-              ),
-          ],
         ),
-        if (!post.isOwnPost && available)
+        IconButton(
+          tooltip: post.isBookmarked
+              ? l10n.topicBookmarked
+              : l10n.topicBookmark,
+          onPressed: _busy
+              ? null
+              : () => _run(() async {
+                  await ref
+                      .read(postRepositoryProvider)
+                      .bookmarkPost(
+                        postId: post.id,
+                        action: post.isBookmarked ? 2 : 1,
+                      );
+                  _recordState(bookmarked: !post.isBookmarked);
+                }),
+          icon: GfSymbol(
+            post.isBookmarked ? 'bookmark-filled' : 'bookmark',
+            size: _postActionIconSize,
+          ),
+        ),
+        if (widget.onReply != null)
           IconButton(
-            tooltip: l10n.topicReport,
-            onPressed: _busy ? null : widget.onReport,
-            icon: const Icon(Icons.flag_outlined, size: 18),
+            tooltip: l10n.topicReply,
+            onPressed: _busy ? null : widget.onReply,
+            icon: const GfSymbol('corner-down-left', size: _postActionIconSize),
           ),
       ],
+      PopupMenuButton<String>(
+        icon: const GfSymbol('ellipsis', size: _postActionIconSize),
+        tooltip: l10n.profileMore,
+        useRootNavigator: true,
+        enabled: !_busy,
+        onSelected: _action,
+        itemBuilder: (_) => [
+          if (post.isOwnPost && available)
+            PopupMenuItem(value: 'edit', child: Text(l10n.commonEdit)),
+          if (post.isOwnPost && available)
+            PopupMenuItem(value: 'delete', child: Text(l10n.contentDelete)),
+          PopupMenuItem(value: 'history', child: Text(l10n.topicHistory)),
+          PopupMenuItem(value: 'share', child: Text(l10n.topicShare)),
+          if (post.canModerate && post.processStatus == 0)
+            PopupMenuItem(value: 'ban', child: Text(l10n.topicModerateBan)),
+          if (post.canModerate && post.processStatus == 1)
+            PopupMenuItem(value: 'unban', child: Text(l10n.topicModerateUnban)),
+        ],
+      ),
+      if (!post.isOwnPost && available)
+        IconButton(
+          tooltip: l10n.topicReport,
+          onPressed: _busy ? null : widget.onReport,
+          icon: const GfSymbol('circle-alert', size: _postActionIconSize),
+        ),
+    ];
+    return Wrap(
+      alignment: WrapAlignment.end,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: controls,
     );
   }
 }
