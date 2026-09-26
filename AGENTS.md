@@ -119,6 +119,12 @@ docs/        Docs center (product/architecture/development/operations)
   `packages/api-contract/coverage-matrix.md` must be committed — `pnpm run check` and CI fail otherwise.
 - Design-token changes ship in the same PR: changing `resource/src/styles/tokens.css` requires
   updating `apps/mobile/packages/ui_kit/lib/src/theme/tokens.json` in the same commit.
+- Web `serverMessages` changes ship in the same PR: changing `server`/`serverMessages` keys in
+  `resource/src/locales/{zh,en,ja,de}.ts` requires regenerating the mobile mirror catalog
+  `apps/mobile/packages/forum_app/lib/src/server_message_catalog.dart` (`node
+  apps/mobile/tools/generate_server_messages.mjs`) in the same commit. The gate is `pnpm check`
+  in `apps/gooseforum/resource`: four-locale key consistency, static `t()` registration, and
+  mirror-catalog freshness.
 - Docs use the four implementation status words (`Current`/`Partial`/`Planned`/`Decision needed`),
   see docs/README.md.
 - Docs describe only the currently supported model — no timeline or milestones
@@ -132,7 +138,7 @@ docs/        Docs center (product/architecture/development/operations)
 ## 4. Verification
 - Run only the checks relevant to the change locally; CI owns the full repository-wide gate matrix.
   Before push, lefthook pre-push runs `go vet ./...` + `golangci-lint run` (incremental against
-  `origin/dev`, full fallback) + `pnpm typecheck` (see `make hooks`).
+  `origin/dev`, full fallback) + `pnpm typecheck` + the web i18n gate `pnpm check` (see `make hooks`).
 - Bug fixes start red: write the smallest failing test first, run it to confirm the failure, then
   implement and turn it green. Mechanical changes (rename, formatting, dependency bump, docs-only)
   are exempt; the regression test stays.
@@ -149,7 +155,8 @@ docs/        Docs center (product/architecture/development/operations)
   `app/migration/migration_pg_test.go`; spin up `postgres:16-alpine` locally — CI runs the same
   command in `ci-backend-pg`). MySQL-only type tags (`bigint unsigned` / `datetime` / `tinyint`)
   break PG and are forbidden in models (MySQL itself is not supported).
-- Web: `cd apps/gooseforum/resource && pnpm typecheck && pnpm test && pnpm build` (output into resource/static/dist)
+- Web: `cd apps/gooseforum/resource && pnpm typecheck && pnpm test && pnpm check && pnpm build`
+  (`pnpm check` is the i18n gate; output into resource/static/dist)
 - Full build: `make build` (resource → go build single binary `bin/yourtj-hub`)
 - Smoke: run `./bin/yourtj-hub serve` then curl the homepage/API (port from config.toml, default 5234)
 - Report the commands actually run and their results; a local subset is not CI passing.

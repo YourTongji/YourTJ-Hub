@@ -25,8 +25,9 @@
 # Backend
 cd apps/gooseforum && go vet ./... && go test ./...
 
-# Frontend
-cd apps/gooseforum/resource && pnpm typecheck && pnpm test && pnpm build
+# Frontend (`pnpm check` = i18n gate: four-locale key consistency, static t() refs,
+# and serverMessages → mobile server_message_catalog.dart mirror freshness)
+cd apps/gooseforum/resource && pnpm typecheck && pnpm test && pnpm check && pnpm build
 
 # Browser layout regressions (install Chromium once; Linux CI adds --with-deps)
 cd apps/gooseforum/resource && pnpm exec playwright install chromium && pnpm test:browser
