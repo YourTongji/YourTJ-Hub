@@ -4,7 +4,8 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/console/stickerpresets"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/stickerpresets"
+	presetimages "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/console/stickerpresets"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/stickerservice"
 	"github.com/spf13/cobra"
 )
@@ -30,10 +31,10 @@ func runSeedStickers(cmd *cobra.Command, args []string) error {
 	}
 	imported, skipped, failed := 0, 0, 0
 	for index, preset := range presets {
-		data, err := stickerpresets.Load(preset.File)
+		data, err := presetimages.Load(preset.File)
 		if err == nil {
 			var skip bool
-			skip, err = stickerservice.ImportImage(cmd.Context(), 0, data, preset.File, preset.Name, index, true)
+			skip, err = stickerservice.ImportImage(cmd.Context(), 0, data, preset.File, preset.Name, preset.Pack, index, true)
 			if err == nil {
 				if skip {
 					skipped++

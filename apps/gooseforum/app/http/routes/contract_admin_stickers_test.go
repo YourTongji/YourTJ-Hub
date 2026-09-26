@@ -463,7 +463,7 @@ func TestStickerReviewConcurrentImportNames(t *testing.T) {
 	failures := make(chan error, 2)
 	for range 2 {
 		group.Go(func() {
-			_, err := stickerservice.ImportImage(context.Background(), 0, contractTinyPNG, "race.png", "race", 0, false)
+			_, err := stickerservice.ImportImage(context.Background(), 0, contractTinyPNG, "race.png", "race", "official", 0, false)
 			failures <- err
 		})
 	}

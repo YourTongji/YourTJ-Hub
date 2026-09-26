@@ -80,3 +80,12 @@ func GetByNameTx(tx *gorm.DB, name string) (Entity, error) {
 	err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("name = ?", name).First(&row).Error
 	return row, err
 }
+
+// BackfillPresetPackTx only changes the legacy default on system-seeded rows.
+// A metadata repair must not alter token names, files or modification timestamps.
+func BackfillPresetPackTx(tx *gorm.DB, pack string, names []string) (int64, error) {
+	result := tx.Model(&Entity{}).
+		Where("is_official = ? AND created_by = ? AND pack = ? AND name IN ?", true, 0, "official", names).
+		UpdateColumn("pack", pack)
+	return result.RowsAffected, result.Error
+}

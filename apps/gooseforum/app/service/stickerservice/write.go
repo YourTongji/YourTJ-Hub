@@ -128,7 +128,7 @@ func Delete(ctx context.Context, id uint64) error {
 // ImportImage is the shared ZIP/preset path. File storage is a separate database:
 // compensate its write when the atomic sticker/reference transaction fails.
 // skipExisting makes preset seeding idempotent even across concurrent runs.
-func ImportImage(ctx context.Context, userID uint64, data []byte, fileName, rawName string, sortOrder int, skipExisting bool) (bool, error) {
+func ImportImage(ctx context.Context, userID uint64, data []byte, fileName, rawName, pack string, sortOrder int, skipExisting bool) (bool, error) {
 	if err := ctx.Err(); err != nil {
 		return false, err
 	}
@@ -159,7 +159,7 @@ func ImportImage(ctx context.Context, userID uint64, data []byte, fileName, rawN
 				}
 				name = string(runes) + suffix
 			}
-			row := sticker.Entity{Name: name, FileName: file.Name, SortOrder: sortOrder, IsEnabled: true, IsOfficial: true, Pack: "official", CreatedBy: userID}
+			row := sticker.Entity{Name: name, FileName: file.Name, SortOrder: sortOrder, IsEnabled: true, IsOfficial: true, Pack: pack, CreatedBy: userID}
 			inserted, err := sticker.InsertIfNameAvailable(tx, &row)
 			if err != nil {
 				return err
