@@ -88,14 +88,12 @@ class GfSectionHeader extends StatelessWidget {
     super.key,
     required this.title,
     this.description,
-    this.icon,
     this.symbol,
     this.actions,
   });
 
   final String title;
   final String? description;
-  final IconData? icon;
   final String? symbol;
   final Widget? actions;
 
@@ -110,19 +108,12 @@ class GfSectionHeader extends StatelessWidget {
       ),
       child: Row(
         children: <Widget>[
-          if (icon != null || symbol != null) ...<Widget>[
-            if (symbol != null)
-              GfSymbol(
-                symbol!,
-                size: 16,
-                color: colors.baseContent.withValues(alpha: 0.55),
-              )
-            else
-              Icon(
-                icon,
-                size: 16,
-                color: colors.baseContent.withValues(alpha: 0.55),
-              ),
+          if (symbol != null) ...<Widget>[
+            GfSymbol(
+              symbol!,
+              size: 16,
+              color: colors.baseContent.withValues(alpha: 0.55),
+            ),
             const SizedBox(width: 8),
           ],
           Expanded(

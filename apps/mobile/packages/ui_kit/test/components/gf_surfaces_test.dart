@@ -119,7 +119,7 @@ void main() {
           const GfMenuSurface(
             child: Column(
               children: [
-                GfMenuItem(label: 'Edit', icon: Icons.edit),
+                GfMenuItem(label: 'Edit', symbol: 'square-pen'),
                 GfMenuItem(label: 'Delete', variant: GfMenuItemVariant.danger),
               ],
             ),
@@ -567,7 +567,7 @@ void main() {
 
     testWidgets('renders section header', (tester) async {
       await tester.pumpWidget(
-        gfApp(const GfSectionHeader(title: 'Section', icon: Icons.settings)),
+        gfApp(const GfSectionHeader(title: 'Section', symbol: 'settings')),
       );
       expect(find.text('Section'), findsOneWidget);
     });

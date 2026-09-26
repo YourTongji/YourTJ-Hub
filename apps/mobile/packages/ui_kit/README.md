@@ -58,12 +58,13 @@ melos run test           # 或 melos exec -- flutter test
 - `ui_kit` 不依赖 `core` / `auth` / `forum_app`;业务状态与请求归上层包。
 - 页面通过 Gf API 复用组件；特殊编辑器保留原生能力，并明确其场景样式。
 
-导航符号使用 `GfSymbol` 与共享 Lucide SVG,来源和许可见 [assets](assets/README.md)。页面交互与 Figma 入口以[移动端产品说明](../../../../docs/product/mobile-experience.md)为准。
+导航与操作符号使用 `GfSymbol` 和 ReIcon SVG；品牌与功能字形例外、映射和许可见 [assets](assets/README.md)。页面交互与 Figma 入口以[移动端产品说明](../../../../docs/product/mobile-experience.md)为准。
 Shared headers use a centered 18px semibold title and `GfSymbol` back action. Buttons use pill
 shapes, separate painted/48px hit bounds, and state-aware disabled palettes. `showGfBottomSheet` owns the root navigator, a 640px
 width bound, safe areas, optional keyboard avoidance and a 28px drag-handle area inside its height.
 Builders supply content without adding keyboard insets again; use `showDragHandle: false` for
-non-draggable editing surfaces. Navigation symbols share the 24px drawing grid and selected tint.
+non-draggable editing surfaces. Navigation symbols share the 24px drawing grid and switch from
+ReIcon Outline to the matching Filled weight when selected.
 
 Search and chat use filled capsules. Reply inputs grow from one to four lines above a flat icon
 toolbar; article publishing keeps an open writing canvas. Message bubbles use 20px corners and

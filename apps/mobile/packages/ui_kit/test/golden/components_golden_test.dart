@@ -89,7 +89,7 @@ void main() {
                   time: '3 分钟前',
                   text: '在同济，记录日常，也分享一点新发现。',
                   contextLabel: '发表回复',
-                  contextIcon: Icons.chat_bubble_outline,
+                  contextSymbol: 'message-circle',
                 ),
                 GfContentRow(
                   author: 'Alice',
@@ -426,13 +426,13 @@ void main() {
         child: GfFloatingControls(
           actions: [
             GfTopicAction(
-              icon: Icons.favorite_border,
+              symbol: 'heart-filled',
               active: true,
               activeColor: GfColors.light.error,
               onTap: () {},
             ),
             GfTopicAction(
-              icon: Icons.bookmark_border,
+              symbol: 'bookmark',
               active: false,
               activeColor: GfColors.light.primary,
               onTap: () {},
@@ -461,7 +461,7 @@ void main() {
         child: Column(
           children: [
             GfNotificationRow(
-              icon: Icons.chat_bubble_outline,
+              symbol: 'message-circle',
               tone: GfNotificationTone.primary,
               actorName: 'Bob',
               avatarUrl: '',
@@ -471,7 +471,7 @@ void main() {
               unread: true,
             ),
             GfNotificationRow(
-              icon: Icons.favorite,
+              symbol: 'heart-filled',
               tone: GfNotificationTone.like,
               actorName: 'Alice',
               avatarUrl: '',

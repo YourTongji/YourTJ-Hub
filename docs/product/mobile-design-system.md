@@ -152,7 +152,18 @@ in-flight responses so the just-cleared data cannot immediately reappear.
 `Current`: shared icon buttons merge their localized label, button role, enabled state and action
 into one accessibility node. SVG glyphs keep their declared size inside larger input/button slots;
 interaction targets do not stretch the artwork. Native page actions, notification marks, course
-ratings and image controls share the outline SVG family; selected ratings use a filled counterpart.
+ratings and image controls use ReIcon SVGs on a 24-pixel grid. Compact inline marks commonly render
+at 16 pixels, actions at 20–24 pixels, and navigation at 24 pixels inside independent touch targets.
+The bottom bar and wide rail switch each active destination from Outline to the matching Filled
+ReIcon glyph. Selected ratings use a filled counterpart. Brand marks and functional radio and
+strikethrough glyphs retain their source artwork, as recorded in the
+[UI Kit asset inventory](../../apps/mobile/packages/ui_kit/assets/README.md).
+Pinned topic markers use `thumbtack` Filled in the theme's red at 16 pixels on both list rows
+and cards; report actions use `flag4` Outline at 20 pixels.
+Comment and conversation marks use ReIcon `chat` Outline; the new-message FAB uses
+`message-favorite` Outline.
+The login wordmark uses the matching light and dark brand assets; the Tongji SSO seal keeps its
+official blue in light mode and uses the theme's lighter blue in dark mode for contrast.
 Disabled icons use a subdued foreground. The login theme switch
 announces the theme it will select. Campus connection explains which snapshots remain on-device
 and provides the same confirmed cache-clearing control as Settings; the control preserves drafts,

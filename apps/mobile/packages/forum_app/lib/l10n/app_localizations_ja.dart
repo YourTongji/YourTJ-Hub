@@ -1705,6 +1705,19 @@ class AppLocalizationsJa extends AppLocalizations {
   String get profileRoleAdmin => '管理者';
 
   @override
+  String get profileOnline => 'オンライン';
+
+  @override
+  String profileJoinedAt(String date) {
+    return '$date に参加';
+  }
+
+  @override
+  String profileLastActive(String time) {
+    return '最終アクティブ $time';
+  }
+
+  @override
   String get profileActionSignup => 'コミュニティに参加';
 
   @override

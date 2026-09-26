@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'package:core/core.dart';
@@ -667,8 +668,12 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   }
 
   Future<void> _openProfileTool(String route) async {
-    await context.push(route);
-    if (mounted) await _load();
+    final saved = await context.push<Object?>(route);
+    if (!mounted) return;
+    if (route == '/settings/profile?edit=1' && saved == true) {
+      showGfToast(context, AppLocalizations.of(context).settingsInfoSaved);
+    }
+    await _load();
   }
 
   Widget _profileTitle(BuildContext context, AppLocalizations l10n) =>
@@ -999,14 +1004,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
 
   Widget? _wornBadge(UserCardPayload user) => user.wornBadge == null
       ? null
-      : GfBadgeIcon(
-          url: resolveApiAssetUrl(
-            user.wornBadge!.iconUrl.isEmpty
-                ? '/static/badges/contributor.svg'
-                : user.wornBadge!.iconUrl,
-          ),
-          label: user.wornBadge!.name,
-        );
+      : UserWornBadge(user.wornBadge!, avatarSize: 88);
 
   Widget _immersiveHeader(
     BuildContext context,
@@ -1358,74 +1356,120 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     );
   }
 
-  Widget _profileCard(UserProfileProps props) {
-    final AppLocalizations l10n = AppLocalizations.of(context);
-    final UserCardPayload user = props.user;
-    final Map<String, GfUserBadge> badges = <String, GfUserBadge>{};
-    if (user.isAdmin) {
-      badges['admin'] = GfUserBadge(
-        label: l10n.profileRoleAdmin,
-        color: const Color(0xFFB45309),
-        icon: const GfSymbol(
-          'shield-check',
-          size: 22,
-          color: Color(0xFFB45309),
-        ),
-        description: l10n.profileRoleAdminDescription,
-        onTap: () => showBadgeDetails(
-          context,
-          title: l10n.profileRoleAdmin,
-          description: l10n.profileRoleAdminDescription,
-          color: const Color(0xFFB45309),
-          icon: const GfSymbol(
-            'shield-check',
-            size: 40,
-            color: Color(0xFFB45309),
-          ),
-        ),
-      );
-    }
+  String _compactProfileDate(String value, AppLocalizations l10n) {
+    final date = DateTime.tryParse(formatDate(value));
+    if (date == null) return formatDate(value);
+    return DateFormat.yMd(l10n.localeName)
+        .format(date)
+        .replaceFirst(
+          date.year.toString(),
+          (date.year % 100).toString().padLeft(2, '0'),
+        );
+  }
 
-    for (final badge in (user.displayBadges ?? user.badges.take(5))) {
-      badges['earned:${badge.code}'] = GfUserBadge(
-        label: badge.name,
-        color: userBadgeColor(badge),
-        icon: UserBadgeArtwork(badge, size: 24),
-        description: badge.description,
-        onTap: () => showUserBadgeDetails(context, badge),
-      );
-    }
-    final links = publicProfileLinks(user);
-    return GfUserCard(
-      showHeader: false,
-      coverUrl: resolveApiAssetUrl(user.profileCoverUrl),
-      avatarUrl: resolveApiAssetUrl(user.avatarUrl),
-      avatarBadge: user.wornBadge == null
-          ? null
-          : GfBadgeIcon(
-              url: resolveApiAssetUrl(
-                user.wornBadge!.iconUrl.isEmpty
-                    ? '/static/badges/contributor.svg'
-                    : user.wornBadge!.iconUrl,
+  Widget _profileMetaRow({
+    required UserCardPayload user,
+    required List<(String, Uri, String?)> links,
+    required String? joinedAt,
+    required String? lastActive,
+    required TextStyle textStyle,
+    required AppLocalizations l10n,
+  }) {
+    final compactJoined = joinedAt == null
+        ? null
+        : _compactProfileDate(user.createdAt, l10n);
+    final activeDate = DateTime.tryParse(
+      formatDateTime(user.lastActiveTime).replaceFirst(' ', 'T'),
+    );
+    final compactActive = lastActive == null
+        ? null
+        : activeDate == null
+        ? timeAgo(user.lastActiveTime, l10n: l10n)
+        : DateUtils.isSameDay(activeDate, DateTime.now())
+        ? DateFormat.Hm(l10n.localeName).format(activeDate)
+        : _compactProfileDate(user.lastActiveTime, l10n);
+    final iconColor = GfTheme.colorsOf(context).iconMuted;
+
+    return LayoutBuilder(
+      builder: (layoutContext, constraints) {
+        final direction = Directionality.of(layoutContext);
+        final scaler = MediaQuery.textScalerOf(layoutContext);
+        double textWidth(String value) {
+          final painter = TextPainter(
+            text: TextSpan(text: value, style: textStyle),
+            textDirection: direction,
+            textScaler: scaler,
+            maxLines: 1,
+          )..layout();
+          final width = painter.width;
+          painter.dispose();
+          return width;
+        }
+
+        final iconExtent = links.length >= 6
+            ? 24.0
+            : links.length >= 4
+            ? 28.0
+            : 32.0;
+        double requiredWidth(String? joined, String? active) {
+          var width = links.length * iconExtent;
+          if (joined != null) width += 18 + textWidth(joined);
+          if (active != null) width += 18 + textWidth(active);
+          if (joined != null && active != null) width += 8;
+          if (links.isNotEmpty && (joined != null || active != null)) {
+            width += 8;
+          }
+          return width;
+        }
+
+        final compact =
+            requiredWidth(joinedAt, lastActive) > constraints.maxWidth;
+        final joinedText = compact ? compactJoined : joinedAt;
+        final activeText = compact ? compactActive : lastActive;
+        final rowWidth = math.max(
+          constraints.maxWidth,
+          requiredWidth(joinedText, activeText),
+        );
+        Widget timestamp(String icon, String visible, String full) => Tooltip(
+          message: full,
+          excludeFromSemantics: true,
+          child: Semantics(
+            label: full,
+            child: ExcludeSemantics(
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  GfSymbol(icon, size: 14, color: iconColor),
+                  const SizedBox(width: 4),
+                  Text(visible, maxLines: 1, softWrap: false, style: textStyle),
+                ],
               ),
-              label: user.wornBadge!.name,
             ),
-      name: privateDisplayName(
-        context,
-        user.userId,
-        user.username,
-        user.nickname,
-      ),
-      username: user.username,
-      bio: user.bio,
-      signature: user.signature,
-      details: links.isEmpty
-          ? null
-          : Wrap(
-              children: [
-                for (final (label, uri, provider) in links)
-                  MergeSemantics(
-                    child: Semantics(
+          ),
+        );
+
+        return SizedBox(
+          width: constraints.maxWidth,
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: SizedBox(
+              width: rowWidth,
+              child: Row(
+                children: [
+                  if (joinedText != null)
+                    timestamp('calendar-days', joinedText, joinedAt!),
+                  if (joinedText != null && activeText != null)
+                    const SizedBox(width: 8),
+                  if (activeText != null)
+                    timestamp('clock', activeText, lastActive!),
+                  if (links.isNotEmpty &&
+                      (joinedText != null || activeText != null)) ...[
+                    const SizedBox(width: 8),
+                    const Spacer(),
+                  ],
+                  for (final (label, uri, provider) in links)
+                    Semantics(
                       label: label,
                       button: true,
                       child: Tooltip(
@@ -1434,15 +1478,18 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                         child: IconButton(
                           style: IconButton.styleFrom(
                             padding: EdgeInsets.zero,
-                            fixedSize: const Size.square(44),
+                            fixedSize: Size.square(iconExtent),
                             tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                            visualDensity: VisualDensity.standard,
+                            visualDensity: VisualDensity.compact,
                           ),
-                          constraints: const BoxConstraints(
-                            minWidth: 44,
-                            minHeight: 44,
+                          constraints: BoxConstraints.tightFor(
+                            width: iconExtent,
+                            height: iconExtent,
                           ),
-                          icon: GfSocialIcon(provider, size: 20),
+                          icon: GfSocialIcon(
+                            provider,
+                            size: iconExtent == 24 ? 18 : 20,
+                          ),
                           onPressed: () async {
                             try {
                               if (!await launchUrl(
@@ -1464,8 +1511,76 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                         ),
                       ),
                     ),
-                  ),
-              ],
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _profileCard(UserProfileProps props) {
+    final AppLocalizations l10n = AppLocalizations.of(context);
+    final UserCardPayload user = props.user;
+    final colors = GfTheme.colorsOf(context);
+    final Map<String, GfUserBadge> badges = <String, GfUserBadge>{};
+    for (final badge in (user.displayBadges ?? user.badges.take(5))) {
+      badges['earned:${badge.code}'] = GfUserBadge(
+        label: badge.name,
+        color: userBadgeColor(badge),
+        icon: UserBadgeArtwork(badge, size: 24),
+        description: badge.description,
+        onTap: () => showUserBadgeDetails(context, badge),
+      );
+    }
+    final links = publicProfileLinks(user);
+    final joinedAt = user.createdAt.trim().isEmpty
+        ? null
+        : l10n.profileJoinedAt(formatDate(user.createdAt));
+    final lastActive = user.lastActiveTime.trim().isEmpty
+        ? null
+        : l10n.profileLastActive(timeAgo(user.lastActiveTime, l10n: l10n));
+    final metaStyle = GfTheme.typographyOf(
+      context,
+    ).caption.copyWith(color: colors.baseContent.withValues(alpha: .55));
+    return GfUserCard(
+      showHeader: false,
+      coverUrl: resolveApiAssetUrl(user.profileCoverUrl),
+      avatarUrl: resolveApiAssetUrl(user.avatarUrl),
+      avatarBadge: _wornBadge(user),
+      name: privateDisplayName(
+        context,
+        user.userId,
+        user.username,
+        user.nickname,
+      ),
+      nameBadges: [
+        if (user.isAdmin)
+          GfBadge(
+            label: l10n.profileRoleAdmin,
+            variant: GfBadgeVariant.warning,
+            radius: 4,
+          ),
+        if (user.isOnline)
+          GfBadge(
+            label: l10n.profileOnline,
+            variant: GfBadgeVariant.success,
+            icon: const GfSymbol('signal-stream', size: 12),
+          ),
+      ],
+      username: user.username,
+      bio: user.bio,
+      signature: user.signature,
+      details: links.isEmpty && joinedAt == null && lastActive == null
+          ? null
+          : _profileMetaRow(
+              user: user,
+              links: links,
+              joinedAt: joinedAt,
+              lastActive: lastActive,
+              textStyle: metaStyle,
+              l10n: l10n,
             ),
       coloredBadges: badges.values.toList(growable: false),
       stats: <(String, String)>[

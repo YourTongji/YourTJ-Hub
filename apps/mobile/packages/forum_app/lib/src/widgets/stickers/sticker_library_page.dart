@@ -335,7 +335,9 @@ class _StickerLibraryPageState extends ConsumerState<_StickerLibrarySession> {
         ? StickerStrings(context).mine
         : StickerStrings(context).unavailable,
     description: message,
-    symbol: 'smile',
+    symbol: message == StickerStrings(context).emptyMine
+        ? 'sticker-smile'
+        : 'smile',
     action: retry == null
         ? null
         : GfButton(

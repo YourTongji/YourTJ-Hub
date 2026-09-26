@@ -57,7 +57,7 @@ void main() {
       await tester.pumpWidget(buildRow(pinned: true, unseen: true));
       expect(
         find.byWidgetPredicate(
-          (widget) => widget is GfSymbol && widget.name == 'pin',
+          (widget) => widget is GfSymbol && widget.name == 'pin-filled',
         ),
         findsOneWidget,
       );

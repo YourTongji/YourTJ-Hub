@@ -48,18 +48,11 @@ import 'realtime/foreground_realtime.dart';
 import 'realtime/realtime_updates.dart';
 
 extension on GfShellDestination {
-  IconData get icon => switch (this) {
-    GfShellDestination.home => Icons.home_outlined,
-    GfShellDestination.campus => Icons.school_outlined,
-    GfShellDestination.messages => Icons.forum_outlined,
-    GfShellDestination.notifications => Icons.notifications_outlined,
-  };
-
-  IconData get activeIcon => switch (this) {
-    GfShellDestination.home => Icons.home,
-    GfShellDestination.campus => Icons.school,
-    GfShellDestination.messages => Icons.forum,
-    GfShellDestination.notifications => Icons.notifications,
+  String get symbol => switch (this) {
+    GfShellDestination.home => 'house',
+    GfShellDestination.campus => 'graduation-cap',
+    GfShellDestination.messages => 'mail',
+    GfShellDestination.notifications => 'bell',
   };
 
   String label(AppLocalizations l10n) => switch (this) {
@@ -395,20 +388,8 @@ class _GfShellState extends ConsumerState<GfShell> with WidgetsBindingObserver {
     final destinations = [
       for (final destination in GfShellDestination.values)
         GfBottomNavigationItem(
-          icon: destination.icon,
-          selectedIcon: destination.activeIcon,
-          symbol: switch (destination) {
-            GfShellDestination.home => 'house',
-            GfShellDestination.campus => 'graduation-cap',
-            GfShellDestination.notifications => 'bell',
-            GfShellDestination.messages => 'mail',
-          },
-          selectedSymbol: switch (destination) {
-            GfShellDestination.home => 'house',
-            GfShellDestination.campus => 'graduation-cap',
-            GfShellDestination.notifications => 'bell',
-            GfShellDestination.messages => 'mail',
-          },
+          symbol: destination.symbol,
+          selectedSymbol: '${destination.symbol}-filled',
           label: destination.label(l10n),
           badge: destination == GfShellDestination.notifications
               ? _unreadNotifications

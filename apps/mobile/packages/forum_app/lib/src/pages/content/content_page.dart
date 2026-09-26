@@ -357,6 +357,7 @@ class _ContentPageState extends ConsumerState<ContentPage> {
                                   !item.canPermanent
                               ? null
                               : PopupMenuButton<String>(
+                                  icon: const GfSymbol('ellipsis', size: 20),
                                   useRootNavigator: true,
                                   enabled: !_busy,
                                   onSelected: (action) => _act(item, action),

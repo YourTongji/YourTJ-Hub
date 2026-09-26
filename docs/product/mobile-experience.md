@@ -691,15 +691,15 @@ identity survive this layout change. The header keeps a small outer margin for i
   drafts until Save. Cancel/back offers Keep editing or Discard when anything has changed.
   The existing independent APIs save text, cover and avatar in order. A partial failure identifies
   completed steps, retains remaining drafts and resumes without repeating acknowledged writes;
-  leaving after partial success refreshes the saved profile. Opening the editor from the public
-  profile returns there on cancel or save; opening from settings returns to settings. An account
+  leaving after partial success refreshes the saved profile. The public profile opens the editor
+  directly in one route and returns there on cancel or save; opening from settings returns to settings. An account
   change closes active profile/crop editors and rejects old-session callbacks. The avatar picker
   retains twelve presets.
 - `Current`: profile editing includes nickname, bio, signature, website name/URL, profile language
   and the six Web social providers. Saving preserves unedited fields and unknown social providers;
   website/social destinations accept HTTP(S), and social usernames expand to provider URLs.
   Public profiles display website/social links as icon-only controls and open them in the system
-  browser. Provider marks form a compact, left-aligned group of adjacent 44-pixel touch targets,
+  browser. Provider marks use compact, equally sized 24–32-pixel touch targets alongside profile dates,
   with their names available to screen readers and long-press tooltips. Worn badges appear on the avatar independently of the badge list;
   administrator identity has a localized role label. Returning
   from settings refreshes profile identity and media immediately.
@@ -743,16 +743,21 @@ identity survive this layout change. The header keeps a small outer margin for i
   A first visit to a stream retains the collapsed profile header so loading, empty states and retry
   actions stay visible; revisiting restores that stream's loaded pages and scroll position. Empty
   badge lists use badge-specific feedback.
-- `Current`: profile bios trim boundary whitespace; distinct signatures appear as secondary text.
-  Avatar overlap participates in layout so it leaves no translated blank space. Role and earned
-  badges use the shared circular medallion presentation, retaining server-provided artwork.
+- `Current`: profile bios trim boundary whitespace; signatures use a mirrored feather and a wave
+  below the complete text block, including wrapped lines.
+  Admin and online chips sit beside the display name. The smaller handle sits below it.
+  Joined date, available last-active time and public link icons appear in that order in one row.
+  Compact date formatting and measured scaling keep all values visible without ellipses.
+  The website uses the filled globe-pointer symbol in black or white for the current theme.
+  Avatar overlap participates in layout so it leaves no translated blank space. Earned badges use
+  a centered, evenly spaced row of shared circular medallions, retaining server-provided artwork.
   The selected worn badge remains attached to the avatar independently.
   Settings combine checkboxes, display positions and drag handles in one badge list, selecting and
   ordering zero to five owned, enabled badges for the profile header.
   An explicit empty selection hides that row; existing accounts default to their first five badges.
   This selection does not change the avatar badge or the complete earned badge collection.
-  Profile statistics prioritize the values and wrap into fewer columns on
-  narrow screens or at large text sizes. Settings groups use rounded inset surfaces, multiline row
+  Profile statistics keep all five values in one evenly spaced row, scaling labels to fit.
+  Settings groups use rounded inset surfaces, multiline row
   labels and consistent trailing arrows; avatar upload copy describes image selection and cropping.
 - `Current`: Settings opens a scrollable category index, with device preferences separated from
   account settings. Appearance offers system, light and dark modes; language and site information

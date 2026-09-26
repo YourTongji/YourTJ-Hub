@@ -3,8 +3,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 
 import '../theme/gf_theme.dart';
 
-/// ReIcon vectors shared with the Web and editable Figma library.
-/// Provider marks retain their official colours.
+/// ReIcon vectors on a shared 24px grid; brand marks retain their artwork.
 class GfSymbol extends StatelessWidget {
   const GfSymbol(this.name, {super.key, this.size = 24, this.color});
   final String name;

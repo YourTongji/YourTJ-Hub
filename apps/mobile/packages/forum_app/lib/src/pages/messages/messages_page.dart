@@ -458,7 +458,7 @@ class _MessagesPageState extends ConsumerState<MessagesPage>
     return RootSurface(
       title: l10n.messagesTitle,
       actionLabel: l10n.messagesNew,
-      actionSymbol: 'message-circle',
+      actionSymbol: 'message-favorite',
       onAction: _startNewChat,
       toolbarHeight: 64,
       toolbar: Padding(

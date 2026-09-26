@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:ui_kit/ui_kit.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -820,7 +821,15 @@ class _LoginPageState extends ConsumerState<LoginPage>
         children: <Widget>[
           Align(
             alignment: Alignment.centerLeft,
-            child: Text('YourTJ', style: GfTheme.typographyOf(context).display),
+            child: Image.asset(
+              Theme.of(context).brightness == Brightness.dark
+                  ? 'assets/images/brand-default-dark.webp'
+                  : 'assets/images/brand-default.webp',
+              width: 176,
+              height: 40,
+              fit: BoxFit.contain,
+              semanticLabel: 'YourTJ',
+            ),
           ),
           const SizedBox(height: 24),
           Text(
@@ -1152,10 +1161,20 @@ class _LoginPageState extends ConsumerState<LoginPage>
         const SizedBox(height: 8),
         for (final provider in providers) ...[
           OutlinedButton.icon(
-            icon: GfSymbol(
-              provider == 'tongji' ? 'graduation-cap' : provider,
-              size: 22,
-            ),
+            icon: provider == 'tongji'
+                ? SvgPicture.asset(
+                    'assets/images/tongji-university.svg',
+                    width: 32,
+                    height: 32,
+                    excludeFromSemantics: true,
+                    colorFilter: Theme.of(context).brightness == Brightness.dark
+                        ? ColorFilter.mode(
+                            GfTheme.colorsOf(context).info,
+                            BlendMode.srcIn,
+                          )
+                        : null,
+                  )
+                : GfSymbol(provider, size: 22),
             label: Text(switch (provider) {
               'tongji' => l10n.loginTongji,
               'google' => l10n.loginGoogle,

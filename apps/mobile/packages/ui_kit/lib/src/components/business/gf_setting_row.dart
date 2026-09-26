@@ -11,7 +11,6 @@ class GfSettingRow extends StatelessWidget {
     required this.title,
     this.description,
     this.subtitleWidget,
-    this.icon,
     this.symbol,
     this.iconColor,
     this.leading,
@@ -25,12 +24,11 @@ class GfSettingRow extends StatelessWidget {
   /// Arbitrary subtitle widget; takes precedence over [description].
   final Widget? subtitleWidget;
 
-  final IconData? icon;
   final String? symbol;
   final Color? iconColor;
 
   /// Arbitrary leading widget (e.g. [GfAvatar]); takes precedence over
-  /// [icon].
+  /// [symbol].
   final Widget? leading;
 
   final Widget? trailing;
@@ -42,15 +40,13 @@ class GfSettingRow extends StatelessWidget {
 
     final prefix =
         leading ??
-        (symbol != null
-            ? GfSymbol(
+        (symbol == null
+            ? null
+            : GfSymbol(
                 symbol!,
                 size: 22,
                 color: iconColor ?? colors.baseContent,
-              )
-            : icon == null
-            ? null
-            : Icon(icon, size: 22, color: iconColor ?? colors.baseContent));
+              ));
     final suffix =
         trailing ??
         (onTap == null
@@ -119,7 +115,6 @@ class GfSwitchRow extends StatelessWidget {
     required this.onChanged,
     this.description,
     this.subtitleWidget,
-    this.icon,
     this.symbol,
     this.iconColor,
     this.leading,
@@ -131,11 +126,10 @@ class GfSwitchRow extends StatelessWidget {
   /// Arbitrary subtitle widget; takes precedence over [description].
   final Widget? subtitleWidget;
 
-  final IconData? icon;
   final String? symbol;
   final Color? iconColor;
 
-  /// Arbitrary leading widget; takes precedence over [icon].
+  /// Arbitrary leading widget; takes precedence over [symbol].
   final Widget? leading;
 
   final bool value;
@@ -150,7 +144,6 @@ class GfSwitchRow extends StatelessWidget {
       subtitleWidget: subtitleWidget,
       leading: leading,
       symbol: symbol,
-      icon: icon,
       iconColor: iconColor,
       trailing: Switch.adaptive(value: value, onChanged: onChanged),
     );

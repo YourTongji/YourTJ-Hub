@@ -47,21 +47,15 @@ class ReadingNavigationRail extends StatelessWidget {
                     icon: Badge(
                       isLabelVisible: items[i].badge,
                       backgroundColor: colors.primary,
-                      child: items[i].symbol != null
-                          ? GfSymbol(
-                              currentIndex == i
-                                  ? items[i].selectedSymbol ?? items[i].symbol!
-                                  : items[i].symbol!,
-                              size: 26,
-                              color: currentIndex == i
-                                  ? colors.primary
-                                  : colors.iconMuted,
-                            )
-                          : Icon(
-                              currentIndex == i
-                                  ? items[i].selectedIcon
-                                  : items[i].icon,
-                            ),
+                      child: GfSymbol(
+                        currentIndex == i
+                            ? items[i].selectedSymbol
+                            : items[i].symbol,
+                        size: 24,
+                        color: currentIndex == i
+                            ? colors.primary
+                            : colors.iconMuted,
+                      ),
                     ),
                   ),
                 ),

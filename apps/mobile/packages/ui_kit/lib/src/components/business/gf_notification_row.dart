@@ -10,8 +10,7 @@ enum GfNotificationTone { success, warning, info, primary, like }
 class GfNotificationRow extends StatelessWidget {
   const GfNotificationRow({
     super.key,
-    this.icon,
-    this.symbol,
+    required this.symbol,
     required this.tone,
     required this.title,
     required this.subtitle,
@@ -23,9 +22,8 @@ class GfNotificationRow extends StatelessWidget {
     this.onTap,
     this.onMarkRead,
     this.markReadLabel = 'Mark as read',
-  }) : assert(icon != null || symbol != null);
-  final IconData? icon;
-  final String? symbol;
+  });
+  final String symbol;
   final GfNotificationTone tone;
   final String title, subtitle, time, actorName;
   final String? avatarUrl;
@@ -61,9 +59,7 @@ class GfNotificationRow extends StatelessWidget {
               SizedBox(
                 width: 28,
                 height: 44,
-                child: symbol != null
-                    ? GfSymbol(symbol!, size: 25, color: toneColor)
-                    : Icon(icon, size: 25, color: toneColor),
+                child: GfSymbol(symbol, size: 24, color: toneColor),
               ),
               const SizedBox(width: 12),
               Expanded(

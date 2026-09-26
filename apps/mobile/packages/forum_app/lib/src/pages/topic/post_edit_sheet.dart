@@ -215,7 +215,7 @@ class _PostEditSheetState extends ConsumerState<PostEditSheet> {
                             IconButton(
                               tooltip: l10n.publishToolImage,
                               onPressed: _busy || _uploading ? null : _image,
-                              icon: const GfSymbol('image', size: 23),
+                              icon: const GfSymbol('gallery', size: 23),
                               style: IconButton.styleFrom(
                                 fixedSize: const Size.square(44),
                                 foregroundColor: colors.primary,

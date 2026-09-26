@@ -430,6 +430,7 @@ class _CourseCatalogPageState extends ConsumerState<_CourseCatalogContent> {
           if (_canManageCourses)
             PopupMenuButton<String>(
               tooltip: l10n.coursesManagement,
+              icon: const GfSymbol('ellipsis', size: 20),
               useRootNavigator: true,
               onSelected: (path) => context.push(path),
               itemBuilder: (_) => [

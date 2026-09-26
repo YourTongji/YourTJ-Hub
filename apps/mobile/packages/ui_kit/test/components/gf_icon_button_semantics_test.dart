@@ -13,7 +13,7 @@ void main() {
         MaterialApp(
           home: Scaffold(
             body: GfIconButton(
-              icon: Icons.arrow_back,
+              symbol: 'arrow-left',
               tooltip: 'Back',
               onPressed: enabled ? () {} : null,
             ),

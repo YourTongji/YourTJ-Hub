@@ -95,7 +95,7 @@ Future<void> _pump(
 void main() {
   for (final brightness in Brightness.values) {
     testWidgets(
-      'header badges are named icon buttons with tappable details ($brightness)',
+      'role chip and earned badge buttons are distinct ($brightness)',
       (tester) async {
         tester.view.physicalSize = const Size(390, 900);
         tester.view.devicePixelRatio = 1;
@@ -104,8 +104,8 @@ void main() {
         try {
           await _pump(tester, brightness: brightness);
           final card = tester.widget<GfUserCard>(find.byType(GfUserCard));
-          expect(card.coloredBadges, hasLength(6));
-          expect(find.text('Admin'), findsNothing);
+          expect(card.coloredBadges, hasLength(5));
+          expect(find.text('Admin'), findsOneWidget);
           expect(find.text('First post'), findsNothing);
           final target = find.byTooltip(
             'First post\nShared a first post with the community.',
@@ -135,18 +135,6 @@ void main() {
           await tester.tap(find.byTooltip('Close'));
           await tester.pumpAndSettle();
           expect(find.text('First post'), findsNothing);
-          final admin = find.byTooltip(
-            'Admin\nHelps maintain the community and keep the forum running.',
-          );
-          await tester.tap(admin);
-          await tester.pumpAndSettle();
-          expect(find.text('Admin'), findsOneWidget);
-          expect(
-            find.text(
-              'Helps maintain the community and keep the forum running.',
-            ),
-            findsOneWidget,
-          );
           expect(tester.takeException(), isNull);
         } finally {
           semantics.dispose();

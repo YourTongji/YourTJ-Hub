@@ -21,8 +21,10 @@ class _CampusCalendarRulesViewState
   CampusCalendarRules? _rules;
   Object? _error;
   bool _loading = false;
+  bool _expanded = false;
   int _request = 0;
   Future<void> _load(bool expanded) async {
+    _expanded = expanded;
     _cancel?.cancel();
     final request = ++_request;
     if (!expanded) {
@@ -68,6 +70,13 @@ class _CampusCalendarRulesViewState
     return ExpansionTile(
       tilePadding: EdgeInsets.zero,
       title: Text(l.campusCalendarRules),
+      trailing: AnimatedRotation(
+        turns: _expanded ? .5 : 0,
+        duration: MediaQuery.disableAnimationsOf(context)
+            ? Duration.zero
+            : const Duration(milliseconds: 200),
+        child: const GfSymbol('chevron-down', size: 20),
+      ),
       onExpansionChanged: _load,
       children: [
         if (_loading) const LinearProgressIndicator(),
@@ -82,7 +91,7 @@ class _CampusCalendarRulesViewState
           for (final h in rules.holidays)
             ListTile(
               contentPadding: EdgeInsets.zero,
-              leading: const GfSymbol('calendar-days'),
+              leading: const GfSymbol('calendar-x'),
               title: Text(h.name),
               subtitle: Text('${date(h.startDate)} – ${date(h.endDate)}'),
             ),

@@ -60,6 +60,12 @@ enum _SettingsTab {
   };
 }
 
+class _ProfileEditSession {
+  bool changed = false;
+  Uint8List? uploadedCoverBytes;
+  String? uploadedCoverUrl;
+}
+
 /// 设置页(web settings.index 的移动端形态)。
 ///
 /// Device preferences remain available to guests. Existing section deep links
@@ -88,7 +94,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   bool _uploadingAvatar = false;
   bool _accountClosing = false;
   bool _googleOAuthReady = false;
-  bool _didAutoEditProfile = false;
+  _ProfileEditSession _autoEditSession = _ProfileEditSession();
   final ImagePicker _imagePicker = ImagePicker();
   final Set<Route<dynamic>> _profileEditRoutes = {};
 
@@ -154,18 +160,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         _googleOAuthReady = props.googleOAuthReady;
         _user = AsyncValue.data(props.user);
       });
-      if (widget.autoEditProfile &&
-          _tab == _SettingsTab.profile &&
-          !_didAutoEditProfile) {
-        _didAutoEditProfile = true;
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted &&
-              _signedIn == true &&
-              ref.read(offlineCacheEpochProvider) == epoch) {
-            unawaited(_editProfileFromShortcut(props.user));
-          }
-        });
-      }
     } catch (e, st) {
       if (!mounted ||
           request != _userRequest ||
@@ -329,96 +323,86 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     _profileEditRoutes.clear();
   }
 
-  Future<void> _editProfileFromShortcut(SettingsUserPayload user) async {
-    final epoch = ref.read(offlineCacheEpochProvider);
-    final settingsRoute = ModalRoute.of(context);
-    final navigator = Navigator.of(context);
-    await _editProfile(user);
-    // The settings route only bridges the public profile to its editor. Close
-    // it after editing, unless another route or account has since taken over.
-    if (!mounted ||
-        epoch != ref.read(offlineCacheEpochProvider) ||
-        settingsRoute?.isCurrent != true ||
-        !navigator.mounted ||
-        !navigator.canPop()) {
-      return;
-    }
-    navigator.pop();
-  }
-
-  Future<void> _editProfile(SettingsUserPayload user) async {
-    final epoch = ref.read(offlineCacheEpochProvider);
-    var changed = false;
-    Uint8List? uploadedCoverBytes;
-    String? uploadedCoverUrl;
+  ProfileEditPage _profileEditor(
+    SettingsUserPayload user,
+    int epoch,
+    _ProfileEditSession session, {
+    Key? key,
+  }) {
     void requireCurrentSession() {
       if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) {
         throw const UnauthorizedException();
       }
     }
 
-    final saved = await _pushProfileEditRoute<bool>(
-      (_) => ProfileEditPage(
-        user: user,
-        onPickImage: (cover) =>
-            _pickProfileImageDraft(cover: cover, epoch: epoch),
-        onSave: (updated) async {
-          requireCurrentSession();
-          await ref
-              .read(userRepositoryProvider)
-              .saveUserInfo(
-                nickname: updated.nickname,
-                bio: updated.bio,
-                signature: updated.signature,
-                websiteName: updated.websiteName,
-                website: updated.website,
-                locale: updated.locale,
-                externalInformation: updated.externalInformation,
-              );
-          requireCurrentSession();
-          changed = true;
-        },
-        onSaveAvatar: (bytes) async {
-          requireCurrentSession();
-          final url = await ref
-              .read(fileRepositoryProvider)
-              .uploadAvatar(bytes: bytes, filename: 'avatar.webp');
-          requireCurrentSession();
-          changed = true;
-          return url;
-        },
-        onSaveCover: (bytes) async {
-          requireCurrentSession();
-          var url = '';
-          if (bytes != null) {
-            // Upload is separate from selecting the cover. Reuse the
-            // acknowledged asset if updating the profile fails and retries.
-            if (!identical(bytes, uploadedCoverBytes) ||
-                uploadedCoverUrl == null) {
-              url = await ref
-                  .read(fileRepositoryProvider)
-                  .uploadImage(bytes: bytes, filename: 'cover.webp');
-              requireCurrentSession();
-              uploadedCoverBytes = bytes;
-              uploadedCoverUrl = url;
-            } else {
-              url = uploadedCoverUrl!;
-            }
+    return ProfileEditPage(
+      key: key,
+      user: user,
+      onPickImage: (cover) =>
+          _pickProfileImageDraft(cover: cover, epoch: epoch),
+      onSave: (updated) async {
+        requireCurrentSession();
+        await ref
+            .read(userRepositoryProvider)
+            .saveUserInfo(
+              nickname: updated.nickname,
+              bio: updated.bio,
+              signature: updated.signature,
+              websiteName: updated.websiteName,
+              website: updated.website,
+              locale: updated.locale,
+              externalInformation: updated.externalInformation,
+            );
+        requireCurrentSession();
+        session.changed = true;
+        ref.invalidate(currentUserProvider);
+      },
+      onSaveAvatar: (bytes) async {
+        requireCurrentSession();
+        final url = await ref
+            .read(fileRepositoryProvider)
+            .uploadAvatar(bytes: bytes, filename: 'avatar.webp');
+        requireCurrentSession();
+        session.changed = true;
+        ref.invalidate(currentUserProvider);
+        return url;
+      },
+      onSaveCover: (bytes) async {
+        requireCurrentSession();
+        var url = '';
+        if (bytes != null) {
+          // Retry without uploading an already acknowledged cover again.
+          if (!identical(bytes, session.uploadedCoverBytes) ||
+              session.uploadedCoverUrl == null) {
+            url = await ref
+                .read(fileRepositoryProvider)
+                .uploadImage(bytes: bytes, filename: 'cover.webp');
+            requireCurrentSession();
+            session.uploadedCoverBytes = bytes;
+            session.uploadedCoverUrl = url;
+          } else {
+            url = session.uploadedCoverUrl!;
           }
-          await ref.read(userRepositoryProvider).saveUserProfileCover(url);
-          requireCurrentSession();
-          changed = true;
-          return url;
-        },
-      ),
+        }
+        await ref.read(userRepositoryProvider).saveUserProfileCover(url);
+        requireCurrentSession();
+        session.changed = true;
+        ref.invalidate(currentUserProvider);
+        return url;
+      },
+    );
+  }
+
+  Future<void> _editProfile(SettingsUserPayload user) async {
+    final epoch = ref.read(offlineCacheEpochProvider);
+    final session = _ProfileEditSession();
+    final saved = await _pushProfileEditRoute<bool>(
+      (_) => _profileEditor(user, epoch, session),
     );
     if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) return;
     // A cancelled retry may still have acknowledged earlier independent steps.
     // Refresh those changes, but only announce full success after every save.
-    if (changed) {
-      ref.invalidate(currentUserProvider);
-      await _loadUser(silent: true);
-    }
+    if (session.changed) await _loadUser(silent: true);
     if (saved == true &&
         mounted &&
         epoch == ref.read(offlineCacheEpochProvider)) {
@@ -969,10 +953,33 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         _user = const AsyncValue.loading();
         _sessions = const AsyncValue.loading();
         _googleOAuthReady = false;
+        _autoEditSession = _ProfileEditSession();
       });
       unawaited(_loadSession());
     });
     final l10n = AppLocalizations.of(context);
+    if (widget.autoEditProfile &&
+        _tab == _SettingsTab.profile &&
+        _signedIn != false) {
+      final user = _user.valueOrNull;
+      if (user != null) {
+        return _profileEditor(
+          user,
+          ref.read(offlineCacheEpochProvider),
+          _autoEditSession,
+          key: ObjectKey(_autoEditSession),
+        );
+      }
+      return Scaffold(
+        appBar: GfAppBar(title: Text(l10n.settingsEditProfile)),
+        body: _user.hasError
+            ? GfErrorRetry(
+                message: resolveErrorMessage(l10n, _user.error!),
+                onRetry: _loadUser,
+              )
+            : const GfSettingsSkeleton(),
+      );
+    }
     final title = _tab?.label(l10n) ?? l10n.settingsTitle;
     final colors = GfTheme.colorsOf(context);
     return Scaffold(

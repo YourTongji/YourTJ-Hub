@@ -26,7 +26,7 @@ class GfAvatar extends StatelessWidget {
   /// (web `ring-2 ring-base-100`, used in avatar stacks).
   final bool ring;
 
-  /// Optional corner badge (e.g. online dot, badge icon).
+  /// Optional corner badge.
   final Widget? badge;
 
   /// Image key shared by visible avatars and their startup prefetch.
@@ -86,7 +86,11 @@ class GfAvatar extends StatelessWidget {
       clipBehavior: Clip.none,
       children: <Widget>[
         avatar,
-        Positioned(right: 0, bottom: 0, child: badge!),
+        Positioned(
+          right: -size * .06,
+          bottom: -size * .06,
+          child: badge!,
+        ),
       ],
     );
   }

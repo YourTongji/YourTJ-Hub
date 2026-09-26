@@ -3264,6 +3264,24 @@ abstract class AppLocalizations {
   /// **'Admin'**
   String get profileRoleAdmin;
 
+  /// No description provided for @profileOnline.
+  ///
+  /// In en, this message translates to:
+  /// **'Online'**
+  String get profileOnline;
+
+  /// No description provided for @profileJoinedAt.
+  ///
+  /// In en, this message translates to:
+  /// **'Joined {date}'**
+  String profileJoinedAt(String date);
+
+  /// No description provided for @profileLastActive.
+  ///
+  /// In en, this message translates to:
+  /// **'Last active {time}'**
+  String profileLastActive(String time);
+
   /// No description provided for @profileActionSignup.
   ///
   /// In en, this message translates to:

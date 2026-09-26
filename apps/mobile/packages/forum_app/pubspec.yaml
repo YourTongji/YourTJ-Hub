@@ -77,6 +77,9 @@ flutter:
   uses-material-design: true
   assets:
     - assets/images/brand-default.png
+    - assets/images/brand-default.webp
+    - assets/images/brand-default-dark.webp
+    - assets/images/tongji-university.svg
     - assets/launcher/icon.png
     - assets/splash/brand_mark.png
     - assets/splash/brand_mark.svg

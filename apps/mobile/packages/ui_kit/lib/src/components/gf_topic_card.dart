@@ -812,8 +812,11 @@ class _AuthorMeta extends StatelessWidget {
         ),
         if (pinned)
           Padding(
-            padding: const EdgeInsets.only(top: 10),
-            child: GfSymbol('pin', size: 16, color: colors.iconMuted),
+            padding: const EdgeInsets.only(top: 14),
+            child: Semantics(
+              label: 'pinned',
+              child: GfSymbol('pin-filled', size: 16, color: colors.error),
+            ),
           ),
       ],
     );

@@ -84,7 +84,7 @@ class GfTopicRow extends StatelessWidget {
                 if (pinned)
                   Semantics(
                     label: 'pinned',
-                    child: GfSymbol('pin', size: 14, color: colors.error),
+                    child: GfSymbol('pin-filled', size: 16, color: colors.error),
                   ),
                 Text(
                   title,
