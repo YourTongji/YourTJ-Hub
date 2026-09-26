@@ -154,6 +154,7 @@ Public SPA navigation rules:
 - Do not clear shell header state before the next page is ready to render.
 - Animate the main content area only when the page identity changes, such as topic list to topic detail.
 - Do not animate the whole page for same-view filter changes. Stable regions such as announcements, tabs, headers, and list frames should stay still when only list data changes.
+- The homepage announcement panel may collapse to a single title row. Collapse/expand is user intent, not a data effect: announcement/list data refreshes never animate the panel; the transition plays only on the user's toggle and respects `prefers-reduced-motion`. While collapsed the announcement HTML is not rendered (`v-if` removes it from the accessibility tree), and the expand control exposes `aria-expanded`/`aria-controls` pointing at the panel with a visible focus state. The collapse preference persists in `localStorage` and is independent of the announcement read state.
 - Let the component that owns the changed data provide local motion when it does not disturb document height. For same-view topic sort changes, do not animate the whole topic list in or out; prefer direct data replacement plus stable tab/loading feedback.
 - Keep the previous page visible until the next payload and component are ready.
 - Use subtle opacity and small vertical movement for page content. Avoid scale, large movement, or whole-shell animation.

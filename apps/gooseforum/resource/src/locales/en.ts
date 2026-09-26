@@ -836,6 +836,8 @@ export default {
     announcement: 'Announcement',
     markAnnouncementRead: 'Mark as read',
     markAnnouncementUnread: 'Resume reminders',
+    collapseAnnouncement: 'Collapse announcement',
+    expandAnnouncement: 'Expand announcement',
     feedMode: 'Toggle feed style',
     feedModeTable: 'List',
     feedModeCard: 'Cards',

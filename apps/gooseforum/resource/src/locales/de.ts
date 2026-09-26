@@ -835,6 +835,8 @@ export default {
     announcement: 'Ankündigung',
     markAnnouncementRead: 'Als gelesen markieren',
     markAnnouncementUnread: 'Erinnerung wieder aufnehmen',
+    collapseAnnouncement: 'Ankündigung einklappen',
+    expandAnnouncement: 'Ankündigung ausklappen',
     feedMode: 'Feed-Stil ändern',
     feedModeTable: 'Liste',
     feedModeCard: 'Karten',

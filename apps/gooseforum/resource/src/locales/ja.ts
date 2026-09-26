@@ -835,6 +835,8 @@ export default {
     announcement: 'お知らせ',
     markAnnouncementRead: '既読にする',
     markAnnouncementUnread: '通知を再開',
+    collapseAnnouncement: 'お知らせを折りたたむ',
+    expandAnnouncement: 'お知らせを展開する',
     feedMode: '表示スタイルを切り替え',
     feedModeTable: 'リスト',
     feedModeCard: 'カード',
