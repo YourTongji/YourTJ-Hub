@@ -44,6 +44,23 @@ class _CountingUserRepository extends UserRepository {
   _CountingUserRepository(super.client);
   int requests = 0;
   bool fail = false;
+  int saveAttempts = 0;
+  Completer<bool>? savePending;
+  @override
+  Future<bool> saveUserInfo({
+    required String nickname,
+    required String bio,
+    required String signature,
+    required String websiteName,
+    required String website,
+    String? locale,
+    required Map<String, ExternalLinkPayload> externalInformation,
+  }) async {
+    saveAttempts++;
+    if (savePending != null) return savePending!.future;
+    throw StateError('Profile save unavailable');
+  }
+
   @override
   Future<List<UserSessionPayload>> listSessions() async {
     requests++;
@@ -103,6 +120,8 @@ Future<_Harness> _mount(
   WidgetTester tester, {
   bool signedIn = false,
   String? section,
+  bool autoEditProfile = false,
+  bool withOrigin = false,
   String language = 'zh',
   double scale = 1,
   TokenStorage? tokenStorage,
@@ -144,7 +163,27 @@ Future<_Harness> _mount(
             ).copyWith(textScaler: TextScaler.linear(scale)),
             child: child!,
           ),
-          home: SettingsPage(initialSection: section),
+          home: withOrigin
+              ? Builder(
+                  builder: (context) => Scaffold(
+                    body: TextButton(
+                      key: const Key('open-settings'),
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => SettingsPage(
+                            initialSection: section,
+                            autoEditProfile: autoEditProfile,
+                          ),
+                        ),
+                      ),
+                      child: const Text('Original profile'),
+                    ),
+                  ),
+                )
+              : SettingsPage(
+                  initialSection: section,
+                  autoEditProfile: autoEditProfile,
+                ),
         ),
       ),
     ),
@@ -154,11 +193,193 @@ Future<_Harness> _mount(
   } else {
     await tester.pump();
   }
+  if (withOrigin) {
+    await tester.tap(find.byKey(const Key('open-settings')));
+    await tester.pumpAndSettle();
+  }
   return (container: container, page: page, user: user);
 }
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
+
+  testWidgets('profile shortcut opens the complete editor once after loading', (
+    tester,
+  ) async {
+    await _mount(
+      tester,
+      signedIn: true,
+      section: 'profile',
+      autoEditProfile: true,
+    );
+    expect(find.byKey(const ValueKey('profile-nickname')), findsOneWidget);
+    await tester.tap(find.byTooltip('取消'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('profile-nickname')), findsNothing);
+    expect(find.text('编辑资料'), findsOneWidget);
+  });
+
+  for (final save in [false, true]) {
+    testWidgets(
+      'profile shortcut returns to its origin after ${save ? 'save' : 'cancel'}',
+      (tester) async {
+        final harness = await _mount(
+          tester,
+          signedIn: true,
+          section: 'profile',
+          autoEditProfile: true,
+          withOrigin: true,
+        );
+        if (save) {
+          harness.user.savePending = Completer<bool>();
+          await tester.enterText(
+            find.byKey(const ValueKey('profile-nickname')),
+            'Saved profile name',
+          );
+          await tester.pump();
+          await tester.tap(find.byKey(const Key('profile-save')));
+          await tester.pump();
+          expect(harness.user.saveAttempts, 1);
+          harness.user.savePending!.complete(true);
+        } else {
+          await tester.tap(find.byTooltip('取消'));
+        }
+        await tester.pumpAndSettle();
+        expect(find.byKey(const Key('open-settings')), findsOneWidget);
+        expect(find.byType(SettingsPage), findsNothing);
+      },
+    );
+  }
+
+  testWidgets('ordinary profile editor returns to the settings route', (
+    tester,
+  ) async {
+    await _mount(tester, signedIn: true, section: 'profile', withOrigin: true);
+    await tester.ensureVisible(find.text('编辑资料'));
+    await tester.tap(find.text('编辑资料'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('取消'));
+    await tester.pumpAndSettle();
+    expect(find.byType(SettingsPage), findsOneWidget);
+    expect(find.byKey(const Key('open-settings')), findsNothing);
+  });
+
+  testWidgets('profile shortcut does not pop a route opened above its editor', (
+    tester,
+  ) async {
+    await _mount(
+      tester,
+      signedIn: true,
+      section: 'profile',
+      autoEditProfile: true,
+      withOrigin: true,
+    );
+    final editorContext = tester.element(
+      find.byKey(const Key('profile-nickname')),
+    );
+    final editorRoute = ModalRoute.of(editorContext)!;
+    final navigator = Navigator.of(editorContext);
+    unawaited(
+      navigator.push<void>(
+        MaterialPageRoute<void>(
+          builder: (_) => const Scaffold(body: Text('New destination')),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    navigator.removeRoute(editorRoute);
+    await tester.pumpAndSettle();
+    expect(find.text('New destination'), findsOneWidget);
+    navigator.pop();
+    await tester.pumpAndSettle();
+    expect(find.byType(SettingsPage), findsOneWidget);
+    expect(find.byKey(const Key('open-settings')), findsNothing);
+  });
+
+  testWidgets('invalidated profile shortcut does not pop its settings route', (
+    tester,
+  ) async {
+    final harness = await _mount(
+      tester,
+      signedIn: true,
+      section: 'profile',
+      autoEditProfile: true,
+      withOrigin: true,
+    );
+    harness.container.read(offlineCacheEpochProvider.notifier).invalidate();
+    await tester.pumpAndSettle();
+    expect(find.byType(SettingsPage), findsOneWidget);
+    expect(find.byKey(const Key('profile-nickname')), findsNothing);
+    expect(find.byKey(const Key('open-settings')), findsNothing);
+  });
+
+  testWidgets('failed profile save keeps the editor and entered text', (
+    tester,
+  ) async {
+    final harness = await _mount(tester, signedIn: true, section: 'profile');
+    final edit = find.text('编辑资料');
+    await tester.ensureVisible(edit);
+    await tester.tap(edit);
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const ValueKey('profile-nickname')),
+      'Kept nickname',
+    );
+    await tester.pump();
+    await tester.tap(find.text('保存'));
+    await tester.pumpAndSettle();
+    expect(harness.user.saveAttempts, 1);
+    expect(find.byKey(const ValueKey('profile-nickname')), findsOneWidget);
+    expect(find.text('Kept nickname'), findsOneWidget);
+  });
+
+  testWidgets('session invalidation removes an unsaved profile editor', (
+    tester,
+  ) async {
+    final harness = await _mount(
+      tester,
+      signedIn: true,
+      section: 'profile',
+      autoEditProfile: true,
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('profile-nickname')),
+      'Private previous profile',
+    );
+    harness.container.read(offlineCacheEpochProvider.notifier).invalidate();
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('profile-nickname')), findsNothing);
+    expect(find.text('Private previous profile'), findsNothing);
+    expect(harness.user.saveAttempts, 0);
+  });
+
+  testWidgets(
+    'late profile acknowledgement cannot restore an invalidated editor',
+    (tester) async {
+      final harness = await _mount(
+        tester,
+        signedIn: true,
+        section: 'profile',
+        autoEditProfile: true,
+      );
+      harness.user.savePending = Completer<bool>();
+      await tester.enterText(
+        find.byKey(const ValueKey('profile-nickname')),
+        'Previous account pending',
+      );
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('profile-save')));
+      await tester.pump();
+      expect(harness.user.saveAttempts, 1);
+      harness.container.read(offlineCacheEpochProvider.notifier).invalidate();
+      await tester.pumpAndSettle();
+      harness.user.savePending!.complete(true);
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('profile-nickname')), findsNothing);
+      expect(find.text('Previous account pending'), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets('guests reach appearance without fetching account data', (
     tester,
@@ -240,7 +461,7 @@ void main() {
       await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
       await tester.pumpAndSettle();
       expect(harness.container.read(themeModeProvider), ThemeMode.light);
-      await tester.tap(find.byIcon(Icons.arrow_back));
+      await tester.tap(find.byTooltip('Back'));
       await tester.pumpAndSettle();
       expect(
         find.byKey(const ValueKey('settings-category-appearance')),
@@ -266,7 +487,7 @@ void main() {
             .onRefresh();
         await tester.pumpAndSettle();
         expect(harness.page.requests, 2);
-        expect(find.text('昵称'), findsOneWidget);
+        expect(find.text('编辑资料'), findsOneWidget);
         expect(find.byType(GfSettingsSkeleton), findsNothing);
         await tester.pump(const Duration(seconds: 4));
         expect(tester.takeException(), isNull);
@@ -285,7 +506,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(harness.user.requests, 2);
     expect(harness.page.requests, 0);
-    expect(find.text('Current phone'), findsOneWidget);
+    expect(find.text('当前设备'), findsOneWidget);
     expect(find.byTooltip('吊销此会话'), findsOneWidget);
     await tester.pump(const Duration(seconds: 4));
     expect(tester.takeException(), isNull);
@@ -357,11 +578,11 @@ void main() {
       signedIn: true,
       section: 'security',
     );
-    expect(find.text('Current phone'), findsOneWidget);
+    expect(find.text('当前设备'), findsOneWidget);
     await storage.clear();
     harness.container.read(offlineCacheEpochProvider.notifier).invalidate();
     await tester.pumpAndSettle();
-    expect(find.text('Current phone'), findsNothing);
+    expect(find.text('当前设备'), findsNothing);
     expect(find.text('登录账号'), findsOneWidget);
   });
 
@@ -412,7 +633,13 @@ void main() {
               isNull,
               reason: '$section scrolled viewport',
             );
-            await tester.tap(find.byIcon(Icons.arrow_back));
+            await tester.tap(
+              find.byTooltip(
+                AppLocalizations.of(
+                  tester.element(find.byType(SettingsPage).last),
+                ).commonBack,
+              ),
+            );
             await tester.pumpAndSettle();
             expect(category, findsOneWidget);
           }

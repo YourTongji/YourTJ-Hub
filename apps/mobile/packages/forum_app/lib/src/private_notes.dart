@@ -1,6 +1,7 @@
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:ui_kit/ui_kit.dart';
 import '../l10n/app_localizations.dart';
 import 'current_user.dart';
 import 'providers.dart';
@@ -193,19 +194,21 @@ class _PrivateNoteDialogState extends ConsumerState<_PrivateNoteDialog> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(l10n.privateNoteHint),
-            TextField(
+            const SizedBox(height: 16),
+            GfInput(
               controller: _text,
               enabled: !_busy,
               autofocus: true,
-              decoration: InputDecoration(labelText: l10n.privateNoteLabel),
+              labelText: l10n.privateNoteLabel,
+              textInputAction: TextInputAction.done,
+              onSubmitted: (_) => _save(),
+              decoration: InputDecoration(
+                counterText: '${_text.text.trim().runes.length}/64',
+                errorText: _error,
+                errorMaxLines: 3,
+              ),
               onChanged: (_) => setState(() {}),
             ),
-            Text('${_text.text.trim().runes.length}/64'),
-            if (_error != null)
-              Text(
-                _error!,
-                style: TextStyle(color: Theme.of(context).colorScheme.error),
-              ),
           ],
         ),
         actions: [

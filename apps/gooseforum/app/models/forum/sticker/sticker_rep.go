@@ -9,14 +9,14 @@ import (
 
 func All() ([]Entity, error) {
 	entities := make([]Entity, 0)
-	err := builder().Order("sort_order ASC").Order("id ASC").Find(&entities).Error
+	err := builder().Where("is_official = ?", true).Order("sort_order ASC").Order("id ASC").Find(&entities).Error
 	return entities, err
 }
 
 func AllEnabled() ([]Entity, error) {
 	entities := make([]Entity, 0)
 	result := builder().
-		Where(queryopt.Eq("is_enabled", true)).
+		Where("is_enabled = ? AND is_official = ?", true, true).
 		Order("sort_order ASC").Order("id ASC").
 		Find(&entities)
 	return entities, result.Error
@@ -68,10 +68,24 @@ func GetByIDTx(tx *gorm.DB, id uint64) (Entity, error) {
 	err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&row, id).Error
 	return row, err
 }
-func DeleteTx(tx *gorm.DB, id uint64) error { return tx.Delete(&Entity{}, id).Error }
+func DeleteTx(tx *gorm.DB, id uint64) error {
+	if err := tx.Where("sticker_id = ?", id).Delete(&LibraryEntry{}).Error; err != nil {
+		return err
+	}
+	return tx.Delete(&Entity{}, id).Error
+}
 
 func GetByNameTx(tx *gorm.DB, name string) (Entity, error) {
 	var row Entity
-	err := tx.Where("name = ?", name).First(&row).Error
+	err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("name = ?", name).First(&row).Error
 	return row, err
+}
+
+// BackfillPresetPackTx only changes the legacy default on system-seeded rows.
+// A metadata repair must not alter token names, files or modification timestamps.
+func BackfillPresetPackTx(tx *gorm.DB, pack string, names []string) (int64, error) {
+	result := tx.Model(&Entity{}).
+		Where("is_official = ? AND created_by = ? AND pack = ? AND name IN ?", true, 0, "official", names).
+		UpdateColumn("pack", pack)
+	return result.RowsAffected, result.Error
 }

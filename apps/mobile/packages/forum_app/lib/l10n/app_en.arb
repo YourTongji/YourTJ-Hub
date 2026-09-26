@@ -140,6 +140,7 @@
   "publishPublish": "Publish",
   "publishSaveDraft": "Save draft",
   "publishTitleField": "Title",
+  "publishAddTitle": "Add title",
   "publishTitleHint": "Enter title (5-100 chars)",
   "publishBodyPlaceholder": "Content…",
   "publishTitleRequired": "Title is required",
@@ -233,6 +234,7 @@
   "profileFollow": "Follow",
   "profileFollowing": "Following",
   "profileTopics": "Topics",
+  "profilePosts": "Posts",
   "profileReplies": "Replies",
   "profileLikedPosts": "Likes",
   "profileLikes": "Likes",
@@ -676,7 +678,7 @@
   "wikiRecent": "Recently updated",
   "wikiEditOnGithub": "Edit on GitHub",
   "wikiToc": "Contents",
-  "wikiNamespaces": "Namespaces",
+  "wikiNamespaces": "Collections",
   "wikiViewCount": "{count} views",
   "@wikiViewCount": {
     "placeholders": {
@@ -1221,7 +1223,7 @@
   "privateNoteLabel": "Private note",
   "privateNoteHint": "Only you can see this. Up to 64 characters; save empty to clear.",
   "badgeDisplayTitle": "Profile badges",
-  "badgeDisplayHint": "Choose up to 5 badges and their order, or deselect all. Independent of your avatar badge.",
+  "badgeDisplayHint": "Display up to 5 badges, or clear all. Separate from your avatar badge.",
   "badgeDisplayUp": "Move up",
   "badgeDisplayDown": "Move down",
   "notificationsMarkRead": "Mark as read",
@@ -1308,6 +1310,53 @@
     "placeholders": {
       "count": {
         "type": "int"
+      }
+    }
+  },
+  "settingsDataStorage": "Data and storage",
+  "settingsProfileDisplay": "Profile and display",
+  "settingsNotSet": "Not set",
+  "settingsUnsavedTitle": "Discard unsaved changes?",
+  "settingsUnsavedBody": "Your changes have not been saved. Leaving will discard them.",
+  "settingsKeepEditing": "Keep editing",
+  "settingsDiscardChanges": "Discard changes",
+  "settingsPushPreference": "Allow push notifications",
+  "settingsPushDelivery": "Delivery on this device",
+  "settingsPushReady": "Ready to receive notifications",
+  "settingsPushOff": "Not enabled",
+  "settingsPushIOSConsent": "Apple Push Notification service processes your device push identifier and notification content to deliver notifications.",
+  "settingsPushAndroidConsent": "JPush and your device manufacturer process your device push identifier and notification content to deliver notifications.",
+  "settingsDeviceUnknown": "Other device",
+  "settingsDeviceCurrent": "This device",
+  "badgeDisplayReorder": "Drag to reorder",
+  "badgeDisplaySelectedCount": "Displayed {count}/5",
+  "sortFollowing": "Following",
+  "notificationsUnreadEmpty": "You’re all caught up",
+  "notificationsUnreadEmptyDescription": "You have read all your notifications.",
+  "homeFeedOptions": "Feed display",
+  "@badgeDisplaySelectedCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "homeAllCategories": "All categories",
+  "sortNew": "Newest posts",
+  "profileRoleAdminDescription": "Helps maintain the community and keep the forum running.",
+  "profileBadgeEarnedOn": "Earned on {date}",
+  "@profileBadgeEarnedOn": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsProfilePartialSave": "Saved: {saved}. Your remaining changes are still here. Try saving again.",
+  "@settingsProfilePartialSave": {
+    "placeholders": {
+      "saved": {
+        "type": "String"
       }
     }
   }

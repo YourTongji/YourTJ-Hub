@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:tdesign_flutter/tdesign_flutter.dart' as td;
 
 import '../theme/gf_theme.dart';
 
@@ -11,7 +10,7 @@ enum GfButtonVariant {
   /// `gf-button-neutral`: solid neutral fill.
   neutral,
 
-  /// `gf-button-secondary`: base-100 fill with line border.
+  /// Quiet secondary action on a low-contrast grey fill.
   secondary,
 
   /// `gf-button-danger`: solid error fill.
@@ -30,20 +29,21 @@ enum GfButtonVariant {
   link,
 }
 
-/// Mobile button sizes. These are minimums; scaled or wrapped labels can grow.
+/// Painted button heights; Flutter adds a separate 48px minimum touch target.
+/// Scaled or wrapped labels can grow beyond these minimums.
 enum GfButtonSize {
-  small(44),
-  medium(48),
-  large(52),
-  extraLarge(56);
+  small(32),
+  medium(40),
+  large(44),
+  extraLarge(48);
 
   const GfButtonSize(this.height);
 
   final double height;
 }
 
-/// Button aligned with web `gf-button` semantics: rounded `gf-radius-field`,
-/// 600-weight text, 60% opacity + no pointer when disabled.
+/// Flat capsule action with an independent touch target and scalable label.
+/// Flutter owns focus, keyboard activation and disabled semantics.
 class GfButton extends StatelessWidget {
   const GfButton({
     super.key,
@@ -71,7 +71,6 @@ class GfButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final GfColors colors = GfTheme.colorsOf(context);
-    final GfRadii radii = GfTheme.radiiOf(context);
     final GfBorders borders = GfTheme.bordersOf(context);
     final TextStyle textStyle =
         (Theme.of(context).textTheme.labelLarge ?? const TextStyle()).copyWith(
@@ -82,7 +81,6 @@ class GfButton extends StatelessWidget {
 
     final (Color background, Color foreground, Color? border) = _palette(
       colors,
-      borders,
     );
     final bool enabled = onPressed != null && !loading;
 
@@ -94,80 +92,97 @@ class GfButton extends StatelessWidget {
           )
         : icon;
 
-    final td.TButton button = td.TButton(
-      size: switch (size) {
-        GfButtonSize.small => td.TButtonSize.extraSmall,
-        GfButtonSize.medium => td.TButtonSize.small,
-        GfButtonSize.large => td.TButtonSize.medium,
-        GfButtonSize.extraLarge => td.TButtonSize.large,
-      },
-      variant: switch (variant) {
-        GfButtonVariant.primary ||
-        GfButtonVariant.neutral ||
-        GfButtonVariant.danger => td.TButtonVariant.fill,
-        GfButtonVariant.secondary ||
-        GfButtonVariant.outline => td.TButtonVariant.outline,
-        GfButtonVariant.ghost => td.TButtonVariant.ghost,
-        GfButtonVariant.muted || GfButtonVariant.link => td.TButtonVariant.text,
-      },
-      colorScheme: switch (variant) {
-        GfButtonVariant.primary ||
-        GfButtonVariant.ghost ||
-        GfButtonVariant.link => td.TButtonColorScheme.primary,
-        GfButtonVariant.danger => td.TButtonColorScheme.danger,
-        _ => td.TButtonColorScheme.defaultTheme,
-      },
-      icon: effectiveIcon,
+    final button = FilledButton(
       onPressed: enabled ? onPressed : null,
       style: ButtonStyle(
-        backgroundColor: WidgetStatePropertyAll<Color>(background),
-        foregroundColor: WidgetStatePropertyAll<Color>(foreground),
-        side: WidgetStatePropertyAll<BorderSide>(
-          border == null
+        // Pending is a distinct state: it blocks activation while retaining
+        // enough contrast for the progress indicator and its action label.
+        backgroundColor: WidgetStateProperty.resolveWith((states) {
+          if (!states.contains(WidgetState.disabled) || loading) {
+            return background;
+          }
+          return switch (variant) {
+            GfButtonVariant.ghost ||
+            GfButtonVariant.outline ||
+            GfButtonVariant.muted ||
+            GfButtonVariant.link => Colors.transparent,
+            _ => colors.base300,
+          };
+        }),
+        foregroundColor: WidgetStateProperty.resolveWith(
+          (states) => states.contains(WidgetState.disabled) && !loading
+              ? colors.baseContent.withValues(alpha: 0.38)
+              : foreground,
+        ),
+        overlayColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.focused)) {
+            return foreground.withValues(alpha: 0.16);
+          }
+          if (states.contains(WidgetState.pressed)) {
+            return foreground.withValues(alpha: 0.12);
+          }
+          if (states.contains(WidgetState.hovered)) {
+            return foreground.withValues(alpha: 0.08);
+          }
+          return Colors.transparent;
+        }),
+        side: WidgetStateProperty.resolveWith(
+          (states) => border == null
               ? BorderSide.none
-              : BorderSide(color: border, width: borders.width),
+              : BorderSide(
+                  color: states.contains(WidgetState.disabled) && !loading
+                      ? border.withValues(alpha: 0.5)
+                      : border,
+                  width: borders.width,
+                ),
         ),
         minimumSize: WidgetStatePropertyAll<Size>(Size(44, size.height)),
         maximumSize: const WidgetStatePropertyAll<Size>(Size.infinite),
+        // Keep the compact fill independent from the hit target, including on
+        // desktop/tablet where the ambient theme may use compact density.
+        tapTargetSize: MaterialTapTargetSize.padded,
+        visualDensity: VisualDensity.standard,
         padding: WidgetStatePropertyAll<EdgeInsetsGeometry>(
           EdgeInsets.symmetric(
-            vertical: 8,
+            vertical: size == GfButtonSize.small ? 6 : 8,
             horizontal: switch (size) {
               GfButtonSize.small || GfButtonSize.medium => 12,
               GfButtonSize.large || GfButtonSize.extraLarge => 16,
             },
           ),
         ),
-        shape: WidgetStatePropertyAll<OutlinedBorder>(
-          RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(
-              variant == GfButtonVariant.primary ? 999 : radii.field,
-            ),
-          ),
-        ),
+        shape: WidgetStatePropertyAll<OutlinedBorder>(const StadiumBorder()),
         textStyle: WidgetStatePropertyAll<TextStyle>(textStyle),
         elevation: const WidgetStatePropertyAll<double>(0),
       ),
-      child: Text(label, textAlign: TextAlign.center),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          if (effectiveIcon != null) ...[
+            IconTheme.merge(
+              data: const IconThemeData(size: 18),
+              child: effectiveIcon,
+            ),
+            const SizedBox(width: 8),
+          ],
+          Flexible(child: Text(label, textAlign: TextAlign.center)),
+        ],
+      ),
     );
 
-    final statefulButton = Opacity(opacity: enabled ? 1 : 0.6, child: button);
-    if (!expanded) return statefulButton;
-    return SizedBox(width: double.infinity, child: statefulButton);
+    if (!expanded) return button;
+    return SizedBox(width: double.infinity, child: button);
   }
 
-  (Color, Color, Color?) _palette(GfColors colors, GfBorders borders) {
+  (Color, Color, Color?) _palette(GfColors colors) {
     switch (variant) {
       case GfButtonVariant.primary:
         return (colors.primary, colors.primaryContent, null);
       case GfButtonVariant.neutral:
         return (colors.neutral, colors.neutralContent, null);
       case GfButtonVariant.secondary:
-        return (
-          colors.base100,
-          colors.baseContent.withValues(alpha: 0.75),
-          colors.line,
-        );
+        return (colors.base200, colors.baseContent, null);
       case GfButtonVariant.danger:
         return (colors.error, colors.errorContent, null);
       case GfButtonVariant.ghost:

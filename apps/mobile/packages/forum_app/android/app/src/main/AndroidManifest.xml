@@ -46,7 +46,7 @@
             android:name=".MainActivity"
             android:exported="true"
             android:launchMode="singleTop"
-            android:theme="@style/LaunchTheme"
+            android:theme="@style/LaunchThemeDark"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
             android:hardwareAccelerated="true"
             android:windowSoftInputMode="adjustResize">
@@ -62,10 +62,6 @@
               android:name="flutter_deeplinking_enabled"
               android:value="false" />
             <intent-filter>
-                <action android:name="android.intent.action.MAIN"/>
-                <category android:name="android.intent.category.LAUNCHER"/>
-            </intent-filter>
-            <intent-filter>
                 <action android:name="android.intent.action.VIEW"/>
                 <category android:name="android.intent.category.DEFAULT"/>
                 <category android:name="android.intent.category.BROWSABLE"/>
@@ -79,6 +75,14 @@
                 <data android:scheme="yourtj" android:host="campus" android:pathPrefix="/today"/>
             </intent-filter>
         </activity>
+        <activity android:name=".ThemeRouterActivity" android:exported="true" android:theme="@style/ThemeRouter">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity>
+        <activity android:name=".LightLauncherActivity" android:exported="true" android:theme="@style/ThemeRouter"/>
+        <activity android:name=".DarkLauncherActivity" android:exported="true" android:theme="@style/ThemeRouter"/>
         <receiver android:name=".widget.NextClassWidgetReceiver" android:label="下一节课" android:exported="true">
             <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE"/></intent-filter>
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/next_class_widget_info"/>

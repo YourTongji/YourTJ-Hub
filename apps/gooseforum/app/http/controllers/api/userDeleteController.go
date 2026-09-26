@@ -256,7 +256,7 @@ func AccountClose(req component.BetterRequest[AccountCloseReq]) component.Respon
 		slog.Error("delete pk schedule snapshot on account close failed", "userId", req.UserId, "err", err)
 		return component.FailResponseCode(component.MessageOperationFailed, nil)
 	}
-	if err := campusservice.CloseForUser(req.UserId, func() error { return users.CloseAccount(req.UserId) }); err != nil {
+	if err := campusservice.CloseForUser(req.UserId, func() error { return userservice.CloseAccount(betterRequestContext(req), req.UserId) }); err != nil {
 		slog.Error("close account and campus connection failed", "userId", req.UserId, "err", err)
 		return component.FailResponseCode(component.MessageOperationFailed, nil)
 	}

@@ -1,14 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:tdesign_flutter/tdesign_flutter.dart' as td;
 
 import '../theme/gf_theme.dart';
+import 'gf_symbol.dart';
 
-/// Floating publish action pinned to the bottom of the screen, mirroring
-/// `TopicFloatingControls.vue`'s rounded floating surface.
-///
-/// Defaults to a circular primary button; set [label] to render the pill
-/// variant with icon + text used for "join discussion". The shadow uses the
-/// web `gf-shadows.floating` elevation.
+/// Floating primary action: a circular compose glyph or a labelled capsule.
+/// Native button behavior retains keyboard focus and activation.
 class GfFloatingAction extends StatelessWidget {
   const GfFloatingAction({
     super.key,
@@ -27,42 +23,56 @@ class GfFloatingAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final GfColors colors = GfTheme.colorsOf(context);
-    final GfShadows shadows = GfTheme.shadowsOf(context);
-
-    final bool pill = label != null;
-    final Widget action = DecoratedBox(
+    final colors = GfTheme.colorsOf(context);
+    final pill = label != null;
+    final active = enabled && onPressed != null;
+    final glyph = icon == Icons.edit
+        ? GfSymbol('square-pen', size: pill ? 20 : 24)
+        : Icon(icon, size: pill ? 20 : 24);
+    final action = DecoratedBox(
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(9999),
-        boxShadow: shadows.floating,
+        borderRadius: BorderRadius.circular(999),
+        boxShadow: active ? GfTheme.shadowsOf(context).floating : null,
       ),
-      child: SizedBox(
-        width: pill ? null : 56,
-        height: pill ? 44 : 56,
-        child: td.TButton(
-          size: td.TButtonSize.large,
-          variant: td.TButtonVariant.fill,
-          colorScheme: td.TButtonColorScheme.primary,
-          icon: Icon(icon, size: pill ? 18 : 24),
-          onPressed: enabled ? onPressed : null,
-          style: ButtonStyle(
-            backgroundColor: WidgetStatePropertyAll<Color>(colors.primary),
-            foregroundColor: WidgetStatePropertyAll<Color>(
-              colors.primaryContent,
-            ),
-            padding: WidgetStatePropertyAll<EdgeInsetsGeometry>(
-              EdgeInsets.symmetric(horizontal: pill ? 16 : 0),
-            ),
-            shape: const WidgetStatePropertyAll<OutlinedBorder>(
-              StadiumBorder(),
-            ),
-            elevation: const WidgetStatePropertyAll<double>(0),
+      child: FilledButton(
+        onPressed: active ? onPressed : null,
+        style: ButtonStyle(
+          minimumSize: WidgetStatePropertyAll(
+            Size(pill ? 48 : 56, pill ? 48 : 56),
           ),
-          child: pill ? Text(label!) : null,
+          padding: WidgetStatePropertyAll(
+            EdgeInsets.symmetric(
+              horizontal: pill ? 18 : 0,
+              vertical: pill ? 10 : 0,
+            ),
+          ),
+          tapTargetSize: MaterialTapTargetSize.padded,
+          visualDensity: VisualDensity.standard,
+          backgroundColor: WidgetStatePropertyAll(
+            active ? colors.primary : colors.base300,
+          ),
+          foregroundColor: WidgetStatePropertyAll(
+            active ? colors.primaryContent : colors.iconMuted,
+          ),
+          shape: const WidgetStatePropertyAll(StadiumBorder()),
+          elevation: const WidgetStatePropertyAll(0),
+          textStyle: const WidgetStatePropertyAll(
+            TextStyle(fontSize: 15, height: 1.3, fontWeight: FontWeight.w600),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            glyph,
+            if (pill) ...[
+              const SizedBox(width: 8),
+              Flexible(child: Text(label!, textAlign: TextAlign.center)),
+            ],
+          ],
         ),
       ),
     );
-
     return Align(
       alignment: Alignment.bottomCenter,
       child: Padding(

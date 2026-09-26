@@ -116,3 +116,7 @@ A decision starts `Proposed`. Once implemented, its status becomes `Accepted` an
 - [0036](0036-foreground-realtime-invalidation.md) — 前台更新采用进程内 SSE 失效提示与 REST 对账。
 
 - [0037](0037-adaptive-mobile-reading-window.md) — 按窗口宽度选择底栏或常驻侧栏，保留阅读状态并约束正文行宽。
+
+- [0038](0038-personal-sticker-library.md) — 稳定共享表情素材与私有有序收藏库，原生选择、上传、收藏与独立渲染。
+
+- [0039](0039-native-gf-component-foundation.md) — Gf 组件直接组合 Flutter 原生能力，统一输入形状、状态、图标和触控区域。

@@ -6,6 +6,37 @@ import '../helpers.dart';
 
 void main() {
   group('GfChip', () {
+    testWidgets('compact category fill retains a larger tappable margin', (
+      tester,
+    ) async {
+      await forEachBrightness(tester, (tester, brightness) async {
+        var taps = 0;
+        await tester.pumpWidget(
+          gfApp(
+            GfChip(label: '闲聊茶馆', color: Colors.blue, onTap: () => taps++),
+            brightness: brightness,
+          ),
+        );
+        final fill = find.descendant(
+          of: find.byType(GfChip),
+          matching: find.byWidgetPredicate(
+            (widget) =>
+                widget is Container &&
+                widget.decoration is BoxDecoration &&
+                (widget.decoration! as BoxDecoration).shape ==
+                    BoxShape.rectangle,
+          ),
+        );
+        expect(tester.getSize(fill).height, 24);
+        final target = tester.getRect(find.byType(GfChip));
+        expect(target.height, greaterThanOrEqualTo(44));
+        await tester.tapAt(target.topCenter + const Offset(0, 1));
+        expect(taps, 1);
+        expect(tester.takeException(), isNull);
+        await tester.pumpAndSettle();
+      });
+    });
+
     testWidgets(
       'interactive categories keep a 44px target at large text sizes',
       (tester) async {

@@ -126,3 +126,35 @@ func TestStickerReviewEscapesURL(t *testing.T) {
 		t.Fatalf("URL was corrupted: %s", rendered)
 	}
 }
+
+func TestRenderedStickerMarkerPreservesSanitizerAndExclusionBoundaries(t *testing.T) {
+	source := "@member [:sticker:smile:] [:sticker:unsafe:] [:sticker:unknown:]\n\n" +
+		"`[:sticker:smile:]` [[:sticker:smile:]](/target)\n\n" +
+		"![sticker:smile](/photo.png \"data-gf-sticker=smile\")\n\n" +
+		"<img src=\"/forged.png\" alt=\"sticker:smile\" data-gf-sticker=\"smile\">"
+	got := RenderWithStickerTokens(source, func(name string) (string, bool) {
+		switch name {
+		case "smile":
+			return "https://cdn.example/a)b.png?x=1&y=2", true
+		case "unsafe":
+			return "javascript:alert(1)", true
+		default:
+			return "", false
+		}
+	}, func(expanded string) string {
+		return PostMarkdownToHTMLWithMentions(expanded, map[string]uint64{"member": 42})
+	})
+	if strings.Count(got, `data-gf-sticker="smile"`) != 1 {
+		t.Fatalf("ordinary or excluded content gained sticker provenance: %s", got)
+	}
+	for _, unexpected := range []string{"javascript:", "/forged.png", "GFSTICKER"} {
+		if strings.Contains(got, unexpected) {
+			t.Fatalf("unsafe URL, forged HTML or internal marker leaked: %s", got)
+		}
+	}
+	for _, expected := range []string{`src="https://cdn.example/a%29b.png?x=1&amp;y=2"`, `src="/photo.png"`, `loading="lazy"`, `[:sticker:unknown:]`, `<code>[:sticker:smile:]</code>`, `<a href="/u/42">@member</a>`} {
+		if !strings.Contains(got, expected) {
+			t.Fatalf("safe image or fallback content changed (missing %s): %s", expected, got)
+		}
+	}
+}

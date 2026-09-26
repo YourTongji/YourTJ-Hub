@@ -1,6 +1,7 @@
 import 'package:core/core.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:ui_kit/ui_kit.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../../l10n/app_localizations.dart';
@@ -81,14 +82,14 @@ class _CampusCalendarRulesViewState
           for (final h in rules.holidays)
             ListTile(
               contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.event_busy),
+              leading: const GfSymbol('calendar-days'),
               title: Text(h.name),
               subtitle: Text('${date(h.startDate)} – ${date(h.endDate)}'),
             ),
           for (final m in rules.moves)
             ListTile(
               contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.event_repeat),
+              leading: const GfSymbol('calendar-days'),
               title: Text(m.name),
               subtitle: Text(
                 l.campusMakeupDate(date(m.fromDate), date(m.toDate)),

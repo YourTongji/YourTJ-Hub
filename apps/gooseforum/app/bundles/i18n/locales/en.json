@@ -126,5 +126,9 @@
   "meta.courseReviewModerationDesc": "Handle course review reports and hide/restore reviews.",
   "meta.courseManagement": "Course management",
   "meta.courseManagementDesc": "Manage the course catalog and course reviews.",
-  "server.common.request.invalidFormat": "The request format is invalid. Please check and try again."
+  "server.common.request.invalidFormat": "The request format is invalid. Please check and try again.",
+  "serverMessages.sticker.libraryFull": "Your library can hold {limit} stickers. Remove some before adding more.",
+  "serverMessages.sticker.uploadQuota": "You have reached the limit of {limit} uploaded stickers. Sent assets are retained for message history.",
+  "serverMessages.sticker.imageRequired": "Choose an image or GIF you uploaded, up to {maxSizeMb} MB.",
+  "serverMessages.sticker.unavailable": "This sticker is unavailable."
 }

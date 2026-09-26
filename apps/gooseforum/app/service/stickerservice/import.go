@@ -86,7 +86,7 @@ func ImportPack(ctx context.Context, userID uint64, archive []byte) (ImportResul
 			fail("tooLarge")
 			continue
 		}
-		_, err = ImportImage(ctx, userID, data, base, StemName(base), 0, false)
+		_, err = ImportImage(ctx, userID, data, base, StemName(base), "official", 0, false)
 		if err != nil {
 			reason := strings.SplitN(err.Error(), ":", 2)[0]
 			switch reason {

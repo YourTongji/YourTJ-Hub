@@ -606,6 +606,12 @@ abstract class AppLocalizations {
   /// **'Title'**
   String get publishTitleField;
 
+  /// No description provided for @publishAddTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Add title'**
+  String get publishAddTitle;
+
   /// No description provided for @publishTitleHint.
   ///
   /// In en, this message translates to:
@@ -869,6 +875,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Topics'**
   String get profileTopics;
+
+  /// No description provided for @profilePosts.
+  ///
+  /// In en, this message translates to:
+  /// **'Posts'**
+  String get profilePosts;
 
   /// No description provided for @profileReplies.
   ///
@@ -2355,7 +2367,7 @@ abstract class AppLocalizations {
   /// No description provided for @wikiNamespaces.
   ///
   /// In en, this message translates to:
-  /// **'Namespaces'**
+  /// **'Collections'**
   String get wikiNamespaces;
 
   /// No description provided for @wikiViewCount.
@@ -4707,7 +4719,7 @@ abstract class AppLocalizations {
   /// No description provided for @badgeDisplayHint.
   ///
   /// In en, this message translates to:
-  /// **'Choose up to 5 badges and their order, or deselect all. Independent of your avatar badge.'**
+  /// **'Display up to 5 badges, or clear all. Separate from your avatar badge.'**
   String get badgeDisplayHint;
 
   /// No description provided for @badgeDisplayUp.
@@ -5057,6 +5069,162 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Could not restore the draft. Try Undo again.'**
   String get draftRestoreFailed;
+
+  /// No description provided for @settingsDataStorage.
+  ///
+  /// In en, this message translates to:
+  /// **'Data and storage'**
+  String get settingsDataStorage;
+
+  /// No description provided for @settingsProfileDisplay.
+  ///
+  /// In en, this message translates to:
+  /// **'Profile and display'**
+  String get settingsProfileDisplay;
+
+  /// No description provided for @settingsNotSet.
+  ///
+  /// In en, this message translates to:
+  /// **'Not set'**
+  String get settingsNotSet;
+
+  /// No description provided for @settingsUnsavedTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Discard unsaved changes?'**
+  String get settingsUnsavedTitle;
+
+  /// No description provided for @settingsUnsavedBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Your changes have not been saved. Leaving will discard them.'**
+  String get settingsUnsavedBody;
+
+  /// No description provided for @settingsKeepEditing.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep editing'**
+  String get settingsKeepEditing;
+
+  /// No description provided for @settingsDiscardChanges.
+  ///
+  /// In en, this message translates to:
+  /// **'Discard changes'**
+  String get settingsDiscardChanges;
+
+  /// No description provided for @settingsPushPreference.
+  ///
+  /// In en, this message translates to:
+  /// **'Allow push notifications'**
+  String get settingsPushPreference;
+
+  /// No description provided for @settingsPushDelivery.
+  ///
+  /// In en, this message translates to:
+  /// **'Delivery on this device'**
+  String get settingsPushDelivery;
+
+  /// No description provided for @settingsPushReady.
+  ///
+  /// In en, this message translates to:
+  /// **'Ready to receive notifications'**
+  String get settingsPushReady;
+
+  /// No description provided for @settingsPushOff.
+  ///
+  /// In en, this message translates to:
+  /// **'Not enabled'**
+  String get settingsPushOff;
+
+  /// No description provided for @settingsPushIOSConsent.
+  ///
+  /// In en, this message translates to:
+  /// **'Apple Push Notification service processes your device push identifier and notification content to deliver notifications.'**
+  String get settingsPushIOSConsent;
+
+  /// No description provided for @settingsPushAndroidConsent.
+  ///
+  /// In en, this message translates to:
+  /// **'JPush and your device manufacturer process your device push identifier and notification content to deliver notifications.'**
+  String get settingsPushAndroidConsent;
+
+  /// No description provided for @settingsDeviceUnknown.
+  ///
+  /// In en, this message translates to:
+  /// **'Other device'**
+  String get settingsDeviceUnknown;
+
+  /// No description provided for @settingsDeviceCurrent.
+  ///
+  /// In en, this message translates to:
+  /// **'This device'**
+  String get settingsDeviceCurrent;
+
+  /// No description provided for @badgeDisplayReorder.
+  ///
+  /// In en, this message translates to:
+  /// **'Drag to reorder'**
+  String get badgeDisplayReorder;
+
+  /// No description provided for @badgeDisplaySelectedCount.
+  ///
+  /// In en, this message translates to:
+  /// **'Displayed {count}/5'**
+  String badgeDisplaySelectedCount(int count);
+
+  /// No description provided for @sortFollowing.
+  ///
+  /// In en, this message translates to:
+  /// **'Following'**
+  String get sortFollowing;
+
+  /// No description provided for @notificationsUnreadEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'You’re all caught up'**
+  String get notificationsUnreadEmpty;
+
+  /// No description provided for @notificationsUnreadEmptyDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'You have read all your notifications.'**
+  String get notificationsUnreadEmptyDescription;
+
+  /// No description provided for @homeFeedOptions.
+  ///
+  /// In en, this message translates to:
+  /// **'Feed display'**
+  String get homeFeedOptions;
+
+  /// No description provided for @homeAllCategories.
+  ///
+  /// In en, this message translates to:
+  /// **'All categories'**
+  String get homeAllCategories;
+
+  /// No description provided for @sortNew.
+  ///
+  /// In en, this message translates to:
+  /// **'Newest posts'**
+  String get sortNew;
+
+  /// No description provided for @profileRoleAdminDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Helps maintain the community and keep the forum running.'**
+  String get profileRoleAdminDescription;
+
+  /// No description provided for @profileBadgeEarnedOn.
+  ///
+  /// In en, this message translates to:
+  /// **'Earned on {date}'**
+  String profileBadgeEarnedOn(String date);
+
+  /// No description provided for @settingsProfilePartialSave.
+  ///
+  /// In en, this message translates to:
+  /// **'Saved: {saved}. Your remaining changes are still here. Try saving again.'**
+  String settingsProfilePartialSave(String saved);
 }
 
 class _AppLocalizationsDelegate

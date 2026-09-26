@@ -253,6 +253,10 @@
   },
   {
     "method": "GET",
+    "path": "/api/forum/my-stickers"
+  },
+  {
+    "method": "GET",
     "path": "/api/forum/notifications"
   },
   {
@@ -1073,6 +1077,18 @@
   },
   {
     "method": "POST",
+    "path": "/api/forum/my-sticker-delete"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/my-sticker-save"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/my-stickers-order"
+  },
+  {
+    "method": "POST",
     "path": "/api/forum/notification/mark-all-read"
   },
   {
@@ -1118,6 +1134,10 @@
   {
     "method": "POST",
     "path": "/api/forum/report"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/stickers/resolve"
   },
   {
     "method": "POST",

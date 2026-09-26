@@ -231,7 +231,7 @@ class _SchedulePageState extends ConsumerState<SchedulePage>
           ),
           PopupMenuButton<_ExportAction>(
             tooltip: l10n.scheduleExportPng,
-            icon: Icon(Icons.ios_share, size: 20, color: colors.iconMuted),
+            icon: GfSymbol('share-2', size: 20, color: colors.iconMuted),
             color: colors.base100,
             onSelected: (_ExportAction action) {
               if (action == _ExportAction.png) {
@@ -609,7 +609,7 @@ Future<void> _showPlanMenu(
           ),
           GfMenuItem(
             label: l10n.schedulePlanRename,
-            icon: Icons.edit_outlined,
+            symbol: 'square-pen',
             onTap: () {
               Navigator.of(sheetContext).pop();
               _promptRename(context, notifier, plan);
@@ -617,7 +617,7 @@ Future<void> _showPlanMenu(
           ),
           GfMenuItem(
             label: l10n.schedulePlanClear,
-            icon: Icons.delete_sweep_outlined,
+            symbol: 'trash-2',
             onTap: () {
               Navigator.of(sheetContext).pop();
               notifier.clearActivePlan();
@@ -625,7 +625,7 @@ Future<void> _showPlanMenu(
           ),
           GfMenuItem(
             label: l10n.schedulePlanDelete,
-            icon: Icons.delete_outline,
+            symbol: 'trash-2',
             variant: GfMenuItemVariant.danger,
             onTap: () {
               Navigator.of(sheetContext).pop();
@@ -666,6 +666,8 @@ Future<void> _promptRename(
             GfInput(
               controller: controller,
               autofocus: true,
+              labelText: l10n.schedulePlanRename,
+              textInputAction: TextInputAction.done,
               onSubmitted: (String value) {
                 notifier.renamePlan(plan.id, value);
                 Navigator.of(sheetContext).pop();
@@ -798,7 +800,7 @@ class _CollapsedConfigRow extends StatelessWidget {
                   ),
                 ),
               ),
-              Icon(Icons.expand_more, size: 20, color: colors.iconMuted),
+              GfSymbol('chevron-down', size: 20, color: colors.iconMuted),
             ],
           ),
         ),
@@ -1057,7 +1059,7 @@ class _ConfigSelector extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 2),
-            Icon(Icons.arrow_drop_down, size: 18, color: colors.iconMuted),
+            GfSymbol('chevron-down', size: 18, color: colors.iconMuted),
           ],
         ),
       ),
@@ -1103,7 +1105,7 @@ class _ListPickerSheet<T> extends StatelessWidget {
                       style: TextStyle(fontSize: 14, color: colors.baseContent),
                     ),
                     trailing: selectedOf(item)
-                        ? Icon(Icons.check, size: 18, color: colors.primary)
+                        ? GfSymbol('check', size: 18, color: colors.primary)
                         : null,
                     onTap: () => Navigator.of(context).pop(item),
                   ),
@@ -1142,7 +1144,7 @@ class _DataOutdatedBanner extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           child: Row(
             children: <Widget>[
-              Icon(Icons.sync_problem, size: 18, color: colors.warning),
+              GfSymbol('circle-alert', size: 18, color: colors.warning),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
@@ -1322,7 +1324,7 @@ class _WeekFilter extends StatelessWidget {
       ),
       child: Row(
         children: <Widget>[
-          Icon(Icons.date_range_outlined, size: 16, color: colors.iconMuted),
+          GfSymbol('calendar-days', size: 16, color: colors.iconMuted),
           const SizedBox(width: 8),
           Expanded(
             child: DropdownButtonHideUnderline(
@@ -1803,8 +1805,8 @@ class _CourseRow extends StatelessWidget {
             const SizedBox(width: 8),
             Padding(
               padding: const EdgeInsets.only(top: 2),
-              child: Icon(
-                Icons.chevron_right,
+              child: GfSymbol(
+                'chevron-right',
                 size: 18,
                 color: colors.iconMuted,
               ),
@@ -2083,8 +2085,8 @@ class _ClassRow extends StatelessWidget {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: <Widget>[
-                          Icon(
-                            Icons.warning_amber_rounded,
+                          GfSymbol(
+                            'circle-alert',
                             size: 13,
                             color: colors.error,
                           ),
@@ -2372,7 +2374,7 @@ class _CellCourseRow extends StatelessWidget {
                 ],
               ),
             ),
-            Icon(Icons.add_circle_outline, size: 20, color: colors.primary),
+            GfSymbol('plus', size: 20, color: colors.primary),
           ],
         ),
       ),

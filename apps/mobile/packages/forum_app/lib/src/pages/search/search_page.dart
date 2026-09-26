@@ -17,6 +17,7 @@ import '../../format.dart';
 import '../../providers.dart';
 import '../../local/writing_store.dart';
 import '../../widgets/status_views.dart';
+import '../../widgets/topic_list.dart';
 import '../../widgets/campus_shortcuts.dart';
 
 /// 聚合搜索页：已提交查询与输入中的关键词分离，各类型结果逐项构建。
@@ -344,12 +345,12 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                     children: [
                       TextButton.icon(
                         onPressed: () => _searchElsewhere('/courses'),
-                        icon: const Icon(Icons.school_outlined, size: 18),
+                        icon: const GfSymbol('graduation-cap', size: 18),
                         label: Text(l10n.searchCourses),
                       ),
                       TextButton.icon(
                         onPressed: () => _searchElsewhere('/wiki/search'),
-                        icon: const Icon(Icons.menu_book_outlined, size: 18),
+                        icon: const GfSymbol('book-open', size: 18),
                         label: Text(l10n.searchWiki),
                       ),
                     ],
@@ -742,7 +743,7 @@ class _PartialFailure extends StatelessWidget {
       ),
       child: Row(
         children: <Widget>[
-          Icon(Icons.warning_amber_rounded, size: 18, color: colors.warning),
+          GfSymbol('circle-alert', size: 18, color: colors.warning),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
@@ -833,29 +834,7 @@ class _TopicRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    return GfTopicRow(
-      title: topic.title,
-      description: topic.description,
-      categories: [
-        for (final category in topic.categories)
-          GfTopicCategory(
-            name: category.name,
-            color: colorFromHex(category.color),
-          ),
-      ],
-      participantAvatarUrls: [
-        for (final participant in topic.participants)
-          resolveApiAssetUrl(participant.avatarUrl),
-      ],
-      activityText: timeAgo(topic.activityText, l10n: l10n),
-      replyCount: topic.replyCount,
-      viewCount: topic.viewCount,
-      hot: topic.viewCount > 500,
-      pinned: topic.pinWeight > 0,
-      unseen: topic.unseen == true,
-      onTap: () => context.push('/p/${topic.id}'),
-    );
+    return buildTopicFeedCard(context, topic);
   }
 }
 

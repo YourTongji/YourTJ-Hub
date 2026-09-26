@@ -473,6 +473,8 @@ void main() {
                   onPublish: () {},
                   onPickImage: () {},
                   imageTooltip: 'Image',
+                  onPickSticker: () {},
+                  stickerTooltip: 'Stickers',
                   onCollapse: () => collapsed = true,
                   collapseLabel: 'Collapse',
                   toolbar: const Text('Verification required'),
@@ -507,8 +509,17 @@ void main() {
       await tester.tap(find.byType(TextField));
       await tester.pump();
       expect(focus.hasFocus, isTrue);
-      expect(find.byIcon(Icons.keyboard_hide_rounded), findsOneWidget);
-      await tester.tap(find.byIcon(Icons.keyboard_hide_rounded));
+      expect(
+        find.byWidgetPredicate(
+          (widget) => widget is GfSymbol && widget.name == 'keyboard-hide',
+        ),
+        findsOneWidget,
+      );
+      await tester.tap(
+        find.byWidgetPredicate(
+          (widget) => widget is GfSymbol && widget.name == 'keyboard-hide',
+        ),
+      );
       await tester.pump();
       expect(focus.hasFocus, isFalse);
       expect(controller.text, 'Unsent reply');
@@ -518,7 +529,7 @@ void main() {
     });
 
     testWidgets(
-      'keeps image and keyboard actions beside send below the borderless input',
+      'keeps 44 pixel image and keyboard actions below the filled reply input',
       (tester) async {
         int imageTaps = 0;
         final TextEditingController controller = TextEditingController();
@@ -551,11 +562,34 @@ void main() {
         expect(imageTopLeft.dy, greaterThan(inputTopLeft.dy));
         expect(
           tester.getCenter(imageButton).dy,
-          tester.getCenter(find.byIcon(Icons.keyboard_hide_rounded)).dy,
+          tester
+              .getCenter(
+                find.byWidgetPredicate(
+                  (widget) =>
+                      widget is GfSymbol && widget.name == 'keyboard-hide',
+                ),
+              )
+              .dy,
         );
         final field = tester.widget<TextField>(find.byType(TextField));
         expect(field.decoration!.focusedBorder, InputBorder.none);
         expect(field.decoration!.filled, isFalse);
+        expect(field.minLines, 1);
+        expect(field.maxLines, 4);
+        final surface = tester.widget<AnimatedContainer>(
+          find.byKey(const Key('reply-input-surface')),
+        );
+        expect(
+          (surface.decoration! as BoxDecoration).borderRadius,
+          BorderRadius.circular(24),
+        );
+        expect(
+          tester
+              .widget<Material>(find.byKey(const Key('reply-composer-surface')))
+              .elevation,
+          0,
+        );
+        expect(tester.getSize(imageButton), const Size(44, 44));
         expect(
           tester.getSize(find.byType(GfPostComposer)).height,
           lessThan(190),

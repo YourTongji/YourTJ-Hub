@@ -41,11 +41,16 @@ func StemName(fileName string) string {
 	return base
 }
 
-// StickerItem is the public shape of an enabled sticker (editor picker and
-// client-side token replacement map).
+// StickerItem is a shared asset view; private-library results can also contain
+// disabled assets so the owner can still remove or reorder their membership.
 type StickerItem struct {
-	Name string `json:"name"`
-	URL  string `json:"url"`
+	ID          uint64 `json:"id"`
+	Name        string `json:"name"`
+	URL         string `json:"url"`
+	DisplayName string `json:"displayName"`
+	Pack        string `json:"pack"`
+	IsOfficial  bool   `json:"isOfficial"`
+	IsEnabled   bool   `json:"isEnabled"`
 }
 
 // EnabledList returns enabled stickers with public access paths, ordered by
@@ -60,7 +65,7 @@ func EnabledList() ([]StickerItem, error) {
 		if entity.FileName == "" {
 			continue
 		}
-		items = append(items, StickerItem{Name: entity.Name, URL: storageservice.PublicAccessPath(entity.FileName)})
+		items = append(items, itemFor(entity, ""))
 	}
 	return items, nil
 }
@@ -101,4 +106,15 @@ func ResolveURLs(names []string) (map[string]string, error) {
 		}
 	}
 	return urls, err
+}
+
+// itemFor exposes no creator identity or another user's private label/order.
+func itemFor(entity sticker.Entity, label string) StickerItem {
+	if label == "" {
+		label = entity.DisplayName
+	}
+	if label == "" {
+		label = entity.Name
+	}
+	return StickerItem{ID: entity.Id, Name: entity.Name, URL: ResolveURLFor(entity), DisplayName: label, Pack: entity.Pack, IsOfficial: entity.IsOfficial, IsEnabled: entity.IsEnabled}
 }

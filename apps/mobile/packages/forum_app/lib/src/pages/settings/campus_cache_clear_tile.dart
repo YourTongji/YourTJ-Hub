@@ -87,7 +87,7 @@ class _CampusCacheClearTileState extends ConsumerState<CampusCacheClearTile> {
           : l.campusCacheClearDescription,
       trailing: _busy
           ? const GfLoadingIndicator(small: true)
-          : const Icon(Icons.chevron_right, size: 18),
+          : const GfSymbol('chevron-right', size: 18),
       onTap: _busy ? null : _clear,
     );
   }

@@ -6,7 +6,7 @@ adminStickerList:
     description: |
       Admin console operation gated by the `SiteManager` role permission
       (Admin role is a superset); callers without it fail with HTTP 403 and
-      `permission.denied`. Returns every sticker row (enabled and disabled),
+      `permission.denied`. Returns every official sticker row (enabled and disabled), excluding personal assets,
       ordered by sortOrder ascending then id ascending. `url` follows the
       storage configuration: `/file/img/<fileName>` on the local provider or
       the configured CDN public-url prefix; empty when no image is attached
@@ -63,7 +63,7 @@ adminStickerSave:
     description: |
       Admin console operation gated by the `SiteManager` role permission;
       callers without it fail with HTTP 403 and `permission.denied`. `id` 0
-      creates a new sticker; a positive `id` overwrites name/sortOrder/
+      creates a new official sticker; a positive `id` overwrites name/sortOrder/
       isEnabled of the existing row. Creating requires `fileName` from the
       caller's image upload; updating may replace it or omit it to preserve
       the image. Unknown, missing or foreign image uploads fail with
@@ -73,7 +73,7 @@ adminStickerSave:
       `[:sticker:name:]` requires a sticker-safe identifier, MADR 0030) fails
       with `admin.sticker.nameInvalid`, and a name already taken by another
       row fails with `admin.sticker.nameExists`. A positive `id` matching no
-      sticker fails with `admin.sticker.notFound`; a persistence failure
+      official sticker (including an id belonging to a personal asset) fails with `admin.sticker.notFound`; a persistence failure
       fails with `admin.sticker.saveFailed` (all HTTP 200). JSON binding is
       lenient: a malformed body binds to zero values and fails as
       `admin.sticker.nameRequired` (HTTP 200) because the trimmed name is
@@ -140,7 +140,7 @@ adminStickerDelete:
     description: |
       Admin console operation gated by the `SiteManager` role permission;
       callers without it fail with HTTP 403 and `permission.denied`. The
-      sticker row is hard-deleted and its file usage released so the storage
+      official sticker row is hard-deleted and its file usage released so the storage
       GC can reclaim the image when no other reference remains. Unknown ids
       (including a missing/zero id) fail with `admin.sticker.notFound`;
       a persistence failure fails with `admin.sticker.deleteFailed` (both

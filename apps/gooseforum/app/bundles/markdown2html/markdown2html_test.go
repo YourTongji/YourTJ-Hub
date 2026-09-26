@@ -21,9 +21,9 @@ type markdownCompatCase struct {
 }
 
 func TestMarkdownVersions(t *testing.T) {
-	if got := GetPostVersion(); got != 8 {
-		// 8: 贴纸 token 展开（MADR 0030）进入持久化渲染后的版本。
-		t.Fatalf("GetPostVersion() = %d, want 8", got)
+	if got := GetPostVersion(); got != 9 {
+		// Sticker provenance is renderer-owned rather than inferred from alt.
+		t.Fatalf("GetPostVersion() = %d, want 9", got)
 	}
 	if GetParser() == nil {
 		t.Fatal("GetParser() returned nil")

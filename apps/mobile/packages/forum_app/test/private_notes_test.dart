@@ -145,6 +145,31 @@ void main() {
       expect(find.text('alice'), findsOneWidget);
     },
   );
+  testWidgets('private note keyboard Done saves the preserved draft', (
+    tester,
+  ) async {
+    final repo = NotesRepository()..fail = false;
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [userRepositoryProvider.overrideWithValue(repo)],
+        child: app(
+          const PrivateNotesScope(
+            ownerId: 1,
+            notes: {2: note},
+            child: PrivateNoteButton(userId: 2, username: 'alice'),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Edit note'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'Renamed by keyboard');
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pumpAndSettle();
+    expect(repo.saved, ['Renamed by keyboard']);
+    expect(find.byType(AlertDialog), findsNothing);
+  });
+
   testWidgets(
     'private note editor retains failed input and permits retry and clear',
     (tester) async {

@@ -1910,7 +1910,7 @@ void main() {
             .controller!;
         expect(
           tester
-              .widget<FilledButton>(find.widgetWithText(FilledButton, '发送'))
+              .widget<IconButton>(find.byKey(const Key('chat-send')))
               .onPressed,
           isNull,
         );
@@ -1926,7 +1926,7 @@ void main() {
           }
           expect(
             tester
-                .widget<FilledButton>(find.widgetWithText(FilledButton, '发送'))
+                .widget<IconButton>(find.byKey(const Key('chat-send')))
                 .onPressed,
             isNull,
           );
@@ -1944,7 +1944,7 @@ void main() {
           ),
         );
         await tester.pumpAndSettle();
-        await tester.tap(find.text('发送'));
+        await tester.tap(find.byTooltip('发送'));
         await tester.pumpAndSettle();
         expect(chats.sent, [(2, 'OK')]);
         expect(input.text, isEmpty);
@@ -2116,13 +2116,13 @@ void main() {
       tokenStorage: MemTokenStorage(),
       baseUrl: 'http://fake.local',
     );
-    for (final entry in <int, IconData>{
-      1: Icons.person_outline,
-      2: Icons.edit_outlined,
-      3: Icons.favorite,
-      4: Icons.person_add_outlined,
-      5: Icons.chat_bubble_outline,
-      999: Icons.timeline,
+    for (final entry in <int, String>{
+      1: 'user-round',
+      2: 'square-pen',
+      3: 'heart',
+      4: 'user-round-plus',
+      5: 'message-circle',
+      999: 'sparkles',
     }.entries) {
       final payload = redesignedProfilePayloadJson();
       final props = payload['props'] as Map<String, dynamic>;
@@ -2140,7 +2140,7 @@ void main() {
       await tester.pumpAndSettle();
       final rows = tester.widgetList<GfContentRow>(find.byType(GfContentRow));
       expect(
-        rows.singleWhere((r) => r.text.contains('活动内容')).contextIcon,
+        rows.singleWhere((r) => r.text.contains('活动内容')).contextSymbol,
         entry.value,
       );
     }
@@ -2320,14 +2320,17 @@ void main() {
     repo.pending = pending.future;
     selectLikes();
     await tester.pump();
-    expect(visible(find.byType(GfLoadingIndicator)), isTrue);
+    expect(find.byType(GfSkeleton), findsWidgets);
+    expect(visible(find.byType(GfSkeleton).first), isTrue);
+    expect(visible(find.byTooltip('赞过')), isTrue);
+    expect(find.byType(GfUserCard), findsOneWidget);
     pending.complete();
     await tester.pumpAndSettle();
     expect(visible(find.text('暂无点赞')), isTrue);
     expect(scroll.offset, greaterThan(0));
     repo.fail = true;
-    await tester.ensureVisible(find.byTooltip('主题'));
-    await tester.tap(find.byTooltip('主题'));
+    await tester.ensureVisible(find.byTooltip('内容'));
+    await tester.tap(find.byTooltip('内容'));
     await tester.pumpAndSettle();
     expect(find.byType(GfErrorRetry), findsOneWidget);
     expect(visible(find.byType(GfErrorRetry)), isTrue);
@@ -2410,7 +2413,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(scroll.offset, offset);
       repo.fail = true;
-      await tester.tap(find.byTooltip('主题'));
+      await tester.tap(find.byTooltip('内容'));
       await tester.pumpAndSettle();
       expect(find.byType(GfUserCard), findsOneWidget);
       expect(scroll.offset, offset);
@@ -2634,7 +2637,7 @@ void main() {
         final container = await makeContainer(pageRepo: repo);
         await tester.pumpWidget(app(container, const ProfilePage(userId: 1)));
         await tester.pumpAndSettle();
-        await tester.tap(find.byTooltip('主题'));
+        await tester.tap(find.byTooltip('内容'));
         await tester.pumpAndSettle();
         expect(repo.paths, contains('/u/1/activity/topics'));
       },
@@ -2684,7 +2687,7 @@ void main() {
       expect(find.byType(GfTopicRow), findsNothing);
       expect(find.text('新建话题'), findsNothing);
       expect(find.byType(GfLogo), findsOneWidget);
-      await tester.tap(find.byType(PopupMenuButton<GfTopicFeedMode>));
+      await tester.tap(find.byTooltip('显示方式'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('列表'));
       await tester.pumpAndSettle();
@@ -3463,7 +3466,7 @@ void main() {
         routes: [
           GoRoute(
             path: '/settings',
-            builder: (_, _) => const SettingsPage(initialSection: 'privacy'),
+            builder: (_, _) => const SettingsPage(initialSection: 'account'),
           ),
           GoRoute(
             path: '/login',
@@ -3551,7 +3554,7 @@ void main() {
           tester.widget<GfChatInput>(find.byType(GfChatInput)).canSend,
           isTrue,
         );
-        await tester.tap(find.text('发送'));
+        await tester.tap(find.byTooltip('发送'));
         await tester.pumpAndSettle();
         expect(chats.sent, [(server.peerId, '等待解析的草稿')]);
         expect(
@@ -3587,7 +3590,7 @@ void main() {
         await tester.pumpAndSettle();
         await tester.enterText(find.byType(TextField), '等待发送结果');
         await tester.pump();
-        await tester.tap(find.text('发送'));
+        await tester.tap(find.byTooltip('发送'));
         await tester.pump();
         expect(
           tester.widget<TextField>(find.byType(TextField)).controller!.text,
@@ -3667,7 +3670,7 @@ void main() {
         await tester.enterText(find.byType(TextField), '成功后清除');
         await container.read(chatDraftsProvider).flush();
         await tester.pump();
-        await tester.tap(find.text('发送'));
+        await tester.tap(find.byTooltip('发送'));
         await tester.pumpAndSettle();
         expect(
           tester.widget<TextField>(find.byType(TextField)).controller!.text,
@@ -3762,7 +3765,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextField), '不能丢失的消息');
       await tester.pump();
-      await tester.tap(find.text('发送'));
+      await tester.tap(find.byTooltip('发送'));
       await tester.pumpAndSettle();
       expect(find.text('不能丢失的消息'), findsNWidgets(2));
       expect(
@@ -3774,7 +3777,13 @@ void main() {
       );
       expect(pending.selectable, isTrue);
       expect(pending.copyMessageLabel, '复制整条消息');
-      expect(pending.content, isA<MessageContent>());
+      expect(
+        find.descendant(
+          of: find.byType(GfMessageBubble).last,
+          matching: find.byType(MessageContent),
+        ),
+        findsOneWidget,
+      );
       await tester.enterText(find.byType(TextField), '正在写下一条');
       chats.fail = false;
       await tester.tap(find.text('重新发送'));
@@ -3839,7 +3848,7 @@ void main() {
 
       await tester.enterText(find.byType(TextField), '你好');
       await tester.pump();
-      await tester.tap(find.text('发送'));
+      await tester.tap(find.byTooltip('发送'));
       await tester.pumpAndSettle();
       expect(chatRepo.sent, <(int, String)>[(4, '你好')]);
 
@@ -4589,8 +4598,13 @@ void main() {
       };
       pages.complete(payload);
       await tester.pumpAndSettle();
-      await tester.tap(find.text('昵称'));
+      await tester.tap(find.text('编辑资料'));
       await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const Key('profile-nickname')),
+        'Updated nickname',
+      );
+      await tester.pump();
       await tester.tap(find.text('保存'));
       await tester.pumpAndSettle();
       expect(saved?['websiteName'], 'Alice’s notebook');
@@ -4624,7 +4638,7 @@ void main() {
       pageRepo.complete(settingsPayloadJson());
       await tester.pumpAndSettle();
       expect(find.byType(GfSettingsSkeleton), findsNothing);
-      expect(find.text('个人资料'), findsOneWidget);
+      expect(find.text('个人资料与展示'), findsOneWidget);
     });
 
     testWidgets('下拉刷新再次请求设置数据', (tester) async {
@@ -5169,16 +5183,15 @@ void main() {
       expect(router.state.uri.path, '/u/1');
       expect(router.canPop(), isTrue);
 
-      // TDesign default back occupies the standard 44dp top-left target.
-      await tester.tapAt(const Offset(28, 28));
+      await tester.tap(find.byTooltip('返回'));
       await tester.pumpAndSettle();
       expect(router.state.uri.path, '/profile-host');
 
       await tester.tap(find.text('打开个人主页'));
       await tester.pumpAndSettle();
-      await tester.ensureVisible(find.byTooltip('主题'));
+      await tester.ensureVisible(find.byTooltip('内容'));
       await tester.pumpAndSettle();
-      await tester.tap(find.byTooltip('主题'));
+      await tester.tap(find.byTooltip('内容'));
       await tester.pumpAndSettle();
       await tester.drag(
         find.byType(CustomScrollView).first,

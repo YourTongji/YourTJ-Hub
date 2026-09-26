@@ -15,6 +15,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pk"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pushSubscription"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/sticker"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"gorm.io/gorm"
@@ -33,7 +34,7 @@ func setupBatchDeleteTestDB(t *testing.T) *gorm.DB {
 		&contentDeleteEvent.Entity{},
 		&pushSubscription.Entity{},
 		&pk.ScheduleSnapshotEntity{}, &pk.PlanSyncOwner{}, &pk.PlanItem{},
-		&campus.Binding{},
+		&campus.Binding{}, &sticker.LibraryOwner{}, &sticker.LibraryEntry{},
 	); err != nil {
 		t.Fatalf("migrate batch delete tables: %v", err)
 	}
@@ -298,5 +299,83 @@ func TestAccountCloseRejectsWrongPassword(t *testing.T) {
 		if visible := topics.Get(id); visible.Id == 0 {
 			t.Fatalf("topic %d should not be deleted with wrong password", id)
 		}
+	}
+}
+
+// A failed account close must not irreversibly erase or fence a still-active
+// account's private library. The PK prerequisite keeps its existing ordering.
+func TestAccountCloseFailureRollsBackStickerLibrary(t *testing.T) {
+	for _, stage := range []string{"pk", "account"} {
+		t.Run(stage, func(t *testing.T) {
+			conn := setupBatchDeleteTestDB(t)
+			password := "close-sticker-rollback"
+			user := users.MakeUser("close_sticker_"+stage, password, "close-sticker-"+stage+"@example.com")
+			user.Activate()
+			if err := conn.Create(user).Error; err != nil {
+				t.Fatal(err)
+			}
+			owner := sticker.LibraryOwner{UserID: user.Id, Revision: 7}
+			entry := sticker.LibraryEntry{UserID: user.Id, StickerID: 7654321, DisplayName: "private label", SortOrder: 3}
+			if err := conn.Create(&owner).Error; err != nil {
+				t.Fatal(err)
+			}
+			if err := conn.Create(&entry).Error; err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				conn.Where("user_id = ?", user.Id).Delete(&sticker.LibraryEntry{})
+				conn.Where("user_id = ?", user.Id).Delete(&sticker.LibraryOwner{})
+				conn.Unscoped().Delete(user)
+			})
+			failedTable := users.PrivateNoteEntity{}.TableName()
+			if stage == "pk" {
+				failedTable = (&pk.ScheduleSnapshotEntity{}).TableName()
+			}
+			callback := "fail_sticker_close_" + stage
+			if err := conn.Callback().Delete().Before("gorm:delete").Register(callback, func(tx *gorm.DB) {
+				if tx.Statement.Table == failedTable {
+					_ = tx.AddError(errors.New("forced account-close prerequisite failure"))
+				}
+			}); err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { _ = conn.Callback().Delete().Remove(callback) })
+			request := component.BetterRequest[AccountCloseReq]{UserId: user.Id, Params: AccountCloseReq{Mode: "anonymize", Password: password}}
+			response := AccountClose(request)
+			if response.Data.Code == component.SUCCESS {
+				t.Fatal("forced close failure was accepted")
+			}
+			if users.IsAccountClosed(user.Id) {
+				t.Fatal("failed account close committed user deletion")
+			}
+			var retained sticker.LibraryEntry
+			if err := conn.First(&retained, "user_id = ? AND sticker_id = ?", user.Id, entry.StickerID).Error; err != nil {
+				t.Fatalf("failed close erased membership: %v", err)
+			}
+			if retained.DisplayName != entry.DisplayName || retained.SortOrder != entry.SortOrder {
+				t.Fatal("failed close changed private library metadata")
+			}
+			if err := conn.First(&owner, "user_id = ?", user.Id).Error; err != nil {
+				t.Fatal(err)
+			}
+			if owner.Closed || owner.Revision != 7 {
+				t.Fatalf("failed close committed library fence: %#v", owner)
+			}
+			if err := conn.Callback().Delete().Remove(callback); err != nil {
+				t.Fatal(err)
+			}
+			response = AccountClose(request)
+			if response.Data.Code != component.SUCCESS {
+				t.Fatalf("retry failed: %#v", response)
+			}
+			var count int64
+			conn.Model(&sticker.LibraryEntry{}).Where("user_id = ?", user.Id).Count(&count)
+			if count != 0 {
+				t.Fatal("successful close retained members")
+			}
+			if err := conn.First(&owner, "user_id = ?", user.Id).Error; err != nil || !owner.Closed {
+				t.Fatalf("successful close did not fence old writes: %v", err)
+			}
+		})
 	}
 }

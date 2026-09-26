@@ -20,6 +20,7 @@ import 'package:forum_app/src/pages/publish/embed_image_move.dart';
 import 'package:forum_app/src/pages/publish/publish_page.dart';
 import 'package:forum_app/src/router.dart';
 import 'package:forum_app/src/providers.dart';
+import 'fixtures/page_fixtures.dart' show topicDetailPayloadJson;
 
 class _MemoryTokenStorage implements TokenStorage {
   String? _token = 'token';
@@ -39,6 +40,7 @@ class _PublishPageRepository extends PageRepository {
 
   final PagePayload payload;
   bool offline = false;
+  PagePayload? existingTopic;
   final List<String> paths = <String>[];
 
   @override
@@ -47,6 +49,10 @@ class _PublishPageRepository extends PageRepository {
     if (offline) throw const NetworkException(fallbackMessage: 'offline');
     return payload;
   }
+
+  @override
+  Future<PagePayload> topicDetail(int topicId, {int? postNo}) async =>
+      existingTopic ?? await super.topicDetail(topicId, postNo: postNo);
 }
 
 class _FailingWritingStore extends WritingStore {
@@ -215,6 +221,12 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
+  void usePhoneViewport(WidgetTester tester) {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+  }
+
   Future<
     ({
       GoRouter router,
@@ -236,6 +248,7 @@ void main() {
     MarkdownConverter? markdownConverter,
     bool requireCaptcha = false,
     bool offline = false,
+    bool readableGallery = false,
     int userId = 1,
     bool viewerAuthenticated = true,
     WritingStore? localStore,
@@ -258,6 +271,11 @@ void main() {
       ),
     );
     pageRepository.offline = offline;
+    if (readableGallery) {
+      final detail = topicDetailPayloadJson();
+      (detail['props'] as Map)['topic']['id'] = 42;
+      pageRepository.existingTopic = PagePayload.fromJson(detail);
+    }
     final _RecordingTopicRepository topicRepository = _RecordingTopicRepository(
       client,
       resultId: resultId,
@@ -324,6 +342,223 @@ void main() {
     );
   }
 
+  testWidgets('a new moment starts with body only and can opt into a title', (
+    tester,
+  ) async {
+    usePhoneViewport(tester);
+    final result = await pumpPublishPage(
+      tester,
+      editing: false,
+      contentType: 2,
+    );
+    expect(find.byType(TextField), findsOneWidget);
+    expect(find.byKey(const Key('publish-title')), findsNothing);
+    await tester.tap(find.byKey(const Key('publish-add-title')));
+    await tester.pumpAndSettle();
+    final title = find.byKey(const Key('publish-title'));
+    expect(title, findsOneWidget);
+    expect(tester.widget<TextField>(title).focusNode!.hasFocus, isTrue);
+    await tester.pump(const Duration(milliseconds: 800));
+    await tester.pumpAndSettle();
+    expect(
+      await WritingStore().drafts(writingScope('http://fake.local', 1)),
+      isEmpty,
+    );
+    await tester.tap(find.byTooltip('返回'));
+    await tester.pumpAndSettle();
+    expect(find.text('保留这次创作？'), findsNothing);
+    expect(result.router.state.uri.path, '/');
+  });
+
+  for (final draft in [false, true]) {
+    testWidgets(
+      'a titleless moment ${draft ? 'saves a server draft' : 'publishes'} with a derived API title but no duplicate preview',
+      (tester) async {
+        usePhoneViewport(tester);
+        final result = await pumpPublishPage(
+          tester,
+          editing: false,
+          contentType: 2,
+          categoryIds: [2],
+        );
+        await tester.enterText(
+          find.byKey(const Key('publish-editor')),
+          '阳光正好的校园\n随手记下这一刻',
+        );
+        await tester.pump();
+        await tester.tap(find.byKey(const Key('publish-appbar-submit')));
+        await tester.pumpAndSettle();
+        expect(find.byKey(const Key('publish-preview-title')), findsNothing);
+        expect(find.text('阳光正好的校园\n随手记下这一刻'), findsOneWidget);
+        await tester.tap(
+          find.byKey(
+            Key(draft ? 'publish-save-draft' : 'publish-appbar-submit'),
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(result.topicRepository.writes, hasLength(1));
+        final write = result.topicRepository.writes.single;
+        expect(write.title, '阳光正好的校园');
+        expect(write.content, '阳光正好的校园\n随手记下这一刻');
+        expect(write.topicStatus, draft ? 0 : 1);
+        if (draft) {
+          expect(find.byKey(const Key('publish-preview-title')), findsNothing);
+        }
+      },
+    );
+  }
+
+  for (final title in ['', '自选的瞬间标题']) {
+    testWidgets('moment local recovery preserves optional title "$title"', (
+      tester,
+    ) async {
+      usePhoneViewport(tester);
+      final scope = writingScope('http://fake.local', 1);
+      await WritingStore().save(
+        scope,
+        LocalDraft(
+          key: 'moment-recovery',
+          kind: DraftKind.newTopic,
+          title: title,
+          content: '恢复的正文',
+          contentType: 2,
+          topicId: 0,
+          categories: [],
+          images: [],
+          updatedAt: 1,
+        ),
+      );
+      await pumpPublishPage(
+        tester,
+        editing: false,
+        contentType: 2,
+        localDraftKey: 'moment-recovery',
+      );
+      expect(find.text('恢复的正文'), findsOneWidget);
+      final titleField = find.byKey(const Key('publish-title'));
+      if (title.isEmpty) {
+        expect(titleField, findsNothing);
+      } else {
+        expect(tester.widget<TextField>(titleField).controller!.text, title);
+      }
+    });
+  }
+
+  testWidgets(
+    'an explicit moment title is shown in preview and sent unchanged',
+    (tester) async {
+      usePhoneViewport(tester);
+      final result = await pumpPublishPage(
+        tester,
+        editing: false,
+        contentType: 2,
+        categoryIds: [2],
+      );
+      await tester.enterText(find.byKey(const Key('publish-editor')), '这一刻的正文');
+      await tester.tap(find.byKey(const Key('publish-add-title')));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byKey(const Key('publish-title')), '自定义标题');
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('publish-appbar-submit')));
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<Text>(find.byKey(const Key('publish-preview-title')))
+            .data,
+        '自定义标题',
+      );
+      await tester.tap(find.byKey(const Key('publish-appbar-submit')));
+      await tester.pumpAndSettle();
+      expect(result.topicRepository.writes.single.title, '自定义标题');
+      expect(result.topicRepository.writes.single.content, '这一刻的正文');
+    },
+  );
+
+  for (final type in [1, 3]) {
+    testWidgets('type $type keeps its required title field visible', (
+      tester,
+    ) async {
+      usePhoneViewport(tester);
+      final result = await pumpPublishPage(
+        tester,
+        editing: false,
+        contentType: type,
+      );
+      expect(find.byKey(const Key('publish-title')), findsOneWidget);
+      expect(find.byKey(const Key('publish-add-title')), findsNothing);
+      await tester.tap(find.byKey(const Key('publish-appbar-submit')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('publish-appbar-submit')));
+      await tester.pumpAndSettle();
+      expect(find.text('标题不能为空'), findsOneWidget);
+      expect(result.topicRepository.writes, isEmpty);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(const Duration(milliseconds: 600));
+    });
+  }
+
+  for (final status in [0, 1]) {
+    testWidgets('moment edit retains its existing title (status $status)', (
+      tester,
+    ) async {
+      usePhoneViewport(tester);
+      await pumpPublishPage(
+        tester,
+        editing: true,
+        contentType: 2,
+        topicStatus: status,
+        readableGallery: true,
+      );
+      expect(
+        tester
+            .widget<TextField>(find.byKey(const Key('publish-title')))
+            .controller!
+            .text,
+        '原始标题',
+      );
+      expect(find.byKey(const Key('publish-add-title')), findsNothing);
+    });
+  }
+
+  testWidgets('moment optional title and body survive every type switch', (
+    tester,
+  ) async {
+    usePhoneViewport(tester);
+    await pumpPublishPage(tester, editing: false, contentType: 2);
+    await tester.enterText(find.byKey(const Key('publish-editor')), '保留正文');
+    await tester.tap(find.byKey(const Key('publish-add-title')));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const Key('publish-title')), '保留标题');
+    for (final type in ['文章', '提问', '瞬间']) {
+      await tester.tap(find.byType(DropdownButton<int>));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(type).last);
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<TextField>(find.byKey(const Key('publish-title')))
+            .controller!
+            .text,
+        '保留标题',
+      );
+      if (type == '文章') {
+        expect(
+          tester
+              .widget<QuillEditor>(find.byType(QuillEditor))
+              .controller
+              .document
+              .toPlainText()
+              .trim(),
+          '保留正文',
+        );
+      } else {
+        expect(find.text('保留正文'), findsOneWidget);
+      }
+    }
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 800));
+  });
+
   for (final editing in [false, true]) {
     testWidgets('selection alone does not create unsaved work ($editing)', (
       tester,
@@ -359,21 +594,22 @@ void main() {
     await pumpPublishPage(tester, editing: false, contentType: 2);
     await tester.tap(find.byType(TextField).first);
     await tester.pump();
-    final titleFocus = tester
+    final bodyFocus = tester
         .widget<EditableText>(find.byType(EditableText).first)
         .focusNode;
     tester.view.viewInsets = const FakeViewPadding(bottom: 300);
     await tester.pumpAndSettle();
     expect(
       tester.widget<EditableText>(find.byType(EditableText).first).focusNode,
-      same(titleFocus),
+      same(bodyFocus),
     );
-    expect(titleFocus.hasFocus, isTrue);
+    expect(bodyFocus.hasFocus, isTrue);
     final editor = tester.getRect(find.byKey(const Key('publish-editor')));
     final viewport = tester.getRect(find.byType(SingleChildScrollView).first);
     expect(editor.top - viewport.top, lessThan(140));
     expect(viewport.bottom - editor.top, greaterThan(200));
     expect(find.byTooltip('收起键盘'), findsOneWidget);
+    expect(find.byTooltip('添加图片'), findsOneWidget);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 800));
@@ -524,6 +760,8 @@ void main() {
       expect(saved.categories, isEmpty);
       expect(saved.content.trim(), '只写到这里');
       await tester.pumpWidget(const SizedBox.shrink());
+      // Quill's visibility detector batches paint/dispose callbacks for 500ms.
+      await tester.pump(const Duration(milliseconds: 600));
       await tester.pumpAndSettle();
       await pumpPublishPage(
         tester,
@@ -542,6 +780,8 @@ void main() {
       );
       expect(find.text('已恢复上次未完成的内容'), findsOneWidget);
       await tester.pumpWidget(const SizedBox.shrink());
+      // Quill's visibility detector batches paint/dispose callbacks for 500ms.
+      await tester.pump(const Duration(milliseconds: 600));
       await tester.pumpAndSettle();
     },
   );
@@ -632,6 +872,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(await WritingStore().drafts(scope), isEmpty);
     await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
     await tester.pumpAndSettle();
     expect(await WritingStore().drafts(scope), isEmpty);
   });

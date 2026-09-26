@@ -197,7 +197,11 @@ void main() {
     final semantics = tester.ensureSemantics();
     await tester.pumpWidget(gridApp(conflicted: true));
     expect(find.bySemanticsLabel(RegExp('高等数学.*冲突')), findsOneWidget);
-    final icon = tester.getRect(find.byIcon(Icons.warning_amber_rounded));
+    final icon = tester.getRect(
+      find.byWidgetPredicate(
+        (widget) => widget is GfSymbol && widget.name == 'circle-alert',
+      ),
+    );
     expect(icon.overlaps(tester.getRect(find.text('高等数学'))), isFalse);
     semantics.dispose();
     await tester.pumpWidget(const SizedBox());

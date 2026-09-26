@@ -68,9 +68,8 @@ void main() {
             w is Image &&
             w.image is ResizeImage &&
             (w.image as ResizeImage).imageProvider is NetworkImage &&
-            ((w.image as ResizeImage).imageProvider as NetworkImage).url.endsWith(
-              'two.png',
-            ),
+            ((w.image as ResizeImage).imageProvider as NetworkImage).url
+                .endsWith('two.png'),
       ),
     );
     // The network image loader keeps animating in the test HTTP environment.
@@ -127,8 +126,14 @@ void main() {
 
     expect(find.byTooltip('点赞'), findsOneWidget);
     expect(find.byTooltip('收藏'), findsOneWidget);
-    expect(find.byIcon(Icons.favorite_border), findsOneWidget);
-    expect(find.byIcon(Icons.bookmark_border), findsOneWidget);
+    expect(
+      find.byWidgetPredicate((w) => w is GfSymbol && w.name == 'heart'),
+      findsOneWidget,
+    );
+    expect(
+      find.byWidgetPredicate((w) => w is GfSymbol && w.name == 'bookmark'),
+      findsOneWidget,
+    );
 
     await tester.tap(find.byTooltip('点赞'));
     await tester.pumpAndSettle();
@@ -137,8 +142,16 @@ void main() {
 
     expect(likeTarget, isTrue);
     expect(bookmarkTarget, isTrue);
-    expect(find.byIcon(Icons.favorite), findsOneWidget);
-    expect(find.byIcon(Icons.bookmark), findsOneWidget);
+    expect(
+      find.byWidgetPredicate((w) => w is GfSymbol && w.name == 'heart-filled'),
+      findsOneWidget,
+    );
+    expect(
+      find.byWidgetPredicate(
+        (w) => w is GfSymbol && w.name == 'bookmark-filled',
+      ),
+      findsOneWidget,
+    );
 
     await tester.tap(find.byTooltip('点赞'));
     await tester.pumpAndSettle();
@@ -147,8 +160,14 @@ void main() {
 
     expect(likeTarget, isFalse);
     expect(bookmarkTarget, isFalse);
-    expect(find.byIcon(Icons.favorite_border), findsOneWidget);
-    expect(find.byIcon(Icons.bookmark_border), findsOneWidget);
+    expect(
+      find.byWidgetPredicate((w) => w is GfSymbol && w.name == 'heart'),
+      findsOneWidget,
+    );
+    expect(
+      find.byWidgetPredicate((w) => w is GfSymbol && w.name == 'bookmark'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('failed topic actions keep the unselected state', (tester) async {
@@ -184,7 +203,13 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(calls, 1);
-    expect(find.byIcon(Icons.favorite_border), findsOneWidget);
-    expect(find.byIcon(Icons.favorite), findsNothing);
+    expect(
+      find.byWidgetPredicate((w) => w is GfSymbol && w.name == 'heart'),
+      findsOneWidget,
+    );
+    expect(
+      find.byWidgetPredicate((w) => w is GfSymbol && w.name == 'heart-filled'),
+      findsNothing,
+    );
   });
 }

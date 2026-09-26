@@ -587,8 +587,8 @@ class _CourseCard extends StatelessWidget {
                           ),
                         ),
                         if (conflicted)
-                          Icon(
-                            Icons.warning_amber_rounded,
+                          GfSymbol(
+                            'circle-alert',
                             size: 14,
                             color: colors.error,
                           ),

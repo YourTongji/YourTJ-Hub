@@ -10,6 +10,7 @@ import '../../campus_widget/schedule_widget_projection.dart';
 import '../../current_user.dart';
 import '../../offline/campus_snapshot_store.dart';
 import '../../providers.dart';
+import 'schedule_widget_transparency.dart';
 
 class ScheduleWidgetSettingsPage extends ConsumerStatefulWidget {
   const ScheduleWidgetSettingsPage({super.key});
@@ -131,10 +132,11 @@ class _ScheduleWidgetSettingsPageState
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
     return Scaffold(
-      appBar: AppBar(title: Text(l.scheduleWidgetSettingsTitle)),
+      appBar: GfAppBar(title: Text(l.scheduleWidgetSettingsTitle)),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          const ScheduleWidgetTransparency(),
           GfCard(
             child: Padding(
               padding: const EdgeInsets.all(16),

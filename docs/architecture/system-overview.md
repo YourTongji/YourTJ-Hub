@@ -75,9 +75,10 @@
   built-in OIDC Provider (authorization code + PKCE S256, numeric `sub` = users.id) for first-party
   clients. Sessions are `jti` + `user_sessions` backed and revocable (see identity-and-access.md).
 - Mobile (`Partial`): appauth+PKCE → id_token → `POST /api/auth/oidc/exchange` → forum JWT. The
-  Flutter shell and feature pages consume the repository-owned `Gf*` UI API; `ui_kit` maps those
-  tokens and components to the pinned TDesign v1 alpha implementation so application pages do not
-  depend on pre-release TDesign APIs directly.
+  Flutter shell and feature pages consume the repository-owned `Gf*` UI API. `ui_kit` composes
+  Flutter primitives with shared semantic tokens and native interaction behavior; component shapes,
+  focus, selected/disabled states and touch targets are owned by the repository
+  ([0039](../decisions/0039-native-gf-component-foundation.md)).
 
 ### Foreground chat and notification changes (Current)
 

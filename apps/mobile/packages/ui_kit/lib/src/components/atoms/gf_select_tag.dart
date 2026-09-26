@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:tdesign_flutter/tdesign_flutter.dart' as td;
 
-/// Selectable chip backed by TDesign's controlled tag component.
+import '../../theme/gf_theme.dart';
+import '../gf_symbol.dart';
+
+/// Controlled capsule selection with compact paint and a padded touch target.
 class GfSelectTag extends StatelessWidget {
   const GfSelectTag({
     super.key,
@@ -18,13 +20,51 @@ class GfSelectTag extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return td.TSelectTag(
-      label,
-      value: selected,
-      onChanged: onChanged,
-      icon: icon,
-      size: td.TTagSize.large,
-      colorScheme: td.TTagColorScheme.primary,
+    final colors = GfTheme.colorsOf(context);
+    final foreground = selected ? colors.base100 : colors.baseContent;
+    return MergeSemantics(
+      child: Semantics(
+        selected: selected,
+        child: Opacity(
+          opacity: onChanged == null ? 0.5 : 1,
+          child: TextButton(
+            onPressed: onChanged == null ? null : () => onChanged!(!selected),
+            style: ButtonStyle(
+              backgroundColor: WidgetStatePropertyAll(
+                selected ? colors.baseContent : colors.base200,
+              ),
+              foregroundColor: WidgetStatePropertyAll(foreground),
+              minimumSize: const WidgetStatePropertyAll(Size(44, 32)),
+              padding: const WidgetStatePropertyAll(
+                EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              ),
+              tapTargetSize: MaterialTapTargetSize.padded,
+              visualDensity: VisualDensity.standard,
+              shape: const WidgetStatePropertyAll(StadiumBorder()),
+              textStyle: const WidgetStatePropertyAll(
+                TextStyle(
+                  fontSize: 14,
+                  height: 1.25,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (icon != null || selected) ...[
+                  if (icon != null)
+                    Icon(icon, size: 16)
+                  else
+                    GfSymbol('check', size: 16, color: foreground),
+                  const SizedBox(width: 6),
+                ],
+                Flexible(child: Text(label, textAlign: TextAlign.center)),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

@@ -641,6 +641,8 @@ func SchemaModels() []any {
 	return []any{
 		&badges.Entity{},
 		&sticker.Entity{},
+		&sticker.LibraryOwner{},
+		&sticker.LibraryEntry{},
 		&campus.Binding{},
 		&campus.IdentityReservation{},
 		&course.Entity{},

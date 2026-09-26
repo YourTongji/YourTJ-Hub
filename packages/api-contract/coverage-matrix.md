@@ -4,11 +4,11 @@
 
 路由快照来自 `TestRoutesSnapshot`（`fixtures/routes-snapshot.json`，默认配置装配，不含 OIDC `/api/oauth/*` 端点——OIDC 另有专项）。
 
-- 快照路由总数：334
-- /api JSON 路由：268，已入契约：269（100%），已知未覆盖：0
+- 快照路由总数：339
+- /api JSON 路由：273，已入契约：274（100%），已知未覆盖：0
 - 非 API 排除路由：65
 
-## 已覆盖（269）
+## 已覆盖（274）
 
 | Method | Path | operationId |
 | --- | --- | --- |
@@ -67,6 +67,7 @@
 | GET | `/api/forum/events` | `streamForumEvents` |
 | GET | `/api/forum/get-site-statistics` | `getSiteStatistics` |
 | GET | `/api/forum/my-course-reviews` | `listOwnCourseReviews` |
+| GET | `/api/forum/my-stickers` | `myStickers` |
 | GET | `/api/forum/notifications` | `getNotifications` |
 | GET | `/api/forum/posts/revisions` | `getPostRevisions` |
 | GET | `/api/forum/posts/window` | `getPostWindow` |
@@ -219,6 +220,9 @@
 | POST | `/api/forum/moderation/reports` | `listModerationReports` |
 | POST | `/api/forum/moderation/topic-status` | `moderationUpdateTopicStatus` |
 | POST | `/api/forum/moderation/view-deleted-content` | `viewDeletedContent` |
+| POST | `/api/forum/my-sticker-delete` | `deleteMySticker` |
+| POST | `/api/forum/my-sticker-save` | `saveMySticker` |
+| POST | `/api/forum/my-stickers-order` | `orderMyStickers` |
 | POST | `/api/forum/notification/mark-all-read` | `markAllNotificationsRead` |
 | POST | `/api/forum/notification/mark-read` | `markNotificationRead` |
 | POST | `/api/forum/posts/bookmark` | `bookmarkPost` |
@@ -231,6 +235,7 @@
 | POST | `/api/forum/push/subscribe` | `subscribePush` |
 | POST | `/api/forum/push/unsubscribe` | `unsubscribePush` |
 | POST | `/api/forum/report` | `createReport` |
+| POST | `/api/forum/stickers/resolve` | `resolveStickers` |
 | POST | `/api/forum/topics/bookmark` | `bookmarkTopic` |
 | POST | `/api/forum/topics/delete` | `deleteTopic` |
 | POST | `/api/forum/topics/like` | `likeTopic` |

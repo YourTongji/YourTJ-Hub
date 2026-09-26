@@ -1,14 +1,38 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:tdesign_flutter/tdesign_flutter.dart' as td;
 import 'package:ui_kit/ui_kit.dart';
 
 import '../helpers.dart';
 
 void main() {
   group('GfButton', () {
-    testWidgets('small buttons have a 44px target and room for scaled labels', (
+    testWidgets('compact button surfaces retain a larger tappable margin', (
+      tester,
+    ) async {
+      for (final (size, visibleHeight) in [
+        (GfButtonSize.small, 32.0),
+        (GfButtonSize.medium, 40.0),
+      ]) {
+        var taps = 0;
+        await tester.pumpWidget(
+          gfApp(GfButton(label: '关注', size: size, onPressed: () => taps++)),
+        );
+        final surface = find.descendant(
+          of: find.byType(FilledButton),
+          matching: find.byType(Material),
+        );
+        expect(tester.getSize(surface).height, visibleHeight);
+        final target = tester.getRect(find.byType(FilledButton));
+        expect(target.height, greaterThanOrEqualTo(48));
+        await tester.tapAt(target.topCenter + const Offset(0, 1));
+        expect(taps, 1);
+        expect(tester.takeException(), isNull);
+        await tester.pumpAndSettle();
+      }
+    });
+
+    testWidgets('small buttons have a 48px target and room for scaled labels', (
       tester,
     ) async {
       await tester.pumpWidget(
@@ -17,8 +41,8 @@ void main() {
         ),
       );
       expect(
-        tester.getSize(find.byType(ElevatedButton)).height,
-        greaterThanOrEqualTo(44),
+        tester.getSize(find.byType(FilledButton)).height,
+        greaterThanOrEqualTo(48),
       );
       await tester.pumpWidget(
         gfApp(
@@ -36,13 +60,18 @@ void main() {
         ),
       );
       final text = tester.getRect(find.text('Änderungen speichern'));
-      final button = tester.getRect(find.byType(ElevatedButton));
+      final button = tester.getRect(
+        find.descendant(
+          of: find.byType(FilledButton),
+          matching: find.byType(Material),
+        ),
+      );
       expect(button.contains(text.topLeft), isTrue);
       expect(button.contains(text.bottomRight), isTrue);
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('builds all 7 variants in light and dark', (tester) async {
+    testWidgets('builds all variants in light and dark', (tester) async {
       await forEachBrightness(tester, (tester, brightness) async {
         for (final GfButtonVariant variant in GfButtonVariant.values) {
           await tester.pumpWidget(
@@ -97,17 +126,44 @@ void main() {
       expect(taps, 1);
     });
 
-    testWidgets('disabled TDesign button ignores taps', (tester) async {
+    testWidgets('disabled native button ignores taps', (tester) async {
       int taps = 0;
       await tester.pumpWidget(gfApp(GfButton(label: 'No', onPressed: null)));
-      expect(find.byType(td.TButton), findsOneWidget);
+      expect(find.byType(FilledButton), findsOneWidget);
       expect(
-        tester.widget<td.TButton>(find.byType(td.TButton)).onPressed,
+        tester.widget<FilledButton>(find.byType(FilledButton)).onPressed,
         isNull,
       );
       await tester.tap(find.text('No'));
       expect(taps, 0);
     });
+
+    testWidgets(
+      'disabled styles use muted tokens while pending keeps contrast',
+      (tester) async {
+        await tester.pumpWidget(
+          gfApp(const GfButton(label: 'Unavailable', onPressed: null)),
+        );
+        final disabled = tester.widget<FilledButton>(find.byType(FilledButton));
+        expect(
+          disabled.style!.backgroundColor!.resolve({WidgetState.disabled}),
+          GfColors.light.base300,
+        );
+        expect(
+          disabled.style!.foregroundColor!.resolve({WidgetState.disabled}),
+          GfColors.light.baseContent.withValues(alpha: .38),
+        );
+        await tester.pumpWidget(
+          gfApp(GfButton(label: 'Saving', loading: true, onPressed: () {})),
+        );
+        final pending = tester.widget<FilledButton>(find.byType(FilledButton));
+        expect(pending.onPressed, isNull);
+        expect(
+          pending.style!.backgroundColor!.resolve({WidgetState.disabled}),
+          GfColors.light.primary,
+        );
+      },
+    );
 
     testWidgets('loading shows a spinner and blocks taps', (tester) async {
       int taps = 0;

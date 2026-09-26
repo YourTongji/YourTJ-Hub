@@ -25,7 +25,7 @@ class GfErrorRetry extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GfEmpty(
-      icon: Icons.cloud_off_outlined,
+      symbol: 'circle-alert',
       message: message,
       action: GfButton(
         label: AppLocalizations.of(context).commonRetry,

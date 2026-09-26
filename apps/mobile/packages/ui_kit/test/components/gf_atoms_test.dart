@@ -78,7 +78,7 @@ void main() {
       expect(selected, 'b');
     });
 
-    testWidgets('active item uses primary text color', (tester) async {
+    testWidgets('active item uses high-contrast neutral text', (tester) async {
       await tester.pumpWidget(
         gfApp(
           GfSegmented<String>(
@@ -91,8 +91,8 @@ void main() {
       final Text a = tester.widget(find.text('A'));
       expect(
         a.style?.color,
-        GfColors.light.primary,
-        reason: 'active segment uses primary text',
+        GfColors.light.baseContent,
+        reason: 'active segment uses neutral text on the selected surface',
       );
     });
   });
@@ -103,7 +103,12 @@ void main() {
         await tester.pumpWidget(
           gfApp(const GfAvatar(src: '', size: 40), brightness: brightness),
         );
-        expect(find.byIcon(Icons.person), findsOneWidget);
+        expect(
+          find.byWidgetPredicate(
+            (widget) => widget is GfSymbol && widget.name == 'user-round',
+          ),
+          findsOneWidget,
+        );
       });
     });
 
@@ -139,8 +144,9 @@ void main() {
   group('GfDivider', () {
     testWidgets('renders 1px line', (tester) async {
       await tester.pumpWidget(gfApp(const GfDivider()));
-      final Container container = tester.widget(find.byType(Container));
-      expect(container.color, isNotNull);
+      final Divider divider = tester.widget(find.byType(Divider));
+      expect(divider.height, 1);
+      expect(divider.color, GfColors.light.line);
     });
   });
 

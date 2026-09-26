@@ -2906,6 +2906,10 @@ export default {
     },
   },
   serverMessages: {
+    'sticker.libraryFull': "Your library can hold {limit} stickers. Remove some before adding more.",
+    'sticker.uploadQuota': "You have reached the limit of {limit} uploaded stickers. Sent assets are retained for message history.",
+    'sticker.imageRequired': "Choose an image or GIF you uploaded, up to {maxSizeMb} MB.",
+    'sticker.unavailable': "This sticker is unavailable.",
 'common.captchaRequired': 'Please complete the captcha before submitting.',
     'common.rateLimited': 'Too many attempts. Please try again in {retryAfterSeconds} seconds.',
     'page.notFound': 'The page does not exist or has been deleted.',

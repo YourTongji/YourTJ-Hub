@@ -10,7 +10,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../l10n/app_localizations.dart';
 import '../providers.dart';
 
-/// 首页公告栏：采用圆角微渐变卡片、流体指示胶囊与折叠入口设计。
+/// 首页公告栏：轻量信息条，保留展开、折叠与多公告导航。
 class AnnouncementBanner extends ConsumerStatefulWidget {
   const AnnouncementBanner({
     super.key,
@@ -146,31 +146,13 @@ class _AnnouncementBannerState extends ConsumerState<AnnouncementBanner>
     final colors = GfTheme.colorsOf(context);
     final type = GfTheme.typographyOf(context);
     final l10n = AppLocalizations.of(context);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 6, 16, 6),
       decoration: BoxDecoration(
-        color: colors.base100,
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: isDark
-              ? [colors.primary.withValues(alpha: 0.09), colors.base100]
-              : [colors.primary.withValues(alpha: 0.045), colors.base100],
-        ),
+        color: colors.base200,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: colors.primary.withValues(alpha: isDark ? 0.22 : 0.16),
-          width: 1,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: colors.primary.withValues(alpha: isDark ? 0.08 : 0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        border: Border.all(color: colors.line),
       ),
       child: GestureDetector(
         onHorizontalDragEnd: (details) {

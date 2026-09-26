@@ -291,6 +291,9 @@ class AppLocalizationsDe extends AppLocalizations {
   String get publishTitleField => 'Titel';
 
   @override
+  String get publishAddTitle => 'Titel hinzufügen';
+
+  @override
   String get publishTitleHint => 'Titel eingeben (5–100 Zeichen)';
 
   @override
@@ -437,6 +440,9 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get profileTopics => 'Themen';
+
+  @override
+  String get profilePosts => 'Beiträge';
 
   @override
   String get profileReplies => 'Antworten';
@@ -1252,7 +1258,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get wikiToc => 'Inhaltsverzeichnis';
 
   @override
-  String get wikiNamespaces => 'Namespaces';
+  String get wikiNamespaces => 'Sammlungen';
 
   @override
   String wikiViewCount(int count) {
@@ -1750,7 +1756,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get notificationSomeone => 'Jemand';
 
   @override
-  String get profileRoleAdmin => 'Administration';
+  String get profileRoleAdmin => 'Administrator';
 
   @override
   String get profileActionSignup => 'Der Community beigetreten';
@@ -2571,7 +2577,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get badgeDisplayHint =>
-      'Bis zu 5 Abzeichen auswählen und sortieren oder alle abwählen. Unabhängig vom Avatar-Abzeichen.';
+      'Bis zu 5 Abzeichen anzeigen oder alle abwählen. Unabhängig vom Avatar-Abzeichen.';
 
   @override
   String get badgeDisplayUp => 'Nach oben';
@@ -2779,4 +2785,93 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get draftRestoreFailed =>
       'Wiederherstellung fehlgeschlagen. Erneut rückgängig machen.';
+
+  @override
+  String get settingsDataStorage => 'Daten und Speicher';
+
+  @override
+  String get settingsProfileDisplay => 'Profil und Darstellung';
+
+  @override
+  String get settingsNotSet => 'Nicht festgelegt';
+
+  @override
+  String get settingsUnsavedTitle => 'Ungespeicherte Änderungen verwerfen?';
+
+  @override
+  String get settingsUnsavedBody =>
+      'Deine Änderungen wurden noch nicht gespeichert und gehen beim Verlassen verloren.';
+
+  @override
+  String get settingsKeepEditing => 'Weiter bearbeiten';
+
+  @override
+  String get settingsDiscardChanges => 'Änderungen verwerfen';
+
+  @override
+  String get settingsPushPreference => 'Push-Mitteilungen erlauben';
+
+  @override
+  String get settingsPushDelivery => 'Zustellung auf diesem Gerät';
+
+  @override
+  String get settingsPushReady => 'Bereit zum Empfang';
+
+  @override
+  String get settingsPushOff => 'Nicht aktiviert';
+
+  @override
+  String get settingsPushIOSConsent =>
+      'Der Apple Push Notification Service verarbeitet die Push-Kennung deines Geräts und den Mitteilungsinhalt zur Zustellung.';
+
+  @override
+  String get settingsPushAndroidConsent =>
+      'JPush und dein Gerätehersteller verarbeiten die Push-Kennung deines Geräts und den Mitteilungsinhalt zur Zustellung.';
+
+  @override
+  String get settingsDeviceUnknown => 'Anderes Gerät';
+
+  @override
+  String get settingsDeviceCurrent => 'Dieses Gerät';
+
+  @override
+  String get badgeDisplayReorder => 'Zum Sortieren ziehen';
+
+  @override
+  String badgeDisplaySelectedCount(int count) {
+    return 'Angezeigt $count/5';
+  }
+
+  @override
+  String get sortFollowing => 'Gefolgt';
+
+  @override
+  String get notificationsUnreadEmpty => 'Alles gelesen';
+
+  @override
+  String get notificationsUnreadEmptyDescription =>
+      'Du hast alle Mitteilungen gelesen.';
+
+  @override
+  String get homeFeedOptions => 'Darstellung';
+
+  @override
+  String get homeAllCategories => 'Alle Kategorien';
+
+  @override
+  String get sortNew => 'Neue Beiträge';
+
+  @override
+  String get profileRoleAdminDescription =>
+      'Betreut die Community und sorgt für den Betrieb des Forums.';
+
+  @override
+  String profileBadgeEarnedOn(String date) {
+    return 'Erhalten am $date';
+  }
+
+  @override
+  String settingsProfilePartialSave(String saved) {
+    return 'Gespeichert: $saved. Die übrigen Änderungen bleiben erhalten. Bitte erneut speichern.';
+  }
 }

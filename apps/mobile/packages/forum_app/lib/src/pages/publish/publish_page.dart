@@ -1,3 +1,5 @@
+import '../../widgets/stickers/sticker_picker.dart';
+import '../../widgets/stickers/sticker_strings.dart';
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
@@ -88,6 +90,8 @@ class _PublishPageState extends ConsumerState<PublishPage>
   bool _saveStatusScheduled = false;
   bool _allowPop = false;
   final TextEditingController _title = TextEditingController();
+  final FocusNode _titleFocusNode = FocusNode(debugLabel: 'topic-title');
+  bool _momentTitleExpanded = false;
   final List<int> _categoryIds = <int>[];
   final List<PublishCategoryPayload> _categories = <PublishCategoryPayload>[];
   late final MarkdownConverter _converter;
@@ -191,6 +195,9 @@ class _PublishPageState extends ConsumerState<PublishPage>
   // Controller notifications include selection and IME composition changes.
   // Only changed text is new user work; merely focusing must not save a draft.
   void _textChanged() {
+    // Existing drafts and other composition types keep their explicit title.
+    // Once shown, clearing the field must not remove it beneath the cursor.
+    if (_title.text.trim().isNotEmpty) _momentTitleExpanded = true;
     final changed =
         _lastTitleText != _title.text || _lastSimpleText != _simple.text;
     _lastTitleText = _title.text;
@@ -563,6 +570,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
     _editorFocusNode.dispose();
     _captchaCode.dispose();
     _title.dispose();
+    _titleFocusNode.dispose();
     _simple.dispose();
     unawaited(_documentChanges.cancel());
     _quill.dispose();
@@ -731,7 +739,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
               ListTile(
                 title: Text(label),
                 trailing: currentHeader == level
-                    ? const Icon(Icons.check)
+                    ? const GfSymbol('check', size: 22)
                     : null,
                 onTap: () => Navigator.pop(sheetContext, attribute),
               ),
@@ -782,12 +790,12 @@ class _PublishPageState extends ConsumerState<PublishPage>
             padding: EdgeInsets.zero,
             children: [
               ListTile(
-                leading: const Icon(Icons.photo_library_outlined),
+                leading: const GfSymbol('image', size: 23),
                 title: Text(l10n.publishPhotoLibrary),
                 onTap: () => Navigator.pop(context, ImageSource.gallery),
               ),
               ListTile(
-                leading: const Icon(Icons.camera_alt_outlined),
+                leading: const GfSymbol('camera', size: 23),
                 title: Text(l10n.publishCamera),
                 onTap: () => Navigator.pop(context, ImageSource.camera),
               ),
@@ -838,6 +846,41 @@ class _PublishPageState extends ConsumerState<PublishPage>
     } finally {
       if (mounted) setState(() => _pickingImage = false);
     }
+  }
+
+  Future<void> _pickSticker() async {
+    final type = _contentType;
+    var selection = type == 3 ? _quill.selection : _simple.selection;
+    await showStickerPicker(
+      context,
+      onInsert: (token) {
+        if (!mounted || !_sessionCurrent || _finished || type != _contentType) {
+          return;
+        }
+        if (type == 3) {
+          final max = _quill.document.length - 1;
+          final start = (selection.isValid ? selection.start : max).clamp(
+            0,
+            max,
+          );
+          final end = (selection.isValid ? selection.end : max).clamp(
+            start,
+            max,
+          );
+          _quill.replaceText(
+            start,
+            end - start,
+            token,
+            TextSelection.collapsed(offset: start + token.length),
+          );
+          selection = _quill.selection;
+        } else {
+          insertStickerText(_simple, token, selection: selection);
+          selection = _simple.selection;
+        }
+        _markDirty();
+      },
+    );
   }
 
   void _insertUploadedImage(String url) {
@@ -1116,7 +1159,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
         backgroundColor: GfTheme.colorsOf(context).base100,
         appBar: GfAppBar(
           leading: GfIconButton(
-            icon: Icons.arrow_back_rounded,
+            symbol: 'chevron-left',
             tooltip: l10n.commonBack,
             size: 44,
             onPressed: _goBack,
@@ -1187,7 +1230,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
           actions: <Widget>[
             if (MediaQuery.viewInsetsOf(context).bottom > 0)
               GfIconButton(
-                icon: Icons.keyboard_hide_rounded,
+                symbol: 'keyboard-hide',
                 tooltip: l10n.commonHideKeyboard,
                 size: 44,
                 onPressed: () => FocusManager.instance.primaryFocus?.unfocus(),
@@ -1198,9 +1241,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
                 // Icon action keeps the preview AppBar inside the bar even for
                 // long locale labels (de/ja): two labelled buttons overflowed
                 // the 390 px actions row.
-                icon: _submitting
-                    ? Icons.hourglass_top_rounded
-                    : Icons.save_outlined,
+                symbol: 'save',
                 tooltip: l10n.publishSaveDraft,
                 size: 44,
                 onPressed: _uploading || _submitting
@@ -1273,10 +1314,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
                 dimension: 20,
                 child: CircularProgressIndicator(strokeWidth: 2),
               )
-            : Icon(
-                editing ? Icons.arrow_forward_rounded : Icons.send_rounded,
-                size: 20,
-              ),
+            : GfSymbol(editing ? 'arrow-right' : 'arrow-up', size: 20),
       );
     }
     return GfButton(
@@ -1350,7 +1388,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
                     if (_loadError.isNotEmpty)
                       TextButton.icon(
                         onPressed: _loadEditorData,
-                        icon: const Icon(Icons.cloud_off_outlined),
+                        icon: const GfSymbol('refresh-cw', size: 22),
                         label: Text(l10n.commonRetry),
                       ),
                     if (_uploads.hasPending) ...[
@@ -1430,7 +1468,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
                           IconButton(
                             onPressed: _captchaLoading ? null : _loadCaptcha,
                             tooltip: l10n.authGetCode,
-                            icon: const Icon(Icons.refresh),
+                            icon: const GfSymbol('refresh-cw', size: 22),
                           ),
                         ],
                       ),
@@ -1523,9 +1561,36 @@ class _PublishPageState extends ConsumerState<PublishPage>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        if (!classification)
+        if (!classification && _contentType == 2 && !_momentTitleExpanded)
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              key: const Key('publish-add-title'),
+              onPressed: _submitting
+                  ? null
+                  : () {
+                      // Revealing a field is a view preference, not new work.
+                      setState(() => _momentTitleExpanded = true);
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        if (mounted && _sessionCurrent) {
+                          _titleFocusNode.requestFocus();
+                        }
+                      });
+                    },
+              style: TextButton.styleFrom(
+                foregroundColor: colors.iconMuted,
+                minimumSize: const Size(44, 44),
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+              ),
+              icon: const GfSymbol('plus', size: 18),
+              label: Text(l10n.publishAddTitle),
+            ),
+          ),
+        if (!classification && (_contentType != 2 || _momentTitleExpanded))
           TextField(
+            key: const Key('publish-title'),
             controller: _title,
+            focusNode: _titleFocusNode,
             maxLength: 100,
             minLines: 1,
             maxLines: 3,
@@ -1709,11 +1774,9 @@ class _PublishPageState extends ConsumerState<PublishPage>
                     child: TextButton.icon(
                       onPressed: () =>
                           setState(() => _formatting = !_formatting),
-                      icon: Icon(
-                        _formatting
-                            ? Icons.keyboard_arrow_down_rounded
-                            : Icons.text_fields_rounded,
-                        size: 20,
+                      icon: GfSymbol(
+                        _formatting ? 'chevron-down' : 'type',
+                        size: 22,
                       ),
                       label: Text(
                         l10n.publishFormatting,
@@ -1726,12 +1789,14 @@ class _PublishPageState extends ConsumerState<PublishPage>
                             : colors.iconMuted,
                         backgroundColor: _formatting
                             ? colors.primary.withValues(alpha: 0.08)
-                            : colors.base200,
+                            : Colors.transparent,
+                        shape: const StadiumBorder(),
                         minimumSize: const Size(44, 44),
                       ),
                     ),
                   ),
-                if (_contentType == 3)
+                if (_contentType == 3 ||
+                    MediaQuery.viewInsetsOf(context).bottom > 0)
                   _toolButton(
                     icon: _activelyUploading
                         ? Icons.hourglass_top_rounded
@@ -1739,6 +1804,11 @@ class _PublishPageState extends ConsumerState<PublishPage>
                     tooltip: l10n.publishToolImage,
                     onPressed: _uploading ? null : _pickAndInsertImage,
                   ),
+                _toolButton(
+                  icon: Icons.emoji_emotions_outlined,
+                  tooltip: StickerStrings(context).title,
+                  onPressed: _uploading ? null : _pickSticker,
+                ),
                 Expanded(
                   child: Align(
                     alignment: Alignment.centerRight,
@@ -1756,7 +1826,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
               ],
             ),
           ),
-          if (_contentType == 3)
+          if (_contentType == 3 && MediaQuery.viewInsetsOf(context).bottom == 0)
             Padding(
               padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
               child: Text(
@@ -1778,10 +1848,12 @@ class _PublishPageState extends ConsumerState<PublishPage>
       context: context,
       builder: (context) => AlertDialog(
         title: Text(l10n.publishToolLink),
-        content: TextField(
+        content: GfInput(
           autofocus: true,
           keyboardType: TextInputType.url,
-          decoration: const InputDecoration(hintText: 'https://'),
+          hintText: 'https://',
+          autocorrect: false,
+          enableSuggestions: false,
           onChanged: (text) => value = text,
         ),
         actions: [
@@ -1914,6 +1986,22 @@ class _PublishPageState extends ConsumerState<PublishPage>
     bool? selected,
   }) {
     final colors = GfTheme.colorsOf(context);
+    final symbol = <IconData, String>{
+      Icons.undo: 'undo-2',
+      Icons.redo: 'redo-2',
+      Icons.title: 'heading',
+      Icons.link: 'link',
+      Icons.format_bold_rounded: 'bold',
+      Icons.format_italic_rounded: 'italic',
+      Icons.format_strikethrough_rounded: 'strikethrough',
+      Icons.format_quote_rounded: 'quote',
+      Icons.code_rounded: 'code',
+      Icons.format_list_bulleted_rounded: 'list',
+      Icons.format_list_numbered_rounded: 'list-ordered',
+      Icons.image_outlined: 'image',
+      Icons.hourglass_top_rounded: 'clock',
+      Icons.emoji_emotions_outlined: 'smile',
+    }[icon];
     return MergeSemantics(
       child: Semantics(
         toggled: selected,
@@ -1926,9 +2014,10 @@ class _PublishPageState extends ConsumerState<PublishPage>
           ),
           child: GfIconButton(
             icon: icon,
+            symbol: symbol,
             tooltip: tooltip,
             size: 44,
-            iconSize: 20,
+            iconSize: 23,
             color: onPressed == null
                 ? colors.iconMuted.withValues(alpha: 0.4)
                 : selected == true
@@ -1964,11 +2053,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: <Widget>[
-                  Icon(
-                    Icons.article_outlined,
-                    size: 32,
-                    color: colors.iconMuted,
-                  ),
+                  GfSymbol('file-text', size: 32, color: colors.iconMuted),
                   const SizedBox(height: 10),
                   Text(
                     l10n.publishPreviewEmpty,
@@ -1989,6 +2074,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
                   const SizedBox(height: 16),
                   Text(
                     _title.text.trim(),
+                    key: const Key('publish-preview-title'),
                     style: type.heading.copyWith(
                       fontSize: 22,
                       fontWeight: FontWeight.w600,
@@ -2095,7 +2181,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
                                             ))
                                         .round(),
                                 errorBuilder: (_, _, _) =>
-                                    const Icon(Icons.broken_image_outlined),
+                                    const GfSymbol('image-off'),
                               ),
                             ),
                           ),
@@ -2109,7 +2195,18 @@ class _PublishPageState extends ConsumerState<PublishPage>
                                 _markDirty();
                                 _allowPop = false;
                               }),
-                              icon: const Icon(Icons.cancel),
+                              style: IconButton.styleFrom(
+                                fixedSize: const Size.square(44),
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                backgroundColor: GfTheme.colorsOf(
+                                  context,
+                                ).base100.withValues(alpha: .9),
+                                foregroundColor: GfTheme.colorsOf(
+                                  context,
+                                ).baseContent,
+                                shape: const CircleBorder(),
+                              ),
+                              icon: const GfSymbol('x', size: 22),
                             ),
                           ),
                         ],
@@ -2127,7 +2224,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
                                       MediaQuery.devicePixelRatioOf(context))
                                   .round(),
                           errorBuilder: (_, _, _) =>
-                              const Icon(Icons.broken_image_outlined),
+                              const GfSymbol('image-off'),
                         ),
                     ],
                   ),
@@ -2135,7 +2232,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
         if (editing)
           GfButton(
             label: l10n.publishToolImage,
-            icon: const Icon(Icons.add_photo_alternate_outlined),
+            icon: const GfSymbol('image', size: 22),
             variant: GfButtonVariant.outline,
             loading: _pickingImage,
             onPressed: _images.length >= 9 || _uploading
@@ -2188,7 +2285,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
                             cacheWidth: 96,
                             excludeFromSemantics: true,
                             errorBuilder: (_, _, _) =>
-                                const Icon(Icons.photo_outlined),
+                                const GfSymbol('image', size: 22),
                           ),
                           if (item.status == ComposerUploadStatus.uploading)
                             const Center(
@@ -2230,12 +2327,12 @@ class _PublishPageState extends ConsumerState<PublishPage>
                     IconButton(
                       tooltip: l10n.commonRetry,
                       onPressed: () => _uploads.retry(item.id),
-                      icon: const Icon(Icons.refresh),
+                      icon: const GfSymbol('refresh-cw', size: 22),
                     ),
                   IconButton(
                     tooltip: l10n.publishRemoveImage,
                     onPressed: () => _uploads.remove(item.id),
-                    icon: const Icon(Icons.close),
+                    icon: const GfSymbol('x', size: 22),
                   ),
                 ],
               ),
@@ -2299,7 +2396,7 @@ class _ComposerImageBuilder extends EmbedBuilder {
           (MediaQuery.sizeOf(context).width *
                   MediaQuery.devicePixelRatioOf(context))
               .round(),
-      errorBuilder: (_, _, _) => const Icon(Icons.broken_image_outlined),
+      errorBuilder: (_, _, _) => const GfSymbol('image-off'),
     );
     return LongPressDraggable<ComposerImageDragPayload>(
       data: ComposerImageDragPayload(

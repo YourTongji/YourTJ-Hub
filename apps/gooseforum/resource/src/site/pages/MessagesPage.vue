@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { userDisplayName } from '@/runtime/private-notes'
-import { computed, nextTick, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { ArrowLeft, MessageSquare, MessageSquarePlus, MoreVertical, Search, Send, Smile, X } from '@lucide/vue'
 import { getChatMessages, markChatRead, sendChatMessage, sensitiveWordsFromError, type ChatMessagePayload } from '@/runtime/api'
 import { containsSensitiveText } from '@/site/utils/sensitive-highlight'
 import { formatChatTime } from '@/runtime/format'
 import { parseStickerSegments, stickerPreviewLabel } from '@/site/utils/sticker-token'
-import { useStickerLibrary } from '@/site/composables/useStickerLibrary'
+import { useResolvedStickers } from '@/site/composables/useResolvedStickers'
 import { useUnreadStatus } from '@/runtime/unread-status'
 import UserAvatar from '@/site/components/UserAvatar.vue'
 import type { ChatItemPayload, LayoutPayload, MessagesPageProps, UserConnectionPayload } from '@gooseforum/client'
@@ -41,8 +41,13 @@ const sensitiveWords = ref<string[]>([])
 const messagesEl = ref<HTMLElement | null>(null)
 const messageInput = ref<HTMLTextAreaElement | null>(null)
 const unreadStatus = useUnreadStatus()
-const { stickers, ensureStickers } = useStickerLibrary()
-const stickerUrlMap = computed(() => new Map(stickers.value.map((item) => [item.name, item.url])))
+const { resolvedUrls, ensureContentStickers } = useResolvedStickers()
+const stickerUrlMap = resolvedUrls
+watch(
+  () => active.value?.messages.map((message) => message.content) ?? [],
+  (contents) => { void ensureContentStickers(contents) },
+  { immediate: true },
+)
 
 /** 气泡分段：识别到的启用表情包渲染为内联图，未知/停用 token 保持原文（MADR 0030） */
 function messageSegments(content: string) {
@@ -68,7 +73,6 @@ const filteredUsers = computed(() => {
 })
 
 onMounted(() => {
-  void ensureStickers()
   const params = new URLSearchParams(window.location.search)
   const targetUserId = Number(params.get('userId') || 0)
   if (targetUserId) {

@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:tdesign_flutter/tdesign_flutter.dart' as td;
 
 import '../../theme/gf_theme.dart';
 
 /// Status badge, mirroring web `.gf-badge` variants (components.css):
-/// px-2 py-0.5, 12px w600, radius selector. Tint fills use the 10% alpha
+/// px-2 py-0.5, 12px w500, capsule radius. Tint fills use the 10% alpha
 /// version of the semantic color with the full-strength text color.
 enum GfBadgeVariant {
-  /// `gf-badge-muted`: base-300 fill, base-content/55 text.
+  /// Quiet grey fill with muted text.
   muted,
 
   /// `gf-badge-info`: info/10 fill, primary text.
@@ -44,27 +43,35 @@ class GfBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final GfColors colors = GfTheme.colorsOf(context);
     final (Color background, Color foreground) = _palette(colors);
-    final ThemeData theme = Theme.of(context);
-    final List<ThemeExtension<dynamic>> extensions = theme.extensions.values
-        .toList(growable: true);
-    extensions
-      ..removeWhere((ThemeExtension<dynamic> item) => item is td.TTagThemeData)
-      ..add(
-        td.TTagThemeData(
-          textColor: foreground,
-          backgroundColor: background,
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-          fontWeight: FontWeight.w600,
-          shape: td.TTagShape.round,
-        ),
-      );
-
-    return Theme(
-      data: theme.copyWith(extensions: extensions),
-      child: td.TTag(
-        label,
-        size: td.TTagSize.small,
-        icon: icon is Icon ? (icon! as Icon).icon : null,
+    return Container(
+      constraints: const BoxConstraints(minHeight: 22),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[
+            IconTheme.merge(
+              data: IconThemeData(size: 14, color: foreground),
+              child: SizedBox.square(dimension: 14, child: icon!),
+            ),
+            const SizedBox(width: 4),
+          ],
+          Flexible(
+            child: Text(
+              label,
+              style: TextStyle(
+                color: foreground,
+                fontSize: 12,
+                height: 1.25,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -76,7 +83,7 @@ class GfBadge extends StatelessWidget {
     }
     switch (variant) {
       case GfBadgeVariant.muted:
-        return (colors.base300, colors.baseContent.withValues(alpha: 0.55));
+        return (colors.base200, colors.iconMuted);
       case GfBadgeVariant.info:
         return (colors.info.withValues(alpha: 0.10), colors.primary);
       case GfBadgeVariant.success:

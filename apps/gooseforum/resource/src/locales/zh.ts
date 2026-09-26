@@ -2908,6 +2908,10 @@ export default {
     },
   },
   serverMessages: {
+    'sticker.libraryFull': "我的表情最多保存 {limit} 个，请先移除一些。",
+    'sticker.uploadQuota': "已达到 {limit} 个个人表情素材的上传上限。已发送素材会保留以供历史内容显示。",
+    'sticker.imageRequired': "请选择自己已上传的图片或 GIF，单张不超过 {maxSizeMb} MB。",
+    'sticker.unavailable': "该表情已不可用。",
 'common.captchaRequired': '请先完成验证码后再提交。',
     'common.rateLimited': '操作过于频繁，请 {retryAfterSeconds} 秒后再试。',
     'page.notFound': '页面不存在，或已经被删除。',

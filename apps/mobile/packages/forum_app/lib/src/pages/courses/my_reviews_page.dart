@@ -95,6 +95,8 @@ class _MyCourseReviewsPageState extends ConsumerState<MyCourseReviewsPage> {
       context,
       height: 600,
       keyboardAware: true,
+      barrierDismissible: false,
+      enableDrag: false,
       builder: (_) => CourseReviewFormSheet(
         pageContext: context,
         repository: _repository,
@@ -196,7 +198,7 @@ class _MyCourseReviewsPageState extends ConsumerState<MyCourseReviewsPage> {
               )
             else if (_items.isEmpty)
               GfEmpty(
-                icon: Icons.rate_review_outlined,
+                symbol: 'square-pen',
                 message: l10n.myCourseReviewsEmpty,
               )
             else

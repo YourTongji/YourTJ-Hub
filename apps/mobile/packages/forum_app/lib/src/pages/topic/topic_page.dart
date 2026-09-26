@@ -1,3 +1,5 @@
+import '../../widgets/stickers/sticker_picker.dart';
+import '../../widgets/stickers/sticker_strings.dart';
 import '../../private_notes.dart';
 import '../../local/writing_store.dart';
 
@@ -907,6 +909,18 @@ class _TopicPageState extends ConsumerState<TopicPage>
     _replyChanged();
   }
 
+  Future<void> _pickReplySticker() async {
+    var selection = _replyController.selection;
+    await showStickerPicker(
+      context,
+      onInsert: (token) {
+        if (!mounted || !_writingCurrent) return;
+        insertStickerText(_replyController, token, selection: selection);
+        selection = _replyController.selection;
+      },
+    );
+  }
+
   Future<void> _pickReplyImage() async {
     if (_uploadingReplyImage) return;
     final topicId = widget.topicId;
@@ -1257,7 +1271,7 @@ class _TopicPageState extends ConsumerState<TopicPage>
     final scaffold = Scaffold(
       appBar: GfAppBar(
         leading: GfIconButton(
-          icon: Icons.arrow_back,
+          symbol: 'chevron-left',
           tooltip: l10n.commonBack,
           size: 44,
           onPressed: _goBack,
@@ -1344,7 +1358,7 @@ class _TopicPageState extends ConsumerState<TopicPage>
                             if (replyPosts.isEmpty)
                               SliverToBoxAdapter(
                                 child: GfEmpty(
-                                  icon: Icons.forum_outlined,
+                                  symbol: 'message-circle',
                                   message: _sort == CommentSort.onlyOp
                                       ? (_hasEarlierPosts || _hasMorePosts
                                             ? l10n.topicOpRepliesPending
@@ -1417,9 +1431,9 @@ class _TopicPageState extends ConsumerState<TopicPage>
                   ),
                 ),
                 Positioned(
-                  left: 12,
-                  right: 12,
-                  bottom: 12,
+                  left: _composerOpen ? 0 : 12,
+                  right: _composerOpen ? 0 : 12,
+                  bottom: _composerOpen ? 0 : 12,
                   // Bound the open composer to the keyboard-resized viewport.
                   top: _composerOpen ? 0 : null,
                   child: SafeArea(
@@ -1493,6 +1507,10 @@ class _TopicPageState extends ConsumerState<TopicPage>
                                               setState(() {});
                                             },
                                             onPickImage: _pickReplyImage,
+                                            onPickSticker: _pickReplySticker,
+                                            stickerTooltip: StickerStrings(
+                                              context,
+                                            ).title,
                                             imageTooltip: l10n.publishToolImage,
                                             imageUrl: _replyImageUrl == null
                                                 ? null
@@ -1555,17 +1573,14 @@ class _TopicPageState extends ConsumerState<TopicPage>
                                                       ),
                                                       const SizedBox(width: 8),
                                                       Expanded(
-                                                        child: TextField(
+                                                        child: GfInput(
                                                           key: const Key(
                                                             'reply-captcha',
                                                           ),
                                                           controller:
                                                               _replyCaptchaCode,
-                                                          decoration:
-                                                              InputDecoration(
-                                                                labelText: l10n
-                                                                    .authCaptcha,
-                                                              ),
+                                                          labelText:
+                                                              l10n.authCaptcha,
                                                           textCapitalization:
                                                               TextCapitalization
                                                                   .characters,
@@ -1578,8 +1593,8 @@ class _TopicPageState extends ConsumerState<TopicPage>
                                                             _replyCaptchaLoading
                                                             ? null
                                                             : _loadReplyCaptcha,
-                                                        icon: const Icon(
-                                                          Icons.refresh,
+                                                        icon: const GfSymbol(
+                                                          'refresh-cw',
                                                         ),
                                                       ),
                                                     ],
@@ -1768,7 +1783,7 @@ class _TopicHeader extends StatelessWidget {
               if (canReportTopic) ...<Widget>[
                 const SizedBox(width: 4),
                 GfIconButton(
-                  icon: Icons.flag_outlined,
+                  symbol: 'flag',
                   size: 44,
                   iconSize: 20,
                   tooltip: l10n.topicReport,
@@ -2102,7 +2117,7 @@ class _PostCard extends StatelessWidget {
               return Row(
                 children: [
                   Expanded(child: timestamp),
-                  actions,
+                  Flexible(fit: FlexFit.loose, child: actions),
                 ],
               );
             },
@@ -2241,8 +2256,8 @@ class _ReplyQuoteState extends State<_ReplyQuote> {
                           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                         ),
                         onPressed: () => setState(() => _expanded = !_expanded),
-                        icon: Icon(
-                          _expanded ? Icons.expand_less : Icons.expand_more,
+                        icon: GfSymbol(
+                          _expanded ? 'chevron-up' : 'chevron-down',
                           size: 16,
                         ),
                         label: Text(

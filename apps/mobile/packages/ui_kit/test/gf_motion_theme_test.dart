@@ -1,7 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:tdesign_flutter/tdesign_flutter.dart' as td;
 import 'package:ui_kit/ui_kit.dart';
 
 void main() {
@@ -61,14 +60,17 @@ void main() {
       }
     });
 
-    test('registers the TDesign token and component extension graph', () {
-      for (final Brightness brightness in Brightness.values) {
-        final ThemeData data = gfThemeData(brightness);
-        expect(data.extension<td.TThemeData>(), isNotNull);
-        expect(data.extension<td.TButtonThemeData>(), isNotNull);
-        expect(data.extension<td.TInputThemeData>()?.showClearButton, isFalse);
-        expect(data.extension<td.TNavBarThemeData>(), isNotNull);
-        expect(data.extension<td.TTabBarThemeData>(), isNotNull);
+    test('native controls share capsule actions and visible focus states', () {
+      for (final brightness in Brightness.values) {
+        final data = gfThemeData(brightness);
+        for (final style in [
+          data.filledButtonTheme.style!,
+          data.outlinedButtonTheme.style!,
+          data.textButtonTheme.style!,
+        ]) {
+          expect(style.shape?.resolve({}), isA<StadiumBorder>());
+          expect(style.tapTargetSize, MaterialTapTargetSize.padded);
+        }
       }
     });
 

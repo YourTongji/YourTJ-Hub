@@ -2,8 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../theme/gf_theme.dart';
 
-/// Alert surface, mirroring web `.gf-alert` (components.css): 1px line border,
-/// radius box, base-100 background, `gf-shadows.alert`.
+/// Quiet inline feedback, distinct from modal confirmation surfaces.
 class GfAlert extends StatelessWidget {
   const GfAlert({
     super.key,
@@ -19,17 +18,12 @@ class GfAlert extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final GfColors colors = GfTheme.colorsOf(context);
-    final GfRadii radii = GfTheme.radiiOf(context);
-    final GfBorders borders = GfTheme.bordersOf(context);
-    final GfShadows shadows = GfTheme.shadowsOf(context);
 
     return Container(
       padding: padding,
       decoration: BoxDecoration(
-        color: colors.base100,
-        borderRadius: BorderRadius.circular(radii.box),
-        border: Border.all(color: colors.line, width: borders.width),
-        boxShadow: shadows.alert,
+        color: colors.base300,
+        borderRadius: BorderRadius.circular(16),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,

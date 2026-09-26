@@ -237,7 +237,7 @@ void main() {
       };
       expect(find.text(last), findsNothing);
       if (scope == 'topics') {
-        expect(find.byType(GfTopicRow).evaluate().length, lessThan(10));
+        expect(find.byType(GfTopicCard).evaluate().length, lessThan(10));
       }
     });
   }
@@ -265,6 +265,16 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('User 0'), findsOneWidget);
     expect(find.text('Topic 1'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('Topic 11'),
+      160,
+      scrollable: find
+          .descendant(
+            of: find.byType(ListView),
+            matching: find.byType(Scrollable),
+          )
+          .first,
+    );
     expect(find.text('Topic 11'), findsOneWidget);
     await tester.scrollUntilVisible(
       find.text('Category 0'),
@@ -343,6 +353,16 @@ void main() {
         _result(repo.calls.last, topics: 1, totalPages: 2),
       );
       await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(
+        find.text('Topic 11'),
+        160,
+        scrollable: find
+            .descendant(
+              of: find.byType(ListView),
+              matching: find.byType(Scrollable),
+            )
+            .first,
+      );
       expect(find.text('Topic 11'), findsOneWidget);
     },
   );

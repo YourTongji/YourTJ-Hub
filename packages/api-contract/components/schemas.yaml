@@ -9890,12 +9890,30 @@ StickerItem:
   type: object
   required: [name, url]
   properties:
+    id:
+      type: integer
+      format: int64
+      minimum: 1
+      description: Stable asset identifier; optional for compatibility with older servers.
     name:
       type: string
-      description: Globally unique sticker name, the `[:sticker:name:]` token body; letters/digits/underscore/hyphen only, 1-64 chars.
+      description: Stable token body. Official legacy names remain supported; personal assets use unguessable random names and cannot be renamed or replaced.
     url:
       type: string
-      description: Public access path — `/file/img/<fileName>` on the local provider or the configured CDN public-url prefix.
+      description: Public image access path. A shared token permits rendering; a private library membership is never publicly enumerated.
+    displayName:
+      type: string
+      description: Private label on my-library/save responses, otherwise the asset label or token name. Never another user's private label.
+    pack:
+      type: string
+      description: Official pack identifier (default official), or personal for uploaded assets.
+    isOfficial:
+      type: boolean
+      description: True for admin-managed official assets. Older servers omit this field.
+    isEnabled:
+      type: boolean
+      default: true
+      description: False for temporarily unavailable assets retained in a private library. Clients must prevent insertion while permitting removal or reordering. Older servers omit this field and clients assume true.
   additionalProperties: false
 
 ForumStickerListSuccess:
@@ -9908,7 +9926,7 @@ ForumStickerListSuccess:
           type: array
           items:
             $ref: '#/StickerItem'
-          description: Enabled stickers only, sortOrder ascending then id ascending (empty array when none exist).
+          description: Sticker items. Official directory is enabled official assets only; personal library preserves user order; resolve includes only explicitly requested enabled tokens.
 
 ForumStickerListResponse:
   oneOf:
@@ -9956,7 +9974,7 @@ AdminStickerListSuccess:
           type: array
           items:
             $ref: '#/AdminStickerItem'
-          description: All sticker rows including disabled ones, sortOrder ascending then id ascending.
+          description: Official sticker rows including disabled ones, excluding personal assets; sortOrder ascending then id ascending.
 
 AdminStickerListResponse:
   oneOf:
@@ -10402,3 +10420,54 @@ PostMention:
     end:
       type: integer
       minimum: 1
+
+# Personal sticker library (private memberships, stable shared assets).
+StickerNamesRequest:
+  type: object
+  required: [names]
+  properties:
+    names:
+      type: array
+      maxItems: 200
+      items:
+        type: string
+        minLength: 1
+        maxLength: 64
+  additionalProperties: false
+MyStickerSaveRequest:
+  type: object
+  properties:
+    stickerName:
+      type: string
+      maxLength: 64
+      description: Existing enabled token to collect or rename in the caller's library. Mutually exclusive with fileName.
+    fileName:
+      type: string
+      maxLength: 2048
+      description: Ready standard image upload owned by the caller, storage key or public URL, 1 byte through 4 MiB. Mutually exclusive with stickerName; repeated uploads of the same file reuse the immutable personal asset.
+    displayName:
+      type: string
+      maxLength: 64
+      description: Optional private label, trimmed before validation. Omission preserves the label; empty clears it. Does not change the token, shared asset or another account's label.
+  additionalProperties: false
+MyStickerDeleteRequest:
+  type: object
+  required: [name]
+  properties:
+    name:
+      type: string
+      minLength: 1
+      maxLength: 64
+  additionalProperties: false
+MyStickerSaveSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          $ref: '#/StickerItem'
+MyStickerSaveResponse:
+  oneOf:
+    - $ref: '#/MyStickerSaveSuccess'
+    - $ref: '#/ApiFailure'

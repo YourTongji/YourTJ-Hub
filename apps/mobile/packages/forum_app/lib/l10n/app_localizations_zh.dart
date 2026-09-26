@@ -277,6 +277,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get publishTitleField => '标题';
 
   @override
+  String get publishAddTitle => '添加标题';
+
+  @override
   String get publishTitleHint => '请输入标题(5-100 字)';
 
   @override
@@ -421,6 +424,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get profileTopics => '主题';
+
+  @override
+  String get profilePosts => '内容';
 
   @override
   String get profileReplies => '回复';
@@ -1223,7 +1229,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get wikiToc => '目录';
 
   @override
-  String get wikiNamespaces => '命名空间';
+  String get wikiNamespaces => '内容分类';
 
   @override
   String wikiViewCount(int count) {
@@ -2447,7 +2453,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get badgeDisplayTitle => '资料卡展示徽章';
 
   @override
-  String get badgeDisplayHint => '最多选择 5 枚，按下方顺序展示；可全部取消。与头像佩戴徽章独立。';
+  String get badgeDisplayHint => '最多展示 5 枚，可全部取消；与头像佩戴徽章独立。';
 
   @override
   String get badgeDisplayUp => '上移';
@@ -2634,4 +2640,88 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get draftRestoreFailed => '恢复失败，请再次点击撤销。';
+
+  @override
+  String get settingsDataStorage => '数据与存储';
+
+  @override
+  String get settingsProfileDisplay => '个人资料与展示';
+
+  @override
+  String get settingsNotSet => '未设置';
+
+  @override
+  String get settingsUnsavedTitle => '放弃未保存的更改？';
+
+  @override
+  String get settingsUnsavedBody => '更改尚未保存，返回后将丢弃这些内容。';
+
+  @override
+  String get settingsKeepEditing => '继续编辑';
+
+  @override
+  String get settingsDiscardChanges => '放弃更改';
+
+  @override
+  String get settingsPushPreference => '允许推送通知';
+
+  @override
+  String get settingsPushDelivery => '此设备送达状态';
+
+  @override
+  String get settingsPushReady => '可以接收通知';
+
+  @override
+  String get settingsPushOff => '尚未开启';
+
+  @override
+  String get settingsPushIOSConsent => '通过 Apple 推送通知服务接收通知，会处理设备推送标识及通知内容。';
+
+  @override
+  String get settingsPushAndroidConsent => '通过极光及手机厂商接收通知，会处理设备推送标识及通知内容。';
+
+  @override
+  String get settingsDeviceUnknown => '其他设备';
+
+  @override
+  String get settingsDeviceCurrent => '当前设备';
+
+  @override
+  String get badgeDisplayReorder => '拖动调整展示顺序';
+
+  @override
+  String badgeDisplaySelectedCount(int count) {
+    return '已展示 $count/5';
+  }
+
+  @override
+  String get sortFollowing => '关注';
+
+  @override
+  String get notificationsUnreadEmpty => '暂无未读通知';
+
+  @override
+  String get notificationsUnreadEmptyDescription => '所有通知都已查看。';
+
+  @override
+  String get homeFeedOptions => '显示方式';
+
+  @override
+  String get homeAllCategories => '全部分类';
+
+  @override
+  String get sortNew => '新发布';
+
+  @override
+  String get profileRoleAdminDescription => '维护社区秩序，保障论坛正常运行。';
+
+  @override
+  String profileBadgeEarnedOn(String date) {
+    return '获得于 $date';
+  }
+
+  @override
+  String settingsProfilePartialSave(String saved) {
+    return '已保存：$saved。其余修改仍保留，请重试保存。';
+  }
 }

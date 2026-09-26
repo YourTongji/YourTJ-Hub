@@ -1,4 +1,9 @@
 export interface StickerItem {
+  id?: number
+  displayName?: string
+  pack?: string
+  isOfficial?: boolean
+  isEnabled?: boolean
   name: string
   url: string
 }
@@ -30,4 +35,14 @@ export interface AdminStickerImportResult {
   imported: number
   skipped: number
   failed: AdminStickerImportIssue[]
+}
+
+export interface MyStickerSaveRequest {
+  stickerName?: string
+  fileName?: string
+  displayName?: string
+}
+
+export interface StickerNamesRequest {
+  names: string[]
 }

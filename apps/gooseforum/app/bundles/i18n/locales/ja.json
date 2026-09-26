@@ -126,5 +126,9 @@
   "meta.courseReviewModerationDesc": "コース評価の通報と非表示/復元を処理します。",
   "meta.courseManagement": "コース管理",
   "meta.courseManagementDesc": "コースカタログとコース評価を管理します。",
-  "server.common.request.invalidFormat": "リクエスト形式が不正です。確認してもう一度お試しください。"
+  "server.common.request.invalidFormat": "リクエスト形式が不正です。確認してもう一度お試しください。",
+  "serverMessages.sticker.libraryFull": "マイスタンプは {limit} 個まで保存できます。追加する前に一部を削除してください。",
+  "serverMessages.sticker.uploadQuota": "アップロード上限の {limit} 個に達しました。送信済みの素材は履歴表示のため保持されます。",
+  "serverMessages.sticker.imageRequired": "自分がアップロードした {maxSizeMb} MB 以下の画像または GIF を選択してください。",
+  "serverMessages.sticker.unavailable": "このスタンプは利用できません。"
 }

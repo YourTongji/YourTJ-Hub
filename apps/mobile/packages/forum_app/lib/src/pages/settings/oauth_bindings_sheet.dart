@@ -145,7 +145,7 @@ class _OAuthBindingsSheetState extends ConsumerState<OAuthBindingsSheet>
                 ),
                 IconButton(
                   onPressed: _busy ? null : _load,
-                  icon: const Icon(Icons.refresh),
+                  icon: const GfSymbol('refresh-cw'),
                   tooltip: l10n.commonRefresh,
                 ),
               ],
@@ -164,7 +164,7 @@ class _OAuthBindingsSheetState extends ConsumerState<OAuthBindingsSheet>
                     ('google', 'Google', widget.googleReady),
                   ])
                     GfSettingRow(
-                      icon: Icons.link,
+                      symbol: key,
                       title: name,
                       description: bindings[key]?.bound == true
                           ? l10n.settingsBound
@@ -188,7 +188,7 @@ class _OAuthBindingsSheetState extends ConsumerState<OAuthBindingsSheet>
                     width: double.infinity,
                     child: FilledButton.icon(
                       onPressed: _busy ? null : _connect,
-                      icon: const Icon(Icons.open_in_new),
+                      icon: const GfSymbol('external-link'),
                       label: Text(l10n.settingsOAuthOpenBrowser),
                     ),
                   ),

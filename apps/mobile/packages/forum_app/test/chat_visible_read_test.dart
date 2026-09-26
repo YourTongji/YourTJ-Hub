@@ -98,6 +98,7 @@ pumpChat(
   List<ChatMessagePayload>? messages,
   bool nested = false,
   List<ChatMessagePayload>? older,
+  StickerLibrary? stickers,
 }) async {
   await tester.binding.setSurfaceSize(const Size(390, 700));
   addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -124,6 +125,7 @@ pumpChat(
       chatRepositoryProvider.overrideWithValue(repo),
       offlineTopicCacheProvider.overrideWithValue(NoopCache()),
       offlineChatCacheProvider.overrideWithValue(NoopCache()),
+      if (stickers != null) stickerLibraryProvider.overrideWithValue(stickers),
     ],
   );
   addTearDown(container.dispose);

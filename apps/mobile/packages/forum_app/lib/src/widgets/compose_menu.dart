@@ -28,7 +28,7 @@ Future<void> showComposeMenu(
     context: context,
     barrierDismissible: true,
     barrierLabel: l10n.commonClose,
-    barrierColor: GfTheme.colorsOf(context).base100.withValues(alpha: .9),
+    barrierColor: Theme.of(context).colorScheme.scrim,
     transitionDuration: MediaQuery.disableAnimationsOf(context)
         ? Duration.zero
         : const Duration(milliseconds: 180),
@@ -57,19 +57,19 @@ Future<void> showComposeMenu(
                 children: [
                   for (final option in PublishType.values)
                     Padding(
-                      padding: const EdgeInsets.only(bottom: 16),
+                      padding: const EdgeInsets.only(bottom: 12),
                       child: Material(
                         color: GfTheme.colorsOf(context).base100,
-                        borderRadius: BorderRadius.circular(28),
+                        borderRadius: BorderRadius.circular(18),
                         elevation: 2,
                         shadowColor: Colors.black.withValues(alpha: .15),
                         child: InkWell(
                           key: ValueKey('compose-${option.value}'),
                           autofocus: option == PublishType.moment,
-                          borderRadius: BorderRadius.circular(28),
+                          borderRadius: BorderRadius.circular(18),
                           onTap: () => Navigator.pop(context, option),
                           child: Padding(
-                            padding: const EdgeInsets.fromLTRB(20, 6, 6, 6),
+                            padding: const EdgeInsets.fromLTRB(20, 10, 12, 10),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
@@ -82,7 +82,7 @@ Future<void> showComposeMenu(
                                   ),
                                 ),
                                 const SizedBox(width: 20),
-                                PublishTypeIcon(option, size: 44),
+                                PublishTypeIcon(option, size: 32),
                               ],
                             ),
                           ),

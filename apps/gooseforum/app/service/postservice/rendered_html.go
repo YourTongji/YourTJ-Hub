@@ -26,17 +26,21 @@ func renderPostHTML(content string, stickerURLs map[string]string) string {
 				slog.Warn("resolve sticker images failed", "error", err)
 			}
 		}
-		content = markdown2html.ExpandStickerTokens(content, func(name string) (string, bool) { value, ok := stickerURLs[name]; return value, ok })
 	}
-	usernames := markdown2html.ExtractUsernames(content)
-	if len(usernames) == 0 {
-		return markdown2html.PostMarkdownToHTML(content)
-	}
-	targets := users.GetMentionTargetIds(usernames)
-	if len(targets) == 0 {
-		return markdown2html.PostMarkdownToHTML(content)
-	}
-	return markdown2html.PostMarkdownToHTMLWithMentions(content, targets)
+	return markdown2html.RenderWithStickerTokens(content, func(name string) (string, bool) {
+		value, ok := stickerURLs[name]
+		return value, ok
+	}, func(expanded string) string {
+		usernames := markdown2html.ExtractUsernames(expanded)
+		if len(usernames) == 0 {
+			return markdown2html.PostMarkdownToHTML(expanded)
+		}
+		targets := users.GetMentionTargetIds(usernames)
+		if len(targets) == 0 {
+			return markdown2html.PostMarkdownToHTML(expanded)
+		}
+		return markdown2html.PostMarkdownToHTMLWithMentions(expanded, targets)
+	})
 }
 
 func EnsureRenderedHTMLBatch(entities []*posts.Entity) {

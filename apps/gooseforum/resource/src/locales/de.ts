@@ -2905,6 +2905,10 @@ export default {
     },
   },
   serverMessages: {
+    'sticker.libraryFull': "Deine Sammlung kann {limit} Sticker enthalten. Entferne zuerst einige.",
+    'sticker.uploadQuota': "Du hast das Limit von {limit} hochgeladenen Stickern erreicht. Gesendete Bilder bleiben für den Nachrichtenverlauf erhalten.",
+    'sticker.imageRequired': "Wähle ein selbst hochgeladenes Bild oder GIF mit höchstens {maxSizeMb} MB.",
+    'sticker.unavailable': "Dieser Sticker ist nicht verfügbar.",
 'common.captchaRequired': 'Vervollständige das Captcha, bevor du sendest.',
     'common.rateLimited': 'Zu viele Versuche. Versuche es in {retryAfterSeconds} Sekunden erneut.',
     'page.notFound': 'Die Seite existiert nicht oder wurde gelöscht.',

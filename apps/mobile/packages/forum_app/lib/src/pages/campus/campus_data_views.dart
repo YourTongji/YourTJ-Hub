@@ -201,7 +201,7 @@ class _CampusWeekTimetableState extends State<CampusWeekTimetable> {
             IconButton(
               tooltip: MaterialLocalizations.of(context).previousPageTooltip,
               onPressed: week > 1 ? () => _selectWeek(week - 1) : null,
-              icon: const Icon(Icons.chevron_left),
+              icon: const GfSymbol('chevron-left'),
             ),
             Text(
               l.scheduleWeekN(week),
@@ -212,7 +212,7 @@ class _CampusWeekTimetableState extends State<CampusWeekTimetable> {
               onPressed: week < widget.maxWeek
                   ? () => _selectWeek(week + 1)
                   : null,
-              icon: const Icon(Icons.chevron_right),
+              icon: const GfSymbol('chevron-right'),
             ),
             TextButton(
               onPressed: () => _selectWeek(widget.week),

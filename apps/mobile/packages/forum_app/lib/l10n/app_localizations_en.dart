@@ -288,6 +288,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get publishTitleField => 'Title';
 
   @override
+  String get publishAddTitle => 'Add title';
+
+  @override
   String get publishTitleHint => 'Enter title (5-100 chars)';
 
   @override
@@ -433,6 +436,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get profileTopics => 'Topics';
+
+  @override
+  String get profilePosts => 'Posts';
 
   @override
   String get profileReplies => 'Replies';
@@ -1239,7 +1245,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get wikiToc => 'Contents';
 
   @override
-  String get wikiNamespaces => 'Namespaces';
+  String get wikiNamespaces => 'Collections';
 
   @override
   String wikiViewCount(int count) {
@@ -2542,7 +2548,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get badgeDisplayHint =>
-      'Choose up to 5 badges and their order, or deselect all. Independent of your avatar badge.';
+      'Display up to 5 badges, or clear all. Separate from your avatar badge.';
 
   @override
   String get badgeDisplayUp => 'Move up';
@@ -2748,4 +2754,93 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get draftRestoreFailed =>
       'Could not restore the draft. Try Undo again.';
+
+  @override
+  String get settingsDataStorage => 'Data and storage';
+
+  @override
+  String get settingsProfileDisplay => 'Profile and display';
+
+  @override
+  String get settingsNotSet => 'Not set';
+
+  @override
+  String get settingsUnsavedTitle => 'Discard unsaved changes?';
+
+  @override
+  String get settingsUnsavedBody =>
+      'Your changes have not been saved. Leaving will discard them.';
+
+  @override
+  String get settingsKeepEditing => 'Keep editing';
+
+  @override
+  String get settingsDiscardChanges => 'Discard changes';
+
+  @override
+  String get settingsPushPreference => 'Allow push notifications';
+
+  @override
+  String get settingsPushDelivery => 'Delivery on this device';
+
+  @override
+  String get settingsPushReady => 'Ready to receive notifications';
+
+  @override
+  String get settingsPushOff => 'Not enabled';
+
+  @override
+  String get settingsPushIOSConsent =>
+      'Apple Push Notification service processes your device push identifier and notification content to deliver notifications.';
+
+  @override
+  String get settingsPushAndroidConsent =>
+      'JPush and your device manufacturer process your device push identifier and notification content to deliver notifications.';
+
+  @override
+  String get settingsDeviceUnknown => 'Other device';
+
+  @override
+  String get settingsDeviceCurrent => 'This device';
+
+  @override
+  String get badgeDisplayReorder => 'Drag to reorder';
+
+  @override
+  String badgeDisplaySelectedCount(int count) {
+    return 'Displayed $count/5';
+  }
+
+  @override
+  String get sortFollowing => 'Following';
+
+  @override
+  String get notificationsUnreadEmpty => 'You’re all caught up';
+
+  @override
+  String get notificationsUnreadEmptyDescription =>
+      'You have read all your notifications.';
+
+  @override
+  String get homeFeedOptions => 'Feed display';
+
+  @override
+  String get homeAllCategories => 'All categories';
+
+  @override
+  String get sortNew => 'Newest posts';
+
+  @override
+  String get profileRoleAdminDescription =>
+      'Helps maintain the community and keep the forum running.';
+
+  @override
+  String profileBadgeEarnedOn(String date) {
+    return 'Earned on $date';
+  }
+
+  @override
+  String settingsProfilePartialSave(String saved) {
+    return 'Saved: $saved. Your remaining changes are still here. Try saving again.';
+  }
 }

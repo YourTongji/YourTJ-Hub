@@ -11,6 +11,7 @@ import 'package:go_router/go_router.dart';
 import 'package:forum_app/l10n/app_localizations.dart';
 import 'package:forum_app/src/current_user.dart';
 import 'package:forum_app/src/pages/profile/profile_page.dart';
+import 'package:forum_app/src/private_notes.dart';
 import 'package:forum_app/src/providers.dart';
 import 'package:forum_app/src/router.dart';
 import 'package:forum_app/src/widgets/status_views.dart';
@@ -38,6 +39,7 @@ class _Profiles extends PageRepository {
         ),
       );
   final paths = <String>[];
+  final readTokens = <String, List<CancelToken?>>{};
   final failures = <String>{};
   void Function(String, Map<String, dynamic>)? configure;
   final pending = <String, Completer<PagePayload>>{};
@@ -92,6 +94,7 @@ class _Profiles extends PageRepository {
   @override
   Future<PagePayload> fetch(String path, {CancelToken? cancelToken}) async {
     paths.add(path);
+    readTokens.putIfAbsent(path, () => []).add(cancelToken);
     if (failures.contains(path)) throw StateError('unavailable');
     return pending[path]?.future ?? response(path);
   }
@@ -177,6 +180,7 @@ Future<ProviderContainer> _pump(
   TopicRepository? topics,
   bool settle = true,
   double scale = 1,
+  bool disableAnimations = false,
   CurrentUser? currentUser,
 }) async {
   final container = ProviderContainer(
@@ -190,7 +194,10 @@ Future<ProviderContainer> _pump(
   final app = router == null
       ? MaterialApp(
           home: MediaQuery(
-            data: MediaQueryData(textScaler: TextScaler.linear(scale)),
+            data: MediaQueryData(
+              textScaler: TextScaler.linear(scale),
+              disableAnimations: disableAnimations,
+            ),
             child: home,
           ),
           localizationsDelegates: AppLocalizations.localizationsDelegates,
@@ -230,29 +237,296 @@ void _select(WidgetTester tester, String label) {
 }
 
 void main() {
-  testWidgets('activity interaction footer fits narrow large-text screens', (
+  testWidgets('immersive cover shares its sliver with the complete avatar', (
     tester,
   ) async {
-    tester.view.physicalSize = const Size(320, 900);
+    tester.view.physicalSize = const Size(390, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
     await _pump(
       tester,
-      _Profiles()..configure = _contentFixture,
-      scale: 2,
-      currentUser: const CurrentUser(id: 1, username: 'alice'),
+      _Profiles(),
+      home: const MediaQuery(
+        data: MediaQueryData(
+          size: Size(390, 900),
+          padding: EdgeInsets.only(top: 47),
+        ),
+        child: ProfilePage(userId: 1),
+      ),
     );
-    await _showContent(tester, GfContentRow);
-    expect(tester.takeException(), isNull);
-    expect(
+    final cover = tester.getRect(find.byKey(const Key('profile-cover-image')));
+    final avatar = tester.getRect(
+      find.byWidgetPredicate((w) => w is GfAvatar && w.size == 88),
+    );
+    expect(cover.top, 0);
+    expect(cover.width, 390);
+    expect(cover.height, GfUserCard.coverHeightFor(390, topInset: 47));
+    expect(avatar.top, cover.bottom - 44);
+    expect(avatar.bottom, cover.bottom + 44);
+    final name = tester.getRect(
       find.descendant(
-        of: find.byType(GfContentRow),
-        matching: find.byIcon(Icons.favorite_border),
+        of: find.byType(GfUserCard),
+        matching: find.text('Alice'),
+      ),
+    );
+    expect(name.top - cover.bottom, 56);
+    expect(name.top - avatar.bottom - 4, 8);
+    expect(
+      find.ancestor(
+        of: find.byWidgetPredicate((w) => w is GfAvatar && w.size == 88),
+        matching: find.byType(SliverAppBar),
       ),
       findsOneWidget,
     );
+    expect(find.byType(GfGlassSurface), findsWidgets);
+    expect(
+      tester
+          .widget<AppRefreshIndicator>(find.byType(AppRefreshIndicator))
+          .edgeOffset,
+      103,
+    );
+    final appBar = tester.widget<AppBar>(find.byType(AppBar));
+    expect(
+      find.descendant(of: find.byWidget(appBar), matching: find.text('Alice')),
+      findsNothing,
+    );
+    expect(tester.takeException(), isNull);
   });
+
+  testWidgets('own profile keeps edit target clear at 320px and 2x text', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(320, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await _pump(
+      tester,
+      _Profiles(),
+      scale: 2,
+      home: Theme(
+        data: gfThemeData(Brightness.light),
+        child: const ProfilePage(userId: 1),
+      ),
+    );
+    final name = tester.getRect(
+      find.descendant(
+        of: find.byType(GfUserCard),
+        matching: find.text('Alice'),
+      ),
+    );
+    final avatar = tester.getRect(
+      find.byWidgetPredicate(
+        (widget) => widget is GfAvatar && widget.size == 88,
+      ),
+    );
+    final edit = tester.getRect(
+      find.descendant(
+        of: find.byType(GfUserCardHeader),
+        matching: find.byType(OutlinedButton),
+      ),
+    );
+    expect(edit.height, greaterThanOrEqualTo(44));
+    expect(name.top, greaterThanOrEqualTo(avatar.bottom + 4 + 8));
+    expect(name.top, greaterThanOrEqualTo(edit.bottom + 4 - .01));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('collapsed profile reveals title with tabs below the toolbar', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await _pump(
+      tester,
+      _Profiles(),
+      home: const MediaQuery(
+        data: MediaQueryData(
+          size: Size(390, 900),
+          padding: EdgeInsets.only(top: 47),
+        ),
+        child: ProfilePage(userId: 1),
+      ),
+    );
+    await tester.drag(find.byType(CustomScrollView), const Offset(0, -650));
+    await tester.pumpAndSettle();
+    expect(
+      find.descendant(of: find.byType(AppBar), matching: find.text('Alice')),
+      findsOneWidget,
+    );
+    expect(find.byType(GfGlassSurface), findsNothing);
+    expect(tester.getRect(find.byTooltip('动态')).top, greaterThanOrEqualTo(103));
+    _select(tester, '徽章');
+    await tester.pumpAndSettle();
+    expect(tester.getRect(find.byTooltip('徽章')).top, greaterThanOrEqualTo(103));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'collapsed iOS profile title and count align beside the back button',
+    (tester) async {
+      tester.view.physicalSize = const Size(390, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final router = GoRouter(
+        routes: [
+          GoRoute(
+            path: '/',
+            builder: (_, _) => const Scaffold(body: Text('origin')),
+          ),
+          GoRoute(
+            path: '/profile',
+            builder: (_, _) => Theme(
+              data: gfThemeData(
+                Brightness.light,
+              ).copyWith(platform: TargetPlatform.iOS),
+              child: const ProfilePage(userId: 1),
+            ),
+          ),
+        ],
+      );
+      addTearDown(router.dispose);
+      await _pump(tester, _Profiles(), router: router);
+      router.push('/profile');
+      await tester.pumpAndSettle();
+      expect(find.byType(GfGlassSurface), findsWidgets);
+      expect(
+        find.descendant(of: find.byType(AppBar), matching: find.text('Alice')),
+        findsNothing,
+      );
+      await tester.drag(find.byType(CustomScrollView), const Offset(0, -650));
+      await tester.pumpAndSettle();
+      final name = tester.getRect(
+        find.descendant(of: find.byType(AppBar), matching: find.text('Alice')),
+      );
+      final count = tester.getRect(
+        find.descendant(of: find.byType(AppBar), matching: find.text('5 主题')),
+      );
+      final back = tester.getRect(find.byTooltip('返回'));
+      expect(name.left - back.right, inInclusiveRange(0, 12));
+      expect(count.left, closeTo(name.left, .01));
+      expect(count.top, greaterThanOrEqualTo(name.bottom));
+      expect(back.width, greaterThanOrEqualTo(44));
+      expect(back.height, greaterThanOrEqualTo(44));
+      expect(find.byType(GfGlassSurface), findsNothing);
+      await tester.tap(find.byTooltip('返回'));
+      await tester.pumpAndSettle();
+      expect(router.state.uri.path, '/');
+      expect(find.text('origin'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  for (final following in [false, true]) {
+    testWidgets(
+      'peer profile keeps wrapped actions above identity at 320px and 2x text (following=$following)',
+      (tester) async {
+        tester.view.physicalSize = const Size(320, 1000);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        final repo = _Profiles()
+          ..configure = (_, props) {
+            props.addAll(
+              peerProfilePayloadJson()['props'] as Map<String, dynamic>,
+            );
+            (props['user'] as Map<String, dynamic>)['isFollowing'] = following;
+          };
+        await _pump(
+          tester,
+          repo,
+          scale: 2,
+          currentUser: const CurrentUser(id: 1, username: 'alice'),
+          home: Theme(
+            data: gfThemeData(Brightness.light),
+            child: const PrivateNotesScope(
+              ownerId: 1,
+              notes: {},
+              child: ProfilePage(userId: 2),
+            ),
+          ),
+        );
+        final header = tester.getRect(find.byType(GfUserCardHeader));
+        final name = tester.getRect(
+          find.descendant(
+            of: find.byType(GfUserCard),
+            matching: find.text('Bob'),
+          ),
+        );
+        final l10n = AppLocalizations.of(
+          tester.element(find.byType(ProfilePage)),
+        );
+        final actions = [
+          tester.getRect(find.byType(PrivateNoteButton)),
+          tester.getRect(find.byType(GfFollowButton)),
+          tester.getRect(find.byTooltip(l10n.messagesNew)),
+        ];
+        expect(actions.map((rect) => rect.top).toSet().length, greaterThan(1));
+        for (final action in actions) {
+          expect(action.width, greaterThanOrEqualTo(44));
+          expect(action.height, greaterThanOrEqualTo(44));
+          expect(action.bottom, lessThanOrEqualTo(header.bottom));
+          expect(action.bottom, lessThanOrEqualTo(name.top - 4));
+        }
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
+  for (final (width, scale) in [(390.0, 1.0), (320.0, 2.0)]) {
+    testWidgets(
+      'activity actions align together beneath the body at $width/$scale',
+      (tester) async {
+        tester.view.physicalSize = Size(width, 900);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        await _pump(
+          tester,
+          _Profiles()..configure = _contentFixture,
+          scale: scale,
+          currentUser: const CurrentUser(id: 1, username: 'alice'),
+        );
+        await _showContent(tester, GfContentRow);
+        expect(tester.takeException(), isNull);
+        final row = find.byType(GfContentRow).first;
+        final body = tester.getRect(
+          find.descendant(of: row, matching: find.text('activity-0')),
+        );
+        final like = tester.getRect(
+          find.descendant(of: row, matching: find.byTooltip('点赞')),
+        );
+        final bookmark = tester.getRect(
+          find.descendant(
+            of: row,
+            matching: find.byWidgetPredicate(
+              (widget) => widget is IconButton && widget.tooltip == '收藏',
+            ),
+          ),
+        );
+        expect(like.left, body.left);
+        expect(bookmark.left - like.right, closeTo(8, .01));
+        expect(bookmark.center.dy, like.center.dy);
+        expect(like.top, greaterThanOrEqualTo(body.bottom));
+        for (final target in [like, bookmark]) {
+          expect(target.width, greaterThanOrEqualTo(44));
+          expect(target.height, greaterThanOrEqualTo(44));
+        }
+        expect(like.overlaps(bookmark), isFalse);
+        expect(
+          find.descendant(
+            of: find.byType(GfContentRow),
+            matching: find.byWidgetPredicate(
+              (widget) => widget is GfSymbol && widget.name == 'heart',
+            ),
+          ),
+          findsOneWidget,
+        );
+      },
+    );
+  }
 
   for (final fail in [false, true]) {
     testWidgets(
@@ -379,14 +653,19 @@ void main() {
       await tester.pumpAndSettle();
       final row = find.byType(GfContentRow).first;
       expect(
-        find.descendant(of: row, matching: find.byIcon(Icons.favorite)),
+        find.descendant(
+          of: row,
+          matching: find.byWidgetPredicate(
+            (widget) => widget is GfSymbol && widget.name == 'heart-filled',
+          ),
+        ),
         findsOneWidget,
       );
       expect(
         find.descendant(of: row, matching: find.text('4')),
         findsOneWidget,
       );
-      _select(tester, '主题');
+      _select(tester, '内容');
       await tester.pumpAndSettle();
       expect(
         tester.widget<GfTopicCard>(find.byType(GfTopicCard).first).bookmarked,
@@ -437,11 +716,13 @@ void main() {
       expect(
         find.descendant(
           of: find.byType(GfContentRow).first,
-          matching: find.byIcon(Icons.favorite),
+          matching: find.byWidgetPredicate(
+            (widget) => widget is GfSymbol && widget.name == 'heart-filled',
+          ),
         ),
         findsOneWidget,
       );
-      _select(tester, '主题');
+      _select(tester, '内容');
       await tester.pumpAndSettle();
       await _showContent(tester, GfTopicCard);
       expect(
@@ -738,17 +1019,95 @@ void main() {
     },
   );
 
-  testWidgets('profile inactive tabs retain visible text', (tester) async {
-    await _pump(tester, _Profiles());
-    expect(
-      find.descendant(of: find.byTooltip('主题'), matching: find.text('主题')),
-      findsOneWidget,
+  testWidgets(
+    'profile tabs expand only the selected label and retain tooltips',
+    (tester) async {
+      await _pump(tester, _Profiles());
+      void expectLabel(String label, {required bool expanded}) {
+        final tab = find.byTooltip(label);
+        expect(tab, findsOneWidget);
+        expect(
+          find.descendant(of: tab, matching: find.byType(GfSymbol)),
+          findsOneWidget,
+        );
+        final opacity = find.descendant(
+          of: tab,
+          matching: find.byType(AnimatedOpacity),
+        );
+        expect(
+          tester.widget<AnimatedOpacity>(opacity).opacity,
+          expanded ? 1 : 0,
+        );
+        final clip = find.descendant(of: tab, matching: find.byType(ClipRect));
+        expect(tester.getSize(clip).width, expanded ? greaterThan(0) : 0);
+        final cell = find.descendant(of: tab, matching: find.byType(InkWell));
+        expect(tester.getSize(cell).width, greaterThanOrEqualTo(48));
+        expect(tester.getSize(cell).height, greaterThanOrEqualTo(48));
+      }
+
+      expectLabel('动态', expanded: true);
+      for (final label in ['内容', '赞过', '收藏', '徽章']) {
+        expectLabel(label, expanded: false);
+      }
+      _select(tester, '内容');
+      await tester.pumpAndSettle();
+      expectLabel('动态', expanded: false);
+      expectLabel('内容', expanded: true);
+    },
+  );
+
+  testWidgets('profile tab selection respects reduced motion', (tester) async {
+    await _pump(tester, _Profiles(), disableAnimations: true);
+    _select(tester, '赞过');
+    await tester.pump();
+    final indicator = find.byKey(const ValueKey('profile-tab-indicator'));
+    final selected = find.byKey(const ValueKey('profile-tab-active-segment'));
+    final rect = tester.getRect(indicator);
+    expect(rect.center.dx, closeTo(tester.getRect(selected).center.dx, .1));
+    await tester.pump(const Duration(milliseconds: 110));
+    expect(tester.getRect(indicator), rect);
+    final opacity = tester.widget<AnimatedOpacity>(
+      find.descendant(
+        of: find.byTooltip('赞过'),
+        matching: find.byType(AnimatedOpacity),
+      ),
     );
-    expect(
-      find.descendant(of: find.byTooltip('赞过'), matching: find.text('赞过')),
-      findsOneWidget,
-    );
+    expect(opacity.duration, Duration.zero);
+    expect(opacity.opacity, 1);
+    expect(tester.takeException(), isNull);
   });
+
+  testWidgets(
+    'profile tab segments stay contiguous as the active segment moves',
+    (tester) async {
+      await _pump(tester, _Profiles());
+      const labels = ['动态', '内容', '赞过', '收藏', '徽章'];
+      Finder cell(String label) => find
+          .descendant(of: find.byTooltip(label), matching: find.byType(InkWell))
+          .first;
+      void expectNoGaps() {
+        final rects = [for (final label in labels) tester.getRect(cell(label))];
+        for (var i = 0; i < rects.length - 1; i++) {
+          expect(rects[i].right, closeTo(rects[i + 1].left, .1));
+        }
+      }
+
+      expectNoGaps();
+      final segment = find.byKey(const ValueKey('profile-tab-active-segment'));
+      final underline = find.byKey(const ValueKey('profile-tab-indicator'));
+      final start = tester.getRect(segment).center.dx;
+      expect(tester.getRect(underline).width, greaterThan(40));
+
+      _select(tester, '赞过');
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 110));
+      expectNoGaps();
+      final halfway = tester.getRect(segment).center.dx;
+      expect(halfway, greaterThan(start));
+      await tester.pumpAndSettle();
+      expect(tester.getRect(segment).center.dx, greaterThan(halfway));
+    },
+  );
 
   testWidgets(
     'profile tabs support keyboard activation and selected semantics',
@@ -799,7 +1158,38 @@ void main() {
   );
 
   testWidgets(
-    'profile slow inactive stream completes without replacing active stream',
+    'unloaded profile stream keeps the immersive header above its skeleton',
+    (tester) async {
+      final repo = _Profiles();
+      final pending = Completer<PagePayload>();
+      repo.pending['/u/1/activity/likes'] = pending;
+      await _pump(tester, repo);
+      final cover = tester.getRect(
+        find.byKey(const Key('profile-cover-image')),
+      );
+      final card = tester.getRect(find.byType(GfUserCard));
+      _select(tester, '赞过');
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 250));
+      expect(
+        tester.getRect(find.byKey(const Key('profile-cover-image'))),
+        cover,
+      );
+      expect(tester.getRect(find.byType(GfUserCard)), card);
+      expect(find.byType(GfGlassSurface), findsWidgets);
+      expect(find.byTooltip('赞过'), findsOneWidget);
+      expect(find.byType(GfSkeleton), findsWidgets);
+      expect(find.byType(GfLoadingIndicator), findsNothing);
+      expect(find.text('like-0'), findsNothing);
+      pending.complete(repo.response('/u/1/activity/likes'));
+      await tester.pumpAndSettle();
+      expect(find.byType(GfSkeleton), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'leaving the profile cancels the active read and ignores its completion',
     (tester) async {
       final repo = _Profiles();
       final pending = Completer<PagePayload>();
@@ -807,14 +1197,93 @@ void main() {
       await _pump(tester, repo);
       _select(tester, '赞过');
       await tester.pump();
-      _select(tester, '主题');
+      final token = repo.readTokens['/u/1/activity/likes']!.single!;
+      await tester.pumpWidget(const SizedBox.shrink());
+      expect(token.isCancelled, isTrue);
+      pending.complete(repo.response('/u/1/activity/likes'));
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  for (final loaded in [false, true]) {
+    testWidgets(
+      'profile notification action returns to the existing shell branch (loaded=$loaded)',
+      (tester) async {
+        final repo = _Profiles();
+        final pending = Completer<PagePayload>();
+        if (!loaded) repo.pending['/u/1/activity'] = pending;
+        final router = GoRouter(
+          initialLocation: '/notifications',
+          routes: [
+            StatefulShellRoute.indexedStack(
+              builder: (_, _, shell) => Scaffold(body: shell),
+              branches: [
+                StatefulShellBranch(
+                  routes: [
+                    GoRoute(
+                      path: '/notifications',
+                      builder: (_, _) => const Text('notification branch'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            GoRoute(path: '/profile', builder: (_, _) => const ProfilePage()),
+          ],
+        );
+        addTearDown(router.dispose);
+        await _pump(
+          tester,
+          repo,
+          router: router,
+          currentUser: const CurrentUser(id: 1, username: 'alice'),
+        );
+        router.push('/profile');
+        if (loaded) {
+          await tester.pumpAndSettle();
+          expect(find.byType(GfGlassIconButton), findsWidgets);
+        } else {
+          for (var i = 0; i < 5; i++) {
+            await tester.pump(const Duration(milliseconds: 100));
+          }
+        }
+        await tester.tap(find.byTooltip('通知'));
+        await tester.pumpAndSettle();
+        expect(router.state.uri.path, '/notifications');
+        expect(router.canPop(), isFalse);
+        expect(find.byType(ProfilePage), findsNothing);
+        expect(find.text('notification branch'), findsOneWidget);
+        if (!loaded) {
+          expect(repo.readTokens['/u/1/activity']!.single!.isCancelled, isTrue);
+          pending.complete(repo.response('/u/1/activity'));
+          await tester.pump();
+        }
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
+  testWidgets(
+    'profile cancels an inactive read and reloads it without accepting its late response',
+    (tester) async {
+      final repo = _Profiles();
+      final pending = Completer<PagePayload>();
+      repo.pending['/u/1/activity/likes'] = pending;
+      await _pump(tester, repo);
+      _select(tester, '赞过');
+      await tester.pump();
+      final cancelledRead = repo.readTokens['/u/1/activity/likes']!.single!;
+      expect(cancelledRead.isCancelled, isFalse);
+      _select(tester, '内容');
       await tester.pumpAndSettle();
+      expect(cancelledRead.isCancelled, isTrue);
       pending.complete(repo.response('/u/1/activity/likes'));
       await tester.pumpAndSettle();
       expect(find.text('like-0'), findsNothing);
       _select(tester, '赞过');
       await tester.pumpAndSettle();
-      expect(repo.paths.where((path) => path.endsWith('/likes')), hasLength(1));
+      expect(repo.paths.where((path) => path.endsWith('/likes')), hasLength(2));
       tester
           .widget<CustomScrollView>(find.byType(CustomScrollView))
           .controller!
@@ -896,7 +1365,7 @@ void main() {
   );
 
   testWidgets(
-    'connection pagination completes in its own tab and survives switching back',
+    'connection pagination is cancelled when hidden and resumes from its retained cursor',
     (tester) async {
       final repo = _Profiles()
         ..configure = (path, props) {
@@ -930,8 +1399,10 @@ void main() {
         settle: false,
       );
       expect(repo.paths, contains('/u/1/following?page=2'));
+      final cancelledPage = repo.readTokens['/u/1/following?page=2']!.single!;
       _select(tester, '粉丝');
       await tester.pumpAndSettle();
+      expect(cancelledPage.isCancelled, isTrue);
       pending.complete(repo.response('/u/1/following?page=2'));
       await tester.pumpAndSettle();
       expect(find.text('Dan'), findsNothing);
@@ -941,7 +1412,7 @@ void main() {
       expect(find.text('Dan'), findsOneWidget);
       expect(
         repo.paths.where((p) => p.startsWith('/u/1/following')),
-        hasLength(2),
+        hasLength(3),
       );
     },
   );
@@ -1027,12 +1498,14 @@ void main() {
       _select(tester, '赞过');
       await tester.pump();
       final old = repo.response('/u/1/activity/likes');
+      final oldRead = repo.readTokens['/u/1/activity/likes']!.single!;
       repo.pending.clear();
       repo.configure = (_, props) {
         props['likes'] = [];
       };
       container.read(offlineCacheEpochProvider.notifier).invalidate();
       await tester.pumpAndSettle();
+      expect(oldRead.isCancelled, isTrue);
       pending.complete(old);
       await tester.pumpAndSettle();
       tester
@@ -1053,6 +1526,7 @@ void main() {
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
       await _pump(tester, _Profiles(), scale: 2);
+      expect(tester.takeException(), isNull);
       expect(
         tester.getSize(find.byType(CustomScrollView)).width,
         lessThanOrEqualTo(760),

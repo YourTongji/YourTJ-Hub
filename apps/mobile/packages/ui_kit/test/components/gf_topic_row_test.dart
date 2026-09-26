@@ -44,7 +44,12 @@ void main() {
         expect(find.text('校园生活'), findsOneWidget);
         expect(find.text('3 小时前'), findsOneWidget);
         expect(find.text('42'), findsOneWidget);
-        expect(find.byIcon(Icons.chat_bubble_outline), findsOneWidget);
+        expect(
+          find.byWidgetPredicate(
+            (widget) => widget is GfSymbol && widget.name == 'message-circle',
+          ),
+          findsOneWidget,
+        );
       });
     });
 
@@ -121,8 +126,18 @@ void main() {
       expect(find.text('校园生活'), findsOneWidget);
       expect(find.text('42'), findsOneWidget);
       expect(find.text('128'), findsOneWidget);
-      expect(find.byIcon(Icons.chat_bubble_outline), findsOneWidget);
-      expect(find.byIcon(Icons.visibility_outlined), findsOneWidget);
+      expect(
+        find.byWidgetPredicate(
+          (widget) => widget is GfSymbol && widget.name == 'message-circle',
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.byWidgetPredicate(
+          (widget) => widget is GfSymbol && widget.name == 'eye',
+        ),
+        findsOneWidget,
+      );
     });
   });
 }

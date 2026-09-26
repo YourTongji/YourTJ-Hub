@@ -3,13 +3,15 @@ import 'package:flutter/material.dart';
 import '../theme/gf_theme.dart';
 import 'atoms/gf_avatar_stack.dart';
 import 'gf_chip.dart';
+import 'gf_symbol.dart';
 
 /// Category metadata for [GfTopicRow].
 class GfTopicCategory {
-  const GfTopicCategory({required this.name, required this.color});
+  const GfTopicCategory({required this.name, required this.color, this.onTap});
 
   final String name;
   final Color color;
+  final VoidCallback? onTap;
 }
 
 /// Topic list row mirroring web `TopicRow.vue` / `.gf-topic-row`
@@ -135,7 +137,11 @@ class GfTopicRow extends StatelessWidget {
                     ),
                   ),
                 for (final GfTopicCategory category in categories)
-                  GfChip(label: category.name, color: category.color),
+                  GfChip(
+                    label: category.name,
+                    color: category.color,
+                    onTap: category.onTap,
+                  ),
               ],
             ),
             if (description.isNotEmpty)
@@ -171,8 +177,8 @@ class GfTopicRow extends StatelessWidget {
                     ),
                   ),
                   const Spacer(),
-                  Icon(
-                    Icons.chat_bubble_outline,
+                  GfSymbol(
+                    'message-circle',
                     size: 14,
                     color: colors.baseContent.withValues(alpha: 0.55),
                   ),

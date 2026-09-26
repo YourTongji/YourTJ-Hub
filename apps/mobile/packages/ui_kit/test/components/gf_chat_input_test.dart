@@ -21,7 +21,7 @@ void main() {
         ),
       ),
     );
-    await tester.tap(find.text('Send'));
+    await tester.tap(find.byTooltip('Send'));
     expect(sent, ['pending']);
     expect(controller.text, 'pending');
   });
@@ -74,7 +74,7 @@ void main() {
         ),
       ),
     );
-    await tester.tap(find.text('Send'));
+    await tester.tap(find.byTooltip('Send'));
     expect(sent, ['first']);
     expect(controller.text, 'next draft');
   });
@@ -98,7 +98,7 @@ void main() {
       await tester.pumpWidget(
         gfApp(GfChatInput(controller: next, onSend: (_) {})),
       );
-      await tester.tap(find.byIcon(Icons.emoji_emotions_outlined));
+      await tester.tap(find.byTooltip('Emoji'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('😀'));
       expect(next.text, '输入😀内容');
@@ -147,7 +147,7 @@ void main() {
       gfApp(GfChatInput(controller: controller, onSend: (_) {})),
     );
     controller.selection = const TextSelection(baseOffset: 6, extentOffset: 11);
-    await tester.tap(find.byIcon(Icons.emoji_emotions_outlined));
+    await tester.tap(find.byTooltip('Emoji'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('😀'));
     expect(controller.text, 'hello 😀');
@@ -164,10 +164,10 @@ void main() {
       await tester.tap(find.byType(TextField));
       await tester.pump();
       expect(tester.testTextInput.isVisible, isTrue);
-      await tester.tap(find.byIcon(Icons.emoji_emotions_outlined));
+      await tester.tap(find.byTooltip('Emoji'));
       await tester.pumpAndSettle();
       expect(tester.testTextInput.isVisible, isFalse);
-      await tester.tap(find.byIcon(Icons.keyboard_alt_outlined));
+      await tester.tap(find.byTooltip('Keyboard'));
       await tester.pumpAndSettle();
       expect(tester.testTextInput.isVisible, isTrue);
       expect(find.text('😀'), findsNothing);
@@ -184,9 +184,103 @@ void main() {
         GfChatInput(controller: controller, enabled: false, onSend: (_) {}),
       ),
     );
-    await tester.tap(find.byIcon(Icons.emoji_emotions_outlined));
+    await tester.tap(find.byTooltip('Emoji'));
     await tester.pumpAndSettle();
     expect(find.text('😀'), findsNothing);
     expect(controller.text, 'draft');
+  });
+
+  testWidgets('chat uses one capsule with independent 44 pixel controls', (
+    tester,
+  ) async {
+    final controller = TextEditingController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(
+      gfApp(
+        SizedBox(
+          width: 360,
+          child: GfChatInput(
+            controller: controller,
+            hintText: 'Message',
+            onAttach: () {},
+            attachLabel: 'Attach',
+            onSend: (_) {},
+          ),
+        ),
+      ),
+    );
+    final surface = tester.widget<AnimatedContainer>(
+      find.byKey(const Key('chat-input-surface')),
+    );
+    expect(
+      (surface.decoration! as BoxDecoration).borderRadius,
+      BorderRadius.circular(24),
+    );
+    final field = tester.widget<TextField>(find.byType(TextField));
+    expect(field.minLines, 1);
+    expect(field.maxLines, 4);
+    expect(field.decoration!.filled, isFalse);
+    final originalHeight = tester
+        .getSize(find.byKey(const Key('chat-input-surface')))
+        .height;
+    for (final label in ['Attach', 'Emoji', 'Send']) {
+      expect(tester.getSize(find.byTooltip(label)), const Size(44, 44));
+    }
+    expect(tester.getRect(find.byType(TextField)).width, greaterThan(150));
+    expect(
+      tester.widget<IconButton>(find.byKey(const Key('chat-send'))).onPressed,
+      isNull,
+    );
+    await tester.enterText(
+      find.byType(TextField),
+      'first line\nsecond line\nthird line',
+    );
+    await tester.pumpAndSettle();
+    expect(
+      tester.getSize(find.byKey(const Key('chat-input-surface'))).height,
+      greaterThan(originalHeight),
+    );
+    expect(
+      tester.widget<IconButton>(find.byKey(const Key('chat-send'))).onPressed,
+      isNotNull,
+    );
+    expect(controller.text, contains('second line'));
+  });
+
+  testWidgets('all chat controls fit 320 pixels with enlarged text', (
+    tester,
+  ) async {
+    await forEachBrightness(tester, (tester, brightness) async {
+      await tester.pumpWidget(
+        gfApp(
+          MediaQuery(
+            data: const MediaQueryData(
+              size: Size(320, 500),
+              textScaler: TextScaler.linear(2),
+            ),
+            child: SizedBox(
+              width: 320,
+              child: GfChatInput(
+                onAttach: () {},
+                attachLabel: 'Bild hinzufügen',
+                sendLabel: 'Nachricht senden',
+                onSend: (_) {},
+              ),
+            ),
+          ),
+          brightness: brightness,
+        ),
+      );
+      await tester.enterText(find.byType(TextField), 'A large text draft');
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      final composer = tester.getRect(find.byType(GfChatInput));
+      for (final key in ['chat-attach', 'chat-accessory-toggle', 'chat-send']) {
+        final rect = tester.getRect(find.byKey(Key(key)));
+        expect(rect.width, 44);
+        expect(rect.height, 44);
+        expect(composer.contains(rect.center), isTrue);
+      }
+    });
   });
 }

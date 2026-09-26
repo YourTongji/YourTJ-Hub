@@ -5,6 +5,57 @@ import 'package:ui_kit/ui_kit.dart';
 import '../helpers.dart';
 
 void main() {
+  testWidgets(
+    'open bottom sheet follows live theme without losing its handle',
+    (tester) async {
+      final brightness = ValueNotifier(Brightness.light);
+      addTearDown(brightness.dispose);
+      late BuildContext page;
+      await tester.pumpWidget(
+        ValueListenableBuilder(
+          valueListenable: brightness,
+          builder: (_, value, _) => MaterialApp(
+            theme: gfThemeData(value),
+            home: Scaffold(
+              body: Builder(
+                builder: (context) {
+                  page = context;
+                  return const SizedBox();
+                },
+              ),
+            ),
+          ),
+        ),
+      );
+      showGfBottomSheet<void>(
+        page,
+        height: 200,
+        builder: (_) => const SizedBox(key: Key('theme-sheet-content')),
+      );
+      await tester.pumpAndSettle();
+      final content = find.byKey(const Key('theme-sheet-content'));
+      final surface = find.ancestor(
+        of: content,
+        matching: find.byType(Material),
+      );
+      expect(
+        tester.widget<Material>(surface.first).color,
+        GfColors.light.base100,
+      );
+      final bounds = tester.getRect(surface.first);
+      expect(tester.getTopLeft(content).dy - bounds.top, 28);
+      brightness.value = Brightness.dark;
+      await tester.pumpAndSettle();
+      expect(
+        tester.widget<Material>(surface.first).color,
+        GfColors.dark.base100,
+      );
+      expect(Theme.of(tester.element(content)).brightness, Brightness.dark);
+      expect(tester.getRect(surface.first), bounds);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   group('GfCard / GfCardList', () {
     testWidgets('mobile card draws divider, emphasized adds shadow', (
       tester,
@@ -266,10 +317,18 @@ void main() {
             .first,
       );
       expect(content.height, 100);
-      expect(content.top, panel.top, reason: 'No notch padding inside a sheet');
+      expect(
+        content.top,
+        panel.top + 28,
+        reason: 'Only the shared drag handle precedes content',
+      );
       expect(content.bottom, 844 - 34);
       expect(panel.bottom, 844, reason: 'Surface paints behind home indicator');
-      expect(panel.height, 134, reason: 'No default 240px empty panel');
+      expect(
+        panel.height,
+        162,
+        reason: 'Content, drag handle and bottom safe area only',
+      );
       expect(tester.takeException(), isNull);
     });
 
@@ -315,7 +374,7 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      expect(tester.getTopLeft(find.text('Pick class')).dy, 59 + 16);
+      expect(tester.getTopLeft(find.text('Pick class')).dy, 59 + 28 + 16);
       expect(tester.getBottomLeft(find.byType(ListView)).dy, 844 - 34);
       await tester.scrollUntilVisible(find.text('Class 29'), 300);
       await tester.tap(find.text('Class 29'));
@@ -393,7 +452,7 @@ void main() {
           ),
         );
         await tester.pumpAndSettle();
-        expect(tester.getTopLeft(find.text('Review')).dy, 59);
+        expect(tester.getTopLeft(find.text('Review')).dy, 59 + 28);
         expect(
           tester.getBottomLeft(find.byKey(const Key('save'))).dy,
           844 - 336,
