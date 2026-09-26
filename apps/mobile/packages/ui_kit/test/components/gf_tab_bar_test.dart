@@ -79,5 +79,61 @@ void main() {
       expect(find.byType(SingleChildScrollView), findsNothing);
       expect(find.byType(Wrap), findsOneWidget);
     });
+
+    testWidgets('indicator moves continuously to the newly selected tab', (
+      tester,
+    ) async {
+      late StateSetter update;
+      Object selected = 'latest';
+      await tester.pumpWidget(
+        gfApp(
+          StatefulBuilder(
+            builder: (context, setState) {
+              update = setState;
+              return GfTabBar(
+                tabs: tabs,
+                selected: selected,
+                onSelected: (_) {},
+              );
+            },
+          ),
+        ),
+      );
+      final indicator = find.byKey(const ValueKey('gf-tab-indicator'));
+      final start = tester.getTopLeft(indicator).dx;
+      update(() => selected = 'digest');
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 110));
+      final middle = tester.getTopLeft(indicator).dx;
+      await tester.pumpAndSettle();
+      final end = tester.getTopLeft(indicator).dx;
+      expect(middle, greaterThan(start));
+      expect(middle, lessThan(end));
+    });
+
+    testWidgets('reduced motion disables the underline and label transitions', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        gfApp(
+          MediaQuery(
+            data: const MediaQueryData(disableAnimations: true),
+            child: GfTabBar(tabs: tabs, selected: 'hot', onSelected: (_) {}),
+          ),
+        ),
+      );
+      final indicator = tester.widget<AnimatedPositionedDirectional>(
+        find.byKey(const ValueKey('gf-tab-indicator')),
+      );
+      expect(indicator.duration, Duration.zero);
+      final labels = tester.widgetList<AnimatedDefaultTextStyle>(
+        find.descendant(
+          of: find.byType(GfTabBar),
+          matching: find.byType(AnimatedDefaultTextStyle),
+        ),
+      );
+      expect(labels.every((label) => label.duration == Duration.zero), isTrue);
+      expect(tester.takeException(), isNull);
+    });
   });
 }

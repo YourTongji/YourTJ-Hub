@@ -442,6 +442,9 @@ class AppLocalizationsDe extends AppLocalizations {
   String get profileTopics => 'Themen';
 
   @override
+  String get profilePosts => 'Beiträge';
+
+  @override
   String get profileReplies => 'Antworten';
 
   @override
@@ -2850,7 +2853,7 @@ class AppLocalizationsDe extends AppLocalizations {
       'Du hast alle Mitteilungen gelesen.';
 
   @override
-  String get homeFeedOptions => 'Kategorien und Ansicht';
+  String get homeFeedOptions => 'Darstellung';
 
   @override
   String get homeAllCategories => 'Alle Kategorien';

@@ -2117,7 +2117,7 @@ class _PostCard extends StatelessWidget {
               return Row(
                 children: [
                   Expanded(child: timestamp),
-                  actions,
+                  Flexible(fit: FlexFit.loose, child: actions),
                 ],
               );
             },

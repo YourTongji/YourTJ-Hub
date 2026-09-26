@@ -234,6 +234,7 @@
   "profileFollow": "Follow",
   "profileFollowing": "Following",
   "profileTopics": "Topics",
+  "profilePosts": "Posts",
   "profileReplies": "Replies",
   "profileLikedPosts": "Likes",
   "profileLikes": "Likes",
@@ -1332,7 +1333,7 @@
   "sortFollowing": "Following",
   "notificationsUnreadEmpty": "You’re all caught up",
   "notificationsUnreadEmptyDescription": "You have read all your notifications.",
-  "homeFeedOptions": "Categories and view",
+  "homeFeedOptions": "Feed display",
   "@badgeDisplaySelectedCount": {
     "placeholders": {
       "count": {

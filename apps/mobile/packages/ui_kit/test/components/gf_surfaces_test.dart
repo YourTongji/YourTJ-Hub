@@ -5,6 +5,57 @@ import 'package:ui_kit/ui_kit.dart';
 import '../helpers.dart';
 
 void main() {
+  testWidgets(
+    'open bottom sheet follows live theme without losing its handle',
+    (tester) async {
+      final brightness = ValueNotifier(Brightness.light);
+      addTearDown(brightness.dispose);
+      late BuildContext page;
+      await tester.pumpWidget(
+        ValueListenableBuilder(
+          valueListenable: brightness,
+          builder: (_, value, _) => MaterialApp(
+            theme: gfThemeData(value),
+            home: Scaffold(
+              body: Builder(
+                builder: (context) {
+                  page = context;
+                  return const SizedBox();
+                },
+              ),
+            ),
+          ),
+        ),
+      );
+      showGfBottomSheet<void>(
+        page,
+        height: 200,
+        builder: (_) => const SizedBox(key: Key('theme-sheet-content')),
+      );
+      await tester.pumpAndSettle();
+      final content = find.byKey(const Key('theme-sheet-content'));
+      final surface = find.ancestor(
+        of: content,
+        matching: find.byType(Material),
+      );
+      expect(
+        tester.widget<Material>(surface.first).color,
+        GfColors.light.base100,
+      );
+      final bounds = tester.getRect(surface.first);
+      expect(tester.getTopLeft(content).dy - bounds.top, 28);
+      brightness.value = Brightness.dark;
+      await tester.pumpAndSettle();
+      expect(
+        tester.widget<Material>(surface.first).color,
+        GfColors.dark.base100,
+      );
+      expect(Theme.of(tester.element(content)).brightness, Brightness.dark);
+      expect(tester.getRect(surface.first), bounds);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   group('GfCard / GfCardList', () {
     testWidgets('mobile card draws divider, emphasized adds shadow', (
       tester,

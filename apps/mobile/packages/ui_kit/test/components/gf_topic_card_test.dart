@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ui_kit/ui_kit.dart';
@@ -51,16 +52,14 @@ void main() {
       expect(authorRect.height, greaterThanOrEqualTo(44));
       expect(categoryRect.height, greaterThanOrEqualTo(44));
       expect(authorRect.overlaps(categoryRect), isFalse);
-      if (scale == 1) {
-        expect(categoryRect.center.dy, authorRect.center.dy);
-        expect(
-          tester.getTopLeft(find.text('Campus')).dy - authorRect.bottom,
-          lessThanOrEqualTo(4),
-        );
-      } else {
-        expect(categoryRect.top, greaterThanOrEqualTo(authorRect.bottom));
-      }
+      expect(categoryRect.center.dy, closeTo(authorRect.center.dy, .01));
+      expect(
+        tester.getTopLeft(find.text('Campus')).dy - authorRect.bottom,
+        inInclusiveRange(0, 4),
+      );
       await tester.tap(find.text('Student'));
+      await tester.ensureVisible(find.text('论坛运营'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('论坛运营'));
       expect(authorTaps, 1);
       expect(categoryTaps, 1);
@@ -68,6 +67,178 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   }
+
+  testWidgets(
+    'long display name truncates before moving date or category to another row',
+    (tester) async {
+      const name = 'Sile Liu(WALKERKILLER)';
+      var authorTaps = 0;
+      var categoryTaps = 0;
+      var cardTaps = 0;
+      await tester.pumpWidget(
+        gfApp(
+          SizedBox(
+            width: 390,
+            child: GfTopicCard(
+              title: 'Campus',
+              description: '',
+              authorName: name,
+              authorAvatarUrl: '',
+              activityText: '2026-09-18',
+              categories: [
+                GfTopicCategory(
+                  name: '闲聊茶馆',
+                  color: Colors.green,
+                  onTap: () => categoryTaps++,
+                ),
+              ],
+              imageUrls: const [],
+              replyCount: 0,
+              viewCount: 0,
+              onAuthorTap: () => authorTaps++,
+              onTap: () => cardTaps++,
+            ),
+          ),
+        ),
+      );
+      final authorTarget = find
+          .ancestor(of: find.text(name), matching: find.byType(InkWell))
+          .first;
+      final author = tester.getRect(authorTarget);
+      final category = tester.getRect(find.byType(GfChip));
+      final card = tester.getRect(find.byType(GfTopicCard));
+      final date = tester.getRect(find.text('2026-09-18'));
+      expect(category.center.dy, closeTo(author.center.dy, .01));
+      expect(date.center.dy, closeTo(author.center.dy, .01));
+      expect(
+        tester.getCenter(find.text(name)).dy,
+        closeTo(author.center.dy, .01),
+      );
+      expect(
+        tester.getTopLeft(find.text('Campus')).dy - card.top,
+        closeTo(44, .01),
+      );
+      expect(
+        tester.getTopLeft(find.text('Campus')).dy - author.bottom,
+        inInclusiveRange(0, 2),
+      );
+      expect(author.overlaps(category), isFalse);
+      expect(category.right, lessThanOrEqualTo(card.right));
+      for (final target in [author, category]) {
+        expect(target.width, greaterThanOrEqualTo(44));
+        expect(target.height, greaterThanOrEqualTo(44));
+      }
+      final nameText = tester.widget<Text>(find.text(name));
+      final nameParagraph = tester.renderObject<RenderParagraph>(
+        find.text(name),
+      );
+      expect(nameText.maxLines, 1);
+      expect(nameText.overflow, TextOverflow.ellipsis);
+      expect(
+        nameParagraph.didExceedMaxLines,
+        isTrue,
+        reason:
+            'The name must actually truncate, not merely declare an overflow style.',
+      );
+      expect(
+        tester
+            .renderObject<RenderParagraph>(find.text('2026-09-18'))
+            .didExceedMaxLines,
+        isFalse,
+      );
+      expect(
+        tester
+            .renderObject<RenderParagraph>(find.text('闲聊茶馆'))
+            .didExceedMaxLines,
+        isFalse,
+      );
+      await tester.tap(authorTarget);
+      await tester.tap(find.text('闲聊茶馆'));
+      expect(authorTaps, 1);
+      expect(categoryTaps, 1);
+      expect(cardTaps, 0);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'narrow large-text metadata keeps multiple categories in one scrollable row',
+    (tester) async {
+      const name = 'Sile Liu(WALKERKILLER)';
+      const labels = ['闲聊茶馆', '论坛运营', '校园生活'];
+      final selected = <String>[];
+      var authorTaps = 0;
+      var cardTaps = 0;
+      await tester.pumpWidget(
+        gfApp(
+          MediaQuery(
+            data: const MediaQueryData(textScaler: TextScaler.linear(2)),
+            child: SizedBox(
+              width: 320,
+              child: GfTopicCard(
+                title: 'Campus',
+                description: '',
+                authorName: name,
+                authorAvatarUrl: '',
+                activityText: '2026-09-18',
+                categories: [
+                  for (final label in labels)
+                    GfTopicCategory(
+                      name: label,
+                      color: Colors.green,
+                      onTap: () => selected.add(label),
+                    ),
+                ],
+                imageUrls: const [],
+                replyCount: 0,
+                viewCount: 0,
+                pinned: true,
+                onAuthorTap: () => authorTaps++,
+                onTap: () => cardTaps++,
+              ),
+            ),
+          ),
+        ),
+      );
+      final authorTarget = find
+          .ancestor(of: find.text(name), matching: find.byType(InkWell))
+          .first;
+      final author = tester.getRect(authorTarget);
+      final date = tester.getRect(find.text('2026-09-18'));
+      expect(date.center.dy, closeTo(author.center.dy, .01));
+      expect(author.width, greaterThanOrEqualTo(44));
+      expect(author.height, greaterThanOrEqualTo(44));
+      expect(
+        tester.renderObject<RenderParagraph>(find.text(name)).didExceedMaxLines,
+        isTrue,
+      );
+      for (final chip in find.byType(GfChip).evaluate()) {
+        final rect = tester.getRect(find.byWidget(chip.widget));
+        expect(rect.center.dy, closeTo(author.center.dy, .01));
+        expect(rect.width, greaterThanOrEqualTo(44));
+        expect(rect.height, greaterThanOrEqualTo(44));
+      }
+      expect(
+        tester.getTopLeft(find.text('Campus')).dy - author.bottom,
+        inInclusiveRange(0, 4),
+      );
+      expect(tester.takeException(), isNull);
+      await tester.tap(authorTarget);
+      await tester.ensureVisible(find.text(labels.last));
+      await tester.pumpAndSettle();
+      expect(
+        tester.getRect(authorTarget),
+        author,
+        reason: 'Only categories scroll; author and date stay in place.',
+      );
+      expect(tester.getRect(find.text('2026-09-18')), date);
+      await tester.tap(find.text(labels.last));
+      expect(authorTaps, 1);
+      expect(selected, [labels.last]);
+      expect(cardTaps, 0);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets(
     'feed metadata sits higher while content stays clear of tap targets',

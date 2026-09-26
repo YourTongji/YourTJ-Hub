@@ -29,6 +29,22 @@ class GfAvatar extends StatelessWidget {
   /// Optional corner badge (e.g. online dot, badge icon).
   final Widget? badge;
 
+  /// Image key shared by visible avatars and their startup prefetch.
+  static ImageProvider<Object>? imageProviderFor(
+    String src, {
+    required double size,
+    required double devicePixelRatio,
+  }) {
+    if (src.isEmpty) return null;
+    final pixels = (size * devicePixelRatio).round();
+    return ResizeImage(
+      NetworkImage(src),
+      policy: ResizeImagePolicy.fit,
+      width: pixels < 1 ? 1 : pixels,
+      height: pixels < 1 ? 1 : pixels,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final GfColors colors = GfTheme.colorsOf(context);
@@ -36,7 +52,11 @@ class GfAvatar extends StatelessWidget {
     final fallback = Center(
       child: GfSymbol('user-round', size: size * 0.56, color: colors.iconMuted),
     );
-    final cacheSize = (size * MediaQuery.devicePixelRatioOf(context)).round();
+    final provider = imageProviderFor(
+      src,
+      size: size,
+      devicePixelRatio: MediaQuery.devicePixelRatioOf(context),
+    );
 
     final Widget avatar = Container(
       width: size,
@@ -49,13 +69,11 @@ class GfAvatar extends StatelessWidget {
             : null,
       ),
       clipBehavior: Clip.antiAlias,
-      child: src.isEmpty
+      child: provider == null
           ? fallback
-          : Image.network(
-              src,
+          : Image(
+              image: provider,
               fit: BoxFit.cover,
-              cacheWidth: cacheSize,
-              cacheHeight: cacheSize,
               excludeFromSemantics: true,
               frameBuilder: (_, child, frame, wasSynchronouslyLoaded) =>
                   wasSynchronouslyLoaded || frame != null ? child : fallback,

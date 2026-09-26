@@ -672,86 +672,142 @@ class _AuthorMeta extends StatelessWidget {
         child: child,
       ),
     );
+    final dateStyle = DefaultTextStyle.of(context).style.copyWith(
+      color: colors.baseContent.withValues(alpha: 0.55),
+      fontSize: 13,
+    );
+    final markers = <Widget>[
+      for (final category in categories)
+        metadataSlot(
+          GfChip(
+            label: category.name,
+            color: category.color,
+            onTap: category.onTap,
+          ),
+        ),
+      if (hot)
+        Container(
+          height: 20,
+          padding: const EdgeInsets.symmetric(horizontal: 7),
+          decoration: BoxDecoration(
+            color: colors.warning.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              Icon(Icons.auto_awesome, size: 12, color: colors.warning),
+              const SizedBox(width: 3),
+              Text(
+                'hot',
+                style: TextStyle(
+                  color: colors.warning,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+    ];
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
         Expanded(
-          // Share one metadata run instead of stacking two 44px hit regions.
-          // Wrap keeps long names, multiple categories and large text readable.
-          child: Wrap(
-            spacing: 8,
-            runSpacing: 0,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: <Widget>[
-              InkWell(
-                onTap: onAuthorTap,
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(
-                    minWidth: onAuthorTap == null ? 0 : 44,
-                    minHeight: 44,
-                  ),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    widthFactor: 1,
-                    heightFactor: 1,
-                    child: Text(
-                      name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: colors.baseContent,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              const minimumNameWidth = 64.0;
+              const minimumMarkerWidth = 64.0;
+              const gap = 8.0;
+              final datePainter = TextPainter(
+                text: TextSpan(text: activityText, style: dateStyle),
+                textDirection: Directionality.of(context),
+                textScaler: MediaQuery.textScalerOf(context),
+                maxLines: 1,
+              )..layout();
+              final dateWidth = math.min(
+                datePainter.width.ceilToDouble(),
+                math.max(
+                  0.0,
+                  constraints.maxWidth -
+                      minimumNameWidth -
+                      (markers.isEmpty ? gap : minimumMarkerWidth + gap * 2),
                 ),
-              ),
-              if (activityText.isNotEmpty)
-                metadataSlot(
-                  Text(
-                    activityText,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: colors.baseContent.withValues(alpha: 0.55),
-                      fontSize: 13,
-                    ),
-                  ),
-                ),
-              for (final GfTopicCategory category in categories)
-                metadataSlot(
-                  GfChip(
-                    label: category.name,
-                    color: category.color,
-                    onTap: category.onTap,
-                  ),
-                ),
-              if (hot)
-                Container(
-                  height: 20,
-                  padding: const EdgeInsets.symmetric(horizontal: 7),
-                  decoration: BoxDecoration(
-                    color: colors.warning.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: <Widget>[
-                      Icon(Icons.auto_awesome, size: 12, color: colors.warning),
-                      const SizedBox(width: 3),
-                      Text(
-                        'hot',
-                        style: TextStyle(
-                          color: colors.warning,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
+              );
+              datePainter.dispose();
+              // Give the name the remaining width so it ellipsizes before any
+              // metadata can form a second 44px row. A crowded category group
+              // scrolls independently without moving the author or timestamp.
+              final markerWidth = math.max(
+                0.0,
+                constraints.maxWidth -
+                    minimumNameWidth -
+                    (activityText.isEmpty ? 0 : dateWidth + gap) -
+                    gap,
+              );
+              return Row(
+                children: <Widget>[
+                  Flexible(
+                    child: InkWell(
+                      onTap: onAuthorTap,
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          minWidth: onAuthorTap == null ? 0 : 44,
+                          minHeight: 44,
+                        ),
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          widthFactor: 1,
+                          heightFactor: 1,
+                          child: Text(
+                            name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: colors.baseContent,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                         ),
                       ),
-                    ],
+                    ),
                   ),
-                ),
-            ],
+                  if (activityText.isNotEmpty) ...[
+                    const SizedBox(width: 8),
+                    SizedBox(
+                      width: dateWidth,
+                      child: metadataSlot(
+                        Text(
+                          activityText,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: dateStyle,
+                        ),
+                      ),
+                    ),
+                  ],
+                  if (markers.isNotEmpty) ...[
+                    const SizedBox(width: 8),
+                    ConstrainedBox(
+                      constraints: BoxConstraints(maxWidth: markerWidth),
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            for (var i = 0; i < markers.length; i++) ...[
+                              if (i > 0) const SizedBox(width: 8),
+                              markers[i],
+                            ],
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              );
+            },
           ),
         ),
         if (pinned)

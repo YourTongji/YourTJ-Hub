@@ -12,6 +12,7 @@ import 'app_locale.dart';
 import 'site_theme.dart';
 import 'theme_mode.dart';
 import 'push/push_service.dart';
+import 'startup_experience.dart';
 import 'updates/update_host.dart';
 import 'providers.dart';
 import 'widgets/app_system_ui_overlay.dart';
@@ -51,12 +52,14 @@ class GfApp extends ConsumerWidget {
       themeMode: mode,
       routerConfig: appRouter,
       builder: (context, child) => AppSystemUiOverlay(
-        child: MobileUpdateHost(
-          key: appUpdateHostKey,
-          navigatorKey: appNavigatorKey,
-          child: SessionOverlayHost(
-            registry: appSessionOverlays,
-            child: PrivateNotesHost(child: child ?? const SizedBox.shrink()),
+        child: StartupExperience(
+          child: MobileUpdateHost(
+            key: appUpdateHostKey,
+            navigatorKey: appNavigatorKey,
+            child: SessionOverlayHost(
+              registry: appSessionOverlays,
+              child: PrivateNotesHost(child: child ?? const SizedBox.shrink()),
+            ),
           ),
         ),
       ),

@@ -426,6 +426,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get profileTopics => '主题';
 
   @override
+  String get profilePosts => '内容';
+
+  @override
   String get profileReplies => '回复';
 
   @override
@@ -2701,7 +2704,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get notificationsUnreadEmptyDescription => '所有通知都已查看。';
 
   @override
-  String get homeFeedOptions => '分类与显示';
+  String get homeFeedOptions => '显示方式';
 
   @override
   String get homeAllCategories => '全部分类';

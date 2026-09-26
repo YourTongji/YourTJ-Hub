@@ -13,13 +13,19 @@ class AppSystemUiOverlay extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final brightness = Theme.of(context).brightness;
+    final iconBrightness = brightness == Brightness.dark
+        ? Brightness.light
+        : Brightness.dark;
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
         statusBarBrightness: brightness,
-        statusBarIconBrightness: brightness == Brightness.dark
-            ? Brightness.light
-            : Brightness.dark,
+        statusBarIconBrightness: iconBrightness,
+        // Explicitly clear the launch screen's Android navigation-bar colors.
+        // Null values leave the previous platform style in place.
+        systemNavigationBarColor: Colors.transparent,
+        systemNavigationBarDividerColor: Colors.transparent,
+        systemNavigationBarIconBrightness: iconBrightness,
       ),
       child: child,
     );

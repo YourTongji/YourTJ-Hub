@@ -136,6 +136,7 @@
   "profileFollow": "フォロー",
   "profileFollowing": "フォロー中",
   "profileTopics": "トピック",
+  "profilePosts": "投稿",
   "profileReplies": "返信",
   "profileLikedPosts": "いいね",
   "profileLikes": "いいね",
@@ -978,7 +979,7 @@
   "sortFollowing": "フォロー中",
   "notificationsUnreadEmpty": "未読の通知はありません",
   "notificationsUnreadEmptyDescription": "すべての通知を確認しました。",
-  "homeFeedOptions": "カテゴリと表示",
+  "homeFeedOptions": "表示方法",
   "@badgeDisplaySelectedCount": {
     "placeholders": {
       "count": {

@@ -89,6 +89,31 @@ Future<void> _pumpProfile(
 }
 
 void main() {
+  testWidgets('profile social icons form a compact left-aligned group', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await _pumpProfile(tester);
+    final card = tester.getRect(find.byType(GfUserCard));
+    final website = tester.getRect(find.byTooltip('Personal site'));
+    final github = tester.getRect(find.byTooltip('GitHub'));
+    final twitter = tester.getRect(find.byTooltip('X / Twitter'));
+    expect(website.left, closeTo(card.left + 16, .01));
+    expect(github.top, website.top);
+    expect(twitter.top, github.top);
+    expect(github.left, closeTo(website.right, .01));
+    expect(twitter.left, closeTo(github.right, .01));
+    expect(twitter.center.dx - github.center.dx, closeTo(44, .01));
+    for (final target in [website, github, twitter]) {
+      expect(target.width, greaterThanOrEqualTo(44));
+      expect(target.height, greaterThanOrEqualTo(44));
+    }
+    expect(github.overlaps(twitter), isFalse);
+    expect(tester.takeException(), isNull);
+  });
+
   for (final brightness in Brightness.values) {
     testWidgets(
       'profile links use named icon targets on a narrow scaled ${brightness.name} screen',

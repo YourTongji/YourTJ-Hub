@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:core/core.dart';
 import 'package:dio/dio.dart';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -69,6 +70,67 @@ extension on GfShellDestination {
   };
 }
 
+/// Opens the account drawer from the leading content region while taking part
+/// in the same arena as descendants. Horizontal rails, sliders and text fields
+/// can claim their own drags; a vertical reading gesture is never cancelled.
+class _DrawerSwipeGestureRecognizer extends HorizontalDragGestureRecognizer {
+  _DrawerSwipeGestureRecognizer()
+    : super(supportedDevices: const {PointerDeviceKind.touch}) {
+    onlyAcceptDragOnThreshold = true;
+  }
+
+  double openingWidth = 0;
+  final Map<int, Offset> _origins = {};
+
+  @override
+  bool isPointerAllowed(PointerEvent event) =>
+      event.localPosition.dx >= 0 &&
+      event.localPosition.dx <= openingWidth &&
+      super.isPointerAllowed(event);
+
+  @override
+  void addAllowedPointer(PointerDownEvent event) {
+    _origins[event.pointer] = event.position;
+    super.addAllowedPointer(event);
+  }
+
+  @override
+  void handleEvent(PointerEvent event) {
+    final origin = _origins[event.pointer];
+    if (origin != null && event is PointerMoveEvent) {
+      final delta = event.position - origin;
+      final slop = computeHitSlop(event.kind, gestureSettings);
+      if (delta.dx < -slop ||
+          (delta.dy.abs() >= slop && delta.dy.abs() > delta.dx)) {
+        resolve(GestureDisposition.rejected);
+        return;
+      }
+    }
+    if (event is PointerUpEvent || event is PointerCancelEvent) {
+      _origins.remove(event.pointer);
+    }
+    super.handleEvent(event);
+  }
+
+  @override
+  bool hasSufficientGlobalDistanceToAccept(
+    PointerDeviceKind pointerDeviceKind,
+    double? deviceTouchSlop,
+  ) => globalDistanceMoved > computeHitSlop(pointerDeviceKind, gestureSettings);
+
+  @override
+  void rejectGesture(int pointer) {
+    _origins.remove(pointer);
+    super.rejectGesture(pointer);
+  }
+
+  @override
+  void dispose() {
+    _origins.clear();
+    super.dispose();
+  }
+}
+
 /// Persistent mobile shell with four navigation destinations and one compose
 /// action. Each branch owns its own navigator and state; compose is pushed as
 /// a global page rather than kept alive as a destination.
@@ -82,6 +144,7 @@ class GfShell extends ConsumerStatefulWidget {
 }
 
 class _GfShellState extends ConsumerState<GfShell> with WidgetsBindingObserver {
+  final _scaffoldKey = GlobalKey<ScaffoldState>();
   late ForegroundRealtimeCoordinator _realtime;
   late int _realtimeEpoch;
   bool _realtimeSessionStarted = false;
@@ -358,58 +421,81 @@ class _GfShellState extends ConsumerState<GfShell> with WidgetsBindingObserver {
         ? Duration.zero
         : const Duration(milliseconds: 200);
     return Scaffold(
+      key: _scaffoldKey,
       drawer: const AccountDrawer(),
+      // The opening gesture belongs below the drawer overlay so descendants
+      // can win it. The native drawer still handles dragging an open panel shut.
+      drawerEnableOpenDragGesture: false,
       onDrawerChanged: (open) {
         shellDrawerOpen.value = open;
         ref.read(readingChromeProvider).show();
         if (open) ref.invalidate(accountCardProvider);
       },
-      body: NotificationListener<ScrollNotification>(
-        onNotification: (notification) {
-          if (notification.depth != 0 ||
-              notification.metrics.axis != Axis.vertical) {
-            return false;
-          }
-          if (notification is ScrollUpdateNotification) {
-            ref
-                .read(readingChromeProvider)
-                .update(
-                  notification.scrollDelta ?? 0,
-                  notification.metrics.pixels,
-                  locked:
-                      MediaQuery.viewInsetsOf(context).bottom > 0 ||
-                      ModalRoute.of(context)?.isCurrent == false,
-                );
-          }
-          return false;
+      body: RawGestureDetector(
+        behavior: HitTestBehavior.translucent,
+        excludeFromSemantics: true,
+        gestures: {
+          _DrawerSwipeGestureRecognizer:
+              GestureRecognizerFactoryWithHandlers<
+                _DrawerSwipeGestureRecognizer
+              >(
+                _DrawerSwipeGestureRecognizer.new,
+                (recognizer) => recognizer
+                  ..openingWidth = MediaQuery.sizeOf(context).width * .55
+                  ..onStart = (_) {
+                    if (_scaffoldKey.currentState?.isDrawerOpen != true) {
+                      _scaffoldKey.currentState?.openDrawer();
+                    }
+                  },
+              ),
         },
-        child: ReadingWindow(
-          maxContentWidth: widget.navigationShell.currentIndex == 1
-              ? 1120
-              : 720,
-          rail: ReadingNavigationRail(
-            currentIndex: widget.navigationShell.currentIndex,
-            onSelected: _selectDestination,
-            items: destinations,
-          ),
-          bottomNavigation: AnimatedSlide(
-            offset: chrome.hidden ? const Offset(0, 1) : Offset.zero,
-            duration: duration,
-            curve: Curves.easeOut,
-            child: IgnorePointer(
-              ignoring: chrome.hidden,
-              child: ExcludeSemantics(
-                excluding: chrome.hidden,
-                child: GfBottomNavigation(
-                  currentIndex: widget.navigationShell.currentIndex,
-                  onSelected: _selectDestination,
-                  showLabels: false,
-                  items: destinations,
+        child: NotificationListener<ScrollNotification>(
+          onNotification: (notification) {
+            if (notification.depth != 0 ||
+                notification.metrics.axis != Axis.vertical) {
+              return false;
+            }
+            if (notification is ScrollUpdateNotification) {
+              ref
+                  .read(readingChromeProvider)
+                  .update(
+                    notification.scrollDelta ?? 0,
+                    notification.metrics.pixels,
+                    locked:
+                        MediaQuery.viewInsetsOf(context).bottom > 0 ||
+                        ModalRoute.of(context)?.isCurrent == false,
+                  );
+            }
+            return false;
+          },
+          child: ReadingWindow(
+            maxContentWidth: widget.navigationShell.currentIndex == 1
+                ? 1120
+                : 720,
+            rail: ReadingNavigationRail(
+              currentIndex: widget.navigationShell.currentIndex,
+              onSelected: _selectDestination,
+              items: destinations,
+            ),
+            bottomNavigation: AnimatedSlide(
+              offset: chrome.hidden ? const Offset(0, 1) : Offset.zero,
+              duration: duration,
+              curve: Curves.easeOut,
+              child: IgnorePointer(
+                ignoring: chrome.hidden,
+                child: ExcludeSemantics(
+                  excluding: chrome.hidden,
+                  child: GfBottomNavigation(
+                    currentIndex: widget.navigationShell.currentIndex,
+                    onSelected: _selectDestination,
+                    showLabels: false,
+                    items: destinations,
+                  ),
                 ),
               ),
             ),
+            child: widget.navigationShell,
           ),
-          child: widget.navigationShell,
         ),
       ),
     );

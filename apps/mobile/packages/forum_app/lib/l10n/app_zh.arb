@@ -227,6 +227,7 @@
   "profileFollow": "关注",
   "profileFollowing": "已关注",
   "profileTopics": "主题",
+  "profilePosts": "内容",
   "profileReplies": "回复",
   "profileLikedPosts": "赞过",
   "profileLikes": "获赞",
@@ -1308,7 +1309,7 @@
   "sortFollowing": "关注",
   "notificationsUnreadEmpty": "暂无未读通知",
   "notificationsUnreadEmptyDescription": "所有通知都已查看。",
-  "homeFeedOptions": "分类与显示",
+  "homeFeedOptions": "显示方式",
   "@badgeDisplaySelectedCount": {
     "placeholders": {
       "count": {

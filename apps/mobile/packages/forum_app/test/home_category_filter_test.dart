@@ -52,6 +52,7 @@ class _Pages extends PageRepository {
   Completer<PagePayload>? pendingCategory;
   bool failCategory = false;
   bool categoryHasNext = false;
+  bool longCategoryRail = false;
 
   PagePayload payload({
     bool category = false,
@@ -62,6 +63,14 @@ class _Pages extends PageRepository {
     final props = data['props'] as Map<String, dynamic>;
     final first = (props['topics'] as List).first as Map<String, dynamic>;
     (data['layout']['sidebar'] as Map)['categories'] = [
+      if (longCategoryRail)
+        for (var id = 3; id <= 15; id++)
+          {
+            'id': id,
+            'label': '分类 $id',
+            'url': '/c/category/$id',
+            'color': '#888888',
+          },
       {'id': 1, 'label': '开发', 'url': '/c/dev/1', 'color': '#2563eb'},
       {'id': 2, 'label': '校园生活', 'url': '/c/life/2', 'color': '#888888'},
     ];
@@ -176,11 +185,7 @@ Future<GoRouter> _mount(WidgetTester tester, _Pages pages) async {
 }
 
 Future<void> _chooseCategory(WidgetTester tester, {bool settle = true}) async {
-  await tester.tap(find.byTooltip('分类与显示'));
-  await tester.pumpAndSettle();
-  await tester.tap(
-    find.descendant(of: find.byType(BottomSheet), matching: find.text('开发')),
-  );
+  await tester.tap(find.byKey(const ValueKey('home-category-1')));
   if (settle) {
     await tester.pumpAndSettle();
   } else {
@@ -203,24 +208,44 @@ ScrollPosition _position(WidgetTester tester) => tester
     .position;
 
 void main() {
-  testWidgets('category option filters home without pushing a category route', (
-    tester,
-  ) async {
-    final pages = _Pages();
-    final router = await _mount(tester, pages);
-    await _chooseCategory(tester);
-    expect(router.state.uri.path, '/');
-    expect(pages.calls, contains('/c/dev/1'));
-    expect(_feed(tester).topics.first.title, 'Category latest 0');
-    expect(find.text('separate-category-route'), findsNothing);
-    final tabs = tester.widget<GfTabBar>(find.byType(GfTabBar));
-    expect(tabs.tabs.map((tab) => tab.value), ['latest', 'new']);
-  });
+  testWidgets(
+    'visible category rail selects and filters home without pushing a route',
+    (tester) async {
+      final pages = _Pages();
+      final router = await _mount(tester, pages);
+      expect(find.byKey(const ValueKey('home-category-rail')), findsOneWidget);
+      expect(find.byType(BottomSheet), findsNothing);
+      await _chooseCategory(tester);
+      final selected = tester.widget<Semantics>(
+        find
+            .descendant(
+              of: find.byKey(const ValueKey('home-category-1')),
+              matching: find.byWidgetPredicate(
+                (widget) =>
+                    widget is Semantics && widget.properties.selected == true,
+              ),
+            )
+            .first,
+      );
+      expect(selected.properties.selected, isTrue);
+      expect(router.state.uri.path, '/');
+      expect(pages.calls, contains('/c/dev/1'));
+      expect(_feed(tester).topics.first.title, 'Category latest 0');
+      expect(find.text('separate-category-route'), findsNothing);
+      final tabs = tester.widget<GfTabBar>(find.byType(GfTabBar));
+      expect(tabs.tabs.map((tab) => tab.value), ['latest', 'new']);
+    },
+  );
 
   testWidgets('topic category chip filters in place', (tester) async {
     final pages = _Pages();
     final router = await _mount(tester, pages);
-    await tester.tap(find.text('开发').first);
+    await tester.tap(
+      find.descendant(
+        of: find.byType(GfTopicCard).first,
+        matching: find.text('开发'),
+      ),
+    );
     await tester.pumpAndSettle();
     expect(router.state.uri.path, '/');
     expect(pages.calls, contains('/c/dev/1'));
@@ -230,6 +255,44 @@ void main() {
       findsNothing,
     );
   });
+
+  testWidgets(
+    'a topic chip reveals its offscreen category without later recentering',
+    (tester) async {
+      tester.view.physicalSize = const Size(320, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final pages = _Pages()..longCategoryRail = true;
+      await _mount(tester, pages);
+      final rail = find.byKey(const ValueKey('home-category-rail'));
+      final selected = find.byKey(const ValueKey('home-category-1'));
+      expect(selected.hitTestable(), findsNothing);
+      await tester.tap(
+        find.descendant(
+          of: find.byType(GfTopicCard).first,
+          matching: find.text('开发'),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(selected.hitTestable(), findsOneWidget);
+      final viewport = tester.getRect(rail);
+      final selectedRect = tester.getRect(selected);
+      expect(selectedRect.left, greaterThanOrEqualTo(viewport.left));
+      expect(selectedRect.right, lessThanOrEqualTo(viewport.right));
+      expect(_feed(tester).topics.first.title, 'Category latest 0');
+      final horizontal = tester
+          .state<ScrollableState>(
+            find.descendant(of: rail, matching: find.byType(Scrollable)),
+          )
+          .position;
+      horizontal.jumpTo(80);
+      await tester.pumpAndSettle();
+      tester.widget<GfTabBar>(find.byType(GfTabBar)).onSelected('new');
+      await tester.pumpAndSettle();
+      expect(horizontal.pixels, closeTo(80, .1));
+      expect(_feed(tester).topics.first.title, 'Category new 0');
+    },
+  );
 
   testWidgets(
     'clearing category restores the all-feed content and reading position',
@@ -242,7 +305,7 @@ void main() {
       await _chooseCategory(tester);
       _position(tester).jumpTo(210);
       await tester.pumpAndSettle();
-      await tester.tap(find.byTooltip('全部分类'));
+      await tester.tap(find.byKey(const ValueKey('home-category-all')));
       await tester.pumpAndSettle();
       expect(_feed(tester).topics.first.title, 'All latest 0');
       expect(_position(tester).pixels, closeTo(before, 1));
@@ -269,7 +332,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(pages.calls, contains('/c/dev/1/l/new'));
     expect(_feed(tester).topics.first.title, 'Category new 0');
-    await tester.tap(find.byTooltip('全部分类'));
+    await tester.tap(find.byKey(const ValueKey('home-category-all')));
     await tester.pumpAndSettle();
     expect(_feed(tester).topics.first.title, 'All hot 0');
   });
@@ -296,13 +359,21 @@ void main() {
     final pages = _Pages()..pendingCategory = pending;
     await _mount(tester, pages);
     await _chooseCategory(tester, settle: false);
-    await tester.tap(find.byTooltip('全部分类'));
+    await tester.tap(find.byKey(const ValueKey('home-category-all')));
     await tester.pumpAndSettle();
     pending.complete(pages.payload(category: true));
     await tester.pumpAndSettle();
     expect(_feed(tester).topics.first.title, 'All latest 0');
     expect(find.text('Category latest 0'), findsNothing);
-    expect(find.byTooltip('全部分类'), findsNothing);
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('home-category-all')),
+        matching: find.byWidgetPredicate(
+          (widget) => widget is Semantics && widget.properties.selected == true,
+        ),
+      ),
+      findsOneWidget,
+    );
     expect(
       tester
           .widget<GfTabBar>(find.byType(GfTabBar))

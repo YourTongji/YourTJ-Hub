@@ -876,6 +876,12 @@ abstract class AppLocalizations {
   /// **'Topics'**
   String get profileTopics;
 
+  /// No description provided for @profilePosts.
+  ///
+  /// In en, this message translates to:
+  /// **'Posts'**
+  String get profilePosts;
+
   /// No description provided for @profileReplies.
   ///
   /// In en, this message translates to:
@@ -5187,7 +5193,7 @@ abstract class AppLocalizations {
   /// No description provided for @homeFeedOptions.
   ///
   /// In en, this message translates to:
-  /// **'Categories and view'**
+  /// **'Feed display'**
   String get homeFeedOptions;
 
   /// No description provided for @homeAllCategories.

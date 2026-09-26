@@ -428,6 +428,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String get profileTopics => 'トピック';
 
   @override
+  String get profilePosts => '投稿';
+
+  @override
   String get profileReplies => '返信';
 
   @override
@@ -2727,7 +2730,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String get notificationsUnreadEmptyDescription => 'すべての通知を確認しました。';
 
   @override
-  String get homeFeedOptions => 'カテゴリと表示';
+  String get homeFeedOptions => '表示方法';
 
   @override
   String get homeAllCategories => 'すべてのカテゴリ';

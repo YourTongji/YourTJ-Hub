@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:core/core.dart';
 import 'package:ui_kit/ui_kit.dart';
 
+import '../../asset_url.dart';
 import '../../widgets/app_refresh_indicator.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../providers.dart';
@@ -25,6 +26,9 @@ import '../../app_config.dart';
 import '../../current_user.dart';
 import '../../offline/drift_cache.dart';
 import '../../startup_metrics.dart';
+
+double _categoryRailHeight(BuildContext context) =>
+    math.max(48, MediaQuery.textScalerOf(context).scale(14) * 1.4 + 16);
 
 /// 首页:公告 + 话题流(web HomePage.vue 的移动端形态)。
 class HomePage extends ConsumerStatefulWidget {
@@ -232,6 +236,7 @@ class _HomePageState extends ConsumerState<HomePage> {
   Future<void> _load({bool silent = false, _HomeFeedState? target}) async {
     final feed = target ?? _activeFeed;
     if (!mounted) return;
+    final shouldPrecacheAvatars = !feed.page.hasValue;
     final sequence = ++feed.loadSequence;
     final revision = _interactionRevision;
     final epoch = ref.read(offlineCacheEpochProvider);
@@ -270,6 +275,15 @@ class _HomePageState extends ConsumerState<HomePage> {
                       }
                       final cachedProps = parsePageProps<HomeProps>(cached);
                       if (cachedProps == null) return false;
+                      if (shouldPrecacheAvatars) {
+                        await _precacheFirstAvatars(cachedProps.topics);
+                      }
+                      if (networkPageShown ||
+                          !mounted ||
+                          sequence != feed.loadSequence ||
+                          epoch != ref.read(offlineCacheEpochProvider)) {
+                        return false;
+                      }
                       setState(() {
                         feed.page = AsyncValue.data(cachedProps);
                         _navigationProps ??= cachedProps;
@@ -298,6 +312,15 @@ class _HomePageState extends ConsumerState<HomePage> {
       final HomeProps? props = _feedProps(payload, feed);
       if (props == null) throw const FormatException('home props');
       networkPageShown = true;
+      if (shouldPrecacheAvatars) {
+        await _precacheFirstAvatars(props.topics);
+      }
+      if (!mounted ||
+          cancel.isCancelled ||
+          sequence != feed.loadSequence ||
+          epoch != ref.read(offlineCacheEpochProvider)) {
+        return;
+      }
       setState(() {
         feed.page = AsyncValue.data(props);
         if (feed.category == null) {
@@ -355,6 +378,33 @@ class _HomePageState extends ConsumerState<HomePage> {
     } finally {
       if (identical(feed.loadCancel, cancel)) feed.loadCancel = null;
     }
+  }
+
+  Future<void> _precacheFirstAvatars(List<TopicPayload> topics) async {
+    if (!mounted || topics.isEmpty) return;
+    final devicePixelRatio = MediaQuery.devicePixelRatioOf(context);
+    final urls = <String>{
+      for (final topic in topics.take(4))
+        if (topic.author.avatarUrl.isNotEmpty)
+          resolveApiAssetUrl(topic.author.avatarUrl),
+    };
+    final providers = <ImageProvider<Object>>[
+      for (final url in urls)
+        ?GfAvatar.imageProviderFor(
+          url,
+          size: 36,
+          devicePixelRatio: devicePixelRatio,
+        ),
+    ];
+    if (providers.isEmpty) return;
+    await Future.wait<void>(
+      providers.map(
+        (provider) => precacheImage(provider, context, onError: (_, _) {}),
+      ),
+    ).timeout(
+      const Duration(milliseconds: 240),
+      onTimeout: () => const <void>[],
+    );
   }
 
   Future<(int, String)?> _homeCacheScope() async {
@@ -733,33 +783,13 @@ class _HomePageState extends ConsumerState<HomePage> {
       _load();
     });
     final AppLocalizations l10n = AppLocalizations.of(context);
+    final categories = [
+      ..._categories,
+      if (_category case final active?)
+        if (!_categories.any((category) => category.id == active.id)) active,
+    ];
     return RootSurface(
-      titleWidget: _category == null
-          ? const GfLogo(size: 32)
-          : Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const GfLogo(size: 24),
-                const SizedBox(width: 8),
-                Flexible(
-                  child: Text(
-                    _category!.label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-                IconButton(
-                  key: const ValueKey('home-clear-category'),
-                  tooltip: l10n.homeAllCategories,
-                  onPressed: () => _switchCategory(null),
-                  icon: const GfSymbol('x', size: 18),
-                ),
-              ],
-            ),
+      titleWidget: const GfLogo(size: 32),
       actions: [
         IconButton(
           tooltip: l10n.commonSearch,
@@ -767,38 +797,21 @@ class _HomePageState extends ConsumerState<HomePage> {
           onPressed: () => context.push('/search'),
         ),
       ],
-      toolbarHeight: GfTabBar.heightFor(context),
-      toolbar: _navigationProps != null
-          ? _HomeToolbar(
-              props:
-                  _activeFeed.page.valueOrNull ??
-                  (_category == null
-                      ? _navigationProps!
-                      : _navigationProps!.copyWith(
-                          tabs: [
-                            TabItemPayload(
-                              key: 'latest',
-                              label: '',
-                              url: '',
-                              active: true,
-                            ),
-                            TabItemPayload(
-                              key: 'new',
-                              label: '',
-                              url: '',
-                              active: false,
-                            ),
-                          ],
-                        )),
-              categories: _categories,
-              activeCategory: _category,
-              onCategorySelected: _switchCategory,
-              selected: _sort.isEmpty ? 'latest' : _sort,
-              feedMode: _feedMode,
-              onSelected: _switchSort,
-              onFeedModeSelected: _setFeedMode,
-            )
-          : const SizedBox.shrink(),
+      toolbarHeight:
+          GfTabBar.heightFor(context) +
+          (categories.isEmpty ? 0 : _categoryRailHeight(context)),
+      toolbar: _HomeToolbar(
+        props:
+            _activeFeed.page.valueOrNull ??
+            (_category == null ? _navigationProps : null),
+        categories: categories,
+        activeCategory: _category,
+        onCategorySelected: _switchCategory,
+        selected: _sort.isEmpty ? 'latest' : _sort,
+        feedMode: _feedMode,
+        onSelected: _switchSort,
+        onFeedModeSelected: _setFeedMode,
+      ),
       body: (top, bottom) => IndexedStack(
         index: _feeds.keys.toList().indexOf(_activeKey),
         children: [
@@ -881,7 +894,7 @@ class _HomeToolbar extends ConsumerWidget {
     required this.onCategorySelected,
   });
 
-  final HomeProps props;
+  final HomeProps? props;
   final CategoryNavPayload? activeCategory;
   final ValueChanged<CategoryNavPayload?> onCategorySelected;
   final List<CategoryNavPayload> categories;
@@ -893,9 +906,21 @@ class _HomeToolbar extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     // 选中项:显式 selected 优先;为空时回退到服务端标记的 active tab。
+    final tabs =
+        props?.tabs ??
+        (activeCategory == null
+            ? const [
+                TabItemPayload(key: 'latest', url: '', active: true),
+                TabItemPayload(key: 'hot', url: '', active: false),
+                TabItemPayload(key: 'popular', url: '', active: false),
+              ]
+            : const [
+                TabItemPayload(key: 'latest', url: '', active: true),
+                TabItemPayload(key: 'new', url: '', active: false),
+              ]);
     String effective = selected;
     if (effective.isEmpty) {
-      for (final tab in props.tabs) {
+      for (final tab in tabs) {
         if (tab.active) {
           effective = tab.key;
           break;
@@ -907,27 +932,40 @@ class _HomeToolbar extends ConsumerWidget {
 
     return ColoredBox(
       color: colors.base100,
-      child: Row(
+      child: Column(
         children: [
-          Expanded(
-            child: GfTabBar(
-              tabs: [
-                for (final tab in props.tabs)
-                  GfTab(
-                    label: _sortTabLabel(context, tab.key, tab.label ?? ''),
-                    value: tab.key,
-                  ),
-              ],
-              selected: effective,
-              onSelected: (value) => onSelected(value as String),
+          Row(
+            children: [
+              Expanded(
+                child: GfTabBar(
+                  tabs: [
+                    for (final tab in tabs)
+                      GfTab(
+                        label: _sortTabLabel(context, tab.key, tab.label ?? ''),
+                        value: tab.key,
+                      ),
+                  ],
+                  selected: effective,
+                  onSelected: (value) => onSelected(value as String),
+                ),
+              ),
+              IconButton(
+                tooltip: l10n.homeFeedOptions,
+                icon: GfSymbol(
+                  feedMode == GfTopicFeedMode.card ? 'layout-grid' : 'list',
+                  size: 20,
+                ),
+                onPressed: () => _showOptions(context),
+              ),
+              const SizedBox(width: 4),
+            ],
+          ),
+          if (categories.isNotEmpty)
+            _CategoryRail(
+              categories: categories,
+              selectedId: activeCategory?.id,
+              onSelected: onCategorySelected,
             ),
-          ),
-          IconButton(
-            tooltip: l10n.homeFeedOptions,
-            icon: const GfSymbol('sliders-horizontal', size: 20),
-            onPressed: () => _showOptions(context),
-          ),
-          const SizedBox(width: 4),
         ],
       ),
     );
@@ -935,7 +973,7 @@ class _HomeToolbar extends ConsumerWidget {
 
   Future<void> _showOptions(BuildContext context) async {
     final l10n = AppLocalizations.of(context);
-    final selected = await showGfBottomSheet<Object>(
+    final selected = await showGfBottomSheet<GfTopicFeedMode>(
       context,
       builder: (sheetContext) => SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
@@ -969,46 +1007,12 @@ class _HomeToolbar extends ConsumerWidget {
                 ),
                 onTap: () => Navigator.pop(sheetContext, mode),
               ),
-            if (categories.isNotEmpty) ...[
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 8),
-                child: Divider(),
-              ),
-              ListTile(
-                leading: const GfSymbol('house', size: 20),
-                title: Text(l10n.homeAllCategories),
-                selected: activeCategory == null,
-                trailing: activeCategory == null
-                    ? const GfSymbol('check', size: 20)
-                    : null,
-                onTap: () => Navigator.pop(sheetContext, 'all-categories'),
-              ),
-              for (final category in categories)
-                ListTile(
-                  leading: Container(
-                    width: 10,
-                    height: 10,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: colorFromHex(category.color),
-                    ),
-                  ),
-                  title: Text(category.label),
-                  selected: activeCategory?.id == category.id,
-                  trailing: activeCategory?.id == category.id
-                      ? const GfSymbol('check', size: 20)
-                      : null,
-                  onTap: () => Navigator.pop(sheetContext, category),
-                ),
-            ],
           ],
         ),
       ),
     );
     if (!context.mounted) return;
-    if (selected is GfTopicFeedMode) onFeedModeSelected(selected);
-    if (selected is CategoryNavPayload) onCategorySelected(selected);
-    if (selected == 'all-categories') onCategorySelected(null);
+    if (selected != null) onFeedModeSelected(selected);
   }
 
   /// Known feed labels follow the app locale; custom server tabs retain their label.
@@ -1022,5 +1026,192 @@ class _HomeToolbar extends ConsumerWidget {
       'new' => l10n.sortNew,
       _ => label.isNotEmpty ? label : key,
     };
+  }
+}
+
+class _CategoryRail extends StatefulWidget {
+  const _CategoryRail({
+    required this.categories,
+    required this.selectedId,
+    required this.onSelected,
+  });
+
+  final List<CategoryNavPayload> categories;
+  final int? selectedId;
+  final ValueChanged<CategoryNavPayload?> onSelected;
+
+  @override
+  State<_CategoryRail> createState() => _CategoryRailState();
+}
+
+class _CategoryRailState extends State<_CategoryRail> {
+  final _controller = ScrollController();
+  final _itemKeys = <int?, GlobalKey>{};
+  bool _revealScheduled = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _revealSelected();
+  }
+
+  @override
+  void didUpdateWidget(covariant _CategoryRail oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.selectedId != widget.selectedId) _revealSelected();
+  }
+
+  void _revealSelected() {
+    if (_revealScheduled) return;
+    _revealScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _revealScheduled = false;
+      if (!mounted || !_controller.hasClients) return;
+      final target = _itemKeys[widget.selectedId]?.currentContext
+          ?.findRenderObject();
+      if (target == null || !target.attached) return;
+      // Address only this horizontal position, never a reading-list ancestor.
+      unawaited(
+        _controller.position.ensureVisible(
+          target,
+          alignment: .5,
+          duration:
+              MediaQuery.disableAnimationsOf(context) ||
+                  !TickerMode.valuesOf(context).enabled
+              ? Duration.zero
+              : const Duration(milliseconds: 180),
+          curve: Curves.easeOutCubic,
+        ),
+      );
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final items = <CategoryNavPayload?>[null, ...widget.categories];
+    final ids = items.map((item) => item?.id).toSet();
+    _itemKeys.removeWhere((id, _) => !ids.contains(id));
+    final colors = GfTheme.colorsOf(context);
+    return SizedBox(
+      height: _categoryRailHeight(context),
+      child: SingleChildScrollView(
+        key: const ValueKey('home-category-rail'),
+        controller: _controller,
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        child: Row(
+          children: [
+            for (var index = 0; index < items.length; index++) ...[
+              if (index > 0) const SizedBox(width: 8),
+              KeyedSubtree(
+                key: _itemKeys.putIfAbsent(items[index]?.id, GlobalKey.new),
+                child: _CategoryPill(
+                  key: ValueKey('home-category-${items[index]?.id ?? 'all'}'),
+                  label:
+                      items[index]?.label ??
+                      AppLocalizations.of(context).homeAllCategories,
+                  color: items[index] == null
+                      ? colors.primary
+                      : colorFromHex(items[index]!.color),
+                  selected: widget.selectedId == items[index]?.id,
+                  onTap: () => widget.onSelected(items[index]),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Compact category surface; its touch target stays at least 48 pixels high.
+class _CategoryPill extends StatelessWidget {
+  const _CategoryPill({
+    super.key,
+    required this.label,
+    required this.color,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final Color color;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = GfTheme.colorsOf(context);
+    final duration = MediaQuery.disableAnimationsOf(context)
+        ? Duration.zero
+        : const Duration(milliseconds: 180);
+    final pillHeight = math.max(
+      36.0,
+      MediaQuery.textScalerOf(context).scale(14) * 1.4 + 16,
+    );
+    return Semantics(
+      button: true,
+      selected: selected,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(12),
+          child: Center(
+            child: AnimatedContainer(
+              duration: duration,
+              curve: Curves.easeOutCubic,
+              height: pillHeight,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              decoration: BoxDecoration(
+                color: selected
+                    ? colors.primary.withValues(alpha: .10)
+                    : colors.base200,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: selected
+                      ? colors.primary.withValues(alpha: .35)
+                      : Colors.transparent,
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (selected)
+                    GfSymbol('check', size: 14, color: colors.primary)
+                  else
+                    Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: color,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                  const SizedBox(width: 8),
+                  Text(
+                    label,
+                    softWrap: false,
+                    style: TextStyle(
+                      fontSize: 14,
+                      height: 1.4,
+                      fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+                      color: selected ? colors.primary : colors.baseContent,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }

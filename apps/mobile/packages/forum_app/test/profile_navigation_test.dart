@@ -39,6 +39,7 @@ class _Profiles extends PageRepository {
         ),
       );
   final paths = <String>[];
+  final readTokens = <String, List<CancelToken?>>{};
   final failures = <String>{};
   void Function(String, Map<String, dynamic>)? configure;
   final pending = <String, Completer<PagePayload>>{};
@@ -93,6 +94,7 @@ class _Profiles extends PageRepository {
   @override
   Future<PagePayload> fetch(String path, {CancelToken? cancelToken}) async {
     paths.add(path);
+    readTokens.putIfAbsent(path, () => []).add(cancelToken);
     if (failures.contains(path)) throw StateError('unavailable');
     return pending[path]?.future ?? response(path);
   }
@@ -178,6 +180,7 @@ Future<ProviderContainer> _pump(
   TopicRepository? topics,
   bool settle = true,
   double scale = 1,
+  bool disableAnimations = false,
   CurrentUser? currentUser,
 }) async {
   final container = ProviderContainer(
@@ -191,7 +194,10 @@ Future<ProviderContainer> _pump(
   final app = router == null
       ? MaterialApp(
           home: MediaQuery(
-            data: MediaQueryData(textScaler: TextScaler.linear(scale)),
+            data: MediaQueryData(
+              textScaler: TextScaler.linear(scale),
+              disableAnimations: disableAnimations,
+            ),
             child: home,
           ),
           localizationsDelegates: AppLocalizations.localizationsDelegates,
@@ -357,6 +363,61 @@ void main() {
     expect(tester.getRect(find.byTooltip('徽章')).top, greaterThanOrEqualTo(103));
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets(
+    'collapsed iOS profile title and count align beside the back button',
+    (tester) async {
+      tester.view.physicalSize = const Size(390, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final router = GoRouter(
+        routes: [
+          GoRoute(
+            path: '/',
+            builder: (_, _) => const Scaffold(body: Text('origin')),
+          ),
+          GoRoute(
+            path: '/profile',
+            builder: (_, _) => Theme(
+              data: gfThemeData(
+                Brightness.light,
+              ).copyWith(platform: TargetPlatform.iOS),
+              child: const ProfilePage(userId: 1),
+            ),
+          ),
+        ],
+      );
+      addTearDown(router.dispose);
+      await _pump(tester, _Profiles(), router: router);
+      router.push('/profile');
+      await tester.pumpAndSettle();
+      expect(find.byType(GfGlassSurface), findsWidgets);
+      expect(
+        find.descendant(of: find.byType(AppBar), matching: find.text('Alice')),
+        findsNothing,
+      );
+      await tester.drag(find.byType(CustomScrollView), const Offset(0, -650));
+      await tester.pumpAndSettle();
+      final name = tester.getRect(
+        find.descendant(of: find.byType(AppBar), matching: find.text('Alice')),
+      );
+      final count = tester.getRect(
+        find.descendant(of: find.byType(AppBar), matching: find.text('5 主题')),
+      );
+      final back = tester.getRect(find.byTooltip('返回'));
+      expect(name.left - back.right, inInclusiveRange(0, 12));
+      expect(count.left, closeTo(name.left, .01));
+      expect(count.top, greaterThanOrEqualTo(name.bottom));
+      expect(back.width, greaterThanOrEqualTo(44));
+      expect(back.height, greaterThanOrEqualTo(44));
+      expect(find.byType(GfGlassSurface), findsNothing);
+      await tester.tap(find.byTooltip('返回'));
+      await tester.pumpAndSettle();
+      expect(router.state.uri.path, '/');
+      expect(find.text('origin'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   for (final following in [false, true]) {
     testWidgets(
@@ -604,7 +665,7 @@ void main() {
         find.descendant(of: row, matching: find.text('4')),
         findsOneWidget,
       );
-      _select(tester, '主题');
+      _select(tester, '内容');
       await tester.pumpAndSettle();
       expect(
         tester.widget<GfTopicCard>(find.byType(GfTopicCard).first).bookmarked,
@@ -661,7 +722,7 @@ void main() {
         ),
         findsOneWidget,
       );
-      _select(tester, '主题');
+      _select(tester, '内容');
       await tester.pumpAndSettle();
       await _showContent(tester, GfTopicCard);
       expect(
@@ -958,17 +1019,95 @@ void main() {
     },
   );
 
-  testWidgets('profile inactive tabs retain visible text', (tester) async {
-    await _pump(tester, _Profiles());
-    expect(
-      find.descendant(of: find.byTooltip('主题'), matching: find.text('主题')),
-      findsOneWidget,
+  testWidgets(
+    'profile tabs expand only the selected label and retain tooltips',
+    (tester) async {
+      await _pump(tester, _Profiles());
+      void expectLabel(String label, {required bool expanded}) {
+        final tab = find.byTooltip(label);
+        expect(tab, findsOneWidget);
+        expect(
+          find.descendant(of: tab, matching: find.byType(GfSymbol)),
+          findsOneWidget,
+        );
+        final opacity = find.descendant(
+          of: tab,
+          matching: find.byType(AnimatedOpacity),
+        );
+        expect(
+          tester.widget<AnimatedOpacity>(opacity).opacity,
+          expanded ? 1 : 0,
+        );
+        final clip = find.descendant(of: tab, matching: find.byType(ClipRect));
+        expect(tester.getSize(clip).width, expanded ? greaterThan(0) : 0);
+        final cell = find.descendant(of: tab, matching: find.byType(InkWell));
+        expect(tester.getSize(cell).width, greaterThanOrEqualTo(48));
+        expect(tester.getSize(cell).height, greaterThanOrEqualTo(48));
+      }
+
+      expectLabel('动态', expanded: true);
+      for (final label in ['内容', '赞过', '收藏', '徽章']) {
+        expectLabel(label, expanded: false);
+      }
+      _select(tester, '内容');
+      await tester.pumpAndSettle();
+      expectLabel('动态', expanded: false);
+      expectLabel('内容', expanded: true);
+    },
+  );
+
+  testWidgets('profile tab selection respects reduced motion', (tester) async {
+    await _pump(tester, _Profiles(), disableAnimations: true);
+    _select(tester, '赞过');
+    await tester.pump();
+    final indicator = find.byKey(const ValueKey('profile-tab-indicator'));
+    final selected = find.byKey(const ValueKey('profile-tab-active-segment'));
+    final rect = tester.getRect(indicator);
+    expect(rect.center.dx, closeTo(tester.getRect(selected).center.dx, .1));
+    await tester.pump(const Duration(milliseconds: 110));
+    expect(tester.getRect(indicator), rect);
+    final opacity = tester.widget<AnimatedOpacity>(
+      find.descendant(
+        of: find.byTooltip('赞过'),
+        matching: find.byType(AnimatedOpacity),
+      ),
     );
-    expect(
-      find.descendant(of: find.byTooltip('赞过'), matching: find.text('赞过')),
-      findsOneWidget,
-    );
+    expect(opacity.duration, Duration.zero);
+    expect(opacity.opacity, 1);
+    expect(tester.takeException(), isNull);
   });
+
+  testWidgets(
+    'profile tab segments stay contiguous as the active segment moves',
+    (tester) async {
+      await _pump(tester, _Profiles());
+      const labels = ['动态', '内容', '赞过', '收藏', '徽章'];
+      Finder cell(String label) => find
+          .descendant(of: find.byTooltip(label), matching: find.byType(InkWell))
+          .first;
+      void expectNoGaps() {
+        final rects = [for (final label in labels) tester.getRect(cell(label))];
+        for (var i = 0; i < rects.length - 1; i++) {
+          expect(rects[i].right, closeTo(rects[i + 1].left, .1));
+        }
+      }
+
+      expectNoGaps();
+      final segment = find.byKey(const ValueKey('profile-tab-active-segment'));
+      final underline = find.byKey(const ValueKey('profile-tab-indicator'));
+      final start = tester.getRect(segment).center.dx;
+      expect(tester.getRect(underline).width, greaterThan(40));
+
+      _select(tester, '赞过');
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 110));
+      expectNoGaps();
+      final halfway = tester.getRect(segment).center.dx;
+      expect(halfway, greaterThan(start));
+      await tester.pumpAndSettle();
+      expect(tester.getRect(segment).center.dx, greaterThan(halfway));
+    },
+  );
 
   testWidgets(
     'profile tabs support keyboard activation and selected semantics',
@@ -1019,7 +1158,38 @@ void main() {
   );
 
   testWidgets(
-    'profile slow inactive stream completes without replacing active stream',
+    'unloaded profile stream keeps the immersive header above its skeleton',
+    (tester) async {
+      final repo = _Profiles();
+      final pending = Completer<PagePayload>();
+      repo.pending['/u/1/activity/likes'] = pending;
+      await _pump(tester, repo);
+      final cover = tester.getRect(
+        find.byKey(const Key('profile-cover-image')),
+      );
+      final card = tester.getRect(find.byType(GfUserCard));
+      _select(tester, '赞过');
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 250));
+      expect(
+        tester.getRect(find.byKey(const Key('profile-cover-image'))),
+        cover,
+      );
+      expect(tester.getRect(find.byType(GfUserCard)), card);
+      expect(find.byType(GfGlassSurface), findsWidgets);
+      expect(find.byTooltip('赞过'), findsOneWidget);
+      expect(find.byType(GfSkeleton), findsWidgets);
+      expect(find.byType(GfLoadingIndicator), findsNothing);
+      expect(find.text('like-0'), findsNothing);
+      pending.complete(repo.response('/u/1/activity/likes'));
+      await tester.pumpAndSettle();
+      expect(find.byType(GfSkeleton), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'leaving the profile cancels the active read and ignores its completion',
     (tester) async {
       final repo = _Profiles();
       final pending = Completer<PagePayload>();
@@ -1027,14 +1197,93 @@ void main() {
       await _pump(tester, repo);
       _select(tester, '赞过');
       await tester.pump();
-      _select(tester, '主题');
+      final token = repo.readTokens['/u/1/activity/likes']!.single!;
+      await tester.pumpWidget(const SizedBox.shrink());
+      expect(token.isCancelled, isTrue);
+      pending.complete(repo.response('/u/1/activity/likes'));
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  for (final loaded in [false, true]) {
+    testWidgets(
+      'profile notification action returns to the existing shell branch (loaded=$loaded)',
+      (tester) async {
+        final repo = _Profiles();
+        final pending = Completer<PagePayload>();
+        if (!loaded) repo.pending['/u/1/activity'] = pending;
+        final router = GoRouter(
+          initialLocation: '/notifications',
+          routes: [
+            StatefulShellRoute.indexedStack(
+              builder: (_, _, shell) => Scaffold(body: shell),
+              branches: [
+                StatefulShellBranch(
+                  routes: [
+                    GoRoute(
+                      path: '/notifications',
+                      builder: (_, _) => const Text('notification branch'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            GoRoute(path: '/profile', builder: (_, _) => const ProfilePage()),
+          ],
+        );
+        addTearDown(router.dispose);
+        await _pump(
+          tester,
+          repo,
+          router: router,
+          currentUser: const CurrentUser(id: 1, username: 'alice'),
+        );
+        router.push('/profile');
+        if (loaded) {
+          await tester.pumpAndSettle();
+          expect(find.byType(GfGlassIconButton), findsWidgets);
+        } else {
+          for (var i = 0; i < 5; i++) {
+            await tester.pump(const Duration(milliseconds: 100));
+          }
+        }
+        await tester.tap(find.byTooltip('通知'));
+        await tester.pumpAndSettle();
+        expect(router.state.uri.path, '/notifications');
+        expect(router.canPop(), isFalse);
+        expect(find.byType(ProfilePage), findsNothing);
+        expect(find.text('notification branch'), findsOneWidget);
+        if (!loaded) {
+          expect(repo.readTokens['/u/1/activity']!.single!.isCancelled, isTrue);
+          pending.complete(repo.response('/u/1/activity'));
+          await tester.pump();
+        }
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
+  testWidgets(
+    'profile cancels an inactive read and reloads it without accepting its late response',
+    (tester) async {
+      final repo = _Profiles();
+      final pending = Completer<PagePayload>();
+      repo.pending['/u/1/activity/likes'] = pending;
+      await _pump(tester, repo);
+      _select(tester, '赞过');
+      await tester.pump();
+      final cancelledRead = repo.readTokens['/u/1/activity/likes']!.single!;
+      expect(cancelledRead.isCancelled, isFalse);
+      _select(tester, '内容');
       await tester.pumpAndSettle();
+      expect(cancelledRead.isCancelled, isTrue);
       pending.complete(repo.response('/u/1/activity/likes'));
       await tester.pumpAndSettle();
       expect(find.text('like-0'), findsNothing);
       _select(tester, '赞过');
       await tester.pumpAndSettle();
-      expect(repo.paths.where((path) => path.endsWith('/likes')), hasLength(1));
+      expect(repo.paths.where((path) => path.endsWith('/likes')), hasLength(2));
       tester
           .widget<CustomScrollView>(find.byType(CustomScrollView))
           .controller!
@@ -1116,7 +1365,7 @@ void main() {
   );
 
   testWidgets(
-    'connection pagination completes in its own tab and survives switching back',
+    'connection pagination is cancelled when hidden and resumes from its retained cursor',
     (tester) async {
       final repo = _Profiles()
         ..configure = (path, props) {
@@ -1150,8 +1399,10 @@ void main() {
         settle: false,
       );
       expect(repo.paths, contains('/u/1/following?page=2'));
+      final cancelledPage = repo.readTokens['/u/1/following?page=2']!.single!;
       _select(tester, '粉丝');
       await tester.pumpAndSettle();
+      expect(cancelledPage.isCancelled, isTrue);
       pending.complete(repo.response('/u/1/following?page=2'));
       await tester.pumpAndSettle();
       expect(find.text('Dan'), findsNothing);
@@ -1161,7 +1412,7 @@ void main() {
       expect(find.text('Dan'), findsOneWidget);
       expect(
         repo.paths.where((p) => p.startsWith('/u/1/following')),
-        hasLength(2),
+        hasLength(3),
       );
     },
   );
@@ -1247,12 +1498,14 @@ void main() {
       _select(tester, '赞过');
       await tester.pump();
       final old = repo.response('/u/1/activity/likes');
+      final oldRead = repo.readTokens['/u/1/activity/likes']!.single!;
       repo.pending.clear();
       repo.configure = (_, props) {
         props['likes'] = [];
       };
       container.read(offlineCacheEpochProvider.notifier).invalidate();
       await tester.pumpAndSettle();
+      expect(oldRead.isCancelled, isTrue);
       pending.complete(old);
       await tester.pumpAndSettle();
       tester
@@ -1273,6 +1526,7 @@ void main() {
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
       await _pump(tester, _Profiles(), scale: 2);
+      expect(tester.takeException(), isNull);
       expect(
         tester.getSize(find.byType(CustomScrollView)).width,
         lessThanOrEqualTo(760),

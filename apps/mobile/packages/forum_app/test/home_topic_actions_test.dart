@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:core/core.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:forum_app/l10n/app_localizations.dart';
@@ -309,7 +310,7 @@ void main() {
     return container;
   }
 
-  for (final scale in [1.0, 2.0]) {
+  for (final scale in [1.0, 2.0, 3.0]) {
     testWidgets('home categories stay compact and readable at ${scale}x text', (
       tester,
     ) async {
@@ -323,19 +324,33 @@ void main() {
           {'id': 2, 'label': '闲聊茶馆', 'color': '#f59e0b', 'url': '/c/chat/2'},
         ];
       await pump(tester, pages, _Topics(pages), textScale: scale);
-      expect(find.text('论坛运营'), findsNothing);
-      final headerBottom = tester.getRect(find.byType(GfTabBar)).bottom;
+      final rail = find.byKey(const ValueKey('home-category-rail'));
+      expect(rail, findsOneWidget);
+      final headerBottom = tester.getRect(rail).bottom;
       expect(
         tester.getRect(find.text('Topic 0')).top,
         greaterThanOrEqualTo(headerBottom),
       );
-      await tester.tap(find.byTooltip('分类与显示'));
+      await tester.drag(rail, const Offset(-240, 0));
       await tester.pumpAndSettle();
-      final label = find.text('论坛运营');
+      final label = find.text('闲聊茶馆');
       expect(label, findsOneWidget);
-      expect(find.text('闲聊茶馆'), findsOneWidget);
-      final target = find.ancestor(of: label, matching: find.byType(ListTile));
-      expect(tester.getSize(target).height, greaterThanOrEqualTo(44));
+      final target = find
+          .ancestor(of: label, matching: find.byType(InkWell))
+          .first;
+      expect(tester.getSize(target).height, greaterThanOrEqualTo(48));
+      final paragraph = tester.renderObject<RenderParagraph>(label);
+      final naturalText = TextPainter(
+        text: paragraph.text,
+        textDirection: paragraph.textDirection,
+        textScaler: paragraph.textScaler,
+      )..layout(maxWidth: paragraph.size.width);
+      expect(
+        paragraph.size.height,
+        greaterThanOrEqualTo(naturalText.height - .01),
+      );
+      naturalText.dispose();
+      expect(find.byType(BottomSheet), findsNothing);
       expect(tester.takeException(), isNull);
     });
   }

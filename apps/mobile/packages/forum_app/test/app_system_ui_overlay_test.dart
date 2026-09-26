@@ -93,6 +93,14 @@ void main() {
         Brightness.light,
       );
       expect(SystemChrome.latestStyle!.statusBarBrightness, Brightness.dark);
+      expect(
+        SystemChrome.latestStyle!.systemNavigationBarIconBrightness,
+        Brightness.light,
+      );
+      expect(
+        SystemChrome.latestStyle!.systemNavigationBarColor,
+        Colors.transparent,
+      );
 
       mode.value = ThemeMode.light;
       await tester.pumpAndSettle();
@@ -101,6 +109,58 @@ void main() {
         Brightness.dark,
       );
       expect(SystemChrome.latestStyle!.statusBarBrightness, Brightness.light);
+      expect(
+        SystemChrome.latestStyle!.systemNavigationBarIconBrightness,
+        Brightness.dark,
+      );
+      expect(
+        SystemChrome.latestStyle!.systemNavigationBarDividerColor,
+        Colors.transparent,
+      );
     },
   );
+
+  testWidgets('a local navigation-bar region wins and restores on return', (
+    tester,
+  ) async {
+    usePhoneViewport(tester);
+    final navigator = GlobalKey<NavigatorState>();
+    await tester.pumpWidget(
+      MaterialApp(
+        navigatorKey: navigator,
+        theme: ThemeData.light(),
+        builder: (_, child) => AppSystemUiOverlay(child: child!),
+        home: const Scaffold(body: Text('Home')),
+      ),
+    );
+    unawaited(
+      navigator.currentState!.push<void>(
+        MaterialPageRoute<void>(
+          builder: (_) => const AnnotatedRegion<SystemUiOverlayStyle>(
+            value: SystemUiOverlayStyle(
+              systemNavigationBarColor: Colors.indigo,
+              systemNavigationBarIconBrightness: Brightness.light,
+            ),
+            child: Scaffold(body: Text('Local')),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(SystemChrome.latestStyle!.systemNavigationBarColor, Colors.indigo);
+    expect(
+      SystemChrome.latestStyle!.systemNavigationBarIconBrightness,
+      Brightness.light,
+    );
+    navigator.currentState!.pop();
+    await tester.pumpAndSettle();
+    expect(
+      SystemChrome.latestStyle!.systemNavigationBarColor,
+      Colors.transparent,
+    );
+    expect(
+      SystemChrome.latestStyle!.systemNavigationBarIconBrightness,
+      Brightness.dark,
+    );
+  });
 }
