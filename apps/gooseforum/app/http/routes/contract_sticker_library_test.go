@@ -146,7 +146,7 @@ func TestPersonalStickerUploadLifecycleHTTPContract(t *testing.T) {
 	if err := stickerservice.CloseLibrary(context.Background(), owner.Id); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := stickerservice.SaveToLibrary(context.Background(), owner.Id, stickerservice.LibrarySaveInput{StickerName: item.Name}); err != sticker.ErrLibraryClosed {
+	if _, err := stickerservice.SaveToLibrary(context.Background(), owner.Id, stickerservice.LibrarySaveInput{StickerName: item.Name}); !errors.Is(err, sticker.ErrLibraryClosed) {
 		t.Fatalf("closed library accepted stale write: %v", err)
 	}
 	response = serveAuthSecurityJSON(router, http.MethodPost, "/api/forum/stickers/resolve", fmt.Sprintf(`{"names":[%q]}`, item.Name), "")
@@ -232,7 +232,7 @@ func TestPersonalStickerUploadQuotaAndAtomicUsage(t *testing.T) {
 	// Failing file usage registration must roll back both asset and membership.
 	if err := conn.Callback().Create().Before("gorm:create").Register("fail_personal_usage", func(tx *gorm.DB) {
 		if tx.Statement.Table == "file_usages" {
-			tx.AddError(errors.New("forced usage failure"))
+			_ = tx.AddError(errors.New("forced usage failure"))
 		}
 	}); err != nil {
 		t.Fatal(err)

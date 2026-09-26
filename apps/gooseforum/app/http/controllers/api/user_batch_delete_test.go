@@ -334,7 +334,7 @@ func TestAccountCloseFailureRollsBackStickerLibrary(t *testing.T) {
 			callback := "fail_sticker_close_" + stage
 			if err := conn.Callback().Delete().Before("gorm:delete").Register(callback, func(tx *gorm.DB) {
 				if tx.Statement.Table == failedTable {
-					tx.AddError(errors.New("forced account-close prerequisite failure"))
+					_ = tx.AddError(errors.New("forced account-close prerequisite failure"))
 				}
 			}); err != nil {
 				t.Fatal(err)

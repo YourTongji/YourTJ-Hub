@@ -133,7 +133,7 @@ func TestPersonalStickerSaveRollbackPreservesMembership(t *testing.T) {
 	asset := seedLibraryAssets(t, conn, 1)[0]
 	if err := conn.Callback().Create().Before("gorm:create").Register("fail_membership", func(tx *gorm.DB) {
 		if tx.Statement.Table == "user_stickers" {
-			tx.AddError(errors.New("forced membership failure"))
+			_ = tx.AddError(errors.New("forced membership failure"))
 		}
 	}); err != nil {
 		t.Fatal(err)
