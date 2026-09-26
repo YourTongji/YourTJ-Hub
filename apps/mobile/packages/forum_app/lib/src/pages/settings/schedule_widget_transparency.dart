@@ -20,6 +20,7 @@ class _ScheduleWidgetTransparencyState
   int _saved = ScheduleWidgetBridge.defaultTransparencyPercent;
   bool _loaded = false;
   int _revision = 0;
+  Future<void> _writes = Future.value();
   @override
   void initState() {
     super.initState();
@@ -44,20 +45,26 @@ class _ScheduleWidgetTransparencyState
     }
   }
 
-  Future<void> _save(int value) async {
+  Future<void> _save(int value) {
     final revision = ++_revision;
-    try {
-      await ref.read(scheduleWidgetBridgeProvider).setTransparency(value);
-      if (mounted && revision == _revision) setState(() => _saved = value);
-    } catch (error) {
-      if (!mounted || revision != _revision) return;
-      setState(() => _value = _saved);
-      showGfToast(
-        context,
-        resolveErrorMessage(AppLocalizations.of(context), error),
-        error: true,
-      );
-    }
+    final bridge = ref.read(scheduleWidgetBridgeProvider);
+    // Keep native writes in gesture order, including work already submitted
+    // when the page closes. Every success becomes the rollback baseline, but
+    // only the newest gesture may change the visible preview after a failure.
+    return _writes = _writes.then((_) async {
+      try {
+        await bridge.setTransparency(value);
+        _saved = value;
+      } catch (error) {
+        if (!mounted || revision != _revision) return;
+        setState(() => _value = _saved);
+        showGfToast(
+          context,
+          resolveErrorMessage(AppLocalizations.of(context), error),
+          error: true,
+        );
+      }
+    });
   }
 
   @override
@@ -84,7 +91,10 @@ class _ScheduleWidgetTransparencyState
                 '${l.scheduleWidgetTransparencyTitle}, ${value.round()}%',
             onChanged: !_loaded
                 ? null
-                : (value) => setState(() => _value = value.round()),
+                : (value) => setState(() {
+                    _revision++;
+                    _value = value.round();
+                  }),
             onChangeEnd: !_loaded ? null : (value) => _save(value.round()),
           ),
           Text(

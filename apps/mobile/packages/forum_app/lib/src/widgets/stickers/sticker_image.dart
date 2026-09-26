@@ -69,7 +69,7 @@ class _StickerImageState extends State<StickerImage> {
       }
     } else if (action == 'save') {
       final collection = owner!;
-      if (!collection.active || collection.busy) return;
+      if (!collection.active) return;
       try {
         await collection.save(stickerName: widget.name);
         if (mounted && collection.active) {

@@ -108,7 +108,10 @@ class StickerCollection extends ChangeNotifier {
   }
 
   Future<void> _mutate(Future<void> Function() action) async {
-    if (busy || !_active) return;
+    // Every successful completion must acknowledge an executed write. Callers
+    // surface this failure and keep their draft/selection available for retry.
+    if (!_active) throw StateError('Sticker collection is no longer active');
+    if (busy) throw StateError('A sticker collection write is already pending');
     busy = true;
     _notify();
     try {

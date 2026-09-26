@@ -29,7 +29,7 @@ export function getMarkdownImagePreview(
 function isStickerImage(image: HTMLImageElement) {
   // The Markdown renderer emits this marker for both official and personal
   // stickers. Match the marker, not the URL: ordinary photos stay previewable.
-  return image.alt.startsWith('sticker:')
+  return image.hasAttribute('data-gf-sticker')
 }
 
 function sameUrl(left: string, right: string) {

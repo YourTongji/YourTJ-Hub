@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -83,11 +84,7 @@ class _GfMarkdownViewState extends ConsumerState<GfMarkdownView> {
     // Local storage uploads intentionally return `/file/img/...`; keep both
     // relative and absolute destinations so the viewer mirrors the renderer.
     final RegExp re = RegExp(r'!\[([^\]]*)\]\(([^)\s]+)\)');
-    return re
-        .allMatches(data)
-        .where((m) => !m.group(1)!.startsWith('sticker:'))
-        .map((m) => m.group(2)!)
-        .toList(growable: false);
+    return re.allMatches(data).map((m) => m.group(2)!).toList(growable: false);
   }
 
   void _openViewer(BuildContext context, List<String> urls, int index) {
@@ -113,12 +110,30 @@ class _GfMarkdownViewState extends ConsumerState<GfMarkdownView> {
   Widget _buildMarkdownBody() {
     final GfColors colors = GfTheme.colorsOf(context);
     final GfBorders borders = GfTheme.bordersOf(context);
+    // Only token expansion receives these private image sources. Image alt,
+    // titles and even a matching public asset URL remain ordinary user input.
+    final stickerImages = <String, ({String name, String url})>{};
+    final stickerSources = <String, String>{};
+    if (_stickerUrls.isNotEmpty && containsStickerToken(widget.data)) {
+      final random = Random.secure();
+      final nonce = List.generate(
+        4,
+        (_) => random.nextInt(1 << 32).toRadixString(16).padLeft(8, '0'),
+      ).join();
+      for (final entry in _stickerUrls.entries) {
+        final source = 'gf-sticker-render:$nonce/${stickerImages.length}';
+        stickerImages[source] = (name: entry.key, url: entry.value);
+        stickerSources[entry.key] = source;
+      }
+    }
     final String data = expandStickerTokens(
       expandPostMentions(widget.data, widget.mentions),
-      _stickerUrls,
+      stickerSources,
     );
     // Expressions never belong to a photo gallery, including supplied lists.
-    final ordinary = _extractImages(data);
+    final ordinary = _extractImages(
+      data,
+    ).where((source) => !stickerImages.containsKey(source)).toList();
     final List<String> sourceUrls = widget.images == null
         ? ordinary
         : widget.images!.where(ordinary.contains).toList();
@@ -185,9 +200,9 @@ class _GfMarkdownViewState extends ConsumerState<GfMarkdownView> {
         // 图片:contain + 高度约束 + 圆角边框(prose.css img)。
         ImgConfig(
           builder: (String url, Map<String, String> attributes) {
-            final alt = attributes['alt'] ?? '';
-            if (alt.startsWith('sticker:')) {
-              return StickerImage(name: alt.substring(8), url: url);
+            final sticker = stickerImages[url];
+            if (sticker != null) {
+              return StickerImage(name: sticker.name, url: sticker.url);
             }
             final String resolvedUrl = resolveApiAssetUrl(url);
             return GestureDetector(

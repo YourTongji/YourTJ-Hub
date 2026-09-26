@@ -84,6 +84,69 @@ class _Repository extends StickerRepository {
 }
 
 void main() {
+  test(
+    'busy library rejects every skipped mutation instead of succeeding',
+    () async {
+      final repository = _Repository()..pendingSave = Completer();
+      final collection = StickerCollection(
+        repository,
+        StickerLibrary(repository),
+      );
+      addTearDown(collection.dispose);
+      await collection.loadMine();
+      final pending = collection.save(stickerName: personal.name);
+      await expectLater(
+        collection.save(stickerName: official.name),
+        throwsStateError,
+      );
+      await expectLater(collection.remove({official.name}), throwsStateError);
+      await expectLater(collection.reorder(0, 0), throwsStateError);
+      expect(collection.busy, isTrue);
+      expect(collection.mine, [official]);
+      repository.pendingSave!.complete(personal);
+      await pending;
+      expect(collection.mine, [official, personal]);
+      expect(collection.busy, isFalse);
+    },
+  );
+
+  testWidgets('picker never confirms a collection skipped by another write', (
+    tester,
+  ) async {
+    final repository = _Repository()..members = [];
+    final state = StickerCollection(repository, StickerLibrary(repository));
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [stickerCollectionProvider.overrideWith((_) => state)],
+        child: MaterialApp(
+          theme: gfThemeData(Brightness.light),
+          home: Scaffold(
+            body: SizedBox(height: 300, child: StickerPicker(onInsert: (_) {})),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Official'));
+    await tester.pumpAndSettle();
+    await tester.longPress(find.text('Smile'));
+    await tester.pumpAndSettle();
+    expect(find.text('Save to my stickers'), findsOneWidget);
+    repository.pendingSave = Completer();
+    final pending = state.save(stickerName: personal.name);
+    // The action sheet was opened before another surface began its write.
+    await tester.tap(find.text('Save to my stickers'));
+    await tester.pumpAndSettle();
+    expect(find.text('Saved to your stickers'), findsNothing);
+    expect(
+      find.text('Could not complete this action. Try again.'),
+      findsOneWidget,
+    );
+    repository.pendingSave!.complete(personal);
+    await pending;
+    expect(state.mine, [personal]);
+  });
+
   testWidgets('sticker management clears private page state across accounts', (
     tester,
   ) async {

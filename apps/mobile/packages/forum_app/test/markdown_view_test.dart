@@ -563,10 +563,14 @@ void main() {
     await tester.pump();
     expect(
       tester.widget<MarkdownWidget>(find.byType(MarkdownWidget)).data,
-      '你好 ![sticker:smile](/file/img/stickers/smile.png)',
+      startsWith('你好 ![sticker:smile](gf-sticker-render:'),
     );
     expect(find.byType(Image), findsOneWidget);
     expect(find.byType(StickerImage), findsOneWidget);
+    expect(
+      tester.widget<StickerImage>(find.byType(StickerImage)).url,
+      '/file/img/stickers/smile.png',
+    );
     await tester.tap(find.byType(StickerImage));
     await tester.pump();
     expect(find.byType(GfImageViewer), findsNothing);
@@ -597,6 +601,47 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 600));
   });
+  testWidgets(
+    'ordinary sticker-prefixed image alt never grants sticker behavior',
+    (tester) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            stickerLibraryProvider.overrideWithValue(
+              StickerLibrary(_FakeStickerRepository()),
+            ),
+          ],
+          child: MaterialApp(
+            theme: gfThemeData(Brightness.light),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: const Scaffold(
+              body: GfMarkdownView(
+                data:
+                    '[:sticker:smile:]\n\n![sticker:smile](/file/img/stickers/smile.png)\n\n![sticker:unknown](/file/img/photo.png)',
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byType(StickerImage), findsOneWidget);
+      final photos = find.byWidgetPredicate(
+        (widget) => widget is Image && widget.image is ResizeImage,
+      );
+      expect(photos, findsNWidgets(2));
+      await tester.tap(photos.last);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      final viewer = tester.widget<GfImageViewer>(find.byType(GfImageViewer));
+      expect(viewer.images, hasLength(2));
+      expect(viewer.images.first, endsWith('/file/img/stickers/smile.png'));
+      expect(viewer.images.last, endsWith('/file/img/photo.png'));
+      expect(viewer.initialIndex, 1);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(const Duration(milliseconds: 600));
+    },
+  );
   testWidgets(
     'ordinary photo viewer excludes stickers including supplied gallery entries',
     (tester) async {
