@@ -33,9 +33,11 @@ export default {
   },
   badgeDisplay: {
     title: "Profile badges",
-    hint: "Choose up to 5 badges and their order, or deselect all. Independent of your avatar badge.",
-    up: "Move up",
-    down: "Move down",
+    hint: "Check a badge to show it on your profile card. Drag selected badges to reorder them. Choose up to 5; this is separate from your avatar badge.",
+    selected: "Showing {count}/5",
+    available: "Available to add",
+    empty: "No profile badges selected. Check a badge below to add it.",
+    reorder: "Drag {name}, or use Alt+Up/Down to reorder",
     save: "Save profile badges"
   },
   tongjiRegistration: {
