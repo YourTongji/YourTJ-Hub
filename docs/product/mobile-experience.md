@@ -663,11 +663,16 @@ identity survive this layout change. The header keeps a small outer margin for i
 - `Current`: users with follow permission retain the follow button for already-followed accounts,
   including administrators. It displays the followed state and toggles to unfollow, prevents duplicate
   in-flight requests and restores the previous state when a request fails.
-- `Current`: profile content tabs always show their localized text, with a stable selected underline
-  and a pinned rail. Activity, topics, likes, own bookmarks and badges fetch their corresponding
-  server streams. Each stream retains its pages, scroll position, loading and retry state while the
-  page is open. Inactive reads cannot replace the selected stream; refresh and account changes
-  invalidate older responses. Failed refreshes and pagination keep already loaded rows. Pagination
+- `Current`: the pinned profile rail expands the selected ReIcon tab to show its localized label and
+  keeps the other tabs icon-only. Tab cells stay adjacent as widths reflow; selection is expressed by
+  the expanded label and longer moving underline, with no persistent filled backing. Taps use the
+  normal transient Material ripple without a second selected-state surface.
+  Localized tab labels remain available to assistive technology. Activity, posts, likes, own bookmarks
+  and badges fetch their corresponding server streams. The profile header and tab rail remain in place
+  while an unloaded stream shows feed-shaped skeleton rows. Each stream retains its pages and scroll
+  position while the page is open; in-flight reads can populate only their own stream, and only the
+  active stream can update the profile header. Request generations prevent stale responses from
+  changing the selected stream. Failed refreshes and pagination keep already loaded rows. Pagination
   follows only relative server URLs for the same user and stream, deduplicating overlapping rows.
 - `Current`: following and follower statistics are keyboard-accessible navigation controls with
   at least 48-pixel targets. They open a separate native two-tab connection list, identify the

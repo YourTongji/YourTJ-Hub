@@ -386,7 +386,7 @@ void main() {
         find.descendant(of: row, matching: find.text('4')),
         findsOneWidget,
       );
-      _select(tester, '主题');
+      _select(tester, '内容');
       await tester.pumpAndSettle();
       expect(
         tester.widget<GfTopicCard>(find.byType(GfTopicCard).first).bookmarked,
@@ -441,7 +441,7 @@ void main() {
         ),
         findsOneWidget,
       );
-      _select(tester, '主题');
+      _select(tester, '内容');
       await tester.pumpAndSettle();
       await _showContent(tester, GfTopicCard);
       expect(
@@ -741,7 +741,7 @@ void main() {
   testWidgets('profile inactive tabs retain visible text', (tester) async {
     await _pump(tester, _Profiles());
     expect(
-      find.descendant(of: find.byTooltip('主题'), matching: find.text('主题')),
+      find.descendant(of: find.byTooltip('内容'), matching: find.text('内容')),
       findsOneWidget,
     );
     expect(
@@ -749,6 +749,38 @@ void main() {
       findsOneWidget,
     );
   });
+
+  testWidgets(
+    'profile tab segments stay contiguous as the active segment moves',
+    (tester) async {
+      await _pump(tester, _Profiles());
+      const labels = ['动态', '内容', '赞过', '收藏', '徽章'];
+      Finder cell(String label) => find
+          .descendant(of: find.byTooltip(label), matching: find.byType(InkWell))
+          .first;
+      void expectNoGaps() {
+        final rects = [for (final label in labels) tester.getRect(cell(label))];
+        for (var i = 0; i < rects.length - 1; i++) {
+          expect(rects[i].right, closeTo(rects[i + 1].left, .1));
+        }
+      }
+
+      expectNoGaps();
+      final segment = find.byKey(const ValueKey('profile-tab-active-segment'));
+      final underline = find.byKey(const ValueKey('profile-tab-indicator'));
+      final start = tester.getRect(segment).center.dx;
+      expect(tester.getRect(underline).width, greaterThan(40));
+
+      _select(tester, '赞过');
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 110));
+      expectNoGaps();
+      final halfway = tester.getRect(segment).center.dx;
+      expect(halfway, greaterThan(start));
+      await tester.pumpAndSettle();
+      expect(tester.getRect(segment).center.dx, greaterThan(halfway));
+    },
+  );
 
   testWidgets(
     'profile tabs support keyboard activation and selected semantics',
@@ -807,14 +839,14 @@ void main() {
       await _pump(tester, repo);
       _select(tester, '赞过');
       await tester.pump();
-      _select(tester, '主题');
+      _select(tester, '内容');
       await tester.pumpAndSettle();
       pending.complete(repo.response('/u/1/activity/likes'));
       await tester.pumpAndSettle();
       expect(find.text('like-0'), findsNothing);
       _select(tester, '赞过');
       await tester.pumpAndSettle();
-      expect(repo.paths.where((path) => path.endsWith('/likes')), hasLength(1));
+      expect(repo.paths.where((path) => path.endsWith('/likes')), hasLength(2));
       tester
           .widget<CustomScrollView>(find.byType(CustomScrollView))
           .controller!
@@ -941,7 +973,7 @@ void main() {
       expect(find.text('Dan'), findsOneWidget);
       expect(
         repo.paths.where((p) => p.startsWith('/u/1/following')),
-        hasLength(2),
+        hasLength(3),
       );
     },
   );
@@ -1053,6 +1085,7 @@ void main() {
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
       await _pump(tester, _Profiles(), scale: 2);
+      expect(tester.takeException(), isNull);
       expect(
         tester.getSize(find.byType(CustomScrollView)).width,
         lessThanOrEqualTo(760),

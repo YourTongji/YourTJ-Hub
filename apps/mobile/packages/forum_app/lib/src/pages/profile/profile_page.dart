@@ -1,7 +1,9 @@
 import '../../private_notes.dart';
 import '../../navigation/auth_navigation.dart';
+
 import 'dart:math' as math;
 
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -85,6 +87,7 @@ class _ProfileStreamState {
   bool loadingMore = false;
   Object? error;
   Object? paginationError;
+  CancelToken? cancelToken;
   int request = 0;
   double? offset;
 }
@@ -156,6 +159,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   }
 
   void _resetStreams() {
+    for (final state in _streams.values) {
+      _cancelStreamRead(state);
+    }
     _streams.clear();
     _interactionBusy.clear();
     _interactions.clear();
@@ -177,9 +183,30 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     _followRevision++;
   }
 
+  void _cancelStreamRead(_ProfileStreamState state) {
+    final cancelToken = state.cancelToken;
+    if (cancelToken == null) return;
+    state.cancelToken = null;
+    state.request++;
+    state.loading = false;
+    state.loadingMore = false;
+    cancelToken.cancel();
+  }
+
+  @override
+  void dispose() {
+    for (final state in _streams.values) {
+      _cancelStreamRead(state);
+    }
+    super.dispose();
+  }
+
   Future<void> _load({String? nextUrl, bool streamChange = false}) async {
     final key = _stream;
     final state = _active;
+    state.cancelToken?.cancel();
+    final cancelToken = CancelToken();
+    state.cancelToken = cancelToken;
     final request = ++state.request;
     final epoch = ref.read(offlineCacheEpochProvider);
     final followRevision = _followRevision;
@@ -189,6 +216,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     final previous = state.props;
     bool current() =>
         mounted &&
+        !cancelToken.isCancelled &&
         request == state.request &&
         identical(_streams[key], state) &&
         ref.read(offlineCacheEpochProvider) == epoch;
@@ -211,7 +239,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
         return;
       }
       final path = nextUrl ?? _streamPath(uid, key);
-      final payload = await ref.read(pageRepositoryProvider).fetch(path);
+      final payload = await ref
+          .read(pageRepositoryProvider)
+          .fetch(path, cancelToken: cancelToken);
       if (!mounted || !current()) return;
       var props = parsePageProps<UserProfileProps>(payload);
       if (props == null) {
@@ -297,8 +327,8 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       final loaded = _mergeInteractionState(props, interactionRevision);
       setState(() {
         state.props = loaded;
-        // Inactive streams may finish, but cannot replace the visible identity
-        // or undo a follow action started after this read.
+        // Inactive streams keep their own result; only the active stream can
+        // update the shared profile header.
         if (key == _stream && nextUrl == null && !streamChange) {
           _headerProps = loaded;
           if (!_followBusy && followRevision == _followRevision) {
@@ -322,6 +352,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     } finally {
       if (mounted && current()) {
         setState(() {
+          state.cancelToken = null;
           state.loading = false;
           state.loadingMore = false;
         });
@@ -341,6 +372,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   ) {
     if (key == _stream) return;
     _active.offset = controller.offset;
+    _cancelStreamRead(_active);
     final state = _streams.putIfAbsent(key, _ProfileStreamState.new);
     final offset =
         state.offset ??
@@ -376,7 +408,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
               ]
             : [
                 ('timeline', l10n.profileActivity),
-                ('topics', l10n.profileTopics),
+                ('topics', l10n.profilePosts),
                 ('likes', l10n.profileLikedPosts),
                 if (props.isOwnProfile) ('bookmarks', l10n.profileBookmarks),
                 ('badges', l10n.profileBadges),
@@ -769,10 +801,10 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                   ],
                 ),
                 GfIconButton(
-                  icon: Icons.notifications_outlined,
+                  symbol: 'bell',
                   tooltip: l10n.notificationsTitle,
                   size: 44,
-                  onPressed: () => context.push('/notifications'),
+                  onPressed: () => context.go('/notifications'),
                 ),
               ]
             : const <Widget>[],
@@ -840,14 +872,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                                 ),
                           ),
                         if (_streamLoading)
-                          const SliverToBoxAdapter(
-                            child: Padding(
-                              padding: EdgeInsets.all(24),
-                              child: Center(
-                                child: GfLoadingIndicator(small: true),
-                              ),
-                            ),
-                          )
+                          const _ProfileStreamSkeleton()
                         else if (_streamError != null)
                           SliverToBoxAdapter(
                             child: GfErrorRetry(
@@ -1124,87 +1149,342 @@ class _ProfileTabsHeader extends SliverPersistentHeaderDelegate {
   bool shouldRebuild(covariant _ProfileTabsHeader oldDelegate) => true;
 }
 
-class _ProfileTabs extends StatelessWidget {
+class _ProfileTabs extends StatefulWidget {
   const _ProfileTabs({
     required this.tabs,
     required this.index,
     required this.onChanged,
   });
+
   final List<TabItemPayload> tabs;
   final int index;
   final ValueChanged<int> onChanged;
 
   @override
+  State<_ProfileTabs> createState() => _ProfileTabsState();
+}
+
+class _ProfileTabsState extends State<_ProfileTabs>
+    with SingleTickerProviderStateMixin {
+  static const _animationDuration = Duration(milliseconds: 220);
+  static const _animationCurve = Curves.easeInOutCubic;
+
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: _animationDuration,
+  );
+  List<double> _fromShares = [];
+  List<double> _displayedShares = [];
+  Offset? _fromSegmentShares;
+  Offset? _displayedSegmentShares;
+  bool _disableAnimations = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final disableAnimations = MediaQuery.disableAnimationsOf(context);
+    if (disableAnimations && !_disableAnimations) {
+      _fromShares = List.of(_displayedShares);
+      _fromSegmentShares = _displayedSegmentShares;
+      _controller.value = 1;
+    }
+    _disableAnimations = disableAnimations;
+  }
+
+  @override
+  void didUpdateWidget(covariant _ProfileTabs oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.index == oldWidget.index) return;
+    _fromShares = List.of(_displayedShares);
+    _fromSegmentShares = _displayedSegmentShares;
+    if (_disableAnimations) {
+      _controller.value = 1;
+    } else {
+      _controller.forward(from: 0);
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  String _iconFor(String key) => switch (key) {
+    'timeline' => 'activity',
+    'topics' => 'file-text',
+    'likes' => 'heart',
+    'bookmarks' => 'bookmark',
+    'badges' => 'award',
+    'following' => 'user-round-check',
+    'followers' => 'users-round',
+    _ => 'circle-user-round',
+  };
+
+  double _labelWidth(BuildContext context, String label) {
+    final style = DefaultTextStyle.of(
+      context,
+    ).style.copyWith(fontSize: 16, fontWeight: FontWeight.w600);
+    final painter = TextPainter(
+      text: TextSpan(text: label, style: style),
+      maxLines: 1,
+      textDirection: Directionality.of(context),
+      textScaler: MediaQuery.textScalerOf(context),
+    )..layout();
+    final width = painter.width;
+    painter.dispose();
+    return width;
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final colors = GfTheme.colorsOf(context);
-    return LayoutBuilder(
-      builder: (context, constraints) => SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: Row(
-          children: [
-            for (int i = 0; i < tabs.length; i++)
-              Tooltip(
-                message: tabs[i].label ?? tabs[i].key,
-                excludeFromSemantics: true,
-                child: Semantics(
-                  selected: i == index,
-                  button: true,
-                  label: tabs[i].label ?? tabs[i].key,
-                  child: InkWell(
-                    onTap: () => onChanged(i),
-                    child: Container(
-                      constraints: BoxConstraints(
-                        minWidth: math.max(
-                          72,
-                          constraints.maxWidth / tabs.length,
-                        ),
-                        minHeight: 48,
-                      ),
-                      height: math.max(
-                        52,
-                        MediaQuery.textScalerOf(context).scale(16) * 1.4 + 24,
-                      ),
-                      child: Stack(
-                        alignment: Alignment.center,
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 20),
-                            child: ExcludeSemantics(
-                              child: Text(
-                                tabs[i].label ?? tabs[i].key,
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w600,
-                                  color: i == index
-                                      ? colors.baseContent
-                                      : colors.iconMuted,
+    final selectedIndex = widget.index < 0 ? 0 : widget.index;
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, _) => LayoutBuilder(
+        builder: (context, constraints) {
+          final colors = GfTheme.colorsOf(context);
+          final animationDuration = _disableAnimations
+              ? Duration.zero
+              : _animationDuration;
+          final labelWidths = [
+            for (final tab in widget.tabs)
+              _labelWidth(context, tab.label ?? tab.key),
+          ];
+          final expandedWidths = [
+            for (final width in labelWidths) math.max(48.0, width + 42),
+          ];
+          final rowWidth = math.max(
+            constraints.maxWidth,
+            widget.tabs.length <= 2
+                ? expandedWidths.reduce((a, b) => a > b ? a : b) *
+                      widget.tabs.length
+                : expandedWidths[selectedIndex] +
+                      48.0 * (widget.tabs.length - 1),
+          );
+          final targetWidths = widget.tabs.length <= 2
+              ? List<double>.filled(
+                  widget.tabs.length,
+                  rowWidth / widget.tabs.length,
+                )
+              : [
+                  for (int i = 0; i < widget.tabs.length; i++)
+                    i == selectedIndex
+                        ? expandedWidths[i]
+                        : (rowWidth - expandedWidths[selectedIndex]) /
+                              (widget.tabs.length - 1),
+                ];
+          final targetShares = [
+            for (final width in targetWidths) width / rowWidth,
+          ];
+          var targetSegmentLeft = 0.0;
+          for (int i = 0; i < selectedIndex; i++) {
+            targetSegmentLeft += targetShares[i];
+          }
+          final targetSegment = Offset(
+            targetSegmentLeft,
+            targetShares[selectedIndex],
+          );
+          if (_fromShares.length != targetShares.length ||
+              _fromSegmentShares == null) {
+            _fromShares = List.of(targetShares);
+            _fromSegmentShares = targetSegment;
+          }
+
+          final progress = _disableAnimations
+              ? 1.0
+              : _animationCurve.transform(_controller.value);
+          final shares = [
+            for (int i = 0; i < targetShares.length; i++)
+              _fromShares[i] + (targetShares[i] - _fromShares[i]) * progress,
+          ];
+          _displayedShares = List.of(shares);
+          final widths = [for (final share in shares) share * rowWidth];
+          final starts = <double>[];
+          var nextStart = 0.0;
+          for (final width in widths) {
+            starts.add(nextStart);
+            nextStart += width;
+          }
+
+          final fromSegment = _fromSegmentShares!;
+          final activeSegmentShares = Offset(
+            fromSegment.dx + (targetSegment.dx - fromSegment.dx) * progress,
+            fromSegment.dy + (targetSegment.dy - fromSegment.dy) * progress,
+          );
+          _displayedSegmentShares = activeSegmentShares;
+          final activeLeft = activeSegmentShares.dx * rowWidth;
+          final activeWidth = activeSegmentShares.dy * rowWidth;
+          final indicatorWidth = math.min(
+            64.0,
+            math.max(40.0, activeWidth * .72),
+          );
+          final indicatorLeft = activeLeft + (activeWidth - indicatorWidth) / 2;
+          final height = math.max(
+            52.0,
+            MediaQuery.textScalerOf(context).scale(16) * 1.4 + 24,
+          );
+
+          return SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: SizedBox(
+              width: rowWidth,
+              height: height,
+              child: Stack(
+                children: [
+                  Row(
+                    children: [
+                      for (int i = 0; i < widget.tabs.length; i++)
+                        SizedBox(
+                          key: i == selectedIndex
+                              ? const ValueKey('profile-tab-active-segment')
+                              : null,
+                          width: widths[i],
+                          height: height,
+                          child: Tooltip(
+                            message: widget.tabs[i].label ?? widget.tabs[i].key,
+                            excludeFromSemantics: true,
+                            child: Semantics(
+                              selected: i == selectedIndex,
+                              button: true,
+                              label: widget.tabs[i].label ?? widget.tabs[i].key,
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(8),
+                                onTap: () => widget.onChanged(i),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                  ),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    mainAxisSize: MainAxisSize.max,
+                                    children: [
+                                      GfSymbol(
+                                        _iconFor(widget.tabs[i].key),
+                                        size: 20,
+                                        color: i == selectedIndex
+                                            ? colors.baseContent
+                                            : colors.iconMuted,
+                                      ),
+                                      Flexible(
+                                        fit: FlexFit.loose,
+                                        child: AnimatedSize(
+                                          duration: animationDuration,
+                                          curve: _animationCurve,
+                                          alignment: Alignment.centerLeft,
+                                          child: SizedBox(
+                                            width: i == selectedIndex
+                                                ? labelWidths[i] + 6
+                                                : 0,
+                                            child: ClipRect(
+                                              child: AnimatedOpacity(
+                                                duration: animationDuration,
+                                                curve: _animationCurve,
+                                                opacity: i == selectedIndex
+                                                    ? 1
+                                                    : 0,
+                                                child: Padding(
+                                                  padding:
+                                                      const EdgeInsets.only(
+                                                        left: 6,
+                                                      ),
+                                                  child: ExcludeSemantics(
+                                                    child: Text(
+                                                      widget.tabs[i].label ??
+                                                          widget.tabs[i].key,
+                                                      maxLines: 1,
+                                                      softWrap: false,
+                                                      style:
+                                                          DefaultTextStyle.of(
+                                                            context,
+                                                          ).style.copyWith(
+                                                            fontSize: 16,
+                                                            fontWeight:
+                                                                FontWeight.w600,
+                                                            color: colors
+                                                                .baseContent,
+                                                          ),
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
                               ),
                             ),
                           ),
-                          if (i == index)
-                            Positioned(
-                              bottom: 0,
-                              width: 40,
-                              height: 3,
-                              child: DecoratedBox(
-                                decoration: BoxDecoration(
-                                  color: colors.primary,
-                                  borderRadius: BorderRadius.circular(3),
-                                ),
-                              ),
-                            ),
-                        ],
+                        ),
+                    ],
+                  ),
+                  Positioned(
+                    left: indicatorLeft,
+                    bottom: 0,
+                    width: indicatorWidth,
+                    height: 3,
+                    child: DecoratedBox(
+                      key: const ValueKey('profile-tab-indicator'),
+                      decoration: BoxDecoration(
+                        color: colors.primary,
+                        borderRadius: BorderRadius.circular(3),
                       ),
                     ),
                   ),
-                ),
+                ],
               ),
-          ],
-        ),
+            ),
+          );
+        },
       ),
     );
   }
+}
+
+class _ProfileStreamSkeleton extends StatelessWidget {
+  const _ProfileStreamSkeleton();
+
+  @override
+  Widget build(BuildContext context) => SliverList.separated(
+    itemCount: 3,
+    separatorBuilder: (_, _) => const GfDivider(),
+    itemBuilder: (_, _) => const Padding(
+      padding: EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              GfSkeleton(width: 36, height: 36, radius: 999),
+              SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    GfSkeleton(width: 132, height: 14, radius: 5),
+                    SizedBox(height: 7),
+                    GfSkeleton(width: 88, height: 12, radius: 5),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 14),
+          SizedBox(
+            width: double.infinity,
+            child: GfSkeleton(height: 16, radius: 5),
+          ),
+          SizedBox(height: 8),
+          GfSkeleton(width: 204, height: 16, radius: 5),
+          SizedBox(height: 14),
+          GfSkeleton(width: 120, height: 12, radius: 5),
+        ],
+      ),
+    ),
+  );
 }
 
 class _ProfileBody extends StatelessWidget {
@@ -1569,7 +1849,7 @@ class _AccountShortcuts extends StatelessWidget {
           GfSettingRow(
             icon: Icons.notifications_outlined,
             title: l10n.notificationsTitle,
-            onTap: () => context.push('/notifications'),
+            onTap: () => context.go('/notifications'),
           ),
           GfSettingRow(
             icon: Icons.description_outlined,

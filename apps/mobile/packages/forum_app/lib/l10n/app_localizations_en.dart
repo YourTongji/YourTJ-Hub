@@ -435,6 +435,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get profileTopics => 'Topics';
 
   @override
+  String get profilePosts => 'Posts';
+
+  @override
   String get profileReplies => 'Replies';
 
   @override

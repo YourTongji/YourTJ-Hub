@@ -439,6 +439,9 @@ class AppLocalizationsDe extends AppLocalizations {
   String get profileTopics => 'Themen';
 
   @override
+  String get profilePosts => 'Beiträge';
+
+  @override
   String get profileReplies => 'Antworten';
 
   @override

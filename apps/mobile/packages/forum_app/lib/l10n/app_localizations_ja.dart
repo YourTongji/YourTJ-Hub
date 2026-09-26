@@ -425,6 +425,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String get profileTopics => 'トピック';
 
   @override
+  String get profilePosts => '投稿';
+
+  @override
   String get profileReplies => '返信';
 
   @override

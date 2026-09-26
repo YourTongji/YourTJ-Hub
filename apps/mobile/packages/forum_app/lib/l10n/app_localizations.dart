@@ -870,6 +870,12 @@ abstract class AppLocalizations {
   /// **'Topics'**
   String get profileTopics;
 
+  /// No description provided for @profilePosts.
+  ///
+  /// In en, this message translates to:
+  /// **'Posts'**
+  String get profilePosts;
+
   /// No description provided for @profileReplies.
   ///
   /// In en, this message translates to:

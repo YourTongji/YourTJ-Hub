@@ -52,9 +52,16 @@ all controls, see focus, dismiss a transient panel with Escape and use standard 
 When both list and detail are visible, back first closes the detail context; narrow windows use a
 normal pushed route. System safe areas and keyboard insets are consumed exactly once.
 
-`Planned`: public profile tabs expose stable readable labels, a restrained selected underline and
-independent stream state. Following/follower statistics open the matching lists. Device preferences
-are separate from account editing, binding and security. Appearance offers System, Light and Dark.
+`Current`: public profile tabs show a ReIcon and localized label only for the selected item; inactive
+items retain icon-only controls with accessible names. Adjacent tab cells form a continuous rail;
+the active label expands and the underline moves with it while neighboring cells reflow without gaps.
+Selection has no persistent filled backing; taps use the normal transient Material ripple. The profile
+header remains stable while an unloaded stream shows skeleton rows, and each stream retains its own
+data and scroll position while obsolete reads are cancelled or ignored. Following/follower statistics
+open the matching lists.
+
+`Planned`: device preferences are separate from account editing, binding and security. Appearance
+offers System, Light and Dark.
 
 ## Transient surfaces and input
 
