@@ -836,6 +836,8 @@ export default {
     announcement: '公告',
     markAnnouncementRead: '标记为已读',
     markAnnouncementUnread: '恢复提醒',
+    collapseAnnouncement: '收起公告',
+    expandAnnouncement: '展开公告',
     feedMode: '切换信息流样式',
     feedModeTable: '列表',
     feedModeCard: '卡片',

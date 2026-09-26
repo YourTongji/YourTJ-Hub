@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onActivated, onBeforeUnmount, onDeactivated, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Bell, LayoutGrid, List, Mail, RefreshCw, UsersRound } from '@lucide/vue'
+import { Bell, ChevronDown, ChevronUp, LayoutGrid, List, Mail, RefreshCw, UsersRound } from '@lucide/vue'
 import { fetchPage } from '@/runtime/router'
 import { useHomeFeedMode } from '@/runtime/home-feed-mode'
 import { countNewTopics, firstPageUrl, prependTopics } from '@/site/utils/home-feed-refresh'
@@ -18,6 +18,8 @@ const page = defineProps<{
 const { t, locale } = useI18n()
 const announcementReadStorageKey = 'goose:announcement:last-read-published-at'
 const announcementReminderWindow = 7 * 24 * 60 * 60 * 1000
+const announcementCollapseStorageKey = 'goose:announcement:collapsed'
+const announcementPanelId = 'gf-announcement-panel'
 
 const topics = ref<TopicPayload[]>([])
 const pagination = ref<HomeProps['pagination']>(page.props.pagination)
@@ -38,6 +40,8 @@ const pullActive = ref(false)
 const pullStartY = ref(0)
 const pullRefreshEnabled = ref(false)
 const announcementUnread = ref(shouldRemindAnnouncement())
+const announcementCollapsed = ref(readAnnouncementCollapsed())
+const collapsedAnnouncementTitle = computed(() => announcementItems.value[0]?.title || '')
 const pullThreshold = 72
 const pullMaxDistance = 108
 const refreshPollMs = 45_000
@@ -368,8 +372,42 @@ function refreshAnnouncementReminder() {
   announcementUnread.value = shouldRemindAnnouncement()
 }
 
-function syncAnnouncementRead(event: StorageEvent) {
+// 折叠/展开状态持久化（零后端改动）：与「已读」状态相互独立——
+// 标记已读不会自动展开，折叠也不会自动标记已读。
+function readAnnouncementCollapsed() {
+  try {
+    return window.localStorage.getItem(announcementCollapseStorageKey) === '1'
+  } catch {
+    // Storage may be unavailable in private or restricted browsing contexts.
+    return false
+  }
+}
+
+function persistAnnouncementCollapsed(collapsed: boolean) {
+  try {
+    if (collapsed) {
+      window.localStorage.setItem(announcementCollapseStorageKey, '1')
+    } else {
+      window.localStorage.removeItem(announcementCollapseStorageKey)
+    }
+  } catch {
+    // Storage may be unavailable in private or restricted browsing contexts.
+  }
+}
+
+function syncAnnouncementCollapsed() {
+  announcementCollapsed.value = readAnnouncementCollapsed()
+}
+
+function toggleAnnouncementCollapsed() {
+  const next = !announcementCollapsed.value
+  announcementCollapsed.value = next
+  persistAnnouncementCollapsed(next)
+}
+
+function syncAnnouncementStorage(event: StorageEvent) {
   if (event.key === announcementReadStorageKey) refreshAnnouncementReminder()
+  if (event.key === announcementCollapseStorageKey) syncAnnouncementCollapsed()
 }
 
 function observeSentinel() {
@@ -386,7 +424,7 @@ function observeSentinel() {
 
 onMounted(() => {
   observeSentinel()
-  window.addEventListener('storage', syncAnnouncementRead)
+  window.addEventListener('storage', syncAnnouncementStorage)
   startAnnouncementRotation()
   const standalone = window.matchMedia('(display-mode: standalone)').matches
     || Boolean((navigator as Navigator & { standalone?: boolean }).standalone)
@@ -411,6 +449,9 @@ onActivated(() => {
   feedModePillShouldAnimate.value = false
   void nextTick(observeSentinel)
   startAnnouncementRotation()
+  // 最新/热门/流行分页是多个 KeepAlive 实例，激活时从 localStorage
+  // 重新同步折叠状态，保证切页后折叠偏好一致。
+  syncAnnouncementCollapsed()
   if (pullRefreshEnabled.value) document.documentElement.classList.add('gf-pwa-pull-refresh')
   startRefreshPolling()
   void nextTick(updateFeedModePill)
@@ -424,7 +465,7 @@ onDeactivated(() => {
 
 onBeforeUnmount(() => {
   observer?.disconnect()
-  window.removeEventListener('storage', syncAnnouncementRead)
+  window.removeEventListener('storage', syncAnnouncementStorage)
   stopAnnouncementRotation()
   stopRefreshPolling()
   document.documentElement.classList.remove('gf-pwa-pull-refresh')
@@ -487,57 +528,108 @@ onBeforeUnmount(() => {
         @mouseenter="pauseAnnouncementRotation"
         @mouseleave="resumeAnnouncementRotation"
       >
-        <div class="flex items-start gap-2 sm:gap-2.5">
-          <button
-            type="button"
-            class="-mx-1 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full transition"
-            :class="announcementUnread
-              ? 'text-primary hover:bg-primary/15 active:bg-primary/25'
-              : 'text-base-content/45 hover:bg-base-300/70 hover:text-base-content/75'"
-            :title="announcementUnread ? t('topicList.markAnnouncementRead') : t('topicList.markAnnouncementUnread')"
-            :aria-label="announcementUnread ? t('topicList.markAnnouncementRead') : t('topicList.markAnnouncementUnread')"
-            :aria-pressed="announcementUnread"
-            @click="toggleAnnouncementRead"
-          >
-            <Bell class="h-4 w-4" :class="announcementUnread ? 'announcement-unread-bell' : ''" />
-          </button>
-          <div class="min-w-0 flex-1">
-            <template v-if="activeAnnouncement">
-              <div class="gf-prose gf-prose-announcement">
-                <span
-                  v-if="activeAnnouncement.title"
-                  class="mb-1 block text-[11px] font-bold uppercase tracking-wide text-primary"
-                >
-                  {{ activeAnnouncement.title }}
-                </span>
-                <div v-html="activeAnnouncement.html" />
-              </div>
-              <div
-                v-if="hasMultipleAnnouncements"
-                class="mt-1.5 flex items-center gap-0.5"
-                role="tablist"
-                :aria-label="t('topicList.announcement')"
+        <div :id="announcementPanelId">
+          <Transition name="gf-announcement" mode="out-in">
+            <div
+              v-if="announcementCollapsed"
+              class="flex items-center gap-1.5 sm:gap-2"
+              role="group"
+              :aria-label="t('topicList.announcement')"
+            >
+              <button
+                type="button"
+                class="-mx-1 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+                :class="announcementUnread
+                  ? 'text-primary hover:bg-primary/15 active:bg-primary/25'
+                  : 'text-base-content/45 hover:bg-base-300/70 hover:text-base-content/75'"
+                :title="announcementUnread ? t('topicList.markAnnouncementRead') : t('topicList.markAnnouncementUnread')"
+                :aria-label="announcementUnread ? t('topicList.markAnnouncementRead') : t('topicList.markAnnouncementUnread')"
+                :aria-pressed="announcementUnread"
+                @click="toggleAnnouncementRead"
               >
-                <button
-                  v-for="(item, index) in announcementItems"
-                  :key="item.id"
-                  type="button"
-                  role="tab"
-                  class="group flex h-5 w-5 items-center justify-center rounded-full transition-colors hover:bg-base-300/70"
-                  :class="index === activeAnnouncementIndex ? 'bg-primary/10' : ''"
-                  :aria-label="t('topicList.announcement') + ' ' + (index + 1)"
-                  :aria-selected="index === activeAnnouncementIndex"
-                  @click="selectAnnouncement(index)"
-                >
-                  <span
-                    class="block rounded-full transition-all duration-200"
-                    :class="index === activeAnnouncementIndex ? 'h-2 w-4 bg-primary' : 'h-2 w-2 bg-base-content/30 group-hover:bg-base-content/55'"
-                  />
-                </button>
+                <Bell class="h-4 w-4" :class="announcementUnread ? 'announcement-unread-bell' : ''" />
+              </button>
+              <button
+                type="button"
+                class="flex min-w-0 flex-1 items-center gap-2 rounded-lg px-1 py-1 text-left text-[13px] leading-5 outline-none transition-colors hover:bg-primary/10 focus-visible:ring-2 focus-visible:ring-primary/50 sm:py-1.5"
+                data-testid="announcement-expand-button"
+                :aria-expanded="false"
+                :aria-controls="announcementPanelId"
+                :title="t('topicList.expandAnnouncement')"
+                :aria-label="t('topicList.expandAnnouncement')"
+                @click="toggleAnnouncementCollapsed"
+              >
+                <span v-if="announcementUnread" aria-hidden="true" data-testid="announcement-unread-dot" class="h-2 w-2 shrink-0 rounded-full bg-primary" />
+                <span class="shrink-0 font-semibold text-primary">{{ t('topicList.announcement') }}</span>
+                <span v-if="collapsedAnnouncementTitle" class="truncate text-base-content/70">{{ collapsedAnnouncementTitle }}</span>
+                <ChevronDown class="ml-auto h-4 w-4 shrink-0 text-base-content/45" aria-hidden="true" />
+              </button>
+            </div>
+            <div v-else class="flex items-start gap-2 sm:gap-2.5">
+              <button
+                type="button"
+                class="-mx-1 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+                :class="announcementUnread
+                  ? 'text-primary hover:bg-primary/15 active:bg-primary/25'
+                  : 'text-base-content/45 hover:bg-base-300/70 hover:text-base-content/75'"
+                :title="announcementUnread ? t('topicList.markAnnouncementRead') : t('topicList.markAnnouncementUnread')"
+                :aria-label="announcementUnread ? t('topicList.markAnnouncementRead') : t('topicList.markAnnouncementUnread')"
+                :aria-pressed="announcementUnread"
+                @click="toggleAnnouncementRead"
+              >
+                <Bell class="h-4 w-4" :class="announcementUnread ? 'announcement-unread-bell' : ''" />
+              </button>
+              <div class="min-w-0 flex-1">
+                <template v-if="activeAnnouncement">
+                  <div class="gf-prose gf-prose-announcement">
+                    <span
+                      v-if="activeAnnouncement.title"
+                      class="mb-1 block text-[11px] font-bold uppercase tracking-wide text-primary"
+                    >
+                      {{ activeAnnouncement.title }}
+                    </span>
+                    <div v-html="activeAnnouncement.html" />
+                  </div>
+                  <div
+                    v-if="hasMultipleAnnouncements"
+                    class="mt-1.5 flex items-center gap-0.5"
+                    role="tablist"
+                    :aria-label="t('topicList.announcement')"
+                  >
+                    <button
+                      v-for="(item, index) in announcementItems"
+                      :key="item.id"
+                      type="button"
+                      role="tab"
+                      class="group flex h-5 w-5 items-center justify-center rounded-full transition-colors hover:bg-base-300/70"
+                      :class="index === activeAnnouncementIndex ? 'bg-primary/10' : ''"
+                      :aria-label="t('topicList.announcement') + ' ' + (index + 1)"
+                      :aria-selected="index === activeAnnouncementIndex"
+                      @click="selectAnnouncement(index)"
+                    >
+                      <span
+                        class="block rounded-full transition-all duration-200"
+                        :class="index === activeAnnouncementIndex ? 'h-2 w-4 bg-primary' : 'h-2 w-2 bg-base-content/30 group-hover:bg-base-content/55'"
+                      />
+                    </button>
+                  </div>
+                </template>
+                <div v-else class="gf-prose gf-prose-announcement" v-html="announcement.html" />
               </div>
-            </template>
-            <div v-else class="gf-prose gf-prose-announcement" v-html="announcement.html" />
-          </div>
+              <button
+                type="button"
+                class="-mx-1 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-base-content/45 transition hover:bg-base-300/70 hover:text-base-content/75 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+                data-testid="announcement-collapse-button"
+                :aria-expanded="true"
+                :aria-controls="announcementPanelId"
+                :title="t('topicList.collapseAnnouncement')"
+                :aria-label="t('topicList.collapseAnnouncement')"
+                @click="toggleAnnouncementCollapsed"
+              >
+                <ChevronUp class="h-4 w-4" aria-hidden="true" />
+              </button>
+            </div>
+          </Transition>
         </div>
       </aside>
 
@@ -666,6 +758,27 @@ onBeforeUnmount(() => {
   --gf-feed-slide-ms: 300ms;
 }
 
+/* 公告面板折叠/展开过渡：仅在用户主动切换时播放（v-if 分支切换），
+   列表数据刷新不改分支，因此不会违反 ui-spec 对公告等稳定区域的静止要求。 */
+.gf-announcement-enter-active,
+.gf-announcement-leave-active {
+  transition: opacity 160ms cubic-bezier(0.2, 0, 0, 1), transform 160ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.gf-announcement-enter-from,
+.gf-announcement-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
+}
+
+/* 尊重 prefers-reduced-motion：关闭折叠/展开过渡，仅剩瞬态切换。 */
+@media (prefers-reduced-motion: reduce) {
+  .gf-announcement-enter-active,
+  .gf-announcement-leave-active {
+    transition: none;
+  }
+}
+
 .gf-home-refresh-button {
   transition-property: background-color, border-color, color, opacity, transform;
   transition-duration: 150ms;
@@ -711,6 +824,16 @@ onBeforeUnmount(() => {
 @media (prefers-reduced-motion: reduce) {
   .announcement-unread-bell {
     animation: none;
+  }
+
+  .gf-announcement-enter-active,
+  .gf-announcement-leave-active {
+    transition-duration: 0.01ms;
+  }
+
+  .gf-announcement-enter-from,
+  .gf-announcement-leave-to {
+    transform: none;
   }
 
   .gf-home-refresh-button,
