@@ -2320,14 +2320,14 @@ void main() {
     repo.pending = pending.future;
     selectLikes();
     await tester.pump();
-    expect(visible(find.byType(GfLoadingIndicator)), isTrue);
+    expect(find.byType(GfSkeleton), findsWidgets);
     pending.complete();
     await tester.pumpAndSettle();
     expect(visible(find.text('暂无点赞')), isTrue);
     expect(scroll.offset, greaterThan(0));
     repo.fail = true;
-    await tester.ensureVisible(find.byTooltip('主题'));
-    await tester.tap(find.byTooltip('主题'));
+    await tester.ensureVisible(find.byTooltip('内容'));
+    await tester.tap(find.byTooltip('内容'));
     await tester.pumpAndSettle();
     expect(find.byType(GfErrorRetry), findsOneWidget);
     expect(visible(find.byType(GfErrorRetry)), isTrue);
@@ -2410,7 +2410,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(scroll.offset, offset);
       repo.fail = true;
-      await tester.tap(find.byTooltip('主题'));
+      await tester.tap(find.byTooltip('内容'));
       await tester.pumpAndSettle();
       expect(find.byType(GfUserCard), findsOneWidget);
       expect(scroll.offset, offset);
@@ -2634,7 +2634,7 @@ void main() {
         final container = await makeContainer(pageRepo: repo);
         await tester.pumpWidget(app(container, const ProfilePage(userId: 1)));
         await tester.pumpAndSettle();
-        await tester.tap(find.byTooltip('主题'));
+        await tester.tap(find.byTooltip('内容'));
         await tester.pumpAndSettle();
         expect(repo.paths, contains('/u/1/activity/topics'));
       },
@@ -5176,9 +5176,9 @@ void main() {
 
       await tester.tap(find.text('打开个人主页'));
       await tester.pumpAndSettle();
-      await tester.ensureVisible(find.byTooltip('主题'));
+      await tester.ensureVisible(find.byTooltip('内容'));
       await tester.pumpAndSettle();
-      await tester.tap(find.byTooltip('主题'));
+      await tester.tap(find.byTooltip('内容'));
       await tester.pumpAndSettle();
       await tester.drag(
         find.byType(CustomScrollView).first,
