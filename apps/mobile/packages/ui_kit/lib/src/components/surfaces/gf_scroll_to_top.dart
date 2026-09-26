@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../gf_symbol.dart';
 
 import '../../theme/gf_theme.dart';
 import '../gf_motion.dart';
@@ -146,8 +147,9 @@ class _GfScrollToTopState extends State<GfScrollToTop> {
                     child: IconButton(
                       onPressed: _scrollToTop,
                       tooltip: widget.semanticLabel,
-                      icon: Icon(
-                        Icons.arrow_upward_rounded,
+                      icon: GfSymbol(
+                        'arrow-up',
+                        size: 21,
                         color: colors.primary,
                       ),
                       iconSize: 21,

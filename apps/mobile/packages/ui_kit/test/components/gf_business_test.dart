@@ -21,7 +21,6 @@ void main() {
             actions: [
               for (final label in ['点赞 · 12', '收藏', '关注帖子'])
                 GfTopicAction(
-                  icon: Icons.favorite_border,
                   symbol: 'heart',
                   title: label,
                   active: label == '收藏',
@@ -73,7 +72,7 @@ void main() {
                     actions: List.generate(
                       3,
                       (_) => GfTopicAction(
-                        icon: Icons.favorite_border,
+                        symbol: 'heart',
                         active: false,
                         activeColor: GfColors.light.error,
                         onTap: () {},
@@ -103,7 +102,7 @@ void main() {
           GfFloatingControls(
             actions: <GfTopicAction>[
               GfTopicAction(
-                icon: Icons.favorite_border,
+                symbol: 'heart-filled',
                 active: true,
                 activeColor: GfColors.light.error,
                 onTap: () {},
@@ -117,7 +116,12 @@ void main() {
         ),
       );
       expect(find.text('3 / 120'), findsOneWidget);
-      expect(find.byIcon(Icons.favorite_border), findsOneWidget);
+      expect(
+        find.byWidgetPredicate(
+          (widget) => widget is GfSymbol && widget.name == 'heart-filled',
+        ),
+        findsOneWidget,
+      );
       expect(find.text('参与讨论'), findsOneWidget);
     });
 
@@ -187,7 +191,7 @@ void main() {
       await tester.pumpWidget(
         gfApp(
           GfNotificationRow(
-            icon: Icons.message,
+            symbol: 'message-circle',
             tone: GfNotificationTone.primary,
             title: '有人回复了你',
             subtitle: '内容预览',
@@ -205,7 +209,7 @@ void main() {
       await tester.pumpWidget(
         gfApp(
           GfNotificationRow(
-            icon: Icons.message,
+            symbol: 'message-circle',
             tone: GfNotificationTone.success,
             title: '已读通知',
             subtitle: '',
@@ -439,7 +443,7 @@ void main() {
               const GfSettingRow(
                 title: '昵称',
                 description: '修改昵称',
-                icon: Icons.badge_outlined,
+                symbol: 'award',
               ),
               GfSwitchRow(title: '开启通知', value: true, onChanged: (_) {}),
             ],

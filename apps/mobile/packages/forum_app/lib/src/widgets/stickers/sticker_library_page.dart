@@ -127,43 +127,10 @@ class _StickerLibraryPageState extends ConsumerState<_StickerLibrarySession> {
 
   Future<void> _rename(StickerItemPayload item) async {
     final collection = ref.read(stickerCollectionProvider);
-    final strings = StickerStrings(context);
-    final controller = TextEditingController(text: strings.displayLabel(item));
-    final name = await showDialog<String>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(strings.rename),
-        content: GfInput(
-          controller: controller,
-          autofocus: true,
-          maxLength: 64,
-          labelText: strings.name,
-          textInputAction: TextInputAction.done,
-          onSubmitted: (value) => Navigator.pop(context, value),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(MaterialLocalizations.of(context).cancelButtonLabel),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, controller.text),
-            child: Text(strings.done),
-          ),
-        ],
-      ),
-    );
-    // Dialog disposal completes after its closing animation.
-    await Future<void>.delayed(const Duration(milliseconds: 250));
-    controller.dispose();
-    if (!mounted ||
-        !collection.active ||
-        name == null ||
-        name.trim() == strings.displayLabel(item)) {
-      return;
-    }
-    await _run(
-      () => collection.save(stickerName: item.name, displayName: name.trim()),
+    await showGfAlertDialog<void>(
+      context,
+      barrierDismissible: true,
+      builder: (_) => _StickerRenameDialog(item: item, collection: collection),
     );
   }
 
@@ -368,7 +335,9 @@ class _StickerLibraryPageState extends ConsumerState<_StickerLibrarySession> {
         ? StickerStrings(context).mine
         : StickerStrings(context).unavailable,
     description: message,
-    symbol: 'smile',
+    symbol: message == StickerStrings(context).emptyMine
+        ? 'sticker-smile'
+        : 'smile',
     action: retry == null
         ? null
         : GfButton(
@@ -377,4 +346,107 @@ class _StickerLibraryPageState extends ConsumerState<_StickerLibrarySession> {
             onPressed: retry,
           ),
   );
+}
+
+/// Keep a failed rename editable, and discard its private label with its owner.
+class _StickerRenameDialog extends ConsumerStatefulWidget {
+  const _StickerRenameDialog({required this.item, required this.collection});
+  final StickerItemPayload item;
+  final StickerCollection collection;
+
+  @override
+  ConsumerState<_StickerRenameDialog> createState() =>
+      _StickerRenameDialogState();
+}
+
+class _StickerRenameDialogState extends ConsumerState<_StickerRenameDialog> {
+  TextEditingController? _controller;
+  bool _saving = false;
+  bool _closing = false;
+  String? _error;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _controller ??= TextEditingController(
+      text: StickerStrings(context).displayLabel(widget.item),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller?.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    if (_saving || !widget.collection.active) return;
+    final strings = StickerStrings(context);
+    final name = _controller!.text.trim();
+    if (name == strings.displayLabel(widget.item)) {
+      Navigator.pop(context);
+      return;
+    }
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    try {
+      await widget.collection.save(
+        stickerName: widget.item.name,
+        displayName: name,
+      );
+      if (mounted && widget.collection.active) Navigator.pop(context);
+    } catch (error) {
+      if (mounted && widget.collection.active) {
+        setState(() => _error = strings.failure(error));
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!identical(ref.watch(stickerCollectionProvider), widget.collection) ||
+        !widget.collection.active) {
+      if (!_closing) {
+        _closing = true;
+        final route = ModalRoute.of(context);
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (route?.isActive == true) route!.navigator?.removeRoute(route);
+        });
+      }
+      return const SizedBox.shrink();
+    }
+    final strings = StickerStrings(context);
+    return PopScope(
+      canPop: !_saving,
+      child: GfAlertDialog(
+        title: Text(strings.rename),
+        content: GfInput(
+          controller: _controller,
+          autofocus: true,
+          enabled: !_saving,
+          maxLength: 64,
+          labelText: strings.name,
+          textInputAction: TextInputAction.done,
+          onSubmitted: (_) => _save(),
+          decoration: InputDecoration(errorText: _error, errorMaxLines: 4),
+        ),
+        actions: [
+          GfButton(
+            label: MaterialLocalizations.of(context).cancelButtonLabel,
+            variant: GfButtonVariant.ghost,
+            onPressed: _saving ? null : () => Navigator.pop(context),
+          ),
+          GfButton(
+            label: strings.done,
+            loading: _saving,
+            onPressed: _saving ? null : _save,
+          ),
+        ],
+      ),
+    );
+  }
 }

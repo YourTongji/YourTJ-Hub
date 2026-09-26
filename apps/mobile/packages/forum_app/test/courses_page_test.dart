@@ -11,6 +11,7 @@ import 'package:forum_app/src/pages/courses/review_form_sheet.dart';
 import 'package:forum_app/src/pages/courses/course_common.dart';
 import 'package:forum_app/l10n/app_localizations_zh.dart';
 import 'package:forum_app/src/providers.dart';
+import 'package:ui_kit/ui_kit.dart';
 
 import 'fixtures/page_fixtures.dart';
 
@@ -397,13 +398,24 @@ List<ReviewPayload> _reviewPayloads() {
   ];
 }
 
-Widget _app(ProviderContainer container, Widget home) {
+Widget _app(
+  ProviderContainer container,
+  Widget home, {
+  Locale locale = const Locale('zh'),
+  double textScale = 1,
+}) {
   return UncontrolledProviderScope(
     container: container,
     child: MaterialApp(
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
-      locale: const Locale('zh'),
+      locale: locale,
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(
+          context,
+        ).copyWith(textScaler: TextScaler.linear(textScale)),
+        child: child!,
+      ),
       home: home,
     ),
   );
@@ -533,9 +545,129 @@ void main() {
       await tester.pumpAndSettle();
       expect(course.listCalls.last.onlyWithReviews, isTrue);
     });
+
+    testWidgets('term controls grow with text and keep a 44 pixel target', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(320, 1200);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final course = FakeCourseRepository(
+        _client(),
+        listPages: {
+          1: ([_course(1, '课程')], false),
+        },
+      );
+      final container = _container(
+        courseRepo: course,
+        pageRepo: FakePageRepository(_client()),
+      );
+      await tester.pumpWidget(
+        _app(container, const CourseCatalogPage(), textScale: 2),
+      );
+      await tester.pumpAndSettle();
+      final expand = find
+          .ancestor(of: find.text('+1'), matching: find.byType(InkWell))
+          .first;
+      expect(tester.getSize(expand).height, greaterThanOrEqualTo(44));
+      expect(tester.getSize(expand).width, greaterThanOrEqualTo(44));
+      await tester.ensureVisible(expand);
+      await tester.tap(expand);
+      await tester.pumpAndSettle();
+      expect(find.text('+1'), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('teacher removal has a named 44 pixel control', (tester) async {
+      final course = FakeCourseRepository(_client());
+      final container = _container(
+        courseRepo: course,
+        pageRepo: FakePageRepository(_client()),
+      );
+      await tester.pumpWidget(_app(container, const CourseCatalogPage()));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('教师'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField).last, '张三');
+      await tester.tap(find.byTooltip('添加'));
+      await tester.pumpAndSettle();
+      final remove = find.byTooltip('删除 张三');
+      expect(remove, findsOneWidget);
+      expect(tester.getSize(remove).height, greaterThanOrEqualTo(44));
+      expect(tester.getSize(remove).width, greaterThanOrEqualTo(44));
+      await tester.tap(remove);
+      await tester.pumpAndSettle();
+      expect(find.text('张三'), findsNothing);
+      await tester.tap(find.text('完成'));
+      await tester.pumpAndSettle();
+      expect(course.listCalls.last.instructors, isEmpty);
+    });
   });
 
   group('课程详情', () {
+    testWidgets('review actions have one label and 44 pixel touch targets', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(390, 2000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final course = FakeCourseRepository(
+        _client(),
+        detailPayload: _detailPayload(),
+        reviewPayloads: [_reviewPayloads().last],
+      );
+      await tester.pumpWidget(
+        _app(
+          _container(courseRepo: course),
+          const CourseDetailPage(courseId: 42),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('编辑'), findsOneWidget);
+      expect(find.text('删除'), findsOneWidget);
+      for (final label in ['编辑', '删除', '2 有用']) {
+        final action = find
+            .ancestor(of: find.text(label), matching: find.byType(TextButton))
+            .first;
+        expect(tester.getSize(action).height, greaterThanOrEqualTo(44));
+      }
+      await tester.tap(find.text('2 有用'));
+      await tester.pumpAndSettle();
+      expect(course.helpfulCalls, [(4, true)]);
+    });
+
+    testWidgets(
+      'review actions wrap on a narrow phone with German large text',
+      (tester) async {
+        tester.view.physicalSize = const Size(320, 3000);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+        final course = FakeCourseRepository(
+          _client(),
+          reviewPayloads: [_reviewPayloads().last],
+        );
+        await tester.pumpWidget(
+          _app(
+            _container(courseRepo: course),
+            const CourseDetailPage(courseId: 42),
+            locale: const Locale('de'),
+            textScale: 2,
+          ),
+        );
+        await tester.pumpAndSettle();
+        final l = AppLocalizations.of(
+          tester.element(find.byType(CourseDetailPage)),
+        );
+        expect(find.text(l.commonEdit), findsOneWidget);
+        final actions = find
+            .ancestor(of: find.text(l.commonEdit), matching: find.byType(Wrap))
+            .first;
+        expect(actions, findsOneWidget);
+        expect(tester.getRect(actions).right, lessThanOrEqualTo(320));
+        expect(tester.takeException(), isNull);
+      },
+    );
+
     Future<void> pumpDetail(
       WidgetTester tester,
       FakeCourseRepository course, {
@@ -834,14 +966,7 @@ void main() {
       await pumpDetail(tester, course);
       await tester.tap(find.text('写课评'));
       await tester.pumpAndSettle();
-      await tester.tap(
-        find
-            .descendant(
-              of: find.byType(BottomSheet),
-              matching: find.byIcon(Icons.star_border),
-            )
-            .last,
-      );
+      await tester.tap(find.byKey(const ValueKey('review-rating-5')));
       await tester.enterText(find.byType(TextField).last, '保留这段评价');
       await tester.tap(find.text('发布评价'));
       await tester.pumpAndSettle();
@@ -863,11 +988,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // 选 5 星 + 输入内容（textarea 是页面唯一输入框）。
-      final Finder sheetStars = find.descendant(
-        of: find.byType(BottomSheet),
-        matching: find.byIcon(Icons.star_border),
-      );
-      await tester.tap(sheetStars.last);
+      await tester.tap(find.byKey(const ValueKey('review-rating-5')));
       await tester.pump();
       await tester.enterText(find.byType(TextField).last, '老师讲得清楚');
       await tester.tap(find.text('发布评价'));
@@ -893,15 +1014,23 @@ void main() {
 
       // 本人评价现在为首行（id=4，helpfulCount=2）。
       final Finder firstHelpfulChip = find.ancestor(
-        of: find.text('有用').first,
-        matching: find.byType(InkWell),
+        of: find
+            .byWidgetPredicate(
+              (widget) => widget is GfSymbol && widget.name == 'thumbs-up',
+            )
+            .first,
+        matching: find.byType(TextButton),
       );
-      await tester.tap(find.text('有用').first);
+      expect(
+        find.descendant(of: firstHelpfulChip, matching: find.text('2 有用')),
+        findsOneWidget,
+      );
+      await tester.tap(firstHelpfulChip);
       await tester.pumpAndSettle();
 
       expect(course.helpfulCalls, <(int, bool)>[(4, true)]);
       expect(
-        find.descendant(of: firstHelpfulChip, matching: find.text('3')),
+        find.descendant(of: firstHelpfulChip, matching: find.text('3 有用')),
         findsOneWidget,
       );
     });

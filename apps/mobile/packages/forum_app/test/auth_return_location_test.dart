@@ -60,6 +60,7 @@ void main() {
       '/publish?local=draft-123',
       '/wiki/guide/start#heading',
       '/settings/security',
+      '/settings/profile?edit=1',
       '/chat?userId=2&username=Alice',
     ]) {
       expect(safeAuthReturnTo(value), value, reason: value);
@@ -76,6 +77,10 @@ void main() {
         '/login',
         '/login?returnTo=%2Fp%2F123',
         '/unknown',
+        '/settings/profile?edit=0',
+        '/settings/profile?edit=true',
+        '/settings/profile?edit=1&edit=1',
+        '/settings/account?edit=1',
         '/p/not-a-number',
         '/u/12/unknown',
         '/u/not-a-number/followers',
@@ -179,4 +184,17 @@ void main() {
       );
     }
   });
+
+  test(
+    'profile editor return target survives the unauthenticated redirect',
+    () async {
+      const destination = '/settings/profile?edit=1';
+      final redirect = await authNavigationRedirect(
+        requested: Uri.parse(destination),
+        tokenStorage: MemoryTokenStorage(),
+      );
+
+      expect(Uri.parse(redirect!).queryParameters['returnTo'], destination);
+    },
+  );
 }

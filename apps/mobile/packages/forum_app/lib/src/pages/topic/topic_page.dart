@@ -24,6 +24,7 @@ import '../../server_messages.dart';
 import '../../widgets/markdown_view.dart';
 import '../../widgets/status_views.dart';
 import '../../widgets/skeletons.dart';
+import '../../widgets/user_badge.dart';
 import 'post_actions.dart';
 import 'topic_actions.dart';
 import 'mention_panel.dart';
@@ -1610,7 +1611,6 @@ class _TopicPageState extends ConsumerState<TopicPage>
                                   actions: <GfTopicAction>[
                                     if (_topicAvailable) ...[
                                       GfTopicAction(
-                                        icon: Icons.favorite_border,
                                         symbol: _liked
                                             ? 'heart-filled'
                                             : 'heart',
@@ -1621,7 +1621,6 @@ class _TopicPageState extends ConsumerState<TopicPage>
                                         onTap: _toggleLike,
                                       ),
                                       GfTopicAction(
-                                        icon: Icons.bookmark_border,
                                         symbol: _bookmarked
                                             ? 'bookmark-filled'
                                             : 'bookmark',
@@ -1633,10 +1632,9 @@ class _TopicPageState extends ConsumerState<TopicPage>
                                         onTap: _toggleBookmark,
                                       ),
                                       GfTopicAction(
-                                        icon: _watched
-                                            ? Icons.notifications
-                                            : Icons.notifications_none,
-                                        symbol: 'bell',
+                                        symbol: _watched
+                                            ? 'bell-filled'
+                                            : 'bell',
                                         active: _watched,
                                         title: _watched
                                             ? l10n.topicUnwatch
@@ -1754,6 +1752,9 @@ class _TopicHeader extends StatelessWidget {
                 child: GfAvatar(
                   src: resolveApiAssetUrl(topic.author.avatarUrl),
                   size: 40,
+                  badge: topic.author.wornBadge == null
+                      ? null
+                      : UserWornBadge(topic.author.wornBadge!, avatarSize: 40),
                 ),
               ),
               const SizedBox(width: 10),
@@ -2028,6 +2029,9 @@ class _PostCard extends StatelessWidget {
                 child: GfAvatar(
                   src: resolveApiAssetUrl(post.author.avatarUrl),
                   size: 32,
+                  badge: post.isAnonymous || post.author.wornBadge == null
+                      ? null
+                      : UserWornBadge(post.author.wornBadge!, avatarSize: 32),
                 ),
               ),
               const SizedBox(width: 8),
@@ -2089,38 +2093,22 @@ class _PostCard extends StatelessWidget {
           else
             GfMarkdownView(data: post.content, mentions: post.mentions),
           const SizedBox(height: 4),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final timestamp = Text(
-                timeAgo(post.createdAt, l10n: l10n),
-                style: GfTheme.typographyOf(
-                  context,
-                ).caption.copyWith(color: GfTheme.colorsOf(context).iconMuted),
-              );
-              final actions = PostActions(
-                post: post,
-                onChanged: onChanged,
-                onReply: onReply,
-                onReport: onReport,
-              );
-              // Keep controls tappable at large text sizes and narrow widths.
-              if (constraints.maxWidth < 340 ||
-                  MediaQuery.textScalerOf(context).scale(14) > 20) {
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    timestamp,
-                    Align(alignment: Alignment.centerRight, child: actions),
-                  ],
-                );
-              }
-              return Row(
-                children: [
-                  Expanded(child: timestamp),
-                  Flexible(fit: FlexFit.loose, child: actions),
-                ],
-              );
-            },
+          Text(
+            timeAgo(post.createdAt, l10n: l10n),
+            style: GfTheme.typographyOf(
+              context,
+            ).caption.copyWith(color: GfTheme.colorsOf(context).iconMuted),
+          ),
+          // Actions use the complete reading column. Sharing a flex row with
+          // the date needlessly forced a phone's five actions onto two lines.
+          SizedBox(
+            width: double.infinity,
+            child: PostActions(
+              post: post,
+              onChanged: onChanged,
+              onReply: onReply,
+              onReport: onReport,
+            ),
           ),
         ],
       ),

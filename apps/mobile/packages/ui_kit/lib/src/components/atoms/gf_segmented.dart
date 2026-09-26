@@ -86,15 +86,19 @@ class _SegmentedItem<T> extends StatelessWidget {
             child: Container(
               constraints: const BoxConstraints(minHeight: 48),
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              child: Text(
-                label,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: selected
-                      ? colors.baseContent
-                      : colors.baseContent.withValues(alpha: 0.55),
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
+              child: Align(
+                alignment: Alignment.center,
+                widthFactor: 1,
+                child: Text(
+                  label,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: selected
+                        ? colors.baseContent
+                        : colors.baseContent.withValues(alpha: 0.55),
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
             ),

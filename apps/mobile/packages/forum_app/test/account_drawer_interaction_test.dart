@@ -89,9 +89,11 @@ Future<ProviderContainer> _mount(
   Widget home = const _GesturePage(),
   PageRepository? pages,
   double scale = 1,
+  Size size = const Size(390, 844),
+  EdgeInsets padding = EdgeInsets.zero,
 }) async {
   tester.view.devicePixelRatio = 1;
-  tester.view.physicalSize = const Size(390, 844);
+  tester.view.physicalSize = size;
   addTearDown(tester.view.reset);
   final container = ProviderContainer(
     overrides: [
@@ -135,6 +137,7 @@ Future<ProviderContainer> _mount(
           builder: (context, child) => MediaQuery(
             data: MediaQuery.of(context).copyWith(
               textScaler: TextScaler.linear(scale),
+              padding: padding,
               disableAnimations: true,
             ),
             child: child!,
@@ -155,6 +158,55 @@ ScaffoldState _shell(WidgetTester tester) => tester.state<ScaffoldState>(
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
+
+  for (final mode in [ThemeMode.light, ThemeMode.dark]) {
+    testWidgets(
+      'drawer keeps full-height compact layout and scrolls at 2x ($mode)',
+      (tester) async {
+        final container = await _mount(
+          tester,
+          scale: 2,
+          size: const Size(320, 568),
+          padding: const EdgeInsets.only(top: 47, bottom: 34),
+        );
+        container.read(themeModeProvider.notifier).setMode(mode);
+        _shell(tester).openDrawer();
+        await tester.pumpAndSettle();
+        final drawer = find.byType(Drawer);
+        final rect = tester.getRect(drawer);
+        expect(rect.left, 0);
+        expect(rect.top, 0);
+        expect(rect.width, closeTo(320 * .84, .01));
+        expect(rect.bottom, 568);
+        final panel = tester.widget<Drawer>(drawer);
+        expect(
+          (panel.shape! as RoundedRectangleBorder).borderRadius,
+          BorderRadius.zero,
+        );
+        final entry = tester.widget<ListTile>(find.byType(ListTile).first);
+        expect(entry.minTileHeight, 56);
+        expect(entry.horizontalTitleGap, 16);
+        expect((entry.leading! as GfSymbol).size, 24);
+        expect((entry.title! as Text).style!.fontSize, 18);
+        await tester.scrollUntilVisible(
+          find.text('Appearance'),
+          160,
+          scrollable: find.descendant(
+            of: drawer,
+            matching: find.byType(Scrollable),
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(
+          tester.getRect(find.text('Appearance')).bottom,
+          lessThan(rect.bottom),
+        );
+        expect(tester.takeException(), isNull);
+        _shell(tester).closeDrawer();
+        await tester.pumpAndSettle();
+      },
+    );
+  }
 
   testWidgets('right swipe opens from the leading 55 percent of content', (
     tester,

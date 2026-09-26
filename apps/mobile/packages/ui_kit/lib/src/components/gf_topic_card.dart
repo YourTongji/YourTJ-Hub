@@ -696,7 +696,7 @@ class _AuthorMeta extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
-              Icon(Icons.auto_awesome, size: 12, color: colors.warning),
+              GfSymbol('sparkles', size: 12, color: colors.warning),
               const SizedBox(width: 3),
               Text(
                 'hot',
@@ -812,8 +812,11 @@ class _AuthorMeta extends StatelessWidget {
         ),
         if (pinned)
           Padding(
-            padding: const EdgeInsets.only(top: 10),
-            child: GfSymbol('pin', size: 16, color: colors.iconMuted),
+            padding: const EdgeInsets.only(top: 14),
+            child: Semantics(
+              label: 'pinned',
+              child: GfSymbol('pin-filled', size: 16, color: colors.error),
+            ),
           ),
       ],
     );
@@ -881,10 +884,7 @@ class _TopicImage extends StatelessWidget {
                   (BuildContext context, Object error, StackTrace? stack) {
                     return ColoredBox(
                       color: colors.base200,
-                      child: Icon(
-                        Icons.image_outlined,
-                        color: colors.iconMuted,
-                      ),
+                      child: GfSymbol('image-off', color: colors.iconMuted),
                     );
                   },
             ),
@@ -976,11 +976,7 @@ class _ImageCount extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(
-            Icons.photo_library_outlined,
-            size: 12,
-            color: Colors.white,
-          ),
+          const GfSymbol('images', size: 12, color: Colors.white),
           const SizedBox(width: 4),
           Text(
             '$count',

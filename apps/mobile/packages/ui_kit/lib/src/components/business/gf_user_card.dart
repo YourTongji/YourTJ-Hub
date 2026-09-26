@@ -144,6 +144,7 @@ class GfUserCard extends StatelessWidget {
     required this.avatarUrl,
     required this.name,
     required this.username,
+    this.nameBadges = const <Widget>[],
     this.bio,
     this.signature,
     this.coverUrl,
@@ -166,6 +167,7 @@ class GfUserCard extends StatelessWidget {
   final String avatarUrl;
   final String name;
   final String username;
+  final List<Widget> nameBadges;
   final String? bio;
   final String? signature;
   final String? coverUrl;
@@ -180,7 +182,7 @@ class GfUserCard extends StatelessWidget {
   /// Icon-only badges with source-defined artwork, color and optional details.
   final List<GfUserBadge> coloredBadges;
 
-  /// (label, value) pairs rendered inline, wrapping with available width.
+  /// (label, value) pairs kept in one adaptive statistics row.
   final List<(String, String)> stats;
 
   /// Optional navigation actions keyed by the zero-based statistic index.
@@ -212,28 +214,39 @@ class GfUserCard extends StatelessWidget {
             coverHeight: coverHeight,
           ),
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+          padding: EdgeInsets.fromLTRB(16, 0, 16, showHeader ? 12 : 8),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              Text(
-                name,
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w700,
-                  color: colors.baseContent,
-                ),
+              Wrap(
+                spacing: 8,
+                runSpacing: 4,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  Text(
+                    name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w700,
+                      color: colors.baseContent,
+                    ),
+                  ),
+                  ...nameBadges,
+                ],
               ),
               const SizedBox(height: 2),
               Text(
                 '@$username',
                 style: TextStyle(
-                  fontSize: 16,
-                  color: colors.baseContent.withValues(alpha: 0.72),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                  color: colors.baseContent.withValues(alpha: 0.55),
                 ),
               ),
               if (bio != null && bio!.trim().isNotEmpty) ...<Widget>[
-                const SizedBox(height: 8),
+                const SizedBox(height: 12),
                 Text(
                   bio!.trim(),
                   style: TextStyle(
@@ -243,109 +256,160 @@ class GfUserCard extends StatelessWidget {
                   ),
                 ),
               ],
-              if (signature?.trim().isNotEmpty == true &&
-                  signature!.trim() != bio?.trim()) ...[
-                const SizedBox(height: 6),
-                Text(
-                  signature!.trim(),
-                  style: TextStyle(
-                    fontSize: 16,
-                    height: 1.4,
-                    color: colors.iconMuted,
+              if (signature?.trim().isNotEmpty == true) ...[
+                const SizedBox(height: 12),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: IntrinsicWidth(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Transform.flip(
+                              flipX: true,
+                              child: GfSymbol(
+                                'feather',
+                                size: 14,
+                                color: colors.primary.withValues(alpha: .62),
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Flexible(
+                              child: Text(
+                                signature!.trim(),
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  height: 1.55,
+                                  fontWeight: FontWeight.w500,
+                                  color: colors.baseContent.withValues(
+                                    alpha: .62,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 2),
+                        Padding(
+                          padding: const EdgeInsets.only(left: 20),
+                          child: CustomPaint(
+                            size: const Size(0, 8),
+                            painter: _SignatureSquigglePainter(
+                              colors.primary.withValues(alpha: .45),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ],
               if (details != null) ...<Widget>[
-                const SizedBox(height: 6),
+                const SizedBox(height: 12),
                 details!,
               ],
               if (badges.isNotEmpty || coloredBadges.isNotEmpty) ...[
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 4,
-                  children: [
-                    for (final badge in badges)
-                      GfBadge(label: badge, variant: GfBadgeVariant.info),
-                    for (final badge in coloredBadges)
-                      MergeSemantics(
-                        child: Semantics(
-                          label: badge.label,
-                          button: badge.onTap != null,
-                          child: Tooltip(
-                            message: [
-                              badge.label,
-                              badge.description,
-                            ].where((text) => text.isNotEmpty).join('\n'),
-                            excludeFromSemantics: true,
-                            child: TextButton(
-                              onPressed: badge.onTap,
-                              style: TextButton.styleFrom(
-                                padding: EdgeInsets.zero,
-                                minimumSize: const Size(44, 44),
-                                maximumSize: const Size(44, 44),
-                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                shape: const CircleBorder(),
-                              ),
-                              child: ExcludeSemantics(
-                                child: GfBadgeMedallion(
-                                  size: 40,
-                                  color: badge.color ?? colors.primary,
-                                  icon:
-                                      badge.icon ??
-                                      const GfSymbol('award', size: 22),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: Wrap(
+                    alignment: WrapAlignment.spaceEvenly,
+                    spacing: 0,
+                    runSpacing: 4,
+                    children: [
+                      for (final badge in badges)
+                        GfBadge(label: badge, variant: GfBadgeVariant.info),
+                      for (final badge in coloredBadges)
+                        MergeSemantics(
+                          child: Semantics(
+                            label: badge.label,
+                            button: badge.onTap != null,
+                            child: Tooltip(
+                              message: [
+                                badge.label,
+                                badge.description,
+                              ].where((text) => text.isNotEmpty).join('\n'),
+                              excludeFromSemantics: true,
+                              child: TextButton(
+                                onPressed: badge.onTap,
+                                style: TextButton.styleFrom(
+                                  padding: EdgeInsets.zero,
+                                  minimumSize: const Size(44, 44),
+                                  maximumSize: const Size(44, 44),
+                                  tapTargetSize:
+                                      MaterialTapTargetSize.shrinkWrap,
+                                  shape: const CircleBorder(),
+                                ),
+                                child: ExcludeSemantics(
+                                  child: GfBadgeMedallion(
+                                    size: 40,
+                                    color: badge.color ?? colors.primary,
+                                    icon:
+                                        badge.icon ??
+                                        const GfSymbol('award', size: 22),
+                                  ),
                                 ),
                               ),
                             ),
                           ),
                         ),
-                      ),
-                  ],
+                    ],
+                  ),
                 ),
               ],
               if (stats.isNotEmpty) ...<Widget>[
-                const SizedBox(height: 12),
-                Wrap(
-                  spacing: 20,
-                  runSpacing: 0,
+                const SizedBox(height: 8),
+                Row(
                   children: [
                     for (int i = 0; i < stats.length; i++)
-                      MergeSemantics(
-                        child: Semantics(
-                          button: statActions[i] != null,
-                          child: InkWell(
-                            onTap: statActions[i],
-                            borderRadius: BorderRadius.circular(8),
-                            child: ConstrainedBox(
-                              constraints: const BoxConstraints(
-                                minHeight: 48,
-                                minWidth: 48,
-                              ),
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 12,
-                                ),
-                                child: Wrap(
-                                  spacing: 4,
-                                  crossAxisAlignment: WrapCrossAlignment.center,
-                                  children: [
-                                    Text(
-                                      stats[i].$2,
-                                      style: TextStyle(
-                                        fontSize: 15,
-                                        height: 1.4,
-                                        fontWeight: FontWeight.w700,
-                                        color: colors.baseContent,
+                      Expanded(
+                        child: MergeSemantics(
+                          child: Semantics(
+                            button: statActions[i] != null,
+                            child: InkWell(
+                              onTap: statActions[i],
+                              borderRadius: BorderRadius.circular(8),
+                              child: SizedBox(
+                                height: 48,
+                                child: Center(
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 2,
+                                    ),
+                                    child: FittedBox(
+                                      fit: BoxFit.scaleDown,
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Text(
+                                            stats[i].$2,
+                                            maxLines: 1,
+                                            softWrap: false,
+                                            style: TextStyle(
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.w700,
+                                              fontFeatures: const [
+                                                FontFeature.tabularFigures(),
+                                              ],
+                                              color: colors.baseContent,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 3),
+                                          Text(
+                                            stats[i].$1,
+                                            maxLines: 1,
+                                            softWrap: false,
+                                            style: TextStyle(
+                                              fontSize: 13,
+                                              color: colors.iconMuted,
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ),
-                                    Text(
-                                      stats[i].$1,
-                                      style: TextStyle(
-                                        fontSize: 15,
-                                        color: colors.iconMuted,
-                                      ),
-                                    ),
-                                  ],
+                                  ),
                                 ),
                               ),
                             ),
@@ -361,4 +425,34 @@ class GfUserCard extends StatelessWidget {
       ],
     );
   }
+}
+
+class _SignatureSquigglePainter extends CustomPainter {
+  const _SignatureSquigglePainter(this.color);
+
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final x = size.width / 100;
+    final y = size.height / 8;
+    final path = Path()
+      ..moveTo(2 * x, 5 * y)
+      ..cubicTo(10 * x, 0, 18 * x, 8 * y, 26 * x, 5 * y)
+      ..cubicTo(34 * x, 2 * y, 42 * x, 8 * y, 50 * x, 5 * y)
+      ..cubicTo(58 * x, 2 * y, 66 * x, 8 * y, 74 * x, 5 * y)
+      ..cubicTo(82 * x, 2 * y, 90 * x, 8 * y, 98 * x, 5 * y);
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = color
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.8
+        ..strokeCap = StrokeCap.round,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _SignatureSquigglePainter oldDelegate) =>
+      oldDelegate.color != color;
 }

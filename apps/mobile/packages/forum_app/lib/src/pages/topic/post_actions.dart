@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:ui_kit/ui_kit.dart';
 import '../../../l10n/app_localizations.dart';
+import '../../format.dart';
 import '../../providers.dart';
 import '../../server_messages.dart';
 import 'post_edit_sheet.dart';
@@ -182,28 +183,56 @@ class _PostActionsState extends ConsumerState<PostActions> {
     final post = widget.post;
     final available = !_removed && !post.isHidden;
     final colors = GfTheme.colorsOf(context);
+    final likeColor = (post.isLiked ? colors.error : colors.iconMuted)
+        .withValues(alpha: _busy ? .38 : 1);
     final controls = <Widget>[
       if (available) ...[
-        Tooltip(
-          message: l10n.topicLike,
-          child: TextButton.icon(
-            onPressed: _busy
-                ? null
-                : () => _run(() async {
-                    await ref
-                        .read(postRepositoryProvider)
-                        .likePost(
-                          postId: post.id,
-                          action: post.isLiked ? 2 : 1,
-                        );
-                    _recordState(liked: !post.isLiked);
-                  }),
-            icon: GfSymbol(
-              post.isLiked ? 'heart-filled' : 'heart',
-              size: _postActionIconSize,
-              color: post.isLiked ? colors.error : colors.iconMuted,
+        MergeSemantics(
+          child: Semantics(
+            label: l10n.topicLike,
+            child: Tooltip(
+              message: l10n.topicLike,
+              excludeFromSemantics: true,
+              child: TextButton(
+                onPressed: _busy
+                    ? null
+                    : () => _run(() async {
+                        await ref
+                            .read(postRepositoryProvider)
+                            .likePost(
+                              postId: post.id,
+                              action: post.isLiked ? 2 : 1,
+                            );
+                        _recordState(liked: !post.isLiked);
+                      }),
+                style: TextButton.styleFrom(
+                  minimumSize: const Size(44, 44),
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  visualDensity: VisualDensity.standard,
+                  foregroundColor: likeColor,
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    GfSymbol(
+                      post.isLiked ? 'heart-filled' : 'heart',
+                      size: _postActionIconSize,
+                      color: likeColor,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      formatNumber(post.likeCount),
+                      style: GfTheme.typographyOf(context).caption.copyWith(
+                        fontSize: 14,
+                        height: 1.2,
+                        color: likeColor,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
-            label: Text('${post.likeCount}'),
           ),
         ),
         IconButton(
@@ -224,6 +253,9 @@ class _PostActionsState extends ConsumerState<PostActions> {
           icon: GfSymbol(
             post.isBookmarked ? 'bookmark-filled' : 'bookmark',
             size: _postActionIconSize,
+            color: post.isBookmarked
+                ? colors.primary.withValues(alpha: _busy ? .38 : 1)
+                : null,
           ),
         ),
         if (widget.onReply != null)
@@ -234,7 +266,11 @@ class _PostActionsState extends ConsumerState<PostActions> {
           ),
       ],
       PopupMenuButton<String>(
-        icon: const GfSymbol('ellipsis', size: _postActionIconSize),
+        icon: GfSymbol(
+          'ellipsis',
+          size: _postActionIconSize,
+          color: colors.iconMuted.withValues(alpha: _busy ? .38 : 1),
+        ),
         tooltip: l10n.profileMore,
         useRootNavigator: true,
         enabled: !_busy,
@@ -264,12 +300,19 @@ class _PostActionsState extends ConsumerState<PostActions> {
         style: (IconButtonTheme.of(context).style ?? const ButtonStyle())
             .copyWith(
               minimumSize: const WidgetStatePropertyAll(Size.square(44)),
-              tapTargetSize: MaterialTapTargetSize.padded,
+              maximumSize: const WidgetStatePropertyAll(Size.square(44)),
+              padding: const WidgetStatePropertyAll(EdgeInsets.zero),
+              foregroundColor: WidgetStateProperty.resolveWith(
+                (states) => colors.iconMuted.withValues(
+                  alpha: states.contains(WidgetState.disabled) ? .38 : 1,
+                ),
+              ),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               visualDensity: VisualDensity.standard,
             ),
       ),
       child: Wrap(
-        alignment: WrapAlignment.end,
+        alignment: WrapAlignment.start,
         crossAxisAlignment: WrapCrossAlignment.center,
         children: controls,
       ),

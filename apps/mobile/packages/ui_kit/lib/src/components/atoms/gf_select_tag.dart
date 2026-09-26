@@ -10,13 +10,13 @@ class GfSelectTag extends StatelessWidget {
     required this.label,
     required this.selected,
     required this.onChanged,
-    this.icon,
+    this.symbol,
   });
 
   final String label;
   final bool selected;
   final ValueChanged<bool>? onChanged;
-  final IconData? icon;
+  final String? symbol;
 
   @override
   Widget build(BuildContext context) {
@@ -52,9 +52,9 @@ class GfSelectTag extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                if (icon != null || selected) ...[
-                  if (icon != null)
-                    Icon(icon, size: 16)
+                if (symbol != null || selected) ...[
+                  if (symbol != null)
+                    GfSymbol(symbol!, size: 16, color: foreground)
                   else
                     GfSymbol('check', size: 16, color: foreground),
                   const SizedBox(width: 6),

@@ -289,7 +289,7 @@ class _DraftsPageState extends ConsumerState<DraftsPage> {
       key: ValueKey(draft.key),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       leading: draft.kind == DraftKind.reply
-          ? const Icon(Icons.reply_outlined)
+          ? const GfSymbol('corner-down-left')
           : PublishTypeIcon(PublishType.fromValue(draft.contentType), size: 32),
       title: Text(
         _title(draft, l10n),
@@ -376,7 +376,7 @@ class _DraftsPageState extends ConsumerState<DraftsPage> {
         title: Text(l10n.draftsTitle),
         actions: [
           GfIconButton(
-            icon: Icons.add,
+            symbol: 'plus',
             tooltip: l10n.navPublish,
             onPressed: () => showComposeMenu(
               context,

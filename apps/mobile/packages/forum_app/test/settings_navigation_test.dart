@@ -61,6 +61,57 @@ class _CountingUserRepository extends UserRepository {
     throw StateError('Profile save unavailable');
   }
 
+  final credentialFailures = <String>{};
+  final emailWrites = <({String email, String password})>[];
+  final setupPasswords = <String>[];
+  final enabledCodes = <String>[];
+  final disabledCodes = <String>[];
+  bool totpEnabled = false;
+  Completer<bool>? emailPending;
+
+  @override
+  Future<bool> setUserEmail(String email, String password) async {
+    emailWrites.add((email: email, password: password));
+    if (credentialFailures.contains('email')) {
+      throw StateError('Email unavailable');
+    }
+    return emailPending?.future ?? Future.value(true);
+  }
+
+  @override
+  Future<TotpStatusPayload> getTotpStatus() async =>
+      TotpStatusPayload(enabled: totpEnabled);
+
+  @override
+  Future<TotpSetupPayload> getTotpSetup({required String password}) async {
+    setupPasswords.add(password);
+    if (credentialFailures.contains('setup')) {
+      throw StateError('Password rejected');
+    }
+    return const TotpSetupPayload(
+      secret: 'TEST-SECRET',
+      otpauthUrl: 'otpauth://test',
+    );
+  }
+
+  @override
+  Future<TotpEnablePayload> enableTotp({required String code}) async {
+    enabledCodes.add(code);
+    if (credentialFailures.contains('enable')) {
+      throw StateError('Code rejected');
+    }
+    return const TotpEnablePayload(recoveryCodes: ['recovery-1']);
+  }
+
+  @override
+  Future<bool> disableTotp({required String code}) async {
+    disabledCodes.add(code);
+    if (credentialFailures.contains('disable')) {
+      throw StateError('Code rejected');
+    }
+    return true;
+  }
+
   @override
   Future<List<UserSessionPayload>> listSessions() async {
     requests++;
@@ -203,6 +254,189 @@ Future<_Harness> _mount(
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
+  Finder input(String label) => find.byWidgetPredicate(
+    (w) => w is TextField && w.decoration?.labelText == label,
+  );
+  Finder dialogAction(String label) => find.descendant(
+    of: find.byType(GfAlertDialog),
+    matching: find.widgetWithText(GfButton, label),
+  );
+
+  testWidgets('email validation stays beside the entered address', (
+    tester,
+  ) async {
+    final h = await _mount(
+      tester,
+      signedIn: true,
+      section: 'account',
+      language: 'en',
+    );
+    await tester.tap(find.text('Email').first);
+    await tester.pumpAndSettle();
+    await tester.enterText(input('New email'), 'next@example.com');
+    await tester.tap(dialogAction('Save'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(GfAlertDialog), findsOneWidget);
+    expect(input('New email'), findsOneWidget);
+    expect(
+      tester.widget<TextField>(input('New email')).controller!.text,
+      'next@example.com',
+    );
+    expect(find.text('Please fill in all fields'), findsOneWidget);
+    expect(h.user.emailWrites, isEmpty);
+  });
+
+  testWidgets(
+    'email save failure retains input and retry waits for acknowledgement',
+    (tester) async {
+      final h = await _mount(
+        tester,
+        signedIn: true,
+        section: 'account',
+        language: 'en',
+      );
+      h.user.credentialFailures.add('email');
+      await tester.tap(find.text('Email').first);
+      await tester.pumpAndSettle();
+      await tester.enterText(input('New email'), 'next@example.com');
+      await tester.enterText(input('Current password'), ' private password ');
+      await tester.tap(dialogAction('Save'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(GfAlertDialog), findsOneWidget);
+      expect(
+        tester.widget<TextField>(input('New email')).controller!.text,
+        'next@example.com',
+      );
+      expect(
+        tester.widget<TextField>(input('Current password')).controller!.text,
+        ' private password ',
+      );
+      expect(find.textContaining('Email update failed:'), findsOneWidget);
+      expect(h.user.emailWrites.single.password, ' private password ');
+
+      h.user.credentialFailures.clear();
+      h.user.emailPending = Completer<bool>();
+      final submit = tester.widget<GfButton>(dialogAction('Save')).onPressed!;
+      submit();
+      submit();
+      await tester.pump();
+      expect(h.user.emailWrites.length, 2);
+      expect(tester.widget<GfButton>(dialogAction('Save')).onPressed, isNull);
+      await tester.binding.handlePopRoute();
+      await tester.pump();
+      expect(find.byType(GfAlertDialog), findsOneWidget);
+      h.user.emailPending!.complete(true);
+      await tester.pumpAndSettle();
+      expect(find.byType(GfAlertDialog), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'TOTP setup and enable failures keep their current inputs for retry',
+    (tester) async {
+      final h = await _mount(
+        tester,
+        signedIn: true,
+        section: 'security',
+        language: 'en',
+      );
+      h.user.credentialFailures.addAll(['setup', 'enable']);
+      await tester.tap(find.text('Enable').first);
+      await tester.pumpAndSettle();
+      await tester.enterText(input('Password'), ' private password ');
+      await tester.tap(dialogAction('Next'));
+      await tester.pumpAndSettle();
+
+      expect(
+        tester.widget<TextField>(input('Password')).controller!.text,
+        ' private password ',
+      );
+      expect(find.textContaining('TOTP operation failed:'), findsOneWidget);
+      expect(h.user.setupPasswords.single, ' private password ');
+      h.user.credentialFailures.remove('setup');
+      await tester.tap(dialogAction('Next'));
+      await tester.pumpAndSettle();
+      expect(find.text('TEST-SECRET'), findsOneWidget);
+      await tester.enterText(input('Enter the 6-digit code'), '123456');
+      await tester.tap(dialogAction('Enable'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('TEST-SECRET'), findsOneWidget);
+      expect(
+        tester
+            .widget<TextField>(input('Enter the 6-digit code'))
+            .controller!
+            .text,
+        '123456',
+      );
+      expect(find.textContaining('TOTP operation failed:'), findsOneWidget);
+      h.user.credentialFailures.remove('enable');
+      await tester.tap(dialogAction('Enable'));
+      await tester.pumpAndSettle();
+      expect(find.text('recovery-1'), findsOneWidget);
+      expect(h.user.enabledCodes, ['123456', '123456']);
+    },
+  );
+
+  testWidgets('TOTP disable failure keeps the code and can retry in place', (
+    tester,
+  ) async {
+    final h = await _mount(
+      tester,
+      signedIn: true,
+      section: 'security',
+      language: 'en',
+    );
+    h.user.totpEnabled = true;
+    h.user.credentialFailures.add('disable');
+    await tester.tap(find.text('Enable').first);
+    await tester.pumpAndSettle();
+    await tester.enterText(input('Enter the 6-digit code'), '123456');
+    await tester.tap(dialogAction('Disable'));
+    await tester.pumpAndSettle();
+
+    expect(
+      tester
+          .widget<TextField>(input('Enter the 6-digit code'))
+          .controller!
+          .text,
+      '123456',
+    );
+    expect(find.textContaining('TOTP operation failed:'), findsOneWidget);
+    h.user.credentialFailures.clear();
+    await tester.tap(dialogAction('Disable'));
+    await tester.pumpAndSettle();
+    expect(find.byType(GfAlertDialog), findsNothing);
+    expect(h.user.disabledCodes, ['123456', '123456']);
+  });
+
+  testWidgets('email dialog drops private inputs when the account changes', (
+    tester,
+  ) async {
+    final h = await _mount(
+      tester,
+      signedIn: true,
+      section: 'account',
+      language: 'en',
+    );
+    h.user.emailPending = Completer<bool>();
+    await tester.tap(find.text('Email').first);
+    await tester.pumpAndSettle();
+    await tester.enterText(input('New email'), 'next@example.com');
+    await tester.enterText(input('Current password'), 'private password');
+    await tester.tap(dialogAction('Save'));
+    await tester.pump();
+    h.container.read(offlineCacheEpochProvider.notifier).invalidate();
+    await tester.pumpAndSettle();
+    expect(input('New email'), findsNothing);
+    h.user.emailPending!.complete(true);
+    await tester.pumpAndSettle();
+    expect(find.text('Email change request submitted.'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('profile shortcut opens the complete editor once after loading', (
     tester,
   ) async {
@@ -211,12 +445,14 @@ void main() {
       signedIn: true,
       section: 'profile',
       autoEditProfile: true,
+      withOrigin: true,
     );
     expect(find.byKey(const ValueKey('profile-nickname')), findsOneWidget);
     await tester.tap(find.byTooltip('取消'));
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('profile-nickname')), findsNothing);
-    expect(find.text('编辑资料'), findsOneWidget);
+    expect(find.byKey(const Key('open-settings')), findsOneWidget);
+    expect(find.byType(SettingsPage), findsNothing);
   });
 
   for (final save in [false, true]) {
@@ -292,8 +528,8 @@ void main() {
     expect(find.text('New destination'), findsOneWidget);
     navigator.pop();
     await tester.pumpAndSettle();
-    expect(find.byType(SettingsPage), findsOneWidget);
-    expect(find.byKey(const Key('open-settings')), findsNothing);
+    expect(find.byType(SettingsPage), findsNothing);
+    expect(find.byKey(const Key('open-settings')), findsOneWidget);
   });
 
   testWidgets('invalidated profile shortcut does not pop its settings route', (

@@ -1702,6 +1702,19 @@ class AppLocalizationsZh extends AppLocalizations {
   String get profileRoleAdmin => '管理员';
 
   @override
+  String get profileOnline => '在线';
+
+  @override
+  String profileJoinedAt(String date) {
+    return '加入于 $date';
+  }
+
+  @override
+  String profileLastActive(String time) {
+    return '最后活跃 $time';
+  }
+
+  @override
   String get profileActionSignup => '加入社区';
 
   @override

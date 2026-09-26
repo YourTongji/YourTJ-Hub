@@ -115,6 +115,18 @@ void main() {
       '通知',
       '消息',
     ]);
+    expect(navigation.items.map((item) => item.symbol), [
+      'house',
+      'graduation-cap',
+      'bell',
+      'mail',
+    ]);
+    expect(navigation.items.map((item) => item.selectedSymbol), [
+      'house-filled',
+      'graduation-cap-filled',
+      'bell-filled',
+      'mail-filled',
+    ]);
     expect(navigation.showLabels, isFalse);
     expect(navigation.onAction, isNull);
     expect(find.byType(FloatingActionButton), findsOneWidget);

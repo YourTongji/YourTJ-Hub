@@ -64,7 +64,7 @@ void main() {
             closeTo((action.height + 8).clamp(56, double.infinity), .01),
           );
           expect(username.top - name.bottom, closeTo(2, .01));
-          expect(bio.top - username.bottom, closeTo(8, .01));
+          expect(bio.top - username.bottom, closeTo(12, .01));
           expect(action.height, greaterThanOrEqualTo(44));
           expect(name.top, greaterThanOrEqualTo(action.bottom + 4));
           expect(tester.takeException(), isNull);

@@ -60,6 +60,12 @@ enum _SettingsTab {
   };
 }
 
+class _ProfileEditSession {
+  bool changed = false;
+  Uint8List? uploadedCoverBytes;
+  String? uploadedCoverUrl;
+}
+
 /// 设置页(web settings.index 的移动端形态)。
 ///
 /// Device preferences remain available to guests. Existing section deep links
@@ -88,13 +94,15 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   bool _uploadingAvatar = false;
   bool _accountClosing = false;
   bool _googleOAuthReady = false;
-  bool _didAutoEditProfile = false;
+  bool _autoEditProfileActive = false;
+  _ProfileEditSession _autoEditSession = _ProfileEditSession();
   final ImagePicker _imagePicker = ImagePicker();
   final Set<Route<dynamic>> _profileEditRoutes = {};
 
   @override
   void initState() {
     super.initState();
+    _autoEditProfileActive = widget.autoEditProfile;
     for (final section in _SettingsTab.values) {
       if (section.name == widget.initialSection) _tab = section;
     }
@@ -154,18 +162,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         _googleOAuthReady = props.googleOAuthReady;
         _user = AsyncValue.data(props.user);
       });
-      if (widget.autoEditProfile &&
-          _tab == _SettingsTab.profile &&
-          !_didAutoEditProfile) {
-        _didAutoEditProfile = true;
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted &&
-              _signedIn == true &&
-              ref.read(offlineCacheEpochProvider) == epoch) {
-            unawaited(_editProfileFromShortcut(props.user));
-          }
-        });
-      }
     } catch (e, st) {
       if (!mounted ||
           request != _userRequest ||
@@ -329,96 +325,86 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     _profileEditRoutes.clear();
   }
 
-  Future<void> _editProfileFromShortcut(SettingsUserPayload user) async {
-    final epoch = ref.read(offlineCacheEpochProvider);
-    final settingsRoute = ModalRoute.of(context);
-    final navigator = Navigator.of(context);
-    await _editProfile(user);
-    // The settings route only bridges the public profile to its editor. Close
-    // it after editing, unless another route or account has since taken over.
-    if (!mounted ||
-        epoch != ref.read(offlineCacheEpochProvider) ||
-        settingsRoute?.isCurrent != true ||
-        !navigator.mounted ||
-        !navigator.canPop()) {
-      return;
-    }
-    navigator.pop();
-  }
-
-  Future<void> _editProfile(SettingsUserPayload user) async {
-    final epoch = ref.read(offlineCacheEpochProvider);
-    var changed = false;
-    Uint8List? uploadedCoverBytes;
-    String? uploadedCoverUrl;
+  ProfileEditPage _profileEditor(
+    SettingsUserPayload user,
+    int epoch,
+    _ProfileEditSession session, {
+    Key? key,
+  }) {
     void requireCurrentSession() {
       if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) {
         throw const UnauthorizedException();
       }
     }
 
-    final saved = await _pushProfileEditRoute<bool>(
-      (_) => ProfileEditPage(
-        user: user,
-        onPickImage: (cover) =>
-            _pickProfileImageDraft(cover: cover, epoch: epoch),
-        onSave: (updated) async {
-          requireCurrentSession();
-          await ref
-              .read(userRepositoryProvider)
-              .saveUserInfo(
-                nickname: updated.nickname,
-                bio: updated.bio,
-                signature: updated.signature,
-                websiteName: updated.websiteName,
-                website: updated.website,
-                locale: updated.locale,
-                externalInformation: updated.externalInformation,
-              );
-          requireCurrentSession();
-          changed = true;
-        },
-        onSaveAvatar: (bytes) async {
-          requireCurrentSession();
-          final url = await ref
-              .read(fileRepositoryProvider)
-              .uploadAvatar(bytes: bytes, filename: 'avatar.webp');
-          requireCurrentSession();
-          changed = true;
-          return url;
-        },
-        onSaveCover: (bytes) async {
-          requireCurrentSession();
-          var url = '';
-          if (bytes != null) {
-            // Upload is separate from selecting the cover. Reuse the
-            // acknowledged asset if updating the profile fails and retries.
-            if (!identical(bytes, uploadedCoverBytes) ||
-                uploadedCoverUrl == null) {
-              url = await ref
-                  .read(fileRepositoryProvider)
-                  .uploadImage(bytes: bytes, filename: 'cover.webp');
-              requireCurrentSession();
-              uploadedCoverBytes = bytes;
-              uploadedCoverUrl = url;
-            } else {
-              url = uploadedCoverUrl!;
-            }
+    return ProfileEditPage(
+      key: key,
+      user: user,
+      onPickImage: (cover) =>
+          _pickProfileImageDraft(cover: cover, epoch: epoch),
+      onSave: (updated) async {
+        requireCurrentSession();
+        await ref
+            .read(userRepositoryProvider)
+            .saveUserInfo(
+              nickname: updated.nickname,
+              bio: updated.bio,
+              signature: updated.signature,
+              websiteName: updated.websiteName,
+              website: updated.website,
+              locale: updated.locale,
+              externalInformation: updated.externalInformation,
+            );
+        requireCurrentSession();
+        session.changed = true;
+        ref.invalidate(currentUserProvider);
+      },
+      onSaveAvatar: (bytes) async {
+        requireCurrentSession();
+        final url = await ref
+            .read(fileRepositoryProvider)
+            .uploadAvatar(bytes: bytes, filename: 'avatar.webp');
+        requireCurrentSession();
+        session.changed = true;
+        ref.invalidate(currentUserProvider);
+        return url;
+      },
+      onSaveCover: (bytes) async {
+        requireCurrentSession();
+        var url = '';
+        if (bytes != null) {
+          // Retry without uploading an already acknowledged cover again.
+          if (!identical(bytes, session.uploadedCoverBytes) ||
+              session.uploadedCoverUrl == null) {
+            url = await ref
+                .read(fileRepositoryProvider)
+                .uploadImage(bytes: bytes, filename: 'cover.webp');
+            requireCurrentSession();
+            session.uploadedCoverBytes = bytes;
+            session.uploadedCoverUrl = url;
+          } else {
+            url = session.uploadedCoverUrl!;
           }
-          await ref.read(userRepositoryProvider).saveUserProfileCover(url);
-          requireCurrentSession();
-          changed = true;
-          return url;
-        },
-      ),
+        }
+        await ref.read(userRepositoryProvider).saveUserProfileCover(url);
+        requireCurrentSession();
+        session.changed = true;
+        ref.invalidate(currentUserProvider);
+        return url;
+      },
+    );
+  }
+
+  Future<void> _editProfile(SettingsUserPayload user) async {
+    final epoch = ref.read(offlineCacheEpochProvider);
+    final session = _ProfileEditSession();
+    final saved = await _pushProfileEditRoute<bool>(
+      (_) => _profileEditor(user, epoch, session),
     );
     if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) return;
     // A cancelled retry may still have acknowledged earlier independent steps.
     // Refresh those changes, but only announce full success after every save.
-    if (changed) {
-      ref.invalidate(currentUserProvider);
-      await _loadUser(silent: true);
-    }
+    if (session.changed) await _loadUser(silent: true);
     if (saved == true &&
         mounted &&
         epoch == ref.read(offlineCacheEpochProvider)) {
@@ -600,90 +586,50 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     }
   }
 
-  /// 邮箱修改 → set-user-email(需登录密码 re-auth,校验通过才提交)。
+  Future<T?> _showAccountDialog<T>(int epoch, Widget child) =>
+      showGfAlertDialog<T>(
+        context,
+        builder: (_) => _SettingsAccountDialog(epoch: epoch, child: child),
+      );
+
+  /// Keep validation and acknowledgements in the editor so failures retain
+  /// the user's address and re-authentication input for a deliberate retry.
   Future<void> _changeEmail() async {
-    final AppLocalizations l10n = AppLocalizations.of(context);
-    final emailCtrl = TextEditingController();
-    final pwdCtrl = TextEditingController();
-    final ok = await showGfAlertDialog<bool>(
-      context,
-      builder: (ctx) => GfAlertDialog(
-        title: Text(l10n.settingsEmail),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            GfInput(
-              controller: emailCtrl,
-              keyboardType: TextInputType.emailAddress,
-              autofillHints: const [AutofillHints.email],
-              autocorrect: false,
-              enableSuggestions: false,
-              textInputAction: TextInputAction.next,
-              labelText: l10n.settingsNewEmail,
-            ),
-            const SizedBox(height: 16),
-            GfInput(
-              controller: pwdCtrl,
-              obscureText: true,
-              autofillHints: const [AutofillHints.password],
-              autocorrect: false,
-              enableSuggestions: false,
-              textInputAction: TextInputAction.done,
-              labelText: l10n.settingsCurrentPassword,
-            ),
-          ],
-        ),
-        actions: [
-          GfButton(
-            label: l10n.commonCancel,
-            variant: GfButtonVariant.ghost,
-            onPressed: () => Navigator.pop(ctx, false),
+    final l10n = AppLocalizations.of(context);
+    final epoch = ref.read(offlineCacheEpochProvider);
+    final repository = ref.read(userRepositoryProvider);
+    bool isCurrent() => mounted && epoch == ref.read(offlineCacheEpochProvider);
+    final saved = await _showAccountDialog<bool>(
+      epoch,
+      _SettingsCredentialDialog<bool>(
+        title: l10n.settingsEmail,
+        submitLabel: l10n.commonSave,
+        isCurrent: isCurrent,
+        fields: [
+          _SettingsCredentialField(
+            label: l10n.settingsNewEmail,
+            keyboardType: TextInputType.emailAddress,
+            autofillHints: const [AutofillHints.email],
           ),
-          GfButton(
-            label: l10n.commonSave,
-            onPressed: () => Navigator.pop(ctx, true),
+          _SettingsCredentialField(
+            label: l10n.settingsCurrentPassword,
+            obscureText: true,
+            autofillHints: const [AutofillHints.password],
           ),
         ],
+        onSubmit: (values) =>
+            repository.setUserEmail(values[0].trim(), values[1]),
+        errorMessage: (error) =>
+            error is ApiException &&
+                error.messageCode == 'auth.password.oauthRequired'
+            ? l10n.settingsEmailOAuthReauthRequired
+            : l10n.settingsEmailFailed(resolveErrorMessage(l10n, error)),
       ),
     );
-    if (ok != true) return;
-    final email = emailCtrl.text.trim();
-    final password = pwdCtrl.text.trim();
-    if (email.isEmpty || password.isEmpty) {
-      _snack(l10n.settingsFillComplete);
-      return;
-    }
-    try {
-      await ref.read(userRepositoryProvider).setUserEmail(email, password);
-      if (mounted) {
-        // The API also supports an immediate switch when verification is off.
-        // Reload the server state to show whether confirmation is pending.
-        showGfToast(context, l10n.settingsEmailChangeStaged);
-        await _loadUser(silent: true);
-      }
-    } on ApiException catch (e) {
-      if (mounted && e.messageCode == 'auth.password.oauthRequired') {
-        showGfToast(
-          context,
-          l10n.settingsEmailOAuthReauthRequired,
-          error: true,
-        );
-      } else if (mounted) {
-        showGfToast(
-          context,
-          l10n.settingsEmailFailed(resolveErrorMessage(l10n, e)),
-          error: true,
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        showGfToast(
-          context,
-          l10n.settingsEmailFailed(resolveErrorMessage(l10n, e)),
-          error: true,
-        );
-      }
-    }
+    if (saved != true || !mounted || !isCurrent()) return;
+    showGfToast(context, l10n.settingsEmailChangeStaged);
+    // The API also supports an immediate switch when verification is off.
+    await _loadUser(silent: true);
   }
 
   Future<void> _manageOAuth() async {
@@ -701,159 +647,109 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
   /// TOTP 管理:状态 → 启用(密码+密钥+恢复码)/禁用。
   Future<void> _manageTotp() async {
-    final AppLocalizations l10n = AppLocalizations.of(context);
+    final l10n = AppLocalizations.of(context);
+    final epoch = ref.read(offlineCacheEpochProvider);
+    final repository = ref.read(userRepositoryProvider);
+    bool isCurrent() => mounted && epoch == ref.read(offlineCacheEpochProvider);
+    String failure(Object error) =>
+        l10n.settingsTotpFailed(resolveErrorMessage(l10n, error));
+    final codeField = _SettingsCredentialField(
+      label: l10n.settingsTotpCode,
+      keyboardType: TextInputType.number,
+      autofillHints: const [AutofillHints.oneTimeCode],
+    );
     try {
-      final status = await ref.read(userRepositoryProvider).getTotpStatus();
-      if (!mounted) return;
+      final status = await repository.getTotpStatus();
+      if (!isCurrent()) return;
       if (status.enabled) {
-        // 禁用。
-        final codeCtrl = TextEditingController();
-        final ok = await showGfAlertDialog<bool>(
-          context,
-          builder: (ctx) => GfAlertDialog(
-            title: Text(l10n.settingsTotpDisableTitle),
-            content: GfInput(
-              controller: codeCtrl,
-              autofillHints: const [AutofillHints.oneTimeCode],
-              autocorrect: false,
-              enableSuggestions: false,
-              textInputAction: TextInputAction.done,
-              labelText: l10n.settingsTotpCode,
-            ),
-            actions: [
-              GfButton(
-                label: l10n.commonCancel,
-                variant: GfButtonVariant.ghost,
-                onPressed: () => Navigator.pop(ctx, false),
-              ),
-              GfButton(
-                label: l10n.settingsTotpDisable,
-                variant: GfButtonVariant.danger,
-                onPressed: () => Navigator.pop(ctx, true),
+        final disabled = await _showAccountDialog<bool>(
+          epoch,
+          _SettingsCredentialDialog<bool>(
+            title: l10n.settingsTotpDisableTitle,
+            submitLabel: l10n.settingsTotpDisable,
+            submitVariant: GfButtonVariant.danger,
+            isCurrent: isCurrent,
+            fields: [
+              // Disable also accepts the account password; retain its full
+              // keyboard instead of forcing the numeric setup-code keypad.
+              _SettingsCredentialField(
+                label: l10n.settingsTotpCode,
+                autofillHints: const [AutofillHints.oneTimeCode],
               ),
             ],
+            onSubmit: (values) =>
+                repository.disableTotp(code: values.single.trim()),
+            errorMessage: failure,
           ),
         );
-        if (ok != true) return;
-        try {
-          await ref
-              .read(userRepositoryProvider)
-              .disableTotp(code: codeCtrl.text.trim());
-          if (mounted) {
-            showGfToast(context, l10n.settingsTotpDisabled);
-          }
-        } catch (e) {
-          if (mounted) {
-            showGfToast(
-              context,
-              l10n.settingsTotpFailed(resolveErrorMessage(l10n, e)),
-              error: true,
-            );
-          }
+        if (disabled == true && mounted && isCurrent()) {
+          showGfToast(context, l10n.settingsTotpDisabled);
         }
         return;
       }
-      // 启用:先要密码 → setup → enable → 展示恢复码。
-      final pwdCtrl = TextEditingController();
-      final okPwd = await showGfAlertDialog<bool>(
-        context,
-        builder: (ctx) => GfAlertDialog(
-          title: Text(l10n.settingsTotpEnableTitle),
-          content: GfInput(
-            controller: pwdCtrl,
-            obscureText: true,
-            autofillHints: const [AutofillHints.password],
-            autocorrect: false,
-            enableSuggestions: false,
-            textInputAction: TextInputAction.done,
-            labelText: l10n.settingsTotpPassword,
-          ),
-          actions: [
-            GfButton(
-              label: l10n.commonCancel,
-              variant: GfButtonVariant.ghost,
-              onPressed: () => Navigator.pop(ctx, false),
-            ),
-            GfButton(
-              label: l10n.settingsTotpNext,
-              onPressed: () => Navigator.pop(ctx, true),
+      final setup = await _showAccountDialog<TotpSetupPayload>(
+        epoch,
+        _SettingsCredentialDialog<TotpSetupPayload>(
+          title: l10n.settingsTotpEnableTitle,
+          submitLabel: l10n.settingsTotpNext,
+          isCurrent: isCurrent,
+          fields: [
+            _SettingsCredentialField(
+              label: l10n.settingsTotpPassword,
+              obscureText: true,
+              autofillHints: const [AutofillHints.password],
             ),
           ],
+          onSubmit: (values) =>
+              repository.getTotpSetup(password: values.single),
+          errorMessage: failure,
         ),
       );
-      if (okPwd != true) return;
-      final setup = await ref
-          .read(userRepositoryProvider)
-          .getTotpSetup(password: pwdCtrl.text.trim());
-      if (!mounted) return;
-      final codeCtrl = TextEditingController();
-      final okCode = await showGfAlertDialog<bool>(
+      if (setup == null || !isCurrent()) return;
+      final enabled = await _showAccountDialog<TotpEnablePayload>(
+        epoch,
+        _SettingsCredentialDialog<TotpEnablePayload>(
+          title: l10n.settingsTotpScanSecret,
+          submitLabel: l10n.settingsTotpEnable,
+          isCurrent: isCurrent,
+          introduction: SelectableText(setup.secret),
+          fields: [codeField],
+          onSubmit: (values) =>
+              repository.enableTotp(code: values.single.trim()),
+          errorMessage: failure,
+        ),
+      );
+      if (enabled == null || !mounted || !isCurrent()) return;
+      await showGfAlertDialog<void>(
         context,
-        builder: (ctx) => GfAlertDialog(
-          title: Text(l10n.settingsTotpScanSecret),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              SelectableText(setup.secret),
-              const SizedBox(height: 8),
-              GfInput(
-                controller: codeCtrl,
-                keyboardType: TextInputType.number,
-                autofillHints: const [AutofillHints.oneTimeCode],
-                autocorrect: false,
-                enableSuggestions: false,
-                textInputAction: TextInputAction.done,
-                labelText: l10n.settingsTotpCode,
+        builder: (ctx) => _SettingsAccountDialog(
+          epoch: epoch,
+          child: GfAlertDialog(
+            title: Text(l10n.settingsTotpEnabled),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(l10n.settingsTotpRecoveryCodes),
+                const SizedBox(height: 8),
+                for (final code in enabled.recoveryCodes)
+                  SelectableText(
+                    code,
+                    style: const TextStyle(fontFamily: 'monospace'),
+                  ),
+              ],
+            ),
+            actions: [
+              GfButton(
+                label: l10n.settingsTotpDone,
+                onPressed: () => Navigator.pop(ctx),
               ),
             ],
           ),
-          actions: [
-            GfButton(
-              label: l10n.commonCancel,
-              variant: GfButtonVariant.ghost,
-              onPressed: () => Navigator.pop(ctx, false),
-            ),
-            GfButton(
-              label: l10n.settingsTotpEnable,
-              onPressed: () => Navigator.pop(ctx, true),
-            ),
-          ],
         ),
       );
-      if (okCode != true) return;
-      final enabled = await ref
-          .read(userRepositoryProvider)
-          .enableTotp(code: codeCtrl.text.trim());
-      if (!mounted) return;
-      await showGfAlertDialog<void>(
-        context,
-        builder: (ctx) => GfAlertDialog(
-          title: Text(l10n.settingsTotpEnabled),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(l10n.settingsTotpRecoveryCodes),
-              const SizedBox(height: 8),
-              for (final c in enabled.recoveryCodes)
-                SelectableText(
-                  c,
-                  style: const TextStyle(fontFamily: 'monospace'),
-                ),
-            ],
-          ),
-          actions: [
-            GfButton(
-              label: l10n.settingsTotpDone,
-              onPressed: () => Navigator.pop(ctx),
-            ),
-          ],
-        ),
-      );
-    } catch (e) {
-      if (mounted) {
-        _snack(l10n.settingsTotpFailed(resolveErrorMessage(l10n, e)));
-      }
+    } catch (error) {
+      if (isCurrent()) _snack(failure(error));
     }
   }
 
@@ -1059,10 +955,34 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         _user = const AsyncValue.loading();
         _sessions = const AsyncValue.loading();
         _googleOAuthReady = false;
+        _autoEditProfileActive = false;
+        _autoEditSession = _ProfileEditSession();
       });
       unawaited(_loadSession());
     });
     final l10n = AppLocalizations.of(context);
+    if (_autoEditProfileActive &&
+        _tab == _SettingsTab.profile &&
+        _signedIn != false) {
+      final user = _user.valueOrNull;
+      if (user != null) {
+        return _profileEditor(
+          user,
+          ref.read(offlineCacheEpochProvider),
+          _autoEditSession,
+          key: ObjectKey(_autoEditSession),
+        );
+      }
+      return Scaffold(
+        appBar: GfAppBar(title: Text(l10n.settingsEditProfile)),
+        body: _user.hasError
+            ? GfErrorRetry(
+                message: resolveErrorMessage(l10n, _user.error!),
+                onRetry: _loadUser,
+              )
+            : const GfSettingsSkeleton(),
+      );
+    }
     final title = _tab?.label(l10n) ?? l10n.settingsTitle;
     final colors = GfTheme.colorsOf(context);
     return Scaffold(
@@ -1890,4 +1810,184 @@ Widget _settingsSection(
       ),
     ],
   );
+}
+
+/// Dialog routes outlive their settings subtree. Remove exactly this route on
+/// an account switch, including while a credential write is still pending.
+class _SettingsAccountDialog extends ConsumerStatefulWidget {
+  const _SettingsAccountDialog({required this.epoch, required this.child});
+  final int epoch;
+  final Widget child;
+
+  @override
+  ConsumerState<_SettingsAccountDialog> createState() =>
+      _SettingsAccountDialogState();
+}
+
+class _SettingsAccountDialogState
+    extends ConsumerState<_SettingsAccountDialog> {
+  bool _closing = false;
+
+  void _close() {
+    if (_closing) return;
+    _closing = true;
+    final route = ModalRoute.of(context);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (route?.isActive == true) route!.navigator?.removeRoute(route);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    ref.listen(offlineCacheEpochProvider, (_, next) {
+      if (next != widget.epoch) _close();
+    });
+    if (ref.watch(offlineCacheEpochProvider) != widget.epoch) {
+      _close();
+      return const SizedBox.shrink();
+    }
+    return widget.child;
+  }
+}
+
+class _SettingsCredentialField {
+  const _SettingsCredentialField({
+    required this.label,
+    this.obscureText = false,
+    this.keyboardType,
+    this.autofillHints,
+  });
+  final String label;
+  final bool obscureText;
+  final TextInputType? keyboardType;
+  final Iterable<String>? autofillHints;
+}
+
+/// A small credential step owns its input until the server acknowledges it.
+class _SettingsCredentialDialog<T> extends StatefulWidget {
+  const _SettingsCredentialDialog({
+    required this.title,
+    required this.submitLabel,
+    required this.fields,
+    required this.onSubmit,
+    required this.errorMessage,
+    required this.isCurrent,
+    this.submitVariant = GfButtonVariant.primary,
+    this.introduction,
+  });
+  final String title;
+  final String submitLabel;
+  final List<_SettingsCredentialField> fields;
+  final Future<T> Function(List<String>) onSubmit;
+  final String Function(Object) errorMessage;
+  final bool Function() isCurrent;
+  final GfButtonVariant submitVariant;
+  final Widget? introduction;
+
+  @override
+  State<_SettingsCredentialDialog<T>> createState() =>
+      _SettingsCredentialDialogState<T>();
+}
+
+class _SettingsCredentialDialogState<T>
+    extends State<_SettingsCredentialDialog<T>> {
+  late final _controllers = [
+    for (final _ in widget.fields) TextEditingController(),
+  ];
+  bool _saving = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    for (final controller in _controllers) {
+      controller.dispose();
+    }
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (_saving || !widget.isCurrent()) return;
+    final values = [for (final controller in _controllers) controller.text];
+    if (values.any((value) => value.trim().isEmpty)) {
+      setState(
+        () => _error = AppLocalizations.of(context).settingsFillComplete,
+      );
+      return;
+    }
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    try {
+      final result = await widget.onSubmit(values);
+      if (!mounted || !widget.isCurrent()) return;
+      Navigator.pop(context, result);
+    } catch (error) {
+      if (mounted && widget.isCurrent()) {
+        setState(() => _error = widget.errorMessage(error));
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return PopScope(
+      canPop: !_saving,
+      child: GfAlertDialog(
+        title: Text(widget.title),
+        content: AutofillGroup(
+          onDisposeAction: AutofillContextAction.cancel,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (widget.introduction != null) ...[
+                widget.introduction!,
+                const SizedBox(height: 12),
+              ],
+              for (var index = 0; index < widget.fields.length; index++) ...[
+                if (index > 0) const SizedBox(height: 16),
+                GfInput(
+                  controller: _controllers[index],
+                  enabled: !_saving,
+                  labelText: widget.fields[index].label,
+                  obscureText: widget.fields[index].obscureText,
+                  keyboardType: widget.fields[index].keyboardType,
+                  autofillHints: widget.fields[index].autofillHints,
+                  autocorrect: false,
+                  enableSuggestions: false,
+                  textInputAction: index == widget.fields.length - 1
+                      ? TextInputAction.done
+                      : TextInputAction.next,
+                  onSubmitted: index == widget.fields.length - 1
+                      ? (_) => _submit()
+                      : null,
+                ),
+              ],
+              if (_error != null) ...[
+                const SizedBox(height: 12),
+                GfStatusMessage(message: _error!),
+              ],
+            ],
+          ),
+        ),
+        actions: [
+          GfButton(
+            label: l10n.commonCancel,
+            variant: GfButtonVariant.ghost,
+            onPressed: _saving ? null : () => Navigator.pop(context),
+          ),
+          GfButton(
+            label: widget.submitLabel,
+            variant: widget.submitVariant,
+            loading: _saving,
+            onPressed: _saving ? null : _submit,
+          ),
+        ],
+      ),
+    );
+  }
 }

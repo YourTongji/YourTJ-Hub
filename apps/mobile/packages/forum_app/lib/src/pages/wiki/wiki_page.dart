@@ -462,17 +462,17 @@ class _WikiProse extends StatelessWidget {
                   crossAxisAlignment: WrapCrossAlignment.center,
                   children: <Widget>[
                     _MetaItem(
-                      icon: Icons.schedule,
+                      symbol: 'clock',
                       text: formatDateTime(page.updatedAt),
                       faint: faint,
                     ),
                     _MetaItem(
-                      icon: Icons.visibility_outlined,
+                      symbol: 'eye',
                       text: l10n.wikiViewCount(page.viewCount),
                       faint: faint,
                     ),
                     _MetaItem(
-                      icon: Icons.favorite_border,
+                      symbol: 'heart',
                       text: formatNumber(page.likeCount),
                       faint: faint,
                     ),
@@ -492,12 +492,12 @@ class _WikiProse extends StatelessWidget {
 
 class _MetaItem extends StatelessWidget {
   const _MetaItem({
-    required this.icon,
+    required this.symbol,
     required this.text,
     required this.faint,
   });
 
-  final IconData icon;
+  final String symbol;
   final String text;
   final Color faint;
 
@@ -506,7 +506,7 @@ class _MetaItem extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: <Widget>[
-        Icon(icon, size: 13, color: faint),
+        GfSymbol(symbol, size: 13, color: faint),
         const SizedBox(width: 4),
         Text(
           text,

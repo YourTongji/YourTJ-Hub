@@ -193,7 +193,8 @@ void main() {
   ) async {
     final store = WritingStore();
     await _mount(tester, store);
-    await tester.tap(find.byIcon(Icons.add));
+    final l10n = AppLocalizations.of(tester.element(find.byType(DraftsPage)));
+    await tester.tap(find.byTooltip(l10n.navPublish));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('compose-3')));
     await tester.pumpAndSettle();

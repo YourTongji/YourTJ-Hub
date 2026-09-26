@@ -311,7 +311,7 @@ class _ContentPageState extends ConsumerState<ContentPage> {
                         final item = _items[index];
                         return ListTile(
                           leading: widget.deleted
-                              ? const Icon(Icons.article_outlined)
+                              ? const GfSymbol('file-text')
                               : Checkbox(
                                   value: _selected.contains(item.id),
                                   onChanged: _busy
@@ -357,6 +357,7 @@ class _ContentPageState extends ConsumerState<ContentPage> {
                                   !item.canPermanent
                               ? null
                               : PopupMenuButton<String>(
+                                  icon: const GfSymbol('ellipsis', size: 20),
                                   useRootNavigator: true,
                                   enabled: !_busy,
                                   onSelected: (action) => _act(item, action),

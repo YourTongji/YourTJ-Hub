@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'gf_symbol.dart';
 
 import '../theme/gf_theme.dart';
 import 'gf_image_viewer.dart';
@@ -90,10 +91,8 @@ class _GfMediaCarouselState extends State<GfMediaCarousel> {
                                   .round(),
                         ),
                         fit: BoxFit.contain,
-                        errorBuilder: (_, _, _) => Icon(
-                          Icons.broken_image_outlined,
-                          color: colors.iconMuted,
-                        ),
+                        errorBuilder: (_, _, _) =>
+                            GfSymbol('image-off', color: colors.iconMuted),
                       ),
                     ),
                   ),

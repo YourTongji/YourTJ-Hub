@@ -11,7 +11,6 @@ class GfEmpty extends StatelessWidget {
     super.key,
     required this.message,
     this.description,
-    this.icon,
     this.symbol,
     this.loading = false,
     this.action,
@@ -19,9 +18,8 @@ class GfEmpty extends StatelessWidget {
 
   final String message;
   final String? description;
-  final IconData? icon;
 
-  /// Shared outline symbol; takes precedence over the legacy [icon].
+  /// Shared outline symbol.
   final String? symbol;
   final bool loading;
   final Widget? action;
@@ -51,13 +49,11 @@ class GfEmpty extends StatelessWidget {
                     ),
                   ),
                   child: Center(
-                    child: symbol != null || icon == null
-                        ? GfSymbol(
-                            symbol ?? 'inbox',
-                            size: 28,
-                            color: colors.iconMuted,
-                          )
-                        : Icon(icon, size: 28, color: colors.iconMuted),
+                    child: GfSymbol(
+                      symbol ?? 'inbox',
+                      size: 28,
+                      color: colors.iconMuted,
+                    ),
                   ),
                 ),
               const SizedBox(height: 24),

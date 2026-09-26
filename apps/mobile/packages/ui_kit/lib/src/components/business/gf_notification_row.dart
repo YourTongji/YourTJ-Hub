@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../theme/gf_theme.dart';
 import '../atoms/gf_avatar.dart';
+import '../gf_symbol.dart';
 
 enum GfNotificationTone { success, warning, info, primary, like }
 
@@ -9,7 +10,7 @@ enum GfNotificationTone { success, warning, info, primary, like }
 class GfNotificationRow extends StatelessWidget {
   const GfNotificationRow({
     super.key,
-    required this.icon,
+    required this.symbol,
     required this.tone,
     required this.title,
     required this.subtitle,
@@ -22,7 +23,7 @@ class GfNotificationRow extends StatelessWidget {
     this.onMarkRead,
     this.markReadLabel = 'Mark as read',
   });
-  final IconData icon;
+  final String symbol;
   final GfNotificationTone tone;
   final String title, subtitle, time, actorName;
   final String? avatarUrl;
@@ -58,7 +59,7 @@ class GfNotificationRow extends StatelessWidget {
               SizedBox(
                 width: 28,
                 height: 44,
-                child: Icon(icon, size: 25, color: toneColor),
+                child: GfSymbol(symbol, size: 24, color: toneColor),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -101,8 +102,8 @@ class GfNotificationRow extends StatelessWidget {
                               minWidth: 44,
                               minHeight: 44,
                             ),
-                            icon: Icon(
-                              Icons.check_circle_outline,
+                            icon: GfSymbol(
+                              'circle-check',
                               size: 18,
                               color: colors.iconMuted,
                             ),

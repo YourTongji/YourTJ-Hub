@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 import 'package:ui_kit/ui_kit.dart';
@@ -29,6 +31,66 @@ Color userBadgeColor(UserBadgePayload badge) {
           : badge.level == 'special'
           ? colors['indigo']!
           : colors['blue']!);
+}
+
+/// Match the Web avatar badge's bg-100 and ring-200 color for each badge hue.
+const _wornBadgeColors = <String, (Color, Color)>{
+  'blue': (Color(0xFFDBEAFE), Color(0xFFBFDBFE)),
+  'emerald': (Color(0xFFD1FAE5), Color(0xFFA7F3D0)),
+  'teal': (Color(0xFFCCFBF1), Color(0xFF99F6E4)),
+  'sky': (Color(0xFFE0F2FE), Color(0xFFBAE6FD)),
+  'cyan': (Color(0xFFCFFAFE), Color(0xFFA5F3FC)),
+  'rose': (Color(0xFFFFE4E6), Color(0xFFFECDD3)),
+  'violet': (Color(0xFFEDE9FE), Color(0xFFDDD6FE)),
+  'purple': (Color(0xFFF3E8FF), Color(0xFFE9D5FF)),
+  'fuchsia': (Color(0xFFFAE8FF), Color(0xFFF5D0FE)),
+  'indigo': (Color(0xFFE0E7FF), Color(0xFFC7D2FE)),
+  'amber': (Color(0xFFFEF3C7), Color(0xFFFDE68A)),
+  'orange': (Color(0xFFFFEDD5), Color(0xFFFED7AA)),
+  'yellow': (Color(0xFFFEF9C3), Color(0xFFFEF08A)),
+  'slate': (Color(0xFFF1F5F9), Color(0xFFE2E8F0)),
+};
+
+class UserWornBadge extends StatelessWidget {
+  const UserWornBadge(this.badge, {super.key, required this.avatarSize});
+
+  final UserBadgePayload badge;
+  final double avatarSize;
+
+  @override
+  Widget build(BuildContext context) {
+    final size = math.max(14.0, avatarSize * .3);
+    final (background, ring) = _wornBadgeColors[badge.color] ??
+        _wornBadgeColors[switch (badge.level) {
+          'gold' => 'amber',
+          'special' => 'indigo',
+          _ => 'blue',
+        }]!;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: background,
+        shape: BoxShape.circle,
+        border: Border.all(color: ring, width: 2),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: .1),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: GfBadgeIcon(
+        url: resolveApiAssetUrl(
+          badge.iconUrl.isEmpty
+              ? '/static/badges/contributor.svg'
+              : badge.iconUrl,
+        ),
+        label: badge.name,
+        size: size,
+        framed: false,
+      ),
+    );
+  }
 }
 
 /// The parent control supplies the accessible name and the detail interaction.

@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:ui' show SemanticsAction;
+
 import 'package:core/core.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
@@ -120,6 +123,117 @@ void main() {
       baseUrl: 'https://example.test',
     ),
   );
+  testWidgets('like semantics include its action and visible count', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    try {
+      await pump(
+        tester,
+        repo(),
+        PostActions(
+          post: post(),
+          onChanged: () async {},
+          onReply: () {},
+          onReport: () {},
+        ),
+      );
+      final data = tester
+          .getSemantics(find.byType(TextButton).first)
+          .getSemanticsData();
+      expect(data.label, 'Like\n3');
+      expect(data.hasAction(SemanticsAction.tap), isTrue);
+    } finally {
+      semantics.dispose();
+    }
+  });
+
+  testWidgets('more action uses the same muted and busy icon colors', (
+    tester,
+  ) async {
+    final pending = Completer<void>();
+    await pump(
+      tester,
+      repo(),
+      PostActions(
+        post: post(),
+        onChanged: () => pending.future,
+        onReply: () {},
+        onReport: () {},
+      ),
+    );
+    final more = find.byWidgetPredicate(
+      (widget) => widget is GfSymbol && widget.name == 'ellipsis',
+    );
+    final colors = GfTheme.colorsOf(tester.element(more));
+    expect(tester.widget<GfSymbol>(more).color, colors.iconMuted);
+    await tester.tap(find.byTooltip('Like'));
+    await tester.pump();
+    expect(
+      tester.widget<GfSymbol>(more).color,
+      colors.iconMuted.withValues(alpha: .38),
+    );
+    pending.complete();
+    await tester.pumpAndSettle();
+  });
+
+  for (final size in [(320.0, 1.0), (390.0, 1.0), (220.0, 2.0)]) {
+    testWidgets('reply actions align from the left at ${size.$1}/${size.$2}', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        repo(),
+        Center(
+          child: SizedBox(
+            width: size.$1,
+            child: MediaQuery(
+              data: MediaQueryData(textScaler: TextScaler.linear(size.$2)),
+              child: PostActions(
+                post: post().copyWith(isOwnPost: false, likeCount: 3),
+                onChanged: () async {},
+                onReply: () {},
+                onReport: () {},
+              ),
+            ),
+          ),
+        ),
+      );
+      final actions = find.byType(PostActions);
+      final bounds = tester.getRect(actions);
+      final like = tester.getRect(find.byTooltip('Like'));
+      expect(like.left, closeTo(bounds.left, .01));
+      final glyphs = find.descendant(
+        of: actions,
+        matching: find.byType(GfSymbol),
+      );
+      expect(glyphs, findsNWidgets(5));
+      final centers = [
+        for (var index = 0; index < 5; index++)
+          tester.getCenter(glyphs.at(index)),
+      ];
+      expect(centers.first.dx - bounds.left, 22);
+      if (size.$2 == 1) {
+        expect(like.height, 44);
+        for (final center in centers) {
+          expect(center.dy, closeTo(centers.first.dy, .01));
+        }
+      } else {
+        final wrapped = find.descendant(
+          of: actions,
+          matching: find.byType(Wrap),
+        );
+        expect(tester.widget<Wrap>(wrapped).alignment, WrapAlignment.start);
+      }
+      final count = find.descendant(of: actions, matching: find.text('3'));
+      expect(tester.getCenter(count).dy, closeTo(centers.first.dy, .01));
+      expect(
+        tester.widget<Text>(count).style?.color,
+        GfTheme.colorsOf(tester.element(actions)).iconMuted,
+      );
+      expect(tester.takeException(), isNull);
+    });
+  }
   testWidgets('reply controls wrap with uniform glyphs at enlarged text', (
     tester,
   ) async {

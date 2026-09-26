@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import '../gf_symbol.dart';
 
 import '../../theme/gf_theme.dart';
 
@@ -95,10 +96,8 @@ class _FeedbackBannerState extends State<_FeedbackBanner> {
                   ),
                   child: Row(
                     children: [
-                      Icon(
-                        widget.error
-                            ? Icons.error_outline_rounded
-                            : Icons.check_circle_outline_rounded,
+                      GfSymbol(
+                        widget.error ? 'circle-alert' : 'circle-check',
                         color: accent,
                         size: 22,
                       ),
@@ -116,8 +115,8 @@ class _FeedbackBannerState extends State<_FeedbackBanner> {
                           context,
                         ).closeButtonTooltip,
                         onPressed: widget.onDismiss,
-                        icon: Icon(
-                          Icons.close_rounded,
+                        icon: GfSymbol(
+                          'x',
                           size: 18,
                           color: colors.baseContent.withValues(alpha: .55),
                         ),

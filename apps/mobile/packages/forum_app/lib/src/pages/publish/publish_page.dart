@@ -1798,14 +1798,12 @@ class _PublishPageState extends ConsumerState<PublishPage>
                 if (_contentType == 3 ||
                     MediaQuery.viewInsetsOf(context).bottom > 0)
                   _toolButton(
-                    icon: _activelyUploading
-                        ? Icons.hourglass_top_rounded
-                        : Icons.image_outlined,
+                    symbol: _activelyUploading ? 'clock' : 'gallery',
                     tooltip: l10n.publishToolImage,
                     onPressed: _uploading ? null : _pickAndInsertImage,
                   ),
                 _toolButton(
-                  icon: Icons.emoji_emotions_outlined,
+                  symbol: 'emoji-circle',
                   tooltip: StickerStrings(context).title,
                   onPressed: _uploading ? null : _pickSticker,
                 ),
@@ -1906,66 +1904,66 @@ class _PublishPageState extends ConsumerState<PublishPage>
             child: Row(
               children: <Widget>[
                 _toolButton(
-                  icon: Icons.undo,
+                  symbol: 'undo-2',
                   tooltip: l10n.publishUndo,
                   onPressed: _quill.hasUndo ? _quill.undo : null,
                 ),
                 _toolButton(
-                  icon: Icons.redo,
+                  symbol: 'redo-2',
                   tooltip: l10n.publishRedo,
                   onPressed: _quill.hasRedo ? _quill.redo : null,
                 ),
                 _toolButton(
-                  icon: Icons.title,
+                  symbol: 'heading',
                   tooltip: l10n.publishHeading,
                   selected: attributes[Attribute.header.key]?.value != null,
                   onPressed: () => _toggleFormat(Attribute.h2),
                   onLongPress: () => _showHeadingLevelMenu(l10n),
                 ),
                 _toolButton(
-                  icon: Icons.link,
+                  symbol: 'link',
                   tooltip: l10n.publishToolLink,
                   onPressed: _insertLink,
                 ),
 
                 _toolButton(
-                  icon: Icons.format_bold_rounded,
+                  symbol: 'bold',
                   tooltip: l10n.publishToolBold,
                   selected: selected(Attribute.bold),
                   onPressed: () => _toggleFormat(Attribute.bold),
                 ),
                 _toolButton(
-                  icon: Icons.format_italic_rounded,
+                  symbol: 'italic',
                   tooltip: l10n.publishToolItalic,
                   selected: selected(Attribute.italic),
                   onPressed: () => _toggleFormat(Attribute.italic),
                 ),
                 _toolButton(
-                  icon: Icons.format_strikethrough_rounded,
+                  symbol: 'strikethrough',
                   tooltip: l10n.publishToolStrike,
                   selected: selected(Attribute.strikeThrough),
                   onPressed: () => _toggleFormat(Attribute.strikeThrough),
                 ),
                 _toolButton(
-                  icon: Icons.format_quote_rounded,
+                  symbol: 'quote',
                   tooltip: l10n.publishToolQuote,
                   selected: selected(Attribute.blockQuote),
                   onPressed: () => _toggleFormat(Attribute.blockQuote),
                 ),
                 _toolButton(
-                  icon: Icons.code_rounded,
+                  symbol: 'code',
                   tooltip: l10n.publishToolCode,
                   selected: selected(Attribute.inlineCode),
                   onPressed: () => _toggleFormat(Attribute.inlineCode),
                 ),
                 _toolButton(
-                  icon: Icons.format_list_bulleted_rounded,
+                  symbol: 'unordered-list',
                   tooltip: l10n.publishToolBulletList,
                   selected: selected(Attribute.ul),
                   onPressed: () => _toggleFormat(Attribute.ul),
                 ),
                 _toolButton(
-                  icon: Icons.format_list_numbered_rounded,
+                  symbol: 'list-ordered',
                   tooltip: l10n.publishToolOrderedList,
                   selected: selected(Attribute.ol),
                   onPressed: () => _toggleFormat(Attribute.ol),
@@ -1979,29 +1977,13 @@ class _PublishPageState extends ConsumerState<PublishPage>
   }
 
   Widget _toolButton({
-    required IconData icon,
+    required String symbol,
     required String tooltip,
     required VoidCallback? onPressed,
     VoidCallback? onLongPress,
     bool? selected,
   }) {
     final colors = GfTheme.colorsOf(context);
-    final symbol = <IconData, String>{
-      Icons.undo: 'undo-2',
-      Icons.redo: 'redo-2',
-      Icons.title: 'heading',
-      Icons.link: 'link',
-      Icons.format_bold_rounded: 'bold',
-      Icons.format_italic_rounded: 'italic',
-      Icons.format_strikethrough_rounded: 'strikethrough',
-      Icons.format_quote_rounded: 'quote',
-      Icons.code_rounded: 'code',
-      Icons.format_list_bulleted_rounded: 'list',
-      Icons.format_list_numbered_rounded: 'list-ordered',
-      Icons.image_outlined: 'image',
-      Icons.hourglass_top_rounded: 'clock',
-      Icons.emoji_emotions_outlined: 'smile',
-    }[icon];
     return MergeSemantics(
       child: Semantics(
         toggled: selected,
@@ -2013,7 +1995,6 @@ class _PublishPageState extends ConsumerState<PublishPage>
             borderRadius: BorderRadius.circular(GfTheme.radiiOf(context).field),
           ),
           child: GfIconButton(
-            icon: icon,
             symbol: symbol,
             tooltip: tooltip,
             size: 44,
@@ -2114,7 +2095,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
                     : GfSymbol(
-                        'image',
+                        'gallery-duotone',
                         size: 28,
                         color: PublishType.fromValue(
                           _contentType,
@@ -2232,7 +2213,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
         if (editing)
           GfButton(
             label: l10n.publishToolImage,
-            icon: const GfSymbol('image', size: 22),
+            icon: const GfSymbol('gallery', size: 22),
             variant: GfButtonVariant.outline,
             loading: _pickingImage,
             onPressed: _images.length >= 9 || _uploading

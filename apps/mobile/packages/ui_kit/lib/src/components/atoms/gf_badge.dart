@@ -30,11 +30,13 @@ class GfBadge extends StatelessWidget {
     this.variant = GfBadgeVariant.muted,
     this.icon,
     this.color,
+    this.radius = 999,
   });
 
   final String label;
   final GfBadgeVariant variant;
   final Widget? icon;
+  final double radius;
 
   /// Optional source color for domain badges that carry their own palette.
   final Color? color;
@@ -48,7 +50,7 @@ class GfBadge extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
         color: background,
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(radius),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,

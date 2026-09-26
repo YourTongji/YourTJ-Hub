@@ -1,17 +1,18 @@
 import 'package:flutter/material.dart';
 
 import '../../theme/gf_theme.dart';
+import '../gf_symbol.dart';
 
 class GfPillOption<T> {
   const GfPillOption({
     required this.label,
     required this.value,
-    required this.icon,
+    required this.symbol,
   });
 
   final String label;
   final T value;
-  final IconData icon;
+  final String symbol;
 }
 
 /// Calm segmented choice with a grey track and native focusable options.
@@ -95,7 +96,7 @@ class _GfPillItem<T> extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(option.icon, size: 16),
+              GfSymbol(option.symbol, size: 16, color: foreground),
               const SizedBox(width: 6),
               Flexible(child: Text(option.label, textAlign: TextAlign.center)),
             ],

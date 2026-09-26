@@ -178,7 +178,7 @@ void main() {
       );
       expect(row.actorName, 'Alice');
       expect(row.avatarUrl, isNotNull);
-      expect(row.icon, Icons.favorite);
+      expect(row.symbol, 'heart-filled');
       expect(row.onActorTap, isNotNull);
       expect(repo.markOne, isEmpty);
     },
@@ -196,7 +196,11 @@ void main() {
           if (all) {
             tester
                 .widget<GfIconButton>(
-                  find.widgetWithIcon(GfIconButton, Icons.done_all_rounded),
+                  find.byWidgetPredicate(
+                    (widget) =>
+                        widget is GfIconButton &&
+                        widget.symbol == 'check-check',
+                  ),
                 )
                 .onPressed!();
             repo.markAll.single.complete(false);
@@ -448,7 +452,9 @@ void main() {
     repo.requests.first.$3.complete(_page('Still unread'));
     await tester.pumpAndSettle();
     final button = tester.widget<GfIconButton>(
-      find.widgetWithIcon(GfIconButton, Icons.done_all_rounded),
+      find.byWidgetPredicate(
+        (widget) => widget is GfIconButton && widget.symbol == 'check-check',
+      ),
     );
     button.onPressed!();
     button.onPressed!();

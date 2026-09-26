@@ -9,14 +9,14 @@ class GfFloatingAction extends StatelessWidget {
   const GfFloatingAction({
     super.key,
     required this.onPressed,
-    this.icon = Icons.edit,
+    this.symbol = 'square-pen',
     this.label,
     this.enabled = true,
     this.bottomInset = 16,
   });
 
   final VoidCallback? onPressed;
-  final IconData icon;
+  final String symbol;
   final String? label;
   final bool enabled;
   final double bottomInset;
@@ -26,9 +26,7 @@ class GfFloatingAction extends StatelessWidget {
     final colors = GfTheme.colorsOf(context);
     final pill = label != null;
     final active = enabled && onPressed != null;
-    final glyph = icon == Icons.edit
-        ? GfSymbol('square-pen', size: pill ? 20 : 24)
-        : Icon(icon, size: pill ? 20 : 24);
+    final glyph = GfSymbol(symbol, size: pill ? 20 : 24);
     final action = DecoratedBox(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(999),

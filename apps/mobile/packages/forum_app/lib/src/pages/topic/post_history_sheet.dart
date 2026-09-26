@@ -18,6 +18,7 @@ class PostHistorySheet extends ConsumerStatefulWidget {
 
 class _PostHistorySheetState extends ConsumerState<PostHistorySheet> {
   final _versions = <PostRevision>[];
+  final _expandedVersions = <int>{};
   bool _loading = false;
   bool _hasMore = true;
   int _before = 0;
@@ -83,7 +84,7 @@ class _PostHistorySheetState extends ConsumerState<PostHistorySheet> {
               ),
               trailing: IconButton(
                 tooltip: l10n.commonClose,
-                icon: const Icon(Icons.close),
+                icon: const GfSymbol('x'),
                 onPressed: () => Navigator.pop(context),
               ),
             ),
@@ -94,6 +95,25 @@ class _PostHistorySheetState extends ConsumerState<PostHistorySheet> {
                   for (final version in _versions)
                     ExpansionTile(
                       key: ValueKey(version.version),
+                      initiallyExpanded: _expandedVersions.contains(
+                        version.version,
+                      ),
+                      onExpansionChanged: (expanded) => setState(() {
+                        if (expanded) {
+                          _expandedVersions.add(version.version);
+                        } else {
+                          _expandedVersions.remove(version.version);
+                        }
+                      }),
+                      trailing: AnimatedRotation(
+                        turns: _expandedVersions.contains(version.version)
+                            ? .5
+                            : 0,
+                        duration: MediaQuery.disableAnimationsOf(context)
+                            ? Duration.zero
+                            : const Duration(milliseconds: 180),
+                        child: const GfSymbol('chevron-down'),
+                      ),
                       title: Text(
                         'v${version.version} · ${privateDisplayName(context, version.editor.id, version.editor.username, version.editor.nickname)}',
                       ),

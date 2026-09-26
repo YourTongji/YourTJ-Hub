@@ -458,7 +458,7 @@ class _MessagesPageState extends ConsumerState<MessagesPage>
     return RootSurface(
       title: l10n.messagesTitle,
       actionLabel: l10n.messagesNew,
-      actionSymbol: 'message-circle',
+      actionSymbol: 'message-favorite',
       onAction: _startNewChat,
       toolbarHeight: 64,
       toolbar: Padding(
@@ -1502,17 +1502,6 @@ class _NewChatSheetState extends State<_NewChatSheet> {
       top: false,
       child: Column(
         children: <Widget>[
-          Padding(
-            padding: const EdgeInsets.only(top: 8, bottom: 4),
-            child: Container(
-              width: 36,
-              height: 4,
-              decoration: BoxDecoration(
-                color: colors.baseContent.withValues(alpha: 0.18),
-                borderRadius: BorderRadius.circular(999),
-              ),
-            ),
-          ),
           ConstrainedBox(
             constraints: const BoxConstraints(minHeight: 48),
             child: Padding(
@@ -1530,7 +1519,7 @@ class _NewChatSheetState extends State<_NewChatSheet> {
                     ),
                   ),
                   GfIconButton(
-                    icon: Icons.close,
+                    symbol: 'x',
                     tooltip: AppLocalizations.of(context).commonClose,
                     size: 44,
                     iconSize: 18,

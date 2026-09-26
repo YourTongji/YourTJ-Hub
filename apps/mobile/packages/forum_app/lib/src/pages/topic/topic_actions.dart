@@ -131,6 +131,7 @@ class _TopicActionsState extends ConsumerState<TopicActions> {
         !props.topic.authorDeleted && !props.topic.moderatorRemoved;
     return PopupMenuButton<String>(
       tooltip: l10n.profileMore,
+      icon: const GfSymbol('ellipsis', size: 20),
       useRootNavigator: true,
       enabled: !_busy,
       onSelected: _action,

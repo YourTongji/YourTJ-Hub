@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:ui_kit/ui_kit.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -80,6 +81,7 @@ class _LoginPageState extends ConsumerState<LoginPage>
     with WidgetsBindingObserver {
   final TextEditingController _username = TextEditingController();
   final TextEditingController _password = TextEditingController();
+  final Object _authInputGroup = Object();
   final FocusNode _usernameFocusNode = FocusNode();
   final FocusNode _passwordFocusNode = FocusNode();
   final FocusNode _captchaFocusNode = FocusNode();
@@ -162,7 +164,10 @@ class _LoginPageState extends ConsumerState<LoginPage>
           _mode == _AuthMode.login &&
           _loginCaptchaRevealed &&
           _authController.captcha != null,
-      requestCaptchaFocus: _captchaFocusNode.requestFocus,
+      requestCaptchaFocus: () {
+        _authIme.focusRequested(_captchaFocusNode);
+        _captchaFocusNode.requestFocus();
+      },
       schedule: _scheduleCaptchaForward,
     );
     WidgetsBinding.instance.addObserver(this);
@@ -276,6 +281,7 @@ class _LoginPageState extends ConsumerState<LoginPage>
   }
 
   void _onUsernameFocusChanged() {
+    if (_usernameFocusNode.hasFocus) _captchaHandoff.cancel();
     _authIme.focusChanged(_usernameFocusNode, _usernameFocusNode.hasFocus);
   }
 
@@ -304,19 +310,20 @@ class _LoginPageState extends ConsumerState<LoginPage>
     );
   }
 
-  void _completePasswordStage() {
-    if (!_passwordInteractionStarted ||
-        _mode != _AuthMode.login ||
-        _loginCaptchaRevealed) {
-      return;
-    }
+  void _completePasswordStage({bool focusCaptcha = false}) {
+    if (!_passwordInteractionStarted || _mode != _AuthMode.login) return;
 
-    // Invalidate every password recovery/watchdog generation before moving
-    // focus. A stale AuthIme callback must never restore the password field.
-    _authIme.cancel();
-    _captchaHandoff.begin();
+    // Revealing the next field is separate from entering it. Only IME Next
+    // authorizes an automatic handoff; a dismissal or outside tap must not
+    // reopen the keyboard or override the user's explicitly selected control.
+    if (focusCaptcha) {
+      _authIme.cancel();
+      _captchaHandoff.begin();
+    } else {
+      _captchaHandoff.cancel();
+      if (_loginCaptchaRevealed) return;
+    }
     _loginCaptchaRevealed = true;
-    _passwordFocusNode.unfocus();
     // A failed prefetch has no payload, so this explicit handoff retries it;
     // an existing payload is reused and can focus on the next frame.
     unawaited(
@@ -386,20 +393,33 @@ class _LoginPageState extends ConsumerState<LoginPage>
   void _onPasswordTapOutside() {
     final bool explicitTarget = _suppressPasswordTapOutside;
     _suppressPasswordTapOutside = false;
-    // A username/captcha pointer-down cancels an already pending automatic
-    // captcha focus. Before the handoff has begun, however, the same pointer
-    // is the ordinary password-stage completion gesture.
-    if (explicitTarget && _loginCaptchaRevealed) {
-      return;
+    _captchaHandoff.cancel();
+    if (!explicitTarget) {
+      _authIme.cancel();
+      _passwordFocusNode.unfocus();
     }
     _completePasswordStage();
   }
 
+  // One group lets a direct field-to-field tap keep its target, while a tap
+  // on the surrounding form dismisses every auth keyboard on iOS and Android.
+  Widget _withAuthInputRegion(Widget child) => TapRegion(
+    groupId: _authInputGroup,
+    onTapOutside: (_) {
+      _authIme.cancel();
+      _captchaHandoff.cancel();
+      FocusScope.of(context).unfocus();
+    },
+    child: child,
+  );
+
   Widget _withAuthFocusIntent(FocusNode target, Widget child) {
-    return Listener(
-      behavior: HitTestBehavior.translucent,
-      onPointerDown: (_) => _captureAuthFocusIntent(target),
-      child: child,
+    return _withAuthInputRegion(
+      Listener(
+        behavior: HitTestBehavior.translucent,
+        onPointerDown: (_) => _captureAuthFocusIntent(target),
+        child: child,
+      ),
     );
   }
 
@@ -416,7 +436,7 @@ class _LoginPageState extends ConsumerState<LoginPage>
     );
     return _mode == _AuthMode.login
         ? _withAuthFocusIntent(_captchaFocusNode, input)
-        : input;
+        : _withAuthInputRegion(input);
   }
 
   void _loadVisibleCaptcha() {
@@ -621,6 +641,9 @@ class _LoginPageState extends ConsumerState<LoginPage>
     // 缓存清理失败后会话已丢弃:禁止返回旧 shell(内存态可能含上一账号
     // 数据),只能重试登录。
     if (_authBlocked || _finishingAuthentication) return;
+    _authIme.cancel();
+    _captchaHandoff.cancel();
+    FocusScope.of(context).unfocus();
     final NavigatorState navigator = Navigator.of(context);
     if (navigator.canPop()) {
       navigator.pop();
@@ -675,6 +698,7 @@ class _LoginPageState extends ConsumerState<LoginPage>
     if (_authController.busy || _finishingAuthentication) return;
     _authIme.cancel();
     _captchaHandoff.cancel();
+    FocusScope.of(context).unfocus();
     if (mode == _AuthMode.register && _registration == null) {
       _loadRegistration();
     }
@@ -797,7 +821,15 @@ class _LoginPageState extends ConsumerState<LoginPage>
         children: <Widget>[
           Align(
             alignment: Alignment.centerLeft,
-            child: Text('YourTJ', style: GfTheme.typographyOf(context).display),
+            child: Image.asset(
+              Theme.of(context).brightness == Brightness.dark
+                  ? 'assets/images/brand-default-dark.webp'
+                  : 'assets/images/brand-default.webp',
+              width: 176,
+              height: 40,
+              fit: BoxFit.contain,
+              semanticLabel: 'YourTJ',
+            ),
           ),
           const SizedBox(height: 24),
           Text(
@@ -839,9 +871,15 @@ class _LoginPageState extends ConsumerState<LoginPage>
                 autocorrect: false,
                 enableSuggestions: false,
                 textInputAction: TextInputAction.next,
-                onSubmitted: (_) => _mode == _AuthMode.login
-                    ? _passwordFocusNode.requestFocus()
-                    : FocusScope.of(context).nextFocus(),
+                onEditingComplete: () {
+                  if (_mode == _AuthMode.login) {
+                    _captchaHandoff.cancel();
+                    _authIme.focusRequested(_passwordFocusNode);
+                    _passwordFocusNode.requestFocus();
+                  } else {
+                    FocusScope.of(context).nextFocus();
+                  }
+                },
                 labelText: _mode == _AuthMode.login
                     ? l10n.authUsernameOrEmail
                     : l10n.authUsername,
@@ -851,28 +889,33 @@ class _LoginPageState extends ConsumerState<LoginPage>
             const SizedBox(height: 12),
           ],
           if (_mode != _AuthMode.login) ...<Widget>[
-            GfInput(
-              controller: _email,
-              keyboardType: TextInputType.emailAddress,
-              autofillHints:
-                  _mode == _AuthMode.register &&
-                      _registration?.allowedDomains.isNotEmpty == true
-                  ? const []
-                  : const [AutofillHints.email],
-              autocorrect: false,
-              enableSuggestions: false,
-              textInputAction: _mode == _AuthMode.forgotPassword
-                  ? TextInputAction.done
-                  : TextInputAction.next,
-              onSubmitted: (_) => _mode == _AuthMode.forgotPassword
-                  ? _submit()
-                  : FocusScope.of(context).nextFocus(),
-              labelText:
-                  _mode == _AuthMode.register &&
-                      _registration?.allowedDomains.isNotEmpty == true
-                  ? l10n.authEmailPrefix
-                  : l10n.authEmail,
-              prefixIcon: const GfSymbol('mail', size: 20),
+            _withAuthInputRegion(
+              GfInput(
+                controller: _email,
+                keyboardType: TextInputType.emailAddress,
+                autofillHints:
+                    _mode == _AuthMode.register &&
+                        _registration?.allowedDomains.isNotEmpty == true
+                    ? const []
+                    : const [AutofillHints.email],
+                autocorrect: false,
+                enableSuggestions: false,
+                textInputAction: _mode == _AuthMode.forgotPassword
+                    ? TextInputAction.done
+                    : TextInputAction.next,
+                onEditingComplete: _mode == _AuthMode.register
+                    ? () => FocusScope.of(context).nextFocus()
+                    : null,
+                onSubmitted: _mode == _AuthMode.forgotPassword
+                    ? (_) => _submit()
+                    : null,
+                labelText:
+                    _mode == _AuthMode.register &&
+                        _registration?.allowedDomains.isNotEmpty == true
+                    ? l10n.authEmailPrefix
+                    : l10n.authEmail,
+                prefixIcon: const GfSymbol('mail', size: 20),
+              ),
             ),
             if (_mode == _AuthMode.register &&
                 _registration?.allowedDomains.isNotEmpty == true) ...[
@@ -917,7 +960,7 @@ class _LoginPageState extends ConsumerState<LoginPage>
                   enableSuggestions: false,
                   textInputAction: TextInputAction.next,
                   onEditingComplete: _mode == _AuthMode.login
-                      ? _completePasswordStage
+                      ? () => _completePasswordStage(focusCaptcha: true)
                       : () => FocusScope.of(context).nextFocus(),
                   labelText: l10n.authPassword,
                   prefixIcon: const GfSymbol('key-round', size: 20),
@@ -940,15 +983,17 @@ class _LoginPageState extends ConsumerState<LoginPage>
               const SizedBox(height: 12),
           ],
           if (_mode == _AuthMode.register) ...[
-            GfInput(
-              controller: _confirmPassword,
-              labelText: l10n.authConfirmPassword,
-              obscureText: true,
-              autofillHints: const [AutofillHints.newPassword],
-              autocorrect: false,
-              enableSuggestions: false,
-              textInputAction: TextInputAction.done,
-              onSubmitted: (_) => _submit(),
+            _withAuthInputRegion(
+              GfInput(
+                controller: _confirmPassword,
+                labelText: l10n.authConfirmPassword,
+                obscureText: true,
+                autofillHints: const [AutofillHints.newPassword],
+                autocorrect: false,
+                enableSuggestions: false,
+                textInputAction: TextInputAction.done,
+                onSubmitted: (_) => _submit(),
+              ),
             ),
             if (_registrationLoading) const LinearProgressIndicator(),
             if (_registrationError != null) ...[
@@ -1030,16 +1075,18 @@ class _LoginPageState extends ConsumerState<LoginPage>
           ],
           if (_authController.phase == LoginPhase.needsTotp) ...<Widget>[
             const SizedBox(height: 12),
-            GfInput(
-              controller: _totp,
-              keyboardType: TextInputType.number,
-              autofillHints: const [AutofillHints.oneTimeCode],
-              autocorrect: false,
-              enableSuggestions: false,
-              textInputAction: TextInputAction.done,
-              labelText: l10n.authTwoFactorCode,
-              prefixIcon: const GfSymbol('shield-check', size: 20),
-              onSubmitted: (_) => _submit(),
+            _withAuthInputRegion(
+              GfInput(
+                controller: _totp,
+                keyboardType: TextInputType.number,
+                autofillHints: const [AutofillHints.oneTimeCode],
+                autocorrect: false,
+                enableSuggestions: false,
+                textInputAction: TextInputAction.done,
+                labelText: l10n.authTwoFactorCode,
+                prefixIcon: const GfSymbol('shield-check', size: 20),
+                onSubmitted: (_) => _submit(),
+              ),
             ),
           ],
           if (_authController.error.isNotEmpty ||
@@ -1114,10 +1161,20 @@ class _LoginPageState extends ConsumerState<LoginPage>
         const SizedBox(height: 8),
         for (final provider in providers) ...[
           OutlinedButton.icon(
-            icon: GfSymbol(
-              provider == 'tongji' ? 'graduation-cap' : provider,
-              size: 22,
-            ),
+            icon: provider == 'tongji'
+                ? SvgPicture.asset(
+                    'assets/images/tongji-university.svg',
+                    width: 32,
+                    height: 32,
+                    excludeFromSemantics: true,
+                    colorFilter: Theme.of(context).brightness == Brightness.dark
+                        ? ColorFilter.mode(
+                            GfTheme.colorsOf(context).info,
+                            BlendMode.srcIn,
+                          )
+                        : null,
+                  )
+                : GfSymbol(provider, size: 22),
             label: Text(switch (provider) {
               'tongji' => l10n.loginTongji,
               'google' => l10n.loginGoogle,

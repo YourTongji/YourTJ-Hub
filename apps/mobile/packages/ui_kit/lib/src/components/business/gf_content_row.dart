@@ -15,7 +15,6 @@ class GfContentRow extends StatelessWidget {
     required this.text,
     this.title = '',
     this.contextLabel = '',
-    this.contextIcon,
     this.contextSymbol,
     this.thumbnailUrl = '',
     this.onTap,
@@ -24,7 +23,6 @@ class GfContentRow extends StatelessWidget {
   });
   final String author, avatarUrl, time, text, title, contextLabel, thumbnailUrl;
   final Widget? footer;
-  final IconData? contextIcon;
   final String? contextSymbol;
   final VoidCallback? onTap, onAuthorTap;
 
@@ -85,8 +83,7 @@ class GfContentRow extends StatelessWidget {
                               Text.rich(
                                 TextSpan(
                                   children: [
-                                    if (contextSymbol != null ||
-                                        contextIcon != null)
+                                    if (contextSymbol != null)
                                       WidgetSpan(
                                         alignment: PlaceholderAlignment.middle,
                                         child: Padding(
@@ -94,17 +91,11 @@ class GfContentRow extends StatelessWidget {
                                               const EdgeInsetsDirectional.only(
                                                 end: 4,
                                               ),
-                                          child: contextSymbol != null
-                                              ? GfSymbol(
-                                                  contextSymbol!,
-                                                  size: 13,
-                                                  color: colors.iconMuted,
-                                                )
-                                              : Icon(
-                                                  contextIcon,
-                                                  size: 13,
-                                                  color: colors.iconMuted,
-                                                ),
+                                          child: GfSymbol(
+                                            contextSymbol!,
+                                            size: 13,
+                                            color: colors.iconMuted,
+                                          ),
                                         ),
                                       ),
                                     TextSpan(text: contextLabel),

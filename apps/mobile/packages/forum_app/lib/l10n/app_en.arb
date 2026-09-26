@@ -905,6 +905,19 @@
   "notificationNew": "New notification",
   "notificationSomeone": "Someone",
   "profileRoleAdmin": "Admin",
+  "profileOnline": "Online",
+  "profileJoinedAt": "Joined {date}",
+  "@profileJoinedAt": {
+    "placeholders": {
+      "date": { "type": "String" }
+    }
+  },
+  "profileLastActive": "Last active {time}",
+  "@profileLastActive": {
+    "placeholders": {
+      "time": { "type": "String" }
+    }
+  },
   "profileActionSignup": "Joined the community",
   "profileActionPost": "Published a topic",
   "profileActionLike": "Liked",

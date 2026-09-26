@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ui_kit/ui_kit.dart';
 
@@ -38,12 +37,17 @@ void main() {
           GfFloatingAction(
             onPressed: () {},
             label: '参与讨论',
-            icon: Icons.chat_bubble_outline,
+            symbol: 'message-circle',
           ),
         ),
       );
       expect(find.text('参与讨论'), findsOneWidget);
-      expect(find.byIcon(Icons.chat_bubble_outline), findsOneWidget);
+      expect(
+        find.byWidgetPredicate(
+          (widget) => widget is GfSymbol && widget.name == 'message-circle',
+        ),
+        findsOneWidget,
+      );
     });
 
     testWidgets('disabled variant blocks taps', (tester) async {

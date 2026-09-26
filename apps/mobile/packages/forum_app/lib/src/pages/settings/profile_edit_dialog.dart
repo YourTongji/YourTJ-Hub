@@ -52,6 +52,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
   late String _coverUrl = widget.user.profileCoverUrl;
   Uint8List? _avatarBytes, _coverBytes;
   bool _coverChanged = false;
+  bool _socialLinksExpanded = false;
   bool _saving = false, _picking = false, _allowPop = false, _closing = false;
   final Set<String> _savedParts = {};
   String? _error;
@@ -527,6 +528,15 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                             maintainState: true,
                             tilePadding: EdgeInsets.zero,
                             title: Text(l.settingsSocialLinks),
+                            trailing: AnimatedRotation(
+                              turns: _socialLinksExpanded ? .5 : 0,
+                              duration: MediaQuery.disableAnimationsOf(context)
+                                  ? Duration.zero
+                                  : const Duration(milliseconds: 200),
+                              child: const GfSymbol('chevron-down', size: 20),
+                            ),
+                            onExpansionChanged: (expanded) =>
+                                setState(() => _socialLinksExpanded = expanded),
                             children: [
                               for (final e in profileSocialProviders.entries)
                                 _field(

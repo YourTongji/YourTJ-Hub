@@ -43,15 +43,11 @@ void main() {
           gfApp(
             GfPillSwitch<String>(
               options: const [
-                GfPillOption(
-                  label: 'Latest',
-                  value: 'latest',
-                  icon: Icons.schedule,
-                ),
+                GfPillOption(label: 'Latest', value: 'latest', symbol: 'clock'),
                 GfPillOption(
                   label: 'Popular',
                   value: 'popular',
-                  icon: Icons.trending_up,
+                  symbol: 'activity',
                 ),
               ],
               selected: 'latest',
@@ -155,11 +151,14 @@ void main() {
         expect(tester.widget<GfSymbol>(find.byType(GfSymbol)).name, 'search');
         await tester.pumpWidget(
           gfApp(
-            const GfEmpty(message: 'Courses', icon: Icons.school_outlined),
+            const GfEmpty(message: 'Courses', symbol: 'graduation-cap'),
             brightness: brightness,
           ),
         );
-        expect(find.byIcon(Icons.school_outlined), findsOneWidget);
+        expect(
+          tester.widget<GfSymbol>(find.byType(GfSymbol)).name,
+          'graduation-cap',
+        );
         await tester.pumpWidget(
           gfApp(
             const GfEmpty(message: 'Loading', loading: true),

@@ -430,7 +430,7 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
     return Scaffold(
       appBar: GfAppBar(
         leading: GfIconButton(
-          icon: Icons.arrow_back,
+          symbol: 'chevron-left',
           tooltip: l10n.commonBack,
           size: 44,
           onPressed: _goBack,
@@ -557,7 +557,10 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
           children: <Widget>[
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-              child: Row(
+              child: Wrap(
+                spacing: 6,
+                runSpacing: 4,
+                crossAxisAlignment: WrapCrossAlignment.center,
                 children: <Widget>[
                   Text(
                     l10n.courseDetailReviews,
@@ -566,7 +569,6 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
                     ).heading.copyWith(fontWeight: FontWeight.w700),
                   ),
                   if (_reviewTotal > 0) ...<Widget>[
-                    const SizedBox(width: 6),
                     Text(
                       '$_reviewTotal',
                       style: GfTheme.typographyOf(context).small.copyWith(
@@ -725,14 +727,14 @@ class _CourseHeader extends StatelessWidget {
             children: <Widget>[
               _metaChip(
                 context,
-                icon: Icons.account_balance_outlined,
+                symbol: 'university',
                 label: detail.department,
               ),
-              _metaChip(context, icon: Icons.people_outline, label: teacher),
+              _metaChip(context, symbol: 'users-round', label: teacher),
               if (credit.isNotEmpty)
                 _metaChip(
                   context,
-                  icon: Icons.school_outlined,
+                  symbol: 'graduation-cap',
                   label: '$credit ${copy.creditUnit}',
                   emphasized: credit,
                 ),
@@ -796,7 +798,7 @@ class _CourseHeader extends StatelessWidget {
 
   Widget _metaChip(
     BuildContext context, {
-    required IconData icon,
+    required String symbol,
     required String label,
     String? emphasized,
   }) {
@@ -811,13 +813,19 @@ class _CourseHeader extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
-          Icon(icon, size: 14, color: colors.primary.withValues(alpha: 0.7)),
+          GfSymbol(
+            symbol,
+            size: 14,
+            color: colors.primary.withValues(alpha: 0.7),
+          ),
           const SizedBox(width: 5),
-          Text(
-            label,
-            style: GfTheme.typographyOf(context).caption.copyWith(
-              color: colors.baseContent.withValues(alpha: 0.7),
-              fontWeight: emphasized != null ? FontWeight.w600 : null,
+          Flexible(
+            child: Text(
+              label,
+              style: GfTheme.typographyOf(context).caption.copyWith(
+                color: colors.baseContent.withValues(alpha: 0.7),
+                fontWeight: emphasized != null ? FontWeight.w600 : null,
+              ),
             ),
           ),
         ],
@@ -922,13 +930,15 @@ class _RatingSection extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Row(
+          Wrap(
+            spacing: 8,
+            runSpacing: 4,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: <Widget>[
               Text(
                 copy.ratingTitle,
                 style: type.heading.copyWith(fontWeight: FontWeight.w700),
               ),
-              const SizedBox(width: 8),
               if (reviewCount > 0)
                 Text(
                   AppLocalizations.of(context).coursesRatingCount(reviewCount),
@@ -1026,8 +1036,8 @@ class _DistributionRow extends StatelessWidget {
             width: 16 + MediaQuery.textScalerOf(context).scale(12),
             child: Row(
               children: <Widget>[
-                Icon(
-                  Icons.star,
+                GfSymbol(
+                  'star-filled',
                   size: 12,
                   color: colors.baseContent.withValues(alpha: 0.3),
                 ),
@@ -1622,8 +1632,8 @@ class _ReviewRow extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: <Widget>[
                     for (int star = 1; star <= 5; star++)
-                      Icon(
-                        star <= rating ? Icons.star : Icons.star_border,
+                      GfSymbol(
+                        star <= rating ? 'star-filled' : 'star',
                         size: 15,
                         color: star <= rating
                             ? colors.warning
@@ -1642,35 +1652,32 @@ class _ReviewRow extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 8),
-          Row(
+          Wrap(
+            spacing: 8,
+            runSpacing: 4,
             children: <Widget>[
               _actionChip(
                 context,
-                label: '${review.helpfulCount}',
-                hint: l10n.reviewHelpful,
-                icon: Icons.thumb_up_outlined,
+                label: '${review.helpfulCount} ${l10n.reviewHelpful}',
+                symbol: 'thumbs-up',
                 active: helpful,
                 activeColor: colors.warning,
                 onTap: onHelpful,
               ),
               if (onEdit != null) ...<Widget>[
-                const SizedBox(width: 8),
                 _actionChip(
                   context,
                   label: l10n.commonEdit,
-                  hint: l10n.commonEdit,
-                  icon: Icons.edit_outlined,
+                  symbol: 'square-pen',
                   active: false,
                   onTap: onEdit,
                 ),
               ],
               if (onDelete != null) ...<Widget>[
-                const SizedBox(width: 8),
                 _actionChip(
                   context,
                   label: copy.delete,
-                  hint: copy.delete,
-                  icon: Icons.delete_outline,
+                  symbol: 'trash-2',
                   active: false,
                   onTap: onDelete,
                 ),
@@ -1691,54 +1698,37 @@ class _ReviewRow extends StatelessWidget {
   Widget _actionChip(
     BuildContext context, {
     required String label,
-    required String hint,
-    required IconData icon,
+    required String symbol,
     required bool active,
     VoidCallback? onTap,
     Color? activeColor,
   }) {
     final GfColors colors = GfTheme.colorsOf(context);
     final Color? tint = active ? (activeColor ?? colors.primary) : null;
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(999),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-        decoration: BoxDecoration(
+    return TextButton(
+      onPressed: onTap,
+      style: TextButton.styleFrom(
+        minimumSize: const Size(44, 44),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        foregroundColor: tint ?? colors.baseContent.withValues(alpha: 0.7),
+        backgroundColor: active
+            ? (tint ?? colors.primary).withValues(alpha: 0.1)
+            : colors.base100,
+        shape: const StadiumBorder(),
+        side: BorderSide(
           color: active
-              ? (tint ?? colors.primary).withValues(alpha: 0.1)
-              : colors.base100,
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(
-            color: active
-                ? (tint ?? colors.primary).withValues(alpha: 0.4)
-                : colors.line.withValues(alpha: 0.7),
-          ),
+              ? (tint ?? colors.primary).withValues(alpha: 0.4)
+              : colors.line.withValues(alpha: 0.7),
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            Icon(
-              icon,
-              size: 13,
-              color: tint ?? colors.baseContent.withValues(alpha: 0.45),
-            ),
-            const SizedBox(width: 4),
-            Text(
-              label,
-              style: GfTheme.typographyOf(context).meta.copyWith(
-                color: tint ?? colors.baseContent.withValues(alpha: 0.7),
-              ),
-            ),
-            const SizedBox(width: 2),
-            Text(
-              hint,
-              style: GfTheme.typographyOf(context).meta.copyWith(
-                color: tint ?? colors.baseContent.withValues(alpha: 0.45),
-              ),
-            ),
-          ],
-        ),
+        textStyle: const TextStyle(fontSize: 14, height: 1.25),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          GfSymbol(symbol, size: 18),
+          const SizedBox(width: 6),
+          Flexible(child: Text(label, textAlign: TextAlign.center)),
+        ],
       ),
     );
   }
@@ -1950,7 +1940,7 @@ class _OfferingRow extends StatelessWidget {
                   ),
                 ),
                 if (ratingAvg != null && ratingAvg > 0) ...<Widget>[
-                  Icon(Icons.star, size: 13, color: colors.warning),
+                  GfSymbol('star-filled', size: 13, color: colors.warning),
                   const SizedBox(width: 2),
                   Text(
                     formatRating(ratingAvg),
@@ -2158,7 +2148,7 @@ class _RelatedGroup extends StatelessWidget {
                   ),
                   const SizedBox(width: 8),
                   if (item.ratingAvg > 0) ...<Widget>[
-                    Icon(Icons.star, size: 13, color: colors.warning),
+                    GfSymbol('star-filled', size: 13, color: colors.warning),
                     const SizedBox(width: 2),
                     Text(
                       formatRating(item.ratingAvg),

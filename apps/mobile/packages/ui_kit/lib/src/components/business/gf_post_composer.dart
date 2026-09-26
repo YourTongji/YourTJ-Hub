@@ -315,7 +315,7 @@ class _GfPostComposerState extends State<GfPostComposer> {
                               dimension: 20,
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
-                          : const GfSymbol('image', size: 23),
+                          : const GfSymbol('gallery', size: 23),
                       style: IconButton.styleFrom(
                         fixedSize: const Size.square(44),
                         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -329,7 +329,7 @@ class _GfPostComposerState extends State<GfPostComposer> {
                     ),
                   if (widget.onPickSticker != null)
                     _tool(
-                      symbol: 'smile',
+                      symbol: 'emoji-circle',
                       tooltip: widget.stickerTooltip,
                       onPressed: widget.publishing
                           ? null

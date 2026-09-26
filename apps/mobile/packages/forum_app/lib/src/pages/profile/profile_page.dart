@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'package:core/core.dart';
@@ -667,8 +668,12 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   }
 
   Future<void> _openProfileTool(String route) async {
-    await context.push(route);
-    if (mounted) await _load();
+    final saved = await context.push<Object?>(route);
+    if (!mounted) return;
+    if (route == '/settings/profile?edit=1' && saved == true) {
+      showGfToast(context, AppLocalizations.of(context).settingsInfoSaved);
+    }
+    await _load();
   }
 
   Widget _profileTitle(BuildContext context, AppLocalizations l10n) =>
@@ -999,14 +1004,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
 
   Widget? _wornBadge(UserCardPayload user) => user.wornBadge == null
       ? null
-      : GfBadgeIcon(
-          url: resolveApiAssetUrl(
-            user.wornBadge!.iconUrl.isEmpty
-                ? '/static/badges/contributor.svg'
-                : user.wornBadge!.iconUrl,
-          ),
-          label: user.wornBadge!.name,
-        );
+      : UserWornBadge(user.wornBadge!, avatarSize: 88);
 
   Widget _immersiveHeader(
     BuildContext context,
@@ -1160,7 +1158,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       _load();
     });
     return Scaffold(
-      appBar: !widget.connectionsOnly && _page.valueOrNull != null
+      appBar:
+          !widget.connectionsOnly &&
+              (_page.isLoading || _page.valueOrNull != null)
           ? null
           : GfAppBar(
               centerTitle: false,
@@ -1171,7 +1171,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 760),
           child: _page.when(
-            loading: () => const GfProfileSkeleton(),
+            loading: () => _profileLoading(context, l10n),
             error: (e, _) => _isShellProfile
                 ? _ProfileErrorBody(
                     message: resolveErrorMessage(l10n, e),
@@ -1244,7 +1244,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                                 ),
                           ),
                         if (_streamLoading)
-                          const _ProfileStreamSkeleton()
+                          _ProfileStreamSkeleton(
+                            connectionsOnly: widget.connectionsOnly,
+                          )
                         else if (_streamError != null)
                           SliverToBoxAdapter(
                             child: GfErrorRetry(
@@ -1313,34 +1315,215 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     );
   }
 
+  Widget _profileLoading(BuildContext context, AppLocalizations l10n) {
+    if (widget.connectionsOnly) {
+      return const GfProfileConnectionsSkeleton(
+        key: Key('profile-connections-skeleton'),
+      );
+    }
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        const GfProfileSkeleton(),
+        Positioned(
+          left: 0,
+          right: 0,
+          top: 0,
+          child: SafeArea(
+            bottom: false,
+            child: SizedBox(
+              height: 56,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: Row(
+                  spacing: 8,
+                  children: [
+                    if (Navigator.canPop(context))
+                      GfGlassIconButton(
+                        symbol: 'arrow-left',
+                        tooltip: l10n.commonBack,
+                        onPressed: () => Navigator.maybePop(context),
+                      ),
+                    const Spacer(),
+                    ..._profileActions(context, l10n, glass: true),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  String _compactProfileDate(String value, AppLocalizations l10n) {
+    final date = DateTime.tryParse(formatDate(value));
+    if (date == null) return formatDate(value);
+    return DateFormat.yMd(l10n.localeName)
+        .format(date)
+        .replaceFirst(
+          date.year.toString(),
+          (date.year % 100).toString().padLeft(2, '0'),
+        );
+  }
+
+  Widget _profileMetaRow({
+    required UserCardPayload user,
+    required List<(String, Uri, String?)> links,
+    required String? joinedAt,
+    required String? lastActive,
+    required TextStyle textStyle,
+    required AppLocalizations l10n,
+  }) {
+    final compactJoined = joinedAt == null
+        ? null
+        : _compactProfileDate(user.createdAt, l10n);
+    final activeDate = DateTime.tryParse(
+      formatDateTime(user.lastActiveTime).replaceFirst(' ', 'T'),
+    );
+    final compactActive = lastActive == null
+        ? null
+        : activeDate == null
+        ? timeAgo(user.lastActiveTime, l10n: l10n)
+        : DateUtils.isSameDay(activeDate, DateTime.now())
+        ? DateFormat.Hm(l10n.localeName).format(activeDate)
+        : _compactProfileDate(user.lastActiveTime, l10n);
+    final iconColor = GfTheme.colorsOf(context).iconMuted;
+
+    return LayoutBuilder(
+      builder: (layoutContext, constraints) {
+        final direction = Directionality.of(layoutContext);
+        final scaler = MediaQuery.textScalerOf(layoutContext);
+        double textWidth(String value) {
+          final painter = TextPainter(
+            text: TextSpan(text: value, style: textStyle),
+            textDirection: direction,
+            textScaler: scaler,
+            maxLines: 1,
+          )..layout();
+          final width = painter.width;
+          painter.dispose();
+          return width;
+        }
+
+        final iconSize = links.length >= 6
+            ? 16.0
+            : links.length >= 4
+            ? 18.0
+            : 20.0;
+        double requiredWidth(String? joined, String? active) {
+          var width = links.length * 44.0;
+          if (joined != null) width += 18 + textWidth(joined);
+          if (active != null) width += 18 + textWidth(active);
+          if (joined != null && active != null) width += 8;
+          if (links.isNotEmpty && (joined != null || active != null)) {
+            width += 8;
+          }
+          if (links.length > 1) width += (links.length - 1) * 8;
+          return width;
+        }
+
+        final compact =
+            requiredWidth(joinedAt, lastActive) > constraints.maxWidth;
+        final joinedText = compact ? compactJoined : joinedAt;
+        final activeText = compact ? compactActive : lastActive;
+        Widget timestamp(String icon, String visible, String full) => Tooltip(
+          message: full,
+          excludeFromSemantics: true,
+          child: Semantics(
+            label: full,
+            child: ExcludeSemantics(
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  GfSymbol(icon, size: 14, color: iconColor),
+                  const SizedBox(width: 4),
+                  Text(visible, maxLines: 1, softWrap: false, style: textStyle),
+                ],
+              ),
+            ),
+          ),
+        );
+
+        return SizedBox(
+          width: constraints.maxWidth,
+          child: SingleChildScrollView(
+            key: const ValueKey('profile-meta-row'),
+            scrollDirection: Axis.horizontal,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minWidth: constraints.maxWidth),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  if (joinedText != null)
+                    timestamp('calendar-days', joinedText, joinedAt!),
+                  if (joinedText != null && activeText != null)
+                    const SizedBox(width: 8),
+                  if (activeText != null)
+                    timestamp('clock', activeText, lastActive!),
+                  if (links.isNotEmpty &&
+                      (joinedText != null || activeText != null))
+                    const SizedBox(width: 8),
+                  for (final (index, link) in links.indexed) ...[
+                    if (index > 0) const SizedBox(width: 8),
+                    MergeSemantics(
+                      child: Semantics(
+                        label: link.$1,
+                        button: true,
+                        child: Tooltip(
+                          message: link.$1,
+                          excludeFromSemantics: true,
+                          child: IconButton(
+                            style: IconButton.styleFrom(
+                              padding: EdgeInsets.zero,
+                              fixedSize: const Size.square(44),
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+                            constraints: const BoxConstraints.tightFor(
+                              width: 44,
+                              height: 44,
+                            ),
+                            icon: GfSocialIcon(link.$3, size: iconSize),
+                            onPressed: () async {
+                              try {
+                                if (!await launchUrl(
+                                  link.$2,
+                                  mode: LaunchMode.externalApplication,
+                                )) {
+                                  throw StateError(
+                                    'Could not open profile link',
+                                  );
+                                }
+                              } catch (error) {
+                                if (mounted) {
+                                  showGfToast(
+                                    context,
+                                    resolveErrorMessage(l10n, error),
+                                    error: true,
+                                  );
+                                }
+                              }
+                            },
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   Widget _profileCard(UserProfileProps props) {
     final AppLocalizations l10n = AppLocalizations.of(context);
     final UserCardPayload user = props.user;
+    final colors = GfTheme.colorsOf(context);
     final Map<String, GfUserBadge> badges = <String, GfUserBadge>{};
-    if (user.isAdmin) {
-      badges['admin'] = GfUserBadge(
-        label: l10n.profileRoleAdmin,
-        color: const Color(0xFFB45309),
-        icon: const GfSymbol(
-          'shield-check',
-          size: 22,
-          color: Color(0xFFB45309),
-        ),
-        description: l10n.profileRoleAdminDescription,
-        onTap: () => showBadgeDetails(
-          context,
-          title: l10n.profileRoleAdmin,
-          description: l10n.profileRoleAdminDescription,
-          color: const Color(0xFFB45309),
-          icon: const GfSymbol(
-            'shield-check',
-            size: 40,
-            color: Color(0xFFB45309),
-          ),
-        ),
-      );
-    }
-
     for (final badge in (user.displayBadges ?? user.badges.take(5))) {
       badges['earned:${badge.code}'] = GfUserBadge(
         label: badge.name,
@@ -1351,76 +1534,52 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       );
     }
     final links = publicProfileLinks(user);
+    final joinedAt = user.createdAt.trim().isEmpty
+        ? null
+        : l10n.profileJoinedAt(formatDate(user.createdAt));
+    final lastActive = user.lastActiveTime.trim().isEmpty
+        ? null
+        : l10n.profileLastActive(timeAgo(user.lastActiveTime, l10n: l10n));
+    final metaStyle = GfTheme.typographyOf(
+      context,
+    ).caption.copyWith(color: colors.baseContent.withValues(alpha: .55));
     return GfUserCard(
       showHeader: false,
       coverUrl: resolveApiAssetUrl(user.profileCoverUrl),
       avatarUrl: resolveApiAssetUrl(user.avatarUrl),
-      avatarBadge: user.wornBadge == null
-          ? null
-          : GfBadgeIcon(
-              url: resolveApiAssetUrl(
-                user.wornBadge!.iconUrl.isEmpty
-                    ? '/static/badges/contributor.svg'
-                    : user.wornBadge!.iconUrl,
-              ),
-              label: user.wornBadge!.name,
-            ),
+      avatarBadge: _wornBadge(user),
       name: privateDisplayName(
         context,
         user.userId,
         user.username,
         user.nickname,
       ),
+      nameBadges: [
+        if (user.isAdmin)
+          GfBadge(
+            label: l10n.profileRoleAdmin,
+            variant: GfBadgeVariant.warning,
+            radius: 4,
+          ),
+        if (user.isOnline)
+          GfBadge(
+            label: l10n.profileOnline,
+            variant: GfBadgeVariant.success,
+            icon: const GfSymbol('signal-stream', size: 12),
+          ),
+      ],
       username: user.username,
       bio: user.bio,
       signature: user.signature,
-      details: links.isEmpty
+      details: links.isEmpty && joinedAt == null && lastActive == null
           ? null
-          : Wrap(
-              children: [
-                for (final (label, uri, provider) in links)
-                  MergeSemantics(
-                    child: Semantics(
-                      label: label,
-                      button: true,
-                      child: Tooltip(
-                        message: label,
-                        excludeFromSemantics: true,
-                        child: IconButton(
-                          style: IconButton.styleFrom(
-                            padding: EdgeInsets.zero,
-                            fixedSize: const Size.square(44),
-                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                            visualDensity: VisualDensity.standard,
-                          ),
-                          constraints: const BoxConstraints(
-                            minWidth: 44,
-                            minHeight: 44,
-                          ),
-                          icon: GfSocialIcon(provider, size: 20),
-                          onPressed: () async {
-                            try {
-                              if (!await launchUrl(
-                                uri,
-                                mode: LaunchMode.externalApplication,
-                              )) {
-                                throw StateError('Could not open profile link');
-                              }
-                            } catch (error) {
-                              if (mounted) {
-                                showGfToast(
-                                  context,
-                                  resolveErrorMessage(l10n, error),
-                                  error: true,
-                                );
-                              }
-                            }
-                          },
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
+          : _profileMetaRow(
+              user: user,
+              links: links,
+              joinedAt: joinedAt,
+              lastActive: lastActive,
+              textStyle: metaStyle,
+              l10n: l10n,
             ),
       coloredBadges: badges.values.toList(growable: false),
       stats: <(String, String)>[
@@ -1786,45 +1945,15 @@ class _ProfileTabsState extends State<_ProfileTabs>
 }
 
 class _ProfileStreamSkeleton extends StatelessWidget {
-  const _ProfileStreamSkeleton();
+  const _ProfileStreamSkeleton({this.connectionsOnly = false});
+  final bool connectionsOnly;
 
   @override
   Widget build(BuildContext context) => SliverList.separated(
     itemCount: 3,
     separatorBuilder: (_, _) => const GfDivider(),
-    itemBuilder: (_, _) => const Padding(
-      padding: EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              GfSkeleton(width: 36, height: 36, radius: 999),
-              SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    GfSkeleton(width: 132, height: 14, radius: 5),
-                    SizedBox(height: 7),
-                    GfSkeleton(width: 88, height: 12, radius: 5),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          SizedBox(height: 14),
-          SizedBox(
-            width: double.infinity,
-            child: GfSkeleton(height: 16, radius: 5),
-          ),
-          SizedBox(height: 8),
-          GfSkeleton(width: 204, height: 16, radius: 5),
-          SizedBox(height: 14),
-          GfSkeleton(width: 120, height: 12, radius: 5),
-        ],
-      ),
-    ),
+    itemBuilder: (_, _) =>
+        GfProfileStreamRowSkeleton(connectionsOnly: connectionsOnly),
   );
 }
 
@@ -2216,17 +2345,17 @@ class _AccountShortcuts extends StatelessWidget {
       child: GfCardList(
         children: <Widget>[
           GfSettingRow(
-            icon: Icons.settings_outlined,
+            symbol: 'settings',
             title: l10n.settingsTitle,
             onTap: () => context.push('/settings'),
           ),
           GfSettingRow(
-            icon: Icons.notifications_outlined,
+            symbol: 'bell',
             title: l10n.notificationsTitle,
             onTap: () => context.go('/notifications'),
           ),
           GfSettingRow(
-            icon: Icons.description_outlined,
+            symbol: 'file-text',
             title: l10n.draftsTitle,
             onTap: () => context.push('/drafts'),
           ),

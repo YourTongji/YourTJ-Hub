@@ -9,17 +9,15 @@ import '../surfaces/gf_floating_surface.dart';
 /// Floating action in the topic controls bar (web TopicFloatingControls.vue).
 class GfTopicAction {
   const GfTopicAction({
-    required this.icon,
+    required this.symbol,
     required this.active,
     required this.activeColor,
     required this.onTap,
     this.acting = false,
     this.title,
-    this.symbol,
   });
 
-  final IconData icon;
-  final String? symbol;
+  final String symbol;
   final bool active;
 
   /// Color of the icon when [active] (web activeClass per action type).
@@ -214,20 +212,12 @@ class _RoundAction extends StatelessWidget {
                               : colors.baseContent.withValues(alpha: 0.75),
                         ),
                       )
-                    : action.symbol != null
-                    ? GfSymbol(
-                        action.symbol!,
+                    : GfSymbol(
+                        action.symbol,
                         size: 18,
                         color: action.active
                             ? action.activeColor
                             : colors.iconMuted,
-                      )
-                    : Icon(
-                        action.icon,
-                        size: 16,
-                        color: action.active
-                            ? action.activeColor
-                            : colors.baseContent.withValues(alpha: 0.75),
                       ),
               ),
             ),

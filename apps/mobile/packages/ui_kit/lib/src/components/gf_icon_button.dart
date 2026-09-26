@@ -11,21 +11,16 @@ import 'gf_symbol.dart';
 class GfIconButton extends StatelessWidget {
   const GfIconButton({
     super.key,
-    this.icon,
-    this.symbol,
+    required this.symbol,
     required this.onPressed,
     this.onLongPress,
     this.tooltip,
     this.size = 44,
     this.iconSize = 20,
     this.color,
-  }) : assert(
-         icon != null || symbol != null,
-         'Either icon or symbol must be provided',
-       );
+  });
 
-  final IconData? icon;
-  final String? symbol;
+  final String symbol;
   final VoidCallback? onPressed;
   final VoidCallback? onLongPress;
   final String? tooltip;
@@ -41,9 +36,11 @@ class GfIconButton extends StatelessWidget {
         ? (color ?? colors.iconMuted).withValues(alpha: .38)
         : color ?? colors.iconMuted;
 
-    final Widget iconWidget = symbol != null
-        ? GfSymbol(symbol!, size: iconSize, color: iconColor)
-        : Icon(icon, size: iconSize, color: iconColor);
+    final Widget iconWidget = GfSymbol(
+      symbol,
+      size: iconSize,
+      color: iconColor,
+    );
 
     final Widget button = SizedBox.square(
       dimension: targetSize,

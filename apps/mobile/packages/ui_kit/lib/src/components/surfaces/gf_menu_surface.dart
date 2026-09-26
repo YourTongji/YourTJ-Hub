@@ -51,7 +51,6 @@ class GfMenuItem extends StatelessWidget {
   const GfMenuItem({
     super.key,
     required this.label,
-    this.icon,
     this.symbol,
     this.iconSize = 18,
     this.onTap,
@@ -59,7 +58,6 @@ class GfMenuItem extends StatelessWidget {
   });
 
   final String label;
-  final IconData? icon;
   final String? symbol;
   final double iconSize;
   final VoidCallback? onTap;
@@ -80,9 +78,9 @@ class GfMenuItem extends StatelessWidget {
         ? colors.baseContent.withValues(alpha: 0.38)
         : variantColor;
 
-    final Widget? leadingIcon = symbol != null
-        ? GfSymbol(symbol!, size: iconSize, color: color)
-        : (icon != null ? Icon(icon, size: iconSize, color: color) : null);
+    final Widget? leadingIcon = symbol == null
+        ? null
+        : GfSymbol(symbol!, size: iconSize, color: color);
 
     return Material(
       color: Colors.transparent,

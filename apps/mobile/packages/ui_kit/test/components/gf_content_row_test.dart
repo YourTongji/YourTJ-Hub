@@ -104,7 +104,7 @@ void main() {
                           onAuthorTap: () => actor++,
                         ),
                         GfNotificationRow(
-                          icon: Icons.favorite,
+                          symbol: 'heart-filled',
                           tone: GfNotificationTone.like,
                           title: 'Alice $label',
                           actorName: 'Alice',

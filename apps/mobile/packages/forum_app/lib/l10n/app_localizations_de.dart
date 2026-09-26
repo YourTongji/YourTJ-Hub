@@ -1759,6 +1759,19 @@ class AppLocalizationsDe extends AppLocalizations {
   String get profileRoleAdmin => 'Administrator';
 
   @override
+  String get profileOnline => 'Online';
+
+  @override
+  String profileJoinedAt(String date) {
+    return 'Beigetreten $date';
+  }
+
+  @override
+  String profileLastActive(String time) {
+    return 'Zuletzt aktiv $time';
+  }
+
+  @override
   String get profileActionSignup => 'Der Community beigetreten';
 
   @override
