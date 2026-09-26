@@ -150,7 +150,10 @@ in-flight responses so the just-cleared data cannot immediately reappear.
 ## Accessibility and localization
 
 `Current`: shared icon buttons merge their localized label, button role, enabled state and action
-into one accessibility node. Disabled icons use a subdued foreground. The login theme switch
+into one accessibility node. SVG glyphs keep their declared size inside larger input/button slots;
+interaction targets do not stretch the artwork. Native page actions, notification marks, course
+ratings and image controls share the outline SVG family; selected ratings use a filled counterpart.
+Disabled icons use a subdued foreground. The login theme switch
 announces the theme it will select. Campus connection explains which snapshots remain on-device
 and provides the same confirmed cache-clearing control as Settings; the control preserves drafts,
 schedule plans and the school binding.

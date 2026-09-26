@@ -347,9 +347,16 @@ ordered after the active route in the accessibility tree so iOS does not hide it
   the like action includes its count. The reply heading has no decorative discussion icon.
   Topic subscriptions use topic-specific labels; reply commands have no toggle semantics. The dock switches to an accessible icon-only reply action when
   its label cannot fit, including long translations and enlarged text. SVG icons inherit their enclosing button foreground
-  unless a semantic or provider color is explicitly set.
+  unless a semantic or provider color is explicitly set. Comment timestamps occupy a separate line;
+  their action strip uses the full body width and starts at its leading edge. Actions retain 44-pixel
+  targets, 20-pixel glyphs and aligned counts, wrapping together when enlarged text needs space.
 
 ## Input and component surfaces
+
+`Current`: email changes, TOTP setup/enable/disable and sticker renaming validate and await the
+server inside their editor. Failed writes keep the entered values with a local error for retry;
+success closes the editor. Pending writes prevent duplicate submission, and changing accounts
+removes the previous account’s private form state and ignores its late responses.
 
 `Current`: native components are implemented by `ui_kit` on Flutter primitives. Ordinary account,
 security, profile, course and schedule fields use a quiet filled surface with 16-pixel corners and a
@@ -614,14 +621,15 @@ identity survive this layout change. The header keeps a small outer margin for i
   enlarged text and the keyboard cannot cover their touch targets.
   Narrow layouts and larger text stack the captcha image above its input. Password captcha and TOTP remain
   supported. The login captcha stays folded until the password field is first interacted with;
-  the first password focus/input warms the challenge, and a blank outside tap or genuine secure-IME
-  dismissal reveals it without taking focus from another explicit control. That reveal is latched through transient Android
+  the first password focus/input warms the challenge. Blank taps and keyboard dismissal reveal it
+  without reopening the keyboard. Only the password keyboard Next action moves focus automatically
+  into the captcha; explicit field taps keep their target. Registration Next advances one field at a time. That reveal is latched through transient Android
   focus rebounds, and a prefetch failure stays silent until the visible retry path is used. On
-  Android, auth-field pointer-down creates a short-lived target token; if the secure keyboard
+  Android, auth-field pointer-down or keyboard Next creates a short-lived target token; if the secure keyboard
   reclaims the password focus during that token's settling window, the app makes at most two
   bounded attempts to return focus to the explicitly tapped field and then stops. A focused field
-  also has a finite view-insets-based IME show watchdog. Dismissing an already-visible secure
-  keyboard releases password focus and is honored as user intent; a transient hidden IME during an
+  also has a finite view-insets-based IME show watchdog. Dismissing an already-visible
+  keyboard cancels recovery and is honored as user intent; a transient hidden IME during an
   explicit password-to-username/captcha handoff remains recoverable. Blank-space and button taps
   create no focus target and do not start a focus battle. Captcha pixels are left unchanged in light mode
   and use the Web-equivalent dark-mode transform. Google availability follows the published Web
@@ -715,7 +723,9 @@ identity survive this layout change. The header keeps a small outer margin for i
   theme retains a softly lit inner face so fixed-color server artwork stays legible.
 
 - `Current`: the root avatar opens an account drawer with aligned 24-pixel outline icons, compact
-  rows and a clear nickname/account-handle hierarchy. A rightward drag beginning in the leading
+  56-pixel minimum rows and a clear nickname/account-handle hierarchy. The full-height, square-edged
+  panel slides over the leading side at 84% of the viewport width, capped at 400 pixels. Its contents
+  scroll within the safe area. A rightward drag beginning in the leading
   55% of the viewport can open it; vertical scrolling and interactive horizontal child controls keep
   their gestures. Following/follower counts open the matching native connection lists. Unavailable
   counts show a placeholder with retry instead of zero. Opening the drawer refreshes the card, and
@@ -724,6 +734,10 @@ identity survive this layout change. The header keeps a small outer margin for i
   The appearance shortcut opens System/Light/Dark choices; the open sheet follows theme changes
   immediately. The profile overflow retains its infrequent entries.
   Account controls are outside the public profile.
+- `Current`: initial public-profile loading shares the resolved cover and avatar geometry, keeps
+  the overlaid navigation available, and uses inline statistics plus the five-item content rail.
+  Connection lists use their own two-tab/person-row skeleton without a cover. Stream placeholders
+  follow the same compact avatar and reading column as loaded activity.
 - `Current`: activity entries distinguish signup, post, like, follow and comment with matching
   icons and localized captions in flat rows with a content preview and compact timestamp.
   A first visit to a stream retains the collapsed profile header so loading, empty states and retry

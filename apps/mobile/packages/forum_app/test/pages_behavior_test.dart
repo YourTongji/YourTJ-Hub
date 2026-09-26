@@ -3811,13 +3811,26 @@ void main() {
       expect(find.text('新私信'), findsOneWidget);
       expect(find.text('Bob'), findsOneWidget);
       expect(find.text('@bob'), findsOneWidget);
+      // Shared sheets own the sole visual handle; content must not draw a
+      // second legacy handle above its title/search field.
+      final handles = find.descendant(
+        of: find.byType(BottomSheet),
+        matching: find.byWidgetPredicate(
+          (widget) =>
+              widget is Container &&
+              widget.constraints?.maxHeight == 4 &&
+              (widget.constraints?.maxWidth == 32 ||
+                  widget.constraints?.maxWidth == 36),
+        ),
+      );
+      expect(handles, findsOneWidget);
       expect(tester.takeException(), isNull);
 
       await tester.enterText(find.byType(TextField).last, 'bob');
       await tester.pumpAndSettle();
       expect(find.text('Bob'), findsOneWidget);
 
-      await tester.tap(find.byIcon(Icons.close));
+      await tester.tap(find.byTooltip('关闭'));
       await tester.pumpAndSettle();
       await tester.pumpWidget(const SizedBox.shrink());
     });

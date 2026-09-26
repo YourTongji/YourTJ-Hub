@@ -2089,38 +2089,22 @@ class _PostCard extends StatelessWidget {
           else
             GfMarkdownView(data: post.content, mentions: post.mentions),
           const SizedBox(height: 4),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final timestamp = Text(
-                timeAgo(post.createdAt, l10n: l10n),
-                style: GfTheme.typographyOf(
-                  context,
-                ).caption.copyWith(color: GfTheme.colorsOf(context).iconMuted),
-              );
-              final actions = PostActions(
-                post: post,
-                onChanged: onChanged,
-                onReply: onReply,
-                onReport: onReport,
-              );
-              // Keep controls tappable at large text sizes and narrow widths.
-              if (constraints.maxWidth < 340 ||
-                  MediaQuery.textScalerOf(context).scale(14) > 20) {
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    timestamp,
-                    Align(alignment: Alignment.centerRight, child: actions),
-                  ],
-                );
-              }
-              return Row(
-                children: [
-                  Expanded(child: timestamp),
-                  Flexible(fit: FlexFit.loose, child: actions),
-                ],
-              );
-            },
+          Text(
+            timeAgo(post.createdAt, l10n: l10n),
+            style: GfTheme.typographyOf(
+              context,
+            ).caption.copyWith(color: GfTheme.colorsOf(context).iconMuted),
+          ),
+          // Actions use the complete reading column. Sharing a flex row with
+          // the date needlessly forced a phone's five actions onto two lines.
+          SizedBox(
+            width: double.infinity,
+            child: PostActions(
+              post: post,
+              onChanged: onChanged,
+              onReply: onReply,
+              onReport: onReport,
+            ),
           ),
         ],
       ),

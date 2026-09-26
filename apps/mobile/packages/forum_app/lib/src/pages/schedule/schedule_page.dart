@@ -224,7 +224,7 @@ class _SchedulePageState extends ConsumerState<SchedulePage>
         title: Text(l10n.scheduleTitle),
         actions: <Widget>[
           GfIconButton(
-            icon: Icons.event_available_outlined,
+            symbol: 'calendar-days',
             size: 44,
             tooltip: l10n.scheduleAddCustomEvent,
             onPressed: _openCustomEventSheet,
@@ -530,7 +530,7 @@ class _PlanBar extends ConsumerWidget {
           ),
         ),
         GfIconButton(
-          icon: Icons.add_circle_outline,
+          symbol: 'plus',
           size: 40,
           iconSize: 22,
           tooltip: l10n.schedulePlanNew,
@@ -1333,6 +1333,7 @@ class _WeekFilter extends StatelessWidget {
                 isExpanded: true,
                 isDense: false,
                 dropdownColor: colors.base100,
+                icon: const GfSymbol('chevron-down', size: 20),
                 items: <DropdownMenuItem<int?>>[
                   DropdownMenuItem<int?>(
                     value: null,
@@ -2154,8 +2155,8 @@ class _ClassRow extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 8),
-            Icon(
-              selected ? Icons.check_circle : Icons.add_circle_outline,
+            GfSymbol(
+              selected ? 'circle-check' : 'plus',
               size: 20,
               color: selected
                   ? colors.primary
@@ -2426,7 +2427,7 @@ class _CourseDetailSheet extends ConsumerWidget {
                   ),
                 ),
                 GfIconButton(
-                  icon: Icons.close,
+                  symbol: 'x',
                   size: 36,
                   iconSize: 18,
                   tooltip: l10n.commonClose,

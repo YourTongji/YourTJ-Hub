@@ -15,6 +15,7 @@ import 'package:forum_app/src/private_notes.dart';
 import 'package:forum_app/src/providers.dart';
 import 'package:forum_app/src/router.dart';
 import 'package:forum_app/src/widgets/status_views.dart';
+import 'package:forum_app/src/widgets/skeletons.dart';
 import 'package:forum_app/src/widgets/app_refresh_indicator.dart';
 import 'package:ui_kit/ui_kit.dart';
 
@@ -237,6 +238,99 @@ void _select(WidgetTester tester, String label) {
 }
 
 void main() {
+  testWidgets(
+    'initial profile skeleton matches the immersive header geometry',
+    (tester) async {
+      tester.view.physicalSize = const Size(390, 1000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final repo = _Profiles();
+      final pending = Completer<PagePayload>();
+      repo.pending['/u/1/activity'] = pending;
+      await _pump(
+        tester,
+        repo,
+        settle: false,
+        home: const MediaQuery(
+          data: MediaQueryData(
+            size: Size(390, 1000),
+            padding: EdgeInsets.only(top: 47),
+          ),
+          child: ProfilePage(userId: 1),
+        ),
+      );
+      final skeleton = find.byType(GfProfileSkeleton);
+      expect(skeleton, findsOneWidget);
+      final cover = tester.getRect(
+        find.descendant(of: skeleton, matching: find.byType(GfSkeleton)).first,
+      );
+      expect(cover.top, 0);
+      expect(cover.height, GfUserCard.coverHeightFor(390, topInset: 47));
+      final avatar = find
+          .descendant(
+            of: skeleton,
+            matching: find.byWidgetPredicate(
+              (w) => w is GfSkeleton && w.radius == 999,
+            ),
+          )
+          .first;
+      final avatarRect = tester.getRect(avatar);
+      expect(avatarRect.size, const Size.square(88));
+      expect(avatarRect.top, cover.bottom - 44);
+      expect(avatarRect.bottom, cover.bottom + 44);
+      expect(
+        tester
+            .getSize(find.descendant(of: skeleton, matching: find.byType(Wrap)))
+            .height,
+        48,
+        reason: 'Compact profile statistics remain on one line at 390px',
+      );
+      for (var i = 0; i < 5; i++) {
+        expect(find.byKey(ValueKey('profile-skeleton-tab-$i')), findsOneWidget);
+      }
+      pending.complete(repo.response('/u/1/activity'));
+      await tester.pumpAndSettle();
+      expect(
+        tester.getRect(find.byKey(const Key('profile-cover-image'))),
+        cover,
+      );
+      expect(
+        tester.getRect(
+          find.byWidgetPredicate((w) => w is GfAvatar && w.size == 88),
+        ),
+        avatarRect,
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('connection loading shows two tabs and people without a cover', (
+    tester,
+  ) async {
+    final repo = _Profiles();
+    final pending = Completer<PagePayload>();
+    repo.pending['/u/1/following'] = pending;
+    await _pump(
+      tester,
+      repo,
+      settle: false,
+      home: const ProfilePage.connections(userId: 1),
+    );
+    expect(find.byType(GfProfileSkeleton), findsNothing);
+    expect(
+      find.byKey(const Key('profile-connections-skeleton')),
+      findsOneWidget,
+    );
+    for (var i = 0; i < 2; i++) {
+      expect(find.byKey(ValueKey('profile-skeleton-tab-$i')), findsOneWidget);
+    }
+    expect(find.byKey(const ValueKey('profile-skeleton-tab-2')), findsNothing);
+    expect(tester.takeException(), isNull);
+    pending.complete(repo.response('/u/1/following'));
+    await tester.pumpAndSettle();
+    expect(find.byType(GfUserCardHeader), findsNothing);
+  });
+
   testWidgets('immersive cover shares its sliver with the complete avatar', (
     tester,
   ) async {

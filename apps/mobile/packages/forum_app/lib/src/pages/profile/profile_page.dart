@@ -1160,7 +1160,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       _load();
     });
     return Scaffold(
-      appBar: !widget.connectionsOnly && _page.valueOrNull != null
+      appBar:
+          !widget.connectionsOnly &&
+              (_page.isLoading || _page.valueOrNull != null)
           ? null
           : GfAppBar(
               centerTitle: false,
@@ -1171,7 +1173,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 760),
           child: _page.when(
-            loading: () => const GfProfileSkeleton(),
+            loading: () => _profileLoading(context, l10n),
             error: (e, _) => _isShellProfile
                 ? _ProfileErrorBody(
                     message: resolveErrorMessage(l10n, e),
@@ -1244,7 +1246,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                                 ),
                           ),
                         if (_streamLoading)
-                          const _ProfileStreamSkeleton()
+                          _ProfileStreamSkeleton(
+                            connectionsOnly: widget.connectionsOnly,
+                          )
                         else if (_streamError != null)
                           SliverToBoxAdapter(
                             child: GfErrorRetry(
@@ -1310,6 +1314,47 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _profileLoading(BuildContext context, AppLocalizations l10n) {
+    if (widget.connectionsOnly) {
+      return const GfProfileConnectionsSkeleton(
+        key: Key('profile-connections-skeleton'),
+      );
+    }
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        const GfProfileSkeleton(),
+        Positioned(
+          left: 0,
+          right: 0,
+          top: 0,
+          child: SafeArea(
+            bottom: false,
+            child: SizedBox(
+              height: 56,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: Row(
+                  spacing: 8,
+                  children: [
+                    if (Navigator.canPop(context))
+                      GfGlassIconButton(
+                        symbol: 'arrow-left',
+                        tooltip: l10n.commonBack,
+                        onPressed: () => Navigator.maybePop(context),
+                      ),
+                    const Spacer(),
+                    ..._profileActions(context, l10n, glass: true),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -1786,45 +1831,15 @@ class _ProfileTabsState extends State<_ProfileTabs>
 }
 
 class _ProfileStreamSkeleton extends StatelessWidget {
-  const _ProfileStreamSkeleton();
+  const _ProfileStreamSkeleton({this.connectionsOnly = false});
+  final bool connectionsOnly;
 
   @override
   Widget build(BuildContext context) => SliverList.separated(
     itemCount: 3,
     separatorBuilder: (_, _) => const GfDivider(),
-    itemBuilder: (_, _) => const Padding(
-      padding: EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              GfSkeleton(width: 36, height: 36, radius: 999),
-              SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    GfSkeleton(width: 132, height: 14, radius: 5),
-                    SizedBox(height: 7),
-                    GfSkeleton(width: 88, height: 12, radius: 5),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          SizedBox(height: 14),
-          SizedBox(
-            width: double.infinity,
-            child: GfSkeleton(height: 16, radius: 5),
-          ),
-          SizedBox(height: 8),
-          GfSkeleton(width: 204, height: 16, radius: 5),
-          SizedBox(height: 14),
-          GfSkeleton(width: 120, height: 12, radius: 5),
-        ],
-      ),
-    ),
+    itemBuilder: (_, _) =>
+        GfProfileStreamRowSkeleton(connectionsOnly: connectionsOnly),
   );
 }
 
@@ -2216,17 +2231,17 @@ class _AccountShortcuts extends StatelessWidget {
       child: GfCardList(
         children: <Widget>[
           GfSettingRow(
-            icon: Icons.settings_outlined,
+            symbol: 'settings',
             title: l10n.settingsTitle,
             onTap: () => context.push('/settings'),
           ),
           GfSettingRow(
-            icon: Icons.notifications_outlined,
+            symbol: 'bell',
             title: l10n.notificationsTitle,
             onTap: () => context.go('/notifications'),
           ),
           GfSettingRow(
-            icon: Icons.description_outlined,
+            symbol: 'file-text',
             title: l10n.draftsTitle,
             onTap: () => context.push('/drafts'),
           ),

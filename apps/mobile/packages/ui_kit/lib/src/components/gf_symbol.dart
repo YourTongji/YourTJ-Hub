@@ -12,19 +12,25 @@ class GfSymbol extends StatelessWidget {
   final Color? color;
 
   @override
-  Widget build(BuildContext context) => SvgPicture.asset(
-    'assets/icons/$name.svg',
-    package: 'ui_kit',
-    width: size,
-    height: size,
-    excludeFromSemantics: true,
-    colorFilter: name == 'google'
-        ? null
-        : ColorFilter.mode(
-            color ??
-                IconTheme.of(context).color ??
-                GfTheme.colorsOf(context).baseContent,
-            BlendMode.srcIn,
-          ),
+  Widget build(BuildContext context) => Center(
+    // InputDecorator and buttons reserve a larger interaction slot. Loosen
+    // those constraints for the glyph without growing loose inline layouts.
+    widthFactor: 1,
+    heightFactor: 1,
+    child: SvgPicture.asset(
+      'assets/icons/$name.svg',
+      package: 'ui_kit',
+      width: size,
+      height: size,
+      excludeFromSemantics: true,
+      colorFilter: name == 'google'
+          ? null
+          : ColorFilter.mode(
+              color ??
+                  IconTheme.of(context).color ??
+                  GfTheme.colorsOf(context).baseContent,
+              BlendMode.srcIn,
+            ),
+    ),
   );
 }

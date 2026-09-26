@@ -696,7 +696,7 @@ class _AuthorMeta extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
-              Icon(Icons.auto_awesome, size: 12, color: colors.warning),
+              GfSymbol('sparkles', size: 12, color: colors.warning),
               const SizedBox(width: 3),
               Text(
                 'hot',
@@ -881,10 +881,7 @@ class _TopicImage extends StatelessWidget {
                   (BuildContext context, Object error, StackTrace? stack) {
                     return ColoredBox(
                       color: colors.base200,
-                      child: Icon(
-                        Icons.image_outlined,
-                        color: colors.iconMuted,
-                      ),
+                      child: GfSymbol('image-off', color: colors.iconMuted),
                     );
                   },
             ),
@@ -976,11 +973,7 @@ class _ImageCount extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(
-            Icons.photo_library_outlined,
-            size: 12,
-            color: Colors.white,
-          ),
+          const GfSymbol('images', size: 12, color: Colors.white),
           const SizedBox(width: 4),
           Text(
             '$count',

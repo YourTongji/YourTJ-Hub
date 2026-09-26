@@ -38,6 +38,8 @@ class _Repository extends StickerRepository {
   List<StickerItemPayload> members = [official];
   List<StickerItemPayload> officialItems = [official];
   bool failOrder = false;
+  bool failSave = false;
+  final savedLabels = <String?>[];
   int resolveFailures = 0;
   Completer<StickerItemPayload>? pendingSave;
   Completer<List<StickerItemPayload>>? pendingMine;
@@ -64,6 +66,8 @@ class _Repository extends StickerRepository {
     String? fileName,
     String? displayName,
   }) async {
+    savedLabels.add(displayName);
+    if (failSave) throw StateError('offline');
     final item = pendingSave == null ? personal : await pendingSave!.future;
     members = [...members.where((entry) => entry.name != item.name), item];
     return item;
@@ -145,6 +149,97 @@ void main() {
     repository.pendingSave!.complete(personal);
     await pending;
     expect(state.mine, [personal]);
+  });
+
+  testWidgets(
+    'rename failure keeps its draft and retry closes only after saving',
+    (tester) async {
+      final repository = _Repository()
+        ..members = [personal]
+        ..failSave = true;
+      final state = StickerCollection(repository, StickerLibrary(repository));
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [stickerCollectionProvider.overrideWith((_) => state)],
+          child: MaterialApp(
+            theme: gfThemeData(Brightness.light),
+            home: const StickerLibraryPage(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Mine'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), 'My new label');
+      await tester.tap(find.text('Done'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(TextField), findsOneWidget);
+      expect(
+        tester.widget<TextField>(find.byType(TextField)).controller!.text,
+        'My new label',
+      );
+      expect(
+        find.text('Could not complete this action. Try again.'),
+        findsOneWidget,
+      );
+      repository.failSave = false;
+      repository.pendingSave = Completer<StickerItemPayload>();
+      final submit = tester
+          .widget<TextField>(find.byType(TextField))
+          .onSubmitted!;
+      submit('My new label');
+      submit('My new label');
+      await tester.pump();
+      expect(repository.savedLabels, ['My new label', 'My new label']);
+      await tester.binding.handlePopRoute();
+      await tester.pump();
+      expect(find.byType(TextField), findsOneWidget);
+      repository.pendingSave!.complete(
+        StickerItemPayload(
+          name: personal.name,
+          url: personal.url,
+          displayName: 'My new label',
+          isOfficial: false,
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byType(TextField), findsNothing);
+      expect(find.text('My new label'), findsOneWidget);
+    },
+  );
+
+  testWidgets('rename dialog discards its draft across an account change', (
+    tester,
+  ) async {
+    final container = ProviderContainer(
+      overrides: [
+        stickerCollectionProvider.overrideWith((ref) {
+          ref.watch(offlineCacheEpochProvider);
+          final repository = _Repository()..members = [personal];
+          return StickerCollection(repository, StickerLibrary(repository));
+        }),
+      ],
+    );
+    addTearDown(container.dispose);
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          theme: gfThemeData(Brightness.light),
+          home: const StickerLibraryPage(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Mine'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'Private account label');
+    container.read(offlineCacheEpochProvider.notifier).invalidate();
+    await tester.pumpAndSettle();
+    expect(find.byType(TextField), findsNothing);
+    expect(find.text('Private account label'), findsNothing);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('sticker management clears private page state across accounts', (

@@ -345,7 +345,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
           )
         else
           GfIconButton(
-            icon: Icons.done_all_rounded,
+            symbol: 'check-check',
             size: 44,
             tooltip: l10n.notificationsMarkAllRead,
             onPressed: _reading.isNotEmpty ? null : _markAllRead,
@@ -444,27 +444,24 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                               }
                               final NotificationPayload n = _items[i];
                               final (
-                                IconData icon,
+                                String symbol,
                                 GfNotificationTone tone,
                               ) = switch (notificationEvent(n)) {
                                 'like' => (
-                                  Icons.favorite,
+                                  'heart-filled',
                                   GfNotificationTone.like,
                                 ),
                                 'follow' => (
-                                  Icons.person_add,
+                                  'user-round-plus',
                                   GfNotificationTone.success,
                                 ),
                                 'badge' => (
-                                  Icons.workspace_premium,
+                                  'award',
                                   GfNotificationTone.warning,
                                 ),
-                                'system' => (
-                                  Icons.info_outline,
-                                  GfNotificationTone.info,
-                                ),
+                                'system' => ('info', GfNotificationTone.info),
                                 _ => (
-                                  Icons.chat_bubble_outline,
+                                  'message-circle',
                                   GfNotificationTone.primary,
                                 ),
                               };
@@ -478,7 +475,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                                 key: ValueKey(n.id),
                                 children: [
                                   GfNotificationRow(
-                                    icon: icon,
+                                    symbol: symbol,
                                     actorName: notificationActorName(
                                       n,
                                       l10n,

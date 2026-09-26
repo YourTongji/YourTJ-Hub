@@ -222,10 +222,10 @@ class CourseReviewFormSheetState extends State<CourseReviewFormSheet> {
                                       width: 48,
                                       height: 48,
                                       child: Center(
-                                        child: Icon(
+                                        child: GfSymbol(
                                           star <= _rating
-                                              ? Icons.star
-                                              : Icons.star_border,
+                                              ? 'star-filled'
+                                              : 'star',
                                           size: 28,
                                           color: star <= _rating
                                               ? colors.warning
@@ -361,10 +361,8 @@ class CourseReviewFormSheetState extends State<CourseReviewFormSheet> {
         ),
         child: Row(
           children: <Widget>[
-            Icon(
-              selected
-                  ? Icons.radio_button_checked
-                  : Icons.radio_button_unchecked,
+            GfSymbol(
+              selected ? 'circle-dot' : 'circle',
               size: 18,
               color: selected
                   ? colors.primary

@@ -543,7 +543,7 @@ class _CourseCatalogPageState extends ConsumerState<_CourseCatalogContent> {
     final Widget onlyReviews = _filterChip(
       label: l10n.coursesOnlyWithReviews,
       selected: _onlyWithReviews,
-      icon: _onlyWithReviews ? Icons.check : null,
+      symbol: _onlyWithReviews ? 'check' : null,
       onTap: () {
         setState(() => _onlyWithReviews = !_onlyWithReviews);
         _load();
@@ -575,7 +575,7 @@ class _CourseCatalogPageState extends ConsumerState<_CourseCatalogContent> {
     required bool selected,
     required VoidCallback? onTap,
     int? count,
-    IconData? icon,
+    String? symbol,
   }) {
     final GfColors colors = GfTheme.colorsOf(context);
     return InkWell(
@@ -598,8 +598,8 @@ class _CourseCatalogPageState extends ConsumerState<_CourseCatalogContent> {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
-            if (icon != null) ...<Widget>[
-              Icon(icon, size: 14, color: colors.primary),
+            if (symbol != null) ...<Widget>[
+              GfSymbol(symbol, size: 14, color: colors.primary),
               const SizedBox(width: 4),
             ],
             Text(
@@ -835,7 +835,7 @@ class _CourseRow extends StatelessWidget {
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: <Widget>[
-                      Icon(Icons.star, size: 14, color: colors.warning),
+                      GfSymbol('star-filled', size: 14, color: colors.warning),
                       const SizedBox(width: 2),
                       Text(
                         formatRating(ratingAvg),
@@ -895,19 +895,22 @@ class _CourseRow extends StatelessWidget {
       return InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(999),
-        child: Container(
-          height: 22,
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          decoration: BoxDecoration(
-            color: colors.base200.withValues(alpha: 0.6),
-            borderRadius: BorderRadius.circular(999),
-          ),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
           child: Center(
             widthFactor: 1,
-            child: Text(
-              label,
-              style: type.meta.copyWith(
-                color: colors.baseContent.withValues(alpha: 0.7),
+            heightFactor: 1,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: colors.base200.withValues(alpha: 0.6),
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Text(
+                label,
+                style: type.meta.copyWith(
+                  color: colors.baseContent.withValues(alpha: 0.7),
+                ),
               ),
             ),
           ),
@@ -1061,14 +1064,12 @@ class _InstructorPickerSheetState extends State<_InstructorPickerSheet> {
                                   ),
                                 ),
                                 const SizedBox(width: 4),
-                                InkWell(
-                                  onTap: () =>
+                                GfIconButton(
+                                  onPressed: () =>
                                       setState(() => _draft.remove(name)),
-                                  child: GfSymbol(
-                                    'x',
-                                    size: 16,
-                                    color: colors.iconMuted,
-                                  ),
+                                  symbol: 'x',
+                                  iconSize: 18,
+                                  tooltip: '${copy.delete} $name',
                                 ),
                               ],
                             ),

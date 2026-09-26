@@ -667,10 +667,10 @@ class _SearchResults extends StatelessWidget {
                 section.length,
                 section.total,
               ),
-              icon: switch (section.scope) {
-                'users' => Icons.people_outline,
-                'topics' => Icons.forum_outlined,
-                _ => Icons.folder_open_outlined,
+              symbol: switch (section.scope) {
+                'users' => 'users-round',
+                'topics' => 'message-circle',
+                _ => 'folder',
               },
             ),
           );

@@ -55,7 +55,12 @@ void main() {
 
     testWidgets('shows pin mark and unseen dot when flagged', (tester) async {
       await tester.pumpWidget(buildRow(pinned: true, unseen: true));
-      expect(find.byIcon(Icons.push_pin), findsOneWidget);
+      expect(
+        find.byWidgetPredicate(
+          (widget) => widget is GfSymbol && widget.name == 'pin',
+        ),
+        findsOneWidget,
+      );
       expect(
         find.byWidgetPredicate(
           (Widget w) =>
@@ -82,7 +87,12 @@ void main() {
           ),
         ),
       );
-      expect(find.byIcon(Icons.local_fire_department), findsOneWidget);
+      expect(
+        find.byWidgetPredicate(
+          (widget) => widget is GfSymbol && widget.name == 'flame',
+        ),
+        findsOneWidget,
+      );
       expect(find.text('hot'), findsOneWidget);
     });
 

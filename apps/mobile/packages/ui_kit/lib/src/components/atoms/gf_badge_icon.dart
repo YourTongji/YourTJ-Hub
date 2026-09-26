@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../gf_symbol.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../theme/gf_theme.dart';
 
@@ -18,11 +19,7 @@ class GfBadgeIcon extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = GfTheme.colorsOf(context);
-    final fallback = Icon(
-      Icons.workspace_premium_outlined,
-      size: size - 6,
-      color: colors.primary,
-    );
+    final fallback = GfSymbol('award', size: size - 6, color: colors.primary);
     final isSvg =
         Uri.tryParse(url)?.path.toLowerCase().endsWith('.svg') ?? false;
     return Tooltip(

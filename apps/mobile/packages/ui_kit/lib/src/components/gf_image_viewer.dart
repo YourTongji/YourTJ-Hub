@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../theme/gf_theme.dart';
 import 'gf_motion.dart';
+import 'gf_symbol.dart';
 
 /// Shows the shared image action surface used by inline images and the
 /// full-screen viewer. The host decides what saving means on each platform.
@@ -33,7 +34,7 @@ Future<bool> showGfImageSaveSheet(
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
               ),
-              leading: Icon(Icons.save_alt_rounded, color: colors.primary),
+              leading: GfSymbol('download', color: colors.primary),
               title: Text(saveImageLabel),
               onTap: () => Navigator.of(sheetContext).pop(true),
             ),
@@ -315,8 +316,8 @@ class _GfImageViewerState extends State<GfImageViewer>
                             return null;
                           case LoadState.failed:
                             return Center(
-                              child: Icon(
-                                Icons.broken_image_outlined,
+                              child: GfSymbol(
+                                'image-off',
                                 color: colors.iconMuted,
                                 size: 48,
                               ),
@@ -353,9 +354,7 @@ class _GfImageViewerState extends State<GfImageViewer>
                 children: <Widget>[
                   if (widget.enableActualSize)
                     _ViewerIconButton(
-                      icon: _actualSize
-                          ? Icons.zoom_out_map
-                          : Icons.zoom_in_map,
+                      icon: _actualSize ? 'minimize' : 'maximize',
                       tooltip: _actualSize ? 'Fit preview' : 'Original size',
                       onPressed: () => setState(() {
                         _actualSize = !_actualSize;
@@ -364,16 +363,14 @@ class _GfImageViewerState extends State<GfImageViewer>
                   if (widget.onShareImage != null) ...[
                     const SizedBox(width: 8),
                     _ViewerIconButton(
-                      icon: _isSharing
-                          ? Icons.hourglass_top_rounded
-                          : Icons.share_outlined,
+                      icon: _isSharing ? 'clock' : 'share-2',
                       tooltip: widget.shareImageLabel,
                       onPressed: _shareCurrentImage,
                     ),
                   ],
                   const SizedBox(width: 8),
                   _ViewerIconButton(
-                    icon: Icons.close,
+                    icon: 'x',
                     tooltip: 'Close',
                     onPressed: () => Navigator.of(context).maybePop(),
                   ),
@@ -388,7 +385,7 @@ class _GfImageViewerState extends State<GfImageViewer>
                 bottom: 0,
                 child: Center(
                   child: _ViewerIconButton(
-                    icon: Icons.chevron_left,
+                    icon: 'chevron-left',
                     tooltip: 'Previous',
                     onPressed: _showPrevious,
                   ),
@@ -401,7 +398,7 @@ class _GfImageViewerState extends State<GfImageViewer>
                 bottom: 0,
                 child: Center(
                   child: _ViewerIconButton(
-                    icon: Icons.chevron_right,
+                    icon: 'chevron-right',
                     tooltip: 'Next',
                     onPressed: _showNext,
                   ),
@@ -446,7 +443,7 @@ class _ViewerIconButton extends StatelessWidget {
     required this.onPressed,
   });
 
-  final IconData icon;
+  final String icon;
   final String tooltip;
   final VoidCallback onPressed;
 
@@ -474,7 +471,7 @@ class _ViewerIconButton extends StatelessWidget {
                 width: borders.width,
               ),
             ),
-            child: Icon(
+            child: GfSymbol(
               icon,
               size: 20,
               color: colors.baseContent.withValues(alpha: 0.78),
