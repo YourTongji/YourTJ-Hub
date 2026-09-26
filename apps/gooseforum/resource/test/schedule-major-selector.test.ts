@@ -428,3 +428,128 @@ describe('ScheduleMajorSelector 配置就绪主动提示与收起交互', () => 
     expect(mounted.emitted('toggle-collapse')).toHaveLength(1)
   })
 })
+
+describe('ScheduleMajorSelector issue #795：首次上下文初始化不误清已同步方案', () => {
+  let mounted: VueWrapper | null = null
+
+  /** 构造一条「已从云端采用、含课程」的方案，模拟设备 B 登录后的本地状态。 */
+  function planWithCloudCourse() {
+    return {
+      id: 'plan_cloud_1',
+      name: '方案一',
+      createdAt: 1710000000000,
+      stagedCourses: [
+        {
+          courseCode: '122004',
+          courseName: '高等数学(122004)',
+          courseNameReserved: '高等数学',
+          credit: 4,
+          courseType: '必',
+          teacher: [],
+          status: 1,
+          courseDetail: [],
+        },
+      ],
+      selectedCourses: ['122004'],
+      customEvents: [],
+    }
+  }
+
+  beforeEach(() => {
+    vi.resetAllMocks()
+    localStorage.clear()
+    getPkCalendars.mockResolvedValue([{ calendarId: 121, calendarName: '2025-2026学年第2学期' }])
+    getPkGrades.mockResolvedValue([2025, 2024])
+    getPkMajors.mockResolvedValue([
+      { code: '00301', name: '2025(00301 数学类)' },
+      { code: '00401', name: '2025(00401 物理学类)' },
+    ])
+    mounted = null
+  })
+
+  afterEach(() => {
+    mounted?.unmount()
+    mounted = null
+    document.body.innerHTML = ''
+  })
+
+  test('新设备从零建立上下文：学期→年级→专业全程不清空云端同步的方案课程', async () => {
+    const store = useScheduleStore()
+    // 设备 B：localStorage 无任何学期选择（首次登录排课页），
+    // 但方案已通过 useScheduleSync.perform 从云端采用（含课程，内容非空）。
+    store.state.majorSelected = { calendarId: undefined, grade: undefined, major: undefined }
+    store.state.plans = [planWithCloudCourse()]
+    store.state.activePlanId = 'plan_cloud_1'
+
+    mounted = mount(ScheduleMajorSelector, { global: { plugins: [i18n] } })
+    const wrapper = mounted
+    await flushPromises()
+
+    // 挂载自动回填首个学期：向导第 1 步，方案课程必须原样保留
+    // （修复前 restoreSelection 走 resetSelection() 直接清空并固化上传）。
+    expect(store.state.majorSelected.calendarId).toBe(121)
+    expect(store.state.plans[0].stagedCourses).toHaveLength(1)
+
+    // 向导第 2 步：选年级 2025。
+    const gradeOptions = await openCombobox(wrapper, 1)
+    await selectOption(wrapper, gradeOptions.find((o) => o.textContent === '2025')!)
+    expect(store.state.majorSelected.grade).toBe(2025)
+    expect(store.state.plans[0].stagedCourses).toHaveLength(1)
+
+    // 向导第 3 步：选专业（含原位置关键词筛选），向导完成。
+    const input = wrapper.get<HTMLInputElement>('[data-testid="schedule-major-combobox-input"]')
+    await input.setValue('物理')
+    await flushPromises()
+    const options = [...document.querySelectorAll('[role="option"]')]
+    options
+      .find((o) => o.textContent?.includes('物理学类'))!
+      .dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    await flushPromises()
+
+    expect(store.state.majorSelected.major).toBe('00401')
+    // 唯一验收点：云端同步下来的方案课程全程未被清空（不扩散空方案）。
+    expect(store.state.plans[0].stagedCourses).toHaveLength(1)
+    expect(store.state.plans[0].selectedCourses).toEqual(['122004'])
+  })
+
+  test('已建立上下文（本地已存选择）后：变更专业仍清空方案课程，既有语义不破坏', async () => {
+    const store = useScheduleStore()
+    store.state.majorSelected = { calendarId: 121, grade: 2025, major: '00301' }
+    store.state.plans = [planWithCloudCourse()]
+    store.state.activePlanId = 'plan_cloud_1'
+
+    mounted = mount(ScheduleMajorSelector, { global: { plugins: [i18n] } })
+    const wrapper = mounted
+    await flushPromises()
+    expect(store.state.plans[0].stagedCourses).toHaveLength(1)
+
+    // 已建立上下文后改选专业 = 真实变更：按历史语义清空全部方案的课程。
+    const input = wrapper.get<HTMLInputElement>('[data-testid="schedule-major-combobox-input"]')
+    await input.setValue('物理')
+    await flushPromises()
+    const options = [...document.querySelectorAll('[role="option"]')]
+    options
+      .find((o) => o.textContent?.includes('物理学类'))!
+      .dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    await flushPromises()
+
+    expect(store.state.majorSelected.major).toBe('00401')
+    expect(store.state.plans[0].stagedCourses).toEqual([])
+    expect(store.state.plans[0].selectedCourses).toEqual([])
+  })
+
+  test('已存学期失效回退仍清空旧学期课程（与既有回退语义一致）', async () => {
+    const store = useScheduleStore()
+    // 设备已有学期 122 的选择（已失效），方案含课程 → 回退 121 时清空旧课程。
+    store.state.majorSelected = { calendarId: 122, grade: 2025, major: '00301' }
+    store.state.plans = [planWithCloudCourse()]
+    store.state.activePlanId = 'plan_cloud_1'
+
+    mounted = mount(ScheduleMajorSelector, { global: { plugins: [i18n] } })
+    await flushPromises()
+
+    expect(store.state.majorSelected.calendarId).toBe(121)
+    // 失效学期的旧课程属于另一上下文，回退到新学期的清空语义保留。
+    expect(store.state.plans[0].stagedCourses).toEqual([])
+  })
+})
