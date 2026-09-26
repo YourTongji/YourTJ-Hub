@@ -308,6 +308,7 @@ func apiRoute(ginApp *gin.Engine) {
 	forumApi.GET("courses/:courseId/related", middleware.RateLimit(middleware.RateLimitCourseCatalog), UpUriQueryReq(forum.CourseRelatedJSON))
 	// 表情包库：公开只读（启用列表供编辑器选择器与客户端 token 替换）。
 	forumApi.GET("stickers", middleware.RateLimit(middleware.RateLimitStickerList), ginUpNP(api.PublicStickerList))
+	forumApi.POST("stickers/resolve", middleware.RateLimit(middleware.RateLimitStickerList), UpLimitedJsonReq(64<<10, api.ResolveStickers))
 	// wiki 分站：公开读。
 	// wiki 分站：公开读（GitHub SSOT：内容由仓库同步，无站内写）。
 	wikiApi := baseApi.Group("wiki")
@@ -335,6 +336,10 @@ func apiRoute(ginApp *gin.Engine) {
 	// refresh its JWT or extend its session while opening a long-lived stream.
 	forumApi.GET("events", middleware.StreamOriginProtection, middleware.JWTAuthCheck, middleware.NoUpdateUserActivity, api.StreamEvents)
 	forumLoginApi := forumApi.Use(middleware.CSRFProtection, middleware.JWTAuthCheck)
+	forumLoginApi.GET("my-stickers", middleware.NoUpdateUserActivity, UpButterReq(api.MyStickers))
+	forumLoginApi.POST("my-sticker-save", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpLimitedJsonReq(64<<10, api.SaveMySticker))
+	forumLoginApi.POST("my-sticker-delete", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpLimitedJsonReq(64<<10, api.DeleteMySticker))
+	forumLoginApi.POST("my-stickers-order", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpLimitedJsonReq(64<<10, api.OrderMyStickers))
 	forumLoginApi.GET("unread-status", middleware.NoUpdateUserActivity, UpButterReq(api.GetUnreadStatus))
 	forumLoginApi.GET("notifications", middleware.NoUpdateUserActivity, UpQueryReq(api.NotificationList))
 	// 未读清理（notification/chat mark-read）用放行变体：pending 用户仅清理自己的

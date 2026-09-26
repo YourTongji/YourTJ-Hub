@@ -126,5 +126,9 @@
   "meta.courseReviewModerationDesc": "Verwalte gemeldete Bewertungen und blende Bewertungen aus bzw. wieder ein.",
   "meta.courseManagement": "Kursverwaltung",
   "meta.courseManagementDesc": "Verwalte den Kurskatalog und die Bewertungen.",
-  "server.common.request.invalidFormat": "Das Format der Anforderung ist ungültig. Bitte überprüfe und versuche es erneut."
+  "server.common.request.invalidFormat": "Das Format der Anforderung ist ungültig. Bitte überprüfe und versuche es erneut.",
+  "serverMessages.sticker.libraryFull": "Deine Sammlung kann {limit} Sticker enthalten. Entferne zuerst einige.",
+  "serverMessages.sticker.uploadQuota": "Du hast das Limit von {limit} hochgeladenen Stickern erreicht. Gesendete Bilder bleiben für den Nachrichtenverlauf erhalten.",
+  "serverMessages.sticker.imageRequired": "Wähle ein selbst hochgeladenes Bild oder GIF mit höchstens {maxSizeMb} MB.",
+  "serverMessages.sticker.unavailable": "Dieser Sticker ist nicht verfügbar."
 }

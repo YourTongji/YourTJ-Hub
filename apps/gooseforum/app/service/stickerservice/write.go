@@ -42,7 +42,7 @@ func Save(ctx context.Context, userID uint64, input SaveInput) error {
 		return ErrNameInvalid
 	}
 	return db.Connect().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		row := sticker.Entity{CreatedBy: userID}
+		row := sticker.Entity{CreatedBy: userID, IsOfficial: true, Pack: "official"}
 		if input.Id != 0 {
 			existing, err := sticker.GetByIDTx(tx, input.Id)
 			if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -50,6 +50,9 @@ func Save(ctx context.Context, userID uint64, input SaveInput) error {
 			}
 			if err != nil {
 				return err
+			}
+			if !existing.IsOfficial {
+				return ErrNotFound
 			}
 			row = existing
 		}
@@ -105,11 +108,15 @@ func Save(ctx context.Context, userID uint64, input SaveInput) error {
 
 func Delete(ctx context.Context, id uint64) error {
 	return db.Connect().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if _, err := sticker.GetByIDTx(tx, id); err != nil {
+		row, err := sticker.GetByIDTx(tx, id)
+		if err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return ErrNotFound
 			}
 			return err
+		}
+		if !row.IsOfficial {
+			return ErrNotFound
 		}
 		if err := fileusageservice.SetStickerUsageTx(tx, id, 0, ""); err != nil {
 			return err
@@ -152,7 +159,7 @@ func ImportImage(ctx context.Context, userID uint64, data []byte, fileName, rawN
 				}
 				name = string(runes) + suffix
 			}
-			row := sticker.Entity{Name: name, FileName: file.Name, SortOrder: sortOrder, IsEnabled: true, CreatedBy: userID}
+			row := sticker.Entity{Name: name, FileName: file.Name, SortOrder: sortOrder, IsEnabled: true, IsOfficial: true, Pack: "official", CreatedBy: userID}
 			inserted, err := sticker.InsertIfNameAvailable(tx, &row)
 			if err != nil {
 				return err

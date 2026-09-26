@@ -22,8 +22,8 @@ final _stickerMathPattern = RegExp(
 bool containsStickerToken(String content) => content.contains('[:sticker:');
 
 /// 帖子 markdown 渲染前的 token 展开：`[:sticker:name:]` 重写为
-/// `![sticker:name](url)` 标准图片语法，复用 markdown 渲染链路（移动端
-/// markdown 视图的图片点击查看等既有行为随之生效）。
+/// `![sticker:name](url)` with an explicit semantic marker. Renderers must use
+/// the sticker image branch and exclude these entries from photo galleries.
 ///
 /// [urlByName] 中缺失（未知/停用）的 token 保持原文；无 token 或全部未知
 /// 时原样返回同一字符串。

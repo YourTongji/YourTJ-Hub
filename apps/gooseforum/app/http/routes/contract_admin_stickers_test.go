@@ -41,6 +41,18 @@ const (
 	contractStickerSecondID uint64 = 9102
 )
 
+func TestStickerDirectoryDoesNotEnumeratePersonalAssets(t *testing.T) {
+	conn, router := setupAdminStickersContractTest(t)
+	seedContractSticker(t, conn, contractStickerID, "private_random_token", "stickers/private.png", 0, true)
+	if err := conn.Model(&sticker.Entity{}).Where("id = ?", contractStickerID).Update("is_official", false).Error; err != nil {
+		t.Fatal(err)
+	}
+	response := serveAuthSecurityJSON(router, http.MethodGet, "/api/forum/stickers", "", "")
+	if strings.Contains(response.Body.String(), "private_random_token") {
+		t.Fatal("public directory enumerated a personal sticker")
+	}
+}
+
 // setupAdminStickersContractTest 在共享 harness（setupHTTPContractTest）之上注册
 // SiteManager 权限组 4 条 sticker 路由与公开 stickers 列表，中间件链与 route4api.go
 // 的生产注册保持一致（JWTAuthCheck + CheckWritableAccount 公共链 +
@@ -50,7 +62,7 @@ func setupAdminStickersContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 	conn, router := setupHTTPContractTest(t)
 	if err := conn.AutoMigrate(
 		&rolePermissionRs.Entity{},
-		&sticker.Entity{},
+		&sticker.Entity{}, &sticker.LibraryOwner{}, &sticker.LibraryEntry{},
 		&fileUsage.Entity{},
 	); err != nil {
 		t.Fatalf("migrate admin stickers contract tables: %v", err)

@@ -7,6 +7,7 @@ import { formatDateTime, formatNumber } from '@/runtime/format'
 import { showUserCard } from '@/runtime/user-card-events'
 import { consumeWikiJumpState } from '@/runtime/use-wiki-search'
 import MarkdownImageViewer from '@/site/components/MarkdownImageViewer.vue'
+import { getMarkdownImagePreview } from '@/runtime/markdown-image-preview'
 import PostStream from '@/site/components/PostStream.vue'
 import UserAvatar from '@/site/components/UserAvatar.vue'
 import WikiPageActions from '@/site/components/WikiPageActions.vue'
@@ -104,38 +105,11 @@ function handleInteractionChange(state: { likeCount: number; isLiked: boolean; i
 }
 
 function handleMarkdownImageClick(event: MouseEvent) {
-  const target = event.target
-  if (!(target instanceof HTMLElement)) return
-
-  const image = target.closest('.gf-prose-post img')
-  if (!(image instanceof HTMLImageElement)) return
-
-  const imageSrc = image.currentSrc || image.src
-  if (!imageSrc) return
-
-  const anchor = image.closest('a')
-  if (anchor && !sameUrl(anchor.href, imageSrc)) return
-
+  const preview = getMarkdownImagePreview(event.target)
+  if (!preview) return
   event.preventDefault()
   event.stopPropagation()
-
-  const markdownImages = Array.from(document.querySelectorAll<HTMLImageElement>('.gf-prose-post img'))
-    .map((item) => ({
-      src: item.currentSrc || item.src,
-      alt: item.alt || '',
-    }))
-    .filter((item) => item.src)
-  const index = markdownImages.findIndex((item) => sameUrl(item.src, imageSrc))
-
-  markdownImageViewer.value?.open(markdownImages, index >= 0 ? index : 0)
-}
-
-function sameUrl(left: string, right: string) {
-  try {
-    return new URL(left, window.location.href).href === new URL(right, window.location.href).href
-  } catch {
-    return left === right
-  }
+  markdownImageViewer.value?.open(preview.images, preview.index)
 }
 </script>
 

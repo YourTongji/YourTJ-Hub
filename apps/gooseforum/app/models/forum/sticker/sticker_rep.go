@@ -9,14 +9,14 @@ import (
 
 func All() ([]Entity, error) {
 	entities := make([]Entity, 0)
-	err := builder().Order("sort_order ASC").Order("id ASC").Find(&entities).Error
+	err := builder().Where("is_official = ?", true).Order("sort_order ASC").Order("id ASC").Find(&entities).Error
 	return entities, err
 }
 
 func AllEnabled() ([]Entity, error) {
 	entities := make([]Entity, 0)
 	result := builder().
-		Where(queryopt.Eq("is_enabled", true)).
+		Where("is_enabled = ? AND is_official = ?", true, true).
 		Order("sort_order ASC").Order("id ASC").
 		Find(&entities)
 	return entities, result.Error
@@ -68,10 +68,15 @@ func GetByIDTx(tx *gorm.DB, id uint64) (Entity, error) {
 	err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&row, id).Error
 	return row, err
 }
-func DeleteTx(tx *gorm.DB, id uint64) error { return tx.Delete(&Entity{}, id).Error }
+func DeleteTx(tx *gorm.DB, id uint64) error {
+	if err := tx.Where("sticker_id = ?", id).Delete(&LibraryEntry{}).Error; err != nil {
+		return err
+	}
+	return tx.Delete(&Entity{}, id).Error
+}
 
 func GetByNameTx(tx *gorm.DB, name string) (Entity, error) {
 	var row Entity
-	err := tx.Where("name = ?", name).First(&row).Error
+	err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("name = ?", name).First(&row).Error
 	return row, err
 }

@@ -14,7 +14,9 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/optRecord"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pk"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/reports"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/sticker"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
@@ -34,7 +36,7 @@ func setupUserContentContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 		// AccountClose 的注销前置必需步骤会删除快照（issue #557 review P1），
 		// 本 harness 实测注销成功路径，表必须存在。
 		&pk.ScheduleSnapshotEntity{}, &pk.PlanSyncOwner{}, &pk.PlanItem{},
-		&campus.Binding{},
+		&campus.Binding{}, &sticker.LibraryOwner{}, &sticker.LibraryEntry{}, &users.PrivateNoteEntity{},
 	); err != nil {
 		t.Fatalf("migrate user content contract tables: %v", err)
 	}

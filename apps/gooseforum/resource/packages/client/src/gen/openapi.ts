@@ -2207,6 +2207,135 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/forum/stickers/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Resolve explicit shared sticker tokens
+         * @description Public read-only resolution of at most 200 explicit token names. Duplicate names are
+         *     returned once in request order; unknown/disabled/invalid token names are omitted.
+         *     The total input is limited to 200 names before invalid names are filtered. Personal
+         *     names are unguessable bearer references: knowing a shared token permits
+         *     rendering and collecting that asset. No enumeration or private library labels
+         *     are exposed. Uses the public sticker.list per-IP quota. Body limit 64 KiB.
+         */
+        post: operations["resolveStickers"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/my-stickers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the current account sticker library
+         * @description Lists only the authenticated account's private memberships in saved order.
+         *     Labels are private to this account; the same asset may be collected by others.
+         *     Disabled assets remain with isEnabled=false so users can remove or reorder
+         *     them, but clients must prevent insertion. Permanent official deletion removes
+         *     the corresponding memberships.
+         *     At most 200 members. Removing a member never deletes an asset or sent history.
+         *     Account closure clears this list and fences in-flight membership writes.
+         */
+        get: operations["myStickers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/my-sticker-save": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Upload or collect a sticker in my library
+         * @description Supply exactly one of stickerName or fileName. A known enabled sticker token
+         *     is collected idempotently. fileName must identify a ready standard image/GIF
+         *     uploaded by this account, from 1 byte to 4 MiB; the same file reuses the same
+         *     personal asset on retries. Personal assets have immutable random token names
+         *     and image content. displayName changes only this account's library label.
+         *     Maximum 200 memberships and 1000 retained personal uploads per account;
+         *     removing a membership does not reset the retained-asset quota. Limit errors
+         *     are sticker.libraryFull or sticker.uploadQuota with params.limit. Unknown or
+         *     disabled tokens fail with sticker.unavailable. Invalid/foreign/pending/oversize
+         *     uploads fail with sticker.imageRequired and params.maxSizeMb = 4. Invalid
+         *     input fails with common.request.invalidParams. Membership, quota and file
+         *     reference writes are atomic and serialized per account. Body limit 64 KiB.
+         */
+        post: operations["saveMySticker"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/my-sticker-delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Remove a sticker from my private library
+         * @description Idempotently removes only this account's membership. Does not delete or
+         *     disable the shared asset, release its file reference, affect another account,
+         *     or break previously sent tokens. Invalid names fail with
+         *     common.request.invalidParams. Body limit 64 KiB.
+         */
+        post: operations["deleteMySticker"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/my-stickers-order": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Replace the order of my private sticker library
+         * @description names must contain every current membership once, in desired display order.
+         *     Duplicate, foreign, missing and stale names fail atomically with
+         *     common.request.invalidParams; clients should reload on conflict. Empty names
+         *     is valid only for an empty library. Serialized with collection/removal and
+         *     bounded to 200 names. Body limit 64 KiB.
+         */
+        post: operations["orderMyStickers"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/forum/stickers": {
         parameters: {
             query?: never;
@@ -2215,17 +2344,17 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * List enabled stickers for the editor picker and token replacement
+         * List enabled official stickers for the editor picker
          * @description Public endpoint with no authentication or input. Uses the configurable
          *     `sticker.list` per-IP quota (default 60 requests per 60 seconds); a
          *     database failure returns `common.operation.failed` rather than a cached
-         *     empty success. Returns enabled stickers only, ordered by
+         *     empty success. Returns enabled official stickers only; personal assets are never enumerated. Ordered by
          *     sortOrder ascending then id ascending, each with its globally unique
          *     name and public access `url`. The url follows the storage
          *     configuration: `/file/img/<fileName>` on the local provider or the
          *     configured CDN public-url prefix. The editor sticker picker and the
          *     client-side `[:sticker:name:]` token replacement (MADR 0030) consume
-         *     this list.
+         *     this list. Resolve explicitly shared personal tokens through POST /api/forum/stickers/resolve.
          */
         get: operations["forumStickerList"];
         put?: never;
@@ -5249,7 +5378,7 @@ export interface paths {
          * List every sticker row for the admin console
          * @description Admin console operation gated by the `SiteManager` role permission
          *     (Admin role is a superset); callers without it fail with HTTP 403 and
-         *     `permission.denied`. Returns every sticker row (enabled and disabled),
+         *     `permission.denied`. Returns every official sticker row (enabled and disabled), excluding personal assets,
          *     ordered by sortOrder ascending then id ascending. `url` follows the
          *     storage configuration: `/file/img/<fileName>` on the local provider or
          *     the configured CDN public-url prefix; empty when no image is attached
@@ -5279,7 +5408,7 @@ export interface paths {
          * Create or update a sticker row
          * @description Admin console operation gated by the `SiteManager` role permission;
          *     callers without it fail with HTTP 403 and `permission.denied`. `id` 0
-         *     creates a new sticker; a positive `id` overwrites name/sortOrder/
+         *     creates a new official sticker; a positive `id` overwrites name/sortOrder/
          *     isEnabled of the existing row. Creating requires `fileName` from the
          *     caller's image upload; updating may replace it or omit it to preserve
          *     the image. Unknown, missing or foreign image uploads fail with
@@ -5289,7 +5418,7 @@ export interface paths {
          *     `[:sticker:name:]` requires a sticker-safe identifier, MADR 0030) fails
          *     with `admin.sticker.nameInvalid`, and a name already taken by another
          *     row fails with `admin.sticker.nameExists`. A positive `id` matching no
-         *     sticker fails with `admin.sticker.notFound`; a persistence failure
+         *     official sticker (including an id belonging to a personal asset) fails with `admin.sticker.notFound`; a persistence failure
          *     fails with `admin.sticker.saveFailed` (all HTTP 200). JSON binding is
          *     lenient: a malformed body binds to zero values and fails as
          *     `admin.sticker.nameRequired` (HTTP 200) because the trimmed name is
@@ -5315,7 +5444,7 @@ export interface paths {
          * Delete a sticker row
          * @description Admin console operation gated by the `SiteManager` role permission;
          *     callers without it fail with HTTP 403 and `permission.denied`. The
-         *     sticker row is hard-deleted and its file usage released so the storage
+         *     official sticker row is hard-deleted and its file usage released so the storage
          *     GC can reclaim the image when no other reference remains. Unknown ids
          *     (including a missing/zero id) fail with `admin.sticker.notFound`;
          *     a persistence failure fails with `admin.sticker.deleteFailed` (both
@@ -11618,13 +11747,29 @@ export interface components {
         };
         DirectImageUploadAbortResponse: components["schemas"]["DirectImageUploadAbortSuccess"] | components["schemas"]["ApiFailure"];
         StickerItem: {
-            /** @description Globally unique sticker name, the `[:sticker:name:]` token body; letters/digits/underscore/hyphen only, 1-64 chars. */
+            /**
+             * Format: int64
+             * @description Stable asset identifier; optional for compatibility with older servers.
+             */
+            id?: number;
+            /** @description Stable token body. Official legacy names remain supported; personal assets use unguessable random names and cannot be renamed or replaced. */
             name: string;
-            /** @description Public access path — `/file/img/<fileName>` on the local provider or the configured CDN public-url prefix. */
+            /** @description Public image access path. A shared token permits rendering; a private library membership is never publicly enumerated. */
             url: string;
+            /** @description Private label on my-library/save responses, otherwise the asset label or token name. Never another user's private label. */
+            displayName?: string;
+            /** @description Official pack identifier (default official), or personal for uploaded assets. */
+            pack?: string;
+            /** @description True for admin-managed official assets. Older servers omit this field. */
+            isOfficial?: boolean;
+            /**
+             * @description False for temporarily unavailable assets retained in a private library. Clients must prevent insertion while permitting removal or reordering. Older servers omit this field and clients assume true.
+             * @default true
+             */
+            isEnabled: boolean;
         };
         ForumStickerListSuccess: components["schemas"]["ApiSuccess"] & {
-            /** @description Enabled stickers only, sortOrder ascending then id ascending (empty array when none exist). */
+            /** @description Sticker items. Official directory is enabled official assets only; personal library preserves user order; resolve includes only explicitly requested enabled tokens. */
             result: components["schemas"]["StickerItem"][];
         };
         ForumStickerListResponse: components["schemas"]["ForumStickerListSuccess"] | components["schemas"]["ApiFailure"];
@@ -11651,7 +11796,7 @@ export interface components {
             createdBy: number;
         };
         AdminStickerListSuccess: components["schemas"]["ApiSuccess"] & {
-            /** @description All sticker rows including disabled ones, sortOrder ascending then id ascending. */
+            /** @description Official sticker rows including disabled ones, excluding personal assets; sortOrder ascending then id ascending. */
             result: components["schemas"]["AdminStickerItem"][];
         };
         AdminStickerListResponse: components["schemas"]["AdminStickerListSuccess"] | components["schemas"]["ApiFailure"];
@@ -11826,6 +11971,24 @@ export interface components {
             result?: components["schemas"]["LinkPreview"][];
         };
         LinkPreviewResolveResponse: components["schemas"]["LinkPreviewResolveSuccess"] | components["schemas"]["ApiFailure"];
+        StickerNamesRequest: {
+            names: string[];
+        };
+        MyStickerSaveRequest: {
+            /** @description Existing enabled token to collect or rename in the caller's library. Mutually exclusive with fileName. */
+            stickerName?: string;
+            /** @description Ready standard image upload owned by the caller, storage key or public URL, 1 byte through 4 MiB. Mutually exclusive with stickerName; repeated uploads of the same file reuse the immutable personal asset. */
+            fileName?: string;
+            /** @description Optional private label, trimmed before validation. Omission preserves the label; empty clears it. Does not change the token, shared asset or another account's label. */
+            displayName?: string;
+        };
+        MyStickerSaveSuccess: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["StickerItem"];
+        };
+        MyStickerSaveResponse: components["schemas"]["MyStickerSaveSuccess"] | components["schemas"]["ApiFailure"];
+        MyStickerDeleteRequest: {
+            name: string;
+        };
         CourseBookmarkRequest: {
             /**
              * Format: uint64
@@ -15872,6 +16035,257 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+        };
+    };
+    resolveStickers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StickerNamesRequest"];
+            };
+        };
+        responses: {
+            /** @description Result or stable business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForumStickerListResponse"];
+                };
+            };
+            /** @description Malformed JSON or request body larger than 64 KiB. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Rate quota exceeded. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    myStickers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Result or stable business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForumStickerListResponse"];
+                };
+            };
+            /** @description Authentication required. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    saveMySticker: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MyStickerSaveRequest"];
+            };
+        };
+        responses: {
+            /** @description Result or stable business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyStickerSaveResponse"];
+                };
+            };
+            /** @description Malformed JSON or request body larger than 64 KiB. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authentication required. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, pending activation or CSRF rejection. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Rate quota exceeded. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    deleteMySticker: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MyStickerDeleteRequest"];
+            };
+        };
+        responses: {
+            /** @description Result or stable business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContentActionResponse"];
+                };
+            };
+            /** @description Malformed JSON or request body larger than 64 KiB. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authentication required. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, pending activation or CSRF rejection. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Rate quota exceeded. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    orderMyStickers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StickerNamesRequest"];
+            };
+        };
+        responses: {
+            /** @description Result or stable business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContentActionResponse"];
+                };
+            };
+            /** @description Malformed JSON or request body larger than 64 KiB. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authentication required. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, pending activation or CSRF rejection. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Rate quota exceeded. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
                 };
             };
         };

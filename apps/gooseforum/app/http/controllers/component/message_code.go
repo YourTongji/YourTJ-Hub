@@ -319,6 +319,10 @@ const (
 	MessageAdminUploadExtNotAllowed MessageCode = "admin.upload.extNotAllowed" // 上传扩展名白名单含不受支持的扩展，params.extensions。
 
 	// 表情包库（全局贴纸管理）
+	MessageStickerLibraryFull           MessageCode = "sticker.libraryFull"            // Personal library reached params.limit.
+	MessageStickerUploadQuota           MessageCode = "sticker.uploadQuota"            // Retained personal assets reached params.limit.
+	MessageStickerImageRequired         MessageCode = "sticker.imageRequired"          // Ready owned image required; params.maxSizeMb.
+	MessageStickerUnavailable           MessageCode = "sticker.unavailable"            // Unknown/disabled token.
 	MessageAdminStickerNameRequired     MessageCode = "admin.sticker.nameRequired"     // 表情包名称不能为空。
 	MessageAdminStickerNameInvalid      MessageCode = "admin.sticker.nameInvalid"      // 表情包名称含不支持的字符（仅允许字母/数字/下划线/连字符，最长 64）。
 	MessageAdminStickerNameExists       MessageCode = "admin.sticker.nameExists"       // 同名表情包已存在。

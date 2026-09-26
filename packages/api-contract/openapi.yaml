@@ -219,6 +219,16 @@ paths:
     $ref: ./paths/forum-read.yaml#/searchForum
   /api/link-previews/resolve:
     $ref: ./paths/link-previews.yaml#/resolveLinkPreviews
+  /api/forum/stickers/resolve:
+    $ref: ./paths/sticker-library.yaml#/resolveStickers
+  /api/forum/my-stickers:
+    $ref: ./paths/sticker-library.yaml#/myStickers
+  /api/forum/my-sticker-save:
+    $ref: ./paths/sticker-library.yaml#/saveMySticker
+  /api/forum/my-sticker-delete:
+    $ref: ./paths/sticker-library.yaml#/deleteMySticker
+  /api/forum/my-stickers-order:
+    $ref: ./paths/sticker-library.yaml#/orderMyStickers
   /api/forum/stickers:
     $ref: ./paths/forum-read.yaml#/forumStickerList
   /api/site-theme/tokens:

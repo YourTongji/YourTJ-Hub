@@ -2,7 +2,12 @@
   "result": [
     {
       "name": "smile",
-      "url": "/file/img/stickers/9f1c2d3e-0000-4000-8000-000000000001.png"
+      "url": "/file/img/stickers/9f1c2d3e-0000-4000-8000-000000000001.png",
+      "id": 9101,
+      "displayName": "smile",
+      "pack": "official",
+      "isOfficial": true,
+      "isEnabled": true
     }
   ],
   "code": 0
