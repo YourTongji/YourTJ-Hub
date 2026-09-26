@@ -281,13 +281,12 @@ func TestAdminDownloadExportTaskHTTPContract(t *testing.T) {
 
 	t.Run("success streams the export file bytes", func(t *testing.T) {
 		conn, router := setupAdminDataContractTest(t)
-		// 导出文件从 data/export 相对目录读取：把进程 CWD 切到临时目录，避免污染仓库。
-		t.Chdir(t.TempDir())
-		if err := os.MkdirAll(filepath.Join("data", "export"), 0o755); err != nil {
-			t.Fatalf("mkdir export dir: %v", err)
-		}
+		// 导出目录注入到临时目录，不做进程级 CWD 切换：包级 logger 持有 CWD 相对路径的
+		// 日志句柄，t.Chdir 会让 run.error.log 惰性落进 TempDir 并阻塞 Windows 清理（issue #789）。
+		exportRoot := t.TempDir()
+		t.Cleanup(dataservice.SetExportDirForTest(exportRoot))
 		content := []byte(`{"ok":true}`)
-		if err := os.WriteFile(filepath.Join("data", "export", "contract-export.json"), content, 0o644); err != nil {
+		if err := os.WriteFile(filepath.Join(exportRoot, "contract-export.json"), content, 0o644); err != nil {
 			t.Fatalf("write export file: %v", err)
 		}
 		seedContractTask(t, conn, taskQueue.Entity{
