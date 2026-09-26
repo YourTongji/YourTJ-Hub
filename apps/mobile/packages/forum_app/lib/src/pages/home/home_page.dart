@@ -752,7 +752,7 @@ class _HomeToolbar extends ConsumerWidget {
     required this.onFeedModeSelected,
   });
 
-  final HomeProps props;
+  final HomeProps? props;
   final List<CategoryNavPayload> categories;
   final String selected;
   final GfTopicFeedMode feedMode;
@@ -762,9 +762,16 @@ class _HomeToolbar extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     // 选中项:显式 selected 优先;为空时回退到服务端标记的 active tab。
+    final tabs =
+        props?.tabs ??
+        const <TabItemPayload>[
+          TabItemPayload(key: 'latest', url: '', active: true),
+          TabItemPayload(key: 'hot', url: '', active: false),
+          TabItemPayload(key: 'popular', url: '', active: false),
+        ];
     String effective = selected;
     if (effective.isEmpty) {
-      for (final tab in props.tabs) {
+      for (final tab in tabs) {
         if (tab.active) {
           effective = tab.key;
           break;
@@ -793,7 +800,7 @@ class _HomeToolbar extends ConsumerWidget {
                   Expanded(
                     child: GfTabBar(
                       tabs: <GfTab>[
-                        for (final tab in props.tabs)
+                        for (final tab in tabs)
                           GfTab(
                             // 后端 tabs[].label 可能为空(web 端按 key fallback 到
                             // i18n),空 label 会让选中态深色底渲染成黑块,必须兜底。
