@@ -32,6 +32,12 @@ width breakpoint.
 exposes its name, selected state and activation in one semantic node. Persistent navigation is
 ordered after the active route in the accessibility tree so iOS does not hide it behind that route.
 
+`Current`: Home category shortcuts use a horizontally scrollable rail of medium-radius buttons with
+full, single-line labels, a 36 dp visible surface inside a 48 dp hit area and a category-color marker.
+Text scaling grows the surface and rail instead of clipping labels; the next item remains partially
+visible as a scroll cue. Tapping a shortcut pushes its category page, and returning keeps the Home
+feed position.
+
 
 - `Current`: Home offers a server-defined Following sort. It requires sign-in and shows only
   currently followed authors' public forum topics, newest creation time first with descending

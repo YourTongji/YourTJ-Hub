@@ -37,38 +37,70 @@ class GfTabBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = GfTheme.colorsOf(context);
-    Widget item(GfTab tab) {
-      final active = tab.value == selected;
+    const duration = Duration(milliseconds: 220);
+    const curve = Curves.easeInOutCubic;
+    final noAnimation = MediaQuery.disableAnimationsOf(context);
+    final height = heightFor(context);
+    final selectedIndex = tabs.indexWhere((tab) => tab.value == selected);
+    final measureStyle = DefaultTextStyle.of(
+      context,
+    ).style.copyWith(fontSize: 16, height: 1.25, fontWeight: FontWeight.w600);
+    final itemWidths = <double>[];
+    for (final tab in tabs) {
+      final painter = TextPainter(
+        text: TextSpan(text: tab.label, style: measureStyle),
+        maxLines: 1,
+        textDirection: Directionality.of(context),
+        textScaler: MediaQuery.textScalerOf(context),
+      )..layout();
+      itemWidths.add(painter.width + 32);
+      painter.dispose();
+    }
+    var indicatorLeft = 0.0;
+    if (selectedIndex >= 0) {
+      for (var i = 0; i < selectedIndex; i++) {
+        indicatorLeft += itemWidths[i];
+      }
+      indicatorLeft += (itemWidths[selectedIndex] - 28) / 2;
+    }
+
+    Widget item(int index, {required bool wrapIndicator}) {
+      final active = index == selectedIndex;
       return Semantics(
         selected: active,
         button: true,
         child: InkWell(
-          onTap: () => onSelected(tab.value),
-          child: Container(
-            height: heightFor(context),
-            padding: const EdgeInsets.symmetric(horizontal: 16),
+          onTap: () => onSelected(tabs[index].value),
+          child: SizedBox(
+            width: itemWidths[index],
+            height: height,
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 const SizedBox(height: 12),
-                Text(
-                  tab.label,
-                  style: TextStyle(
-                    fontSize: 16,
-                    height: 1.25,
+                AnimatedDefaultTextStyle(
+                  duration: noAnimation ? Duration.zero : duration,
+                  curve: curve,
+                  style: measureStyle.copyWith(
                     color: active ? colors.baseContent : colors.iconMuted,
                     fontWeight: active ? FontWeight.w600 : FontWeight.w400,
                   ),
+                  child: Text(tabs[index].label, maxLines: 1, softWrap: false),
                 ),
                 const Spacer(),
-                Container(
-                  width: 28,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: active ? colors.primary : Colors.transparent,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
+                if (wrapIndicator)
+                  AnimatedContainer(
+                    duration: noAnimation ? Duration.zero : duration,
+                    curve: curve,
+                    width: 28,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: active ? colors.primary : Colors.transparent,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  )
+                else
+                  const SizedBox(height: 4),
               ],
             ),
           ),
@@ -76,10 +108,44 @@ class GfTabBar extends StatelessWidget {
       );
     }
 
-    if (!mobile) return Wrap(children: tabs.map(item).toList());
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(children: tabs.map(item).toList()),
+    if (!mobile) {
+      return Wrap(
+        children: [
+          for (var i = 0; i < tabs.length; i++) item(i, wrapIndicator: true),
+        ],
+      );
+    }
+
+    final row = SizedBox(
+      height: height,
+      child: Stack(
+        children: [
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (var i = 0; i < tabs.length; i++)
+                item(i, wrapIndicator: false),
+            ],
+          ),
+          if (selectedIndex >= 0)
+            AnimatedPositioned(
+              duration: noAnimation ? Duration.zero : duration,
+              curve: curve,
+              left: indicatorLeft,
+              bottom: 0,
+              width: 28,
+              height: 4,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: colors.primary,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+        ],
+      ),
     );
+
+    return SingleChildScrollView(scrollDirection: Axis.horizontal, child: row);
   }
 }

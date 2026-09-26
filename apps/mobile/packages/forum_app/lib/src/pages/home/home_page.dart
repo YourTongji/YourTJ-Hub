@@ -26,6 +26,11 @@ import '../../current_user.dart';
 import '../../offline/drift_cache.dart';
 import '../../startup_metrics.dart';
 
+double _categoryRailHeight(BuildContext context) {
+  final scaledTextSize = MediaQuery.textScalerOf(context).scale(14);
+  return math.max(48.0, scaledTextSize + 16);
+}
+
 /// 首页:公告 + 话题流(web HomePage.vue 的移动端形态)。
 class HomePage extends ConsumerStatefulWidget {
   const HomePage({super.key});
@@ -659,17 +664,16 @@ class _HomePageState extends ConsumerState<HomePage> {
         ),
       ],
       toolbarHeight:
-          GfTabBar.heightFor(context) + (_categories.isEmpty ? 0 : 56),
-      toolbar: _navigationProps != null
-          ? _HomeToolbar(
-              props: _navigationProps!,
-              categories: _categories,
-              selected: _sort.isEmpty ? 'latest' : _sort,
-              feedMode: _feedMode,
-              onSelected: _switchSort,
-              onFeedModeSelected: _setFeedMode,
-            )
-          : const SizedBox.shrink(),
+          GfTabBar.heightFor(context) +
+          (_categories.isEmpty ? 0 : _categoryRailHeight(context)),
+      toolbar: _HomeToolbar(
+        props: _navigationProps,
+        categories: _categories,
+        selected: _sort.isEmpty ? 'latest' : _sort,
+        feedMode: _feedMode,
+        onSelected: _switchSort,
+        onFeedModeSelected: _setFeedMode,
+      ),
       body: (top, bottom) => IndexedStack(
         index: _feeds.keys.toList().indexOf(_sort),
         children: [
@@ -830,13 +834,10 @@ class _HomeToolbar extends ConsumerWidget {
           // 点击跳转分类页;后端未配置分类时整行不占位。
           if (categories.isNotEmpty)
             SizedBox(
-              height: 56,
+              height: _categoryRailHeight(context),
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 6,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 12),
                 itemCount: categories.length,
                 separatorBuilder: (_, _) => const SizedBox(width: 8),
                 itemBuilder: (BuildContext context, int index) {
@@ -868,8 +869,7 @@ class _HomeToolbar extends ConsumerWidget {
   }
 }
 
-/// 首页顶栏分类入口 pill:色点 + 分类名,镜像 GfChip 的视觉规格,
-/// 但可点击并按内容自适应宽度,横向滑动承载多个分类。
+/// Home category shortcuts keep full labels and share one horizontal scroll rail.
 class _CategoryPill extends StatelessWidget {
   const _CategoryPill({
     required this.label,
@@ -884,34 +884,53 @@ class _CategoryPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final GfColors colors = GfTheme.colorsOf(context);
+    final railHeight = _categoryRailHeight(context);
+    final pillHeight = math.max(
+      36.0,
+      MediaQuery.textScalerOf(context).scale(14) + 16,
+    );
+    const pillRadius = 12.0;
+    final hitRadius = pillRadius + (railHeight - pillHeight) / 2;
     return Material(
-      color: colors.base300,
-      borderRadius: BorderRadius.circular(999),
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(hitRadius),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(999),
-        child: Container(
-          constraints: const BoxConstraints(minHeight: 44),
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          alignment: Alignment.center,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              Container(
-                width: 6,
-                height: 6,
-                decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        borderRadius: BorderRadius.circular(hitRadius),
+        child: SizedBox(
+          height: railHeight,
+          child: Center(
+            child: Container(
+              height: pillHeight,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              decoration: BoxDecoration(
+                color: colors.base300,
+                borderRadius: BorderRadius.circular(pillRadius),
               ),
-              const SizedBox(width: 5),
-              Text(
-                label,
-                style: TextStyle(
-                  color: colors.baseContent.withValues(alpha: 0.75),
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: color,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    label,
+                    style: TextStyle(
+                      color: colors.baseContent,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    softWrap: false,
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
       ),

@@ -46,6 +46,11 @@ space. Compose menus follow their source column and consume system insets once. 
 breakpoints and bounds live in [mobile experience](mobile-experience.md#navigation-and-reading).
 `Planned`: contextual panes and bounded reading layouts on every pushed page.
 
+`Current`: Home's category shortcuts are medium-radius, content-width buttons in a horizontal rail.
+Their visible surface is 36 dp high inside a 48 dp touch target; they retain complete one-line labels
+and a visible next-item peek. Larger text scales increase the surface and rail height together.
+Selecting one pushes its category page and preserves the Home scroll position on return.
+
 Resizing, rotating or opening the keyboard must not recreate a draft, reset the selected tab, navigate
 away or lose scroll position. No product operation depends solely on hover. Keyboard users can reach
 all controls, see focus, dismiss a transient panel with Escape and use standard editing shortcuts.
