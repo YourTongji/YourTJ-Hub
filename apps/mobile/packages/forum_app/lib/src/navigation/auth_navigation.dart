@@ -103,6 +103,8 @@ String? _parseAuthReturnTo(String? raw) {
     'courses' => const {'q', 'reviewId', 'offeringId'},
     'profile' => const {'stream'},
     'search' || 'wiki' => const {'q'},
+    'settings' =>
+      uri.path == '/settings/profile' ? const {'edit'} : const <String>{},
     null || '' => const {'sort'},
     _ => const <String>{},
   };
@@ -125,6 +127,7 @@ String? _parseAuthReturnTo(String? raw) {
         !positive(value)) {
       return null;
     }
+    if (entry.key == 'edit' && value != '1') return null;
   }
   if (uri.path == '/chat' && !positive(uri.queryParameters['userId'] ?? '')) {
     return null;
