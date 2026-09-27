@@ -252,6 +252,19 @@ func decodeContractEnvelope(t *testing.T, recorder *httptest.ResponseRecorder) c
 	return envelope
 }
 
+// decodeUserCardIsAccountClosed 解析 user-card 响应中的 isAccountClosed 字段，
+// 供注销缓存即时性等需要逐字段断言的用例复用。
+func decodeUserCardIsAccountClosed(t *testing.T, recorder *httptest.ResponseRecorder) bool {
+	t.Helper()
+	var card struct {
+		IsAccountClosed bool `json:"isAccountClosed"`
+	}
+	if err := json.Unmarshal(decodeContractEnvelope(t, recorder).Result, &card); err != nil {
+		t.Fatalf("decode user card result: %v", err)
+	}
+	return card.IsAccountClosed
+}
+
 func contractFixture(t *testing.T, filename string) contractEnvelope {
 	t.Helper()
 	_, testFile, _, ok := runtime.Caller(0)

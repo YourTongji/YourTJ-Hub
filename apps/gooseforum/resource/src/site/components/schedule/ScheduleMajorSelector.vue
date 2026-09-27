@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// 学期→年级→专业 选择器。任何一级变更都会清空已选/备选课程（防跨学期污染），
+// 学期→年级→专业选择器。完成初始化后的上下文变更清空课程（防跨学期污染），
 // 对齐上游 MajorInfo 交互语义。
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { AlertCircle, Check, ChevronDown, ChevronUp, Compass, Copy, ExternalLink, HelpCircle, Info, Link2, RotateCcw, Sparkles, X } from '@lucide/vue'
@@ -51,6 +51,9 @@ const loading = ref(false)
 const error = ref('')
 /** 初始化恢复期：抑制 watch 触发清空（避免误清刷新恢复的已选课程）。 */
 let isRestoring = true
+/** 尚未选到专业的上下文仍属于初始化，即使中途退出或刷新。
+ *  初始化期间保留跨设备同步方案；已有完整上下文的变更仍清空课程。 */
+let firstSelectionWizard = false
 
 // 选择组件的 modelValue 为 string；选择值本地持有字符串，变更时写回 store。
 const calendarValue = ref('')
@@ -137,10 +140,18 @@ async function loadMajors(grade: number, calendarId: number) {
   }
 }
 
-function resetSelection() {
-  store.clearStagedAndSelectedCourses()
-  // 换学期/年级/专业清空课程后立即持久化，避免刷新后旧课程从
-  // localStorage 复活（与退课同一缺陷族）。
+/**
+ * 学期/年级/专业任一变更后的课程清理入口。
+ * @param skipClear 跳过清空。设备尚未完成专业选择（firstSelectionWizard）
+ *  且尚未选到专业（向导未完成）时，选择属于上下文初始化而非变更——清空语义
+ *  隐含「课程内容属于本设备上下文」，而方案内容现跨设备同步（#714/#757），
+ *  此时清空会把云端同步下来的全部方案清空并以合法 CAS 上传空方案扩散
+ *  （issue #795 数据丢失链路）。向导完成后回到「变更即清空」语义。
+ */
+function resetSelection(skipClear = false) {
+  if (!skipClear) store.clearStagedAndSelectedCourses()
+  // 换学期/年级/专业清空课程（或首次建立上下文）后立即持久化，避免刷新后
+  // 旧课程从 localStorage 复活（与退课同一缺陷族）。
   store.solidify()
 }
 
@@ -153,6 +164,8 @@ async function restoreSelection() {
   isRestoring = true
   await loadCalendars()
   const restored = store.state.majorSelected
+  // 自动回填的学期不代表初始化已完成；刷新后继续未完成的向导。
+  firstSelectionWizard = !restored.major
   const calendarId = calendarValue.value ? Number(calendarValue.value) : undefined
   // 首次访问（无已存选择）或已存学期失效回退时，isRestoring 抑制 watch，
   // 必须把最终选中的学期写回 store；否则后续选年级时 calendarId 为
@@ -160,16 +173,17 @@ async function restoreSelection() {
   const calendarChanged = calendarId !== undefined && calendarId !== restored.calendarId
   if (calendarChanged) {
     store.setMajorInfo({ calendarId, grade: undefined, major: undefined })
-    // 旧学期已失效：清掉其课程缓存，防跨学期污染（对齐学期变更 watch 语义）。
-    resetSelection()
+    // 已存学期失效：清掉其课程缓存，防跨学期污染（对齐学期变更 watch 语义）。
+    // 只有从未保存过学期才豁免；失效学期即使尚未选专业也必须清理。
+    resetSelection(restored.calendarId === undefined)
   }
   if (calendarId !== undefined) {
     await loadGrades(calendarId)
-    // 仅当学期未变（有效恢复）且年级/专业均恢复成功时加载专业；
+    // 学期未变且年级已恢复时加载专业，包括中途退出的初始化向导；
     // 回退场景专业已清空，等用户重新选择（watch 使用已写回的 calendarId）。
-    if (gradeValue.value && restored.major && !calendarChanged) {
+    if (gradeValue.value && !calendarChanged) {
       await loadMajors(Number(gradeValue.value), calendarId)
-      if (!restored.majorName) {
+      if (restored.major && !restored.majorName) {
         const found = displayMajor(restored.major)
         if (found) {
           store.setMajorInfo({ ...restored, majorName: found })
@@ -183,8 +197,10 @@ async function restoreSelection() {
 // 学期变更：拉年级，清空年级/专业与课程缓存。
 watch(calendarValue, (value) => {
   if (isRestoring) return
+  // 首次上下文初始化向导（issue #795）完成前，选择是初始化而非变更，不清空。
+  const skipClear = firstSelectionWizard && !store.state.majorSelected.major
   store.setMajorInfo({ calendarId: value ? Number(value) : undefined, grade: undefined, major: undefined, majorName: undefined })
-  resetSelection()
+  resetSelection(skipClear)
   if (value) {
     void loadGrades(Number(value))
   } else {
@@ -199,8 +215,9 @@ watch(calendarValue, (value) => {
 watch(gradeValue, (value) => {
   if (isRestoring) return
   const calendarId = store.state.majorSelected.calendarId
+  const skipClear = firstSelectionWizard && !store.state.majorSelected.major
   store.setMajorInfo({ calendarId, grade: value ? Number(value) : undefined, major: undefined, majorName: undefined })
-  resetSelection()
+  resetSelection(skipClear)
   if (value && calendarId !== undefined) {
     void loadMajors(Number(value), calendarId)
   } else {
@@ -215,35 +232,40 @@ watch(majorValue, (value) => {
   const calendarId = store.state.majorSelected.calendarId
   const grade = store.state.majorSelected.grade
   const majorName = displayMajor(value)
+  // 首次向导的最后一步（尚无专业）：写回专业本身，不清空（issue #795）。
+  const skipClear = firstSelectionWizard && !store.state.majorSelected.major
   store.setMajorInfo({ calendarId, grade, major: value || undefined, majorName: majorName || undefined })
-  resetSelection()
+  resetSelection(skipClear)
 })
 
 function clearCalendar() {
+  const skipClear = firstSelectionWizard && !store.state.majorSelected.major
   calendarValue.value = ''
   gradeValue.value = ''
   majorValue.value = ''
   grades.value = []
   majors.value = []
   store.setMajorInfo({ calendarId: undefined, grade: undefined, major: undefined, majorName: undefined })
-  resetSelection()
+  resetSelection(skipClear)
 }
 
 function clearGrade() {
+  const skipClear = firstSelectionWizard && !store.state.majorSelected.major
   gradeValue.value = ''
   majorValue.value = ''
   majors.value = []
   const calendarId = store.state.majorSelected.calendarId
   store.setMajorInfo({ calendarId, grade: undefined, major: undefined, majorName: undefined })
-  resetSelection()
+  resetSelection(skipClear)
 }
 
 function clearMajor() {
+  const skipClear = firstSelectionWizard && !store.state.majorSelected.major
   majorValue.value = ''
   const calendarId = store.state.majorSelected.calendarId
   const grade = store.state.majorSelected.grade
   store.setMajorInfo({ calendarId, grade, major: undefined, majorName: undefined })
-  resetSelection()
+  resetSelection(skipClear)
 }
 
 function clearAllSelection() {

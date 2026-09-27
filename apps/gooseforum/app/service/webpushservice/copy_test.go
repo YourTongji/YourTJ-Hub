@@ -8,7 +8,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/urlconfig"
 )
 
-// 文案表完整性：4 语言 × 全部 8 事件类型的 body 均非空；badge 文案必须保留
+// 文案表完整性：4 语言 × 全部 9 事件类型的 body 均非空；badge 文案必须保留
 // {badge} 占位符（发送前用徽章名替换）；genericTitle 4 语言非空。
 func TestCopyTableComplete(t *testing.T) {
 	langs := []string{"zh", "en", "ja", "de"}
@@ -21,6 +21,7 @@ func TestCopyTableComplete(t *testing.T) {
 		eventNotification.EventTypeBadge,
 		eventNotification.EventTypeLike,
 		eventNotification.EventTypeWikiUpdated,
+		eventNotification.EventTypeSystem,
 	}
 	for _, lang := range langs {
 		if genericTitle(lang) == "" {
@@ -168,11 +169,42 @@ func TestBuildPushContentBadgeReplacesPlaceholder(t *testing.T) {
 	}
 }
 
-// 无文案的类型（system 未进文案表）不产出推送内容。
+// 无文案的未知类型不产出推送内容（system 已进文案表，用真正的未知类型验证）。
 func TestBuildPushContentUnknownTypeNil(t *testing.T) {
-	notification := eventNotification.Entity{EventType: eventNotification.EventTypeSystem}
+	notification := eventNotification.Entity{EventType: "unknown_type"}
 	if content := buildPushContent(notification, "zh"); content != nil {
-		t.Errorf("system content = %#v, want nil", content)
+		t.Errorf("unknown-type content = %#v, want nil", content)
+	}
+}
+
+// system 通知（管理告警）可推送：文案表命中 system，深链回落通知中心，
+// 标题回落通用标题。
+func TestBuildPushContentSystem(t *testing.T) {
+	notification := eventNotification.Entity{
+		EventType: eventNotification.EventTypeSystem,
+		Payload:   eventNotification.NotificationPayload{Title: "一系统排课同步失败", Content: "【本科】同步失败：未登录或会话失效"},
+	}
+	for lang, body := range map[string]string{
+		"zh": "系统管理提醒",
+		"en": "Admin alert",
+		"ja": "管理者向けアラート",
+		"de": "Admin-Warnung",
+	} {
+		content := buildPushContent(notification, lang)
+		if content == nil {
+			t.Fatalf("system %s content is nil", lang)
+		}
+		if content.Body != body {
+			t.Errorf("system %s body = %q, want %q", lang, content.Body, body)
+		}
+		if content.URL != urlconfig.Notifications() {
+			t.Errorf("system %s url = %q, want notifications page", lang, content.URL)
+		}
+		if content.Title != "" {
+			// 系统通知不带话题/actor，标题应回落通用标题而非 payload.Title
+			// （Web push 与站内通知列表的标题字段语义不同）。
+			t.Logf("system %s title = %q (generic)", lang, content.Title)
+		}
 	}
 }
 

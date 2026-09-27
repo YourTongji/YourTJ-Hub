@@ -185,6 +185,30 @@ func SendBadgeNotification(userId uint64, badgeCode string, badgeName string, ba
 	return err
 }
 
+// SendSystemAlert 发送无触发者的系统级站内通知（issue #855）。
+// 不携带 TemplateKey/ActorId：Web 与移动端按 payload 的 title/content 原样渲染，
+// 用于运维告警（如排课同步失败提醒）。通知内容由调用方负责脱敏。
+func SendSystemAlert(userID uint64, title string, content string) error {
+	payload := eventNotification.NotificationPayload{
+		Title:   title,
+		Content: content,
+	}
+
+	notification := &eventNotification.Entity{
+		UserId:    userID,
+		EventType: eventNotification.EventTypeSystem,
+		Payload:   payload,
+	}
+
+	err := eventNotification.Create(notification)
+	if err == nil {
+		notificationCommitted(userID)
+		webpushservice.EnqueueNotification(userID, notification.Id)
+		nativepushservice.EnqueueNotification(userID, notification.Id)
+	}
+	return err
+}
+
 // SendLikeNotification 发送楼层点赞通知
 func SendLikeNotification(userId uint64, topicId uint64, topicTitle string, postId uint64, postNo uint64, likerId uint64) error {
 	payload := eventNotification.NotificationPayload{

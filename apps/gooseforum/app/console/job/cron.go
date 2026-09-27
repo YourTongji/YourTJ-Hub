@@ -3,6 +3,7 @@ package job
 import (
 	"context"
 	"log/slog"
+	"strings"
 	"sync"
 	"time"
 
@@ -13,12 +14,14 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/preferences"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/dailyStats"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/networkAccessLog"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/contentdeleteservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/courseservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/dataservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/fileusageservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/nativepushservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/oidcservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/pkservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/storageservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/totpservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/webpushservice"
@@ -164,6 +167,57 @@ func registerJobs() {
 		}
 	}))
 	slog.Info("reg cron", "entryID", entryID, "spec", wikiSpec, "err", err)
+	// 排课数据定时同步（issue #569）：默认关闭；管理端「一系统同步」开启并保存
+	// cron 表达式后注册本条目，配置热更新走 RefreshPkSyncCron（无需重启）。
+	registerPkSyncCron()
+}
+
+// pkSyncEntry 排课数据定时同步的 cron entry（0 = 未注册）。配置经管理端保存后
+// 通过 RefreshPkSyncCron 增删/改写条目，宿主进程的热修改无需重启。
+var pkSyncEntry cron.EntryID
+
+// registerPkSyncCron 按当前配置注册（或注销）排课数据定时同步 cron：
+//   - 未启用或表达式为空时不注册；
+//   - 已有旧条目先 Remove 再按新表达式 AddFunc（AddFunc 解析失败时保持未注册，
+//     管理端保存侧已用同一标准解析器前置校验，理论上不会走到这里）。
+//
+// 触发时由 pkservice.RunScheduledSync 执行与「立即同步」同一管线；并发/重入由
+// fetchlog 1 小时 running 租约窗口兜底（重叠触发会跳过）。
+func registerPkSyncCron() {
+	if pkSyncEntry != 0 {
+		scheduler.Remove(pkSyncEntry)
+		pkSyncEntry = 0
+	}
+	cfg := hotdataserve.GetPkSyncScheduleConfigCache()
+	if !cfg.Enabled {
+		return
+	}
+	spec := strings.TrimSpace(cfg.Schedule)
+	if spec == "" {
+		return
+	}
+	entryID, err := scheduler.AddFunc(spec, upCmd(func() {
+		// 每次触发重读配置：关闭开关或删除条目后即使残留一次调度也立即空转跳过。
+		if err := pkservice.RunScheduledSync(context.Background()); err != nil {
+			slog.Warn("pk scheduled sync failed", "error", err)
+		}
+	}))
+	slog.Info("reg pk sync cron", "entryID", entryID, "spec", spec, "err", err)
+	if err == nil {
+		pkSyncEntry = entryID
+	}
+}
+
+// RefreshPkSyncCron 供管理端保存排课定时同步配置后热刷新 cron 注册（issue #569），
+// 避免改动需重启进程才生效。scheduler 未启动（纯 CLI 模式）时保持惰性：下次
+// Run() 会读取最新配置注册。
+func RefreshPkSyncCron() {
+	runMu.Lock()
+	defer runMu.Unlock()
+	if !registered {
+		return
+	}
+	registerPkSyncCron()
 }
 
 func Stop(parentContexts ...context.Context) error {

@@ -9091,6 +9091,68 @@ PkSyncCalendarResponse:
             $ref: '#/AdminTaskQueueItem'
           description: Up to 20 most recent export tasks, newest id first.
 
+# ================= PK 排课数据定时同步配置（issue #569）=================
+
+PkSyncScheduleSettings:
+  type: object
+  required: [enabled, schedule, term, depth, audience]
+  additionalProperties: false
+  properties:
+    enabled:
+      type: boolean
+      description: 定时同步总开关；关闭时不注册 cron，也不执行。
+    schedule:
+      type: string
+      description: 5 段标准 cron 表达式（分 时 日 月 周），如 "30 2 * * *"（每日 02:30）。启用时后端用与进程内调度器相同的标准解析器校验。
+    term:
+      type: string
+      description: 目标学期：一系统数字 calendarId（如 121）或学期名（如 2025-2026-1）；留空表示同步该数据来源最近已同步的学期。
+    depth:
+      type: integer
+      minimum: 1
+      description: 以目标学期为终点向前同步的连续学期数（管理端上限 8）。
+    audience:
+      type: string
+      enum: [undergraduate, graduate]
+      description: 数据来源；未配置时按本科生处理。
+
+PkSyncScheduleSettingsSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          $ref: '#/PkSyncScheduleSettings'
+
+PkSyncScheduleSettingsResponse:
+  oneOf:
+    - $ref: '#/PkSyncScheduleSettingsSuccess'
+    - $ref: '#/ApiFailure'
+
+SavePkSyncScheduleSettingsRequest:
+  type: object
+  required: [enabled]
+  additionalProperties: false
+  properties:
+    enabled:
+      type: boolean
+      description: 定时同步总开关；false 时其余字段被忽略，仅关闭并注销 cron。
+    schedule:
+      type: string
+      maxLength: 128
+      description: 5 段标准 cron 表达式；启用时必须为可解析表达式，否则整个请求失败（HTTP 200 code:1）。
+    term:
+      type: string
+      maxLength: 128
+      description: 目标学期（数字 calendarId / 学期名）；留空 = 最近已同步学期。
+    depth:
+      type: integer
+      description: 回溯学期数，越界 clamp 到 [1, 8]。
+    audience:
+      type: string
+      description: 数据来源（undergraduate / graduate）；空按本科处理。非法值整个请求失败。
+
 AdminImportReportError:
   type: object
   required: [line, table, reason]
@@ -9882,6 +9944,48 @@ PkMaterializeResponse:
           properties:
             result:
               $ref: '#/PkMaterializeResult'
+    - $ref: '#/ApiFailure'
+
+PkValidateCredentialRequest:
+  type: object
+  additionalProperties: false
+  properties:
+    audience:
+      type: string
+      enum: [undergraduate, graduate]
+      default: undergraduate
+      description: 课程数据来源范围；省略时使用本科生数据。
+    credential:
+      type: string
+      description: >-
+        待校验的一系统凭证原文（本科 Cookie header / 研究生 X-Token）。留空时按
+        同步 CLI 同款优先级解析：环境变量 → 管理端已保存设置（securestore 密文解密）。
+
+PkValidateCredentialSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          type: object
+          required: [valid, message]
+          additionalProperties: false
+          properties:
+            valid:
+              type: boolean
+              description: >-
+                凭证是否可用：以最新已同步学期为真实目标最小抓取一页（pageSize=1）
+                探测成功。探测不写库、不写 fetchlog、不修改配置。
+            message:
+              type: string
+              description: >-
+                校验说明：valid=true 时为空串；valid=false 时为脱敏后的失败原因
+                （凭证失效/一系统网络错误，或尚无已同步学期时的提示）。
+
+PkValidateCredentialResponse:
+  oneOf:
+    - $ref: '#/PkValidateCredentialSuccess'
     - $ref: '#/ApiFailure'
 
 # ================= 表情包库（MADR 0030）=================

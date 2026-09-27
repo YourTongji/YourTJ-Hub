@@ -174,6 +174,20 @@ func GetDefaultScheduleSettingsConfig() pageConfig.ScheduleSettingsConfig {
 	}
 }
 
+// GetDefaultPkSyncScheduleConfig 排课数据定时同步默认值（issue #569）：
+// 默认关闭；cron 与运维外部 crontab 的 course-pk-sync 节奏一致（每日 02:30），
+// 目标学期留空（同步最近已同步学期）、回溯 1 学期、本科数据来源。
+// Audience 取值与 pkservice.ParseAudience 对齐（undergraduate / graduate）。
+func GetDefaultPkSyncScheduleConfig() pageConfig.PkSyncScheduleConfig {
+	return pageConfig.PkSyncScheduleConfig{
+		Enabled:  false,
+		Schedule: "30 2 * * *",
+		Term:     "",
+		Depth:    1,
+		Audience: "undergraduate",
+	}
+}
+
 // NormalizeStoredScheduleSettings 读取侧归一节次作息配置（review P1）：
 // PR #496 之前保存的配置没有 numbering 标记且为旧 12 节编号（第 9 节 17:10、
 // 晚间 10/11/12 节），直接按节次号合并进现行 11 节视图会把晚间整体错位一格，

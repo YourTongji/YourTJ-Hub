@@ -33,9 +33,11 @@ export default {
   },
   badgeDisplay: {
     title: "プロフィールのバッジ",
-    hint: "最大5個まで選び、表示順を変更できます。すべて非表示にもできます。アバターのバッジとは別の設定です。",
-    up: "上へ",
-    down: "下へ",
+    hint: "チェックで表示・非表示を切り替え、選択したバッジをドラッグして並べ替えます。最大5個まで選べます。アバターのバッジとは別の設定です。",
+    selected: "表示中 {count}/5",
+    available: "追加できるバッジ",
+    empty: "表示するバッジはまだありません。下のバッジにチェックを入れて追加してください。",
+    reorder: "{name}をドラッグするか、Alt+上下キーで並べ替え",
     save: "バッジを保存"
   },
   tongjiRegistration: {
@@ -835,6 +837,8 @@ export default {
     announcement: 'お知らせ',
     markAnnouncementRead: '既読にする',
     markAnnouncementUnread: '通知を再開',
+    collapseAnnouncement: 'お知らせを折りたたむ',
+    expandAnnouncement: 'お知らせを展開する',
     feedMode: '表示スタイルを切り替え',
     feedModeTable: 'リスト',
     feedModeCard: 'カード',

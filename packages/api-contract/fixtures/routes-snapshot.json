@@ -97,6 +97,10 @@
   },
   {
     "method": "GET",
+    "path": "/api/admin/pk/sync-schedule-settings"
+  },
+  {
+    "method": "GET",
     "path": "/api/admin/pk/sync-status"
   },
   {
@@ -710,6 +714,14 @@
   {
     "method": "POST",
     "path": "/api/admin/pk/sync-calendar"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/pk/sync-schedule-settings"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/pk/validate-credential"
   },
   {
     "method": "POST",

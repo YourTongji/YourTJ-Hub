@@ -240,6 +240,21 @@ func GetByIds(userIds []uint64) (entities []*EntityComplete) {
 	return
 }
 
+// GetActiveUserIdsByRoleIds 返回指定角色下未注销（软删）的用户 id 列表。
+// builder() 走 .Table() 原生查询不含 GORM 软删 scope（见 users_actor_test.go
+// 中 setupUserIsolationTestDB 的注释），因此必须显式过滤 deleted_at。
+func GetActiveUserIdsByRoleIds(roleIds []uint64) []uint64 {
+	if len(roleIds) == 0 {
+		return nil
+	}
+	var ids []uint64
+	builder().
+		Where(queryopt.In(fieldRoleId, roleIds)).
+		Where(queryopt.IsNull(fieldDeletedAt)).
+		Pluck(pid, &ids)
+	return ids
+}
+
 func GetMapByIds(userIds []uint64) map[uint64]*EntityComplete {
 	return lo.KeyBy(GetByIds(userIds), func(v *EntityComplete) uint64 {
 		return v.Id

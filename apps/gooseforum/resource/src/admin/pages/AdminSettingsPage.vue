@@ -39,6 +39,7 @@ import {
   getMailSettings,
   getHttpNotifySettings,
   getOnesystemSettings,
+  getPkSyncScheduleSettings,
   getPkSyncStatus,
   getPostingSettings,
   getRateLimitSettings,
@@ -55,6 +56,7 @@ import {
   saveMailSettings,
   saveOnesystemSettings,
   savePostingSettings,
+  savePkSyncScheduleSettings,
   saveAiSummarySettings,
   saveMCPSettings,
   saveRateLimitSettings,
@@ -68,6 +70,7 @@ import {
   testMailConnection,
   testStorageConnection,
   uploadAdminImage,
+  validatePkCredential,
 } from '@/admin/runtime/api'
 import { adminToast } from '@/admin/runtime/toast'
 import { resolveApiMessage } from '@/runtime/api-message'
@@ -83,6 +86,7 @@ import type {
   MailSettings,
   MCPSettings,
   OnesystemSettings,
+  PkSyncScheduleSettings,
   PkSyncStatusItem,
   PostingSettings,
   RateLimitSettings,
@@ -96,6 +100,7 @@ import type {
 } from '@/admin/types'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/admin/components/ui/select'
 import { safeUrl } from '@/runtime/safe-url'
+import { isValidCron5Field } from '@/admin/cron'
 
 type Kind = 'site-info' | 'mail' | 'security' | 'posting' | 'rate-limit' | 'mcp' | 'ai-summary' | 'http-notify' | 'announcement' | 'storage' | 'terms' | 'privacy' | 'onesystem' | 'schedule'
 
@@ -157,11 +162,24 @@ const onesystemCredentialItems: Array<{ audience: OnesystemAudience, labelKey: s
   { audience: 'graduate', labelKey: 'k00tgrad' },
 ]
 const savingCookie = ref(false)
+const validatingCookie = ref(false)
 const syncForm = reactive<{ term: string, depth: number, audience: OnesystemAudience }>({ term: '', depth: 1, audience: 'undergraduate' })
 const syncingPk = ref(false)
 const syncStatusItems = ref<PkSyncStatusItem[]>([])
 const syncStatusLoading = ref(false)
 let syncPollTimer: ReturnType<typeof setInterval> | null = null
+
+// ---- 排课数据定时同步（issue #569）：cron 开关 + 表达式 + 学期参数 ----
+const pkScheduleForm = reactive<PkSyncScheduleSettings>({
+  enabled: false,
+  schedule: '30 2 * * *',
+  term: '',
+  depth: 1,
+  audience: 'undergraduate',
+})
+const scheduleSaving = ref(false)
+/** cron 输入实时校验：启用时表达式必须合法（后端保存时仍会权威校验）。 */
+const cronValid = computed(() => !pkScheduleForm.enabled || isValidCron5Field(pkScheduleForm.schedule.trim()))
 
 // ---- 排课器节次作息（控制 /schedule 课表左侧节次时间展示）----
 // 现行 11 节制默认作息（2025-2026 学年起）：白天 1-8 节 + 晚间 9/10/11 节（18:30 起）。
@@ -816,7 +834,7 @@ async function load() {
     else if (props.kind === 'terms') Object.assign(termsForm, normalizeTerms(await getTermsOfService()))
     else if (props.kind === 'privacy') Object.assign(privacyForm, normalizePrivacy(await getPrivacyPolicy()))
     else if (props.kind === 'onesystem') {
-      await Promise.all([loadOnesystem(), refreshSyncStatus()])
+      await Promise.all([loadOnesystem(), refreshSyncStatus(), loadPkSchedule()])
     }
     else if (props.kind === 'schedule') Object.assign(scheduleForm, normalizeSchedule(await getScheduleSettings()))
     else Object.assign(announcementForm, normalizeAnnouncement(await getAnnouncement()))
@@ -1115,6 +1133,25 @@ async function clearCredential(audience: OnesystemAudience) {
   }
 }
 
+/** 校验一系统凭证（issue #856 保存前探测）：输入框留空时后端按环境变量/已保存设置解析。 */
+async function validateCredential(audience: OnesystemAudience) {
+  validatingCookie.value = true
+  try {
+    const entered = onesystemCredentials[audience].value.trim()
+    const result = await validatePkCredential(audience, entered || undefined)
+    if (result.valid) {
+      adminToast.success(adminText('k00wh2'))
+    } else {
+      // 凭证失效 / 尚无已同步学期：后端返回脱敏后的失败说明，直接展示。
+      adminToast.error(new Error(result.message || adminText('k00wh1')), adminText('k00wh1'))
+    }
+  } catch (err) {
+    adminToast.error(err, adminText('k00wh1'))
+  } finally {
+    validatingCookie.value = false
+  }
+}
+
 async function startSync() {
   const term = syncForm.term.trim()
   if (!term) {
@@ -1157,6 +1194,42 @@ function stopSyncPolling() {
   if (syncPollTimer !== null) {
     clearInterval(syncPollTimer)
     syncPollTimer = null
+  }
+}
+
+// normalizePkSchedule 归一化定时同步配置：cron 为空回默认 30 2 * * *，depth clamp 到
+// 1..8，数据来源非法回本科（与后端保存路径一致）。
+function normalizePkSchedule(settings: Partial<PkSyncScheduleSettings> = {}): PkSyncScheduleSettings {
+  return {
+    enabled: toBool(settings.enabled, false),
+    schedule: (settings.schedule ?? '').trim() || '30 2 * * *',
+    term: (settings.term ?? '').trim(),
+    depth: Math.min(Math.max(Number(settings.depth ?? 1), 1), 8),
+    audience: settings.audience === 'graduate' ? 'graduate' : 'undergraduate',
+  }
+}
+
+async function loadPkSchedule() {
+  try {
+    Object.assign(pkScheduleForm, normalizePkSchedule(await getPkSyncScheduleSettings()))
+  } catch (err) {
+    adminToast.error(err, adminText('k00wd'))
+  }
+}
+
+async function savePkSchedule() {
+  if (pkScheduleForm.enabled && !isValidCron5Field(pkScheduleForm.schedule.trim())) {
+    adminToast.warning(adminText('k00we'))
+    return
+  }
+  scheduleSaving.value = true
+  try {
+    await savePkSyncScheduleSettings(normalizePkSchedule(pkScheduleForm))
+    adminToast.success(adminText('k00wb'))
+  } catch (err) {
+    adminToast.error(err, adminText('k00wc'))
+  } finally {
+    scheduleSaving.value = false
   }
 }
 
@@ -1828,13 +1901,18 @@ onUnmounted(stopSyncPolling)
               <span class="text-xs font-normal text-muted-foreground">{{ adminText(item.audience === 'graduate' ? 'k00vg5' : 'k00tc') }}</span>
             </div>
             <div class="flex flex-wrap gap-3">
-              <Button type="submit" :disabled="savingCookie">
+              <Button type="submit" :disabled="savingCookie || validatingCookie">
                 <Loader2 v-if="savingCookie" class="size-4 animate-spin" />
                 <Save v-else class="size-4" />
                 {{ adminText(item.audience === 'graduate' ? 'k00vg6' : 'k00td') }}
               </Button>
-              <Button type="button" variant="outline" :disabled="savingCookie || !onesystemCredentials[item.audience].configured" @click="clearCredential(item.audience)">
+              <Button type="button" variant="outline" :disabled="validatingCookie || !onesystemCredentials[item.audience].configured" @click="clearCredential(item.audience)">
                 {{ adminText(item.audience === 'graduate' ? 'k00vg7' : 'k00te') }}
+              </Button>
+              <Button type="button" variant="secondary" :disabled="validatingCookie || savingCookie" @click="validateCredential(item.audience)">
+                <Loader2 v-if="validatingCookie" class="size-4 animate-spin" />
+                <CheckCircle2 v-else class="size-4" />
+                {{ adminText('k00wh0') }}
               </Button>
             </div>
           </form>
@@ -1908,6 +1986,80 @@ onUnmounted(stopSyncPolling)
                 </div>
               </li>
             </ul>
+          </div>
+        </section>
+
+        <!-- 排课数据定时同步（issue #569）：cron 开关 + 表达式 + 学期参数 -->
+        <section class="space-y-6 rounded-lg border border-border bg-card p-6" aria-labelledby="onesystem-schedule-heading">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div class="space-y-1">
+              <h2 id="onesystem-schedule-heading" class="flex items-center gap-2 text-base font-medium"><Clock class="size-4 text-muted-foreground" aria-hidden="true" />{{ adminText('k00w0') }}</h2>
+              <p class="text-sm leading-6 text-muted-foreground">{{ adminText('k00w1') }}</p>
+            </div>
+            <Badge :variant="pkScheduleForm.enabled ? 'default' : 'outline'">
+              {{ pkScheduleForm.enabled ? adminText('k00wf') : adminText('k00wg') }}
+            </Badge>
+          </div>
+
+          <div class="flex items-center justify-between rounded-lg border bg-muted/20 p-4">
+            <div>
+              <div class="font-medium">{{ adminText('k00w2') }}</div>
+              <p class="text-sm text-muted-foreground">{{ adminText('k00w4') }}</p>
+            </div>
+            <Switch v-model="pkScheduleForm.enabled" />
+          </div>
+
+          <div v-if="pkScheduleForm.enabled" class="grid gap-5 md:grid-cols-2">
+            <label class="grid min-w-0 gap-2 text-sm font-medium">
+              {{ adminText('k00w3') }}
+              <div class="flex items-center gap-2">
+                <Input v-model="pkScheduleForm.schedule" class="font-mono" :placeholder="adminText('k00w5')" />
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger as-child>
+                      <span :class="cronValid ? 'text-success' : 'text-destructive'" class="inline-flex size-6 shrink-0 items-center justify-center rounded-full">
+                        {{ cronValid ? '✓' : '✗' }}
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" align="start" class="max-w-sm text-left leading-5">
+                      {{ cronValid ? adminText('k00wp') : adminText('k00we') }}
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
+              <span class="text-xs font-normal text-muted-foreground">{{ adminText('k00wl') }}</span>
+            </label>
+            <label class="grid min-w-0 gap-2 text-sm font-medium">
+              {{ adminText('k00w6') }}
+              <Input v-model="pkScheduleForm.term" :placeholder="adminText('k00w7')" />
+              <span class="text-xs font-normal text-muted-foreground">{{ adminText('k00wm') }}</span>
+            </label>
+            <label class="grid min-w-0 gap-2 text-sm font-medium">
+              {{ adminText('k00w8') }}
+              <Input v-model.number="pkScheduleForm.depth" type="number" min="1" max="8" />
+              <span class="text-xs font-normal text-muted-foreground">{{ adminText('k00wn') }}</span>
+            </label>
+            <label class="grid min-w-0 gap-2 text-sm font-medium">
+              {{ adminText('k00tq0') }}
+              <Select v-model="pkScheduleForm.audience">
+                <SelectTrigger class="h-9 w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="undergraduate">{{ adminText('k00tug') }}</SelectItem>
+                  <SelectItem value="graduate">{{ adminText('k00tgrad') }}</SelectItem>
+                </SelectContent>
+              </Select>
+              <span class="text-xs font-normal text-muted-foreground">{{ adminText('k00wo') }}</span>
+            </label>
+          </div>
+
+          <div class="flex justify-end border-t border-border/70 pt-5">
+            <Button type="button" class="min-w-32" :disabled="scheduleSaving" @click="savePkSchedule">
+              <Loader2 v-if="scheduleSaving" class="size-4 animate-spin" />
+              <Save v-else class="size-4" />
+              {{ adminText('k00wa') }}
+            </Button>
           </div>
         </section>
       </div>

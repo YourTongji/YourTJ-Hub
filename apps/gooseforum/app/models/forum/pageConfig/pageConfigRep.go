@@ -160,6 +160,10 @@ var wikiSyncSettingsMu sync.Mutex
 // 把另一套凭证静默清空（issue #602）。
 var oneSystemSettingsMu sync.Mutex
 
+// pkSyncScheduleMu 序列化排课定时同步配置的读改写（issue #569）。配置为
+// 单 blob 整体替换（保存请求提供全部字段），互斥仅避免并发写相互覆盖。
+var pkSyncScheduleMu sync.Mutex
+
 // UpdateWikiSyncSettings 原子读改写 wiki 同步设置：mutate 在互斥区内拿到
 // 当前落库形状，返回新形状后整体写回。调用方负责清 hotdataserve 缓存。
 func UpdateWikiSyncSettings(mutate func(WikiSyncSettingsStorage) WikiSyncSettingsStorage) {
@@ -185,5 +189,20 @@ func UpdateOneSystemSettings(mutate func(OneSystemSettingsStorage) OneSystemSett
 	entity := GetByPageType(OneSystemSettings)
 	entity.PageType = OneSystemSettings
 	entity.Config = jsonopt.Encode(storage)
+	CreateOrSave(&entity)
+}
+
+// UpdatePkSyncScheduleConfig 原子读改写排课定时同步配置（issue #569）。保存请求
+// 提供完整配置，mutate 拿到当前落库形状（未配置时为默认值），返回新形状后整体
+// 写回。调用方负责清理 hotdataserve 缓存与刷新 console/job cron 注册。
+func UpdatePkSyncScheduleConfig(mutate func(PkSyncScheduleConfig) PkSyncScheduleConfig) {
+	pkSyncScheduleMu.Lock()
+	defer pkSyncScheduleMu.Unlock()
+
+	config := GetConfigByPageType(PkSyncSchedule, PkSyncScheduleConfig{})
+	config = mutate(config)
+	entity := GetByPageType(PkSyncSchedule)
+	entity.PageType = PkSyncSchedule
+	entity.Config = jsonopt.Encode(config)
 	CreateOrSave(&entity)
 }

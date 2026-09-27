@@ -6002,6 +6002,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/pk/validate-credential": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Probe a OneSystem (一系统) credential before saving it
+         * @description Admin console operation gated by the `SiteManager` role permission
+         *     (Admin role is a superset); callers without it fail with HTTP 403 and
+         *     `permission.denied` (params permission=<localized permission name>,
+         *     `站点管理` in zh). Validates a 一系统 credential for the requested audience
+         *     (undergraduate Cookie / graduate X-Token) with a minimal probe before
+         *     saving it (issue #856): it fetches exactly one page (pageSize=1) of the
+         *     latest synced calendar for that audience and performs **no database
+         *     writes, no fetch-log rows, no configuration changes**. A blank
+         *     `credential` resolves via the same priority as the sync CLI
+         *     (environment variables first, then the admin-stored securestore setting).
+         *     Undergraduate environment priority is `ONESYSTEM_UNDERGRADUATE_COOKIE`,
+         *     then `ONESYSTEM_COOKIE`; graduate priority is `ONESYSTEM_GRADUATE_X_TOKEN`,
+         *     then `ONESYSTEM_X_TOKEN`, then the legacy `ONESYSTEM_GRADUATE_COOKIE`.
+         *     A non-blank request credential overrides both environment and saved settings.
+         *     A credential failure (HTTP 401/403, business
+         *     code != 0, network error) is a **business result** — HTTP 200 with
+         *     `result.valid=false` and a credential-redacted failure message — not an
+         *     HTTP error. Only hard errors (unsupported audience, missing credential
+         *     source, database read failure) return the failure envelope. With no
+         *     synced calendar for the audience the result is `valid=false` with a
+         *     "sync a term first" message. The probe is bounded by a 45s timeout.
+         */
+        post: operations["adminValidatePkCredential"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/pk/sync-calendar": {
         parameters: {
             query?: never;
@@ -6061,6 +6101,60 @@ export interface paths {
         get: operations["adminGetPkSyncStatus"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/pk/sync-schedule-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the scheduled PK sync configuration
+         * @description Admin console operation gated by the `SiteManager` role permission
+         *     (Admin role is a superset); callers without it fail with HTTP 403 and
+         *     `permission.denied` (params permission=<localized permission name>,
+         *     `站点管理` in zh). Returns the scheduled sync configuration (issue #569):
+         *     the enable switch, the 5-field cron expression, the target term (empty
+         *     = latest synced term), the depth and the audience. None of these fields
+         *     are sensitive — the stored blob holds no credentials — so the current
+         *     values are echoed as-is (unlike the adjacent OneSystem Cookie settings,
+         *     which only report `configured` states). When nothing has been saved
+         *     yet the built-in default is returned (`enabled=false`,
+         *     `schedule="30 2 * * *"`, `term=""`, `depth=1`,
+         *     `audience="undergraduate"`). JSON binding is lenient: query string and
+         *     body are ignored.
+         */
+        get: operations["adminGetPkSyncScheduleSettings"];
+        put?: never;
+        /**
+         * Replace the scheduled PK sync configuration
+         * @description Admin console operation gated by the `SiteManager` role permission;
+         *     callers without it fail with HTTP 403 and `permission.denied`.
+         *     Replaces the whole scheduled-sync configuration with the submitted
+         *     value (issue #569), clears the settings cache and hot-refreshes the
+         *     in-process cron registration (`console/job.RefreshPkSyncCron`) so the
+         *     change takes effect without a restart. Validation happens before
+         *     anything is persisted:
+         *     1. when `enabled=true` the `schedule` must be present and parse with the
+         *        same 5-field standard cron parser the process scheduler uses;
+         *        otherwise the whole request fails with HTTP 200 `code: 1`
+         *        (params.error carries the parse error).
+         *     2. `audience`, when empty, defaults to `undergraduate`; any other value
+         *        must be one of `undergraduate`/`graduate` or the request fails.
+         *     `depth` is clamped into `[1, 8]` and `term` is trimmed (empty meaning
+         *     "latest now-synced term"). Disabling (`enabled=false`) only turns the
+         *     toggle off — the cron expression is not validated, no cron entry is
+         *     registered, and the in-process scheduler stops firing; the other fields
+         *     are stored as-is for when the operator re-enables. On success the whole
+         *     configuration is replaced and the operation reports `result: "success"`.
+         */
+        post: operations["adminSavePkSyncScheduleSettings"];
         delete?: never;
         options?: never;
         head?: never;
@@ -12207,6 +12301,56 @@ export interface components {
         PkMaterializeResponse: (components["schemas"]["ApiSuccess"] & {
             result: components["schemas"]["PkMaterializeResult"];
         }) | components["schemas"]["ApiFailure"];
+        PkValidateCredentialRequest: {
+            /**
+             * @description 课程数据来源范围；省略时使用本科生数据。
+             * @default undergraduate
+             * @enum {string}
+             */
+            audience: "undergraduate" | "graduate";
+            /** @description 待校验的一系统凭证原文（本科 Cookie header / 研究生 X-Token）。留空时按 同步 CLI 同款优先级解析：环境变量 → 管理端已保存设置（securestore 密文解密）。 */
+            credential?: string;
+        };
+        PkValidateCredentialSuccess: components["schemas"]["ApiSuccess"] & {
+            result: {
+                /** @description 凭证是否可用：以最新已同步学期为真实目标最小抓取一页（pageSize=1） 探测成功。探测不写库、不写 fetchlog、不修改配置。 */
+                valid: boolean;
+                /** @description 校验说明：valid=true 时为空串；valid=false 时为脱敏后的失败原因 （凭证失效/一系统网络错误，或尚无已同步学期时的提示）。 */
+                message: string;
+            };
+        };
+        PkValidateCredentialResponse: components["schemas"]["PkValidateCredentialSuccess"] | components["schemas"]["ApiFailure"];
+        PkSyncScheduleSettings: {
+            /** @description 定时同步总开关；关闭时不注册 cron，也不执行。 */
+            enabled: boolean;
+            /** @description 5 段标准 cron 表达式（分 时 日 月 周），如 "30 2 * * *"（每日 02:30）。启用时后端用与进程内调度器相同的标准解析器校验。 */
+            schedule: string;
+            /** @description 目标学期：一系统数字 calendarId（如 121）或学期名（如 2025-2026-1）；留空表示同步该数据来源最近已同步的学期。 */
+            term: string;
+            /** @description 以目标学期为终点向前同步的连续学期数（管理端上限 8）。 */
+            depth: number;
+            /**
+             * @description 数据来源；未配置时按本科生处理。
+             * @enum {string}
+             */
+            audience: "undergraduate" | "graduate";
+        };
+        PkSyncScheduleSettingsSuccess: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["PkSyncScheduleSettings"];
+        };
+        PkSyncScheduleSettingsResponse: components["schemas"]["PkSyncScheduleSettingsSuccess"] | components["schemas"]["ApiFailure"];
+        SavePkSyncScheduleSettingsRequest: {
+            /** @description 定时同步总开关；false 时其余字段被忽略，仅关闭并注销 cron。 */
+            enabled: boolean;
+            /** @description 5 段标准 cron 表达式；启用时必须为可解析表达式，否则整个请求失败（HTTP 200 code:1）。 */
+            schedule?: string;
+            /** @description 目标学期（数字 calendarId / 学期名）；留空 = 最近已同步学期。 */
+            term?: string;
+            /** @description 回溯学期数，越界 clamp 到 [1, 8]。 */
+            depth?: number;
+            /** @description 数据来源（undergraduate / graduate）；空按本科处理。非法值整个请求失败。 */
+            audience?: string;
+        };
         PkReviewBriefClass: {
             /** @description 教学班课号，与 course_offering.class_code 对齐（如 11000101）。 */
             classCode: string;
@@ -22604,6 +22748,48 @@ export interface operations {
             };
         };
     };
+    adminValidatePkCredential: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PkValidateCredentialRequest"];
+            };
+        };
+        responses: {
+            /** @description Probe result (valid=true / valid=false + sanitized message), or a business failure envelope for hard errors. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PkValidateCredentialResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
     adminSyncPkCalendar: {
         parameters: {
             query?: never;
@@ -22674,6 +22860,86 @@ export interface operations {
                 };
             };
             /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminGetPkSyncScheduleSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The scheduled sync configuration (stored configuration or the built-in default). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PkSyncScheduleSettingsResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminSavePkSyncScheduleSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SavePkSyncScheduleSettingsRequest"];
+            };
+        };
+        responses: {
+            /** @description Configuration saved (`result` is the string `success`), or a `code: 1` business failure (invalid/absent cron while enabling, invalid audience). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminPageConfigSaveResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;

@@ -53,6 +53,7 @@ const (
 	OneSystemSettings   = `onesystemSettings`
 	WikiSyncSettings    = `wikiSyncSettings`
 	ScheduleSettings    = `scheduleSettings`
+	PkSyncSchedule      = `pkSyncSchedule` // issue #569 排课数据定时同步配置
 	Version             = `version`
 	Migration           = `migration`
 )
@@ -891,6 +892,26 @@ func (s WikiSyncSettingsStorage) ToConfig() WikiSyncSettingsConfig {
 		cfg.AssetCDN = WikiAssetCDNDefault
 	}
 	return cfg
+}
+
+// PkSyncScheduleConfig 排课数据定时同步配置（issue #569）：管理端「一系统同步」
+// 页面设置，由进程内 console/job cron 按 Schedule 表达式自动执行与「立即同步」
+// 同一管线（course-pk-sync：断点续跑 + 重入保护 + 时间片重建 + 课评物化）。
+// 全部字段均非敏感（无密钥），与 ScheduleSettings/MCPSettings 一样用明文 JSON 落库；
+// 管理端 GET 原样回显当前配置，不涉及任何密文。
+type PkSyncScheduleConfig struct {
+	// Enabled 定时同步总开关；关闭时不注册 cron，也不执行。
+	Enabled bool `json:"enabled"`
+	// Schedule 5 段标准 cron 表达式（分 时 日 月 周），如 "30 2 * * *"（每日 02:30）。
+	// 与运维外部 crontab 的 course-pk-sync 默认节奏一致；受 console/job 同一解析器约束。
+	Schedule string `json:"schedule"`
+	// Term 目标学期：一系统数字 calendarId（如 121）或学期名（如 2025-2026-1）；
+	// 留空表示同步该数据来源最近已同步的学期（pk_calendar 内 calendarId 最大）。
+	Term string `json:"term"`
+	// Depth 以目标学期为终点向前同步的连续学期数（管理端上限 8，默认 1）。
+	Depth int `json:"depth"`
+	// Audience 数据来源：undergraduate（本科）或 graduate（研究生）。
+	Audience string `json:"audience"`
 }
 
 type SiteThemeConfig struct {
