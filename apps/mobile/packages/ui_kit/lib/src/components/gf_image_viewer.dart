@@ -1,9 +1,12 @@
 import 'dart:math' as math;
 
 import 'package:extended_image/extended_image.dart';
+import 'package:flutter/gestures.dart'
+    show kDoubleTapSlop, kDoubleTapTimeout, kTouchSlop;
 import 'package:flutter/material.dart';
 
 import '../theme/gf_theme.dart';
+import 'gf_glass_icon_button.dart';
 import 'gf_motion.dart';
 import 'gf_symbol.dart';
 
@@ -17,8 +20,7 @@ Future<bool> showGfImageSaveSheet(
   final GfBorders borders = GfTheme.bordersOf(context);
   return await showModalBottomSheet<bool>(
         context: context,
-        // Keep the action sheet above the persistent mobile shell as well as
-        // the viewer's branch Navigator.
+        // Keep the action sheet above the persistent mobile shell and viewer route.
         useRootNavigator: true,
         showDragHandle: true,
         backgroundColor: colors.base100,
@@ -44,28 +46,29 @@ Future<bool> showGfImageSaveSheet(
       false;
 }
 
-/// Full-screen image viewer mirroring web `MarkdownImageViewer.vue`:
-/// dark backdrop, swipe to switch images, pinch to zoom, tap to toggle
-/// the viewer chrome, and prev/next controls for multi-image sets. The top
-/// zoom control toggles actual-size rendering.
+/// Full-screen mobile image viewer with swipe, pinch, double-tap zoom,
+/// vertical drag-to-dismiss, and tap-to-toggle chrome.
 class GfImageViewer extends StatefulWidget {
   const GfImageViewer({
     super.key,
     required this.images,
     this.initialIndex = 0,
+    this.heroTag,
     this.enableActualSize = true,
     this.onSaveImage,
     this.saveImageLabel = 'Save image',
     this.onShareImage,
     this.shareImageLabel = 'Share image',
-  });
+  }) : assert(images.length > 0);
 
   /// Image URLs to display.
   final List<String> images;
-
   final int initialIndex;
 
-  /// Whether the actual-size toggle is offered.
+  /// Optional gallery identity; per-image Hero tags are derived from it.
+  final Object? heroTag;
+
+  /// Retained for the existing original-size viewing requirement.
   final bool enableActualSize;
 
   /// Saves the currently focused image. The host app owns the platform-specific
@@ -88,37 +91,284 @@ class GfImageViewer extends StatefulWidget {
 
 class _GfImageViewerState extends State<GfImageViewer>
     with SingleTickerProviderStateMixin {
-  late final PageController _pageController;
+  static const double _thumbnailItemExtent = 64;
+
+  late final ExtendedPageController _pageController;
+  final ScrollController _thumbnailController = ScrollController();
   late final AnimationController _doubleTapController;
   late int _currentIndex;
   bool _actualSize = false;
+  bool _chromeVisible = true;
   bool _isSharing = false;
   ExtendedImageGestureState? _doubleTapState;
   Offset? _doubleTapPosition;
   double _doubleTapStartScale = 1.0;
   double _doubleTapTargetScale = 1.0;
   final Map<int, Size> _imageSizes = <int, Size>{};
+  final Map<int, GlobalKey<ExtendedImageGestureState>> _gestureKeys =
+      <int, GlobalKey<ExtendedImageGestureState>>{};
+  final Set<int> _activePointers = <int>{};
+  bool _multiTouch = false;
+  bool _pointerMoved = false;
+  Offset? _pointerStart;
+  Duration? _pointerStartTime;
+  Offset? _lastTapPosition;
+  Duration? _lastTapTime;
 
   @override
   void initState() {
     super.initState();
     _currentIndex = widget.initialIndex.clamp(0, widget.images.length - 1);
-    _pageController = PageController(initialPage: _currentIndex);
-    _doubleTapController =
-        AnimationController(
-            vsync: this,
-            duration: const Duration(milliseconds: 260),
-          )
-          ..addListener(_applyDoubleTapScale)
-          ..addStatusListener(_finishDoubleTapScale);
+    _pageController = ExtendedPageController(initialPage: _currentIndex);
+    _doubleTapController = AnimationController(
+      vsync: this,
+      duration: GfMotion.standard,
+    )..addListener(_applyDoubleTapScale);
+    _doubleTapController.addStatusListener(_finishDoubleTapScale);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _centerThumbnail(_currentIndex, animate: false);
+    });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _doubleTapController.duration = MediaQuery.disableAnimationsOf(context)
+        ? Duration.zero
+        : GfMotion.standard;
   }
 
   @override
   void dispose() {
     _doubleTapController.dispose();
     _pageController.dispose();
+    _thumbnailController.dispose();
     super.dispose();
   }
+
+  GlobalKey<ExtendedImageGestureState> _gestureKeyFor(int index) =>
+      _gestureKeys.putIfAbsent(index, GlobalKey<ExtendedImageGestureState>.new);
+
+  void _centerThumbnail(int index, {required bool animate}) {
+    if (widget.images.length < 2 || !_thumbnailController.hasClients) return;
+
+    final ScrollPosition position = _thumbnailController.position;
+    final double target = (index * _thumbnailItemExtent)
+        .clamp(0.0, position.maxScrollExtent)
+        .toDouble();
+    if (!animate ||
+        MediaQuery.disableAnimationsOf(context) ||
+        (position.pixels - target).abs() < 0.5) {
+      _thumbnailController.jumpTo(target);
+    } else {
+      _thumbnailController.animateTo(
+        target,
+        duration: GfMotion.standard,
+        curve: GfMotion.standardEase,
+      );
+    }
+  }
+
+  void _selectThumbnail(int index) {
+    _doubleTapController.stop();
+    _doubleTapState = null;
+    _doubleTapPosition = null;
+    _gestureKeys[_currentIndex]?.currentState?.reset();
+    _gestureKeys[index]?.currentState?.reset();
+    setState(() => _actualSize = false);
+
+    if (index == _currentIndex) {
+      _centerThumbnail(index, animate: true);
+    } else if (MediaQuery.disableAnimationsOf(context)) {
+      _pageController.jumpToPage(index);
+    } else {
+      _pageController.animateToPage(
+        index,
+        duration: GfMotion.standard,
+        curve: GfMotion.standardEase,
+      );
+    }
+  }
+
+  Widget _buildThumbnailRail(
+    BuildContext context,
+    GfColors colors,
+    bool reduceMotion,
+  ) => Positioned(
+    left: 0,
+    right: 0,
+    bottom: 0,
+    child: IgnorePointer(
+      key: const Key('gf-image-viewer-thumbnail-interaction'),
+      ignoring: !_chromeVisible,
+      child: ExcludeSemantics(
+        key: const Key('gf-image-viewer-thumbnail-semantics'),
+        excluding: !_chromeVisible,
+        child: AnimatedOpacity(
+          key: const Key('gf-image-viewer-thumbnail-opacity'),
+          opacity: _chromeVisible ? 1 : 0,
+          duration: reduceMotion ? Duration.zero : GfMotion.fast,
+          child: SizedBox(
+            height: 76,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: <Color>[
+                    Colors.transparent,
+                    Colors.black.withValues(alpha: 0.48),
+                  ],
+                ),
+              ),
+              child: LayoutBuilder(
+                builder: (BuildContext context, BoxConstraints constraints) {
+                  final double sidePadding = math.max(
+                    0.0,
+                    (constraints.maxWidth - _thumbnailItemExtent) / 2,
+                  );
+                  return AnimatedBuilder(
+                    animation: _thumbnailController,
+                    builder: (BuildContext context, Widget? child) {
+                      final double offset = _thumbnailController.hasClients
+                          ? _thumbnailController.offset
+                          : _currentIndex * _thumbnailItemExtent;
+                      return Semantics(
+                        container: true,
+                        label: 'Image thumbnails',
+                        explicitChildNodes: true,
+                        child: ListView.builder(
+                          key: const Key('gf-image-viewer-thumbnail-rail'),
+                          controller: _thumbnailController,
+                          scrollDirection: Axis.horizontal,
+                          physics: const BouncingScrollPhysics(),
+                          padding: EdgeInsets.symmetric(
+                            horizontal: sidePadding,
+                          ),
+                          itemExtent: _thumbnailItemExtent,
+                          itemCount: widget.images.length,
+                          itemBuilder: (BuildContext context, int index) {
+                            final double distance =
+                                (index - offset / _thumbnailItemExtent).abs();
+                            final double scale = (1 - distance * 0.09)
+                                .clamp(0.68, 1.0)
+                                .toDouble();
+                            final double opacity = (1 - distance * 0.18)
+                                .clamp(0.38, 1.0)
+                                .toDouble();
+                            final double darkness = (distance * 0.11)
+                                .clamp(0.0, 0.32)
+                                .toDouble();
+                            final bool selected = index == _currentIndex;
+                            final double pixelRatio =
+                                MediaQuery.devicePixelRatioOf(context);
+                            final ResizeImage thumbnail = ResizeImage(
+                              NetworkImage(widget.images[index]),
+                              policy: ResizeImagePolicy.fit,
+                              width: (48 * pixelRatio).round(),
+                              height: (60 * pixelRatio).round(),
+                            );
+                            return Semantics(
+                              key: ValueKey(
+                                'gf-image-viewer-thumbnail-semantic-$index',
+                              ),
+                              button: true,
+                              selected: selected,
+                              label:
+                                  'Image ${index + 1} of ${widget.images.length}',
+                              child: GestureDetector(
+                                key: ValueKey(
+                                  'gf-image-viewer-thumbnail-$index',
+                                ),
+                                behavior: HitTestBehavior.opaque,
+                                onTap: () => _selectThumbnail(index),
+                                child: SizedBox(
+                                  width: _thumbnailItemExtent,
+                                  height: 76,
+                                  child: Center(
+                                    child: Transform.translate(
+                                      offset: Offset(
+                                        0,
+                                        distance < 0.01
+                                            ? -2
+                                            : math.min(4.0, distance * 1.2),
+                                      ),
+                                      child: Transform.scale(
+                                        key: ValueKey(
+                                          'gf-image-viewer-thumbnail-visual-$index',
+                                        ),
+                                        scale: scale,
+                                        child: Opacity(
+                                          opacity: opacity,
+                                          child: DecoratedBox(
+                                            decoration: BoxDecoration(
+                                              border: Border.all(
+                                                color: Colors.white.withValues(
+                                                  alpha: selected ? 1 : 0.42,
+                                                ),
+                                                width: selected ? 2 : 1,
+                                              ),
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
+                                            ),
+                                            child: Padding(
+                                              padding: EdgeInsets.all(
+                                                selected ? 2 : 1,
+                                              ),
+                                              child: ClipRRect(
+                                                borderRadius:
+                                                    BorderRadius.circular(5),
+                                                child: ColorFiltered(
+                                                  colorFilter: ColorFilter.mode(
+                                                    Colors.black.withValues(
+                                                      alpha: darkness,
+                                                    ),
+                                                    BlendMode.darken,
+                                                  ),
+                                                  child: Image(
+                                                    image: thumbnail,
+                                                    width: 44,
+                                                    height: 56,
+                                                    fit: BoxFit.cover,
+                                                    gaplessPlayback: true,
+                                                    excludeFromSemantics: true,
+                                                    errorBuilder: (_, _, _) =>
+                                                        ColoredBox(
+                                                          color: colors.base200,
+                                                          child: Center(
+                                                            child: GfSymbol(
+                                                              'image-off',
+                                                              size: 18,
+                                                              color: colors
+                                                                  .iconMuted,
+                                                            ),
+                                                          ),
+                                                        ),
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
 
   void _finishDoubleTapScale(AnimationStatus status) {
     if (status != AnimationStatus.completed) return;
@@ -155,8 +405,7 @@ class _GfImageViewerState extends State<GfImageViewer>
     if (details == null || config == null) return;
 
     final double currentScale = details.totalScale ?? config.minScale;
-    final bool zoomed = currentScale > config.minScale + 0.1;
-    final double targetScale = zoomed
+    final double targetScale = currentScale > config.minScale + 0.1
         ? config.minScale
         : _smartDoubleTapScale(_imageSizes[index], config);
     final Offset position =
@@ -205,30 +454,6 @@ class _GfImageViewerState extends State<GfImageViewer>
     return target.clamp(1.5, config.maxScale).toDouble();
   }
 
-  void _showPrevious() {
-    if (widget.images.length < 2) return;
-    final int next = _currentIndex <= 0
-        ? widget.images.length - 1
-        : _currentIndex - 1;
-    _pageController.animateToPage(
-      next,
-      duration: GfMotion.standardDuration,
-      curve: GfMotion.standardEase,
-    );
-  }
-
-  void _showNext() {
-    if (widget.images.length < 2) return;
-    final int next = _currentIndex >= widget.images.length - 1
-        ? 0
-        : _currentIndex + 1;
-    _pageController.animateToPage(
-      next,
-      duration: GfMotion.standardDuration,
-      curve: GfMotion.standardEase,
-    );
-  }
-
   Future<void> _showImageActions(BuildContext context) async {
     final Future<void> Function(String imageUrl)? onSaveImage =
         widget.onSaveImage;
@@ -255,227 +480,228 @@ class _GfImageViewerState extends State<GfImageViewer>
     }
   }
 
+  void _toggleChrome() => setState(() => _chromeVisible = !_chromeVisible);
+
+  void _pointerDown(PointerDownEvent event) {
+    _activePointers.add(event.pointer);
+    if (_activePointers.length > 1) {
+      _multiTouch = true;
+    } else {
+      _pointerStart = event.position;
+      _pointerStartTime = event.timeStamp;
+      _pointerMoved = false;
+    }
+  }
+
+  void _pointerMove(PointerMoveEvent event) {
+    if (_pointerStart != null &&
+        (event.position - _pointerStart!).distance > kTouchSlop) {
+      _pointerMoved = true;
+      _lastTapTime = null;
+      _lastTapPosition = null;
+    }
+  }
+
+  void _pointerUp(PointerUpEvent event) {
+    _activePointers.remove(event.pointer);
+    if (_activePointers.isNotEmpty) return;
+
+    final bool tapped =
+        !_multiTouch &&
+        !_pointerMoved &&
+        _pointerStart != null &&
+        event.timeStamp - _pointerStartTime! <= kDoubleTapTimeout;
+    if (tapped) {
+      final bool doubleTap =
+          _lastTapTime != null &&
+          event.timeStamp - _lastTapTime! <= kDoubleTapTimeout &&
+          (event.position - _lastTapPosition!).distance <= kDoubleTapSlop;
+      _toggleChrome();
+      _lastTapTime = doubleTap ? null : event.timeStamp;
+      _lastTapPosition = doubleTap ? null : event.position;
+    }
+
+    _multiTouch = false;
+    _pointerMoved = false;
+    _pointerStart = null;
+    _pointerStartTime = null;
+  }
+
+  void _pointerCancel(PointerCancelEvent event) {
+    _activePointers.remove(event.pointer);
+    if (_activePointers.isEmpty) {
+      _multiTouch = false;
+      _pointerMoved = false;
+      _pointerStart = null;
+      _pointerStartTime = null;
+      _lastTapTime = null;
+      _lastTapPosition = null;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final GfColors colors = GfTheme.colorsOf(context);
+    final bool reduceMotion = MediaQuery.disableAnimationsOf(context);
 
     return Scaffold(
-      backgroundColor: const Color(0xFF000000).withValues(alpha: 0.62),
-      body: SafeArea(
-        child: Stack(
-          children: <Widget>[
-            Positioned.fill(
-              child: PageView.builder(
-                controller: _pageController,
-                itemCount: widget.images.length,
-                onPageChanged: (int index) {
-                  _doubleTapController.stop();
-                  _doubleTapState = null;
-                  _doubleTapPosition = null;
-                  setState(() {
-                    _currentIndex = index;
-                    _actualSize = false;
-                  });
-                },
-                itemBuilder: (BuildContext context, int index) {
-                  return GestureDetector(
-                    onLongPress: widget.onSaveImage == null
-                        ? null
-                        : () => _showImageActions(context),
-                    child: ExtendedImage.network(
-                      widget.images[index],
-                      fit: _actualSize ? BoxFit.none : BoxFit.contain,
-                      gaplessPlayback: true,
-                      mode: ExtendedImageMode.gesture,
-                      initGestureConfigHandler: (ExtendedImageState state) =>
-                          GestureConfig(
-                            minScale: 1.0,
-                            animationMinScale: 0.85,
-                            maxScale: 4.0,
-                            animationMaxScale: 4.5,
-                            inertialSpeed: 500.0,
-                            inPageView: widget.images.length > 1,
-                            initialScale: 1.0,
-                          ),
-                      onDoubleTap: (ExtendedImageGestureState state) =>
-                          _handleDoubleTap(state, index),
-                      loadStateChanged: (ExtendedImageState state) {
-                        switch (state.extendedImageLoadState) {
-                          case LoadState.loading:
-                            return const Center(
-                              child: CircularProgressIndicator(),
-                            );
-                          case LoadState.completed:
-                            final image = state.extendedImageInfo?.image;
-                            if (image != null) {
-                              _imageSizes[index] = Size(
-                                image.width.toDouble(),
-                                image.height.toDouble(),
-                              );
-                            }
-                            return null;
-                          case LoadState.failed:
-                            return Center(
-                              child: GfSymbol(
-                                'image-off',
-                                color: colors.iconMuted,
-                                size: 48,
-                              ),
-                            );
-                        }
-                      },
-                    ),
-                  );
-                },
-              ),
+      backgroundColor: Colors.transparent,
+      body: ExtendedImageSlidePage(
+        slideAxis: SlideAxis.vertical,
+        slideType: SlideType.wholePage,
+        resetPageDuration: reduceMotion ? Duration.zero : GfMotion.comfortable,
+        slidePageBackgroundHandler: (Offset offset, Size size) =>
+            defaultSlidePageBackgroundHandler(
+              offset: offset,
+              pageSize: size,
+              color: const Color(0xEB000000),
+              pageGestureAxis: SlideAxis.vertical,
             ),
-            // Counter badge ("1 / 3") when multiple images.
-            if (widget.images.length > 1)
+        child: SafeArea(
+          child: Stack(
+            fit: StackFit.expand,
+            children: <Widget>[
+              Listener(
+                key: const Key('gf-image-viewer-page-swipe-area'),
+                behavior: HitTestBehavior.opaque,
+                onPointerDown: _pointerDown,
+                onPointerMove: _pointerMove,
+                onPointerUp: _pointerUp,
+                onPointerCancel: _pointerCancel,
+                child: ExtendedImageGesturePageView.builder(
+                  controller: _pageController,
+                  itemCount: widget.images.length,
+                  physics: const BouncingScrollPhysics(),
+                  canScrollPage: (GestureDetails? details) =>
+                      (details?.totalScale ?? 1) <= 1.01,
+                  onPageChanged: (int index) {
+                    _doubleTapController.stop();
+                    _doubleTapState = null;
+                    _doubleTapPosition = null;
+                    _gestureKeys[_currentIndex]?.currentState?.reset();
+                    _gestureKeys[index]?.currentState?.reset();
+                    setState(() {
+                      _currentIndex = index;
+                      _actualSize = false;
+                    });
+                    _centerThumbnail(index, animate: true);
+                  },
+                  itemBuilder: (BuildContext context, int index) {
+                    Widget image = GestureDetector(
+                      onLongPress: widget.onSaveImage == null
+                          ? null
+                          : () => _showImageActions(context),
+                      child: ExtendedImage.network(
+                        widget.images[index],
+                        fit: _actualSize ? BoxFit.none : BoxFit.contain,
+                        gaplessPlayback: true,
+                        enableSlideOutPage: true,
+                        mode: ExtendedImageMode.gesture,
+                        extendedImageGestureKey: _gestureKeyFor(index),
+                        initGestureConfigHandler: (ExtendedImageState state) =>
+                            GestureConfig(
+                              minScale: 1.0,
+                              animationMinScale: 0.85,
+                              maxScale: 4.0,
+                              animationMaxScale: 4.5,
+                              inertialSpeed: 500.0,
+                              inPageView: widget.images.length > 1,
+                              initialScale: 1.0,
+                            ),
+                        onDoubleTap: (ExtendedImageGestureState state) =>
+                            _handleDoubleTap(state, index),
+                        loadStateChanged: (ExtendedImageState state) {
+                          switch (state.extendedImageLoadState) {
+                            case LoadState.loading:
+                              return const Center(
+                                child: CircularProgressIndicator(),
+                              );
+                            case LoadState.completed:
+                              final image = state.extendedImageInfo?.image;
+                              if (image != null) {
+                                _imageSizes[index] = Size(
+                                  image.width.toDouble(),
+                                  image.height.toDouble(),
+                                );
+                              }
+                              return null;
+                            case LoadState.failed:
+                              return Center(
+                                child: GfSymbol(
+                                  'image-off',
+                                  color: colors.iconMuted,
+                                  size: 48,
+                                ),
+                              );
+                          }
+                        },
+                      ),
+                    );
+                    if (widget.heroTag != null) {
+                      image = Hero(tag: (widget.heroTag!, index), child: image);
+                    }
+                    return image;
+                  },
+                ),
+              ),
               Positioned(
                 left: 12,
                 top: 12,
-                child: _ViewerBadge(
-                  child: Text(
-                    '${_currentIndex + 1} / ${widget.images.length}',
-                    style: TextStyle(
-                      color: colors.baseContent.withValues(alpha: 0.72),
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
+                right: 12,
+                child: IgnorePointer(
+                  ignoring: !_chromeVisible,
+                  child: ExcludeSemantics(
+                    excluding: !_chromeVisible,
+                    child: AnimatedOpacity(
+                      key: const Key('gf-image-viewer-header-opacity'),
+                      opacity: _chromeVisible ? 1 : 0,
+                      duration: reduceMotion ? Duration.zero : GfMotion.fast,
+                      child: Row(
+                        children: <Widget>[
+                          Text(
+                            '${_currentIndex + 1} / ${widget.images.length}',
+                            style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.82),
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const Spacer(),
+                          if (widget.enableActualSize)
+                            GfGlassIconButton(
+                              symbol: _actualSize ? 'minimize' : 'maximize',
+                              tooltip: _actualSize
+                                  ? 'Fit preview'
+                                  : 'Original size',
+                              onPressed: () => setState(() {
+                                _actualSize = !_actualSize;
+                              }),
+                            ),
+                          if (widget.onShareImage != null) ...<Widget>[
+                            const SizedBox(width: 8),
+                            GfGlassIconButton(
+                              symbol: _isSharing ? 'clock' : 'share-2',
+                              tooltip: widget.shareImageLabel,
+                              onPressed: _isSharing ? null : _shareCurrentImage,
+                            ),
+                          ],
+                          const SizedBox(width: 8),
+                          GfGlassIconButton(
+                            symbol: 'x',
+                            tooltip: MaterialLocalizations.of(
+                              context,
+                            ).closeButtonTooltip,
+                            onPressed: () => Navigator.of(context).maybePop(),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
               ),
-            // Top-right controls.
-            Positioned(
-              right: 12,
-              top: 12,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: <Widget>[
-                  if (widget.enableActualSize)
-                    _ViewerIconButton(
-                      icon: _actualSize ? 'minimize' : 'maximize',
-                      tooltip: _actualSize ? 'Fit preview' : 'Original size',
-                      onPressed: () => setState(() {
-                        _actualSize = !_actualSize;
-                      }),
-                    ),
-                  if (widget.onShareImage != null) ...[
-                    const SizedBox(width: 8),
-                    _ViewerIconButton(
-                      icon: _isSharing ? 'clock' : 'share-2',
-                      tooltip: widget.shareImageLabel,
-                      onPressed: _shareCurrentImage,
-                    ),
-                  ],
-                  const SizedBox(width: 8),
-                  _ViewerIconButton(
-                    icon: 'x',
-                    tooltip: 'Close',
-                    onPressed: () => Navigator.of(context).maybePop(),
-                  ),
-                ],
-              ),
-            ),
-            // Side navigation.
-            if (widget.images.length > 1)
-              Positioned(
-                left: 8,
-                top: 0,
-                bottom: 0,
-                child: Center(
-                  child: _ViewerIconButton(
-                    icon: 'chevron-left',
-                    tooltip: 'Previous',
-                    onPressed: _showPrevious,
-                  ),
-                ),
-              ),
-            if (widget.images.length > 1)
-              Positioned(
-                right: 8,
-                top: 0,
-                bottom: 0,
-                child: Center(
-                  child: _ViewerIconButton(
-                    icon: 'chevron-right',
-                    tooltip: 'Next',
-                    onPressed: _showNext,
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ViewerBadge extends StatelessWidget {
-  const _ViewerBadge({required this.child});
-
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    final GfColors colors = GfTheme.colorsOf(context);
-    final GfBorders borders = GfTheme.bordersOf(context);
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: colors.base100.withValues(alpha: 0.82),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(
-          color: colors.line.withValues(alpha: 0.7),
-          width: borders.width,
-        ),
-      ),
-      child: child,
-    );
-  }
-}
-
-class _ViewerIconButton extends StatelessWidget {
-  const _ViewerIconButton({
-    required this.icon,
-    required this.tooltip,
-    required this.onPressed,
-  });
-
-  final String icon;
-  final String tooltip;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    final GfColors colors = GfTheme.colorsOf(context);
-    final GfBorders borders = GfTheme.bordersOf(context);
-
-    return Tooltip(
-      message: tooltip,
-      child: Material(
-        color: colors.base100.withValues(alpha: 0.86),
-        shape: const CircleBorder(),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onPressed,
-          customBorder: const CircleBorder(),
-          child: Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: colors.line.withValues(alpha: 0.76),
-                width: borders.width,
-              ),
-            ),
-            child: GfSymbol(
-              icon,
-              size: 20,
-              color: colors.baseContent.withValues(alpha: 0.78),
-            ),
+              if (widget.images.length > 1)
+                _buildThumbnailRail(context, colors, reduceMotion),
+            ],
           ),
         ),
       ),

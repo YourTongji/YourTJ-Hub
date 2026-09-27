@@ -118,9 +118,13 @@ ordered after the active route in the accessibility tree so iOS does not hide it
   with every topic image available, including images beyond the feed preview limit. Author
   targets and previews support keyboard activation; previews announce their localized image
   position, and both author targets have at least 44-by-44 logical-pixel touch areas.
-- `Current`: topic bodies, Markdown and Wiki reading surfaces open the shared image lightbox. It
+- `Current`: topic bodies, Markdown and Wiki reading surfaces open the shared image viewer. It
   supports swipe navigation, pinch and double-tap zoom, actual-size viewing, long-press save and
-  system sharing. Home feed previews use the same lightbox and image actions.
+  system sharing. Multi-image viewers show a horizontally scrolling thumbnail rail with a centered
+  focus; selecting a thumbnail changes the image and resets zoom and actual-size mode. Tapping
+  toggles the viewer controls and rail together; a vertical drag dismisses at minimum scale, moving
+  and scaling the image while the background fades. Paging and dismiss gestures stay out of the way
+  while an image is zoomed. Home feed previews use the same viewer and image actions.
 - `Current`: Home topic cards expose compact authenticated like and bookmark shortcuts beside the
   reply/view metrics. A single heart action includes the topic's total like count; both actions
   retain a minimum 44-by-44 logical-pixel touch target while their icons animate. Actions switch
@@ -134,8 +138,9 @@ ordered after the active route in the accessibility tree so iOS does not hide it
   Likes and bookmarks
   settle independently; switching accounts discards all pending interaction state and reloads the feed.
   Metrics and actions wrap at narrow widths and enlarged text sizes.
-- `Current`: simple-content topics show an uncropped, swipeable image gallery above the body. The
-  same gallery is used in the publishing preview.
+- `Current`: simple-content topics show an uncropped, swipeable image gallery above the body, with
+  an ambient blurred image backdrop, a compact count badge and page indicator. The same gallery is
+  used in the publishing preview and opens the shared full-screen viewer from any image.
 - `Current`: Home displays categories in a horizontal row below the feed sorts. Category pills
   filter the existing stream in place, with a highlighted selection and an All categories action.
   The display menu contains list/card preferences; unavailable categories take no space.
