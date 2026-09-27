@@ -618,6 +618,8 @@ export default {
     openMenu: 'Open menu',
     menu: 'Menu',
     closeMenu: 'Close menu',
+    collapseSidebar: 'Collapse sidebar',
+    expandSidebar: 'Expand sidebar',
     search: 'Search',
     switchLanguage: 'Switch language',
     switchTheme: 'Switch theme',

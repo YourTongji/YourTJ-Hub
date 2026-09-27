@@ -17,6 +17,7 @@
 | 能力 | 状态 | 当前边界与维护入口 |
 |---|---|---|
 | 主题、回复与互动 | `Current` | 提问／瞬间／文章、图集、草稿、楼层视图、点赞收藏、关注频道、通知与私信；见[论坛体验](forum.md)。 |
+| Web 导航外壳 | `Current` | 桌面侧栏可折叠并记忆状态，窄屏使用抽屉；见[论坛阅读规范](forum.md#feed-and-reading)。 |
 | Markdown 与外链 | `Partial` | 阅读支持 Mermaid、数学与受控链接预览；Vditor 替代数学分隔符预览尚缺，见[论坛体验](forum.md#links-markdown-and-stickers)。 |
 | 表情库 | `Partial` | 官方目录、个人素材 API、Web token 渲染及 Flutter 管理／输入可用；Web 个人库管理未实现，见[表情规范](mobile-experience.md#sticker-library)。 |
 | 内容治理与账号生命周期 | `Current` | 审核、举报、敏感词、限流、可恢复删除及账号清除；见[论坛体验](forum.md#governance-and-public-exports)与[身份规范](identity-and-access.md)。 |

@@ -617,6 +617,8 @@ export default {
     openMenu: 'Menü öffnen',
     menu: 'Menü',
     closeMenu: 'Menü schließen',
+    collapseSidebar: 'Seitenleiste einklappen',
+    expandSidebar: 'Seitenleiste ausklappen',
     search: 'Suchen',
     switchLanguage: 'Sprache wechseln',
     switchTheme: 'Design wechseln',
