@@ -594,6 +594,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
       final l10n = AppLocalizations.of(context);
       final choice = await showDialog<String>(
         context: context,
+        animationStyle: GfMotion.dialogStyle(context),
         builder: (context) => AlertDialog(
           title: Text(l10n.publishLeaveTitle),
           content: Text(l10n.publishLeaveBody),
@@ -1312,7 +1313,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
         icon: _submitting
             ? const SizedBox.square(
                 dimension: 20,
-                child: CircularProgressIndicator(strokeWidth: 2),
+                child: GfProgressIndicator(strokeWidth: 2),
               )
             : GfSymbol(editing ? 'arrow-right' : 'arrow-up', size: 20),
       );
@@ -1844,6 +1845,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
     String value = '';
     final url = await showDialog<String>(
       context: context,
+      animationStyle: GfMotion.dialogStyle(context),
       builder: (context) => AlertDialog(
         title: Text(l10n.publishToolLink),
         content: GfInput(
@@ -2092,7 +2094,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
                 _activelyUploading
                     ? const SizedBox.square(
                         dimension: 24,
-                        child: CircularProgressIndicator(strokeWidth: 2),
+                        child: GfProgressIndicator(strokeWidth: 2),
                       )
                     : GfSymbol(
                         'gallery-duotone',
@@ -2272,9 +2274,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
                             const Center(
                               child: SizedBox.square(
                                 dimension: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
+                                child: GfProgressIndicator(strokeWidth: 2),
                               ),
                             ),
                         ],

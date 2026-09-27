@@ -34,6 +34,7 @@ class _PostEditSheetState extends ConsumerState<PostEditSheet> {
     if (_text.text != widget.post.content) {
       final discard = await showDialog<bool>(
         context: context,
+        animationStyle: GfMotion.dialogStyle(context),
         builder: (context) => AlertDialog(
           title: Text(l10n.publishLeaveTitle),
           content: Text(l10n.publishLeaveBody),

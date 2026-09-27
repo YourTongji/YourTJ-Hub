@@ -532,7 +532,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                               turns: _socialLinksExpanded ? .5 : 0,
                               duration: MediaQuery.disableAnimationsOf(context)
                                   ? Duration.zero
-                                  : const Duration(milliseconds: 200),
+                                  : GfMotion.content,
                               child: const GfSymbol('chevron-down', size: 20),
                             ),
                             onExpansionChanged: (expanded) =>

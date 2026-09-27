@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../theme/gf_theme.dart';
+import '../gf_motion.dart';
 
 Future<T?> showGfAlertDialog<T>(
   BuildContext context, {
@@ -9,6 +10,7 @@ Future<T?> showGfAlertDialog<T>(
 }) {
   return showDialog<T>(
     context: context,
+    animationStyle: GfMotion.dialogStyle(context),
     useRootNavigator: true,
     barrierColor: Theme.of(context).colorScheme.scrim,
     builder: (context) => Dialog(

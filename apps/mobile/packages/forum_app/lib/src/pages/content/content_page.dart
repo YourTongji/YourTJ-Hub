@@ -86,6 +86,7 @@ class _ContentPageState extends ConsumerState<ContentPage> {
   Future<bool> _confirm(String title, String message) async =>
       await showDialog<bool>(
         context: context,
+        animationStyle: GfMotion.dialogStyle(context),
         builder: (context) => AlertDialog(
           title: Text(title),
           content: Text(message),
@@ -116,6 +117,7 @@ class _ContentPageState extends ConsumerState<ContentPage> {
         String enteredPassword = '';
         final password = await showDialog<String>(
           context: context,
+          animationStyle: GfMotion.dialogStyle(context),
           builder: (context) => AlertDialog(
             title: Text(AppLocalizations.of(context).contentPassword),
             scrollable: true,

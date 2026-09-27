@@ -230,7 +230,7 @@ class _StickerPickerState extends ConsumerState<StickerPicker> {
                 const SliverToBoxAdapter(
                   child: Padding(
                     padding: EdgeInsets.all(24),
-                    child: Center(child: CircularProgressIndicator()),
+                    child: Center(child: GfProgressIndicator()),
                   ),
                 )
               else if (error != null)

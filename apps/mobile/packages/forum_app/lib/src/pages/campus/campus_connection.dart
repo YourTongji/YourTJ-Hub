@@ -64,6 +64,7 @@ class _CampusConnectionState extends ConsumerState<CampusConnection> {
     final epoch = ref.read(offlineCacheEpochProvider);
     final accepted = await showDialog<bool>(
       context: context,
+      animationStyle: GfMotion.dialogStyle(context),
       builder: (context) => AlertDialog(
         title: Text(l.campusUnbind),
         content: Text(l.campusUnbindBody),

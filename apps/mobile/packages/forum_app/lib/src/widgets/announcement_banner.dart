@@ -169,8 +169,8 @@ class _AnnouncementBannerState extends ConsumerState<AnnouncementBanner>
           }
         },
         child: AnimatedSize(
-          duration: const Duration(milliseconds: 220),
-          curve: Curves.easeInOutCubic,
+          duration: GfMotion.duration(context, GfMotion.layout),
+          curve: GfMotion.layoutCurve,
           alignment: Alignment.topCenter,
           child: _collapsed
               ? _buildCollapsed(context, item, colors, l10n)
@@ -403,8 +403,11 @@ class _AnnouncementBannerState extends ConsumerState<AnnouncementBanner>
                                 bottom: 3,
                               ),
                               child: AnimatedContainer(
-                                duration: const Duration(milliseconds: 250),
-                                curve: Curves.easeInOutCubic,
+                                duration: GfMotion.duration(
+                                  context,
+                                  GfMotion.selection,
+                                ),
+                                curve: GfMotion.layoutCurve,
                                 width: i == _current ? 16.0 : 5.0,
                                 height: 4.5,
                                 decoration: BoxDecoration(

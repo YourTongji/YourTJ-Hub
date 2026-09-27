@@ -312,6 +312,7 @@ class _AdminPageState extends ConsumerState<AdminPage> {
     final l10n = AppLocalizations.of(context);
     return await showDialog<bool>(
           context: context,
+          animationStyle: GfMotion.dialogStyle(context),
           builder: (context) => AlertDialog(
             title: Text(_title(l10n)),
             content: SingleChildScrollView(child: Text(message)),
@@ -444,9 +445,7 @@ class _AdminPageState extends ConsumerState<AdminPage> {
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              const GfSymbol('shield-check',
-                                size: 48,
-                              ),
+                              const GfSymbol('shield-check', size: 48),
                               const SizedBox(height: 16),
                               Text(
                                 widget.campusAuthorizationUrl == null
@@ -464,7 +463,7 @@ class _AdminPageState extends ConsumerState<AdminPage> {
                         ),
                       )
                     : _controller == null
-                    ? const Center(child: CircularProgressIndicator())
+                    ? const Center(child: GfProgressIndicator())
                     : WebViewWidget(controller: _controller!),
               ),
             ],

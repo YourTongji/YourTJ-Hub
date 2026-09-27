@@ -137,6 +137,7 @@ class _PostActionsState extends ConsumerState<PostActions> {
     }
     final confirm = await showDialog<bool>(
       context: context,
+      animationStyle: GfMotion.dialogStyle(context),
       builder: (context) => AlertDialog(
         title: Text(
           action == 'delete'

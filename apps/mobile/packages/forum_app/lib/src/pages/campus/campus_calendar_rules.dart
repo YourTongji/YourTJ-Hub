@@ -74,7 +74,7 @@ class _CampusCalendarRulesViewState
         turns: _expanded ? .5 : 0,
         duration: MediaQuery.disableAnimationsOf(context)
             ? Duration.zero
-            : const Duration(milliseconds: 200),
+            : GfMotion.content,
         child: const GfSymbol('chevron-down', size: 20),
       ),
       onExpansionChanged: _load,

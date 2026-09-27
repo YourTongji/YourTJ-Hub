@@ -533,11 +533,12 @@ void main() {
       await tester.pump(const Duration(seconds: 4));
       expect(find.text('Detailed error reason'), findsOneWidget);
       await tester.tap(find.byTooltip('Close'));
-      await tester.pump();
+      await tester.pumpAndSettle();
       expect(find.text('Detailed error reason'), findsNothing);
       showGfToast(page, 'Timed');
       await tester.pump();
       await tester.pump(const Duration(seconds: 4));
+      await tester.pumpAndSettle();
       expect(find.text('Timed'), findsNothing);
       showGfToast(page, 'Unmount');
       await tester.pump();

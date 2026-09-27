@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../../theme/gf_theme.dart';
+import '../atoms/gf_loading_indicator.dart';
 import '../gf_button.dart';
+import '../gf_motion.dart';
 import '../gf_symbol.dart';
 
 /// Compact reply surface with a borderless growing editor and one action row.
@@ -228,7 +230,8 @@ class _GfPostComposerState extends State<GfPostComposer> {
               ],
               AnimatedContainer(
                 key: const Key('reply-input-surface'),
-                duration: const Duration(milliseconds: 140),
+                duration: GfMotion.duration(context, GfMotion.press),
+                curve: GfMotion.enterCurve,
                 decoration: BoxDecoration(
                   color: colors.base200,
                   borderRadius: BorderRadius.circular(24),
@@ -313,7 +316,7 @@ class _GfPostComposerState extends State<GfPostComposer> {
                       icon: widget.uploading
                           ? const SizedBox.square(
                               dimension: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2),
+                              child: GfProgressIndicator(strokeWidth: 2),
                             )
                           : const GfSymbol('gallery', size: 23),
                       style: IconButton.styleFrom(

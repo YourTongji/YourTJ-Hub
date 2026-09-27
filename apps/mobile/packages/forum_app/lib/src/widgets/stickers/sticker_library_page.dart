@@ -214,7 +214,7 @@ class _StickerLibraryPageState extends ConsumerState<_StickerLibrarySession> {
             if (collection.busy) const LinearProgressIndicator(minHeight: 2),
             Expanded(
               child: collection.loadingMine && !collection.mineLoaded
-                  ? const Center(child: CircularProgressIndicator())
+                  ? const Center(child: GfProgressIndicator())
                   : collection.mineError != null
                   ? _status(
                       stickerApiUnsupported(collection.mineError)

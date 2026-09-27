@@ -24,6 +24,7 @@ export 'src/components/gf_glass_icon_button.dart';
 export 'src/components/gf_image_viewer.dart';
 export 'src/components/gf_logo.dart';
 export 'src/components/gf_motion.dart';
+export 'src/components/gf_action_feedback.dart';
 export 'src/components/surfaces/gf_empty.dart';
 export 'src/components/surfaces/gf_app_bar.dart';
 export 'src/components/surfaces/gf_scroll_to_top.dart';

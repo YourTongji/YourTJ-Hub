@@ -398,9 +398,7 @@ class _GfShellState extends ConsumerState<GfShell> with WidgetsBindingObserver {
     ];
 
     final chrome = ref.watch(readingChromeProvider);
-    final duration = MediaQuery.disableAnimationsOf(context)
-        ? Duration.zero
-        : const Duration(milliseconds: 200);
+    final duration = GfMotion.duration(context, GfMotion.layout);
     return Scaffold(
       key: _scaffoldKey,
       drawer: const AccountDrawer(),
@@ -461,7 +459,7 @@ class _GfShellState extends ConsumerState<GfShell> with WidgetsBindingObserver {
             bottomNavigation: AnimatedSlide(
               offset: chrome.hidden ? const Offset(0, 1) : Offset.zero,
               duration: duration,
-              curve: Curves.easeOut,
+              curve: GfMotion.layoutCurve,
               child: IgnorePointer(
                 ignoring: chrome.hidden,
                 child: ExcludeSemantics(

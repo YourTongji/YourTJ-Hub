@@ -147,6 +147,14 @@ failure. Cached reading data, media and campus snapshots may be cleared independ
 unsent message text and unsynced plans must not be included in “clear cache”. Clearing is fenced against
 in-flight responses so the just-cleared data cannot immediately reappear.
 
+## Motion
+
+`Current`: the [mobile motion policy](mobile-experience.md#motion-and-continuity) owns custom
+animation cadence, curves and reduced-motion behavior. Related elements share one timeline;
+small local changes do not translate an entire reading surface. Motion does not delay commands,
+recreate retained pages or alter drafts, focus, selection and reading position. Direct manipulation
+continues to use platform/gesture progress. Brand startup timing has its own bounded sequence.
+
 ## Accessibility and localization
 
 `Current`: shared icon buttons merge their localized label, button role, enabled state and action

@@ -126,6 +126,7 @@ class PrivateNoteButton extends ConsumerWidget {
           ? null
           : () => showDialog<void>(
               context: context,
+              animationStyle: GfMotion.dialogStyle(context),
               builder: (_) => _PrivateNoteDialog(
                 userId: userId,
                 initial: scope.notes[userId]?.note ?? '',

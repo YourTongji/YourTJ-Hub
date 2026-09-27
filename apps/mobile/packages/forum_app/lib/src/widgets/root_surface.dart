@@ -41,9 +41,7 @@ class RootSurface extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final hidden = ref.watch(readingChromeProvider).hidden;
     final colors = GfTheme.colorsOf(context);
-    final duration = MediaQuery.disableAnimationsOf(context)
-        ? Duration.zero
-        : const Duration(milliseconds: 200);
+    final duration = GfMotion.duration(context, GfMotion.layout);
     final bottom = MediaQuery.paddingOf(context).bottom;
     final hasRail = ReadingWindowScope.hasRailOf(context);
     return Scaffold(
@@ -62,7 +60,7 @@ class RootSurface extends ConsumerWidget {
                 child: AnimatedSlide(
                   offset: hidden ? const Offset(0, -1) : Offset.zero,
                   duration: duration,
-                  curve: Curves.easeOut,
+                  curve: GfMotion.layoutCurve,
                   child: IgnorePointer(
                     ignoring: hidden,
                     child: ExcludeSemantics(
@@ -123,7 +121,7 @@ class RootSurface extends ConsumerWidget {
               if (showComposeAction)
                 AnimatedPositioned(
                   duration: duration,
-                  curve: Curves.easeOut,
+                  curve: GfMotion.layoutCurve,
                   right: 16,
                   bottom: (hidden || hasRail ? 16 : 72) + bottom,
                   child: FloatingActionButton(

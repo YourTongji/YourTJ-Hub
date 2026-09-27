@@ -50,6 +50,8 @@ class GfApp extends ConsumerWidget {
       theme: gfThemeData(Brightness.light, overrides: runtime?.light),
       darkTheme: gfThemeData(Brightness.dark, overrides: runtime?.dark),
       themeMode: mode,
+      themeAnimationDuration: GfMotion.duration(context, GfMotion.layout),
+      themeAnimationCurve: GfMotion.layoutCurve,
       routerConfig: appRouter,
       builder: (context, child) => AppSystemUiOverlay(
         child: StartupExperience(

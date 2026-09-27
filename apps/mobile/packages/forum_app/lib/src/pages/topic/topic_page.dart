@@ -1095,7 +1095,8 @@ class _TopicPageState extends ConsumerState<TopicPage>
           unawaited(
             Scrollable.ensureVisible(
               target,
-              duration: const Duration(milliseconds: 200),
+              duration: GfMotion.duration(context, GfMotion.layout),
+              curve: GfMotion.enterCurve,
             ),
           );
         }
@@ -1222,6 +1223,7 @@ class _TopicPageState extends ConsumerState<TopicPage>
         final l10n = AppLocalizations.of(context);
         final discard = await showDialog<bool>(
           context: context,
+          animationStyle: GfMotion.dialogStyle(context),
           builder: (context) => AlertDialog(
             title: Text(l10n.draftLocalSaveFailed),
             content: Text(l10n.draftReplyLeaveUnsaved),

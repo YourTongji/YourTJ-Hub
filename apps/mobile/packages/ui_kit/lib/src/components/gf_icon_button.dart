@@ -3,7 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../theme/gf_theme.dart';
-
+import 'gf_motion.dart';
 import 'gf_symbol.dart';
 
 /// Quiet circular action with a minimum 44px target. Native button behavior
@@ -48,6 +48,7 @@ class GfIconButton extends StatelessWidget {
         onPressed: onPressed,
         onLongPress: onPressed == null ? null : onLongPress,
         style: ButtonStyle(
+          animationDuration: GfMotion.duration(context, GfMotion.selection),
           padding: const WidgetStatePropertyAll(EdgeInsets.zero),
           minimumSize: WidgetStatePropertyAll(Size.square(targetSize)),
           maximumSize: WidgetStatePropertyAll(Size.square(targetSize)),

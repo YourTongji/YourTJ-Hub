@@ -4,6 +4,7 @@ import 'package:extended_image/extended_image.dart';
 import 'package:flutter/material.dart';
 
 import '../theme/gf_theme.dart';
+import 'atoms/gf_loading_indicator.dart';
 import 'gf_motion.dart';
 import 'gf_symbol.dart';
 
@@ -20,6 +21,7 @@ Future<bool> showGfImageSaveSheet(
         // Keep the action sheet above the persistent mobile shell as well as
         // the viewer's branch Navigator.
         useRootNavigator: true,
+        sheetAnimationStyle: GfMotion.sheetStyle(context),
         showDragHandle: true,
         backgroundColor: colors.base100,
         shape: RoundedRectangleBorder(
@@ -105,10 +107,7 @@ class _GfImageViewerState extends State<GfImageViewer>
     _currentIndex = widget.initialIndex.clamp(0, widget.images.length - 1);
     _pageController = PageController(initialPage: _currentIndex);
     _doubleTapController =
-        AnimationController(
-            vsync: this,
-            duration: const Duration(milliseconds: 260),
-          )
+        AnimationController(vsync: this, duration: GfMotion.overlay)
           ..addListener(_applyDoubleTapScale)
           ..addStatusListener(_finishDoubleTapScale);
   }
@@ -133,7 +132,7 @@ class _GfImageViewerState extends State<GfImageViewer>
     final Offset? position = _doubleTapPosition;
     if (!mounted || state == null || position == null) return;
 
-    final double progress = Curves.easeOutCubic.transform(
+    final double progress = GfMotion.enterCurve.transform(
       _doubleTapController.value,
     );
     final double scale =
@@ -172,7 +171,13 @@ class _GfImageViewerState extends State<GfImageViewer>
     _doubleTapStartScale = currentScale;
     _doubleTapTargetScale = targetScale;
     state.handleScaleStart(ScaleStartDetails(focalPoint: position));
-    _doubleTapController.forward(from: 0);
+    if (GfMotion.reducedOf(context)) {
+      _doubleTapController.value = 1;
+      _applyDoubleTapScale();
+      _finishDoubleTapScale(AnimationStatus.completed);
+    } else {
+      _doubleTapController.forward(from: 0);
+    }
   }
 
   double _smartDoubleTapScale(Size? imageSize, GestureConfig config) {
@@ -205,16 +210,32 @@ class _GfImageViewerState extends State<GfImageViewer>
     return target.clamp(1.5, config.maxScale).toDouble();
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (GfMotion.reducedOf(context) && _doubleTapController.isAnimating) {
+      _doubleTapController.value = 1;
+    }
+  }
+
+  void _goToPage(int next) {
+    if (GfMotion.reducedOf(context) || (next - _currentIndex).abs() > 1) {
+      _pageController.jumpToPage(next);
+    } else {
+      _pageController.animateToPage(
+        next,
+        duration: GfMotion.overlay,
+        curve: GfMotion.enterCurve,
+      );
+    }
+  }
+
   void _showPrevious() {
     if (widget.images.length < 2) return;
     final int next = _currentIndex <= 0
         ? widget.images.length - 1
         : _currentIndex - 1;
-    _pageController.animateToPage(
-      next,
-      duration: GfMotion.standardDuration,
-      curve: GfMotion.standardEase,
-    );
+    _goToPage(next);
   }
 
   void _showNext() {
@@ -222,11 +243,7 @@ class _GfImageViewerState extends State<GfImageViewer>
     final int next = _currentIndex >= widget.images.length - 1
         ? 0
         : _currentIndex + 1;
-    _pageController.animateToPage(
-      next,
-      duration: GfMotion.standardDuration,
-      curve: GfMotion.standardEase,
-    );
+    _goToPage(next);
   }
 
   Future<void> _showImageActions(BuildContext context) async {
@@ -302,9 +319,7 @@ class _GfImageViewerState extends State<GfImageViewer>
                       loadStateChanged: (ExtendedImageState state) {
                         switch (state.extendedImageLoadState) {
                           case LoadState.loading:
-                            return const Center(
-                              child: CircularProgressIndicator(),
-                            );
+                            return const Center(child: GfProgressIndicator());
                           case LoadState.completed:
                             final image = state.extendedImageInfo?.image;
                             if (image != null) {

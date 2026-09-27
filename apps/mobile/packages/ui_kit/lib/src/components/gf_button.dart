@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../theme/gf_theme.dart';
+import 'atoms/gf_loading_indicator.dart';
+import 'gf_motion.dart';
 
 /// Button variant, mirroring web `gf-button-*` classes.
 enum GfButtonVariant {
@@ -88,13 +90,14 @@ class GfButton extends StatelessWidget {
         ? SizedBox(
             width: 16,
             height: 16,
-            child: CircularProgressIndicator(strokeWidth: 2, color: foreground),
+            child: GfProgressIndicator(strokeWidth: 2, color: foreground),
           )
         : icon;
 
     final button = FilledButton(
       onPressed: enabled ? onPressed : null,
       style: ButtonStyle(
+        animationDuration: GfMotion.duration(context, GfMotion.press),
         // Pending is a distinct state: it blocks activation while retaining
         // enough contrast for the progress indicator and its action label.
         backgroundColor: WidgetStateProperty.resolveWith((states) {

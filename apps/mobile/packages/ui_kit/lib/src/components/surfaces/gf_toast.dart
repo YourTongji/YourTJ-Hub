@@ -1,71 +1,145 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import '../gf_symbol.dart';
 
 import '../../theme/gf_theme.dart';
+import '../gf_motion.dart';
+import '../gf_symbol.dart';
 
-final _activeToasts = Expando<OverlayEntry>();
+final _activeToasts = Expando<_ToastEntry>();
 
-/// Shared top feedback banner, above dialogs/sheets and clear of system insets.
-/// A new message replaces the previous one; failures stay visible longer.
+class _ToastMessage {
+  const _ToastMessage(this.text, this.error);
+  final String text;
+  final bool error;
+}
+
+class _ToastEntry {
+  _ToastEntry(_ToastMessage message) : message = ValueNotifier(message);
+  final ValueNotifier<_ToastMessage> message;
+  late final OverlayEntry entry;
+}
+
+/// One live feedback surface per overlay. Replacements keep the same route-free
+/// host; closing finishes its exit before removal. A new message cancels closing.
 void showGfToast(BuildContext context, String message, {bool error = false}) {
   final overlay = Overlay.of(context, rootOverlay: true);
+  final next = _ToastMessage(message, error);
   final previous = _activeToasts[overlay];
   if (previous != null) {
-    previous.remove();
-    previous.dispose();
+    previous.message.value = next;
+    return;
   }
+  final handle = _ToastEntry(next);
   final themes = InheritedTheme.capture(from: context, to: overlay.context);
-  late final OverlayEntry entry;
-  void dismiss() {
-    if (_activeToasts[overlay] != entry) return;
+  void remove(_ToastMessage expected) {
+    if (_activeToasts[overlay] != handle || handle.message.value != expected) {
+      return;
+    }
     _activeToasts[overlay] = null;
-    entry.remove();
-    entry.dispose();
+    handle.entry.remove();
+    handle.entry.dispose();
+    handle.message.dispose();
   }
 
-  entry = OverlayEntry(
+  handle.entry = OverlayEntry(
     builder: (_) => themes.wrap(
-      _FeedbackBanner(message: message, error: error, onDismiss: dismiss),
+      ValueListenableBuilder<_ToastMessage>(
+        valueListenable: handle.message,
+        builder: (_, message, _) =>
+            _FeedbackBanner(message: message, onDismiss: remove),
+      ),
     ),
   );
-  _activeToasts[overlay] = entry;
-  overlay.insert(entry);
+  _activeToasts[overlay] = handle;
+  overlay.insert(handle.entry);
 }
 
 class _FeedbackBanner extends StatefulWidget {
-  const _FeedbackBanner({
-    required this.message,
-    required this.error,
-    required this.onDismiss,
-  });
-  final String message;
-  final bool error;
-  final VoidCallback onDismiss;
+  const _FeedbackBanner({required this.message, required this.onDismiss});
+  final _ToastMessage message;
+  final ValueChanged<_ToastMessage> onDismiss;
 
   @override
   State<_FeedbackBanner> createState() => _FeedbackBannerState();
 }
 
-class _FeedbackBannerState extends State<_FeedbackBanner> {
+class _FeedbackBannerState extends State<_FeedbackBanner>
+    with SingleTickerProviderStateMixin {
+  late final _controller = AnimationController(
+    vsync: this,
+    duration: GfMotion.layout,
+    reverseDuration: GfMotion.selection,
+  );
   Timer? _timer;
+  bool _started = false;
+  bool _closing = false;
+  int _generation = 0;
+
   @override
-  void initState() {
-    super.initState();
-    _timer = Timer(Duration(seconds: widget.error ? 7 : 4), widget.onDismiss);
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_started) {
+      _started = true;
+      _restart();
+    }
+    if (GfMotion.reducedOf(context)) {
+      _controller.value = _closing ? 0 : 1;
+      if (_closing) {
+        final generation = _generation;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && _closing && generation == _generation) {
+            widget.onDismiss(widget.message);
+          }
+        });
+      }
+    }
+  }
+
+  @override
+  void didUpdateWidget(_FeedbackBanner oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.message != widget.message) _restart();
+  }
+
+  void _restart() {
+    _generation++;
+    _closing = false;
+    _timer?.cancel();
+    _timer = Timer(Duration(seconds: widget.message.error ? 7 : 4), _dismiss);
+    if (GfMotion.reducedOf(context)) {
+      _controller.value = 1;
+    } else {
+      _controller.forward();
+    }
+  }
+
+  Future<void> _dismiss() async {
+    if (_closing) return;
+    _timer?.cancel();
+    final generation = _generation;
+    setState(() => _closing = true);
+    if (!GfMotion.reducedOf(context)) {
+      try {
+        await _controller.reverse().orCancel;
+      } on TickerCanceled {
+        return;
+      }
+    }
+    if (mounted && generation == _generation) widget.onDismiss(widget.message);
   }
 
   @override
   void dispose() {
     _timer?.cancel();
+    _controller.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final colors = GfTheme.colorsOf(context);
-    final accent = widget.error ? colors.error : colors.success;
+    final accent = widget.message.error ? colors.error : colors.success;
     return Positioned(
       top: 0,
       left: 0,
@@ -77,51 +151,76 @@ class _FeedbackBannerState extends State<_FeedbackBanner> {
           alignment: Alignment.topCenter,
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 560),
-            child: Material(
-              color: colors.base100,
-              elevation: 4,
-              shadowColor: Colors.black.withValues(alpha: .14),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-                side: BorderSide(color: accent.withValues(alpha: .25)),
-              ),
-              child: Semantics(
-                liveRegion: true,
-                child: Padding(
-                  padding: const EdgeInsets.only(
-                    left: 14,
-                    top: 6,
-                    bottom: 6,
-                    right: 4,
-                  ),
-                  child: Row(
+            child: IgnorePointer(
+              ignoring: _closing,
+              child: GfFadeTransition(
+                animation: _controller,
+                offset: const Offset(0, -GfMotion.rise),
+                child: AnimatedSwitcher(
+                  duration: GfMotion.duration(context, GfMotion.content),
+                  switchInCurve: GfMotion.enterCurve,
+                  switchOutCurve: GfMotion.enterCurve,
+                  layoutBuilder: (current, previous) => Stack(
+                    alignment: Alignment.topCenter,
                     children: [
-                      GfSymbol(
-                        widget.error ? 'circle-alert' : 'circle-check',
-                        color: accent,
-                        size: 22,
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          widget.message,
-                          style: GfTheme.typographyOf(
-                            context,
-                          ).body.copyWith(color: colors.baseContent),
-                        ),
-                      ),
-                      IconButton(
-                        tooltip: MaterialLocalizations.of(
-                          context,
-                        ).closeButtonTooltip,
-                        onPressed: widget.onDismiss,
-                        icon: GfSymbol(
-                          'x',
-                          size: 18,
-                          color: colors.baseContent.withValues(alpha: .55),
-                        ),
-                      ),
+                      for (final child in previous)
+                        ExcludeSemantics(child: IgnorePointer(child: child)),
+                      ?current,
                     ],
+                  ),
+                  child: Material(
+                    key: ObjectKey(widget.message),
+                    color: colors.base100,
+                    elevation: 4,
+                    shadowColor: Colors.black.withValues(alpha: .14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      side: BorderSide(color: accent.withValues(alpha: .25)),
+                    ),
+                    child: Semantics(
+                      liveRegion: true,
+                      child: Padding(
+                        padding: const EdgeInsets.only(
+                          left: 14,
+                          top: 6,
+                          bottom: 6,
+                          right: 4,
+                        ),
+                        child: Row(
+                          children: [
+                            GfSymbol(
+                              widget.message.error
+                                  ? 'circle-alert'
+                                  : 'circle-check',
+                              color: accent,
+                              size: 22,
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                widget.message.text,
+                                style: GfTheme.typographyOf(
+                                  context,
+                                ).body.copyWith(color: colors.baseContent),
+                              ),
+                            ),
+                            IconButton(
+                              tooltip: MaterialLocalizations.of(
+                                context,
+                              ).closeButtonTooltip,
+                              onPressed: _dismiss,
+                              icon: GfSymbol(
+                                'x',
+                                size: 18,
+                                color: colors.baseContent.withValues(
+                                  alpha: .55,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                   ),
                 ),
               ),

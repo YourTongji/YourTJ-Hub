@@ -1676,8 +1676,8 @@ class _ProfileTabs extends StatefulWidget {
 
 class _ProfileTabsState extends State<_ProfileTabs>
     with SingleTickerProviderStateMixin {
-  static const _animationDuration = Duration(milliseconds: 220);
-  static const _animationCurve = Curves.easeInOutCubic;
+  static const _animationDuration = GfMotion.layout;
+  static const _animationCurve = GfMotion.layoutCurve;
 
   late final AnimationController _controller = AnimationController(
     vsync: this,

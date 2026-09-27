@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+
 import '../../theme/gf_theme.dart';
 import '../atoms/gf_avatar.dart';
+import '../atoms/gf_loading_indicator.dart';
 
 /// A person in a relationship list, with identity and bio on one reading axis.
 class GfConnectionRow extends StatelessWidget {
@@ -140,7 +142,7 @@ class GfFollowButton extends StatelessWidget {
             SizedBox(
               width: 16,
               height: 16,
-              child: CircularProgressIndicator(
+              child: GfProgressIndicator(
                 strokeWidth: 2,
                 color: following ? colors.baseContent : colors.base100,
               ),

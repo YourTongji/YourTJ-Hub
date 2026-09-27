@@ -70,6 +70,7 @@ class _TopicActionsState extends ConsumerState<TopicActions> {
     }
     final confirmed = await showDialog<bool>(
       context: context,
+      animationStyle: GfMotion.dialogStyle(context),
       builder: (context) => AlertDialog(
         title: Text(
           action == 'delete'

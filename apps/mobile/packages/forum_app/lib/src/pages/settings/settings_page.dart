@@ -458,6 +458,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     if (user == null) return;
     final saved = await showDialog<bool>(
       context: context,
+      animationStyle: GfMotion.dialogStyle(context),
       barrierDismissible: false,
       builder: (_) => UsernameEditDialog(
         username: user.username,
@@ -914,6 +915,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     final l10n = AppLocalizations.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
+      animationStyle: GfMotion.dialogStyle(context),
       builder: (context) => AlertDialog(
         title: Text(l10n.settingsCoverRemove),
         content: Text(l10n.settingsCoverRemoveConfirm),
@@ -1614,6 +1616,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   Future<void> _closeAccount() async {
     final choice = await showDialog<({String mode, String password})>(
       context: context,
+      animationStyle: GfMotion.dialogStyle(context),
       builder: (_) => const AccountClosureDialog(),
     );
     if (choice == null || !mounted) return;

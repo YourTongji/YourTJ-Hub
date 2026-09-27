@@ -29,6 +29,18 @@ YourTJ 移动端设计系统(Flutter):设计 token、`ThemeData` 与 Gf* 组件�
 - 主题数据来自 `lib/src/theme/tokens.json`(light/dark 双主题);`GfThemeData` 生成 `ThemeData`,`GfTheme.colorsOf(context)` 提供语义色。
 - 新增/修改组件样式走 token,不硬编码色值;与 web `tokens.css` 保持 1:1。
 
+## 动效
+
+`Current`: `GfMotion` 是原生移动端动效事实源，提供 `press` / `selection` / `content` /
+`layout` / `overlay` 五档时长；调用 `duration(context, …)` 消费系统减少动态效果设置。
+`dialogStyle` / `sheetStyle` 保留 Flutter 原生路由、焦点与拖拽行为；`GfFadeTransition`
+用同一进度控制透明度和逻辑像素位移，并支持中途反向。`GfActionFeedback` 仅在显式操作时
+播放一次轻微反馈，业务层继续拥有请求、乐观更新和失败回滚。`GfProgressIndicator` 统一
+环形进度的减少动态效果处理，静态等待不会播报虚假的百分比。
+
+页面通过这些共享入口组合动效，避免散落时长/曲线；网络 debounce、草稿保存和品牌启动
+序列有独立语义。具体用户行为见[移动端动效](../../../../docs/product/mobile-experience.md#motion-and-continuity)。
+
 ## 验证
 
 `Current`: 移动端按钮和分类标签分别约束可见背景与触控区域，并允许文字增大时增高；

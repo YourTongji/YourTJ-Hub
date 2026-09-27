@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../theme/gf_theme.dart';
+import 'gf_motion.dart';
 import 'gf_symbol.dart';
 
 class GfBottomNavigationItem {
@@ -136,9 +137,8 @@ class _Destination extends StatelessWidget {
                           'gf-bottom-navigation-selected-indicator',
                         )
                       : null,
-                  duration: MediaQuery.disableAnimationsOf(context)
-                      ? Duration.zero
-                      : const Duration(milliseconds: 160),
+                  duration: GfMotion.duration(context, GfMotion.selection),
+                  curve: GfMotion.layoutCurve,
                   width: 48,
                   height: 36,
                   decoration: BoxDecoration(
