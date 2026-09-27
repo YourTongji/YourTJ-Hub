@@ -20,7 +20,7 @@ class StartupExperience extends StatefulWidget {
 class _StartupExperienceState extends State<StartupExperience>
     with TickerProviderStateMixin {
   static const _brandDuration = Duration(milliseconds: 800);
-  static const _exitDuration = Duration(milliseconds: 200);
+  static const _exitDuration = GfMotion.content;
   static const _captionDelay = Duration(milliseconds: 450);
   static const _staticLogoAsset = 'assets/splash/brand_mark.svg';
   static const _staticLogoFallbackAsset = 'assets/splash/brand_mark.png';
@@ -68,11 +68,11 @@ class _StartupExperienceState extends State<StartupExperience>
     _exitController = AnimationController(vsync: this, duration: _exitDuration);
     _brandProgress = CurvedAnimation(
       parent: _brandController,
-      curve: Curves.easeOutCubic,
+      curve: GfMotion.enterCurve,
     );
     _exitProgress = CurvedAnimation(
       parent: _exitController,
-      curve: Curves.easeInOutCubic,
+      curve: GfMotion.layoutCurve,
     );
     _animation = Listenable.merge([_brandController, _exitController]);
   }
@@ -230,8 +230,8 @@ class _StartupExperienceState extends State<StartupExperience>
       opacity: opacity,
       child: AnimatedContainer(
         color: background,
-        duration: const Duration(milliseconds: 180),
-        curve: Curves.easeOut,
+        duration: GfMotion.duration(context, GfMotion.content),
+        curve: GfMotion.enterCurve,
         child: LayoutBuilder(
           builder: (context, constraints) {
             if (constraints.maxWidth > 0 && constraints.maxHeight > 0) {
@@ -279,7 +279,10 @@ class _StartupExperienceState extends State<StartupExperience>
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           AnimatedSwitcher(
-                            duration: const Duration(milliseconds: 120),
+                            duration: GfMotion.duration(
+                              context,
+                              GfMotion.press,
+                            ),
                             child: _showStaticLogo
                                 ? _buildStaticLogo(logoSize)
                                 : Image.asset(
@@ -309,8 +312,11 @@ class _StartupExperienceState extends State<StartupExperience>
                           const SizedBox(height: 30),
                           AnimatedOpacity(
                             opacity: _captionVisible ? 1 : 0,
-                            duration: const Duration(milliseconds: 170),
-                            curve: Curves.easeOut,
+                            duration: GfMotion.duration(
+                              context,
+                              GfMotion.selection,
+                            ),
+                            curve: GfMotion.enterCurve,
                             child: ConstrainedBox(
                               constraints: const BoxConstraints(minHeight: 24),
                               child: _buildCaption(dark: dark),

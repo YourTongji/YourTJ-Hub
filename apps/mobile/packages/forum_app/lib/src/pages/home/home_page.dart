@@ -1079,8 +1079,8 @@ class _CategoryRailState extends State<_CategoryRail> {
               MediaQuery.disableAnimationsOf(context) ||
                   !TickerMode.valuesOf(context).enabled
               ? Duration.zero
-              : const Duration(milliseconds: 180),
-          curve: Curves.easeOutCubic,
+              : GfMotion.content,
+          curve: GfMotion.enterCurve,
         ),
       );
     });
@@ -1151,7 +1151,7 @@ class _CategoryPill extends StatelessWidget {
     final colors = GfTheme.colorsOf(context);
     final duration = MediaQuery.disableAnimationsOf(context)
         ? Duration.zero
-        : const Duration(milliseconds: 180);
+        : GfMotion.content;
     final pillHeight = math.max(
       36.0,
       MediaQuery.textScalerOf(context).scale(14) * 1.4 + 16,
@@ -1167,7 +1167,7 @@ class _CategoryPill extends StatelessWidget {
           child: Center(
             child: AnimatedContainer(
               duration: duration,
-              curve: Curves.easeOutCubic,
+              curve: GfMotion.enterCurve,
               height: pillHeight,
               padding: const EdgeInsets.symmetric(horizontal: 16),
               decoration: BoxDecoration(

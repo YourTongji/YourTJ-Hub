@@ -99,10 +99,10 @@ class _GfMediaCarouselState extends State<GfMediaCarousel> {
                                     barrierColor: Colors.transparent,
                                     transitionDuration: reduceMotion
                                         ? Duration.zero
-                                        : GfMotion.fast,
+                                        : GfMotion.overlay,
                                     reverseTransitionDuration: reduceMotion
                                         ? Duration.zero
-                                        : GfMotion.fast,
+                                        : GfMotion.overlay,
                                     pageBuilder: (_, _, _) => GfImageViewer(
                                       images: widget.images,
                                       initialIndex: index,
@@ -114,11 +114,9 @@ class _GfMediaCarouselState extends State<GfMediaCarousel> {
                                     ),
                                     transitionsBuilder:
                                         (_, animation, _, child) =>
-                                            FadeTransition(
-                                              opacity: CurvedAnimation(
-                                                parent: animation,
-                                                curve: GfMotion.standardEase,
-                                              ),
+                                            GfFadeTransition(
+                                              animation: animation,
+                                              offset: Offset.zero,
                                               child: child,
                                             ),
                                   ),
@@ -225,7 +223,7 @@ class _GfMediaCarouselState extends State<GfMediaCarousel> {
                                   (pill) => AnimatedContainer(
                                     duration: reduceMotion
                                         ? Duration.zero
-                                        : GfMotion.fast,
+                                        : GfMotion.selection,
                                     width: pill == _index ? 16 : 4,
                                     height: 4,
                                     margin: EdgeInsets.only(

@@ -863,6 +863,32 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
+    testWidgets(
+      'reduced motion reveals a lazy review without zero-duration scrolling',
+      (tester) async {
+        tester.platformDispatcher.accessibilityFeaturesTestValue =
+            const FakeAccessibilityFeatures(disableAnimations: true);
+        addTearDown(
+          tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
+        );
+        final course = FakeCourseRepository(
+          _client(),
+          detailPayload: _detailPayload(),
+          reviewPayloads: _reviewPayloads(),
+        );
+        await pumpDetail(
+          tester,
+          course,
+          focusOfferingId: 902,
+          focusReviewId: 2,
+          size: const Size(320, 480),
+        );
+        expect(course.reviewCalls.first.offeringId, 902);
+        expect(find.text('历史评价').hitTestable(), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      },
+    );
+
     testWidgets('own anonymous review precedes other reviews', (tester) async {
       final reviews = _reviewPayloads();
       reviews[2] = reviews[2].copyWith(

@@ -29,19 +29,9 @@ Future<void> showComposeMenu(
     barrierDismissible: true,
     barrierLabel: l10n.commonClose,
     barrierColor: Theme.of(context).colorScheme.scrim,
-    transitionDuration: MediaQuery.disableAnimationsOf(context)
-        ? Duration.zero
-        : const Duration(milliseconds: 180),
-    transitionBuilder: (context, animation, secondary, child) => FadeTransition(
-      opacity: animation,
-      child: SlideTransition(
-        position: Tween(
-          begin: const Offset(0, .025),
-          end: Offset.zero,
-        ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOut)),
-        child: child,
-      ),
-    ),
+    transitionDuration: GfMotion.duration(context, GfMotion.layout),
+    transitionBuilder: (context, animation, secondary, child) =>
+        GfFadeTransition(animation: animation, child: child),
     pageBuilder: (context, animation, secondary) => SafeArea(
       child: Align(
         alignment: Alignment.bottomRight,

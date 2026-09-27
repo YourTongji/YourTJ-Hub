@@ -102,7 +102,7 @@ ordered after the active route in the accessibility tree so iOS does not hide it
 - `Current`: pushed pages use platform-native transitions on iOS — the system
   Cupertino page transition with the interactive edge-swipe back gesture, so
   secondary pages (topic, course, Wiki, settings) can be swiped closed from the
-  left edge. Android keeps the web-mirrored fade/rise transition. Horizontal
+  left edge. Android keeps the shared mobile fade/rise transition. Horizontal
   scroll rails keep working; the back gesture only claims the narrow left-edge
   band.
 - `Current`: four persistent destinations — Home, Campus, Notifications and Messages — use icon-only
@@ -121,10 +121,12 @@ ordered after the active route in the accessibility tree so iOS does not hide it
 - `Current`: topic bodies, Markdown and Wiki reading surfaces open the shared image viewer. It
   supports swipe navigation, pinch and double-tap zoom, actual-size viewing, long-press save and
   system sharing. Multi-image viewers show a horizontally scrolling thumbnail rail with a centered
-  focus; selecting a thumbnail changes the image and resets zoom and actual-size mode. Tapping
+  focus; selecting a thumbnail changes the image and resets zoom and actual-size mode. Distant
+  selections jump directly; adjacent selections use the shared media cadence. Tapping
   toggles the viewer controls and rail together; a vertical drag dismisses at minimum scale, moving
   and scaling the image while the background fades. Paging and dismiss gestures stay out of the way
-  while an image is zoomed. Home feed previews use the same viewer and image actions.
+  while an image is zoomed. Changing reduced motion while viewing keeps the current image and
+  settles active zoom or return animations. Home feed previews use the same viewer and image actions.
 - `Current`: Home topic cards expose compact authenticated like and bookmark shortcuts beside the
   reply/view metrics. A single heart action includes the topic's total like count; both actions
   retain a minimum 44-by-44 logical-pixel touch target while their icons animate. Actions switch
@@ -145,7 +147,7 @@ ordered after the active route in the accessibility tree so iOS does not hide it
   filter the existing stream in place, with a highlighted selection and an All categories action.
   The display menu contains list/card preferences; unavailable categories take no space.
 - `Current`: root headers, filter rails and bottom navigation overlay the reading viewport. They
-  hide after 48 logical pixels downward and return after 12 pixels upward, with 200 ms transitions.
+  hide after 48 logical pixels downward and return after 12 pixels upward, with 220 ms transitions.
   Hidden headers are clipped at the system safe-area edge; the reading viewport stays stable.
   Reaching the top, changing destination or opening the account drawer restores the controls.
   Reduced motion removes the transition; keyboard/modal interaction keeps controls visible.
@@ -292,6 +294,35 @@ ordered after the active route in the accessibility tree so iOS does not hide it
   delivery recovers. Account changes cancel the previous connection and discard stale unread responses.
   Background push delivery is not provided by this stream.
 
+## Motion and continuity
+
+`Current`: native mobile motion uses one semantic policy: 120 ms press feedback,
+160 ms selection, 180 ms content, 220 ms layout and 280 ms sheet/media transitions.
+Root headers, navigation and compose controls move together while the reading viewport stays
+stable. Tabs, announcement expansion, form focus, theme/logo changes and local disclosures
+consume that policy. Android pushed pages use a 220 ms fade with a six-logical-pixel rise and
+180 ms return; iOS retains Cupertino navigation and its cancellable edge-swipe gesture.
+Native drawers, scrolling, refresh and direct image gestures retain platform behavior.
+
+`Current`: feedback banners enter and leave softly; a replacement crossfades in the same overlay
+and cancels an older pending dismissal. A dismissed banner stops accepting input before removal.
+Feed and topic-dock toggles use the same single, at-most-six-percent icon pulse on explicit
+activation. Passive data updates do not replay it. Actions and network requests start immediately,
+and optimistic state and failure rollback remain owned by their existing feature state.
+
+`Current`: reduced motion removes custom transition durations, announcement expansion and rotation,
+icon pulses, programmatic image paging/zoom and reading-position movement. Shared indeterminate
+progress becomes a static glyph with loading semantics and no fabricated completion percentage; real upload
+progress remains determinate. Enabling reduced motion during a pulse or banner exit settles it;
+changing the preference keeps route-local drafts, focus and reading state mounted. Android push/pop
+durations become zero; lazy course-review deep links jump and wait for layout before locating the row.
+Short return-to-top movements animate; jumps beyond three viewport heights go directly to the target.
+Media wrap-around also jumps directly instead of sweeping through intervening images.
+
+`Partial`: widget coverage verifies cadence, bounded feedback, interruption, reduced motion and
+iOS back gestures. Physical-device frame timing and subjective motion acceptance remain runtime
+validation; simulator/debug execution does not establish production frame-rate guarantees.
+
 ## Language and presentation
 
 - `Current`: bottom sheets size to short content and constrain long, scrollable content to the
@@ -378,7 +409,8 @@ panels are mutually exclusive and preserve draft text and selection. Unsupported
 are not displayed. Chat bubbles use 20-pixel corners and are bounded by the conversation pane.
 
 `Current`: primary and secondary buttons use pill shapes with state-specific colors and a separate
-48-pixel hit target. Icon actions retain at least 44 pixels. Menus, segmented controls and choice
+48-pixel hit target. Icon actions retain at least 44 pixels, except the compact profile social links,
+whose touch areas are 24 pixels wide and 32 pixels high. Menus, segmented controls and choice
 labels grow with system text size; selected states expose semantics. Dialogs use one scrollable
 surface with 24-pixel corners, while inline alerts use a quiet 16-pixel surface. Avatars, loading,
 badges, dividers and selectors share the same semantic palette without third-party default skins.
@@ -704,7 +736,7 @@ identity survive this layout change. The header keeps a small outer margin for i
   and the six Web social providers. Saving preserves unedited fields and unknown social providers;
   website/social destinations accept HTTP(S), and social usernames expand to provider URLs.
   Public profiles display website/social links as icon-only controls and open them in the system
-  browser. Provider marks use compact, equally sized 24–32-pixel touch targets alongside profile dates,
+  browser. Provider marks use compact, equally sized 24-by-32-pixel touch targets alongside profile dates,
   with their names available to screen readers and long-press tooltips. Worn badges appear on the avatar independently of the badge list;
   administrator identity has a localized role label. Returning
   from settings refreshes profile identity and media immediately.
@@ -751,17 +783,22 @@ identity survive this layout change. The header keeps a small outer margin for i
 - `Current`: profile bios trim boundary whitespace; signatures use a mirrored feather and a wave
   below the complete text block, including wrapped lines.
   Admin and online chips sit beside the display name. The smaller handle sits below it.
-  Joined date, available last-active time and public link icons appear in that order in one row.
-  Compact date formatting and measured scaling keep all values visible without ellipses.
+  Joined date, available last-active time and public link icons appear in that order in one
+  leading-aligned row, with consistent 8-pixel gaps between groups. Social icons follow the
+  last-active label instead of being pushed to the opposite edge.
+  Labels remain complete; overflow scrolls horizontally with a muted hairline cue.
   The website uses the filled globe-pointer symbol in black or white for the current theme.
   Avatar overlap participates in layout so it leaves no translated blank space. Earned badges use
-  a centered, evenly spaced row of shared circular medallions, retaining server-provided artwork.
-  The selected worn badge remains attached to the avatar independently.
+  a compact, left-aligned row of shared circular medallions, retaining server-provided artwork.
+  The 3-pixel gaps around the badge and statistics rows are visually balanced; no extra footer gap
+  separates statistics from the profile tabs. The selected worn badge remains attached to the
+  avatar independently.
   Settings combine checkboxes, display positions and drag handles in one badge list, selecting and
   ordering zero to five owned, enabled badges for the profile header.
   An explicit empty selection hides that row; existing accounts default to their first five badges.
   This selection does not change the avatar badge or the complete earned badge collection.
-  Profile statistics keep all five values in one evenly spaced row, scaling labels to fit.
+  Profile statistics keep all five values in one compact row; overflow scrolls horizontally with
+  the same muted hairline cue.
   Settings groups use rounded inset surfaces, multiline row
   labels and consistent trailing arrows; avatar upload copy describes image selection and cropping.
 - `Current`: Settings opens a scrollable category index, with device preferences separated from
@@ -908,7 +945,23 @@ servers that omit interaction fields retain read-only content previews.
   official entries while preserving custom groups. Recent use
   keeps up to 30 distinct items in the current account/site session. Picking inserts at the caret or replaces the
   current selection; it does not send or publish. Unicode emoji and image stickers remain distinct.
-- `Current`: the personal library supports image upload, collecting a shared sticker by long press,
+- `Current`: sticker pickers stay inline below the reply, message or publishing input. Opening one
+  dismisses the typing keyboard without covering the editor; the keyboard button resumes typing at
+  the current selection. A bounded live preview renders draft stickers as images and updates after
+  insertion, editing or deletion, using the same Markdown/plain-text rules as the destination.
+  Repeated picks keep the panel open and advance the caret. Image uploads and reply-target/image
+  removal keep the next insertion aligned with the updated caret. Ordinary typing does not retry
+  unavailable sticker resolution; token changes and explicit retry can resolve again.
+  Back closes the panel before leaving the
+  page; short windows keep the picker scrollable and reply input controls accessible.
+  In private conversations, picker, preview and keyboard height changes keep the bottom of the
+  current reading position above the input area. Reading history does not jump to the latest message;
+  a conversation already at the bottom stays there. Closing restores the position within list bounds,
+  and visibility-based read receipts wait for the resized viewport to settle.
+- `Current`: adding a personal sticker offers the system photo library or file picker. Cancelling
+  either picker leaves the library unchanged. Selected photos use the same authenticated upload and
+  retry flow as files, without applying the post-photo resize/compression settings to stickers.
+  The personal library supports image upload, collecting a shared sticker by long press,
   private display names, reordering and removal. It holds up to 200 stickers; images are limited to
   4 MiB and an account can create up to 1000 retained personal assets. Uploads use the authenticated
   file service. Failed requests retain the current input and expose retry. Concurrent collection

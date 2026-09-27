@@ -1,6 +1,9 @@
-import 'package:flutter/material.dart';
 import 'dart:math' as math;
+
+import 'package:flutter/material.dart';
+
 import '../theme/gf_theme.dart';
+import 'gf_motion.dart';
 
 /// A single selectable tab in [GfTabBar].
 class GfTab {
@@ -37,8 +40,8 @@ class GfTabBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = GfTheme.colorsOf(context);
-    const duration = Duration(milliseconds: 220);
-    const curve = Curves.easeInOutCubic;
+    const duration = GfMotion.layout;
+    const curve = GfMotion.layoutCurve;
     final noAnimation = MediaQuery.disableAnimationsOf(context);
     final height = heightFor(context);
     final selectedIndex = tabs.indexWhere((tab) => tab.value == selected);

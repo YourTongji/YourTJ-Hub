@@ -1,9 +1,38 @@
+import 'dart:ui' as ui;
+
 import 'package:extended_image/extended_image.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ui_kit/ui_kit.dart';
 
 import '../helpers.dart';
+
+Future<void> cachePhoto(WidgetTester tester, String url) async {
+  final image = await tester.runAsync(() async {
+    final recorder = ui.PictureRecorder();
+    ui.Canvas(recorder).drawRect(
+      const Rect.fromLTWH(0, 0, 400, 800),
+      ui.Paint()..color = Colors.blue,
+    );
+    final picture = recorder.endRecording();
+    final image = await picture.toImage(400, 800);
+    picture.dispose();
+    return image;
+  });
+  final provider = ExtendedImage.network(url).image;
+  final key = await provider.obtainKey(ImageConfiguration.empty);
+  PaintingBinding.instance.imageCache.putIfAbsent(
+    key,
+    () => OneFrameImageStreamCompleter(
+      SynchronousFuture(ImageInfo(image: image!)),
+    ),
+  );
+  addTearDown(() {
+    PaintingBinding.instance.imageCache.clear();
+    PaintingBinding.instance.imageCache.clearLiveImages();
+  });
+}
 
 void main() {
   group('GfImageViewer', () {
@@ -17,7 +46,7 @@ void main() {
             brightness: brightness,
           ),
         );
-        // Close button, no counter, no side navigation for a single image.
+        // A single image keeps the counter and close button, without navigation.
         expect(
           find.byWidgetPredicate(
             (widget) => widget is GfSymbol && widget.name == 'x',
@@ -151,6 +180,120 @@ void main() {
       expect(find.byType(GfImageViewer), findsNothing);
     });
 
+    testWidgets('motion preference changes settle and restore drag return', (
+      tester,
+    ) async {
+      const url = 'https://example.com/return-photo.png';
+      await cachePhoto(tester, url);
+      await tester.pumpWidget(
+        gfApp(const GfImageViewer(images: [url])),
+      );
+      await tester.pumpAndSettle();
+      final slide = tester.state<ExtendedImageSlidePageState>(
+        find.byType(ExtendedImageSlidePage),
+      );
+      final controller = slide.backAnimationController;
+      slide.slide(Offset(0, slide.pageSize.height / 12));
+      slide.endSlide(ScaleEndDetails());
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 60));
+      expect(controller.isAnimating, isTrue);
+      expect(slide.offset.dy, greaterThan(0));
+
+      tester.platformDispatcher.accessibilityFeaturesTestValue =
+          const FakeAccessibilityFeatures(disableAnimations: true);
+      addTearDown(
+        tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
+      );
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+      expect(slide.backAnimationController, same(controller));
+      expect(controller.isAnimating, isFalse);
+      expect(slide.isSliding, isFalse);
+      expect(slide.offset, Offset.zero);
+
+      tester.platformDispatcher.accessibilityFeaturesTestValue =
+          const FakeAccessibilityFeatures(disableAnimations: false);
+      await tester.pump();
+      slide.slide(Offset(0, slide.pageSize.height / 12));
+      slide.endSlide(ScaleEndDetails());
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 60));
+      expect(controller.isAnimating, isTrue);
+      expect(slide.offset.dy, greaterThan(0));
+      await tester.pumpAndSettle();
+      expect(slide.isSliding, isFalse);
+      expect(slide.offset, Offset.zero);
+    });
+
+    for (final reduceDuringZoom in [false, true]) {
+      testWidgets(
+        'loaded photo zoom blocks dismissal until reset reduced=$reduceDuringZoom',
+        (tester) async {
+          const url = 'https://example.com/gesture-photo.png';
+          await cachePhoto(tester, url);
+          await tester.pumpWidget(gfApp(const SizedBox.shrink()));
+          tester
+              .state<NavigatorState>(find.byType(Navigator))
+              .push(
+                MaterialPageRoute<void>(
+                  builder: (_) => const GfImageViewer(images: [url]),
+                ),
+              );
+          await tester.pumpAndSettle();
+          final image = tester.widget<ExtendedImage>(
+            find.byType(ExtendedImage),
+          );
+          final state =
+              (image.extendedImageGestureKey!
+                      as GlobalKey<ExtendedImageGestureState>)
+                  .currentState!;
+          expect(state.gestureDetails!.totalScale, 1);
+          final center = tester.getCenter(find.byType(ExtendedImage));
+          await tester.tapAt(center);
+          await tester.pump(const Duration(milliseconds: 50));
+          await tester.tapAt(center);
+          if (reduceDuringZoom) {
+            await tester.pump();
+            await tester.pump(const Duration(milliseconds: 60));
+            final partialScale = state.gestureDetails!.totalScale!;
+            tester.platformDispatcher.accessibilityFeaturesTestValue =
+                const FakeAccessibilityFeatures(disableAnimations: true);
+            addTearDown(
+              tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
+            );
+            await tester.pump();
+            expect(
+              state.gestureDetails!.totalScale!,
+              greaterThan(partialScale),
+            );
+          }
+          await tester.pumpAndSettle();
+          expect(state.gestureDetails!.totalScale, greaterThan(1));
+          await tester.timedDragFrom(
+            center,
+            const Offset(0, 200),
+            const Duration(milliseconds: 400),
+          );
+          await tester.pumpAndSettle();
+          expect(find.byType(GfImageViewer), findsOneWidget);
+          // Reset through the actual gesture surface, then drag to dismiss.
+          await tester.tapAt(center);
+          await tester.pump(const Duration(milliseconds: 50));
+          await tester.tapAt(center);
+          await tester.pumpAndSettle();
+          expect(state.gestureDetails!.totalScale, 1);
+          await tester.timedDragFrom(
+            center,
+            const Offset(0, 200),
+            const Duration(milliseconds: 400),
+          );
+          await tester.pumpAndSettle();
+          expect(find.byType(GfImageViewer), findsNothing);
+        },
+      );
+    }
+
     testWidgets('initial index is respected', (tester) async {
       await tester.pumpWidget(
         gfApp(
@@ -231,6 +374,32 @@ void main() {
       }
       expect(find.text('3 / 3'), findsOneWidget);
       expect(railScroll.position.pixels, closeTo(128, 1));
+    });
+
+    testWidgets('distant thumbnail selection skips intervening images', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        gfApp(
+          const GfImageViewer(
+            images: [
+              'https://example.com/a.png',
+              'https://example.com/b.png',
+              'https://example.com/c.png',
+            ],
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.tap(
+        find.byKey(const ValueKey('gf-image-viewer-thumbnail-2')),
+      );
+      await tester.pump();
+      final pages = tester.widget<ExtendedImageGesturePageView>(
+        find.byType(ExtendedImageGesturePageView),
+      );
+      expect(pages.controller.page, 2);
+      expect(find.text('3 / 3'), findsOneWidget);
     });
 
     testWidgets('hidden thumbnail rail is faded and disabled', (tester) async {

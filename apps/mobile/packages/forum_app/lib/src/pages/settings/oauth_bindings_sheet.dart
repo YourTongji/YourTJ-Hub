@@ -152,7 +152,7 @@ class _OAuthBindingsSheetState extends ConsumerState<OAuthBindingsSheet>
             ),
             const SizedBox(height: 12),
             _bindings.when(
-              loading: () => const Center(child: CircularProgressIndicator()),
+              loading: () => const Center(child: GfProgressIndicator()),
               error: (error, _) => GfErrorRetry(
                 message: resolveErrorMessage(l10n, error),
                 onRetry: _load,

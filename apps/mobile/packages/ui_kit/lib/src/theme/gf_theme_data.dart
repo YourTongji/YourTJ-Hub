@@ -4,8 +4,8 @@ import 'package:flutter/material.dart';
 import '../components/gf_motion.dart';
 import 'gf_colors.dart';
 import 'gf_filled_input_border.dart';
-import 'gf_theme_extensions.dart';
 import 'gf_shadows.dart';
+import 'gf_theme_extensions.dart';
 import 'gf_typography.dart';
 
 /// Builds the yourtj `ThemeData` for a [Brightness], wiring the Gf design
@@ -15,7 +15,11 @@ import 'gf_typography.dart';
 /// (see [GfTheme]).
 /// [colors] 为可选的运行时覆盖色板（站点主题同步）：缺省时用内置
 /// `GfColors.forBrightness`（tokens.json 镜像，唯一事实源）。
-ThemeData gfThemeData(Brightness brightness, {GfColors? overrides}) {
+ThemeData gfThemeData(
+  Brightness brightness, {
+  GfColors? overrides,
+  bool disableAnimations = false,
+}) {
   // 运行时覆盖色板（站点主题同步）；缺省用内置 tokens.json 镜像（唯一事实源）。
   final GfColors colors = overrides ?? GfColors.forBrightness(brightness);
 
@@ -304,13 +308,14 @@ ThemeData gfThemeData(Brightness brightness, {GfColors? overrides}) {
       textStyle: TextStyle(color: colors.baseContent, fontSize: 15),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
     ),
-    // Motion mirrors `resource/src/runtime/motion.ts` (see GfMotion):
-    // page transitions use the standard 0.22s ease (web page-enter motion).
+    // Native mobile motion is owned by GfMotion (220ms in / 180ms out).
     // iOS keeps the system Cupertino transition so the edge-swipe back
     // gesture stays interactive (#642); Android keeps the Gf fade/rise.
     pageTransitionsTheme: PageTransitionsTheme(
       builders: <TargetPlatform, PageTransitionsBuilder>{
-        TargetPlatform.android: const GfPageTransitionsBuilder(),
+        TargetPlatform.android: GfPageTransitionsBuilder(
+          disableAnimations: disableAnimations,
+        ),
         TargetPlatform.iOS: const CupertinoPageTransitionsBuilder(),
       },
     ),

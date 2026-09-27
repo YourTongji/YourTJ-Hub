@@ -155,6 +155,7 @@ class _DraftsPageState extends ConsumerState<DraftsPage> {
     final l10n = AppLocalizations.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
+      animationStyle: GfMotion.dialogStyle(context),
       builder: (context) => AlertDialog(
         title: Text(l10n.draftDeleteLocal),
         content: Text(

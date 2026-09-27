@@ -111,7 +111,7 @@ class _StickerImageState extends State<StickerImage> {
               : Center(
                   child: SizedBox.square(
                     dimension: 16,
-                    child: CircularProgressIndicator(
+                    child: GfProgressIndicator(
                       strokeWidth: 1.5,
                       value: progress.expectedTotalBytes == null
                           ? null

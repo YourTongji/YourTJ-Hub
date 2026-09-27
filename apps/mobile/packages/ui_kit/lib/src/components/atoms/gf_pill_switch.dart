@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../theme/gf_theme.dart';
+import '../gf_motion.dart';
 import '../gf_symbol.dart';
 
 class GfPillOption<T> {
@@ -77,6 +78,7 @@ class _GfPillItem<T> extends StatelessWidget {
         child: TextButton(
           onPressed: onPressed,
           style: ButtonStyle(
+            animationDuration: GfMotion.duration(context, GfMotion.selection),
             minimumSize: const WidgetStatePropertyAll(Size(44, 44)),
             padding: const WidgetStatePropertyAll(
               EdgeInsets.symmetric(horizontal: 12, vertical: 8),

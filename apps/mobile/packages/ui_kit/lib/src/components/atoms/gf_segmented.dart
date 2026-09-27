@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../theme/gf_theme.dart';
+import '../gf_motion.dart';
 
 /// Quiet segmented choice with native focus, selected semantics and a minimum
 /// 48-pixel target. Labels may wrap as the system text size grows.
@@ -76,6 +77,8 @@ class _SegmentedItem<T> extends StatelessWidget {
         selected: selected,
         button: true,
         child: Material(
+          animationDuration: GfMotion.duration(context, GfMotion.selection),
+          animateColor: true,
           color: selected ? colors.base100 : Colors.transparent,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),

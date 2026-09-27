@@ -1,6 +1,10 @@
+import 'dart:ui' show SemanticsRole;
+
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
 
 import '../../theme/gf_theme.dart';
+import '../gf_motion.dart';
 
 /// Quiet native progress with optional supporting text.
 class GfLoadingIndicator extends StatelessWidget {
@@ -37,5 +41,34 @@ class GfLoadingIndicator extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+/// Native progress with an honest, static indeterminate state for reduced motion.
+class GfProgressIndicator extends StatelessWidget {
+  const GfProgressIndicator({
+    super.key,
+    this.value,
+    this.color,
+    this.strokeWidth = 4,
+  });
+  final double? value;
+  final Color? color;
+  final double strokeWidth;
+
+  @override
+  Widget build(BuildContext context) {
+    final stationary = value == null && GfMotion.reducedOf(context);
+    final indicator = CircularProgressIndicator(
+      value: stationary ? .75 : value,
+      color: color,
+      strokeWidth: strokeWidth,
+    );
+    return stationary
+        ? Semantics(
+            role: SemanticsRole.loadingSpinner,
+            child: ExcludeSemantics(child: indicator),
+          )
+        : indicator;
   }
 }

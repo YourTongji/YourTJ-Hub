@@ -111,7 +111,7 @@ class _PostHistorySheetState extends ConsumerState<PostHistorySheet> {
                             : 0,
                         duration: MediaQuery.disableAnimationsOf(context)
                             ? Duration.zero
-                            : const Duration(milliseconds: 180),
+                            : GfMotion.content,
                         child: const GfSymbol('chevron-down'),
                       ),
                       title: Text(
@@ -133,7 +133,7 @@ class _PostHistorySheetState extends ConsumerState<PostHistorySheet> {
                   if (_loading)
                     const Padding(
                       padding: EdgeInsets.all(16),
-                      child: Center(child: CircularProgressIndicator()),
+                      child: Center(child: GfProgressIndicator()),
                     ),
                   if (!_loading && _error == null && _versions.isEmpty)
                     GfEmpty(message: l10n.topicHistoryEmpty),

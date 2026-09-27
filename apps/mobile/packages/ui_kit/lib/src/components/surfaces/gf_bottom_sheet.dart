@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../gf_motion.dart';
+
 /// Shows a themed bottom sheet and returns the value passed to `Navigator.pop`.
 ///
 /// Short sheets fit their content; long sheets must provide a scrollable body.
@@ -22,6 +24,7 @@ Future<T?> showGfBottomSheet<T>(
   // its scrim own the complete viewport, including the shell chrome.
   return navigator.push<T>(
     ModalBottomSheetRoute<T>(
+      sheetAnimationStyle: GfMotion.sheetStyle(context),
       // Inherit the navigator's live theme instead of a snapshot of the caller.
       // Appearance controls can therefore repaint their still-open sheet.
       capturedThemes: null,
@@ -39,10 +42,8 @@ Future<T?> showGfBottomSheet<T>(
         localizations.bottomSheetLabel,
       ),
       builder: (sheetContext) => AnimatedPadding(
-        duration: MediaQuery.disableAnimationsOf(sheetContext)
-            ? Duration.zero
-            : const Duration(milliseconds: 160),
-        curve: Curves.easeOutCubic,
+        duration: GfMotion.duration(sheetContext, GfMotion.content),
+        curve: GfMotion.enterCurve,
         padding: EdgeInsets.only(
           bottom: keyboardAware
               ? MediaQuery.viewInsetsOf(sheetContext).bottom

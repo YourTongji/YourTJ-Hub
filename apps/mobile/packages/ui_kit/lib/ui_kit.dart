@@ -19,11 +19,13 @@ export 'src/components/business/gf_user_card.dart';
 export 'src/components/gf_card.dart';
 export 'src/components/gf_chip.dart';
 export 'src/components/gf_floating_action.dart';
+export 'src/components/gf_horizontal_scroll_view.dart';
 export 'src/components/gf_icon_button.dart';
 export 'src/components/gf_glass_icon_button.dart';
 export 'src/components/gf_image_viewer.dart';
 export 'src/components/gf_logo.dart';
 export 'src/components/gf_motion.dart';
+export 'src/components/gf_action_feedback.dart';
 export 'src/components/surfaces/gf_empty.dart';
 export 'src/components/surfaces/gf_app_bar.dart';
 export 'src/components/surfaces/gf_scroll_to_top.dart';
@@ -79,3 +81,5 @@ export 'src/components/gf_search_field.dart';
 export 'src/components/business/gf_content_row.dart';
 
 export 'src/components/business/gf_connection_row.dart';
+
+export 'src/components/business/gf_composer_panel.dart';

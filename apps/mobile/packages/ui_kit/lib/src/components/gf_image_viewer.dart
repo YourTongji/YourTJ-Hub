@@ -6,6 +6,7 @@ import 'package:flutter/gestures.dart'
 import 'package:flutter/material.dart';
 
 import '../theme/gf_theme.dart';
+import 'atoms/gf_loading_indicator.dart';
 import 'gf_glass_icon_button.dart';
 import 'gf_motion.dart';
 import 'gf_symbol.dart';
@@ -22,6 +23,7 @@ Future<bool> showGfImageSaveSheet(
         context: context,
         // Keep the action sheet above the persistent mobile shell and viewer route.
         useRootNavigator: true,
+        sheetAnimationStyle: GfMotion.sheetStyle(context),
         showDragHandle: true,
         backgroundColor: colors.base100,
         shape: RoundedRectangleBorder(
@@ -59,7 +61,7 @@ class GfImageViewer extends StatefulWidget {
     this.saveImageLabel = 'Save image',
     this.onShareImage,
     this.shareImageLabel = 'Share image',
-  }) : assert(images.length > 0);
+  });
 
   /// Image URLs to display.
   final List<String> images;
@@ -96,6 +98,8 @@ class _GfImageViewerState extends State<GfImageViewer>
   late final ExtendedPageController _pageController;
   final ScrollController _thumbnailController = ScrollController();
   late final AnimationController _doubleTapController;
+  final _slidePageKey = GlobalKey<ExtendedImageSlidePageState>();
+  Duration? _initialSlideResetDuration;
   late int _currentIndex;
   bool _actualSize = false;
   bool _chromeVisible = true;
@@ -118,11 +122,12 @@ class _GfImageViewerState extends State<GfImageViewer>
   @override
   void initState() {
     super.initState();
+    assert(widget.images.isNotEmpty);
     _currentIndex = widget.initialIndex.clamp(0, widget.images.length - 1);
     _pageController = ExtendedPageController(initialPage: _currentIndex);
     _doubleTapController = AnimationController(
       vsync: this,
-      duration: GfMotion.standard,
+      duration: GfMotion.overlay,
     )..addListener(_applyDoubleTapScale);
     _doubleTapController.addStatusListener(_finishDoubleTapScale);
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -133,9 +138,19 @@ class _GfImageViewerState extends State<GfImageViewer>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _doubleTapController.duration = MediaQuery.disableAnimationsOf(context)
-        ? Duration.zero
-        : GfMotion.standard;
+    final duration = GfMotion.duration(context, GfMotion.overlay);
+    _initialSlideResetDuration ??= duration;
+    // extended_image 9.1.0 recreates a SingleTicker controller when the widget
+    // duration changes. Update its public controller instead, retaining the
+    // page, zoom state and the package's existing animation listeners.
+    final reset = _slidePageKey.currentState?.backAnimationController;
+    if (reset != null) {
+      reset.duration = duration;
+      if (GfMotion.reducedOf(context) && reset.isAnimating) reset.value = 1;
+    }
+    if (GfMotion.reducedOf(context) && _doubleTapController.isAnimating) {
+      _doubleTapController.value = 1;
+    }
   }
 
   @override
@@ -163,8 +178,8 @@ class _GfImageViewerState extends State<GfImageViewer>
     } else {
       _thumbnailController.animateTo(
         target,
-        duration: GfMotion.standard,
-        curve: GfMotion.standardEase,
+        duration: GfMotion.overlay,
+        curve: GfMotion.enterCurve,
       );
     }
   }
@@ -179,13 +194,14 @@ class _GfImageViewerState extends State<GfImageViewer>
 
     if (index == _currentIndex) {
       _centerThumbnail(index, animate: true);
-    } else if (MediaQuery.disableAnimationsOf(context)) {
+    } else if (GfMotion.reducedOf(context) ||
+        (index - _currentIndex).abs() > 1) {
       _pageController.jumpToPage(index);
     } else {
       _pageController.animateToPage(
         index,
-        duration: GfMotion.standard,
-        curve: GfMotion.standardEase,
+        duration: GfMotion.overlay,
+        curve: GfMotion.enterCurve,
       );
     }
   }
@@ -207,7 +223,7 @@ class _GfImageViewerState extends State<GfImageViewer>
         child: AnimatedOpacity(
           key: const Key('gf-image-viewer-thumbnail-opacity'),
           opacity: _chromeVisible ? 1 : 0,
-          duration: reduceMotion ? Duration.zero : GfMotion.fast,
+          duration: reduceMotion ? Duration.zero : GfMotion.content,
           child: SizedBox(
             height: 76,
             child: DecoratedBox(
@@ -383,7 +399,7 @@ class _GfImageViewerState extends State<GfImageViewer>
     final Offset? position = _doubleTapPosition;
     if (!mounted || state == null || position == null) return;
 
-    final double progress = Curves.easeOutCubic.transform(
+    final double progress = GfMotion.enterCurve.transform(
       _doubleTapController.value,
     );
     final double scale =
@@ -421,7 +437,13 @@ class _GfImageViewerState extends State<GfImageViewer>
     _doubleTapStartScale = currentScale;
     _doubleTapTargetScale = targetScale;
     state.handleScaleStart(ScaleStartDetails(focalPoint: position));
-    _doubleTapController.forward(from: 0);
+    if (GfMotion.reducedOf(context)) {
+      _doubleTapController.value = 1;
+      _applyDoubleTapScale();
+      _finishDoubleTapScale(AnimationStatus.completed);
+    } else {
+      _doubleTapController.forward(from: 0);
+    }
   }
 
   double _smartDoubleTapScale(Size? imageSize, GestureConfig config) {
@@ -547,9 +569,10 @@ class _GfImageViewerState extends State<GfImageViewer>
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: ExtendedImageSlidePage(
+        key: _slidePageKey,
         slideAxis: SlideAxis.vertical,
         slideType: SlideType.wholePage,
-        resetPageDuration: reduceMotion ? Duration.zero : GfMotion.comfortable,
+        resetPageDuration: _initialSlideResetDuration!,
         slidePageBackgroundHandler: (Offset offset, Size size) =>
             defaultSlidePageBackgroundHandler(
               offset: offset,
@@ -613,9 +636,7 @@ class _GfImageViewerState extends State<GfImageViewer>
                         loadStateChanged: (ExtendedImageState state) {
                           switch (state.extendedImageLoadState) {
                             case LoadState.loading:
-                              return const Center(
-                                child: CircularProgressIndicator(),
-                              );
+                              return const Center(child: GfProgressIndicator());
                             case LoadState.completed:
                               final image = state.extendedImageInfo?.image;
                               if (image != null) {
@@ -655,7 +676,7 @@ class _GfImageViewerState extends State<GfImageViewer>
                     child: AnimatedOpacity(
                       key: const Key('gf-image-viewer-header-opacity'),
                       opacity: _chromeVisible ? 1 : 0,
-                      duration: reduceMotion ? Duration.zero : GfMotion.fast,
+                      duration: reduceMotion ? Duration.zero : GfMotion.content,
                       child: Row(
                         children: <Widget>[
                           Text(

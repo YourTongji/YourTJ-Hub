@@ -5,6 +5,89 @@ import 'package:ui_kit/ui_kit.dart';
 import '../helpers.dart';
 
 void main() {
+  testWidgets('profile badges and statistics stay compact and left aligned', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(320, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      gfApp(
+        SingleChildScrollView(
+          child: GfUserCard(
+            avatarUrl: '',
+            name: 'Alice',
+            username: 'alice',
+            details: const SizedBox(
+              key: ValueKey('profile-test-meta-row'),
+              height: 44,
+            ),
+            coloredBadges: const [
+              GfUserBadge(label: 'Badge one', color: Colors.blue),
+              GfUserBadge(label: 'Badge two', color: Colors.green),
+              GfUserBadge(label: 'Badge three', color: Colors.red),
+            ],
+            stats: const [
+              ('Following', '1,234,567'),
+              ('Followers', '2,345,678'),
+              ('Topics', '3,456,789'),
+              ('Replies', '4,567,890'),
+              ('Likes', '5,678,901'),
+            ],
+            statActions: {0: () {}},
+          ),
+        ),
+      ),
+    );
+
+    final badgeRow = tester.widget<Wrap>(
+      find.descendant(
+        of: find.byKey(const ValueKey('profile-badges-row')),
+        matching: find.byType(Wrap),
+      ),
+    );
+    expect(badgeRow.alignment, WrapAlignment.start);
+    expect(badgeRow.spacing, 2);
+    final metadataBounds = tester.getRect(
+      find.byKey(const ValueKey('profile-test-meta-row')),
+    );
+    final badgeBounds = tester.getRect(
+      find.byKey(const ValueKey('profile-badges-row')),
+    );
+    final statsBounds = tester.getRect(
+      find.byKey(const ValueKey('profile-stats-row')),
+    );
+    expect(badgeBounds.top - metadataBounds.bottom, closeTo(3, .01));
+    expect(statsBounds.top - badgeBounds.bottom, closeTo(3, .01));
+    final medallions = tester
+        .widgetList<GfBadgeMedallion>(find.byType(GfBadgeMedallion))
+        .toList();
+    expect(medallions.map((badge) => badge.size), everyElement(34));
+    final badgeRects = List.generate(
+      medallions.length,
+      (index) => tester.getRect(find.byType(GfBadgeMedallion).at(index)),
+    );
+    expect(badgeRects.first.left, lessThan(badgeRects.last.left));
+
+    final statsRow = find.byKey(const ValueKey('profile-stats-row'));
+    expect(
+      tester.widget<SingleChildScrollView>(statsRow).scrollDirection,
+      Axis.horizontal,
+    );
+    for (final value in [
+      '1,234,567',
+      '2,345,678',
+      '3,456,789',
+      '4,567,890',
+      '5,678,901',
+    ]) {
+      final text = tester.widget<Text>(find.text(value));
+      expect(text.maxLines, 1);
+      expect(text.softWrap, isFalse);
+    }
+    expect(tester.takeException(), isNull);
+  });
+
   for (final brightness in Brightness.values) {
     for (final scale in [1.0, 2.0]) {
       testWidgets(
@@ -64,7 +147,7 @@ void main() {
             closeTo((action.height + 8).clamp(56, double.infinity), .01),
           );
           expect(username.top - name.bottom, closeTo(2, .01));
-          expect(bio.top - username.bottom, closeTo(12, .01));
+          expect(bio.top - username.bottom, closeTo(8, .01));
           expect(action.height, greaterThanOrEqualTo(44));
           expect(name.top, greaterThanOrEqualTo(action.bottom + 4));
           expect(tester.takeException(), isNull);

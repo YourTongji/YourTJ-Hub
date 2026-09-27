@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
+import 'gf_motion.dart';
+
 /// Official community logo mark supporting dark and light themes.
 ///
 /// Under dark mode, it displays the light (white) logo vector mark;
@@ -25,9 +27,9 @@ class GfLogo extends StatelessWidget {
       label: semanticLabel,
       image: true,
       child: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 200),
-        switchInCurve: Curves.easeOut,
-        switchOutCurve: Curves.easeIn,
+        duration: GfMotion.duration(context, GfMotion.layout),
+        switchInCurve: GfMotion.enterCurve,
+        switchOutCurve: GfMotion.enterCurve,
         child: SvgPicture.asset(
           assetName,
           key: ValueKey<String>(assetName),

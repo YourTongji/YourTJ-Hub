@@ -21,6 +21,10 @@ import 'package:forum_app/src/pages/publish/publish_page.dart';
 import 'package:forum_app/src/router.dart';
 import 'package:forum_app/src/providers.dart';
 import 'fixtures/page_fixtures.dart' show topicDetailPayloadJson;
+import 'fixtures/sticker_fixtures.dart';
+import 'package:forum_app/src/widgets/stickers/sticker_picker.dart';
+import 'package:forum_app/src/widgets/stickers/sticker_image.dart';
+import 'package:forum_app/src/widgets/stickers/sticker_library_state.dart';
 
 class _MemoryTokenStorage implements TokenStorage {
   String? _token = 'token';
@@ -252,6 +256,7 @@ void main() {
     int userId = 1,
     bool viewerAuthenticated = true,
     WritingStore? localStore,
+    bool withStickers = false,
   }) async {
     final _MemoryTokenStorage storage = _MemoryTokenStorage();
     final GfApiClient client = GfApiClient(
@@ -311,6 +316,17 @@ void main() {
       ProviderScope(
         overrides: <Override>[
           tokenStorageProvider.overrideWithValue(storage),
+          if (withStickers)
+            stickerLibraryProvider.overrideWith(
+              (ref) => StickerLibrary(ComposerStickerRepository(client)),
+            ),
+          if (withStickers)
+            stickerCollectionProvider.overrideWith(
+              (ref) => StickerCollection(
+                ComposerStickerRepository(client),
+                ref.watch(stickerLibraryProvider),
+              ),
+            ),
           apiClientProvider.overrideWithValue(client),
           currentUserProvider.overrideWith(
             (ref) async =>
@@ -340,6 +356,80 @@ void main() {
       pageRepository: pageRepository,
       topicRepository: topicRepository,
     );
+  }
+
+  for (final compact in [false, true]) {
+    for (final type in [2, 3]) {
+      testWidgets(
+        'sticker composer keeps publishing editor visible type=$type compact=$compact',
+        (tester) async {
+          usePhoneViewport(tester);
+          if (compact) {
+            tester.view.physicalSize = const Size(320, 500);
+            tester.platformDispatcher.textScaleFactorTestValue = 2;
+            addTearDown(
+              tester.platformDispatcher.clearTextScaleFactorTestValue,
+            );
+          }
+          await pumpPublishPage(
+            tester,
+            editing: false,
+            contentType: type,
+            withStickers: true,
+          );
+          await tester.tap(find.byTooltip('表情库'));
+          await tester.pumpAndSettle();
+          expect(find.byType(BottomSheet), findsNothing);
+          final editor = find.byKey(const Key('publish-editor'));
+          expect(
+            editor.hitTestable(at: const Alignment(0, -.9)),
+            findsOneWidget,
+          );
+          expect(
+            tester.getTopLeft(editor).dy,
+            lessThan(tester.getTopLeft(find.byType(StickerPicker)).dy),
+          );
+          await tester.ensureVisible(find.text('Smile').last);
+          await tester.pumpAndSettle();
+          await tester.tap(find.text('Smile').last);
+          await tester.pumpAndSettle();
+          await tester.ensureVisible(find.text('Smile').last);
+          await tester.pumpAndSettle();
+          await tester.tap(find.text('Smile').last);
+          await tester.pumpAndSettle();
+          final preview = find.byKey(const Key('sticker-draft-preview'));
+          expect(
+            find.descendant(of: preview, matching: find.byType(StickerImage)),
+            findsNWidgets(2),
+          );
+          expect(
+            editor.hitTestable(at: const Alignment(0, -.9)),
+            findsOneWidget,
+          );
+          await tester.drag(find.byType(StickerPicker), const Offset(0, 300));
+          await tester.pumpAndSettle();
+          final search = find.descendant(
+            of: find.byType(StickerPicker),
+            matching: find.byType(TextField),
+          );
+          await tester.enterText(search, 'Smile');
+          tester.view.viewInsets = FakeViewPadding(bottom: compact ? 180 : 300);
+          await tester.pumpAndSettle();
+          expect(
+            editor.hitTestable(at: const Alignment(0, -.9)),
+            findsOneWidget,
+          );
+          expect(tester.takeException(), isNull);
+          tester.view.viewInsets = const FakeViewPadding();
+          await tester.tap(find.byTooltip('键盘'));
+          await tester.pumpAndSettle();
+          expect(find.byType(StickerPicker), findsNothing);
+          expect(tester.testTextInput.isVisible, isTrue);
+          await tester.pumpWidget(const SizedBox.shrink());
+          await tester.pump(const Duration(seconds: 1));
+        },
+      );
+    }
   }
 
   testWidgets('a new moment starts with body only and can opt into a title', (

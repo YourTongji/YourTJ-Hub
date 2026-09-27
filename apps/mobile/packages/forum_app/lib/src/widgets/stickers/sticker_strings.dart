@@ -24,11 +24,17 @@ class StickerStrings {
       _s('来源与许可', 'Sources & licenses', 'Quellen & Lizenzen', '出典とライセンス');
   String get title =>
       _s('表情库', 'Sticker library', 'Stickerbibliothek', 'ステッカー');
+  String get preview => _s('实时预览', 'Live preview', 'Live-Vorschau', 'プレビュー');
+  String get keyboard => _s('键盘', 'Keyboard', 'Tastatur', 'キーボード');
   String get recent => _s('最近', 'Recent', 'Zuletzt', '最近');
   String get mine => _s('我的', 'Mine', 'Meine', 'マイ');
   String get official => _s('官方', 'Official', 'Offiziell', '公式');
   String get manage => _s('管理', 'Manage', 'Verwalten', '管理');
   String get add => _s('添加表情', 'Add sticker', 'Sticker hinzufügen', '追加');
+  String get fromPhotos =>
+      _s('从照片图库选择', 'Choose from photos', 'Aus Fotos auswählen', '写真から選択');
+  String get fromFiles =>
+      _s('从文件选择', 'Choose from files', 'Aus Dateien auswählen', 'ファイルから選択');
   String get collect =>
       _s('收藏到我的表情', 'Save to my stickers', 'Zu meinen Stickern', 'マイステッカーに保存');
   String get saved =>

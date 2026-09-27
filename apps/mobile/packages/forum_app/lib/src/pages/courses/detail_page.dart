@@ -193,11 +193,11 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
     // the requested row mounts, then align that row below the app bar.
     for (var attempt = 0; mounted && attempt < 12; attempt++) {
       final target = _targetReviewKey.currentContext;
-      if (target != null && target.mounted) {
+      if (target != null && target.mounted && mounted) {
         await Scrollable.ensureVisible(
           target,
           alignment: .1,
-          duration: const Duration(milliseconds: 200),
+          duration: GfMotion.duration(context, GfMotion.layout),
         );
         return;
       }
@@ -208,11 +208,17 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
         position.maxScrollExtent,
       );
       if (next == position.pixels) return;
-      await _scrollController.animateTo(
-        next,
-        duration: const Duration(milliseconds: 120),
-        curve: Curves.easeOut,
-      );
+      if (GfMotion.reducedOf(context)) {
+        _scrollController.jumpTo(next);
+        // A lazy review needs a layout frame before its key can be inspected.
+        await WidgetsBinding.instance.endOfFrame;
+      } else {
+        await _scrollController.animateTo(
+          next,
+          duration: GfMotion.press,
+          curve: GfMotion.enterCurve,
+        );
+      }
     }
   }
 
@@ -299,8 +305,8 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
       if (section != null && mounted) {
         Scrollable.ensureVisible(
           section,
-          duration: const Duration(milliseconds: 260),
-          curve: Curves.easeOut,
+          duration: GfMotion.duration(context, GfMotion.overlay),
+          curve: GfMotion.enterCurve,
           alignment: 0.08,
         );
       }
@@ -1283,7 +1289,7 @@ class _AiSummaryCardState extends ConsumerState<_AiSummaryCard> {
                     ? const SizedBox(
                         width: 16,
                         height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
+                        child: GfProgressIndicator(strokeWidth: 2),
                       )
                     : const GfSymbol('refresh-cw', size: 18),
                 tooltip: copy.summaryRefresh,

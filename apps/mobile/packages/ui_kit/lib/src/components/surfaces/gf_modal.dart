@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../theme/gf_theme.dart';
+import '../gf_motion.dart';
 
 /// Bounded, softly rounded modal content. [showGfModal] owns the single native
 /// dialog route, keyboard avoidance and focus restoration.
@@ -38,6 +39,7 @@ Future<T?> showGfModal<T>(
 }) {
   return showDialog<T>(
     context: context,
+    animationStyle: GfMotion.dialogStyle(context),
     useRootNavigator: true,
     builder: (context) => Dialog(
       backgroundColor: Colors.transparent,
