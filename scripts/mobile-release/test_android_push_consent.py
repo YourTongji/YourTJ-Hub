@@ -3,7 +3,8 @@ import unittest
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]
+# CI may load these tests from a separate, sparse release-tool checkout.
+ROOT = Path.cwd()
 ANDROID = '{http://schemas.android.com/apk/res/android}'
 TOOLS = '{http://schemas.android.com/tools}'
 
