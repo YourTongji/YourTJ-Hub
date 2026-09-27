@@ -201,9 +201,19 @@ void main() {
         checkChatPosition?.call();
         await tester.tap(find.text('演示表情').last);
         await tester.pumpAndSettle();
+        expect(
+          find.byType(StickerPicker),
+          findsOneWidget,
+          reason: '$surface keeps the picker open after the first insertion',
+        );
         checkChatPosition?.call();
         await tester.tap(find.text('演示表情').last);
         await tester.pumpAndSettle();
+        expect(
+          find.byType(StickerPicker),
+          findsOneWidget,
+          reason: '$surface keeps the picker open after repeated insertions',
+        );
         final preview = find.byKey(const Key('sticker-draft-preview'));
         expect(
           find.descendant(of: preview, matching: find.byType(StickerImage)),

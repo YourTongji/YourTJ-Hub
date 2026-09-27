@@ -129,7 +129,7 @@ flutter test integration_test/campus_native_test.dart -d "$YOURTJ_TEST_DEVICE"
 ## 表情输入原生验证
 
 `integration_test/sticker_composer_test.dart` 使用本地演示图片和模拟数据验证回复、瞬间、文章和私信页面，
-包括私信面板开合、预览及键盘切换时的历史阅读位置，
+包括连续插入贴纸时不抢回富文本焦点，以及私信面板开合、预览及键盘切换时的历史阅读位置，
 不需要账号，也不向真实服务发送内容。可在模拟器运行并保存各入口的预览截图：
 
 ```bash

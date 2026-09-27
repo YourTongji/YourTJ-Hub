@@ -28,7 +28,11 @@ void main() {
     await tester.tap(find.text('图书馆开放时间调整（演示）').first);
     await tester.pumpAndSettle();
     expect(find.byType(SelectableText), findsOneWidget);
-    await tester.tap(find.byType(BackButton));
+    // Shared app bars expose native navigation through the localized tooltip.
+    final back = MaterialLocalizations.of(
+      tester.element(find.byType(SelectableText)),
+    ).backButtonTooltip;
+    await tester.tap(find.byTooltip(back));
     await tester.pumpAndSettle();
     await tester.ensureVisible(find.text(l.campusToday).first);
     await tester.tap(find.text(l.campusToday).first);
