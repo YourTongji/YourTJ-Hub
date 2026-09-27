@@ -1,11 +1,13 @@
 package api
 
 import (
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/appleauthservice"
-	"github.com/gin-gonic/gin"
+	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/appleauthservice"
+	"github.com/gin-gonic/gin"
 )
 
 func TestAppleExchangeRejectsMalformedAndOversizedCredentials(t *testing.T) {
