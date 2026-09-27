@@ -57,8 +57,10 @@ omission and preserves the existing review queue. It never withdraws another ver
 Apple agreements, review decisions and the system installer are not bypassed.
 
 Server tags remain `vX.Y.Z`. **Release / main** opens/reuses the `dev` → `main` PR when the trees
-differ and stops. After that PR passes checks and merges, rerun to tag the approved main commit,
-publish server binaries and dispatch production deployment. It never pushes to the main branch.
+differ, waits for that PR's checks and branch merge requirements, then merges, tags, publishes
+server binaries and dispatches production deployment in the same run. It stops without a tag
+if the source changes, checks fail, or merge requirements remain unmet until timeout. It never
+pushes to the main branch. See the [server release runbook](deployment.md) for recovery.
 Only exact server version tags participate in server version calculation; mobile releases do not
 replace GitHub's server `latest` release.
 
