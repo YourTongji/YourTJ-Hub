@@ -119,11 +119,11 @@ func TestAppleRevocationAndAccountClosureAreRetryable(t *testing.T) {
 			t.Error("invalid revoke request")
 		}
 		if fail.Load() {
-			w.WriteHeader(503)
+			w.WriteHeader(http.StatusServiceUnavailable)
 			return
 		}
 		revoked.Add(1)
-		w.WriteHeader(200)
+		w.WriteHeader(http.StatusOK)
 	}))
 	defer server.Close()
 	client := newClient(Config{ClientID: "tj.yourtj.forumApp", TeamID: "TEAM", KeyID: "KEY", PrivateKey: key}, server.Client())

@@ -24,7 +24,7 @@ import (
 
 const appleIssuer = "https://appleid.apple.com"
 
-var ErrUnavailable = errors.New("Apple sign-in unavailable")
+var ErrUnavailable = errors.New("apple sign-in unavailable")
 var ErrInvalidCredential = errors.New("invalid Apple credential")
 
 // Config contains server-only Apple signing inputs. It must never be serialized.

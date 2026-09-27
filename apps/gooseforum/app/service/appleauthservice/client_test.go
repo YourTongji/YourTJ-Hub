@@ -59,14 +59,14 @@ func TestAppleExchangeVerifiesIdentityAndSingleUseCode(t *testing.T) {
 				t.Errorf("client secret: %v", err)
 			}
 			if exchanges.Add(1) > 1 {
-				w.WriteHeader(400)
+				w.WriteHeader(http.StatusBadRequest)
 				_, _ = w.Write([]byte(`{"error":"invalid_grant"}`))
 				return
 			}
 			_ = json.NewEncoder(w).Encode(map[string]string{"id_token": identity, "refresh_token": "private-refresh-token"})
 		default:
 			t.Errorf("unexpected path: %s", r.URL.Path)
-			w.WriteHeader(404)
+			w.WriteHeader(http.StatusNotFound)
 		}
 	}))
 	defer server.Close()

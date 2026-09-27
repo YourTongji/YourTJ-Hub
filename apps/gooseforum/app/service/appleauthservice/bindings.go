@@ -14,8 +14,8 @@ import (
 
 const Provider = "apple"
 
-var ErrNoBinding = errors.New("Apple account must be connected in account settings first")
-var ErrAlreadyBound = errors.New("Apple account already connected")
+var ErrNoBinding = errors.New("apple account must be connected in account settings first")
+var ErrAlreadyBound = errors.New("apple account already connected")
 var ErrAccountUnavailable = errors.New("account unavailable for Apple authentication")
 
 func refreshPurpose(userID uint64) string {

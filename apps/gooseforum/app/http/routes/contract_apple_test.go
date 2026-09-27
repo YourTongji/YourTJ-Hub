@@ -34,7 +34,7 @@ func TestAppleRoutesContractAndAuthenticationGuards(t *testing.T) {
 		}
 		assertFixtureEnvelope(t, decodeContractEnvelope(t, w), contractFixture(t, item.fixture))
 	}
-	request := httptest.NewRequest("POST", "http://localhost/api/auth/apple/bind", strings.NewReader(body))
+	request := httptest.NewRequest(http.MethodPost, "http://localhost/api/auth/apple/bind", strings.NewReader(body))
 	request.Header.Set("Content-Type", "application/json")
 	request.Header.Set("Origin", "https://other.example")
 	request.AddCookie(&http.Cookie{Name: "access_token", Value: token})

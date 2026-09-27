@@ -13,7 +13,7 @@ func TestAppleExchangeRejectsMalformedAndOversizedCredentials(t *testing.T) {
 		r := gin.New()
 		r.POST("/exchange", AppleExchange)
 		w := httptest.NewRecorder()
-		r.ServeHTTP(w, httptest.NewRequest("POST", "/exchange", strings.NewReader(body)))
+		r.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/exchange", strings.NewReader(body)))
 		if w.Code != 400 {
 			t.Fatalf("status=%d", w.Code)
 		}
@@ -23,7 +23,7 @@ func TestAppleExchangeFailsClosedWhenUnconfigured(t *testing.T) {
 	r := gin.New()
 	r.POST("/exchange", AppleExchange)
 	w := httptest.NewRecorder()
-	r.ServeHTTP(w, httptest.NewRequest("POST", "/exchange", strings.NewReader(`{"authorizationCode":"code","identityToken":"identity","nonce":"01234567890123456789012345678901"}`)))
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/exchange", strings.NewReader(`{"authorizationCode":"code","identityToken":"identity","nonce":"01234567890123456789012345678901"}`)))
 	if w.Code != 503 || !strings.Contains(w.Body.String(), "oauth.apple.unavailable") {
 		t.Fatalf("status=%d body=%s", w.Code, w.Body)
 	}
