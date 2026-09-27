@@ -6,7 +6,8 @@ import tempfile
 import shutil
 from build_ios import validate_privacy_resources
 
-ROOT = Path(__file__).resolve().parents[2]
+# Validate the tagged source in the working directory, not the publisher checkout.
+ROOT = Path.cwd()
 
 class PrivacyManifestTest(unittest.TestCase):
     def test_export_rejects_missing_widget_or_sdk_manifest(self):
