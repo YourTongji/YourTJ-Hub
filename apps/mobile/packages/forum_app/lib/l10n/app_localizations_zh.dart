@@ -2042,7 +2042,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settingsPushUnsupported => '此构建尚未配置推送服务';
 
   @override
-  String get settingsPushServerDisabled => '暂未配置该手机厂商推送服务，环境允许的条件下，将使用FCM进行推送';
+  String get settingsPushServerDisabled => '服务器尚未启用此设备的推送通道，点击重试';
 
   @override
   String get settingsPushFailed => '推送注册失败，请检查网络后点击重试';

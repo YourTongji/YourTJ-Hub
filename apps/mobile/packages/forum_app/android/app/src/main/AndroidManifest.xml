@@ -23,6 +23,10 @@
         android:dataExtractionRules="@xml/private_preferences_extraction_rules"
         android:requestLegacyExternalStorage="true"
         android:theme="@style/WidgetHostTheme">
+        <!-- FCM must not register or collect data before the user enables push.
+             JPush requests its FCM token explicitly after consent; auto-init stays off. -->
+        <meta-data android:name="firebase_messaging_auto_init_enabled" android:value="false"/>
+        <meta-data android:name="firebase_analytics_collection_enabled" android:value="false"/>
         <!-- Explicit consent initializes JPush; disable its automatic startup provider. -->
         <provider android:name="cn.jpush.android.service.InitProvider" tools:node="remove"/>
         <service android:name=".PushService" android:exported="false" android:process=":pushcore">

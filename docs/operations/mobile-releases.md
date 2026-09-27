@@ -273,6 +273,12 @@ AppKey but do not require an offline adapter. Ordinary debug builds without a `p
 show push as unavailable. Local dev APKs can use the same `prepare_push.py` inputs before running
 `apps/mobile/scripts/build_dev_apk.sh`; generated JSON files are ignored by Git.
 
+FCM is an optional transport inside JPush; it does not bypass a disabled server JPush channel.
+Keep Firebase Messaging auto initialization and Analytics collection disabled in the Android manifest:
+JPush requests the FCM token only after the existing push opt-in flow initializes the SDK.
+The settings screen continues to report a disabled server channel accurately on both Android and iOS.
+See [Firebase startup controls](https://firebase.google.com/docs/cloud-messaging/android/get-started#prevent-auto-initialization).
+
 Set **production** secrets `JPUSH_APP_KEY` and `JPUSH_MASTER_SECRET` for the server. Do not place the
 JPush Master Secret or manufacturer server credentials in `ANDROID_PUSH_JSON`. The production
 workflow renders `[push.jpush]`. Dev intentionally receives no native push secrets because its
