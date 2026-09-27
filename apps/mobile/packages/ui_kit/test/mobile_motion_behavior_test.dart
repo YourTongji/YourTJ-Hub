@@ -23,6 +23,40 @@ void main() {
     await tester.pumpAndSettle();
   });
 
+  testWidgets(
+    'reduced Android route completes immediately in both directions',
+    (tester) async {
+      tester.platformDispatcher.accessibilityFeaturesTestValue =
+          const FakeAccessibilityFeatures(disableAnimations: true);
+      addTearDown(
+        tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
+      );
+      await tester.pumpWidget(
+        Builder(
+          builder: (context) => MaterialApp(
+            theme: gfThemeData(
+              Brightness.light,
+              disableAnimations: MediaQuery.disableAnimationsOf(context),
+            ).copyWith(platform: TargetPlatform.android),
+            home: const Scaffold(body: Text('Home')),
+          ),
+        ),
+      );
+      final route = MaterialPageRoute<void>(
+        builder: (_) => const Scaffold(body: Text('Detail')),
+      );
+      final navigator = tester.state<NavigatorState>(find.byType(Navigator));
+      navigator.push(route);
+      await tester.pump();
+      expect(route.transitionDuration, Duration.zero);
+      expect(route.reverseTransitionDuration, Duration.zero);
+      await tester.pumpAndSettle();
+      navigator.pop();
+      await tester.pumpAndSettle();
+      expect(find.text('Detail'), findsNothing);
+    },
+  );
+
   testWidgets('feedback stays mounted during its short exit', (tester) async {
     late BuildContext host;
     await tester.pumpWidget(

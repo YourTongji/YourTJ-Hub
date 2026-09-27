@@ -36,7 +36,9 @@ YourTJ 移动端设计系统(Flutter):设计 token、`ThemeData` 与 Gf* 组件�
 `dialogStyle` / `sheetStyle` 保留 Flutter 原生路由、焦点与拖拽行为；`GfFadeTransition`
 用同一进度控制透明度和逻辑像素位移，并支持中途反向。`GfActionFeedback` 仅在显式操作时
 播放一次轻微反馈，业务层继续拥有请求、乐观更新和失败回滚。`GfProgressIndicator` 统一
-环形进度的减少动态效果处理，静态等待不会播报虚假的百分比。
+环形进度的减少动态效果处理，静态等待保留加载语义，不会播报虚假的百分比。
+根应用将系统设置传入 `gfThemeData(disableAnimations: …)`，使 Android 页面进出时长也归零；
+iOS 继续使用 Cupertino 原生转场与返回手势。
 
 页面通过这些共享入口组合动效，避免散落时长/曲线；网络 debounce、草稿保存和品牌启动
 序列有独立语义。具体用户行为见[移动端动效](../../../../docs/product/mobile-experience.md#motion-and-continuity)。

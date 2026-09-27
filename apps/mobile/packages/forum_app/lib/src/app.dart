@@ -29,6 +29,7 @@ class GfApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final disableAnimations = MediaQuery.disableAnimationsOf(context);
     final ThemeMode mode = ref.watch(themeModeProvider);
     final GfRuntimeTheme? runtime = ref.watch(
       siteThemeProvider.select((s) => s.following ? s.runtime : null),
@@ -47,8 +48,16 @@ class GfApp extends ConsumerWidget {
       title: 'YourTJ',
       debugShowCheckedModeBanner: false,
       // 站点主题同步：runtime 覆盖为 null 时回退内置 tokens.json 镜像主题。
-      theme: gfThemeData(Brightness.light, overrides: runtime?.light),
-      darkTheme: gfThemeData(Brightness.dark, overrides: runtime?.dark),
+      theme: gfThemeData(
+        Brightness.light,
+        overrides: runtime?.light,
+        disableAnimations: disableAnimations,
+      ),
+      darkTheme: gfThemeData(
+        Brightness.dark,
+        overrides: runtime?.dark,
+        disableAnimations: disableAnimations,
+      ),
       themeMode: mode,
       themeAnimationDuration: GfMotion.duration(context, GfMotion.layout),
       themeAnimationCurve: GfMotion.layoutCurve,

@@ -15,7 +15,11 @@ import 'gf_typography.dart';
 /// (see [GfTheme]).
 /// [colors] 为可选的运行时覆盖色板（站点主题同步）：缺省时用内置
 /// `GfColors.forBrightness`（tokens.json 镜像，唯一事实源）。
-ThemeData gfThemeData(Brightness brightness, {GfColors? overrides}) {
+ThemeData gfThemeData(
+  Brightness brightness, {
+  GfColors? overrides,
+  bool disableAnimations = false,
+}) {
   // 运行时覆盖色板（站点主题同步）；缺省用内置 tokens.json 镜像（唯一事实源）。
   final GfColors colors = overrides ?? GfColors.forBrightness(brightness);
 
@@ -309,7 +313,9 @@ ThemeData gfThemeData(Brightness brightness, {GfColors? overrides}) {
     // gesture stays interactive (#642); Android keeps the Gf fade/rise.
     pageTransitionsTheme: PageTransitionsTheme(
       builders: <TargetPlatform, PageTransitionsBuilder>{
-        TargetPlatform.android: const GfPageTransitionsBuilder(),
+        TargetPlatform.android: GfPageTransitionsBuilder(
+          disableAnimations: disableAnimations,
+        ),
         TargetPlatform.iOS: const CupertinoPageTransitionsBuilder(),
       },
     ),

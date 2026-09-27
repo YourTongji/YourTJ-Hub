@@ -126,13 +126,17 @@ class _GfFadeTransitionState extends State<GfFadeTransition> {
 
 /// Android page navigation. iOS retains Cupertino's interactive back gesture.
 class GfPageTransitionsBuilder extends PageTransitionsBuilder {
-  const GfPageTransitionsBuilder();
+  const GfPageTransitionsBuilder({this.disableAnimations = false});
+
+  final bool disableAnimations;
 
   @override
-  Duration get transitionDuration => GfMotion.layout;
+  Duration get transitionDuration =>
+      disableAnimations ? Duration.zero : GfMotion.layout;
 
   @override
-  Duration get reverseTransitionDuration => GfMotion.content;
+  Duration get reverseTransitionDuration =>
+      disableAnimations ? Duration.zero : GfMotion.content;
 
   @override
   Widget buildTransitions<T>(

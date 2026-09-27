@@ -1,3 +1,4 @@
+import 'dart:ui' show SemanticsRole;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ui_kit/ui_kit.dart';
@@ -118,6 +119,22 @@ void main() {
       semantics.dispose();
     },
   );
+
+  testWidgets('standalone reduced progress retains loading semantics', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    await tester.pumpWidget(
+      motionApp(const GfProgressIndicator(key: Key('progress')), reduced: true),
+    );
+    final data = tester
+        .getSemantics(find.byKey(const Key('progress')))
+        .getSemanticsData();
+    expect(data.role, SemanticsRole.loadingSpinner);
+    expect(data.value, isEmpty);
+    await tester.pumpAndSettle();
+    semantics.dispose();
+  });
 
   testWidgets(
     'toggle feedback is local, bounded and never replays passive updates',

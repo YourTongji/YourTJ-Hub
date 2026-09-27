@@ -305,9 +305,10 @@ and optimistic state and failure rollback remain owned by their existing feature
 
 `Current`: reduced motion removes custom transition durations, announcement expansion and rotation,
 icon pulses, programmatic image paging/zoom and reading-position movement. Shared indeterminate
-progress becomes a static glyph without announcing a fabricated completion percentage; real upload
+progress becomes a static glyph with loading semantics and no fabricated completion percentage; real upload
 progress remains determinate. Enabling reduced motion during a pulse or banner exit settles it;
-changing the preference keeps route-local drafts, focus and reading state mounted.
+changing the preference keeps route-local drafts, focus and reading state mounted. Android push/pop
+durations become zero; lazy course-review deep links jump and wait for layout before locating the row.
 Short return-to-top movements animate; jumps beyond three viewport heights go directly to the target.
 Media wrap-around also jumps directly instead of sweeping through intervening images.
 
@@ -401,7 +402,8 @@ panels are mutually exclusive and preserve draft text and selection. Unsupported
 are not displayed. Chat bubbles use 20-pixel corners and are bounded by the conversation pane.
 
 `Current`: primary and secondary buttons use pill shapes with state-specific colors and a separate
-48-pixel hit target. Icon actions retain at least 44 pixels. Menus, segmented controls and choice
+48-pixel hit target. Icon actions retain at least 44 pixels, except the compact profile social links,
+whose touch areas are 24 pixels wide and 32 pixels high. Menus, segmented controls and choice
 labels grow with system text size; selected states expose semantics. Dialogs use one scrollable
 surface with 24-pixel corners, while inline alerts use a quiet 16-pixel surface. Avatars, loading,
 badges, dividers and selectors share the same semantic palette without third-party default skins.
@@ -727,7 +729,7 @@ identity survive this layout change. The header keeps a small outer margin for i
   and the six Web social providers. Saving preserves unedited fields and unknown social providers;
   website/social destinations accept HTTP(S), and social usernames expand to provider URLs.
   Public profiles display website/social links as icon-only controls and open them in the system
-  browser. Provider marks use compact, equally sized 24–32-pixel touch targets alongside profile dates,
+  browser. Provider marks use compact, equally sized 24-by-32-pixel touch targets alongside profile dates,
   with their names available to screen readers and long-press tooltips. Worn badges appear on the avatar independently of the badge list;
   administrator identity has a localized role label. Returning
   from settings refreshes profile identity and media immediately.

@@ -208,11 +208,17 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
         position.maxScrollExtent,
       );
       if (next == position.pixels) return;
-      await _scrollController.animateTo(
-        next,
-        duration: GfMotion.duration(context, GfMotion.press),
-        curve: GfMotion.enterCurve,
-      );
+      if (GfMotion.reducedOf(context)) {
+        _scrollController.jumpTo(next);
+        // A lazy review needs a layout frame before its key can be inspected.
+        await WidgetsBinding.instance.endOfFrame;
+      } else {
+        await _scrollController.animateTo(
+          next,
+          duration: GfMotion.press,
+          curve: GfMotion.enterCurve,
+        );
+      }
     }
   }
 

@@ -1,3 +1,5 @@
+import 'dart:ui' show SemanticsRole;
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
@@ -62,6 +64,11 @@ class GfProgressIndicator extends StatelessWidget {
       color: color,
       strokeWidth: strokeWidth,
     );
-    return stationary ? ExcludeSemantics(child: indicator) : indicator;
+    return stationary
+        ? Semantics(
+            role: SemanticsRole.loadingSpinner,
+            child: ExcludeSemantics(child: indicator),
+          )
+        : indicator;
   }
 }
