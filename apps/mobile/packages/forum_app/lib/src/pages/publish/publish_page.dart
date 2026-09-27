@@ -354,6 +354,13 @@ class _PublishPageState extends ConsumerState<PublishPage>
       document: _converter.mdToDocument(markdown),
       selection: const TextSelection.collapsed(offset: 0),
     );
+    controller.addListener(() {
+      // Image uploads and editor mutations can move the caret with the sticker
+      // panel open; the cached selection must follow the live document.
+      if (_stickerOpen && controller.selection.isValid) {
+        _stickerSelection = controller.selection;
+      }
+    });
     _documentChanges = controller.document.changes.listen((DocChange change) {
       if (_mediaInsertAt != null) {
         _mediaInsertAt = change.change.transformPosition(_mediaInsertAt!);

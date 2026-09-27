@@ -13,11 +13,13 @@ import 'package:forum_app/src/images/image_upload.dart';
 import 'package:forum_app/src/local/writing_store.dart';
 import 'package:forum_app/src/pages/publish/publish_page.dart';
 import 'package:forum_app/src/providers.dart';
+import 'package:forum_app/src/widgets/stickers/sticker_library_state.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:ui_kit/ui_kit.dart';
 
 import 'fixtures/page_fixtures.dart';
+import 'fixtures/sticker_fixtures.dart';
 import 'pages_smoke_test.dart' show MemoryTokenStorage;
 
 class _Picker extends ImagePicker {
@@ -125,6 +127,9 @@ void main() {
     );
     files = _Files(client);
     picker = _Picker();
+    final stickers = ComposerStickerRepository(client);
+    final library = StickerLibrary(stickers);
+    addTearDown(library.dispose);
     container = ProviderContainer(
       overrides: [
         apiClientProvider.overrideWithValue(client),
@@ -134,6 +139,10 @@ void main() {
         pageRepositoryProvider.overrideWithValue(_Pages(client)),
         fileRepositoryProvider.overrideWithValue(files),
         imagePickerProvider.overrideWithValue(picker),
+        stickerLibraryProvider.overrideWithValue(library),
+        stickerCollectionProvider.overrideWith(
+          (ref) => StickerCollection(stickers, library),
+        ),
       ],
     );
     addTearDown(container.dispose);
@@ -173,6 +182,44 @@ void main() {
     await tester.pump(const Duration(milliseconds: 400));
     await tester.pump();
   }
+
+  testWidgets(
+    'sticker caret follows an image upload while the picker stays open',
+    (tester) async {
+      await pumpPage(tester, type: 3);
+      final editor = tester
+          .widget<QuillEditor>(find.byType(QuillEditor))
+          .controller;
+      editor.replaceText(
+        0,
+        0,
+        'before\nafter',
+        const TextSelection.collapsed(offset: 7),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('表情库'));
+      await tester.pumpAndSettle();
+      await selectImages(tester);
+      files.results.first.complete('https://example.com/first.jpg');
+      await tester.pump();
+      await tester.pump();
+      files.results.last.complete('https://example.com/second.jpg');
+      await tester.pumpAndSettle();
+      final caret = editor.selection.baseOffset;
+      expect(caret, greaterThan(7));
+      final before = editor.document.toPlainText();
+      await tester.ensureVisible(find.text('Smile').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Smile').last);
+      await tester.pumpAndSettle();
+      expect(
+        editor.document.toPlainText(),
+        before.replaceRange(caret, caret, '[:sticker:smile:]'),
+      );
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(const Duration(seconds: 1));
+    },
+  );
 
   testWidgets('gallery selection starts a bounded multi-image queue', (
     tester,

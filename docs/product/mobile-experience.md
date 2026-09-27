@@ -907,7 +907,10 @@ servers that omit interaction fields retain read-only content previews.
   dismisses the typing keyboard without covering the editor; the keyboard button resumes typing at
   the current selection. A bounded live preview renders draft stickers as images and updates after
   insertion, editing or deletion, using the same Markdown/plain-text rules as the destination.
-  Repeated picks keep the panel open and advance the caret. Back closes the panel before leaving the
+  Repeated picks keep the panel open and advance the caret. Image uploads and reply-target/image
+  removal keep the next insertion aligned with the updated caret. Ordinary typing does not retry
+  unavailable sticker resolution; token changes and explicit retry can resolve again.
+  Back closes the panel before leaving the
   page; short windows keep the picker scrollable and reply input controls accessible.
   In private conversations, picker, preview and keyboard height changes keep the bottom of the
   current reading position above the input area. Reading history does not jump to the latest message;

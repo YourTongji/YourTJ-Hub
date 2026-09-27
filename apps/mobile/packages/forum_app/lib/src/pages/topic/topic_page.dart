@@ -716,6 +716,11 @@ class _TopicPageState extends ConsumerState<TopicPage>
 
   /// 编辑值变化:基于 caret 前文本驱动 @mention 会话(选区/无 caret 时关闭)。
   void _onReplyValueChanged() {
+    if (_replyStickerOpen && _replyController.selection.isValid) {
+      // Uploads and target/image removal can move the caret while the panel
+      // owns focus. Preserve that new position for the next sticker.
+      _replyStickerSelection = _replyController.selection;
+    }
     if (_lastReplyText != _replyController.text) {
       _lastReplyText = _replyController.text;
       _replyChanged();

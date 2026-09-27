@@ -3092,6 +3092,67 @@ void main() {
         },
       );
     }
+    testWidgets('sticker caret follows removal of the reply target', (
+      tester,
+    ) async {
+      final client = GfApiClient(
+        dio: Dio(),
+        tokenStorage: MemTokenStorage(),
+        baseUrl: 'http://fake.local',
+      );
+      final repository = ComposerStickerRepository(client);
+      final library = StickerLibrary(repository);
+      addTearDown(library.dispose);
+      final container = await makeContainer(
+        pageRepo: CountingPageRepository(client),
+        extraOverrides: [
+          stickerLibraryProvider.overrideWithValue(library),
+          stickerCollectionProvider.overrideWith(
+            (ref) => StickerCollection(repository, library),
+          ),
+        ],
+      );
+      await tester.pumpWidget(app(container, const TopicPage(topicId: 100)));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.byTooltip('回复').first);
+      await tester.tap(find.byTooltip('回复').first);
+      await tester.pumpAndSettle();
+      final composer = tester.widget<GfPostComposer>(
+        find.byType(GfPostComposer),
+      );
+      final controller = composer.controller;
+      controller.value = TextEditingValue(
+        text: '${controller.text}before after',
+        selection: const TextSelection.collapsed(offset: 8),
+      );
+      await tester.tap(find.byTooltip('表情库'));
+      await tester.pumpAndSettle();
+      final close = MaterialLocalizations.of(
+        tester.element(find.byType(GfPostComposer)),
+      ).closeButtonTooltip;
+      await tester.tap(
+        find
+            .descendant(
+              of: find.byType(GfPostComposer),
+              matching: find.byTooltip(close),
+            )
+            .first,
+      );
+      await tester.pumpAndSettle();
+      final caret = controller.selection.baseOffset;
+      final before = controller.text;
+      await tester.ensureVisible(find.text('Smile').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Smile').last);
+      await tester.pumpAndSettle();
+      expect(
+        controller.text,
+        before.replaceRange(caret, caret, '[:sticker:smile:]'),
+      );
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(const Duration(seconds: 1));
+    });
+
     testWidgets(
       'reply captcha challenge preserves the draft and can be completed',
       (tester) async {
