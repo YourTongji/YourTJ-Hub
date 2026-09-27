@@ -53,3 +53,14 @@ When sources disagree, treat it as a defect and fix it in the same PR, or record
 4. Delete stale content instead of keeping "deprecated but useful" copies; git history owns archival.
 5. Any new feature PR must include documentation changes: user-visible features update the docs center
    and status words; purely internal changes at least update the relevant README or code comments.
+
+## Link verification
+
+`node scripts/run-gates.mjs` includes relative Markdown link and heading checks for governance docs,
+all root/nested Markdown READMEs, and `apps/gooseforum/docs`. Discovery uses Git's tracked and new
+non-ignored files, so local dependency/SDK caches are excluded. Deleted files and symlinked documents
+are not scanned. This gate does not fetch external URLs or verify prose against implementation.
+
+Run `node --test scripts/test-doc-links.mjs` when changing the link checker. The documentation CI
+workflow runs these regression tests and the governance gates for every PR and every push to `dev`
+or `main`, including changes that only rename or delete a linked non-Markdown target.

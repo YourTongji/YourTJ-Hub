@@ -13,10 +13,8 @@ YourTJ Hub 是同济校园社区平台（品牌 yourtj）：以论坛为核心�
 
 ## 环境准备
 
-- Go 1.26+
-- Node.js 24 与 pnpm 11（前端 `apps/gooseforum/resource`，pnpm workspace）
-- Flutter（仅移动端 `apps/mobile` 工作）
-- Docker Compose（本地依赖：PostgreSQL / Meilisearch，可选）
+- Go、Node.js、pnpm、Flutter 与可选 Docker Compose 的版本及用途统一见
+  [本地开发指南](docs/development/local-development.md#dependencies)。
 - 本地 Git 钩子与静态检查（可选但推荐）：
 
 ```bash
@@ -33,7 +31,7 @@ worktree 都需要重新执行一次。
 ```bash
 cd apps/gooseforum/resource && pnpm install --frozen-lockfile && cd ../../..
 make build      # 前端产物 + 单一二进制 bin/yourtj-hub
-make test       # 后端 vet+test、契约检查、前端 typecheck+test（全量门禁）
+make test       # 后端 vet+test、契约检查、前端 typecheck+test+i18n；完整 CI 矩阵见测试指南
 ```
 
 常用验证命令与 CI 映射见 [testing.md](docs/development/testing.md)。

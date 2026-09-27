@@ -13,8 +13,8 @@ This file only carries the repo-seed structure rules that complement that govern
 - **Tutorial or reference.** Classify every document as a tutorial (ordered path to an outcome) or a
   reference (lookup scope, current behavior, no teaching sequence).
 - **Machine-checkable links.** Cross-reference with relative Markdown links that resolve; `node
-  scripts/verify-doc-links.mjs` enforces this for `AGENTS.md`, `CLAUDE.md`, `docs/**`, and
-  `CONTRIBUTING.md`, and `node scripts/verify-placeholders.mjs` fails on any leftover fill-in token.
+  scripts/verify-doc-links.mjs` checks governance docs, root/nested READMEs and fork-owned
+  GooseForum docs (tracked and new non-ignored files), and `node scripts/verify-placeholders.mjs` fails on any leftover fill-in token.
 - **Governed surfaces.** `docs/specs/` remains a registered external pointer (see
   `.repo-seed/manifest.json`); `docs/decisions/` is the in-git MADR decision log enforced by
   `node scripts/verify-decisions.mjs`; `docs/postmortems/` follows the incident format in its README.

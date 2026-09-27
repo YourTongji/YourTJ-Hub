@@ -37,16 +37,13 @@ chmod +x ./yourtj-hub
 
 环境要求：
 
-- Go 1.26+
-- Node.js 18+
-- pnpm
+Go、Node.js 与 pnpm 版本统一见[本地开发指南](../../docs/development/local-development.md#dependencies)。
 
 ```bash
-git clone https://github.com/YourTongji/YourTJ-Hub.git
+git clone --branch dev https://github.com/YourTongji/YourTJ-Hub.git
 cd YourTJ-Hub/apps/gooseforum
 
-cd resource && pnpm install && pnpm build && cd ..
-go mod tidy
+cd resource && pnpm install --frozen-lockfile && pnpm build && cd ..
 go build -o yourtj-hub -ldflags="-w -s" .
 
 ./yourtj-hub serve
@@ -98,6 +95,10 @@ GooseForum 是一个技术社区平台，使用 Go、Gin、GORM、Vue 3、TypeSc
 
 ## 开发
 
+在 `apps/gooseforum` 中运行 `go run . --help` 生成缺失的 `config.toml`（不会覆盖已有文件），
+将 `[app]` 中的 `env` 从默认的 `"production"` 改为 `"local"`，再启动后端。
+完整步骤见[本地开发指南](../../docs/development/local-development.md#startup)。
+
 ```bash
 # 后端热重载
 air
@@ -107,6 +108,7 @@ cd resource && pnpm dev
 ```
 
 管理后台由同一个 Vue 应用提供，访问路径为 `/admin`，不需要单独启动管理端前端服务。
+浏览器打开 `http://localhost:5234`；后端把 `/assets` 代理到 3010 端口的 Vite 资源服务。
 
 ## 项目结构
 

@@ -573,21 +573,10 @@ identity survive this layout change. The header keeps a small outer margin for i
   data. The visible minute clock does not poll the network. School-local date rollover invalidates the
   in-app teaching-day response; Widgets advance within their last verified eight-day local window and
   request a refresh when a future day is unknown. See [campus retention rules](campus.md).
-- `Current`: Android and iOS expose native “Next class” and “Today schedule” home-screen Widgets from
-  a versioned, minimal projection of that Drift snapshot. Android uses Jetpack Glance with 2x1 and
-  resizable 4x2/4x4 surfaces, and adds a default 4x3 “Course timeline” Widget with independent
-  today/tomorrow switching and a scrollbar-free vertical course list; iOS 14 and later use
-  WidgetKit/SwiftUI for systemSmall, systemMedium and systemLarge. The iOS 13 app remains usable
-  without desktop Widgets.
-  Widgets never access the network, advance class state and Shanghai midnight from local alarms/
-  timelines, and use a schema-2 rolling window whose first day remains the server-resolved authority.
-  Large widgets show today and tomorrow side by side. They support light/dark, Android 12 dynamic color,
-  iOS tinted rendering, large text and screen reader descriptions, and deep-link to Campus today.
-  Android 12–14 picker previews use a 4×2 two-day layout and a 2×1 next-class layout. App Appearance
-  settings adjust only the widget background transparency from 0% to 15% (default 9%), keeping course
-  text fully opaque. Widget settings disclose displayed fields, can rebuild or clear desktop data,
-  and provide optional OEM refresh diagnostics. The source is the official campus snapshot and is
-  independent from the `/schedule` planner store.
+- `Current`: Android and iOS provide native home-screen course Widgets from the official campus
+  snapshot, independently from the scheduler store. Display, local time advancement, privacy,
+  settings and physical-device validation boundaries are owned by the
+  [campus Widget specification](campus.md#home-screen-widgets).
 - `Partial`: native school login on a physical device is not end-to-end verified. Automated tests
   cover navigation policy, session handoff, confirmation, stale responses and native rendering.
 - `Current`: the scheduler opens in course selection. Plan preview remains a local planning

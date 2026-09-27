@@ -25,8 +25,6 @@
 - Conventional Commits: `feat:` / `fix:` / `docs:` / `refactor:` / `chore:` / `test:`.
 - Stage only files this task owns; leave unrelated dirty/untracked files alone.
 - Never push to protected branches; releases go through PR + CI.
-- Agent commits must carry the footer:
-  `Co-authored-by: synergy-agent <299070056+synergy-agent@users.noreply.github.com>`
 
 ## Pull Requests
 

@@ -113,6 +113,22 @@ path filters directly, so an unrelated PR does not start a Flutter runner.
   Native build jobs run `flutter pub get` from `packages/forum_app` so clean checkouts generate
   the Flutter plugin and SwiftPM packages before compiling the APNs bridge or Android OEM adapters.
 
+## Documentation and governance
+
+`ci-docs.yml` runs for every PR and every push to `dev` or `main`, so renaming or deleting a linked
+source file, image or configuration also triggers the gate. It needs only Git and Node, without
+application dependencies:
+
+```bash
+node --test scripts/test-doc-links.mjs
+node scripts/run-gates.mjs
+git diff --check
+```
+
+The link gate covers root/nested READMEs, `docs/`, fork-owned GooseForum docs and governance entry
+files. It checks relative link targets and heading anchors, including Chinese and repeated headings; it does not
+establish that documented behavior or external URLs are current. Review prose against the owning code.
+
 ## Independent status application
 
 `apps/status` has an isolated pnpm workspace. Run `pnpm install --frozen-lockfile`, `pnpm test`,

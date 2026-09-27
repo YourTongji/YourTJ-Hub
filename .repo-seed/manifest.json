@@ -141,7 +141,8 @@
       "path": "scripts/verify-doc-links.mjs",
       "sha256": "130093c964f058c07b0cbb2022f792c4d5fcb6d37884b3ec25e88fe96fc9d17d",
       "category": "gate",
-      "capability": "baseline"
+      "capability": "baseline",
+      "userModified": true
     },
     {
       "path": "scripts/verify-placeholders.mjs",

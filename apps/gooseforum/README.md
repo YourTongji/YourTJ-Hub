@@ -37,16 +37,14 @@ Open `http://localhost:5234`. The first registered user automatically becomes th
 
 Requirements:
 
-- Go 1.26+
-- Node.js 18+
-- pnpm
+Use the versions in the [local development guide](../../docs/development/local-development.md#dependencies)
+for Go, Node.js and pnpm.
 
 ```bash
-git clone https://github.com/YourTongji/YourTJ-Hub.git
+git clone --branch dev https://github.com/YourTongji/YourTJ-Hub.git
 cd YourTJ-Hub/apps/gooseforum
 
-cd resource && pnpm install && pnpm build && cd ..
-go mod tidy
+cd resource && pnpm install --frozen-lockfile && pnpm build && cd ..
 go build -o yourtj-hub -ldflags="-w -s" .
 
 ./yourtj-hub serve
@@ -98,6 +96,10 @@ GooseForum is a technical community platform built with Go, Gin, GORM, Vue 3, Ty
 
 ## Development
 
+In `apps/gooseforum`, run `go run . --help` to create `config.toml` if it is missing (an existing
+file is preserved). Set `env = "local"` in its `[app]` section before starting the backend; the
+generated default is `"production"`. See the [local setup guide](../../docs/development/local-development.md#startup).
+
 ```bash
 # Backend with hot reload
 air
@@ -107,6 +109,8 @@ cd resource && pnpm dev
 ```
 
 The admin console is served by the same Vue app under `/admin`; it does not require a separate frontend service.
+
+Open `http://localhost:5234`; the backend proxies `/assets` to the Vite resource server on port 3010.
 
 ## Project Structure
 

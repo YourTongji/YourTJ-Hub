@@ -9,9 +9,8 @@ newcomers and names the runtime prerequisites.
 ## Prerequisites
 
 - Git
-- Go 1.26+ (backend), Node.js 24 + pnpm 11 (web), Flutter (mobile workspace via melos), and
-  Docker Compose for local PostgreSQL / Meilisearch when needed. Version details and service setup:
-  [local-development.md](development/local-development.md).
+- Runtime versions and service setup are maintained in
+  [local-development.md](development/local-development.md#dependencies).
 
 ## Daily workflow
 

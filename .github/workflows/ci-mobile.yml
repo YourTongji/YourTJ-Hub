@@ -79,6 +79,9 @@ jobs:
         working-directory: apps/mobile/packages/forum_app
         # Generate Flutter plugin/SwiftPM files on a clean checkout before --no-pub.
         run: flutter pub get
+      - name: Check effective iOS distribution signing settings
+        if: matrix.platform == 'ios'
+        run: python3 -m unittest discover -s scripts/mobile-release -p test_ios_signing_settings.py
       - name: Configure build-only OEM identifiers (never distributed)
         if: matrix.platform == 'android'
         run: |

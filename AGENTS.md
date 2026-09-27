@@ -14,7 +14,7 @@ implementation, testing, review, CI, or PR work.
 yourtj-hub is the monorepo for the Tongji university campus forum platform (brand: yourtj, distinct from
 the archived YourTJ-Platform). The forum is the core product — a **direct modification of the upstream
 GooseForum, keeping the single-binary deployment**. Unified auth (built-in OIDC Provider), search (Meilisearch), and
-points (credit, phase 2) are shared infrastructure subdomains. Database, search, and structure may all
+cross-platform points (credit, `Planned`) are shared infrastructure subdomains. Database, search, and structure may all
 be changed, but the "Go + Vue in one binary, frontend go:embed into the binary" deployment shape is kept.
 
 - Forum: **Go 1.26 + Gin + Vue 3 + Tailwind**, at `apps/gooseforum` (fork of upstream; module path
@@ -63,7 +63,8 @@ be changed, but the "Go + Vue in one binary, frontend go:embed into the binary" 
   paths are split per domain under `paths/`. Route coverage (issue #277) is complete:
   `route-coverage.json` knownUncovered is empty — every non-excluded `/api` route has a
   contract operation; new routes must be added to the contract or the exclusion list.
-- Points: credit (linux-do) phase 2, merchant model, not implemented this phase.
+- Points: forum-local ledger mechanics are `Current`, durable reward delivery is `Partial`;
+  cross-platform credit settlement is `Planned`. See `docs/product/credit-and-escrow.md`.
 
 ## 2. Repository layout & boundary rules
 
@@ -81,7 +82,7 @@ packages/
   api-contract/  openapi.yaml + gen scripts + fixtures + contract tests (Partial)
 services/
   search/    Meilisearch deployment config
-  credit/    Points (phase 2 placeholder)
+  credit/    Cross-platform credit settlement (Planned placeholder)
 deploy/      Per-environment compose + env.example
 docs/        Docs center (product/architecture/development/operations)
 ```
@@ -90,7 +91,7 @@ docs/        Docs center (product/architecture/development/operations)
 - `apps/gooseforum` is the only place the forum is implemented; business logic in `service`, data access
   in `models`/repository layer, HTTP in `http/controllers`.
 - Cross-domain access goes through the owner's public API; no foreign SQL against other domains' tables.
-- Frontend output only via `resource/static/dist` (go:embed); vite :3010 hits the backend in dev,
+- Frontend output only via `resource/static/dist` (go:embed); the backend proxies `/assets` to Vite :3010 in dev,
   single binary in production.
 - `services/` holds deployment configs only, not third-party source (Meilisearch/credit are
   off-the-shelf components).

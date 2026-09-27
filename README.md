@@ -19,7 +19,7 @@
 </p>
 
 <p align="center">
-  <a href="https://forum.yourtj.de">线上站点</a> ·
+  <a href="https://f.yourtj.de">线上站点</a> ·
   <a href="./docs/README.md">项目文档</a> ·
   <a href="https://github.com/YourTongji/YourTJ-Hub/issues/new?template=bug-report.yml">报告问题</a> ·
   <a href="https://github.com/YourTongji/YourTJ-Hub/issues/new?template=feature-request.yml">功能建议</a> ·
@@ -29,7 +29,7 @@
 ## 关于项目
 
 YourTJ Hub 希望让校园经验、问题与观点不再消失在短暂的信息流中。项目以板块化论坛为核心，
-提供搜索、统一身份、内容治理和多端访问能力，并为未来的课程、课评等校园服务保留共享基础设施。
+提供搜索、统一身份、内容治理和多端访问，以及课程目录与课评、排课器、Wiki 和私密校园工作台。
 
 核心论坛直接演进自 [GooseForum](https://github.com/YourTongji/YourTJ-Hub/tree/main/apps/gooseforum)（fork 自上游
 [leancodebox/GooseForum](https://github.com/leancodebox/GooseForum)），保留 Go 后端、Vue 前端
@@ -44,11 +44,14 @@ YourTJ Hub 希望让校园经验、问题与观点不再消失在短暂的信息
 | 领域 | 状态 | 当前能力 |
 |---|---|---|
 | 论坛 | `Current` | 主题与回复、板块、通知、私信、草稿、Markdown、RBAC 管理与多语言界面 |
-| 身份与安全 | `Partial` | 密码、GitHub OAuth、论坛内建 OIDC Provider、TOTP 2FA、可撤销会话；移动端与外部服务可使用标准授权码 + PKCE 登录 |
+| 身份与安全 | `Partial` | 密码、GitHub／可选 Google OAuth、同济统一认证、内建 OIDC Provider、TOTP 2FA 与可撤销会话；外部登录的 MFA 策略仍待确定 |
 | 搜索 | `Partial` | Meilisearch 聚合搜索、拼音匹配、事件驱动索引与 Wiki 段落级局内搜索；搜索服务为可选依赖，Wiki 搜索不可用时保留阅读能力 |
 | 数据与文件 | `Current` | 部署默认 PostgreSQL，本地开发 SQLite；文件可存于 SQLite BLOB 或 S3 兼容对象存储 |
 | 内容治理 | `Current` | 敏感词审核、限流与验证码、审计、服务条款、数据导入导出 |
-| 移动端 | `Partial` | Flutter 客户端、共享设计语言与 OIDC 登录已实现，尚未发布到应用商店 |
+| 课程与排课 | `Current` | Web／Flutter 课程目录、课评、收藏与多方案排课；能力边界见[课程规范](./docs/product/courses-and-scheduling.md) |
+| Wiki | `Current` | GitHub 内容同步、只读页面与站内评论，编辑和历史外链至源仓库 |
+| 我的校园 | `Partial` | Web／Flutter 官方身份连接、课表、学业记录与消息；设备快照和桌面小组件已实现，真机认证及部分上游数据仍待验证 |
+| 移动端 | `Partial` | Flutter 原生客户端，中英日德四语言、课程／排课／Wiki、私密校园与桌面小组件；商店分发和部分真机链路仍待验证 |
 | API 契约 | `Partial` | OpenAPI 校验、TypeScript 生成与契约测试已落地，全部非排除 `/api` 路由已纳管并有 CI 门禁；OIDC 标准端点与自动 Dart 生成尚未覆盖 |
 | 积分 | `Partial` | 论坛内积分账本已落地（发帖/回复奖励幂等入账、删除原子回滚）；跨服务结算（credit）仍未实现 |
 
@@ -86,8 +89,8 @@ flowchart LR
 
 ## 快速开始
 
-需要 Go 1.26+。开发 Web 界面还需要 Node.js 24 与 pnpm 11；运行 Meilisearch 或
-PostgreSQL 等本地依赖时需要 Docker Compose。
+先按[本地开发指南](./docs/development/local-development.md#dependencies)准备 Go、Node.js 与 pnpm。
+运行 PostgreSQL 或 Meilisearch 等可选本地依赖时还需要 Docker Compose。
 
 ```bash
 git clone --branch dev https://github.com/YourTongji/YourTJ-Hub.git
@@ -96,19 +99,23 @@ cd YourTJ-Hub
 cd apps/gooseforum/resource
 pnpm install --frozen-lockfile
 cd ../../..
+
+# 生成本地配置（已有 config.toml 时不会覆盖），不启动服务器
+(cd apps/gooseforum && go run . --help)
 ```
 
-分别启动后端与前端开发服务器：
+将 `apps/gooseforum/config.toml` 中 `[app]` 的 `env` 改为 `"local"`（生成模板默认是
+`"production"`），再分别启动后端与前端开发服务器：
 
 ```bash
 # Terminal 1 — Go backend，默认 http://localhost:5234
 make server
 
-# Terminal 2 — Vite，打开 http://localhost:3010
+# Terminal 2 — Vite 资源服务（:3010）；浏览器打开 http://localhost:5234
 make web
 ```
 
-论坛默认使用 SQLite；首次启动会生成已被 Git 忽略的 `apps/gooseforum/config.toml`。如需搜索、
+论坛默认使用 SQLite；上述本地模式启用 Vite 资源代理和本地 HTTP 会话。如需搜索、
 PostgreSQL 与其他本地依赖，可先运行：
 
 ```bash
@@ -131,6 +138,7 @@ make build
 apps/
   gooseforum/       Go + Vue 论坛，前端最终嵌入后端二进制
   mobile/           Flutter / Melos 移动端工作区
+  status/           独立 Vue 状态站，部署到 Netlify
 packages/
   api-contract/     OpenAPI、fixtures 与生成脚本
 services/           Meilisearch、积分等服务配置
@@ -165,6 +173,8 @@ docs/               产品、架构、开发和运维文档
 
 - [产品愿景与原则](./docs/product/vision-and-principles.md)
 - [当前状态与缺口](./docs/product/current-state.md)
+- [论坛体验](./docs/product/forum.md)
+- [课程与排课](./docs/product/courses-and-scheduling.md)
 - [系统架构与领域边界](./docs/architecture/system-overview.md)
 - [本地开发](./docs/development/local-development.md)
 - [测试策略](./docs/development/testing.md)

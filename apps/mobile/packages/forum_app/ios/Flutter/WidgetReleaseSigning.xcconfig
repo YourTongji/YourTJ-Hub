@@ -1,2 +1,3 @@
 #include "Generated.xcconfig"
+CODE_SIGN_STYLE = Automatic
 // Release signing values are written temporarily by scripts/mobile-release/build_ios.py.

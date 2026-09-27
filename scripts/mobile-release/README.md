@@ -27,6 +27,13 @@ them from a separate sparse `.release-tools` checkout; native manifest checks re
 source in the working directory, while publisher tests exercise the selected release tools.
 The checkout regression reproduces this layout without signing or uploading.
 
+On macOS after Flutter bootstrap, the suite also asks Xcode to resolve Widget Release/Profile
+settings with a temporary manual signing configuration. The target inherits its signing style
+from `WidgetReleaseSigning.xcconfig`: automatic for local builds, manual while the release
+builder installs its configuration. Target-level overrides would prevent distribution signing.
+The iOS release artifact retains archive/export logs, and failures show their final 100 lines
+in the job output so signing errors remain diagnosable even when no IPA is produced.
+
 The publish commands mutate external services. `--verify-only` on the Android publisher writes local
 checksums only. Build logs and outputs belong under ignored `apps/mobile/build/release/`; private inputs
 must come from an ignored local file or the CI runner's private temporary directory. Tests never print
