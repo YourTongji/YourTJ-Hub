@@ -92,6 +92,21 @@ test('does not follow symlinked documentation outside the repository', async (t)
   assert.deepEqual(errors, []);
 });
 
+test('rejects Markdown links whose resolved target escapes through a symlink', async (t) => {
+  const root = await repository(t, {
+    'README.md': '[directory link](docs/external/outside.md#outside)\n[file link](docs/outside.md#outside)',
+  });
+  const external = await mkdtemp(path.join(tmpdir(), 'yourtj-external-target-'));
+  t.after(() => rm(external, { recursive: true, force: true }));
+  await writeFile(path.join(external, 'outside.md'), '# Outside\n');
+  await mkdir(path.join(root, 'docs'));
+  await symlink(external, path.join(root, 'docs/external'));
+  await symlink(path.join(external, 'outside.md'), path.join(root, 'docs/outside.md'));
+  const { errors } = await verifyLinks(root);
+  assert.equal(errors.length, 2);
+  assert.ok(errors.every((error) => error.includes('unsafe repository target')));
+});
+
 test('fails explicitly if Git cannot enumerate the repository', async (t) => {
   const root = await repository(t, { 'README.md': '# Readme' });
   await rm(path.join(root, '.git'), { recursive: true });

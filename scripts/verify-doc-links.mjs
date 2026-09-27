@@ -4,7 +4,7 @@
 // governance docs, root/nested READMEs and fork-owned GooseForum docs.
 // Git excludes ignored local artifacts and dependency trees from discovery.
 // Zero npm dependencies; Git and Node >= 18. Exits non-zero on any violation.
-import { readFile, stat, lstat } from 'node:fs/promises';
+import { readFile, stat, lstat, realpath } from 'node:fs/promises';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import path from 'node:path';
@@ -64,6 +64,11 @@ export function slugify(heading) {
     .replace(/\s+/g, '-');
 }
 
+function isInside(root, target) {
+  const rel = path.relative(root, target);
+  return rel !== '..' && !rel.startsWith(`..${path.sep}`) && !path.isAbsolute(rel);
+}
+
 // Check a single file: all links resolve.
 export async function checkFile(fileAbs, repoRoot, { allowedBareDirectories = new Set() } = {}) {
   const errors = [];
@@ -74,6 +79,7 @@ export async function checkFile(fileAbs, repoRoot, { allowedBareDirectories = ne
     errors.push(`${path.relative(repoRoot, fileAbs)}: unreadable`);
     return errors;
   }
+  const repoRootReal = await realpath(repoRoot);
   const fileDir = path.dirname(fileAbs);
   const links = extractLinks(text);
   for (const l of links) {
@@ -89,13 +95,25 @@ export async function checkFile(fileAbs, repoRoot, { allowedBareDirectories = ne
     const targetAbs = path.resolve(fileDir, l.filePart);
     // Reject escaping the repo root
     const rel = path.relative(repoRoot, targetAbs);
-    if (rel.startsWith('..') || path.isAbsolute(rel) || !safeRepositoryRelativePath(rel)) {
+    if (!isInside(repoRoot, targetAbs) || !safeRepositoryRelativePath(rel)) {
+      errors.push(`${path.relative(repoRoot, fileAbs)}: link "${l.raw}" has an unsafe repository target`);
+      continue;
+    }
+    let targetReal;
+    try {
+      targetReal = await realpath(targetAbs);
+    } catch {
+      errors.push(`${path.relative(repoRoot, fileAbs)}: link "${l.raw}" -> missing ${l.filePart}`);
+      continue;
+    }
+    const realRel = path.relative(repoRootReal, targetReal);
+    if (!isInside(repoRootReal, targetReal) || !safeRepositoryRelativePath(realRel)) {
       errors.push(`${path.relative(repoRoot, fileAbs)}: link "${l.raw}" has an unsafe repository target`);
       continue;
     }
     let st;
     try {
-      st = await stat(targetAbs);
+      st = await stat(targetReal);
     } catch {
       errors.push(`${path.relative(repoRoot, fileAbs)}: link "${l.raw}" -> missing ${l.filePart}`);
       continue;
@@ -103,16 +121,20 @@ export async function checkFile(fileAbs, repoRoot, { allowedBareDirectories = ne
     if (st.isDirectory()) {
       if (allowedBareDirectories.has(path.resolve(targetAbs))) continue;
       // Directory link: check for README.md inside
-      const idx = path.join(targetAbs, 'README.md');
+      const idx = path.join(targetReal, 'README.md');
       try {
-        await stat(idx);
+        const indexReal = await realpath(idx);
+        const indexRel = path.relative(repoRootReal, indexReal);
+        if (!isInside(repoRootReal, indexReal) || !safeRepositoryRelativePath(indexRel)) {
+          errors.push(`${path.relative(repoRoot, fileAbs)}: link "${l.raw}" has an unsafe repository target`);
+        }
       } catch {
         errors.push(`${path.relative(repoRoot, fileAbs)}: link "${l.raw}" -> directory ${l.filePart} without README.md`);
       }
       continue;
     }
     if (l.fragment) {
-      const targetText = await readFile(targetAbs, 'utf8');
+      const targetText = await readFile(targetReal, 'utf8');
       const anchors = headingAnchors(targetText);
       if (!anchors.has(l.fragment)) {
         errors.push(`${path.relative(repoRoot, fileAbs)}: fragment "#${l.fragment}" not found in ${l.filePart}`);
