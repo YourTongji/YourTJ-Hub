@@ -170,7 +170,7 @@ async function save() {
       </div>
     </div>
 
-    <button type="button" class="gf-button gf-button-primary" :disabled="saving" @click="save">
+    <button type="button" class="gf-button gf-button-md gf-button-primary" :disabled="saving" @click="save">
       {{ t('badgeDisplay.save') }}
     </button>
     <p v-if="error" role="alert" class="text-sm text-error">{{ error }}</p>
