@@ -1085,11 +1085,16 @@ export interface paths {
          * Report a topic or post to moderators
          * @description Files a moderation report against a visible topic or post and snapshots the
          *     target content as evidence at creation time. One open report per reporter and
-         *     target: a second report for the same target fails with `report.duplicate`
+         *     target: a second public-content report for the same target fails with `report.duplicate`
          *     (HTTP 200). Reporting own content fails with `report.ownContent`; an unknown or
          *     not-viewable target fails with `report.targetInvalid`. JSON binding is lenient:
          *     a malformed body binds to zero values and fails validation as
          *     `common.request.invalidParams` (HTTP 200).
+         *     A chat_message target must be a message received by the authenticated caller.
+         *     Reporting a sent or foreign message fails with report.targetInvalid. Retries
+         *     return success without creating another open report. Only that message (up to
+         *     4000 runes), author ID and caller note are disclosed to site administrators,
+         *     never the whole conversation or to category/global moderators.
          */
         post: operations["createReport"];
         delete?: never;
@@ -1286,6 +1291,56 @@ export interface paths {
         get: operations["getCaptcha"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/user-blocks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the caller’s blocked users
+         * @description Owner comes only from the session. A block prevents new direct messages and
+         *     interaction notifications in both directions. Public posts and old messages remain.
+         *     Only the caller's own list is exposed, never the reverse relationship. Maximum
+         *     1000 blocks. Set blocked=false to remove one; retries are idempotent.
+         *     Either account closing erases the relationship. Responses use private, no-store.
+         *     Pending activation is allowed for this protective action.
+         */
+        get: operations["listUserBlocks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/user-block": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Block or unblock another user
+         * @description Owner comes only from the session. A block prevents new direct messages and
+         *     interaction notifications in both directions. Public posts and old messages remain.
+         *     Only the caller's own list is exposed, never the reverse relationship. Maximum
+         *     1000 blocks. Set blocked=false to remove one; retries are idempotent.
+         *     Either account closing erases the relationship. Responses use private, no-store.
+         *     Pending activation is allowed for this protective action.
+         */
+        post: operations["setUserBlock"];
         delete?: never;
         options?: never;
         head?: never;
@@ -7682,7 +7737,7 @@ export interface components {
         };
         CreateReportRequest: {
             /** @enum {string} */
-            targetType: "topic" | "post";
+            targetType: "topic" | "post" | "chat_message";
             /** Format: uint64 */
             targetId: number;
             /** @enum {string} */
@@ -8110,12 +8165,14 @@ export interface components {
         };
         PushDeviceUnregisterResponse: components["schemas"]["PushDeviceUnregisterSuccess"] | components["schemas"]["ApiFailure"];
         SendChatMessageRequest: {
+            /** @description Optional sender-scoped retry key. Reuse only for the same peer, content and message type; changed payloads fail with chat.send.failed. Legacy omitted keys do not deduplicate. Retained with the message. */
+            clientMessageId?: string;
             /**
              * Format: uint64
              * @description Recipient user id; messaging oneself fails with `chat.send.failed` (HTTP 200).
              */
             peerId: number;
-            /** @description Message content; sensitive-word hits fail with `chat.sensitive.blocked` (HTTP 200, params `word` plus all matches in `words`). */
+            /** @description Full message content is preserved; only the conversation-list preview is bounded to 255 Unicode characters. Sensitive-word hits fail with `chat.sensitive.blocked` (HTTP 200, params `word` plus all matches in `words`). Other send failures use `chat.send.failed` without raw storage-error details. */
             content: string;
             /**
              * @description 1 text, 2 image, 3 voice. Effectively required — omitting it binds 0 and fails validation with `common.request.invalidParams` (HTTP 200).
@@ -8731,13 +8788,13 @@ export interface components {
             /** Format: uint64 */
             id: number;
             /** @enum {string} */
-            targetType: "topic" | "post";
+            targetType: "topic" | "post" | "chat_message";
             /** Format: uint64 */
             targetId: number;
-            /** @description Deep link to the reported content; empty when it cannot be resolved. */
+            /** @description Link to reported content, or the private-message author profile; never a link granting conversation access. */
             targetUrl: string;
             title: string;
-            /** @description Content snapshot taken at report time (max 120 runes). */
+            /** @description Reported content preview. Private-message evidence is limited to 4000 runes and only visible to administrators. */
             excerpt: string;
             /** @enum {string} */
             reason: "spam" | "abuse" | "illegal" | "irrelevant" | "other";
@@ -12007,6 +12064,24 @@ export interface components {
             start: number;
             end: number;
         };
+        UserBlock: {
+            /** Format: uint64 */
+            targetUserId: number;
+            username: string;
+        };
+        UserBlocksPayload: {
+            /** Format: uint64 */
+            ownerId: number;
+            blocks: components["schemas"]["UserBlock"][];
+        };
+        UserBlocksSuccess: components["schemas"]["ApiSuccess"] & {
+            result?: components["schemas"]["UserBlocksPayload"];
+        };
+        UserBlockRequest: {
+            /** Format: uint64 */
+            targetUserId: number;
+            blocked: boolean;
+        };
         PrivateNote: {
             targetUserId: number;
             /** @description Current canonical username, never a private nickname. */
@@ -14722,6 +14797,123 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CaptchaSuccess"];
+                };
+            };
+        };
+    };
+    listUserBlocks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Own block list. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserBlocksSuccess"];
+                };
+            };
+            /** @description Missing or invalid session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Storage unavailable; no successful response is returned. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    setUserBlock: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UserBlockRequest"];
+            };
+        };
+        responses: {
+            /** @description Block saved or removed. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InteractionResponse"];
+                };
+            };
+            /** @description Malformed JSON, body exceeds 4096 bytes, invalid block flag or unavailable target. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing or invalid session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Account not writable or cookie request rejected with auth.csrf.rejected by the CSRF gate. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description The owner already has 1000 blocks; existing blocks can still be removed. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Interaction rate limit exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+            /** @description Storage unavailable; no successful response is returned. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
                 };
             };
         };

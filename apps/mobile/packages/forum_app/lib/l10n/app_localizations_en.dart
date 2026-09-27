@@ -2856,4 +2856,45 @@ class AppLocalizationsEn extends AppLocalizations {
   String settingsProfilePartialSave(String saved) {
     return 'Saved: $saved. Your remaining changes are still here. Try saving again.';
   }
+
+  @override
+  String get userBlock => 'Block user';
+
+  @override
+  String get userUnblock => 'Unblock user';
+
+  @override
+  String get userBlocks => 'Blocked users';
+
+  @override
+  String get userBlockExplanation =>
+      'Blocking stops new direct messages and interaction notifications in both directions. Public content and existing messages remain available for context and reporting.';
+
+  @override
+  String get userBlocksEmpty => 'No blocked users';
+
+  @override
+  String get messageReport => 'Report message';
+
+  @override
+  String get messageReportPrivacy =>
+      'Submitting shares this message and your explanation with site administrators for review. The rest of the conversation is not submitted.';
+
+  @override
+  String get contentReport => 'Report content';
+
+  @override
+  String get reportSpam => 'Spam';
+
+  @override
+  String get reportAbuse => 'Abuse or harassment';
+
+  @override
+  String get reportIllegal => 'Illegal content';
+
+  @override
+  String get reportIrrelevant => 'Off-topic content';
+
+  @override
+  String get reportOther => 'Other';
 }

@@ -19,7 +19,8 @@ let package = Package(
       name: "home_widget",
       dependencies: [
         .product(name: "FlutterFramework", package: "FlutterFramework")
-      ]
+      ],
+      resources: [.process("PrivacyInfo.xcprivacy")]
     )
   ]
 )

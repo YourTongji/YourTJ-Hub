@@ -1372,5 +1372,18 @@
         "type": "String"
       }
     }
-  }
+  },
+  "userBlock": "Block user",
+  "userUnblock": "Unblock user",
+  "userBlocks": "Blocked users",
+  "userBlockExplanation": "Blocking stops new direct messages and interaction notifications in both directions. Public content and existing messages remain available for context and reporting.",
+  "userBlocksEmpty": "No blocked users",
+  "messageReport": "Report message",
+  "messageReportPrivacy": "Submitting shares this message and your explanation with site administrators for review. The rest of the conversation is not submitted.",
+  "contentReport": "Report content",
+  "reportSpam": "Spam",
+  "reportAbuse": "Abuse or harassment",
+  "reportIllegal": "Illegal content",
+  "reportIrrelevant": "Off-topic content",
+  "reportOther": "Other"
 }

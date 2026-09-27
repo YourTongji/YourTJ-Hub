@@ -5243,6 +5243,84 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Saved: {saved}. Your remaining changes are still here. Try saving again.'**
   String settingsProfilePartialSave(String saved);
+
+  /// No description provided for @userBlock.
+  ///
+  /// In en, this message translates to:
+  /// **'Block user'**
+  String get userBlock;
+
+  /// No description provided for @userUnblock.
+  ///
+  /// In en, this message translates to:
+  /// **'Unblock user'**
+  String get userUnblock;
+
+  /// No description provided for @userBlocks.
+  ///
+  /// In en, this message translates to:
+  /// **'Blocked users'**
+  String get userBlocks;
+
+  /// No description provided for @userBlockExplanation.
+  ///
+  /// In en, this message translates to:
+  /// **'Blocking stops new direct messages and interaction notifications in both directions. Public content and existing messages remain available for context and reporting.'**
+  String get userBlockExplanation;
+
+  /// No description provided for @userBlocksEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No blocked users'**
+  String get userBlocksEmpty;
+
+  /// No description provided for @messageReport.
+  ///
+  /// In en, this message translates to:
+  /// **'Report message'**
+  String get messageReport;
+
+  /// No description provided for @messageReportPrivacy.
+  ///
+  /// In en, this message translates to:
+  /// **'Submitting shares this message and your explanation with site administrators for review. The rest of the conversation is not submitted.'**
+  String get messageReportPrivacy;
+
+  /// No description provided for @contentReport.
+  ///
+  /// In en, this message translates to:
+  /// **'Report content'**
+  String get contentReport;
+
+  /// No description provided for @reportSpam.
+  ///
+  /// In en, this message translates to:
+  /// **'Spam'**
+  String get reportSpam;
+
+  /// No description provided for @reportAbuse.
+  ///
+  /// In en, this message translates to:
+  /// **'Abuse or harassment'**
+  String get reportAbuse;
+
+  /// No description provided for @reportIllegal.
+  ///
+  /// In en, this message translates to:
+  /// **'Illegal content'**
+  String get reportIllegal;
+
+  /// No description provided for @reportIrrelevant.
+  ///
+  /// In en, this message translates to:
+  /// **'Off-topic content'**
+  String get reportIrrelevant;
+
+  /// No description provided for @reportOther.
+  ///
+  /// In en, this message translates to:
+  /// **'Other'**
+  String get reportOther;
 }
 
 class _AppLocalizationsDelegate

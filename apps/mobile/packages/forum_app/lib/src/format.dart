@@ -33,7 +33,7 @@ String timeAgo(String isoTime, {DateTime? now, AppLocalizations? l10n}) {
   final DateTime? parsed = DateTime.tryParse(isoTime.replaceFirst(' ', 'T'));
   if (parsed == null) return isoTime;
   // 只依赖绝对时刻差,不输出本地时区字段。
-  final DateTime current = now ?? DateTime.now();
+  final DateTime current = (now ?? DateTime.now()).toLocal();
   final Duration diff = current.difference(parsed);
   if (diff.inSeconds < 60) return loc.timeAgoJustNow;
   if (diff.inMinutes < 60) return loc.timeAgoMinutes(diff.inMinutes);
@@ -42,29 +42,25 @@ String timeAgo(String isoTime, {DateTime? now, AppLocalizations? l10n}) {
   return formatDate(isoTime);
 }
 
-/// 从 ISO 字符串提取 `YYYY-MM-DD` 字段(不依赖进程时区)。
-///
-/// 业务语义:后端返回的时间字符串即展示时间(web 端浏览器本地时区近似
-/// 等价于后端时区),因此直接取字符串字段而非 `toLocal()` 转换,保证
-/// 任意运行环境(含 CI UTC)下输出一致。
+/// ISO instants are displayed in the device timezone, like the Web client.
+/// Date-only and legacy timestamps without an offset remain local calendar values.
+DateTime? _displayTime(String value) =>
+    DateTime.tryParse(value.replaceFirst(' ', 'T'))?.toLocal();
+
 String? _dateField(String value) {
-  final String normalized = value.replaceFirst(' ', 'T');
-  final int sep = normalized.indexOf('T');
-  final String datePart = sep == -1 ? normalized : normalized.substring(0, sep);
-  if (!RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(datePart)) return null;
-  return datePart;
+  final parsed = _displayTime(value);
+  if (parsed == null) return null;
+  final year = parsed.year.toString().padLeft(4, '0');
+  final month = parsed.month.toString().padLeft(2, '0');
+  final day = parsed.day.toString().padLeft(2, '0');
+  return '$year-$month-$day';
 }
 
-/// 从 ISO 字符串提取 `HH:mm` 字段(不依赖进程时区)。
 String? _timeField(String value) {
-  final String normalized = value.replaceFirst(' ', 'T');
-  final int sep = normalized.indexOf('T');
-  if (sep == -1) return null;
-  final String timePart = normalized.substring(sep + 1);
-  if (timePart.length < 5) return null;
-  final String hhmm = timePart.substring(0, 5);
-  if (!RegExp(r'^\d{2}:\d{2}$').hasMatch(hhmm)) return null;
-  return hhmm;
+  if (!value.replaceFirst(' ', 'T').contains('T')) return null;
+  final parsed = _displayTime(value);
+  if (parsed == null) return null;
+  return '${parsed.hour.toString().padLeft(2, '0')}:${parsed.minute.toString().padLeft(2, '0')}';
 }
 
 /// 绝对日期 `YYYY-MM-DD`(对齐 web `format.ts` formatDate)。
@@ -87,8 +83,7 @@ String formatDateTime(String value) {
 /// 今天 → `HH:mm`;同年 → `M月D日 HH:mm`(zh)/`M/D HH:mm`(en);
 /// 跨年 → `YYYY年M月D日 HH:mm`(zh)/`YYYY/M/D HH:mm`(en)。
 ///
-/// 日期字段直接取自输入字符串(不依赖进程时区);"今天/同年"按输入
-/// 字符串的日期与设备本地日期比较。
+/// 日期分组、消息时间和“今天/同年”全部采用设备本地时区。
 String formatChatTime(String value, {AppLocalizations? l10n, DateTime? now}) {
   final AppLocalizations loc = l10n ?? _fallbackL10n;
   final String? date = _dateField(value);
@@ -97,7 +92,7 @@ String formatChatTime(String value, {AppLocalizations? l10n, DateTime? now}) {
   final int year = int.parse(date.substring(0, 4));
   final int month = int.parse(date.substring(5, 7));
   final int day = int.parse(date.substring(8, 10));
-  final DateTime current = now ?? DateTime.now();
+  final DateTime current = (now ?? DateTime.now()).toLocal();
   final bool sameDay =
       year == current.year && month == current.month && day == current.day;
   if (sameDay) return time;

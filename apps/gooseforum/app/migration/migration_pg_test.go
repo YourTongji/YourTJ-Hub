@@ -48,6 +48,7 @@ func TestSchemaMigratesOnPostgreSQL(t *testing.T) {
 
 	// 关键新表必须存在（issue #8 回归点；agents 为本仓库 Agent 模型新增表）
 	for _, table := range []string{
+		"user_blocks",
 		"user_sessions",
 		"user_totp",
 		"user_totp_recovery_codes",
@@ -185,6 +186,7 @@ func TestSchemaUpgradeCreatesNewTablesOnPostgreSQL(t *testing.T) {
 		t.Fatalf("upgrade AutoMigrate on postgres failed: %v", err)
 	}
 	for _, table := range []string{
+		"user_blocks",
 		"user_sessions",
 		"user_totp",
 		"user_totp_recovery_codes",

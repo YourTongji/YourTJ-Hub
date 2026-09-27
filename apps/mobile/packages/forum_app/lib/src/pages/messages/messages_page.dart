@@ -1,3 +1,5 @@
+import '../../report_content.dart';
+import '../../user_blocks.dart';
 import '../../widgets/stickers/sticker_draft_preview.dart';
 import '../../widgets/stickers/sticker_picker.dart';
 import '../../widgets/stickers/sticker_strings.dart';
@@ -1082,6 +1084,7 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
 
     return Scaffold(
       appBar: GfAppBar(
+        actions: [UserBlockButton(userId: widget.conv.peerId)],
         title: Row(
           children: <Widget>[
             GfAvatar(
@@ -1278,6 +1281,18 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
                                       peerAvatar: widget.conv.peerAvatar,
                                       viewerAvatar: widget.viewerAvatar,
                                     ),
+                                    if (!message.isSelf)
+                                      Align(
+                                        alignment: Alignment.centerLeft,
+                                        child: TextButton(
+                                          onPressed: () => showContentReport(
+                                            context,
+                                            targetType: 'chat_message',
+                                            targetId: message.id,
+                                          ),
+                                          child: Text(l10n.messageReport),
+                                        ),
+                                      ),
                                   ],
                                 );
                               },

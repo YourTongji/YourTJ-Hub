@@ -13,7 +13,8 @@ A new flutter plugin project.
   s.license          = { :file => '../LICENSE' }
   s.author           = { 'Your Company' => 'email@example.com' }
   s.source           = { :path => '.' }
-  s.source_files = 'home_widget/Sources/home_widget/**/*'
+  s.source_files = 'home_widget/Sources/home_widget/**/*.swift'
+  s.resource_bundles = {'home_widget_privacy' => ['home_widget/Sources/home_widget/PrivacyInfo.xcprivacy']}
   s.dependency 'Flutter'
   s.platform = :ios, '13.0'
 

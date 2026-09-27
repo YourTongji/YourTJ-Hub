@@ -345,6 +345,10 @@
   },
   {
     "method": "GET",
+    "path": "/api/user-blocks"
+  },
+  {
+    "method": "GET",
     "path": "/api/user-card"
   },
   {
@@ -1282,6 +1286,10 @@
   {
     "method": "POST",
     "path": "/api/upload-avatar"
+  },
+  {
+    "method": "POST",
+    "path": "/api/user-block"
   },
   {
     "method": "POST",

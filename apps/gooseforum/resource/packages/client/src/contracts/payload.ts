@@ -521,7 +521,7 @@ export interface ModerationLogListResponse {
 
 export interface ModerationReportItem {
   id: number
-  targetType: 'topic' | 'post'
+  targetType: 'topic' | 'post' | 'chat_message'
   targetId: number
   targetUrl: string
   title: string
@@ -1187,3 +1187,8 @@ export interface WikiDetailProps {
   /** 复用现有 TopicPayload 类型（TopicPage 的 hotTopics 同型）。 */
   hotTopics: TopicPayload[]
 }
+
+export interface UserBlocksPayload { ownerId: number; blocks: { targetUserId: number; username: string }[] }
+export interface UserBlockRequest { targetUserId: number; blocked: boolean }
+
+export interface SendChatMessageRequest { peerId: number; content: string; msgType: 1 | 2 | 3; clientMessageId?: string }

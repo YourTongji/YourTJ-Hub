@@ -1,3 +1,4 @@
+import '../../user_blocks.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -1382,6 +1383,12 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(16),
         children: [
+          GfSettingRow(
+            symbol: 'ban',
+            title: l10n.userBlocks,
+            onTap: () => showBlockedUsers(context),
+          ),
+          const SizedBox(height: 24),
           _settingsSection(
             context,
             title: l10n.profileContent,

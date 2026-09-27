@@ -21,6 +21,8 @@
 		760000000000000000000006 /* ScheduleWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 760000000000000000000002 /* ScheduleWidgets.swift */; };
 		760000000000000000000010 /* ScheduleWidgets.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = 760000000000000000000001 /* ScheduleWidgets.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		890000000000000000000001 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 890000000000000000000002 /* Assets.xcassets */; };
+		920000000000000000000001 /* Runner PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 910000000000000000000001 /* PrivacyInfo.xcprivacy */; };
+		920000000000000000000002 /* ScheduleWidgets PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 910000000000000000000002 /* PrivacyInfo.xcprivacy */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -97,6 +99,8 @@
 		760000000000000000000013 /* WidgetReleaseSigning.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = WidgetReleaseSigning.xcconfig; path = Flutter/WidgetReleaseSigning.xcconfig; sourceTree = "<group>"; };
 		760000000000000000000014 /* WidgetDebug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = WidgetDebug.xcconfig; path = Flutter/WidgetDebug.xcconfig; sourceTree = "<group>"; };
 		890000000000000000000002 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		910000000000000000000001 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		910000000000000000000002 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -174,6 +178,7 @@
 		97C146F01CF9000F007C117D /* Runner */ = {
 			isa = PBXGroup;
 			children = (
+				910000000000000000000001 /* PrivacyInfo.xcprivacy */,
 				97C146FA1CF9000F007C117D /* Main.storyboard */,
 				97C146FD1CF9000F007C117D /* Assets.xcassets */,
 				97C146FF1CF9000F007C117D /* LaunchScreen.storyboard */,
@@ -190,6 +195,7 @@
 		760000000000000000000005 /* ScheduleWidgets */ = {
 			isa = PBXGroup;
 			children = (
+				910000000000000000000002 /* PrivacyInfo.xcprivacy */,
 				760000000000000000000002 /* ScheduleWidgets.swift */,
 				760000000000000000000003 /* Info.plist */,
 				760000000000000000000004 /* ScheduleWidgets.entitlements */,
@@ -343,6 +349,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				920000000000000000000001 /* Runner PrivacyInfo.xcprivacy in Resources */,
 				97C147011CF9000F007C117D /* LaunchScreen.storyboard in Resources */,
 				3B3967161E833CAA004F5970 /* AppFrameworkInfo.plist in Resources */,
 				97C146FE1CF9000F007C117D /* Assets.xcassets in Resources */,
@@ -354,6 +361,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				920000000000000000000002 /* ScheduleWidgets PrivacyInfo.xcprivacy in Resources */,
 				890000000000000000000001 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

@@ -4,6 +4,7 @@ import (
 	"log/slog"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/eventNotification"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/nativepushservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/realtimeservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/unreadservice"
@@ -13,6 +14,9 @@ import (
 
 // SendCommentNotification 发送评论通知
 func SendCommentNotification(userId uint64, topicId uint64, commentContent string, commenterId uint64, postId uint64, postNo uint64) error {
+	if blocked, err := users.InteractionBlocked(userId, commenterId); err != nil || blocked {
+		return err
+	}
 	payload := eventNotification.NotificationPayload{
 		Content:     commentContent,
 		TemplateKey: eventNotification.TemplateComment,
@@ -43,6 +47,9 @@ func SendCommentNotification(userId uint64, topicId uint64, commentContent strin
 
 // SendPostReplyNotification 发送 post 回复通知
 func SendPostReplyNotification(userId uint64, postId uint64, postNo uint64, topicId uint64, replyContent string, replierId uint64) error {
+	if blocked, err := users.InteractionBlocked(userId, replierId); err != nil || blocked {
+		return err
+	}
 	payload := eventNotification.NotificationPayload{
 		Content:     replyContent,
 		TemplateKey: eventNotification.TemplatePostReply,
@@ -72,6 +79,11 @@ func SendPostReplyNotification(userId uint64, postId uint64, postNo uint64, topi
 }
 
 func SendTopicPostNotifications(userIds []uint64, topicId uint64, postId uint64, postNo uint64, commentContent string, commenterId uint64) error {
+	filtered, filterErr := users.FilterInteractionRecipients(commenterId, userIds)
+	if filterErr != nil {
+		return filterErr
+	}
+	userIds = filtered
 	if len(userIds) == 0 {
 		return nil
 	}
@@ -119,6 +131,11 @@ func SendTopicPostNotifications(userIds []uint64, topicId uint64, postId uint64,
 // SendMentionNotifications 批量发送 @mention 通知（issue #563）。
 // 调用方已按优先级去重并限制 fan-out 上限，这里只做 0 值过滤。
 func SendMentionNotifications(userIds []uint64, topicId uint64, postId uint64, postNo uint64, preview string, mentionerId uint64) error {
+	filtered, filterErr := users.FilterInteractionRecipients(mentionerId, userIds)
+	if filterErr != nil {
+		return filterErr
+	}
+	userIds = filtered
 	if len(userIds) == 0 {
 		return nil
 	}
@@ -211,6 +228,9 @@ func SendSystemAlert(userID uint64, title string, content string) error {
 
 // SendLikeNotification 发送楼层点赞通知
 func SendLikeNotification(userId uint64, topicId uint64, topicTitle string, postId uint64, postNo uint64, likerId uint64) error {
+	if blocked, err := users.InteractionBlocked(userId, likerId); err != nil || blocked {
+		return err
+	}
 	payload := eventNotification.NotificationPayload{
 		TemplateKey: eventNotification.TemplateLike,
 		ActorId:     likerId,
@@ -238,6 +258,9 @@ func SendLikeNotification(userId uint64, topicId uint64, topicTitle string, post
 
 // SendFollowNotification 发送关注通知
 func SendFollowNotification(userId uint64, followerId uint64, followerName string) error {
+	if blocked, err := users.InteractionBlocked(userId, followerId); err != nil || blocked {
+		return err
+	}
 	payload := eventNotification.NotificationPayload{
 		TemplateKey: eventNotification.TemplateFollow,
 		ActorId:     followerId,

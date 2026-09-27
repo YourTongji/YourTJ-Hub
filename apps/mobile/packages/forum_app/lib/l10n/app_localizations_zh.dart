@@ -2737,4 +2737,44 @@ class AppLocalizationsZh extends AppLocalizations {
   String settingsProfilePartialSave(String saved) {
     return '已保存：$saved。其余修改仍保留，请重试保存。';
   }
+
+  @override
+  String get userBlock => '屏蔽用户';
+
+  @override
+  String get userUnblock => '取消屏蔽';
+
+  @override
+  String get userBlocks => '已屏蔽用户';
+
+  @override
+  String get userBlockExplanation =>
+      '屏蔽后，你们无法互发新私信，也不会收到彼此的互动通知。公开内容和历史私信仍保留，方便核查与举报。';
+
+  @override
+  String get userBlocksEmpty => '尚未屏蔽任何用户';
+
+  @override
+  String get messageReport => '举报私信';
+
+  @override
+  String get messageReportPrivacy => '提交后，站点管理员可以查看这条私信及你的说明，用于处理举报。不会提交整段会话。';
+
+  @override
+  String get contentReport => '举报内容';
+
+  @override
+  String get reportSpam => '垃圾信息';
+
+  @override
+  String get reportAbuse => '辱骂或骚扰';
+
+  @override
+  String get reportIllegal => '违法内容';
+
+  @override
+  String get reportIrrelevant => '无关内容';
+
+  @override
+  String get reportOther => '其他';
 }

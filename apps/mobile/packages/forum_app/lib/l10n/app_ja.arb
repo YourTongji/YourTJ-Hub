@@ -994,5 +994,18 @@
   "sortNew": "新しい投稿",
   "profileRoleAdminDescription": "コミュニティを管理し、フォーラムの運営を支えます。",
   "profileBadgeEarnedOn": "{date} に獲得",
-  "settingsProfilePartialSave": "保存済み：{saved}。残りの変更は保持されています。もう一度保存してください。"
+  "settingsProfilePartialSave": "保存済み：{saved}。残りの変更は保持されています。もう一度保存してください。",
+  "userBlock": "ユーザーをブロック",
+  "userUnblock": "ブロック解除",
+  "userBlocks": "ブロックしたユーザー",
+  "userBlockExplanation": "ブロックすると、双方の新しいメッセージと交流通知が停止します。確認や報告のため、公開コンテンツと過去のメッセージは残ります。",
+  "userBlocksEmpty": "ブロックしたユーザーはいません",
+  "messageReport": "メッセージを報告",
+  "messageReportPrivacy": "送信すると、このメッセージと説明をサイト管理者が確認できます。会話全体は送信されません。",
+  "contentReport": "コンテンツを報告",
+  "reportSpam": "迷惑情報",
+  "reportAbuse": "嫌がらせ",
+  "reportIllegal": "違法な内容",
+  "reportIrrelevant": "無関係な内容",
+  "reportOther": "その他"
 }

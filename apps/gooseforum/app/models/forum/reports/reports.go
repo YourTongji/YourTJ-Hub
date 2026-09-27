@@ -5,6 +5,7 @@ import "time"
 const tableName = "reports"
 
 const (
+	TargetChatMessage  = "chat_message"
 	TargetTopic        = "topic"
 	TargetPost         = "post"
 	TargetCourseReview = "course_review"

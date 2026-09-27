@@ -84,6 +84,25 @@ def validate_exported_ipa(path, team):
             stderr=subprocess.DEVNULL,
         )
         validate_widget_entitlements(plistlib.loads(raw), team)
+        validate_privacy_resources(apps[0])
+
+
+def validate_privacy_resources(app):
+    """Check the actual executable bundles, including the bundled local SDK."""
+    required = [app / "PrivacyInfo.xcprivacy",
+                app / "PlugIns/ScheduleWidgets.appex/PrivacyInfo.xcprivacy"]
+    sdk = [path for path in app.rglob("PrivacyInfo.xcprivacy")
+           if any("home_widget" in part.lower() for part in path.relative_to(app).parts)]
+    if not sdk:
+        raise ValueError("Exported app is missing home_widget privacy resources")
+    for path in [*required, *sdk]:
+        if not path.is_file():
+            raise ValueError(f"Exported bundle is missing privacy manifest: {path.name}")
+        manifest = plistlib.loads(path.read_bytes())
+        reasons = {item.get("NSPrivacyAccessedAPIType"): item.get("NSPrivacyAccessedAPITypeReasons", [])
+                   for item in manifest.get("NSPrivacyAccessedAPITypes", [])}
+        if "1C8F.1" not in reasons.get("NSPrivacyAccessedAPICategoryUserDefaults", []):
+            raise ValueError("Privacy manifest must declare App Group UserDefaults usage")
 
 
 def security(*args):

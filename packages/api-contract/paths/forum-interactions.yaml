@@ -85,11 +85,16 @@ createReport:
     description: |
       Files a moderation report against a visible topic or post and snapshots the
       target content as evidence at creation time. One open report per reporter and
-      target: a second report for the same target fails with `report.duplicate`
+      target: a second public-content report for the same target fails with `report.duplicate`
       (HTTP 200). Reporting own content fails with `report.ownContent`; an unknown or
       not-viewable target fails with `report.targetInvalid`. JSON binding is lenient:
       a malformed body binds to zero values and fails validation as
       `common.request.invalidParams` (HTTP 200).
+      A chat_message target must be a message received by the authenticated caller.
+      Reporting a sent or foreign message fails with report.targetInvalid. Retries
+      return success without creating another open report. Only that message (up to
+      4000 runes), author ID and caller note are disclosed to site administrators,
+      never the whole conversation or to category/global moderators.
     security:
       - bearerAuth: []
       - accessTokenCookie: []

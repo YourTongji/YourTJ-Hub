@@ -151,6 +151,10 @@ paths:
     $ref: ./paths/forum-moderation.yaml#/viewDeletedContent
   /api/get-captcha:
     $ref: ./paths/user-account.yaml#/getCaptcha
+  /api/user-blocks:
+    $ref: './paths/user-account.yaml#/userBlocks'
+  /api/user-block:
+    $ref: './paths/user-account.yaml#/userBlock'
   /api/user-notes:
     $ref: './paths/user-account.yaml#/privateNotes'
   /api/user-note:

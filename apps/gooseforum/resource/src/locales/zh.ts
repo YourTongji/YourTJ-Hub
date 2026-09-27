@@ -2668,7 +2668,7 @@ export default {
     },
     chat: {
       send: {
-        failed: '发送失败: {error}',
+        failed: '暂时无法发送这条消息，请稍后重试',
       },
       messages: {
         failed: '消息加载失败',
@@ -2802,6 +2802,7 @@ export default {
       evidenceMeta: '作者 {author} · 删除人 {deletedBy} · 删除时间 {deletedAt} · 删除原因 {reason}',
       evidenceEmpty: '（原文内容为空）',
       targetTypes: {
+        chat_message: '私信',
         topic: '内容',
         post: '帖子',
         course_review: '课程评价',

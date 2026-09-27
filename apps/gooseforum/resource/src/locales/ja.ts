@@ -2665,7 +2665,7 @@ export default {
     },
     chat: {
       send: {
-        failed: '送信に失敗しました: {error}',
+        failed: 'メッセージを送信できません。しばらくしてから再試行してください',
       },
       messages: {
         failed: 'メッセージの読み込みに失敗しました',
@@ -2799,6 +2799,7 @@ export default {
       evidenceMeta: '著者 {author} · 削除者 {deletedBy} · 削除日時 {deletedAt} · 理由 {reason}',
       evidenceEmpty: '（原文は空です）',
       targetTypes: {
+        chat_message: 'プライベートメッセージ',
         topic: 'トピック',
         post: '投稿',
         course_review: 'コースレビュー',

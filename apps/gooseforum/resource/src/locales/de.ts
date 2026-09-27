@@ -2665,7 +2665,7 @@ export default {
     },
     chat: {
       send: {
-        failed: 'Senden fehlgeschlagen: {error}',
+        failed: 'Diese Nachricht konnte nicht gesendet werden. Bitte versuche es später erneut',
       },
       messages: {
         failed: 'Laden der Nachrichten fehlgeschlagen',
@@ -2799,6 +2799,7 @@ export default {
       evidenceMeta: 'Autor {author} · Gelöscht von {deletedBy} · Am {deletedAt} · Grund {reason}',
       evidenceEmpty: '(Der ursprüngliche Inhalt ist leer)',
       targetTypes: {
+        chat_message: 'Privatnachricht',
         topic: 'Thema',
         post: 'Beitrag',
         course_review: 'Kursbewertung',

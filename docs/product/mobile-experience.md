@@ -226,8 +226,8 @@ ordered after the active route in the accessibility tree so iOS does not hide it
   send; users can keep typing while waiting and retry a failed history load. Offline cached messages
   do not establish this sending boundary. The session-local outbox survives leaving a conversation
   and is cleared at the account/session boundary; it is not persisted across app termination. Only one request for
-  each bubble can run at once. The API has no message idempotency key, so ambiguous network failures
-  cannot guarantee exactly-once delivery when manually retried.
+  each bubble can run at once. Retries reuse the same client message ID, so an ambiguous network
+  failure does not create another stored message when the same outbox entry is retried.
 - `Current`: unsent private-message text and caret/selection are kept per peer in app-private device
   secure storage, scoped by API origin and numeric account ID. Conversation rows show a localized draft
   preview, including new peers without a server conversation; list search also matches draft text.
@@ -1019,3 +1019,33 @@ while saving and retain the form on failure. Rating stars expose selected semant
 targets. Cached AI summaries start collapsed, with refresh available inside the expanded section.
 Settings show current device preferences, readable device/browser session names and platform-specific
 push disclosure; account closure remains inside account settings rather than the main index.
+
+
+## User safety and message retries
+
+`Current`: profiles and conversation headers expose reversible user blocking; Settings → Data and
+storage lists the caller's blocks. Server enforcement stops new private messages and interaction
+notifications in both directions. Public content, message history and already delivered notifications
+remain available. Pending activation does not prevent managing a block.
+
+`Current`: received messages expose a report action with explicit disclosure of the selected
+message to administrators. Topic/post and message forms submit a fixed reason enum plus a separate
+explanation. Only administrators can review or handle private-message evidence in the embedded
+moderation workspace; global/category moderators cannot obtain it. The
+[privacy boundary decision](../decisions/0040-user-blocks-and-private-message-reports.md) defines
+retention, account cleanup and concurrency behavior.
+
+`Current`: each session-local outbox entry has a random client message ID that remains stable on
+retry. The server deduplicates the same sender/key and rejects a changed peer/body/type. Keys are
+retained with messages. Older clients without a key keep legacy send behavior. Restarting the app
+does not restore an outbox entry's key; a newly composed message is a new send intent.
+
+`Current`: message timestamps, conversation-list times and message date separators convert
+offset-bearing server timestamps to the device timezone. Date-only calendar values stay calendar
+dates; legacy timestamps without an offset are interpreted locally. UTC and explicit-offset
+representations of one instant display identically, including day/year boundaries.
+
+`Current`: private-message bodies retain their complete text and sticker tokens. Conversation-list
+summaries are limited to 255 Unicode characters, including a truncation marker; a truncated summary
+does not split a sticker token. Long messages therefore remain sendable on PostgreSQL. Send failures
+show a localized message without disclosing database errors.

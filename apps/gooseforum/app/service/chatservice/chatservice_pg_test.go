@@ -4,18 +4,123 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"sync"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/chat/imConversations"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/chat/imUserChatConfigs"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/chat/messages"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/stdlib"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
+
+func TestChatLongMessageOnPostgreSQL(t *testing.T) {
+	open := chatPostgreSQL(t)
+	conn := open("chat-long-message")
+	if err := conn.AutoMigrate(&users.EntityComplete{}, &users.BlockEntity{}, &imConversations.Entity{}, &imUserChatConfigs.Entity{}, &messages.Entity{}); err != nil {
+		t.Fatal(err)
+	}
+	for _, content := range []string{
+		strings.Repeat("a", 255),
+		strings.Repeat("a", 256),
+		strings.Repeat("中", 255),
+		strings.Repeat("🙂", 256),
+		strings.Repeat("[:sticker:Atari哭哭:]\n", 18),
+		strings.Repeat("长消息", 2000),
+	} {
+		convID, err := sendMessage(conn, 1, 2, content, 1)
+		if err != nil {
+			t.Fatalf("send %d characters: %v", utf8.RuneCountInString(content), err)
+		}
+		var message messages.Entity
+		if err := conn.Where("conv_id = ?", convID).Order("id DESC").First(&message).Error; err != nil {
+			t.Fatal(err)
+		}
+		if message.Content != content {
+			t.Fatal("full message body was truncated")
+		}
+		var conversation imConversations.Entity
+		if err := conn.First(&conversation, convID).Error; err != nil {
+			t.Fatal(err)
+		}
+		if !utf8.ValidString(conversation.LastMsgContent) || utf8.RuneCountInString(conversation.LastMsgContent) > 255 {
+			t.Fatal("preview exceeds storage limit or splits a Unicode character")
+		}
+		if utf8.RuneCountInString(content) <= 255 && conversation.LastMsgContent != content {
+			t.Fatal("short preview changed")
+		}
+		if strings.HasPrefix(content, "[:sticker:") && strings.Count(conversation.LastMsgContent, "[:sticker:") != strings.Count(conversation.LastMsgContent, ":]") {
+			t.Fatal("preview split a sticker token")
+		}
+	}
+}
+
+func TestChatRetryKeysUpgradeAndConcurrencyOnPostgreSQL(t *testing.T) {
+	open := chatPostgreSQL(t)
+	conn := open("chat-retry-key-upgrade")
+	if err := conn.AutoMigrate(&users.EntityComplete{}, &users.BlockEntity{}, &imConversations.Entity{}, &imUserChatConfigs.Entity{}, &messages.Entity{}); err != nil {
+		t.Fatal(err)
+	}
+	if err := conn.Create(&[]users.EntityComplete{{Id: 1, Username: "sender"}, {Id: 2, Username: "peer"}}).Error; err != nil {
+		t.Fatal(err)
+	}
+	var convID uint64
+	for range 2 {
+		var err error
+		convID, err = sendMessage(conn, 1, 2, "legacy message", 1)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	// Reproduce the deployed schema: existing messages have no retry-key column.
+	if err := conn.Migrator().DropColumn(&messages.Entity{}, "client_message_id"); err != nil {
+		t.Fatal(err)
+	}
+	if err := conn.AutoMigrate(&messages.Entity{}); err != nil {
+		t.Fatal(err)
+	}
+	var legacy int64
+	if err := conn.Model(&messages.Entity{}).Where("client_message_id IS NULL").Count(&legacy).Error; err != nil || legacy != 2 {
+		t.Fatalf("legacy rows must retain distinct NULL keys: %d, %v", legacy, err)
+	}
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+	const attempts = 12
+	start, done := make(chan struct{}), make(chan error, attempts)
+	for range attempts {
+		go func() {
+			<-start
+			id, err := sendMessage(conn.WithContext(ctx), 1, 2, "retried", 1, "one-intent")
+			if err == nil && id != convID {
+				err = fmt.Errorf("retry returned conversation %d, want %d", id, convID)
+			}
+			done <- err
+		}()
+	}
+	close(start)
+	for range attempts {
+		if err := <-done; err != nil {
+			t.Fatal(err)
+		}
+	}
+	var count int64
+	if err := conn.Model(&messages.Entity{}).Count(&count).Error; err != nil || count != 3 {
+		t.Fatalf("concurrent retries must add one message: count=%d, err=%v", count, err)
+	}
+	var peer imUserChatConfigs.Entity
+	if err := conn.Where("conv_id = ? AND user_id = 2", convID).First(&peer).Error; err != nil {
+		t.Fatal(err)
+	}
+	if peer.UnreadCount != 3 {
+		t.Fatalf("retries inflated unread count to %d", peer.UnreadCount)
+	}
+}
 
 // Each test owns a schema and distinct pools so blocked transactions cannot
 // accidentally share the only connection or affect other PostgreSQL fixtures.
@@ -58,7 +163,7 @@ func TestChatReadStatesConsistentOnPostgreSQL(t *testing.T) {
 			reader, monitor := open("chat-read-state"), open("chat-read-monitor")
 			writerName := fmt.Sprintf("chat-write-%d", time.Now().UnixNano())
 			writer := open(writerName)
-			if err := reader.AutoMigrate(&imConversations.Entity{}, &imUserChatConfigs.Entity{}, &messages.Entity{}); err != nil {
+			if err := reader.AutoMigrate(&users.EntityComplete{}, &users.BlockEntity{}, &imConversations.Entity{}, &imUserChatConfigs.Entity{}, &messages.Entity{}); err != nil {
 				t.Fatal(err)
 			}
 			if err := reader.Create(&imConversations.Entity{Id: 1, Type: 1, LastMsgTime: time.Now()}).Error; err != nil {
@@ -155,7 +260,7 @@ func TestChatReadStatesConsistentOnPostgreSQL(t *testing.T) {
 func TestChatCounterInterleavingOnPostgreSQL(t *testing.T) {
 	open := chatPostgreSQL(t)
 	conn := open("chat-counter-interleaving")
-	if err := conn.AutoMigrate(&imConversations.Entity{}, &imUserChatConfigs.Entity{}, &messages.Entity{}); err != nil {
+	if err := conn.AutoMigrate(&users.EntityComplete{}, &users.BlockEntity{}, &imConversations.Entity{}, &imUserChatConfigs.Entity{}, &messages.Entity{}); err != nil {
 		t.Fatal(err)
 	}
 	conv := imConversations.Entity{Type: 1, LastMsgTime: time.Now()}

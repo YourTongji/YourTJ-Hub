@@ -23,6 +23,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/chatservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/eventhandlers"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/llmsservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/moderationservice"
@@ -128,7 +129,7 @@ type ModerationLogListResponse struct {
 }
 
 type CreateReportReq struct {
-	TargetType string `json:"targetType" validate:"required,oneof=topic post"`
+	TargetType string `json:"targetType" validate:"required,oneof=topic post chat_message"`
 	TargetId   uint64 `json:"targetId" validate:"required"`
 	Reason     string `json:"reason" validate:"required,oneof=spam abuse illegal irrelevant other"`
 	Note       string `json:"note"`
@@ -226,6 +227,12 @@ func UpdateModerationTopicStatus(req component.BetterRequest[ModerationTopicStat
 }
 
 func CreateReport(req component.BetterRequest[CreateReportReq]) component.Response {
+	if req.Params.TargetType == reports.TargetChatMessage {
+		if err := chatservice.ReportMessage(req.UserId, req.Params.TargetId, req.Params.Reason, req.Params.Note); err != nil {
+			return component.FailResponseCode(component.MessageReportTargetInvalid, nil)
+		}
+		return component.SuccessResponse(true)
+	}
 	target, ok := reportTargetInfo(req.Params.TargetType, req.Params.TargetId, req.UserId)
 	if !ok {
 		return component.FailResponseCode(component.MessageReportTargetInvalid, nil)
@@ -401,6 +408,9 @@ func ModerationPostReveal(req component.BetterRequest[ModerationPostRevealReq]) 
 }
 
 func ModerationReportList(req component.BetterRequest[ModerationReportListReq]) component.Response {
+	if req.GinContext != nil {
+		req.GinContext.Header("Cache-Control", "private, no-store")
+	}
 	if !moderationservice.CanAccessModeration(req.UserId) {
 		return component.FailResponseCode(component.MessagePermissionDenied, nil)
 	}
@@ -437,7 +447,11 @@ func UpdateModerationReportStatus(req component.BetterRequest[ModerationReportSt
 	if err := reports.UpdateStatus(report.Id, nextStatus, resolution, req.UserId); err != nil {
 		return component.FailResponseCode(component.MessageOperationFailed, nil)
 	}
-	moderationservice.ReportStatusChanged(req.UserId, buildReportLogSnapshot(report, resolution), nextStatus)
+	// Private reports retain handler/status on the report itself. Do not copy
+	// message evidence or reporter identity to the broader moderator audit feed.
+	if report.TargetType != reports.TargetChatMessage {
+		moderationservice.ReportStatusChanged(req.UserId, buildReportLogSnapshot(report, resolution), nextStatus)
+	}
 	moderationservice.InvalidateTopic(reportTopicID(report))
 	return component.SuccessResponse(true)
 }
@@ -733,6 +747,9 @@ func buildReportLogSnapshot(record reports.Entity, resolution string) moderation
 }
 
 func canModerateReportTarget(userID uint64, targetType string, targetID uint64) bool {
+	if targetType == reports.TargetChatMessage {
+		return moderationservice.IsAdmin(userID)
+	}
 	// 课评举报由独立 CourseManager 权限处理，不走 forum category scope。
 	if targetType == reports.TargetCourseReview {
 		return canModerateCourseReviews(userID)
@@ -988,9 +1005,10 @@ func moderationReportPage(userID uint64, status string, categoryID uint64, curso
 		return []ModerationReportItem{}, 0, false
 	}
 	query := reports.CursorPageQuery{
-		Cursor:           cursor,
-		PageSize:         uint64(pageSize + 1),
-		ScopeCategoryIDs: scopeCategoryIDs,
+		ExcludePrivateMessages: !moderationservice.IsAdmin(userID),
+		Cursor:                 cursor,
+		PageSize:               uint64(pageSize + 1),
+		ScopeCategoryIDs:       scopeCategoryIDs,
 	}
 	if status == "closed" {
 		query.Statuses = []string{reports.StatusResolved, reports.StatusRejected}
@@ -1099,6 +1117,25 @@ func reportCategoriesFromMaps(record reports.Entity, batchMaps moderationReportB
 }
 
 func buildModerationReportItem(userID uint64, categoryID uint64, record reports.Entity, batchMaps moderationReportBatchMaps) (ModerationReportItem, bool) {
+	if record.TargetType == reports.TargetChatMessage {
+		if categoryID != 0 || !moderationservice.IsAdmin(userID) {
+			return ModerationReportItem{}, false
+		}
+		item := ModerationReportItem{
+			ID: record.Id, TargetType: record.TargetType, TargetID: record.TargetId,
+			Title: fmt.Sprintf("#%d", record.TargetId), Excerpt: record.EvidenceSnapshot.Excerpt,
+			Reason: record.Reason, Note: record.Note, Status: record.Status, Resolution: record.Resolution,
+			Reporter: userPayload(record.ReporterId, batchMaps.UserMap), Handler: userPayload(record.HandlerId, batchMaps.UserMap),
+			Categories: []TopicCategoryPayload{}, CreatedAt: record.CreatedAt.Format(time.RFC3339),
+		}
+		if record.EvidenceSnapshot.AuthorID > 0 {
+			item.TargetURL = urlconfig.User(record.EvidenceSnapshot.AuthorID)
+		}
+		if record.HandledAt != nil {
+			item.HandledAt = record.HandledAt.Format(time.RFC3339)
+		}
+		return item, true
+	}
 	categoryIDs, ok := reportCategoriesFromMaps(record, batchMaps)
 	if !ok || !moderationservice.CanModerateAnyCategory(userID, categoryIDs) {
 		return ModerationReportItem{}, false

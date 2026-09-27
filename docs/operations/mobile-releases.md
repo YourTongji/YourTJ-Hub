@@ -312,3 +312,47 @@ Public provider setup references: [Apple APNs keys](https://developer.apple.com/
 [JPush integration settings](https://docs.jiguang.cn/jpush/console/push_setting/integration_set),
 [OEM parameter applications](https://docs.jiguang.cn/jpush/client/Android/android_3rd_param),
 [JPush Android vendor-channel integration](https://docs.jiguang.cn/jpush/client/Android/android_3rd_guide).
+
+
+## Release verification and privacy disclosures
+
+`Current`: normal Android and iOS releases both depend on the same `verify` job against the
+reserved source SHA. It runs Flutter analysis/tests and release-tool tests before signing or
+publishing. Publisher-only iOS recovery explicitly skips this build gate because it reuses an
+already uploaded immutable build; it still runs publisher-tool checks. A successful local subset
+does not establish CI or physical-device acceptance.
+
+Runner, ScheduleWidgets and the bundled home_widget SDK contain privacy manifests. SwiftPM and
+CocoaPods both include the SDK resource. The exported IPA validator checks those actual bundles
+for the App Group UserDefaults reason; a source-only declaration does not satisfy this gate.
+Runner also declares the first-party account, user content, message, device and campus data
+categories. The local-only Widget/SDK do not collect data off device.
+
+`Current`: the [App privacy supplement](../../apps/gooseforum/app/models/defaultconfig/pageconfig/app_privacy.md)
+is embedded in the forum binary and appended to enabled `/privacy` pages, including persisted
+custom policies. A policy containing the supplement's heading does not receive another copy.
+It covers campus processing, device snapshots/Widget display, selected-message reporting and
+Android push processors. Publish this server before distributing the corresponding App.
+
+`Partial`: App Store Connect privacy declarations still require verification against the actual
+production SDK selection, retention and analytics configuration. Source privacy manifests and the
+public policy are not substitutes for the App Store Connect form.
+
+App Store privacy labels must account for account identifiers/contact information, private
+messages, uploaded images, other user content, interaction state, device push identifiers and
+school-authorized data. They support App Functionality and are linked to the account where
+applicable. The reviewed source implements no cross-company advertising tracking. WebView/public
+website analytics must be assessed from the actual Umami configuration before declaring labels;
+do not infer “no data collected” from the Widget manifest.
+
+`Decision needed`: the iOS login offering must satisfy Apple's
+[login-services rule](https://developer.apple.com/app-store/review/guidelines/#login-services).
+Sign in with Apple is a standard option when Google/GitHub remain primary login choices.
+A school-login exception requires the actual access model to qualify; enabling a Developer
+capability alone does not add the login flow. Do not remove an existing login method merely to
+avoid this decision.
+
+A new server containing block enforcement, private-message reporting and optional
+`clientMessageId` support must be deployed before releasing the matching mobile binary.
+Signed APK upgrade, external-browser OAuth return, APNs/JPush/OEM delivery and Widget behavior
+require recorded physical-device evidence for the actual candidate version/build.

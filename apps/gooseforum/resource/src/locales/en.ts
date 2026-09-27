@@ -2666,7 +2666,7 @@ export default {
     },
     chat: {
       send: {
-        failed: 'Failed to send: {error}',
+        failed: 'Unable to send this message. Please try again later',
       },
       messages: {
         failed: 'Failed to load messages',
@@ -2800,6 +2800,7 @@ export default {
       evidenceMeta: 'Author {author} · Deleted by {deletedBy} · At {deletedAt} · Reason {reason}',
       evidenceEmpty: '(Original content is empty)',
       targetTypes: {
+        chat_message: 'Private message',
         topic: 'Topic',
         post: 'Post',
         course_review: 'Course review',

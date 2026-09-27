@@ -30,6 +30,7 @@ func setupNotificationChatContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 	t.Helper()
 	conn, router := setupHTTPContractTest(t)
 	if err := conn.AutoMigrate(
+		&users.BlockEntity{},
 		&eventNotification.Entity{},
 		&pushSubscription.Entity{},
 		&pushDevice.Entity{},

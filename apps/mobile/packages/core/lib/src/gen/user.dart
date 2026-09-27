@@ -241,3 +241,34 @@ abstract class PrivateNotesPayload with _$PrivateNotesPayload {
   factory PrivateNotesPayload.fromJson(Map<String, dynamic> json) =>
       _$PrivateNotesPayloadFromJson(json);
 }
+
+/// Owner-scoped block list. No reverse relationship is exposed.
+class UserBlocksPayload {
+  const UserBlocksPayload({required this.ownerId, required this.blocks});
+  final int ownerId;
+  final List<BlockedUserPayload> blocks;
+  factory UserBlocksPayload.fromJson(Map<String, dynamic> json) =>
+      UserBlocksPayload(
+        ownerId: (json['ownerId'] as num).toInt(),
+        blocks: (json['blocks'] as List)
+            .map(
+              (item) =>
+                  BlockedUserPayload.fromJson(item as Map<String, dynamic>),
+            )
+            .toList(),
+      );
+}
+
+class BlockedUserPayload {
+  const BlockedUserPayload({
+    required this.targetUserId,
+    required this.username,
+  });
+  final int targetUserId;
+  final String username;
+  factory BlockedUserPayload.fromJson(Map<String, dynamic> json) =>
+      BlockedUserPayload(
+        targetUserId: (json['targetUserId'] as num).toInt(),
+        username: json['username'] as String,
+      );
+}
