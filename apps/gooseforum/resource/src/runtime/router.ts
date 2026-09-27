@@ -1,4 +1,5 @@
 import { useNavigationState } from './navigation-state'
+import { homeFeedNavigation } from './home-feed-navigation'
 import { resolvePageComponent } from './page-registry'
 import { createGooseClient } from '@gooseforum/client'
 import type { Component } from 'vue'
@@ -15,7 +16,7 @@ export interface PreparedPage {
 export function installNavigation(initialPage: PreparedPage, routeComponent: Component, onPage: (page: PreparedPage) => void): Router {
   const navigation = useNavigationState()
   let initialNavigation = true
-  let loadedPage = initialPage
+  const pagesByRoute = new Map<string, { page: PreparedPage; feedRequest?: number }>()
 
   const router = createRouter({
     history: createWebHistory(),
@@ -51,7 +52,7 @@ export function installNavigation(initialPage: PreparedPage, routeComponent: Com
   router.beforeEach(async (to, from) => {
     if (initialNavigation) {
       initialNavigation = false
-      loadedPage = initialPage
+      pagesByRoute.set(to.fullPath, { page: initialPage })
       return true
     }
 
@@ -64,25 +65,41 @@ export function installNavigation(initialPage: PreparedPage, routeComponent: Com
       return false
     }
 
+    const isHomeFeedNavigation = from.path === '/' && to.path === '/'
+    const feedRequest = isHomeFeedNavigation ? homeFeedNavigation.begin(to.fullPath) : undefined
+    if (!isHomeFeedNavigation) {
+      homeFeedNavigation.cancel()
+      navigation.setNavigating(true)
+    }
     const url = new URL(to.fullPath, window.location.origin)
-
-    navigation.setNavigating(true)
     try {
-      loadedPage = await getPreparedPage(url)
+      const page = await getPreparedPage(url)
+      pagesByRoute.set(to.fullPath, { page, feedRequest })
       return true
     } catch {
+      if (feedRequest !== undefined) {
+        homeFeedNavigation.fail(feedRequest, to.fullPath)
+        return false
+      }
       window.location.href = url.toString()
       return false
     }
   })
 
   router.afterEach((_to, _from, failure) => {
+    const isHomeFeedNavigation = _from.path === '/' && _to.path === '/'
     if (failure && isNavigationFailure(failure)) {
-      navigation.setNavigating(false)
+      pagesByRoute.delete(_to.fullPath)
+      if (!isHomeFeedNavigation) navigation.setNavigating(false)
       return
     }
-    onPage(loadedPage)
-    navigation.setNavigating(false)
+    const result = pagesByRoute.get(_to.fullPath)
+    pagesByRoute.delete(_to.fullPath)
+    if (result) {
+      if (result.feedRequest !== undefined) homeFeedNavigation.complete(result.feedRequest)
+      onPage(result.page)
+    }
+    if (!isHomeFeedNavigation) navigation.setNavigating(false)
   })
 
   document.addEventListener('click', async (event) => {

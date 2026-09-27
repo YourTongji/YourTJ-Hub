@@ -15,6 +15,7 @@ const isStandalone = computed(() => standaloneComponents.has(props.page.payload.
 const hasRail = computed(() => ['topic.detail', 'wiki.detail'].includes(props.page.payload.component))
 const shouldKeepAlive = computed(() => keepAliveComponents.has(props.page.payload.component))
 const pageViewKey = computed(() => {
+  if (props.page.payload.component === 'home.index') return 'home.index'
   if (props.page.payload.component === 'user.profile') {
     const user = (props.page.payload.props as { user?: { userId?: number | string } })?.user
     return `user.profile:${user?.userId || props.page.payload.url}`
