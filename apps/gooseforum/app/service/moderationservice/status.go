@@ -22,6 +22,9 @@ func HasOpenReports(userID uint64) bool {
 	if !CanAccessModeration(userID) {
 		return false
 	}
+	if IsAdmin(userID) && statusCache.GetOrLoad("moderation:reports:private", reports.HasOpenPrivateMessages, statusTTL) {
+		return true
+	}
 	global, categoryIDs := ScopeForUser(userID)
 	if global {
 		categoryIDs = allCategoryIDs()
@@ -32,6 +35,10 @@ func HasOpenReports(userID uint64) bool {
 		}
 	}
 	return false
+}
+
+func InvalidatePrivateReports() {
+	statusCache.Delete("moderation:reports:private")
 }
 
 func InvalidateTopic(topicID uint64) {

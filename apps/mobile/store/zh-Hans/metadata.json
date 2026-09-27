@@ -3,5 +3,5 @@
   "keywords": "同济,选课,课程评价,排课,校园,社区,课表,Wiki",
   "marketingUrl": "https://f.yourtj.de",
   "supportUrl": "https://github.com/YourTongji/YourTJ-Hub/issues",
-  "whatsNew": "完善原生排课与课表组件，增加用户屏蔽和私信举报，改进移动端使用体验。"
+  "whatsNew": "新增通过 Apple 登录，完善原生排课与课表组件，增加用户屏蔽和私信举报，修复私信时间显示及连续贴纸发送失败。"
 }

@@ -17,6 +17,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pushSubscription"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/sticker"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userOAuth"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"gorm.io/gorm"
 )
@@ -25,7 +26,7 @@ func setupBatchDeleteTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 	conn := dbconnect.Connect()
 	if err := conn.AutoMigrate(
-		&users.EntityComplete{},
+		&users.EntityComplete{}, &userOAuth.Entity{},
 		&users.PrivateNoteEntity{}, &users.BlockEntity{},
 		&topics.Entity{},
 		&posts.Entity{},

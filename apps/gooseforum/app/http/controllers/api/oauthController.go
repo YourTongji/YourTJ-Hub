@@ -143,7 +143,7 @@ func UnbindOAuth(req component.BetterRequest[component.Null]) component.Response
 	provider := req.GinContext.Param("provider")
 
 	// 解绑OAuth账户
-	err := oauthservice.UnbindOAuth(userID, provider)
+	err := oauthservice.UnbindOAuthContext(req.GinContext.Request.Context(), userID, provider)
 	if err != nil {
 		return component.FailResponseCode(
 			component.MessageOAuthUnbindFailed,
@@ -174,7 +174,7 @@ func GetOAuthBindings(req component.BetterRequest[component.Null]) component.Res
 	}
 
 	// 添加未绑定的提供商
-	allProviders := []string{"github", "google"}
+	allProviders := []string{"github", "google", "apple"}
 	for _, provider := range allProviders {
 		if _, exists := result[provider]; !exists {
 			result[provider] = map[string]any{

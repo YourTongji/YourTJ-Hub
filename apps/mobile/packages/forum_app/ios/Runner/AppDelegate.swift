@@ -5,6 +5,7 @@ import Darwin
 
 @main
 @objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
+  private var appleAuth: YourTJAppleAuth?
   private var pushChannel: FlutterMethodChannel?
   private var tokenResult: FlutterResult?
   private var pendingRoute: String?
@@ -23,6 +24,9 @@ import Darwin
 
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
+    if let appleRegistrar = engineBridge.pluginRegistry.registrar(forPlugin: "YourTJAppleAuth") {
+      appleAuth = YourTJAppleAuth(registrar: appleRegistrar)
+    }
     if let startupRegistrar = engineBridge.pluginRegistry.registrar(forPlugin: "YourTJStartup") {
       let startupChannel = FlutterMethodChannel(
         name: "yourtj/startup",

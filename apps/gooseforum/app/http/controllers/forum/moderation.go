@@ -231,6 +231,7 @@ func CreateReport(req component.BetterRequest[CreateReportReq]) component.Respon
 		if err := chatservice.ReportMessage(req.UserId, req.Params.TargetId, req.Params.Reason, req.Params.Note); err != nil {
 			return component.FailResponseCode(component.MessageReportTargetInvalid, nil)
 		}
+		moderationservice.InvalidatePrivateReports()
 		return component.SuccessResponse(true)
 	}
 	target, ok := reportTargetInfo(req.Params.TargetType, req.Params.TargetId, req.UserId)
@@ -451,6 +452,8 @@ func UpdateModerationReportStatus(req component.BetterRequest[ModerationReportSt
 	// message evidence or reporter identity to the broader moderator audit feed.
 	if report.TargetType != reports.TargetChatMessage {
 		moderationservice.ReportStatusChanged(req.UserId, buildReportLogSnapshot(report, resolution), nextStatus)
+	} else {
+		moderationservice.InvalidatePrivateReports()
 	}
 	moderationservice.InvalidateTopic(reportTopicID(report))
 	return component.SuccessResponse(true)

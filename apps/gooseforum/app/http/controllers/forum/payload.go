@@ -34,6 +34,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userStatistics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/appleauthservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/badgeservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/campusservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/chatservice"
@@ -126,6 +127,7 @@ type LoginPageProps struct {
 	RedirectURL           string   `json:"redirectUrl"`
 	GitHubURL             string   `json:"githubUrl"`
 	GoogleURL             string   `json:"googleUrl"`
+	AppleReady            bool     `json:"appleReady"`
 	GoogleReady           bool     `json:"googleReady"`
 	TongjiReady           bool     `json:"tongjiReady"`
 	TongjiURL             string   `json:"tongjiUrl"`
@@ -609,6 +611,7 @@ type SettingsPageProps struct {
 	User             *vo.UserDetailedVo   `json:"user"`
 	Stats            SettingsStatsPayload `json:"stats"`
 	Tabs             []TabPayload         `json:"tabs"`
+	AppleOAuthReady  bool                 `json:"appleOAuthReady"`
 	GoogleOAuthReady bool                 `json:"googleOAuthReady"`
 	// CanSetPassword 标记当前用户可走 set-password 首次设密（issue #530：
 	// 无邮箱 OAuth 绑定账号）。服务端按同一资格门禁计算，前端据此切换
@@ -1027,6 +1030,7 @@ func buildLoginPageProps(c *gin.Context) LoginPageProps {
 		RedirectURL:           redirectURL,
 		GitHubURL:             githubURL,
 		GoogleURL:             googleURL,
+		AppleReady:            appleauthservice.Ready(),
 		GoogleReady:           oauthservice.IsGoogleOAuthReady(),
 		TongjiReady:           campusErr == nil,
 		TongjiURL:             tongjiURL,
@@ -3017,6 +3021,7 @@ func buildSettingsPageProps(user users.EntityComplete) SettingsPageProps {
 	stats := userStatistics.Get(user.Id)
 	return SettingsPageProps{
 		User:             transform.User2UserDetailedVo(user),
+		AppleOAuthReady:  appleauthservice.Ready(),
 		GoogleOAuthReady: oauthservice.IsGoogleOAuthReady(),
 		// 与 SetPassword 控制器同门禁（issue #530）：无邮箱 + 有 OAuth 绑定
 		// + 非 bot 才能免旧密码设密。

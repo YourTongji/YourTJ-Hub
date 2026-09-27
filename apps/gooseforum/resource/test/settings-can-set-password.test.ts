@@ -65,7 +65,7 @@ vi.mock('../src/runtime/flash-message', () => ({
   useFlashMessages: () => ({ push: vi.fn() }),
 }))
 
-import { changePassword, setPassword, saveUserEmail, resendActivationEmail } from '../src/runtime/api'
+import { changePassword, setPassword, saveUserEmail, resendActivationEmail, getOAuthBindings, unbindOAuth } from '../src/runtime/api'
 import SettingsPage from '../src/site/pages/SettingsPage.vue'
 
 const layout: LayoutPayload = {
@@ -259,6 +259,34 @@ describe('SettingsPage public and private profile fields (issue #665)', () => {
     await resend.trigger('click')
     await flushPromises()
     expect(resendActivationEmail).toHaveBeenCalled()
+    wrapper.unmount()
+  })
+})
+
+
+describe('Apple binding management on Web', () => {
+  test('an existing native Apple binding can be disconnected without a Web Apple login flow', async () => {
+    vi.mocked(getOAuthBindings).mockResolvedValueOnce({ apple: { bound: true, provider: 'apple' } })
+    const wrapper = mountPage(false)
+    await flushPromises()
+    const label = wrapper.findAll('h3').find(item => item.text() === 'Apple')!
+    expect(label).toBeTruthy()
+    const row = label.element.parentElement!.parentElement!.parentElement!
+    const disconnect = row.querySelector('button')!
+    expect(disconnect.disabled).toBe(false)
+    expect(disconnect.textContent).toContain(i18n.global.t('settings.binding.disconnect'))
+    disconnect.click()
+    await flushPromises()
+    expect(unbindOAuth).toHaveBeenCalledWith('apple')
+    expect(wrapper.findAll('h3').some(item => item.text() === 'Apple')).toBe(false)
+    wrapper.unmount()
+  })
+
+  test('an unbound account is not offered a nonexistent Web Apple connection route', async () => {
+    vi.mocked(getOAuthBindings).mockResolvedValueOnce({ apple: { bound: false } })
+    const wrapper = mountPage(false)
+    await flushPromises()
+    expect(wrapper.findAll('h3').some(item => item.text() === 'Apple')).toBe(false)
     wrapper.unmount()
   })
 })

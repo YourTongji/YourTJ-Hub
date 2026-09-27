@@ -32,3 +32,36 @@ func TestSendMessageRejectsBlockedPair(t *testing.T) {
 		t.Fatal("blocked send changed messages")
 	}
 }
+
+func TestCommittedRetryStillSucceedsAfterRecipientBlocksSender(t *testing.T) {
+	setupMarkReadTestDB(t)
+	conn := db.Connect()
+	const key = "committed-before-block"
+	original, err := SendMessage(markReadTestSender, markReadTestMember, "delivered once", 1, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := conn.Create(&users.BlockEntity{OwnerID: markReadTestMember, TargetUserID: markReadTestSender}).Error; err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		conn.Where("owner_id = ? AND target_user_id = ?", markReadTestMember, markReadTestSender).Delete(&users.BlockEntity{})
+	})
+	replayed, err := SendMessage(markReadTestSender, markReadTestMember, "delivered once", 1, key)
+	if err != nil || replayed != original {
+		t.Fatalf("committed retry = %d, %v; want %d", replayed, err, original)
+	}
+	if _, err := SendMessage(markReadTestSender, markReadTestMember, "another message", 1, "new-key"); err == nil {
+		t.Fatal("block allowed new write")
+	}
+	if _, err := SendMessage(markReadTestSender, markReadTestMember, "changed content", 1, key); err == nil {
+		t.Fatal("block allowed conflicting retry")
+	}
+	var count int64
+	if err := conn.Model(&messages.Entity{}).Where("sender_id = ? AND client_message_id = ?", markReadTestSender, key).Count(&count).Error; err != nil {
+		t.Fatal(err)
+	}
+	if count != 1 {
+		t.Fatalf("retry duplicated message: %d", count)
+	}
+}

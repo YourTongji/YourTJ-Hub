@@ -35,10 +35,19 @@ func ListBlockedUsers(ownerID uint64) ([]BlockedUser, error) {
 }
 
 // LockInteractionUsers serializes block changes and message writes. All callers
-// lock the two user rows in ID order before acquiring any conversation locks.
+// acquire participant locks before any conversation locks.
 func LockInteractionUsers(tx *gorm.DB, a, b uint64) error {
+	return LockInteractionUserIDs(tx, []uint64{a, b})
+}
+
+// LockInteractionUserIDs also covers notification fan-out. One ordered query
+// locks the complete participant set, so overlapping batches cannot deadlock.
+func LockInteractionUserIDs(tx *gorm.DB, participants []uint64) error {
+	if len(participants) == 0 {
+		return nil
+	}
 	var ids []uint64
-	return tx.Model(&EntityComplete{}).Select("id").Clauses(clause.Locking{Strength: "UPDATE"}).Where("id IN ?", []uint64{a, b}).Order("id").Find(&ids).Error
+	return tx.Model(&EntityComplete{}).Select("id").Clauses(clause.Locking{Strength: "UPDATE"}).Where("id IN ?", participants).Order("id").Find(&ids).Error
 }
 func interactionBlocked(tx *gorm.DB, a, b uint64) (bool, error) {
 	if a == 0 || b == 0 || a == b {
@@ -108,11 +117,17 @@ func SetBlockedUser(ownerID, targetID uint64, blocked bool) error {
 // FilterInteractionRecipients makes block filtering bounded per fan-out, and
 // fails closed on storage errors. The reverse relation is never exposed to users.
 func FilterInteractionRecipients(actor uint64, recipients []uint64) ([]uint64, error) {
+	return FilterInteractionRecipientsTx(db.Connect(), actor, recipients)
+}
+
+// FilterInteractionRecipientsTx is used after locking all participants when
+// filtering and persisting an interaction must be atomic with block changes.
+func FilterInteractionRecipientsTx(tx *gorm.DB, actor uint64, recipients []uint64) ([]uint64, error) {
 	if actor == 0 || len(recipients) == 0 {
 		return recipients, nil
 	}
 	var rows []BlockEntity
-	err := db.Connect().Where("(owner_id = ? AND target_user_id IN ?) OR (target_user_id = ? AND owner_id IN ?)", actor, recipients, actor, recipients).Find(&rows).Error
+	err := tx.Where("(owner_id = ? AND target_user_id IN ?) OR (target_user_id = ? AND owner_id IN ?)", actor, recipients, actor, recipients).Find(&rows).Error
 	if err != nil {
 		return nil, err
 	}

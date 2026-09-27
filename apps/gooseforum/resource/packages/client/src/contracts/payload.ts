@@ -52,6 +52,7 @@ export interface LoginPageProps {
   tongjiReady?: boolean
   tongjiUrl?: string
   tongjiNotice?: string
+  appleReady?: boolean
   googleReady: boolean
   termsOfServiceEnabled: boolean
   privacyPolicyEnabled: boolean
@@ -897,6 +898,7 @@ export interface ChatItemPayload {
 
 export interface SettingsPageProps {
   user: SettingsUserPayload
+  appleOAuthReady?: boolean
   googleOAuthReady: boolean
   /** issue #530：无邮箱 OAuth 绑定账号可走 set-password 首次设密（服务端门禁）。 */
   canSetPassword: boolean

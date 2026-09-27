@@ -95,6 +95,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   bool _uploadingAvatar = false;
   bool _accountClosing = false;
   bool _googleOAuthReady = false;
+  bool _appleOAuthReady = false;
   bool _autoEditProfileActive = false;
   _ProfileEditSession _autoEditSession = _ProfileEditSession();
   final ImagePicker _imagePicker = ImagePicker();
@@ -161,6 +162,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       }
       setState(() {
         _googleOAuthReady = props.googleOAuthReady;
+        _appleOAuthReady = props.appleOAuthReady;
         _user = AsyncValue.data(props.user);
       });
     } catch (e, st) {
@@ -643,6 +645,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       builder: (_) => OAuthBindingsSheet(
         username: user.username,
         googleReady: _googleOAuthReady,
+        appleReady: _appleOAuthReady,
       ),
     );
   }
@@ -958,6 +961,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         _user = const AsyncValue.loading();
         _sessions = const AsyncValue.loading();
         _googleOAuthReady = false;
+        _appleOAuthReady = false;
         _autoEditProfileActive = false;
         _autoEditSession = _ProfileEditSession();
       });

@@ -97,6 +97,10 @@ paths:
     $ref: ./paths/auth-totp.yaml#/enable
   /api/user/totp/disable:
     $ref: ./paths/auth-totp.yaml#/disable
+  /api/auth/apple/exchange:
+    $ref: ./paths/apple-auth.yaml#/exchange
+  /api/auth/apple/bind:
+    $ref: ./paths/apple-auth.yaml#/bind
   /api/auth/oidc/exchange:
     $ref: ./paths/auth.yaml#/oidcExchange
   /api/auth/mobile-web-session:
@@ -798,6 +802,8 @@ components:
       $ref: ./components/schemas.yaml#/LogoutResponse
     LogoutSuccess:
       $ref: ./components/schemas.yaml#/LogoutSuccess
+    AppleCredentialRequest:
+      $ref: ./components/schemas.yaml#/AppleCredentialRequest
     OidcExchangeRequest:
       $ref: ./components/schemas.yaml#/OidcExchangeRequest
     OidcExchangeResult:

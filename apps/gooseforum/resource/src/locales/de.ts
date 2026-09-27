@@ -2643,6 +2643,11 @@ export default {
       },
     },
     oauth: {
+      apple: {
+        unavailable: "Die Anmeldung mit Apple ist vorübergehend nicht verfügbar. Bitte später erneut versuchen.",
+        bindingRequired: "Melde dich mit einer bestehenden Methode an und verknüpfe Apple zuerst in den Kontoeinstellungen.",
+        alreadyBound: "Dieses Apple-Konto ist bereits verknüpft oder dein Konto hat bereits eine Apple-Verknüpfung.",
+      },
       unbind: {
         failed: 'Aufheben der Verknüpfung fehlgeschlagen: {error}',
         success: 'Erfolgreich getrennt',

@@ -347,12 +347,27 @@ applicable. The reviewed source implements no cross-company advertising tracking
 website analytics must be assessed from the actual Umami configuration before declaring labels;
 do not infer “no data collected” from the Widget manifest.
 
-`Decision needed`: the iOS login offering must satisfy Apple's
-[login-services rule](https://developer.apple.com/app-store/review/guidelines/#login-services).
-Sign in with Apple is a standard option when Google/GitHub remain primary login choices.
-A school-login exception requires the actual access model to qualify; enabling a Developer
-capability alone does not add the login flow. Do not remove an existing login method merely to
-avoid this decision.
+`Current`: iOS retains password, Tongji, Google and GitHub and adds native Apple login.
+Users connect Apple to their existing account in settings first; no email/name scopes or automatic
+email-based account merging are used. Native Apple authorization must be tested with the actual
+candidate. The [Apple login decision](../decisions/0041-native-apple-login-and-revocation.md)
+describes credential retention and revocation.
+
+Enable Sign in with Apple for `tj.yourtj.forumApp`, and create a dedicated P-256 Sign in with Apple
+key associated only with that primary App ID. Native authorization does not require a web Services ID
+or email-relay source. Set `APPLE_CLIENT_ID` (the bundle ID), `APPLE_TEAM_ID`, `APPLE_KEY_ID` and
+`APPLE_PRIVATE_KEY_BASE64` (base64 of the `.p8` key) in the GitHub **production** environment used by
+main deployment. Feed values via stdin; never paste private key contents into chat, logs or commits.
+The renderer writes `[apple]` server configuration. All four values must be valid before public
+`appleReady`/`appleOAuthReady` become true. Dev credentials remain empty because its database is a
+production snapshot; production grants must not be redeemed or revoked there. A copied Apple binding
+cannot be disconnected or closed on dev without a separate isolated Apple test configuration.
+
+Distribution profiles and exported IPA entitlements must contain
+`com.apple.developer.applesignin = ["Default"]`; the signing validator rejects missing capabilities.
+Unlink/account closure calls Apple's revocation endpoint before committing local deletion. A provider
+outage preserves the encrypted grant and active account for retry. Preserve the forum signing key
+used to encrypt existing grants; rotating it without re-encryption prevents revocation.
 
 A new server containing block enforcement, private-message reporting and optional
 `clientMessageId` support must be deployed before releasing the matching mobile binary.

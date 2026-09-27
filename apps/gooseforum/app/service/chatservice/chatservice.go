@@ -60,7 +60,7 @@ func sendMessage(conn *gorm.DB, senderId, peerId uint64, content string, msgType
 		var convId uint64
 		replayed := false
 		err := conn.Transaction(func(tx *gorm.DB) error {
-			if err := users.CheckInteractionAllowed(tx, senderId, peerId); err != nil {
+			if err := users.LockInteractionUsers(tx, senderId, peerId); err != nil {
 				return err
 			}
 			if key != nil {
@@ -81,6 +81,11 @@ func sendMessage(conn *gorm.DB, senderId, peerId uint64, content string, msgType
 				if !errors.Is(err, gorm.ErrRecordNotFound) {
 					return err
 				}
+			}
+			// A committed retry acknowledges an earlier write even if either user
+			// blocked the other since then. Only new writes require permission.
+			if err := users.CheckInteractionAllowed(tx, senderId, peerId); err != nil {
+				return err
 			}
 			var senderConfig imUserChatConfigs.Entity
 			findErr := tx.Where("user_id = ? AND peer_id = ?", senderId, peerId).First(&senderConfig).Error

@@ -22,7 +22,12 @@ REVIEW_NOTES = (
     "The native scheduler only plans courses; "
     "it does not enroll students. Personal campus data requires a separate authorized Tongji login; "
     "the supplied forum review account can exercise community and public course/scheduler features. "
-    "Account deletion is available in Settings > Account."
+    "Account deletion is available in Settings > Account. "
+    "Google, GitHub and Apple are login methods for existing campus community accounts; "
+    "social login does not create accounts. To test Sign in with Apple, sign in with the review "
+    "account, open Settings > Account > OAuth bindings, and connect your own Apple account. "
+    "Sign out and use the native Sign in with Apple button to sign back in. "
+    "Apple does not request a name or email; disconnecting or deleting an account revokes its authorization."
 )
 REVIEW_FIELDS = {"firstName": "contact-first-name", "lastName": "contact-last-name", "email": "contact-email",
                         "phone": "contact-phone", "username": "demo-account-name", "password": "demo-account-password"}

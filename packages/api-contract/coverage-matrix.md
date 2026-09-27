@@ -4,11 +4,11 @@
 
 路由快照来自 `TestRoutesSnapshot`（`fixtures/routes-snapshot.json`，默认配置装配，不含 OIDC `/api/oauth/*` 端点——OIDC 另有专项）。
 
-- 快照路由总数：344
-- /api JSON 路由：278，已入契约：279（100%），已知未覆盖：0
+- 快照路由总数：346
+- /api JSON 路由：280，已入契约：281（100%），已知未覆盖：0
 - 非 API 排除路由：65
 
-## 已覆盖（279）
+## 已覆盖（281）
 
 | Method | Path | operationId |
 | --- | --- | --- |
@@ -181,6 +181,8 @@
 | POST | `/api/admin/wiki/sync/cdn` | `saveWikiAssetCDN` |
 | POST | `/api/admin/wiki/sync/webhook-secret` | `saveWikiWebhookSecret` |
 | POST | `/api/auth/:provider/unbind` | `unbindOAuth` |
+| POST | `/api/auth/apple/bind` | `bindNativeAppleAccount` |
+| POST | `/api/auth/apple/exchange` | `exchangeNativeAppleCode` |
 | POST | `/api/auth/oidc/exchange` | `exchangeMobileOidcCode` |
 | POST | `/api/auth/tongji/registration` | `tongjiRegister` |
 | POST | `/api/auth/totp/verify` | `verifyTotpLogin` |

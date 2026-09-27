@@ -376,6 +376,27 @@ TotpDisableResponse:
     - $ref: '#/TotpDisableSuccess'
     - $ref: '#/ApiFailure'
 
+AppleCredentialRequest:
+  type: object
+  required: [authorizationCode, identityToken, nonce]
+  properties:
+    authorizationCode:
+      type: string
+      minLength: 1
+      maxLength: 4096
+      description: Single-use native Apple authorization code.
+    identityToken:
+      type: string
+      minLength: 1
+      maxLength: 16384
+      description: Apple-signed RS256 identity token for the iOS bundle ID.
+    nonce:
+      type: string
+      minLength: 32
+      maxLength: 128
+      description: Random raw native-flow nonce; its SHA-256 hex digest must match the signed token nonce.
+  additionalProperties: false
+
 OidcExchangeRequest:
   type: object
   required: [code, codeVerifier, nonce, redirectUri]
@@ -4819,14 +4840,16 @@ OAuthBinding:
 
 OAuthBindingsResult:
   type: object
-  required: [github, google]
+  required: [github, google, apple]
   properties:
     github:
       $ref: '#/OAuthBinding'
     google:
       $ref: '#/OAuthBinding'
+    apple:
+      $ref: '#/OAuthBinding'
   additionalProperties: false
-  description: Binding state keyed by provider; the response always carries the fixed github and google keys.
+  description: Binding state keyed by provider; the response always carries the fixed github, google and apple keys.
 
 OAuthBindingsSuccess:
   allOf:

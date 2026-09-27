@@ -1,7 +1,7 @@
 # Owner-scoped blocks and administrator-only private-message evidence
 
 ## Status
-Proposed
+Accepted
 Class: feature
 
 ## Context and Problem Statement
@@ -29,7 +29,7 @@ Use owner-scoped blocks with a maximum of 1000 entries. Either direction blocks 
 messages and new interaction notifications; delivery workers also recheck queued notifications.
 Previously delivered notifications, public content and message history remain available for
 context and reporting. The caller can list only their own blocks and can reverse them. Closing
-either account removes the relationship. Block changes and message writes lock participant rows
+either account removes the relationship. Block changes, message writes and notification insertion lock participant rows
 in ID order; a send committed before a block may still finish its delivery.
 
 Only a recipient can report an existing private message. The report contains at most 4000 runes

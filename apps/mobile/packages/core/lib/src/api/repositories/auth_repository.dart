@@ -122,6 +122,18 @@ class AuthRepository {
     );
   }
 
+  Future<String> appleExchange(AppleCredentialRequest request) =>
+      _client.post<String>(
+        '/api/auth/apple/exchange',
+        body: request.toJson(),
+        parser: (json) =>
+            OidcExchangeResult.fromJson(json as Map<String, dynamic>).token,
+      );
+
+  Future<void> appleBind(AppleCredentialRequest request) async {
+    await _client.post<Object?>('/api/auth/apple/bind', body: request.toJson());
+  }
+
   /// 两步验证:登录返回 twoFactorRequired 后,用 challenge token 校验验证码。
   Future<bool> totpVerify({required String code, String? recoveryCode}) async {
     await _client.post<Object?>(

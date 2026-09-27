@@ -2643,6 +2643,11 @@ export default {
       },
     },
     oauth: {
+      apple: {
+        unavailable: "Apple ログインは現在利用できません。後でもう一度お試しください。",
+        bindingRequired: "既存の方法でログインし、アカウント設定で Apple を連携してからご利用ください。",
+        alreadyBound: "この Apple アカウントは連携済み、または既に別の Apple アカウントが連携されています。",
+      },
       unbind: {
         failed: '連携解除に失敗しました: {error}',
         success: '連携を解除しました',

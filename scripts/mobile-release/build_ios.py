@@ -41,6 +41,8 @@ def validate_profile(profile, team, now=None, bundle_id=BUNDLE_ID,
         raise ValueError("An App Store distribution profile is required")
     if require_push and entitlements.get("aps-environment") != "production":
         raise ValueError("App Store profile must enable production Push Notifications; regenerate the profile")
+    if bundle_id == BUNDLE_ID and entitlements.get("com.apple.developer.applesignin") != ["Default"]:
+        raise ValueError("App Store profile must enable Sign in with Apple")
     if WIDGET_APP_GROUP not in entitlements.get(
             "com.apple.security.application-groups", []):
         raise ValueError("Distribution profile must enable the schedule App Group")
@@ -49,6 +51,8 @@ def validate_profile(profile, team, now=None, bundle_id=BUNDLE_ID,
 
 
 def validate_app_entitlements(entitlements, team):
+    if entitlements.get("com.apple.developer.applesignin") != ["Default"]:
+        raise ValueError("Exported app must carry the Sign in with Apple entitlement")
     if entitlements.get("application-identifier") != f"{team}.{BUNDLE_ID}" or entitlements.get("aps-environment") != "production":
         raise ValueError("Exported app must carry the correct application identifier and production APNs entitlement")
     if WIDGET_APP_GROUP not in entitlements.get("com.apple.security.application-groups", []):

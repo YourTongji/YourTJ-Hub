@@ -11,7 +11,7 @@ import (
 
 func TestMentionCommitPublishesOnlyToRecipients(t *testing.T) {
 	conn := db.Connect()
-	if err := conn.AutoMigrate(&eventNotification.Entity{}, &users.BlockEntity{}); err != nil {
+	if err := conn.AutoMigrate(&eventNotification.Entity{}, &users.BlockEntity{}, &users.EntityComplete{}); err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
@@ -43,7 +43,7 @@ func TestMentionCommitPublishesOnlyToRecipients(t *testing.T) {
 
 func TestCommentNotificationsUseTopicPostPayload(t *testing.T) {
 	conn := db.Connect()
-	if err := conn.AutoMigrate(&eventNotification.Entity{}, &users.BlockEntity{}); err != nil {
+	if err := conn.AutoMigrate(&eventNotification.Entity{}, &users.BlockEntity{}, &users.EntityComplete{}); err != nil {
 		t.Fatalf("migrate notifications: %v", err)
 	}
 
@@ -62,7 +62,7 @@ func TestCommentNotificationsUseTopicPostPayload(t *testing.T) {
 
 func TestLikeNotificationsUseTopicPostPayload(t *testing.T) {
 	conn := db.Connect()
-	if err := conn.AutoMigrate(&eventNotification.Entity{}, &users.BlockEntity{}); err != nil {
+	if err := conn.AutoMigrate(&eventNotification.Entity{}, &users.BlockEntity{}, &users.EntityComplete{}); err != nil {
 		t.Fatalf("migrate notifications: %v", err)
 	}
 
@@ -81,7 +81,7 @@ func TestLikeNotificationsUseTopicPostPayload(t *testing.T) {
 
 func TestMentionNotificationsUseTopicPostPayload(t *testing.T) {
 	conn := db.Connect()
-	if err := conn.AutoMigrate(&eventNotification.Entity{}, &users.BlockEntity{}); err != nil {
+	if err := conn.AutoMigrate(&eventNotification.Entity{}, &users.BlockEntity{}, &users.EntityComplete{}); err != nil {
 		t.Fatalf("migrate notifications: %v", err)
 	}
 
@@ -113,7 +113,7 @@ func TestMentionNotificationsUseTopicPostPayload(t *testing.T) {
 
 func TestBlockedInteractionsDoNotCreateNotifications(t *testing.T) {
 	conn := db.Connect()
-	if err := conn.AutoMigrate(&eventNotification.Entity{}, &users.BlockEntity{}); err != nil {
+	if err := conn.AutoMigrate(&eventNotification.Entity{}, &users.BlockEntity{}, &users.EntityComplete{}); err != nil {
 		t.Fatal(err)
 	}
 	const actor, blocked, allowed = uint64(88211), uint64(88212), uint64(88213)

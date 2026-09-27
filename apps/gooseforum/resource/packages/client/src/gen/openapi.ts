@@ -576,6 +576,52 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/auth/apple/exchange": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Exchange a native Apple authorization for a forum session
+         * @description Native iOS authorization only. The server validates signature, issuer, audience, expiry and
+         *     SHA-256 nonce, then redeems the single-use code with Apple and verifies the same subject.
+         *     No email-based account merge or automatic registration. Apple refresh credentials are stored
+         *     encrypted only to revoke authorization on unlink or account deletion. Maximum body size is 24 KiB.
+         */
+        post: operations["exchangeNativeAppleCode"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/apple/bind": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Connect a native Apple identity to the authenticated forum account
+         * @description Native iOS authorization only. The server validates signature, issuer, audience, expiry and
+         *     SHA-256 nonce, then redeems the single-use code with Apple and verifies the same subject.
+         *     No email-based account merge or automatic registration. Apple refresh credentials are stored
+         *     encrypted only to revoke authorization on unlink or account deletion. Maximum body size is 24 KiB.
+         */
+        post: operations["bindNativeAppleAccount"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/auth/oidc/exchange": {
         parameters: {
             query?: never;
@@ -7358,6 +7404,14 @@ export interface components {
             /** @constant */
             result: "logout";
         };
+        AppleCredentialRequest: {
+            /** @description Single-use native Apple authorization code. */
+            authorizationCode: string;
+            /** @description Apple-signed RS256 identity token for the iOS bundle ID. */
+            identityToken: string;
+            /** @description Random raw native-flow nonce; its SHA-256 hex digest must match the signed token nonce. */
+            nonce: string;
+        };
         OidcExchangeRequest: {
             /** @description One-time authorization code returned to the AppAuth redirect URI. */
             code: string;
@@ -7970,10 +8024,11 @@ export interface components {
             /** @constant */
             bound: false;
         };
-        /** @description Binding state keyed by provider; the response always carries the fixed github and google keys. */
+        /** @description Binding state keyed by provider; the response always carries the fixed github, google and apple keys. */
         OAuthBindingsResult: {
             github: components["schemas"]["OAuthBinding"];
             google: components["schemas"]["OAuthBinding"];
+            apple: components["schemas"]["OAuthBinding"];
         };
         OAuthBindingsSuccess: components["schemas"]["ApiSuccess"] & {
             result: components["schemas"]["OAuthBindingsResult"];
@@ -13527,6 +13582,171 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+        };
+    };
+    exchangeNativeAppleCode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AppleCredentialRequest"];
+            };
+        };
+        responses: {
+            /** @description Authorization accepted. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OidcExchangeSuccess"];
+                };
+            };
+            /** @description Malformed or oversized credential request. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Invalid or expired Apple credentials, or consumed code. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Account is frozen, closed, or an agent. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Apple identity requires explicit binding, or conflicts with another binding. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Login rate limit exceeded. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Forum session creation failed. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Apple sign-in is not configured or a required service is unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    bindNativeAppleAccount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AppleCredentialRequest"];
+            };
+        };
+        responses: {
+            /** @description Authorization accepted. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminBoolSuccess"];
+                };
+            };
+            /** @description Malformed or oversized request, invalid or expired Apple credentials, or consumed code. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing or expired forum session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Account is frozen, closed, an agent, pending activation during bind, or CSRF protection rejected the request. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Apple identity requires explicit binding, or conflicts with another binding. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Login rate limit exceeded. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Apple sign-in is not configured or a required service is unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
                 };
             };
         };

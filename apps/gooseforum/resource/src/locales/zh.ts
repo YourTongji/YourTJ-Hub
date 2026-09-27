@@ -2646,6 +2646,11 @@ export default {
       },
     },
     oauth: {
+      apple: {
+        unavailable: "Apple 登录暂不可用，请稍后重试",
+        bindingRequired: "请先用现有方式登录，在账号设置中绑定 Apple 后再使用 Apple 登录",
+        alreadyBound: "该 Apple 账号已绑定，或此账号已有 Apple 绑定",
+      },
       unbind: {
         failed: '解绑失败: {error}',
         success: '解绑成功',

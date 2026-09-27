@@ -80,7 +80,7 @@ fresh school authentication. See [the decision](../decisions/0034-tongji-registr
 
 ### Mobile (Flutter)
 
-`Current`: the native login form exposes password, Google, GitHub and Tongji sign-in; Tongji is also available on registration. Password login retains
+`Current`: the native login form exposes password, Google, GitHub and Tongji sign-in, plus configured Apple sign-in on iOS; Tongji is also available on registration. Password login retains
 captcha and TOTP. Google follows the public Web provider configuration. Social sign-in supplies
 `login_hint=google|github|tongji` to the existing authorization endpoint. After the OIDC provider validates
 and persists the request, the server may redirect its own login bridge to the selected existing
@@ -405,3 +405,28 @@ selection. Web settings show each badge once with its enabled checkbox; selected
 badges can be dragged to change their order. The complete earned-badge collection
 remains available separately.
 Avatar badge chips use each badge's preset background in light and dark themes.
+
+
+### Native Apple sign-in
+
+`Current`: iOS uses AuthenticationServices and Apple's native sign-in button. Password, Google,
+GitHub and Tongji remain available. Apple requests no name or email scope. A user first signs in
+using an existing method and connects Apple in account settings; an unbound Apple identity cannot
+register or merge a forum account. The stable Apple subject binds to exactly one numeric forum user,
+with at most one Apple identity per owner. Frozen, closed and agent accounts are rejected.
+
+`POST /api/auth/apple/exchange` validates the Apple signature, issuer, bundle audience, expiry and
+hashed nonce, consumes the native one-use code, verifies its exchange identity, and issues the forum
+session. `POST /api/auth/apple/bind` additionally requires the owner's authenticated writable session
+and CSRF protection. Neither endpoint returns Apple tokens. Unlink uses the existing provider endpoint.
+
+Apple is an explicit exception to the no-unused-provider-credentials rule: its refresh grant is
+stored encrypted under an account-scoped purpose solely for revocation. GitHub/Google credentials
+remain discarded. Unlink and account closure revoke Apple authorization and remove the grant; a
+provider failure leaves the local state retryable. Apple subject plus the forum session jti are stored
+in device Keychain to check native credential revocation at startup/foreground and system notices.
+Revocation invalidates only that Apple-authenticated session, not a subsequent password or social session.
+
+`Partial`: production credentials, physical-device login/bind/cancel/revoke/delete acceptance and
+Apple review must be verified for the delivered candidate. See [release operations](../operations/mobile-releases.md)
+and [the Apple login decision](../decisions/0041-native-apple-login-and-revocation.md).

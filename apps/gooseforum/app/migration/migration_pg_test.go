@@ -120,6 +120,9 @@ func TestSchemaUpgradeCreatesNewTablesOnPostgreSQL(t *testing.T) {
 	if err := db.AutoMigrate(legacy...); err != nil {
 		t.Fatalf("AutoMigrate legacy subset failed: %v", err)
 	}
+	if err := db.Migrator().DropColumn(&userOAuth.Entity{}, "apple_refresh_token"); err != nil {
+		t.Fatal(err)
+	}
 	// The current model includes actor_type, but a true legacy users table did
 	// not. Remove it before the upgrade so this test exercises column addition.
 	if err := db.Migrator().DropColumn(&users.EntityComplete{}, "actor_type"); err != nil {
@@ -184,6 +187,9 @@ func TestSchemaUpgradeCreatesNewTablesOnPostgreSQL(t *testing.T) {
 	}
 	if err := db.AutoMigrate(SchemaModels()...); err != nil {
 		t.Fatalf("upgrade AutoMigrate on postgres failed: %v", err)
+	}
+	if !db.Migrator().HasColumn(&userOAuth.Entity{}, "apple_refresh_token") {
+		t.Fatal("Apple revocation column missing after upgrade")
 	}
 	for _, table := range []string{
 		"user_blocks",

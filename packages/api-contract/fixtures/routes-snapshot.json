@@ -921,6 +921,14 @@
   },
   {
     "method": "POST",
+    "path": "/api/auth/apple/bind"
+  },
+  {
+    "method": "POST",
+    "path": "/api/auth/apple/exchange"
+  },
+  {
+    "method": "POST",
     "path": "/api/auth/oidc/exchange"
   },
   {

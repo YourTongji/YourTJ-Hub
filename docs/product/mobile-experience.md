@@ -1049,3 +1049,13 @@ representations of one instant display identically, including day/year boundarie
 summaries are limited to 255 Unicode characters, including a truncation marker; a truncated summary
 does not split a sticker token. Long messages therefore remain sendable on PostgreSQL. Send failures
 show a localized message without disclosing database errors.
+
+### Apple login on iOS
+
+`Current`: configured iOS builds offer Apple's system sign-in button alongside existing login options.
+An existing forum user connects Apple from account settings before using it to log in. Cancellation
+leaves the login form available. Account switching retains the cache-clearing boundary before committing
+the new session. Apple authorization revocation expires only the matching Apple-authenticated session.
+Unlink and account deletion revoke the server grant. See [identity semantics](identity-and-access.md#native-apple-sign-in).
+`Partial`: a candidate still requires physical iPhone authorization/return, revocation and account-deletion
+acceptance; simulator compilation does not establish those results.

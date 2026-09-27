@@ -8,6 +8,9 @@
     },
     "google": {
       "bound": false
+    },
+    "apple": {
+      "bound": false
     }
   },
   "code": 0

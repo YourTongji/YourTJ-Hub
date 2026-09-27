@@ -210,6 +210,7 @@ abstract class SettingsPageProps with _$SettingsPageProps {
   const factory SettingsPageProps({
     required SettingsUserPayload user,
     @Default(false) bool googleOAuthReady,
+    @Default(false) bool appleOAuthReady,
 
     /// issue #530：无邮箱 OAuth 绑定账号可走 set-password 首次设密（服务端门禁）。
     @Default(false) bool canSetPassword,

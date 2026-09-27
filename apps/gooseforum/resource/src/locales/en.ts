@@ -2644,6 +2644,11 @@ export default {
       },
     },
     oauth: {
+      apple: {
+        unavailable: "Apple sign-in is temporarily unavailable. Please try again later.",
+        bindingRequired: "Sign in using an existing method, then connect Apple in account settings before using Apple sign-in.",
+        alreadyBound: "This Apple account is already connected, or your account already has an Apple connection.",
+      },
       unbind: {
         failed: 'Failed to unbind: {error}',
         success: 'Unbound successfully',

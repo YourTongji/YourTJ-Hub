@@ -42,6 +42,10 @@ jobs:
           # main 才配 GitHub 凭据; dev 渲染时为空（render action 内 allow-empty）
           gh-client-id: ${{ secrets.GH_CLIENT_ID }}
           gh-client-secret: ${{ secrets.GH_CLIENT_SECRET }}
+          apple-client-id: ${{ github.event.inputs.env == 'main' && secrets.APPLE_CLIENT_ID || '' }}
+          apple-team-id: ${{ github.event.inputs.env == 'main' && secrets.APPLE_TEAM_ID || '' }}
+          apple-key-id: ${{ github.event.inputs.env == 'main' && secrets.APPLE_KEY_ID || '' }}
+          apple-private-key-base64: ${{ github.event.inputs.env == 'main' && secrets.APPLE_PRIVATE_KEY_BASE64 || '' }}
           google-client-id: ${{ secrets.GOOGLE_CLIENT_ID }}
           google-client-secret: ${{ secrets.GOOGLE_CLIENT_SECRET }}
           ai-api-key: ${{ secrets.AI_API_KEY }}

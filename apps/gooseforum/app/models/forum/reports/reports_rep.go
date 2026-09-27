@@ -60,6 +60,14 @@ type CursorPageQuery struct {
 	Cursor, PageSize       uint64
 }
 
+// HasOpenPrivateMessages exposes only the presence of pending private reports.
+// The moderation service must restrict this signal to administrators.
+func HasOpenPrivateMessages() (bool, error) {
+	var id uint64
+	err := builder().Where("target_type = ? AND status = ?", TargetChatMessage, StatusOpen).Limit(1).Pluck("id", &id).Error
+	return id != 0, err
+}
+
 func CursorPage(q CursorPageQuery) []Entity {
 	var list []Entity
 	if q.PageSize < 1 {
