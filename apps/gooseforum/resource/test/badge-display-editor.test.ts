@@ -36,3 +36,21 @@ test('failed save retains the selection and allows retry',async () => {
  expect(displayBadges).toHaveBeenCalledTimes(2)
  expect(wrapper.find('[role=alert]').exists()).toBe(false)
 })
+test('re-restores handle focus after each keyboard reorder so moves repeat',async () => {
+ const focusSpy=vi.spyOn(HTMLElement.prototype,'focus')
+ // 焦点回置依赖 document.getElementById，组件必须真实挂进 document
+ const wrapper=mount(BadgeDisplayEditor,{attachTo:document.body,props:{badges,selected:badges.slice(0,2)},global:{plugins:[i18n]}})
+ const selectedCards=()=>wrapper.find('[aria-labelledby="badge-display-selected-label"]').findAll('[role="listitem"]')
+ const order=()=>selectedCards().map(card => card.find('label span:last-child').text())
+ try {
+  await selectedCards()[1].find('button').trigger('keydown', { key: 'ArrowUp', altKey: true });await flushPromises()
+  expect(order()).toEqual(['Badge 1','Badge 0'])
+  expect(focusSpy.mock.contexts.at(-1)).toBe(document.getElementById('profile-badge-handle-b1'))
+  // b1 已到首位：再按 Alt+↑ 应边界早退原地不动，Alt+↓ 可移回且焦点再次回置
+  await selectedCards()[0].find('button').trigger('keydown', { key: 'ArrowUp', altKey: true });await flushPromises()
+  expect(order()).toEqual(['Badge 1','Badge 0'])
+  await selectedCards()[0].find('button').trigger('keydown', { key: 'ArrowDown', altKey: true });await flushPromises()
+  expect(order()).toEqual(['Badge 0','Badge 1'])
+  expect(focusSpy.mock.contexts.at(-1)).toBe(document.getElementById('profile-badge-handle-b1'))
+ } finally { wrapper.unmount() }
+})
