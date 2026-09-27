@@ -86,14 +86,15 @@ jobs:
           import json
           from pathlib import Path
           android = Path('apps/mobile/packages/forum_app/android')
-          values = {'JPUSH_APPKEY': '000000000000000000000000', 'VENDORS': 'huawei,xiaomi,oppo,vivo,honor,meizu'}
+          values = {'JPUSH_APPKEY': '000000000000000000000000', 'VENDORS': 'huawei,xiaomi,oppo,vivo,honor,meizu,fcm'}
           for vendor, keys in {'XIAOMI': ['APPID', 'APPKEY'], 'OPPO': ['APPID', 'APPKEY', 'APPSECRET'], 'VIVO': ['APPID', 'APPKEY'], 'HONOR': ['APPID'], 'MEIZU': ['APPID', 'APPKEY']}.items():
               for key in keys:
                   values[vendor + '_' + key] = '100000000'
           (android / 'push.properties').write_text(''.join(k + '=' + v + '\n' for k, v in values.items()))
           (android / 'app/agconnect-services.json').write_text(json.dumps({'configuration_version': '1.0', 'region': 'CN', 'client': {'app_id': '100000000', 'cp_id': '100000000', 'client_id': '100000000', 'client_secret': 'build-only', 'api_key': 'build-only', 'package_name': 'tj.yourtj.forum_app'}}))
+          (android / 'app/google-services.json').write_text(json.dumps({'project_info': {'project_number': '100000000000', 'project_id': 'build-only'}, 'client': [{'client_info': {'mobilesdk_app_id': '1:100000000000:android:1000000000000000000000', 'android_client_info': {'package_name': 'tj.yourtj.forum_app'}}, 'api_key': [{'current_key': 'build-only'}]}]}))
           PYTHON
-      - name: Compile and shrink Android with all six OEM adapters
+      - name: Compile and shrink Android with all seven push adapters
         if: matrix.platform == 'android'
         working-directory: apps/mobile/packages/forum_app
         run: |

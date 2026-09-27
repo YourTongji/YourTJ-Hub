@@ -84,6 +84,8 @@ not the repository-level token.
 | `ANDROID_KEYSTORE_PASSWORD` | Keystore password |
 | `ANDROID_KEY_PASSWORD` | Private-key password |
 | `ANDROID_KEY_ALIAS` | `yourtj-release` |
+| `HUAWEI_AGCONNECT_JSON` | Huawei AGConnect Android client configuration for the optional Huawei adapter; package must be `tj.yourtj.forum_app` |
+| `FCM_GOOGLE_SERVICES_JSON` | Firebase Android client configuration for the optional FCM adapter; package must be `tj.yourtj.forum_app` |
 | `IOS_DISTRIBUTION_P12_BASE64` | Base64 of the Apple Distribution certificate **and private key**, exported as a macOS-compatible PKCS#12 file |
 | `IOS_P12_PASSWORD` | PKCS#12 export password |
 | `IOS_PROFILE_BASE64` | Base64 of the App Store provisioning profile for `tj.yourtj.forumApp`, with production Push Notifications and App Group `group.tj.yourtj.forumApp.widgets` |
@@ -215,7 +217,7 @@ See [the release decision](../decisions/0014-mobile-release-distribution.md) and
 
 `Partial`: native authorization/registration, provider routing and release validation are implemented.
 APNs/JPush credentials, vendor console configuration and signed-device delivery must be verified for
-the deployed environment. CI compiles the iOS bridge and all six Android OEM adapters with build-only identifiers. These APKs are never distributed. A passing SDK build is not a delivery test. The provider decision is
+the deployed environment. CI compiles the iOS bridge and all seven Android push adapters with build-only identifiers. These APKs are never distributed. A passing SDK build is not a delivery test. The provider decision is
 [0019](../decisions/0019-native-push-providers.md).
 
 iOS uses APNs directly; no Firebase project or Firebase Dart defines are required. Enable **Push
@@ -236,32 +238,40 @@ delivery disabled. A path setting does not upload the file;
 provision it before deployment. Keep old key files during credential rotation so deployment rollback
 can restore the previous configuration. Never copy the private key to dev or into an IPA.
 
-Android uses JPush 6.2.1 / JCore 5.5.2, with pinned OEM adapters selected by the build configuration.
-Create a JPush Android app for `tj.yourtj.forum_app`. Obtain its AppKey and Master Secret. Configure
-manufacturer services in JPush's **Push settings → Integration settings** using each vendor's
+Android uses JPush 6.2.1 / JCore 5.5.2. Create a JPush Android app for `tj.yourtj.forum_app` and
+obtain its AppKey and Master Secret. The AppKey is required in the client build; the Master Secret is
+server-only. OEM offline adapters are optional. Without them, the JPush channel depends on the app's
+long connection and cannot guarantee delivery after Android stops the process. To add an adapter,
+configure that manufacturer's service in JPush **Push settings → Integration settings** using its
 application credentials, registered package, signing certificate fingerprints, notification category
-and quotas. Available adapters are Huawei, Xiaomi, OPPO, vivo, Honor and Meizu. Huawei Android/HMS
-support does not imply native HarmonyOS NEXT support. OEM channels may require developer verification
-or application review; do not claim they are active merely because their adapter is in the APK.
+and quotas. Available adapters are Huawei, Xiaomi, OPPO, vivo, Honor, Meizu and FCM. FCM also needs a
+Firebase Android app for `tj.yourtj.forum_app`, its `google-services.json` client configuration, and
+the FCM service-account JSON uploaded directly in JPush Console. Keep the service-account private key
+out of GitHub and the APK; `FCM_GOOGLE_SERVICES_JSON` is the separate Firebase client configuration.
+Huawei Android/HMS support does not imply native HarmonyOS NEXT support. OEM channels may require
+developer verification or application review; do not claim they are active merely because their
+adapter is in the APK.
 
-Set `mobile-release/ANDROID_PUSH_JSON` to client identifiers only, for example:
+Set `mobile-release/ANDROID_PUSH_JSON` to client identifiers only. A JPush-only release without OEM
+adapters needs no vendor credentials:
 
 ```json
 {
   "JPUSH_APPKEY": "<24-character JPush AppKey>",
-  "VENDORS": ["honor", "xiaomi"],
-  "HONOR_APPID": "<Honor App ID>",
-  "XIAOMI_APPID": "<Xiaomi App ID>",
-  "XIAOMI_APPKEY": "<Xiaomi client AppKey>"
+  "VENDORS": []
 }
 ```
 
 Other client keys are `OPPO_APPID/OPPO_APPKEY/OPPO_APPSECRET`, `VIVO_APPID/VIVO_APPKEY`, and
 `MEIZU_APPID/MEIZU_APPKEY`. With `huawei` selected, also set
-`mobile-release/HUAWEI_AGCONNECT_JSON` to that app's `agconnect-services.json`. The preparation script
-writes ignored `android/push.properties` and Huawei configuration files. It rejects missing OEM
-parameters, unknown fields and provider server secrets; signed releases require at least one OEM
-adapter. Ordinary debug builds without this configuration show push as unavailable.
+`mobile-release/HUAWEI_AGCONNECT_JSON` to that app's `agconnect-services.json`. With `fcm` selected,
+set the `mobile-release/FCM_GOOGLE_SERVICES_JSON` secret to the matching Firebase Android app's
+`google-services.json`. The preparation script writes ignored `android/push.properties` and selected
+provider configuration files after checking their package names. It rejects missing parameters for
+selected adapters, unknown fields and provider server secrets. Signed releases require a valid JPush
+AppKey but do not require an offline adapter. Ordinary debug builds without a `push.properties` AppKey
+show push as unavailable. Local dev APKs can use the same `prepare_push.py` inputs before running
+`apps/mobile/scripts/build_dev_apk.sh`; generated JSON files are ignored by Git.
 
 Set **production** secrets `JPUSH_APP_KEY` and `JPUSH_MASTER_SECRET` for the server. Do not place the
 JPush Master Secret or manufacturer server credentials in `ANDROID_PUSH_JSON`. The production
@@ -294,4 +304,5 @@ Android phone without Google services:
 
 Public provider setup references: [Apple APNs keys](https://developer.apple.com/help/account/keys/create-a-private-key),
 [JPush integration settings](https://docs.jiguang.cn/jpush/console/push_setting/integration_set),
-[OEM parameter applications](https://docs.jiguang.cn/jpush/client/Android/android_3rd_param).
+[OEM parameter applications](https://docs.jiguang.cn/jpush/client/Android/android_3rd_param),
+[JPush Android vendor-channel integration](https://docs.jiguang.cn/jpush/client/Android/android_3rd_guide).

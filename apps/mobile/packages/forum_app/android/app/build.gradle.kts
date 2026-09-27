@@ -18,9 +18,15 @@ val vendorKeys = mapOf(
     "vivo" to listOf("VIVO_APPID", "VIVO_APPKEY"),
     "honor" to listOf("HONOR_APPID"),
     "meizu" to listOf("MEIZU_APPID", "MEIZU_APPKEY"),
+    "huawei" to emptyList(),
+    "fcm" to emptyList(),
 )
 val vendors = pushConfig.getProperty("VENDORS", "").split(",").filter { it.isNotBlank() }
-require(vendors.all { it in vendorKeys || it == "huawei" }) { "Unknown push vendor" }
+require(vendors.all { it in vendorKeys }) { "Unknown push vendor" }
+if ("fcm" in vendors) {
+    require(file("google-services.json").isFile) { "FCM push requires app/google-services.json" }
+    apply(plugin = "com.google.gms.google-services")
+}
 
 val releaseKeys = Properties()
 val releaseKeysFile = rootProject.file("key.properties")
