@@ -37,16 +37,14 @@ Open `http://localhost:5234`. The first registered user automatically becomes th
 
 Requirements:
 
-- Go 1.26+
-- Node.js 18+
-- pnpm
+Use the versions in the [local development guide](../../docs/development/local-development.md#dependencies)
+for Go, Node.js and pnpm.
 
 ```bash
-git clone https://github.com/YourTongji/YourTJ-Hub.git
+git clone --branch dev https://github.com/YourTongji/YourTJ-Hub.git
 cd YourTJ-Hub/apps/gooseforum
 
-cd resource && pnpm install && pnpm build && cd ..
-go mod tidy
+cd resource && pnpm install --frozen-lockfile && pnpm build && cd ..
 go build -o yourtj-hub -ldflags="-w -s" .
 
 ./yourtj-hub serve
@@ -107,6 +105,8 @@ cd resource && pnpm dev
 ```
 
 The admin console is served by the same Vue app under `/admin`; it does not require a separate frontend service.
+
+Open `http://localhost:5234`; the backend proxies `/assets` to the Vite resource server on port 3010.
 
 ## Project Structure
 

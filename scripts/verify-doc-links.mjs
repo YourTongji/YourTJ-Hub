@@ -1,16 +1,19 @@
 #!/usr/bin/env node
 // verify-doc-links.mjs — documentation link gate.
-// Checks that relative Markdown links and #fragment anchors in the seeded
-// documentation surface resolve to real files and real anchors.
-// Scope (bounded, never user code): AGENTS.md, CLAUDE.md, docs/**, CONTRIBUTING.md.
-// Zero dependencies; Node >= 18. Exits non-zero on any violation.
-import { readdir, readFile, stat } from 'node:fs/promises';
+// Checks relative Markdown links and anchors in repository documentation:
+// governance docs, root/nested READMEs and fork-owned GooseForum docs.
+// Git excludes ignored local artifacts and dependency trees from discovery.
+// Zero npm dependencies; Git and Node >= 18. Exits non-zero on any violation.
+import { readFile, stat, lstat } from 'node:fs/promises';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import path from 'node:path';
 import process from 'node:process';
 import { pathToFileURL } from 'node:url';
 import { readRepoManifest, safeRepositoryRelativePath } from './governance-config.mjs';
 
-export const SCOPED_PATHS = ['AGENTS.md', 'CLAUDE.md', 'docs', 'CONTRIBUTING.md', 'SECURITY.md', 'CODE_OF_CONDUCT.md'];
+export const SCOPED_PATHS = ['AGENTS.md', 'CLAUDE.md', 'docs', 'CONTRIBUTING.md', 'SECURITY.md', 'CODE_OF_CONDUCT.md', 'apps/gooseforum/docs'];
+const execFileAsync = promisify(execFile);
 
 // Links inside fenced code blocks and inline code are examples, not real
 // links (e.g. `[0001](0001-title.md)` in a format description); strip them
@@ -51,7 +54,7 @@ export function slugify(heading) {
   return heading
     .trim()
     .toLowerCase()
-    .replace(/[^\w\s-]/g, '')
+    .replace(/[^\p{L}\p{M}\p{N}_\s-]/gu, '')
     .replace(/\s+/g, '-');
 }
 
@@ -114,36 +117,25 @@ export async function checkFile(fileAbs, repoRoot, { allowedBareDirectories = ne
 }
 
 export async function collectScopedFiles(repoRoot) {
+  // Include tracked and new non-ignored docs without walking build/SDK caches.
+  // A Git failure must fail the gate rather than silently checking no files.
+  const { stdout } = await execFileAsync('git', [
+    'ls-files', '--cached', '--others', '--exclude-standard', '-z',
+  ], { cwd: repoRoot, maxBuffer: 16 * 1024 * 1024 });
+  const candidates = [...new Set(stdout.split('\0').filter((file) =>
+    file.endsWith('.md') && (
+      /^readme.*\.md$/i.test(path.basename(file)) ||
+      SCOPED_PATHS.some((scope) => file === scope || file.startsWith(`${scope}/`))
+    )
+  ))].sort();
   const files = [];
-  async function walk(dir, prefix) {
-    let entries;
+  for (const file of candidates) {
     try {
-      entries = await readdir(dir, { withFileTypes: true });
-    } catch {
-      return;
-    }
-    for (const e of entries) {
-      if (e.name === '.git' || e.name === 'node_modules' || e.name === '.repo-seed') continue;
-      const full = path.join(dir, e.name);
-      if (e.isDirectory()) {
-        await walk(full, path.join(prefix, e.name));
-      } else if (e.name.endsWith('.md')) {
-        files.push(path.join(prefix, e.name));
-      }
-    }
-  }
-  for (const p of SCOPED_PATHS) {
-    const abs = path.join(repoRoot, p);
-    let st;
-    try {
-      st = await stat(abs);
-    } catch {
-      continue;
-    }
-    if (st.isDirectory()) {
-      await walk(abs, p);
-    } else if (st.isFile() && p.endsWith('.md')) {
-      files.push(p);
+      // Deleted tracked files are absent from the proposed tree; do not follow
+      // symlinks into external checkouts or local dependency directories.
+      if ((await lstat(path.join(repoRoot, file))).isFile()) files.push(file);
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
     }
   }
   return files;

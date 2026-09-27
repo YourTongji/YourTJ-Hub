@@ -20,7 +20,7 @@
        │                           │                           │
 ┌──────▼──────┐           ┌────────▼────────┐          ┌───────▼───────┐
 │ apps/mobile │           │ apps/gooseforum │          │ services/     │
-│  Flutter    │           │  forum (Go+Vue, │          │ credit (p2)   │
+│  Flutter    │           │  forum (Go+Vue, │          │ credit (Planned)   │
 └──────┬──────┘           │  single binary) │          └───────────────┘
        │                  └────────┬────────┘
        │                           │
@@ -39,8 +39,9 @@
 ## Deployment shape
 
 - **Single binary**: forum frontend (Vue 3 output static/dist + GoHTML templates) is fully go:embed'd
-  into the Go binary; vite :3010 hits the backend in dev, one file in production. No nginx/CDN split.
-- Dependency services (Meilisearch/PostgreSQL/Redis) are orchestrated with docker-compose;
+  into the Go binary. In development, browse the backend on :5234; it proxies `/assets` to Vite
+  on :3010. Production serves embedded assets. No nginx/CDN split.
+- Dependency services (Meilisearch/PostgreSQL) are orchestrated with docker-compose;
   `services/` holds deployment configs only, not third-party source. Deployments default to
   PostgreSQL for the main database; local development and tests default to SQLite.
 
@@ -188,10 +189,12 @@ See the [status specification](../product/server-status.md),
 [Netlify runbook](../operations/status-netlify.md) and
 [decision](../decisions/0027-independent-status-netlify.md).
 
-### Points (phase 2)
+### Points
 
-- credit is an OIDC client + standalone ledger; the forum acts as a merchant calling the distribution
-  API (see credit-and-escrow.md).
+`Current`: the forum owns a local idempotent reward ledger. `Partial`: reward delivery still uses
+in-memory events without durable reconciliation. `Planned`: credit is a separate OIDC client and
+settlement ledger; the forum would call its merchant distribution API. See the
+[points specification](../product/credit-and-escrow.md).
 
 ## Consistency principles
 

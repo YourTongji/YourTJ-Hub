@@ -1,0 +1,101 @@
+# 论坛体验
+
+> Doc type: product specification
+>
+> Status: Active
+>
+> Owner: Platform maintainers
+>
+> Last verified: 2026-09-27
+
+## Content and publishing
+
+`Current`：论坛支持提问、瞬间和文章，内容类型分别为 1、2、3；兼容值 0 在读写时归一为文章。
+主题和回复使用 Markdown，按内容类型提供发布与阅读布局。有回复的话题不能切换内容类型；
+瞬间和文章都允许楼层回复。公开列表只展示首楼可见的话题，无可见首楼的详情返回 404。
+
+`Current`：瞬间／提问支持图集，上传、压缩、排序与预览共用文件服务。服务端校验文件属于当前
+上传者并限制数量；图集、Markdown 图片与分享长图保持一致的图片访问权限。
+标题、正文和回复的长度按 Unicode 码点计数；瞬间标题额外受 30 码点上限约束，且不能超过站点配置。
+
+`Current`：Web 快捷发布在关闭、跳转和刷新前保护未保存内容，支持继续编辑、保存服务端草稿或放弃。
+本地恢复副本按账号、内容类型与编辑对象隔离，保留七天；无法确定归属的旧数据不恢复。
+输入防抖暂存，离开前刷新存储，清空输入后删除副本；上传中的图片也触发离开保护。
+移动端写作恢复与草稿规则见[移动端体验](mobile-experience.md)。
+
+## Feed and reading
+
+`Current`：首页提供列表／卡片视图及最新、热门、流行排序。卡片支持点赞、收藏和进入回复，
+未登录时引导登录；乐观更新失败按字段回滚。关注频道、个人备注与资料内容预览的权限和
+投影规则见[契约与数据](../architecture/contracts-and-data.md)。
+
+`Current`：Web 首页桌面工具栏提供刷新入口，45 秒探测当前排序第一页；只有 ID 高于已加载
+最大 ID 的条目计为新话题，排序变化本身不算新增。点击提示后新第一页置顶去重并保留旧条目；
+PWA standalone 触摸设备在页顶支持下拉刷新，以第一页替换列表。刷新和加载更多互斥，失败保留内容。
+
+`Current`：桌面帖子预览全站最多一个；窗口失焦、页面隐藏、路由切换或组件停用时关闭。
+公告折叠偏好在本地保存，与公告已读状态独立；收起后不渲染公告正文，新公告仍提示未读。
+交互过渡尊重减少动态效果设置。友链描述截断时，鼠标悬停和键盘聚焦均可查看全文。
+
+`Current`：楼层默认按楼号平铺，也可切换树状视图；Web 视图偏好全站共享，Wiki 评论使用同一规则。
+树状视图按真实回复关系组织，缩进最多四级，可折叠子链；循环、缺失目标和过深祖先链安全回落到根层。
+平铺视图保留回复引用，提问的回答楼层仍有标记。树状孤根以简短回复对象提示上下文，
+目标隐藏或删除时显示不可见占位；窄屏不允许深层缩进撑宽页面。
+评论操作的图标与计数作为整体居中，隐藏计数后图标仍居中。
+
+## Mentions and notifications
+
+`Current`：服务端从真实文本节点解析精确、大小写敏感的 `@username`，有效人类用户渲染为主页链接。
+转义、代码、链接目标、图片 alt、数学及邮箱／URL 不参与解析；未知或不可用账号保持纯文本。
+Web 与 Flutter 编辑器提供本地上下文候选和防抖用户搜索，插入普通 Markdown；错误及过期请求不能
+覆盖当前候选，键盘选择不夺走编辑器输入。移动端布局与辅助功能见[移动端体验](mobile-experience.md)。
+
+`Current`：公开首楼与回复向符合条件的提及用户发通知；自提及、匿名内容、草稿、待审及删除内容不发送。
+编辑只通知相对旧正文新增的提及用户。收件人优先级为 `post_reply > mention > comment > topic_post`，
+每次事件最多 20 个 mention 收件人，其余已订阅者仍可收到普通话题通知。
+重新发布不重复通知已有 mention 收件人；待审回复编辑获批时因缺少旧正文快照，不补发 mention。
+
+`Current`：站内通知、页面内浏览器通知、Web Push 和 Native Push 均识别 mention，支持中英日德文案。
+有楼层号时精确导航，旧通知使用既有回退；页面内 mention 详情读取失败时回退通知中心。
+Web 通知链接优先 `/p/post/{topicId}/{postNo}`，无楼层号时保留历史锚点回退。
+
+`Current`：页面内浏览器通知需用户授权并在设置中开启，复用未读状态轮询与已见游标，后台有新增时提示。
+多标签页及 Web Push 之间去重；Web Push 投递后，页面内通道在 60 秒内让位。权限拒绝或不支持时
+仍保留站内未读提示。Web Push 需实例配置 VAPID，通知落库后由 worker 投递；页面关闭也可接收。
+浏览器、网络和 iOS 添加到主屏幕的条件仍适用。原生推送的生产配置与真机边界见
+[移动发布指南](../operations/mobile-releases.md)。
+
+## Links, Markdown and stickers
+
+`Current`：Web／Flutter 将独占段落的 HTTP(S) URL 渲染为最多五张预览卡片，普通链接、代码、表格和
+图片地址不转换。站内元数据本地读取；第三方请求经过有界 SSRF 防护。校园网域名仅从配置生成卡片，
+不访问私网；失败保留原链接。外链确认显示域名与完整 URL，已识别的风险不继承会话信任，
+Web 确认弹窗约束键盘焦点。规则覆盖主题、回复、Wiki 和课评正文。
+
+`Current`：阅读渲染支持 Mermaid、KaTeX、`\(...\)`、`\[...\]` 与常见数学环境。
+`Planned`：Vditor 对替代数学分隔符的所见即所得预览；保存及阅读不受此编辑器限制影响。
+
+`Current`：官方表情目录、管理员 CRUD／zip 导入及个人 token 渲染可用；Flutter 提供最近／我的／官方
+选择器与个人库管理，表情不进入普通图片灯箱。`Planned`：Web 个人库管理界面。
+配额、历史素材保留和隐私规则见[移动端表情规范](mobile-experience.md#sticker-library)与
+[个人表情库决策](../decisions/0038-personal-sticker-library.md)。
+
+## Governance and public exports
+
+`Current`：角色权限、审核工作台、敏感词拦截／待审、举报、审计、验证码与按动作限流覆盖论坛交互。
+每日新主题上限包含草稿、待审和软删主题，仅约束新建；编辑／回复不消耗该上限。
+服务条款与隐私政策由管理端发布，注册只要求同意已发布的内容；政策也控制生产统计脚本加载。
+账号、匿名内容、删除恢复和清除规则见[身份与账号生命周期](identity-and-access.md)。
+
+`Current`：管理员可导出用户／主题／回复 JSON 或 CSV，导入按行报告并幂等跳过，保留话题楼层不变量；
+导出文件保留七天。文件上传、对象存储和清理见[对象存储运维](../operations/object-storage.md)。
+
+`Current`：AI 可读索引、全文和单篇 Markdown 可独立开关，仅导出公开可见内容；全文受主题数、体积及
+耗时上限约束，截断明确标记。Agent API 与 MCP 的认证、写入开关和未实现唤醒链路见
+[身份规范](identity-and-access.md)与[契约与数据](../architecture/contracts-and-data.md)。
+
+## Implementation references
+
+- [主题契约](../../packages/api-contract/openapi.yaml)及其生成的[覆盖矩阵](../../packages/api-contract/coverage-matrix.md)。
+- [Web 组件测试](../../apps/gooseforum/resource/package.json)与[验证指南](../development/testing.md)。
+- [HTTP 安全头实现](../../apps/gooseforum/app/http/middleware/securityHeaders.go)是逐路由响应头的事实源。

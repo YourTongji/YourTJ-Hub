@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-09-23
+> Last verified: 2026-09-27
 
 ## Supported experience
 
@@ -34,8 +34,49 @@ Web/API/schema: `Current`. `/campus` 是登录用户自己的校园工作台。�
 - `Partial`：校园数据集的 `updatedAt` 是 YourTJ 生成该次投影响应的 UTC 时间，不是同济源记录的更新时间。本人课程地图不展示此字段，也不宣称上游数据更新时间。
 - `Current`：日历导出是手动快照，不是订阅。按管理员确认的规则调整放假与补课，不推测其他调课；课表变化后需重新导出，建议使用独立课程日历并替换旧内容。校历必须提供有效的周一学期起始日、结束日期和周数；课程必须提供明确周次、星期与节次，信息不完整时拒绝导出并提示重试，空课表提示无可导出课程。
 - `Current`：App 使用 Flutter 原生校园首页、按周课表、学业记录与图表、消息列表及纯文本正文、校历和连接管理；共享 Gf 主题与排课器网格组件，支持中英日德四种界面语言、大字体及窄屏。底栏“校园”打开原生校园页，首页顶部直接展示课程评价、排课器和 Wiki 快捷入口；未登录、未绑定或学校数据读取失败时也可进入公共工具。入口复用“探索校园”和搜索的组件，推入原生页面，返回后仍位于校园分支；“探索校园”继续提供课程推荐。学校认证仅使用受限 WebView 交接当前论坛会话，允许官方 HTTPS 域名，回调后返回原生确认界面。
-- `Current`：Android 与 iOS 提供校园课表桌面小组件，分别使用 Jetpack Glance 与 WidgetKit/SwiftUI。小组件只读主 App 最后一次完整校园快照派生的最小本地投影，永不联网；schema 2 保留服务端解析的今天，并携带八天滚动窗口供上海午夜后离线切日。Android 小尺寸显示当前/下一节，中尺寸显示今天，大尺寸以“今天｜明天”双栏展示；另提供默认 4x3 的“课程时间线”，顶部显示日期、周次和星期，箭头可在今天与明天间切换，课程列表可纵向手势滚动且不显示滚动条，课程项显示起止节次和时间、课程名、教室与教师姓名（不含工号）。iOS 小尺寸显示当前/下一节附近的两门完整课程及一门名称和开始时间缩略条目（当天不足三门时按实际数量）；中尺寸将小型日期标题置于顶栏，当天不超过两门课程时左右展示今天与明天，否则按时间顺序把当天课程接续排在两栏；大尺寸展示今天与明天。课程不足时不填造条目，空间不足时按完整课程项计数收尾。iOS 课程条目展示名称、教室、教师、起止时间，省略校区并将“教学北楼”等教室名称缩为“北”等；左侧竖色条沿用 Web 课表色阶。每天的标题展示周次、星期和简写日期，右上角保留标识，底部展示含日期与时间的最后更新时间。iOS 小尺寸不显示进度横条。Android 提供 2x1、4x2 及可扩展 4x4，iOS 提供 systemSmall、systemMedium、systemLarge。桌面数据不读取或修改 `/schedule` 排课方案。
+- `Current`：Android／iOS 桌面课表只读取官方校园快照的最小投影；显示规则与验证边界见[桌面课表](#home-screen-widgets)。
 - `Partial`：移动端学校官方登录的真机端到端验证未完成；原生页面由组件测试、模拟数据集成流程覆盖。
+
+## Home-screen widgets
+
+`Current`：Android 使用 Jetpack Glance，iOS 14 及以上使用 WidgetKit／SwiftUI；iOS 13 的主 App 仍可使用。
+点击小组件进入校园今日页，不进入排课器。
+
+| 平台与尺寸 | 展示规则 |
+|---|---|
+| Android 2×1、4×2、可扩展 4×4 | 小尺寸显示当前／下一节，中尺寸显示今天，大尺寸并列今天与明天。 |
+| Android 4×3 课程时间线 | 顶部日期、周次与星期，可独立切换今天／明天；课程列表可滚动且不显示滚动条，条目包含节次、时间、课程、教室和教师姓名，不含教师工号。 |
+| iOS systemSmall | 当前／下一节附近两门完整课程与一门名称／开始时间缩略项；不足三门按实际数量，不显示进度横条。 |
+| iOS systemMedium | 日期标题在顶栏；当天最多两门时分栏展示今天／明天，否则当天课程按时间接续排列于两栏。 |
+| iOS systemLarge | 并列展示今天与明天。 |
+
+iOS 条目显示课程、教室、教师和起止时间，省略校区并缩写教室名；色条沿用 Web 课表色阶。
+课程不足不填造条目，空间不足按完整课程项计数收尾。每日标题显示周次、星期和简写日期，
+底部显示最后更新时间。Android 12–14 的系统选择器预览使用 4×2 双日和 2×1 下一节布局。
+
+小组件只读主 App 完整校园快照派生的 schema 2 最小投影，永不联网。投影保留服务端权威的当日结果，
+规则可靠时携带八天滚动窗口；原生 timeline／本地可延迟 alarm 推进上下课与上海午夜状态。
+未知日期提示打开 App 刷新，不能拿昨天的 `today` 冒充今天；服务端调休结果优先，不猜测普通教学周。
+普通刷新失败保留最后成功投影，身份失效及清理规则统一遵循下方凭据生命周期。
+
+投影不含用户姓名、学号、邮箱、凭据、成绩、消息正文或完整学校响应，只保留隔离标识和课程展示所需字段。
+用户启用时获知课程、教师与地点会显示在桌面；设置可从本地快照重建或清除桌面数据，
+不会额外发起学校同步。
+
+界面支持深浅色、Android 动态色、iOS tinted、大字体和读屏。外观设置控制背景透明度 0%–15%
+（默认 9%），正文保持不透明。OEM 刷新诊断是可选帮助，不要求关闭电池优化或申请精确闹钟权限。
+官方校园课表是唯一数据源，排课器方案、锁屏 accessory、手表和 Live Activity 不属于当前小组件能力。
+
+`Partial`：自动化覆盖投影、身份清理、跨日与原生结构，但 OEM、Doze、重启、系统添加流程和 iOS 真机渲染
+仍需设备矩阵验证。设备要求见[移动发布指南](../operations/mobile-releases.md)；现有证据包括
+[原生结构测试](../../apps/mobile/packages/forum_app/test/native_widget_structure_test.dart)与
+[设置刷新测试](../../apps/mobile/packages/forum_app/test/schedule_widget_settings_test.dart)。
+设计理由见[设备快照决策](../decisions/0035-campus-device-snapshot-and-schedule-widgets.md)。
+本地课表与原生投影的设计参考保留于 [TJ-Class-Schedule](https://github.com/qp338113/TJ-Class-Schedule)、
+[ClassWidget](https://github.com/karbburn/ClassWidget)、[UntisPlus](https://github.com/ninocss/UntisPlus)；
+平台机制参考 [home_widget](https://docs.page/abausg/home_widget)、
+[Android App Widgets](https://developer.android.com/develop/ui/views/appwidgets) 和
+[Apple WidgetKit](https://developer.apple.com/documentation/widgetkit)。
 
 ## Holiday adjustments
 

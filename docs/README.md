@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-09-06
+> Last verified: 2026-09-27
 
 This is the single entry point for yourtj-hub product, architecture, development, and operations specs.
 Docs describe only the currently supported model; stale phase plans, PR delivery checklists, and
@@ -53,6 +53,8 @@ status. Do not use PR-relative "shipped this / later" labels as long-term status
 
 - [Vision & principles](product/vision-and-principles.md)
 - [Current state & gaps](product/current-state.md)
+- [Forum experience](product/forum.md)
+- [Courses, reviews & scheduling](product/courses-and-scheduling.md)
 - [Mobile experience](product/mobile-experience.md)
 - [Mobile interaction and layout standard](product/mobile-design-system.md)
 - [Wiki authoring](product/wiki-authoring.md)
@@ -68,7 +70,6 @@ status. Do not use PR-relative "shipped this / later" labels as long-term status
 - [Contracts, data & derived projections](architecture/contracts-and-data.md)
 - [Mobile state, events and cache boundaries](architecture/mobile-state-and-cache.md)
 
-- [Campus connection operations](operations/campus.md)
 ### Development
 
 - [Development entry](development/README.md)
@@ -82,6 +83,7 @@ status. Do not use PR-relative "shipped this / later" labels as long-term status
 ### Operations
 
 - [Deployment & release](operations/deployment.md)
+- [Campus connection operations](operations/campus.md)
 - [Independent status site on Netlify](operations/status-netlify.md)
 - [Mobile releases and signing](operations/mobile-releases.md)
 - [Object storage](operations/object-storage.md)

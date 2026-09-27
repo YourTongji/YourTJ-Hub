@@ -9,19 +9,19 @@
 > Last verified: 2026-08-07
 
 yourtj is a community platform for Tongji campus members. The forum is the core public discussion space;
-unified auth (built-in OIDC Provider), search (Meilisearch), and points (credit, phase 2) are shared identity,
+unified auth (built-in OIDC Provider), search (Meilisearch), and cross-platform points (credit, `Planned`) are shared identity,
 infrastructure, and settlement subdomains. The product goal is to accumulate campus information, build
-trusted discussion, and let users share one identity and one points system between the forum and future
-services (course selection, course reviews, etc.).
+trusted discussion, and share an identity across the forum, courses, reviews and campus services.
+Cross-platform points settlement remains `Planned`.
 
 ## User value
 
-- Students use one account for the forum and all future campus services — no repeated registration.
+- Students use one account for the forum, courses, Wiki and private campus workspace.
 - Forum content has clear boards, context, and a recoverable governance process; it does not degrade
   into an unstructured short-content stream.
 - Site content is uniformly searchable (Chinese-friendly), and information accumulates long-term
   instead of drowning in a timeline.
-- Contributions earn points that settle across platforms, but points are not a rechargeable currency.
+- Contributions earn forum-local points; cross-platform settlement is `Planned`. Points are not a rechargeable currency.
 - Mobile (iOS/Android) and Web share the same API and experience semantics.
 
 ## Product boundaries
@@ -29,10 +29,11 @@ services (course selection, course reviews, etc.).
 ### Current positioning
 
 - `Current`: monorepo skeleton; the forum runs (three-mode rendering + JSON API, single binary).
-- `Current`: database selection (PostgreSQL main-db support landed, issue #11; SQLite default retained);
+- `Current`: PostgreSQL is the deployment default; SQLite remains the local development/test default;
   search shape via Meilisearch (optional, event-synced index).
 - `Current`: unified auth integration (built-in OIDC Provider; forum users are the identity source).
-- Points (credit) are explicitly **phase 2**; not claimed usable in UI or marketing now.
+- `Planned`: cross-platform credit settlement; forum-local ledger and delivery limits are described
+  in the [points specification](credit-and-escrow.md).
 
 ### Explicitly out of scope
 
@@ -72,20 +73,20 @@ services (course selection, course reviews, etc.).
 | Admin | Platform config, user roles, structure & ops | Still bounded by reason, audit, and compliance red lines |
 | System/service | Projections, scheduling, notifications, governance automation | Uses a distinct actor kind; never impersonates a human |
 
-## Decisions pending product owner
+## Decisions and implementation boundaries
 
-| Decision | Recommended default | Impact if undecided |
-|---|---|---|
-| Database | PostgreSQL 15+ (support landed, issue #11; SQLite stays default until the production default call) | Migration, queries, deployment |
-| Search shape | Meilisearch standalone (landed: aggregate search + event sync, issue #22) | Topology, Chinese tokenization |
-| Anonymous visibility | Board-declared visibility | Search index, SEO, privacy settings |
-| Login method | Built-in OIDC Provider (numeric ID = users.id) | credit & mobile exchange integration |
-| Points source | credit merchant distribution (forum event-driven) | Settlement model, anti-abuse, audit |
+Database, search and identity choices are documented in the [system architecture](../architecture/system-overview.md)
+and [decision log](../decisions/README.md). They are not pending product selections.
 
-Undecided items may be researched but must not be irreversibly decided by a local UI or migration.
+`Decision needed`: MFA for GitHub/Google/Tongji and built-in OIDC login paths; see
+[identity and access](identity-and-access.md).
+`Decision needed`: whether anonymous visitor visibility is declared per board; its search and privacy
+semantics must be specified before changing access rules.
+`Planned`: cross-platform credit integration; its target merchant model does not imply a deployed service.
 
 ## Product health metrics
 
 Metrics must serve community quality, not "longer dwell time at all costs". Suggested tracking: weekly
 actives/registration conversion, post-to-reply ratio, report resolution time, search hit rate, points
-reconciliation variance (phase 2). Concrete metrics are defined and recorded here when the core API ships.
+reconciliation variance after cross-platform settlement exists. These are proposed measurements, not
+claims that the corresponding dashboards or data pipelines are implemented.

@@ -11,8 +11,8 @@
 ## Positioning
 
 Points (credit, linux-do) is a **cross-platform settlement center**, not a forum side feature. The forum,
-Web, mobile, and future campus services (course selection, reviews, etc.) are all **merchants/consumers**
-of the points system, sharing the forum identity (numeric users.id).
+Web, mobile and campus services are intended **merchants/consumers** of that planned system,
+sharing the forum identity (numeric users.id). The current forum-local ledger is described below.
 
 - The target cross-platform ledger's only source = credit (PostgreSQL): balances, transactions, transfers, red packets, orders,
   and merchant settlement all live in credit.
@@ -31,7 +31,7 @@ of the points system, sharing the forum identity (numeric users.id).
   Next.js frontend; it upserts a copy of users into its own DB (by IdP ID) — it is not a read-only proxy.
 - Ban semantics: credit checks `active` at login; the forum server propagates its frozen/ban state.
 
-## Integration shape (phase-2 draft)
+## Planned integration
 
 ```
 Forum built-in OIDC Provider (numeric sub = users.id)
@@ -53,7 +53,7 @@ Forum built-in OIDC Provider (numeric sub = users.id)
   reverses its reward in the same transaction, and migration v14 reconstructs missing legacy balance rows.
 - **Forum-local delivery is `Partial`**: reward events use the in-memory event bus, so process loss after
   content persistence can lose a reward; no durable outbox or reconciliation job currently repairs it.
-- **Cross-platform credit is `Planned`**: services/credit holds only deployment config and README; it is
+- **Cross-platform credit is `Planned`**: services/credit is a deployment placeholder; it is
   not deployed or wired, and the local ledger is not presented as the future settlement source.
 - No top-up/withdrawal/fiat exchange/free transfers.
 - Cross-platform settlement events are designed after the forum business stabilizes, to avoid early coupling.

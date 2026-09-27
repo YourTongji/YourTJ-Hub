@@ -6,17 +6,18 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-08-09
+> Last verified: 2026-09-27
 
 ## Dependencies
 
-- Go 1.26.6+（`apps/gooseforum/go.mod` 声明 `go 1.26.6` + `toolchain go1.26.8`，issue #447：更早的 patch 含 7 个已修复的 stdlib CVE；默认 `GOTOOLCHAIN=auto` 下旧工具链会自动下载合规版本，设 `GOTOOLCHAIN=local` 则明确报错而非静默编译）
-- Node 24 + pnpm 11 (the forum frontend workspace lives in `apps/gooseforum/resource/` with its own
-  pnpm-workspace.yaml; **note**: the home-directory `/Users/yzxoi/pnpm-workspace.yaml` can interfere
-  with pnpm's upward lookup — run pnpm from inside `resource/`)
-- Docker + Compose (local dependency services)
-- Flutter SDK (mobile; workspace-local clone under `.flutter-sdk/` when external paths are blocked,
-  otherwise a normal install ≥3.27) + melos (`dart pub global activate melos`)
+此处统一维护开发工具版本；各 README 引用本节，避免重复维护。
+
+| 工具 | 当前要求与事实源 |
+|---|---|
+| Go | `go.mod` 要求 1.26.6，指定工具链 1.26.8；默认 `GOTOOLCHAIN=auto` 可自动获取工具链。见 [go.mod](../../apps/gooseforum/go.mod)。 |
+| Node.js / pnpm | Node.js 24、pnpm 11，与 [Web CI](../../.github/workflows/ci-frontend.yml) 一致。前端命令在 `apps/gooseforum/resource/` 的独立 workspace 内执行。 |
+| Flutter / Dart | 使用 [Mobile CI](../../.github/workflows/ci-mobile.yml) 验证的 Flutter 3.44.9；[移动工作区](../../apps/mobile/pubspec.yaml)要求 Dart ≥3.12.2、<4.0.0，并声明 Melos 依赖。 |
+| Docker Compose | 仅在运行本地 PostgreSQL／Meilisearch 等依赖时需要。 |
 
 ## Startup
 
@@ -28,17 +29,18 @@ make dev
 #    First start creates apps/gooseforum/config.toml from the embedded template (gitignored)
 make server        # = cd apps/gooseforum && go run . serve
 
-# 3. Frontend dev server (:3010, vite; run pnpm install first)
+# 3. Vite resource server (:3010; browser entry remains http://localhost:5234)
 make web           # = cd apps/gooseforum/resource && pnpm dev
 
 # 4. Production build: resource → static/dist → go build single binary
 make build
 ```
 ```bash
-# 5. Mobile app (Flutter, apps/mobile melos workspace; requires Flutter SDK + melos)
-cd apps/mobile && melos bootstrap   # 首次或依赖变更后
-melos run analyze                    # 全包静态检查
-melos run test                       # 全包测试
+# 5. Mobile app (Flutter, apps/mobile melos workspace; requires Flutter SDK)
+cd apps/mobile && dart pub get
+dart run melos bootstrap     # 首次或依赖变更后
+dart run melos run analyze   # 全包静态检查
+dart run melos run test      # 全包测试
 ```
 
 ## Mobile workspace
@@ -58,16 +60,18 @@ melos run test                       # 全包测试
 | Service | Address | Note |
 |---|---|---|
 | Forum backend | http://localhost:5234 | config.toml `[server] port` |
-| Frontend dev | http://localhost:3010 | vite, hits backend directly |
+| Vite resources | http://localhost:3010 | 后端将 `/assets` 代理到此处；浏览器访问 5234 |
 | meilisearch | http://localhost:7700 | master key: `yourtj-dev-master-key` |
-| postgres | localhost:5432 | yourtj/yourtj, db yourtj (reserved) |
+| postgres | localhost:5432 | yourtj/yourtj, db yourtj |
 
 ## Mobile → backend
 
 - iOS simulator: `http://localhost:5234` directly
 - Android emulator: ordinary API development may use `http://10.0.2.2:5234`; OIDC must instead use
   `http://localhost:5234` through `adb reverse` so the issuer remains an allowed loopback URL
-- Physical device: LAN IP (inject baseUrl via dart-define, when mobile lands)
+- Physical device: inject `YOURTJ_API_BASE_URL` and `YOURTJ_OIDC_ISSUER` for a reachable HTTPS
+  instance; non-loopback HTTP is not a valid OIDC issuer. See the
+  [mobile run commands](../../apps/mobile/packages/forum_app/README.md).
 
 ## Configuration (config.toml)
 

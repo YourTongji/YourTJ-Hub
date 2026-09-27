@@ -1,10 +1,9 @@
-# credit (linux-do) points settlement — phase 2
-# Reference: https://github.com/linux-do/credit
-#
-# Integration notes (confirmed from source):
-# - credit is an OAuth2/OIDC client; the IdP must provide numeric uint64 user IDs →
-#   use the forum built-in OIDC Provider (`sub` = `users.id`)
-# - Deployment: PostgreSQL 18+ / Redis 6+ / Go 1.26; api+scheduler+worker processes + Next.js frontend
-# - Cross-platform points: merchant model (API Key + signature) distribution/orders/transfers;
-#   the forum joins as a merchant
-# This phase only reserves the directory; no deployment yet.
+# Cross-platform points settlement
+
+`Planned`: this directory reserves the deployment home for [credit](https://github.com/linux-do/credit).
+There is no deployed service or forum integration here. The forum-local reward ledger is implemented
+inside `apps/gooseforum` and is distinct from this planned settlement service.
+
+The target integration uses the forum's built-in OIDC Provider (numeric `sub` = `users.id`) and the
+credit merchant distribution API. Product constraints, current ledger limits and integration assumptions
+are maintained in the [points specification](../../docs/product/credit-and-escrow.md).
