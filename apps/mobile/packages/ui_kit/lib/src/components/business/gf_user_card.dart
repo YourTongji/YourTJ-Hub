@@ -6,6 +6,7 @@ import '../../theme/gf_theme.dart';
 import '../atoms/gf_avatar.dart';
 import '../atoms/gf_badge.dart';
 import '../atoms/gf_badge_medallion.dart';
+import '../gf_horizontal_scroll_view.dart';
 import '../gf_symbol.dart';
 
 @immutable
@@ -214,7 +215,7 @@ class GfUserCard extends StatelessWidget {
             coverHeight: coverHeight,
           ),
         Padding(
-          padding: EdgeInsets.fromLTRB(16, 0, 16, showHeader ? 12 : 8),
+          padding: EdgeInsets.fromLTRB(16, 0, 16, showHeader ? 12 : 0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
@@ -246,7 +247,7 @@ class GfUserCard extends StatelessWidget {
                 ),
               ),
               if (bio != null && bio!.trim().isNotEmpty) ...<Widget>[
-                const SizedBox(height: 12),
+                const SizedBox(height: 8),
                 Text(
                   bio!.trim(),
                   style: TextStyle(
@@ -257,7 +258,7 @@ class GfUserCard extends StatelessWidget {
                 ),
               ],
               if (signature?.trim().isNotEmpty == true) ...[
-                const SizedBox(height: 12),
+                const SizedBox(height: 8),
                 Align(
                   alignment: Alignment.centerLeft,
                   child: IntrinsicWidth(
@@ -307,16 +308,17 @@ class GfUserCard extends StatelessWidget {
                 ),
               ],
               if (details != null) ...<Widget>[
-                const SizedBox(height: 12),
+                const SizedBox(height: 8),
                 details!,
               ],
               if (badges.isNotEmpty || coloredBadges.isNotEmpty) ...[
-                const SizedBox(height: 12),
+                const SizedBox(height: 3),
                 SizedBox(
+                  key: const ValueKey('profile-badges-row'),
                   width: double.infinity,
                   child: Wrap(
-                    alignment: WrapAlignment.spaceEvenly,
-                    spacing: 0,
+                    alignment: WrapAlignment.start,
+                    spacing: 2,
                     runSpacing: 4,
                     children: [
                       for (final badge in badges)
@@ -342,13 +344,17 @@ class GfUserCard extends StatelessWidget {
                                       MaterialTapTargetSize.shrinkWrap,
                                   shape: const CircleBorder(),
                                 ),
-                                child: ExcludeSemantics(
-                                  child: GfBadgeMedallion(
-                                    size: 40,
-                                    color: badge.color ?? colors.primary,
-                                    icon:
-                                        badge.icon ??
-                                        const GfSymbol('award', size: 22),
+                                child: Align(
+                                  // Balance visible gaps around the taller stat target.
+                                  alignment: Alignment.bottomCenter,
+                                  child: ExcludeSemantics(
+                                    child: GfBadgeMedallion(
+                                      size: 34,
+                                      color: badge.color ?? colors.primary,
+                                      icon:
+                                          badge.icon ??
+                                          const GfSymbol('award', size: 22),
+                                    ),
                                   ),
                                 ),
                               ),
@@ -360,54 +366,57 @@ class GfUserCard extends StatelessWidget {
                 ),
               ],
               if (stats.isNotEmpty) ...<Widget>[
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    for (int i = 0; i < stats.length; i++)
-                      Expanded(
-                        child: MergeSemantics(
-                          child: Semantics(
-                            button: statActions[i] != null,
-                            child: InkWell(
-                              onTap: statActions[i],
-                              borderRadius: BorderRadius.circular(8),
-                              child: SizedBox(
-                                height: 48,
-                                child: Center(
+                const SizedBox(height: 3),
+                GfHorizontalScrollView(
+                  scrollViewKey: const ValueKey('profile-stats-row'),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      for (int i = 0; i < stats.length; i++) ...[
+                        if (i > 0) const SizedBox(width: 8),
+                        ConstrainedBox(
+                          constraints: BoxConstraints(
+                            minWidth: statActions[i] == null ? 0 : 48,
+                          ),
+                          child: MergeSemantics(
+                            child: Semantics(
+                              button: statActions[i] != null,
+                              child: InkWell(
+                                onTap: statActions[i],
+                                borderRadius: BorderRadius.circular(8),
+                                child: SizedBox(
+                                  height: 48,
                                   child: Padding(
                                     padding: const EdgeInsets.symmetric(
-                                      horizontal: 2,
+                                      horizontal: 4,
                                     ),
-                                    child: FittedBox(
-                                      fit: BoxFit.scaleDown,
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Text(
-                                            stats[i].$2,
-                                            maxLines: 1,
-                                            softWrap: false,
-                                            style: TextStyle(
-                                              fontSize: 14,
-                                              fontWeight: FontWeight.w700,
-                                              fontFeatures: const [
-                                                FontFeature.tabularFigures(),
-                                              ],
-                                              color: colors.baseContent,
-                                            ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Text(
+                                          stats[i].$2,
+                                          maxLines: 1,
+                                          softWrap: false,
+                                          style: TextStyle(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w700,
+                                            fontFeatures: const [
+                                              FontFeature.tabularFigures(),
+                                            ],
+                                            color: colors.baseContent,
                                           ),
-                                          const SizedBox(width: 3),
-                                          Text(
-                                            stats[i].$1,
-                                            maxLines: 1,
-                                            softWrap: false,
-                                            style: TextStyle(
-                                              fontSize: 13,
-                                              color: colors.iconMuted,
-                                            ),
+                                        ),
+                                        const SizedBox(width: 3),
+                                        Text(
+                                          stats[i].$1,
+                                          maxLines: 1,
+                                          softWrap: false,
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: colors.iconMuted,
                                           ),
-                                        ],
-                                      ),
+                                        ),
+                                      ],
                                     ),
                                   ),
                                 ),
@@ -415,8 +424,9 @@ class GfUserCard extends StatelessWidget {
                             ),
                           ),
                         ),
-                      ),
-                  ],
+                      ],
+                    ],
+                  ),
                 ),
               ],
             ],

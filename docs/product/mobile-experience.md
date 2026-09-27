@@ -776,17 +776,22 @@ identity survive this layout change. The header keeps a small outer margin for i
 - `Current`: profile bios trim boundary whitespace; signatures use a mirrored feather and a wave
   below the complete text block, including wrapped lines.
   Admin and online chips sit beside the display name. The smaller handle sits below it.
-  Joined date, available last-active time and public link icons appear in that order in one row.
-  Compact date formatting and measured scaling keep all values visible without ellipses.
+  Joined date, available last-active time and public link icons appear in that order in one
+  leading-aligned row, with consistent 8-pixel gaps between groups. Social icons follow the
+  last-active label instead of being pushed to the opposite edge.
+  Labels remain complete; overflow scrolls horizontally with a muted hairline cue.
   The website uses the filled globe-pointer symbol in black or white for the current theme.
   Avatar overlap participates in layout so it leaves no translated blank space. Earned badges use
-  a centered, evenly spaced row of shared circular medallions, retaining server-provided artwork.
-  The selected worn badge remains attached to the avatar independently.
+  a compact, left-aligned row of shared circular medallions, retaining server-provided artwork.
+  The 3-pixel gaps around the badge and statistics rows are visually balanced; no extra footer gap
+  separates statistics from the profile tabs. The selected worn badge remains attached to the
+  avatar independently.
   Settings combine checkboxes, display positions and drag handles in one badge list, selecting and
   ordering zero to five owned, enabled badges for the profile header.
   An explicit empty selection hides that row; existing accounts default to their first five badges.
   This selection does not change the avatar badge or the complete earned badge collection.
-  Profile statistics keep all five values in one evenly spaced row, scaling labels to fit.
+  Profile statistics keep all five values in one compact row; overflow scrolls horizontally with
+  the same muted hairline cue.
   Settings groups use rounded inset surfaces, multiline row
   labels and consistent trailing arrows; avatar upload copy describes image selection and cropping.
 - `Current`: Settings opens a scrollable category index, with device preferences separated from
@@ -933,7 +938,23 @@ servers that omit interaction fields retain read-only content previews.
   official entries while preserving custom groups. Recent use
   keeps up to 30 distinct items in the current account/site session. Picking inserts at the caret or replaces the
   current selection; it does not send or publish. Unicode emoji and image stickers remain distinct.
-- `Current`: the personal library supports image upload, collecting a shared sticker by long press,
+- `Current`: sticker pickers stay inline below the reply, message or publishing input. Opening one
+  dismisses the typing keyboard without covering the editor; the keyboard button resumes typing at
+  the current selection. A bounded live preview renders draft stickers as images and updates after
+  insertion, editing or deletion, using the same Markdown/plain-text rules as the destination.
+  Repeated picks keep the panel open and advance the caret. Image uploads and reply-target/image
+  removal keep the next insertion aligned with the updated caret. Ordinary typing does not retry
+  unavailable sticker resolution; token changes and explicit retry can resolve again.
+  Back closes the panel before leaving the
+  page; short windows keep the picker scrollable and reply input controls accessible.
+  In private conversations, picker, preview and keyboard height changes keep the bottom of the
+  current reading position above the input area. Reading history does not jump to the latest message;
+  a conversation already at the bottom stays there. Closing restores the position within list bounds,
+  and visibility-based read receipts wait for the resized viewport to settle.
+- `Current`: adding a personal sticker offers the system photo library or file picker. Cancelling
+  either picker leaves the library unchanged. Selected photos use the same authenticated upload and
+  retry flow as files, without applying the post-photo resize/compression settings to stickers.
+  The personal library supports image upload, collecting a shared sticker by long press,
   private display names, reordering and removal. It holds up to 200 stickers; images are limited to
   4 MiB and an account can create up to 1000 retained personal assets. Uploads use the authenticated
   file service. Failed requests retain the current input and expose retry. Concurrent collection

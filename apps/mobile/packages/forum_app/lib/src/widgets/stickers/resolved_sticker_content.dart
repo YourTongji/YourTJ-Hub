@@ -1,4 +1,5 @@
 import 'package:core/core.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ui_kit/ui_kit.dart';
@@ -25,18 +26,26 @@ class ResolvedStickerContent extends ConsumerStatefulWidget {
 class _ResolvedStickerContentState
     extends ConsumerState<ResolvedStickerContent> {
   StickerLibrary? _library;
-  String? _content;
+  Set<String>? _names;
   bool _failed = false;
   @override
   Widget build(BuildContext context) {
     final library = ref.watch(stickerLibraryProvider);
-    if (_library != library || _content != widget.content) {
+    final names = stickerTokenPattern
+        .allMatches(widget.content)
+        .map((match) => match.group(1)!)
+        .toSet();
+    // Ordinary draft edits do not change the assets that need resolution.
+    // Keep unavailable names stable until the tokens change or the user retries.
+    if (_library != library || !setEquals(_names, names)) {
       _library = library;
-      _content = widget.content;
+      _names = names;
       _failed = false;
       final content = widget.content;
       library.resolveContent(content).catchError((Object _) {
-        if (mounted && identical(_library, library) && _content == content) {
+        if (mounted &&
+            identical(_library, library) &&
+            identical(_names, names)) {
           setState(() => _failed = true);
         }
       });
@@ -55,7 +64,7 @@ class _ResolvedStickerContentState
             Tooltip(
               message: strings.failed,
               child: TextButton.icon(
-                onPressed: () => setState(() => _content = null),
+                onPressed: () => setState(() => _names = null),
                 icon: const GfSymbol('refresh-cw', size: 16),
                 label: Text(strings.retry),
               ),

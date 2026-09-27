@@ -1,13 +1,17 @@
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:core/core.dart';
 import 'package:ui_kit/ui_kit.dart';
 
 import '../../providers.dart';
+import '../../images/image_upload.dart';
 import 'sticker_image.dart';
 import 'sticker_library_state.dart';
 import 'sticker_strings.dart';
+
+enum _StickerUploadSource { photos, files }
 
 /// The same personal library is reachable from settings and the input panel.
 class StickerLibraryPage extends ConsumerWidget {
@@ -62,6 +66,47 @@ class _StickerLibraryPageState extends ConsumerState<_StickerLibrarySession> {
     }
   }
 
+  Future<XFile?> _pickUpload(StickerCollection collection) async {
+    final strings = StickerStrings(context);
+    final source = await showGfBottomSheet<_StickerUploadSource>(
+      context,
+      builder: (context) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          padding: EdgeInsets.zero,
+          children: [
+            ListTile(
+              leading: const GfSymbol('image', size: 23),
+              title: Text(strings.fromPhotos),
+              onTap: () => Navigator.pop(context, _StickerUploadSource.photos),
+            ),
+            ListTile(
+              leading: const GfSymbol('folder', size: 23),
+              title: Text(strings.fromFiles),
+              onTap: () => Navigator.pop(context, _StickerUploadSource.files),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (source == null || !mounted || !collection.active) return null;
+    if (source == _StickerUploadSource.photos) {
+      // Do not apply the post-photo compression settings to animated stickers.
+      return ref
+          .read(imagePickerProvider)
+          .pickImage(source: ImageSource.gallery, requestFullMetadata: false);
+    }
+    return openFile(
+      acceptedTypeGroups: const [
+        XTypeGroup(
+          label: 'Images and GIFs',
+          extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif'],
+          uniformTypeIdentifiers: ['public.image'],
+        ),
+      ],
+    );
+  }
+
   Future<void> _upload({bool retry = false}) async {
     if (_uploading) return;
     final collection = ref.read(stickerCollectionProvider);
@@ -78,17 +123,7 @@ class _StickerLibraryPageState extends ConsumerState<_StickerLibrarySession> {
       _uploadError = null;
     });
     try {
-      final file = retry
-          ? _retryFile
-          : await openFile(
-              acceptedTypeGroups: const [
-                XTypeGroup(
-                  label: 'Images and GIFs',
-                  extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif'],
-                  uniformTypeIdentifiers: ['public.image'],
-                ),
-              ],
-            );
+      final file = retry ? _retryFile : await _pickUpload(collection);
       if (file == null || !mounted || !collection.active) return;
       if (!retry) _retryUploadUrl = null;
       _retryFile = file;

@@ -1,3 +1,4 @@
+import '../../widgets/stickers/sticker_draft_preview.dart';
 import '../../widgets/stickers/sticker_picker.dart';
 import '../../widgets/stickers/sticker_strings.dart';
 import '../../widgets/stickers/sticker_library_page.dart';
@@ -6,6 +7,7 @@ import '../../private_notes.dart';
 import '../../widgets/root_surface.dart';
 import '../../messages/chat_outbox.dart';
 import '../../messages/chat_drafts.dart';
+import '../../messages/chat_viewport_scroll_physics.dart';
 import '../../messages/visible_chat_reads.dart';
 import '../../messages/message_content.dart';
 import '../../widgets/sticker_message_span.dart';
@@ -520,6 +522,7 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
   bool _readSyncUnsupported = false;
   int _scrollAdjustmentGeneration = 0;
   bool _adjustingScroll = false;
+  double? _messageViewportHeight;
 
   bool get _sessionCurrent =>
       mounted && _sessionEpoch == ref.read(offlineCacheEpochProvider);
@@ -1123,8 +1126,21 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
       body: Column(
         children: <Widget>[
           Expanded(
-            child: NotificationListener<ScrollStartNotification>(
-              onNotification: _onUserScroll,
+            child: NotificationListener<Notification>(
+              onNotification: (notification) {
+                if (notification is ScrollStartNotification) {
+                  return _onUserScroll(notification);
+                }
+                if (notification is ScrollMetricsNotification &&
+                    notification.depth == 0 &&
+                    notification.metrics.viewportDimension !=
+                        _messageViewportHeight) {
+                  _messageViewportHeight =
+                      notification.metrics.viewportDimension;
+                  _visibleReads.changed(restartDwell: true);
+                }
+                return false;
+              },
               child: Stack(
                 children: [
                   Positioned.fill(
@@ -1147,6 +1163,7 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
                             )
                           : ListView.builder(
                               controller: _scrollController,
+                              physics: const ChatViewportScrollPhysics(),
                               padding: const EdgeInsets.fromLTRB(
                                 12,
                                 12,
@@ -1325,6 +1342,7 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
                 _ChatDraftStatus(drafts: _drafts, peerId: widget.conv.peerId),
                 GfChatInput(
                   controller: _input,
+                  previewBuilder: (text) => StickerDraftPreview(content: text),
                   accessoryBuilder: (insert) => StickerPicker(onInsert: insert),
                   onAttach: () => Navigator.of(context).push(
                     MaterialPageRoute<void>(

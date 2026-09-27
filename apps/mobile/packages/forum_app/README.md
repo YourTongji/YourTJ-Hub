@@ -16,6 +16,7 @@ YourTJ 移动端论坛客户端(Flutter)。`apps/mobile` melos 工作区的入�
 - **本机写作**:`lib/src/local/writing_store.dart` 按 API origin 与数字账号 ID 隔离未完成草稿和最近搜索；每次新建使用独立 ID，云端草稿编辑、已发布话题编辑和按话题保存的回复分别命名。旧 v1 槽位可从草稿列表继续恢复。回复保留正文、对象和图片，收起/离页不清空；发送成功只清理未被继续编辑的提交内容。草稿页使用同一滚动面，支持当前列表搜索及本机/云端/回复筛选，显示内容类型与继续编辑入口；本机删除可在当前页撤销最近一次，已有新版时不覆盖，账号切换清理撤销与搜索状态。刷新失败保留原内容；写入失败可重试，缓存清理不删除草稿。私信发送状态由 `lib/src/messages/chat_outbox.dart` 在当前会话中保留。
 - **离线**:`lib/src/offline/drift_cache.dart` 基于 drift 缓存已浏览话题与 IM 会话；校园页另以单行原子快照保存 profile/calendar/timetable/today，并从该快照生成不含姓名、学号、邮箱、成绩、消息或凭据的桌面课表 Projection。Projection schema 2 保留服务端当日权威结果，并在规则可靠时写入八天滚动窗口；Android Glance 与 iOS WidgetKit 只读此投影，不联网，也不读取排课器 store。
 - **发帖图片**:`lib/src/images/composer_upload_queue.dart` 管理前台多选上传队列，失败原项重试或移除，成功 URL 立即进入独立草稿。未上传照片不写临时路径到持久存储；存在待处理项时阻止离开或提交，后台暂停后续上传，会话失效隔离旧结果。
+- **表情输入**:回复、私信和发帖将表情面板放在输入区下方，键盘按钮可切回文字输入；草稿表情提供实时图片预览，连续插入保留光标与原始 token。回复面板在窄屏和大字体下约束高度并允许滚动。私信在面板、预览和键盘改变高度时保持当前浏览位置，正在看的消息随输入区上移，浏览历史时不跳回最新消息。
 - **运行配置**(`lib/src/app_config.dart`):经 `--dart-define` 注入 `YOURTJ_OIDC_ISSUER` / `YOURTJ_OIDC_CLIENT_ID` / `YOURTJ_API_BASE_URL`;默认内建 OIDC issuer 为 `http://localhost:5234/api/oauth`,API baseUrl 为空时 Android 模拟器走 `10.0.2.2`。
 
 ## 运行与验证
@@ -124,3 +125,16 @@ flutter test integration_test/campus_native_test.dart -d "$YOURTJ_TEST_DEVICE"
 ```
 
 `Partial`: 此流程不验证真实学校登录；真机官方认证仍需用户在学校页面完成，不将密码写入测试脚本。
+
+## 表情输入原生验证
+
+`integration_test/sticker_composer_test.dart` 使用本地演示图片和模拟数据验证回复、瞬间、文章和私信页面，
+包括私信面板开合、预览及键盘切换时的历史阅读位置，
+不需要账号，也不向真实服务发送内容。可在模拟器运行并保存各入口的预览截图：
+
+```bash
+YOURTJ_TEST_ARTIFACTS=/absolute/path/to/screenshots flutter drive \
+  --driver=test_driver/integration_driver.dart \
+  --target=integration_test/sticker_composer_test.dart -d "$YOURTJ_TEST_DEVICE" \
+  --dart-define=YOURTJ_TEST_SCREENSHOTS=true
+```

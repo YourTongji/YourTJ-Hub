@@ -11,6 +11,7 @@ import 'package:forum_app/src/messages/chat_outbox.dart';
 import 'package:forum_app/l10n/app_localizations.dart';
 
 import 'chat_visible_read_test.dart' show pumpChat;
+import 'package:forum_app/src/widgets/stickers/sticker_image.dart';
 import 'pages_behavior_test.dart' show MemTokenStorage, makeChatMessage;
 
 const _smile = StickerItemPayload(name: 'smile', url: '/smile.png');
@@ -38,6 +39,32 @@ void main() {
     SharedPreferences.setMockInitialValues({});
     FlutterSecureStorage.setMockInitialValues({});
   });
+
+  testWidgets(
+    'sticker composer previews chat drafts before sending and updates deletion',
+    (tester) async {
+      final library = StickerLibrary(_Stickers());
+      addTearDown(library.dispose);
+      await pumpChat(tester, stickers: library, messages: []);
+      final input = find.descendant(
+        of: find.byType(GfChatInput),
+        matching: find.byType(TextField),
+      );
+      await tester.enterText(input, 'Hello [:sticker:smile:]');
+      await tester.pumpAndSettle();
+      final preview = find.byKey(const Key('sticker-draft-preview'));
+      expect(
+        find.descendant(of: preview, matching: find.byType(StickerImage)),
+        findsOneWidget,
+      );
+      await tester.enterText(input, 'Hello');
+      await tester.pumpAndSettle();
+      expect(preview, findsNothing);
+      expect(find.byType(GfMessageBubble), findsNothing);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(const Duration(seconds: 1));
+    },
+  );
 
   for (final mine in [false, true]) {
     for (final (text, plain) in [

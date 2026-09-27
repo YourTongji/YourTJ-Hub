@@ -33,19 +33,6 @@ void insertStickerText(
   );
 }
 
-Future<void> showStickerPicker(
-  BuildContext context, {
-  required ValueChanged<String> onInsert,
-}) async {
-  FocusManager.instance.primaryFocus?.unfocus();
-  await showGfBottomSheet<void>(
-    context,
-    keyboardAware: true,
-    height: (MediaQuery.sizeOf(context).height * .58).clamp(240.0, 520.0),
-    builder: (_) => StickerPicker(onInsert: onInsert),
-  );
-}
-
 /// One picker for chat, replies and publishing; selection inserts, never sends.
 class StickerPicker extends ConsumerStatefulWidget {
   const StickerPicker({super.key, required this.onInsert});
