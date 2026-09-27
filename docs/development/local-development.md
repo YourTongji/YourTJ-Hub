@@ -21,22 +21,46 @@
 
 ## Startup
 
-```bash
-# 1. Start local dependencies (postgres + meilisearch)
-make dev
+Run the following from the repository root. Install the frontend dependencies once:
 
-# 2. Forum backend (default port 5234)
-#    First start creates apps/gooseforum/config.toml from the embedded template (gitignored)
+```bash
+pnpm --dir apps/gooseforum/resource install --frozen-lockfile
+
+# Generate config.toml if missing, without starting the server; preserves an existing file
+(cd apps/gooseforum && go run . --help)
+```
+
+Before starting the backend, edit the existing `[app]` section in
+`apps/gooseforum/config.toml` to set `env = "local"`. The embedded template defaults to
+`"production"`, which serves embedded assets and requires secure session cookies. Local mode
+enables Vite resources and HTTP sessions on localhost. Keep the generated signing key and the
+rest of the configuration; do not replace the file with this snippet:
+
+```toml
+[app]
+env = "local"
+```
+
+SQLite works without Docker. If you need PostgreSQL or Meilisearch, start the optional dependencies
+with `make dev` and configure them as described below. Then use separate terminals:
+
+```bash
+# Terminal 1: forum backend (default port 5234)
 make server        # = cd apps/gooseforum && go run . serve
 
-# 3. Vite resource server (:3010; browser entry remains http://localhost:5234)
+# Terminal 2: Vite resources (:3010; browser entry remains http://localhost:5234)
 make web           # = cd apps/gooseforum/resource && pnpm dev
+```
 
-# 4. Production build: resource → static/dist → go build single binary
+For a production build (resource → static/dist → Go single binary):
+
+```bash
 make build
 ```
+
+For mobile development (requires Flutter SDK):
+
 ```bash
-# 5. Mobile app (Flutter, apps/mobile melos workspace; requires Flutter SDK)
 cd apps/mobile && dart pub get
 dart run melos bootstrap     # 首次或依赖变更后
 dart run melos run analyze   # 全包静态检查
@@ -60,7 +84,7 @@ dart run melos run test      # 全包测试
 | Service | Address | Note |
 |---|---|---|
 | Forum backend | http://localhost:5234 | config.toml `[server] port` |
-| Vite resources | http://localhost:3010 | 后端将 `/assets` 代理到此处；浏览器访问 5234 |
+| Vite resources | http://localhost:3010 | 设置 `[app] env = "local"` 后，后端将 `/assets` 代理到此处；浏览器访问 5234 |
 | meilisearch | http://localhost:7700 | master key: `yourtj-dev-master-key` |
 | postgres | localhost:5432 | yourtj/yourtj, db yourtj |
 

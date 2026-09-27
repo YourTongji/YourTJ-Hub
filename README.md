@@ -19,7 +19,7 @@
 </p>
 
 <p align="center">
-  <a href="https://forum.yourtj.de">线上站点</a> ·
+  <a href="https://f.yourtj.de">线上站点</a> ·
   <a href="./docs/README.md">项目文档</a> ·
   <a href="https://github.com/YourTongji/YourTJ-Hub/issues/new?template=bug-report.yml">报告问题</a> ·
   <a href="https://github.com/YourTongji/YourTJ-Hub/issues/new?template=feature-request.yml">功能建议</a> ·
@@ -99,9 +99,13 @@ cd YourTJ-Hub
 cd apps/gooseforum/resource
 pnpm install --frozen-lockfile
 cd ../../..
+
+# 生成本地配置（已有 config.toml 时不会覆盖），不启动服务器
+(cd apps/gooseforum && go run . --help)
 ```
 
-分别启动后端与前端开发服务器：
+将 `apps/gooseforum/config.toml` 中 `[app]` 的 `env` 改为 `"local"`（生成模板默认是
+`"production"`），再分别启动后端与前端开发服务器：
 
 ```bash
 # Terminal 1 — Go backend，默认 http://localhost:5234
@@ -111,7 +115,7 @@ make server
 make web
 ```
 
-论坛默认使用 SQLite；首次启动会生成已被 Git 忽略的 `apps/gooseforum/config.toml`。如需搜索、
+论坛默认使用 SQLite；上述本地模式启用 Vite 资源代理和本地 HTTP 会话。如需搜索、
 PostgreSQL 与其他本地依赖，可先运行：
 
 ```bash

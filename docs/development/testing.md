@@ -115,8 +115,9 @@ path filters directly, so an unrelated PR does not start a Flutter runner.
 
 ## Documentation and governance
 
-`ci-docs.yml` runs for Markdown documentation, governance scripts, manifest and workflow changes.
-It needs only Git and Node, without application dependencies:
+`ci-docs.yml` runs for every PR and every push to `dev` or `main`, so renaming or deleting a linked
+source file, image or configuration also triggers the gate. It needs only Git and Node, without
+application dependencies:
 
 ```bash
 node --test scripts/test-doc-links.mjs
@@ -125,7 +126,7 @@ git diff --check
 ```
 
 The link gate covers root/nested READMEs, `docs/`, fork-owned GooseForum docs and governance entry
-files. It checks local Markdown targets and heading anchors, including Chinese headings; it does not
+files. It checks relative link targets and heading anchors, including Chinese and repeated headings; it does not
 establish that documented behavior or external URLs are current. Review prose against the owning code.
 
 ## Independent status application

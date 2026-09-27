@@ -96,6 +96,10 @@ GooseForum is a technical community platform built with Go, Gin, GORM, Vue 3, Ty
 
 ## Development
 
+In `apps/gooseforum`, run `go run . --help` to create `config.toml` if it is missing (an existing
+file is preserved). Set `env = "local"` in its `[app]` section before starting the backend; the
+generated default is `"production"`. See the [local setup guide](../../docs/development/local-development.md#startup).
+
 ```bash
 # Backend with hot reload
 air

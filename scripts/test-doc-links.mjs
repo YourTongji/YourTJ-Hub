@@ -58,6 +58,28 @@ test('validates Chinese anchors while rejecting stale decorated anchors', async 
   assert.match((await verifyLinks(root)).errors[0], /fragment.*not found/);
 });
 
+test('resolves duplicate headings and collisions with explicit numeric suffixes', async (t) => {
+  const root = await repository(t, {
+    'README.md': '[second](docs/guide.md#setup-1)\n[third](docs/guide.md#setup-2)',
+    'docs/guide.md': '# Guide\n## Setup\n## Setup\n## Setup-1\n## Setup\n' +
+      '[explicit suffix](#setup-1-1)\n[original](#setup)',
+  });
+  assert.deepEqual((await verifyLinks(root)).errors, []);
+  await writeFile(path.join(root, 'README.md'), '[missing](docs/guide.md#setup-3)');
+  assert.match((await verifyLinks(root)).errors[0], /fragment "#setup-3" not found/);
+});
+
+test('detects deleted non-Markdown targets without changing their referring docs', async (t) => {
+  const root = await repository(t, {
+    'README.md': '[contract](packages/openapi.yaml)',
+    'packages/openapi.yaml': 'openapi: 3.1.0\n',
+  });
+  execFileSync('git', ['add', '.'], { cwd: root });
+  assert.deepEqual((await verifyLinks(root)).errors, []);
+  await unlink(path.join(root, 'packages/openapi.yaml'));
+  assert.match((await verifyLinks(root)).errors[0], /missing packages\/openapi.yaml/);
+});
+
 test('does not follow symlinked documentation outside the repository', async (t) => {
   const root = await repository(t, { 'README.md': '# Readme' });
   const external = await mkdtemp(path.join(tmpdir(), 'yourtj-external-doc-'));

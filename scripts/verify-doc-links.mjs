@@ -45,7 +45,13 @@ export function headingAnchors(text) {
   const re = /^(#{1,6})\s+(.+)$/gm;
   let m;
   while ((m = re.exec(text)) !== null) {
-    anchors.add(slugify(m[2]));
+    const base = slugify(m[2]);
+    let anchor = base;
+    let suffix = 0;
+    // GitHub adds a suffix until the anchor is unique, including collisions
+    // with headings that already end in a numeric suffix.
+    while (anchors.has(anchor)) anchor = `${base}-${++suffix}`;
+    anchors.add(anchor);
   }
   return anchors;
 }

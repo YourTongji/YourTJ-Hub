@@ -95,6 +95,10 @@ GooseForum 是一个技术社区平台，使用 Go、Gin、GORM、Vue 3、TypeSc
 
 ## 开发
 
+在 `apps/gooseforum` 中运行 `go run . --help` 生成缺失的 `config.toml`（不会覆盖已有文件），
+将 `[app]` 中的 `env` 从默认的 `"production"` 改为 `"local"`，再启动后端。
+完整步骤见[本地开发指南](../../docs/development/local-development.md#startup)。
+
 ```bash
 # 后端热重载
 air

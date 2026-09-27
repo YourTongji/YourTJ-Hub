@@ -62,4 +62,5 @@ non-ignored files, so local dependency/SDK caches are excluded. Deleted files an
 are not scanned. This gate does not fetch external URLs or verify prose against implementation.
 
 Run `node --test scripts/test-doc-links.mjs` when changing the link checker. The documentation CI
-workflow runs these regression tests and the governance gates for documentation or gate changes.
+workflow runs these regression tests and the governance gates for every PR and every push to `dev`
+or `main`, including changes that only rename or delete a linked non-Markdown target.

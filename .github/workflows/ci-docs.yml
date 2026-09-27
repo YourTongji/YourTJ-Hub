@@ -1,18 +1,9 @@
 name: CI / Documentation
 on:
+  # Docs can link to any repository file, so target-only changes must run the gate.
   pull_request:
-    paths:
-      - '**/*.md'
-      - '.repo-seed/**'
-      - 'scripts/*.mjs'
-      - '.github/workflows/ci-docs.yml'
   push:
     branches: [dev, main]
-    paths:
-      - '**/*.md'
-      - '.repo-seed/**'
-      - 'scripts/*.mjs'
-      - '.github/workflows/ci-docs.yml'
 permissions:
   contents: read
 concurrency:
