@@ -1,3 +1,7 @@
+import 'fixtures/sticker_fixtures.dart';
+import 'package:forum_app/src/widgets/stickers/sticker_picker.dart';
+import 'package:forum_app/src/widgets/stickers/sticker_image.dart';
+import 'package:forum_app/src/widgets/stickers/sticker_library_state.dart';
 import 'package:image/image.dart' as img;
 import 'dart:async';
 import 'dart:convert';
@@ -2997,6 +3001,97 @@ void main() {
   }
 
   group('话题回复', () {
+    for (final compact in [false, true]) {
+      testWidgets(
+        'sticker composer keeps reply input above panel with live preview compact=$compact',
+        (tester) async {
+          tester.view.physicalSize = compact
+              ? const Size(320, 500)
+              : const Size(390, 844);
+          tester.view.devicePixelRatio = 1;
+          if (compact) tester.platformDispatcher.textScaleFactorTestValue = 2;
+          addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+          addTearDown(tester.view.reset);
+          final client = GfApiClient(
+            dio: Dio(),
+            tokenStorage: MemTokenStorage(),
+            baseUrl: 'http://fake.local',
+          );
+          final library = StickerLibrary(ComposerStickerRepository(client));
+          final container = await makeContainer(
+            pageRepo: CountingPageRepository(client),
+            extraOverrides: [
+              stickerLibraryProvider.overrideWithValue(library),
+              stickerCollectionProvider.overrideWith(
+                (ref) => StickerCollection(
+                  ComposerStickerRepository(client),
+                  library,
+                ),
+              ),
+            ],
+          );
+          await tester.pumpWidget(
+            app(container, const TopicPage(topicId: 100)),
+          );
+          await tester.pumpAndSettle();
+          await tester.tap(find.byTooltip('参与讨论'));
+          await tester.pump();
+          final field = find
+              .descendant(
+                of: find.byType(GfPostComposer),
+                matching: find.byType(TextField),
+              )
+              .first;
+          await tester.enterText(field, 'before after');
+          final controller = tester.widget<TextField>(field).controller!;
+          controller.selection = const TextSelection.collapsed(offset: 7);
+          await tester.tap(find.byTooltip('表情库'));
+          await tester.pumpAndSettle();
+          expect(find.byType(BottomSheet), findsNothing);
+          expect(field.hitTestable(), findsOneWidget);
+          expect(
+            tester.getBottomLeft(field).dy,
+            lessThan(tester.getTopLeft(find.byType(StickerPicker)).dy),
+          );
+          await tester.ensureVisible(find.text('Smile').last);
+          await tester.pumpAndSettle();
+          await tester.tap(find.text('Smile').last);
+          await tester.pumpAndSettle();
+          await tester.ensureVisible(find.text('Smile').last);
+          await tester.pumpAndSettle();
+          await tester.tap(find.text('Smile').last);
+          await tester.pumpAndSettle();
+          expect(
+            controller.text,
+            'before [:sticker:smile:][:sticker:smile:]after',
+          );
+          final preview = find.byKey(const Key('sticker-draft-preview'));
+          expect(
+            find.descendant(of: preview, matching: find.byType(StickerImage)),
+            findsNWidgets(2),
+          );
+          await tester.drag(find.byType(StickerPicker), const Offset(0, 300));
+          await tester.pumpAndSettle();
+          final search = find.descendant(
+            of: find.byType(StickerPicker),
+            matching: find.byType(TextField),
+          );
+          await tester.enterText(search, 'Smile');
+          tester.view.viewInsets = FakeViewPadding(bottom: compact ? 180 : 300);
+          await tester.pumpAndSettle();
+          expect(field.hitTestable(), findsOneWidget);
+          expect(find.byType(StickerPicker), findsOneWidget);
+          expect(tester.takeException(), isNull);
+          tester.view.viewInsets = const FakeViewPadding();
+          await tester.tap(find.byTooltip('键盘'));
+          await tester.pumpAndSettle();
+          expect(find.byType(StickerPicker), findsNothing);
+          expect(tester.testTextInput.isVisible, isTrue);
+          await tester.pumpWidget(const SizedBox.shrink());
+          await tester.pump(const Duration(seconds: 1));
+        },
+      );
+    }
     testWidgets(
       'reply captcha challenge preserves the draft and can be completed',
       (tester) async {

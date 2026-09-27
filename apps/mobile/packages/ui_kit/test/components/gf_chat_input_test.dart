@@ -6,6 +6,60 @@ import 'package:ui_kit/ui_kit.dart';
 import '../helpers.dart';
 
 void main() {
+  testWidgets('sticker search keyboard keeps draft and send control visible', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(320, 500);
+    tester.view.devicePixelRatio = 1;
+    tester.platformDispatcher.textScaleFactorTestValue = 2;
+    addTearDown(tester.view.reset);
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+    final controller = TextEditingController(
+      text: 'long draft with two stickers',
+    );
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(
+      gfApp(
+        Column(
+          children: [
+            const Expanded(child: SizedBox()),
+            GfChatInput(
+              controller: controller,
+              onSend: (_) {},
+              previewBuilder: (_) =>
+                  const SizedBox(height: 96, child: Text('Preview')),
+              accessoryBuilder: (insert) => Column(
+                children: [
+                  const TextField(key: Key('sticker-search')),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      child: TextButton(
+                        onPressed: () => insert('[:sticker:smile:]'),
+                        child: const Text('Smile'),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+    await tester.tap(find.byTooltip('Emoji'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const Key('sticker-search')), 'Smile');
+    tester.view.viewInsets = const FakeViewPadding(bottom: 180);
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const Key('chat-input-surface')).hitTestable(),
+      findsOneWidget,
+    );
+    expect(find.byKey(const Key('chat-send')).hitTestable(), findsOneWidget);
+    expect(find.byKey(const Key('sticker-search')), findsOneWidget);
+  });
+
   testWidgets('caller can retain the submitted text until acknowledgement', (
     tester,
   ) async {

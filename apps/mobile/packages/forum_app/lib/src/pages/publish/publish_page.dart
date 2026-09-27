@@ -1,3 +1,4 @@
+import '../../widgets/stickers/sticker_draft_preview.dart';
 import '../../widgets/stickers/sticker_picker.dart';
 import '../../widgets/stickers/sticker_strings.dart';
 import 'dart:async';
@@ -70,6 +71,10 @@ class _PublishPageState extends ConsumerState<PublishPage>
   static const double _dragAutoscrollStep = 12;
 
   final TextEditingController _simple = TextEditingController();
+  final FocusNode _simpleFocusNode = FocusNode(debugLabel: 'simple-body');
+  final GlobalKey _bodyEditorContainerKey = GlobalKey();
+  bool _stickerOpen = false;
+  TextSelection? _stickerSelection;
   final List<String> _images = [];
   int _contentType = 3;
   bool _formatting = false;
@@ -153,6 +158,9 @@ class _PublishPageState extends ConsumerState<PublishPage>
     _title.text = widget.editTitle ?? '';
     _categoryIds.addAll(widget.editCategoryIds ?? const <int>[]);
     _quill = _createController('');
+    _simpleFocusNode.addListener(_bodyFocusChanged);
+    _editorFocusNode.addListener(_bodyFocusChanged);
+    _titleFocusNode.addListener(_bodyFocusChanged);
     final files = ref.read(fileRepositoryProvider);
     _uploads = ComposerUploadQueue(
       isCurrent: () => mounted && _sessionCurrent && !_finished,
@@ -400,6 +408,8 @@ class _PublishPageState extends ConsumerState<PublishPage>
 
   void _selectMode(_ComposeMode mode) {
     if (mode == _mode) return;
+    _stickerOpen = false;
+    _quill.skipRequestKeyboard = false;
     final revision = ++_modeRevision;
     if (mode == _ComposeMode.preview) {
       _editScrollOffset = _pageScrollController.hasClients
@@ -567,6 +577,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
     _dragAutoscrollTimer?.cancel();
     _pageScrollController.dispose();
     _editorScrollController.dispose();
+    _simpleFocusNode.dispose();
     _editorFocusNode.dispose();
     _captchaCode.dispose();
     _title.dispose();
@@ -579,6 +590,12 @@ class _PublishPageState extends ConsumerState<PublishPage>
 
   Future<void> _goBack() async {
     if (_submitting) return;
+    if (_stickerOpen) {
+      FocusManager.instance.primaryFocus?.unfocus();
+      _quill.skipRequestKeyboard = false;
+      setState(() => _stickerOpen = false);
+      return;
+    }
     if (_uploading) {
       showGfToast(
         context,
@@ -701,6 +718,9 @@ class _PublishPageState extends ConsumerState<PublishPage>
           ..clear()
           ..addAll(photos);
       }
+      _stickerOpen = false;
+      _stickerSelection = null;
+      _quill.skipRequestKeyboard = false;
       _contentType = value;
       _simple.text = markdown;
       _previewMarkdown = _markdownFromEditor();
@@ -848,39 +868,65 @@ class _PublishPageState extends ConsumerState<PublishPage>
     }
   }
 
-  Future<void> _pickSticker() async {
-    final type = _contentType;
-    var selection = type == 3 ? _quill.selection : _simple.selection;
-    await showStickerPicker(
-      context,
-      onInsert: (token) {
-        if (!mounted || !_sessionCurrent || _finished || type != _contentType) {
-          return;
-        }
-        if (type == 3) {
-          final max = _quill.document.length - 1;
-          final start = (selection.isValid ? selection.start : max).clamp(
-            0,
-            max,
-          );
-          final end = (selection.isValid ? selection.end : max).clamp(
-            start,
-            max,
-          );
-          _quill.replaceText(
-            start,
-            end - start,
-            token,
-            TextSelection.collapsed(offset: start + token.length),
-          );
-          selection = _quill.selection;
-        } else {
-          insertStickerText(_simple, token, selection: selection);
-          selection = _simple.selection;
-        }
-        _markDirty();
-      },
-    );
+  void _bodyFocusChanged() {
+    if (_stickerOpen &&
+        (_simpleFocusNode.hasFocus ||
+            _editorFocusNode.hasFocus ||
+            _titleFocusNode.hasFocus)) {
+      _quill.skipRequestKeyboard = false;
+      setState(() => _stickerOpen = false);
+    }
+  }
+
+  void _keepEditorVisible() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final editorContext = _bodyEditorContainerKey.currentContext;
+      if (mounted && _stickerOpen && editorContext != null) {
+        Scrollable.ensureVisible(editorContext, alignment: 0);
+      }
+    });
+  }
+
+  void _pickSticker() {
+    if (!_stickerOpen) {
+      _stickerSelection = _contentType == 3
+          ? _quill.selection
+          : _simple.selection;
+    }
+    FocusManager.instance.primaryFocus?.unfocus();
+    if (_stickerOpen) {
+      _quill.skipRequestKeyboard = false;
+      setState(() => _stickerOpen = false);
+      (_contentType == 3 ? _editorFocusNode : _simpleFocusNode).requestFocus();
+    } else {
+      _quill.skipRequestKeyboard = true;
+      setState(() {
+        _stickerOpen = true;
+        _formatting = false;
+      });
+      _keepEditorVisible();
+    }
+  }
+
+  void _insertSticker(String token) {
+    if (!_sessionCurrent || _finished || _submitting) return;
+    if (_contentType == 3) {
+      final max = _quill.document.length - 1;
+      final range = _stickerSelection ?? _quill.selection;
+      final start = (range.isValid ? range.start : max).clamp(0, max);
+      final end = (range.isValid ? range.end : max).clamp(start, max);
+      _quill.replaceText(
+        start,
+        end - start,
+        token,
+        TextSelection.collapsed(offset: start + token.length),
+      );
+      _stickerSelection = _quill.selection;
+    } else {
+      insertStickerText(_simple, token, selection: _stickerSelection);
+      _stickerSelection = _simple.selection;
+    }
+    _keepEditorVisible();
   }
 
   void _insertUploadedImage(String url) {
@@ -1149,6 +1195,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
 
     return PopScope(
       canPop:
+          !_stickerOpen &&
           !_submitting &&
           !_uploading &&
           (_allowPop || (!_dirty && _mode == _ComposeMode.edit)),
@@ -1263,9 +1310,25 @@ class _PublishPageState extends ConsumerState<PublishPage>
                 ),
                 child: SafeArea(
                   top: false,
-                  child: AbsorbPointer(
-                    absorbing: _submitting,
-                    child: _buildWritingToolbar(l10n),
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxHeight: _stickerOpen
+                          ? ((MediaQuery.sizeOf(context).height -
+                                        MediaQuery.viewInsetsOf(
+                                          context,
+                                        ).bottom -
+                                        MediaQuery.viewPaddingOf(
+                                          context,
+                                        ).vertical -
+                                        kToolbarHeight) *
+                                    .65)
+                                .clamp(0.0, double.infinity)
+                          : double.infinity,
+                    ),
+                    child: AbsorbPointer(
+                      absorbing: _submitting,
+                      child: _buildWritingToolbar(l10n),
+                    ),
                   ),
                 ),
               )
@@ -1339,7 +1402,8 @@ class _PublishPageState extends ConsumerState<PublishPage>
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
         final bool wide = constraints.maxWidth >= _wideWorkspaceBreakpoint;
-        final typing = _mode == _ComposeMode.edit && keyboardOpen;
+        final typing =
+            _mode == _ComposeMode.edit && (keyboardOpen || _stickerOpen);
         final EdgeInsets pagePadding = EdgeInsets.symmetric(
           horizontal: wide ? 24 : 20,
           vertical: typing ? 8 : 20,
@@ -1677,11 +1741,15 @@ class _PublishPageState extends ConsumerState<PublishPage>
     ).small.copyWith(color: GfTheme.colorsOf(context).iconMuted),
   );
 
-  Widget _buildEditor(AppLocalizations l10n) {
+  Widget _buildEditor(AppLocalizations l10n) =>
+      KeyedSubtree(key: _bodyEditorContainerKey, child: _buildBodyEditor(l10n));
+
+  Widget _buildBodyEditor(AppLocalizations l10n) {
     if (_contentType != 3) {
       return TextField(
         key: const Key('publish-editor'),
         controller: _simple,
+        focusNode: _simpleFocusNode,
         keyboardType: TextInputType.multiline,
         textInputAction: TextInputAction.newline,
         style: readingBodyStyle(context),
@@ -1755,86 +1823,131 @@ class _PublishPageState extends ConsumerState<PublishPage>
 
   Widget _buildWritingToolbar(AppLocalizations l10n) {
     final colors = GfTheme.colorsOf(context);
-    return DecoratedBox(
-      key: const Key('publish-writing-tools'),
-      decoration: BoxDecoration(
-        color: colors.base100,
-        border: Border(top: BorderSide(color: colors.line)),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (_contentType == 3 && _formatting) _buildToolbar(l10n),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-            child: Row(
-              children: [
-                if (_contentType == 3)
-                  Flexible(
-                    child: TextButton.icon(
-                      onPressed: () =>
-                          setState(() => _formatting = !_formatting),
-                      icon: GfSymbol(
-                        _formatting ? 'chevron-down' : 'type',
-                        size: 22,
-                      ),
-                      label: Text(
-                        l10n.publishFormatting,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      style: TextButton.styleFrom(
-                        foregroundColor: _formatting
-                            ? colors.primary
-                            : colors.iconMuted,
-                        backgroundColor: _formatting
-                            ? colors.primary.withValues(alpha: 0.08)
-                            : Colors.transparent,
-                        shape: const StadiumBorder(),
-                        minimumSize: const Size(44, 44),
-                      ),
-                    ),
-                  ),
-                if (_contentType == 3 ||
-                    MediaQuery.viewInsetsOf(context).bottom > 0)
-                  _toolButton(
-                    symbol: _activelyUploading ? 'clock' : 'gallery',
-                    tooltip: l10n.publishToolImage,
-                    onPressed: _uploading ? null : _pickAndInsertImage,
-                  ),
-                _toolButton(
-                  symbol: 'emoji-circle',
-                  tooltip: StickerStrings(context).title,
-                  onPressed: _uploading ? null : _pickSticker,
+    return LayoutBuilder(
+      builder: (context, constraints) => DecoratedBox(
+        key: const Key('publish-writing-tools'),
+        decoration: BoxDecoration(
+          color: colors.base100,
+          border: Border(top: BorderSide(color: colors.line)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Flexible(
+              child: SingleChildScrollView(
+                child: ListenableBuilder(
+                  listenable: _contentType == 3 ? _quill : _simple,
+                  builder: (context, _) {
+                    final text = _contentType == 3
+                        ? _quill.document.toPlainText()
+                        : _simple.text;
+                    if (!containsStickerToken(text)) {
+                      return const SizedBox.shrink();
+                    }
+                    return StickerDraftPreview(
+                      content: _markdownFromEditor(),
+                      markdown: true,
+                    );
+                  },
                 ),
-                Expanded(
-                  child: Align(
-                    alignment: Alignment.centerRight,
-                    child: GfButton(
-                      key: const Key('publish-save-draft'),
-                      label: l10n.publishSaveDraft,
-                      variant: GfButtonVariant.ghost,
-                      loading: _submitting,
-                      onPressed: _uploading
-                          ? null
-                          : () => _submit(topicStatus: 0),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          if (_contentType == 3 && MediaQuery.viewInsetsOf(context).bottom == 0)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
-              child: Text(
-                l10n.publishBodyDragHint,
-                style: GfTheme.typographyOf(
-                  context,
-                ).caption.copyWith(color: GfTheme.colorsOf(context).iconMuted),
               ),
             ),
-        ],
+            if (_contentType == 3 && _formatting) _buildToolbar(l10n),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              child: Row(
+                children: [
+                  if (_contentType == 3)
+                    Flexible(
+                      child: TextButton.icon(
+                        onPressed: () {
+                          if (_stickerOpen) {
+                            FocusManager.instance.primaryFocus?.unfocus();
+                            _quill.skipRequestKeyboard = false;
+                          }
+                          setState(() {
+                            _stickerOpen = false;
+                            _formatting = !_formatting;
+                          });
+                        },
+                        icon: GfSymbol(
+                          _formatting ? 'chevron-down' : 'type',
+                          size: 22,
+                        ),
+                        label: Text(
+                          l10n.publishFormatting,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        style: TextButton.styleFrom(
+                          foregroundColor: _formatting
+                              ? colors.primary
+                              : colors.iconMuted,
+                          backgroundColor: _formatting
+                              ? colors.primary.withValues(alpha: 0.08)
+                              : Colors.transparent,
+                          shape: const StadiumBorder(),
+                          minimumSize: const Size(44, 44),
+                        ),
+                      ),
+                    ),
+                  if (_contentType == 3 ||
+                      MediaQuery.viewInsetsOf(context).bottom > 0)
+                    _toolButton(
+                      symbol: _activelyUploading ? 'clock' : 'gallery',
+                      tooltip: l10n.publishToolImage,
+                      onPressed: _uploading ? null : _pickAndInsertImage,
+                    ),
+                  _toolButton(
+                    symbol: _stickerOpen ? 'keyboard' : 'emoji-circle',
+                    tooltip: _stickerOpen
+                        ? StickerStrings(context).keyboard
+                        : StickerStrings(context).title,
+                    onPressed: _uploading ? null : _pickSticker,
+                  ),
+                  Expanded(
+                    child: Align(
+                      alignment: Alignment.centerRight,
+                      child: GfButton(
+                        key: const Key('publish-save-draft'),
+                        label: l10n.publishSaveDraft,
+                        variant: GfButtonVariant.ghost,
+                        loading: _submitting,
+                        onPressed: _uploading
+                            ? null
+                            : () => _submit(topicStatus: 0),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (_stickerOpen)
+              Flexible(
+                flex: 3,
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxHeight: constraints.maxHeight * .6,
+                  ),
+                  child: GfComposerPanel(
+                    child: StickerPicker(onInsert: _insertSticker),
+                  ),
+                ),
+              ),
+            if (!_stickerOpen &&
+                _contentType == 3 &&
+                MediaQuery.viewInsetsOf(context).bottom == 0)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+                child: Text(
+                  l10n.publishBodyDragHint,
+                  style: GfTheme.typographyOf(context).caption.copyWith(
+                    color: GfTheme.colorsOf(context).iconMuted,
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }

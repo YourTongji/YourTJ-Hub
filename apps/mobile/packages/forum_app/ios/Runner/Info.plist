@@ -88,7 +88,7 @@
 		<true/>
 	</dict>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>用于选择图片上传到帖子与回复</string>
+	<string>用于选择图片上传到帖子、回复和我的表情库</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>用于将帖子中的图片保存到照片</string>
 	<key>NSCameraUsageDescription</key>

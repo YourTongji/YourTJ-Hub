@@ -903,7 +903,20 @@ servers that omit interaction fields retain read-only content previews.
   official entries while preserving custom groups. Recent use
   keeps up to 30 distinct items in the current account/site session. Picking inserts at the caret or replaces the
   current selection; it does not send or publish. Unicode emoji and image stickers remain distinct.
-- `Current`: the personal library supports image upload, collecting a shared sticker by long press,
+- `Current`: sticker pickers stay inline below the reply, message or publishing input. Opening one
+  dismisses the typing keyboard without covering the editor; the keyboard button resumes typing at
+  the current selection. A bounded live preview renders draft stickers as images and updates after
+  insertion, editing or deletion, using the same Markdown/plain-text rules as the destination.
+  Repeated picks keep the panel open and advance the caret. Back closes the panel before leaving the
+  page; short windows keep the picker scrollable and reply input controls accessible.
+  In private conversations, picker, preview and keyboard height changes keep the bottom of the
+  current reading position above the input area. Reading history does not jump to the latest message;
+  a conversation already at the bottom stays there. Closing restores the position within list bounds,
+  and visibility-based read receipts wait for the resized viewport to settle.
+- `Current`: adding a personal sticker offers the system photo library or file picker. Cancelling
+  either picker leaves the library unchanged. Selected photos use the same authenticated upload and
+  retry flow as files, without applying the post-photo resize/compression settings to stickers.
+  The personal library supports image upload, collecting a shared sticker by long press,
   private display names, reordering and removal. It holds up to 200 stickers; images are limited to
   4 MiB and an account can create up to 1000 retained personal assets. Uploads use the authenticated
   file service. Failed requests retain the current input and expose retry. Concurrent collection

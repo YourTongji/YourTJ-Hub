@@ -79,3 +79,5 @@ export 'src/components/gf_search_field.dart';
 export 'src/components/business/gf_content_row.dart';
 
 export 'src/components/business/gf_connection_row.dart';
+
+export 'src/components/business/gf_composer_panel.dart';

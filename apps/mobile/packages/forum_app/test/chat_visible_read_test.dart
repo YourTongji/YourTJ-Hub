@@ -13,6 +13,7 @@ import 'package:forum_app/src/providers.dart';
 import 'package:forum_app/src/messages/visible_chat_reads.dart';
 import 'package:forum_app/src/navigation/route_visibility.dart';
 import 'package:forum_app/src/realtime/realtime_updates.dart';
+import 'package:forum_app/src/widgets/stickers/sticker_library_state.dart';
 import 'package:ui_kit/ui_kit.dart';
 import 'pages_behavior_test.dart'
     show
@@ -99,6 +100,7 @@ pumpChat(
   bool nested = false,
   List<ChatMessagePayload>? older,
   StickerLibrary? stickers,
+  StickerCollection? stickerCollection,
 }) async {
   await tester.binding.setSurfaceSize(const Size(390, 700));
   addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -126,6 +128,8 @@ pumpChat(
       offlineTopicCacheProvider.overrideWithValue(NoopCache()),
       offlineChatCacheProvider.overrideWithValue(NoopCache()),
       if (stickers != null) stickerLibraryProvider.overrideWithValue(stickers),
+      if (stickerCollection != null)
+        stickerCollectionProvider.overrideWith((ref) => stickerCollection),
     ],
   );
   addTearDown(container.dispose);
