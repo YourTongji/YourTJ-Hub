@@ -746,17 +746,22 @@ identity survive this layout change. The header keeps a small outer margin for i
 - `Current`: profile bios trim boundary whitespace; signatures use a mirrored feather and a wave
   below the complete text block, including wrapped lines.
   Admin and online chips sit beside the display name. The smaller handle sits below it.
-  Joined date, available last-active time and public link icons appear in that order in one row.
-  Compact date formatting and measured scaling keep all values visible without ellipses.
+  Joined date, available last-active time and public link icons appear in that order in one
+  leading-aligned row, with consistent 8-pixel gaps between groups. Social icons follow the
+  last-active label instead of being pushed to the opposite edge.
+  Labels remain complete; overflow scrolls horizontally with a muted hairline cue.
   The website uses the filled globe-pointer symbol in black or white for the current theme.
   Avatar overlap participates in layout so it leaves no translated blank space. Earned badges use
-  a centered, evenly spaced row of shared circular medallions, retaining server-provided artwork.
-  The selected worn badge remains attached to the avatar independently.
+  a compact, left-aligned row of shared circular medallions, retaining server-provided artwork.
+  The 3-pixel gaps around the badge and statistics rows are visually balanced; no extra footer gap
+  separates statistics from the profile tabs. The selected worn badge remains attached to the
+  avatar independently.
   Settings combine checkboxes, display positions and drag handles in one badge list, selecting and
   ordering zero to five owned, enabled badges for the profile header.
   An explicit empty selection hides that row; existing accounts default to their first five badges.
   This selection does not change the avatar badge or the complete earned badge collection.
-  Profile statistics keep all five values in one evenly spaced row, scaling labels to fit.
+  Profile statistics keep all five values in one compact row; overflow scrolls horizontally with
+  the same muted hairline cue.
   Settings groups use rounded inset surfaces, multiline row
   labels and consistent trailing arrows; avatar upload copy describes image selection and cropping.
 - `Current`: Settings opens a scrollable category index, with device preferences separated from

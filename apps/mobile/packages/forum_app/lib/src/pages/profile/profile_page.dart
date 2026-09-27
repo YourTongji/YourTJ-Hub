@@ -7,7 +7,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'package:core/core.dart';
@@ -1356,166 +1355,94 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     );
   }
 
-  String _compactProfileDate(String value, AppLocalizations l10n) {
-    final date = DateTime.tryParse(formatDate(value));
-    if (date == null) return formatDate(value);
-    return DateFormat.yMd(l10n.localeName)
-        .format(date)
-        .replaceFirst(
-          date.year.toString(),
-          (date.year % 100).toString().padLeft(2, '0'),
-        );
-  }
-
   Widget _profileMetaRow({
-    required UserCardPayload user,
     required List<(String, Uri, String?)> links,
     required String? joinedAt,
     required String? lastActive,
     required TextStyle textStyle,
     required AppLocalizations l10n,
   }) {
-    final compactJoined = joinedAt == null
-        ? null
-        : _compactProfileDate(user.createdAt, l10n);
-    final activeDate = DateTime.tryParse(
-      formatDateTime(user.lastActiveTime).replaceFirst(' ', 'T'),
-    );
-    final compactActive = lastActive == null
-        ? null
-        : activeDate == null
-        ? timeAgo(user.lastActiveTime, l10n: l10n)
-        : DateUtils.isSameDay(activeDate, DateTime.now())
-        ? DateFormat.Hm(l10n.localeName).format(activeDate)
-        : _compactProfileDate(user.lastActiveTime, l10n);
     final iconColor = GfTheme.colorsOf(context).iconMuted;
 
-    return LayoutBuilder(
-      builder: (layoutContext, constraints) {
-        final direction = Directionality.of(layoutContext);
-        final scaler = MediaQuery.textScalerOf(layoutContext);
-        double textWidth(String value) {
-          final painter = TextPainter(
-            text: TextSpan(text: value, style: textStyle),
-            textDirection: direction,
-            textScaler: scaler,
-            maxLines: 1,
-          )..layout();
-          final width = painter.width;
-          painter.dispose();
-          return width;
-        }
-
-        final iconSize = links.length >= 6
-            ? 16.0
-            : links.length >= 4
-            ? 18.0
-            : 20.0;
-        double requiredWidth(String? joined, String? active) {
-          var width = links.length * 44.0;
-          if (joined != null) width += 18 + textWidth(joined);
-          if (active != null) width += 18 + textWidth(active);
-          if (joined != null && active != null) width += 8;
-          if (links.isNotEmpty && (joined != null || active != null)) {
-            width += 8;
-          }
-          if (links.length > 1) width += (links.length - 1) * 8;
-          return width;
-        }
-
-        final compact =
-            requiredWidth(joinedAt, lastActive) > constraints.maxWidth;
-        final joinedText = compact ? compactJoined : joinedAt;
-        final activeText = compact ? compactActive : lastActive;
-        Widget timestamp(String icon, String visible, String full) => Tooltip(
-          message: full,
-          excludeFromSemantics: true,
-          child: Semantics(
-            label: full,
-            child: ExcludeSemantics(
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  GfSymbol(icon, size: 14, color: iconColor),
-                  const SizedBox(width: 4),
-                  Text(visible, maxLines: 1, softWrap: false, style: textStyle),
-                ],
-              ),
-            ),
+    Widget timestamp(String icon, String full) => Tooltip(
+      message: full,
+      excludeFromSemantics: true,
+      child: Semantics(
+        label: full,
+        child: ExcludeSemantics(
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              GfSymbol(icon, size: 14, color: iconColor),
+              const SizedBox(width: 4),
+              Text(full, maxLines: 1, softWrap: false, style: textStyle),
+            ],
           ),
-        );
+        ),
+      ),
+    );
 
-        return SizedBox(
-          width: constraints.maxWidth,
-          child: SingleChildScrollView(
-            key: const ValueKey('profile-meta-row'),
-            scrollDirection: Axis.horizontal,
-            child: ConstrainedBox(
-              constraints: BoxConstraints(minWidth: constraints.maxWidth),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  if (joinedText != null)
-                    timestamp('calendar-days', joinedText, joinedAt!),
-                  if (joinedText != null && activeText != null)
-                    const SizedBox(width: 8),
-                  if (activeText != null)
-                    timestamp('clock', activeText, lastActive!),
-                  if (links.isNotEmpty &&
-                      (joinedText != null || activeText != null))
-                    const SizedBox(width: 8),
-                  for (final (index, link) in links.indexed) ...[
-                    if (index > 0) const SizedBox(width: 8),
-                    MergeSemantics(
-                      child: Semantics(
-                        label: link.$1,
-                        button: true,
-                        child: Tooltip(
-                          message: link.$1,
-                          excludeFromSemantics: true,
-                          child: IconButton(
-                            style: IconButton.styleFrom(
-                              padding: EdgeInsets.zero,
-                              fixedSize: const Size.square(44),
-                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                            ),
-                            constraints: const BoxConstraints.tightFor(
-                              width: 44,
-                              height: 44,
-                            ),
-                            icon: GfSocialIcon(link.$3, size: iconSize),
-                            onPressed: () async {
-                              try {
-                                if (!await launchUrl(
-                                  link.$2,
-                                  mode: LaunchMode.externalApplication,
-                                )) {
-                                  throw StateError(
-                                    'Could not open profile link',
-                                  );
-                                }
-                              } catch (error) {
-                                if (mounted) {
-                                  showGfToast(
-                                    context,
-                                    resolveErrorMessage(l10n, error),
-                                    error: true,
-                                  );
-                                }
-                              }
-                            },
-                          ),
+    return LayoutBuilder(
+      builder: (_, constraints) => SizedBox(
+        width: constraints.maxWidth,
+        child: GfHorizontalScrollView(
+          scrollViewKey: const ValueKey('profile-meta-row'),
+          child: Row(
+            key: const ValueKey('profile-meta-content'),
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.start,
+            children: [
+              if (joinedAt != null) timestamp('calendar-days', joinedAt),
+              if (joinedAt != null && lastActive != null)
+                const SizedBox(width: 8),
+              if (lastActive != null) timestamp('clock', lastActive),
+              if ((joinedAt != null || lastActive != null) && links.isNotEmpty)
+                const SizedBox(width: 8),
+              for (final link in links)
+                MergeSemantics(
+                  child: Semantics(
+                    label: link.$1,
+                    button: true,
+                    child: Tooltip(
+                      message: link.$1,
+                      excludeFromSemantics: true,
+                      child: IconButton(
+                        style: IconButton.styleFrom(
+                          padding: EdgeInsets.zero,
+                          fixedSize: const Size(24, 32),
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                         ),
+                        constraints: const BoxConstraints.tightFor(
+                          width: 24,
+                          height: 32,
+                        ),
+                        icon: GfSocialIcon(link.$3, size: 16),
+                        onPressed: () async {
+                          try {
+                            if (!await launchUrl(
+                              link.$2,
+                              mode: LaunchMode.externalApplication,
+                            )) {
+                              throw StateError('Could not open profile link');
+                            }
+                          } catch (error) {
+                            if (mounted) {
+                              showGfToast(
+                                context,
+                                resolveErrorMessage(l10n, error),
+                                error: true,
+                              );
+                            }
+                          }
+                        },
                       ),
                     ),
-                  ],
-                ],
-              ),
-            ),
+                  ),
+                ),
+            ],
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 
@@ -1574,7 +1501,6 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       details: links.isEmpty && joinedAt == null && lastActive == null
           ? null
           : _profileMetaRow(
-              user: user,
               links: links,
               joinedAt: joinedAt,
               lastActive: lastActive,

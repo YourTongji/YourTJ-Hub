@@ -34,7 +34,7 @@ class _MemoryTokenStorage implements TokenStorage {
 }
 
 class _SocialProfiles extends PageRepository {
-  _SocialProfiles()
+  _SocialProfiles({this.compactLinks = false})
     : super(
         GfApiClient(
           dio: Dio(),
@@ -42,6 +42,8 @@ class _SocialProfiles extends PageRepository {
           baseUrl: 'https://forum.example',
         ),
       );
+
+  final bool compactLinks;
 
   @override
   Future<PagePayload> fetch(String path, {CancelToken? cancelToken}) async {
@@ -51,7 +53,10 @@ class _SocialProfiles extends PageRepository {
     user['websiteName'] = 'Personal site';
     user['website'] = 'https://example.test/about';
     user['externalInformation'] = {
-      for (final entry in _destinations.entries)
+      for (final entry
+          in (compactLinks
+              ? _destinations.entries.take(4)
+              : _destinations.entries))
         entry.key: {'link': entry.value},
       'unsafe': {'link': 'javascript:alert(1)'},
     };
@@ -63,12 +68,15 @@ Future<void> _pumpProfile(
   WidgetTester tester, {
   Brightness brightness = Brightness.light,
   double scale = 1,
+  bool compactLinks = false,
 }) async {
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
         currentUserProvider.overrideWith((_) async => null),
-        pageRepositoryProvider.overrideWithValue(_SocialProfiles()),
+        pageRepositoryProvider.overrideWithValue(
+          _SocialProfiles(compactLinks: compactLinks),
+        ),
       ],
       child: MaterialApp(
         theme: gfThemeData(brightness),
@@ -92,15 +100,29 @@ void main() {
   testWidgets('profile details and social icons share one scrollable row', (
     tester,
   ) async {
-    tester.view.physicalSize = const Size(390, 900);
+    tester.view.physicalSize = const Size(800, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
-    await _pumpProfile(tester);
+    await _pumpProfile(tester, compactLinks: true);
     final row = find.byKey(const ValueKey('profile-meta-row'));
     expect(row, findsOneWidget);
     expect(
       tester.widget<SingleChildScrollView>(row).scrollDirection,
       Axis.horizontal,
+    );
+    expect(
+      find.descendant(of: row, matching: find.textContaining('Joined')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: row, matching: find.textContaining('Last active')),
+      findsOneWidget,
+    );
+    expect(
+      tester
+          .widget<Row>(find.byKey(const ValueKey('profile-meta-content')))
+          .mainAxisAlignment,
+      MainAxisAlignment.start,
     );
     final tooltipFinder = find.descendant(
       of: row,
@@ -118,14 +140,24 @@ void main() {
     final website = tester.getRect(find.byTooltip('Personal site'));
     final github = tester.getRect(find.byTooltip('GitHub'));
     final twitter = tester.getRect(find.byTooltip('X / Twitter'));
+    final lastActive = tester.getRect(find.textContaining('Last active'));
+    expect(website.left - lastActive.right, closeTo(8, .01));
     expect(github.top, website.top);
     expect(twitter.top, github.top);
     expect(github.left, greaterThanOrEqualTo(website.right));
     expect(twitter.left, greaterThanOrEqualTo(github.right));
-    expect(twitter.center.dx - github.center.dx, closeTo(52, .01));
+    expect(twitter.center.dx - github.center.dx, closeTo(24, .01));
+    expect(
+      tester
+          .widgetList<GfSocialIcon>(
+            find.descendant(of: row, matching: find.byType(GfSocialIcon)),
+          )
+          .map((icon) => icon.size),
+      everyElement(16),
+    );
     for (final target in [website, github, twitter]) {
-      expect(target.width, greaterThanOrEqualTo(44));
-      expect(target.height, greaterThanOrEqualTo(44));
+      expect(target.width, greaterThanOrEqualTo(24));
+      expect(target.height, greaterThanOrEqualTo(32));
     }
     expect(github.overlaps(twitter), isFalse);
     expect(tester.takeException(), isNull);
@@ -141,6 +173,18 @@ void main() {
         final semantics = tester.ensureSemantics();
         try {
           await _pumpProfile(tester, brightness: brightness, scale: 2);
+          final row = find.byKey(const ValueKey('profile-meta-row'));
+          expect(
+            find.descendant(of: row, matching: find.textContaining('Joined')),
+            findsOneWidget,
+          );
+          expect(
+            find.descendant(
+              of: row,
+              matching: find.textContaining('Last active'),
+            ),
+            findsOneWidget,
+          );
           for (final label in [
             'Personal site',
             'GitHub',
@@ -157,8 +201,8 @@ void main() {
             await tester.ensureVisible(target);
             await tester.pumpAndSettle();
             final bounds = tester.getRect(target);
-            expect(bounds.width, greaterThanOrEqualTo(44));
-            expect(bounds.height, greaterThanOrEqualTo(44));
+            expect(bounds.width, greaterThanOrEqualTo(24));
+            expect(bounds.height, greaterThanOrEqualTo(32));
             expect(bounds.left, greaterThanOrEqualTo(0));
             expect(bounds.right, lessThanOrEqualTo(320));
             final node = tester.getSemantics(target);
