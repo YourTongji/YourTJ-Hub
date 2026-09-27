@@ -476,7 +476,14 @@ void main() {
     );
     expect(find.textContaining('介绍', findRichText: true), findsWidgets);
     // meta 脚注:更新时间 + 浏览数 + 点赞数。
-    expect(find.text('2026-08-10 15:00'), findsOneWidget);
+    // The server's +08:00 timestamp must be displayed in the device's zone,
+    // including UTC on CI. Keep this expectation independent of the formatter.
+    final localUpdatedAt = DateTime.utc(2026, 8, 10, 7).toLocal();
+    final expectedUpdatedAt = localUpdatedAt
+        .toIso8601String()
+        .substring(0, 16)
+        .replaceFirst('T', ' ');
+    expect(find.text(expectedUpdatedAt), findsOneWidget);
     expect(find.text('42 次浏览'), findsOneWidget);
     expect(find.text('5'), findsOneWidget);
   });
