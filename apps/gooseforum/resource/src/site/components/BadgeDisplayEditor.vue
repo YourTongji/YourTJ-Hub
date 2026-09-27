@@ -42,10 +42,14 @@ function toggle(code: string) {
 function move(index: number, delta: number) {
   const next = index + delta
   if (saving.value || next < 0 || next >= codes.value.length) return
+  const code = codes.value[index]
   const copy = [...codes.value]
   ;[copy[index], copy[next]] = [copy[next], copy[index]]
   codes.value = copy
   saved.value = false
+  // Vue 的 keyed patch 可能物理移动焦点所在的卡片节点，浏览器对被移动的
+  // 节点会丢焦点（Alt+↑ 中招、Alt+↓ 恰好挪的是兄弟节点），所以显式回置。
+  void nextTick(() => document.getElementById(`profile-badge-handle-${code}`)?.focus())
 }
 
 async function save() {
@@ -115,6 +119,7 @@ async function save() {
             </label>
             <button
               type="button"
+              :id="`profile-badge-handle-${badge.code}`"
               class="badge-display-editor__drag-handle inline-flex h-8 w-8 shrink-0 cursor-grab touch-none items-center justify-center rounded-md text-base-content/50 transition-colors hover:bg-base-content/5 hover:text-base-content active:cursor-grabbing focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
               :disabled="saving || selectedBadges.length < 2"
               :aria-label="t('badgeDisplay.reorder', { name: badge.name })"
