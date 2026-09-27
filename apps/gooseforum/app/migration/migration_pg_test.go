@@ -48,6 +48,7 @@ func TestSchemaMigratesOnPostgreSQL(t *testing.T) {
 
 	// 关键新表必须存在（issue #8 回归点；agents 为本仓库 Agent 模型新增表）
 	for _, table := range []string{
+		"user_blocks",
 		"user_sessions",
 		"user_totp",
 		"user_totp_recovery_codes",
@@ -75,6 +76,8 @@ func TestSchemaMigratesOnPostgreSQL(t *testing.T) {
 		"pk_schedule_snapshot",
 		"push_subscriptions",
 		"push_device",
+		"sticker_library_owners",
+		"user_stickers",
 	} {
 		if !db.Migrator().HasTable(table) {
 			t.Errorf("table %q missing after postgres migration", table)
@@ -116,6 +119,9 @@ func TestSchemaUpgradeCreatesNewTablesOnPostgreSQL(t *testing.T) {
 	legacy := []any{&users.EntityComplete{}, &userOAuth.Entity{}, &topics.Entity{}, &pointsRecord.Entity{}}
 	if err := db.AutoMigrate(legacy...); err != nil {
 		t.Fatalf("AutoMigrate legacy subset failed: %v", err)
+	}
+	if err := db.Migrator().DropColumn(&userOAuth.Entity{}, "apple_refresh_token"); err != nil {
+		t.Fatal(err)
 	}
 	// The current model includes actor_type, but a true legacy users table did
 	// not. Remove it before the upgrade so this test exercises column addition.
@@ -182,7 +188,11 @@ func TestSchemaUpgradeCreatesNewTablesOnPostgreSQL(t *testing.T) {
 	if err := db.AutoMigrate(SchemaModels()...); err != nil {
 		t.Fatalf("upgrade AutoMigrate on postgres failed: %v", err)
 	}
+	if !db.Migrator().HasColumn(&userOAuth.Entity{}, "apple_refresh_token") {
+		t.Fatal("Apple revocation column missing after upgrade")
+	}
 	for _, table := range []string{
+		"user_blocks",
 		"user_sessions",
 		"user_totp",
 		"user_totp_recovery_codes",
@@ -202,6 +212,8 @@ func TestSchemaUpgradeCreatesNewTablesOnPostgreSQL(t *testing.T) {
 		"pk_schedule_snapshot",
 		"push_subscriptions",
 		"push_device",
+		"sticker_library_owners",
+		"user_stickers",
 	} {
 		if !db.Migrator().HasTable(table) {
 			t.Errorf("table %q missing after upgrade migration", table)

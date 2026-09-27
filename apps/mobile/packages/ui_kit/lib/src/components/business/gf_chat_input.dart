@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../theme/gf_theme.dart';
+import '../gf_motion.dart';
+import '../gf_symbol.dart';
+import 'gf_composer_panel.dart';
 
-/// Chat input area mirroring web MessagesPage.vue mobile footer: a
-/// `min-h-11 max-h-36` text area with an emoji button that opens a 4-column
-/// emoji panel (web `w-48`), plus a send button. Enter sends, Shift+Enter
-/// inserts a newline (handled by the caller via [onSend]).
+/// A selection-aware composer with mutually exclusive keyboard/emoji surfaces.
+/// Mobile return inserts a newline; hardware Ctrl/Cmd+Enter sends.
 class GfChatInput extends StatefulWidget {
   const GfChatInput({
     super.key,
@@ -14,8 +16,15 @@ class GfChatInput extends StatefulWidget {
     this.hintText,
     this.sendLabel,
     this.enterHint,
+    this.emojiLabel = 'Emoji',
+    this.keyboardLabel = 'Keyboard',
     this.enabled = true,
     this.canSend = true,
+    this.clearOnSend = true,
+    this.accessoryBuilder,
+    this.previewBuilder,
+    this.onAttach,
+    this.attachLabel,
   });
 
   final ValueChanged<String> onSend;
@@ -23,16 +32,29 @@ class GfChatInput extends StatefulWidget {
   final String? hintText;
   final String? sendLabel;
   final String? enterHint;
+  final String emojiLabel;
+  final String keyboardLabel;
   final bool enabled;
 
   /// Keep drafting available while the caller prepares the conversation.
   final bool canSend;
 
+  /// Let an owning draft controller clear only after server acknowledgement.
+  final bool clearOnSend;
+
+  /// App-owned stickers use the same selection-preserving insertion callback.
+  final Widget Function(ValueChanged<String> insert)? accessoryBuilder;
+
+  /// Optional app-owned rendering of the current draft above the input.
+  final Widget Function(String text)? previewBuilder;
+  final VoidCallback? onAttach;
+  final String? attachLabel;
+
   @override
   State<GfChatInput> createState() => _GfChatInputState();
 }
 
-class _GfChatInputState extends State<GfChatInput> {
+class _GfChatInputState extends State<GfChatInput> with WidgetsBindingObserver {
   static const List<String> _emojis = <String>[
     '😀',
     '😄',
@@ -52,24 +74,67 @@ class _GfChatInputState extends State<GfChatInput> {
     '✨',
   ];
 
-  late final TextEditingController _controller =
+  late TextEditingController _controller =
       widget.controller ?? TextEditingController();
+  final FocusNode _inputFocus = FocusNode();
+  final FocusNode _accessoryFocus = FocusNode();
+  TextSelection? _lastSelection;
   bool _emojiOpen = false;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _controller.addListener(_handleTextChanged);
+    _inputFocus.addListener(_handleFocusChanged);
+    _rememberSelection();
+  }
+
+  @override
+  void didChangeMetrics() {
+    if (mounted) setState(() {});
+  }
+
+  void _handleFocusChanged() {
+    if (mounted) setState(() {});
+  }
+
+  void _rememberSelection() {
+    final selection = _controller.selection;
+    if (selection.isValid && selection.end <= _controller.text.length) {
+      _lastSelection = selection;
+    } else {
+      _lastSelection = null;
+    }
   }
 
   void _handleTextChanged() {
+    _rememberSelection();
     if (mounted) setState(() {});
   }
 
   @override
+  void didUpdateWidget(covariant GfChatInput oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller != widget.controller) {
+      _controller.removeListener(_handleTextChanged);
+      if (oldWidget.controller == null) _controller.dispose();
+      _controller = widget.controller ?? TextEditingController();
+      _lastSelection = null;
+      _rememberSelection();
+      _controller.addListener(_handleTextChanged);
+    }
+    if (!widget.enabled) _emojiOpen = false;
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _controller.removeListener(_handleTextChanged);
     if (widget.controller == null) _controller.dispose();
+    _inputFocus.removeListener(_handleFocusChanged);
+    _inputFocus.dispose();
+    _accessoryFocus.dispose();
     super.dispose();
   }
 
@@ -77,152 +142,273 @@ class _GfChatInputState extends State<GfChatInput> {
     if (!widget.enabled || !widget.canSend) return;
     final String text = _controller.text.trim();
     if (text.isEmpty) return;
+    final submittedValue = _controller.value;
     widget.onSend(text);
-    _controller.clear();
+    // A synchronous caller may install another draft after accepting the send.
+    if (widget.clearOnSend && _controller.value == submittedValue) {
+      _controller.clear();
+    }
+  }
+
+  void _toggleInputSurface() {
+    if (!widget.enabled) return;
+    if (_emojiOpen) {
+      setState(() => _emojiOpen = false);
+      _inputFocus.requestFocus();
+    } else {
+      _rememberSelection();
+      _inputFocus.unfocus();
+      setState(() => _emojiOpen = true);
+      _accessoryFocus.requestFocus();
+    }
+  }
+
+  void _insertEmoji(String emoji) {
+    if (!widget.enabled) return;
+    final text = _controller.text;
+    final selection = _lastSelection;
+    final start = (selection?.start ?? text.length).clamp(0, text.length);
+    final end = (selection?.end ?? text.length).clamp(start, text.length);
+    _controller.value = TextEditingValue(
+      text: text.replaceRange(start, end, emoji),
+      selection: TextSelection.collapsed(offset: start + emoji.length),
+      // Opening an accessory commits the visible IME composition, never drops it.
+      composing: TextRange.empty,
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final GfColors colors = GfTheme.colorsOf(context);
-    final GfRadii radii = GfTheme.radiiOf(context);
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: colors.base100,
-        border: Border(top: BorderSide(color: colors.line, width: 1)),
+    final colors = GfTheme.colorsOf(context);
+    final ready =
+        widget.enabled && widget.canSend && _controller.text.trim().isNotEmpty;
+    final media = MediaQuery.of(context);
+    final view = View.of(context);
+    // Scaffold removes consumed insets from body MediaQuery. Account for the
+    // actual keyboard too, including a search field inside the accessory.
+    final keyboard = view.viewInsets.bottom / view.devicePixelRatio;
+    final height = media.size.height > 0
+        ? media.size.height
+        : view.physicalSize.height / view.devicePixelRatio;
+    final available =
+        height -
+        (keyboard > media.viewInsets.bottom
+            ? keyboard
+            : media.viewInsets.bottom) -
+        media.viewPadding.vertical -
+        kToolbarHeight;
+    return ConstrainedBox(
+      constraints: BoxConstraints(
+        maxHeight: (available * .85).clamp(0.0, double.infinity),
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          if (_emojiOpen)
-            Container(
-              margin: const EdgeInsets.only(bottom: 8),
-              padding: const EdgeInsets.all(8),
-              width: 192,
-              decoration: BoxDecoration(
-                color: colors.base200,
-                borderRadius: BorderRadius.circular(radii.box),
-              ),
-              child: GridView.count(
-                crossAxisCount: 4,
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                mainAxisSpacing: 4,
-                crossAxisSpacing: 4,
-                children: <Widget>[
-                  for (final String emoji in _emojis)
-                    InkWell(
-                      borderRadius: BorderRadius.circular(6),
-                      onTap: () {
-                        _controller.text += emoji;
-                        setState(() {});
-                      },
-                      child: Center(
-                        child: Text(
-                          emoji,
-                          style: const TextStyle(fontSize: 20),
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: colors.base200.withValues(alpha: 0.8),
-              borderRadius: BorderRadius.circular(radii.box),
-              border: Border.all(color: colors.line),
-            ),
-            child: Column(
-              children: <Widget>[
-                TextField(
-                  controller: _controller,
-                  enabled: widget.enabled,
-                  minLines: 1,
-                  maxLines: 4,
-                  style: const TextStyle(fontSize: 15, height: 1.45),
-                  decoration: InputDecoration(
-                    hintText: widget.hintText,
-                    filled: false,
-                    isDense: false,
-                    constraints: const BoxConstraints(minHeight: 44),
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 9,
-                    ),
-                    border: InputBorder.none,
-                    enabledBorder: InputBorder.none,
-                    focusedBorder: InputBorder.none,
-                  ),
-                  onSubmitted: (_) => _send(),
+      child: LayoutBuilder(
+        builder: (context, constraints) => PopScope(
+          canPop: !_emojiOpen,
+          onPopInvokedWithResult: (didPop, _) {
+            if (!didPop && _emojiOpen) setState(() => _emojiOpen = false);
+          },
+          child: CallbackShortcuts(
+            bindings: {
+              const SingleActivator(LogicalKeyboardKey.enter, control: true):
+                  _send,
+              const SingleActivator(LogicalKeyboardKey.enter, meta: true):
+                  _send,
+              const SingleActivator(LogicalKeyboardKey.escape): () {
+                if (_emojiOpen) setState(() => _emojiOpen = false);
+                _inputFocus.unfocus();
+              },
+            },
+            child: Focus(
+              focusNode: _accessoryFocus,
+              skipTraversal: true,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
                 ),
-                Divider(height: 1, color: colors.line.withValues(alpha: 0.7)),
-                const SizedBox(height: 7),
-                Row(
-                  children: <Widget>[
-                    SizedBox(
-                      width: 32,
-                      height: 32,
-                      child: IconButton(
-                        padding: EdgeInsets.zero,
-                        icon: Icon(
-                          _emojiOpen
-                              ? Icons.keyboard_alt_outlined
-                              : Icons.emoji_emotions_outlined,
-                          size: 20,
-                          color: colors.iconMuted,
+                decoration: BoxDecoration(
+                  color: colors.base100,
+                  border: Border(top: BorderSide(color: colors.line)),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (widget.previewBuilder != null)
+                      Flexible(
+                        child: SingleChildScrollView(
+                          child: widget.previewBuilder!(_controller.text),
                         ),
-                        onPressed: () =>
-                            setState(() => _emojiOpen = !_emojiOpen),
-                        tooltip: 'Emoji',
                       ),
-                    ),
-                    if (widget.enterHint != null) ...<Widget>[
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          widget.enterHint!,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: colors.baseContent.withValues(alpha: 0.55),
-                            fontSize: 11,
-                            fontWeight: FontWeight.w500,
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        if (widget.onAttach != null) ...[
+                          IconButton(
+                            key: const Key('chat-attach'),
+                            tooltip: widget.attachLabel,
+                            icon: const GfSymbol('plus', size: 24),
+                            onPressed: widget.enabled ? widget.onAttach : null,
+                            style: IconButton.styleFrom(
+                              fixedSize: const Size.square(44),
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              backgroundColor: colors.base200,
+                              foregroundColor: colors.baseContent,
+                              disabledForegroundColor: colors.iconMuted
+                                  .withValues(alpha: .45),
+                              shape: const CircleBorder(),
+                              padding: EdgeInsets.zero,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                        ],
+                        Expanded(
+                          child: AnimatedContainer(
+                            key: const Key('chat-input-surface'),
+                            duration: GfMotion.duration(
+                              context,
+                              GfMotion.press,
+                            ),
+                            curve: GfMotion.enterCurve,
+                            decoration: BoxDecoration(
+                              color: colors.base200,
+                              borderRadius: BorderRadius.circular(24),
+                              border: Border.all(
+                                color: _inputFocus.hasFocus
+                                    ? colors.primary.withValues(alpha: .32)
+                                    : Colors.transparent,
+                              ),
+                            ),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Expanded(
+                                  child: TextField(
+                                    controller: _controller,
+                                    focusNode: _inputFocus,
+                                    enabled: widget.enabled,
+                                    textInputAction: TextInputAction.newline,
+                                    minLines: 1,
+                                    maxLines: _emojiOpen ? 1 : 4,
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      height: 1.4,
+                                      color: widget.enabled
+                                          ? colors.baseContent
+                                          : colors.iconMuted,
+                                    ),
+                                    cursorColor: colors.primary,
+                                    decoration: InputDecoration(
+                                      hintText: widget.hintText,
+                                      hintStyle: TextStyle(
+                                        color: colors.iconMuted,
+                                      ),
+                                      filled: false,
+                                      isDense: true,
+                                      constraints: const BoxConstraints(
+                                        minHeight: 44,
+                                      ),
+                                      contentPadding: const EdgeInsets.fromLTRB(
+                                        16,
+                                        11,
+                                        4,
+                                        11,
+                                      ),
+                                      border: InputBorder.none,
+                                      enabledBorder: InputBorder.none,
+                                      focusedBorder: InputBorder.none,
+                                      disabledBorder: InputBorder.none,
+                                      errorBorder: InputBorder.none,
+                                      focusedErrorBorder: InputBorder.none,
+                                    ),
+                                    onTap: () {
+                                      if (_emojiOpen) {
+                                        setState(() => _emojiOpen = false);
+                                      }
+                                    },
+                                  ),
+                                ),
+                                IconButton(
+                                  key: const Key('chat-accessory-toggle'),
+                                  icon: GfSymbol(
+                                    _emojiOpen ? 'keyboard' : 'smile',
+                                    size: 23,
+                                  ),
+                                  onPressed: widget.enabled
+                                      ? _toggleInputSurface
+                                      : null,
+                                  tooltip: _emojiOpen
+                                      ? widget.keyboardLabel
+                                      : widget.emojiLabel,
+                                  style: IconButton.styleFrom(
+                                    fixedSize: const Size.square(44),
+                                    tapTargetSize:
+                                        MaterialTapTargetSize.shrinkWrap,
+                                    padding: EdgeInsets.zero,
+                                    foregroundColor: colors.iconMuted,
+                                    disabledForegroundColor: colors.iconMuted
+                                        .withValues(alpha: .45),
+                                    shape: const CircleBorder(),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
-                      ),
-                    ] else
-                      const Spacer(),
-                    FilledButton.icon(
-                      onPressed:
-                          widget.enabled &&
-                              widget.canSend &&
-                              _controller.text.trim().isNotEmpty
-                          ? _send
-                          : null,
-                      icon: const Icon(Icons.send, size: 16),
-                      label: Text(widget.sendLabel ?? 'Send'),
-                      style: FilledButton.styleFrom(
-                        minimumSize: const Size(0, 32),
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        textStyle: GfTheme.typographyOf(context).caption
-                            .copyWith(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                            ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(radii.field),
+                        const SizedBox(width: 8),
+                        IconButton(
+                          key: const Key('chat-send'),
+                          tooltip: widget.sendLabel ?? 'Send',
+                          onPressed: ready ? _send : null,
+                          icon: const GfSymbol('arrow-up', size: 23),
+                          style: IconButton.styleFrom(
+                            fixedSize: const Size.square(44),
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            padding: EdgeInsets.zero,
+                            shape: const CircleBorder(),
+                            backgroundColor: colors.primary,
+                            foregroundColor: colors.primaryContent,
+                            disabledBackgroundColor: colors.base200,
+                            disabledForegroundColor: colors.iconMuted
+                                .withValues(alpha: .45),
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (_emojiOpen)
+                      ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxHeight: constraints.maxHeight * .5,
+                        ),
+                        child: GfComposerPanel(
+                          child:
+                              widget.accessoryBuilder?.call(_insertEmoji) ??
+                              GridView.extent(
+                                maxCrossAxisExtent: 64,
+                                childAspectRatio: 1,
+                                padding: const EdgeInsets.only(top: 8),
+                                children: [
+                                  for (final emoji in _emojis)
+                                    TextButton(
+                                      onPressed: () => _insertEmoji(emoji),
+                                      style: TextButton.styleFrom(
+                                        minimumSize: const Size(48, 48),
+                                        padding: EdgeInsets.zero,
+                                      ),
+                                      child: Text(
+                                        emoji,
+                                        style: const TextStyle(fontSize: 24),
+                                      ),
+                                    ),
+                                ],
+                              ),
                         ),
                       ),
-                    ),
                   ],
                 ),
-              ],
+              ),
             ),
           ),
-        ],
+        ),
       ),
     );
   }

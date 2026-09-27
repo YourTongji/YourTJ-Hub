@@ -8,6 +8,7 @@ import 'package:forum_app/src/pages/campus/campus_memory_cache.dart';
 import 'package:forum_app/src/pages/campus/campus_page.dart';
 import 'package:forum_app/src/pages/campus/campus_state.dart';
 import 'package:forum_app/src/providers.dart';
+import 'package:forum_app/src/offline/campus_snapshot_store.dart';
 import 'campus_native_test.dart' show campusTestApp;
 import 'fixtures/campus_fixtures.dart';
 
@@ -57,7 +58,10 @@ void main() {
       await ready;
       expect(repo.statusCalls, 2);
       expect(repo.requested.length, count);
-      expect(second.state.data.keys, unorderedEquals(campusTabKeys['today']!));
+      expect(
+        second.state.data.keys,
+        unorderedEquals({...campusPersistentKeys, 'messages'}),
+      );
       await second.loadTab('academics');
       expect(repo.requested.where((key) => key == 'grades').length, 2);
     },
@@ -96,30 +100,33 @@ void main() {
         await second.refresh(reuseCache: true);
         expect(second.state.data['today'], same(today));
         expect(repo.requested.where((key) => key == 'today').length, 1);
-        expect(repo.requested, isNot(contains('timetable')));
+        expect(repo.requested, contains('timetable'));
       },
     );
   }
 
-  test('five minute TTL is measured from fetch, not last reuse', () async {
-    var now = DateTime.utc(2026, 9, 20, 1);
-    final cache = CampusMemoryCache(now: () => now);
-    addTearDown(cache.dispose);
-    final repo = ControlledCampusRepository()..now = () => now;
-    final controller = CampusController(repo, cache: cache);
-    addTearDown(controller.dispose);
-    await controller.refresh();
-    final count = repo.requested.length;
-    now = now.add(const Duration(minutes: 4));
-    await controller.enterTab('today');
-    expect(repo.requested.length, count);
-    now = now.add(const Duration(minutes: 1));
-    await controller.refreshVisible();
-    expect(repo.requested.length, count * 2);
-  });
+  test(
+    'visible clock never turns cache expiry into background polling',
+    () async {
+      var now = DateTime.utc(2026, 9, 20, 1);
+      final cache = CampusMemoryCache(now: () => now);
+      addTearDown(cache.dispose);
+      final repo = ControlledCampusRepository()..now = () => now;
+      final controller = CampusController(repo, cache: cache);
+      addTearDown(controller.dispose);
+      await controller.refresh();
+      final count = repo.requested.length;
+      now = now.add(const Duration(minutes: 4));
+      await controller.enterTab('today');
+      expect(repo.requested.length, count);
+      now = now.add(const Duration(minutes: 1));
+      await controller.refreshVisible();
+      expect(repo.requested.length, count);
+    },
+  );
 
   test(
-    'manual refresh keeps content while pending and drops failed data',
+    'manual refresh keeps last successful content when a request fails',
     () async {
       final repo = ControlledCampusRepository();
       final controller = CampusController(repo);
@@ -137,11 +144,11 @@ void main() {
       repo.pending['profile']!.completeError(failure);
       await refreshing;
       expect(controller.state.refreshing, isFalse);
-      expect(controller.state.data, isNot(contains('profile')));
+      expect(controller.state.data['profile'], same(profile));
       expect(controller.state.errors['profile'], failure);
       expect(
         controller.cache.restore(testBinding.revision),
-        isNot(contains('profile')),
+        contains('profile'),
       );
     },
   );
@@ -203,16 +210,16 @@ void main() {
     );
   }
 
-  test('failed status validation clears all private data', () async {
+  test('failed status validation retains last successful data', () async {
     final repo = ControlledCampusRepository();
     final controller = CampusController(repo);
     addTearDown(controller.dispose);
     await controller.refresh();
     repo.statusError = failure;
     await controller.refresh(reuseCache: true);
-    expect(controller.state.data, isEmpty);
+    expect(controller.state.data, isNotEmpty);
     expect(controller.state.error, failure);
-    expect(controller.cache.restore(testBinding.revision), isEmpty);
+    expect(controller.cache.restore(testBinding.revision), isNotEmpty);
   });
 
   for (final error in [
@@ -282,32 +289,26 @@ void main() {
       expect(controller.state.error, repo.confirmError);
       expect(
         controller.cache.restore(testBinding.revision).keys,
-        unorderedEquals(campusTabKeys['today']!),
+        unorderedEquals({...campusPersistentKeys, 'messages'}),
       );
     });
   }
 
-  test(
-    'Shanghai midnight removes old teaching data before loading new day',
-    () async {
-      var now = DateTime.utc(2026, 9, 20, 15, 59);
-      final cache = CampusMemoryCache(now: () => now);
-      addTearDown(cache.dispose);
-      final repo = ControlledCampusRepository()..now = () => now;
-      final controller = CampusController(repo, cache: cache);
-      addTearDown(controller.dispose);
-      await controller.refresh();
-      now = now.add(const Duration(minutes: 2));
-      repo.pending['today'] = Completer();
-      final refreshing = controller.refreshVisible();
-      expect(controller.state.data, isNot(contains('today')));
-      repo.pending['today']!.complete(campusFixture('today', now: now));
-      await refreshing;
-      expect(repo.requested.where((k) => k == 'today').length, 2);
-      expect(repo.requested.where((k) => k == 'calendar').length, 2);
-      expect(repo.requested.where((k) => k == 'messages').length, 1);
-    },
-  );
+  test('Shanghai midnight invalidates teaching data without polling', () async {
+    var now = DateTime.utc(2026, 9, 20, 15, 59);
+    final cache = CampusMemoryCache(now: () => now);
+    addTearDown(cache.dispose);
+    final repo = ControlledCampusRepository()..now = () => now;
+    final controller = CampusController(repo, cache: cache);
+    addTearDown(controller.dispose);
+    await controller.refresh();
+    now = now.add(const Duration(minutes: 2));
+    await controller.refreshVisible();
+    expect(controller.state.data, isNot(contains('today')));
+    expect(repo.requested.where((k) => k == 'today').length, 1);
+    expect(repo.requested.where((k) => k == 'calendar').length, 1);
+    expect(repo.requested.where((k) => k == 'messages').length, 1);
+  });
 
   test('request spanning midnight cannot cache an old daily dataset', () async {
     var now = DateTime.utc(2026, 9, 20, 15, 59);
@@ -329,6 +330,8 @@ void main() {
     expect(cache.restore(testBinding.revision), isNot(contains('today')));
     repo.pending.clear();
     await controller.refreshVisible();
+    expect(controller.state.data['today'], isNull);
+    await controller.refresh();
     expect(controller.state.data['today']?.teachingDay?.date, '2026-09-21');
     expect(repo.requested.where((k) => k == 'today').length, 2);
   });
@@ -434,7 +437,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('第四周周二的数学'), findsOneWidget);
     expect(find.textContaining('国庆补课'), findsOneWidget);
-    expect(repo.requested, isNot(contains('timetable')));
+    expect(repo.requested, contains('timetable'));
     expect(find.textContaining('课程 '), findsNothing);
     expect(find.text('教学楼 A101 · 四平路 · 示例教师'), findsNothing);
     expect(tester.takeException(), isNull);
@@ -443,7 +446,9 @@ void main() {
   });
 
   for (final boundary in ['background', 'session', 'expiry']) {
-    testWidgets('hidden campus cache is cleared on $boundary', (tester) async {
+    testWidgets('hidden campus restores persistent data after $boundary', (
+      tester,
+    ) async {
       final visible = ValueNotifier(true);
       addTearDown(visible.dispose);
       final repo = ControlledCampusRepository();
@@ -479,9 +484,17 @@ void main() {
           await tester.pump(const Duration(minutes: 5));
       }
       visible.value = true;
-      await tester.pumpAndSettle();
+      await tester.pump();
+      for (
+        var i = 0;
+        i < 100 && container.read(campusControllerProvider).refreshing;
+        i++
+      ) {
+        await tester.pump(const Duration(milliseconds: 10));
+      }
+      expect(container.read(campusControllerProvider).refreshing, isFalse);
       expect(repo.statusCalls, 2);
-      expect(repo.requested.length, requests * 2);
+      expect(repo.requested.length, requests);
       await tester.pumpWidget(const SizedBox());
       await tester.pumpAndSettle();
     });

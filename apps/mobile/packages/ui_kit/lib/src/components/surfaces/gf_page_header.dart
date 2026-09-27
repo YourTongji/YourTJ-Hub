@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../theme/gf_theme.dart';
+import '../gf_symbol.dart';
 
 /// Page header, mirroring web `PageHeader.vue` / `.gf-page-header`
 /// (components.css): mobile form is a stacked column with an 8px gap, a
@@ -87,13 +88,13 @@ class GfSectionHeader extends StatelessWidget {
     super.key,
     required this.title,
     this.description,
-    this.icon,
+    this.symbol,
     this.actions,
   });
 
   final String title;
   final String? description;
-  final IconData? icon;
+  final String? symbol;
   final Widget? actions;
 
   @override
@@ -107,9 +108,9 @@ class GfSectionHeader extends StatelessWidget {
       ),
       child: Row(
         children: <Widget>[
-          if (icon != null) ...<Widget>[
-            Icon(
-              icon,
+          if (symbol != null) ...<Widget>[
+            GfSymbol(
+              symbol!,
               size: 16,
               color: colors.baseContent.withValues(alpha: 0.55),
             ),

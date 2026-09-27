@@ -62,6 +62,8 @@ export function scanMarkdownLinkCandidates(markdown: string): string[] {
     const inline = tokens[index + 1]
     if (token.type !== 'paragraph_open' || inline?.type !== 'inline' || !token.map) continue
     const raw = lines.slice(token.map[0], token.map[1]).join('\n').trim()
+    // URI parsers encode spaces in paths; prose after a URL is not a bare-link paragraph.
+    if (/\s/u.test(raw)) continue
     const url = safeUrl(raw, 'external')
     if (!url) continue
     const children = inline.children ?? []

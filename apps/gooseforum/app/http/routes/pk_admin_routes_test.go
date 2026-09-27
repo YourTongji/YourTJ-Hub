@@ -7,8 +7,9 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// TestPkAdminRoutesRegistered 验证排课数据同步管理端 API（issue #248）正确挂载到
-// SiteManager 权限路由组：sync-calendar 仅 POST，sync-status 仅 GET。
+// TestPkAdminRoutesRegistered 验证排课数据同步管理端 API（issue #248，issue #569
+// 定时同步配置）正确挂载到 SiteManager 权限路由组：sync-calendar 仅 POST，
+// sync-status 仅 GET，sync-schedule-settings GET+POST 各一。
 func TestPkAdminRoutesRegistered(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
@@ -29,5 +30,17 @@ func TestPkAdminRoutesRegistered(t *testing.T) {
 	}
 	if registered[http.MethodPost+" /api/admin/pk/sync-status"] {
 		t.Errorf("POST /api/admin/pk/sync-status should not be registered")
+	}
+	if !registered[http.MethodGet+" /api/admin/pk/sync-schedule-settings"] {
+		t.Errorf("GET /api/admin/pk/sync-schedule-settings was not registered")
+	}
+	if !registered[http.MethodPost+" /api/admin/pk/sync-schedule-settings"] {
+		t.Errorf("POST /api/admin/pk/sync-schedule-settings was not registered")
+	}
+	if !registered[http.MethodPost+" /api/admin/pk/validate-credential"] {
+		t.Errorf("POST /api/admin/pk/validate-credential was not registered")
+	}
+	if registered[http.MethodGet+" /api/admin/pk/validate-credential"] {
+		t.Errorf("GET /api/admin/pk/validate-credential should not be registered")
 	}
 }

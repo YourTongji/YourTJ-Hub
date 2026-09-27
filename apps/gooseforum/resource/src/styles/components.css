@@ -43,6 +43,76 @@
     @apply flex flex-col gap-2 border-b border-line/70 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-0 sm:py-0 sm:pb-4;
   }
 
+  /* 前台外壳：桌面侧栏折叠（issue #798）。侧栏轨道宽度由变量驱动，
+     gf-shell-main--collapsed 收到 0 并随内容列占满；轨道用变量而非固定 track
+     列表，折叠才能过渡（不支持轨道插值的浏览器直接跳变，行为不变）。
+     收起时侧栏仍占第一列，后面的内容列与 xl rail 列列位不变——
+     直接隐藏侧栏会让内容列落到 0 宽度的第一列上。 */
+  .gf-shell-main {
+    /* 窄屏单列基线：原先由 Tailwind grid-cols-1 提供，但工具层会盖住
+       组件层的 lg/xl 轨道，轨道因此统一由组件层管理 */
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  @media (min-width: 1024px) {
+    .gf-shell-main {
+      --gf-sidebar-expanded: 210px;
+      --gf-sidebar-track: var(--gf-sidebar-expanded);
+      grid-template-columns: var(--gf-sidebar-track) minmax(0, 1fr);
+      transition: grid-template-columns 200ms cubic-bezier(0.2, 0, 0, 1);
+    }
+
+    /* 侧栏内容保持展开宽度、由 overflow 裁切：折叠动画期间文字不逐帧重排换行；
+       同时网格项必须允许收缩（默认 min-width:auto 会被内容撑住，轨道收不到 0） */
+    .gf-shell-sidebar {
+      min-width: 0;
+      transition: opacity 150ms cubic-bezier(0.2, 0, 0, 1);
+    }
+
+    .gf-shell-sidebar > * {
+      min-width: var(--gf-sidebar-expanded);
+    }
+  }
+
+  @media (min-width: 1280px) {
+    .gf-shell-main {
+      --gf-sidebar-expanded: 224px;
+    }
+
+    /* 右侧 rail 仅 xl 存在，带 rail 的三列布局只在 xl 追加第三列 */
+    .gf-shell-main--rail {
+      grid-template-columns: var(--gf-sidebar-track) minmax(0, 1fr) 280px;
+    }
+  }
+
+  .gf-shell-main--collapsed {
+    --gf-sidebar-track: 0px;
+  }
+
+  /* 折叠开关的方向反馈：图标旋转半圈，与侧栏轨道同时长同缓动。
+     三横线转过 180° 与原形重合，观感是「翻面」而不是换图标；
+     反向切换从中途角度回退，连点不会跳变。 */
+  .gf-shell-sidebar-toggle-icon {
+    transition: transform 200ms cubic-bezier(0.2, 0, 0, 1);
+  }
+
+  .gf-shell-sidebar-toggle-icon--flipped {
+    transform: rotate(180deg);
+  }
+
+  .gf-shell-sidebar--collapsed {
+    overflow-x: hidden;
+    opacity: 0;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .gf-shell-main,
+    .gf-shell-sidebar,
+    .gf-shell-sidebar-toggle-icon {
+      transition: none;
+    }
+  }
+
   @media (max-width: 639.98px) {
     .gf-shell-content {
       min-height: calc(100dvh - 4rem);

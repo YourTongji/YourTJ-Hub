@@ -138,8 +138,12 @@ class GfApiClient {
   }
 
   /// [getPk] 的 DELETE 形态。
-  Future<T> deletePk<T>(String path, {required JsonParser<T> parser}) async {
-    final response = await _request(() => dio.delete(path));
+  Future<T> deletePk<T>(
+    String path, {
+    Object? body,
+    required JsonParser<T> parser,
+  }) async {
+    final response = await _request(() => dio.delete(path, data: body));
     return _resolvePk(response, parser);
   }
 
@@ -210,6 +214,7 @@ class GfApiClient {
         // 仍是"服务端错误"而非网络故障。
         final envelope = _tryParseEnvelope(e.response?.data);
         throw ApiFailureException(
+          responseData: data is Map<String, dynamic> ? data['data'] : null,
           fallbackMessage: 'Request failed with status $status',
           messageCode: envelope?.messageCode,
           params: envelope?.params,
@@ -361,6 +366,7 @@ class GfApiClient {
       throw ApiException(
         fallbackMessage: 'Request failed',
         messageCode: 'pk.requestFailed',
+        responseData: isMap ? data['data'] : null,
         params: msg == null || msg.isEmpty ? null : {'detail': msg},
         statusCode: statusCode,
       );

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -13,6 +14,8 @@ import '../asset_url.dart';
 import '../images/image_save.dart';
 import '../link_navigation.dart';
 import '../providers.dart';
+import 'stickers/sticker_image.dart';
+import 'stickers/resolved_sticker_content.dart';
 
 /// Shared prose scale for reading, writing and preview.
 TextStyle readingBodyStyle(BuildContext context) =>
@@ -30,7 +33,7 @@ TextStyle readingBodyStyle(BuildContext context) =>
 ///
 /// 帖子 content 是 raw markdown(表情包 token 未展开,服务端只展开
 /// renderedContent HTML 链路):渲染前把 `[:sticker:name:]` 重写为标准图片
-/// 语法复用图片渲染/点击查看链路;表情包库未就绪时先用原文渲染,拉取完成
+/// 语法保留表情语义，使用紧凑 renderer 并排除灯箱;库未就绪时先用原文渲染,拉取完成
 /// 后异步刷新,未知/停用 token 保持原文。
 class GfMarkdownView extends ConsumerStatefulWidget {
   const GfMarkdownView({
@@ -57,14 +60,7 @@ class _GfMarkdownViewState extends ConsumerState<GfMarkdownView> {
   late Widget _markdownBody;
   Future<List<LinkPreviewPayload>>? _linkPreviews;
 
-  /// 本条内容渲染时表情包库是否已就绪(决定要不要在库就绪后刷新)。
-  bool _stickersResolved = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _ensureStickersResolved();
-  }
+  Map<String, String> _stickerUrls = const {};
 
   @override
   void didChangeDependencies() {
@@ -80,36 +76,15 @@ class _GfMarkdownViewState extends ConsumerState<GfMarkdownView> {
         !listEquals(oldWidget.images, widget.images) ||
         !listEquals(oldWidget.mentions, widget.mentions)) {
       if (oldWidget.data != widget.data) _linkPreviews = null;
-      _ensureStickersResolved();
       _markdownBody = _buildMarkdownBody();
     }
-  }
-
-  /// 内容含 token 且表情包库未就绪时触发一次拉取,完成后刷新渲染。
-  void _ensureStickersResolved() {
-    if (_stickersResolved || !containsStickerToken(widget.data)) return;
-    _stickersResolved = true;
-    ref
-        .read(stickerLibraryProvider)
-        .load()
-        .then((_) {
-          if (mounted) setState(_rebuildMarkdownBody);
-        })
-        .catchError((Object _) {
-          // 拉取失败保持原文渲染;库不缓存失败,下次重建(切换楼层等)重试。
-          if (mounted) _stickersResolved = false;
-        });
-  }
-
-  void _rebuildMarkdownBody() {
-    _markdownBody = _buildMarkdownBody();
   }
 
   List<String> _extractImages(String data) {
     // Local storage uploads intentionally return `/file/img/...`; keep both
     // relative and absolute destinations so the viewer mirrors the renderer.
-    final RegExp re = RegExp(r'!\[[^\]]*\]\(([^)\s]+)\)');
-    return re.allMatches(data).map((m) => m.group(1)!).toList(growable: false);
+    final RegExp re = RegExp(r'!\[([^\]]*)\]\(([^)\s]+)\)');
+    return re.allMatches(data).map((m) => m.group(2)!).toList(growable: false);
   }
 
   void _openViewer(BuildContext context, List<String> urls, int index) {
@@ -135,12 +110,33 @@ class _GfMarkdownViewState extends ConsumerState<GfMarkdownView> {
   Widget _buildMarkdownBody() {
     final GfColors colors = GfTheme.colorsOf(context);
     final GfBorders borders = GfTheme.bordersOf(context);
+    // Only token expansion receives these private image sources. Image alt,
+    // titles and even a matching public asset URL remain ordinary user input.
+    final stickerImages = <String, ({String name, String url})>{};
+    final stickerSources = <String, String>{};
+    if (_stickerUrls.isNotEmpty && containsStickerToken(widget.data)) {
+      final random = Random.secure();
+      final nonce = List.generate(
+        4,
+        (_) => random.nextInt(1 << 32).toRadixString(16).padLeft(8, '0'),
+      ).join();
+      for (final entry in _stickerUrls.entries) {
+        final source = 'gf-sticker-render:$nonce/${stickerImages.length}';
+        stickerImages[source] = (name: entry.key, url: entry.value);
+        stickerSources[entry.key] = source;
+      }
+    }
     final String data = expandStickerTokens(
       expandPostMentions(widget.data, widget.mentions),
-      ref.read(stickerLibraryProvider).urlByName,
+      stickerSources,
     );
-    // 从展开后的内容提取图片引用,让贴纸图也进入点击查看的图片列表。
-    final List<String> sourceUrls = widget.images ?? _extractImages(data);
+    // Expressions never belong to a photo gallery, including supplied lists.
+    final ordinary = _extractImages(
+      data,
+    ).where((source) => !stickerImages.containsKey(source)).toList();
+    final List<String> sourceUrls = widget.images == null
+        ? ordinary
+        : widget.images!.where(ordinary.contains).toList();
     final List<String> resolvedUrls = sourceUrls
         .map(resolveApiAssetUrl)
         .toList(growable: false);
@@ -204,6 +200,10 @@ class _GfMarkdownViewState extends ConsumerState<GfMarkdownView> {
         // 图片:contain + 高度约束 + 圆角边框(prose.css img)。
         ImgConfig(
           builder: (String url, Map<String, String> attributes) {
+            final sticker = stickerImages[url];
+            if (sticker != null) {
+              return StickerImage(name: sticker.name, url: sticker.url);
+            }
             final String resolvedUrl = resolveApiAssetUrl(url);
             return GestureDetector(
               onTap: () {
@@ -240,10 +240,7 @@ class _GfMarkdownViewState extends ConsumerState<GfMarkdownView> {
                     errorBuilder: (_, _, _) => SizedBox(
                       height: 60,
                       child: Center(
-                        child: Icon(
-                          Icons.broken_image,
-                          color: colors.iconMuted,
-                        ),
+                        child: GfSymbol('image-off', color: colors.iconMuted),
                       ),
                     ),
                   ),
@@ -346,7 +343,16 @@ class _GfMarkdownViewState extends ConsumerState<GfMarkdownView> {
   }
 
   @override
-  Widget build(BuildContext context) => _markdownBody;
+  Widget build(BuildContext context) => ResolvedStickerContent(
+    content: widget.data,
+    builder: (urls) {
+      if (!mapEquals(_stickerUrls, urls)) {
+        _stickerUrls = urls;
+        _markdownBody = _buildMarkdownBody();
+      }
+      return _markdownBody;
+    },
+  );
 }
 
 class _DeferredLinkPreview extends StatefulWidget {
@@ -446,22 +452,22 @@ class _DeferredLinkPreviewState extends State<_DeferredLinkPreview> {
             }
             return preview == null
                 ? widget.fallback
-                : _LinkPreviewCard(preview: preview);
+                : GfLinkPreviewCard(preview: preview);
           },
     );
   }
 }
 
-class _LinkPreviewCard extends ConsumerStatefulWidget {
-  const _LinkPreviewCard({required this.preview});
+class GfLinkPreviewCard extends ConsumerStatefulWidget {
+  const GfLinkPreviewCard({super.key, required this.preview});
 
   final LinkPreviewPayload preview;
 
   @override
-  ConsumerState<_LinkPreviewCard> createState() => _LinkPreviewCardState();
+  ConsumerState<GfLinkPreviewCard> createState() => _GfLinkPreviewCardState();
 }
 
-class _LinkPreviewCardState extends ConsumerState<_LinkPreviewCard> {
+class _GfLinkPreviewCardState extends ConsumerState<GfLinkPreviewCard> {
   /// Web 端同一套档位：<480 不显示描述（小卡化最缺的正是垂直空间），
   /// 480–639 一行，≥640 两行。
   static int descriptionLinesFor(double cardWidth) =>
@@ -511,9 +517,9 @@ class _LinkPreviewCardState extends ConsumerState<_LinkPreviewCard> {
         final int descriptionLines = descriptionLinesFor(constraints.maxWidth);
         // 封面走 Stack + Positioned，刻意不参与卡片高度计算：竖版封面若留在
         // 文档流里，会按自身比例把整张卡片撑高（Web 端实测 164px → 362px）。
-        // <640px 是右上角 56px 方形缩略图；≥640px 是贴齐右缘、上下贴边的
-        // 168px 导轨，右缘圆角交给卡片自身的 clipBehavior 裁切。
-        final double coverInset = railCover ? 0 : 14;
+        // <640px 是右上角 56px 方形缩略图；≥640px 是保留 16px 内边距的
+        // 168px 居中缩略图，宽屏使用 contain 完整显示，避免裁掉封面两端。
+        final double coverInset = railCover ? 16 : 14;
         final double coverWidth = railCover ? 168 : 56;
         final double bodyRightPadding = coverUrl == null
             ? 14
@@ -532,6 +538,10 @@ class _LinkPreviewCardState extends ConsumerState<_LinkPreviewCard> {
                       faviconUrl,
                       width: 16,
                       height: 16,
+                      cacheWidth: (32 * MediaQuery.devicePixelRatioOf(context))
+                          .round(),
+                      cacheHeight: (32 * MediaQuery.devicePixelRatioOf(context))
+                          .round(),
                       fit: BoxFit.contain,
                       errorBuilder: (_, _, _) => const SizedBox.shrink(),
                     ),
@@ -637,16 +647,22 @@ class _LinkPreviewCardState extends ConsumerState<_LinkPreviewCard> {
                       Positioned(
                         top: coverInset,
                         right: coverInset,
-                        bottom: railCover ? 0 : null,
+                        bottom: railCover ? coverInset : null,
                         width: coverWidth,
                         height: railCover ? null : coverWidth,
                         child: ClipRRect(
-                          borderRadius: BorderRadius.circular(
-                            railCover ? 0 : 6,
-                          ),
+                          borderRadius: BorderRadius.circular(6),
                           child: Image.network(
                             coverUrl,
-                            fit: BoxFit.cover,
+                            fit: railCover ? BoxFit.contain : BoxFit.cover,
+                            cacheWidth:
+                                (coverWidth *
+                                        MediaQuery.devicePixelRatioOf(context))
+                                    .round(),
+                            cacheHeight:
+                                (coverWidth *
+                                        MediaQuery.devicePixelRatioOf(context))
+                                    .round(),
                             errorBuilder: (_, _, _) {
                               // 封面挂了就把让位空间一起收回，不留死白。
                               WidgetsBinding.instance.addPostFrameCallback((_) {

@@ -1,0 +1,8 @@
+{
+  "code": 1,
+  "result": null,
+  "messageCode": "sticker.libraryFull",
+  "params": {
+    "limit": 200
+  }
+}

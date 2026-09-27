@@ -2,9 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'gf_input.dart';
 
-/// Multi-line text area aligned with web `.gf-textarea` (components.css):
-/// 1px line border, radius field, base-100 fill, 16px text.
-/// Same focus ring behavior as [GfInput].
+/// Multi-line form field sharing the rounded surface and states of [GfInput].
 class GfTextarea extends GfInput {
   const GfTextarea({
     super.key,

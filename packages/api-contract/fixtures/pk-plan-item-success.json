@@ -1,0 +1,16 @@
+{
+  "code": 0,
+  "msg": "查询成功",
+  "data": {
+    "plan": {
+      "id": "plan_example",
+      "name": "方案 1",
+      "createdAt": 1725000000000,
+      "stagedCourses": [],
+      "selectedCourses": [],
+      "customEvents": []
+    },
+    "revision": 1,
+    "updatedAt": "2026-09-21T00:00:00Z"
+  }
+}

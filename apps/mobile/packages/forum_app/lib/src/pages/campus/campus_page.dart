@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show ScrollDirection;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
@@ -21,15 +22,78 @@ import 'campus_message_page.dart';
 import 'campus_private_surface.dart';
 import 'campus_state.dart';
 
-class CampusPage extends StatelessWidget {
+/// Only navigation choices survive the disposable private view. This object is
+/// never serialized and contains no school response, credential or notice body.
+class _CampusNavigation {
+  String tab = 'today';
+  final queries = <String, String>{};
+  final offsets = <String, double>{};
+  int? week;
+  int? account;
+  String? binding;
+  bool bindingObserved = false;
+  bool identityRejected = false;
+
+  void clear() {
+    tab = 'today';
+    queries.clear();
+    offsets.clear();
+    week = null;
+    binding = null;
+    bindingObserved = false;
+    identityRejected = false;
+  }
+}
+
+class CampusPage extends ConsumerStatefulWidget {
   const CampusPage({super.key});
   @override
-  Widget build(BuildContext context) =>
-      CampusPrivateSurface(builder: (_) => const _CampusAccount());
+  ConsumerState<CampusPage> createState() => _CampusPageState();
+}
+
+class _CampusPageState extends ConsumerState<CampusPage>
+    with WidgetsBindingObserver {
+  _CampusNavigation _navigation = _CampusNavigation();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) {
+      // Replace the object so a disposing child cannot refill the next session.
+      setState(() => _navigation = _CampusNavigation());
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    ref.listen(offlineCacheEpochProvider, (_, _) {
+      setState(() => _navigation = _CampusNavigation());
+    });
+    final repository = ref.watch(campusRepositoryProvider);
+    ref.listen(campusRepositoryProvider, (_, _) {
+      _navigation = _CampusNavigation();
+    });
+    return CampusPrivateSurface(
+      key: ObjectKey(repository),
+      builder: (_) => _CampusAccount(navigation: _navigation),
+    );
+  }
 }
 
 class _CampusAccount extends ConsumerWidget {
-  const _CampusAccount();
+  const _CampusAccount({required this.navigation});
+  final _CampusNavigation navigation;
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l = AppLocalizations.of(context);
@@ -62,39 +126,51 @@ class _CampusAccount extends ConsumerWidget {
               onRetry: () => ref.invalidate(currentUserProvider),
             ),
           ),
-          data: (user) => user == null
-              ? publicSurface(
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Text(
-                        l.campusOfficialSubtitle,
-                        style: GfTheme.typographyOf(context).title2,
-                      ),
-                      const SizedBox(height: 16),
-                      Text(l.campusPrivacy),
-                      const SizedBox(height: 24),
-                      GfButton(
-                        label: l.authLoginTitle,
-                        onPressed: () => context.push('/login'),
-                      ),
-                    ],
-                  ),
-                )
-              : _CampusWorkspace(key: ValueKey(user.id)),
+          data: (user) {
+            if (navigation.account != user?.id) {
+              navigation.clear();
+              navigation.account = user?.id;
+            }
+            return user == null
+                ? publicSurface(
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Text(
+                          l.campusOfficialSubtitle,
+                          style: GfTheme.typographyOf(context).title2,
+                        ),
+                        const SizedBox(height: 16),
+                        Text(l.campusPrivacy),
+                        const SizedBox(height: 24),
+                        GfButton(
+                          label: l.authLoginTitle,
+                          onPressed: () => context.push('/login'),
+                        ),
+                      ],
+                    ),
+                  )
+                : _CampusWorkspace(
+                    key: ValueKey(user.id),
+                    navigation: navigation,
+                  );
+          },
         );
   }
 }
 
 class _CampusWorkspace extends ConsumerStatefulWidget {
-  const _CampusWorkspace({super.key});
+  const _CampusWorkspace({super.key, required this.navigation});
+  final _CampusNavigation navigation;
   @override
   ConsumerState<_CampusWorkspace> createState() => _CampusWorkspaceState();
 }
 
 class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace> {
-  String _tab = 'today';
-  String _query = '';
+  _CampusNavigation get _navigation => widget.navigation;
+  String get _tab => _navigation.tab;
+  String get _query => _navigation.queries[_tab] ?? '';
+  bool _restoreScroll = true;
   int _wish = math.Random().nextInt(4);
   final _search = TextEditingController();
   final _scroll = GfScrollToTopController();
@@ -104,13 +180,12 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace> {
   @override
   void initState() {
     super.initState();
+    _search.text = _query;
     // A notice may have kept the shared connection alive while this tab was
     // hidden. Verify the binding before reusing any foreground cache.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        unawaited(
-          ref.read(campusControllerProvider.notifier).enterTab('today'),
-        );
+        unawaited(ref.read(campusControllerProvider.notifier).enterTab(_tab));
       }
     });
     _registry = ref.read(tabScrollRegistryProvider)
@@ -151,13 +226,14 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace> {
   }
 
   void _select(String tab) {
+    if (tab == _tab) return;
+    FocusManager.instance.primaryFocus?.unfocus();
     setState(() {
-      _tab = tab;
-      _query = '';
-      _search.clear();
+      _navigation.tab = tab;
+      _search.text = _query;
+      _restoreScroll = true;
     });
     unawaited(ref.read(campusControllerProvider.notifier).loadTab(tab));
-    _scroll.scrollToTop();
   }
 
   Widget _section(String title, Widget child, {Widget? action}) => Padding(
@@ -187,20 +263,107 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace> {
     final l = AppLocalizations.of(context);
     final data = state.data[key];
     final error = state.errors[key];
-    if (error != null) {
-      return GfErrorRetry(
-        message: campusError(l, error),
-        onRetry: () => ref.read(campusControllerProvider.notifier).load(key),
-      );
-    }
-    if (data == null) {
-      return const Padding(padding: EdgeInsets.all(20), child: GfLoading());
-    }
-    if (data.status != 'ready' && data.status != 'empty') {
-      return Text(l.campusUnavailable);
-    }
-    if (data.status == 'empty' && key != 'today') return Text(l.campusNoData);
-    return ready(data);
+    final loading = state.refreshing || state.fetching.contains(key);
+    final usable =
+        data != null && const {'ready', 'empty'}.contains(data.status);
+    Widget refreshPrompt() => Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(l.campusDataNeedsRefresh),
+        TextButton.icon(
+          onPressed: loading
+              ? null
+              : () => ref.read(campusControllerProvider.notifier).refresh(),
+          icon: const GfSymbol('refresh-cw', size: 18),
+          label: Text(l.commonRefresh),
+        ),
+      ],
+    );
+    final content = data == null
+        ? (loading
+              ? const Padding(padding: EdgeInsets.all(20), child: GfLoading())
+              : refreshPrompt())
+        : !usable
+        ? Text(l.campusUnavailable)
+        : data.status == 'empty' && key != 'today'
+        ? Text(l.campusNoData)
+        : ready(data);
+    if (error == null) return content;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        GfErrorRetry(
+          message: campusError(l, error),
+          onRetry: () => ref.read(campusControllerProvider.notifier).retry(key),
+        ),
+        // Explicitly invalid rules must not present a stale teaching-day result.
+        if (usable &&
+            !(error is ApiException &&
+                const {
+                  'campus.rulesUnavailable',
+                  'campus.rulesInvalid',
+                }.contains(error.messageCode)))
+          content,
+      ],
+    );
+  }
+
+  Widget _snapshotNotice(CampusViewState state) {
+    final l = AppLocalizations.of(context);
+    final snapshot = state.snapshot;
+    final stale =
+        snapshot != null &&
+        (DateTime.now().difference(snapshot.committedAt) >
+                const Duration(days: 1) ||
+            snapshot.data['today']?.teachingDay?.date !=
+                campusDateKey(DateTime.now()));
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: snapshot == null
+                    ? const SizedBox.shrink()
+                    : Text(
+                        l.campusSnapshotUpdated(
+                          DateFormat.yMd(
+                            l.localeName,
+                          ).add_Hm().format(snapshot.committedAt.toLocal()),
+                        ),
+                        style: GfTheme.typographyOf(context).caption.copyWith(
+                          color: GfTheme.colorsOf(context).iconMuted,
+                        ),
+                      ),
+              ),
+              const SizedBox(width: 8),
+              IconButton(
+                tooltip: l.commonRefresh,
+                onPressed: state.refreshing || state.busy
+                    ? null
+                    : () =>
+                          ref.read(campusControllerProvider.notifier).refresh(),
+                style: IconButton.styleFrom(
+                  foregroundColor: GfTheme.colorsOf(context).primary,
+                  minimumSize: const Size(44, 44),
+                  padding: EdgeInsets.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                icon: const GfSymbol('refresh-cw', size: 18),
+              ),
+            ],
+          ),
+          if (state.errors.containsKey('status') && snapshot != null)
+            Text(l.campusSnapshotOffline)
+          else if (state.error != null || state.errors.isNotEmpty)
+            Text(l.campusSnapshotRefreshFailed)
+          else if (stale)
+            Text(l.campusSnapshotStale),
+        ],
+      ),
+    );
   }
 
   Widget _messages(CampusDataset data, {bool recent = false}) {
@@ -276,7 +439,7 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace> {
             onPressed: () => setState(
               () => _wish = (_wish + 1 + math.Random().nextInt(3)) % 4,
             ),
-            icon: const Icon(Icons.refresh, size: 16),
+            icon: const GfSymbol('refresh-cw', size: 16),
             label: Text(l.campusAnotherWish),
           ),
         ),
@@ -286,7 +449,7 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace> {
           _dataset(state, 'today', (data) {
             final day = data.teachingDay;
             if (day == null || day.date != campusDateKey(now)) {
-              return const CircularProgressIndicator();
+              return Text(l.campusDataNeedsRefresh);
             }
             final today = data.events;
             final notice = switch (day.kind) {
@@ -431,13 +594,35 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace> {
       controller: _search,
       hintText: AppLocalizations.of(context).commonSearch,
       clearLabel: MaterialLocalizations.of(context).deleteButtonTooltip,
-      onChanged: (value) => setState(() => _query = value),
+      onChanged: (value) => setState(() => _navigation.queries[_tab] = value),
     ),
   );
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
     final state = ref.watch(campusControllerProvider);
+    final binding = state.status?.binding;
+    final identityRejected =
+        state.needsAuthorization || isCampusIdentityError(state.error);
+    if (!state.loading && (state.status != null || identityRejected)) {
+      if ((_navigation.bindingObserved &&
+              _navigation.binding != binding?.revision) ||
+          (!_navigation.identityRejected && identityRejected)) {
+        _navigation.clear();
+        _search.clear();
+        _restoreScroll = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            unawaited(
+              ref.read(campusControllerProvider.notifier).loadTab(_tab),
+            );
+          }
+        });
+      }
+      _navigation.binding = binding?.revision;
+      _navigation.bindingObserved = true;
+      _navigation.identityRejected = identityRejected;
+    }
     final labels = {
       'today': l.campusToday,
       'timetable': l.campusTimetable,
@@ -460,6 +645,7 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace> {
       content = Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          _snapshotNotice(state),
           if (state.refreshing)
             Padding(
               padding: const EdgeInsets.only(bottom: 16),
@@ -478,6 +664,8 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace> {
                 'timetable',
                 (data) => CampusWeekTimetable(
                   data: data,
+                  selectedWeek: _navigation.week,
+                  onWeekChanged: (week) => _navigation.week = week,
                   week:
                       (int.tryParse(
                                 campusMetric(state.data['calendar'], '教学周'),
@@ -552,23 +740,77 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace> {
         controller: _scroll,
         showButton: false,
         semanticLabel: l.commonBackToTop,
-        builder: (_, controller) => AppRefreshIndicator(
-          edgeOffset: top,
-          onRefresh: () =>
-              ref.read(campusControllerProvider.notifier).refresh(),
-          child: ListView(
-            controller: controller,
-            physics: const AlwaysScrollableScrollPhysics(),
-            padding: EdgeInsets.fromLTRB(20, top + 24, 20, bottom + 16),
-            children: [
-              if (_tab == 'today') ...[
-                const CampusShortcuts(),
-                const SizedBox(height: 24),
-              ],
-              content,
-            ],
-          ),
-        ),
+        builder: (_, controller) {
+          final tab = _tab;
+          final navigation = _navigation;
+          // A first visit already starts at zero. Settle that immediately:
+          // waiting for missing datasets could later undo a manual refresh/scroll.
+          final ready =
+              (navigation.offsets[tab] ?? 0) <= 0 ||
+              (!state.loading &&
+                  !state.refreshing &&
+                  (campusTabKeys[tab] ?? []).every(
+                    (key) =>
+                        !state.fetching.contains(key) &&
+                        const {
+                          'ready',
+                          'empty',
+                        }.contains(state.data[key]?.status),
+                  ));
+          if (_restoreScroll && ready) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (!mounted ||
+                  !identical(navigation, _navigation) ||
+                  tab != _tab ||
+                  !controller.hasClients ||
+                  !_restoreScroll) {
+                return;
+              }
+              final position = controller.position;
+              controller.jumpTo(
+                (navigation.offsets[tab] ?? 0).clamp(
+                  position.minScrollExtent,
+                  position.maxScrollExtent,
+                ),
+              );
+              _restoreScroll = false;
+            });
+          }
+          return NotificationListener<ScrollNotification>(
+            onNotification: (notification) {
+              if (notification.depth != 0 || tab != _tab) return false;
+              if ((notification is ScrollStartNotification &&
+                      notification.dragDetails != null) ||
+                  (notification is UserScrollNotification &&
+                      notification.direction != ScrollDirection.idle)) {
+                // Explicit reading intent supersedes a saved position, including
+                // while a section is still waiting for its private data.
+                _restoreScroll = false;
+              }
+              if (notification is ScrollUpdateNotification && !_restoreScroll) {
+                navigation.offsets[tab] = notification.metrics.pixels;
+              }
+              return false;
+            },
+            child: AppRefreshIndicator(
+              edgeOffset: top,
+              onRefresh: () =>
+                  ref.read(campusControllerProvider.notifier).refresh(),
+              child: ListView(
+                controller: controller,
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: EdgeInsets.fromLTRB(20, top + 24, 20, bottom + 16),
+                children: [
+                  if (_tab == 'today') ...[
+                    const CampusShortcuts(),
+                    const SizedBox(height: 24),
+                  ],
+                  content,
+                ],
+              ),
+            ),
+          );
+        },
       ),
     );
   }

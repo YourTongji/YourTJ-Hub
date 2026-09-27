@@ -212,16 +212,17 @@ func CourseSearch(req Request[CourseSearchReq]) Response {
 // ---- P10 courses-by-time ----
 
 type CoursesByTimeReq struct {
-	CalendarId int `json:"calendarId"`
-	Day        int `json:"day"`
-	Section    int `json:"section"`
+	CalendarId int  `json:"calendarId"`
+	Day        int  `json:"day"`
+	Section    int  `json:"section"`
+	IncludeAll bool `json:"includeAll"`
 }
 
 func CoursesByTime(req Request[CoursesByTimeReq]) Response {
 	if req.Params.CalendarId <= 0 || req.Params.Day < 1 || req.Params.Day > 7 || req.Params.Section < 1 || req.Params.Section > 6 {
 		return BadRequest("输入参数有误")
 	}
-	result, err := pkservice.FindCoursesByTime(req.Params.CalendarId, req.Params.Day, req.Params.Section)
+	result, err := pkservice.FindCoursesByTime(req.Params.CalendarId, req.Params.Day, req.Params.Section, req.Params.IncludeAll)
 	if err != nil {
 		return internalError(err)
 	}

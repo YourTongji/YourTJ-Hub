@@ -57,7 +57,9 @@ export function installNavigation(initialPage: PreparedPage, routeComponent: Com
 
     // Permissions-Policy belongs to the document, so crossing the atlas boundary
     // must load a new document (including programmatic and history navigation).
-    if ((to.path === '/map') !== (from.path === '/map')) {
+    const changingMapPrivacy = to.path === '/map' && from.path === '/map' &&
+      (to.query.mine === '1') !== (from.query.mine === '1')
+    if ((to.path === '/map') !== (from.path === '/map') || changingMapPrivacy) {
       window.location.assign(to.fullPath)
       return false
     }

@@ -17,6 +17,10 @@
   },
   {
     "method": "DELETE",
+    "path": "/api/pk/plan-items"
+  },
+  {
+    "method": "DELETE",
     "path": "/api/pk/plans"
   },
   {
@@ -90,6 +94,10 @@
   {
     "method": "GET",
     "path": "/api/admin/onesystem-settings"
+  },
+  {
+    "method": "GET",
+    "path": "/api/admin/pk/sync-schedule-settings"
   },
   {
     "method": "GET",
@@ -237,11 +245,19 @@
   },
   {
     "method": "GET",
+    "path": "/api/forum/events"
+  },
+  {
+    "method": "GET",
     "path": "/api/forum/get-site-statistics"
   },
   {
     "method": "GET",
     "path": "/api/forum/my-course-reviews"
+  },
+  {
+    "method": "GET",
+    "path": "/api/forum/my-stickers"
   },
   {
     "method": "GET",
@@ -313,6 +329,10 @@
   },
   {
     "method": "GET",
+    "path": "/api/pk/plan-items"
+  },
+  {
+    "method": "GET",
     "path": "/api/pk/plans"
   },
   {
@@ -322,6 +342,10 @@
   {
     "method": "GET",
     "path": "/api/site-theme/tokens"
+  },
+  {
+    "method": "GET",
+    "path": "/api/user-blocks"
   },
   {
     "method": "GET",
@@ -697,6 +721,14 @@
   },
   {
     "method": "POST",
+    "path": "/api/admin/pk/sync-schedule-settings"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/pk/validate-credential"
+  },
+  {
+    "method": "POST",
     "path": "/api/admin/posts/delete"
   },
   {
@@ -889,6 +921,14 @@
   },
   {
     "method": "POST",
+    "path": "/api/auth/apple/bind"
+  },
+  {
+    "method": "POST",
+    "path": "/api/auth/apple/exchange"
+  },
+  {
+    "method": "POST",
     "path": "/api/auth/oidc/exchange"
   },
   {
@@ -926,6 +966,14 @@
   {
     "method": "POST",
     "path": "/api/forum/chat/mark-read"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/chat/mark-visible"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/chat/message-read-states"
   },
   {
     "method": "POST",
@@ -1053,6 +1101,18 @@
   },
   {
     "method": "POST",
+    "path": "/api/forum/my-sticker-delete"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/my-sticker-save"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/my-stickers-order"
+  },
+  {
+    "method": "POST",
     "path": "/api/forum/notification/mark-all-read"
   },
   {
@@ -1098,6 +1158,10 @@
   {
     "method": "POST",
     "path": "/api/forum/report"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/stickers/resolve"
   },
   {
     "method": "POST",
@@ -1233,6 +1297,10 @@
   },
   {
     "method": "POST",
+    "path": "/api/user-block"
+  },
+  {
+    "method": "POST",
     "path": "/api/user-note"
   },
   {
@@ -1298,6 +1366,10 @@
   {
     "method": "PUT",
     "path": "/api/forum/course-reviews/:reviewId/helpful"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/pk/plan-items"
   },
   {
     "method": "PUT",

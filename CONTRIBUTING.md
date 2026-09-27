@@ -25,7 +25,8 @@ make hooks
 ```
 
 `make hooks` 为当前 worktree 安装 lefthook 钩子（pre-commit：空白与 gofmt 校验；pre-push：
-`go vet` + `golangci-lint` + `pnpm typecheck`）。每个新建的 worktree 都需要重新执行一次。
+`go vet` + `golangci-lint` + `pnpm typecheck` + web i18n 门禁 `pnpm check`）。每个新建的
+worktree 都需要重新执行一次。
 
 ## 首次构建与验证
 

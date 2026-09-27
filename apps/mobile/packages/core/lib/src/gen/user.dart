@@ -55,6 +55,9 @@ abstract class ExternalLinkPayload with _$ExternalLinkPayload {
 @freezed
 abstract class UserActivityPayload with _$UserActivityPayload {
   const factory UserActivityPayload({
+    bool? liked,
+    bool? bookmarked,
+    int? likeCount,
     required int id,
     required int action,
     required String subjectType,
@@ -72,6 +75,9 @@ abstract class UserActivityPayload with _$UserActivityPayload {
 @freezed
 abstract class UserLikePayload with _$UserLikePayload {
   const factory UserLikePayload({
+    UserBriefPayload? author,
+    String? excerpt,
+    String? thumbnailUrl,
     required int id,
     required int topicId,
     required String title,
@@ -86,6 +92,8 @@ abstract class UserLikePayload with _$UserLikePayload {
 @freezed
 abstract class UserBookmarkPayload with _$UserBookmarkPayload {
   const factory UserBookmarkPayload({
+    UserBriefPayload? author,
+    String? thumbnailUrl,
     required int id,
     required String type,
     required int topicId,
@@ -110,6 +118,8 @@ abstract class UserConnectionPayload with _$UserConnectionPayload {
     required String avatarUrl,
     required String bio,
     required String url,
+    bool? isFollowing,
+    @Default(false) bool isSelf,
   }) = _UserConnectionPayload;
 
   factory UserConnectionPayload.fromJson(Map<String, dynamic> json) =>
@@ -200,6 +210,7 @@ abstract class SettingsPageProps with _$SettingsPageProps {
   const factory SettingsPageProps({
     required SettingsUserPayload user,
     @Default(false) bool googleOAuthReady,
+    @Default(false) bool appleOAuthReady,
 
     /// issue #530：无邮箱 OAuth 绑定账号可走 set-password 首次设密（服务端门禁）。
     @Default(false) bool canSetPassword,
@@ -230,4 +241,35 @@ abstract class PrivateNotesPayload with _$PrivateNotesPayload {
   }) = _PrivateNotesPayload;
   factory PrivateNotesPayload.fromJson(Map<String, dynamic> json) =>
       _$PrivateNotesPayloadFromJson(json);
+}
+
+/// Owner-scoped block list. No reverse relationship is exposed.
+class UserBlocksPayload {
+  const UserBlocksPayload({required this.ownerId, required this.blocks});
+  final int ownerId;
+  final List<BlockedUserPayload> blocks;
+  factory UserBlocksPayload.fromJson(Map<String, dynamic> json) =>
+      UserBlocksPayload(
+        ownerId: (json['ownerId'] as num).toInt(),
+        blocks: (json['blocks'] as List)
+            .map(
+              (item) =>
+                  BlockedUserPayload.fromJson(item as Map<String, dynamic>),
+            )
+            .toList(),
+      );
+}
+
+class BlockedUserPayload {
+  const BlockedUserPayload({
+    required this.targetUserId,
+    required this.username,
+  });
+  final int targetUserId;
+  final String username;
+  factory BlockedUserPayload.fromJson(Map<String, dynamic> json) =>
+      BlockedUserPayload(
+        targetUserId: (json['targetUserId'] as num).toInt(),
+        username: json['username'] as String,
+      );
 }

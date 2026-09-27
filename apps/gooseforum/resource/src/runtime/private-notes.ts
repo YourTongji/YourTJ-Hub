@@ -40,7 +40,7 @@ export function createPrivateNoteStore(load = () => getPrivateNotes(), save = (i
   }
   function name(id: number | undefined, username: string, nickname?: string | null) {
     const item = state.notes.get(id ?? 0)
-    return item ? `${item.note}(${username || item.username})` : nickname || username
+    return item ? `${item.note}(${nickname || username || item.username})` : nickname || username
   }
   return { state, setOwner, refresh, update, name }
 }

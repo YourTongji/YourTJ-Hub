@@ -77,6 +77,96 @@ abstract class CategoryBriefPayload with _$CategoryBriefPayload {
       _$CategoryBriefPayloadFromJson(json);
 }
 
+class TopicImageVariantPayload {
+  const TopicImageVariantPayload({
+    required this.url,
+    required this.width,
+    required this.height,
+  });
+
+  final String url;
+  final int width;
+  final int height;
+
+  factory TopicImageVariantPayload.fromJson(Map<String, dynamic> json) =>
+      TopicImageVariantPayload(
+        url: json['url'] as String,
+        width: (json['width'] as num).toInt(),
+        height: (json['height'] as num).toInt(),
+      );
+
+  Map<String, dynamic> toJson() => <String, dynamic>{
+    'url': url,
+    'width': width,
+    'height': height,
+  };
+
+  @override
+  bool operator ==(Object other) =>
+      other is TopicImageVariantPayload &&
+      other.url == url &&
+      other.width == width &&
+      other.height == height;
+
+  @override
+  int get hashCode => Object.hash(url, width, height);
+}
+
+class TopicImageMetadataPayload {
+  const TopicImageMetadataPayload({
+    required this.url,
+    required this.width,
+    required this.height,
+    this.variants = const <TopicImageVariantPayload>[],
+  });
+
+  final String url;
+  final int width;
+  final int height;
+  final List<TopicImageVariantPayload> variants;
+
+  factory TopicImageMetadataPayload.fromJson(Map<String, dynamic> json) =>
+      TopicImageMetadataPayload(
+        url: json['url'] as String,
+        width: (json['width'] as num).toInt(),
+        height: (json['height'] as num).toInt(),
+        variants:
+            (json['variants'] as List<dynamic>?)
+                ?.map(
+                  (variant) => TopicImageVariantPayload.fromJson(
+                    variant as Map<String, dynamic>,
+                  ),
+                )
+                .toList() ??
+            const <TopicImageVariantPayload>[],
+      );
+
+  Map<String, dynamic> toJson() => <String, dynamic>{
+    'url': url,
+    'width': width,
+    'height': height,
+    'variants': variants,
+  };
+
+  @override
+  bool operator ==(Object other) =>
+      other is TopicImageMetadataPayload &&
+      other.url == url &&
+      other.width == width &&
+      other.height == height &&
+      _sameVariants(other.variants, variants);
+
+  @override
+  int get hashCode => Object.hash(url, width, height, Object.hashAll(variants));
+}
+
+bool _sameVariants(
+  List<TopicImageVariantPayload> left,
+  List<TopicImageVariantPayload> right,
+) =>
+    left.length == right.length &&
+    left.indexed.every((entry) => entry.$2 == right[entry.$1]);
+
 @freezed
 abstract class TopicPayload with _$TopicPayload {
   const factory TopicPayload({
@@ -86,6 +176,7 @@ abstract class TopicPayload with _$TopicPayload {
     @Default(3) int contentType,
     String? firstImageUrl,
     List<String>? images,
+    List<TopicImageMetadataPayload>? imageMetadata,
     required String url,
     required UserBriefPayload author,
     required List<UserBriefPayload> participants,

@@ -81,3 +81,45 @@ func TestUpdateFieldsPreservesConcurrentPasswordChange(t *testing.T) {
 		t.Fatalf("targeted update changed unrelated credentials: username=%q tokenVersion=%d", row.Username, row.TokenVersion)
 	}
 }
+
+// GetActiveUserIdsByRoleIds 只返回角色下未注销（软删）的用户：
+// builder() 走 .Table() 原生查询不含软删 scope，必须显式过滤 deleted_at，
+// 否则告警（issue #855）会错误地发给已注销账号。
+func TestGetActiveUserIdsByRoleIds(t *testing.T) {
+	setupUserIsolationTestDB(t)
+
+	manager := MakeUser("active-manager", "secret123", "active-manager@example.com")
+	manager.RoleId = 8001
+	if err := Create(manager); err != nil {
+		t.Fatalf("create manager: %v", err)
+	}
+	closed := MakeUser("closed-manager", "secret123", "closed-manager@example.com")
+	closed.RoleId = 8001
+	if err := Create(closed); err != nil {
+		t.Fatalf("create closed manager: %v", err)
+	}
+	if err := builder().Delete(&EntityComplete{}, "id = ?", closed.Id).Error; err != nil {
+		t.Fatalf("soft delete closed manager: %v", err)
+	}
+	plain := MakeUser("plain-user", "secret123", "plain-user@example.com")
+	plain.RoleId = 8002
+	if err := Create(plain); err != nil {
+		t.Fatalf("create plain user: %v", err)
+	}
+
+	got := GetActiveUserIdsByRoleIds([]uint64{8001})
+	if len(got) != 1 || got[0] != manager.Id {
+		t.Fatalf("GetActiveUserIdsByRoleIds([8001]) = %v, want [%d] only (soft-deleted excluded)", got, manager.Id)
+	}
+
+	if got := GetActiveUserIdsByRoleIds([]uint64{8002}); len(got) != 1 || got[0] != plain.Id {
+		t.Fatalf("GetActiveUserIdsByRoleIds([8002]) = %v, want [%d]", got, plain.Id)
+	}
+
+	if got := GetActiveUserIdsByRoleIds([]uint64{9999}); len(got) != 0 {
+		t.Fatalf("GetActiveUserIdsByRoleIds([9999]) = %v, want empty", got)
+	}
+	if got := GetActiveUserIdsByRoleIds(nil); got != nil {
+		t.Fatalf("GetActiveUserIdsByRoleIds(nil) = %v, want nil", got)
+	}
+}

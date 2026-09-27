@@ -17,6 +17,7 @@ var bodyByLangType = map[string]map[string]string{
 		"like":         "赞了你的回复",
 		"wiki_updated": "更新了你订阅的 wiki 页面",
 		"mention":      "提到了你",
+		"system":       "系统管理提醒",
 	},
 	"en": {
 		"comment":      "commented on your topic",
@@ -27,6 +28,7 @@ var bodyByLangType = map[string]map[string]string{
 		"like":         "liked your reply",
 		"wiki_updated": "updated a wiki page you are watching",
 		"mention":      "mentioned you",
+		"system":       "Admin alert",
 	},
 	"ja": {
 		"comment":      "あなたのトピックにコメントしました",
@@ -37,6 +39,7 @@ var bodyByLangType = map[string]map[string]string{
 		"like":         "あなたの返信にいいねしました",
 		"wiki_updated": "ウォッチ中の wiki ページが更新されました",
 		"mention":      "あなたをメンションしました",
+		"system":       "管理者向けアラート",
 	},
 	"de": {
 		"comment":      "hat dein Thema kommentiert",
@@ -47,6 +50,7 @@ var bodyByLangType = map[string]map[string]string{
 		"like":         "hat deine Antwort mit \"Gefällt mir\" markiert",
 		"wiki_updated": "hat eine Wiki-Seite aktualisiert, der du folgst",
 		"mention":      "hat dich erwähnt",
+		"system":       "Admin-Warnung",
 	},
 }
 

@@ -452,7 +452,10 @@ onBeforeUnmount(() => { clearInterval(clockTimer); resetData() })
           </section>
           <section class="gf-card overflow-hidden">
             <SectionHeader :title="t('campus.todayTimetable')" :icon="CalendarDays">
-              <template #actions><button class="gf-button gf-button-xs gf-button-ghost text-xs" @click="setTab('timetable')">{{ t('campus.viewWeek') }} <ArrowUpRight class="h-3.5 w-3.5" /></button></template>
+              <template #actions>
+                <a class="gf-button gf-button-xs gf-button-ghost text-xs" href="/map?mine=1">{{ t('campusMap.mine.openMap') }} <ArrowUpRight class="h-3.5 w-3.5" /></a>
+                <button class="gf-button gf-button-xs gf-button-ghost text-xs" @click="setTab('timetable')">{{ t('campus.viewWeek') }} <ArrowUpRight class="h-3.5 w-3.5" /></button>
+              </template>
             </SectionHeader>
             <p v-if="todayAdjustment" class="border-b border-line px-4 py-3 text-sm text-base-content/65" role="status">{{ todayAdjustment }}</p>
             <EmptyState v-if="!todayCourses.length" :icon="BookOpen" :title="todayTitle" :description="failures.today || t('campus.todayHint')" />

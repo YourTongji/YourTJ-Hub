@@ -4,8 +4,10 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/datamigration"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/stickerservice"
 )
 
 func runVersionedDataMigrations() error {
@@ -405,6 +407,17 @@ func runVersionedDataMigrations() error {
 			return fmt.Errorf("app migration v29 sync migration version: %w", err)
 		}
 		currentVersion = 29
+	}
+	if currentVersion < 30 {
+		changed, err := stickerservice.BackfillPresetPacks(dbconnect.Connect())
+		if err != nil {
+			return fmt.Errorf("app migration v30 preset sticker packs: %w", err)
+		}
+		if err := pageConfig.SyncMigrationVersion(30); err != nil {
+			return fmt.Errorf("app migration v30 sync migration version: %w", err)
+		}
+		slog.Info("app migration preset sticker packs backfilled", "changed", changed)
+		currentVersion = 30
 	}
 	slog.Info("app migration end", "version", currentVersion)
 	return nil

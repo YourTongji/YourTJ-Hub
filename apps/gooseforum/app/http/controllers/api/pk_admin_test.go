@@ -2,7 +2,9 @@ package api
 
 import (
 	"context"
+	"errors"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -231,5 +233,71 @@ func TestPkSyncStatusReturnsOverview(t *testing.T) {
 	}
 	if len(items) != 1 || items[0].CalendarId != 121 || items[0].Status != pk.FetchStatusCompleted {
 		t.Fatalf("items = %+v, want 1 item calendarId=121 status=completed", items)
+	}
+}
+
+func TestValidatePkCredentialReturnsValidResult(t *testing.T) {
+	orig := validatePkCredential
+	validatePkCredential = func(_ context.Context, _ pkservice.Audience, _ string) (pkservice.CredentialValidation, error) {
+		return pkservice.CredentialValidation{Valid: true}, nil
+	}
+	t.Cleanup(func() { validatePkCredential = orig })
+
+	res := ValidatePkCredential(component.BetterRequest[ValidatePkCredentialReq]{
+		Params: ValidatePkCredentialReq{Audience: "undergraduate", Credential: "JWTUser=abc"},
+	})
+	if res.Code != http.StatusOK || res.Data.Code != component.SUCCESS {
+		t.Fatalf("validation result: code=%d data=%+v", res.Code, res.Data)
+	}
+	result, ok := res.Data.Result.(map[string]any)
+	if !ok || result["valid"] != true || result["message"] != "" {
+		t.Fatalf("result = %+v, want valid=true message=\"\"", res.Data.Result)
+	}
+}
+
+func TestValidatePkCredentialInvalidIsBusinessResult(t *testing.T) {
+	// 凭证失效（401/业务失败）是业务结果：成功信封 + valid=false + 脱敏 message，不是失败信封。
+	orig := validatePkCredential
+	validatePkCredential = func(_ context.Context, _ pkservice.Audience, _ string) (pkservice.CredentialValidation, error) {
+		return pkservice.CredentialValidation{Valid: false, Message: `一系统请求失败: HTTP 401 {"message":"未登录或会话失效"}`}, nil
+	}
+	t.Cleanup(func() { validatePkCredential = orig })
+
+	res := ValidatePkCredential(component.BetterRequest[ValidatePkCredentialReq]{
+		Params: ValidatePkCredentialReq{Audience: "undergraduate", Credential: "bad"},
+	})
+	if res.Data.Code != component.SUCCESS {
+		t.Fatalf("credential failure must be a success envelope, got data=%+v", res.Data)
+	}
+	result, ok := res.Data.Result.(map[string]any)
+	if !ok || result["valid"] != false {
+		t.Fatalf("result = %+v, want valid=false", res.Data.Result)
+	}
+	if message, _ := result["message"].(string); !strings.Contains(message, "401") {
+		t.Errorf("message = %q, want sanitized 401 hint", result["message"])
+	}
+}
+
+func TestValidatePkCredentialRejectsInvalidAudience(t *testing.T) {
+	res := ValidatePkCredential(component.BetterRequest[ValidatePkCredentialReq]{
+		Params: ValidatePkCredentialReq{Audience: "bogus"},
+	})
+	if res.Data.Code != component.FAIL {
+		t.Fatalf("invalid audience: expected FAIL, got %+v", res.Data)
+	}
+}
+
+func TestValidatePkCredentialMapsHardErrorToFailure(t *testing.T) {
+	orig := validatePkCredential
+	validatePkCredential = func(_ context.Context, _ pkservice.Audience, _ string) (pkservice.CredentialValidation, error) {
+		return pkservice.CredentialValidation{}, errors.New("缺少本科一系统 Cookie")
+	}
+	t.Cleanup(func() { validatePkCredential = orig })
+
+	res := ValidatePkCredential(component.BetterRequest[ValidatePkCredentialReq]{
+		Params: ValidatePkCredentialReq{Audience: "undergraduate"},
+	})
+	if res.Data.Code != component.FAIL {
+		t.Fatalf("missing credential source: expected FAIL, got %+v", res.Data)
 	}
 }

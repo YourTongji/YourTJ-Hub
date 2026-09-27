@@ -1,5 +1,5 @@
 import unittest
-from prepare_push import properties
+from prepare_push import fcm_config, properties
 
 class PushConfigTest(unittest.TestCase):
     def setUp(self):
@@ -16,6 +16,17 @@ class PushConfigTest(unittest.TestCase):
         self.config.pop('MASTER_SECRET')
         self.config['HONOR_APPID'] = '123\nMASTER_SECRET=bad'
         with self.assertRaises(ValueError): properties(self.config)
-    def test_release_must_configure_an_offline_channel(self):
-        self.config['VENDORS'] = []
-        with self.assertRaises(ValueError): properties(self.config)
+    def test_release_can_use_jpush_without_an_oem_channel(self):
+        self.assertEqual(
+            properties({'JPUSH_APPKEY': 'a'*24, 'VENDORS': []}),
+            'JPUSH_APPKEY=' + 'a'*24 + '\nVENDORS=\n',
+        )
+    def test_fcm_config_requires_matching_android_package(self):
+        config = '{"client":[{"client_info":{"android_client_info":{"package_name":"tj.yourtj.forum_app"}}}]}'
+        self.assertEqual(fcm_config(config), config)
+        with self.assertRaises(ValueError):
+            fcm_config('{"client":[]}')
+        self.assertEqual(
+            properties({'JPUSH_APPKEY': 'a'*24}),
+            'JPUSH_APPKEY=' + 'a'*24 + '\nVENDORS=\n',
+        )

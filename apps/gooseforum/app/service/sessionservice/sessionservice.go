@@ -1,6 +1,8 @@
 package sessionservice
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"net"
 	"strings"
@@ -43,6 +45,18 @@ func GetValidByJti(jti string) *userSessions.Entity {
 		return nil
 	}
 	return entity
+}
+
+// CheckLiveContext distinguishes revocation from a transient database error.
+func CheckLiveContext(ctx context.Context, userID uint64, jti string) (bool, error) {
+	entity, err := userSessions.GetByJtiContext(ctx, jti)
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return entity.UserId == userID && entity.ExpiresAt.After(time.Now()), nil
 }
 
 // TouchExpiry extends the session record expiry to match a refreshed token.

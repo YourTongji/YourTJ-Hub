@@ -57,8 +57,10 @@ omission and preserves the existing review queue. It never withdraws another ver
 Apple agreements, review decisions and the system installer are not bypassed.
 
 Server tags remain `vX.Y.Z`. **Release / main** opens/reuses the `dev` → `main` PR when the trees
-differ and stops. After that PR passes checks and merges, rerun to tag the approved main commit,
-publish server binaries and dispatch production deployment. It never pushes to the main branch.
+differ, waits for that PR's checks and branch merge requirements, then merges, tags, publishes
+server binaries and dispatches production deployment in the same run. It stops without a tag
+if the source changes, checks fail, or merge requirements remain unmet until timeout. It never
+pushes to the main branch. See the [server release runbook](deployment.md) for recovery.
 Only exact server version tags participate in server version calculation; mobile releases do not
 replace GitHub's server `latest` release.
 
@@ -84,9 +86,12 @@ not the repository-level token.
 | `ANDROID_KEYSTORE_PASSWORD` | Keystore password |
 | `ANDROID_KEY_PASSWORD` | Private-key password |
 | `ANDROID_KEY_ALIAS` | `yourtj-release` |
+| `HUAWEI_AGCONNECT_JSON` | Huawei AGConnect Android client configuration for the optional Huawei adapter; package must be `tj.yourtj.forum_app` |
+| `FCM_GOOGLE_SERVICES_JSON` | Firebase Android client configuration for the optional FCM adapter; package must be `tj.yourtj.forum_app` |
 | `IOS_DISTRIBUTION_P12_BASE64` | Base64 of the Apple Distribution certificate **and private key**, exported as a macOS-compatible PKCS#12 file |
 | `IOS_P12_PASSWORD` | PKCS#12 export password |
-| `IOS_PROFILE_BASE64` | Base64 of the App Store provisioning profile for `tj.yourtj.forumApp` |
+| `IOS_PROFILE_BASE64` | Base64 of the App Store provisioning profile for `tj.yourtj.forumApp`, with production Push Notifications and App Group `group.tj.yourtj.forumApp.widgets` |
+| `IOS_WIDGET_PROFILE_BASE64` | Base64 of the App Store provisioning profile for `tj.yourtj.forumApp.ScheduleWidgets`, with App Group `group.tj.yourtj.forumApp.widgets` |
 | `ASC_PRIVATE_KEY_BASE64` | Base64 of the App Store Connect `.p8` API key |
 | `ASC_KEY_ID` | API key ID |
 | `ASC_ISSUER_ID` | API issuer ID |
@@ -156,6 +161,8 @@ The workflow pins and checksum-verifies ASC CLI 5.0.0, then signs using an ephem
 Provisioning overrides apply only to the Runner release target, not Pods/SwiftPM dependencies.
 Private inputs, temporary profiles and keychain changes are cleaned up even after build failure.
 The exported IPA and dSYMs are retained as workflow artifacts for 30 days; private keys are excluded.
+The archive installs and validates separate App Store profiles for Runner and the ScheduleWidgets
+extension, then verifies the extension bundle and shared App Group entitlement inside the exported IPA.
 
 App Store Connect app ID is `6809457637`, team `4HJTS3G3T2`, bundle `tj.yourtj.forumApp`. The job
 finds the exact version/build before uploading, waits for processing, submits to the existing
@@ -212,7 +219,7 @@ See [the release decision](../decisions/0014-mobile-release-distribution.md) and
 
 `Partial`: native authorization/registration, provider routing and release validation are implemented.
 APNs/JPush credentials, vendor console configuration and signed-device delivery must be verified for
-the deployed environment. CI compiles the iOS bridge and all six Android OEM adapters with build-only identifiers. These APKs are never distributed. A passing SDK build is not a delivery test. The provider decision is
+the deployed environment. CI compiles the iOS bridge and all seven Android push adapters with build-only identifiers. These APKs are never distributed. A passing SDK build is not a delivery test. The provider decision is
 [0019](../decisions/0019-native-push-providers.md).
 
 iOS uses APNs directly; no Firebase project or Firebase Dart defines are required. Enable **Push
@@ -233,32 +240,46 @@ delivery disabled. A path setting does not upload the file;
 provision it before deployment. Keep old key files during credential rotation so deployment rollback
 can restore the previous configuration. Never copy the private key to dev or into an IPA.
 
-Android uses JPush 6.2.1 / JCore 5.5.2, with pinned OEM adapters selected by the build configuration.
-Create a JPush Android app for `tj.yourtj.forum_app`. Obtain its AppKey and Master Secret. Configure
-manufacturer services in JPush's **Push settings → Integration settings** using each vendor's
+Android uses JPush 6.2.1 / JCore 5.5.2. Create a JPush Android app for `tj.yourtj.forum_app` and
+obtain its AppKey and Master Secret. The AppKey is required in the client build; the Master Secret is
+server-only. OEM offline adapters are optional. Without them, the JPush channel depends on the app's
+long connection and cannot guarantee delivery after Android stops the process. To add an adapter,
+configure that manufacturer's service in JPush **Push settings → Integration settings** using its
 application credentials, registered package, signing certificate fingerprints, notification category
-and quotas. Available adapters are Huawei, Xiaomi, OPPO, vivo, Honor and Meizu. Huawei Android/HMS
-support does not imply native HarmonyOS NEXT support. OEM channels may require developer verification
-or application review; do not claim they are active merely because their adapter is in the APK.
+and quotas. Available adapters are Huawei, Xiaomi, OPPO, vivo, Honor, Meizu and FCM. FCM also needs a
+Firebase Android app for `tj.yourtj.forum_app`, its `google-services.json` client configuration, and
+the FCM service-account JSON uploaded directly in JPush Console. Keep the service-account private key
+out of GitHub and the APK; `FCM_GOOGLE_SERVICES_JSON` is the separate Firebase client configuration.
+Huawei Android/HMS support does not imply native HarmonyOS NEXT support. OEM channels may require
+developer verification or application review; do not claim they are active merely because their
+adapter is in the APK.
 
-Set `mobile-release/ANDROID_PUSH_JSON` to client identifiers only, for example:
+Set `mobile-release/ANDROID_PUSH_JSON` to client identifiers only. A JPush-only release without OEM
+adapters needs no vendor credentials:
 
 ```json
 {
   "JPUSH_APPKEY": "<24-character JPush AppKey>",
-  "VENDORS": ["honor", "xiaomi"],
-  "HONOR_APPID": "<Honor App ID>",
-  "XIAOMI_APPID": "<Xiaomi App ID>",
-  "XIAOMI_APPKEY": "<Xiaomi client AppKey>"
+  "VENDORS": []
 }
 ```
 
 Other client keys are `OPPO_APPID/OPPO_APPKEY/OPPO_APPSECRET`, `VIVO_APPID/VIVO_APPKEY`, and
 `MEIZU_APPID/MEIZU_APPKEY`. With `huawei` selected, also set
-`mobile-release/HUAWEI_AGCONNECT_JSON` to that app's `agconnect-services.json`. The preparation script
-writes ignored `android/push.properties` and Huawei configuration files. It rejects missing OEM
-parameters, unknown fields and provider server secrets; signed releases require at least one OEM
-adapter. Ordinary debug builds without this configuration show push as unavailable.
+`mobile-release/HUAWEI_AGCONNECT_JSON` to that app's `agconnect-services.json`. With `fcm` selected,
+set the `mobile-release/FCM_GOOGLE_SERVICES_JSON` secret to the matching Firebase Android app's
+`google-services.json`. The preparation script writes ignored `android/push.properties` and selected
+provider configuration files after checking their package names. It rejects missing parameters for
+selected adapters, unknown fields and provider server secrets. Signed releases require a valid JPush
+AppKey but do not require an offline adapter. Ordinary debug builds without a `push.properties` AppKey
+show push as unavailable. Local dev APKs can use the same `prepare_push.py` inputs before running
+`apps/mobile/scripts/build_dev_apk.sh`; generated JSON files are ignored by Git.
+
+FCM is an optional transport inside JPush; it does not bypass a disabled server JPush channel.
+Keep Firebase Messaging auto initialization and Analytics collection disabled in the Android manifest:
+JPush requests the FCM token only after the existing push opt-in flow initializes the SDK.
+The settings screen continues to report a disabled server channel accurately on both Android and iOS.
+See [Firebase startup controls](https://firebase.google.com/docs/cloud-messaging/android/get-started#prevent-auto-initialization).
 
 Set **production** secrets `JPUSH_APP_KEY` and `JPUSH_MASTER_SECRET` for the server. Do not place the
 JPush Master Secret or manufacturer server credentials in `ANDROID_PUSH_JSON`. The production
@@ -291,4 +312,64 @@ Android phone without Google services:
 
 Public provider setup references: [Apple APNs keys](https://developer.apple.com/help/account/keys/create-a-private-key),
 [JPush integration settings](https://docs.jiguang.cn/jpush/console/push_setting/integration_set),
-[OEM parameter applications](https://docs.jiguang.cn/jpush/client/Android/android_3rd_param).
+[OEM parameter applications](https://docs.jiguang.cn/jpush/client/Android/android_3rd_param),
+[JPush Android vendor-channel integration](https://docs.jiguang.cn/jpush/client/Android/android_3rd_guide).
+
+
+## Release verification and privacy disclosures
+
+`Current`: normal Android and iOS releases both depend on the same `verify` job against the
+reserved source SHA. It runs Flutter analysis/tests and release-tool tests before signing or
+publishing. Publisher-only iOS recovery explicitly skips this build gate because it reuses an
+already uploaded immutable build; it still runs publisher-tool checks. A successful local subset
+does not establish CI or physical-device acceptance.
+
+Runner, ScheduleWidgets and the bundled home_widget SDK contain privacy manifests. SwiftPM and
+CocoaPods both include the SDK resource. The exported IPA validator checks those actual bundles
+for the App Group UserDefaults reason; a source-only declaration does not satisfy this gate.
+Runner also declares the first-party account, user content, message, device and campus data
+categories. The local-only Widget/SDK do not collect data off device.
+
+`Current`: the [App privacy supplement](../../apps/gooseforum/app/models/defaultconfig/pageconfig/app_privacy.md)
+is embedded in the forum binary and appended to enabled `/privacy` pages, including persisted
+custom policies. A policy containing the supplement's heading does not receive another copy.
+It covers campus processing, device snapshots/Widget display, selected-message reporting and
+Android push processors. Publish this server before distributing the corresponding App.
+
+`Partial`: App Store Connect privacy declarations still require verification against the actual
+production SDK selection, retention and analytics configuration. Source privacy manifests and the
+public policy are not substitutes for the App Store Connect form.
+
+App Store privacy labels must account for account identifiers/contact information, private
+messages, uploaded images, other user content, interaction state, device push identifiers and
+school-authorized data. They support App Functionality and are linked to the account where
+applicable. The reviewed source implements no cross-company advertising tracking. WebView/public
+website analytics must be assessed from the actual Umami configuration before declaring labels;
+do not infer “no data collected” from the Widget manifest.
+
+`Current`: iOS retains password, Tongji, Google and GitHub and adds native Apple login.
+Users connect Apple to their existing account in settings first; no email/name scopes or automatic
+email-based account merging are used. Native Apple authorization must be tested with the actual
+candidate. The [Apple login decision](../decisions/0041-native-apple-login-and-revocation.md)
+describes credential retention and revocation.
+
+Enable Sign in with Apple for `tj.yourtj.forumApp`, and create a dedicated P-256 Sign in with Apple
+key associated only with that primary App ID. Native authorization does not require a web Services ID
+or email-relay source. Set `APPLE_CLIENT_ID` (the bundle ID), `APPLE_TEAM_ID`, `APPLE_KEY_ID` and
+`APPLE_PRIVATE_KEY_BASE64` (base64 of the `.p8` key) in the GitHub **production** environment used by
+main deployment. Feed values via stdin; never paste private key contents into chat, logs or commits.
+The renderer writes `[apple]` server configuration. All four values must be valid before public
+`appleReady`/`appleOAuthReady` become true. Dev credentials remain empty because its database is a
+production snapshot; production grants must not be redeemed or revoked there. A copied Apple binding
+cannot be disconnected or closed on dev without a separate isolated Apple test configuration.
+
+Distribution profiles and exported IPA entitlements must contain
+`com.apple.developer.applesignin = ["Default"]`; the signing validator rejects missing capabilities.
+Unlink/account closure calls Apple's revocation endpoint before committing local deletion. A provider
+outage preserves the encrypted grant and active account for retry. Preserve the forum signing key
+used to encrypt existing grants; rotating it without re-encryption prevents revocation.
+
+A new server containing block enforcement, private-message reporting and optional
+`clientMessageId` support must be deployed before releasing the matching mobile binary.
+Signed APK upgrade, external-browser OAuth return, APNs/JPush/OEM delivery and Widget behavior
+require recorded physical-device evidence for the actual candidate version/build.

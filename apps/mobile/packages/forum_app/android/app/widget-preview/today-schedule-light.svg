@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="720" viewBox="0 0 1000 720">
+  <g font-family="Noto Sans CJK SC, sans-serif">
+    <path d="M500 48v624" fill="none" stroke="#68636B" stroke-opacity=".16" stroke-width="4"/>
+    <g fill="#1C1B1F">
+      <text x="48" y="101" font-size="60" font-weight="700">今天</text>
+      <text x="532" y="101" font-size="60" font-weight="700">明天</text>
+    </g>
+    <g fill="#514D56" font-size="40" font-weight="400">
+      <text x="48" y="151">9月23日 · 第4周</text>
+      <text x="48" y="190">星期三</text>
+      <text x="532" y="151">9月24日 · 第4周</text>
+      <text x="532" y="190">星期四</text>
+    </g>
+    <g stroke-linecap="round">
+      <path d="M56 232v204" stroke="#267C78" stroke-width="16"/>
+      <path d="M56 460v204" stroke="#D06A2A" stroke-width="16"/>
+      <path d="M540 232v204" stroke="#438B4B" stroke-width="16"/>
+      <path d="M540 460v204" stroke="#7256B5" stroke-width="16"/>
+    </g>
+    <g fill="#1C1B1F" font-size="60" font-weight="700">
+      <text x="84" y="294">高等数学</text>
+      <text x="84" y="522">大学物理</text>
+      <text x="568" y="294">线性代数</text>
+      <text x="568" y="522">大学英语</text>
+    </g>
+    <g fill="#514D56" font-size="40" font-weight="400">
+      <text x="84" y="342">瑞安楼 · 李老师</text>
+      <text x="84" y="570">嘉定楼 · 王老师</text>
+      <text x="568" y="342">瑞安楼 · 陈老师</text>
+      <text x="568" y="570">教学楼 · 张老师</text>
+    </g>
+    <g fill="#1C1B1F" font-size="48" font-weight="500">
+      <text x="84" y="390">08:00–09:35</text>
+      <text x="84" y="618">10:00–11:35</text>
+      <text x="568" y="390">08:00–09:35</text>
+      <text x="568" y="618">10:00–11:35</text>
+    </g>
+  </g>
+</svg>

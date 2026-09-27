@@ -6,6 +6,7 @@ import 'package:ui_kit/ui_kit.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../providers.dart';
 import '../admin/admin_page.dart';
+import '../settings/campus_cache_clear_tile.dart';
 import 'campus_helpers.dart';
 import 'campus_state.dart';
 
@@ -63,6 +64,7 @@ class _CampusConnectionState extends ConsumerState<CampusConnection> {
     final epoch = ref.read(offlineCacheEpochProvider);
     final accepted = await showDialog<bool>(
       context: context,
+      animationStyle: GfMotion.dialogStyle(context),
       builder: (context) => AlertDialog(
         title: Text(l.campusUnbind),
         content: Text(l.campusUnbindBody),
@@ -87,6 +89,7 @@ class _CampusConnectionState extends ConsumerState<CampusConnection> {
     await controller.change(
       (cancel) =>
           controller.repository.unbind(binding.revision, cancelToken: cancel),
+      widgetState: 'unbound',
     );
   }
 
@@ -164,6 +167,10 @@ class _CampusConnectionState extends ConsumerState<CampusConnection> {
             const SizedBox(height: 24),
             Text(l.campusUpstreamGaps),
           ],
+        ],
+        if (!widget.compact) ...[
+          const SizedBox(height: 16),
+          const CampusCacheClearTile(),
         ],
         if (_error != null || state.error != null)
           Padding(

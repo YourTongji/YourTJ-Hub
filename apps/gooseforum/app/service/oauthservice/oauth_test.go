@@ -2,6 +2,7 @@ package oauthservice
 
 import (
 	"encoding/json"
+	"errors"
 	"net/url"
 	"strings"
 	"testing"
@@ -19,6 +20,26 @@ import (
 	"github.com/markbates/goth/providers/google"
 	"gorm.io/gorm"
 )
+
+func TestUnbindFailureHidesStorageDetails(t *testing.T) {
+	conn := setupOAuthTestDB(t)
+	user := users.MakeUser("unbind-failure", "password", "unbind-failure@example.com")
+	if err := users.Create(user); err != nil {
+		t.Fatal(err)
+	}
+	if err := userOAuth.Create(&userOAuth.Entity{UserId: user.Id, Provider: ProviderGitHub, ProviderUid: "private-provider-id"}); err != nil {
+		t.Fatal(err)
+	}
+	const marker = "private SQL parameters must not reach the client"
+	if err := conn.Callback().Delete().Before("gorm:delete").Register("test:unlink-error", func(tx *gorm.DB) { _ = tx.AddError(errors.New(marker)) }); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = conn.Callback().Delete().Remove("test:unlink-error") })
+	err := UnbindOAuth(user.Id, ProviderGitHub)
+	if err == nil || strings.Contains(err.Error(), marker) {
+		t.Fatalf("unsafe unlink error: %v", err)
+	}
+}
 
 func setupGoogleOAuthProviderConfig(t *testing.T, siteURL string) {
 	t.Helper()
@@ -245,6 +266,9 @@ func setupOAuthTestDB(t *testing.T) *gorm.DB {
 	if result.Failed > 0 {
 		t.Fatalf("migrate user_o_auth: %+v", result)
 	}
+	if err := conn.Migrator().AddColumn(&userOAuth.Entity{}, "AppleRefreshToken"); err != nil {
+		t.Fatal(err)
+	}
 	conn.Unscoped().Where("1 = 1").Delete(&users.EntityComplete{})
 	return conn
 }
@@ -275,12 +299,18 @@ func oauthTableColumns(t *testing.T, conn *gorm.DB) []string {
 	return cols
 }
 
-// assertNoCredentialColumns 断言 user_o_auth 不含任何凭据语义列。用子串匹配
-// 保留列名之外的敏感词（token/secret/credential/scope/raw），能发现任何新列名
-// 下重新引入的凭据持久化，而非只盯历史列名。
+// assertNoCredentialColumns rejects generic OAuth credential storage. Apple alone
+// retains an encrypted revocation token; GitHub/Google must leave it empty.
 func assertNoCredentialColumns(t *testing.T, conn *gorm.DB) {
 	t.Helper()
+	var retained int64
+	if err := conn.Model(&userOAuth.Entity{}).Where("provider <> ? AND apple_refresh_token <> ?", "apple", "").Count(&retained).Error; err != nil || retained != 0 {
+		t.Fatalf("generic OAuth credential retained: %d %v", retained, err)
+	}
 	for _, name := range oauthTableColumns(t, conn) {
+		if name == "apple_refresh_token" {
+			continue
+		}
 		for _, keyword := range []string{"token", "secret", "credential", "scope", "raw"} {
 			if strings.Contains(name, keyword) {
 				t.Fatalf("user_o_auth 仍含凭据列 %q", name)

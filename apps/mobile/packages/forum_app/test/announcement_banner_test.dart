@@ -30,6 +30,61 @@ void main() {
     await tester.pump();
   }
 
+  testWidgets(
+    'reduced motion suppresses manual expansion and indicator motion',
+    (tester) async {
+      tester.binding.platformDispatcher.accessibilityFeaturesTestValue =
+          const FakeAccessibilityFeatures(disableAnimations: true);
+      addTearDown(
+        tester.binding.platformDispatcher.clearAccessibilityFeaturesTestValue,
+      );
+      await pump(
+        tester,
+        const AnnouncementPayload(
+          enabled: true,
+          html: '',
+          items: [
+            AnnouncementItemPayload(
+              id: '1',
+              title: 'First',
+              html: '<p>First body</p>',
+            ),
+            AnnouncementItemPayload(
+              id: '2',
+              title: 'Second',
+              html: '<p>Second body</p>',
+            ),
+          ],
+        ),
+      );
+      expect(
+        tester
+            .widget<AnimatedSize>(
+              find.descendant(
+                of: find.byType(AnnouncementBanner),
+                matching: find.byType(AnimatedSize),
+              ),
+            )
+            .duration,
+        Duration.zero,
+      );
+      final indicators = tester.widgetList<AnimatedContainer>(
+        find.descendant(
+          of: find.byType(AnnouncementBanner),
+          matching: find.byType(AnimatedContainer),
+        ),
+      );
+      expect(indicators, isNotEmpty);
+      expect(
+        indicators.every((widget) => widget.duration == Duration.zero),
+        isTrue,
+      );
+      await tester.pump(const Duration(seconds: 6));
+      expect(find.text('First'), findsOneWidget);
+      await tester.pumpWidget(const SizedBox.shrink());
+    },
+  );
+
   testWidgets('announcement body is indented alongside a leading bell', (
     tester,
   ) async {

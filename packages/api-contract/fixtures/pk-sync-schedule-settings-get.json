@@ -1,0 +1,10 @@
+{
+  "result": {
+    "enabled": true,
+    "schedule": "30 2 * * *",
+    "term": "121",
+    "depth": 1,
+    "audience": "undergraduate"
+  },
+  "code": 0
+}

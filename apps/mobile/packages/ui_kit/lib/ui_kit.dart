@@ -19,16 +19,20 @@ export 'src/components/business/gf_user_card.dart';
 export 'src/components/gf_card.dart';
 export 'src/components/gf_chip.dart';
 export 'src/components/gf_floating_action.dart';
+export 'src/components/gf_horizontal_scroll_view.dart';
 export 'src/components/gf_icon_button.dart';
+export 'src/components/gf_glass_icon_button.dart';
 export 'src/components/gf_image_viewer.dart';
 export 'src/components/gf_logo.dart';
 export 'src/components/gf_motion.dart';
+export 'src/components/gf_action_feedback.dart';
 export 'src/components/surfaces/gf_empty.dart';
 export 'src/components/surfaces/gf_app_bar.dart';
 export 'src/components/surfaces/gf_scroll_to_top.dart';
 export 'src/components/surfaces/gf_alert_dialog.dart';
 export 'src/components/surfaces/gf_bottom_sheet.dart';
 export 'src/components/surfaces/gf_floating_surface.dart';
+export 'src/components/surfaces/gf_glass_surface.dart';
 export 'src/components/surfaces/gf_menu_surface.dart';
 export 'src/components/surfaces/gf_modal.dart';
 export 'src/components/surfaces/gf_page_header.dart';
@@ -64,6 +68,7 @@ export 'src/components/gf_media_carousel.dart';
 export 'src/components/gf_symbol.dart';
 
 export 'src/components/atoms/gf_badge_icon.dart';
+export 'src/components/atoms/gf_badge_medallion.dart';
 export 'src/components/atoms/gf_captcha_image.dart';
 
 export 'src/components/gf_icon_tile.dart';
@@ -72,3 +77,9 @@ export 'src/components/business/gf_activity_card.dart';
 export 'src/components/business/gf_achievement_card.dart';
 
 export 'src/components/gf_search_field.dart';
+
+export 'src/components/business/gf_content_row.dart';
+
+export 'src/components/business/gf_connection_row.dart';
+
+export 'src/components/business/gf_composer_panel.dart';

@@ -1,7 +1,7 @@
 # Flutter 校园数据的短期前台内存复用
 
 ## Status
-Accepted
+Superseded by [0035](0035-campus-device-snapshot-and-schedule-widgets.md)
 Class: architecture
 
 ## Context and Problem Statement
@@ -37,6 +37,7 @@ Class: architecture
 
 ## Links
 
+- [取代本决策的设备快照与桌面课表决策](0035-campus-device-snapshot-and-schedule-widgets.md)
 - [用户反馈 #738](https://github.com/YourTongji/YourTJ-Hub/issues/738)
 - [校园产品与保留规则](../product/campus.md)
 - [移动端体验](../product/mobile-experience.md)

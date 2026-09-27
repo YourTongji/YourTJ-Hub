@@ -60,6 +60,11 @@ class AppLocalizationsZh extends AppLocalizations {
   String get commonSave => '保存';
 
   @override
+  String imageViewPosition(int index, int count) {
+    return '查看图片 $index / $count';
+  }
+
+  @override
   String get imageSave => '保存图片';
 
   @override
@@ -167,6 +172,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get authForgotTitle => '重置密码';
 
   @override
+  String get authContinueAfterLogin => '登录后继续刚才的浏览或创作。';
+
+  @override
+  String get authSignInMethods => '其他登录方式';
+
+  @override
   String get authLoginSubtitle => '欢迎回来，继续你的讨论和创作。';
 
   @override
@@ -264,6 +275,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get publishTitleField => '标题';
+
+  @override
+  String get publishAddTitle => '添加标题';
 
   @override
   String get publishTitleHint => '请输入标题(5-100 字)';
@@ -412,7 +426,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get profileTopics => '主题';
 
   @override
+  String get profilePosts => '内容';
+
+  @override
   String get profileReplies => '回复';
+
+  @override
+  String get profileLikedPosts => '赞过';
 
   @override
   String get profileLikes => '获赞';
@@ -483,6 +503,15 @@ class AppLocalizationsZh extends AppLocalizations {
   String get messagesInputHint => '输入消息…';
 
   @override
+  String get messagesEmoji => '表情';
+
+  @override
+  String get messagesKeyboard => '键盘';
+
+  @override
+  String get messagesCopyAll => '复制整条消息';
+
+  @override
   String messagesSendFailed(String error) {
     return '发送失败:$error';
   }
@@ -519,6 +548,11 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get searchUnavailable => '搜索暂不可用';
+
+  @override
+  String searchResultCount(int shown, int total) {
+    return '已显示 $shown 项 · 匹配 $total 项';
+  }
 
   @override
   String get searchAll => '全部';
@@ -709,6 +743,21 @@ class AppLocalizationsZh extends AppLocalizations {
   String settingsOpFailed(String error) {
     return '操作失败:$error';
   }
+
+  @override
+  String get settingsDevice => '此设备';
+
+  @override
+  String get settingsYourAccount => '你的账户';
+
+  @override
+  String get settingsThemeLight => '浅色';
+
+  @override
+  String get settingsThemeDark => '深色';
+
+  @override
+  String get settingsRevokeSession => '吊销此会话';
 
   @override
   String get settingsAppearance => '外观';
@@ -1168,6 +1217,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get wikiTitle => 'Wiki';
 
   @override
+  String get wikiLinkOpenFailed => '无法打开链接，请重试。';
+
+  @override
   String get wikiRecent => '最近更新';
 
   @override
@@ -1177,7 +1229,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get wikiToc => '目录';
 
   @override
-  String get wikiNamespaces => '命名空间';
+  String get wikiNamespaces => '内容分类';
 
   @override
   String wikiViewCount(int count) {
@@ -1648,6 +1700,19 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get profileRoleAdmin => '管理员';
+
+  @override
+  String get profileOnline => '在线';
+
+  @override
+  String profileJoinedAt(String date) {
+    return '加入于 $date';
+  }
+
+  @override
+  String profileLastActive(String time) {
+    return '最后活跃 $time';
+  }
 
   @override
   String get profileActionSignup => '加入社区';
@@ -2160,7 +2225,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get campusConfirmBody => '学校认证已完成，请核对身份。确认后此身份可用于登录，换绑时替换原身份，账号邮箱不变。';
 
   @override
-  String get campusPrivacy => '一个账号绑定一个官方身份。校园数据仅本人可见，不保存到设备。';
+  String get campusPrivacy => '一个账号绑定一个官方身份。姓名、校历和课表会保存在本设备，供离线查看；可在下方清除。';
 
   @override
   String get campusDisabled => '本站尚未启用校园连接';
@@ -2320,6 +2385,75 @@ class AppLocalizationsZh extends AppLocalizations {
   String get campusRulesUnavailable => '暂时无法读取调休规则，请稍后重试，或关闭调休后导出原课表。';
 
   @override
+  String get planSyncTitle => '处理方案冲突';
+
+  @override
+  String get planSyncBody => '其他设备也修改了这些内容。请选择每项要保留的值，其余修改会自动合并。';
+
+  @override
+  String get planSyncLocal => '保留本地';
+
+  @override
+  String get planSyncRemote => '使用云端';
+
+  @override
+  String get planSyncDeleted => '已删除';
+
+  @override
+  String get planSyncPlan => '方案';
+
+  @override
+  String get planSyncName => '名称';
+
+  @override
+  String get planSyncCreatedAt => '创建时间';
+
+  @override
+  String get planSyncCourse => '课程';
+
+  @override
+  String get planSyncEvent => '自定义事件';
+
+  @override
+  String get planSyncLabel => '事件名称';
+
+  @override
+  String get planSyncDay => '星期';
+
+  @override
+  String get planSyncSections => '节次';
+
+  @override
+  String get planSyncWeeks => '周次';
+
+  @override
+  String get planSyncApply => '合并并保存';
+
+  @override
+  String get planSyncDrafts => '恢复草稿';
+
+  @override
+  String get planSyncDraftHint => '这些草稿仅保存在此设备，不占云端方案额度。恢复时会创建新方案。';
+
+  @override
+  String get planSyncRestore => '恢复为新方案';
+
+  @override
+  String get planSyncAdopt => '将此设备的本地方案同步到当前账号';
+
+  @override
+  String get planSyncAdoptHint => '本地方案尚未归属当前账号，确认后才会上传。';
+
+  @override
+  String get planSyncCapacity => '云端最多保存十套方案，请先腾出空间后重试。';
+
+  @override
+  String get planSyncRejected => '保存被拒绝：当前账号不可写入，或方案数据未通过校验。';
+
+  @override
+  String get planSyncArchived => '本地修改已保存为恢复草稿。';
+
+  @override
   String get privateNoteEdit => '编辑备注';
 
   @override
@@ -2327,14 +2461,320 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get privateNoteHint => '仅自己可见，最多 64 个字符；留空保存即可清除。';
+
+  @override
   String get badgeDisplayTitle => '资料卡展示徽章';
 
   @override
-  String get badgeDisplayHint => '最多选择 5 枚，按下方顺序展示；可全部取消。与头像佩戴徽章独立。';
+  String get badgeDisplayHint => '最多展示 5 枚，可全部取消；与头像佩戴徽章独立。';
 
   @override
   String get badgeDisplayUp => '上移';
 
   @override
   String get badgeDisplayDown => '下移';
+
+  @override
+  String get notificationsMarkRead => '标为已读';
+
+  @override
+  String get scheduleWidgetSettingsTitle => '桌面课表小组件';
+
+  @override
+  String get scheduleWidgetPrivacyDescription =>
+      '小组件展示课表中的课程名称、时间、教师和地点。内容来自本机保存的课表，刷新后同步到桌面。';
+
+  @override
+  String get scheduleWidgetRefresh => '从离线课表刷新';
+
+  @override
+  String get scheduleWidgetClear => '清除桌面数据';
+
+  @override
+  String get scheduleWidgetCleared => '已清除桌面课表数据';
+
+  @override
+  String get scheduleWidgetDiagnostics => '刷新诊断';
+
+  @override
+  String get scheduleWidgetDiagnosticsDescription =>
+      '如果日期或课程状态更新较慢，请检查系统对 YourTJ 的后台运行和电量设置；不同设备的菜单名称可能不同。';
+
+  @override
+  String get scheduleWidgetTransparencyTitle => '小组件背景透明度';
+
+  @override
+  String get scheduleWidgetTransparencyDescription =>
+      '调高后会透出更多桌面背景。范围为 0%–15%，兼顾透出壁纸与课程文字辨识。';
+
+  @override
+  String campusSnapshotUpdated(String time) {
+    return '设备快照更新于 $time';
+  }
+
+  @override
+  String get campusSnapshotStale => '快照可能已过期，请刷新获取最新数据。';
+
+  @override
+  String get campusSnapshotOffline => '连接核验失败，正在显示本设备快照。';
+
+  @override
+  String get campusSnapshotRefreshFailed => '部分数据更新失败，保留上次可用内容。';
+
+  @override
+  String get campusDataNeedsRefresh => '此内容尚未更新，请手动刷新。';
+
+  @override
+  String get campusCacheClear => '清除校园缓存';
+
+  @override
+  String get campusCacheClearDescription => '清除本设备的校园快照和桌面课表。草稿、排课方案与学校绑定不受影响。';
+
+  @override
+  String get campusCacheCleared => '校园缓存已清除';
+
+  @override
+  String get campusCacheClearFailed => '部分缓存未能清除，请重试。';
+
+  @override
+  String get scheduleTimeAxis => '节次';
+
+  @override
+  String scheduleEmptyCell(String day, int section) {
+    return '$day，第 $section 节，选课';
+  }
+
+  @override
+  String scheduleSectionsN(String range) {
+    return '第 $range 节';
+  }
+
+  @override
+  String get scheduleGridScrollHint => '左右滑动查看整周课表';
+
+  @override
+  String get coursesFilterSearchHint => '搜索筛选项';
+
+  @override
+  String get coursesFilterNoMatches => '没有匹配的筛选项';
+
+  @override
+  String get coursesClearSelection => '清空选择';
+
+  @override
+  String get coursesResetSearch => '重置搜索和筛选';
+
+  @override
+  String get coursesFilterLoadFailed => '筛选项加载失败，请重试。';
+
+  @override
+  String get coursesPaginationStalled => '暂未获取到更多课程，请重试本页。';
+
+  @override
+  String get messagesNewMessages => '有新消息，回到底部';
+
+  @override
+  String get messagesReadSyncFailed => '已读状态未同步；你的未读消息会保留。';
+
+  @override
+  String get messagesReadUnavailable => '服务器暂不支持逐条已读；未读消息会保留。';
+
+  @override
+  String get messagesDraftLabel => '草稿';
+
+  @override
+  String get messagesDraftStorageFailed => '无法读取或保存本机私信草稿，请重试。';
+
+  @override
+  String get draftCollapse => '收起';
+
+  @override
+  String get draftKindNew => '新话题';
+
+  @override
+  String get draftKindServer => '云端草稿的本机副本';
+
+  @override
+  String get draftKindEdit => '话题修改';
+
+  @override
+  String get draftKindReply => '回复';
+
+  @override
+  String get draftLocalEmpty => '未完成的创作会保存在本机，显示在这里。';
+
+  @override
+  String get draftReplyLeaveUnsaved =>
+      '最新回复修改未能保存。可以继续编辑并重试，或放弃这些修改后离开；已有的本机副本仍会保留。';
+
+  @override
+  String get publishMediaQueueTitle => '照片上传';
+
+  @override
+  String get publishMediaPendingWarning => '仍有未上传的图片。请完成上传或移除后，再保存、发布、切换类型或离开。';
+
+  @override
+  String get publishMediaTemporary => '待上传图片只在本次编辑中保留，应用关闭后需重新选择。';
+
+  @override
+  String get publishMediaUploading => '正在上传';
+
+  @override
+  String get publishMediaWaiting => '等待前一张图片';
+
+  @override
+  String get publishMediaSavedPartial => '文字和已上传图片已保存到本机';
+
+  @override
+  String get draftSearchHint => '搜索标题和正文';
+
+  @override
+  String get draftSearchScope => '搜索本机草稿与当前云端列表。';
+
+  @override
+  String draftMatchCount(int count) {
+    return '当前显示 $count 份草稿';
+  }
+
+  @override
+  String get draftNoMatches => '没有符合这些条件的草稿。';
+
+  @override
+  String get draftClearFilters => '清空搜索与筛选';
+
+  @override
+  String get draftDeleteDone => '本机草稿已删除，可撤销最近一次删除。';
+
+  @override
+  String get draftDeleteRestored => '已恢复本机草稿';
+
+  @override
+  String get draftRestoreConflict => '已有本机副本，已保留其内容。';
+
+  @override
+  String get draftRestoreFailed => '恢复失败，请再次点击撤销。';
+
+  @override
+  String get settingsDataStorage => '数据与存储';
+
+  @override
+  String get settingsProfileDisplay => '个人资料与展示';
+
+  @override
+  String get settingsNotSet => '未设置';
+
+  @override
+  String get settingsUnsavedTitle => '放弃未保存的更改？';
+
+  @override
+  String get settingsUnsavedBody => '更改尚未保存，返回后将丢弃这些内容。';
+
+  @override
+  String get settingsKeepEditing => '继续编辑';
+
+  @override
+  String get settingsDiscardChanges => '放弃更改';
+
+  @override
+  String get settingsPushPreference => '允许推送通知';
+
+  @override
+  String get settingsPushDelivery => '此设备送达状态';
+
+  @override
+  String get settingsPushReady => '可以接收通知';
+
+  @override
+  String get settingsPushOff => '尚未开启';
+
+  @override
+  String get settingsPushIOSConsent => '通过 Apple 推送通知服务接收通知，会处理设备推送标识及通知内容。';
+
+  @override
+  String get settingsPushAndroidConsent => '通过极光及手机厂商接收通知，会处理设备推送标识及通知内容。';
+
+  @override
+  String get settingsDeviceUnknown => '其他设备';
+
+  @override
+  String get settingsDeviceCurrent => '当前设备';
+
+  @override
+  String get badgeDisplayReorder => '拖动调整展示顺序';
+
+  @override
+  String badgeDisplaySelectedCount(int count) {
+    return '已展示 $count/5';
+  }
+
+  @override
+  String get sortFollowing => '关注';
+
+  @override
+  String get notificationsUnreadEmpty => '暂无未读通知';
+
+  @override
+  String get notificationsUnreadEmptyDescription => '所有通知都已查看。';
+
+  @override
+  String get homeFeedOptions => '显示方式';
+
+  @override
+  String get homeAllCategories => '全部分类';
+
+  @override
+  String get sortNew => '新发布';
+
+  @override
+  String get profileRoleAdminDescription => '维护社区秩序，保障论坛正常运行。';
+
+  @override
+  String profileBadgeEarnedOn(String date) {
+    return '获得于 $date';
+  }
+
+  @override
+  String settingsProfilePartialSave(String saved) {
+    return '已保存：$saved。其余修改仍保留，请重试保存。';
+  }
+
+  @override
+  String get userBlock => '屏蔽用户';
+
+  @override
+  String get userUnblock => '取消屏蔽';
+
+  @override
+  String get userBlocks => '已屏蔽用户';
+
+  @override
+  String get userBlockExplanation =>
+      '屏蔽后，你们无法互发新私信，也不会收到彼此的互动通知。公开内容和历史私信仍保留，方便核查与举报。';
+
+  @override
+  String get userBlocksEmpty => '尚未屏蔽任何用户';
+
+  @override
+  String get messageReport => '举报私信';
+
+  @override
+  String get messageReportPrivacy => '提交后，站点管理员可以查看这条私信及你的说明，用于处理举报。不会提交整段会话。';
+
+  @override
+  String get contentReport => '举报内容';
+
+  @override
+  String get reportSpam => '垃圾信息';
+
+  @override
+  String get reportAbuse => '辱骂或骚扰';
+
+  @override
+  String get reportIllegal => '违法内容';
+
+  @override
+  String get reportIrrelevant => '无关内容';
+
+  @override
+  String get reportOther => '其他';
 }

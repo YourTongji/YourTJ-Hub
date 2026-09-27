@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-08-14
+> Last verified: 2026-09-25
 
 ## System shape
 
@@ -75,9 +75,25 @@
   built-in OIDC Provider (authorization code + PKCE S256, numeric `sub` = users.id) for first-party
   clients. Sessions are `jti` + `user_sessions` backed and revocable (see identity-and-access.md).
 - Mobile (`Partial`): appauth+PKCE → id_token → `POST /api/auth/oidc/exchange` → forum JWT. The
-  Flutter shell and feature pages consume the repository-owned `Gf*` UI API; `ui_kit` maps those
-  tokens and components to the pinned TDesign v1 alpha implementation so application pages do not
-  depend on pre-release TDesign APIs directly.
+  Flutter shell and feature pages consume the repository-owned `Gf*` UI API. `ui_kit` composes
+  Flutter primitives with shared semantic tokens and native interaction behavior; component shapes,
+  focus, selected/disabled states and touch targets are owned by the repository
+  ([0039](../decisions/0039-native-gf-component-foundation.md)).
+
+### Foreground chat and notification changes (Current)
+
+- The Go forum publishes owner-scoped chat, notification and unread invalidations to a bounded,
+  process-local SSE hub after committed writes. `GET /api/forum/events` authenticates the forum
+  session, sends `hello` with `resync: true`, heartbeats and bounded change hints. The stream has no
+  durable replay cursor or message body; REST remains the source of content and unread counts.
+- The Flutter shell owns one stream while foregrounded. It cancels the connection on background or
+  session invalidation, fences pending callbacks by session, and uses the `hello` frame to refresh
+  open message/notification views and unread badges. Chat views stop their 15-second polling while
+  the stream is healthy. On disconnect or an unsupported endpoint they resume polling in the
+  foreground; reconnect performs another REST reconciliation. Expected HTTP cancellation during
+  decoder shutdown completes silently; other transport errors still trigger reconciliation and retry.
+- This process-local delivery assumes the forum's single-instance deployment shape. A multi-instance
+  deployment would need shared fan-out before treating SSE as a reliable cross-instance hint channel.
 
 ### Search (Partial)
 

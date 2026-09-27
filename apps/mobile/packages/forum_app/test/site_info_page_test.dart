@@ -18,7 +18,7 @@ class _Pages extends PageRepository {
   final paths = <String>[];
   bool fail = false;
   @override
-  Future<PagePayload> fetch(String path) async {
+  Future<PagePayload> fetch(String path, {Object? cancelToken}) async {
     paths.add(path);
     if (fail) throw StateError('offline');
     return PagePayload.fromJson({

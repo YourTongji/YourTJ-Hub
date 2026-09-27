@@ -112,7 +112,12 @@ int _indentOf(String line) {
 
 String? _standaloneHttpUrl(String raw) {
   final String value = raw.trim();
-  if (value.isEmpty || value.length > 2048 || value.contains('\\')) return null;
+  if (value.isEmpty ||
+      value.length > 2048 ||
+      value.contains('\\') ||
+      RegExp(r'\s', unicode: true).hasMatch(value)) {
+    return null;
+  }
   for (final int rune in value.runes) {
     if (rune < 0x20 || rune == 0x7f) return null;
   }

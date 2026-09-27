@@ -1,8 +1,11 @@
 package userFollow
 
 import (
+	"context"
+
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/queryopt"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
+	"gorm.io/gorm"
 )
 
 func create(entity *Entity) int64 {
@@ -85,4 +88,12 @@ func orderUsersByIDs(items []*users.EntityComplete, ids []uint64) []*users.Entit
 		}
 	}
 	return result
+}
+
+// ActiveFollowedIDsQuery exposes the follow owner's live subquery without
+// loading an unbounded list of IDs into application memory.
+func ActiveFollowedIDsQuery(ctx context.Context, userID uint64) *gorm.DB {
+	return builder().WithContext(ctx).Select(fieldFollowUserId).
+		Where(queryopt.Eq(fieldUserId, userID)).
+		Where(queryopt.Eq(fieldStatus, 1))
 }

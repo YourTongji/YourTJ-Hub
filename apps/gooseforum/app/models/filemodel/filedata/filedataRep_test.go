@@ -32,6 +32,12 @@ func TestFileResourcePageListsFilesByIDRangeWithoutContent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("save second image: %v", err)
 	}
+	if create(&Entity{
+		Name: "images/new__w320.webp", Type: "image/webp", ParentName: second.Name,
+		StorageStatus: StorageStatusReady,
+	}) == 0 {
+		t.Fatal("failed to add internal thumbnail row")
+	}
 
 	page := FileResourcePage(1, 2)
 	if page.MaxId != int64(second.Id) {

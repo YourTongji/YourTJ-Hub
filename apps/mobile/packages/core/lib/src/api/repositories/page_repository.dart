@@ -1,6 +1,8 @@
 import '../../gen/page.dart';
 import '../gf_api_client.dart';
 
+import 'package:dio/dio.dart';
+
 /// 页面级数据通道:请求头 X-Goose-Page: true 时,
 /// 页面路由(/, /p/post/:id, /c/:slug/:id, /u/:userId 等)直接返回 PagePayload JSON。
 class PageRepository {
@@ -10,22 +12,25 @@ class PageRepository {
 
   static const _headers = {GfApiClient.pageRequestHeader: 'true'};
 
-  Future<PagePayload> fetch(String path) async {
+  Future<PagePayload> fetch(String path, {CancelToken? cancelToken}) async {
     return _client.get<PagePayload>(
       path,
+      cancelToken: cancelToken,
       headers: _headers,
       parser: (json) => PagePayload.fromJson(json as Map<String, dynamic>),
     );
   }
 
   /// 首页。sort: hot | latest | ...(与 web 端一致)。
-  Future<PagePayload> home({String sort = ''}) {
-    return fetch(sort.isEmpty ? '/' : '/?sort=$sort');
+  Future<PagePayload> home({String sort = '', CancelToken? cancelToken}) {
+    return fetch(sort.isEmpty ? '/' : '/?sort=$sort', cancelToken: cancelToken);
   }
 
   /// 话题详情页。
   Future<PagePayload> topicDetail(int topicId, {int? postNo}) {
-    return fetch(postNo == null ? '/p/post/$topicId' : '/p/post/$topicId/$postNo');
+    return fetch(
+      postNo == null ? '/p/post/$topicId' : '/p/post/$topicId/$postNo',
+    );
   }
 
   /// 分类页。

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:ui_kit/ui_kit.dart';
 import '../../../l10n/app_localizations.dart';
 
 class AccountClosureDialog extends StatefulWidget {
@@ -31,6 +32,9 @@ class _AccountClosureDialogState extends State<AccountClosureDialog> {
             DropdownButtonFormField<String>(
               initialValue: _mode,
               isExpanded: true,
+              itemHeight: null,
+              borderRadius: BorderRadius.circular(16),
+              icon: const GfSymbol('chevron-down', size: 20),
               items: [
                 DropdownMenuItem(
                   value: 'anonymize',
@@ -46,13 +50,15 @@ class _AccountClosureDialogState extends State<AccountClosureDialog> {
               },
             ),
             const SizedBox(height: 16),
-            TextField(
+            GfInput(
               controller: _password,
               obscureText: true,
               enableSuggestions: false,
               autocorrect: false,
+              autofillHints: const [AutofillHints.password],
+              textInputAction: TextInputAction.done,
               onChanged: (_) => setState(() {}),
-              decoration: InputDecoration(labelText: l10n.authPassword),
+              labelText: l10n.authPassword,
             ),
           ],
         ),

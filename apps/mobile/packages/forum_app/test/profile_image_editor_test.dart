@@ -67,6 +67,65 @@ void main() {
     );
   });
 
+  test('cover preview rejects a viewport outside the exported image', () {
+    expect(
+      () => ProfileImageEditor(
+        source: stripes(),
+        cover: true,
+        coverPreviewAspectRatio: 0,
+        onSave: (_) async {},
+      ),
+      throwsAssertionError,
+    );
+    expect(
+      () => ProfileImageEditor(
+        source: stripes(),
+        cover: true,
+        coverPreviewAspectRatio: 6,
+        onSave: (_) async {},
+      ),
+      throwsAssertionError,
+    );
+  });
+
+  for (final ratio in [2.25, 3.0, 3.8]) {
+    testWidgets(
+      'cover safe area matches profile ratio $ratio on a narrow phone',
+      (tester) async {
+        tester.view.physicalSize = const Size(320, 800);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: gfThemeData(Brightness.light),
+            locale: const Locale('en'),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: ProfileImageEditor(
+              source: stripes(),
+              cover: true,
+              coverPreviewAspectRatio: ratio,
+              confirmLabel: 'Use photo',
+              onSave: (_) async {},
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        final full = tester.getRect(
+          find.byKey(const Key('profile-image-crop')),
+        );
+        final visible = tester.getRect(
+          find.byKey(const Key('profile-cover-visible-region')),
+        );
+        expect(full.width / full.height, closeTo(5, .01));
+        expect(visible.width, closeTo(full.width * ratio / 5, .01));
+        expect(visible.center.dx, closeTo(full.center.dx, .01));
+        expect(find.text('Use photo'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
   testWidgets(
     'failed upload retains the crop and successful retry closes the editor',
     (tester) async {

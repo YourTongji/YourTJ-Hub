@@ -1,10 +1,10 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:typed_data';
 import 'package:auth/auth.dart';
 import 'package:core/core.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:forum_app/l10n/app_localizations.dart';
@@ -52,7 +52,7 @@ class _Options implements HttpClientAdapter {
             'props': {
               'initialMode': 'login',
               'redirectUrl': '/',
-              'githubUrl': '',
+              'githubUrl': '/api/auth/github',
               'googleReady': false,
               'tongjiReady': tongji,
               'tongjiUrl': '/api/auth/tongji',
@@ -89,6 +89,31 @@ class _Auth extends AuthController {
   Completer<void>? captchaGate;
   Object? captchaError;
   CaptchaPayload? captchaPayload;
+  final loginRequests =
+      <({String username, String password, String? captchaCode})>[];
+
+  @override
+  LoginPhase get phase =>
+      loginRequests.isEmpty ? super.phase : LoginPhase.failed;
+
+  @override
+  String get error =>
+      loginRequests.isEmpty ? super.error : 'Invalid credentials';
+
+  @override
+  Future<void> login({
+    required String username,
+    required String password,
+    String? captchaId,
+    String? captchaCode,
+  }) async {
+    loginRequests.add((
+      username: username,
+      password: password,
+      captchaCode: captchaCode,
+    ));
+    notifyListeners();
+  }
 
   @override
   CaptchaPayload? get captcha => captchaPayload;
@@ -133,8 +158,11 @@ void main() {
     bool oldSession = false,
     bool register = true,
     bool tongji = false,
+    Locale locale = const Locale('en'),
+    double width = 390,
+    double textScale = 1,
   }) async {
-    await tester.binding.setSurfaceSize(const Size(390, 1100));
+    await tester.binding.setSurfaceSize(Size(width, 1100));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     final storage = MemoryTokenStorage();
     if (oldSession) await storage.write('old-token');
@@ -166,7 +194,13 @@ void main() {
         container: container,
         child: MaterialApp(
           theme: gfThemeData(Brightness.light),
-          locale: const Locale('en'),
+          locale: locale,
+          builder: (context, child) => MediaQuery(
+            data: MediaQuery.of(
+              context,
+            ).copyWith(textScaler: TextScaler.linear(textScale)),
+            child: child!,
+          ),
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: LoginPage(authController: auth, authTokenStorage: staged),
@@ -174,7 +208,10 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    if (register) await tester.tap(find.text('Sign up').first);
+    if (register) {
+      final l10n = AppLocalizations.of(tester.element(find.byType(LoginPage)));
+      await tester.tap(find.text(l10n.loginModeRegister).first);
+    }
     await tester.pumpAndSettle();
     return (auth: auth, options: options, container: container);
   }
@@ -194,6 +231,55 @@ void main() {
     await tester.enterText(input(emailLabel), email);
     await tester.enterText(input('Password'), 'test-password');
     await tester.enterText(input('Confirm password'), 'test-password');
+  }
+
+  for (final language in ['zh', 'en', 'ja', 'de']) {
+    for (final width in [320.0, 390.0]) {
+      testWidgets('$language auth modes at $width and 200% text', (
+        tester,
+      ) async {
+        await pump(
+          tester,
+          register: false,
+          tongji: true,
+          policies: true,
+          locale: Locale(language),
+          width: width,
+          textScale: 2,
+        );
+        final l10n = AppLocalizations.of(
+          tester.element(find.byType(LoginPage)),
+        );
+        expect(tester.takeException(), isNull);
+        await tester.ensureVisible(input(l10n.authPassword));
+        await tester.tap(input(l10n.authPassword));
+        await tester.testTextInput.receiveAction(TextInputAction.next);
+        await tester.pumpAndSettle();
+        expect(find.byKey(const Key('login-captcha')), findsOneWidget);
+        expect(
+          tester.getSize(input(l10n.authCaptcha)).width,
+          greaterThanOrEqualTo(140),
+        );
+        expect(tester.takeException(), isNull);
+        await tester.ensureVisible(find.text(l10n.loginModeRegister).first);
+        await tester.tap(find.text(l10n.loginModeRegister).first);
+        await tester.pumpAndSettle();
+        expect(
+          tester
+              .widget<TextField>(input(l10n.authConfirmPassword))
+              .autofillHints,
+          contains(AutofillHints.newPassword),
+        );
+        expect(tester.takeException(), isNull);
+        await tester.ensureVisible(find.text(l10n.loginModeLogin).first);
+        await tester.tap(find.text(l10n.loginModeLogin).first);
+        await tester.pumpAndSettle();
+        await tester.ensureVisible(find.text(l10n.authForgotPassword));
+        await tester.tap(find.text(l10n.authForgotPassword));
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+      });
+    }
   }
 
   for (final register in [false, true]) {
@@ -225,6 +311,302 @@ void main() {
     await pump(tester, register: false);
 
     expect(find.byKey(const Key('login-captcha')), findsNothing);
+  });
+
+  for (final delayed in [false, true]) {
+    testWidgets(
+      'explicit username focus wins over ${delayed ? 'delayed' : 'prefetched'} captcha',
+      (tester) async {
+        final h = await pump(tester, register: false);
+        if (delayed) h.auth.captchaGate = Completer<void>();
+        await tester.enterText(input('Username or email'), 'mobile');
+        await tester.enterText(input('Password'), 'secret');
+        await tester.tap(input('Username or email'));
+        await tester.pumpAndSettle();
+        if (delayed) {
+          h.auth.captchaGate!.complete();
+          await tester.pumpAndSettle();
+        }
+
+        expect(input('Captcha'), findsOneWidget);
+        expect(
+          tester
+              .widget<TextField>(input('Username or email'))
+              .focusNode!
+              .hasFocus,
+          isTrue,
+        );
+        expect(
+          tester.widget<TextField>(input('Captcha')).focusNode!.hasFocus,
+          isFalse,
+        );
+        expect(
+          tester.widget<TextField>(input('Username or email')).controller!.text,
+          'mobile',
+        );
+        expect(
+          tester.widget<TextField>(input('Password')).controller!.text,
+          'secret',
+        );
+      },
+      variant: TargetPlatformVariant({
+        TargetPlatform.android,
+        TargetPlatform.iOS,
+      }),
+    );
+  }
+
+  testWidgets(
+    'blank outside tap reveals captcha without opening another input',
+    (tester) async {
+      await pump(tester, register: false);
+      await tester.enterText(input('Password'), 'secret');
+      await tester.tapAt(const Offset(385, 1080));
+      await tester.pumpAndSettle();
+
+      expect(input('Captcha'), findsOneWidget);
+      expect(
+        tester.widget<TextField>(input('Password')).focusNode!.hasFocus,
+        isFalse,
+      );
+      expect(
+        tester.widget<TextField>(input('Captcha')).focusNode!.hasFocus,
+        isFalse,
+      );
+      expect(tester.testTextInput.isVisible, isFalse);
+      expect(
+        tester.widget<TextField>(input('Password')).controller!.text,
+        'secret',
+      );
+    },
+    variant: TargetPlatformVariant({
+      TargetPlatform.android,
+      TargetPlatform.iOS,
+    }),
+  );
+
+  testWidgets(
+    'keyboard next enters password through a secure IME transition',
+    (tester) async {
+      addTearDown(tester.view.resetViewInsets);
+      await pump(tester, register: false);
+      await tester.enterText(input('Username or email'), 'mobile');
+      tester.view.viewInsets = const FakeViewPadding(bottom: 300);
+      await tester.pump();
+
+      await tester.testTextInput.receiveAction(TextInputAction.next);
+      await tester.pump();
+      tester.view.viewInsets = const FakeViewPadding();
+      await tester.pump();
+      await tester.pump();
+
+      expect(
+        tester.widget<TextField>(input('Password')).focusNode!.hasFocus,
+        isTrue,
+      );
+      expect(find.byKey(const Key('login-captcha')), findsNothing);
+      tester.view.viewInsets = const FakeViewPadding(bottom: 300);
+      await tester.pump();
+      await tester.enterText(input('Password'), 'secret');
+      await tester.testTextInput.receiveAction(TextInputAction.next);
+      await tester.pumpAndSettle();
+      expect(
+        tester.widget<TextField>(input('Captcha')).focusNode!.hasFocus,
+        isTrue,
+      );
+      expect(
+        tester.widget<TextField>(input('Password')).controller!.text,
+        'secret',
+      );
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.android),
+  );
+
+  testWidgets(
+    'dismissing the secure keyboard does not reopen it on captcha',
+    (tester) async {
+      addTearDown(tester.view.resetViewInsets);
+      await pump(tester, register: false);
+      await tester.enterText(input('Password'), 'secret');
+      tester.view.viewInsets = const FakeViewPadding(bottom: 300);
+      await tester.pump();
+      tester.testTextInput.hide();
+      tester.view.viewInsets = const FakeViewPadding();
+      await tester.pumpAndSettle();
+
+      expect(input('Captcha'), findsOneWidget);
+      expect(
+        tester.widget<TextField>(input('Password')).focusNode!.hasFocus,
+        isFalse,
+      );
+      expect(
+        tester.widget<TextField>(input('Captcha')).focusNode!.hasFocus,
+        isFalse,
+      );
+      expect(tester.testTextInput.isVisible, isFalse);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.android),
+  );
+
+  for (final label in ['Username or email', 'Captcha']) {
+    testWidgets(
+      'outside tap dismisses the $label keyboard and preserves its input',
+      (tester) async {
+        await pump(tester, register: false);
+        if (label == 'Captcha') {
+          await tester.enterText(input('Password'), 'secret');
+          await tester.testTextInput.receiveAction(TextInputAction.next);
+          await tester.pumpAndSettle();
+        }
+        await tester.enterText(input(label), 'retained');
+        await tester.tap(
+          find.byWidgetPredicate(
+            (widget) => widget is Image && widget.semanticLabel == 'YourTJ',
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(
+          tester.widget<TextField>(input(label)).focusNode!.hasFocus,
+          isFalse,
+        );
+        expect(tester.testTextInput.isVisible, isFalse);
+        expect(
+          tester.widget<TextField>(input(label)).controller!.text,
+          'retained',
+        );
+      },
+      variant: TargetPlatformVariant({
+        TargetPlatform.android,
+        TargetPlatform.iOS,
+      }),
+    );
+  }
+
+  testWidgets('registration next advances exactly one editable field', (
+    tester,
+  ) async {
+    await pump(tester);
+    await tester.enterText(input('Username'), 'mobile');
+    for (final label in ['Email', 'Password', 'Confirm password']) {
+      await tester.testTextInput.receiveAction(TextInputAction.next);
+      await tester.pumpAndSettle();
+      final editable = tester.widget<EditableText>(
+        find.descendant(of: input(label), matching: find.byType(EditableText)),
+      );
+      expect(
+        editable.focusNode.hasFocus,
+        isTrue,
+        reason: 'Next should focus $label',
+      );
+    }
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'failed login preserves every field and allows a deliberate retry',
+    (tester) async {
+      final h = await pump(tester, register: false);
+      await tester.enterText(input('Username or email'), 'mobile');
+      await tester.enterText(input('Password'), 'secret');
+      await tester.testTextInput.receiveAction(TextInputAction.next);
+      await tester.pumpAndSettle();
+      await tester.enterText(input('Captcha'), '1234');
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Invalid credentials'), findsOneWidget);
+      expect(h.auth.loginRequests, [
+        (username: 'mobile', password: 'secret', captchaCode: '1234'),
+      ]);
+      expect(
+        tester.widget<TextField>(input('Username or email')).controller!.text,
+        'mobile',
+      );
+      expect(
+        tester.widget<TextField>(input('Password')).controller!.text,
+        'secret',
+      );
+      expect(
+        tester.widget<TextField>(input('Captcha')).controller!.text,
+        '1234',
+      );
+      expect(tester.testTextInput.isVisible, isFalse);
+
+      await tester.tap(input('Username or email'));
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<TextField>(input('Username or email'))
+            .focusNode!
+            .hasFocus,
+        isTrue,
+      );
+      await tester.enterText(input('Username or email'), 'mobile-fixed');
+      await tester.testTextInput.receiveAction(TextInputAction.next);
+      await tester.pump();
+      await tester.testTextInput.receiveAction(TextInputAction.next);
+      await tester.pumpAndSettle();
+      expect(
+        tester.widget<TextField>(input('Captcha')).focusNode!.hasFocus,
+        isTrue,
+      );
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pumpAndSettle();
+      expect(h.auth.loginRequests.last.username, 'mobile-fixed');
+      expect(h.auth.loginRequests.length, 2);
+    },
+  );
+
+  testWidgets(
+    'switching mode cancels a delayed captcha handoff and keeps credentials',
+    (tester) async {
+      final h = await pump(tester, register: false);
+      h.auth.captchaGate = Completer<void>();
+      await tester.enterText(input('Username or email'), 'mobile');
+      await tester.enterText(input('Password'), 'secret');
+      await tester.testTextInput.receiveAction(TextInputAction.next);
+      await tester.pump();
+      await tester.tap(find.text('Sign up').first);
+      await tester.pumpAndSettle();
+      h.auth.captchaGate!.complete();
+      await tester.pumpAndSettle();
+
+      expect(input('Captcha'), findsNothing);
+      expect(tester.testTextInput.isVisible, isFalse);
+      expect(
+        tester.widget<TextField>(input('Username')).controller!.text,
+        'mobile',
+      );
+      expect(
+        tester.widget<TextField>(input('Password')).controller!.text,
+        'secret',
+      );
+      await tester.tap(find.text('Sign in').first);
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('login-captcha')), findsNothing);
+      expect(tester.testTextInput.isVisible, isFalse);
+      expect(
+        tester.widget<TextField>(input('Username or email')).controller!.text,
+        'mobile',
+      );
+    },
+  );
+
+  testWidgets('leaving login cancels a delayed captcha handoff', (
+    tester,
+  ) async {
+    final h = await pump(tester, register: false);
+    h.auth.captchaGate = Completer<void>();
+    await tester.enterText(input('Password'), 'secret');
+    await tester.testTextInput.receiveAction(TextInputAction.next);
+    await tester.pump();
+    await tester.pumpWidget(const SizedBox.shrink());
+    h.auth.captchaGate!.complete();
+    await tester.pumpAndSettle();
+
+    expect(find.byType(LoginPage), findsNothing);
+    expect(tester.testTextInput.isVisible, isFalse);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('password blur reveals captcha and refocus keeps it visible', (
@@ -371,11 +753,11 @@ void main() {
       final github = tester.widget<OutlinedButton>(
         find.widgetWithText(OutlinedButton, 'Continue with GitHub'),
       );
-      final google = tester.widget<OutlinedButton>(
-        find.widgetWithText(OutlinedButton, 'Continue with Google'),
-      );
       expect(github.onPressed, isNotNull);
-      expect(google.onPressed, isNull);
+      expect(
+        find.widgetWithText(OutlinedButton, 'Continue with Google'),
+        findsNothing,
+      );
     },
   );
 

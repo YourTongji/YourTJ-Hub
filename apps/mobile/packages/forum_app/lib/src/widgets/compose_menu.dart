@@ -10,32 +10,35 @@ import '../pages/publish/publish_type.dart';
 Future<void> showComposeMenu(
   BuildContext context, {
   required double bottom,
+  Future<void> Function(PublishType type)? onCompose,
 }) async {
   final l10n = AppLocalizations.of(context);
+  final source = context.findRenderObject();
+  final window = MediaQuery.of(context);
+  final sourceRight = source is RenderBox && source.hasSize
+      ? source.localToGlobal(Offset(source.size.width, 0)).dx
+      : window.size.width;
+  // The dialog belongs to the root navigator; anchor it to the reading column
+  // that opened it, even when the window has gutters and a navigation rail.
+  final rightInset = (window.size.width - sourceRight).clamp(
+    0.0,
+    window.size.width,
+  );
   final type = await showGeneralDialog<PublishType>(
     context: context,
     barrierDismissible: true,
     barrierLabel: l10n.commonClose,
-    barrierColor: GfTheme.colorsOf(context).base100.withValues(alpha: .9),
-    transitionDuration: MediaQuery.disableAnimationsOf(context)
-        ? Duration.zero
-        : const Duration(milliseconds: 180),
-    transitionBuilder: (context, animation, secondary, child) => FadeTransition(
-      opacity: animation,
-      child: SlideTransition(
-        position: Tween(
-          begin: const Offset(0, .025),
-          end: Offset.zero,
-        ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOut)),
-        child: child,
-      ),
-    ),
+    barrierColor: Theme.of(context).colorScheme.scrim,
+    transitionDuration: GfMotion.duration(context, GfMotion.layout),
+    transitionBuilder: (context, animation, secondary, child) =>
+        GfFadeTransition(animation: animation, child: child),
     pageBuilder: (context, animation, secondary) => SafeArea(
       child: Align(
         alignment: Alignment.bottomRight,
         child: Padding(
-          padding: EdgeInsets.fromLTRB(24, 16, 16, bottom),
+          padding: EdgeInsets.fromLTRB(24, 16, 16 + rightInset, bottom),
           child: ConstrainedBox(
+            key: const ValueKey('compose-menu'),
             constraints: const BoxConstraints(maxWidth: 320),
             child: SingleChildScrollView(
               child: Column(
@@ -44,19 +47,19 @@ Future<void> showComposeMenu(
                 children: [
                   for (final option in PublishType.values)
                     Padding(
-                      padding: const EdgeInsets.only(bottom: 16),
+                      padding: const EdgeInsets.only(bottom: 12),
                       child: Material(
                         color: GfTheme.colorsOf(context).base100,
-                        borderRadius: BorderRadius.circular(28),
+                        borderRadius: BorderRadius.circular(18),
                         elevation: 2,
                         shadowColor: Colors.black.withValues(alpha: .15),
                         child: InkWell(
                           key: ValueKey('compose-${option.value}'),
                           autofocus: option == PublishType.moment,
-                          borderRadius: BorderRadius.circular(28),
+                          borderRadius: BorderRadius.circular(18),
                           onTap: () => Navigator.pop(context, option),
                           child: Padding(
-                            padding: const EdgeInsets.fromLTRB(20, 6, 6, 6),
+                            padding: const EdgeInsets.fromLTRB(20, 10, 12, 10),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
@@ -69,7 +72,7 @@ Future<void> showComposeMenu(
                                   ),
                                 ),
                                 const SizedBox(width: 20),
-                                PublishTypeIcon(option, size: 44),
+                                PublishTypeIcon(option, size: 32),
                               ],
                             ),
                           ),
@@ -95,6 +98,10 @@ Future<void> showComposeMenu(
     ),
   );
   if (type != null && context.mounted) {
-    context.push('/publish?type=${type.value}');
+    if (onCompose != null) {
+      await onCompose(type);
+    } else {
+      context.push('/publish?type=${type.value}');
+    }
   }
 }

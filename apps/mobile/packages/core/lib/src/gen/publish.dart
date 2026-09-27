@@ -99,6 +99,8 @@ abstract class AnnouncementPayload with _$AnnouncementPayload {
       _$AnnouncementPayloadFromJson(json);
 }
 
+/// Server-defined sorts include `following` (sign-in required). Follow
+/// pagination.nextUrl verbatim; its chronological cursor is account-scoped.
 @freezed
 abstract class HomeProps with _$HomeProps {
   const factory HomeProps({

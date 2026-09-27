@@ -3,8 +3,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 
 import '../theme/gf_theme.dart';
 
-/// ReIcon vectors shared with the Web and editable Figma library.
-/// Provider marks retain their official colours.
+/// ReIcon vectors on a shared 24px grid; brand marks retain their artwork.
 class GfSymbol extends StatelessWidget {
   const GfSymbol(this.name, {super.key, this.size = 24, this.color});
   final String name;
@@ -12,19 +11,25 @@ class GfSymbol extends StatelessWidget {
   final Color? color;
 
   @override
-  Widget build(BuildContext context) => SvgPicture.asset(
-    'assets/icons/$name.svg',
-    package: 'ui_kit',
-    width: size,
-    height: size,
-    excludeFromSemantics: true,
-    colorFilter: name == 'google'
-        ? null
-        : ColorFilter.mode(
-            color ??
-                IconTheme.of(context).color ??
-                GfTheme.colorsOf(context).baseContent,
-            BlendMode.srcIn,
-          ),
+  Widget build(BuildContext context) => Center(
+    // InputDecorator and buttons reserve a larger interaction slot. Loosen
+    // those constraints for the glyph without growing loose inline layouts.
+    widthFactor: 1,
+    heightFactor: 1,
+    child: SvgPicture.asset(
+      'assets/icons/$name.svg',
+      package: 'ui_kit',
+      width: size,
+      height: size,
+      excludeFromSemantics: true,
+      colorFilter: name == 'google'
+          ? null
+          : ColorFilter.mode(
+              color ??
+                  IconTheme.of(context).color ??
+                  GfTheme.colorsOf(context).baseContent,
+              BlendMode.srcIn,
+            ),
+    ),
   );
 }

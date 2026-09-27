@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-09-20
+> Last verified: 2026-09-25
 
 ## Contract status
 
@@ -32,9 +32,9 @@ and CI rejects any route that is neither contracted nor listed. By domain:
   data import/export;
 - Agent public API (`/api/v1/agent/*`), course catalog + reviews + moderation, and the PK
   scheduler (`/api/pk/*`: public read-only dictionaries/catalog/details plus the login-gated
-  `/api/pk/plans` schedule-plan cloud sync GET/PUT/DELETE — whole-snapshot replace with a
-  server-authoritative `updatedAt` clock, shallow 1..10-plans/1MB validation, deleted on
-  account close; issue #537);
+  `/api/pk/plan-items` schedule-plan cloud sync GET/PUT/DELETE — independent integer revisions,
+  conditional single-plan writes/deletes, at most ten plans and 1 MB per plan; content is erased on
+  account close. Legacy `/api/pk/plans` becomes unavailable after migration);
 - Wiki 域（`paths/wiki.yaml` + `paths/wiki-sync.yaml`，GitHub 唯一真实源模型）：公开读
   `GET /api/wiki/{tree,namespaces,home}`；管理端 `/api/admin/wiki/*`（PageManager：只读树 +
   `sync/status` / `sync` / `sync/runs` / `sync/webhook-secret` 读写 + asset CDN 设置）与公开
@@ -72,6 +72,33 @@ such as unauthenticated access, frozen or unresolvable authenticated accounts, a
 HTTP `401`, `403`, and `429` with the same failure envelope. Topic write's current permissive `UpButterReq`
 wrapper reports malformed or incomplete JSON as
 an HTTP `200` validation failure, not a guaranteed `400`.
+
+Chat send and read mutations commit message rows, conversation summaries and unread counters in one
+database transaction. `POST /api/forum/chat/mark-visible` accepts 1–100 explicit incoming message IDs;
+it validates the entire batch before changing any state, acknowledges duplicate/already-read IDs
+idempotently and subtracts only newly read rows from the stored recipient counter; sends increment
+that counter under the same conversation lock. Neither operation recounts the unread backlog.
+It does not infer that earlier IDs were seen. `POST /api/forum/chat/message-read-states` returns flags
+for selected incoming or outgoing IDs
+without message bodies, reading flags and the stored counter under that same lock for a consistent
+snapshot. Legacy counter drift is not automatically recounted by this bounded lookup. The legacy
+`mark-read` route remains compatible and still clears the whole conversation when older clients call it. These operations use the existing message `is_read` rows;
+there is no persisted highest-read watermark or schema migration.
+
+`GET /api/forum/events` is a `text/event-stream` invalidation channel for an authenticated foreground
+client. The `hello` frame has `resync: true` on every connection; `chat.changed`,
+`notifications.changed` and `unread.changed` carry owner-scoped hints only. The client reconciles
+via REST cursors after hello, reconnection or an interrupted stream; SSE has no replay IDs and never
+carries message bodies, previews or authoritative unread counts. Chat write/read hints are published
+only after their transaction commits, and notification hints after persisted notification mutations.
+Each subscription has a bounded queue; overflow closes the stream, forcing a REST resync rather
+than silently losing an event. The server permits at most five streams per user and 10,000 per
+process. Session rows and token versions are checked without the profile cache at handshake and
+every five minutes, independently of the 15-second transport heartbeat;
+a database failure closes the stream for retry without declaring logout. This hub is process-local:
+serving the same forum from multiple processes requires a shared invalidation transport before
+this stream can guarantee prompt cross-instance updates. REST remains correct independently. The
+delivery and scaling tradeoffs are recorded in [MADR 0036](../decisions/0036-foreground-realtime-invalidation.md).
 
 ## HTTP method contract: HEAD vs GET (issue #411)
 
@@ -412,7 +439,37 @@ and per-topic documents preserve the stored Markdown source.
   above and is not a Planned capability.
 - Docs status words updated in step (docs/README.md).
 
-PK plan uploads support an observed `baseUpdatedAt` revision: an empty string creates only if no snapshot exists, and a stale revision returns HTTP 409 without changing data. Sync clients must send this condition and fetch again before resolving a conflict. The server remains the sole clock source; omission retains unconditional replacement for existing API consumers.
+PK plan synchronization is `Current` and follows [issue #714](https://github.com/YourTongji/YourTJ-Hub/issues/714):
+`pk_plan_item` is keyed by numeric user ID and plan ID, with payload JSON, independent integer revision
+and diagnostic `updated_at`. A scheduler-owned owner row serializes quota checks, lazy migration and
+legacy writes. First access copies all legacy plans, including recovery copies, then marks migration
+complete atomically; old snapshot reads/writes/deletes return 410 thereafter. Deleting every plan does
+not clear this marker. Account erasure deletes all payloads and retains only a closed-owner marker so
+already-authorized in-flight requests cannot recreate data.
+
+A zero `baseRevision` creates only an absent ID. Positive revisions update or delete only the matching
+plan; a stale write returns 409 with the current item, a missing positive-revision write returns 410,
+and a missing delete succeeds idempotently. Quota failures return 409 with null data. IDs use random
+128-bit values and are never intentionally reused. No per-plan tombstones, history, merge workers or
+persistent connections are needed. Server writes do not merge client content. Each account has at most ten plans, each bounded by
+the existing 1 MiB JSON validation limit; all operations share the dedicated `pk.plans` rate quota.
+
+Clients persist each account's plans, last acknowledged base per plan and independent recovery drafts.
+Three-way merge treats a course and its selected teaching classes as one unit to avoid selecting two
+incompatible classes; custom events merge by stable event ID and field. Same-field divergence or
+unbased ID collisions require explicit choices. Optional null wire fields do not create false edits.
+Deleted dirty content is archived only after the recovery copy persists, and restoration uses a new
+ID. Overflow locals remain in device recovery drafts outside the ten cloud slots. These private
+local drafts persist until restored or the browser/App storage is cleared; they are never uploaded
+as archives. UI preferences
+(`activePlanId`, `majorSelected`, `weekView`) never enter a content revision. Shared merge fixtures,
+HTTP contracts and SQLite/PostgreSQL concurrency tests pin these rules.
+
+Edits schedule a three-second debounce. Entry, focus after thirty seconds and network restoration
+trigger reconciliation; only dirty data retries with bounded backoff. Flutter uses
+[connectivity_plus 7.3.1](https://pub.dev/packages/connectivity_plus/versions/7.3.1) for foreground network
+change events while retaining transport-error handling and resume reconciliation. Network type alone
+does not establish reachability. Clean state never runs a fixed synchronization timer.
 
 PK source records are isolated by audience. Undergraduate external numeric IDs retain their
 value; graduate IDs use bit 52, and ingestion rejects external IDs outside `1..2^52-1` so both
@@ -457,7 +514,8 @@ including the owner's 1000-note quota. Account closure deletes notes owned by or
 account in the same transaction as marking the user closed. Private reads obtain current canonical
 usernames from the users domain and exclude closed targets. Public user models/caches do not carry
 viewer notes; Web and native renderers apply a private in-memory overlay without changing saved
-content or identity values. The authenticated `/api/user-notes` and `/api/user-note` operations are
+content or identity values. A noted display name uses the current nickname, falling back to the
+canonical username. The authenticated `/api/user-notes` and `/api/user-note` operations are
 covered by OpenAPI, generated TS, Dart mirrors and route/fixture tests.
 
 ## Native post mentions
@@ -467,3 +525,53 @@ user IDs. Each entry includes the username and an exclusive UTF-16 source range.
 resolves a payload's names in one batch after body redaction; clients validate the exact source
 slice and render ordinary internal links without persisting the expansion. Older responses
 without mappings remain readable as plain text.
+
+## Personalized Home page channel
+
+`Current`: `GET /?sort=following` uses the existing `X-Goose-Page: true` page channel and
+`HomeProps`; it adds no `/api` route or payload field. The server publishes a localized
+`following` tab, so Flutter can display it through the existing server-defined sort rail.
+Web guest navigation points to login; direct guest page-channel requests return HTTP 401
+with `auth.required`, and ordinary HTML requests redirect to login with a return address.
+
+The feed queries active follow relationships on every request and preserves the public
+forum-topic and first-post visibility filters. It bypasses the shared public-feed cache.
+Responses use `no-store`; personalized metadata uses `noindex, nofollow`. The opaque cursor
+is a viewer-scoped `(created_at, id)` boundary in descending order, carried in
+`pagination.nextUrl`; clients must follow that URL instead of constructing page offsets.
+Malformed or other-viewer cursors, cursor IDs outside the positive signed 64-bit database range,
+and page numbers greater than one without a cursor return HTTP 400. Failures of the initial topic
+selection query return HTTP 500 rather than a successful empty feed. Author, first-post and
+interaction enrichment retains the shared Home renderer's best-effort behavior; its storage failures
+may produce incomplete fields in an HTTP 200 response. The cursor
+is only a position: changing it cannot bypass the current follow and visibility filters.
+
+Refreshing drops both `page` and `cursor`, re-queries current follows and replaces retained
+Following rows. Existing rows may remain on screen after an unfollow until explicit refresh;
+continuation pages filter the current relationships immediately. Newly followed content above
+the current cursor appears on refresh. This is a live filtered feed, not a frozen snapshot.
+
+## Profile content previews
+
+`Current`: the existing `X-Goose-Page` profile channel adds optional `author`, `excerpt` and
+`thumbnailUrl` presentation fields to liked-topic entries, and optional `author`/`thumbnailUrl`
+to bookmark entries. These are hand-written page contracts in Go, TypeScript and Dart; no new
+`/api` operation or schema migration is involved. Authors are fetched once per batch, content
+visibility requires an active published topic and a matching, active, normal, undeleted first post,
+resolved in one batch. Anonymous reply bookmarks omit author identity. Reply
+excerpts are plain Markdown previews. Missing fields on older servers remain valid. Bookmark
+ordering and cursor semantics are unchanged; activity reply URLs include the post number when known.
+
+`Current`: profile topics use the same batched current-viewer interaction hydration as the home
+feed. Activity entries optionally expose `liked`, `bookmarked` and `likeCount`; comment activities
+resolve reply state, while topic publication/like activities resolve topic state. Guests and
+unavailable targets omit personal state. These additions use the existing hand-written page
+contracts, with no API route or database schema change.
+
+
+`Current`: notification `actor.avatarUrl` is populated from current public user presentation in
+one batch. The existing `content` field uses a visible reply's readable preview for likes with no
+stored content. Deleted/blocked replies, retained deletion tombstones, and hidden or mismatched
+parent topics (including hidden first posts) are not hydrated;
+stored event snapshots and read-state semantics are unchanged. OpenAPI examples and the shared
+notification fixture cover the enriched response without introducing fields.

@@ -13,10 +13,18 @@ class ProfileImageEditor extends StatefulWidget {
     required this.source,
     required this.cover,
     required this.onSave,
-  });
+    this.confirmLabel,
+    this.savingLabel,
+    this.coverPreviewAspectRatio = 3,
+  }) : assert(coverPreviewAspectRatio > 0 && coverPreviewAspectRatio <= 5);
   final ProfileCropSource source;
   final bool cover;
   final Future<void> Function(Uint8List bytes) onSave;
+  final String? confirmLabel;
+  final String? savingLabel;
+
+  /// The final profile viewport inside the unchanged 5:1 exported image.
+  final double coverPreviewAspectRatio;
   @override
   State<ProfileImageEditor> createState() => _ProfileImageEditorState();
 }
@@ -79,7 +87,7 @@ class _ProfileImageEditorState extends State<ProfileImageEditor> {
         appBar: GfAppBar(
           title: Text(widget.cover ? l10n.settingsCover : l10n.settingsAvatar),
           leading: IconButton(
-            icon: const Icon(Icons.close),
+            icon: const GfSymbol('x'),
             tooltip: l10n.commonCancel,
             onPressed: _saving ? null : () => Navigator.pop(context),
           ),
@@ -87,7 +95,9 @@ class _ProfileImageEditorState extends State<ProfileImageEditor> {
             TextButton(
               onPressed: _saving ? null : _save,
               child: Text(
-                _saving ? l10n.settingsAvatarUploading : l10n.commonSave,
+                _saving
+                    ? (widget.savingLabel ?? l10n.settingsAvatarUploading)
+                    : (widget.confirmLabel ?? l10n.commonSave),
               ),
             ),
           ],
@@ -166,17 +176,25 @@ class _ProfileImageEditorState extends State<ProfileImageEditor> {
                                               child: Row(
                                                 children: [
                                                   Expanded(
-                                                    child: Container(
+                                                    child: ColoredBox(
                                                       color: Colors.black26,
+                                                      child: SizedBox.expand(),
                                                     ),
                                                   ),
-                                                  const Expanded(
-                                                    flex: 3,
-                                                    child: SizedBox.expand(),
+                                                  SizedBox(
+                                                    key: const Key(
+                                                      'profile-cover-visible-region',
+                                                    ),
+                                                    width:
+                                                        width *
+                                                        (widget.coverPreviewAspectRatio /
+                                                                5)
+                                                            .clamp(0.0, 1.0),
                                                   ),
                                                   Expanded(
-                                                    child: Container(
+                                                    child: ColoredBox(
                                                       color: Colors.black26,
+                                                      child: SizedBox.expand(),
                                                     ),
                                                   ),
                                                 ],
@@ -202,7 +220,7 @@ class _ProfileImageEditorState extends State<ProfileImageEditor> {
                         const SizedBox(height: 24),
                         Row(
                           children: [
-                            const Icon(Icons.zoom_out),
+                            const GfSymbol('minus'),
                             Expanded(
                               child: Slider(
                                 value: _zoom,
@@ -221,7 +239,7 @@ class _ProfileImageEditorState extends State<ProfileImageEditor> {
                                       }),
                               ),
                             ),
-                            const Icon(Icons.zoom_in),
+                            const GfSymbol('plus'),
                           ],
                         ),
                         TextButton.icon(
@@ -231,7 +249,7 @@ class _ProfileImageEditorState extends State<ProfileImageEditor> {
                                   _zoom = 1;
                                   _offset = Offset.zero;
                                 }),
-                          icon: const Icon(Icons.restart_alt),
+                          icon: const GfSymbol('undo-2'),
                           label: Text(l10n.settingsCropReset),
                         ),
                         if (_saving) const LinearProgressIndicator(),

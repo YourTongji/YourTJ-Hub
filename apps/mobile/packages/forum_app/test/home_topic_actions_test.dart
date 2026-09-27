@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:core/core.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:forum_app/l10n/app_localizations.dart';
@@ -29,6 +30,7 @@ GfApiClient _client() =>
 
 class _Pages extends PageRepository {
   _Pages() : super(_client());
+  List<Map<String, Object>> categories = const [];
   bool liked = true;
   int likeCount = 5;
   bool bookmarked = true;
@@ -36,6 +38,8 @@ class _Pages extends PageRepository {
   Completer<PagePayload>? pending;
   PagePayload payload() {
     final data = homePayloadJson();
+    final layout = data['layout'] as Map<String, dynamic>;
+    (layout['sidebar'] as Map<String, dynamic>)['categories'] = categories;
     final props = data['props'] as Map<String, dynamic>;
     final first = (props['topics'] as List).first as Map<String, dynamic>;
     props['topics'] = [
@@ -53,7 +57,7 @@ class _Pages extends PageRepository {
   }
 
   @override
-  Future<PagePayload> fetch(String path) async =>
+  Future<PagePayload> fetch(String path, {Object? cancelToken}) async =>
       pending == null ? payload() : pending!.future;
 }
 
@@ -97,7 +101,7 @@ class _PagedPages extends _Pages {
   }
 
   @override
-  Future<PagePayload> home({String sort = ''}) async {
+  Future<PagePayload> home({String sort = '', Object? cancelToken}) async {
     homeCalls++;
     if (failHome) throw StateError('home refresh failed');
     if (emptyHomeProps) {
@@ -113,7 +117,7 @@ class _PagedPages extends _Pages {
   }
 
   @override
-  Future<PagePayload> fetch(String path) async {
+  Future<PagePayload> fetch(String path, {Object? cancelToken}) async {
     if (path.endsWith('page=3')) {
       return _topicPage(300, page3LikeCount, hasNext: false, nextUrl: '');
     }
@@ -139,7 +143,7 @@ class _HangingPages extends _PagedPages {
   Completer<void>? gate;
 
   @override
-  Future<PagePayload> fetch(String path) async {
+  Future<PagePayload> fetch(String path, {Object? cancelToken}) async {
     if (path.endsWith('page=2') && gate != null) {
       final waiter = gate!;
       gate = null;
@@ -149,12 +153,70 @@ class _HangingPages extends _PagedPages {
   }
 }
 
+class _SortedPages extends _Pages {
+  final requestTokens = <String, CancelToken?>{};
+  final calls = <String, int>{};
+  final nextCalls = <String>[];
+  int latestTopicCount = 25;
+  bool keepNextPage = false;
+  bool sharedTopics = false;
+  Completer<PagePayload>? hotRequest;
+  Completer<PagePayload>? nextRequest;
+
+  PagePayload sorted(String sort, {bool next = false, bool last = false}) {
+    final data = homePayloadJson();
+    final props = data['props'] as Map<String, dynamic>;
+    final first = (props['topics'] as List).first as Map<String, dynamic>;
+    props['sort'] = sort;
+    props['topics'] = [
+      for (var i = 0; i < (sort == 'latest' ? latestTopicCount : 25); i++)
+        {
+          ...first,
+          'id':
+              (sort == 'hot' && !sharedTopics ? 200 : 100) +
+              (next ? 25 : 0) +
+              i,
+          'title': '$sort ${next ? 25 + i : i}',
+          'liked': liked,
+          'bookmarked': bookmarked,
+          'likeCount': likeCount,
+        },
+    ];
+    final hasMore = !next || (keepNextPage && !last);
+    props['pagination'] = {
+      'page': next ? 2 : 1,
+      'nextPage': hasMore ? (next ? 3 : 2) : 0,
+      'hasNext': hasMore,
+      'nextUrl': hasMore ? '/?sort=$sort&page=${next ? 3 : 2}' : '',
+    };
+    return parsePayload(data);
+  }
+
+  @override
+  Future<PagePayload> home({String sort = '', Object? cancelToken}) async {
+    final key = sort.isEmpty ? 'latest' : sort;
+    requestTokens[key] = cancelToken as CancelToken?;
+    calls.update(key, (count) => count + 1, ifAbsent: () => 1);
+    if (key == 'hot' && hotRequest != null) return hotRequest!.future;
+    return sorted(key);
+  }
+
+  @override
+  Future<PagePayload> fetch(String path, {Object? cancelToken}) async {
+    requestTokens['page:$path'] = cancelToken as CancelToken?;
+    nextCalls.add(path);
+    final query = Uri.parse(path).queryParameters;
+    if (query['page'] == '2' && nextRequest != null) return nextRequest!.future;
+    return sorted(query['sort']!, next: true, last: query['page'] == '3');
+  }
+}
+
 /// 详情页 fake:/p/post/ 返回详情 fixture,点赞状态可调。
 class _DetailPages extends _Pages {
   bool detailLiked = false;
 
   @override
-  Future<PagePayload> fetch(String path) async {
+  Future<PagePayload> fetch(String path, {Object? cancelToken}) async {
     if (path.startsWith('/p/post/')) {
       final data = topicDetailPayloadJson();
       (data['props']['topic'] as Map<String, dynamic>)['isLiked'] = detailLiked;
@@ -205,8 +267,10 @@ void main() {
   Future<ProviderContainer> pump(
     WidgetTester tester,
     _Pages pages,
-    _Topics topics,
-  ) async {
+    _Topics topics, {
+    bool settle = true,
+    double textScale = 1,
+  }) async {
     SharedPreferences.setMockInitialValues({});
     final container = ProviderContainer(
       overrides: [
@@ -222,14 +286,73 @@ void main() {
           locale: const Locale('zh'),
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
+          builder: (context, child) => MediaQuery(
+            data: MediaQuery.of(
+              context,
+            ).copyWith(textScaler: TextScaler.linear(textScale)),
+            child: child!,
+          ),
           // Isolate return/refresh transitions with explicit pagination;
           // foreground autoload is covered in list_footer/topic_list tests.
-          home: TickerMode(enabled: pages is! _PagedPages, child: const HomePage()),
+          home: TickerMode(
+            enabled: pages is! _PagedPages,
+            child: const HomePage(),
+          ),
         ),
       ),
     );
-    await tester.pumpAndSettle();
+    if (settle) {
+      await tester.pumpAndSettle();
+    } else {
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+    }
     return container;
+  }
+
+  for (final scale in [1.0, 2.0, 3.0]) {
+    testWidgets('home categories stay compact and readable at ${scale}x text', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(320, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final pages = _Pages()
+        ..categories = [
+          {'id': 1, 'label': '论坛运营', 'color': '#2563eb', 'url': '/c/ops/1'},
+          {'id': 2, 'label': '闲聊茶馆', 'color': '#f59e0b', 'url': '/c/chat/2'},
+        ];
+      await pump(tester, pages, _Topics(pages), textScale: scale);
+      final rail = find.byKey(const ValueKey('home-category-rail'));
+      expect(rail, findsOneWidget);
+      final headerBottom = tester.getRect(rail).bottom;
+      expect(
+        tester.getRect(find.text('Topic 0')).top,
+        greaterThanOrEqualTo(headerBottom),
+      );
+      await tester.drag(rail, const Offset(-240, 0));
+      await tester.pumpAndSettle();
+      final label = find.text('闲聊茶馆');
+      expect(label, findsOneWidget);
+      final target = find
+          .ancestor(of: label, matching: find.byType(InkWell))
+          .first;
+      expect(tester.getSize(target).height, greaterThanOrEqualTo(48));
+      final paragraph = tester.renderObject<RenderParagraph>(label);
+      final naturalText = TextPainter(
+        text: paragraph.text,
+        textDirection: paragraph.textDirection,
+        textScaler: paragraph.textScaler,
+      )..layout(maxWidth: paragraph.size.width);
+      expect(
+        paragraph.size.height,
+        greaterThanOrEqualTo(naturalText.height - .01),
+      );
+      naturalText.dispose();
+      expect(find.byType(BottomSheet), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
   }
 
   testWidgets('server state and toggles survive card recycling', (
@@ -238,7 +361,10 @@ void main() {
     final pages = _Pages();
     final topics = _Topics(pages);
     await pump(tester, pages, topics);
-    expect(find.byIcon(Icons.favorite), findsWidgets);
+    expect(
+      find.byWidgetPredicate((w) => w is GfSymbol && w.name == 'heart-filled'),
+      findsWidgets,
+    );
     await tester.tap(find.byTooltip('点赞').first);
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('取消收藏').first);
@@ -257,6 +383,185 @@ void main() {
     expect(topics.likes, [2, 1]);
     expect(topics.bookmarks, [2, 1]);
   });
+
+  testWidgets('sort tabs retain their own list, cursor and scroll offset', (
+    tester,
+  ) async {
+    final pages = _SortedPages();
+    await pump(tester, pages, _Topics(pages));
+    // AccountAvatar also reads the home layout during the initial build.
+    final initialLatestCalls = pages.calls['latest'];
+    var list = tester.widget<GfTopicList>(find.byType(GfTopicList));
+    list.onLoadMore();
+    await tester.pumpAndSettle();
+    list = tester.widget<GfTopicList>(find.byType(GfTopicList));
+    expect(list.topics.length, 50);
+    list.controller!.jumpTo(800);
+    await tester.pump();
+    await tester.tap(find.text('热门'));
+    await tester.pumpAndSettle();
+    expect(
+      tester.widget<GfTopicList>(find.byType(GfTopicList)).topics.first.title,
+      'hot 0',
+    );
+    await tester.tap(find.text('最新'));
+    await tester.pumpAndSettle();
+    list = tester.widget<GfTopicList>(find.byType(GfTopicList));
+    expect(list.topics.length, 50);
+    expect(list.hasMore, isFalse);
+    expect(list.controller!.offset, 800);
+    expect(pages.calls['latest'], initialLatestCalls);
+  });
+
+  testWidgets(
+    'a pending sort keeps tabs usable and never replaces another sort',
+    (tester) async {
+      final pages = _SortedPages()..hotRequest = Completer<PagePayload>();
+      await pump(tester, pages, _Topics(pages));
+      await tester.tap(find.text('热门'));
+      await tester.pump();
+      expect(find.text('最新'), findsOneWidget);
+      await tester.tap(find.text('最新'));
+      await tester.pump();
+      expect(find.text('latest 0'), findsOneWidget);
+      expect(pages.requestTokens['hot']!.isCancelled, isFalse);
+      pages.hotRequest!.complete(pages.sorted('hot'));
+      await tester.pumpAndSettle();
+      expect(find.text('latest 0'), findsOneWidget);
+      expect(find.text('hot 0'), findsNothing);
+      await tester.tap(find.text('热门'));
+      await tester.pumpAndSettle();
+      expect(find.text('hot 0'), findsOneWidget);
+      expect(pages.calls['hot'], 1);
+    },
+  );
+
+  testWidgets('pagination completes into its original sort after switching', (
+    tester,
+  ) async {
+    final pages = _SortedPages()..nextRequest = Completer<PagePayload>();
+    await pump(tester, pages, _Topics(pages));
+    tester.widget<GfTopicList>(find.byType(GfTopicList)).onLoadMore();
+    await tester.pump();
+    await tester.tap(find.text('热门'));
+    await tester.pumpAndSettle();
+    expect(
+      pages.requestTokens['page:/?sort=latest&page=2']!.isCancelled,
+      isFalse,
+    );
+    pages.nextRequest!.complete(pages.sorted('latest', next: true));
+    await tester.pumpAndSettle();
+    expect(
+      tester.widget<GfTopicList>(find.byType(GfTopicList)).topics.length,
+      25,
+    );
+    await tester.tap(find.text('最新'));
+    await tester.pumpAndSettle();
+    expect(
+      tester.widget<GfTopicList>(find.byType(GfTopicList)).topics.length,
+      50,
+    );
+  });
+  testWidgets('hidden sorts stop automatic pagination and resume on return', (
+    tester,
+  ) async {
+    final pages = _SortedPages()
+      ..latestTopicCount = 1
+      ..keepNextPage = true
+      ..nextRequest = Completer<PagePayload>();
+    await pump(tester, pages, _Topics(pages), settle: false);
+    expect(pages.nextCalls, ['/?sort=latest&page=2']);
+    await tester.tap(find.text('热门'));
+    await tester.pumpAndSettle();
+    pages.nextRequest!.complete(pages.sorted('latest', next: true));
+    await tester.pumpAndSettle();
+    // This short hidden list has another cursor and space to fill, but no
+    // request may begin until its TickerMode becomes active again.
+    expect(pages.nextCalls, ['/?sort=latest&page=2']);
+    await tester.tap(find.text('最新'));
+    await tester.pumpAndSettle();
+    expect(pages.nextCalls, ['/?sort=latest&page=2', '/?sort=latest&page=3']);
+  });
+
+  testWidgets(
+    'older sort reads cannot erase a successful shared-topic action',
+    (tester) async {
+      final pages = _SortedPages()
+        ..sharedTopics = true
+        ..liked = false
+        ..hotRequest = Completer<PagePayload>();
+      final stale = pages.sorted('hot');
+      final topics = _Topics(pages);
+      await pump(tester, pages, topics);
+      await tester.tap(find.text('热门'));
+      await tester.pump();
+      await tester.tap(find.text('最新'));
+      await tester.pump();
+      await tester.tap(find.byTooltip('点赞').first);
+      await tester.pumpAndSettle();
+      // A newer read may accept server data, but must not retire the mutation
+      // fence needed by the older pending read in the other sort.
+      pages.likeCount = 6;
+      await tester
+          .widget<AppRefreshIndicator>(find.byType(AppRefreshIndicator))
+          .onRefresh();
+      await tester.pumpAndSettle();
+      pages.hotRequest!.complete(stale);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('热门'));
+      await tester.pumpAndSettle();
+      final card = tester.widget<GfTopicCard>(find.byType(GfTopicCard).first);
+      expect(card.liked, isTrue);
+      expect(card.likeCount, 6);
+      expect(topics.likes, [1]);
+    },
+  );
+
+  testWidgets('detail return state survives an older read in another sort', (
+    tester,
+  ) async {
+    final pages = _SortedPages()
+      ..sharedTopics = true
+      ..liked = false
+      ..hotRequest = Completer<PagePayload>();
+    final stale = pages.sorted('hot');
+    final container = await pump(tester, pages, _Topics(pages));
+    await tester.tap(find.text('热门'));
+    await tester.pump();
+    await tester.tap(find.text('最新'));
+    await tester.pump();
+    await tester.tap(find.byTooltip('点赞').first);
+    await tester.pumpAndSettle();
+    // A subsequent detail visit returns a newer unlike and counters. Its
+    // state must supersede both the earlier home action and the stale read.
+    container.read(topicReturnStatesProvider)[100] = (
+      unseen: false,
+      liked: false,
+      bookmarked: true,
+      likeCount: 9,
+      replyCount: 8,
+      viewCount: 30,
+    );
+    pages
+      ..liked = false
+      ..likeCount = 9;
+    tester.widget<GfTopicList>(find.byType(GfTopicList)).onReturnFromTopic!();
+    await tester.pumpAndSettle();
+    pages.hotRequest!.complete(stale);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('热门'));
+    await tester.pumpAndSettle();
+    final topic = tester
+        .widget<GfTopicList>(find.byType(GfTopicList))
+        .topics
+        .first;
+    expect(topic.liked, isFalse);
+    expect(topic.likeCount, 9);
+    expect(topic.replyCount, 8);
+    expect(topic.viewCount, 30);
+    expect(topic.bookmarked, isTrue);
+  });
+
   testWidgets('late refresh cannot overwrite a successful action', (
     tester,
   ) async {
@@ -273,14 +578,20 @@ void main() {
     pages.pending!.complete(stale);
     await refresh;
     await tester.pumpAndSettle();
-    expect(find.byIcon(Icons.favorite), findsOneWidget);
+    expect(
+      find.byWidgetPredicate((w) => w is GfSymbol && w.name == 'heart-filled'),
+      findsOneWidget,
+    );
     pages.pending = null;
     pages.liked = false;
     await tester
         .widget<AppRefreshIndicator>(find.byType(AppRefreshIndicator))
         .onRefresh();
     await tester.pumpAndSettle();
-    expect(find.byIcon(Icons.favorite), findsNothing);
+    expect(
+      find.byWidgetPredicate((w) => w is GfSymbol && w.name == 'heart-filled'),
+      findsNothing,
+    );
   });
   testWidgets('unknown server state never exposes a false toggle', (
     tester,
@@ -310,7 +621,10 @@ void main() {
     expect(topics.likes, [1]);
     topics.pending!.complete(true);
     await tester.pumpAndSettle();
-    expect(find.byIcon(Icons.favorite), findsOneWidget);
+    expect(
+      find.byWidgetPredicate((w) => w is GfSymbol && w.name == 'heart-filled'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('refresh while like is pending preserves its icon and count', (
@@ -325,14 +639,20 @@ void main() {
         .widget<AppRefreshIndicator>(find.byType(AppRefreshIndicator))
         .onRefresh();
     await tester.pumpAndSettle();
-    expect(find.byIcon(Icons.favorite), findsOneWidget);
+    expect(
+      find.byWidgetPredicate((w) => w is GfSymbol && w.name == 'heart-filled'),
+      findsOneWidget,
+    );
     expect(
       tester.widget<GfTopicCard>(find.byType(GfTopicCard).first).likeCount,
       6,
     );
     topics.pending!.complete(true);
     await tester.pumpAndSettle();
-    expect(find.byIcon(Icons.favorite), findsOneWidget);
+    expect(
+      find.byWidgetPredicate((w) => w is GfSymbol && w.name == 'heart-filled'),
+      findsOneWidget,
+    );
   });
 
   testWidgets(
@@ -397,7 +717,10 @@ void main() {
     container.read(offlineCacheEpochProvider.notifier).invalidate();
     topics.pending!.complete(true);
     await tester.pumpAndSettle();
-    expect(find.byIcon(Icons.favorite), findsNothing);
+    expect(
+      find.byWidgetPredicate((w) => w is GfSymbol && w.name == 'heart-filled'),
+      findsNothing,
+    );
   });
   testWidgets(
     'returning from a topic keeps loaded pages and updates in place',
@@ -624,9 +947,10 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-// 打开详情即记录服务器读取真相:已读、点赞状态与计数。
-    final TopicReturnState? onOpen = container
-        .read(topicReturnStatesProvider)[100];
+    // 打开详情即记录服务器读取真相:已读、点赞状态与计数。
+    final TopicReturnState? onOpen = container.read(
+      topicReturnStatesProvider,
+    )[100];
     expect(onOpen, isNotNull);
     expect(onOpen!.unseen, isFalse);
     expect(onOpen.liked, isFalse);
@@ -641,8 +965,9 @@ void main() {
         .onTap();
     await tester.pumpAndSettle();
 
-    final TopicReturnState? afterLike = container
-        .read(topicReturnStatesProvider)[100];
+    final TopicReturnState? afterLike = container.read(
+      topicReturnStatesProvider,
+    )[100];
     expect(afterLike!.liked, isTrue);
     expect(afterLike.likeCount, 3);
 

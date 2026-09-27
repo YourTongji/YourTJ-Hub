@@ -16,6 +16,12 @@ class GfSocialIcon extends StatelessWidget {
       'weibo' => ('weibo', const Color(0xFFE6162D)),
       'bilibili' => ('bilibili', const Color(0xFF00A1D6)),
       'zhihu' => ('zhihu', const Color(0xFF0084FF)),
+      null => (
+        'globe-pointer-filled',
+        Theme.of(context).brightness == Brightness.dark
+            ? Colors.white
+            : Colors.black,
+      ),
       _ => ('link', GfTheme.colorsOf(context).iconMuted),
     };
     return GfSymbol(symbol, size: size, color: color);

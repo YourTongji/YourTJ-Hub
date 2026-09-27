@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:ui' show SemanticsAction;
+
 import 'package:core/core.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
@@ -120,6 +123,228 @@ void main() {
       baseUrl: 'https://example.test',
     ),
   );
+  testWidgets('like semantics include its action and visible count', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    try {
+      await pump(
+        tester,
+        repo(),
+        PostActions(
+          post: post(),
+          onChanged: () async {},
+          onReply: () {},
+          onReport: () {},
+        ),
+      );
+      final data = tester
+          .getSemantics(find.byType(TextButton).first)
+          .getSemanticsData();
+      expect(data.label, 'Like\n3');
+      expect(data.hasAction(SemanticsAction.tap), isTrue);
+    } finally {
+      semantics.dispose();
+    }
+  });
+
+  testWidgets('more action uses the same muted and busy icon colors', (
+    tester,
+  ) async {
+    final pending = Completer<void>();
+    await pump(
+      tester,
+      repo(),
+      PostActions(
+        post: post(),
+        onChanged: () => pending.future,
+        onReply: () {},
+        onReport: () {},
+      ),
+    );
+    final more = find.byWidgetPredicate(
+      (widget) => widget is GfSymbol && widget.name == 'ellipsis',
+    );
+    final colors = GfTheme.colorsOf(tester.element(more));
+    expect(tester.widget<GfSymbol>(more).color, colors.iconMuted);
+    await tester.tap(find.byTooltip('Like'));
+    await tester.pump();
+    expect(
+      tester.widget<GfSymbol>(more).color,
+      colors.iconMuted.withValues(alpha: .38),
+    );
+    pending.complete();
+    await tester.pumpAndSettle();
+  });
+
+  for (final size in [(320.0, 1.0), (390.0, 1.0), (220.0, 2.0)]) {
+    testWidgets('reply actions align from the left at ${size.$1}/${size.$2}', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        repo(),
+        Center(
+          child: SizedBox(
+            width: size.$1,
+            child: MediaQuery(
+              data: MediaQueryData(textScaler: TextScaler.linear(size.$2)),
+              child: PostActions(
+                post: post().copyWith(isOwnPost: false, likeCount: 3),
+                onChanged: () async {},
+                onReply: () {},
+                onReport: () {},
+              ),
+            ),
+          ),
+        ),
+      );
+      final actions = find.byType(PostActions);
+      final bounds = tester.getRect(actions);
+      final like = tester.getRect(find.byTooltip('Like'));
+      expect(like.left, closeTo(bounds.left, .01));
+      final glyphs = find.descendant(
+        of: actions,
+        matching: find.byType(GfSymbol),
+      );
+      expect(glyphs, findsNWidgets(5));
+      final centers = [
+        for (var index = 0; index < 5; index++)
+          tester.getCenter(glyphs.at(index)),
+      ];
+      expect(centers.first.dx - bounds.left, 22);
+      if (size.$2 == 1) {
+        expect(like.height, 44);
+        for (final center in centers) {
+          expect(center.dy, closeTo(centers.first.dy, .01));
+        }
+      } else {
+        final wrapped = find.descendant(
+          of: actions,
+          matching: find.byType(Wrap),
+        );
+        expect(tester.widget<Wrap>(wrapped).alignment, WrapAlignment.start);
+      }
+      final count = find.descendant(of: actions, matching: find.text('3'));
+      expect(tester.getCenter(count).dy, closeTo(centers.first.dy, .01));
+      expect(
+        tester.widget<Text>(count).style?.color,
+        GfTheme.colorsOf(tester.element(actions)).iconMuted,
+      );
+      expect(tester.takeException(), isNull);
+    });
+  }
+  testWidgets('reply controls wrap with uniform glyphs at enlarged text', (
+    tester,
+  ) async {
+    final repository = repo();
+    var replies = 0;
+    var reports = 0;
+    await pump(
+      tester,
+      repository,
+      Center(
+        child: SizedBox(
+          width: 220,
+          child: MediaQuery(
+            data: const MediaQueryData(textScaler: TextScaler.linear(2)),
+            child: PostActions(
+              post: post().copyWith(isOwnPost: false, likeCount: 98765),
+              onChanged: () async {},
+              onReply: () => replies++,
+              onReport: () => reports++,
+            ),
+          ),
+        ),
+      ),
+    );
+    expect(tester.takeException(), isNull);
+    final actions = find.byType(PostActions);
+    expect(
+      find.descendant(of: actions, matching: find.byType(Wrap)),
+      findsOneWidget,
+    );
+    final symbols = tester.widgetList<GfSymbol>(
+      find.descendant(of: actions, matching: find.byType(GfSymbol)),
+    );
+    expect(symbols.map((symbol) => symbol.name), [
+      'heart',
+      'bookmark',
+      'corner-down-left',
+      'ellipsis',
+      'flag',
+    ]);
+    expect(symbols.every((symbol) => symbol.size == 20), isTrue);
+    final targets = <String, Rect>{};
+    for (final tooltip in [
+      'Like',
+      'Bookmark',
+      'Reply',
+      'More options',
+      'Report post',
+    ]) {
+      // Material 3 places an IconButton's Tooltip around its 40px surface,
+      // inside the padded touch target. Measure the button, not that surface.
+      final control = tooltip == 'Like'
+          ? find.byTooltip(tooltip)
+          : find.byWidgetPredicate(
+              (widget) => widget is IconButton && widget.tooltip == tooltip,
+            );
+      expect(control, findsOneWidget);
+      final target = tester.getRect(control);
+      targets[tooltip] = target;
+      expect(target.height, greaterThanOrEqualTo(44));
+      expect(target.width, greaterThanOrEqualTo(44));
+      expect(target.left, greaterThanOrEqualTo(tester.getRect(actions).left));
+      expect(target.right, lessThanOrEqualTo(tester.getRect(actions).right));
+    }
+    // The outer margin must activate the action, not merely reserve layout.
+    for (final label in ['Like', 'Bookmark', 'Reply', 'Report post']) {
+      await tester.tapAt(targets[label]!.topLeft + const Offset(2, 2));
+      await tester.pumpAndSettle();
+    }
+    expect(repository.likes, [1]);
+    expect(repository.bookmarks, [1]);
+    expect(replies, 1);
+    expect(reports, 1);
+    await tester.tapAt(targets['More options']!.topLeft + const Offset(2, 2));
+    await tester.pumpAndSettle();
+    expect(find.text('Revision history'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+  testWidgets(
+    'reply return handoff preserves both successful interaction fields',
+    (tester) async {
+      final repository = repo();
+      await pump(
+        tester,
+        repository,
+        PostActions(
+          post: post(),
+          onChanged: () async {},
+          onReply: () {},
+          onReport: () {},
+        ),
+      );
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(PostActions)),
+      );
+      await tester.tap(find.byTooltip('Like'));
+      await tester.pumpAndSettle();
+      expect(container.read(postReturnStatesProvider)[42], (
+        liked: true,
+        bookmarked: false,
+        likeCount: 4,
+      ));
+      await tester.tap(find.byTooltip('Bookmark'));
+      await tester.pumpAndSettle();
+      expect(container.read(postReturnStatesProvider)[42], (
+        liked: true,
+        bookmarked: true,
+        likeCount: 4,
+      ));
+    },
+  );
   testWidgets('share platform failure is handled without losing the page', (
     tester,
   ) async {
@@ -170,7 +395,7 @@ void main() {
           onReport: () {},
         ),
       );
-      await tester.tap(find.byIcon(Icons.favorite_border));
+      await tester.tap(find.byTooltip('Like'));
       await tester.pumpAndSettle();
       await tester.tap(find.byTooltip('Bookmark'));
       await tester.pumpAndSettle();
@@ -237,7 +462,7 @@ void main() {
         onReport: () {},
       ),
     );
-    expect(find.byIcon(Icons.favorite_border), findsNothing);
+    expect(find.byTooltip('Like'), findsNothing);
     expect(find.byTooltip('Reply'), findsNothing);
     await tester.tap(find.byTooltip('More options'));
     await tester.pumpAndSettle();

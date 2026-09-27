@@ -1,7 +1,7 @@
 # 全局表情包库：管理员维护 + 自定义 token + 服务端展开渲染
 
 ## Status
-Accepted
+Superseded by [0038](0038-personal-sticker-library.md)
 Class: feature
 
 ## Context and Problem Statement

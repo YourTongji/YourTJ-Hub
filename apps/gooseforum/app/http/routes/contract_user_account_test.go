@@ -43,7 +43,7 @@ func setupAccountContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 	t.Helper()
 	conn, router := setupHTTPContractTest(t)
 	if err := conn.AutoMigrate(
-		&users.PrivateNoteEntity{},
+		&users.PrivateNoteEntity{}, &users.BlockEntity{},
 		&userOAuth.Entity{},
 		&userFollow.Entity{},
 		&badges.Entity{},
@@ -72,6 +72,8 @@ func setupAccountContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 	loginAPI.POST("/resend-activation-email", middleware.CheckWritableAccountAllowPendingActivation, UpButterReq(api.ResendActivationEmail))
 	loginAPI.POST("/set-user-name", middleware.CheckWritableAccount, UpButterReq(api.EditUsername))
 	loginAPI.POST("/set-preset-avatar", middleware.CheckWritableAccount, UpButterReq(api.SetPresetAvatar))
+	loginAPI.GET("/user-blocks", UpQueryReq(api.GetUserBlocks))
+	loginAPI.POST("/user-block", middleware.CheckWritableAccountAllowPendingActivation, middleware.RateLimit(middleware.RateLimitInteract), UpLimitedJsonReq(4096, api.SetUserBlock))
 	loginAPI.GET("/user-notes", UpQueryReq(api.GetPrivateNotes))
 	loginAPI.POST("/user-note", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitUserNote), UpLimitedJsonReq(4096, api.SetPrivateNote))
 	loginAPI.POST("/display-badges", middleware.CheckWritableAccount, UpLimitedJsonReq(4096, api.SetDisplayBadges))
@@ -206,6 +208,22 @@ func TestUserCardHTTPContract(t *testing.T) {
 			t.Fatalf("user card status = %d, want 200: %s", recorder.Code, recorder.Body.String())
 		}
 		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "user-card-success.json"))
+	})
+
+	t.Run("closed account returns tombstone card", func(t *testing.T) {
+		conn, router := setupAccountContractTest(t)
+		// 固定 id 避开 success 子用例（1024）在进程级公开资料缓存中的命中。
+		user := createHTTPContractUser(t, conn, 1025)
+		// 软删即注销（users.IsAccountClosed 判定 deleted_at.Valid）。建号后不先
+		// 请求 user-card，避免预热 userPublicProfileCache 命中全量卡片而非 tombstone。
+		if err := conn.Delete(user).Error; err != nil {
+			t.Fatalf("soft delete closed account user: %v", err)
+		}
+		recorder := serveAuthSecurityJSON(router, http.MethodGet, "/api/user-card?userId=1025", "", "")
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("closed account card status = %d, want 200: %s", recorder.Code, recorder.Body.String())
+		}
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "user-card-closed.json"))
 	})
 
 	t.Run("unknown user returns business failure", func(t *testing.T) {

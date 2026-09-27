@@ -232,6 +232,7 @@ const evidenceItem = ref<ModerationReportItem | null>(null)
 const evidenceView = ref<ModerationDeletedContentView | null>(null)
 
 function openEvidenceDialog(item: ModerationReportItem) {
+  if (item.targetType === 'chat_message') return
   evidenceItem.value = item
   evidenceReason.value = ''
   evidenceError.value = ''
@@ -247,7 +248,7 @@ function closeEvidenceDialog() {
 }
 
 async function submitEvidenceView() {
-  if (!evidenceItem.value || evidenceLoading.value) return
+  if (!evidenceItem.value || evidenceItem.value.targetType === 'chat_message' || evidenceLoading.value) return
   const reason = evidenceReason.value.trim()
   if (!reason) {
     evidenceError.value = t('moderation.reports.evidenceReasonRequired')
@@ -339,7 +340,7 @@ async function submitEvidenceView() {
                   {{ category.name }}
                 </span>
               </div>
-              <p class="line-clamp-1 text-[13px] leading-5 text-base-content/55">{{ item.excerpt || item.note || t('moderation.reports.noExcerpt') }}</p>
+              <p :class="item.targetType === 'chat_message' ? 'whitespace-pre-wrap break-words text-[13px]' : 'line-clamp-1 text-[13px] leading-5 text-base-content/55'">{{ item.excerpt || item.note || t('moderation.reports.noExcerpt') }}</p>
               <div class="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-base-content/50 lg:hidden">
                 <span>{{ t('moderation.reports.reasonLabel') }} {{ t(`moderation.reports.reasons.${item.reason}`) }}</span>
                 <span v-if="reportStatus === 'closed'">{{ t('moderation.reports.statusLabel') }} {{ reportResolutionLabel(item) }}</span>
@@ -421,10 +422,10 @@ async function submitEvidenceView() {
                 type="button"
                 class="gf-button gf-button-sm gf-button-danger shrink-0 whitespace-nowrap text-xs"
                 :disabled="reportBusy(item.id)"
-                @click="hideReportTarget(item)"
+                @click="item.targetType === 'chat_message' ? handleReport(item, 'resolve') : hideReportTarget(item)"
               >
                 <Ban class="h-4 w-4" />
-                {{ t('moderation.reports.ban') }}
+                {{ t(item.targetType === 'chat_message' ? 'moderation.reports.resolve' : 'moderation.reports.ban') }}
               </button>
               <button
                 type="button"

@@ -54,6 +54,7 @@ status. Do not use PR-relative "shipped this / later" labels as long-term status
 - [Vision & principles](product/vision-and-principles.md)
 - [Current state & gaps](product/current-state.md)
 - [Mobile experience](product/mobile-experience.md)
+- [Mobile interaction and layout standard](product/mobile-design-system.md)
 - [Wiki authoring](product/wiki-authoring.md)
 - [My campus & official identity](product/campus.md)
 - [Campus map](product/campus-map.md)
@@ -65,6 +66,7 @@ status. Do not use PR-relative "shipped this / later" labels as long-term status
 
 - [System overview & domain boundaries](architecture/system-overview.md)
 - [Contracts, data & derived projections](architecture/contracts-and-data.md)
+- [Mobile state, events and cache boundaries](architecture/mobile-state-and-cache.md)
 
 - [Campus connection operations](operations/campus.md)
 ### Development

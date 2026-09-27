@@ -2,24 +2,23 @@ import 'package:flutter/material.dart';
 
 import '../../theme/gf_theme.dart';
 import '../atoms/gf_divider.dart';
+import '../atoms/gf_loading_indicator.dart';
+import '../gf_action_feedback.dart';
 import '../gf_symbol.dart';
-
 import '../surfaces/gf_floating_surface.dart';
 
 /// Floating action in the topic controls bar (web TopicFloatingControls.vue).
 class GfTopicAction {
   const GfTopicAction({
-    required this.icon,
+    required this.symbol,
     required this.active,
     required this.activeColor,
     required this.onTap,
     this.acting = false,
     this.title,
-    this.symbol,
   });
 
-  final IconData icon;
-  final String? symbol;
+  final String symbol;
   final bool active;
 
   /// Color of the icon when [active] (web activeClass per action type).
@@ -181,54 +180,49 @@ class _RoundAction extends StatelessWidget {
   Widget build(BuildContext context) {
     final GfColors colors = GfTheme.colorsOf(context);
 
-    return Tooltip(
-      message: action.title ?? '',
-      excludeFromSemantics: true,
-      child: Semantics(
-        label: action.title,
-        button: true,
-        enabled: true,
-        toggled: action.active,
-        onTap: action.onTap,
-        excludeSemantics: true,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 2),
-          child: Material(
-            color: Colors.transparent,
-            shape: const CircleBorder(),
-            child: InkWell(
-              onTap: action.onTap,
-              customBorder: const CircleBorder(),
-              child: Container(
-                width: 36,
-                height: 36,
-                alignment: Alignment.center,
-                child: action.acting
-                    ? SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: action.active
-                              ? action.activeColor
-                              : colors.baseContent.withValues(alpha: 0.75),
-                        ),
-                      )
-                    : action.symbol != null
-                    ? GfSymbol(
-                        action.symbol!,
-                        size: 18,
-                        color: action.active
-                            ? action.activeColor
-                            : colors.iconMuted,
-                      )
-                    : Icon(
-                        action.icon,
-                        size: 16,
-                        color: action.active
-                            ? action.activeColor
-                            : colors.baseContent.withValues(alpha: 0.75),
-                      ),
+    return GfActionFeedback(
+      active: action.active,
+      onPressed: action.onTap,
+      child: GfSymbol(
+        action.symbol,
+        size: 18,
+        color: action.active ? action.activeColor : colors.iconMuted,
+      ),
+      builder: (activate, visual) => Tooltip(
+        message: action.title ?? '',
+        excludeFromSemantics: true,
+        child: Semantics(
+          label: action.title,
+          button: true,
+          enabled: true,
+          toggled: action.active,
+          onTap: activate,
+          excludeSemantics: true,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 2),
+            child: Material(
+              color: Colors.transparent,
+              shape: const CircleBorder(),
+              child: InkWell(
+                onTap: activate,
+                customBorder: const CircleBorder(),
+                child: Container(
+                  width: 36,
+                  height: 36,
+                  alignment: Alignment.center,
+                  child: action.acting
+                      ? SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: GfProgressIndicator(
+                            strokeWidth: 2,
+                            color: action.active
+                                ? action.activeColor
+                                : colors.baseContent.withValues(alpha: 0.75),
+                          ),
+                        )
+                      : visual,
+                ),
               ),
             ),
           ),

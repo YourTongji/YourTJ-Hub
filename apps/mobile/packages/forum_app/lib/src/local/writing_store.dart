@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../current_user.dart';
@@ -17,6 +18,19 @@ String writingScope(String site, int userId) =>
 
 final writingStoreProvider = Provider<WritingStore>((ref) => WritingStore());
 
+enum DraftKind { newTopic, serverDraft, topicEdit, reply }
+
+/// New writing sessions never share a content-type slot. The v1 storage prefix
+/// remains readable; metadata is additive so existing recovery copies survive.
+String newTopicDraftKey() {
+  final random = Random.secure();
+  return 'new-${List.generate(16, (_) => random.nextInt(256).toRadixString(16).padLeft(2, '0')).join()}';
+}
+
+String topicDraftKey(int topicId, {required bool published}) =>
+    '${published ? 'topic-edit' : 'server-draft'}-$topicId';
+String replyDraftKey(int topicId) => 'reply-$topicId';
+
 class LocalDraft {
   const LocalDraft({
     required this.key,
@@ -27,17 +41,30 @@ class LocalDraft {
     required this.categories,
     required this.images,
     required this.updatedAt,
+    this.kind = DraftKind.newTopic,
+    this.replyToPostId = 0,
+    this.replyTargetName,
+    this.replyMentionPrefix,
   });
+  final DraftKind kind;
+  final int replyToPostId;
+  final String? replyTargetName, replyMentionPrefix;
   final String key, title, content;
   final int contentType, topicId, updatedAt;
   final List<int> categories;
   final List<String> images;
   bool get isEmpty =>
-      title.trim().isEmpty &&
+      (kind == DraftKind.reply || title.trim().isEmpty) &&
       content.trim().isEmpty &&
       images.isEmpty &&
-      categories.isEmpty;
+      categories.isEmpty &&
+      replyToPostId == 0;
   Map<String, dynamic> toJson() => {
+    'version': 2,
+    'kind': kind.name,
+    'replyToPostId': replyToPostId,
+    'replyTargetName': replyTargetName,
+    'replyMentionPrefix': replyMentionPrefix,
     'key': key,
     'title': title,
     'content': content,
@@ -48,6 +75,16 @@ class LocalDraft {
     'updatedAt': updatedAt,
   };
   factory LocalDraft.fromJson(Map<String, dynamic> json) => LocalDraft(
+    kind:
+        DraftKind.values
+            .where((kind) => kind.name == json['kind'])
+            .firstOrNull ??
+        ((json['topicId'] as int) > 0
+            ? DraftKind.topicEdit
+            : DraftKind.newTopic),
+    replyToPostId: json['replyToPostId'] as int? ?? 0,
+    replyTargetName: json['replyTargetName'] as String?,
+    replyMentionPrefix: json['replyMentionPrefix'] as String?,
     key: json['key'] as String,
     title: json['title'] as String,
     content: json['content'] as String,
@@ -63,34 +100,71 @@ class WritingStore {
   Future<void> _tail = Future.value();
   String _prefix(String scope) => 'yourtj:writing:v1:$scope:';
 
-  // Serialize mutations, including deletion, so a late autosave cannot undo a
-  // successful publish or resurrect cleared history. save/remember surface
-  // write failures; the cleanup operations (delete/clear*) are idempotent —
-  // removing an absent key is a no-op success, matching platform behavior
-  // where SharedPreferences.remove reports key existence, not write outcome.
-  Future<void> _write(Future<void> Function(SharedPreferences) action) {
+  // Serialize mutations so deletion follows any in-flight save. A platform
+  // remove(false) is success only when the key was already absent; failure to
+  // remove an existing recovery copy must remain visible to the caller.
+  Future<void> _remove(SharedPreferences prefs, String key) async {
+    final existed = prefs.containsKey(key);
+    if (!await prefs.remove(key) && existed) {
+      throw StateError('Local draft could not be removed');
+    }
+  }
+
+  Future<T> _write<T>(Future<T> Function(SharedPreferences) action) {
     final next = _tail.then(
       (_) async => action(await SharedPreferences.getInstance()),
     );
-    _tail = next.catchError((Object _) {});
+    _tail = next.then<void>((_) {}, onError: (Object _, StackTrace _) {});
     return next;
   }
 
-  Future<void> save(String scope, LocalDraft draft) => _write((prefs) async {
+  Future<void> save(
+    String scope,
+    LocalDraft draft, {
+    bool Function()? isCurrent,
+  }) => _write((prefs) async {
+    if (isCurrent != null && !isCurrent()) {
+      throw StateError('Draft session changed');
+    }
     if (scope.endsWith(':0')) throw StateError('Draft requires an account');
     final key = '${_prefix(scope)}draft:${draft.key}';
     if (draft.isEmpty) {
-      // 空草稿是清理操作：remove 对从未写过的 key 返回 false（存在性语义），
-      // 无论 key 是否存在都视为成功（#704）。
-      await prefs.remove(key);
+      await _remove(prefs, key);
       return;
     }
     final ok = await prefs.setString(key, jsonEncode(draft.toJson()));
     if (!ok) throw StateError('Local draft could not be saved');
   });
-  Future<void> delete(String scope, String key) => _write((prefs) async {
-    await prefs.remove('${_prefix(scope)}draft:$key');
+  Future<void> delete(String scope, String key, {bool Function()? isCurrent}) =>
+      _write((prefs) async {
+        if (isCurrent != null && !isCurrent()) {
+          throw StateError('Draft session changed');
+        }
+        await _remove(prefs, '${_prefix(scope)}draft:$key');
+      });
+
+  /// Undo only a deletion that is still absent. The check and write share the
+  /// mutation queue, so an editor save queued first always wins over recovery.
+  Future<bool> restoreIfAbsent(
+    String scope,
+    LocalDraft draft, {
+    bool Function()? isCurrent,
+  }) => _write((prefs) async {
+    // SharedPreferences updates its cache before a platform write succeeds.
+    // Reload allows retry after a failed restore without mistaking cache for disk.
+    await prefs.reload();
+    if (isCurrent != null && !isCurrent()) {
+      throw StateError('Draft session changed');
+    }
+    if (scope.endsWith(':0')) throw StateError('Draft requires an account');
+    final key = '${_prefix(scope)}draft:${draft.key}';
+    if (prefs.containsKey(key)) return false;
+    if (!await prefs.setString(key, jsonEncode(draft.toJson()))) {
+      throw StateError('Local draft could not be restored');
+    }
+    return true;
   });
+
   Future<List<LocalDraft>> drafts(String scope) async {
     await _tail;
     if (scope.endsWith(':0')) return [];

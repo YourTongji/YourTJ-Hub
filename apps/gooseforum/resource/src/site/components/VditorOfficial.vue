@@ -135,6 +135,12 @@ function handleCompositionEnd() {
   linkPreviewHintController.compositionEnd(editor?.getValue() ?? props.modelValue)
 }
 
+// 暴露给浏览器测试 fixture：等待提示协调器静默（无防抖挂起、无在途请求），
+// 而不是睡过防抖时常——那会把测试的覆盖窗口和一个文件里的常量隐式耦合。
+function hintSettled() {
+  return linkPreviewHintController.isSettled()
+}
+
 function clearSensitiveHighlights() {
   root.value?.querySelectorAll<HTMLElement>(`.${SENSITIVE_BLOCK_CLASS}`).forEach((element) => {
     element.classList.remove(SENSITIVE_BLOCK_CLASS)
@@ -1786,7 +1792,7 @@ function syncValue() {
   return value
 }
 
-defineExpose({ editorFailed, editorReady, focus, getValue, setValue, insertMarkdown, setHeight, syncValue, getMentionContext, replaceMentionToken })
+defineExpose({ editorFailed, editorReady, focus, getValue, setValue, insertMarkdown, setHeight, syncValue, getMentionContext, replaceMentionToken, hintSettled })
 </script>
 
 <template>

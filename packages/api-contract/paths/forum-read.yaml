@@ -90,19 +90,19 @@ getSiteStatistics:
 forumStickerList:
   get:
     tags: [Forum]
-    summary: List enabled stickers for the editor picker and token replacement
+    summary: List enabled official stickers for the editor picker
     operationId: forumStickerList
     description: |
       Public endpoint with no authentication or input. Uses the configurable
       `sticker.list` per-IP quota (default 60 requests per 60 seconds); a
       database failure returns `common.operation.failed` rather than a cached
-      empty success. Returns enabled stickers only, ordered by
+      empty success. Returns enabled official stickers only; personal assets are never enumerated. Ordered by
       sortOrder ascending then id ascending, each with its globally unique
       name and public access `url`. The url follows the storage
       configuration: `/file/img/<fileName>` on the local provider or the
       configured CDN public-url prefix. The editor sticker picker and the
       client-side `[:sticker:name:]` token replacement (MADR 0030) consume
-      this list.
+      this list. Resolve explicitly shared personal tokens through POST /api/forum/stickers/resolve.
     security: []
     responses:
       '200':

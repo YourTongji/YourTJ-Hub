@@ -150,7 +150,7 @@ class PushReceiver : JPushMessageReceiver() {
     }
     override fun onNotifyMessageOpened(context: Context, message: NotificationMessage) {
         PushBridge.opened(context, PushBridge.routeFromExtra(message.notificationExtras))
-        context.startActivity(Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP))
+        context.startActivity(Intent(context, ThemeRouterActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP))
     }
 }
 
@@ -165,7 +165,7 @@ class PushOpenActivity : Activity() {
                 ?: intent.getStringExtra(JPushInterface.EXTRA_EXTRA)
         } catch (_: Exception) { null }
         PushBridge.opened(this, PushBridge.routeFromExtra(extra) ?: "/notifications")
-        startActivity(Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP))
+        startActivity(Intent(this, ThemeRouterActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP))
         finish()
     }
 }

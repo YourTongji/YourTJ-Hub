@@ -52,6 +52,7 @@ export interface LoginPageProps {
   tongjiReady?: boolean
   tongjiUrl?: string
   tongjiNotice?: string
+  appleReady?: boolean
   googleReady: boolean
   termsOfServiceEnabled: boolean
   privacyPolicyEnabled: boolean
@@ -312,9 +313,11 @@ export interface PaginationPayload {
 }
 
 export interface HomeProps {
+  /** Server-defined sort keys include following (sign-in required). */
   sort: string
   tabs: Array<{ key: string; label?: string; url: string; active: boolean }>
   topics: TopicPayload[]
+  /** Follow nextUrl verbatim: following uses an account-scoped chronological cursor. */
   pagination: PaginationPayload
   announcement: {
     enabled: boolean
@@ -519,7 +522,7 @@ export interface ModerationLogListResponse {
 
 export interface ModerationReportItem {
   id: number
-  targetType: 'topic' | 'post'
+  targetType: 'topic' | 'post' | 'chat_message'
   targetId: number
   targetUrl: string
   title: string
@@ -641,6 +644,10 @@ export interface UserBadgePayload extends BadgePayload {
 }
 
 export interface UserActivityPayload {
+  /** Current viewer state; omitted for guests or unavailable content. */
+  liked?: boolean
+  bookmarked?: boolean
+  likeCount?: number
   id: number
   action: number
   subjectType: string
@@ -652,6 +659,9 @@ export interface UserActivityPayload {
 }
 
 export interface UserLikePayload {
+  author?: TopicPayload['author']
+  excerpt?: string
+  thumbnailUrl?: string
   id: number
   topicId: number
   title: string
@@ -660,6 +670,8 @@ export interface UserLikePayload {
 }
 
 export interface UserBookmarkPayload {
+  author?: TopicPayload['author']
+  thumbnailUrl?: string
   id: number
   type: 'topic' | 'post'
   topicId: number
@@ -886,6 +898,7 @@ export interface ChatItemPayload {
 
 export interface SettingsPageProps {
   user: SettingsUserPayload
+  appleOAuthReady?: boolean
   googleOAuthReady: boolean
   /** issue #530：无邮箱 OAuth 绑定账号可走 set-password 首次设密（服务端门禁）。 */
   canSetPassword: boolean
@@ -1176,3 +1189,8 @@ export interface WikiDetailProps {
   /** 复用现有 TopicPayload 类型（TopicPage 的 hotTopics 同型）。 */
   hotTopics: TopicPayload[]
 }
+
+export interface UserBlocksPayload { ownerId: number; blocks: { targetUserId: number; username: string }[] }
+export interface UserBlockRequest { targetUserId: number; blocked: boolean }
+
+export interface SendChatMessageRequest { peerId: number; content: string; msgType: 1 | 2 | 3; clientMessageId?: string }

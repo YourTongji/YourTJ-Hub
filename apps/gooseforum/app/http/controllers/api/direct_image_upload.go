@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/filemodel/filedata"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/fileusageservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/storageservice"
 	"github.com/gin-gonic/gin"
@@ -102,9 +103,19 @@ func CompleteDirectImageUpload(c *gin.Context) {
 		c.JSON(http.StatusOK, component.FailDataCode(component.MessageUploadSaveFailed, component.MessageParams{"error": err.Error()}))
 		return
 	}
-	c.JSON(http.StatusOK, component.SuccessDataCode(map[string]any{
+	var media filedata.ImageMetadata
+	if entity, err := filedata.GetFileByName(metadata.Name); err != nil {
+		slog.Warn("read uploaded image for variants failed", "fileName", metadata.Name, "error", err)
+	} else if media, err = filedata.ProcessUploadedImage(metadata.Name, entity.Data); err != nil {
+		slog.Warn("process direct-uploaded image variants failed", "fileName", metadata.Name, "error", err)
+	}
+	result := map[string]any{
 		"url": storageservice.PublicAccessPath(metadata.Name), "filename": metadata.Name, "size": metadata.Size,
-	}, component.MessageUploadSuccess, nil))
+	}
+	if media.Width > 0 && media.Height > 0 {
+		result["imageMetadata"] = media
+	}
+	c.JSON(http.StatusOK, component.SuccessDataCode(result, component.MessageUploadSuccess, nil))
 }
 
 // AbortDirectImageUpload cancels a pending direct upload, removing the object

@@ -26,6 +26,7 @@ mixin _$LoginPageProps {
   String get redirectUrl => throw _privateConstructorUsedError;
   String get githubUrl => throw _privateConstructorUsedError;
   bool get googleReady => throw _privateConstructorUsedError;
+  bool get appleReady => throw _privateConstructorUsedError;
   bool get tongjiReady => throw _privateConstructorUsedError;
   String get tongjiUrl => throw _privateConstructorUsedError;
   String get tongjiNotice => throw _privateConstructorUsedError;
@@ -59,6 +60,7 @@ abstract class $LoginPagePropsCopyWith<$Res> {
     String redirectUrl,
     String githubUrl,
     bool googleReady,
+    bool appleReady,
     bool tongjiReady,
     String tongjiUrl,
     String tongjiNotice,
@@ -89,6 +91,7 @@ class _$LoginPagePropsCopyWithImpl<$Res, $Val extends LoginPageProps>
     Object? redirectUrl = null,
     Object? githubUrl = null,
     Object? googleReady = null,
+    Object? appleReady = null,
     Object? tongjiReady = null,
     Object? tongjiUrl = null,
     Object? tongjiNotice = null,
@@ -118,6 +121,10 @@ class _$LoginPagePropsCopyWithImpl<$Res, $Val extends LoginPageProps>
             googleReady: null == googleReady
                 ? _value.googleReady
                 : googleReady // ignore: cast_nullable_to_non_nullable
+                      as bool,
+            appleReady: null == appleReady
+                ? _value.appleReady
+                : appleReady // ignore: cast_nullable_to_non_nullable
                       as bool,
             tongjiReady: null == tongjiReady
                 ? _value.tongjiReady
@@ -168,6 +175,7 @@ abstract class _$$LoginPagePropsImplCopyWith<$Res>
     String redirectUrl,
     String githubUrl,
     bool googleReady,
+    bool appleReady,
     bool tongjiReady,
     String tongjiUrl,
     String tongjiNotice,
@@ -197,6 +205,7 @@ class __$$LoginPagePropsImplCopyWithImpl<$Res>
     Object? redirectUrl = null,
     Object? githubUrl = null,
     Object? googleReady = null,
+    Object? appleReady = null,
     Object? tongjiReady = null,
     Object? tongjiUrl = null,
     Object? tongjiNotice = null,
@@ -226,6 +235,10 @@ class __$$LoginPagePropsImplCopyWithImpl<$Res>
         googleReady: null == googleReady
             ? _value.googleReady
             : googleReady // ignore: cast_nullable_to_non_nullable
+                  as bool,
+        appleReady: null == appleReady
+            ? _value.appleReady
+            : appleReady // ignore: cast_nullable_to_non_nullable
                   as bool,
         tongjiReady: null == tongjiReady
             ? _value.tongjiReady
@@ -269,6 +282,7 @@ class _$LoginPagePropsImpl implements _LoginPageProps {
     required this.redirectUrl,
     required this.githubUrl,
     required this.googleReady,
+    this.appleReady = false,
     this.tongjiReady = false,
     this.tongjiUrl = '',
     this.tongjiNotice = '',
@@ -292,6 +306,9 @@ class _$LoginPagePropsImpl implements _LoginPageProps {
   final String githubUrl;
   @override
   final bool googleReady;
+  @override
+  @JsonKey()
+  final bool appleReady;
   @override
   @JsonKey()
   final bool tongjiReady;
@@ -323,7 +340,7 @@ class _$LoginPagePropsImpl implements _LoginPageProps {
 
   @override
   String toString() {
-    return 'LoginPageProps(tongjiRegistration: $tongjiRegistration, initialMode: $initialMode, redirectUrl: $redirectUrl, githubUrl: $githubUrl, googleReady: $googleReady, tongjiReady: $tongjiReady, tongjiUrl: $tongjiUrl, tongjiNotice: $tongjiNotice, termsOfServiceEnabled: $termsOfServiceEnabled, privacyPolicyEnabled: $privacyPolicyEnabled, allowedDomains: $allowedDomains, oauthNotice: $oauthNotice)';
+    return 'LoginPageProps(tongjiRegistration: $tongjiRegistration, initialMode: $initialMode, redirectUrl: $redirectUrl, githubUrl: $githubUrl, googleReady: $googleReady, appleReady: $appleReady, tongjiReady: $tongjiReady, tongjiUrl: $tongjiUrl, tongjiNotice: $tongjiNotice, termsOfServiceEnabled: $termsOfServiceEnabled, privacyPolicyEnabled: $privacyPolicyEnabled, allowedDomains: $allowedDomains, oauthNotice: $oauthNotice)';
   }
 
   @override
@@ -341,6 +358,8 @@ class _$LoginPagePropsImpl implements _LoginPageProps {
                 other.githubUrl == githubUrl) &&
             (identical(other.googleReady, googleReady) ||
                 other.googleReady == googleReady) &&
+            (identical(other.appleReady, appleReady) ||
+                other.appleReady == appleReady) &&
             (identical(other.tongjiReady, tongjiReady) ||
                 other.tongjiReady == tongjiReady) &&
             (identical(other.tongjiUrl, tongjiUrl) ||
@@ -368,6 +387,7 @@ class _$LoginPagePropsImpl implements _LoginPageProps {
     redirectUrl,
     githubUrl,
     googleReady,
+    appleReady,
     tongjiReady,
     tongjiUrl,
     tongjiNotice,
@@ -401,6 +421,7 @@ abstract class _LoginPageProps implements LoginPageProps {
     required final String redirectUrl,
     required final String githubUrl,
     required final bool googleReady,
+    final bool appleReady,
     final bool tongjiReady,
     final String tongjiUrl,
     final String tongjiNotice,
@@ -423,6 +444,8 @@ abstract class _LoginPageProps implements LoginPageProps {
   String get githubUrl;
   @override
   bool get googleReady;
+  @override
+  bool get appleReady;
   @override
   bool get tongjiReady;
   @override
@@ -3308,5 +3331,213 @@ abstract class _TongjiRegistrationResult implements TongjiRegistrationResult {
   @override
   @JsonKey(includeFromJson: false, includeToJson: false)
   _$$TongjiRegistrationResultImplCopyWith<_$TongjiRegistrationResultImpl>
+  get copyWith => throw _privateConstructorUsedError;
+}
+
+AppleCredentialRequest _$AppleCredentialRequestFromJson(
+  Map<String, dynamic> json,
+) {
+  return _AppleCredentialRequest.fromJson(json);
+}
+
+/// @nodoc
+mixin _$AppleCredentialRequest {
+  String get authorizationCode => throw _privateConstructorUsedError;
+  String get identityToken => throw _privateConstructorUsedError;
+  String get nonce => throw _privateConstructorUsedError;
+
+  /// Serializes this AppleCredentialRequest to a JSON map.
+  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
+
+  /// Create a copy of AppleCredentialRequest
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  $AppleCredentialRequestCopyWith<AppleCredentialRequest> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class $AppleCredentialRequestCopyWith<$Res> {
+  factory $AppleCredentialRequestCopyWith(
+    AppleCredentialRequest value,
+    $Res Function(AppleCredentialRequest) then,
+  ) = _$AppleCredentialRequestCopyWithImpl<$Res, AppleCredentialRequest>;
+  @useResult
+  $Res call({String authorizationCode, String identityToken, String nonce});
+}
+
+/// @nodoc
+class _$AppleCredentialRequestCopyWithImpl<
+  $Res,
+  $Val extends AppleCredentialRequest
+>
+    implements $AppleCredentialRequestCopyWith<$Res> {
+  _$AppleCredentialRequestCopyWithImpl(this._value, this._then);
+
+  // ignore: unused_field
+  final $Val _value;
+  // ignore: unused_field
+  final $Res Function($Val) _then;
+
+  /// Create a copy of AppleCredentialRequest
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? authorizationCode = null,
+    Object? identityToken = null,
+    Object? nonce = null,
+  }) {
+    return _then(
+      _value.copyWith(
+            authorizationCode: null == authorizationCode
+                ? _value.authorizationCode
+                : authorizationCode // ignore: cast_nullable_to_non_nullable
+                      as String,
+            identityToken: null == identityToken
+                ? _value.identityToken
+                : identityToken // ignore: cast_nullable_to_non_nullable
+                      as String,
+            nonce: null == nonce
+                ? _value.nonce
+                : nonce // ignore: cast_nullable_to_non_nullable
+                      as String,
+          )
+          as $Val,
+    );
+  }
+}
+
+/// @nodoc
+abstract class _$$AppleCredentialRequestImplCopyWith<$Res>
+    implements $AppleCredentialRequestCopyWith<$Res> {
+  factory _$$AppleCredentialRequestImplCopyWith(
+    _$AppleCredentialRequestImpl value,
+    $Res Function(_$AppleCredentialRequestImpl) then,
+  ) = __$$AppleCredentialRequestImplCopyWithImpl<$Res>;
+  @override
+  @useResult
+  $Res call({String authorizationCode, String identityToken, String nonce});
+}
+
+/// @nodoc
+class __$$AppleCredentialRequestImplCopyWithImpl<$Res>
+    extends
+        _$AppleCredentialRequestCopyWithImpl<$Res, _$AppleCredentialRequestImpl>
+    implements _$$AppleCredentialRequestImplCopyWith<$Res> {
+  __$$AppleCredentialRequestImplCopyWithImpl(
+    _$AppleCredentialRequestImpl _value,
+    $Res Function(_$AppleCredentialRequestImpl) _then,
+  ) : super(_value, _then);
+
+  /// Create a copy of AppleCredentialRequest
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? authorizationCode = null,
+    Object? identityToken = null,
+    Object? nonce = null,
+  }) {
+    return _then(
+      _$AppleCredentialRequestImpl(
+        authorizationCode: null == authorizationCode
+            ? _value.authorizationCode
+            : authorizationCode // ignore: cast_nullable_to_non_nullable
+                  as String,
+        identityToken: null == identityToken
+            ? _value.identityToken
+            : identityToken // ignore: cast_nullable_to_non_nullable
+                  as String,
+        nonce: null == nonce
+            ? _value.nonce
+            : nonce // ignore: cast_nullable_to_non_nullable
+                  as String,
+      ),
+    );
+  }
+}
+
+/// @nodoc
+@JsonSerializable()
+class _$AppleCredentialRequestImpl implements _AppleCredentialRequest {
+  const _$AppleCredentialRequestImpl({
+    required this.authorizationCode,
+    required this.identityToken,
+    required this.nonce,
+  });
+
+  factory _$AppleCredentialRequestImpl.fromJson(Map<String, dynamic> json) =>
+      _$$AppleCredentialRequestImplFromJson(json);
+
+  @override
+  final String authorizationCode;
+  @override
+  final String identityToken;
+  @override
+  final String nonce;
+
+  @override
+  String toString() {
+    return 'AppleCredentialRequest(authorizationCode: $authorizationCode, identityToken: $identityToken, nonce: $nonce)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$AppleCredentialRequestImpl &&
+            (identical(other.authorizationCode, authorizationCode) ||
+                other.authorizationCode == authorizationCode) &&
+            (identical(other.identityToken, identityToken) ||
+                other.identityToken == identityToken) &&
+            (identical(other.nonce, nonce) || other.nonce == nonce));
+  }
+
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  int get hashCode =>
+      Object.hash(runtimeType, authorizationCode, identityToken, nonce);
+
+  /// Create a copy of AppleCredentialRequest
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$AppleCredentialRequestImplCopyWith<_$AppleCredentialRequestImpl>
+  get copyWith =>
+      __$$AppleCredentialRequestImplCopyWithImpl<_$AppleCredentialRequestImpl>(
+        this,
+        _$identity,
+      );
+
+  @override
+  Map<String, dynamic> toJson() {
+    return _$$AppleCredentialRequestImplToJson(this);
+  }
+}
+
+abstract class _AppleCredentialRequest implements AppleCredentialRequest {
+  const factory _AppleCredentialRequest({
+    required final String authorizationCode,
+    required final String identityToken,
+    required final String nonce,
+  }) = _$AppleCredentialRequestImpl;
+
+  factory _AppleCredentialRequest.fromJson(Map<String, dynamic> json) =
+      _$AppleCredentialRequestImpl.fromJson;
+
+  @override
+  String get authorizationCode;
+  @override
+  String get identityToken;
+  @override
+  String get nonce;
+
+  /// Create a copy of AppleCredentialRequest
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  _$$AppleCredentialRequestImplCopyWith<_$AppleCredentialRequestImpl>
   get copyWith => throw _privateConstructorUsedError;
 }

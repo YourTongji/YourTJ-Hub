@@ -72,8 +72,8 @@ before implementing and never violate them.
 
 Read and follow [`docs/development/testing.md`](../../../docs/development/testing.md). Run only the checks
 that cover the changed surface; CI owns the full repository-wide gate matrix. The lefthook pre-push hook
-already runs `go vet` + `golangci-lint` + `pnpm typecheck` (install with `make hooks`) — do not repeat them
-manually for the same push.
+already runs `go vet` + `golangci-lint` + `pnpm typecheck` + the web i18n gate `pnpm check` (install with
+`make hooks`) — do not repeat them manually for the same push.
 
 Always run:
 

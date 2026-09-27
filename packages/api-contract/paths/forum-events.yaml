@@ -1,0 +1,55 @@
+streamForumEvents:
+  get:
+    tags: [Forum]
+    summary: Stream foreground chat and notification invalidations
+    operationId: streamForumEvents
+    description: |
+      A single authenticated foreground SSE connection per app instance. The
+      stream emits an immediate hello with resync=true; clients must reconcile
+      chat, notification and unread state over REST after every connection or
+      reconnect. Events are owner-scoped hints, contain no message bodies or
+      notification previews, have no replay IDs, and are never a substitute for
+      REST cursors. A full server queue closes the stream rather than silently
+      dropping events. Heartbeat comments arrive every 15 seconds; the server
+      rotates streams within one hour to renew expiring credentials. Session
+      validity is checked at handshake and independently every five minutes;
+      transport heartbeats do not query the database. Only
+      Bearer authorization or the host-only access_token cookie is accepted;
+      query-string tokens are not supported. Cookie requests without a
+      verifiable same-origin Origin or Referer are rejected before streaming.
+      The stream does not extend online presence.
+      This process-local stream requires a shared invalidation transport before
+      running the forum as multiple serving instances.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    responses:
+      '200':
+        description: |
+          SSE frames: hello {version, heartbeatSeconds, resync, capabilities},
+          chat.changed {convId, change}, notifications.changed {change},
+          unread.changed {}, and session.invalidated {}. Changes are hints;
+          REST remains authoritative.
+        content:
+          text/event-stream:
+            schema:
+              type: string
+            example: |
+              event: hello
+              data: {"version":1,"heartbeatSeconds":15,"resync":true,"capabilities":{"visibleRead":true}}
+
+              event: chat.changed
+              data: {"convId":42,"change":"received"}
+
+      '401':
+        description: Invalid, expired, or revoked session before streaming.
+      '403':
+        description: Cookie-authenticated stream without verifiable same origin is forbidden.
+      '429':
+        description: Per-user or total stream connection limit; Retry-After is five seconds.
+        headers:
+          Retry-After:
+            schema:
+              type: integer
+      '503':
+        description: Session recheck database unavailable before streaming.

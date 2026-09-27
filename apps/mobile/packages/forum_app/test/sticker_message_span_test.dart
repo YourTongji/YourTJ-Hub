@@ -8,6 +8,36 @@ void main() {
     'smile': '/file/img/stickers/smile.png',
   };
 
+  test('only resolved stickers and whitespace omit the message bubble', () {
+    for (final content in [
+      '[:sticker:smile:]',
+      ' \n[:sticker:smile:] [:sticker:smile:]\t',
+    ]) {
+      expect(isStickerOnlyMessage(content, urlByName), isTrue);
+    }
+    for (final content in [
+      '',
+      ' \n ',
+      '🙂',
+      'hello',
+      'hi [:sticker:smile:]',
+      '[:sticker:unknown:]',
+      '[:sticker:smile:] [:sticker:unknown:]',
+      '[:sticker:smile]',
+    ]) {
+      expect(
+        isStickerOnlyMessage(content, urlByName),
+        isFalse,
+        reason: content,
+      );
+    }
+    expect(isStickerOnlyMessage('[:sticker:smile:]', const {}), isFalse);
+    expect(
+      isStickerOnlyMessage('[:sticker:smile:]', const {'smile': ''}),
+      isFalse,
+    );
+  });
+
   test('无 token 返回 null,走纯文本路径', () {
     expect(buildStickerMessageSpan('普通消息', urlByName), isNull);
   });

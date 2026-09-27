@@ -376,6 +376,27 @@ TotpDisableResponse:
     - $ref: '#/TotpDisableSuccess'
     - $ref: '#/ApiFailure'
 
+AppleCredentialRequest:
+  type: object
+  required: [authorizationCode, identityToken, nonce]
+  properties:
+    authorizationCode:
+      type: string
+      minLength: 1
+      maxLength: 4096
+      description: Single-use native Apple authorization code.
+    identityToken:
+      type: string
+      minLength: 1
+      maxLength: 16384
+      description: Apple-signed RS256 identity token for the iOS bundle ID.
+    nonce:
+      type: string
+      minLength: 32
+      maxLength: 128
+      description: Random raw native-flow nonce; its SHA-256 hex digest must match the signed token nonce.
+  additionalProperties: false
+
 OidcExchangeRequest:
   type: object
   required: [code, codeVerifier, nonce, redirectUri]
@@ -921,6 +942,11 @@ TopicPayload:
       type: array
       items:
         type: string
+    imageMetadata:
+      type: array
+      description: Intrinsic dimensions and available static thumbnail variants for uploaded topic images; absent for legacy or external images.
+      items:
+        $ref: '#/ImageMetadata'
     url:
       type: string
     pinWeight:
@@ -961,6 +987,40 @@ TopicPayload:
     unseen:
       type: boolean
       description: Present only for authenticated viewers with unseen tracking.
+  additionalProperties: false
+
+ImageMetadata:
+  type: object
+  required: [url, width, height]
+  properties:
+    url:
+      type: string
+      description: The original image URL already present in firstImageUrl or images.
+    width:
+      type: integer
+      minimum: 1
+    height:
+      type: integer
+      minimum: 1
+    variants:
+      type: array
+      items:
+        $ref: '#/ImageVariant'
+  additionalProperties: false
+
+ImageVariant:
+  type: object
+  required: [url, width, height]
+  properties:
+    url:
+      type: string
+      description: Public URL for a server-generated derivative.
+    width:
+      type: integer
+      minimum: 1
+    height:
+      type: integer
+      minimum: 1
   additionalProperties: false
 
 UserSearchPayload:
@@ -2858,7 +2918,7 @@ CreateReportRequest:
   properties:
     targetType:
       type: string
-      enum: [topic, post]
+      enum: [topic, post, chat_message]
     targetId:
       type: integer
       format: uint64
@@ -4780,14 +4840,16 @@ OAuthBinding:
 
 OAuthBindingsResult:
   type: object
-  required: [github, google]
+  required: [github, google, apple]
   properties:
     github:
       $ref: '#/OAuthBinding'
     google:
       $ref: '#/OAuthBinding'
+    apple:
+      $ref: '#/OAuthBinding'
   additionalProperties: false
-  description: Binding state keyed by provider; the response always carries the fixed github and google keys.
+  description: Binding state keyed by provider; the response always carries the fixed github, google and apple keys.
 
 OAuthBindingsSuccess:
   allOf:
@@ -4900,8 +4962,10 @@ NotificationPayload:
       type: string
     content:
       type: string
+      description: Stored preview; for likes without one, a readable excerpt of the currently visible referenced reply.
     actor:
       $ref: '#/TopicAuthorPayload'
+      description: Actor identity with the current public avatar hydrated in a batch when the actor exists.
     topic:
       $ref: '#/NotificationTopicRef'
     payload:
@@ -5182,6 +5246,11 @@ SendChatMessageRequest:
   type: object
   required: [peerId, content, msgType]
   properties:
+    clientMessageId:
+      type: string
+      maxLength: 64
+      pattern: '^[A-Za-z0-9_-]{1,64}$'
+      description: Optional sender-scoped retry key. Reuse only for the same peer, content and message type; changed payloads fail with chat.send.failed. Legacy omitted keys do not deduplicate. Retained with the message.
     peerId:
       type: integer
       format: uint64
@@ -5190,7 +5259,7 @@ SendChatMessageRequest:
     content:
       type: string
       minLength: 1
-      description: Message content; sensitive-word hits fail with `chat.sensitive.blocked` (HTTP 200, params `word` plus all matches in `words`).
+      description: Full message content is preserved; only the conversation-list preview is bounded to 255 Unicode characters. Sensitive-word hits fail with `chat.sensitive.blocked` (HTTP 200, params `word` plus all matches in `words`). Other send failures use `chat.send.failed` without raw storage-error details.
     msgType:
       type: integer
       enum: [1, 2, 3]
@@ -5345,6 +5414,101 @@ ChatMarkReadResponse:
     - $ref: '#/ChatMarkReadSuccess'
     - $ref: '#/ApiFailure'
 
+ChatMessageIDsRequest:
+  type: object
+  required: [convId, messageIds]
+  properties:
+    convId:
+      type: integer
+      format: uint64
+      minimum: 1
+    messageIds:
+      type: array
+      minItems: 1
+      maxItems: 100
+      items:
+        type: integer
+        format: uint64
+        minimum: 1
+      description: Explicit message IDs. The server deduplicates them; a highest ID is never a read-through cursor.
+  additionalProperties: false
+
+ChatVisibleReadResult:
+  type: object
+  required: [convId, acknowledgedMessageIds, unreadCount]
+  properties:
+    convId:
+      type: integer
+      format: uint64
+      minimum: 1
+    acknowledgedMessageIds:
+      type: array
+      items:
+        type: integer
+        format: uint64
+        minimum: 1
+      description: All valid deduplicated incoming IDs, including those already read, in request order.
+    unreadCount:
+      type: integer
+      minimum: 0
+      description: Remaining incoming unread messages in this conversation after the transaction commits.
+  additionalProperties: false
+
+ChatVisibleReadSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          $ref: '#/ChatVisibleReadResult'
+
+ChatVisibleReadResponse:
+  oneOf:
+    - $ref: '#/ChatVisibleReadSuccess'
+    - $ref: '#/ApiFailure'
+
+ChatMessageReadState:
+  type: object
+  required: [id, isRead]
+  properties:
+    id:
+      type: integer
+      format: uint64
+      minimum: 1
+    isRead:
+      type: integer
+      enum: [0, 1]
+  additionalProperties: false
+
+ChatMessageReadStatesResult:
+  type: object
+  required: [items, unreadCount]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/ChatMessageReadState'
+      description: Read flags for all deduplicated requested IDs, in request order, without message bodies.
+    unreadCount:
+      type: integer
+      minimum: 0
+  additionalProperties: false
+
+ChatMessageReadStatesSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          $ref: '#/ChatMessageReadStatesResult'
+
+ChatMessageReadStatesResponse:
+  oneOf:
+    - $ref: '#/ChatMessageReadStatesSuccess'
+    - $ref: '#/ApiFailure'
+
 
 # ================= Forum moderation workbench（Issue #277 P3）=================
 
@@ -5427,19 +5591,19 @@ ModerationReportItem:
       minimum: 1
     targetType:
       type: string
-      enum: [topic, post]
+      enum: [topic, post, chat_message]
     targetId:
       type: integer
       format: uint64
       minimum: 1
     targetUrl:
       type: string
-      description: Deep link to the reported content; empty when it cannot be resolved.
+      description: Link to reported content, or the private-message author profile; never a link granting conversation access.
     title:
       type: string
     excerpt:
       type: string
-      description: Content snapshot taken at report time (max 120 runes).
+      description: Reported content preview. Private-message evidence is limited to 4000 runes and only visible to administrators.
     reason:
       type: string
       enum: [spam, abuse, illegal, irrelevant, other]
@@ -8788,6 +8952,8 @@ AdminImgUploadResult:
     size:
       type: integer
       description: Stored byte length.
+    imageMetadata:
+      $ref: '#/ImageMetadata'
   additionalProperties: false
 
 AdminImgUploadResponse:
@@ -8952,6 +9118,68 @@ PkSyncCalendarResponse:
           items:
             $ref: '#/AdminTaskQueueItem'
           description: Up to 20 most recent export tasks, newest id first.
+
+# ================= PK 排课数据定时同步配置（issue #569）=================
+
+PkSyncScheduleSettings:
+  type: object
+  required: [enabled, schedule, term, depth, audience]
+  additionalProperties: false
+  properties:
+    enabled:
+      type: boolean
+      description: 定时同步总开关；关闭时不注册 cron，也不执行。
+    schedule:
+      type: string
+      description: 5 段标准 cron 表达式（分 时 日 月 周），如 "30 2 * * *"（每日 02:30）。启用时后端用与进程内调度器相同的标准解析器校验。
+    term:
+      type: string
+      description: 目标学期：一系统数字 calendarId（如 121）或学期名（如 2025-2026-1）；留空表示同步该数据来源最近已同步的学期。
+    depth:
+      type: integer
+      minimum: 1
+      description: 以目标学期为终点向前同步的连续学期数（管理端上限 8）。
+    audience:
+      type: string
+      enum: [undergraduate, graduate]
+      description: 数据来源；未配置时按本科生处理。
+
+PkSyncScheduleSettingsSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          $ref: '#/PkSyncScheduleSettings'
+
+PkSyncScheduleSettingsResponse:
+  oneOf:
+    - $ref: '#/PkSyncScheduleSettingsSuccess'
+    - $ref: '#/ApiFailure'
+
+SavePkSyncScheduleSettingsRequest:
+  type: object
+  required: [enabled]
+  additionalProperties: false
+  properties:
+    enabled:
+      type: boolean
+      description: 定时同步总开关；false 时其余字段被忽略，仅关闭并注销 cron。
+    schedule:
+      type: string
+      maxLength: 128
+      description: 5 段标准 cron 表达式；启用时必须为可解析表达式，否则整个请求失败（HTTP 200 code:1）。
+    term:
+      type: string
+      maxLength: 128
+      description: 目标学期（数字 calendarId / 学期名）；留空 = 最近已同步学期。
+    depth:
+      type: integer
+      description: 回溯学期数，越界 clamp 到 [1, 8]。
+    audience:
+      type: string
+      description: 数据来源（undergraduate / graduate）；空按本科处理。非法值整个请求失败。
 
 AdminImportReportError:
   type: object
@@ -9604,6 +9832,8 @@ DirectImageUploadCompleteResult:
       format: int64
       minimum: 1
       description: Stored byte size.
+    imageMetadata:
+      $ref: '#/ImageMetadata'
   additionalProperties: false
 
 DirectImageUploadCompleteSuccess:
@@ -9744,18 +9974,78 @@ PkMaterializeResponse:
               $ref: '#/PkMaterializeResult'
     - $ref: '#/ApiFailure'
 
+PkValidateCredentialRequest:
+  type: object
+  additionalProperties: false
+  properties:
+    audience:
+      type: string
+      enum: [undergraduate, graduate]
+      default: undergraduate
+      description: 课程数据来源范围；省略时使用本科生数据。
+    credential:
+      type: string
+      description: >-
+        待校验的一系统凭证原文（本科 Cookie header / 研究生 X-Token）。留空时按
+        同步 CLI 同款优先级解析：环境变量 → 管理端已保存设置（securestore 密文解密）。
+
+PkValidateCredentialSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          type: object
+          required: [valid, message]
+          additionalProperties: false
+          properties:
+            valid:
+              type: boolean
+              description: >-
+                凭证是否可用：以最新已同步学期为真实目标最小抓取一页（pageSize=1）
+                探测成功。探测不写库、不写 fetchlog、不修改配置。
+            message:
+              type: string
+              description: >-
+                校验说明：valid=true 时为空串；valid=false 时为脱敏后的失败原因
+                （凭证失效/一系统网络错误，或尚无已同步学期时的提示）。
+
+PkValidateCredentialResponse:
+  oneOf:
+    - $ref: '#/PkValidateCredentialSuccess'
+    - $ref: '#/ApiFailure'
+
 # ================= 表情包库（MADR 0030）=================
 
 StickerItem:
   type: object
   required: [name, url]
   properties:
+    id:
+      type: integer
+      format: int64
+      minimum: 1
+      description: Stable asset identifier; optional for compatibility with older servers.
     name:
       type: string
-      description: Globally unique sticker name, the `[:sticker:name:]` token body; letters/digits/underscore/hyphen only, 1-64 chars.
+      description: Stable token body. Official legacy names remain supported; personal assets use unguessable random names and cannot be renamed or replaced.
     url:
       type: string
-      description: Public access path — `/file/img/<fileName>` on the local provider or the configured CDN public-url prefix.
+      description: Public image access path. A shared token permits rendering; a private library membership is never publicly enumerated.
+    displayName:
+      type: string
+      description: Private label on my-library/save responses, otherwise the asset label or token name. Never another user's private label.
+    pack:
+      type: string
+      description: Official pack identifier (default official), or personal for uploaded assets.
+    isOfficial:
+      type: boolean
+      description: True for admin-managed official assets. Older servers omit this field.
+    isEnabled:
+      type: boolean
+      default: true
+      description: False for temporarily unavailable assets retained in a private library. Clients must prevent insertion while permitting removal or reordering. Older servers omit this field and clients assume true.
   additionalProperties: false
 
 ForumStickerListSuccess:
@@ -9768,7 +10058,7 @@ ForumStickerListSuccess:
           type: array
           items:
             $ref: '#/StickerItem'
-          description: Enabled stickers only, sortOrder ascending then id ascending (empty array when none exist).
+          description: Sticker items. Official directory is enabled official assets only; personal library preserves user order; resolve includes only explicitly requested enabled tokens.
 
 ForumStickerListResponse:
   oneOf:
@@ -9816,7 +10106,7 @@ AdminStickerListSuccess:
           type: array
           items:
             $ref: '#/AdminStickerItem'
-          description: All sticker rows including disabled ones, sortOrder ascending then id ascending.
+          description: Official sticker rows including disabled ones, excluding personal assets; sortOrder ascending then id ascending.
 
 AdminStickerListResponse:
   oneOf:
@@ -10127,6 +10417,69 @@ SearchMaintenanceSubmissionResponse:
     result:
       $ref: '#/SearchMaintenanceSubmission'
 
+PkPlanItem:
+  type: object
+  required: [plan, revision, updatedAt]
+  properties:
+    plan:
+      $ref: '#/PkPlanPayload'
+    revision:
+      type: integer
+      minimum: 1
+      maximum: 9007199254740991
+    updatedAt:
+      type: string
+      format: date-time
+      description: Diagnostic timestamp, never a CAS version.
+PkPlanItemPutRequest:
+  type: object
+  required: [plan, baseRevision]
+  properties:
+    plan:
+      $ref: '#/PkPlanPayload'
+    baseRevision:
+      type: integer
+      minimum: 0
+      maximum: 9007199254740990
+      description: Zero creates a new ID; positive revision updates the observed plan.
+PkPlanItemDeleteRequest:
+  type: object
+  required: [planId, baseRevision]
+  properties:
+    planId:
+      type: string
+      minLength: 1
+      maxLength: 64
+    baseRevision:
+      type: integer
+      minimum: 1
+      maximum: 9007199254740991
+PkPlanItemResponse:
+  type: object
+  required: [code, msg, data]
+  properties:
+    code:
+      type: integer
+    msg:
+      type: string
+    data:
+      oneOf:
+        - $ref: '#/PkPlanItem'
+        - type: 'null'
+PkPlanItemsResponse:
+  type: object
+  required: [code, msg, data]
+  properties:
+    code:
+      type: integer
+      const: 0
+    msg:
+      type: string
+    data:
+      type: array
+      maxItems: 10
+      items:
+        $ref: '#/PkPlanItem'
 PrivateNote:
   type: object
   required: [targetUserId, username, note]
@@ -10199,3 +10552,98 @@ PostMention:
     end:
       type: integer
       minimum: 1
+
+# Personal sticker library (private memberships, stable shared assets).
+StickerNamesRequest:
+  type: object
+  required: [names]
+  properties:
+    names:
+      type: array
+      maxItems: 200
+      items:
+        type: string
+        minLength: 1
+        maxLength: 64
+  additionalProperties: false
+MyStickerSaveRequest:
+  type: object
+  properties:
+    stickerName:
+      type: string
+      maxLength: 64
+      description: Existing enabled token to collect or rename in the caller's library. Mutually exclusive with fileName.
+    fileName:
+      type: string
+      maxLength: 2048
+      description: Ready standard image upload owned by the caller, storage key or public URL, 1 byte through 4 MiB. Mutually exclusive with stickerName; repeated uploads of the same file reuse the immutable personal asset.
+    displayName:
+      type: string
+      maxLength: 64
+      description: Optional private label, trimmed before validation. Omission preserves the label; empty clears it. Does not change the token, shared asset or another account's label.
+  additionalProperties: false
+MyStickerDeleteRequest:
+  type: object
+  required: [name]
+  properties:
+    name:
+      type: string
+      minLength: 1
+      maxLength: 64
+  additionalProperties: false
+MyStickerSaveSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          $ref: '#/StickerItem'
+MyStickerSaveResponse:
+  oneOf:
+    - $ref: '#/MyStickerSaveSuccess'
+    - $ref: '#/ApiFailure'
+
+UserBlock:
+  type: object
+  required: [targetUserId, username]
+  properties:
+    targetUserId:
+      type: integer
+      format: uint64
+      minimum: 1
+    username:
+      type: string
+  additionalProperties: false
+UserBlocksPayload:
+  type: object
+  required: [ownerId, blocks]
+  properties:
+    ownerId:
+      type: integer
+      format: uint64
+      minimum: 1
+    blocks:
+      type: array
+      maxItems: 1000
+      items:
+        $ref: '#/UserBlock'
+  additionalProperties: false
+UserBlocksSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      properties:
+        result:
+          $ref: '#/UserBlocksPayload'
+UserBlockRequest:
+  type: object
+  required: [targetUserId, blocked]
+  properties:
+    targetUserId:
+      type: integer
+      format: uint64
+      minimum: 1
+    blocked:
+      type: boolean
+  additionalProperties: false

@@ -1,0 +1,2 @@
+#include "Generated.xcconfig"
+// Release signing values are written temporarily by scripts/mobile-release/build_ios.py.

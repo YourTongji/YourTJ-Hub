@@ -274,10 +274,11 @@ export function getPkCoursesByTime(
   calendarId: number,
   day: number,
   section: number,
+  includeAll = false,
 ): Promise<PkCoursesByTimeResult> {
   return postPk<PkCoursesByTimeResult>(
     '/api/pk/courses-by-time',
-    { calendarId, day, section },
+    { calendarId, day, section, ...(includeAll ? { includeAll: true } : {}) },
     t('api.pkCoursesByTimeFailed'),
   )
 }

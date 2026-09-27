@@ -1,0 +1,39 @@
+{
+  "result": {
+    "userId": 1025,
+    "username": "",
+    "nickname": "",
+    "avatarUrl": "/static/pic/default-avatar.webp",
+    "profileCoverUrl": "",
+    "bio": "",
+    "signature": "",
+    "websiteName": "",
+    "website": "",
+    "prestige": 0,
+    "isAdmin": false,
+    "topicCount": 0,
+    "replyCount": 0,
+    "likeReceivedCount": 0,
+    "likeGivenCount": 0,
+    "followerCount": 0,
+    "followingCount": 0,
+    "collectionCount": 0,
+    "isOnline": false,
+    "isFollowing": false,
+    "externalInformation": {
+      "github": { "link": "" },
+      "weibo": { "link": "" },
+      "bilibili": { "link": "" },
+      "twitter": { "link": "" },
+      "linkedIn": { "link": "" },
+      "zhihu": { "link": "" }
+    },
+    "isSelf": false,
+    "badges": [],
+    "displayBadges": [],
+    "lastActiveTime": "0001-01-01T00:00:00Z",
+    "createdAt": "0001-01-01T00:00:00Z",
+    "isAccountClosed": true
+  },
+  "code": 0
+}

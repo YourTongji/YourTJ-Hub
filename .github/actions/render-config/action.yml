@@ -27,6 +27,22 @@ inputs:
     description: GH_CLIENT_SECRET（github.client_secret；dev 可空）
     required: false
     default: ""
+  apple-client-id:
+    description: Optional native Apple login configuration APPLE_CLIENT_ID
+    required: false
+    default: ""
+  apple-team-id:
+    description: Optional native Apple login configuration APPLE_TEAM_ID
+    required: false
+    default: ""
+  apple-key-id:
+    description: Optional native Apple login configuration APPLE_KEY_ID
+    required: false
+    default: ""
+  apple-private-key-base64:
+    description: Optional native Apple login configuration APPLE_PRIVATE_KEY_BASE64
+    required: false
+    default: ""
   google-client-id:
     description: GOOGLE_CLIENT_ID（google.client_id；可选）
     required: false
@@ -106,6 +122,10 @@ runs:
         WIKI_WEBHOOK_SECRET: ${{ inputs.wiki-webhook-secret }}
         GH_CLIENT_ID: ${{ inputs.gh-client-id }}
         GH_CLIENT_SECRET: ${{ inputs.gh-client-secret }}
+        APPLE_CLIENT_ID: ${{ inputs.apple-client-id }}
+        APPLE_TEAM_ID: ${{ inputs.apple-team-id }}
+        APPLE_KEY_ID: ${{ inputs.apple-key-id }}
+        APPLE_PRIVATE_KEY_BASE64: ${{ inputs.apple-private-key-base64 }}
         GOOGLE_CLIENT_ID: ${{ inputs.google-client-id }}
         GOOGLE_CLIENT_SECRET: ${{ inputs.google-client-secret }}
         AI_API_KEY: ${{ inputs.ai-api-key }}

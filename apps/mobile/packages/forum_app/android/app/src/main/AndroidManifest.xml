@@ -3,6 +3,7 @@
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
     <!-- Push does not need location, phone identifiers or installed-app inventory. -->
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" tools:node="remove"/>
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" tools:node="remove"/>
@@ -18,7 +19,14 @@
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher"
-        android:requestLegacyExternalStorage="true">
+        android:fullBackupContent="@xml/private_preferences_backup_rules"
+        android:dataExtractionRules="@xml/private_preferences_extraction_rules"
+        android:requestLegacyExternalStorage="true"
+        android:theme="@style/WidgetHostTheme">
+        <!-- FCM must not register or collect data before the user enables push.
+             JPush requests its FCM token explicitly after consent; auto-init stays off. -->
+        <meta-data android:name="firebase_messaging_auto_init_enabled" android:value="false"/>
+        <meta-data android:name="firebase_analytics_collection_enabled" android:value="false"/>
         <!-- Explicit consent initializes JPush; disable its automatic startup provider. -->
         <provider android:name="cn.jpush.android.service.InitProvider" tools:node="remove"/>
         <service android:name=".PushService" android:exported="false" android:process=":pushcore">
@@ -42,7 +50,7 @@
             android:name=".MainActivity"
             android:exported="true"
             android:launchMode="singleTop"
-            android:theme="@style/LaunchTheme"
+            android:theme="@style/LaunchThemeDark"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
             android:hardwareAccelerated="true"
             android:windowSoftInputMode="adjustResize">
@@ -58,16 +66,46 @@
               android:name="flutter_deeplinking_enabled"
               android:value="false" />
             <intent-filter>
-                <action android:name="android.intent.action.MAIN"/>
-                <category android:name="android.intent.category.LAUNCHER"/>
-            </intent-filter>
-            <intent-filter>
                 <action android:name="android.intent.action.VIEW"/>
                 <category android:name="android.intent.category.DEFAULT"/>
                 <category android:name="android.intent.category.BROWSABLE"/>
                 <data android:scheme="yourtj" android:host="callback"/>
             </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <action android:name="es.antonborri.home_widget.action.LAUNCH"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="yourtj" android:host="campus" android:pathPrefix="/today"/>
+            </intent-filter>
         </activity>
+        <activity android:name=".ThemeRouterActivity" android:exported="true" android:theme="@style/ThemeRouter">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity>
+        <activity android:name=".LightLauncherActivity" android:exported="true" android:theme="@style/ThemeRouter"/>
+        <activity android:name=".DarkLauncherActivity" android:exported="true" android:theme="@style/ThemeRouter"/>
+        <receiver android:name=".widget.NextClassWidgetReceiver" android:label="下一节课" android:exported="true">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE"/></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/next_class_widget_info"/>
+        </receiver>
+        <receiver android:name=".widget.TodayScheduleWidgetReceiver" android:label="今日课表" android:exported="true">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE"/></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/today_schedule_widget_info"/>
+        </receiver>
+        <receiver android:name=".widget.CourseTimelineWidgetReceiver" android:label="课程时间线" android:exported="true">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE"/></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/course_timeline_widget_info"/>
+        </receiver>
+        <receiver android:name="es.antonborri.home_widget.HomeWidgetScheduledUpdateReceiver" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED"/>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED"/>
+                <action android:name="android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED"/>
+            </intent-filter>
+        </receiver>
         <!-- AppAuth remains available for non-Android Dart paths but must not
              claim the Android callback handled by MainActivity. -->
         <activity

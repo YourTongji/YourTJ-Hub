@@ -21,7 +21,7 @@ class FakePageRepository extends PageRepository {
   FakePageRepository(super.client);
 
   @override
-  Future<PagePayload> fetch(String path) async {
+  Future<PagePayload> fetch(String path, {Object? cancelToken}) async {
     if (path == '/' || path.startsWith('/?sort=')) {
       return parsePayload(homePayloadJson());
     }
@@ -46,6 +46,7 @@ class FakeTopicRepository extends TopicRepository {
     required String query,
     String scope = '',
     int page = 1,
+    Object? cancelToken,
   }) async {
     final HomeProps home = parsePageProps<HomeProps>(
       parsePayload(homePayloadJson()),
@@ -234,7 +235,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Alice'), findsOneWidget);
+    expect(find.text('Alice'), findsNWidgets(2));
     expect(find.text('同济学生'), findsOneWidget);
   });
 

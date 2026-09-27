@@ -113,7 +113,7 @@ func TestIsCrossDisciplineLabel(t *testing.T) {
 
 func TestGetPkTimeSlotsBySection(t *testing.T) {
 	tests := map[int][]int{
-		1: {1, 2}, 2: {3, 4}, 3: {5, 6}, 4: {7, 8}, 5: {9}, 6: {10}, 7: nil,
+		1: {1, 2}, 2: {3, 4}, 3: {5, 6}, 4: {7, 8}, 5: {9}, 6: {10, 11, 12}, 7: nil,
 	}
 	for section, want := range tests {
 		if got := getPkTimeSlotsBySection(section); !reflect.DeepEqual(got, want) {

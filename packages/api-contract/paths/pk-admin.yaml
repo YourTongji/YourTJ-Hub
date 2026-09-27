@@ -181,3 +181,206 @@ adminMaterializePkCalendar:
                 externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
               csrfRejected:
                 externalValue: ../fixtures/csrf-rejected.json
+
+adminValidatePkCredential:
+  post:
+    tags: [Admin]
+    summary: Probe a OneSystem (一系统) credential before saving it
+    operationId: adminValidatePkCredential
+    description: |
+      Admin console operation gated by the `SiteManager` role permission
+      (Admin role is a superset); callers without it fail with HTTP 403 and
+      `permission.denied` (params permission=<localized permission name>,
+      `站点管理` in zh). Validates a 一系统 credential for the requested audience
+      (undergraduate Cookie / graduate X-Token) with a minimal probe before
+      saving it (issue #856): it fetches exactly one page (pageSize=1) of the
+      latest synced calendar for that audience and performs **no database
+      writes, no fetch-log rows, no configuration changes**. A blank
+      `credential` resolves via the same priority as the sync CLI
+      (environment variables first, then the admin-stored securestore setting).
+      Undergraduate environment priority is `ONESYSTEM_UNDERGRADUATE_COOKIE`,
+      then `ONESYSTEM_COOKIE`; graduate priority is `ONESYSTEM_GRADUATE_X_TOKEN`,
+      then `ONESYSTEM_X_TOKEN`, then the legacy `ONESYSTEM_GRADUATE_COOKIE`.
+      A non-blank request credential overrides both environment and saved settings.
+      A credential failure (HTTP 401/403, business
+      code != 0, network error) is a **business result** — HTTP 200 with
+      `result.valid=false` and a credential-redacted failure message — not an
+      HTTP error. Only hard errors (unsupported audience, missing credential
+      source, database read failure) return the failure envelope. With no
+      synced calendar for the audience the result is `valid=false` with a
+      "sync a term first" message. The probe is bounded by a 45s timeout.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/PkValidateCredentialRequest
+    responses:
+      '200':
+        description: Probe result (valid=true / valid=false + sanitized message), or a business failure envelope for hard errors.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/PkValidateCredentialResponse
+            examples:
+              valid:
+                externalValue: ../fixtures/pk-credential-valid.json
+              invalid:
+                externalValue: ../fixtures/pk-credential-invalid.json
+              invalidParams:
+                externalValue: ../fixtures/invalid-params.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: >-
+          Frozen account, or caller lacks the SiteManager permission.
+          A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected
+          by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie
+          is not cleared (issue #406).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
+
+adminGetPkSyncScheduleSettings:
+  get:
+    tags: [Admin]
+    summary: Read the scheduled PK sync configuration
+    operationId: adminGetPkSyncScheduleSettings
+    description: |
+      Admin console operation gated by the `SiteManager` role permission
+      (Admin role is a superset); callers without it fail with HTTP 403 and
+      `permission.denied` (params permission=<localized permission name>,
+      `站点管理` in zh). Returns the scheduled sync configuration (issue #569):
+      the enable switch, the 5-field cron expression, the target term (empty
+      = latest synced term), the depth and the audience. None of these fields
+      are sensitive — the stored blob holds no credentials — so the current
+      values are echoed as-is (unlike the adjacent OneSystem Cookie settings,
+      which only report `configured` states). When nothing has been saved
+      yet the built-in default is returned (`enabled=false`,
+      `schedule="30 2 * * *"`, `term=""`, `depth=1`,
+      `audience="undergraduate"`). JSON binding is lenient: query string and
+      body are ignored.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    responses:
+      '200':
+        description: The scheduled sync configuration (stored configuration or the built-in default).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/PkSyncScheduleSettingsResponse
+            examples:
+              success:
+                externalValue: ../fixtures/pk-sync-schedule-settings-get.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Frozen account, or caller lacks the SiteManager permission.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
+
+adminSavePkSyncScheduleSettings:
+  post:
+    tags: [Admin]
+    summary: Replace the scheduled PK sync configuration
+    operationId: adminSavePkSyncScheduleSettings
+    description: |
+      Admin console operation gated by the `SiteManager` role permission;
+      callers without it fail with HTTP 403 and `permission.denied`.
+      Replaces the whole scheduled-sync configuration with the submitted
+      value (issue #569), clears the settings cache and hot-refreshes the
+      in-process cron registration (`console/job.RefreshPkSyncCron`) so the
+      change takes effect without a restart. Validation happens before
+      anything is persisted:
+      1. when `enabled=true` the `schedule` must be present and parse with the
+         same 5-field standard cron parser the process scheduler uses;
+         otherwise the whole request fails with HTTP 200 `code: 1`
+         (params.error carries the parse error).
+      2. `audience`, when empty, defaults to `undergraduate`; any other value
+         must be one of `undergraduate`/`graduate` or the request fails.
+      `depth` is clamped into `[1, 8]` and `term` is trimmed (empty meaning
+      "latest now-synced term"). Disabling (`enabled=false`) only turns the
+      toggle off — the cron expression is not validated, no cron entry is
+      registered, and the in-process scheduler stops firing; the other fields
+      are stored as-is for when the operator re-enables. On success the whole
+      configuration is replaced and the operation reports `result: "success"`.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/SavePkSyncScheduleSettingsRequest
+    responses:
+      '200':
+        description: "Configuration saved (`result` is the string `success`), or a `code: 1` business failure (invalid/absent cron while enabling, invalid audience)."
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminPageConfigSaveResponse
+            examples:
+              success:
+                externalValue: ../fixtures/admin-agent-disable-success.json
+              invalidCron:
+                externalValue: ../fixtures/pk-sync-schedule-settings-invalid.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: >-
+          Frozen account, or caller lacks the SiteManager permission.
+          A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected
+          by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie
+          is not cleared (issue #406).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json

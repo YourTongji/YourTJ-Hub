@@ -1,0 +1,12 @@
+{
+  "code": 0,
+  "result": {
+    "ownerId": 1,
+    "blocks": [
+      {
+        "targetUserId": 2,
+        "username": "alice"
+      }
+    ]
+  }
+}

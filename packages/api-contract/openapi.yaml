@@ -97,6 +97,10 @@ paths:
     $ref: ./paths/auth-totp.yaml#/enable
   /api/user/totp/disable:
     $ref: ./paths/auth-totp.yaml#/disable
+  /api/auth/apple/exchange:
+    $ref: ./paths/apple-auth.yaml#/exchange
+  /api/auth/apple/bind:
+    $ref: ./paths/apple-auth.yaml#/bind
   /api/auth/oidc/exchange:
     $ref: ./paths/auth.yaml#/oidcExchange
   /api/auth/mobile-web-session:
@@ -151,6 +155,10 @@ paths:
     $ref: ./paths/forum-moderation.yaml#/viewDeletedContent
   /api/get-captcha:
     $ref: ./paths/user-account.yaml#/getCaptcha
+  /api/user-blocks:
+    $ref: './paths/user-account.yaml#/userBlocks'
+  /api/user-block:
+    $ref: './paths/user-account.yaml#/userBlock'
   /api/user-notes:
     $ref: './paths/user-account.yaml#/privateNotes'
   /api/user-note:
@@ -185,6 +193,8 @@ paths:
     $ref: ./paths/user-account.yaml#/unbindOAuth
   /api/forum/unread-status:
     $ref: ./paths/forum-notifications.yaml#/getUnreadStatus
+  /api/forum/events:
+    $ref: ./paths/forum-events.yaml#/streamForumEvents
   /api/forum/notifications:
     $ref: ./paths/forum-notifications.yaml#/getNotifications
   /api/forum/notification/mark-read:
@@ -207,12 +217,26 @@ paths:
     $ref: ./paths/forum-chat.yaml#/getChatMessages
   /api/forum/chat/mark-read:
     $ref: ./paths/forum-chat.yaml#/markChatRead
+  /api/forum/chat/mark-visible:
+    $ref: ./paths/forum-chat.yaml#/markChatVisibleRead
+  /api/forum/chat/message-read-states:
+    $ref: ./paths/forum-chat.yaml#/getChatMessageReadStates
   /api/forum/get-site-statistics:
     $ref: ./paths/forum-read.yaml#/getSiteStatistics
   /api/forum/search:
     $ref: ./paths/forum-read.yaml#/searchForum
   /api/link-previews/resolve:
     $ref: ./paths/link-previews.yaml#/resolveLinkPreviews
+  /api/forum/stickers/resolve:
+    $ref: ./paths/sticker-library.yaml#/resolveStickers
+  /api/forum/my-stickers:
+    $ref: ./paths/sticker-library.yaml#/myStickers
+  /api/forum/my-sticker-save:
+    $ref: ./paths/sticker-library.yaml#/saveMySticker
+  /api/forum/my-sticker-delete:
+    $ref: ./paths/sticker-library.yaml#/deleteMySticker
+  /api/forum/my-stickers-order:
+    $ref: ./paths/sticker-library.yaml#/orderMyStickers
   /api/forum/stickers:
     $ref: ./paths/forum-read.yaml#/forumStickerList
   /api/site-theme/tokens:
@@ -526,12 +550,19 @@ paths:
       $ref: ./paths/wiki-sync.yaml#/saveWikiAssetCDN/post
   /api/admin/pk/materialize-calendar:
     $ref: ./paths/pk-admin.yaml#/adminMaterializePkCalendar
+  /api/admin/pk/validate-credential:
+    $ref: ./paths/pk-admin.yaml#/adminValidatePkCredential
   /api/admin/pk/sync-calendar:
     post:
       $ref: ./paths/pk-admin.yaml#/adminSyncPkCalendar/post
   /api/admin/pk/sync-status:
     get:
       $ref: ./paths/pk-admin.yaml#/adminGetPkSyncStatus/get
+  /api/admin/pk/sync-schedule-settings:
+    get:
+      $ref: ./paths/pk-admin.yaml#/adminGetPkSyncScheduleSettings/get
+    post:
+      $ref: ./paths/pk-admin.yaml#/adminSavePkSyncScheduleSettings/post
   # PK 排课器 13 端点（Issue #187）。
   /api/pk/calendars:
     get:
@@ -578,6 +609,8 @@ paths:
   /api/pk/section-times:
     get:
       $ref: ./paths/pk.yaml#/getSectionTimes/get
+  /api/pk/plan-items:
+    $ref: ./paths/pk.yaml#/planItems
   /api/pk/plans:
     get:
       $ref: ./paths/pk.yaml#/getPlans/get
@@ -769,6 +802,8 @@ components:
       $ref: ./components/schemas.yaml#/LogoutResponse
     LogoutSuccess:
       $ref: ./components/schemas.yaml#/LogoutSuccess
+    AppleCredentialRequest:
+      $ref: ./components/schemas.yaml#/AppleCredentialRequest
     OidcExchangeRequest:
       $ref: ./components/schemas.yaml#/OidcExchangeRequest
     OidcExchangeResult:
@@ -1033,6 +1068,18 @@ components:
       $ref: ./components/schemas.yaml#/ChatMarkReadSuccess
     ChatMarkReadResponse:
       $ref: ./components/schemas.yaml#/ChatMarkReadResponse
+    ChatMessageIDsRequest:
+      $ref: ./components/schemas.yaml#/ChatMessageIDsRequest
+    ChatVisibleReadResult:
+      $ref: ./components/schemas.yaml#/ChatVisibleReadResult
+    ChatVisibleReadResponse:
+      $ref: ./components/schemas.yaml#/ChatVisibleReadResponse
+    ChatMessageReadState:
+      $ref: ./components/schemas.yaml#/ChatMessageReadState
+    ChatMessageReadStatesResult:
+      $ref: ./components/schemas.yaml#/ChatMessageReadStatesResult
+    ChatMessageReadStatesResponse:
+      $ref: ./components/schemas.yaml#/ChatMessageReadStatesResponse
     RateLimitedFailure:
       $ref: ./components/schemas.yaml#/RateLimitedFailure
     AgentMe:
@@ -1843,6 +1890,10 @@ components:
       $ref: ./components/schemas.yaml#/TopicCategoryPayload
     TopicPayload:
       $ref: ./components/schemas.yaml#/TopicPayload
+    ImageMetadata:
+      $ref: ./components/schemas.yaml#/ImageMetadata
+    ImageVariant:
+      $ref: ./components/schemas.yaml#/ImageVariant
     UserSearchPayload:
       $ref: ./components/schemas.yaml#/UserSearchPayload
     WikiAssetCDNSaveRequest:
@@ -1907,3 +1958,13 @@ components:
       $ref: ./components/schemas.yaml#/AdminStickerImportSuccess
     AdminStickerImportResponse:
       $ref: ./components/schemas.yaml#/AdminStickerImportResponse
+    PkPlanItem:
+      $ref: ./components/schemas.yaml#/PkPlanItem
+    PkPlanItemPutRequest:
+      $ref: ./components/schemas.yaml#/PkPlanItemPutRequest
+    PkPlanItemDeleteRequest:
+      $ref: ./components/schemas.yaml#/PkPlanItemDeleteRequest
+    PkPlanItemResponse:
+      $ref: ./components/schemas.yaml#/PkPlanItemResponse
+    PkPlanItemsResponse:
+      $ref: ./components/schemas.yaml#/PkPlanItemsResponse

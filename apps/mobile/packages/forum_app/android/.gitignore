@@ -15,3 +15,6 @@ key.properties
 
 push.properties
 app/agconnect-services.json
+app/google-services.json
+
+.kotlin/

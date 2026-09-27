@@ -312,6 +312,7 @@ class _AdminPageState extends ConsumerState<AdminPage> {
     final l10n = AppLocalizations.of(context);
     return await showDialog<bool>(
           context: context,
+          animationStyle: GfMotion.dialogStyle(context),
           builder: (context) => AlertDialog(
             title: Text(_title(l10n)),
             content: SingleChildScrollView(child: Text(message)),
@@ -411,13 +412,13 @@ class _AdminPageState extends ConsumerState<AdminPage> {
         appBar: GfAppBar(
           title: Text(_title(l10n)),
           leading: IconButton(
-            icon: const Icon(Icons.arrow_back),
+            icon: const GfSymbol('arrow-left'),
             tooltip: l10n.commonBack,
             onPressed: _back,
           ),
           actions: [
             IconButton(
-              icon: const Icon(Icons.close),
+              icon: const GfSymbol('x'),
               tooltip: l10n.commonClose,
               onPressed: () {
                 setState(() => _allowPop = true);
@@ -444,10 +445,7 @@ class _AdminPageState extends ConsumerState<AdminPage> {
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              const Icon(
-                                Icons.admin_panel_settings_outlined,
-                                size: 48,
-                              ),
+                              const GfSymbol('shield-check', size: 48),
                               const SizedBox(height: 16),
                               Text(
                                 widget.campusAuthorizationUrl == null
@@ -465,7 +463,7 @@ class _AdminPageState extends ConsumerState<AdminPage> {
                         ),
                       )
                     : _controller == null
-                    ? const Center(child: CircularProgressIndicator())
+                    ? const Center(child: GfProgressIndicator())
                     : WebViewWidget(controller: _controller!),
               ),
             ],

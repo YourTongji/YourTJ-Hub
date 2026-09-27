@@ -5,7 +5,7 @@
       "type": "Feature",
       "id": "plan/lingang/data",
       "properties": {
-        "name": "数据中心",
+        "name": "监测与数据中心",
         "source": "Tongji official campus plan (May 2025); approximate georeferenced tracing",
         "building": "yes"
       },

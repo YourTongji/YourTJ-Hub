@@ -1,15 +1,22 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:core/core.dart';
+import 'package:dio/dio.dart';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:ui_kit/ui_kit.dart';
 
 import '../l10n/app_localizations.dart';
+import 'navigation/auth_navigation.dart';
+import 'navigation/session_overlays.dart';
 import 'navigation/tab_scroll_registry.dart';
+import 'navigation/route_visibility.dart';
 import 'navigation/reading_chrome.dart';
+import 'navigation/reading_window.dart';
 import 'widgets/account_drawer.dart';
 import 'pages/auth/login_page.dart';
 import 'pages/admin/admin_page.dart';
@@ -33,23 +40,19 @@ import 'pages/wiki/wiki_search_page.dart';
 import 'pages/schedule/schedule_page.dart';
 import 'pages/search/search_page.dart';
 import 'pages/settings/settings_page.dart';
+import 'pages/settings/schedule_widget_settings_page.dart';
 import 'pages/topic/topic_page.dart';
 import 'providers.dart';
 import 'current_user.dart';
+import 'realtime/foreground_realtime.dart';
+import 'realtime/realtime_updates.dart';
 
 extension on GfShellDestination {
-  IconData get icon => switch (this) {
-    GfShellDestination.home => Icons.home_outlined,
-    GfShellDestination.campus => Icons.school_outlined,
-    GfShellDestination.messages => Icons.forum_outlined,
-    GfShellDestination.notifications => Icons.notifications_outlined,
-  };
-
-  IconData get activeIcon => switch (this) {
-    GfShellDestination.home => Icons.home,
-    GfShellDestination.campus => Icons.school,
-    GfShellDestination.messages => Icons.forum,
-    GfShellDestination.notifications => Icons.notifications,
+  String get symbol => switch (this) {
+    GfShellDestination.home => 'house',
+    GfShellDestination.campus => 'graduation-cap',
+    GfShellDestination.messages => 'mail',
+    GfShellDestination.notifications => 'bell',
   };
 
   String label(AppLocalizations l10n) => switch (this) {
@@ -58,6 +61,67 @@ extension on GfShellDestination {
     GfShellDestination.messages => l10n.navMessages,
     GfShellDestination.notifications => l10n.notificationsTitle,
   };
+}
+
+/// Opens the account drawer from the leading content region while taking part
+/// in the same arena as descendants. Horizontal rails, sliders and text fields
+/// can claim their own drags; a vertical reading gesture is never cancelled.
+class _DrawerSwipeGestureRecognizer extends HorizontalDragGestureRecognizer {
+  _DrawerSwipeGestureRecognizer()
+    : super(supportedDevices: const {PointerDeviceKind.touch}) {
+    onlyAcceptDragOnThreshold = true;
+  }
+
+  double openingWidth = 0;
+  final Map<int, Offset> _origins = {};
+
+  @override
+  bool isPointerAllowed(PointerEvent event) =>
+      event.localPosition.dx >= 0 &&
+      event.localPosition.dx <= openingWidth &&
+      super.isPointerAllowed(event);
+
+  @override
+  void addAllowedPointer(PointerDownEvent event) {
+    _origins[event.pointer] = event.position;
+    super.addAllowedPointer(event);
+  }
+
+  @override
+  void handleEvent(PointerEvent event) {
+    final origin = _origins[event.pointer];
+    if (origin != null && event is PointerMoveEvent) {
+      final delta = event.position - origin;
+      final slop = computeHitSlop(event.kind, gestureSettings);
+      if (delta.dx < -slop ||
+          (delta.dy.abs() >= slop && delta.dy.abs() > delta.dx)) {
+        resolve(GestureDisposition.rejected);
+        return;
+      }
+    }
+    if (event is PointerUpEvent || event is PointerCancelEvent) {
+      _origins.remove(event.pointer);
+    }
+    super.handleEvent(event);
+  }
+
+  @override
+  bool hasSufficientGlobalDistanceToAccept(
+    PointerDeviceKind pointerDeviceKind,
+    double? deviceTouchSlop,
+  ) => globalDistanceMoved > computeHitSlop(pointerDeviceKind, gestureSettings);
+
+  @override
+  void rejectGesture(int pointer) {
+    _origins.remove(pointer);
+    super.rejectGesture(pointer);
+  }
+
+  @override
+  void dispose() {
+    _origins.clear();
+    super.dispose();
+  }
 }
 
 /// Persistent mobile shell with four navigation destinations and one compose
@@ -72,26 +136,155 @@ class GfShell extends ConsumerStatefulWidget {
   ConsumerState<GfShell> createState() => _GfShellState();
 }
 
-class _GfShellState extends ConsumerState<GfShell> {
-  Timer? _unreadTimer;
+class _GfShellState extends ConsumerState<GfShell> with WidgetsBindingObserver {
+  final _scaffoldKey = GlobalKey<ScaffoldState>();
+  late ForegroundRealtimeCoordinator _realtime;
+  late int _realtimeEpoch;
+  bool _realtimeSessionStarted = false;
+  bool _activeInTree = true;
+  Future<void>? _unreadInFlight;
+  bool _unreadDirty = false;
+  CancelToken? _unreadCancel;
   bool _unreadNotifications = false;
   bool _unreadMessages = false;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    routeVisibilityChanges.addListener(_onRouteVisibilityChanged);
+    _realtimeEpoch = ref.read(offlineCacheEpochProvider);
+    _realtime = _createRealtime();
     unawaited(_purgeStaleOfflineCacheOnBoot());
-    _pollUnread();
-    _unreadTimer = Timer.periodic(
-      const Duration(seconds: 30),
-      (_) => _pollUnread(),
+    unawaited(_pollUnread());
+    _onRouteVisibilityChanged();
+  }
+
+  ForegroundRealtimeCoordinator _createRealtime() {
+    return ForegroundRealtimeCoordinator(
+      readToken: ref.read(tokenStorageProvider).read,
+      connect: ref.read(realtimeConnectProvider),
+      onResync: () {
+        if (!mounted || !_activeInTree) return;
+        ref.read(realtimeInvalidationsProvider.notifier).resync();
+        unawaited(_pollUnread());
+      },
+      onEvent: _handleRealtimeEvent,
+      onFallbackTick: () {
+        if (!mounted || !_activeInTree) return;
+        ref.read(realtimeInvalidationsProvider.notifier).notifications();
+        unawaited(_pollUnread());
+      },
+      onHealthChanged: (healthy) {
+        if (mounted && _activeInTree) {
+          ref.read(realtimeHealthyProvider.notifier).setHealthy(healthy);
+        }
+      },
     );
+  }
+
+  void _onRouteVisibilityChanged() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _activeInTree) {
+        unawaited(_ensureRealtimeForCurrentSession());
+      }
+    });
+  }
+
+  Future<void> _ensureRealtimeForCurrentSession() async {
+    if (!mounted ||
+        !_activeInTree ||
+        (WidgetsBinding.instance.lifecycleState != null &&
+            WidgetsBinding.instance.lifecycleState !=
+                AppLifecycleState.resumed) ||
+        !routeIsUncovered(context)) {
+      return;
+    }
+    final epoch = ref.read(offlineCacheEpochProvider);
+    if (_realtimeEpoch != epoch) {
+      _realtime.stop();
+      _realtimeEpoch = epoch;
+      _realtimeSessionStarted = false;
+      _realtime = _createRealtime();
+    }
+    if (_realtimeSessionStarted) return;
+    try {
+      final token = await ref.read(tokenStorageProvider).read();
+      if (!mounted ||
+          !_activeInTree ||
+          epoch != ref.read(offlineCacheEpochProvider) ||
+          !routeIsUncovered(context) ||
+          (WidgetsBinding.instance.lifecycleState != null &&
+              WidgetsBinding.instance.lifecycleState !=
+                  AppLifecycleState.resumed)) {
+        return;
+      }
+      if (token == null || token.isEmpty) return;
+      _realtime.start();
+      _realtimeSessionStarted = true;
+      unawaited(_pollUnread());
+    } catch (_) {
+      // Token storage errors leave the public shell usable; another route or
+      // foreground transition can retry the connection.
+    }
+  }
+
+  @override
+  void deactivate() {
+    _realtime.stop();
+    _realtimeSessionStarted = false;
+    _activeInTree = false;
+    super.deactivate();
+  }
+
+  @override
+  void activate() {
+    super.activate();
+    _activeInTree = true;
+    _onRouteVisibilityChanged();
   }
 
   @override
   void dispose() {
-    _unreadTimer?.cancel();
+    _activeInTree = false;
+    _realtime.stop();
+    _unreadCancel?.cancel('shell disposed');
+    shellDrawerOpen.value = false;
+    routeVisibilityChanges.removeListener(_onRouteVisibilityChanged);
+    WidgetsBinding.instance.removeObserver(this);
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      unawaited(_ensureRealtimeForCurrentSession());
+    } else {
+      _realtime.stop();
+      _realtimeSessionStarted = false;
+      _unreadCancel?.cancel('application backgrounded');
+    }
+  }
+
+  void _handleRealtimeEvent(ForumSseFrame frame) {
+    if (!mounted) return;
+    switch (frame.event) {
+      case 'chat.changed':
+        try {
+          final event = ForumRealtimeChatChanged.fromJson(
+            jsonDecode(frame.data) as Map<String, dynamic>,
+          );
+          ref.read(realtimeInvalidationsProvider.notifier).chat(event.convId);
+        } catch (_) {
+          // Unknown or malformed hints cannot replace REST as truth.
+        }
+      case 'notifications.changed':
+        ref.read(realtimeInvalidationsProvider.notifier).notifications();
+      case 'unread.changed':
+        unawaited(_pollUnread());
+      case 'session.invalidated':
+        ref.read(apiClientProvider).onUnauthorized?.call();
+    }
   }
 
   /// 启动兜底:无令牌(上次 401 清库可能被进程中断)时清空离线缓存,
@@ -102,24 +295,46 @@ class _GfShellState extends ConsumerState<GfShell> {
       await clearOfflineCacheQuietly(
         ref.read(offlineTopicCacheProvider),
         ref.read(offlineChatCacheProvider),
+        ref.read(scheduleWidgetBridgeProvider),
       );
     } catch (_) {
       // 兜底清理失败(缓存不可用)不阻塞启动。
     }
   }
 
-  Future<void> _pollUnread() async {
+  Future<void> _pollUnread() {
+    if (_unreadInFlight case final inFlight?) {
+      _unreadDirty = true;
+      return inFlight;
+    }
+    final request = _fetchUnread();
+    _unreadInFlight = request;
+    unawaited(
+      request.whenComplete(() {
+        _unreadInFlight = null;
+        if (_unreadDirty && mounted && _activeInTree) {
+          _unreadDirty = false;
+          unawaited(_pollUnread());
+        }
+      }),
+    );
+    return request;
+  }
+
+  Future<void> _fetchUnread() async {
+    final epoch = ref.read(offlineCacheEpochProvider);
+    final cancel = _unreadCancel = CancelToken();
     try {
       final String? token = await ref.read(tokenStorageProvider).read();
       if (token == null || token.isEmpty) return;
-    } catch (_) {
-      return;
-    }
-    try {
       final status = await ref
           .read(notificationRepositoryProvider)
-          .getUnreadStatus();
-      if (!mounted) return;
+          .getUnreadStatus(cancelToken: cancel);
+      if (!mounted ||
+          cancel.isCancelled ||
+          epoch != ref.read(offlineCacheEpochProvider)) {
+        return;
+      }
       if (_unreadNotifications == status.notifications &&
           _unreadMessages == status.messages) {
         return;
@@ -130,6 +345,8 @@ class _GfShellState extends ConsumerState<GfShell> {
       });
     } catch (_) {
       // Unread state is best-effort and never blocks navigation.
+    } finally {
+      if (identical(_unreadCancel, cancel)) _unreadCancel = null;
     }
   }
 
@@ -159,86 +376,105 @@ class _GfShellState extends ConsumerState<GfShell> {
         context.go('/login');
       }
     });
+    ref.listen(offlineCacheEpochProvider, (int? previous, int next) {
+      if (next != previous) {
+        _realtime.stop();
+        _realtimeSessionStarted = false;
+        _unreadCancel?.cancel('session changed');
+        _unreadDirty = false;
+      }
+    });
+
+    final destinations = [
+      for (final destination in GfShellDestination.values)
+        GfBottomNavigationItem(
+          symbol: destination.symbol,
+          selectedSymbol: '${destination.symbol}-filled',
+          label: destination.label(l10n),
+          badge: destination == GfShellDestination.notifications
+              ? _unreadNotifications
+              : destination == GfShellDestination.messages && _unreadMessages,
+        ),
+    ];
 
     final chrome = ref.watch(readingChromeProvider);
-    final duration = MediaQuery.disableAnimationsOf(context)
-        ? Duration.zero
-        : const Duration(milliseconds: 200);
+    final duration = GfMotion.duration(context, GfMotion.layout);
     return Scaffold(
+      key: _scaffoldKey,
       drawer: const AccountDrawer(),
+      // The opening gesture belongs below the drawer overlay so descendants
+      // can win it. The native drawer still handles dragging an open panel shut.
+      drawerEnableOpenDragGesture: false,
       onDrawerChanged: (open) {
+        shellDrawerOpen.value = open;
         ref.read(readingChromeProvider).show();
         if (open) ref.invalidate(accountCardProvider);
       },
-      body: NotificationListener<ScrollNotification>(
-        onNotification: (notification) {
-          if (notification.depth != 0 ||
-              notification.metrics.axis != Axis.vertical) {
-            return false;
-          }
-          if (notification is ScrollUpdateNotification) {
-            ref
-                .read(readingChromeProvider)
-                .update(
-                  notification.scrollDelta ?? 0,
-                  notification.metrics.pixels,
-                  locked:
-                      MediaQuery.viewInsetsOf(context).bottom > 0 ||
-                      ModalRoute.of(context)?.isCurrent == false,
-                );
-          }
-          return false;
+      body: RawGestureDetector(
+        behavior: HitTestBehavior.translucent,
+        excludeFromSemantics: true,
+        gestures: {
+          _DrawerSwipeGestureRecognizer:
+              GestureRecognizerFactoryWithHandlers<
+                _DrawerSwipeGestureRecognizer
+              >(
+                _DrawerSwipeGestureRecognizer.new,
+                (recognizer) => recognizer
+                  ..openingWidth = MediaQuery.sizeOf(context).width * .55
+                  ..onStart = (_) {
+                    if (_scaffoldKey.currentState?.isDrawerOpen != true) {
+                      _scaffoldKey.currentState?.openDrawer();
+                    }
+                  },
+              ),
         },
-        child: Stack(
-          children: [
-            Positioned.fill(child: widget.navigationShell),
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 0,
-              child: AnimatedSlide(
-                offset: chrome.hidden ? const Offset(0, 1) : Offset.zero,
-                duration: duration,
-                curve: Curves.easeOut,
-                child: IgnorePointer(
-                  ignoring: chrome.hidden,
-                  child: ExcludeSemantics(
-                    excluding: chrome.hidden,
-                    child: GfBottomNavigation(
-                      currentIndex: widget.navigationShell.currentIndex,
-                      onSelected: _selectDestination,
-                      showLabels: false,
-                      items: [
-                        for (final destination in GfShellDestination.values)
-                          GfBottomNavigationItem(
-                            icon: destination.icon,
-                            selectedIcon: destination.activeIcon,
-                            symbol: switch (destination) {
-                              GfShellDestination.home => 'house',
-                              GfShellDestination.campus => 'graduation-cap',
-                              GfShellDestination.notifications => 'bell',
-                              GfShellDestination.messages => 'mail',
-                            },
-                            selectedSymbol: switch (destination) {
-                              GfShellDestination.home => 'house-filled',
-                              GfShellDestination.campus => 'graduation-cap-filled',
-                              GfShellDestination.notifications => 'bell-filled',
-                              GfShellDestination.messages => 'mail-filled',
-                            },
-                            label: destination.label(l10n),
-                            badge:
-                                destination == GfShellDestination.notifications
-                                ? _unreadNotifications
-                                : destination == GfShellDestination.messages &&
-                                      _unreadMessages,
-                          ),
-                      ],
-                    ),
+        child: NotificationListener<ScrollNotification>(
+          onNotification: (notification) {
+            if (notification.depth != 0 ||
+                notification.metrics.axis != Axis.vertical) {
+              return false;
+            }
+            if (notification is ScrollUpdateNotification) {
+              ref
+                  .read(readingChromeProvider)
+                  .update(
+                    notification.scrollDelta ?? 0,
+                    notification.metrics.pixels,
+                    locked:
+                        MediaQuery.viewInsetsOf(context).bottom > 0 ||
+                        ModalRoute.of(context)?.isCurrent == false,
+                  );
+            }
+            return false;
+          },
+          child: ReadingWindow(
+            maxContentWidth: widget.navigationShell.currentIndex == 1
+                ? 1120
+                : 720,
+            rail: ReadingNavigationRail(
+              currentIndex: widget.navigationShell.currentIndex,
+              onSelected: _selectDestination,
+              items: destinations,
+            ),
+            bottomNavigation: AnimatedSlide(
+              offset: chrome.hidden ? const Offset(0, 1) : Offset.zero,
+              duration: duration,
+              curve: GfMotion.layoutCurve,
+              child: IgnorePointer(
+                ignoring: chrome.hidden,
+                child: ExcludeSemantics(
+                  excluding: chrome.hidden,
+                  child: GfBottomNavigation(
+                    currentIndex: widget.navigationShell.currentIndex,
+                    onSelected: _selectDestination,
+                    showLabels: false,
+                    items: destinations,
                   ),
                 ),
               ),
             ),
-          ],
+            child: widget.navigationShell,
+          ),
         ),
       ),
     );
@@ -254,9 +490,21 @@ int? publishTopicIdFromUri(Uri uri) {
 }
 
 final appNavigatorKey = GlobalKey<NavigatorState>();
+final appSessionOverlays = SessionOverlayRegistry();
 final GoRouter appRouter = GoRouter(
   navigatorKey: appNavigatorKey,
   initialLocation: '/',
+  observers: [VisibilityRouteObserver(), appSessionOverlays.observer()],
+  redirect: (context, state) => authNavigationRedirect(
+    requested: state.uri,
+    previousLocation: appRouter.routerDelegate.currentConfiguration.isEmpty
+        ? null
+        : appRouter.state.uri.toString(),
+    tokenStorage: ProviderScope.containerOf(
+      context,
+      listen: false,
+    ).read(tokenStorageProvider),
+  ),
   routes: <RouteBase>[
     StatefulShellRoute.indexedStack(
       builder:
@@ -267,16 +515,19 @@ final GoRouter appRouter = GoRouter(
           ) => GfShell(navigationShell: navigationShell),
       branches: <StatefulShellBranch>[
         StatefulShellBranch(
+          observers: [VisibilityRouteObserver(), appSessionOverlays.observer()],
           routes: <RouteBase>[
             GoRoute(path: '/', builder: (_, _) => const HomePage()),
           ],
         ),
         StatefulShellBranch(
+          observers: [VisibilityRouteObserver(), appSessionOverlays.observer()],
           routes: <RouteBase>[
             GoRoute(path: '/campus', builder: (_, _) => const CampusPage()),
           ],
         ),
         StatefulShellBranch(
+          observers: [VisibilityRouteObserver(), appSessionOverlays.observer()],
           routes: [
             GoRoute(
               path: '/notifications',
@@ -285,6 +536,7 @@ final GoRouter appRouter = GoRouter(
           ],
         ),
         StatefulShellBranch(
+          observers: [VisibilityRouteObserver(), appSessionOverlays.observer()],
           routes: <RouteBase>[
             GoRoute(
               path: '/messages',
@@ -342,6 +594,14 @@ final GoRouter appRouter = GoRouter(
         initialPostNo: int.tryParse(state.uri.queryParameters['postNo'] ?? ''),
       ),
     ),
+    for (final stream in ['following', 'followers'])
+      GoRoute(
+        path: '/u/:userId/$stream',
+        builder: (_, state) => ProfilePage.connections(
+          userId: int.parse(state.pathParameters['userId']!),
+          initialStream: stream,
+        ),
+      ),
     GoRoute(
       path: '/u/:userId',
       builder: (BuildContext context, GoRouterState state) =>
@@ -349,9 +609,15 @@ final GoRouter appRouter = GoRouter(
     ),
     GoRoute(path: '/settings', builder: (_, _) => const SettingsPage()),
     GoRoute(
+      path: '/settings/widgets',
+      builder: (_, _) => const ScheduleWidgetSettingsPage(),
+    ),
+    GoRoute(
       path: '/settings/:section',
-      builder: (_, state) =>
-          SettingsPage(initialSection: state.pathParameters['section']),
+      builder: (_, state) => SettingsPage(
+        initialSection: state.pathParameters['section'],
+        autoEditProfile: state.uri.queryParameters['edit'] == '1',
+      ),
     ),
     GoRoute(
       path: '/my-course-reviews',
@@ -364,14 +630,13 @@ final GoRouter appRouter = GoRouter(
     ),
     GoRoute(
       path: '/profile',
-      builder: (_, state) => ProfilePage(
-        initialStream: switch (state.uri.queryParameters['stream']) {
-          'bookmarks' => 'bookmarks',
-          'following' => 'following',
-          'followers' => 'followers',
-          _ => 'timeline',
-        },
-      ),
+      builder: (_, state) => switch (state.uri.queryParameters['stream']) {
+        'following' || 'followers' => ProfilePage.connections(
+          initialStream: state.uri.queryParameters['stream']!,
+        ),
+        'bookmarks' => const ProfilePage(initialStream: 'bookmarks'),
+        _ => const ProfilePage(),
+      },
     ),
     GoRoute(
       path: '/moderation',

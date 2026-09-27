@@ -3,6 +3,7 @@ package api
 import (
 	"bytes"
 	"io"
+	"log/slog"
 	"mime"
 	"net/http"
 	"path"
@@ -30,7 +31,8 @@ func GetFileByFileName(c *gin.Context) {
 	// 附件引用被标记为 RECOVERING（内容删除后 30 天窗口）或 PURGED 时不再允许公开下载。
 	// 已删除内容的附件只应在恢复（回 ACTIVE）后重新可见；RECOVERING 只是为清理协调保留引用，
 	// 不构成公开访问授权。
-	if fileusageservice.HasAnyReferences(filename) && !fileusageservice.HasActiveReferences(filename) {
+	referenceName := filedata.ReferenceName(filename)
+	if fileusageservice.HasAnyReferences(referenceName) && !fileusageservice.HasActiveReferences(referenceName) {
 		c.JSON(http.StatusNotFound, gin.H{
 			"error":       "File not found",
 			"messageCode": component.MessagePageNotFound,
@@ -133,13 +135,21 @@ func saveImgByGinContext(c *gin.Context, adminUpload bool) {
 			component.MessageParams{"error": err.Error()}))
 		return
 	}
+	media, mediaErr := filedata.ProcessUploadedImage(entity.Name, fileData)
+	if mediaErr != nil {
+		slog.Warn("process uploaded image variants failed", "fileName", entity.Name, "error", mediaErr)
+	}
 	if adminUpload {
 		fileusageservice.AddAdminUpload(userId, entity.Name)
 	}
 
-	c.JSON(http.StatusOK, component.SuccessDataCode(map[string]any{
+	result := map[string]any{
 		"url":      entity.GetAccessPath(),
 		"filename": file.Filename,
 		"size":     len(fileData),
-	}, component.MessageUploadSuccess, nil))
+	}
+	if media.Width > 0 && media.Height > 0 {
+		result["imageMetadata"] = media
+	}
+	c.JSON(http.StatusOK, component.SuccessDataCode(result, component.MessageUploadSuccess, nil))
 }

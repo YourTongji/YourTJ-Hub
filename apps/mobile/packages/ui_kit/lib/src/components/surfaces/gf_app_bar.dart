@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 
 import '../../theme/gf_theme.dart';
+import '../gf_symbol.dart';
 
 /// Compact, centered navigation shared with the unified mobile design.
 ///
 /// The public surface deliberately mirrors the small subset of [AppBar] used
-/// by the mobile app so pages do not depend on TDesign's pre-release API.
+/// by the mobile app with repository-owned appearance and native navigation.
 class GfAppBar extends StatelessWidget implements PreferredSizeWidget {
   const GfAppBar({
     super.key,
@@ -38,15 +39,23 @@ class GfAppBar extends StatelessWidget implements PreferredSizeWidget {
 
     return AppBar(
       title: title,
-      leading: leading,
-      automaticallyImplyLeading: showDefaultBack,
+      leading:
+          leading ??
+          (showDefaultBack
+              ? IconButton(
+                  tooltip: MaterialLocalizations.of(context).backButtonTooltip,
+                  onPressed: () => Navigator.maybePop(context),
+                  icon: const GfSymbol('chevron-left'),
+                )
+              : null),
+      automaticallyImplyLeading: false,
       centerTitle: centerTitle,
       actions: actions,
       backgroundColor: colors.base100,
       titleTextStyle: Theme.of(context).textTheme.titleLarge?.copyWith(
         fontSize: 18,
         height: 26 / 18,
-        fontWeight: FontWeight.w700,
+        fontWeight: FontWeight.w600,
       ),
       toolbarHeight: 56,
       bottom: bottom,

@@ -12,6 +12,12 @@ import (
 //go:embed pageconfig/*.json
 var defaultConfigFS embed.FS
 
+//go:embed pageconfig/app_privacy.md
+var appPrivacyDisclosure string
+
+// GetAppPrivacyDisclosure is the versioned supplement to persisted site policies.
+func GetAppPrivacyDisclosure() string { return appPrivacyDisclosure }
+
 type pageConfigDefaults struct {
 	Announcement pageConfig.AnnouncementConfig
 	Email        pageConfig.MailSettingsConfig
@@ -171,6 +177,20 @@ func GetDefaultScheduleSettingsConfig() pageConfig.ScheduleSettingsConfig {
 			{Section: 10, Start: "19:20", End: "20:05"},
 			{Section: 11, Start: "20:10", End: "20:55"},
 		},
+	}
+}
+
+// GetDefaultPkSyncScheduleConfig 排课数据定时同步默认值（issue #569）：
+// 默认关闭；cron 与运维外部 crontab 的 course-pk-sync 节奏一致（每日 02:30），
+// 目标学期留空（同步最近已同步学期）、回溯 1 学期、本科数据来源。
+// Audience 取值与 pkservice.ParseAudience 对齐（undergraduate / graduate）。
+func GetDefaultPkSyncScheduleConfig() pageConfig.PkSyncScheduleConfig {
+	return pageConfig.PkSyncScheduleConfig{
+		Enabled:  false,
+		Schedule: "30 2 * * *",
+		Term:     "",
+		Depth:    1,
+		Audience: "undergraduate",
 	}
 }
 

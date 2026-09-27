@@ -184,6 +184,57 @@ void main() {
       expect(h.showCalls, 1);
     });
 
+    test(
+      'tapping the focused field can reopen a hidden IME without a focus event',
+      () {
+        final h = _Harness();
+        h.focus('username');
+
+        h.stabilizer.pointerDown('username');
+        h.scheduler.elapse(Duration.zero);
+
+        expect(h.showCalls, 1);
+        expect(h.recoveryCalls, 0);
+      },
+    );
+
+    test('dismissing the username keyboard cancels its show watchdog', () {
+      final h = _Harness()..imeVisible = true;
+      h.focus('username');
+      h.stabilizer.pointerDown('username');
+      h.stabilizer.focusChanged('username', true);
+      h.stabilizer.metricsChanged();
+
+      h.imeVisible = false;
+      h.stabilizer.metricsChanged();
+      h.scheduler.elapse(const Duration(seconds: 2));
+
+      expect(h.showCalls, 0);
+      expect(h.focused, isNot(contains('username')));
+    });
+
+    test('secure-to-normal IME handoff settles before honoring dismissal', () {
+      final h = _Harness()..imeVisible = true;
+      h.focus('password');
+      h.stabilizer.metricsChanged();
+      h.stabilizer.pointerDown('username');
+      h.focus('username');
+      h.stabilizer.focusChanged('username', true);
+
+      h.imeVisible = false;
+      h.stabilizer.metricsChanged();
+      expect(h.releaseFocusCalls, 0);
+      expect(h.focused, contains('username'));
+      h.imeVisible = true;
+      h.stabilizer.metricsChanged();
+      h.imeVisible = false;
+      h.stabilizer.metricsChanged();
+      h.scheduler.elapse(const Duration(seconds: 2));
+
+      expect(h.showCalls, 0);
+      expect(h.focused, isNot(contains('username')));
+    });
+
     test('does not invoke show when the IME is already visible', () {
       final h = _Harness()..imeVisible = true;
 

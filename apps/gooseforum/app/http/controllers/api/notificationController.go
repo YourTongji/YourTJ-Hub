@@ -6,6 +6,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/eventNotification"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/moderationservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/notificationservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/realtimeservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/unreadservice"
 )
 
@@ -77,6 +78,7 @@ func MarkAsRead(req component.BetterRequest[MarkAsReadReq]) component.Response {
 		return component.FailResponseCode(component.MessageNotificationMarkReadFailed, nil)
 	}
 	unreadservice.Invalidate(req.UserId)
+	realtimeservice.PublishNotificationsChanged(req.UserId, "read")
 
 	return component.SuccessResponseCode("标记已读成功", component.MessageNotificationMarkReadSuccess, nil)
 }
@@ -91,6 +93,7 @@ func MarkAllAsRead(req component.BetterRequest[MarkAllAsReadReq]) component.Resp
 		return component.FailResponseCode(component.MessageNotificationMarkAllFailed, nil)
 	}
 	unreadservice.Invalidate(req.UserId)
+	realtimeservice.PublishNotificationsChanged(req.UserId, "read-all")
 
 	return component.SuccessResponseCode("标记全部已读成功", component.MessageNotificationMarkAllSuccess, nil)
 }

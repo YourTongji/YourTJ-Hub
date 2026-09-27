@@ -17,8 +17,17 @@ REVIEW_NOTES = (
     "YourTJ is a campus course-selection community. Guests can browse courses, reviews, "
     "community posts and campus Wiki. Use account/password login with the supplied account. "
     "A visual captcha may be required. User-generated posts, comments and messaging are "
-    "supported, with reporting and account settings in-app. The scheduler only plans courses; "
-    "it does not enroll students. Full scheduler: https://f.yourtj.de/schedule ."
+    "supported. Report content from its action menu and report received messages in a conversation. "
+    "Block users from profiles or the conversation header; manage blocks under Settings > Data and storage. "
+    "The native scheduler only plans courses; "
+    "it does not enroll students. Personal campus data requires a separate authorized Tongji login; "
+    "the supplied forum review account can exercise community and public course/scheduler features. "
+    "Account deletion is available in Settings > Account. "
+    "Google, GitHub and Apple are login methods for existing campus community accounts; "
+    "social login does not create accounts. To test Sign in with Apple, sign in with the review "
+    "account, open Settings > Account > OAuth bindings, and connect your own Apple account. "
+    "Sign out and use the native Sign in with Apple button to sign back in. "
+    "Apple does not request a name or email; disconnecting or deleting an account revokes its authorization."
 )
 REVIEW_FIELDS = {"firstName": "contact-first-name", "lastName": "contact-last-name", "email": "contact-email",
                         "phone": "contact-phone", "username": "demo-account-name", "password": "demo-account-password"}

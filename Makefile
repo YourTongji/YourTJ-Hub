@@ -33,7 +33,7 @@ contract-check: ## Validate, bundle, generate, and require committed OpenAPI Typ
 test: ## Run backend, contract, and frontend checks
 	cd apps/gooseforum && go vet ./... && go test ./...
 	$(MAKE) contract-check
-	cd apps/gooseforum/resource && pnpm typecheck && pnpm test
+	cd apps/gooseforum/resource && pnpm typecheck && pnpm test && pnpm check
 
 # Go dependency vulnerability scan (issue #410): reports only reachable
 # vulnerabilities and exits non-zero on network/DB fetch failures, same as the

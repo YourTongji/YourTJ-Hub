@@ -34,6 +34,7 @@ class _PostEditSheetState extends ConsumerState<PostEditSheet> {
     if (_text.text != widget.post.content) {
       final discard = await showDialog<bool>(
         context: context,
+        animationStyle: GfMotion.dialogStyle(context),
         builder: (context) => AlertDialog(
           title: Text(l10n.publishLeaveTitle),
           content: Text(l10n.publishLeaveBody),
@@ -120,6 +121,7 @@ class _PostEditSheetState extends ConsumerState<PostEditSheet> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final colors = GfTheme.colorsOf(context);
     ref.listen(offlineCacheEpochProvider, (_, _) => _pop(false));
     return PopScope(
       canPop: _allowPop,
@@ -152,10 +154,11 @@ class _PostEditSheetState extends ConsumerState<PostEditSheet> {
                             IconButton(
                               tooltip: l10n.commonClose,
                               onPressed: _busy || _uploading ? null : _close,
-                              icon: const Icon(Icons.close),
+                              icon: const GfSymbol('x', size: 22),
                             ),
                           ],
                         ),
+                        const SizedBox(height: 8),
                         Expanded(
                           child: TextField(
                             key: const Key('post-edit-content'),
@@ -165,9 +168,36 @@ class _PostEditSheetState extends ConsumerState<PostEditSheet> {
                             maxLines: null,
                             minLines: null,
                             textAlignVertical: TextAlignVertical.top,
+                            keyboardType: TextInputType.multiline,
+                            textInputAction: TextInputAction.newline,
+                            cursorColor: colors.primary,
+                            style: GfTheme.typographyOf(
+                              context,
+                            ).body.copyWith(fontSize: 16, height: 1.5),
                             decoration: InputDecoration(
                               hintText: l10n.topicReplyHint,
-                              border: const OutlineInputBorder(),
+                              filled: true,
+                              fillColor: colors.base200,
+                              contentPadding: const EdgeInsets.all(16),
+                              hintStyle: TextStyle(color: colors.iconMuted),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(20),
+                                borderSide: BorderSide.none,
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(20),
+                                borderSide: BorderSide.none,
+                              ),
+                              disabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(20),
+                                borderSide: BorderSide.none,
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(20),
+                                borderSide: BorderSide(
+                                  color: colors.primary.withValues(alpha: .32),
+                                ),
+                              ),
                             ),
                           ),
                         ),
@@ -186,8 +216,11 @@ class _PostEditSheetState extends ConsumerState<PostEditSheet> {
                             IconButton(
                               tooltip: l10n.publishToolImage,
                               onPressed: _busy || _uploading ? null : _image,
-                              icon: const Icon(
-                                Icons.add_photo_alternate_outlined,
+                              icon: const GfSymbol('gallery', size: 23),
+                              style: IconButton.styleFrom(
+                                fixedSize: const Size.square(44),
+                                foregroundColor: colors.primary,
+                                shape: const CircleBorder(),
                               ),
                             ),
                             const Spacer(),

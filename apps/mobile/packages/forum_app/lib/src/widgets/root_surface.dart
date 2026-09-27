@@ -4,6 +4,7 @@ import 'package:ui_kit/ui_kit.dart';
 
 import '../../l10n/app_localizations.dart';
 import '../navigation/reading_chrome.dart';
+import '../navigation/reading_window.dart';
 import 'account_drawer.dart';
 import 'compose_menu.dart';
 
@@ -40,17 +41,18 @@ class RootSurface extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final hidden = ref.watch(readingChromeProvider).hidden;
     final colors = GfTheme.colorsOf(context);
-    final duration = MediaQuery.disableAnimationsOf(context)
-        ? Duration.zero
-        : const Duration(milliseconds: 200);
+    final duration = GfMotion.duration(context, GfMotion.layout);
     final bottom = MediaQuery.paddingOf(context).bottom;
+    final hasRail = ReadingWindowScope.hasRailOf(context);
     return Scaffold(
       body: SafeArea(
         bottom: false,
         child: ClipRect(
           child: Stack(
             children: [
-              Positioned.fill(child: body(56 + toolbarHeight, 80 + bottom)),
+              Positioned.fill(
+                child: body(56 + toolbarHeight, (hasRail ? 24 : 80) + bottom),
+              ),
               Positioned(
                 top: 0,
                 left: 0,
@@ -58,7 +60,7 @@ class RootSurface extends ConsumerWidget {
                 child: AnimatedSlide(
                   offset: hidden ? const Offset(0, -1) : Offset.zero,
                   duration: duration,
-                  curve: Curves.easeOut,
+                  curve: GfMotion.layoutCurve,
                   child: IgnorePointer(
                     ignoring: hidden,
                     child: ExcludeSemantics(
@@ -119,17 +121,19 @@ class RootSurface extends ConsumerWidget {
               if (showComposeAction)
                 AnimatedPositioned(
                   duration: duration,
-                  curve: Curves.easeOut,
+                  curve: GfMotion.layoutCurve,
                   right: 16,
-                  bottom: (hidden ? 16 : 72) + bottom,
+                  bottom: (hidden || hasRail ? 16 : 72) + bottom,
                   child: FloatingActionButton(
                     heroTag: null,
                     tooltip:
                         actionLabel ?? AppLocalizations.of(context).navPublish,
                     onPressed:
                         onAction ??
-                        () =>
-                            showComposeMenu(context, bottom: hidden ? 16 : 72),
+                        () => showComposeMenu(
+                          context,
+                          bottom: hidden || hasRail ? 16 : 72,
+                        ),
                     child: GfSymbol(
                       actionSymbol,
                       color: colors.primaryContent,

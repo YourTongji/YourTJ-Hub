@@ -1,4 +1,7 @@
+import 'dart:ui' show SemanticsAction;
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ui_kit/ui_kit.dart';
 
@@ -18,7 +21,6 @@ void main() {
             actions: [
               for (final label in ['点赞 · 12', '收藏', '关注帖子'])
                 GfTopicAction(
-                  icon: Icons.favorite_border,
                   symbol: 'heart',
                   title: label,
                   active: label == '收藏',
@@ -70,7 +72,7 @@ void main() {
                     actions: List.generate(
                       3,
                       (_) => GfTopicAction(
-                        icon: Icons.favorite_border,
+                        symbol: 'heart',
                         active: false,
                         activeColor: GfColors.light.error,
                         onTap: () {},
@@ -100,7 +102,7 @@ void main() {
           GfFloatingControls(
             actions: <GfTopicAction>[
               GfTopicAction(
-                icon: Icons.favorite_border,
+                symbol: 'heart-filled',
                 active: true,
                 activeColor: GfColors.light.error,
                 onTap: () {},
@@ -114,7 +116,12 @@ void main() {
         ),
       );
       expect(find.text('3 / 120'), findsOneWidget);
-      expect(find.byIcon(Icons.favorite_border), findsOneWidget);
+      expect(
+        find.byWidgetPredicate(
+          (widget) => widget is GfSymbol && widget.name == 'heart-filled',
+        ),
+        findsOneWidget,
+      );
       expect(find.text('参与讨论'), findsOneWidget);
     });
 
@@ -184,7 +191,7 @@ void main() {
       await tester.pumpWidget(
         gfApp(
           GfNotificationRow(
-            icon: Icons.message,
+            symbol: 'message-circle',
             tone: GfNotificationTone.primary,
             title: '有人回复了你',
             subtitle: '内容预览',
@@ -193,16 +200,16 @@ void main() {
           ),
         ),
       );
-      expect(find.text('有人回复了你'), findsOneWidget);
+      expect(find.textContaining('有人回复了你'), findsOneWidget);
       expect(find.text('内容预览'), findsOneWidget);
-      expect(find.text('3 分钟前'), findsOneWidget);
+      expect(find.textContaining('3 分钟前'), findsOneWidget);
     });
 
     testWidgets('renders read row without dot', (tester) async {
       await tester.pumpWidget(
         gfApp(
           GfNotificationRow(
-            icon: Icons.message,
+            symbol: 'message-circle',
             tone: GfNotificationTone.success,
             title: '已读通知',
             subtitle: '',
@@ -211,7 +218,7 @@ void main() {
           ),
         ),
       );
-      expect(find.text('已读通知'), findsOneWidget);
+      expect(find.textContaining('已读通知'), findsOneWidget);
     });
   });
 
@@ -373,6 +380,43 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
+    testWidgets(
+      'profile statistic actions have keyboard activation and combined semantics',
+      (tester) async {
+        final semantics = tester.ensureSemantics();
+        var calls = 0;
+        await tester.pumpWidget(
+          gfApp(
+            GfUserCard(
+              avatarUrl: '',
+              name: 'Alice',
+              username: 'alice',
+              stats: const [('话题', '5'), ('粉丝', '20')],
+              statActions: {1: () => calls++},
+            ),
+          ),
+        );
+        final action = find
+            .ancestor(of: find.text('粉丝'), matching: find.byType(InkWell))
+            .first;
+        expect(tester.getSize(action).height, greaterThanOrEqualTo(48));
+        expect(tester.getSize(action).width, greaterThanOrEqualTo(48));
+        final node = tester.getSemantics(find.bySemanticsLabel('20\n粉丝'));
+        expect(node.getSemanticsData().flagsCollection.isButton, isTrue);
+        expect(node.getSemanticsData().hasAction(SemanticsAction.tap), isTrue);
+        Focus.of(tester.element(find.text('粉丝'))).requestFocus();
+        await tester.pump();
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.pump();
+        expect(calls, 1);
+        await tester.tap(find.text('粉丝'));
+        expect(calls, 2);
+        await tester.tap(find.text('话题'));
+        expect(calls, 2);
+        semantics.dispose();
+      },
+    );
+
     testWidgets('profile trims bio and signature boundary whitespace', (
       tester,
     ) async {
@@ -399,7 +443,7 @@ void main() {
               const GfSettingRow(
                 title: '昵称',
                 description: '修改昵称',
-                icon: Icons.badge_outlined,
+                symbol: 'award',
               ),
               GfSwitchRow(title: '开启通知', value: true, onChanged: (_) {}),
             ],
@@ -433,6 +477,8 @@ void main() {
                   onPublish: () {},
                   onPickImage: () {},
                   imageTooltip: 'Image',
+                  onPickSticker: () {},
+                  stickerTooltip: 'Stickers',
                   onCollapse: () => collapsed = true,
                   collapseLabel: 'Collapse',
                   toolbar: const Text('Verification required'),
@@ -467,8 +513,17 @@ void main() {
       await tester.tap(find.byType(TextField));
       await tester.pump();
       expect(focus.hasFocus, isTrue);
-      expect(find.byIcon(Icons.keyboard_hide_rounded), findsOneWidget);
-      await tester.tap(find.byIcon(Icons.keyboard_hide_rounded));
+      expect(
+        find.byWidgetPredicate(
+          (widget) => widget is GfSymbol && widget.name == 'keyboard-hide',
+        ),
+        findsOneWidget,
+      );
+      await tester.tap(
+        find.byWidgetPredicate(
+          (widget) => widget is GfSymbol && widget.name == 'keyboard-hide',
+        ),
+      );
       await tester.pump();
       expect(focus.hasFocus, isFalse);
       expect(controller.text, 'Unsent reply');
@@ -478,7 +533,7 @@ void main() {
     });
 
     testWidgets(
-      'keeps image and keyboard actions beside send below the borderless input',
+      'keeps 44 pixel image and keyboard actions below the filled reply input',
       (tester) async {
         int imageTaps = 0;
         final TextEditingController controller = TextEditingController();
@@ -511,11 +566,34 @@ void main() {
         expect(imageTopLeft.dy, greaterThan(inputTopLeft.dy));
         expect(
           tester.getCenter(imageButton).dy,
-          tester.getCenter(find.byIcon(Icons.keyboard_hide_rounded)).dy,
+          tester
+              .getCenter(
+                find.byWidgetPredicate(
+                  (widget) =>
+                      widget is GfSymbol && widget.name == 'keyboard-hide',
+                ),
+              )
+              .dy,
         );
         final field = tester.widget<TextField>(find.byType(TextField));
         expect(field.decoration!.focusedBorder, InputBorder.none);
         expect(field.decoration!.filled, isFalse);
+        expect(field.minLines, 1);
+        expect(field.maxLines, 4);
+        final surface = tester.widget<AnimatedContainer>(
+          find.byKey(const Key('reply-input-surface')),
+        );
+        expect(
+          (surface.decoration! as BoxDecoration).borderRadius,
+          BorderRadius.circular(24),
+        );
+        expect(
+          tester
+              .widget<Material>(find.byKey(const Key('reply-composer-surface')))
+              .elevation,
+          0,
+        );
+        expect(tester.getSize(imageButton), const Size(44, 44));
         expect(
           tester.getSize(find.byType(GfPostComposer)).height,
           lessThan(190),

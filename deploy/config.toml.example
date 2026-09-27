@@ -123,6 +123,14 @@ client_id = ""
 client_secret = ""
 
 # Google OAuth 登录（可选；通过 GitHub Environment secrets 注入）
+# Native iOS Sign in with Apple. Server-only P-256 .p8 key, base64 encoded.
+# No email/name scopes. Retained refresh grants are encrypted for revocation.
+[apple]
+client_id = "" # tj.yourtj.forumApp
+team_id = ""
+key_id = ""
+private_key_base64 = ""
+
 [google]
 client_id = ""
 client_secret = ""

@@ -1,5 +1,7 @@
 import 'scheduler_web_tip.dart';
+import 'schedule_sync_panel.dart';
 import '../../widgets/schedule_time_grid.dart';
+
 // 排课器主页面（/schedule 路由目标）：移动端双 tab（课表 / 选课）+ 方案条 +
 // 学期·年级·专业配置行 + 数据过期同步 + 自定义占位 + PNG/CSV 导出。
 //
@@ -89,8 +91,7 @@ class _SchedulePageState extends ConsumerState<SchedulePage>
   final GlobalKey _gridBoundaryKey = GlobalKey();
 
   // Capture the application controller; page exit flushes pending local edits.
-  late final ScheduleSyncController _syncController;
-  bool _showingSyncConflict = false;
+  late ScheduleSyncController _syncController;
 
   ScheduleState get _state => ref.read(scheduleStoreProvider);
 
@@ -101,7 +102,6 @@ class _SchedulePageState extends ConsumerState<SchedulePage>
   void initState() {
     super.initState();
     _syncController = ref.read(scheduleSyncControllerProvider);
-    _syncController.conflict.addListener(_onSyncConflict);
     WidgetsBinding.instance.addObserver(this);
     ref.read(scheduleStoreProvider.notifier).ready.then((_) {
       if (!mounted) return;
@@ -113,7 +113,6 @@ class _SchedulePageState extends ConsumerState<SchedulePage>
 
   @override
   void dispose() {
-    _syncController.conflict.removeListener(_onSyncConflict);
     unawaited(_syncController.flushPendingUpload());
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
@@ -122,6 +121,9 @@ class _SchedulePageState extends ConsumerState<SchedulePage>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     // paused 尽力冲刷未上行的本地方案（issue #537；best-effort）。
+    if (state == AppLifecycleState.resumed) {
+      unawaited(_syncController.onResume());
+    }
     if (state == AppLifecycleState.paused) {
       unawaited(ref.read(scheduleSyncControllerProvider).flushPendingUpload());
     }
@@ -130,69 +132,6 @@ class _SchedulePageState extends ConsumerState<SchedulePage>
   /// 进页方案云同步对账（issue #537）：未登录零请求；冲突时弹窗二选一。
   Future<void> _syncPlansOnEnter() async {
     await _syncController.syncOnEnter();
-  }
-
-  void _onSyncConflict() {
-    final snapshot = _syncController.conflict.value;
-    if (!mounted || snapshot == null || _showingSyncConflict) return;
-    _showingSyncConflict = true;
-    unawaited(
-      _showPlanSyncConflictDialog(snapshot).whenComplete(() {
-        _showingSyncConflict = false;
-      }),
-    );
-  }
-
-  /// 冲突弹窗（一次性）：「使用云端」整包采用 / 「保留本地」立即上行。
-  Future<void> _showPlanSyncConflictDialog(PkPlansSnapshot snapshot) async {
-    final AppLocalizations l10n = AppLocalizations.of(context);
-    final ScheduleSyncController sync = ref.read(
-      scheduleSyncControllerProvider,
-    );
-    await showGfAlertDialog<void>(
-      context,
-      barrierDismissible: false,
-      builder: (BuildContext dialogContext) => Padding(
-        padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            Text(
-              l10n.scheduleSyncConflictTitle,
-              style: GfTheme.typographyOf(dialogContext).heading,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              l10n.scheduleSyncConflictBody,
-              style: GfTheme.typographyOf(dialogContext).body,
-            ),
-            const SizedBox(height: 18),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: <Widget>[
-                GfButton(
-                  label: l10n.scheduleSyncKeepLocal,
-                  variant: GfButtonVariant.ghost,
-                  onPressed: () {
-                    Navigator.of(dialogContext).pop();
-                    unawaited(sync.keepLocal());
-                  },
-                ),
-                const SizedBox(width: 8),
-                GfButton(
-                  label: l10n.scheduleSyncUseCloud,
-                  onPressed: () {
-                    Navigator.of(dialogContext).pop();
-                    unawaited(sync.adoptRemote(snapshot));
-                  },
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
   }
 
   @override
@@ -212,21 +151,45 @@ class _SchedulePageState extends ConsumerState<SchedulePage>
 
   /// 会话级元数据：学期字典 + 节次作息 + P11 最新同步日期（不持久化）。
   Future<void> _loadSessionMeta() async {
-    try {
-      final List<PkCalendarItem> calendars = await ref
-          .read(pkRepositoryProvider)
-          .calendars();
-      if (mounted) setState(() => _calendars = calendars);
-    } catch (_) {
-      // 学期字典失败不阻塞主流程。
+    final repository = ref.read(pkRepositoryProvider);
+    Future<Object?> attemptCalendars() async {
+      try {
+        return await repository.calendars();
+      } catch (_) {
+        return null;
+      }
     }
-    try {
-      final SectionTimesPayload? payload = await ref
-          .read(pkRepositoryProvider)
-          .sectionTimes();
-      if (mounted && payload != null) {
-        setState(() {
-          _sectionOverrides = payload.sectionTimes
+
+    Future<Object?> attemptSectionTimes() async {
+      try {
+        return await repository.sectionTimes();
+      } catch (_) {
+        return null;
+      }
+    }
+
+    Future<Object?> attemptLatestUpdate() async {
+      try {
+        return await repository.latestUpdate();
+      } catch (_) {
+        return null;
+      }
+    }
+
+    final results = await Future.wait<Object?>([
+      attemptCalendars(),
+      attemptSectionTimes(),
+      attemptLatestUpdate(),
+    ]);
+    if (!mounted) return;
+    final calendars = results[0] as List<PkCalendarItem>?;
+    final sectionTimes = results[1] as SectionTimesPayload?;
+    final latest = results[2] as String?;
+    if (calendars != null || sectionTimes != null) {
+      setState(() {
+        if (calendars != null) _calendars = calendars;
+        if (sectionTimes != null) {
+          _sectionOverrides = sectionTimes.sectionTimes
               .map(
                 (SectionTimeSetting setting) => SectionTime(
                   section: setting.section,
@@ -235,26 +198,22 @@ class _SchedulePageState extends ConsumerState<SchedulePage>
                 ),
               )
               .toList();
-        });
-      }
-    } catch (_) {
-      // 作息表失败回退默认表。
+        }
+      });
     }
-    try {
-      final String? latest = await ref
-          .read(pkRepositoryProvider)
-          .latestUpdate();
-      if (mounted && latest != null && latest.isNotEmpty) {
-        _notifier.setLatestUpdateTime(latest);
-      }
-    } catch (_) {
-      // P11 不可用时静默（web 同款：不提示过期）。
+    if (latest != null && latest.isNotEmpty) {
+      _notifier.setLatestUpdateTime(latest);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final AppLocalizations l10n = AppLocalizations.of(context);
+    _syncController = ref.watch(scheduleSyncControllerProvider);
+    ref.listen(scheduleSyncControllerProvider, (previous, next) {
+      _syncController = next;
+      unawaited(next.syncOnEnter());
+    });
     final ScheduleState state = ref.watch(scheduleStoreProvider);
     final GfColors colors = GfTheme.colorsOf(context);
     final bool outdated = _notifier.isDataOutdated;
@@ -265,14 +224,14 @@ class _SchedulePageState extends ConsumerState<SchedulePage>
         title: Text(l10n.scheduleTitle),
         actions: <Widget>[
           GfIconButton(
-            icon: Icons.event_available_outlined,
+            symbol: 'calendar-days',
             size: 44,
             tooltip: l10n.scheduleAddCustomEvent,
             onPressed: _openCustomEventSheet,
           ),
           PopupMenuButton<_ExportAction>(
             tooltip: l10n.scheduleExportPng,
-            icon: Icon(Icons.ios_share, size: 20, color: colors.iconMuted),
+            icon: GfSymbol('share-2', size: 20, color: colors.iconMuted),
             color: colors.base100,
             onSelected: (_ExportAction action) {
               if (action == _ExportAction.png) {
@@ -301,6 +260,7 @@ class _SchedulePageState extends ConsumerState<SchedulePage>
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
               children: <Widget>[
                 const SchedulerWebTip(),
+                const ScheduleSyncPanel(),
                 _PlanBar(notifier: _notifier, state: state),
                 const SizedBox(height: 8),
                 if (state.isConfigCollapsed)
@@ -570,7 +530,7 @@ class _PlanBar extends ConsumerWidget {
           ),
         ),
         GfIconButton(
-          icon: Icons.add_circle_outline,
+          symbol: 'plus',
           size: 40,
           iconSize: 22,
           tooltip: l10n.schedulePlanNew,
@@ -649,7 +609,7 @@ Future<void> _showPlanMenu(
           ),
           GfMenuItem(
             label: l10n.schedulePlanRename,
-            icon: Icons.edit_outlined,
+            symbol: 'square-pen',
             onTap: () {
               Navigator.of(sheetContext).pop();
               _promptRename(context, notifier, plan);
@@ -657,7 +617,7 @@ Future<void> _showPlanMenu(
           ),
           GfMenuItem(
             label: l10n.schedulePlanClear,
-            icon: Icons.delete_sweep_outlined,
+            symbol: 'trash-2',
             onTap: () {
               Navigator.of(sheetContext).pop();
               notifier.clearActivePlan();
@@ -665,7 +625,7 @@ Future<void> _showPlanMenu(
           ),
           GfMenuItem(
             label: l10n.schedulePlanDelete,
-            icon: Icons.delete_outline,
+            symbol: 'trash-2',
             variant: GfMenuItemVariant.danger,
             onTap: () {
               Navigator.of(sheetContext).pop();
@@ -706,6 +666,8 @@ Future<void> _promptRename(
             GfInput(
               controller: controller,
               autofocus: true,
+              labelText: l10n.schedulePlanRename,
+              textInputAction: TextInputAction.done,
               onSubmitted: (String value) {
                 notifier.renamePlan(plan.id, value);
                 Navigator.of(sheetContext).pop();
@@ -838,7 +800,7 @@ class _CollapsedConfigRow extends StatelessWidget {
                   ),
                 ),
               ),
-              Icon(Icons.expand_more, size: 20, color: colors.iconMuted),
+              GfSymbol('chevron-down', size: 20, color: colors.iconMuted),
             ],
           ),
         ),
@@ -1097,7 +1059,7 @@ class _ConfigSelector extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 2),
-            Icon(Icons.arrow_drop_down, size: 18, color: colors.iconMuted),
+            GfSymbol('chevron-down', size: 18, color: colors.iconMuted),
           ],
         ),
       ),
@@ -1143,7 +1105,7 @@ class _ListPickerSheet<T> extends StatelessWidget {
                       style: TextStyle(fontSize: 14, color: colors.baseContent),
                     ),
                     trailing: selectedOf(item)
-                        ? Icon(Icons.check, size: 18, color: colors.primary)
+                        ? GfSymbol('check', size: 18, color: colors.primary)
                         : null,
                     onTap: () => Navigator.of(context).pop(item),
                   ),
@@ -1182,7 +1144,7 @@ class _DataOutdatedBanner extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           child: Row(
             children: <Widget>[
-              Icon(Icons.sync_problem, size: 18, color: colors.warning),
+              GfSymbol('circle-alert', size: 18, color: colors.warning),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
@@ -1278,8 +1240,10 @@ class _TimetableTab extends ConsumerWidget {
                 : null,
             grid: grid,
             times: times,
-            onTapEmptyCell: (day, section) =>
-                _openCellPicker(context, ref, day, section),
+            onTapEmptyCell:
+                ref.read(scheduleStoreProvider.notifier).isMajorSelected
+                ? (day, section) => _openCellPicker(context, ref, day, section)
+                : null,
             onTapCourse: (course) => _openCourseDetail(context, ref, course),
           ),
         ),
@@ -1351,6 +1315,7 @@ class _WeekFilter extends StatelessWidget {
     final AppLocalizations l10n = AppLocalizations.of(context);
     final GfColors colors = GfTheme.colorsOf(context);
     return Container(
+      constraints: const BoxConstraints(minHeight: 48),
       padding: const EdgeInsets.only(left: 12, right: 4),
       decoration: BoxDecoration(
         color: colors.base100,
@@ -1359,15 +1324,16 @@ class _WeekFilter extends StatelessWidget {
       ),
       child: Row(
         children: <Widget>[
-          Icon(Icons.date_range_outlined, size: 16, color: colors.iconMuted),
+          GfSymbol('calendar-days', size: 16, color: colors.iconMuted),
           const SizedBox(width: 8),
           Expanded(
             child: DropdownButtonHideUnderline(
               child: DropdownButton<int?>(
                 value: week,
                 isExpanded: true,
-                isDense: true,
+                isDense: false,
                 dropdownColor: colors.base100,
+                icon: const GfSymbol('chevron-down', size: 20),
                 items: <DropdownMenuItem<int?>>[
                   DropdownMenuItem<int?>(
                     value: null,
@@ -1840,8 +1806,8 @@ class _CourseRow extends StatelessWidget {
             const SizedBox(width: 8),
             Padding(
               padding: const EdgeInsets.only(top: 2),
-              child: Icon(
-                Icons.chevron_right,
+              child: GfSymbol(
+                'chevron-right',
                 size: 18,
                 color: colors.iconMuted,
               ),
@@ -2120,8 +2086,8 @@ class _ClassRow extends StatelessWidget {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: <Widget>[
-                          Icon(
-                            Icons.warning_amber_rounded,
+                          GfSymbol(
+                            'circle-alert',
                             size: 13,
                             color: colors.error,
                           ),
@@ -2189,8 +2155,8 @@ class _ClassRow extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 8),
-            Icon(
-              selected ? Icons.check_circle : Icons.add_circle_outline,
+            GfSymbol(
+              selected ? 'circle-check' : 'plus',
               size: 20,
               color: selected
                   ? colors.primary
@@ -2409,7 +2375,7 @@ class _CellCourseRow extends StatelessWidget {
                 ],
               ),
             ),
-            Icon(Icons.add_circle_outline, size: 20, color: colors.primary),
+            GfSymbol('plus', size: 20, color: colors.primary),
           ],
         ),
       ),
@@ -2461,7 +2427,7 @@ class _CourseDetailSheet extends ConsumerWidget {
                   ),
                 ),
                 GfIconButton(
-                  icon: Icons.close,
+                  symbol: 'x',
                   size: 36,
                   iconSize: 18,
                   tooltip: l10n.commonClose,

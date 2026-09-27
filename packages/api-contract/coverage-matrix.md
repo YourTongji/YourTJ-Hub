@@ -4,17 +4,18 @@
 
 路由快照来自 `TestRoutesSnapshot`（`fixtures/routes-snapshot.json`，默认配置装配，不含 OIDC `/api/oauth/*` 端点——OIDC 另有专项）。
 
-- 快照路由总数：328
-- /api JSON 路由：262，已入契约：263（100%），已知未覆盖：0
+- 快照路由总数：346
+- /api JSON 路由：280，已入契约：281（100%），已知未覆盖：0
 - 非 API 排除路由：65
 
-## 已覆盖（263）
+## 已覆盖（281）
 
 | Method | Path | operationId |
 | --- | --- | --- |
 | DELETE | `/api/forum/course-reviews/:reviewId` | `deleteCourseReview` |
 | DELETE | `/api/forum/course-reviews/:reviewId/dislike` | `unmarkReviewDislike` |
 | DELETE | `/api/forum/course-reviews/:reviewId/helpful` | `unmarkReviewHelpful` |
+| DELETE | `/api/pk/plan-items` | `pkDeletePlanItem` |
 | DELETE | `/api/pk/plans` | `pkDeletePlans` |
 | GET | `/api/admin/ai-summary-settings` | `adminGetAiSummarySettings` |
 | GET | `/api/admin/announcement` | `adminGetAnnouncement` |
@@ -29,6 +30,7 @@
 | GET | `/api/admin/mail-settings` | `adminGetMailSettings` |
 | GET | `/api/admin/mcp-settings` | `adminGetMcpSettings` |
 | GET | `/api/admin/onesystem-settings` | `adminGetOnesystemSettings` |
+| GET | `/api/admin/pk/sync-schedule-settings` | `adminGetPkSyncScheduleSettings` |
 | GET | `/api/admin/pk/sync-status` | `adminGetPkSyncStatus` |
 | GET | `/api/admin/posting-settings` | `adminGetPostingSettings` |
 | GET | `/api/admin/privacy-policy` | `adminGetPrivacyPolicy` |
@@ -63,8 +65,10 @@
 | GET | `/api/forum/courses/:courseId/related` | `getCourseRelated` |
 | GET | `/api/forum/courses/:courseId/reviews` | `listCourseReviews` |
 | GET | `/api/forum/courses/:courseId/summary` | `getCourseSummary` |
+| GET | `/api/forum/events` | `streamForumEvents` |
 | GET | `/api/forum/get-site-statistics` | `getSiteStatistics` |
 | GET | `/api/forum/my-course-reviews` | `listOwnCourseReviews` |
+| GET | `/api/forum/my-stickers` | `myStickers` |
 | GET | `/api/forum/notifications` | `getNotifications` |
 | GET | `/api/forum/posts/revisions` | `getPostRevisions` |
 | GET | `/api/forum/posts/window` | `getPostWindow` |
@@ -82,9 +86,11 @@
 | GET | `/api/pk/course-review-brief` | `pkGetCourseReviewBrief` |
 | GET | `/api/pk/faculties` | `pkListFaculties` |
 | GET | `/api/pk/latest-update` | `pkGetLatestUpdate` |
+| GET | `/api/pk/plan-items` | `pkListPlanItems` |
 | GET | `/api/pk/plans` | `pkGetPlans` |
 | GET | `/api/pk/section-times` | `pkGetSectionTimes` |
 | GET | `/api/site-theme/tokens` | `getPublicSiteThemeTokens` |
+| GET | `/api/user-blocks` | `listUserBlocks` |
 | GET | `/api/user-card` | `getUserCard` |
 | GET | `/api/user-notes` | `listPrivateNotes` |
 | GET | `/api/user/sessions` | `listSessions` |
@@ -125,6 +131,8 @@
 | POST | `/api/admin/opt-record-page` | `adminOptRecordPage` |
 | POST | `/api/admin/pk/materialize-calendar` | `adminMaterializePkCalendar` |
 | POST | `/api/admin/pk/sync-calendar` | `adminSyncPkCalendar` |
+| POST | `/api/admin/pk/sync-schedule-settings` | `adminSavePkSyncScheduleSettings` |
+| POST | `/api/admin/pk/validate-credential` | `adminValidatePkCredential` |
 | POST | `/api/admin/posts/delete` | `adminDeletePost` |
 | POST | `/api/admin/publish-site-theme` | `adminPublishSiteTheme` |
 | POST | `/api/admin/review-action` | `adminReviewAction` |
@@ -173,6 +181,8 @@
 | POST | `/api/admin/wiki/sync/cdn` | `saveWikiAssetCDN` |
 | POST | `/api/admin/wiki/sync/webhook-secret` | `saveWikiWebhookSecret` |
 | POST | `/api/auth/:provider/unbind` | `unbindOAuth` |
+| POST | `/api/auth/apple/bind` | `bindNativeAppleAccount` |
+| POST | `/api/auth/apple/exchange` | `exchangeNativeAppleCode` |
 | POST | `/api/auth/oidc/exchange` | `exchangeMobileOidcCode` |
 | POST | `/api/auth/tongji/registration` | `tongjiRegister` |
 | POST | `/api/auth/totp/verify` | `verifyTotpLogin` |
@@ -183,6 +193,8 @@
 | POST | `/api/display-badges` | `displayBadges` |
 | POST | `/api/forgot-password` | `forgotPassword` |
 | POST | `/api/forum/chat/mark-read` | `markChatRead` |
+| POST | `/api/forum/chat/mark-visible` | `markChatVisibleRead` |
+| POST | `/api/forum/chat/message-read-states` | `getChatMessageReadStates` |
 | POST | `/api/forum/chat/messages` | `getChatMessages` |
 | POST | `/api/forum/chat/send` | `sendChatMessage` |
 | POST | `/api/forum/course-reviews` | `createCourseReview` |
@@ -214,6 +226,9 @@
 | POST | `/api/forum/moderation/reports` | `listModerationReports` |
 | POST | `/api/forum/moderation/topic-status` | `moderationUpdateTopicStatus` |
 | POST | `/api/forum/moderation/view-deleted-content` | `viewDeletedContent` |
+| POST | `/api/forum/my-sticker-delete` | `deleteMySticker` |
+| POST | `/api/forum/my-sticker-save` | `saveMySticker` |
+| POST | `/api/forum/my-stickers-order` | `orderMyStickers` |
 | POST | `/api/forum/notification/mark-all-read` | `markAllNotificationsRead` |
 | POST | `/api/forum/notification/mark-read` | `markNotificationRead` |
 | POST | `/api/forum/posts/bookmark` | `bookmarkPost` |
@@ -226,6 +241,7 @@
 | POST | `/api/forum/push/subscribe` | `subscribePush` |
 | POST | `/api/forum/push/unsubscribe` | `unsubscribePush` |
 | POST | `/api/forum/report` | `createReport` |
+| POST | `/api/forum/stickers/resolve` | `resolveStickers` |
 | POST | `/api/forum/topics/bookmark` | `bookmarkTopic` |
 | POST | `/api/forum/topics/delete` | `deleteTopic` |
 | POST | `/api/forum/topics/like` | `likeTopic` |
@@ -259,6 +275,7 @@
 | POST | `/api/set-user-name` | `setUserName` |
 | POST | `/api/set-user-profile-cover` | `setUserProfileCover` |
 | POST | `/api/upload-avatar` | `uploadAvatar` |
+| POST | `/api/user-block` | `setUserBlock` |
 | POST | `/api/user-note` | `setPrivateNote` |
 | POST | `/api/user/sessions/revoke` | `revokeSession` |
 | POST | `/api/user/sessions/revoke-all` | `revokeAllSessions` |
@@ -274,6 +291,7 @@
 | POST | `/file/img-upload/init` | `initDirectImageUpload` |
 | PUT | `/api/forum/course-reviews/:reviewId/dislike` | `markReviewDislike` |
 | PUT | `/api/forum/course-reviews/:reviewId/helpful` | `markReviewHelpful` |
+| PUT | `/api/pk/plan-items` | `pkPutPlanItem` |
 | PUT | `/api/pk/plans` | `pkPutPlans` |
 
 ## 已知未覆盖（0）

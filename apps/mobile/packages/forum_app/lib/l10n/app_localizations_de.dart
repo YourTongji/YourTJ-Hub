@@ -65,6 +65,11 @@ class AppLocalizationsDe extends AppLocalizations {
   String get commonSave => 'Speichern';
 
   @override
+  String imageViewPosition(int index, int count) {
+    return 'Bild $index von $count ansehen';
+  }
+
+  @override
   String get imageSave => 'Bild speichern';
 
   @override
@@ -173,6 +178,13 @@ class AppLocalizationsDe extends AppLocalizations {
   String get authForgotTitle => 'Passwort zurücksetzen';
 
   @override
+  String get authContinueAfterLogin =>
+      'Melde dich an, um dort weiterzumachen, wo du aufgehört hast.';
+
+  @override
+  String get authSignInMethods => 'Weitere Anmeldeoptionen';
+
+  @override
   String get authLoginSubtitle =>
       'Willkommen zurück. Setze deine Diskussionen und Beiträge fort.';
 
@@ -277,6 +289,9 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get publishTitleField => 'Titel';
+
+  @override
+  String get publishAddTitle => 'Titel hinzufügen';
 
   @override
   String get publishTitleHint => 'Titel eingeben (5–100 Zeichen)';
@@ -427,7 +442,13 @@ class AppLocalizationsDe extends AppLocalizations {
   String get profileTopics => 'Themen';
 
   @override
+  String get profilePosts => 'Beiträge';
+
+  @override
   String get profileReplies => 'Antworten';
+
+  @override
+  String get profileLikedPosts => 'Gefällt mir';
 
   @override
   String get profileLikes => 'Gefällt mir';
@@ -499,6 +520,15 @@ class AppLocalizationsDe extends AppLocalizations {
   String get messagesInputHint => 'Nachricht eingeben …';
 
   @override
+  String get messagesEmoji => 'Emoji';
+
+  @override
+  String get messagesKeyboard => 'Tastatur';
+
+  @override
+  String get messagesCopyAll => 'Ganze Nachricht kopieren';
+
+  @override
   String messagesSendFailed(String error) {
     return 'Senden fehlgeschlagen: $error';
   }
@@ -535,6 +565,11 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get searchUnavailable => 'Suche nicht verfügbar';
+
+  @override
+  String searchResultCount(int shown, int total) {
+    return '$shown angezeigt · $total Treffer';
+  }
 
   @override
   String get searchAll => 'Alle';
@@ -726,6 +761,21 @@ class AppLocalizationsDe extends AppLocalizations {
   String settingsOpFailed(String error) {
     return 'Aktion fehlgeschlagen: $error';
   }
+
+  @override
+  String get settingsDevice => 'Dieses Gerät';
+
+  @override
+  String get settingsYourAccount => 'Dein Konto';
+
+  @override
+  String get settingsThemeLight => 'Hell';
+
+  @override
+  String get settingsThemeDark => 'Dunkel';
+
+  @override
+  String get settingsRevokeSession => 'Diese Sitzung widerrufen';
 
   @override
   String get settingsAppearance => 'Darstellung';
@@ -1195,6 +1245,10 @@ class AppLocalizationsDe extends AppLocalizations {
   String get wikiTitle => 'Wiki';
 
   @override
+  String get wikiLinkOpenFailed =>
+      'Der Link konnte nicht geöffnet werden. Bitte versuche es erneut.';
+
+  @override
   String get wikiRecent => 'Zuletzt aktualisiert';
 
   @override
@@ -1204,7 +1258,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get wikiToc => 'Inhaltsverzeichnis';
 
   @override
-  String get wikiNamespaces => 'Namespaces';
+  String get wikiNamespaces => 'Sammlungen';
 
   @override
   String wikiViewCount(int count) {
@@ -1702,7 +1756,20 @@ class AppLocalizationsDe extends AppLocalizations {
   String get notificationSomeone => 'Jemand';
 
   @override
-  String get profileRoleAdmin => 'Administration';
+  String get profileRoleAdmin => 'Administrator';
+
+  @override
+  String get profileOnline => 'Online';
+
+  @override
+  String profileJoinedAt(String date) {
+    return 'Beigetreten $date';
+  }
+
+  @override
+  String profileLastActive(String time) {
+    return 'Zuletzt aktiv $time';
+  }
 
   @override
   String get profileActionSignup => 'Der Community beigetreten';
@@ -2255,7 +2322,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get campusPrivacy =>
-      'Ein Konto, eine offizielle Identität. Hochschuldaten sind privat und werden nicht auf dem Gerät gespeichert.';
+      'Ein Konto, eine Hochschulidentität. Name, Kalender und Stundenplan werden für die Offline-Nutzung auf diesem Gerät gespeichert. Unten können Sie diese Daten löschen.';
 
   @override
   String get campusDisabled => 'Die Campus-Verbindung ist hier nicht aktiviert';
@@ -2433,6 +2500,82 @@ class AppLocalizationsDe extends AppLocalizations {
       'Feiertagsregeln konnten nicht geladen werden. Später erneut versuchen oder Anpassungen deaktivieren, um den Originalstundenplan zu exportieren.';
 
   @override
+  String get planSyncTitle => 'Plankonflikte lösen';
+
+  @override
+  String get planSyncBody =>
+      'Ein anderes Gerät hat diese Einträge ebenfalls geändert. Wähle die Werte, die bleiben sollen. Andere Änderungen werden automatisch zusammengeführt.';
+
+  @override
+  String get planSyncLocal => 'Lokal behalten';
+
+  @override
+  String get planSyncRemote => 'Cloud verwenden';
+
+  @override
+  String get planSyncDeleted => 'Gelöscht';
+
+  @override
+  String get planSyncPlan => 'Plan';
+
+  @override
+  String get planSyncName => 'Name';
+
+  @override
+  String get planSyncCreatedAt => 'Erstellt';
+
+  @override
+  String get planSyncCourse => 'Kurs';
+
+  @override
+  String get planSyncEvent => 'Eigener Termin';
+
+  @override
+  String get planSyncLabel => 'Terminname';
+
+  @override
+  String get planSyncDay => 'Tag';
+
+  @override
+  String get planSyncSections => 'Stunden';
+
+  @override
+  String get planSyncWeeks => 'Wochen';
+
+  @override
+  String get planSyncApply => 'Zusammenführen und speichern';
+
+  @override
+  String get planSyncDrafts => 'Wiederherstellungsentwürfe';
+
+  @override
+  String get planSyncDraftHint =>
+      'Diese Entwürfe bleiben auf diesem Gerät und belegen keinen Cloud-Platz. Beim Wiederherstellen entsteht ein neuer Plan.';
+
+  @override
+  String get planSyncRestore => 'Als neuen Plan wiederherstellen';
+
+  @override
+  String get planSyncAdopt =>
+      'Lokale Pläne dieses Geräts mit diesem Konto synchronisieren';
+
+  @override
+  String get planSyncAdoptHint =>
+      'Diese lokalen Pläne gehören noch nicht zu diesem Konto. Bitte vor dem Hochladen bestätigen.';
+
+  @override
+  String get planSyncCapacity =>
+      'Die Cloud speichert höchstens zehn Pläne. Schaffe Platz und versuche es erneut.';
+
+  @override
+  String get planSyncRejected =>
+      'Speichern wurde abgelehnt. Das Konto kann nicht schreiben oder die Plandaten waren ungültig.';
+
+  @override
+  String get planSyncArchived =>
+      'Lokale Änderungen wurden als Entwurf gesichert.';
+
+  @override
   String get privateNoteEdit => 'Notiz bearbeiten';
 
   @override
@@ -2441,15 +2584,348 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get privateNoteHint =>
       'Nur für dich sichtbar. Bis zu 64 Zeichen; leer speichern zum Entfernen.';
+
+  @override
   String get badgeDisplayTitle => 'Profilabzeichen';
 
   @override
   String get badgeDisplayHint =>
-      'Bis zu 5 Abzeichen auswählen und sortieren oder alle abwählen. Unabhängig vom Avatar-Abzeichen.';
+      'Bis zu 5 Abzeichen anzeigen oder alle abwählen. Unabhängig vom Avatar-Abzeichen.';
 
   @override
   String get badgeDisplayUp => 'Nach oben';
 
   @override
   String get badgeDisplayDown => 'Nach unten';
+
+  @override
+  String get notificationsMarkRead => 'Als gelesen markieren';
+
+  @override
+  String get scheduleWidgetSettingsTitle => 'Startbildschirm-Stundenplan';
+
+  @override
+  String get scheduleWidgetPrivacyDescription =>
+      'Widgets zeigen Kursnamen, Zeiten, Lehrkräfte und Orte aus dem auf diesem Gerät gespeicherten Stundenplan. Nach einer Aktualisierung erscheint der neue Stand auf dem Startbildschirm.';
+
+  @override
+  String get scheduleWidgetRefresh => 'Aus Offline-Stundenplan aktualisieren';
+
+  @override
+  String get scheduleWidgetClear => 'Startbildschirmdaten löschen';
+
+  @override
+  String get scheduleWidgetCleared => 'Startbildschirm-Stundenplan gelöscht';
+
+  @override
+  String get scheduleWidgetDiagnostics => 'Aktualisierungsdiagnose';
+
+  @override
+  String get scheduleWidgetDiagnosticsDescription =>
+      'Wenn sich Datum oder Kursstatus verzögert aktualisieren, prüfe die Hintergrundaktivität und Akkueinstellungen für YourTJ. Die Menünamen unterscheiden sich je nach Gerät.';
+
+  @override
+  String get scheduleWidgetTransparencyTitle => 'Widget-Hintergrundtransparenz';
+
+  @override
+  String get scheduleWidgetTransparencyDescription =>
+      'Bei höheren Werten scheint mehr vom Hintergrund durch. Der Bereich von 0 % bis 15 % verbindet den Hintergrundeffekt mit gut lesbarem Kurstext.';
+
+  @override
+  String campusSnapshotUpdated(String time) {
+    return 'Geräte-Snapshot aktualisiert: $time';
+  }
+
+  @override
+  String get campusSnapshotStale =>
+      'Dieser Snapshot ist möglicherweise veraltet. Bitte aktualisieren.';
+
+  @override
+  String get campusSnapshotOffline =>
+      'Verbindung konnte nicht geprüft werden. Der Geräte-Snapshot wird angezeigt.';
+
+  @override
+  String get campusSnapshotRefreshFailed =>
+      'Einige Daten konnten nicht aktualisiert werden. Bisherige Inhalte bleiben erhalten.';
+
+  @override
+  String get campusDataNeedsRefresh =>
+      'Dieser Inhalt wurde noch nicht aktualisiert. Bitte manuell laden.';
+
+  @override
+  String get campusCacheClear => 'Campus-Cache leeren';
+
+  @override
+  String get campusCacheClearDescription =>
+      'Campus-Snapshots und Stundenplan-Widgets auf diesem Gerät entfernen. Entwürfe, Stundenplanentwürfe und die Hochschulverknüpfung bleiben erhalten.';
+
+  @override
+  String get campusCacheCleared => 'Campus-Cache geleert';
+
+  @override
+  String get campusCacheClearFailed =>
+      'Einige Cache-Daten konnten nicht gelöscht werden. Bitte erneut versuchen.';
+
+  @override
+  String get scheduleTimeAxis => 'Stunden';
+
+  @override
+  String scheduleEmptyCell(String day, int section) {
+    return '$day, Stunde $section, Kurs auswählen';
+  }
+
+  @override
+  String scheduleSectionsN(String range) {
+    return 'Stunden $range';
+  }
+
+  @override
+  String get scheduleGridScrollHint =>
+      'Seitlich wischen, um die ganze Woche zu sehen';
+
+  @override
+  String get coursesFilterSearchHint => 'Filteroptionen suchen';
+
+  @override
+  String get coursesFilterNoMatches => 'Keine passenden Filteroptionen';
+
+  @override
+  String get coursesClearSelection => 'Auswahl löschen';
+
+  @override
+  String get coursesResetSearch => 'Suche und Filter zurücksetzen';
+
+  @override
+  String get coursesFilterLoadFailed =>
+      'Filteroptionen konnten nicht geladen werden.';
+
+  @override
+  String get coursesPaginationStalled =>
+      'Keine weiteren Kurse erhalten. Laden Sie diese Seite erneut.';
+
+  @override
+  String get messagesNewMessages => 'Neue Nachrichten · Zum Ende';
+
+  @override
+  String get messagesReadSyncFailed =>
+      'Lesestatus konnte nicht synchronisiert werden. Ungelesene Nachrichten bleiben erhalten.';
+
+  @override
+  String get messagesReadUnavailable =>
+      'Dieser Server unterstützt noch keine einzelnen Lesebestätigungen. Ungelesene Nachrichten bleiben erhalten.';
+
+  @override
+  String get messagesDraftLabel => 'Entwurf';
+
+  @override
+  String get messagesDraftStorageFailed =>
+      'Nachrichtenentwürfe konnten auf diesem Gerät nicht gelesen oder gespeichert werden. Erneut versuchen.';
+
+  @override
+  String get draftCollapse => 'Einklappen';
+
+  @override
+  String get draftKindNew => 'Neues Thema';
+
+  @override
+  String get draftKindServer => 'Lokale Kopie eines Cloud-Entwurfs';
+
+  @override
+  String get draftKindEdit => 'Themenbearbeitung';
+
+  @override
+  String get draftKindReply => 'Antwort';
+
+  @override
+  String get draftLocalEmpty =>
+      'Unfertige Beiträge werden auf diesem Gerät gespeichert und hier angezeigt.';
+
+  @override
+  String get draftReplyLeaveUnsaved =>
+      'Die letzten Änderungen an der Antwort konnten nicht gespeichert werden. Weiterbearbeiten und erneut versuchen oder diese Änderungen verwerfen und die Seite verlassen. Eine zuvor gespeicherte lokale Kopie bleibt erhalten.';
+
+  @override
+  String get publishMediaQueueTitle => 'Fotos hochladen';
+
+  @override
+  String get publishMediaPendingWarning =>
+      'Einige Fotos sind noch nicht hochgeladen. Laden Sie sie hoch oder entfernen Sie sie, bevor Sie speichern, veröffentlichen, den Typ wechseln oder die Seite verlassen.';
+
+  @override
+  String get publishMediaTemporary =>
+      'Ausstehende Fotos bleiben nur während dieser Bearbeitung erhalten. Nach dem Schließen der App müssen Sie sie erneut auswählen.';
+
+  @override
+  String get publishMediaUploading => 'Wird hochgeladen';
+
+  @override
+  String get publishMediaWaiting => 'Warten auf das vorherige Foto';
+
+  @override
+  String get publishMediaSavedPartial =>
+      'Text und hochgeladene Fotos auf diesem Gerät gespeichert';
+
+  @override
+  String get draftSearchHint => 'Titel und Text durchsuchen';
+
+  @override
+  String get draftSearchScope =>
+      'Durchsucht lokale Entwürfe und die aktuelle Cloud-Liste.';
+
+  @override
+  String draftMatchCount(int count) {
+    return 'Angezeigte Entwürfe: $count';
+  }
+
+  @override
+  String get draftNoMatches => 'Keine Entwürfe entsprechen diesen Bedingungen.';
+
+  @override
+  String get draftClearFilters => 'Suche und Filter zurücksetzen';
+
+  @override
+  String get draftDeleteDone =>
+      'Lokaler Entwurf gelöscht. Die letzte Löschung kann rückgängig gemacht werden.';
+
+  @override
+  String get draftDeleteRestored =>
+      'Entwurf auf diesem Gerät wiederhergestellt';
+
+  @override
+  String get draftRestoreConflict =>
+      'Eine vorhandene Kopie wurde unverändert beibehalten.';
+
+  @override
+  String get draftRestoreFailed =>
+      'Wiederherstellung fehlgeschlagen. Erneut rückgängig machen.';
+
+  @override
+  String get settingsDataStorage => 'Daten und Speicher';
+
+  @override
+  String get settingsProfileDisplay => 'Profil und Darstellung';
+
+  @override
+  String get settingsNotSet => 'Nicht festgelegt';
+
+  @override
+  String get settingsUnsavedTitle => 'Ungespeicherte Änderungen verwerfen?';
+
+  @override
+  String get settingsUnsavedBody =>
+      'Deine Änderungen wurden noch nicht gespeichert und gehen beim Verlassen verloren.';
+
+  @override
+  String get settingsKeepEditing => 'Weiter bearbeiten';
+
+  @override
+  String get settingsDiscardChanges => 'Änderungen verwerfen';
+
+  @override
+  String get settingsPushPreference => 'Push-Mitteilungen erlauben';
+
+  @override
+  String get settingsPushDelivery => 'Zustellung auf diesem Gerät';
+
+  @override
+  String get settingsPushReady => 'Bereit zum Empfang';
+
+  @override
+  String get settingsPushOff => 'Nicht aktiviert';
+
+  @override
+  String get settingsPushIOSConsent =>
+      'Der Apple Push Notification Service verarbeitet die Push-Kennung deines Geräts und den Mitteilungsinhalt zur Zustellung.';
+
+  @override
+  String get settingsPushAndroidConsent =>
+      'JPush und dein Gerätehersteller verarbeiten die Push-Kennung deines Geräts und den Mitteilungsinhalt zur Zustellung.';
+
+  @override
+  String get settingsDeviceUnknown => 'Anderes Gerät';
+
+  @override
+  String get settingsDeviceCurrent => 'Dieses Gerät';
+
+  @override
+  String get badgeDisplayReorder => 'Zum Sortieren ziehen';
+
+  @override
+  String badgeDisplaySelectedCount(int count) {
+    return 'Angezeigt $count/5';
+  }
+
+  @override
+  String get sortFollowing => 'Gefolgt';
+
+  @override
+  String get notificationsUnreadEmpty => 'Alles gelesen';
+
+  @override
+  String get notificationsUnreadEmptyDescription =>
+      'Du hast alle Mitteilungen gelesen.';
+
+  @override
+  String get homeFeedOptions => 'Darstellung';
+
+  @override
+  String get homeAllCategories => 'Alle Kategorien';
+
+  @override
+  String get sortNew => 'Neue Beiträge';
+
+  @override
+  String get profileRoleAdminDescription =>
+      'Betreut die Community und sorgt für den Betrieb des Forums.';
+
+  @override
+  String profileBadgeEarnedOn(String date) {
+    return 'Erhalten am $date';
+  }
+
+  @override
+  String settingsProfilePartialSave(String saved) {
+    return 'Gespeichert: $saved. Die übrigen Änderungen bleiben erhalten. Bitte erneut speichern.';
+  }
+
+  @override
+  String get userBlock => 'Nutzer blockieren';
+
+  @override
+  String get userUnblock => 'Blockierung aufheben';
+
+  @override
+  String get userBlocks => 'Blockierte Nutzer';
+
+  @override
+  String get userBlockExplanation =>
+      'Eine Blockierung stoppt neue Direktnachrichten und Interaktionsbenachrichtigungen in beide Richtungen. Öffentliche Inhalte und bisherige Nachrichten bleiben zur Einordnung und Meldung verfügbar.';
+
+  @override
+  String get userBlocksEmpty => 'Keine blockierten Nutzer';
+
+  @override
+  String get messageReport => 'Nachricht melden';
+
+  @override
+  String get messageReportPrivacy =>
+      'Mit dem Absenden können Website-Administratoren diese Nachricht und Ihre Erklärung prüfen. Der restliche Gesprächsverlauf wird nicht übermittelt.';
+
+  @override
+  String get contentReport => 'Inhalt melden';
+
+  @override
+  String get reportSpam => 'Spam';
+
+  @override
+  String get reportAbuse => 'Beleidigung oder Belästigung';
+
+  @override
+  String get reportIllegal => 'Rechtswidrige Inhalte';
+
+  @override
+  String get reportIrrelevant => 'Themenfremde Inhalte';
+
+  @override
+  String get reportOther => 'Sonstiges';
 }

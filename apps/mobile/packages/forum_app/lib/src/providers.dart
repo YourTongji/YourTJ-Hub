@@ -6,6 +6,8 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'offline/drift_cache.dart';
+import 'offline/campus_snapshot_store.dart';
+import 'campus_widget/schedule_widget_bridge.dart';
 import 'app_config.dart';
 import 'app_locale.dart';
 
@@ -65,6 +67,13 @@ final topicReturnStatesProvider = Provider<Map<int, TopicReturnState>>((ref) {
   return <int, TopicReturnState>{};
 });
 
+/// Reply state handed back to profile activity without confusing post/topic IDs.
+typedef PostReturnState = ({bool liked, bool bookmarked, int likeCount});
+final postReturnStatesProvider = Provider<Map<int, PostReturnState>>((ref) {
+  ref.watch(offlineCacheEpochProvider);
+  return <int, PostReturnState>{};
+});
+
 /// Dio 实例(测试可 override 注入 mock adapter)。
 final dioProvider = Provider<Dio>((ref) => _localizedDio(ref));
 
@@ -110,6 +119,27 @@ final offlineChatCacheProvider = Provider<OfflineChatCache>((ref) {
   return DriftOfflineCache(ref.watch(offlineDatabaseProvider));
 });
 
+/// Invalidate campus reads without clearing drafts, plans or the forum session.
+final campusCacheEpochProvider = NotifierProvider<OfflineCacheEpoch, int>(
+  OfflineCacheEpoch.new,
+);
+
+final campusSnapshotStoreProvider = Provider<CampusSnapshotStore>((ref) {
+  final store = CampusSnapshotStore(ref.watch(offlineDatabaseProvider));
+  ref.listen(offlineCacheEpochProvider, (_, _) => store.invalidate());
+  return store;
+});
+
+final scheduleWidgetBridgeProvider = Provider<ScheduleWidgetBridge>((ref) {
+  final bridge = ScheduleWidgetBridge();
+  ref.listen(offlineCacheEpochProvider, (_, _) => bridge.invalidate());
+  return bridge;
+});
+
+final scheduleWidgetLinkProvider = StreamProvider<Uri?>((ref) {
+  return ref.watch(scheduleWidgetBridgeProvider).links();
+});
+
 /// 清除全部离线缓存(话题 + 会话 + 消息)。
 ///
 /// 登出、401 会话失效、重新登录(进入登录页)时必须清空,否则同一设备上
@@ -117,9 +147,12 @@ final offlineChatCacheProvider = Provider<OfflineChatCache>((ref) {
 Future<void> clearOfflineCache(
   OfflineTopicCache topicCache,
   OfflineChatCache chatCache,
+  ScheduleWidgetBridge widgetBridge,
 ) async {
+  // The production Drift cache clears campus_snapshots in the same transaction.
   await topicCache.clear();
   await chatCache.clear();
+  await widgetBridge.clear(state: 'signedOut');
 }
 
 /// 尽力清除离线缓存,失败静默(清理失败不阻塞登出/会话失效流程,
@@ -127,9 +160,10 @@ Future<void> clearOfflineCache(
 Future<void> clearOfflineCacheQuietly(
   OfflineTopicCache topicCache,
   OfflineChatCache chatCache,
+  ScheduleWidgetBridge widgetBridge,
 ) async {
   try {
-    await clearOfflineCache(topicCache, chatCache);
+    await clearOfflineCache(topicCache, chatCache, widgetBridge);
   } catch (_) {
     // 缓存不可用时忽略。
   }
@@ -185,6 +219,7 @@ final apiClientProvider = Provider<GfApiClient>((ref) {
         await clearOfflineCacheQuietly(
           ref.read(offlineTopicCacheProvider),
           ref.read(offlineChatCacheProvider),
+          ref.read(scheduleWidgetBridgeProvider),
         );
         unauthorizedNotifier.trigger();
       }());
@@ -252,9 +287,14 @@ final contentRepositoryProvider = Provider<ContentRepository>(
   (ref) => ContentRepository(ref.watch(apiClientProvider)),
 );
 
-/// 表情包公开库(会话级缓存,一次 app 运行拉取一次,失败下次重试)。
+/// Site/session-scoped sticker resolution; a new account never inherits assets.
 final stickerLibraryProvider = Provider<StickerLibrary>((ref) {
-  return StickerLibrary(StickerRepository(ref.watch(apiClientProvider)));
+  ref.watch(offlineCacheEpochProvider);
+  final library = StickerLibrary(
+    StickerRepository(ref.watch(apiClientProvider)),
+  );
+  ref.onDispose(library.dispose);
+  return library;
 });
 
 final campusRepositoryProvider = Provider<CampusRepository>((ref) {

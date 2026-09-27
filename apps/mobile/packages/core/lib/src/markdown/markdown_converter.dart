@@ -3,6 +3,8 @@ import 'package:flutter_quill/quill_delta.dart' as quill_delta;
 import 'package:markdown/markdown.dart' as md;
 import 'package:markdown_quill/markdown_quill.dart';
 
+import 'sticker_token.dart';
+
 /// Markdown ↔ flutter_quill Delta/Document 转换层。
 ///
 /// 读取链路:markdown → MarkdownToDelta(GFM + 可嵌入表格语法)→ Delta → Document;
@@ -14,21 +16,22 @@ import 'package:markdown_quill/markdown_quill.dart';
 /// - 引用内标题降级为引用文本。
 class MarkdownConverter {
   MarkdownConverter()
-      : _mdToDelta = MarkdownToDelta(
-          markdownDocument: md.Document(
-            encodeHtml: false,
-            extensionSet: md.ExtensionSet.gitHubFlavored,
-            blockSyntaxes: [const EmbeddableTableSyntax()],
-          ),
-          customElementToEmbeddable: {
-            EmbeddableTable.tableType: EmbeddableTable.fromMdSyntax,
-          },
+    : _mdToDelta = MarkdownToDelta(
+        markdownDocument: md.Document(
+          encodeHtml: false,
+          extensionSet: md.ExtensionSet.gitHubFlavored,
+          blockSyntaxes: [const EmbeddableTableSyntax()],
         ),
-        _deltaToMarkdown = DeltaToMarkdown(
-          customEmbedHandlers: {
-            EmbeddableTable.tableType: EmbeddableTable.toMdSyntax,
-          },
-        );
+        customElementToEmbeddable: {
+          EmbeddableTable.tableType: EmbeddableTable.fromMdSyntax,
+        },
+      ),
+      _deltaToMarkdown = DeltaToMarkdown(
+        customContentHandler: _writeStickerAwareText,
+        customEmbedHandlers: {
+          EmbeddableTable.tableType: EmbeddableTable.toMdSyntax,
+        },
+      );
 
   final MarkdownToDelta _mdToDelta;
   final DeltaToMarkdown _deltaToMarkdown;
@@ -62,4 +65,36 @@ class MarkdownConverter {
   String documentToMarkdown(quill.Document document) {
     return deltaToMarkdown(document.toDelta());
   }
+}
+
+// Keep explicit expression tokens round-trippable. The upstream converter
+// escapes brackets and underscores, which otherwise disables token rendering
+// on save. Ordinary prose, literal escapes, links and code retain its rules.
+void _writeStickerAwareText(quill.QuillText text, StringSink output) {
+  final style = text.style;
+  if (!containsStickerToken(text.value) ||
+      style.containsKey(quill.Attribute.codeBlock.key) ||
+      style.containsKey(quill.Attribute.inlineCode.key) ||
+      style.containsKey(quill.Attribute.link.key) ||
+      (text.parent?.style.containsKey(quill.Attribute.codeBlock.key) ??
+          false)) {
+    DeltaToMarkdown.escapeSpecialCharacters(text, output);
+    return;
+  }
+  String escape(String value) => value.replaceAllMapped(
+    RegExp(r'[\\\`\*\_\{\}\[\]\(\)\#\+\-\.\!\>\<]'),
+    (match) => '\\${match[0]}',
+  );
+  var cursor = 0;
+  for (final match in stickerTokenPattern.allMatches(text.value)) {
+    var slashes = 0;
+    for (var i = match.start - 1; i >= 0 && text.value[i] == r'\'; i--) {
+      slashes++;
+    }
+    if (slashes.isOdd) continue;
+    output.write(escape(text.value.substring(cursor, match.start)));
+    output.write(match[0]);
+    cursor = match.end;
+  }
+  output.write(escape(text.value.substring(cursor)));
 }

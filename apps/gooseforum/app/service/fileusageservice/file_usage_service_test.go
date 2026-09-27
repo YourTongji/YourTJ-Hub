@@ -22,6 +22,17 @@ func TestFileNameFromURL(t *testing.T) {
 			t.Fatalf("fileNameFromURL(%q) = %q, want %q", input, got, want)
 		}
 	}
+	for input, want := range map[string]string{
+		"https://cdn.example.com/media/2026/a.jpg":       "2026/a.jpg",
+		"https://cdn.example.com.evil/media/2026/a.jpg":  "",
+		"https://cdn.example.com/media/../private/a.jpg": "",
+		"https://cdn.example.com/other/2026/a.jpg":       "",
+		"https://other.example.com/media/2026/a.jpg":     "",
+	} {
+		if got := fileNameFromPublicURL(input, "https://cdn.example.com/media/"); got != want {
+			t.Errorf("fileNameFromPublicURL(%q) = %q, want %q", input, got, want)
+		}
+	}
 }
 
 // TestUploadOwnerDoesNotKeepFileLiveAfterContentDelete is the regression for

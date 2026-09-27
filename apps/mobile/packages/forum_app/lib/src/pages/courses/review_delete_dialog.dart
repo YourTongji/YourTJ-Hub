@@ -14,6 +14,7 @@ Future<bool> confirmCourseReviewDeletion(
   final colors = GfTheme.colorsOf(context);
   return await showDialog<bool>(
         context: context,
+        animationStyle: GfMotion.dialogStyle(context),
         builder: (dialogContext) => AlertDialog(
           backgroundColor: colors.base100,
           surfaceTintColor: Colors.transparent,

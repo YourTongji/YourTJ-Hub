@@ -17,9 +17,9 @@ typedef AuthImeNow = Duration Function();
 ///
 /// The stabilizer deliberately has no knowledge of Android brands, passwords,
 /// or credentials. The page supplies the target identity, focus state, actual
-/// IME visibility, and the platform show/request-focus operations. A pointer
-/// down creates the only token that can authorize focus handoff recovery;
-/// normal focus changes never fight the system by themselves.
+/// IME visibility, and the platform show/request-focus operations. Only an
+/// explicit pointer or keyboard-next intent authorizes focus handoff recovery;
+/// ordinary focus changes never fight the system by themselves.
 class AuthImeStabilizer<T> {
   AuthImeStabilizer({
     required this.enabled,
@@ -78,31 +78,34 @@ class AuthImeStabilizer<T> {
   int _generation = 0;
 
   /// Records a user pointer-down before the normal TextField gesture handling.
-  void pointerDown(T target) {
+  void pointerDown(T target) => focusRequested(target);
+
+  /// Records an explicit field target before moving focus, including IME Next.
+  void focusRequested(T target) {
     if (!_active) return;
 
     _cancelIntentTimers();
     final int generation = ++_generation;
-    // A fresh password entry may bridge one IME falling edge; a password tap
-    // while already focused must remain a genuine dismissal.
-    final bool targetWasFocusedAtPointerDown = isFocused(target);
+    // Moving across a secure field can briefly hide either keyboard. A tap on
+    // the already-focused field does not authorize reopening a dismissed IME.
+    final bool targetWasFocused = isFocused(target);
+    final T? source = recoverySource;
     final _AuthImeIntent<T> intent = _AuthImeIntent<T>(
       target: target,
       generation: generation,
       expiresAt: now() + tokenLifetime,
-      suppressPasswordDismissal:
-          recoverySource != null &&
-          target == recoverySource &&
-          !targetWasFocusedAtPointerDown &&
+      suppressImeDismissal:
+          source != null &&
+          (target == source || isFocused(source)) &&
+          !targetWasFocused &&
           isImeVisible(),
     );
     _intent = intent;
     _log('token create target=${_name(target)}');
-    _intentExpiry = schedule(tokenLifetime, () {
-      if (_isCurrent(intent)) _expireIntent(intent);
-    });
+    _intentExpiry = schedule(tokenLifetime, () => _expireIntent(intent));
 
-    final T? source = recoverySource;
+    // A second tap after hiding the keyboard may not emit a FocusNode change.
+    if (targetWasFocused) _startWatchdog(intent);
     if (source != null && source != target && isFocused(source)) {
       _handoffObservation = schedule(handoffObservationDelay, () {
         if (_isCurrent(intent)) _maybeRecover(intent);
@@ -138,26 +141,28 @@ class AuthImeStabilizer<T> {
     if (!_active) return;
     final bool visible = isImeVisible();
     final bool wasVisible = _lastImeVisible == true;
-    final bool becameVisible = visible && _lastImeVisible == false;
+    final bool becameVisible = visible && _lastImeVisible != true;
     if (_lastImeVisible != visible) {
       _lastImeVisible = visible;
       _log('ime visible=${visible ? 'true' : 'false'}');
     }
 
-    if (wasVisible && !visible && _shouldHonorUserDismissal()) {
-      _releasePasswordFocus();
-      return;
+    if (wasVisible && !visible) {
+      final T? dismissedTarget = _dismissedTarget();
+      if (dismissedTarget != null) {
+        _releaseDismissedFocus(dismissedTarget);
+        return;
+      }
     }
 
     final _AuthImeIntent<T>? intent = _intent;
     if (visible) {
       if (intent != null &&
-          intent.target == recoverySource &&
-          intent.suppressPasswordDismissal &&
+          intent.suppressImeDismissal &&
           isFocused(intent.target) &&
           becameVisible) {
-        intent.suppressPasswordDismissal = false;
-        _log('password entry IME visible; dismissal suppression consumed');
+        intent.suppressImeDismissal = false;
+        _log('target IME visible; dismissal suppression consumed');
       }
       _cancelWatchdog();
     } else if (intent != null && isFocused(intent.target)) {
@@ -184,35 +189,33 @@ class AuthImeStabilizer<T> {
 
   bool get _active => enabled && !_disposed;
 
-  bool _shouldHonorUserDismissal() {
+  T? _dismissedTarget() {
     final T? source = recoverySource;
-    if (source == null || !isFocused(source)) return false;
-
     final _AuthImeIntent<T>? intent = _intent;
-    if (intent != null && intent.target != source && _isCurrent(intent)) {
-      _log('user dismiss suppressed handoff target=${_name(intent.target)}');
-      return false;
+    if (source != null && isFocused(source)) {
+      if (intent != null && intent.target != source && _isCurrent(intent)) {
+        _log('user dismiss suppressed handoff target=${_name(intent.target)}');
+        return null;
+      }
+      if (intent != null && intent.suppressImeDismissal && _isCurrent(intent)) {
+        _log('user dismiss suppressed secure field transition');
+        return null;
+      }
+      return source;
     }
-    if (intent != null &&
-        intent.target == source &&
-        intent.suppressPasswordDismissal &&
-        _isCurrent(intent)) {
-      _log('user dismiss suppressed password entry transition');
-      return false;
+    if (intent == null || !isFocused(intent.target)) return null;
+    if (intent.suppressImeDismissal && _isCurrent(intent)) {
+      _log('user dismiss suppressed secure field transition');
+      return null;
     }
-    return true;
+    return intent.target;
   }
 
-  void _releasePasswordFocus() {
-    final T? source = recoverySource;
-    if (source == null || !isFocused(source)) return;
-
-    _log('user dismiss releaseFocus target=${_name(source)}');
-    _generation++;
-    _cancelIntentTimers();
-    _intent = null;
-    onRecoverySourceDismissed?.call(source);
-    releaseFocus(source);
+  void _releaseDismissedFocus(T target) {
+    _log('user dismiss releaseFocus target=${_name(target)}');
+    cancel();
+    if (target == recoverySource) onRecoverySourceDismissed?.call(target);
+    releaseFocus(target);
   }
 
   bool _isCurrent(_AuthImeIntent<T> intent) {
@@ -223,7 +226,11 @@ class AuthImeStabilizer<T> {
   }
 
   void _expireIntent(_AuthImeIntent<T> intent) {
-    if (!_isCurrent(intent)) return;
+    if (!_active ||
+        _generation != intent.generation ||
+        !identical(_intent, intent)) {
+      return;
+    }
     _log('token expire target=${_name(intent.target)}');
     _cancelIntentTimers();
     _intent = null;
@@ -346,13 +353,13 @@ class _AuthImeIntent<T> {
     required this.target,
     required this.generation,
     required this.expiresAt,
-    required this.suppressPasswordDismissal,
+    required this.suppressImeDismissal,
   });
 
   final T target;
   final int generation;
   final Duration expiresAt;
-  bool suppressPasswordDismissal;
+  bool suppressImeDismissal;
   int recoveryAttempts = 0;
   int watchdogActivations = 0;
   int watchdogAttempts = 0;

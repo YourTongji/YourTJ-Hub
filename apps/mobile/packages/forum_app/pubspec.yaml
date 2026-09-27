@@ -8,6 +8,7 @@ environment:
   sdk: ^3.12.2
 
 dependencies:
+  connectivity_plus: ^7.3.1
   flutter_localizations:
     sdk: flutter
   flutter:
@@ -18,8 +19,7 @@ dependencies:
     path: ../auth
   ui_kit:
     path: ../ui_kit
-  cached_network_image: ^3.4.1
-  cupertino_icons: ^1.0.8
+  cupertino_icons: ^1.0.9
   dio: ^5.7.0
   crypto: ^3.0.7
   flutter_quill: ^11.5.1
@@ -32,8 +32,10 @@ dependencies:
   markdown_widget: ^2.3.2
   image: ^4.5.4
   shared_preferences: ^2.3.3
+  flutter_secure_storage: ^9.2.4
   drift: ^2.34.3
   drift_flutter: ^0.3.1
+  home_widget: ^0.10.0
   sqlite3_flutter_libs: ^0.6.0+eol
   share_plus: ^11.0.0
   app_settings: ^9.0.0
@@ -44,7 +46,11 @@ dependencies:
   file_selector: ^1.1.0
   path_provider: ^2.1.6
   tldts: 0.0.1-beta
+  flutter_native_splash: ^2.4.8
+  flutter_svg: ^2.3.0
+  animated_text_effects: ^0.0.7
 dev_dependencies:
+  flutter_secure_storage_platform_interface: ^1.1.2
   shared_preferences_platform_interface: ^2.4.2
   path_provider_platform_interface: ^2.1.2
   webview_flutter_platform_interface: ^2.15.1
@@ -54,9 +60,27 @@ dev_dependencies:
     sdk: flutter
   flutter_lints: ^6.0.0
 
+flutter_native_splash:
+  color: "#F7FBFA"
+  color_dark: "#0B1112"
+  image: assets/splash/brand_mark.png
+  android: true
+  ios: true
+  web: false
+  android_12:
+    color: "#F7FBFA"
+    color_dark: "#0B1112"
+    image: assets/splash/brand_mark_android12.png
+
 flutter:
   generate: true
   uses-material-design: true
   assets:
     - assets/images/brand-default.png
+    - assets/images/brand-default.webp
+    - assets/images/brand-default-dark.webp
+    - assets/images/tongji-university.svg
     - assets/launcher/icon.png
+    - assets/splash/brand_mark.png
+    - assets/splash/brand_mark.svg
+    - assets/splash/logo_motion.webp

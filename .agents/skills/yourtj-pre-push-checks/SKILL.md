@@ -7,8 +7,8 @@ description: Use before pushing, force-pushing, marking ready for review, or cla
 
 Use this skill to run the relevant local evidence once before pushing a yourtj-hub branch. Git hooks are
 intentionally narrow: pre-commit checks staged whitespace and gofmt; pre-push runs `go vet` + `golangci-lint`
-(incremental against `origin/dev`, full fallback) + `pnpm typecheck`. CI owns exhaustive coverage and the
-platform matrix.
+(incremental against `origin/dev`, full fallback) + `pnpm typecheck` + the web i18n gate (`pnpm check`). CI
+owns exhaustive coverage and the platform matrix.
 
 ## Inspect the outgoing change
 

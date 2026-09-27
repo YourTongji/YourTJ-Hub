@@ -2,6 +2,7 @@ import java.util.Properties
 
 plugins {
     id("com.android.application")
+    id("org.jetbrains.kotlin.plugin.compose")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
 }
@@ -17,9 +18,15 @@ val vendorKeys = mapOf(
     "vivo" to listOf("VIVO_APPID", "VIVO_APPKEY"),
     "honor" to listOf("HONOR_APPID"),
     "meizu" to listOf("MEIZU_APPID", "MEIZU_APPKEY"),
+    "huawei" to emptyList(),
+    "fcm" to emptyList(),
 )
 val vendors = pushConfig.getProperty("VENDORS", "").split(",").filter { it.isNotBlank() }
-require(vendors.all { it in vendorKeys || it == "huawei" }) { "Unknown push vendor" }
+require(vendors.all { it in vendorKeys }) { "Unknown push vendor" }
+if ("fcm" in vendors) {
+    require(file("google-services.json").isFile) { "FCM push requires app/google-services.json" }
+    apply(plugin = "com.google.gms.google-services")
+}
 
 val releaseKeys = Properties()
 val releaseKeysFile = rootProject.file("key.properties")
@@ -32,7 +39,10 @@ android {
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
-    buildFeatures { buildConfig = true }
+    buildFeatures {
+        buildConfig = true
+        compose = true
+    }
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -101,6 +111,8 @@ tasks.configureEach {
 // Pin both SDK and OEM adapters, including jcore's otherwise dynamic transitive dependency.
 configurations.all { resolutionStrategy.force("cn.jiguang.sdk:jcore:5.5.2") }
 dependencies {
+    implementation("androidx.core:core-splashscreen:1.0.1")
+    implementation("androidx.glance:glance-appwidget:1.2.0")
     implementation("cn.jiguang.sdk:jpush:6.2.1")
     implementation("cn.jiguang.sdk:jcore:5.5.2")
     for (vendor in vendors) implementation("cn.jiguang.sdk.plugin:$vendor:6.2.1")

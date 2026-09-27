@@ -576,6 +576,52 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/auth/apple/exchange": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Exchange a native Apple authorization for a forum session
+         * @description Native iOS authorization only. The server validates signature, issuer, audience, expiry and
+         *     SHA-256 nonce, then redeems the single-use code with Apple and verifies the same subject.
+         *     No email-based account merge or automatic registration. Apple refresh credentials are stored
+         *     encrypted only to revoke authorization on unlink or account deletion. Maximum body size is 24 KiB.
+         */
+        post: operations["exchangeNativeAppleCode"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/apple/bind": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Connect a native Apple identity to the authenticated forum account
+         * @description Native iOS authorization only. The server validates signature, issuer, audience, expiry and
+         *     SHA-256 nonce, then redeems the single-use code with Apple and verifies the same subject.
+         *     No email-based account merge or automatic registration. Apple refresh credentials are stored
+         *     encrypted only to revoke authorization on unlink or account deletion. Maximum body size is 24 KiB.
+         */
+        post: operations["bindNativeAppleAccount"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/auth/oidc/exchange": {
         parameters: {
             query?: never;
@@ -1085,11 +1131,16 @@ export interface paths {
          * Report a topic or post to moderators
          * @description Files a moderation report against a visible topic or post and snapshots the
          *     target content as evidence at creation time. One open report per reporter and
-         *     target: a second report for the same target fails with `report.duplicate`
+         *     target: a second public-content report for the same target fails with `report.duplicate`
          *     (HTTP 200). Reporting own content fails with `report.ownContent`; an unknown or
          *     not-viewable target fails with `report.targetInvalid`. JSON binding is lenient:
          *     a malformed body binds to zero values and fails validation as
          *     `common.request.invalidParams` (HTTP 200).
+         *     A chat_message target must be a message received by the authenticated caller.
+         *     Reporting a sent or foreign message fails with report.targetInvalid. Retries
+         *     return success without creating another open report. Only that message (up to
+         *     4000 runes), author ID and caller note are disclosed to site administrators,
+         *     never the whole conversation or to category/global moderators.
          */
         post: operations["createReport"];
         delete?: never;
@@ -1286,6 +1337,56 @@ export interface paths {
         get: operations["getCaptcha"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/user-blocks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the caller’s blocked users
+         * @description Owner comes only from the session. A block prevents new direct messages and
+         *     interaction notifications in both directions. Public posts and old messages remain.
+         *     Only the caller's own list is exposed, never the reverse relationship. Maximum
+         *     1000 blocks. Set blocked=false to remove one; retries are idempotent.
+         *     Either account closing erases the relationship. Responses use private, no-store.
+         *     Pending activation is allowed for this protective action.
+         */
+        get: operations["listUserBlocks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/user-block": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Block or unblock another user
+         * @description Owner comes only from the session. A block prevents new direct messages and
+         *     interaction notifications in both directions. Public posts and old messages remain.
+         *     Only the caller's own list is exposed, never the reverse relationship. Maximum
+         *     1000 blocks. Set blocked=false to remove one; retries are idempotent.
+         *     Either account closing erases the relationship. Responses use private, no-store.
+         *     Pending activation is allowed for this protective action.
+         */
+        post: operations["setUserBlock"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1753,6 +1854,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/forum/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Stream foreground chat and notification invalidations
+         * @description A single authenticated foreground SSE connection per app instance. The
+         *     stream emits an immediate hello with resync=true; clients must reconcile
+         *     chat, notification and unread state over REST after every connection or
+         *     reconnect. Events are owner-scoped hints, contain no message bodies or
+         *     notification previews, have no replay IDs, and are never a substitute for
+         *     REST cursors. A full server queue closes the stream rather than silently
+         *     dropping events. Heartbeat comments arrive every 15 seconds; the server
+         *     rotates streams within one hour to renew expiring credentials. Session
+         *     validity is checked at handshake and independently every five minutes;
+         *     transport heartbeats do not query the database. Only
+         *     Bearer authorization or the host-only access_token cookie is accepted;
+         *     query-string tokens are not supported. Cookie requests without a
+         *     verifiable same-origin Origin or Referer are rejected before streaming.
+         *     The stream does not extend online presence.
+         *     This process-local stream requires a shared invalidation transport before
+         *     running the forum as multiple serving instances.
+         */
+        get: operations["streamForumEvents"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/forum/notifications": {
         parameters: {
             query?: never;
@@ -2031,6 +2167,59 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/forum/chat/mark-visible": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Mark only displayed incoming chat messages as read
+         * @description A client sends the actual incoming message IDs that became visible. The server
+         *     validates the whole batch as one conversation and one recipient, then marks
+         *     only those IDs read and decrements the stored unread count by newly read rows
+         *     in the same conversation-locked transaction. Duplicate and
+         *     already-read IDs are idempotent. Any invalid ID rejects the whole batch with
+         *     `chat.markRead.failed`; malformed, empty, zero, or over-100 inputs fail
+         *     validation with `common.request.invalidParams`. The legacy mark-read endpoint
+         *     remains available for older clients. Pending-activation users can clear their
+         *     own read state; frozen accounts cannot.
+         */
+        post: operations["markChatVisibleRead"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/chat/message-read-states": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Refresh chat read flags without downloading message bodies
+         * @description Read-only member operation for 1–100 explicit message IDs in one
+         *     conversation. Incoming and outgoing IDs are allowed. An invalid ID or
+         *     non-member conversation fails with `chat.messages.failed` without disclosing
+         *     which check failed. Flags and the stored conversation unread counter are read
+         *     under the same conversation lock as send/read mutations; this bounded lookup
+         *     does not recount the unread backlog. Frozen accounts retain this read-only access.
+         */
+        post: operations["getChatMessageReadStates"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/forum/get-site-statistics": {
         parameters: {
             query?: never;
@@ -2119,6 +2308,135 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/forum/stickers/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Resolve explicit shared sticker tokens
+         * @description Public read-only resolution of at most 200 explicit token names. Duplicate names are
+         *     returned once in request order; unknown/disabled/invalid token names are omitted.
+         *     The total input is limited to 200 names before invalid names are filtered. Personal
+         *     names are unguessable bearer references: knowing a shared token permits
+         *     rendering and collecting that asset. No enumeration or private library labels
+         *     are exposed. Uses the public sticker.list per-IP quota. Body limit 64 KiB.
+         */
+        post: operations["resolveStickers"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/my-stickers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the current account sticker library
+         * @description Lists only the authenticated account's private memberships in saved order.
+         *     Labels are private to this account; the same asset may be collected by others.
+         *     Disabled assets remain with isEnabled=false so users can remove or reorder
+         *     them, but clients must prevent insertion. Permanent official deletion removes
+         *     the corresponding memberships.
+         *     At most 200 members. Removing a member never deletes an asset or sent history.
+         *     Account closure clears this list and fences in-flight membership writes.
+         */
+        get: operations["myStickers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/my-sticker-save": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Upload or collect a sticker in my library
+         * @description Supply exactly one of stickerName or fileName. A known enabled sticker token
+         *     is collected idempotently. fileName must identify a ready standard image/GIF
+         *     uploaded by this account, from 1 byte to 4 MiB; the same file reuses the same
+         *     personal asset on retries. Personal assets have immutable random token names
+         *     and image content. displayName changes only this account's library label.
+         *     Maximum 200 memberships and 1000 retained personal uploads per account;
+         *     removing a membership does not reset the retained-asset quota. Limit errors
+         *     are sticker.libraryFull or sticker.uploadQuota with params.limit. Unknown or
+         *     disabled tokens fail with sticker.unavailable. Invalid/foreign/pending/oversize
+         *     uploads fail with sticker.imageRequired and params.maxSizeMb = 4. Invalid
+         *     input fails with common.request.invalidParams. Membership, quota and file
+         *     reference writes are atomic and serialized per account. Body limit 64 KiB.
+         */
+        post: operations["saveMySticker"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/my-sticker-delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Remove a sticker from my private library
+         * @description Idempotently removes only this account's membership. Does not delete or
+         *     disable the shared asset, release its file reference, affect another account,
+         *     or break previously sent tokens. Invalid names fail with
+         *     common.request.invalidParams. Body limit 64 KiB.
+         */
+        post: operations["deleteMySticker"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/my-stickers-order": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Replace the order of my private sticker library
+         * @description names must contain every current membership once, in desired display order.
+         *     Duplicate, foreign, missing and stale names fail atomically with
+         *     common.request.invalidParams; clients should reload on conflict. Empty names
+         *     is valid only for an empty library. Serialized with collection/removal and
+         *     bounded to 200 names. Body limit 64 KiB.
+         */
+        post: operations["orderMyStickers"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/forum/stickers": {
         parameters: {
             query?: never;
@@ -2127,17 +2445,17 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * List enabled stickers for the editor picker and token replacement
+         * List enabled official stickers for the editor picker
          * @description Public endpoint with no authentication or input. Uses the configurable
          *     `sticker.list` per-IP quota (default 60 requests per 60 seconds); a
          *     database failure returns `common.operation.failed` rather than a cached
-         *     empty success. Returns enabled stickers only, ordered by
+         *     empty success. Returns enabled official stickers only; personal assets are never enumerated. Ordered by
          *     sortOrder ascending then id ascending, each with its globally unique
          *     name and public access `url`. The url follows the storage
          *     configuration: `/file/img/<fileName>` on the local provider or the
          *     configured CDN public-url prefix. The editor sticker picker and the
          *     client-side `[:sticker:name:]` token replacement (MADR 0030) consume
-         *     this list.
+         *     this list. Resolve explicitly shared personal tokens through POST /api/forum/stickers/resolve.
          */
         get: operations["forumStickerList"];
         put?: never;
@@ -5161,7 +5479,7 @@ export interface paths {
          * List every sticker row for the admin console
          * @description Admin console operation gated by the `SiteManager` role permission
          *     (Admin role is a superset); callers without it fail with HTTP 403 and
-         *     `permission.denied`. Returns every sticker row (enabled and disabled),
+         *     `permission.denied`. Returns every official sticker row (enabled and disabled), excluding personal assets,
          *     ordered by sortOrder ascending then id ascending. `url` follows the
          *     storage configuration: `/file/img/<fileName>` on the local provider or
          *     the configured CDN public-url prefix; empty when no image is attached
@@ -5191,7 +5509,7 @@ export interface paths {
          * Create or update a sticker row
          * @description Admin console operation gated by the `SiteManager` role permission;
          *     callers without it fail with HTTP 403 and `permission.denied`. `id` 0
-         *     creates a new sticker; a positive `id` overwrites name/sortOrder/
+         *     creates a new official sticker; a positive `id` overwrites name/sortOrder/
          *     isEnabled of the existing row. Creating requires `fileName` from the
          *     caller's image upload; updating may replace it or omit it to preserve
          *     the image. Unknown, missing or foreign image uploads fail with
@@ -5201,7 +5519,7 @@ export interface paths {
          *     `[:sticker:name:]` requires a sticker-safe identifier, MADR 0030) fails
          *     with `admin.sticker.nameInvalid`, and a name already taken by another
          *     row fails with `admin.sticker.nameExists`. A positive `id` matching no
-         *     sticker fails with `admin.sticker.notFound`; a persistence failure
+         *     official sticker (including an id belonging to a personal asset) fails with `admin.sticker.notFound`; a persistence failure
          *     fails with `admin.sticker.saveFailed` (all HTTP 200). JSON binding is
          *     lenient: a malformed body binds to zero values and fails as
          *     `admin.sticker.nameRequired` (HTTP 200) because the trimmed name is
@@ -5227,7 +5545,7 @@ export interface paths {
          * Delete a sticker row
          * @description Admin console operation gated by the `SiteManager` role permission;
          *     callers without it fail with HTTP 403 and `permission.denied`. The
-         *     sticker row is hard-deleted and its file usage released so the storage
+         *     official sticker row is hard-deleted and its file usage released so the storage
          *     GC can reclaim the image when no other reference remains. Unknown ids
          *     (including a missing/zero id) fail with `admin.sticker.notFound`;
          *     a persistence failure fails with `admin.sticker.deleteFailed` (both
@@ -5785,6 +6103,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/pk/validate-credential": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Probe a OneSystem (一系统) credential before saving it
+         * @description Admin console operation gated by the `SiteManager` role permission
+         *     (Admin role is a superset); callers without it fail with HTTP 403 and
+         *     `permission.denied` (params permission=<localized permission name>,
+         *     `站点管理` in zh). Validates a 一系统 credential for the requested audience
+         *     (undergraduate Cookie / graduate X-Token) with a minimal probe before
+         *     saving it (issue #856): it fetches exactly one page (pageSize=1) of the
+         *     latest synced calendar for that audience and performs **no database
+         *     writes, no fetch-log rows, no configuration changes**. A blank
+         *     `credential` resolves via the same priority as the sync CLI
+         *     (environment variables first, then the admin-stored securestore setting).
+         *     Undergraduate environment priority is `ONESYSTEM_UNDERGRADUATE_COOKIE`,
+         *     then `ONESYSTEM_COOKIE`; graduate priority is `ONESYSTEM_GRADUATE_X_TOKEN`,
+         *     then `ONESYSTEM_X_TOKEN`, then the legacy `ONESYSTEM_GRADUATE_COOKIE`.
+         *     A non-blank request credential overrides both environment and saved settings.
+         *     A credential failure (HTTP 401/403, business
+         *     code != 0, network error) is a **business result** — HTTP 200 with
+         *     `result.valid=false` and a credential-redacted failure message — not an
+         *     HTTP error. Only hard errors (unsupported audience, missing credential
+         *     source, database read failure) return the failure envelope. With no
+         *     synced calendar for the audience the result is `valid=false` with a
+         *     "sync a term first" message. The probe is bounded by a 45s timeout.
+         */
+        post: operations["adminValidatePkCredential"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/pk/sync-calendar": {
         parameters: {
             query?: never;
@@ -5844,6 +6202,60 @@ export interface paths {
         get: operations["adminGetPkSyncStatus"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/pk/sync-schedule-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the scheduled PK sync configuration
+         * @description Admin console operation gated by the `SiteManager` role permission
+         *     (Admin role is a superset); callers without it fail with HTTP 403 and
+         *     `permission.denied` (params permission=<localized permission name>,
+         *     `站点管理` in zh). Returns the scheduled sync configuration (issue #569):
+         *     the enable switch, the 5-field cron expression, the target term (empty
+         *     = latest synced term), the depth and the audience. None of these fields
+         *     are sensitive — the stored blob holds no credentials — so the current
+         *     values are echoed as-is (unlike the adjacent OneSystem Cookie settings,
+         *     which only report `configured` states). When nothing has been saved
+         *     yet the built-in default is returned (`enabled=false`,
+         *     `schedule="30 2 * * *"`, `term=""`, `depth=1`,
+         *     `audience="undergraduate"`). JSON binding is lenient: query string and
+         *     body are ignored.
+         */
+        get: operations["adminGetPkSyncScheduleSettings"];
+        put?: never;
+        /**
+         * Replace the scheduled PK sync configuration
+         * @description Admin console operation gated by the `SiteManager` role permission;
+         *     callers without it fail with HTTP 403 and `permission.denied`.
+         *     Replaces the whole scheduled-sync configuration with the submitted
+         *     value (issue #569), clears the settings cache and hot-refreshes the
+         *     in-process cron registration (`console/job.RefreshPkSyncCron`) so the
+         *     change takes effect without a restart. Validation happens before
+         *     anything is persisted:
+         *     1. when `enabled=true` the `schedule` must be present and parse with the
+         *        same 5-field standard cron parser the process scheduler uses;
+         *        otherwise the whole request fails with HTTP 200 `code: 1`
+         *        (params.error carries the parse error).
+         *     2. `audience`, when empty, defaults to `undergraduate`; any other value
+         *        must be one of `undergraduate`/`graduate` or the request fails.
+         *     `depth` is clamped into `[1, 8]` and `term` is trimmed (empty meaning
+         *     "latest now-synced term"). Disabling (`enabled=false`) only turns the
+         *     toggle off — the cron expression is not validated, no cron entry is
+         *     registered, and the in-process scheduler stops firing; the other fields
+         *     are stored as-is for when the operator re-enables. On success the whole
+         *     configuration is replaced and the operation reports `result: "success"`.
+         */
+        post: operations["adminSavePkSyncScheduleSettings"];
         delete?: never;
         options?: never;
         head?: never;
@@ -6118,6 +6530,44 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/pk/plan-items": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read independent plan revisions
+         * @description Caller-owned per-plan synchronization. First access atomically migrates every legacy plan
+         *     and retires the legacy snapshot API for this account. Each plan has an integer CAS revision.
+         *     At most ten plans per account; each plan payload is limited to 1 MB. Device preferences stay local.
+         *     Conflicts include the latest item; a missing positive revision returns 410 and cannot recreate it.
+         */
+        get: operations["pkListPlanItems"];
+        /**
+         * Conditionally save one plan
+         * @description Caller-owned per-plan synchronization. First access atomically migrates every legacy plan
+         *     and retires the legacy snapshot API for this account. Each plan has an integer CAS revision.
+         *     At most ten plans per account; each plan payload is limited to 1 MB. Device preferences stay local.
+         *     Conflicts include the latest item; a missing positive revision returns 410 and cannot recreate it.
+         */
+        put: operations["pkPutPlanItem"];
+        post?: never;
+        /**
+         * Conditionally delete one plan
+         * @description Caller-owned per-plan synchronization. First access atomically migrates every legacy plan
+         *     and retires the legacy snapshot API for this account. Each plan has an integer CAS revision.
+         *     At most ten plans per account; each plan payload is limited to 1 MB. Device preferences stay local.
+         *     Conflicts include the latest item. Deleting an already-absent plan is idempotent and returns
+         *     200 regardless of the observed revision; the missing-positive-revision 410 applies only to PUT.
+         */
+        delete: operations["pkDeletePlanItem"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/pk/plans": {
         parameters: {
             query?: never;
@@ -6127,7 +6577,12 @@ export interface paths {
         };
         /**
          * Fetch the caller's cloud schedule plan snapshot
-         * @description Login-required read of the caller's PK scheduler plan snapshot (issue #537).
+         * @deprecated
+         * @description After first access to /api/pk/plan-items, this legacy operation returns 410.
+         *     Existing snapshots migrate without deleting any plan, including recovery copies.
+         *     An erased (closed) account also reads as an empty snapshot with 200 and null
+         *     data; its writes and deletes still return 410.
+         *     Login-required read of the caller's PK scheduler plan snapshot (issue #537).
          *     Returns the four persisted fields (plans/activePlanId/majorSelected/weekView)
          *     plus the server-side authoritative updatedAt clock (RFC3339Nano UTC) that
          *     clients store as pk.syncedAt for load-time conflict detection. When the user
@@ -6139,7 +6594,10 @@ export interface paths {
         get: operations["pkGetPlans"];
         /**
          * Replace the caller's cloud schedule plan snapshot wholesale
-         * @description Login-required whole-snapshot upsert (issue #537): plans/activePlanId/
+         * @deprecated
+         * @description After first access to /api/pk/plan-items, this legacy operation returns 410.
+         *     Existing snapshots migrate without deleting any plan, including recovery copies.
+         *     Login-required whole-snapshot upsert (issue #537): plans/activePlanId/
          *     majorSelected/weekView are replaced atomically; created_at stays fixed and
          *     the server-side updated_at clock is refreshed. Server-side shallow
          *     validation only (1..10 plans, non-blank id/name per plan, activePlanId must
@@ -6152,7 +6610,10 @@ export interface paths {
         post?: never;
         /**
          * Delete the caller's cloud schedule plan snapshot
-         * @description Login-required idempotent delete of the caller's cloud snapshot (issue #537);
+         * @deprecated
+         * @description After first access to /api/pk/plan-items, this legacy operation returns 410.
+         *     Existing snapshots migrate without deleting any plan, including recovery copies.
+         *     Login-required idempotent delete of the caller's cloud snapshot (issue #537);
          *     local data is untouched. Same account-close semantics as the push device
          *     cleanup (anonymize and delete modes both erase the row). Writes require a
          *     writable account.
@@ -6943,6 +7404,14 @@ export interface components {
             /** @constant */
             result: "logout";
         };
+        AppleCredentialRequest: {
+            /** @description Single-use native Apple authorization code. */
+            authorizationCode: string;
+            /** @description Apple-signed RS256 identity token for the iOS bundle ID. */
+            identityToken: string;
+            /** @description Random raw native-flow nonce; its SHA-256 hex digest must match the signed token nonce. */
+            nonce: string;
+        };
         OidcExchangeRequest: {
             /** @description One-time authorization code returned to the AppAuth redirect URI. */
             code: string;
@@ -7322,7 +7791,7 @@ export interface components {
         };
         CreateReportRequest: {
             /** @enum {string} */
-            targetType: "topic" | "post";
+            targetType: "topic" | "post" | "chat_message";
             /** Format: uint64 */
             targetId: number;
             /** @enum {string} */
@@ -7555,10 +8024,11 @@ export interface components {
             /** @constant */
             bound: false;
         };
-        /** @description Binding state keyed by provider; the response always carries the fixed github and google keys. */
+        /** @description Binding state keyed by provider; the response always carries the fixed github, google and apple keys. */
         OAuthBindingsResult: {
             github: components["schemas"]["OAuthBinding"];
             google: components["schemas"]["OAuthBinding"];
+            apple: components["schemas"]["OAuthBinding"];
         };
         OAuthBindingsSuccess: components["schemas"]["ApiSuccess"] & {
             result: components["schemas"]["OAuthBindingsResult"];
@@ -7613,7 +8083,9 @@ export interface components {
             /** @description Notification creation time in RFC 3339 format. */
             createdAt: string;
             title: string;
+            /** @description Stored preview; for likes without one, a readable excerpt of the currently visible referenced reply. */
             content: string;
+            /** @description Actor identity with the current public avatar hydrated in a batch when the actor exists. */
             actor: components["schemas"]["TopicAuthorPayload"];
             topic?: components["schemas"]["NotificationTopicRef"];
             /** @description Raw event payload (title/content/templateKey/templateParams/actorId/topicId/postId/metadata and friends); shape varies by eventType. */
@@ -7748,12 +8220,14 @@ export interface components {
         };
         PushDeviceUnregisterResponse: components["schemas"]["PushDeviceUnregisterSuccess"] | components["schemas"]["ApiFailure"];
         SendChatMessageRequest: {
+            /** @description Optional sender-scoped retry key. Reuse only for the same peer, content and message type; changed payloads fail with chat.send.failed. Legacy omitted keys do not deduplicate. Retained with the message. */
+            clientMessageId?: string;
             /**
              * Format: uint64
              * @description Recipient user id; messaging oneself fails with `chat.send.failed` (HTTP 200).
              */
             peerId: number;
-            /** @description Message content; sensitive-word hits fail with `chat.sensitive.blocked` (HTTP 200, params `word` plus all matches in `words`). */
+            /** @description Full message content is preserved; only the conversation-list preview is bounded to 255 Unicode characters. Sensitive-word hits fail with `chat.sensitive.blocked` (HTTP 200, params `word` plus all matches in `words`). Other send failures use `chat.send.failed` without raw storage-error details. */
             content: string;
             /**
              * @description 1 text, 2 image, 3 voice. Effectively required — omitting it binds 0 and fails validation with `common.request.invalidParams` (HTTP 200).
@@ -7846,6 +8320,33 @@ export interface components {
             result: null;
         };
         ChatMarkReadResponse: components["schemas"]["ChatMarkReadSuccess"] | components["schemas"]["ApiFailure"];
+        ChatMessageIDsRequest: {
+            /** Format: uint64 */
+            convId: number;
+            /** @description Explicit message IDs. The server deduplicates them; a highest ID is never a read-through cursor. */
+            messageIds: number[];
+        };
+        ChatVisibleReadResult: {
+            /** Format: uint64 */
+            convId: number;
+            /** @description All valid deduplicated incoming IDs, including those already read, in request order. */
+            acknowledgedMessageIds: number[];
+            /** @description Remaining incoming unread messages in this conversation after the transaction commits. */
+            unreadCount: number;
+        };
+        ChatVisibleReadResponse: components["schemas"]["ChatVisibleReadSuccess"] | components["schemas"]["ApiFailure"];
+        ChatMessageReadState: {
+            /** Format: uint64 */
+            id: number;
+            /** @enum {integer} */
+            isRead: 0 | 1;
+        };
+        ChatMessageReadStatesResult: {
+            /** @description Read flags for all deduplicated requested IDs, in request order, without message bodies. */
+            items: components["schemas"]["ChatMessageReadState"][];
+            unreadCount: number;
+        };
+        ChatMessageReadStatesResponse: components["schemas"]["ChatMessageReadStatesSuccess"] | components["schemas"]["ApiFailure"];
         RateLimitedFailure: components["schemas"]["ApiFailure"] & {
             params: {
                 action: string;
@@ -8342,13 +8843,13 @@ export interface components {
             /** Format: uint64 */
             id: number;
             /** @enum {string} */
-            targetType: "topic" | "post";
+            targetType: "topic" | "post" | "chat_message";
             /** Format: uint64 */
             targetId: number;
-            /** @description Deep link to the reported content; empty when it cannot be resolved. */
+            /** @description Link to reported content, or the private-message author profile; never a link granting conversation access. */
             targetUrl: string;
             title: string;
-            /** @description Content snapshot taken at report time (max 120 runes). */
+            /** @description Reported content preview. Private-message evidence is limited to 4000 runes and only visible to administrators. */
             excerpt: string;
             /** @enum {string} */
             reason: "spam" | "abuse" | "illegal" | "irrelevant" | "other";
@@ -10033,6 +10534,7 @@ export interface components {
             filename: string;
             /** @description Stored byte length. */
             size: number;
+            imageMetadata?: components["schemas"]["ImageMetadata"];
         };
         AdminImgUploadResponse: (components["schemas"]["ApiSuccess"] & {
             result: components["schemas"]["AdminImgUploadResult"];
@@ -11297,6 +11799,8 @@ export interface components {
             /** @description Present only when the topic has a cover image. */
             firstImageUrl?: string;
             images?: string[];
+            /** @description Intrinsic dimensions and available static thumbnail variants for uploaded topic images; absent for legacy or external images. */
+            imageMetadata?: components["schemas"]["ImageMetadata"][];
             url: string;
             pinWeight: number;
             /** @enum {integer} */
@@ -11321,6 +11825,19 @@ export interface components {
             bookmarked?: boolean;
             /** @description Present only for authenticated viewers with unseen tracking. */
             unseen?: boolean;
+        };
+        ImageMetadata: {
+            /** @description The original image URL already present in firstImageUrl or images. */
+            url: string;
+            width: number;
+            height: number;
+            variants?: components["schemas"]["ImageVariant"][];
+        };
+        ImageVariant: {
+            /** @description Public URL for a server-generated derivative. */
+            url: string;
+            width: number;
+            height: number;
         };
         UserSearchPayload: {
             /** Format: uint64 */
@@ -11417,6 +11934,7 @@ export interface components {
              * @description Stored byte size.
              */
             size: number;
+            imageMetadata?: components["schemas"]["ImageMetadata"];
         };
         DirectImageUploadCompleteSuccess: components["schemas"]["ApiSuccess"] & {
             result: components["schemas"]["DirectImageUploadCompleteResult"];
@@ -11435,13 +11953,29 @@ export interface components {
         };
         DirectImageUploadAbortResponse: components["schemas"]["DirectImageUploadAbortSuccess"] | components["schemas"]["ApiFailure"];
         StickerItem: {
-            /** @description Globally unique sticker name, the `[:sticker:name:]` token body; letters/digits/underscore/hyphen only, 1-64 chars. */
+            /**
+             * Format: int64
+             * @description Stable asset identifier; optional for compatibility with older servers.
+             */
+            id?: number;
+            /** @description Stable token body. Official legacy names remain supported; personal assets use unguessable random names and cannot be renamed or replaced. */
             name: string;
-            /** @description Public access path — `/file/img/<fileName>` on the local provider or the configured CDN public-url prefix. */
+            /** @description Public image access path. A shared token permits rendering; a private library membership is never publicly enumerated. */
             url: string;
+            /** @description Private label on my-library/save responses, otherwise the asset label or token name. Never another user's private label. */
+            displayName?: string;
+            /** @description Official pack identifier (default official), or personal for uploaded assets. */
+            pack?: string;
+            /** @description True for admin-managed official assets. Older servers omit this field. */
+            isOfficial?: boolean;
+            /**
+             * @description False for temporarily unavailable assets retained in a private library. Clients must prevent insertion while permitting removal or reordering. Older servers omit this field and clients assume true.
+             * @default true
+             */
+            isEnabled: boolean;
         };
         ForumStickerListSuccess: components["schemas"]["ApiSuccess"] & {
-            /** @description Enabled stickers only, sortOrder ascending then id ascending (empty array when none exist). */
+            /** @description Sticker items. Official directory is enabled official assets only; personal library preserves user order; resolve includes only explicitly requested enabled tokens. */
             result: components["schemas"]["StickerItem"][];
         };
         ForumStickerListResponse: components["schemas"]["ForumStickerListSuccess"] | components["schemas"]["ApiFailure"];
@@ -11468,7 +12002,7 @@ export interface components {
             createdBy: number;
         };
         AdminStickerListSuccess: components["schemas"]["ApiSuccess"] & {
-            /** @description All sticker rows including disabled ones, sortOrder ascending then id ascending. */
+            /** @description Official sticker rows including disabled ones, excluding personal assets; sortOrder ascending then id ascending. */
             result: components["schemas"]["AdminStickerItem"][];
         };
         AdminStickerListResponse: components["schemas"]["AdminStickerListSuccess"] | components["schemas"]["ApiFailure"];
@@ -11524,6 +12058,35 @@ export interface components {
             messageCode: "common.operation.success";
         };
         AdminStickerImportResponse: components["schemas"]["AdminStickerImportSuccess"] | components["schemas"]["ApiFailure"];
+        PkPlanItem: {
+            plan: components["schemas"]["PkPlanPayload"];
+            revision: number;
+            /**
+             * Format: date-time
+             * @description Diagnostic timestamp, never a CAS version.
+             */
+            updatedAt: string;
+        };
+        PkPlanItemPutRequest: {
+            plan: components["schemas"]["PkPlanPayload"];
+            /** @description Zero creates a new ID; positive revision updates the observed plan. */
+            baseRevision: number;
+        };
+        PkPlanItemDeleteRequest: {
+            planId: string;
+            baseRevision: number;
+        };
+        PkPlanItemResponse: {
+            code: number;
+            msg: string;
+            data: components["schemas"]["PkPlanItem"] | null;
+        };
+        PkPlanItemsResponse: {
+            /** @constant */
+            code: 0;
+            msg: string;
+            data: components["schemas"]["PkPlanItem"][];
+        };
         TongjiRegistrationStatus: {
             csrfToken: string;
             email: string;
@@ -11556,6 +12119,24 @@ export interface components {
             start: number;
             end: number;
         };
+        UserBlock: {
+            /** Format: uint64 */
+            targetUserId: number;
+            username: string;
+        };
+        UserBlocksPayload: {
+            /** Format: uint64 */
+            ownerId: number;
+            blocks: components["schemas"]["UserBlock"][];
+        };
+        UserBlocksSuccess: components["schemas"]["ApiSuccess"] & {
+            result?: components["schemas"]["UserBlocksPayload"];
+        };
+        UserBlockRequest: {
+            /** Format: uint64 */
+            targetUserId: number;
+            blocked: boolean;
+        };
         PrivateNote: {
             targetUserId: number;
             /** @description Current canonical username, never a private nickname. */
@@ -11581,6 +12162,12 @@ export interface components {
         };
         DisplayBadgesRequest: {
             badgeCodes: string[];
+        };
+        ChatVisibleReadSuccess: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["ChatVisibleReadResult"];
+        };
+        ChatMessageReadStatesSuccess: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["ChatMessageReadStatesResult"];
         };
         LinkPreviewResolveRequest: {
             urls: string[];
@@ -11608,6 +12195,24 @@ export interface components {
             result?: components["schemas"]["LinkPreview"][];
         };
         LinkPreviewResolveResponse: components["schemas"]["LinkPreviewResolveSuccess"] | components["schemas"]["ApiFailure"];
+        StickerNamesRequest: {
+            names: string[];
+        };
+        MyStickerSaveRequest: {
+            /** @description Existing enabled token to collect or rename in the caller's library. Mutually exclusive with fileName. */
+            stickerName?: string;
+            /** @description Ready standard image upload owned by the caller, storage key or public URL, 1 byte through 4 MiB. Mutually exclusive with stickerName; repeated uploads of the same file reuse the immutable personal asset. */
+            fileName?: string;
+            /** @description Optional private label, trimmed before validation. Omission preserves the label; empty clears it. Does not change the token, shared asset or another account's label. */
+            displayName?: string;
+        };
+        MyStickerSaveSuccess: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["StickerItem"];
+        };
+        MyStickerSaveResponse: components["schemas"]["MyStickerSaveSuccess"] | components["schemas"]["ApiFailure"];
+        MyStickerDeleteRequest: {
+            name: string;
+        };
         CourseBookmarkRequest: {
             /**
              * Format: uint64
@@ -11826,6 +12431,56 @@ export interface components {
         PkMaterializeResponse: (components["schemas"]["ApiSuccess"] & {
             result: components["schemas"]["PkMaterializeResult"];
         }) | components["schemas"]["ApiFailure"];
+        PkValidateCredentialRequest: {
+            /**
+             * @description 课程数据来源范围；省略时使用本科生数据。
+             * @default undergraduate
+             * @enum {string}
+             */
+            audience: "undergraduate" | "graduate";
+            /** @description 待校验的一系统凭证原文（本科 Cookie header / 研究生 X-Token）。留空时按 同步 CLI 同款优先级解析：环境变量 → 管理端已保存设置（securestore 密文解密）。 */
+            credential?: string;
+        };
+        PkValidateCredentialSuccess: components["schemas"]["ApiSuccess"] & {
+            result: {
+                /** @description 凭证是否可用：以最新已同步学期为真实目标最小抓取一页（pageSize=1） 探测成功。探测不写库、不写 fetchlog、不修改配置。 */
+                valid: boolean;
+                /** @description 校验说明：valid=true 时为空串；valid=false 时为脱敏后的失败原因 （凭证失效/一系统网络错误，或尚无已同步学期时的提示）。 */
+                message: string;
+            };
+        };
+        PkValidateCredentialResponse: components["schemas"]["PkValidateCredentialSuccess"] | components["schemas"]["ApiFailure"];
+        PkSyncScheduleSettings: {
+            /** @description 定时同步总开关；关闭时不注册 cron，也不执行。 */
+            enabled: boolean;
+            /** @description 5 段标准 cron 表达式（分 时 日 月 周），如 "30 2 * * *"（每日 02:30）。启用时后端用与进程内调度器相同的标准解析器校验。 */
+            schedule: string;
+            /** @description 目标学期：一系统数字 calendarId（如 121）或学期名（如 2025-2026-1）；留空表示同步该数据来源最近已同步的学期。 */
+            term: string;
+            /** @description 以目标学期为终点向前同步的连续学期数（管理端上限 8）。 */
+            depth: number;
+            /**
+             * @description 数据来源；未配置时按本科生处理。
+             * @enum {string}
+             */
+            audience: "undergraduate" | "graduate";
+        };
+        PkSyncScheduleSettingsSuccess: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["PkSyncScheduleSettings"];
+        };
+        PkSyncScheduleSettingsResponse: components["schemas"]["PkSyncScheduleSettingsSuccess"] | components["schemas"]["ApiFailure"];
+        SavePkSyncScheduleSettingsRequest: {
+            /** @description 定时同步总开关；false 时其余字段被忽略，仅关闭并注销 cron。 */
+            enabled: boolean;
+            /** @description 5 段标准 cron 表达式；启用时必须为可解析表达式，否则整个请求失败（HTTP 200 code:1）。 */
+            schedule?: string;
+            /** @description 目标学期（数字 calendarId / 学期名）；留空 = 最近已同步学期。 */
+            term?: string;
+            /** @description 回溯学期数，越界 clamp 到 [1, 8]。 */
+            depth?: number;
+            /** @description 数据来源（undergraduate / graduate）；空按本科处理。非法值整个请求失败。 */
+            audience?: string;
+        };
         PkReviewBriefClass: {
             /** @description 教学班课号，与 course_offering.class_code 对齐（如 11000101）。 */
             classCode: string;
@@ -12927,6 +13582,171 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+        };
+    };
+    exchangeNativeAppleCode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AppleCredentialRequest"];
+            };
+        };
+        responses: {
+            /** @description Authorization accepted. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OidcExchangeSuccess"];
+                };
+            };
+            /** @description Malformed or oversized credential request. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Invalid or expired Apple credentials, or consumed code. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Account is frozen, closed, or an agent. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Apple identity requires explicit binding, or conflicts with another binding. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Login rate limit exceeded. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Forum session creation failed. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Apple sign-in is not configured or a required service is unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    bindNativeAppleAccount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AppleCredentialRequest"];
+            };
+        };
+        responses: {
+            /** @description Authorization accepted. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminBoolSuccess"];
+                };
+            };
+            /** @description Malformed or oversized request, invalid or expired Apple credentials, or consumed code. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing or expired forum session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Account is frozen, closed, an agent, pending activation during bind, or CSRF protection rejected the request. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Apple identity requires explicit binding, or conflicts with another binding. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Login rate limit exceeded. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Apple sign-in is not configured or a required service is unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
                 };
             };
         };
@@ -14201,6 +15021,123 @@ export interface operations {
             };
         };
     };
+    listUserBlocks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Own block list. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserBlocksSuccess"];
+                };
+            };
+            /** @description Missing or invalid session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Storage unavailable; no successful response is returned. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    setUserBlock: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UserBlockRequest"];
+            };
+        };
+        responses: {
+            /** @description Block saved or removed. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InteractionResponse"];
+                };
+            };
+            /** @description Malformed JSON, body exceeds 4096 bytes, invalid block flag or unavailable target. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing or invalid session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Account not writable or cookie request rejected with auth.csrf.rejected by the CSRF gate. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description The owner already has 1000 blocks; existing blocks can still be removed. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Interaction rate limit exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+            /** @description Storage unavailable; no successful response is returned. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
     listPrivateNotes: {
         parameters: {
             query?: never;
@@ -14959,6 +15896,67 @@ export interface operations {
             };
         };
     };
+    streamForumEvents: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /**
+             * @description SSE frames: hello {version, heartbeatSeconds, resync, capabilities},
+             *     chat.changed {convId, change}, notifications.changed {change},
+             *     unread.changed {}, and session.invalidated {}. Changes are hints;
+             *     REST remains authoritative.
+             */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example event: hello
+                     *     data: {"version":1,"heartbeatSeconds":15,"resync":true,"capabilities":{"visibleRead":true}}
+                     *
+                     *     event: chat.changed
+                     *     data: {"convId":42,"change":"received"}
+                     */
+                    "text/event-stream": string;
+                };
+            };
+            /** @description Invalid, expired, or revoked session before streaming. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Cookie-authenticated stream without verifiable same origin is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Per-user or total stream connection limit; Retry-After is five seconds. */
+            429: {
+                headers: {
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Session recheck database unavailable before streaming. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     getNotifications: {
         parameters: {
             query?: {
@@ -15414,6 +16412,90 @@ export interface operations {
             };
         };
     };
+    markChatVisibleRead: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChatMessageIDsRequest"];
+            };
+        };
+        responses: {
+            /** @description Explicit IDs acknowledged, or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChatVisibleReadResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account or cross-site cookie-authenticated request rejected by the CSRF gate. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    getChatMessageReadStates: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChatMessageIDsRequest"];
+            };
+        };
+        responses: {
+            /** @description Read flags and current unread count, or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChatMessageReadStatesResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Cross-site cookie-authenticated request rejected by the CSRF gate. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
     getSiteStatistics: {
         parameters: {
             query?: never;
@@ -15509,6 +16591,257 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+        };
+    };
+    resolveStickers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StickerNamesRequest"];
+            };
+        };
+        responses: {
+            /** @description Result or stable business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForumStickerListResponse"];
+                };
+            };
+            /** @description Malformed JSON or request body larger than 64 KiB. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Rate quota exceeded. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    myStickers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Result or stable business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForumStickerListResponse"];
+                };
+            };
+            /** @description Authentication required. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    saveMySticker: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MyStickerSaveRequest"];
+            };
+        };
+        responses: {
+            /** @description Result or stable business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyStickerSaveResponse"];
+                };
+            };
+            /** @description Malformed JSON or request body larger than 64 KiB. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authentication required. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, pending activation or CSRF rejection. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Rate quota exceeded. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    deleteMySticker: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MyStickerDeleteRequest"];
+            };
+        };
+        responses: {
+            /** @description Result or stable business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContentActionResponse"];
+                };
+            };
+            /** @description Malformed JSON or request body larger than 64 KiB. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authentication required. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, pending activation or CSRF rejection. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Rate quota exceeded. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    orderMyStickers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StickerNamesRequest"];
+            };
+        };
+        responses: {
+            /** @description Result or stable business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContentActionResponse"];
+                };
+            };
+            /** @description Malformed JSON or request body larger than 64 KiB. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authentication required. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, pending activation or CSRF rejection. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Rate quota exceeded. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
                 };
             };
         };
@@ -21827,6 +23160,48 @@ export interface operations {
             };
         };
     };
+    adminValidatePkCredential: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PkValidateCredentialRequest"];
+            };
+        };
+        responses: {
+            /** @description Probe result (valid=true / valid=false + sanitized message), or a business failure envelope for hard errors. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PkValidateCredentialResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
     adminSyncPkCalendar: {
         parameters: {
             query?: never;
@@ -21897,6 +23272,86 @@ export interface operations {
                 };
             };
             /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminGetPkSyncScheduleSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The scheduled sync configuration (stored configuration or the built-in default). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PkSyncScheduleSettingsResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminSavePkSyncScheduleSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SavePkSyncScheduleSettingsRequest"];
+            };
+        };
+        responses: {
+            /** @description Configuration saved (`result` is the string `success`), or a `code: 1` business failure (invalid/absent cron while enabling, invalid audience). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminPageConfigSaveResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -22333,8 +23788,13 @@ export interface operations {
                     calendarId: number;
                     /** @description Weekday 1-7 (Monday-Sunday). */
                     day: number;
-                    /** @description PK row group 1-6 (maps to sections 1-2/3-4/5-6/7-8/9/10). */
+                    /** @description PK row group 1-6 (maps to sections 1-2/3-4/5-6/7-8/9/10-12). */
                     section: number;
+                    /**
+                     * @description Include every course nature for campus map schedule lookup; omitted or false preserves the optional-course picker filter.
+                     * @default false
+                     */
+                    includeAll?: boolean;
                 };
             };
         };
@@ -22525,6 +23985,263 @@ export interface operations {
             };
         };
     };
+    pkListPlanItems: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PkPlanItemsResponse"];
+                };
+            };
+            /** @description Invalid input. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PkFailure"];
+                };
+            };
+            /** @description Authentication required. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Account cannot write. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Remote item changed, or quota reached with null data. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PkPlanItemResponse"];
+                };
+            };
+            /** @description Plan deleted; preserve dirty content locally. */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PkPlanItemResponse"];
+                };
+            };
+            /** @description Rate limited. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+            /** @description Storage unavailable. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PkFailure"];
+                };
+            };
+        };
+    };
+    pkPutPlanItem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PkPlanItemPutRequest"];
+            };
+        };
+        responses: {
+            /** @description Success. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PkPlanItemResponse"];
+                };
+            };
+            /** @description Invalid input. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PkFailure"];
+                };
+            };
+            /** @description Authentication required. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Account cannot write. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Remote item changed, or quota reached with null data. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PkPlanItemResponse"];
+                };
+            };
+            /** @description Plan deleted; preserve dirty content locally. */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PkPlanItemResponse"];
+                };
+            };
+            /** @description Rate limited. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+            /** @description Storage unavailable. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PkFailure"];
+                };
+            };
+        };
+    };
+    pkDeletePlanItem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PkPlanItemDeleteRequest"];
+            };
+        };
+        responses: {
+            /** @description Success. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PkPlansDeleteResponse"];
+                };
+            };
+            /** @description Invalid input. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PkFailure"];
+                };
+            };
+            /** @description Authentication required. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Account cannot write. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Remote item changed, or quota reached with null data. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PkPlanItemResponse"];
+                };
+            };
+            /** @description Plan deleted; preserve dirty content locally. */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PkPlanItemResponse"];
+                };
+            };
+            /** @description Rate limited. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+            /** @description Storage unavailable. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PkFailure"];
+                };
+            };
+        };
+    };
     pkGetPlans: {
         parameters: {
             query?: never;
@@ -22550,6 +24267,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Account uses per-plan synchronization; update the client. */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PkPlanItemResponse"];
                 };
             };
             /** @description Rate limit exceeded (pk.plans quota). */
@@ -22630,6 +24356,15 @@ export interface operations {
                     "application/json": components["schemas"]["PkFailure"];
                 };
             };
+            /** @description Account uses per-plan synchronization; update the client. */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PkPlanItemResponse"];
+                };
+            };
             /** @description Rate limit exceeded (pk.plans quota). */
             429: {
                 headers: {
@@ -22684,6 +24419,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Account uses per-plan synchronization; update the client. */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PkPlanItemResponse"];
                 };
             };
             /** @description Rate limit exceeded (pk.plans quota). */

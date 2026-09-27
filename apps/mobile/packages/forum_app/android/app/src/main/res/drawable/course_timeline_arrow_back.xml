@@ -1,0 +1,15 @@
+<!-- Android vector port of ui_kit/assets/icons/arrow-left.svg. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24"
+    android:tint="@color/widget_accent">
+    <path
+        android:fillColor="@android:color/transparent"
+        android:pathData="M12,19l-7,-7 7,-7M19,12H5"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+</vector>

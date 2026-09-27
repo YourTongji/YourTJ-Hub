@@ -12,7 +12,7 @@ import (
 
 func TestMentionReviewEligibility(t *testing.T) {
 	conn := db.Connect()
-	if err := conn.AutoMigrate(&users.EntityComplete{}, &topics.Entity{}, &posts.Entity{}, &eventNotification.Entity{}); err != nil {
+	if err := conn.AutoMigrate(&users.EntityComplete{}, &users.BlockEntity{}, &topics.Entity{}, &posts.Entity{}, &eventNotification.Entity{}); err != nil {
 		t.Fatal(err)
 	}
 	target := users.MakeUser("mention_review", "pass1234", "mention_review@example.com")
@@ -62,7 +62,7 @@ func TestMentionReviewEligibility(t *testing.T) {
 
 func TestPublishedTopicMentionsAndUnchangedEdits(t *testing.T) {
 	conn := db.Connect()
-	if err := conn.AutoMigrate(&users.EntityComplete{}, &topics.Entity{}, &posts.Entity{}, &eventNotification.Entity{}); err != nil {
+	if err := conn.AutoMigrate(&users.EntityComplete{}, &users.BlockEntity{}, &topics.Entity{}, &posts.Entity{}, &eventNotification.Entity{}); err != nil {
 		t.Fatal(err)
 	}
 	target := users.MakeUser("mention_first", "pass1234", "mention_first@example.com")

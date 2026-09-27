@@ -1,66 +1,187 @@
+import 'package:flutter/foundation.dart';
+
 import '../../gen/sticker.dart';
+import '../../markdown/sticker_token.dart';
+import '../api_error.dart';
 import '../gf_api_client.dart';
 
-/// 表情包公开只读域（`GET /api/forum/stickers`，启用列表，sortOrder 排序）。
-///
-/// url 为后端相对路径（如 `/file/img/stickers/xxx.png`），展示前经上层
-/// resolveApiAssetUrl 转绝对 URL。
+List<StickerItemPayload> _items(Object? json) => (json as List? ?? const [])
+    .map(
+      (e) => StickerItemPayload.fromJson(Map<String, dynamic>.from(e as Map)),
+    )
+    .toList(growable: false);
+
+/// Official assets, stable content resolution, and the signed-in user's library.
 class StickerRepository {
   StickerRepository(this._client);
-
   final GfApiClient _client;
 
-  /// 公开启用表情包列表（token 展开/分段渲染的数据源）。
   Future<List<StickerItemPayload>> list() =>
-      _client.get<List<StickerItemPayload>>(
-        '/api/forum/stickers',
-        parser: (json) => (json as List<dynamic>? ?? const [])
-            .map(
-              (e) => StickerItemPayload.fromJson(
-                Map<String, dynamic>.from(e as Map),
-              ),
-            )
-            .toList(growable: false),
-      );
+      _client.get('/api/forum/stickers', parser: _items);
+
+  Future<List<StickerItemPayload>> resolve(List<String> names) => _client.post(
+    '/api/forum/stickers/resolve',
+    body: {'names': names},
+    parser: _items,
+  );
+
+  Future<List<StickerItemPayload>> mine() =>
+      _client.get('/api/forum/my-stickers', parser: _items);
+
+  Future<StickerItemPayload> save({
+    String? stickerName,
+    String? fileName,
+    String? displayName,
+  }) => _client.post(
+    '/api/forum/my-sticker-save',
+    body: {
+      'stickerName': ?stickerName,
+      'fileName': ?fileName,
+      'displayName': ?displayName,
+    },
+    parser: (json) =>
+        StickerItemPayload.fromJson(Map<String, dynamic>.from(json as Map)),
+  );
+
+  Future<void> remove(String name) => _client.post(
+    '/api/forum/my-sticker-delete',
+    body: {'name': name},
+    parser: (_) {},
+  );
+
+  Future<void> reorder(List<String> names) => _client.post(
+    '/api/forum/my-stickers-order',
+    body: {'names': names},
+    parser: (_) {},
+  );
 }
 
-/// 表情包库会话级缓存：一次 app 运行拉取一次，失败不缓存（下次重试）。
-class StickerLibrary {
+/// Cache belongs to a site/session provider; content references outlive membership.
+/// Official lists expire, failed loads remain retryable, and personal assets are
+/// resolved by stable token rather than exposed in the public library.
+class StickerLibrary extends ChangeNotifier {
   StickerLibrary(this._repository);
-
   final StickerRepository _repository;
-
   List<StickerItemPayload>? _items;
+  final Map<String, StickerItemPayload> _resolved = {};
+  final Set<String> _queuedNames = {};
+  Future<void>? _pendingResolution;
   Future<List<StickerItemPayload>>? _pending;
-
-  /// 库是否已成功加载过。
+  DateTime? _loadedAt;
+  bool _disposed = false;
   bool get isLoaded => _items != null;
+  List<StickerItemPayload> get items => List.unmodifiable(_resolved.values);
 
-  /// 返回缓存列表；未加载时发起拉取（并发调用共享同一在途请求）。
-  Future<List<StickerItemPayload>> load() {
-    final List<StickerItemPayload>? cached = _items;
-    if (cached != null) return Future<List<StickerItemPayload>>.value(cached);
+  Future<List<StickerItemPayload>> load({bool refresh = false}) {
+    if (_disposed) return Future.value(const []);
+    if (!refresh &&
+        _items != null &&
+        DateTime.now().difference(_loadedAt!) < const Duration(minutes: 5)) {
+      return Future.value(_items!);
+    }
     return _pending ??= _loadAndCache();
   }
 
   Future<List<StickerItemPayload>> _loadAndCache() async {
     try {
-      final List<StickerItemPayload> items = await _repository.list();
+      final items = await _repository.list();
+      if (_disposed) return const [];
+      final currentNames = items
+          .where((item) => item.isEnabled)
+          .map((item) => item.name)
+          .toSet();
+      for (final old in _items ?? <StickerItemPayload>[]) {
+        if (!currentNames.contains(old.name)) _resolved.remove(old.name);
+      }
       _items = items;
+      _loadedAt = DateTime.now();
+      remember(items);
       return items;
-    } on Object {
-      _pending = null; // 失败不缓存,下次 load 重试。
-      rethrow;
+    } finally {
+      _pending = null;
     }
   }
 
-  /// token → url 映射；未加载时返回空映射（渲染端把 token 保持原文）。
-  Map<String, String> get urlByName {
-    final List<StickerItemPayload>? items = _items;
-    if (items == null) return const <String, String>{};
-    return <String, String>{
-      for (final StickerItemPayload item in items)
-        if (item.name.isNotEmpty && item.url.isNotEmpty) item.name: item.url,
-    };
+  void remember(Iterable<StickerItemPayload> items) {
+    if (_disposed) return;
+    for (final item in items) {
+      if (!item.isEnabled) {
+        _resolved.remove(item.name);
+        continue;
+      }
+      if (item.name.isNotEmpty && item.url.isNotEmpty) {
+        _resolved[item.name] = item;
+      }
+    }
+    notifyListeners();
+  }
+
+  Future<void> resolveContent(String content) async {
+    if (_disposed) return;
+    final names =
+        stickerTokenPattern
+            .allMatches(content)
+            .map((m) => m.group(1)!)
+            .toSet()
+            .toList()
+          ..sort();
+    if (names.isEmpty) return;
+    await load();
+    if (_disposed) return;
+    final missing = names
+        .where((name) => !_resolved.containsKey(name))
+        .toList();
+    if (missing.isEmpty) return;
+    _queuedNames.addAll(missing);
+    // Visible chat bubbles resolve together, rather than one HTTP request per
+    // message consuming the site's rate limit. New arrivals join the same flush.
+    await (_pendingResolution ??= Future<void>.microtask(_flushResolutions));
+  }
+
+  Future<void> _flushResolutions() async {
+    try {
+      while (!_disposed && _queuedNames.isNotEmpty) {
+        final names =
+            _queuedNames.where((name) => !_resolved.containsKey(name)).toList()
+              ..sort();
+        _queuedNames.clear();
+        await _resolve(names);
+      }
+    } finally {
+      // Every waiter receives the error; a user retry starts a fresh batch.
+      _queuedNames.clear();
+      _pendingResolution = null;
+    }
+  }
+
+  Future<void> _resolve(List<String> names) async {
+    try {
+      // Bound reads for long threads to the server's resolver batch size.
+      for (var i = 0; i < names.length; i += 100) {
+        if (_disposed) return;
+        remember(
+          await _repository.resolve(
+            names.sublist(i, (i + 100).clamp(0, names.length)),
+          ),
+        );
+      }
+    } on ApiException catch (error) {
+      // Older servers still render official tokens. Personal-library UI reports
+      // unsupported endpoints explicitly rather than fabricating empty success.
+      if (error.statusCode != 404 && error.statusCode != 405) rethrow;
+    }
+  }
+
+  Map<String, String> get urlByName => {
+    for (final item in _resolved.values) item.name: item.url,
+  };
+
+  @override
+  void dispose() {
+    _disposed = true;
+    _queuedNames.clear();
+    _resolved.clear();
+    _items = null;
+    super.dispose();
   }
 }

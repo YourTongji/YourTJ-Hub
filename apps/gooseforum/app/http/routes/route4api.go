@@ -2,23 +2,23 @@ package routes
 
 import (
 	"errors"
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/preferences"
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/setting"
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/api"
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/forum"
-	"github.com/gin-contrib/gzip"
 	"io/fs"
 	"log/slog"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
 
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/preferences"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/setting"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/api"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/forum"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/pk"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/middleware"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/oidcservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/permission"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/resource"
+	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
 )
 
@@ -225,6 +225,7 @@ func apiRoute(ginApp *gin.Engine) {
 	}
 
 	baseApi.POST("auth/totp/verify", middleware.TOTPChallengeAuth, api.TotpVerify)
+	baseApi.POST("auth/apple/exchange", middleware.RateLimit(middleware.RateLimitLogin), api.AppleExchange)
 	baseApi.POST("auth/oidc/exchange", middleware.RateLimit(middleware.RateLimitLogin), api.OidcExchange)
 	baseApi.GET("auth/mobile-web-session", middleware.RateLimit(middleware.RateLimitLogin), api.MobileWebSession)
 
@@ -243,6 +244,8 @@ func apiRoute(ginApp *gin.Engine) {
 	loginApi.POST("set-user-name", middleware.CheckWritableAccount, UpButterReq(api.EditUsername))
 	loginApi.POST("set-preset-avatar", middleware.CheckWritableAccount, UpButterReq(api.SetPresetAvatar))
 	loginApi.GET("user-notes", UpQueryReq(api.GetPrivateNotes))
+	loginApi.GET("user-blocks", UpQueryReq(api.GetUserBlocks))
+	loginApi.POST("user-block", middleware.CheckWritableAccountAllowPendingActivation, middleware.RateLimit(middleware.RateLimitInteract), UpLimitedJsonReq(4096, api.SetUserBlock))
 	loginApi.POST("user-note", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitUserNote), UpLimitedJsonReq(4096, api.SetPrivateNote))
 	loginApi.POST("display-badges", middleware.CheckWritableAccount, UpLimitedJsonReq(4096, api.SetDisplayBadges))
 	loginApi.POST("wear-badge", middleware.CheckWritableAccount, UpButterReq(api.WearBadge))
@@ -252,6 +255,7 @@ func apiRoute(ginApp *gin.Engine) {
 	// 资格门禁在控制器内（Email=="" && HasOAuthBinding），限流复用 password.change。
 	loginApi.POST("set-password", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitPasswordChange), UpButterReq(api.SetPassword))
 	loginApi.POST("auth/:provider/unbind", middleware.CheckWritableAccount, UpButterReq(api.UnbindOAuth))
+	loginApi.POST("auth/apple/bind", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitLogin), api.AppleBind)
 	loginApi.GET("oauth/bindings", UpButterReq(api.GetOAuthBindings))
 	loginApi.GET("user/sessions", UpButterReq(api.ListSessions))
 	loginApi.POST("user/sessions/revoke", UpButterReq(api.RevokeSession))
@@ -290,6 +294,9 @@ func apiRoute(ginApp *gin.Engine) {
 	// 契约：cookie 可认证的写组必须挂 CSRF；对 Bearer 客户端与 GET 自豁免，
 	// 移动端不受影响）。
 	pkLoginApi := pkApi.Group("", middleware.CSRFProtection, middleware.JWTAuthCheck)
+	pkLoginApi.GET("plan-items", middleware.RateLimit(middleware.RateLimitPkPlans), pkAuthNoReq(pkcontroller.GetPlanItems))
+	pkLoginApi.PUT("plan-items", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitPkPlans), pkAuthJsonReq(pkcontroller.PutPlanItem))
+	pkLoginApi.DELETE("plan-items", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitPkPlans), pkAuthJsonReq(pkcontroller.DeletePlanItem))
 	pkLoginApi.GET("plans", middleware.RateLimit(middleware.RateLimitPkPlans), pkAuthNoReq(pkcontroller.GetPlans))
 	pkLoginApi.PUT("plans", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitPkPlans), pkAuthJsonReq(pkcontroller.PutPlans))
 	pkLoginApi.DELETE("plans", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitPkPlans), pkAuthNoReq(pkcontroller.DeletePlans))
@@ -305,6 +312,7 @@ func apiRoute(ginApp *gin.Engine) {
 	forumApi.GET("courses/:courseId/related", middleware.RateLimit(middleware.RateLimitCourseCatalog), UpUriQueryReq(forum.CourseRelatedJSON))
 	// 表情包库：公开只读（启用列表供编辑器选择器与客户端 token 替换）。
 	forumApi.GET("stickers", middleware.RateLimit(middleware.RateLimitStickerList), ginUpNP(api.PublicStickerList))
+	forumApi.POST("stickers/resolve", middleware.RateLimit(middleware.RateLimitStickerList), UpLimitedJsonReq(64<<10, api.ResolveStickers))
 	// wiki 分站：公开读。
 	// wiki 分站：公开读（GitHub SSOT：内容由仓库同步，无站内写）。
 	wikiApi := baseApi.Group("wiki")
@@ -328,7 +336,14 @@ func apiRoute(ginApp *gin.Engine) {
 	// 不要求登录；待审版本正文在控制器内对非版主屏蔽。
 	forumApi.GET("posts/revisions", middleware.JWTAuth, middleware.NoUpdateUserActivity, UpQueryReq(forum.PostRevisions))
 
+	// Origin is checked before stateful auth: a rejected cookie request must not
+	// refresh its JWT or extend its session while opening a long-lived stream.
+	forumApi.GET("events", middleware.StreamOriginProtection, middleware.JWTAuthCheck, middleware.NoUpdateUserActivity, api.StreamEvents)
 	forumLoginApi := forumApi.Use(middleware.CSRFProtection, middleware.JWTAuthCheck)
+	forumLoginApi.GET("my-stickers", middleware.NoUpdateUserActivity, UpButterReq(api.MyStickers))
+	forumLoginApi.POST("my-sticker-save", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpLimitedJsonReq(64<<10, api.SaveMySticker))
+	forumLoginApi.POST("my-sticker-delete", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpLimitedJsonReq(64<<10, api.DeleteMySticker))
+	forumLoginApi.POST("my-stickers-order", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpLimitedJsonReq(64<<10, api.OrderMyStickers))
 	forumLoginApi.GET("unread-status", middleware.NoUpdateUserActivity, UpButterReq(api.GetUnreadStatus))
 	forumLoginApi.GET("notifications", middleware.NoUpdateUserActivity, UpQueryReq(api.NotificationList))
 	// 未读清理（notification/chat mark-read）用放行变体：pending 用户仅清理自己的
@@ -424,6 +439,8 @@ func apiRoute(ginApp *gin.Engine) {
 	chatApi.POST("send", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitMessageSend), UpButterReq(api.SendMessage))
 	chatApi.POST("messages", UpButterReq(api.GetMessages))
 	chatApi.POST("mark-read", middleware.CheckWritableAccountAllowPendingActivation, UpButterReq(api.MarkChatRead))
+	chatApi.POST("mark-visible", middleware.CheckWritableAccountAllowPendingActivation, UpButterReq(api.MarkChatVisibleRead))
+	chatApi.POST("message-read-states", UpButterReq(api.GetChatMessageReadStates))
 
 	adminApi := baseApi.Group("admin", middleware.CSRFProtection, middleware.JWTAuthCheck, middleware.CheckWritableAccount)
 
@@ -526,6 +543,10 @@ func apiRoute(ginApp *gin.Engine) {
 		POST("pk/sync-calendar", UpButterReq(api.SyncPkCalendar)).
 		POST("pk/materialize-calendar", UpButterReq(api.MaterializePkCalendar)).
 		GET("pk/sync-status", UpButterReq(api.PkSyncStatus)).
+		// 排课数据定时同步配置（issue #569）：读取/保存 cron 定时任务设置。
+		GET("pk/sync-schedule-settings", UpButterReq(api.GetPkSyncScheduleSettings)).
+		POST("pk/sync-schedule-settings", UpButterReq(api.SavePkSyncScheduleSettings)).
+		POST("pk/validate-credential", UpButterReq(api.ValidatePkCredential)).
 		GET("ai-summary-settings", UpButterReq(api.GetAiSummarySettings)).
 		POST("save-ai-summary-settings", UpButterReq(api.SaveAiSummarySettings)).
 		POST("ai-summary-models", UpButterReq(api.ListAiSummaryModels)).

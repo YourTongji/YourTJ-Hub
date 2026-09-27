@@ -414,6 +414,17 @@ export async function getForumStickers(): Promise<StickerItem[]> {
   return Array.isArray(stickers) ? stickers : []
 }
 
+/** Resolve shared tokens without enumerating anyone's private sticker library. */
+export async function resolveForumStickers(names: string[]): Promise<StickerItem[]> {
+  const response = await fetch('/api/forum/stickers/resolve', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({ names }),
+  })
+  const items = await readApiResponse<StickerItem[]>(response, t('api.stickersLoadFailed'))
+  return Array.isArray(items) ? items : []
+}
+
 export async function likeTopic(id: number, action: 1 | 2): Promise<boolean> {
   const response = await fetch('/api/forum/topics/like', {
     method: 'POST',

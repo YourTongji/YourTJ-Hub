@@ -3,6 +3,8 @@ import 'package:image_picker/image_picker.dart';
 
 import '../providers.dart';
 
+final imagePickerProvider = Provider<ImagePicker>((ref) => ImagePicker());
+
 /// Picks a compressed image from [source], uploads it through the forum file
 /// endpoint, and returns the URL that can be embedded in Markdown.
 ///
@@ -14,7 +16,8 @@ Future<String?> pickAndUploadImage({
   ImagePicker? picker,
   ImageSource source = ImageSource.gallery,
 }) async {
-  final XFile? picked = await (picker ?? ImagePicker()).pickImage(
+  final ImagePicker selectedPicker = picker ?? ref.read(imagePickerProvider);
+  final XFile? picked = await selectedPicker.pickImage(
     source: source,
     maxWidth: 2048,
     imageQuality: 85,

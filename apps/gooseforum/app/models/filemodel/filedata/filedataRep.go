@@ -108,12 +108,10 @@ func GetFileByName(name string) (*Entity, error) {
 
 // DeleteByName removes the file row and, in object storage mode, the object.
 func DeleteByName(name string) error {
-	if !storageservice.IsLocalProvider() {
-		if err := storageservice.Current().Delete(context.Background(), name); err != nil && !errors.Is(err, storageservice.ErrNotFound) {
-			return err
-		}
+	if err := deleteDerivedFiles(name); err != nil {
+		return err
 	}
-	return builder().Where(queryopt.Eq(fieldName, name)).Delete(&Entity{}).Error
+	return deleteStoredFile(name)
 }
 
 // DeleteByNameContext removes the file row only; the direct upload lifecycle
@@ -239,12 +237,18 @@ func FileResourcePage(page, pageSize int) FileResourcePageResult {
 	}
 
 	var maxId int64
-	builder().Select("id").Order("id DESC").Limit(1).Scan(&maxId)
-	upperId := maxId - int64((page-1)*pageSize)
+	builder().Model(&Entity{}).Where("parent_name = ''").Select("id").Order("id DESC").Limit(1).Scan(&maxId)
+	var pageIDs []uint64
+	builder().Model(&Entity{}).
+		Where("parent_name = ''").Order("id DESC").Offset((page-1)*pageSize).Limit(pageSize).
+		Pluck("id", &pageIDs)
+	if len(pageIDs) == 0 {
+		return FileResourcePageResult{List: []FileResource{}, Page: page, PageSize: pageSize, MaxId: maxId}
+	}
 
 	var list []FileResource
 	builder().
-		Where("id <= ?", upperId).
+		Where("id IN ?", pageIDs).
 		Select("id, name, assert_type AS type, COALESCE(file_size, 0) AS size, user_id, created_at").
 		Order("id DESC").
 		Limit(pageSize).

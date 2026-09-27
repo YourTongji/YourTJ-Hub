@@ -8,6 +8,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/chat/imConversations"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/chat/imUserChatConfigs"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/chat/messages"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 )
 
 // mark-read 测试使用的固定 ID；选取与会话/用户无关的数以避免与其他测试冲突。
@@ -24,6 +25,7 @@ func setupMarkReadTestDB(t *testing.T) {
 	t.Helper()
 	conn := db.Connect()
 	if err := conn.AutoMigrate(
+		&users.EntityComplete{}, &users.BlockEntity{},
 		&imConversations.Entity{},
 		&imUserChatConfigs.Entity{},
 		&messages.Entity{},

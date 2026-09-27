@@ -29,6 +29,7 @@ class _Topics extends TopicRepository {
     required String query,
     String scope = '',
     int page = 1,
+    Object? cancelToken,
   }) async {
     expect(query, 'au');
     expect(scope, 'users');

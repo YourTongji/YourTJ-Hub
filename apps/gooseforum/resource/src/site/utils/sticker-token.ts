@@ -9,6 +9,12 @@
 
 const STICKER_TOKEN_RE = /\[:sticker:([^\s:[\]]{1,64}):]/g
 
+export function stickerNamesInContent(contents: readonly string[]): string[] {
+  return [...new Set(contents.flatMap((content) =>
+    [...content.matchAll(STICKER_TOKEN_RE)].map((match) => match[1]),
+  ))]
+}
+
 export type MessageSegment =
   | { type: 'text'; text: string }
   | { type: 'sticker'; name: string; url: string }

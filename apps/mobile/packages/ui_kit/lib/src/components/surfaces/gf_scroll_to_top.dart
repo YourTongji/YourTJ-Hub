@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../theme/gf_theme.dart';
 import '../gf_motion.dart';
+import '../gf_symbol.dart';
 
 /// External handle for a [GfScrollToTop] surface.
 ///
@@ -101,17 +102,7 @@ class _GfScrollToTopState extends State<GfScrollToTop> {
   Future<void> _scrollToTop() async {
     if (!_scrollController.hasClients) return;
     final double top = _scrollController.position.minScrollExtent;
-    final bool disableAnimations =
-        MediaQuery.maybeOf(context)?.disableAnimations ?? false;
-    if (disableAnimations) {
-      _scrollController.jumpTo(top);
-      return;
-    }
-    await _scrollController.animateTo(
-      top,
-      duration: GfMotion.standard,
-      curve: GfMotion.standardEase,
-    );
+    await GfMotion.scrollTo(context, _scrollController, top);
   }
 
   @override
@@ -127,9 +118,9 @@ class _GfScrollToTopState extends State<GfScrollToTop> {
           right: widget.rightInset,
           bottom: widget.bottomInset,
           child: AnimatedSwitcher(
-            duration: GfMotion.fast,
-            switchInCurve: GfMotion.standardEase,
-            switchOutCurve: GfMotion.standardEase,
+            duration: GfMotion.duration(context, GfMotion.selection),
+            switchInCurve: GfMotion.enterCurve,
+            switchOutCurve: GfMotion.enterCurve,
             transitionBuilder: (Widget child, Animation<double> animation) {
               return FadeTransition(opacity: animation, child: child);
             },
@@ -146,8 +137,9 @@ class _GfScrollToTopState extends State<GfScrollToTop> {
                     child: IconButton(
                       onPressed: _scrollToTop,
                       tooltip: widget.semanticLabel,
-                      icon: Icon(
-                        Icons.arrow_upward_rounded,
+                      icon: GfSymbol(
+                        'arrow-up',
+                        size: 21,
                         color: colors.primary,
                       ),
                       iconSize: 21,

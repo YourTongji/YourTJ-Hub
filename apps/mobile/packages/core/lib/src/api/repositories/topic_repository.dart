@@ -2,6 +2,8 @@ import '../../gen/search.dart';
 import '../../gen/topic.dart';
 import '../gf_api_client.dart';
 
+import 'package:dio/dio.dart';
+
 /// 话题相关接口:搜索、帖子窗口、写话题、话题状态、点赞/收藏/关注。
 class TopicRepository {
   TopicRepository(this._client);
@@ -13,9 +15,11 @@ class TopicRepository {
     required String query,
     String scope = '',
     int page = 1,
+    CancelToken? cancelToken,
   }) {
     return _client.get<SearchPageProps>(
       '/api/forum/search',
+      cancelToken: cancelToken,
       queryParameters: {
         'q': query,
         if (scope.isNotEmpty) 'scope': scope,

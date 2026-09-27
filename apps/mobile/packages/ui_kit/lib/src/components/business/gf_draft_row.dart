@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../gf_symbol.dart';
 
 import '../../theme/gf_theme.dart';
 import '../atoms/gf_badge.dart';
@@ -69,7 +70,7 @@ class GfDraftRow extends StatelessWidget {
                   GfBadge(
                     label: blockedLabel,
                     variant: GfBadgeVariant.error,
-                    icon: Icon(Icons.shield_outlined, size: 12),
+                    icon: GfSymbol('shield-check', size: 12),
                   ),
               ],
             ),

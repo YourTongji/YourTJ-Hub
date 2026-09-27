@@ -1,6 +1,6 @@
 import { createApp, type App } from 'vue'
 import { resolveLinkPreviews } from '@/runtime/api'
-import { installExternalLinkGuard } from '@/runtime/external-link-guard'
+import { installExternalLinkGuard, setExternalLinkPreviewBlocked } from '@/runtime/external-link-guard'
 import { i18n } from '@/runtime/i18n'
 import {
   findRenderedLinkCandidates,
@@ -132,6 +132,7 @@ export async function enhanceLinkPreviews(root: HTMLElement) {
       const previews = await Promise.all(batch.map(candidate => queuePreview(candidate.url)))
       if (state.abort.signal.aborted) return
       await Promise.all(batch.map(async (candidate, index) => {
+        setExternalLinkPreviewBlocked(candidate.anchor, previews[index]?.status === 'blocked')
         candidate.paragraph.dataset.gfLinkPreview = usableLinkPreview(previews[index]) ? 'ready' : 'failed'
         await mountPreview(candidate, previews[index], state)
       }))

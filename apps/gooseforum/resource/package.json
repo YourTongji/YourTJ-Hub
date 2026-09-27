@@ -13,14 +13,15 @@
     "test": "vitest run --dir test",
     "test:browser": "node --test test/*.browser.mjs",
     "audit:site-colors": "node scripts/audit-site-colors.mjs",
-    "check:i18n": "node scripts/check-i18n-keys.mjs && node ../../mobile/tools/generate_server_messages.mjs --check"
+    "check:i18n": "node scripts/check-i18n-keys.mjs && node ../../mobile/tools/generate_server_messages.mjs --check",
+    "check": "pnpm check:i18n"
   },
   "dependencies": {
     "@gooseforum/client": "workspace:*",
     "@internationalized/date": "^3.12.1",
     "@lucide/vue": "^1.16.0",
-    "@unovis/ts": "^1.6.5",
-    "@unovis/vue": "^1.6.5",
+    "@unovis/ts": "^1.7.0",
+    "@unovis/vue": "^1.7.0",
     "@vitejs/plugin-vue": "^6.0.3",
     "@vueuse/core": "^14.3.0",
     "@vueuse/integrations": "^14.3.0",

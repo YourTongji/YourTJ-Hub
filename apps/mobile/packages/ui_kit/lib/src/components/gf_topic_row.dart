@@ -3,13 +3,15 @@ import 'package:flutter/material.dart';
 import '../theme/gf_theme.dart';
 import 'atoms/gf_avatar_stack.dart';
 import 'gf_chip.dart';
+import 'gf_symbol.dart';
 
 /// Category metadata for [GfTopicRow].
 class GfTopicCategory {
-  const GfTopicCategory({required this.name, required this.color});
+  const GfTopicCategory({required this.name, required this.color, this.onTap});
 
   final String name;
   final Color color;
+  final VoidCallback? onTap;
 }
 
 /// Topic list row mirroring web `TopicRow.vue` / `.gf-topic-row`
@@ -80,11 +82,9 @@ class GfTopicRow extends StatelessWidget {
               crossAxisAlignment: WrapCrossAlignment.center,
               children: <Widget>[
                 if (pinned)
-                  Icon(
-                    Icons.push_pin,
-                    size: 14,
-                    color: colors.error,
-                    semanticLabel: 'pinned',
+                  Semantics(
+                    label: 'pinned',
+                    child: GfSymbol('pin-filled', size: 16, color: colors.error),
                   ),
                 Text(
                   title,
@@ -108,11 +108,7 @@ class GfTopicRow extends StatelessWidget {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: <Widget>[
-                        Icon(
-                          Icons.local_fire_department,
-                          size: 12,
-                          color: colors.warning,
-                        ),
+                        GfSymbol('flame', size: 12, color: colors.warning),
                         const SizedBox(width: 2),
                         Text(
                           'hot',
@@ -135,7 +131,11 @@ class GfTopicRow extends StatelessWidget {
                     ),
                   ),
                 for (final GfTopicCategory category in categories)
-                  GfChip(label: category.name, color: category.color),
+                  GfChip(
+                    label: category.name,
+                    color: category.color,
+                    onTap: category.onTap,
+                  ),
               ],
             ),
             if (description.isNotEmpty)
@@ -171,8 +171,8 @@ class GfTopicRow extends StatelessWidget {
                     ),
                   ),
                   const Spacer(),
-                  Icon(
-                    Icons.chat_bubble_outline,
+                  GfSymbol(
+                    'message-circle',
                     size: 14,
                     color: colors.baseContent.withValues(alpha: 0.55),
                   ),

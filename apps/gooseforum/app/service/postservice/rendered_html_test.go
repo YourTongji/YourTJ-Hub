@@ -13,6 +13,16 @@ import (
 	"gorm.io/gorm"
 )
 
+func TestRenderStickerMarkerDoesNotTrustImageAlt(t *testing.T) {
+	got := renderPostHTML("[:sticker:smile:]\n\n![sticker:smile](/same.png)\n\n![sticker:unknown](/other.png)\n\n<img src=\"/forged.png\" data-gf-sticker=\"smile\">", map[string]string{"smile": "/same.png"})
+	if strings.Count(got, `data-gf-sticker="smile"`) != 1 || strings.Contains(got, "/forged.png") {
+		t.Fatalf("only the resolved token may have a renderer marker: %s", got)
+	}
+	if strings.Count(got, `src="/same.png"`) != 2 || !strings.Contains(got, `alt="sticker:unknown"`) {
+		t.Fatalf("ordinary image alt or URL changed: %s", got)
+	}
+}
+
 func TestEnsureRenderedHTMLRebuildsAndSavesStalePost(t *testing.T) {
 	post := &posts.Entity{
 		Id:              1,

@@ -62,6 +62,11 @@ class AppLocalizationsJa extends AppLocalizations {
   String get commonSave => '保存';
 
   @override
+  String imageViewPosition(int index, int count) {
+    return '画像 $index / $count を表示';
+  }
+
+  @override
   String get imageSave => '画像を保存';
 
   @override
@@ -169,6 +174,12 @@ class AppLocalizationsJa extends AppLocalizations {
   String get authForgotTitle => 'パスワード再設定';
 
   @override
+  String get authContinueAfterLogin => 'ログインして、先ほどのページに戻ります。';
+
+  @override
+  String get authSignInMethods => 'その他のログイン方法';
+
+  @override
   String get authLoginSubtitle => 'おかえりなさい。議論と投稿を続けましょう。';
 
   @override
@@ -266,6 +277,9 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get publishTitleField => 'タイトル';
+
+  @override
+  String get publishAddTitle => 'タイトルを追加';
 
   @override
   String get publishTitleHint => 'タイトルを入力（5～100文字）';
@@ -414,7 +428,13 @@ class AppLocalizationsJa extends AppLocalizations {
   String get profileTopics => 'トピック';
 
   @override
+  String get profilePosts => '投稿';
+
+  @override
   String get profileReplies => '返信';
+
+  @override
+  String get profileLikedPosts => 'いいね';
 
   @override
   String get profileLikes => 'いいね';
@@ -485,6 +505,15 @@ class AppLocalizationsJa extends AppLocalizations {
   String get messagesInputHint => 'メッセージを入力…';
 
   @override
+  String get messagesEmoji => '絵文字';
+
+  @override
+  String get messagesKeyboard => 'キーボード';
+
+  @override
+  String get messagesCopyAll => 'メッセージ全体をコピー';
+
+  @override
   String messagesSendFailed(String error) {
     return '送信できませんでした：$error';
   }
@@ -521,6 +550,11 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get searchUnavailable => '検索サービスを利用できません';
+
+  @override
+  String searchResultCount(int shown, int total) {
+    return '表示 $shown 件 · 一致 $total 件';
+  }
 
   @override
   String get searchAll => 'すべて';
@@ -711,6 +745,21 @@ class AppLocalizationsJa extends AppLocalizations {
   String settingsOpFailed(String error) {
     return '操作に失敗しました：$error';
   }
+
+  @override
+  String get settingsDevice => 'この端末';
+
+  @override
+  String get settingsYourAccount => 'アカウント';
+
+  @override
+  String get settingsThemeLight => 'ライト';
+
+  @override
+  String get settingsThemeDark => 'ダーク';
+
+  @override
+  String get settingsRevokeSession => 'このセッションを無効化';
 
   @override
   String get settingsAppearance => '外観';
@@ -1170,6 +1219,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String get wikiTitle => 'Wiki';
 
   @override
+  String get wikiLinkOpenFailed => 'リンクを開けませんでした。もう一度お試しください。';
+
+  @override
   String get wikiRecent => '最近の更新';
 
   @override
@@ -1179,7 +1231,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String get wikiToc => '目次';
 
   @override
-  String get wikiNamespaces => '名前空間';
+  String get wikiNamespaces => 'コンテンツ分類';
 
   @override
   String wikiViewCount(int count) {
@@ -1650,7 +1702,20 @@ class AppLocalizationsJa extends AppLocalizations {
   String get notificationSomeone => '誰か';
 
   @override
-  String get profileRoleAdmin => '管理画面';
+  String get profileRoleAdmin => '管理者';
+
+  @override
+  String get profileOnline => 'オンライン';
+
+  @override
+  String profileJoinedAt(String date) {
+    return '$date に参加';
+  }
+
+  @override
+  String profileLastActive(String time) {
+    return '最終アクティブ $time';
+  }
 
   @override
   String get profileActionSignup => 'コミュニティに参加';
@@ -2174,7 +2239,7 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get campusPrivacy =>
-      '一つのアカウントに一つの大学アカウントを連携できます。情報は本人のみが閲覧でき、端末には保存されません。';
+      '一つのアカウントに一つの大学アカウントを連携できます。氏名・学年暦・時間割はオフライン閲覧のため端末に保存されます。下から削除できます。';
 
   @override
   String get campusDisabled => 'このサイトでは大学連携が有効になっていません';
@@ -2339,6 +2404,77 @@ class AppLocalizationsJa extends AppLocalizations {
       '休講・振替規則を取得できません。再試行するか、規則を無効にして元の時間割を出力してください。';
 
   @override
+  String get planSyncTitle => 'プランの競合を解決';
+
+  @override
+  String get planSyncBody =>
+      '別の端末でもこれらの項目が変更されました。残す値を選択してください。他の変更は自動的に統合されます。';
+
+  @override
+  String get planSyncLocal => 'ローカルを保持';
+
+  @override
+  String get planSyncRemote => 'クラウドを使用';
+
+  @override
+  String get planSyncDeleted => '削除済み';
+
+  @override
+  String get planSyncPlan => 'プラン';
+
+  @override
+  String get planSyncName => '名前';
+
+  @override
+  String get planSyncCreatedAt => '作成日時';
+
+  @override
+  String get planSyncCourse => '科目';
+
+  @override
+  String get planSyncEvent => '予定';
+
+  @override
+  String get planSyncLabel => '予定名';
+
+  @override
+  String get planSyncDay => '曜日';
+
+  @override
+  String get planSyncSections => '時限';
+
+  @override
+  String get planSyncWeeks => '週';
+
+  @override
+  String get planSyncApply => '統合して保存';
+
+  @override
+  String get planSyncDrafts => '復元用の下書き';
+
+  @override
+  String get planSyncDraftHint =>
+      '下書きはこの端末のみに保存され、クラウドのプラン数に含まれません。復元すると新しいプランを作成します。';
+
+  @override
+  String get planSyncRestore => '新しいプランとして復元';
+
+  @override
+  String get planSyncAdopt => 'この端末のプランを現在のアカウントに同期';
+
+  @override
+  String get planSyncAdoptHint => 'ローカルプランはまだこのアカウントに属していません。確認後にアップロードします。';
+
+  @override
+  String get planSyncCapacity => 'クラウドには最大10件のプランを保存できます。空きを作って再試行してください。';
+
+  @override
+  String get planSyncRejected => '保存できませんでした。アカウントが書き込み不可、またはプランデータが検証に失敗しました。';
+
+  @override
+  String get planSyncArchived => 'ローカルの変更を復元用の下書きに保存しました。';
+
+  @override
   String get privateNoteEdit => 'メモを編集';
 
   @override
@@ -2346,15 +2482,326 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get privateNoteHint => '自分だけに表示されます。64文字以内。空欄で保存すると削除されます。';
+
+  @override
   String get badgeDisplayTitle => 'プロフィールのバッジ';
 
   @override
-  String get badgeDisplayHint =>
-      '最大5個まで選び、表示順を変更できます。すべて非表示にもできます。アバターのバッジとは別の設定です。';
+  String get badgeDisplayHint => '最大5個まで表示できます。すべて解除も可能です。アバターのバッジとは別です。';
 
   @override
   String get badgeDisplayUp => '上へ';
 
   @override
   String get badgeDisplayDown => '下へ';
+
+  @override
+  String get notificationsMarkRead => '既読にする';
+
+  @override
+  String get scheduleWidgetSettingsTitle => 'ホーム画面の時間割';
+
+  @override
+  String get scheduleWidgetPrivacyDescription =>
+      'ウィジェットには、この端末に保存された時間割の授業名、時刻、教員、場所が表示されます。時間割を更新するとホーム画面にも反映されます。';
+
+  @override
+  String get scheduleWidgetRefresh => 'オフライン時間割から更新';
+
+  @override
+  String get scheduleWidgetClear => 'ホーム画面データを消去';
+
+  @override
+  String get scheduleWidgetCleared => 'ホーム画面の時間割データを消去しました';
+
+  @override
+  String get scheduleWidgetDiagnostics => '更新診断';
+
+  @override
+  String get scheduleWidgetDiagnosticsDescription =>
+      '日付や授業状態の更新が遅い場合は、YourTJ のバックグラウンド動作とバッテリー設定を確認してください。設定項目の名前は端末によって異なります。';
+
+  @override
+  String get scheduleWidgetTransparencyTitle => 'ウィジェットの背景の透明度';
+
+  @override
+  String get scheduleWidgetTransparencyDescription =>
+      '値を上げると、ホーム画面の背景がより透けて見えます。授業情報の読みやすさを保つため、範囲は 0%～15% です。';
+
+  @override
+  String campusSnapshotUpdated(String time) {
+    return '端末のスナップショット更新：$time';
+  }
+
+  @override
+  String get campusSnapshotStale => 'このスナップショットは古い可能性があります。更新してください。';
+
+  @override
+  String get campusSnapshotOffline => '接続を確認できません。端末のスナップショットを表示しています。';
+
+  @override
+  String get campusSnapshotRefreshFailed => '一部のデータを更新できませんでした。以前の内容を保持しています。';
+
+  @override
+  String get campusDataNeedsRefresh => 'この内容は未更新です。手動で更新してください。';
+
+  @override
+  String get campusCacheClear => 'キャンパスのキャッシュを削除';
+
+  @override
+  String get campusCacheClearDescription =>
+      'この端末のキャンパスデータとホーム画面の時間割を削除します。下書き、履修計画、大学との連携は保持されます。';
+
+  @override
+  String get campusCacheCleared => 'キャンパスのキャッシュを削除しました';
+
+  @override
+  String get campusCacheClearFailed => '一部のキャッシュを削除できませんでした。再試行してください。';
+
+  @override
+  String get scheduleTimeAxis => '時限';
+
+  @override
+  String scheduleEmptyCell(String day, int section) {
+    return '$day、$section 時限目、授業を選択';
+  }
+
+  @override
+  String scheduleSectionsN(String range) {
+    return '$range 時限';
+  }
+
+  @override
+  String get scheduleGridScrollHint => '左右にスワイプして週全体を表示';
+
+  @override
+  String get coursesFilterSearchHint => '絞り込み項目を検索';
+
+  @override
+  String get coursesFilterNoMatches => '一致する絞り込み項目がありません';
+
+  @override
+  String get coursesClearSelection => '選択を解除';
+
+  @override
+  String get coursesResetSearch => '検索と絞り込みをリセット';
+
+  @override
+  String get coursesFilterLoadFailed => '絞り込み項目を読み込めませんでした。';
+
+  @override
+  String get coursesPaginationStalled => '追加のコースを取得できませんでした。もう一度お試しください。';
+
+  @override
+  String get messagesNewMessages => '新着メッセージ・最新へ';
+
+  @override
+  String get messagesReadSyncFailed => '既読状態を同期できませんでした。未読は保持されます。';
+
+  @override
+  String get messagesReadUnavailable => 'このサーバーは個別の既読通知に対応していません。未読は保持されます。';
+
+  @override
+  String get messagesDraftLabel => '下書き';
+
+  @override
+  String get messagesDraftStorageFailed => 'この端末のメッセージ下書きを読み書きできません。再試行してください。';
+
+  @override
+  String get draftCollapse => '折りたたむ';
+
+  @override
+  String get draftKindNew => '新しいトピック';
+
+  @override
+  String get draftKindServer => 'クラウド下書きの復元用コピー';
+
+  @override
+  String get draftKindEdit => 'トピックの編集';
+
+  @override
+  String get draftKindReply => '返信';
+
+  @override
+  String get draftLocalEmpty => '書きかけの内容はこの端末に保存され、ここに表示されます。';
+
+  @override
+  String get draftReplyLeaveUnsaved =>
+      '返信の最新の変更を保存できませんでした。編集を続けて再試行するか、この変更を破棄して離れます。保存済みの端末コピーは保持されます。';
+
+  @override
+  String get publishMediaQueueTitle => '写真のアップロード';
+
+  @override
+  String get publishMediaPendingWarning =>
+      '未アップロードの写真があります。保存・投稿・種類の変更・終了の前に、アップロードするか削除してください。';
+
+  @override
+  String get publishMediaTemporary =>
+      '待機中の写真は今回の編集中のみ保持されます。アプリを閉じた場合は再選択してください。';
+
+  @override
+  String get publishMediaUploading => 'アップロード中';
+
+  @override
+  String get publishMediaWaiting => '前の写真を待機中';
+
+  @override
+  String get publishMediaSavedPartial => '文章とアップロード済みの写真を端末に保存しました';
+
+  @override
+  String get draftSearchHint => 'タイトルと本文を検索';
+
+  @override
+  String get draftSearchScope => '端末の下書きと現在のクラウド一覧を検索します。';
+
+  @override
+  String draftMatchCount(int count) {
+    return '$count 件の下書きを表示';
+  }
+
+  @override
+  String get draftNoMatches => '条件に合う下書きがありません。';
+
+  @override
+  String get draftClearFilters => '検索と絞り込みを解除';
+
+  @override
+  String get draftDeleteDone => '端末の下書きを削除しました。直前の削除を取り消せます。';
+
+  @override
+  String get draftDeleteRestored => '端末の下書きを復元しました';
+
+  @override
+  String get draftRestoreConflict => '既存のコピーがあるため、その内容を保持しました。';
+
+  @override
+  String get draftRestoreFailed => '復元できませんでした。もう一度取り消してください。';
+
+  @override
+  String get settingsDataStorage => 'データとストレージ';
+
+  @override
+  String get settingsProfileDisplay => 'プロフィールと表示';
+
+  @override
+  String get settingsNotSet => '未設定';
+
+  @override
+  String get settingsUnsavedTitle => '変更を破棄しますか？';
+
+  @override
+  String get settingsUnsavedBody => '変更は保存されていません。戻ると失われます。';
+
+  @override
+  String get settingsKeepEditing => '編集を続ける';
+
+  @override
+  String get settingsDiscardChanges => '変更を破棄';
+
+  @override
+  String get settingsPushPreference => 'プッシュ通知を許可';
+
+  @override
+  String get settingsPushDelivery => 'この端末への配信状況';
+
+  @override
+  String get settingsPushReady => '通知を受信できます';
+
+  @override
+  String get settingsPushOff => '未設定';
+
+  @override
+  String get settingsPushIOSConsent =>
+      'Apple Push Notificationサービスは、通知の配信のために端末のプッシュ識別子と通知内容を処理します。';
+
+  @override
+  String get settingsPushAndroidConsent =>
+      'JPushと端末メーカーは、通知の配信のために端末のプッシュ識別子と通知内容を処理します。';
+
+  @override
+  String get settingsDeviceUnknown => 'その他の端末';
+
+  @override
+  String get settingsDeviceCurrent => 'この端末';
+
+  @override
+  String get badgeDisplayReorder => 'ドラッグして並べ替え';
+
+  @override
+  String badgeDisplaySelectedCount(int count) {
+    return '表示中 $count/5';
+  }
+
+  @override
+  String get sortFollowing => 'フォロー中';
+
+  @override
+  String get notificationsUnreadEmpty => '未読の通知はありません';
+
+  @override
+  String get notificationsUnreadEmptyDescription => 'すべての通知を確認しました。';
+
+  @override
+  String get homeFeedOptions => '表示方法';
+
+  @override
+  String get homeAllCategories => 'すべてのカテゴリ';
+
+  @override
+  String get sortNew => '新しい投稿';
+
+  @override
+  String get profileRoleAdminDescription => 'コミュニティを管理し、フォーラムの運営を支えます。';
+
+  @override
+  String profileBadgeEarnedOn(String date) {
+    return '$date に獲得';
+  }
+
+  @override
+  String settingsProfilePartialSave(String saved) {
+    return '保存済み：$saved。残りの変更は保持されています。もう一度保存してください。';
+  }
+
+  @override
+  String get userBlock => 'ユーザーをブロック';
+
+  @override
+  String get userUnblock => 'ブロック解除';
+
+  @override
+  String get userBlocks => 'ブロックしたユーザー';
+
+  @override
+  String get userBlockExplanation =>
+      'ブロックすると、双方の新しいメッセージと交流通知が停止します。確認や報告のため、公開コンテンツと過去のメッセージは残ります。';
+
+  @override
+  String get userBlocksEmpty => 'ブロックしたユーザーはいません';
+
+  @override
+  String get messageReport => 'メッセージを報告';
+
+  @override
+  String get messageReportPrivacy =>
+      '送信すると、このメッセージと説明をサイト管理者が確認できます。会話全体は送信されません。';
+
+  @override
+  String get contentReport => 'コンテンツを報告';
+
+  @override
+  String get reportSpam => '迷惑情報';
+
+  @override
+  String get reportAbuse => '嫌がらせ';
+
+  @override
+  String get reportIllegal => '違法な内容';
+
+  @override
+  String get reportIrrelevant => '無関係な内容';
+
+  @override
+  String get reportOther => 'その他';
 }

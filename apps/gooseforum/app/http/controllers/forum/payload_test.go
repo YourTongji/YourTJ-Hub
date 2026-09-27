@@ -1,14 +1,50 @@
 package forum
 
 import (
+	"bytes"
 	"encoding/json"
+	"fmt"
+	"image"
+	"image/jpeg"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/db4fileconnect"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/vo"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/filemodel/filedata"
 	"github.com/gin-gonic/gin"
 )
+
+func TestBuildTopicPayloadsIncludesImageMetadataWhenAvailable(t *testing.T) {
+	if err := db4fileconnect.Connect().AutoMigrate(&filedata.Entity{}); err != nil {
+		t.Fatalf("migrate file data: %v", err)
+	}
+	var data bytes.Buffer
+	if err := jpeg.Encode(&data, image.NewRGBA(image.Rect(0, 0, 640, 320)), nil); err != nil {
+		t.Fatalf("encode image: %v", err)
+	}
+	name := fmt.Sprintf("2026/09/24/topic-payload-metadata-%d.jpg", time.Now().UnixNano())
+	if _, err := filedata.SaveFile(0, name, "image/jpeg", data.Bytes()); err != nil {
+		t.Fatalf("save image: %v", err)
+	}
+	t.Cleanup(func() { _ = filedata.DeleteByName(name) })
+	if _, err := filedata.ProcessUploadedImage(name, data.Bytes()); err != nil {
+		t.Fatalf("process image: %v", err)
+	}
+
+	imageURL := "/file/img/" + name
+	got := buildTopicPayloads([]*vo.TopicsSimpleVo{{Id: 1, ImageUrls: []string{imageURL}}})
+	if len(got) != 1 || len(got[0].ImageMetadata) != 1 {
+		t.Fatalf("topic image metadata = %#v, want one entry", got)
+	}
+	metadata := got[0].ImageMetadata[0]
+	if metadata.URL != imageURL || metadata.Width != 640 || metadata.Height != 320 || len(metadata.Variants) != 1 {
+		t.Fatalf("topic image metadata = %+v, want source URL, 640x320 and one variant", metadata)
+	}
+}
 
 func TestIsSafeRedirect(t *testing.T) {
 	unsafe := []string{

@@ -20,6 +20,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/transform"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/vo"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/defaultconfig"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/filemodel/filedata"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/category"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/eventNotification"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
@@ -33,9 +34,11 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userStatistics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/appleauthservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/badgeservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/campusservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/chatservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/fileusageservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/moderationservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/notificationservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/oauthservice"
@@ -124,6 +127,7 @@ type LoginPageProps struct {
 	RedirectURL           string   `json:"redirectUrl"`
 	GitHubURL             string   `json:"githubUrl"`
 	GoogleURL             string   `json:"googleUrl"`
+	AppleReady            bool     `json:"appleReady"`
 	GoogleReady           bool     `json:"googleReady"`
 	TongjiReady           bool     `json:"tongjiReady"`
 	TongjiURL             string   `json:"tongjiUrl"`
@@ -288,24 +292,25 @@ type AnnouncementItemPayload struct {
 }
 
 type TopicPayload struct {
-	ID             uint64                 `json:"id"`
-	Title          string                 `json:"title"`
-	Description    string                 `json:"description"`
-	FirstImageURL  string                 `json:"firstImageUrl,omitempty"`
-	Images         []string               `json:"images,omitempty"`
-	URL            string                 `json:"url"`
-	PinWeight      int                    `json:"pinWeight"`
-	ProcessStatus  int8                   `json:"processStatus"`
-	Author         TopicAuthorPayload     `json:"author"`
-	Participants   []TopicAuthorPayload   `json:"participants"`
-	Categories     []TopicCategoryPayload `json:"categories"`
-	ReplyCount     uint64                 `json:"replyCount"`
-	ViewCount      uint64                 `json:"viewCount"`
-	LikeCount      uint64                 `json:"likeCount"`
-	ActivityText   string                 `json:"activityText"`
-	LastUpdateTime string                 `json:"lastUpdateTime"`
-	Unseen         bool                   `json:"unseen,omitempty"`
-	ContentType    int8                   `json:"contentType"`
+	ID             uint64                   `json:"id"`
+	Title          string                   `json:"title"`
+	Description    string                   `json:"description"`
+	FirstImageURL  string                   `json:"firstImageUrl,omitempty"`
+	Images         []string                 `json:"images,omitempty"`
+	ImageMetadata  []filedata.ImageMetadata `json:"imageMetadata,omitempty"`
+	URL            string                   `json:"url"`
+	PinWeight      int                      `json:"pinWeight"`
+	ProcessStatus  int8                     `json:"processStatus"`
+	Author         TopicAuthorPayload       `json:"author"`
+	Participants   []TopicAuthorPayload     `json:"participants"`
+	Categories     []TopicCategoryPayload   `json:"categories"`
+	ReplyCount     uint64                   `json:"replyCount"`
+	ViewCount      uint64                   `json:"viewCount"`
+	LikeCount      uint64                   `json:"likeCount"`
+	ActivityText   string                   `json:"activityText"`
+	LastUpdateTime string                   `json:"lastUpdateTime"`
+	Unseen         bool                     `json:"unseen,omitempty"`
+	ContentType    int8                     `json:"contentType"`
 	// Nil means personal state is unavailable, never an assumed false value.
 	Liked      *bool `json:"liked,omitempty"`
 	Bookmarked *bool `json:"bookmarked,omitempty"`
@@ -439,6 +444,10 @@ type UserProfileProps struct {
 }
 
 type UserActivityPayload struct {
+	// Viewer state is absent for guests, unavailable targets and older servers.
+	Liked          *bool  `json:"liked,omitempty"`
+	Bookmarked     *bool  `json:"bookmarked,omitempty"`
+	LikeCount      *int64 `json:"likeCount,omitempty"`
 	ID             uint64 `json:"id"`
 	Action         int    `json:"action"`
 	SubjectType    string `json:"subjectType"`
@@ -450,23 +459,28 @@ type UserActivityPayload struct {
 }
 
 type UserLikePayload struct {
-	ID      uint64 `json:"id"`
-	TopicID uint64 `json:"topicId"`
-	Title   string `json:"title"`
-	URL     string `json:"url"`
-	LikedAt string `json:"likedAt"`
+	Author       *TopicAuthorPayload `json:"author,omitempty"`
+	Excerpt      string              `json:"excerpt,omitempty"`
+	ThumbnailURL string              `json:"thumbnailUrl,omitempty"`
+	ID           uint64              `json:"id"`
+	TopicID      uint64              `json:"topicId"`
+	Title        string              `json:"title"`
+	URL          string              `json:"url"`
+	LikedAt      string              `json:"likedAt"`
 }
 
 type UserBookmarkPayload struct {
-	ID           uint64 `json:"id"`
-	Type         string `json:"type"` // topic | post
-	TopicID      uint64 `json:"topicId"`
-	PostID       uint64 `json:"postId,omitempty"`
-	PostNo       uint64 `json:"postNo,omitempty"`
-	Title        string `json:"title"`
-	Excerpt      string `json:"excerpt,omitempty"`
-	URL          string `json:"url"`
-	BookmarkedAt string `json:"bookmarkedAt"`
+	Author       *TopicAuthorPayload `json:"author,omitempty"`
+	ThumbnailURL string              `json:"thumbnailUrl,omitempty"`
+	ID           uint64              `json:"id"`
+	Type         string              `json:"type"` // topic | post
+	TopicID      uint64              `json:"topicId"`
+	PostID       uint64              `json:"postId,omitempty"`
+	PostNo       uint64              `json:"postNo,omitempty"`
+	Title        string              `json:"title"`
+	Excerpt      string              `json:"excerpt,omitempty"`
+	URL          string              `json:"url"`
+	BookmarkedAt string              `json:"bookmarkedAt"`
 }
 
 type UserConnectionPayload struct {
@@ -597,6 +611,7 @@ type SettingsPageProps struct {
 	User             *vo.UserDetailedVo   `json:"user"`
 	Stats            SettingsStatsPayload `json:"stats"`
 	Tabs             []TabPayload         `json:"tabs"`
+	AppleOAuthReady  bool                 `json:"appleOAuthReady"`
 	GoogleOAuthReady bool                 `json:"googleOAuthReady"`
 	// CanSetPassword 标记当前用户可走 set-password 首次设密（issue #530：
 	// 无邮箱 OAuth 绑定账号）。服务端按同一资格门禁计算，前端据此切换
@@ -892,7 +907,8 @@ func buildChromeNavItems(items []pageConfig.ChromeItem) []NavItemPayload {
 	return result
 }
 
-func buildHomeProps(userID uint64, page int, sort string, topics []*vo.TopicsSimpleVo, hasNext bool) HomeProps {
+func buildHomeProps(c *gin.Context, page int, sort string, topics []*vo.TopicsSimpleVo, hasNext bool) HomeProps {
+	userID := component.LoginUserId(c)
 	nextPage := 0
 	if hasNext {
 		nextPage = page + 1
@@ -902,7 +918,7 @@ func buildHomeProps(userID uint64, page int, sort string, topics []*vo.TopicsSim
 	activeItems := announcement.GetActiveItems()
 	return HomeProps{
 		Sort:   sort,
-		Tabs:   buildHomeTabs(sort),
+		Tabs:   buildHomeTabs(sort, userID, requestLang(c)),
 		Topics: buildTrackedTopicPayloads(userID, topics),
 		Pagination: PaginationPayload{
 			Page:     page,
@@ -1014,6 +1030,7 @@ func buildLoginPageProps(c *gin.Context) LoginPageProps {
 		RedirectURL:           redirectURL,
 		GitHubURL:             githubURL,
 		GoogleURL:             googleURL,
+		AppleReady:            appleauthservice.Ready(),
 		GoogleReady:           oauthservice.IsGoogleOAuthReady(),
 		TongjiReady:           campusErr == nil,
 		TongjiURL:             tongjiURL,
@@ -1025,9 +1042,14 @@ func buildLoginPageProps(c *gin.Context) LoginPageProps {
 	}
 }
 
-func buildHomeTabs(sort string) []TabPayload {
+func buildHomeTabs(sort string, userID uint64, lang string) []TabPayload {
+	followingURL := "/?sort=following"
+	if userID == 0 {
+		followingURL = followingLoginURL()
+	}
 	return []TabPayload{
 		{Key: "latest", URL: "/", Active: sort == "latest" || sort == ""},
+		{Key: "following", Label: i18n.T(lang, "followingFeed"), URL: followingURL, Active: sort == "following"},
 		{Key: "hot", URL: "/?sort=hot", Active: sort == "hot"},
 		{Key: "popular", URL: "/?sort=popular", Active: sort == "popular"},
 	}
@@ -1036,6 +1058,24 @@ func buildHomeTabs(sort string) []TabPayload {
 func buildTopicPayloads(topics []*vo.TopicsSimpleVo) []TopicPayload {
 	categoryMap := hotdataserve.CategoryMap()
 	res := make([]TopicPayload, 0, len(topics))
+	imageNames := make([]string, 0, len(topics)*2)
+	for _, topic := range topics {
+		if topic == nil {
+			continue
+		}
+		imageURLs := topic.ImageUrls
+		if len(imageURLs) == 0 && topic.FirstImageURL != "" {
+			imageURLs = []string{topic.FirstImageURL}
+		}
+		for _, imageURL := range imageURLs {
+			imageNames = append(imageNames, fileusageservice.FileNameFromURL(imageURL))
+		}
+	}
+	imageMetadata, err := filedata.ImageMetadataByNames(imageNames)
+	if err != nil {
+		slog.Warn("resolve feed image metadata failed", "error", err)
+		imageMetadata = nil
+	}
 	for _, topic := range topics {
 		if topic == nil {
 			continue
@@ -1066,6 +1106,18 @@ func buildTopicPayloads(topics []*vo.TopicsSimpleVo) []TopicPayload {
 				Color: color,
 			})
 		}
+		imageURLs := topic.ImageUrls
+		if len(imageURLs) == 0 && topic.FirstImageURL != "" {
+			imageURLs = []string{topic.FirstImageURL}
+		}
+		images := make([]filedata.ImageMetadata, 0, len(imageURLs))
+		for _, imageURL := range imageURLs {
+			name := fileusageservice.FileNameFromURL(imageURL)
+			if metadata, ok := imageMetadata[name]; ok {
+				metadata.URL = imageURL
+				images = append(images, metadata)
+			}
+		}
 
 		res = append(res, TopicPayload{
 			ID:            topic.Id,
@@ -1073,6 +1125,7 @@ func buildTopicPayloads(topics []*vo.TopicsSimpleVo) []TopicPayload {
 			Description:   topic.Description,
 			FirstImageURL: topic.FirstImageURL,
 			Images:        topic.ImageUrls,
+			ImageMetadata: images,
 			URL:           urlconfig.PostDetail(topic.Id),
 			PinWeight:     topic.PinWeight,
 			ProcessStatus: topic.ProcessStatus,
@@ -1887,7 +1940,7 @@ func buildUserProfileProps(c *gin.Context, user users.EntityComplete, section st
 			if hasNext {
 				topicPage = topicPage[:userProfileTopicPageSize]
 			}
-			topicPayloads = buildTopicPayloads(transform.Topics2Vo(topicPage, hotdataserve.CategoryMap()))
+			topicPayloads = buildTrackedTopicPayloads(currentUserID, transform.Topics2Vo(topicPage, hotdataserve.CategoryMap()))
 			pagination = buildUserActivityTopicPagination(user.Id, topicPage, hasNext)
 		case userProfileActivityLikes:
 			refs, nextCursor := topicUserAction.ListLikedTopicRefsBefore(user.Id, c.Query("cursor"), userProfileTimelinePageSize)
@@ -1904,7 +1957,7 @@ func buildUserProfileProps(c *gin.Context, user users.EntityComplete, section st
 			if hasNext {
 				timeline = timeline[:userProfileTimelinePageSize]
 			}
-			activities = buildUserActivities(timeline)
+			activities = buildUserActivities(timeline, currentUserID)
 			pagination = buildUserActivityTimelinePagination(user.Id, timeline, hasNext)
 		}
 	case userProfileSectionFollowing, userProfileSectionFollowers:
@@ -1932,9 +1985,9 @@ func buildUserProfileProps(c *gin.Context, user users.EntityComplete, section st
 	default:
 		badges = userBadges
 		latestTopics, _ := topics.GetLatestPublishedByUserId(user.Id, 8)
-		topicPayloads = buildTopicPayloads(transform.Topics2Vo(latestTopics, hotdataserve.CategoryMap()))
+		topicPayloads = buildTrackedTopicPayloads(currentUserID, transform.Topics2Vo(latestTopics, hotdataserve.CategoryMap()))
 		timeline, _ := userActivities.GetUserTimeline(user.Id, 0, 5)
-		activities = buildUserActivities(timeline)
+		activities = buildUserActivities(timeline, currentUserID)
 	}
 
 	return UserProfileProps{
@@ -2096,6 +2149,35 @@ func buildUserProfileActivityTabs(userID uint64, section string, active string) 
 	}
 }
 
+// publicPreviewTopics applies public-topic visibility before exposing cached
+// summaries or author information. First posts are resolved in one batch so the
+// same rule also protects notification and reply-bookmark parent topics.
+func publicPreviewTopics(ids []uint64) map[uint64]*topics.Entity {
+	topicMap := topics.GetPointerMapByIds(ids)
+	firstIDs := make([]uint64, 0, len(topicMap))
+	for id, topic := range topicMap {
+		if topic.Status != 1 || topic.ProcessStatus != topics.ProcessStatusNormal || topic.VisibilityStatus != topics.VisibilityActive || topic.DeletedAt.Valid {
+			delete(topicMap, id)
+			continue
+		}
+		firstIDs = append(firstIDs, topic.FirstPostId)
+	}
+	firstPosts := posts.GetMapByIds(firstIDs)
+	for id, topic := range topicMap {
+		first := firstPosts[topic.FirstPostId]
+		if !publicPreviewPost(first) || first.TopicId != topic.Id {
+			delete(topicMap, id)
+		}
+	}
+	return topicMap
+}
+
+func publicPreviewPost(post *posts.Entity) bool {
+	// User-deleted replies with children remain as unscoped tombstones, including
+	// their original body; process_status alone does not make that body public.
+	return post != nil && post.ProcessStatus == posts.ProcessStatusNormal && post.VisibilityStatus == posts.VisibilityActive && !post.DeletedAt.Valid
+}
+
 func buildUserLikes(refs []topicUserAction.LikedTopicRef) []UserLikePayload {
 	ids := make([]uint64, 0, len(refs))
 	for _, ref := range refs {
@@ -2103,19 +2185,23 @@ func buildUserLikes(refs []topicUserAction.LikedTopicRef) []UserLikePayload {
 			ids = append(ids, ref.TopicID)
 		}
 	}
-	topicMap := topics.GetPointerMapByIds(ids)
+	topicMap := publicPreviewTopics(ids)
+	authors := profilePreviewAuthors(topicMap, nil)
 	res := make([]UserLikePayload, 0, len(refs))
 	for _, ref := range refs {
 		topic := topicMap[ref.TopicID]
-		if topic == nil || topic.Status != 1 || topic.ProcessStatus != 0 {
+		if topic == nil {
 			continue
 		}
 		res = append(res, UserLikePayload{
-			ID:      ref.ID,
-			TopicID: ref.TopicID,
-			Title:   topic.Title,
-			URL:     urlconfig.PostDetail(ref.TopicID),
-			LikedAt: ref.LikedAt.Format(time.RFC3339),
+			ID:           ref.ID,
+			TopicID:      ref.TopicID,
+			Title:        topic.Title,
+			Author:       authors[topic.UserId],
+			Excerpt:      topic.Excerpt,
+			ThumbnailURL: urlutil.Clean(urlutil.Image, topic.FirstImageURL),
+			URL:          urlconfig.PostDetail(ref.TopicID),
+			LikedAt:      ref.LikedAt.Format(time.RFC3339),
 		})
 	}
 	return res
@@ -2128,11 +2214,12 @@ func buildUserBookmarks(refs []topicUserAction.BookmarkedTopicRef) []UserBookmar
 			ids = append(ids, ref.TopicID)
 		}
 	}
-	topicMap := topics.GetPointerMapByIds(ids)
+	topicMap := publicPreviewTopics(ids)
+	authors := profilePreviewAuthors(topicMap, nil)
 	res := make([]UserBookmarkPayload, 0, len(refs))
 	for _, ref := range refs {
 		topic := topicMap[ref.TopicID]
-		if topic == nil || topic.Status != 1 || topic.ProcessStatus != 0 {
+		if topic == nil {
 			continue
 		}
 		res = append(res, UserBookmarkPayload{
@@ -2140,6 +2227,9 @@ func buildUserBookmarks(refs []topicUserAction.BookmarkedTopicRef) []UserBookmar
 			Type:         "topic",
 			TopicID:      ref.TopicID,
 			Title:        topic.Title,
+			Author:       authors[topic.UserId],
+			Excerpt:      topic.Excerpt,
+			ThumbnailURL: urlutil.Clean(urlutil.Image, topic.FirstImageURL),
 			URL:          urlconfig.PostDetail(ref.TopicID),
 			BookmarkedAt: ref.BookmarkedAt.Format(time.RFC3339),
 		})
@@ -2251,7 +2341,7 @@ func buildBookmarkPayloads(refs []mergedBookmarkRef) []UserBookmarkPayload {
 			postIDs = append(postIDs, ref.postID)
 		}
 	}
-	topicMap := topics.GetPointerMapByIds(topicIDs)
+	topicMap := publicPreviewTopics(topicIDs)
 	postEntities := posts.GetByIds(postIDs)
 
 	postMap := make(map[uint64]*posts.Entity, len(postEntities))
@@ -2263,13 +2353,14 @@ func buildBookmarkPayloads(refs []mergedBookmarkRef) []UserBookmarkPayload {
 		postMap[post.Id] = post
 		postTopicIDs = append(postTopicIDs, post.TopicId)
 	}
-	postTopicMap := topics.GetPointerMapByIds(postTopicIDs)
+	postTopicMap := publicPreviewTopics(postTopicIDs)
+	authors := profilePreviewAuthors(topicMap, postEntities)
 
 	for _, ref := range refs {
 		switch ref.kind {
 		case "topic":
 			topic := topicMap[ref.topicID]
-			if topic == nil || topic.Status != 1 || topic.ProcessStatus != 0 {
+			if topic == nil {
 				continue
 			}
 			payloads = append(payloads, UserBookmarkPayload{
@@ -2277,19 +2368,28 @@ func buildBookmarkPayloads(refs []mergedBookmarkRef) []UserBookmarkPayload {
 				Type:         "topic",
 				TopicID:      ref.topicID,
 				Title:        topic.Title,
+				Author:       authors[topic.UserId],
+				Excerpt:      topic.Excerpt,
+				ThumbnailURL: urlutil.Clean(urlutil.Image, topic.FirstImageURL),
 				URL:          urlconfig.PostDetail(ref.topicID),
 				BookmarkedAt: ref.bookmarkedAt.Format(time.RFC3339),
 			})
 		case "post":
 			post := postMap[ref.postID]
-			if post == nil || post.ProcessStatus != 0 {
+			if !publicPreviewPost(post) {
 				continue
 			}
 			topic := postTopicMap[post.TopicId]
-			if topic == nil || topic.Status != 1 || topic.ProcessStatus != 0 {
+			if topic == nil {
 				continue
 			}
+			author := authors[post.UserId]
+			if post.IsAnonymous {
+				author = nil
+			}
 			payloads = append(payloads, UserBookmarkPayload{
+				Author:       author,
+				ThumbnailURL: markdown2html.ExtractFirstImageURL(post.Content),
 				ID:           ref.refID,
 				Type:         "post",
 				TopicID:      post.TopicId,
@@ -2305,22 +2405,37 @@ func buildBookmarkPayloads(refs []mergedBookmarkRef) []UserBookmarkPayload {
 	return payloads
 }
 
-// bookmarkExcerpt 楼层内容预览：压缩空白并截断
-func bookmarkExcerpt(content string) string {
-	compact := strings.Join(strings.Fields(content), " ")
-	runes := []rune(compact)
-	if len(runes) > 120 {
-		return string(runes[:120]) + "…"
+// profilePreviewAuthors batches public author presentation; callers must mask anonymous posts.
+func profilePreviewAuthors(topicMap map[uint64]*topics.Entity, replies []*posts.Entity) map[uint64]*TopicAuthorPayload {
+	ids := make([]uint64, 0, len(topicMap)+len(replies))
+	for _, topic := range topicMap {
+		if topic != nil {
+			ids = append(ids, topic.UserId)
+		}
 	}
-	return compact
+	for _, post := range replies {
+		if post != nil && !post.IsAnonymous {
+			ids = append(ids, post.UserId)
+		}
+	}
+	result := make(map[uint64]*TopicAuthorPayload)
+	for id, user := range users.GetMapByIds(ids) {
+		if user != nil {
+			result[id] = &TopicAuthorPayload{ID: id, Username: user.Username, Nickname: user.Nickname, AvatarURL: user.GetWebAvatarUrl()}
+		}
+	}
+	return result
 }
+
+// bookmarkExcerpt renders Markdown as readable text before truncation.
+func bookmarkExcerpt(content string) string { return markdown2html.ExtractPreview(content, 160) }
 
 // buildPostAnchorURL 楼层锚点链接：/p/post/{topicId}/{postNo}#post-{postId}
 func buildPostAnchorURL(topicID, postNo, postID uint64) string {
 	return fmt.Sprintf("/p/post/%d/%d#post-%d", topicID, postNo, postID)
 }
 
-func buildUserActivities(activities []*userActivities.Entity) []UserActivityPayload {
+func buildUserActivities(activities []*userActivities.Entity, viewerID uint64) []UserActivityPayload {
 	res := make([]UserActivityPayload, 0, len(activities))
 	replyByID := userActivityReplyMap(activities)
 	for _, activity := range activities {
@@ -2343,7 +2458,64 @@ func buildUserActivities(activities []*userActivities.Entity) []UserActivityPayl
 			CreatedAt:      activity.CreatedAt.Format(time.RFC3339),
 		})
 	}
+	fillActivityInteractions(res, replyByID, viewerID)
 	return res
+}
+
+// Activity actions describe history; interaction state always belongs to the
+// current viewer and to the actual topic/reply, never to the profile owner.
+func fillActivityInteractions(rows []UserActivityPayload, replies map[uint64]*posts.Entity, viewerID uint64) {
+	if viewerID == 0 {
+		return
+	}
+	topicIDs, postIDs := []uint64{}, []uint64{}
+	for _, row := range rows {
+		if row.Action == int(userActivities.ActionComment) && row.SubjectType == userActivities.SubjectPost {
+			if post := replies[row.SubjectID]; publicPreviewPost(post) {
+				postIDs = append(postIDs, post.Id)
+				topicIDs = append(topicIDs, post.TopicId)
+			}
+		} else if (row.Action == int(userActivities.ActionPost) || row.Action == int(userActivities.ActionLike)) && (row.SubjectType == userActivities.SubjectTopic || row.SubjectType == userActivities.SubjectPost) {
+			topicIDs = append(topicIDs, row.SubjectID)
+		}
+	}
+	visible := publicPreviewTopics(topicIDs)
+	topicStates, err := topicUserAction.GetByTopicIDs(viewerID, topicIDs)
+	if err != nil {
+		slog.Warn("resolve profile interaction state failed", "error", err)
+		return
+	}
+	postStates := postUserAction.GetStateMapByUserAndPostIds(viewerID, postIDs)
+	counts := postUserAction.CountLikesByPostIds(postIDs)
+	for i := range rows {
+		row := &rows[i]
+		var liked, bookmarked bool
+		var count int64
+		if row.Action == int(userActivities.ActionComment) && row.SubjectType == userActivities.SubjectPost {
+			post := replies[row.SubjectID]
+			if !publicPreviewPost(post) || visible[post.TopicId] == nil {
+				continue
+			}
+			state := postStates[post.Id]
+			liked = state.LikedAt != nil
+			bookmarked = state.BookmarkedAt != nil
+			count = int64(counts[post.Id])
+		} else if (row.Action == int(userActivities.ActionPost) || row.Action == int(userActivities.ActionLike)) && (row.SubjectType == userActivities.SubjectTopic || row.SubjectType == userActivities.SubjectPost) {
+			topic := visible[row.SubjectID]
+			if topic == nil {
+				continue
+			}
+			state := topicStates[topic.Id]
+			liked = state.LikedAt != nil
+			bookmarked = state.BookmarkedAt != nil
+			count = int64(topic.LikeCount)
+		} else {
+			continue
+		}
+		row.Liked = &liked
+		row.Bookmarked = &bookmarked
+		row.LikeCount = &count
+	}
 }
 
 func userActivityReplyMap(activities []*userActivities.Entity) map[uint64]*posts.Entity {
@@ -2381,6 +2553,9 @@ func userActivityURL(activity *userActivities.Entity, replyByID map[uint64]*post
 		post := replyByID[activity.SubjectId]
 		if post == nil || post.TopicId == 0 {
 			return ""
+		}
+		if post.PostNo > 0 {
+			return buildPostAnchorURL(post.TopicId, post.PostNo, post.Id)
 		}
 		return urlconfig.PostDetail(post.TopicId) + "#post-" + strconv.FormatUint(post.Id, 10)
 	}
@@ -2730,12 +2905,45 @@ func buildDraftsPageProps(c *gin.Context) DraftsPageProps {
 }
 
 func BuildNotificationPayloads(notifications []*eventNotification.Entity) []NotificationPayload {
+	// Notification snapshots carry names, but avatar presentation is resolved in
+	// one batch. Do not add a lookup to the single-item snapshot converter.
+	actorIDs, postIDs, topicIDs := make([]uint64, 0), make([]uint64, 0), make([]uint64, 0)
+	for _, notification := range notifications {
+		if notification == nil {
+			continue
+		}
+		p := notification.Payload
+		if p.ActorId > 0 {
+			actorIDs = append(actorIDs, p.ActorId)
+		}
+		if notification.EventType == eventNotification.EventTypeLike && p.Content == "" && p.TemplateParams.Preview == "" && p.PostId > 0 {
+			postIDs = append(postIDs, p.PostId)
+			topicIDs = append(topicIDs, p.TopicId)
+		}
+	}
+	authors := users.GetMapByIds(actorIDs)
+	replies := posts.GetMapByIds(postIDs)
+	parents := publicPreviewTopics(topicIDs)
 	items := make([]NotificationPayload, 0, len(notifications))
 	for _, notification := range notifications {
 		if notification == nil {
 			continue
 		}
-		items = append(items, BuildNotificationPayload(notification))
+		item := BuildNotificationPayload(notification)
+		if author := authors[item.Actor.ID]; author != nil {
+			item.Actor.AvatarURL = author.GetWebAvatarUrl()
+			if item.Actor.Username == "" {
+				item.Actor.Username = author.Username
+			}
+		}
+		if notification.EventType == eventNotification.EventTypeLike && item.Content == "" && item.Payload.TemplateParams.Preview == "" {
+			post := replies[notification.Payload.PostId]
+			topic := parents[notification.Payload.TopicId]
+			if publicPreviewPost(post) && topic != nil && post.TopicId == topic.Id {
+				item.Content = bookmarkExcerpt(post.Content)
+			}
+		}
+		items = append(items, item)
 	}
 	return items
 }
@@ -2813,6 +3021,7 @@ func buildSettingsPageProps(user users.EntityComplete) SettingsPageProps {
 	stats := userStatistics.Get(user.Id)
 	return SettingsPageProps{
 		User:             transform.User2UserDetailedVo(user),
+		AppleOAuthReady:  appleauthservice.Ready(),
 		GoogleOAuthReady: oauthservice.IsGoogleOAuthReady(),
 		// 与 SetPassword 控制器同门禁（issue #530）：无邮箱 + 有 OAuth 绑定
 		// + 非 bot 才能免旧密码设密。

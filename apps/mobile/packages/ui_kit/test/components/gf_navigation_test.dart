@@ -15,7 +15,7 @@ void main() {
           appBar: GfAppBar(
             title: const Text('首页'),
             actions: <Widget>[
-              GfIconButton(icon: Icons.settings, onPressed: () {}),
+              GfIconButton(symbol: 'settings', onPressed: () {}),
             ],
           ),
         ),
@@ -24,13 +24,13 @@ void main() {
 
     expect(find.byType(AppBar), findsOneWidget);
     expect(find.text('首页'), findsOneWidget);
-    expect(find.byIcon(Icons.settings), findsOneWidget);
+    final settings = find.byWidgetPredicate(
+      (widget) => widget is GfSymbol && widget.name == 'settings',
+    );
+    expect(settings, findsOneWidget);
 
     final Finder buttonBox = find
-        .ancestor(
-          of: find.byIcon(Icons.settings),
-          matching: find.byType(SizedBox),
-        )
+        .ancestor(of: settings, matching: find.byType(SizedBox))
         .first;
     expect(tester.getSize(buttonBox), const Size.square(44));
   });
@@ -67,24 +67,24 @@ void main() {
           items: const <GfBottomNavigationItem>[
             GfBottomNavigationItem(
               label: '首页',
-              icon: Icons.home_outlined,
-              selectedIcon: Icons.home,
+              symbol: 'house',
+              selectedSymbol: 'house-filled',
             ),
             GfBottomNavigationItem(
               label: '搜索',
-              icon: Icons.search_outlined,
-              selectedIcon: Icons.search,
+              symbol: 'search',
+              selectedSymbol: 'search-filled',
             ),
             GfBottomNavigationItem(
               label: '消息',
-              icon: Icons.forum_outlined,
-              selectedIcon: Icons.forum,
+              symbol: 'mail',
+              selectedSymbol: 'mail-filled',
               badge: true,
             ),
             GfBottomNavigationItem(
               label: '我的',
-              icon: Icons.person_outline,
-              selectedIcon: Icons.person,
+              symbol: 'user-round',
+              selectedSymbol: 'user-round-filled',
             ),
           ],
         ),
@@ -115,29 +115,21 @@ void main() {
           items: const <GfBottomNavigationItem>[
             GfBottomNavigationItem(
               label: '首页',
-              icon: Icons.home_outlined,
-              selectedIcon: Icons.home,
               symbol: 'house',
               selectedSymbol: 'house-filled',
             ),
             GfBottomNavigationItem(
               label: '校园',
-              icon: Icons.school_outlined,
-              selectedIcon: Icons.school,
               symbol: 'graduation-cap',
               selectedSymbol: 'graduation-cap-filled',
             ),
             GfBottomNavigationItem(
               label: '通知',
-              icon: Icons.notifications_none,
-              selectedIcon: Icons.notifications,
               symbol: 'bell',
               selectedSymbol: 'bell-filled',
             ),
             GfBottomNavigationItem(
               label: '消息',
-              icon: Icons.mail_outline,
-              selectedIcon: Icons.mail,
               symbol: 'mail',
               selectedSymbol: 'mail-filled',
             ),
@@ -171,18 +163,18 @@ void main() {
             items: const <GfBottomNavigationItem>[
               GfBottomNavigationItem(
                 label: '首页',
-                icon: Icons.home_outlined,
-                selectedIcon: Icons.home,
+                symbol: 'house',
+                selectedSymbol: 'house-filled',
               ),
               GfBottomNavigationItem(
                 label: '搜索',
-                icon: Icons.search_outlined,
-                selectedIcon: Icons.search,
+                symbol: 'search',
+                selectedSymbol: 'search-filled',
               ),
               GfBottomNavigationItem(
                 label: '消息',
-                icon: Icons.forum_outlined,
-                selectedIcon: Icons.forum,
+                symbol: 'mail',
+                selectedSymbol: 'mail-filled',
               ),
             ],
           ),

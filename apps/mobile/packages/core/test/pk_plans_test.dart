@@ -149,6 +149,73 @@ void main() {
       dio.close();
     });
 
+    test('per-plan fixtures and conditional request bodies', () async {
+      final response =
+          jsonDecode(
+                File(
+                  '../../../../packages/api-contract/fixtures/pk-plan-item-success.json',
+                ).readAsStringSync(),
+              )
+              as Map<String, dynamic>;
+      final plan = PkPlanItem.fromJson(
+        response['data'] as Map<String, dynamic>,
+      );
+      expect(plan.revision, 1);
+      dio.httpClientAdapter = MockAdapter((request) async {
+        expect(request.path, '/api/pk/plan-items');
+        if (request.method == 'GET') {
+          return ResponseData(200, {
+            ...response,
+            'data': [response['data']],
+          });
+        }
+        final raw = request.data;
+        final body = raw is String
+            ? jsonDecode(raw) as Map<String, dynamic>
+            : Map<String, dynamic>.from(raw as Map);
+        expect(body['baseRevision'], 1);
+        if (request.method == 'DELETE') {
+          expect(body['planId'], plan.plan.id);
+          return ResponseData(200, {
+            'code': 0,
+            'msg': '查询成功',
+            'data': {'deleted': true},
+          });
+        }
+        expect((body['plan'] as Map)['id'], plan.plan.id);
+        return ResponseData(200, response);
+      });
+      expect((await repository.listPlanItems()).single.plan.id, plan.plan.id);
+      expect((await repository.putPlanItem(plan.plan, 1)).revision, 1);
+      await repository.deletePlanItem(plan.plan.id, 1);
+    });
+    test(
+      'per-plan 409 preserves its remote payload for three-way merge',
+      () async {
+        final fixture =
+            jsonDecode(
+                  File(
+                    '../../../../packages/api-contract/fixtures/pk-plan-item-conflict.json',
+                  ).readAsStringSync(),
+                )
+                as Map<String, dynamic>;
+        dio.httpClientAdapter = MockAdapter(
+          (request) async => ResponseData(409, fixture),
+        );
+        final plan = PkPlanItem.fromJson(
+          fixture['data'] as Map<String, dynamic>,
+        );
+        await expectLater(
+          repository.putPlanItem(plan.plan, 0),
+          throwsA(
+            isA<ApiException>()
+                .having((e) => e.statusCode, 'status', 409)
+                .having((e) => e.responseData, 'remote', fixture['data']),
+          ),
+        );
+      },
+    );
+
     test('getPlans：云端空（data=null）→ null', () async {
       dio.httpClientAdapter = MockAdapter((request) async {
         expect(request.path, '/api/pk/plans');

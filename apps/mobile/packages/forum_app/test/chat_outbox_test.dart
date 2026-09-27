@@ -18,12 +18,15 @@ class _Storage implements TokenStorage {
 class _Chat extends ChatRepository {
   _Chat() : super(GfApiClient(dio: Dio(), tokenStorage: _Storage()));
   final attempts = <Completer<int>>[];
+  final keys = <String?>[];
   @override
   Future<int> sendMessage({
     required int peerId,
     required String content,
     int msgType = 0,
+    String? clientMessageId,
   }) {
+    keys.add(clientMessageId);
     final result = Completer<int>();
     attempts.add(result);
     return result.future;
@@ -57,6 +60,8 @@ void main() {
       final retry = outbox.send(pending);
       repo.attempts.last.complete(9);
       await retry;
+      expect(repo.keys.first, isNotEmpty);
+      expect(repo.keys.last, repo.keys.first);
       expect(outbox.conversationId, 9);
       expect(pending.state, DeliveryState.sent);
       outbox.reconcile([message(10)]);

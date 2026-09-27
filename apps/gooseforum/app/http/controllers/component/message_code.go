@@ -219,24 +219,27 @@ const (
 	MessageNotificationMarkReadSuccess MessageCode = "notification.markRead.success"    // 标记单条通知已读成功。
 	MessageNotificationMarkAllFailed   MessageCode = "notification.markAllRead.failed"  // 标记全部通知已读失败。
 	MessageNotificationMarkAllSuccess  MessageCode = "notification.markAllRead.success" // 标记全部通知已读成功。
-	MessageOAuthUnbindFailed           MessageCode = "oauth.unbind.failed"              // 解绑第三方账号失败，params.error 可带原始错误。
-	MessageOAuthUnbindSuccess          MessageCode = "oauth.unbind.success"             // 解绑第三方账号成功。
-	MessageOAuthCallbackFailed         MessageCode = "oauth.callback.failed"            // OAuth 认证回调失败。
-	MessageOAuthProcessFailed          MessageCode = "oauth.process.failed"             // OAuth 登录处理失败。
-	MessageOAuthAccountFrozen          MessageCode = "oauth.account.frozen"             // OAuth 登录账号被冻结。
-	MessageOAuthActivationUpdateFailed MessageCode = "oauth.activation.updateFailed"    // OAuth 用户激活状态更新失败。
-	MessageOAuthTokenFailed            MessageCode = "oauth.token.failed"               // OAuth 登录 token 生成失败。
-	MessageOidcStartFailed             MessageCode = "oidc.start.failed"                // OIDC 登录发起失败。
-	MessageOidcCallbackFailed          MessageCode = "oidc.callback.failed"             // OIDC 登录回调失败。
-	MessageChatSendFailed              MessageCode = "chat.send.failed"                 // 私信发送失败，params.error 可带原始错误。
-	MessageChatGetMessagesFailed       MessageCode = "chat.messages.failed"             // 获取私信列表失败。
-	MessageChatMarkReadFailed          MessageCode = "chat.markRead.failed"             // 标记私信已读失败。
-	MessageSessionListFailed           MessageCode = "session.list.failed"              // 获取登录会话列表失败。
-	MessageSessionRevokeFailed         MessageCode = "session.revoke.failed"            // 吊销会话失败。
-	MessageSessionRevokeSuccess        MessageCode = "session.revoke.success"           // 会话已吊销。
-	MessageSessionRevokeAllSuccess     MessageCode = "session.revokeAll.success"        // 已退出所有设备。
-	MessageSessionCurrentNotRevocable  MessageCode = "session.current.notRevocable"     // 当前会话不可吊销。
-	MessageSessionNotFound             MessageCode = "session.notFound"                 // 会话不存在。
+	MessageAppleUnavailable            MessageCode = "oauth.apple.unavailable"
+	MessageAppleBindingRequired        MessageCode = "oauth.apple.bindingRequired"
+	MessageAppleAlreadyBound           MessageCode = "oauth.apple.alreadyBound"
+	MessageOAuthUnbindFailed           MessageCode = "oauth.unbind.failed"           // 解绑第三方账号失败，params.error 可带原始错误。
+	MessageOAuthUnbindSuccess          MessageCode = "oauth.unbind.success"          // 解绑第三方账号成功。
+	MessageOAuthCallbackFailed         MessageCode = "oauth.callback.failed"         // OAuth 认证回调失败。
+	MessageOAuthProcessFailed          MessageCode = "oauth.process.failed"          // OAuth 登录处理失败。
+	MessageOAuthAccountFrozen          MessageCode = "oauth.account.frozen"          // OAuth 登录账号被冻结。
+	MessageOAuthActivationUpdateFailed MessageCode = "oauth.activation.updateFailed" // OAuth 用户激活状态更新失败。
+	MessageOAuthTokenFailed            MessageCode = "oauth.token.failed"            // OAuth 登录 token 生成失败。
+	MessageOidcStartFailed             MessageCode = "oidc.start.failed"             // OIDC 登录发起失败。
+	MessageOidcCallbackFailed          MessageCode = "oidc.callback.failed"          // OIDC 登录回调失败。
+	MessageChatSendFailed              MessageCode = "chat.send.failed"              // 私信发送失败；不公开底层存储错误。
+	MessageChatGetMessagesFailed       MessageCode = "chat.messages.failed"          // 获取私信列表失败。
+	MessageChatMarkReadFailed          MessageCode = "chat.markRead.failed"          // 标记私信已读失败。
+	MessageSessionListFailed           MessageCode = "session.list.failed"           // 获取登录会话列表失败。
+	MessageSessionRevokeFailed         MessageCode = "session.revoke.failed"         // 吊销会话失败。
+	MessageSessionRevokeSuccess        MessageCode = "session.revoke.success"        // 会话已吊销。
+	MessageSessionRevokeAllSuccess     MessageCode = "session.revokeAll.success"     // 已退出所有设备。
+	MessageSessionCurrentNotRevocable  MessageCode = "session.current.notRevocable"  // 当前会话不可吊销。
+	MessageSessionNotFound             MessageCode = "session.notFound"              // 会话不存在。
 )
 
 const (
@@ -319,6 +322,10 @@ const (
 	MessageAdminUploadExtNotAllowed MessageCode = "admin.upload.extNotAllowed" // 上传扩展名白名单含不受支持的扩展，params.extensions。
 
 	// 表情包库（全局贴纸管理）
+	MessageStickerLibraryFull           MessageCode = "sticker.libraryFull"            // Personal library reached params.limit.
+	MessageStickerUploadQuota           MessageCode = "sticker.uploadQuota"            // Retained personal assets reached params.limit.
+	MessageStickerImageRequired         MessageCode = "sticker.imageRequired"          // Ready owned image required; params.maxSizeMb.
+	MessageStickerUnavailable           MessageCode = "sticker.unavailable"            // Unknown/disabled token.
 	MessageAdminStickerNameRequired     MessageCode = "admin.sticker.nameRequired"     // 表情包名称不能为空。
 	MessageAdminStickerNameInvalid      MessageCode = "admin.sticker.nameInvalid"      // 表情包名称含不支持的字符（仅允许字母/数字/下划线/连字符，最长 64）。
 	MessageAdminStickerNameExists       MessageCode = "admin.sticker.nameExists"       // 同名表情包已存在。

@@ -163,6 +163,7 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
       setState(() {
         // freezed 解析出的 list 可能是不可变包装；后续行内替换/删除依赖可变列表。
         _reviews = List<ReviewPayload>.of(result.list);
+        _prioritizeEditableReviews();
         _nextCursor = result.nextCursor ?? '';
         _reviewTotal = result.total;
         _reviewsLoading = false;
@@ -192,11 +193,11 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
     // the requested row mounts, then align that row below the app bar.
     for (var attempt = 0; mounted && attempt < 12; attempt++) {
       final target = _targetReviewKey.currentContext;
-      if (target != null && target.mounted) {
+      if (target != null && target.mounted && mounted) {
         await Scrollable.ensureVisible(
           target,
           alignment: .1,
-          duration: const Duration(milliseconds: 200),
+          duration: GfMotion.duration(context, GfMotion.layout),
         );
         return;
       }
@@ -207,11 +208,17 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
         position.maxScrollExtent,
       );
       if (next == position.pixels) return;
-      await _scrollController.animateTo(
-        next,
-        duration: const Duration(milliseconds: 120),
-        curve: Curves.easeOut,
-      );
+      if (GfMotion.reducedOf(context)) {
+        _scrollController.jumpTo(next);
+        // A lazy review needs a layout frame before its key can be inspected.
+        await WidgetsBinding.instance.endOfFrame;
+      } else {
+        await _scrollController.animateTo(
+          next,
+          duration: GfMotion.press,
+          curve: GfMotion.enterCurve,
+        );
+      }
     }
   }
 
@@ -238,6 +245,7 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
       }
       setState(() {
         _reviews = <ReviewPayload>[..._reviews, ...result.list];
+        _prioritizeEditableReviews();
         _nextCursor = result.nextCursor ?? '';
         _reviewTotal = result.total;
       });
@@ -249,6 +257,18 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
   }
 
   CourseCopy _copy() => CourseCopy(AppLocalizations.of(context));
+
+  void _prioritizeEditableReviews() {
+    final editable = <ReviewPayload>[];
+    final other = <ReviewPayload>[];
+    for (final review in _reviews) {
+      (review.viewer.canEdit ? editable : other).add(review);
+    }
+    _reviews
+      ..clear()
+      ..addAll(editable)
+      ..addAll(other);
+  }
 
   void _toast(String message, {bool error = false}) {
     if (!mounted) return;
@@ -285,8 +305,8 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
       if (section != null && mounted) {
         Scrollable.ensureVisible(
           section,
-          duration: const Duration(milliseconds: 260),
-          curve: Curves.easeOut,
+          duration: GfMotion.duration(context, GfMotion.overlay),
+          curve: GfMotion.enterCurve,
           alignment: 0.08,
         );
       }
@@ -309,6 +329,8 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
       context,
       height: 600,
       keyboardAware: true,
+      barrierDismissible: false,
+      enableDrag: false,
       builder: (BuildContext ctx) => CourseReviewFormSheet(
         pageContext: context,
         repository: _repository,
@@ -337,6 +359,8 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
       context,
       height: 600,
       keyboardAware: true,
+      barrierDismissible: false,
+      enableDrag: false,
       builder: (BuildContext ctx) => CourseReviewFormSheet(
         pageContext: context,
         repository: _repository,
@@ -412,7 +436,7 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
     return Scaffold(
       appBar: GfAppBar(
         leading: GfIconButton(
-          icon: Icons.arrow_back,
+          symbol: 'chevron-left',
           tooltip: l10n.commonBack,
           size: 44,
           onPressed: _goBack,
@@ -440,35 +464,43 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
               await _load();
               await _loadRelated();
             },
-            child: ListView(
+            child: CustomScrollView(
               controller: _scrollController,
               physics: const AlwaysScrollableScrollPhysics(),
-              padding: EdgeInsets.only(
-                bottom: 96 + MediaQuery.paddingOf(context).bottom,
-              ),
-              children: <Widget>[
-                _CourseHeader(detail: detail),
-                const GfDivider(),
-                _RatingSection(detail: detail),
-                const GfDivider(),
-                _AiSummaryCard(courseId: widget.courseId),
-                const GfDivider(),
-                _buildReviewsSection(l10n, copy, detail),
-                const GfDivider(),
-                _OfferingsSection(
-                  offerings:
-                      detail.offerings ?? const <CourseOfferingPayload>[],
-                  activeOfferingId: _activeOfferingId,
-                  onFocusOffering: _focusOffering,
-                  copy: copy,
+              slivers: <Widget>[
+                SliverToBoxAdapter(child: _CourseHeader(detail: detail)),
+                const SliverToBoxAdapter(child: GfDivider()),
+                SliverToBoxAdapter(child: _RatingSection(detail: detail)),
+                const SliverToBoxAdapter(child: GfDivider()),
+                SliverToBoxAdapter(
+                  child: _AiSummaryCard(courseId: widget.courseId),
                 ),
-                const GfDivider(),
-                _RelatedSection(
-                  related: _related,
-                  courseId: widget.courseId,
-                  onOpenCourse: (int id) =>
-                      context.pushReplacement('/courses/$id'),
-                  copy: copy,
+                const SliverToBoxAdapter(child: GfDivider()),
+                ..._buildReviewsSlivers(l10n, copy, detail),
+                const SliverToBoxAdapter(child: GfDivider()),
+                SliverToBoxAdapter(
+                  child: _OfferingsSection(
+                    offerings:
+                        detail.offerings ?? const <CourseOfferingPayload>[],
+                    activeOfferingId: _activeOfferingId,
+                    onFocusOffering: _focusOffering,
+                    copy: copy,
+                  ),
+                ),
+                const SliverToBoxAdapter(child: GfDivider()),
+                SliverToBoxAdapter(
+                  child: _RelatedSection(
+                    related: _related,
+                    courseId: widget.courseId,
+                    onOpenCourse: (int id) =>
+                        context.pushReplacement('/courses/$id'),
+                    copy: copy,
+                  ),
+                ),
+                SliverToBoxAdapter(
+                  child: SizedBox(
+                    height: 96 + MediaQuery.paddingOf(context).bottom,
+                  ),
                 ),
               ],
             ),
@@ -517,59 +549,65 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
     );
   }
 
-  Widget _buildReviewsSection(
+  List<Widget> _buildReviewsSlivers(
     AppLocalizations l10n,
     CourseCopy copy,
     CourseDetailPayload detail,
   ) {
-    return Column(
-      key: _reviewsSectionKey,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: <Widget>[
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-          child: Row(
-            children: <Widget>[
-              Text(
-                l10n.courseDetailReviews,
-                style: GfTheme.typographyOf(
-                  context,
-                ).heading.copyWith(fontWeight: FontWeight.w700),
-              ),
-              if (_reviewTotal > 0) ...<Widget>[
-                const SizedBox(width: 6),
-                Text(
-                  '$_reviewTotal',
-                  style: GfTheme.typographyOf(context).small.copyWith(
-                    color: GfTheme.colorsOf(
+    final colors = GfTheme.colorsOf(context);
+    return <Widget>[
+      SliverToBoxAdapter(
+        child: Column(
+          key: _reviewsSectionKey,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+              child: Wrap(
+                spacing: 6,
+                runSpacing: 4,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: <Widget>[
+                  Text(
+                    l10n.courseDetailReviews,
+                    style: GfTheme.typographyOf(
                       context,
-                    ).baseContent.withValues(alpha: 0.45),
+                    ).heading.copyWith(fontWeight: FontWeight.w700),
                   ),
-                ),
-              ],
-            ],
-          ),
+                  if (_reviewTotal > 0) ...<Widget>[
+                    Text(
+                      '$_reviewTotal',
+                      style: GfTheme.typographyOf(context).small.copyWith(
+                        color: colors.baseContent.withValues(alpha: 0.45),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            if (_activeOfferingId != null)
+              _OfferingFocusBanner(
+                detail: detail,
+                offeringId: _activeOfferingId!,
+                copy: copy,
+                onClear: _clearOfferingFocus,
+              ),
+            if (_reviewsLoading)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 24),
+                child: Center(child: GfLoadingIndicator()),
+              )
+            else if (_reviewsLoaded && _reviews.isEmpty)
+              GfEmpty(symbol: 'square-pen', message: l10n.reviewsEmpty),
+          ],
         ),
-        if (_activeOfferingId != null)
-          _OfferingFocusBanner(
-            detail: detail,
-            offeringId: _activeOfferingId!,
-            copy: copy,
-            onClear: _clearOfferingFocus,
-          ),
-        if (_reviewsLoading)
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 24),
-            child: Center(child: GfLoadingIndicator()),
-          )
-        else if (_reviewsLoaded && _reviews.isEmpty)
-          GfEmpty(icon: Icons.rate_review_outlined, message: l10n.reviewsEmpty)
-        else if (_reviewsLoaded)
-          for (final ReviewPayload review in [
-            ..._reviews.where((review) => review.viewer.canEdit),
-            ..._reviews.where((review) => !review.viewer.canEdit),
-          ]) ...<Widget>[
-            _ReviewRow(
+      ),
+      if (_reviewsLoaded && _reviews.isNotEmpty)
+        SliverList(
+          delegate: SliverChildBuilderDelegate((context, index) {
+            if (index.isOdd) return const GfDivider();
+            final review = _reviews[index ~/ 2];
+            return _ReviewRow(
               key: review.id == widget.focusReviewId
                   ? _targetReviewKey
                   : ValueKey(review.id),
@@ -582,11 +620,12 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
               onDelete: review.viewer.canDelete
                   ? () => _confirmDeleteReview(review)
                   : null,
-            ),
-            const GfDivider(),
-          ],
-        if (_reviewsLoaded && _nextCursor.isNotEmpty)
-          Padding(
+            );
+          }, childCount: _reviews.length * 2 - 1),
+        ),
+      if (_reviewsLoaded && _nextCursor.isNotEmpty)
+        SliverToBoxAdapter(
+          child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 12),
             child: Center(
               child: _loadingMore
@@ -594,15 +633,13 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
                   : Text(
                       copy.relatedEmpty,
                       style: GfTheme.typographyOf(context).caption.copyWith(
-                        color: GfTheme.colorsOf(
-                          context,
-                        ).baseContent.withValues(alpha: 0.35),
+                        color: colors.baseContent.withValues(alpha: 0.35),
                       ),
                     ),
             ),
           ),
-      ],
-    );
+        ),
+    ];
   }
 
   String _offeringLabel(CourseDetailPayload detail, int offeringId) {
@@ -610,9 +647,10 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
         ?.where((CourseOfferingPayload o) => o.id == offeringId)
         .firstOrNull;
     if (offering == null) return '#$offeringId';
-    final String classLabel = (offering.className?.isNotEmpty ?? false)
-        ? offering.className!
-        : (offering.classCode ?? '');
+    final String classLabel = <String>[
+      offering.className?.trim() ?? '',
+      offering.classCode?.trim() ?? '',
+    ].where((part) => part.isNotEmpty).toSet().join(' · ');
     return <String>[
       shortTerm(
         offering.termCode,
@@ -620,8 +658,9 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
       ),
       classLabel,
       offering.campus ?? '',
-      offering.instructors?.join('、') ?? '',
-    ].where((String s) => s.isNotEmpty).join(' · ');
+      offering.faculty?.trim() ?? '',
+      ...?offering.instructors?.map((name) => name.trim()),
+    ].where((String s) => s.isNotEmpty).toSet().join(' · ');
   }
 }
 
@@ -694,14 +733,14 @@ class _CourseHeader extends StatelessWidget {
             children: <Widget>[
               _metaChip(
                 context,
-                icon: Icons.account_balance_outlined,
+                symbol: 'university',
                 label: detail.department,
               ),
-              _metaChip(context, icon: Icons.people_outline, label: teacher),
+              _metaChip(context, symbol: 'users-round', label: teacher),
               if (credit.isNotEmpty)
                 _metaChip(
                   context,
-                  icon: Icons.school_outlined,
+                  symbol: 'graduation-cap',
                   label: '$credit ${copy.creditUnit}',
                   emphasized: credit,
                 ),
@@ -746,7 +785,11 @@ class _CourseHeader extends StatelessWidget {
   }
 
   String _teacherLabel(CourseCopy copy) {
-    final List<String> team = detail.teamInstructors ?? const <String>[];
+    final List<String> team = (detail.teamInstructors ?? const <String>[])
+        .map((name) => name.trim())
+        .where((name) => name.isNotEmpty)
+        .toSet()
+        .toList();
     if (detail.reviewScope == 'team' && team.isNotEmpty) {
       final String joined = team.join('、');
       return team.length > 1
@@ -761,7 +804,7 @@ class _CourseHeader extends StatelessWidget {
 
   Widget _metaChip(
     BuildContext context, {
-    required IconData icon,
+    required String symbol,
     required String label,
     String? emphasized,
   }) {
@@ -776,13 +819,19 @@ class _CourseHeader extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
-          Icon(icon, size: 14, color: colors.primary.withValues(alpha: 0.7)),
+          GfSymbol(
+            symbol,
+            size: 14,
+            color: colors.primary.withValues(alpha: 0.7),
+          ),
           const SizedBox(width: 5),
-          Text(
-            label,
-            style: GfTheme.typographyOf(context).caption.copyWith(
-              color: colors.baseContent.withValues(alpha: 0.7),
-              fontWeight: emphasized != null ? FontWeight.w600 : null,
+          Flexible(
+            child: Text(
+              label,
+              style: GfTheme.typographyOf(context).caption.copyWith(
+                color: colors.baseContent.withValues(alpha: 0.7),
+                fontWeight: emphasized != null ? FontWeight.w600 : null,
+              ),
             ),
           ),
         ],
@@ -818,7 +867,7 @@ class _OfferingFocusBanner extends StatelessWidget {
       ),
       child: Row(
         children: <Widget>[
-          Icon(Icons.filter_alt_outlined, size: 16, color: colors.primary),
+          GfSymbol('sliders-horizontal', size: 16, color: colors.primary),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
@@ -850,9 +899,10 @@ class _OfferingFocusBanner extends StatelessWidget {
         ?.where((CourseOfferingPayload o) => o.id == offeringId)
         .firstOrNull;
     if (offering == null) return '#$offeringId';
-    final String classLabel = (offering.className?.isNotEmpty ?? false)
-        ? offering.className!
-        : (offering.classCode ?? '');
+    final String classLabel = <String>[
+      offering.className?.trim() ?? '',
+      offering.classCode?.trim() ?? '',
+    ].where((part) => part.isNotEmpty).toSet().join(' · ');
     return <String>[
       shortTerm(
         offering.termCode,
@@ -886,13 +936,15 @@ class _RatingSection extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Row(
+          Wrap(
+            spacing: 8,
+            runSpacing: 4,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: <Widget>[
               Text(
                 copy.ratingTitle,
                 style: type.heading.copyWith(fontWeight: FontWeight.w700),
               ),
-              const SizedBox(width: 8),
               if (reviewCount > 0)
                 Text(
                   AppLocalizations.of(context).coursesRatingCount(reviewCount),
@@ -990,8 +1042,8 @@ class _DistributionRow extends StatelessWidget {
             width: 16 + MediaQuery.textScalerOf(context).scale(12),
             child: Row(
               children: <Widget>[
-                Icon(
-                  Icons.star,
+                GfSymbol(
+                  'star-filled',
                   size: 12,
                   color: colors.baseContent.withValues(alpha: 0.3),
                 ),
@@ -1045,7 +1097,7 @@ class _DistributionRow extends StatelessWidget {
 
 /// AI 课程总结卡（对齐 web AISummaryCard.vue 状态机，轻量版）。
 ///
-/// disabled → 不渲染；cached/generated → 展开展示；none → 折叠，首次展开触发
+/// disabled → 不渲染；cached/generated → 默认折叠；none → 首次展开触发
 /// 生成；insufficient_data → 安静提示；ready 态刷新保留内容、失败瞬态提示。
 class _AiSummaryCard extends ConsumerStatefulWidget {
   const _AiSummaryCard({required this.courseId});
@@ -1094,7 +1146,6 @@ class _AiSummaryCardState extends ConsumerState<_AiSummaryCard> {
             setState(() {
               _status = 'ready';
               _summary = result.summary;
-              _expanded = true;
             });
           }
           break;
@@ -1200,7 +1251,7 @@ class _AiSummaryCardState extends ConsumerState<_AiSummaryCard> {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             child: Row(
               children: <Widget>[
-                Icon(Icons.auto_awesome, size: 16, color: colors.primary),
+                GfSymbol('sparkles', size: 16, color: colors.primary),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
@@ -1219,8 +1270,8 @@ class _AiSummaryCardState extends ConsumerState<_AiSummaryCard> {
                       variant: GfBadgeVariant.muted,
                     ),
                   ),
-                Icon(
-                  _expanded ? Icons.expand_less : Icons.expand_more,
+                GfSymbol(
+                  _expanded ? 'chevron-up' : 'chevron-down',
                   size: 18,
                   color: colors.baseContent.withValues(alpha: 0.45),
                 ),
@@ -1228,7 +1279,7 @@ class _AiSummaryCardState extends ConsumerState<_AiSummaryCard> {
             ),
           ),
         ),
-        if (ready)
+        if (ready && _expanded)
           Align(
             alignment: Alignment.centerRight,
             child: Padding(
@@ -1238,9 +1289,9 @@ class _AiSummaryCardState extends ConsumerState<_AiSummaryCard> {
                     ? const SizedBox(
                         width: 16,
                         height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
+                        child: GfProgressIndicator(strokeWidth: 2),
                       )
-                    : const Icon(Icons.refresh, size: 18),
+                    : const GfSymbol('refresh-cw', size: 18),
                 tooltip: copy.summaryRefresh,
                 onPressed: _refreshing ? null : () => _load(refresh: true),
                 visualDensity: VisualDensity.compact,
@@ -1278,8 +1329,8 @@ class _AiSummaryCardState extends ConsumerState<_AiSummaryCard> {
     if (_status == 'insufficient') {
       return Row(
         children: <Widget>[
-          Icon(
-            Icons.auto_awesome,
+          GfSymbol(
+            'sparkles',
             size: 14,
             color: colors.baseContent.withValues(alpha: 0.35),
           ),
@@ -1587,8 +1638,8 @@ class _ReviewRow extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: <Widget>[
                     for (int star = 1; star <= 5; star++)
-                      Icon(
-                        star <= rating ? Icons.star : Icons.star_border,
+                      GfSymbol(
+                        star <= rating ? 'star-filled' : 'star',
                         size: 15,
                         color: star <= rating
                             ? colors.warning
@@ -1607,35 +1658,32 @@ class _ReviewRow extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 8),
-          Row(
+          Wrap(
+            spacing: 8,
+            runSpacing: 4,
             children: <Widget>[
               _actionChip(
                 context,
-                label: '${review.helpfulCount}',
-                hint: l10n.reviewHelpful,
-                icon: Icons.thumb_up_outlined,
+                label: '${review.helpfulCount} ${l10n.reviewHelpful}',
+                symbol: 'thumbs-up',
                 active: helpful,
                 activeColor: colors.warning,
                 onTap: onHelpful,
               ),
               if (onEdit != null) ...<Widget>[
-                const SizedBox(width: 8),
                 _actionChip(
                   context,
                   label: l10n.commonEdit,
-                  hint: l10n.commonEdit,
-                  icon: Icons.edit_outlined,
+                  symbol: 'square-pen',
                   active: false,
                   onTap: onEdit,
                 ),
               ],
               if (onDelete != null) ...<Widget>[
-                const SizedBox(width: 8),
                 _actionChip(
                   context,
                   label: copy.delete,
-                  hint: copy.delete,
-                  icon: Icons.delete_outline,
+                  symbol: 'trash-2',
                   active: false,
                   onTap: onDelete,
                 ),
@@ -1656,54 +1704,37 @@ class _ReviewRow extends StatelessWidget {
   Widget _actionChip(
     BuildContext context, {
     required String label,
-    required String hint,
-    required IconData icon,
+    required String symbol,
     required bool active,
     VoidCallback? onTap,
     Color? activeColor,
   }) {
     final GfColors colors = GfTheme.colorsOf(context);
     final Color? tint = active ? (activeColor ?? colors.primary) : null;
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(999),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-        decoration: BoxDecoration(
+    return TextButton(
+      onPressed: onTap,
+      style: TextButton.styleFrom(
+        minimumSize: const Size(44, 44),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        foregroundColor: tint ?? colors.baseContent.withValues(alpha: 0.7),
+        backgroundColor: active
+            ? (tint ?? colors.primary).withValues(alpha: 0.1)
+            : colors.base100,
+        shape: const StadiumBorder(),
+        side: BorderSide(
           color: active
-              ? (tint ?? colors.primary).withValues(alpha: 0.1)
-              : colors.base100,
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(
-            color: active
-                ? (tint ?? colors.primary).withValues(alpha: 0.4)
-                : colors.line.withValues(alpha: 0.7),
-          ),
+              ? (tint ?? colors.primary).withValues(alpha: 0.4)
+              : colors.line.withValues(alpha: 0.7),
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            Icon(
-              icon,
-              size: 13,
-              color: tint ?? colors.baseContent.withValues(alpha: 0.45),
-            ),
-            const SizedBox(width: 4),
-            Text(
-              label,
-              style: GfTheme.typographyOf(context).meta.copyWith(
-                color: tint ?? colors.baseContent.withValues(alpha: 0.7),
-              ),
-            ),
-            const SizedBox(width: 2),
-            Text(
-              hint,
-              style: GfTheme.typographyOf(context).meta.copyWith(
-                color: tint ?? colors.baseContent.withValues(alpha: 0.45),
-              ),
-            ),
-          ],
-        ),
+        textStyle: const TextStyle(fontSize: 14, height: 1.25),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          GfSymbol(symbol, size: 18),
+          const SizedBox(width: 6),
+          Flexible(child: Text(label, textAlign: TextAlign.center)),
+        ],
       ),
     );
   }
@@ -1822,8 +1853,8 @@ class _OfferingTermGroup extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
             child: Row(
               children: <Widget>[
-                Icon(
-                  collapsed ? Icons.chevron_right : Icons.expand_more,
+                GfSymbol(
+                  collapsed ? 'chevron-right' : 'chevron-down',
                   size: 18,
                   color: colors.baseContent.withValues(alpha: 0.45),
                 ),
@@ -1874,13 +1905,15 @@ class _OfferingRow extends StatelessWidget {
     final GfColors colors = GfTheme.colorsOf(context);
     final GfTypography type = GfTheme.typographyOf(context);
 
-    final String classLabel = (offering.className?.isNotEmpty ?? false)
-        ? offering.className!
-        : (offering.classCode ?? '');
+    final String classLabel = <String>[
+      offering.className?.trim() ?? '',
+      offering.classCode?.trim() ?? '',
+    ].where((part) => part.isNotEmpty).toSet().join(' · ');
     final List<String> meta = <String>[
       offering.campus ?? '',
-      offering.instructors?.join('、') ?? '',
-    ].where((String s) => s.isNotEmpty).toList();
+      offering.faculty?.trim() ?? '',
+      ...?offering.instructors?.map((name) => name.trim()),
+    ].where((String s) => s.isNotEmpty).toSet().toList();
     final double? ratingAvg = offering.ratingAvg;
     final int reviewCount = offering.reviewCount ?? 0;
 
@@ -1913,7 +1946,7 @@ class _OfferingRow extends StatelessWidget {
                   ),
                 ),
                 if (ratingAvg != null && ratingAvg > 0) ...<Widget>[
-                  Icon(Icons.star, size: 13, color: colors.warning),
+                  GfSymbol('star-filled', size: 13, color: colors.warning),
                   const SizedBox(width: 2),
                   Text(
                     formatRating(ratingAvg),
@@ -2121,7 +2154,7 @@ class _RelatedGroup extends StatelessWidget {
                   ),
                   const SizedBox(width: 8),
                   if (item.ratingAvg > 0) ...<Widget>[
-                    Icon(Icons.star, size: 13, color: colors.warning),
+                    GfSymbol('star-filled', size: 13, color: colors.warning),
                     const SizedBox(width: 2),
                     Text(
                       formatRating(item.ratingAvg),
@@ -2132,8 +2165,8 @@ class _RelatedGroup extends StatelessWidget {
                     ),
                   ],
                   const SizedBox(width: 8),
-                  Icon(
-                    Icons.chevron_right,
+                  GfSymbol(
+                    'chevron-right',
                     size: 16,
                     color: colors.baseContent.withValues(alpha: 0.35),
                   ),
@@ -2203,8 +2236,8 @@ class _LineageRow extends StatelessWidget {
           name(item.fromName, clickable: fromClickable),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 8),
-            child: Icon(
-              Icons.arrow_forward,
+            child: GfSymbol(
+              'chevron-right',
               size: 14,
               color: colors.baseContent.withValues(alpha: 0.35),
             ),

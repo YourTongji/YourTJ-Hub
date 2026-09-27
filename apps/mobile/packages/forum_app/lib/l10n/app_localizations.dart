@@ -204,6 +204,12 @@ abstract class AppLocalizations {
   /// **'Save'**
   String get commonSave;
 
+  /// Accessible label for opening an image in the feed gallery.
+  ///
+  /// In en, this message translates to:
+  /// **'View image {index} of {count}'**
+  String imageViewPosition(int index, int count);
+
   /// No description provided for @imageSave.
   ///
   /// In en, this message translates to:
@@ -389,6 +395,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Reset password'**
   String get authForgotTitle;
+
+  /// No description provided for @authContinueAfterLogin.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in to continue where you left off.'**
+  String get authContinueAfterLogin;
+
+  /// No description provided for @authSignInMethods.
+  ///
+  /// In en, this message translates to:
+  /// **'Other sign-in options'**
+  String get authSignInMethods;
 
   /// No description provided for @authLoginSubtitle.
   ///
@@ -587,6 +605,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Title'**
   String get publishTitleField;
+
+  /// No description provided for @publishAddTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Add title'**
+  String get publishAddTitle;
 
   /// No description provided for @publishTitleHint.
   ///
@@ -852,11 +876,23 @@ abstract class AppLocalizations {
   /// **'Topics'**
   String get profileTopics;
 
+  /// No description provided for @profilePosts.
+  ///
+  /// In en, this message translates to:
+  /// **'Posts'**
+  String get profilePosts;
+
   /// No description provided for @profileReplies.
   ///
   /// In en, this message translates to:
   /// **'Replies'**
   String get profileReplies;
+
+  /// No description provided for @profileLikedPosts.
+  ///
+  /// In en, this message translates to:
+  /// **'Likes'**
+  String get profileLikedPosts;
 
   /// No description provided for @profileLikes.
   ///
@@ -990,6 +1026,24 @@ abstract class AppLocalizations {
   /// **'Type a message…'**
   String get messagesInputHint;
 
+  /// No description provided for @messagesEmoji.
+  ///
+  /// In en, this message translates to:
+  /// **'Emoji'**
+  String get messagesEmoji;
+
+  /// No description provided for @messagesKeyboard.
+  ///
+  /// In en, this message translates to:
+  /// **'Keyboard'**
+  String get messagesKeyboard;
+
+  /// No description provided for @messagesCopyAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy entire message'**
+  String get messagesCopyAll;
+
   /// No description provided for @messagesSendFailed.
   ///
   /// In en, this message translates to:
@@ -1061,6 +1115,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Search unavailable'**
   String get searchUnavailable;
+
+  /// No description provided for @searchResultCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{shown} shown · {total} matches'**
+  String searchResultCount(int shown, int total);
 
   /// No description provided for @searchAll.
   ///
@@ -1403,6 +1463,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Operation failed: {error}'**
   String settingsOpFailed(String error);
+
+  /// No description provided for @settingsDevice.
+  ///
+  /// In en, this message translates to:
+  /// **'This device'**
+  String get settingsDevice;
+
+  /// No description provided for @settingsYourAccount.
+  ///
+  /// In en, this message translates to:
+  /// **'Your account'**
+  String get settingsYourAccount;
+
+  /// No description provided for @settingsThemeLight.
+  ///
+  /// In en, this message translates to:
+  /// **'Light'**
+  String get settingsThemeLight;
+
+  /// No description provided for @settingsThemeDark.
+  ///
+  /// In en, this message translates to:
+  /// **'Dark'**
+  String get settingsThemeDark;
+
+  /// No description provided for @settingsRevokeSession.
+  ///
+  /// In en, this message translates to:
+  /// **'Revoke this session'**
+  String get settingsRevokeSession;
 
   /// No description provided for @settingsAppearance.
   ///
@@ -2250,6 +2340,12 @@ abstract class AppLocalizations {
   /// **'Wiki'**
   String get wikiTitle;
 
+  /// No description provided for @wikiLinkOpenFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not open the link. Please try again.'**
+  String get wikiLinkOpenFailed;
+
   /// No description provided for @wikiRecent.
   ///
   /// In en, this message translates to:
@@ -2271,7 +2367,7 @@ abstract class AppLocalizations {
   /// No description provided for @wikiNamespaces.
   ///
   /// In en, this message translates to:
-  /// **'Namespaces'**
+  /// **'Collections'**
   String get wikiNamespaces;
 
   /// No description provided for @wikiViewCount.
@@ -3167,6 +3263,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Admin'**
   String get profileRoleAdmin;
+
+  /// No description provided for @profileOnline.
+  ///
+  /// In en, this message translates to:
+  /// **'Online'**
+  String get profileOnline;
+
+  /// No description provided for @profileJoinedAt.
+  ///
+  /// In en, this message translates to:
+  /// **'Joined {date}'**
+  String profileJoinedAt(String date);
+
+  /// No description provided for @profileLastActive.
+  ///
+  /// In en, this message translates to:
+  /// **'Last active {time}'**
+  String profileLastActive(String time);
 
   /// No description provided for @profileActionSignup.
   ///
@@ -4167,7 +4281,7 @@ abstract class AppLocalizations {
   /// No description provided for @campusPrivacy.
   ///
   /// In en, this message translates to:
-  /// **'One account, one official identity. School data is private and is not saved on your device.'**
+  /// **'One account, one school identity. Name, calendar and timetable snapshots are stored on this device for offline use. You can clear them below.'**
   String get campusPrivacy;
 
   /// No description provided for @campusDisabled.
@@ -4458,6 +4572,144 @@ abstract class AppLocalizations {
   /// **'Holiday rules could not be loaded. Retry later, or disable adjustments to export the original timetable.'**
   String get campusRulesUnavailable;
 
+  /// No description provided for @planSyncTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Resolve plan conflicts'**
+  String get planSyncTitle;
+
+  /// No description provided for @planSyncBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Another device changed these items too. Choose each value to keep; other changes merge automatically.'**
+  String get planSyncBody;
+
+  /// No description provided for @planSyncLocal.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep local'**
+  String get planSyncLocal;
+
+  /// No description provided for @planSyncRemote.
+  ///
+  /// In en, this message translates to:
+  /// **'Use cloud'**
+  String get planSyncRemote;
+
+  /// No description provided for @planSyncDeleted.
+  ///
+  /// In en, this message translates to:
+  /// **'Deleted'**
+  String get planSyncDeleted;
+
+  /// No description provided for @planSyncPlan.
+  ///
+  /// In en, this message translates to:
+  /// **'Plan'**
+  String get planSyncPlan;
+
+  /// No description provided for @planSyncName.
+  ///
+  /// In en, this message translates to:
+  /// **'Name'**
+  String get planSyncName;
+
+  /// No description provided for @planSyncCreatedAt.
+  ///
+  /// In en, this message translates to:
+  /// **'Created'**
+  String get planSyncCreatedAt;
+
+  /// No description provided for @planSyncCourse.
+  ///
+  /// In en, this message translates to:
+  /// **'Course'**
+  String get planSyncCourse;
+
+  /// No description provided for @planSyncEvent.
+  ///
+  /// In en, this message translates to:
+  /// **'Custom event'**
+  String get planSyncEvent;
+
+  /// No description provided for @planSyncLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Event name'**
+  String get planSyncLabel;
+
+  /// No description provided for @planSyncDay.
+  ///
+  /// In en, this message translates to:
+  /// **'Day'**
+  String get planSyncDay;
+
+  /// No description provided for @planSyncSections.
+  ///
+  /// In en, this message translates to:
+  /// **'Periods'**
+  String get planSyncSections;
+
+  /// No description provided for @planSyncWeeks.
+  ///
+  /// In en, this message translates to:
+  /// **'Weeks'**
+  String get planSyncWeeks;
+
+  /// No description provided for @planSyncApply.
+  ///
+  /// In en, this message translates to:
+  /// **'Merge and save'**
+  String get planSyncApply;
+
+  /// No description provided for @planSyncDrafts.
+  ///
+  /// In en, this message translates to:
+  /// **'Recovery drafts'**
+  String get planSyncDrafts;
+
+  /// No description provided for @planSyncDraftHint.
+  ///
+  /// In en, this message translates to:
+  /// **'These drafts stay on this device and do not use cloud plan slots. Restoring creates a new plan.'**
+  String get planSyncDraftHint;
+
+  /// No description provided for @planSyncRestore.
+  ///
+  /// In en, this message translates to:
+  /// **'Restore as new plan'**
+  String get planSyncRestore;
+
+  /// No description provided for @planSyncAdopt.
+  ///
+  /// In en, this message translates to:
+  /// **'Sync this device’s local plans to this account'**
+  String get planSyncAdopt;
+
+  /// No description provided for @planSyncAdoptHint.
+  ///
+  /// In en, this message translates to:
+  /// **'These local plans do not yet belong to this account. Confirm before uploading.'**
+  String get planSyncAdoptHint;
+
+  /// No description provided for @planSyncCapacity.
+  ///
+  /// In en, this message translates to:
+  /// **'The cloud holds at most ten plans. Free a slot and retry.'**
+  String get planSyncCapacity;
+
+  /// No description provided for @planSyncRejected.
+  ///
+  /// In en, this message translates to:
+  /// **'Saving was rejected. The account cannot write or the plan data failed validation.'**
+  String get planSyncRejected;
+
+  /// No description provided for @planSyncArchived.
+  ///
+  /// In en, this message translates to:
+  /// **'Local changes were saved as a recovery draft.'**
+  String get planSyncArchived;
+
   /// No description provided for @privateNoteEdit.
   ///
   /// In en, this message translates to:
@@ -4475,6 +4727,7 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Only you can see this. Up to 64 characters; save empty to clear.'**
   String get privateNoteHint;
+
   /// No description provided for @badgeDisplayTitle.
   ///
   /// In en, this message translates to:
@@ -4484,7 +4737,7 @@ abstract class AppLocalizations {
   /// No description provided for @badgeDisplayHint.
   ///
   /// In en, this message translates to:
-  /// **'Choose up to 5 badges and their order, or deselect all. Independent of your avatar badge.'**
+  /// **'Display up to 5 badges, or clear all. Separate from your avatar badge.'**
   String get badgeDisplayHint;
 
   /// No description provided for @badgeDisplayUp.
@@ -4498,6 +4751,576 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Move down'**
   String get badgeDisplayDown;
+
+  /// No description provided for @notificationsMarkRead.
+  ///
+  /// In en, this message translates to:
+  /// **'Mark as read'**
+  String get notificationsMarkRead;
+
+  /// No description provided for @scheduleWidgetSettingsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Home screen schedule'**
+  String get scheduleWidgetSettingsTitle;
+
+  /// No description provided for @scheduleWidgetPrivacyDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Widgets show course names, times, teachers and locations from the schedule saved on this device. Refreshing the schedule updates the home-screen view.'**
+  String get scheduleWidgetPrivacyDescription;
+
+  /// No description provided for @scheduleWidgetRefresh.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh from offline schedule'**
+  String get scheduleWidgetRefresh;
+
+  /// No description provided for @scheduleWidgetClear.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear home screen data'**
+  String get scheduleWidgetClear;
+
+  /// No description provided for @scheduleWidgetCleared.
+  ///
+  /// In en, this message translates to:
+  /// **'Home screen schedule data cleared'**
+  String get scheduleWidgetCleared;
+
+  /// No description provided for @scheduleWidgetDiagnostics.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh diagnostics'**
+  String get scheduleWidgetDiagnostics;
+
+  /// No description provided for @scheduleWidgetDiagnosticsDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'If the date or class status is slow to update, check YourTJ\'s background activity and battery settings. Menu names vary by device.'**
+  String get scheduleWidgetDiagnosticsDescription;
+
+  /// No description provided for @scheduleWidgetTransparencyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Widget background transparency'**
+  String get scheduleWidgetTransparencyTitle;
+
+  /// No description provided for @scheduleWidgetTransparencyDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Higher values reveal more of your wallpaper. The 0%–15% range balances the background effect with readable course text.'**
+  String get scheduleWidgetTransparencyDescription;
+
+  /// No description provided for @campusSnapshotUpdated.
+  ///
+  /// In en, this message translates to:
+  /// **'Device snapshot updated {time}'**
+  String campusSnapshotUpdated(String time);
+
+  /// No description provided for @campusSnapshotStale.
+  ///
+  /// In en, this message translates to:
+  /// **'This snapshot may be outdated. Refresh for the latest data.'**
+  String get campusSnapshotStale;
+
+  /// No description provided for @campusSnapshotOffline.
+  ///
+  /// In en, this message translates to:
+  /// **'Connection verification failed. Showing this device’s snapshot.'**
+  String get campusSnapshotOffline;
+
+  /// No description provided for @campusSnapshotRefreshFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Some data could not be updated. Previous content is retained.'**
+  String get campusSnapshotRefreshFailed;
+
+  /// No description provided for @campusDataNeedsRefresh.
+  ///
+  /// In en, this message translates to:
+  /// **'This content has not been updated. Refresh to load it.'**
+  String get campusDataNeedsRefresh;
+
+  /// No description provided for @campusCacheClear.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear campus cache'**
+  String get campusCacheClear;
+
+  /// No description provided for @campusCacheClearDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove campus snapshots and home-screen schedules from this device. Drafts, schedule plans and the school connection are kept.'**
+  String get campusCacheClearDescription;
+
+  /// No description provided for @campusCacheCleared.
+  ///
+  /// In en, this message translates to:
+  /// **'Campus cache cleared'**
+  String get campusCacheCleared;
+
+  /// No description provided for @campusCacheClearFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Some cached data could not be cleared. Please retry.'**
+  String get campusCacheClearFailed;
+
+  /// No description provided for @scheduleTimeAxis.
+  ///
+  /// In en, this message translates to:
+  /// **'Sections'**
+  String get scheduleTimeAxis;
+
+  /// No description provided for @scheduleEmptyCell.
+  ///
+  /// In en, this message translates to:
+  /// **'{day}, section {section}, choose a course'**
+  String scheduleEmptyCell(String day, int section);
+
+  /// No description provided for @scheduleSectionsN.
+  ///
+  /// In en, this message translates to:
+  /// **'Sections {range}'**
+  String scheduleSectionsN(String range);
+
+  /// No description provided for @scheduleGridScrollHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Swipe sideways to view the full week'**
+  String get scheduleGridScrollHint;
+
+  /// No description provided for @coursesFilterSearchHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Search filter options'**
+  String get coursesFilterSearchHint;
+
+  /// No description provided for @coursesFilterNoMatches.
+  ///
+  /// In en, this message translates to:
+  /// **'No matching filter options'**
+  String get coursesFilterNoMatches;
+
+  /// No description provided for @coursesClearSelection.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear selection'**
+  String get coursesClearSelection;
+
+  /// No description provided for @coursesResetSearch.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset search and filters'**
+  String get coursesResetSearch;
+
+  /// No description provided for @coursesFilterLoadFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Filter options could not be loaded.'**
+  String get coursesFilterLoadFailed;
+
+  /// No description provided for @coursesPaginationStalled.
+  ///
+  /// In en, this message translates to:
+  /// **'No additional courses arrived. Try loading this page again.'**
+  String get coursesPaginationStalled;
+
+  /// No description provided for @messagesNewMessages.
+  ///
+  /// In en, this message translates to:
+  /// **'New messages · Jump to latest'**
+  String get messagesNewMessages;
+
+  /// No description provided for @messagesReadSyncFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Read status could not sync. Unread messages are preserved.'**
+  String get messagesReadSyncFailed;
+
+  /// No description provided for @messagesReadUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'This server does not support individual read receipts. Unread messages are preserved.'**
+  String get messagesReadUnavailable;
+
+  /// No description provided for @messagesDraftLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Draft'**
+  String get messagesDraftLabel;
+
+  /// No description provided for @messagesDraftStorageFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not read or save message drafts on this device. Try again.'**
+  String get messagesDraftStorageFailed;
+
+  /// No description provided for @draftCollapse.
+  ///
+  /// In en, this message translates to:
+  /// **'Collapse'**
+  String get draftCollapse;
+
+  /// No description provided for @draftKindNew.
+  ///
+  /// In en, this message translates to:
+  /// **'New topic'**
+  String get draftKindNew;
+
+  /// No description provided for @draftKindServer.
+  ///
+  /// In en, this message translates to:
+  /// **'Cloud draft recovery'**
+  String get draftKindServer;
+
+  /// No description provided for @draftKindEdit.
+  ///
+  /// In en, this message translates to:
+  /// **'Topic edit'**
+  String get draftKindEdit;
+
+  /// No description provided for @draftKindReply.
+  ///
+  /// In en, this message translates to:
+  /// **'Reply'**
+  String get draftKindReply;
+
+  /// No description provided for @draftLocalEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'Unfinished writing is saved here on this device.'**
+  String get draftLocalEmpty;
+
+  /// No description provided for @draftReplyLeaveUnsaved.
+  ///
+  /// In en, this message translates to:
+  /// **'The latest reply changes could not be saved. Continue editing to retry, or leave without these changes. Any previously saved local copy will remain.'**
+  String get draftReplyLeaveUnsaved;
+
+  /// No description provided for @publishMediaQueueTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Photo uploads'**
+  String get publishMediaQueueTitle;
+
+  /// No description provided for @publishMediaPendingWarning.
+  ///
+  /// In en, this message translates to:
+  /// **'Some photos have not uploaded. Finish uploading or remove them before saving, publishing, switching type or leaving.'**
+  String get publishMediaPendingWarning;
+
+  /// No description provided for @publishMediaTemporary.
+  ///
+  /// In en, this message translates to:
+  /// **'Photos waiting to upload are kept only during this edit. Select them again if the app closes.'**
+  String get publishMediaTemporary;
+
+  /// No description provided for @publishMediaUploading.
+  ///
+  /// In en, this message translates to:
+  /// **'Uploading'**
+  String get publishMediaUploading;
+
+  /// No description provided for @publishMediaWaiting.
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for the previous photo'**
+  String get publishMediaWaiting;
+
+  /// No description provided for @publishMediaSavedPartial.
+  ///
+  /// In en, this message translates to:
+  /// **'Text and uploaded photos saved on this device'**
+  String get publishMediaSavedPartial;
+
+  /// No description provided for @draftSearchHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Search titles and text'**
+  String get draftSearchHint;
+
+  /// No description provided for @draftSearchScope.
+  ///
+  /// In en, this message translates to:
+  /// **'Search device drafts and the current cloud list.'**
+  String get draftSearchScope;
+
+  /// No description provided for @draftMatchCount.
+  ///
+  /// In en, this message translates to:
+  /// **'Drafts shown: {count}'**
+  String draftMatchCount(int count);
+
+  /// No description provided for @draftNoMatches.
+  ///
+  /// In en, this message translates to:
+  /// **'No drafts match these conditions.'**
+  String get draftNoMatches;
+
+  /// No description provided for @draftClearFilters.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear search and filters'**
+  String get draftClearFilters;
+
+  /// No description provided for @draftDeleteDone.
+  ///
+  /// In en, this message translates to:
+  /// **'Local draft deleted. You can undo the latest deletion.'**
+  String get draftDeleteDone;
+
+  /// No description provided for @draftDeleteRestored.
+  ///
+  /// In en, this message translates to:
+  /// **'Draft restored on this device'**
+  String get draftDeleteRestored;
+
+  /// No description provided for @draftRestoreConflict.
+  ///
+  /// In en, this message translates to:
+  /// **'An existing copy was kept without changes.'**
+  String get draftRestoreConflict;
+
+  /// No description provided for @draftRestoreFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not restore the draft. Try Undo again.'**
+  String get draftRestoreFailed;
+
+  /// No description provided for @settingsDataStorage.
+  ///
+  /// In en, this message translates to:
+  /// **'Data and storage'**
+  String get settingsDataStorage;
+
+  /// No description provided for @settingsProfileDisplay.
+  ///
+  /// In en, this message translates to:
+  /// **'Profile and display'**
+  String get settingsProfileDisplay;
+
+  /// No description provided for @settingsNotSet.
+  ///
+  /// In en, this message translates to:
+  /// **'Not set'**
+  String get settingsNotSet;
+
+  /// No description provided for @settingsUnsavedTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Discard unsaved changes?'**
+  String get settingsUnsavedTitle;
+
+  /// No description provided for @settingsUnsavedBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Your changes have not been saved. Leaving will discard them.'**
+  String get settingsUnsavedBody;
+
+  /// No description provided for @settingsKeepEditing.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep editing'**
+  String get settingsKeepEditing;
+
+  /// No description provided for @settingsDiscardChanges.
+  ///
+  /// In en, this message translates to:
+  /// **'Discard changes'**
+  String get settingsDiscardChanges;
+
+  /// No description provided for @settingsPushPreference.
+  ///
+  /// In en, this message translates to:
+  /// **'Allow push notifications'**
+  String get settingsPushPreference;
+
+  /// No description provided for @settingsPushDelivery.
+  ///
+  /// In en, this message translates to:
+  /// **'Delivery on this device'**
+  String get settingsPushDelivery;
+
+  /// No description provided for @settingsPushReady.
+  ///
+  /// In en, this message translates to:
+  /// **'Ready to receive notifications'**
+  String get settingsPushReady;
+
+  /// No description provided for @settingsPushOff.
+  ///
+  /// In en, this message translates to:
+  /// **'Not enabled'**
+  String get settingsPushOff;
+
+  /// No description provided for @settingsPushIOSConsent.
+  ///
+  /// In en, this message translates to:
+  /// **'Apple Push Notification service processes your device push identifier and notification content to deliver notifications.'**
+  String get settingsPushIOSConsent;
+
+  /// No description provided for @settingsPushAndroidConsent.
+  ///
+  /// In en, this message translates to:
+  /// **'JPush and your device manufacturer process your device push identifier and notification content to deliver notifications.'**
+  String get settingsPushAndroidConsent;
+
+  /// No description provided for @settingsDeviceUnknown.
+  ///
+  /// In en, this message translates to:
+  /// **'Other device'**
+  String get settingsDeviceUnknown;
+
+  /// No description provided for @settingsDeviceCurrent.
+  ///
+  /// In en, this message translates to:
+  /// **'This device'**
+  String get settingsDeviceCurrent;
+
+  /// No description provided for @badgeDisplayReorder.
+  ///
+  /// In en, this message translates to:
+  /// **'Drag to reorder'**
+  String get badgeDisplayReorder;
+
+  /// No description provided for @badgeDisplaySelectedCount.
+  ///
+  /// In en, this message translates to:
+  /// **'Displayed {count}/5'**
+  String badgeDisplaySelectedCount(int count);
+
+  /// No description provided for @sortFollowing.
+  ///
+  /// In en, this message translates to:
+  /// **'Following'**
+  String get sortFollowing;
+
+  /// No description provided for @notificationsUnreadEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'You’re all caught up'**
+  String get notificationsUnreadEmpty;
+
+  /// No description provided for @notificationsUnreadEmptyDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'You have read all your notifications.'**
+  String get notificationsUnreadEmptyDescription;
+
+  /// No description provided for @homeFeedOptions.
+  ///
+  /// In en, this message translates to:
+  /// **'Feed display'**
+  String get homeFeedOptions;
+
+  /// No description provided for @homeAllCategories.
+  ///
+  /// In en, this message translates to:
+  /// **'All categories'**
+  String get homeAllCategories;
+
+  /// No description provided for @sortNew.
+  ///
+  /// In en, this message translates to:
+  /// **'Newest posts'**
+  String get sortNew;
+
+  /// No description provided for @profileRoleAdminDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Helps maintain the community and keep the forum running.'**
+  String get profileRoleAdminDescription;
+
+  /// No description provided for @profileBadgeEarnedOn.
+  ///
+  /// In en, this message translates to:
+  /// **'Earned on {date}'**
+  String profileBadgeEarnedOn(String date);
+
+  /// No description provided for @settingsProfilePartialSave.
+  ///
+  /// In en, this message translates to:
+  /// **'Saved: {saved}. Your remaining changes are still here. Try saving again.'**
+  String settingsProfilePartialSave(String saved);
+
+  /// No description provided for @userBlock.
+  ///
+  /// In en, this message translates to:
+  /// **'Block user'**
+  String get userBlock;
+
+  /// No description provided for @userUnblock.
+  ///
+  /// In en, this message translates to:
+  /// **'Unblock user'**
+  String get userUnblock;
+
+  /// No description provided for @userBlocks.
+  ///
+  /// In en, this message translates to:
+  /// **'Blocked users'**
+  String get userBlocks;
+
+  /// No description provided for @userBlockExplanation.
+  ///
+  /// In en, this message translates to:
+  /// **'Blocking stops new direct messages and interaction notifications in both directions. Public content and existing messages remain available for context and reporting.'**
+  String get userBlockExplanation;
+
+  /// No description provided for @userBlocksEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No blocked users'**
+  String get userBlocksEmpty;
+
+  /// No description provided for @messageReport.
+  ///
+  /// In en, this message translates to:
+  /// **'Report message'**
+  String get messageReport;
+
+  /// No description provided for @messageReportPrivacy.
+  ///
+  /// In en, this message translates to:
+  /// **'Submitting shares this message and your explanation with site administrators for review. The rest of the conversation is not submitted.'**
+  String get messageReportPrivacy;
+
+  /// No description provided for @contentReport.
+  ///
+  /// In en, this message translates to:
+  /// **'Report content'**
+  String get contentReport;
+
+  /// No description provided for @reportSpam.
+  ///
+  /// In en, this message translates to:
+  /// **'Spam'**
+  String get reportSpam;
+
+  /// No description provided for @reportAbuse.
+  ///
+  /// In en, this message translates to:
+  /// **'Abuse or harassment'**
+  String get reportAbuse;
+
+  /// No description provided for @reportIllegal.
+  ///
+  /// In en, this message translates to:
+  /// **'Illegal content'**
+  String get reportIllegal;
+
+  /// No description provided for @reportIrrelevant.
+  ///
+  /// In en, this message translates to:
+  /// **'Off-topic content'**
+  String get reportIrrelevant;
+
+  /// No description provided for @reportOther.
+  ///
+  /// In en, this message translates to:
+  /// **'Other'**
+  String get reportOther;
 }
 
 class _AppLocalizationsDelegate

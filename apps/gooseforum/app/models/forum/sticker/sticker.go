@@ -14,14 +14,17 @@ const tableName = "stickers"
 const MaxNameLen = 64
 
 type Entity struct {
-	Id        uint64    `gorm:"primaryKey;column:id;autoIncrement;not null;" json:"id"`
-	Name      string    `gorm:"column:name;type:varchar(64);not null;uniqueIndex;" json:"name"`
-	FileName  string    `gorm:"column:file_name;type:varchar(512);not null;default:'';" json:"fileName"`
-	SortOrder int       `gorm:"column:sort_order;type:int;not null;default:0;index;" json:"sortOrder"`
-	IsEnabled bool      `gorm:"column:is_enabled;type:boolean;not null;default:true;index;" json:"isEnabled"`
-	CreatedBy uint64    `gorm:"column:created_by;not null;default:0;" json:"createdBy"`
-	CreatedAt time.Time `gorm:"column:created_at;autoCreateTime;<-:create;" json:"createdAt"`
-	UpdatedAt time.Time `gorm:"column:updated_at;autoUpdateTime;" json:"updatedAt"`
+	Id          uint64    `gorm:"primaryKey;column:id;autoIncrement;not null;" json:"id"`
+	IsOfficial  bool      `gorm:"column:is_official;not null;default:true;index;" json:"isOfficial"`
+	DisplayName string    `gorm:"column:display_name;type:varchar(64);not null;default:'';" json:"displayName"`
+	Pack        string    `gorm:"column:pack;type:varchar(64);not null;default:'official';" json:"pack"`
+	Name        string    `gorm:"column:name;type:varchar(64);not null;uniqueIndex;" json:"name"`
+	FileName    string    `gorm:"column:file_name;type:varchar(512);not null;default:'';index:idx_sticker_owner_file,priority:2;" json:"fileName"`
+	SortOrder   int       `gorm:"column:sort_order;type:int;not null;default:0;index;" json:"sortOrder"`
+	IsEnabled   bool      `gorm:"column:is_enabled;type:boolean;not null;default:true;index;" json:"isEnabled"`
+	CreatedBy   uint64    `gorm:"column:created_by;not null;default:0;index:idx_sticker_owner_file,priority:1;" json:"createdBy"`
+	CreatedAt   time.Time `gorm:"column:created_at;autoCreateTime;<-:create;" json:"createdAt"`
+	UpdatedAt   time.Time `gorm:"column:updated_at;autoUpdateTime;" json:"updatedAt"`
 }
 
 func builder() *gorm.DB {

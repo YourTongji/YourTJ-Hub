@@ -1,9 +1,49 @@
+import 'dart:async';
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ui_kit/ui_kit.dart';
 import '../helpers.dart';
 
 void main() {
+  testWidgets('gallery decode keeps a wide photo proportional', (tester) async {
+    await tester.pumpWidget(
+      gfApp(
+        const SizedBox(
+          width: 300,
+          child: GfMediaCarousel(images: ['https://example.test/wide.png']),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final resize =
+        tester.widget<Image>(find.byType(Image).first).image as ResizeImage;
+    await tester.runAsync(() async {
+      final recorder = ui.PictureRecorder();
+      Canvas(recorder).drawRect(const Rect.fromLTWH(0, 0, 2400, 1200), Paint());
+      final picture = recorder.endRecording();
+      final original = await picture.toImage(2400, 1200);
+      final bytes = (await original.toByteData(
+        format: ui.ImageByteFormat.png,
+      ))!;
+      final provider = ResizeImage(
+        MemoryImage(bytes.buffer.asUint8List()),
+        width: resize.width,
+        height: resize.height,
+        policy: resize.policy,
+      );
+      final ready = Completer<ImageInfo>();
+      final stream = provider.resolve(ImageConfiguration.empty);
+      final listener = ImageStreamListener((info, _) => ready.complete(info));
+      stream.addListener(listener);
+      final decoded = await ready.future;
+      expect(decoded.image.width / decoded.image.height, 2);
+      stream.removeListener(listener);
+      decoded.dispose();
+      original.dispose();
+      picture.dispose();
+    });
+  });
   testWidgets('gallery retains aspect fit, swipe count and full-screen entry', (
     tester,
   ) async {
@@ -21,7 +61,38 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.text('1 / 2'), findsOneWidget);
-    expect(tester.widget<Image>(find.byType(Image).first).fit, BoxFit.contain);
+    final Finder badgeFinder = find.byKey(
+      const Key('gf-media-carousel-counter-badge'),
+    );
+    final ClipRRect counterBadge = tester.widget(badgeFinder);
+    final Size badgeSize = tester.getSize(badgeFinder);
+    expect(badgeSize.height, 22);
+    expect(badgeSize.width, greaterThan(badgeSize.height));
+    expect(counterBadge.borderRadius, BorderRadius.circular(999));
+    final BoxDecoration badgeDecoration =
+        tester
+                .widget<DecoratedBox>(
+                  find.descendant(
+                    of: badgeFinder,
+                    matching: find.byType(DecoratedBox),
+                  ),
+                )
+                .decoration
+            as BoxDecoration;
+    expect(badgeDecoration.color, Colors.black.withValues(alpha: 0.48));
+    expect(badgeDecoration.border!.top.color.a, closeTo(0.18, 0.01));
+    expect(find.byType(ImageFiltered), findsWidgets);
+    expect(
+      tester
+          .widget<Image>(
+            find.byWidgetPredicate(
+              (widget) => widget is Image && widget.fit == BoxFit.contain,
+            ),
+          )
+          .fit,
+      BoxFit.contain,
+    );
+    expect(find.byType(GfGlassSurface), findsNothing);
     await tester.drag(find.byType(PageView), const Offset(-700, 0));
     await tester.pumpAndSettle();
     expect(find.text('2 / 2'), findsOneWidget);
@@ -43,5 +114,33 @@ void main() {
       findsOneWidget,
       reason: 'A replaced gallery must reset its page and counter together',
     );
+  });
+
+  testWidgets('tapping a preview opens that image with its Hero tag', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      gfApp(
+        const SizedBox(
+          width: 300,
+          child: GfMediaCarousel(
+            images: [
+              'https://example.test/one.png',
+              'https://example.test/two.png',
+            ],
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.drag(find.byType(PageView).first, const Offset(-700, 0));
+    await tester.pumpAndSettle();
+    await tester.tapAt(tester.getCenter(find.byType(PageView).first));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 240));
+
+    final GfImageViewer viewer = tester.widget(find.byType(GfImageViewer));
+    expect(viewer.initialIndex, 1);
+    expect(viewer.heroTag, isNotNull);
   });
 }

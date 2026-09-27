@@ -46,6 +46,17 @@ func GetWithContext(ctx context.Context, id any) (entity EntityComplete, err err
 	return
 }
 
+// GetSessionStateWithContext reads only the fields needed to revalidate an
+// already-open stream, without loading private profile or credential columns.
+func GetSessionStateWithContext(ctx context.Context, id uint64) (version uint64, actorType int8, err error) {
+	var row struct {
+		TokenVersion uint64 `gorm:"column:token_version"`
+		ActorType    int8   `gorm:"column:actor_type"`
+	}
+	err = dbconnect.ConnectContext(ctx).Table(tableName).Select("token_version", "actor_type").Where(pid, id).First(&row).Error
+	return row.TokenVersion, row.ActorType, err
+}
+
 func Verify(usernameOrEmail string, password string) (*EntityComplete, error) {
 	var user EntityComplete
 	var err error
@@ -143,14 +154,21 @@ func UpdateEmailVerificationDisabled(userID uint64, email string, changedAt time
 // CloseAccount 注销账号（PRD R10）：软删用户并清空对外展示字段。
 // 历史内容仍保留 userId 指向，渲染层因用户不可见而回退为「已注销用户」。
 func CloseAccount(userID uint64) error {
-	return dbconnect.Connect().Transaction(func(tx *gorm.DB) error {
-		if err := tx.Unscoped().Model(&EntityComplete{}).Where("id = ?", userID).Updates(map[string]any{
-			"deleted_at": time.Now(), "worn_badge_code": "",
-		}).Error; err != nil {
-			return err
-		}
-		return tx.Where("owner_id = ? OR target_user_id = ?", userID, userID).Delete(&PrivateNoteEntity{}).Error
-	})
+	return dbconnect.Connect().Transaction(func(tx *gorm.DB) error { return CloseAccountTx(tx, userID) })
+}
+
+// CloseAccountTx lets the owning service coordinate account deletion and other
+// required private-state cleanup in one primary-database transaction.
+func CloseAccountTx(tx *gorm.DB, userID uint64) error {
+	if err := tx.Unscoped().Model(&EntityComplete{}).Where("id = ?", userID).Updates(map[string]any{
+		"deleted_at": time.Now(), "worn_badge_code": "",
+	}).Error; err != nil {
+		return err
+	}
+	if err := tx.Where("owner_id = ? OR target_user_id = ?", userID, userID).Delete(&PrivateNoteEntity{}).Error; err != nil {
+		return err
+	}
+	return tx.Where("owner_id = ? OR target_user_id = ?", userID, userID).Delete(&BlockEntity{}).Error
 }
 
 // IsAccountClosed 判断账号是否已注销（软删）。
@@ -223,6 +241,21 @@ func GetByIds(userIds []uint64) (entities []*EntityComplete) {
 	}
 	builder().Where(queryopt.In(pid, userIds)).Find(&entities)
 	return
+}
+
+// GetActiveUserIdsByRoleIds 返回指定角色下未注销（软删）的用户 id 列表。
+// builder() 走 .Table() 原生查询不含 GORM 软删 scope（见 users_actor_test.go
+// 中 setupUserIsolationTestDB 的注释），因此必须显式过滤 deleted_at。
+func GetActiveUserIdsByRoleIds(roleIds []uint64) []uint64 {
+	if len(roleIds) == 0 {
+		return nil
+	}
+	var ids []uint64
+	builder().
+		Where(queryopt.In(fieldRoleId, roleIds)).
+		Where(queryopt.IsNull(fieldDeletedAt)).
+		Pluck(pid, &ids)
+	return ids
 }
 
 func GetMapByIds(userIds []uint64) map[uint64]*EntityComplete {

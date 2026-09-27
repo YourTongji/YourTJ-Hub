@@ -2,9 +2,12 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"strings"
+	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pk"
@@ -15,6 +18,9 @@ import (
 // runPkSync 可注入的排课同步执行函数（测试替换为 stub，避免真实抓取一系统）。
 var runPkSync = pkservice.SyncFromClaim
 var runPkSyncForAudience = pkservice.SyncFromClaimForAudience
+
+// validatePkCredential 可注入的凭证校验执行函数（测试替换为 stub，避免真实抓取一系统）。
+var validatePkCredential = pkservice.ValidateCredential
 
 // maxPkSyncDepth 管理端单次同步可向前回溯的学期数上限（对齐 ListCalendars 默认窗口）。
 // depth 过大意味着从学期 1 到目标的破坏性全量重写 + 全量抓取，且后台 goroutine 不可取消。
@@ -113,4 +119,55 @@ func SetRunPkSyncForTest(fn func(ctx context.Context, cookie string, calendarId 
 	orig := runPkSync
 	runPkSync = fn
 	return func() { runPkSync = orig }
+}
+
+// ValidatePkCredentialReq 一系统凭证校验请求参数。
+type ValidatePkCredentialReq struct {
+	Audience   string `json:"audience"`
+	Credential string `json:"credential"`
+}
+
+// validatePkCredentialTimeout 校验探测的整体超时：客户端单请求上限 15s，重试窗口
+// （最多 5 次退避）叠加后最长约 40s；留出余量避免在服务器写期限内过早中断。
+const validatePkCredentialTimeout = 45 * time.Second
+
+// ValidatePkCredential 管理端一系统凭证校验（保存前探测，issue #856）。
+// 以目标受众最新已同步学期为真实目标最小抓取一页（pageSize=1），不写库、不写 fetchlog、
+// 不触发配置变更。credential 留空时按 CLI 参数 → 环境变量 → 管理端已保存设置解析。
+// 一系统侧失败（凭证失效 HTTP 401/403、业务 code!=0、网络错误等）是业务结果而非 HTTP 错误：
+// 返回成功信封 result.valid=false 与脱敏后的失败说明；只有参数/解析类硬错误
+// （无效 audience、缺少凭证来源等）返回失败信封。
+func ValidatePkCredential(req component.BetterRequest[ValidatePkCredentialReq]) component.Response {
+	audience, err := pkservice.ParseAudience(req.Params.Audience)
+	if err != nil {
+		return component.FailResponseError(err)
+	}
+	ctx := context.Background()
+	if req.GinContext != nil {
+		ctx = req.GinContext.Request.Context()
+		// 服务器默认 10s 写期限；给重试窗口（最长约 40s）留余量后再响应。
+		deadlineErr := http.NewResponseController(req.GinContext.Writer).SetWriteDeadline(time.Now().Add(validatePkCredentialTimeout + 10*time.Second))
+		if deadlineErr != nil && !errors.Is(deadlineErr, http.ErrNotSupported) {
+			return component.FailResponseError(deadlineErr)
+		}
+	}
+	ctx, cancel := context.WithTimeout(ctx, validatePkCredentialTimeout)
+	defer cancel()
+
+	result, err := validatePkCredential(ctx, audience, req.Params.Credential)
+	if err != nil {
+		return component.FailResponseError(err)
+	}
+	return component.SuccessResponse(map[string]any{
+		"valid":   result.Valid,
+		"message": result.Message,
+	})
+}
+
+// SetValidatePkCredentialForTest 仅测试用：替换凭证校验执行函数（与 SetRunPkSyncForTest
+// 同一风格），供路由级契约测试注入 stub，避免探测真实一系统。返回恢复函数。
+func SetValidatePkCredentialForTest(fn func(ctx context.Context, audience pkservice.Audience, credential string) (pkservice.CredentialValidation, error)) func() {
+	orig := validatePkCredential
+	validatePkCredential = fn
+	return func() { validatePkCredential = orig }
 }

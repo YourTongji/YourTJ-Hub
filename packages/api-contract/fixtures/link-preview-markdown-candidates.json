@@ -3,17 +3,23 @@
     {
       "name": "standalone absolute URL",
       "markdown": "https://example.com/article",
-      "urls": ["https://example.com/article"]
+      "urls": [
+        "https://example.com/article"
+      ]
     },
     {
       "name": "standalone URL with surrounding whitespace",
       "markdown": "  https://example.com/space  ",
-      "urls": ["https://example.com/space"]
+      "urls": [
+        "https://example.com/space"
+      ]
     },
     {
       "name": "standalone URL with Unicode path",
       "markdown": "https://example.com/资料",
-      "urls": ["https://example.com/资料"]
+      "urls": [
+        "https://example.com/资料"
+      ]
     },
     {
       "name": "ordinary paragraph",
@@ -48,12 +54,21 @@
     {
       "name": "multiple paragraphs keep document order",
       "markdown": "https://one.example/a\n\nText\n\nhttps://two.example/b",
-      "urls": ["https://one.example/a", "https://two.example/b"]
+      "urls": [
+        "https://one.example/a",
+        "https://two.example/b"
+      ]
     },
     {
       "name": "maximum five candidates",
       "markdown": "https://one.example\n\nhttps://two.example\n\nhttps://three.example\n\nhttps://four.example\n\nhttps://five.example\n\nhttps://six.example",
-      "urls": ["https://one.example", "https://two.example", "https://three.example", "https://four.example", "https://five.example"]
+      "urls": [
+        "https://one.example",
+        "https://two.example",
+        "https://three.example",
+        "https://four.example",
+        "https://five.example"
+      ]
     },
     {
       "name": "indented code block",
@@ -78,6 +93,16 @@
     {
       "name": "protocol relative URL",
       "markdown": "//example.com/path",
+      "urls": []
+    },
+    {
+      "name": "URL followed by prose is not standalone",
+      "markdown": "https://example.com/article ordinary text",
+      "urls": []
+    },
+    {
+      "name": "URL followed by IME text is not standalone",
+      "markdown": "https://example.com/article 中文",
       "urls": []
     }
   ]

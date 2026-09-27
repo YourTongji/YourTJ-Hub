@@ -86,6 +86,7 @@ class _ContentPageState extends ConsumerState<ContentPage> {
   Future<bool> _confirm(String title, String message) async =>
       await showDialog<bool>(
         context: context,
+        animationStyle: GfMotion.dialogStyle(context),
         builder: (context) => AlertDialog(
           title: Text(title),
           content: Text(message),
@@ -116,12 +117,20 @@ class _ContentPageState extends ConsumerState<ContentPage> {
         String enteredPassword = '';
         final password = await showDialog<String>(
           context: context,
+          animationStyle: GfMotion.dialogStyle(context),
           builder: (context) => AlertDialog(
             title: Text(AppLocalizations.of(context).contentPassword),
-            content: TextField(
+            scrollable: true,
+            content: GfInput(
+              labelText: AppLocalizations.of(context).contentPassword,
               onChanged: (value) => enteredPassword = value,
               obscureText: true,
               autofocus: true,
+              autofillHints: const [AutofillHints.password],
+              autocorrect: false,
+              enableSuggestions: false,
+              textInputAction: TextInputAction.done,
+              onSubmitted: (value) => Navigator.pop(context, value),
             ),
             actions: [
               TextButton(
@@ -304,7 +313,7 @@ class _ContentPageState extends ConsumerState<ContentPage> {
                         final item = _items[index];
                         return ListTile(
                           leading: widget.deleted
-                              ? const Icon(Icons.article_outlined)
+                              ? const GfSymbol('file-text')
                               : Checkbox(
                                   value: _selected.contains(item.id),
                                   onChanged: _busy
@@ -350,6 +359,7 @@ class _ContentPageState extends ConsumerState<ContentPage> {
                                   !item.canPermanent
                               ? null
                               : PopupMenuButton<String>(
+                                  icon: const GfSymbol('ellipsis', size: 20),
                                   useRootNavigator: true,
                                   enabled: !_busy,
                                   onSelected: (action) => _act(item, action),

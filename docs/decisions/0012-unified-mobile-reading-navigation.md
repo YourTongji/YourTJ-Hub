@@ -1,7 +1,7 @@
 # Unified mobile reading navigation
 
 ## Status
-Accepted
+Superseded by [0037](0037-adaptive-mobile-reading-window.md)
 Class: architecture
 
 ## Context and Problem Statement

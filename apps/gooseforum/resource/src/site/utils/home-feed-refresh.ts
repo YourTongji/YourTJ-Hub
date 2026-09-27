@@ -20,5 +20,6 @@ export function prependTopics(current: TopicPayload[], incoming: TopicPayload[])
 export function firstPageUrl(pageUrl: string, origin: string): URL {
   const url = new URL(pageUrl, origin)
   url.searchParams.delete('page')
+  url.searchParams.delete('cursor')
   return url
 }

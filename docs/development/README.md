@@ -44,6 +44,7 @@ requirements and product semantics
 - [Local environment](local-development.md)
 - [Standalone status app](../../apps/status/README.md)
 - [Testing strategy & commands](testing.md)
+- [Mobile performance](mobile-performance.md)
 - [Branches, commits & pull requests](pull-requests.md)
 - [Project board workflow](project-board.md)
 - [Documentation governance](documentation.md)

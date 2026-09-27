@@ -110,3 +110,17 @@ A decision starts `Proposed`. Once implemented, its status becomes `Accepted` an
 - [0033](0033-campus-foreground-memory-cache.md) — Flutter 校园页使用经绑定核验的五分钟前台内存缓存。
 
 - [0034](0034-tongji-registration-completion.md) — 同济认证后选择用户名和密码，再原子完成注册。
+
+- [0035](0035-campus-device-snapshot-and-schedule-widgets.md) — 校园白名单 Drift 快照派生最小投影，供 Android Glance 与 iOS WidgetKit 离线显示。
+
+- [0036](0036-foreground-realtime-invalidation.md) — 前台更新采用进程内 SSE 失效提示与 REST 对账。
+
+- [0037](0037-adaptive-mobile-reading-window.md) — 按窗口宽度选择底栏或常驻侧栏，保留阅读状态并约束正文行宽。
+
+- [0038](0038-personal-sticker-library.md) — 稳定共享表情素材与私有有序收藏库，原生选择、上传、收藏与独立渲染。
+
+- [0039](0039-native-gf-component-foundation.md) — Gf 组件直接组合 Flutter 原生能力，统一输入形状、状态、图标和触控区域。
+
+- [0040](0040-user-blocks-and-private-message-reports.md) — 账号私有屏蔽关系与仅管理员可见的单条私信举报证据。
+
+- [0041](0041-native-apple-login-and-revocation.md) — iOS 原生 Apple 登录、显式账号绑定和用于解绑/注销的加密撤销凭据。

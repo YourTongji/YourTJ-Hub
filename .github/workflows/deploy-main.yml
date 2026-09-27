@@ -61,6 +61,10 @@ jobs:
           wiki-webhook-secret: ${{ secrets.WIKI_WEBHOOK_SECRET }}
           gh-client-id: ${{ secrets.GH_CLIENT_ID }}
           gh-client-secret: ${{ secrets.GH_CLIENT_SECRET }}
+          apple-client-id: ${{ secrets.APPLE_CLIENT_ID }}
+          apple-team-id: ${{ secrets.APPLE_TEAM_ID }}
+          apple-key-id: ${{ secrets.APPLE_KEY_ID }}
+          apple-private-key-base64: ${{ secrets.APPLE_PRIVATE_KEY_BASE64 }}
           google-client-id: ${{ secrets.GOOGLE_CLIENT_ID }}
           google-client-secret: ${{ secrets.GOOGLE_CLIENT_SECRET }}
           ai-api-key: ${{ secrets.AI_API_KEY }}

@@ -334,6 +334,26 @@ export interface PkSyncStatusItem {
   finishedAt?: string | null
 }
 
+/** 排课数据定时同步配置（issue #569 管理端「定时同步」）。 */
+export interface PkSyncScheduleSettings {
+  /** 定时同步总开关；关闭时不注册 cron，也不执行。 */
+  enabled: boolean
+  /** 5 段标准 cron 表达式（分 时 日 月 周），如 "30 2 * * *"。 */
+  schedule: string
+  /** 目标学期（数字 calendarId / 学期名）；空 = 最近已同步学期。 */
+  term: string
+  /** 以目标学期为终点向前同步的连续学期数（1..8）。 */
+  depth: number
+  /** 数据来源：undergraduate | graduate。 */
+  audience: 'undergraduate' | 'graduate'
+}
+
+/** 一系统凭证校验结果（issue #856 管理端保存前探测）。 */
+export interface PkValidateCredentialResult {
+  valid: boolean
+  message: string
+}
+
 /** 排课器节次作息：单节开始/结束时间（HH:MM）。 */
 export interface ScheduleSectionTime {
   section: number

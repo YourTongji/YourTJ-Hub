@@ -13,6 +13,7 @@ _$LoginPagePropsImpl _$$LoginPagePropsImplFromJson(Map<String, dynamic> json) =>
       redirectUrl: json['redirectUrl'] as String,
       githubUrl: json['githubUrl'] as String,
       googleReady: json['googleReady'] as bool,
+      appleReady: json['appleReady'] as bool? ?? false,
       tongjiReady: json['tongjiReady'] as bool? ?? false,
       tongjiUrl: json['tongjiUrl'] as String? ?? '',
       tongjiNotice: json['tongjiNotice'] as String? ?? '',
@@ -34,6 +35,7 @@ Map<String, dynamic> _$$LoginPagePropsImplToJson(
   'redirectUrl': instance.redirectUrl,
   'githubUrl': instance.githubUrl,
   'googleReady': instance.googleReady,
+  'appleReady': instance.appleReady,
   'tongjiReady': instance.tongjiReady,
   'tongjiUrl': instance.tongjiUrl,
   'tongjiNotice': instance.tongjiNotice,
@@ -239,3 +241,19 @@ _$TongjiRegistrationResultImpl _$$TongjiRegistrationResultImplFromJson(
 Map<String, dynamic> _$$TongjiRegistrationResultImplToJson(
   _$TongjiRegistrationResultImpl instance,
 ) => <String, dynamic>{'redirect': instance.redirect};
+
+_$AppleCredentialRequestImpl _$$AppleCredentialRequestImplFromJson(
+  Map<String, dynamic> json,
+) => _$AppleCredentialRequestImpl(
+  authorizationCode: json['authorizationCode'] as String,
+  identityToken: json['identityToken'] as String,
+  nonce: json['nonce'] as String,
+);
+
+Map<String, dynamic> _$$AppleCredentialRequestImplToJson(
+  _$AppleCredentialRequestImpl instance,
+) => <String, dynamic>{
+  'authorizationCode': instance.authorizationCode,
+  'identityToken': instance.identityToken,
+  'nonce': instance.nonce,
+};

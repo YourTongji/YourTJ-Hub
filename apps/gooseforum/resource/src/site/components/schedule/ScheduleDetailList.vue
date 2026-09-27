@@ -1050,6 +1050,7 @@ function tryStage(detail: PkCourseDetail, event?: MouseEvent) {
                   v-if="rev.contentHtml"
                   v-code-highlight
                   v-math-render
+                  v-content-enhancements
                   class="gf-prose gf-prose-compact text-xs leading-relaxed text-base-content/85 break-words [word-break:break-word] mt-1"
                   v-html="rev.contentHtml"
                 />

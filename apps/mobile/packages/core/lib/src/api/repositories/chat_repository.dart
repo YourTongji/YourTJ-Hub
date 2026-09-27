@@ -1,5 +1,6 @@
 import '../../gen/chat.dart';
 import '../gf_api_client.dart';
+import 'package:dio/dio.dart';
 
 /// 私信(IM)接口。
 class ChatRepository {
@@ -12,10 +13,16 @@ class ChatRepository {
     required int peerId,
     required String content,
     int msgType = 1,
+    String? clientMessageId,
   }) {
     return _client.post<int>(
       '/api/forum/chat/send',
-      body: {'peerId': peerId, 'content': content, 'msgType': msgType},
+      body: SendChatMessageRequest(
+        peerId: peerId,
+        content: content,
+        msgType: msgType,
+        clientMessageId: clientMessageId,
+      ).toJson(),
       parser: (json) {
         if (json is int) return json;
         return (json as Map<String, dynamic>)['convId'] as int? ?? 0;
@@ -29,16 +36,49 @@ class ChatRepository {
     int beforeId = 0,
     int afterId = 0,
     int limit = 30,
+    CancelToken? cancelToken,
   }) {
     return _client.post<ChatMessagesResponse>(
       '/api/forum/chat/messages',
-      body: {'convId': convId, 'beforeId': beforeId, 'afterId': afterId, 'limit': limit},
-      parser: (json) => ChatMessagesResponse.fromJson(json as Map<String, dynamic>),
+      cancelToken: cancelToken,
+      body: {
+        'convId': convId,
+        'beforeId': beforeId,
+        'afterId': afterId,
+        'limit': limit,
+      },
+      parser: (json) =>
+          ChatMessagesResponse.fromJson(json as Map<String, dynamic>),
     );
   }
 
   Future<bool> markRead({required int convId}) async {
-    await _client.post<Object?>('/api/forum/chat/mark-read', body: {'convId': convId});
+    await _client.post<Object?>(
+      '/api/forum/chat/mark-read',
+      body: {'convId': convId},
+    );
     return true;
   }
+
+  /// Acknowledge only incoming messages that reached the visible viewport.
+  Future<ChatVisibleReadResult> markVisible({
+    required int convId,
+    required List<int> messageIds,
+  }) => _client.post<ChatVisibleReadResult>(
+    '/api/forum/chat/mark-visible',
+    body: {'convId': convId, 'messageIds': messageIds},
+    parser: (json) =>
+        ChatVisibleReadResult.fromJson(json as Map<String, dynamic>),
+  );
+
+  /// Refresh read flags for loaded messages without reloading their bodies.
+  Future<ChatMessageReadStatesResult> messageReadStates({
+    required int convId,
+    required List<int> messageIds,
+  }) => _client.post<ChatMessageReadStatesResult>(
+    '/api/forum/chat/message-read-states',
+    body: {'convId': convId, 'messageIds': messageIds},
+    parser: (json) =>
+        ChatMessageReadStatesResult.fromJson(json as Map<String, dynamic>),
+  );
 }

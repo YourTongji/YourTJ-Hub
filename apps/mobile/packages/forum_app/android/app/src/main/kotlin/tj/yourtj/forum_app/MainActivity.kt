@@ -1,26 +1,106 @@
 package tj.yourtj.forum_app
 
+import android.app.UiModeManager
+import android.content.Context
 import android.content.Intent
+import android.content.res.Configuration
 import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import androidx.core.content.FileProvider
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodChannel
+import tj.yourtj.forum_app.widget.publishScheduleWidgetPreviews
 import java.io.File
 import java.security.MessageDigest
+
+internal object NativeThemeMode {
+    fun isDark(context: Context): Boolean {
+        val saved = context.getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
+            .getString("flutter.theme_mode", "system")
+        return when (saved) {
+            "dark" -> true
+            "light" -> false
+            else -> systemIsDark(context)
+        }
+    }
+
+    private fun systemIsDark(context: Context): Boolean {
+        val mode = context.getSystemService(UiModeManager::class.java).nightMode
+        return when (mode) {
+            UiModeManager.MODE_NIGHT_YES -> true
+            UiModeManager.MODE_NIGHT_NO -> false
+            else -> context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
+        }
+    }
+
+    fun apply(context: Context, mode: String) {
+        val nativeMode = when (mode) {
+            "dark" -> UiModeManager.MODE_NIGHT_YES
+            "light" -> UiModeManager.MODE_NIGHT_NO
+            // AUTO clears the app override so Android follows the device theme.
+            "system" -> UiModeManager.MODE_NIGHT_AUTO
+            else -> return
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            context.getSystemService(UiModeManager::class.java).setApplicationNightMode(nativeMode)
+        }
+    }
+}
 
 class MainActivity : FlutterActivity() {
     private var oidcEventSink: EventChannel.EventSink? = null
     private var pendingOidcCallback: String? = null
+    private var hasResumedOnce = false
+    private var fullyDrawnReported = false
+    private var startupLaunchKind = "cold"
+
+    companion object {
+        private var hasStartedActivityInProcess = false
+    }
+
+    override fun onCreate(savedInstanceState: android.os.Bundle?) {
+        startupLaunchKind = if (hasStartedActivityInProcess) "warm" else "cold"
+        hasStartedActivityInProcess = true
+        setTheme(if (NativeThemeMode.isDark(this)) R.style.LaunchThemeDark else R.style.LaunchThemeLight)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) installSplashScreen()
+        super.onCreate(savedInstanceState)
+    }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        publishScheduleWidgetPreviews(applicationContext)
         PushBridge.attach(this, MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "yourtj/push"))
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "yourtj/startup")
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "setThemeMode" -> {
+                        NativeThemeMode.apply(this, call.argument<String>("mode") ?: "")
+                        result.success(true)
+                    }
+                    "getDeviceProfile" -> result.success(
+                        mapOf(
+                            "device" to "${Build.MANUFACTURER} ${Build.MODEL}".trim(),
+                            "osVersion" to "Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})",
+                            "refreshRateHz" to currentDisplayRefreshRate(),
+                            "launchKind" to startupLaunchKind,
+                        ),
+                    )
+                    "reportFullyDrawn" -> {
+                        if (!fullyDrawnReported) {
+                            fullyDrawnReported = true
+                            reportFullyDrawn()
+                        }
+                        result.success(true)
+                    }
+                    else -> result.notImplemented()
+                }
+            }
         pendingOidcCallback = exactOidcCallback(intent)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "yourtj/oidc")
             .setMethodCallHandler { call, result ->
@@ -65,6 +145,7 @@ class MainActivity : FlutterActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        startupLaunchKind = "hot"
         val callback = exactOidcCallback(intent) ?: return
         val sink = oidcEventSink
         if (sink != null) {
@@ -78,6 +159,23 @@ class MainActivity : FlutterActivity() {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == PushBridge.PERMISSION_REQUEST) PushBridge.permissionResult(this)
     }
+
+    override fun onResume() {
+        super.onResume()
+        if (hasResumedOnce) startupLaunchKind = "hot"
+        hasResumedOnce = true
+    }
+
+    @Suppress("DEPRECATION")
+    private fun currentDisplayRefreshRate(): Float {
+        val currentDisplay = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            display
+        } else {
+            windowManager.defaultDisplay
+        }
+        return currentDisplay?.refreshRate ?: 0f
+    }
+
     override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
         oidcEventSink = null
         pendingOidcCallback = null

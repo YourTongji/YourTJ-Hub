@@ -11,6 +11,7 @@ abstract class LoginPageProps with _$LoginPageProps {
     required String redirectUrl,
     required String githubUrl,
     required bool googleReady,
+    @Default(false) bool appleReady,
     @Default(false) bool tongjiReady,
     @Default('') String tongjiUrl,
     @Default('') String tongjiNotice,
@@ -195,4 +196,14 @@ abstract class TongjiRegistrationResult with _$TongjiRegistrationResult {
       _TongjiRegistrationResult;
   factory TongjiRegistrationResult.fromJson(Map<String, dynamic> json) =>
       _$TongjiRegistrationResultFromJson(json);
+}
+
+@freezed
+abstract class AppleCredentialRequest with _$AppleCredentialRequest {
+  const factory AppleCredentialRequest({
+    required String authorizationCode,
+    required String identityToken,
+    required String nonce,
+  }) = _AppleCredentialRequest;
+  factory AppleCredentialRequest.fromJson(Map<String, dynamic> json) => _$AppleCredentialRequestFromJson(json);
 }

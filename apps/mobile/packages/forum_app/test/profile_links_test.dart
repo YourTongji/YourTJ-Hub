@@ -4,6 +4,15 @@ import 'package:forum_app/src/profile_links.dart';
 import 'fixtures/page_fixtures.dart';
 
 void main() {
+  test('activity routes preserve floors and reject foreign destinations', () {
+    expect(profileActivityRoute('/p/post/9/7#post-42'), '/p/9?postNo=7');
+    expect(profileActivityRoute('/p/9?postNo=7'), '/p/9?postNo=7');
+    expect(profileActivityRoute('/p/post/9#post-42'), '/p/9');
+    expect(profileActivityRoute('https://other.test/p/9/7'), isNull);
+    expect(profileActivityRoute('/u/77'), '/u/77');
+    expect(profileActivityRoute('/p/0'), isNull);
+  });
+
   test(
     'public profiles retain valid unknown social providers and reject unsafe URLs',
     () {

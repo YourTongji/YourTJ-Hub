@@ -256,7 +256,7 @@ func AccountClose(req component.BetterRequest[AccountCloseReq]) component.Respon
 		slog.Error("delete pk schedule snapshot on account close failed", "userId", req.UserId, "err", err)
 		return component.FailResponseCode(component.MessageOperationFailed, nil)
 	}
-	if err := campusservice.CloseForUser(req.UserId, func() error { return users.CloseAccount(req.UserId) }); err != nil {
+	if err := campusservice.CloseForUser(req.UserId, func() error { return userservice.CloseAccount(betterRequestContext(req), req.UserId) }); err != nil {
 		slog.Error("close account and campus connection failed", "userId", req.UserId, "err", err)
 		return component.FailResponseCode(component.MessageOperationFailed, nil)
 	}
@@ -272,6 +272,10 @@ func AccountClose(req component.BetterRequest[AccountCloseReq]) component.Respon
 	// authsessionservice.ValidateToken 会在缓存 TTL（2 分钟）内继续读到旧用户，
 	// 旧 token 仍被接受，注销即时性被破坏（review E）。
 	userservice.InvalidateUserInfoCache(req.UserId)
+	// 失效公开资料缓存（issue #794）：与 adminController 删除用户路径保持一致，
+	// 否则注销后 GetUserPublicProfile 在缓存 TTL（2 分钟）内仍返回全量卡片，
+	// 注销 UX 承诺的资料下线出现 ≤2 分钟的残留窗口。
+	userservice.InvalidateUserPublicProfileCache(req.UserId)
 	// 清空 Web Push 订阅：注销后不得再向该用户的浏览器订阅发送推送
 	// （anonymize 与 delete 两 mode 共用；长驻推送凭据等同会话凭据）。
 	// best-effort：清理失败仅记日志不阻断响应——注销已提交、会话已吊销，

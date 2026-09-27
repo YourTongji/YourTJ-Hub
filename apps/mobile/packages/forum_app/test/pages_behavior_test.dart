@@ -1,3 +1,7 @@
+import 'fixtures/sticker_fixtures.dart';
+import 'package:forum_app/src/widgets/stickers/sticker_picker.dart';
+import 'package:forum_app/src/widgets/stickers/sticker_image.dart';
+import 'package:forum_app/src/widgets/stickers/sticker_library_state.dart';
 import 'package:image/image.dart' as img;
 import 'dart:async';
 import 'dart:convert';
@@ -9,6 +13,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:ui_kit/ui_kit.dart';
 
 import 'package:core/core.dart';
@@ -16,6 +21,8 @@ import 'package:auth/auth.dart';
 import 'package:forum_app/l10n/app_localizations.dart';
 import 'package:forum_app/src/current_user.dart';
 import 'package:forum_app/src/local/writing_store.dart';
+import 'package:forum_app/src/messages/message_content.dart';
+import 'package:forum_app/src/messages/chat_drafts.dart';
 import 'package:forum_app/src/offline/drift_cache.dart';
 import 'package:forum_app/src/pages/auth/login_page.dart';
 import 'package:forum_app/src/pages/drafts/drafts_page.dart';
@@ -31,6 +38,7 @@ import 'package:forum_app/src/pages/topic/mention_search.dart';
 import 'package:forum_app/src/pages/topic/mention_session.dart';
 import 'package:forum_app/src/providers.dart';
 import 'package:forum_app/src/router.dart';
+import 'package:forum_app/src/realtime/realtime_updates.dart';
 import 'package:forum_app/src/navigation/tab_scroll_registry.dart';
 import 'package:forum_app/src/widgets/topic_list.dart';
 import 'package:forum_app/src/widgets/status_views.dart';
@@ -214,7 +222,7 @@ class FailingPageRepository extends PageRepository {
   FailingPageRepository(super.client);
 
   @override
-  Future<PagePayload> fetch(String path) async =>
+  Future<PagePayload> fetch(String path, {Object? cancelToken}) async =>
       throw StateError('network down');
 }
 
@@ -302,6 +310,7 @@ class RetryChatRepository extends RecordingChatRepository {
     required int peerId,
     required String content,
     int msgType = 1,
+    String? clientMessageId,
   }) async {
     sent.add((peerId, content));
     if (fail) throw const NetworkException(fallbackMessage: 'offline');
@@ -309,9 +318,46 @@ class RetryChatRepository extends RecordingChatRepository {
   }
 }
 
+class FailingChatDraftCleanup extends ChatDraftStore {
+  @override
+  Future<void> clearAccount(String scope) async =>
+      throw PlatformException(code: 'locked');
+}
+
+class RecordingWritingCleanup extends WritingStore {
+  final scopes = <String>[];
+  @override
+  Future<void> clearAccount(String scope) async {
+    scopes.add(scope);
+    await super.clearAccount(scope);
+  }
+}
+
+class DelayedChatRepository extends RecordingChatRepository {
+  DelayedChatRepository(super.client);
+  final acknowledgement = Completer<int>();
+  @override
+  Future<int> sendMessage({
+    required int peerId,
+    required String content,
+    int msgType = 1,
+    String? clientMessageId,
+  }) {
+    sent.add((peerId, content));
+    return acknowledgement.future;
+  }
+}
+
+class EmptyStickerRepository extends StickerRepository {
+  EmptyStickerRepository(super.client);
+  @override
+  Future<List<StickerItemPayload>> list() async => [];
+}
+
 class InitialHistoryChatRepository extends RecordingChatRepository {
   InitialHistoryChatRepository(super.client);
   Completer<ChatMessagesResponse> initial = Completer();
+  CancelToken? initialCancel;
 
   @override
   Future<ChatMessagesResponse> getMessages({
@@ -319,9 +365,14 @@ class InitialHistoryChatRepository extends RecordingChatRepository {
     int beforeId = 0,
     int afterId = 0,
     int limit = 30,
-  }) => afterId == 0
-      ? initial.future
-      : super.getMessages(convId: convId, afterId: afterId);
+    Object? cancelToken,
+  }) {
+    if (afterId == 0) {
+      initialCancel = cancelToken as CancelToken?;
+      return initial.future;
+    }
+    return super.getMessages(convId: convId, afterId: afterId);
+  }
 }
 
 class RecordingChatRepository extends ChatRepository {
@@ -334,6 +385,7 @@ class RecordingChatRepository extends ChatRepository {
     required int peerId,
     required String content,
     int msgType = 1,
+    String? clientMessageId,
   }) async {
     sent.add((peerId, content));
     return 9;
@@ -345,6 +397,7 @@ class RecordingChatRepository extends ChatRepository {
     int beforeId = 0,
     int afterId = 0,
     int limit = 30,
+    Object? cancelToken,
   }) async {
     return const ChatMessagesResponse(
       list: <ChatMessagePayload>[],
@@ -357,6 +410,16 @@ class RecordingChatRepository extends ChatRepository {
 
   @override
   Future<bool> markRead({required int convId}) async => true;
+
+  @override
+  Future<ChatVisibleReadResult> markVisible({
+    required int convId,
+    required List<int> messageIds,
+  }) async => ChatVisibleReadResult(
+    convId: convId,
+    acknowledgedMessageIds: messageIds,
+    unreadCount: 0,
+  );
 }
 
 ChatMessagePayload makeChatMessage(int id) {
@@ -385,6 +448,7 @@ class PollingChatRepository extends ChatRepository {
   int afterCalls = 0;
   int beforeCalls = 0;
   int markReadCalls = 0;
+  final visibleReadBatches = <List<int>>[];
 
   @override
   Future<ChatMessagesResponse> getMessages({
@@ -392,6 +456,7 @@ class PollingChatRepository extends ChatRepository {
     int beforeId = 0,
     int afterId = 0,
     int limit = 30,
+    Object? cancelToken,
   }) async {
     if (beforeId > 0) {
       beforeCalls++;
@@ -419,6 +484,19 @@ class PollingChatRepository extends ChatRepository {
     markReadCalls++;
     return true;
   }
+
+  @override
+  Future<ChatVisibleReadResult> markVisible({
+    required int convId,
+    required List<int> messageIds,
+  }) async {
+    visibleReadBatches.add(List.of(messageIds));
+    return ChatVisibleReadResult(
+      convId: convId,
+      acknowledgedMessageIds: messageIds,
+      unreadCount: 0,
+    );
+  }
 }
 
 class IncomingChatRepository extends RecordingChatRepository {
@@ -432,6 +510,7 @@ class IncomingChatRepository extends RecordingChatRepository {
     int beforeId = 0,
     int afterId = 0,
     int limit = 30,
+    Object? cancelToken,
   }) async {
     fetchedConvIds.add(convId);
     return const ChatMessagesResponse(
@@ -461,7 +540,7 @@ class CountingPageRepository extends PageRepository {
   int fetchCalls = 0;
 
   @override
-  Future<PagePayload> fetch(String path) async {
+  Future<PagePayload> fetch(String path, {Object? cancelToken}) async {
     fetchCalls++;
     if (path == '/' || path.startsWith('/?sort=')) {
       return parsePayload(homePayloadJson());
@@ -489,7 +568,7 @@ class FailingRefreshPageRepository extends CountingPageRepository {
   FailingRefreshPageRepository(super.client);
   bool fail = false;
   @override
-  Future<PagePayload> fetch(String path) {
+  Future<PagePayload> fetch(String path, {Object? cancelToken}) {
     if (fail) throw const NetworkException(fallbackMessage: 'offline');
     return super.fetch(path);
   }
@@ -504,6 +583,7 @@ class FailingSearchRepository extends PagingTopicRepository {
     required String query,
     String scope = '',
     int page = 1,
+    Object? cancelToken,
   }) {
     if (fail || (failMore && page > 1)) {
       throw const NetworkException(fallbackMessage: 'offline');
@@ -516,7 +596,7 @@ class EditableProfileRepository extends CountingPageRepository {
   EditableProfileRepository(super.client);
   String nickname = 'Alice';
   @override
-  Future<PagePayload> fetch(String path) async {
+  Future<PagePayload> fetch(String path, {Object? cancelToken}) async {
     final page = await super.fetch(path);
     if (!path.startsWith('/u/1')) return page;
     final json = jsonDecode(jsonEncode(page)) as Map<String, dynamic>;
@@ -531,12 +611,26 @@ class CountingMessagesPageRepository extends PageRepository {
   int fetchCalls = 0;
 
   @override
-  Future<PagePayload> fetch(String path) async {
+  Future<PagePayload> fetch(String path, {Object? cancelToken}) async {
     if (path != '/messages') {
       throw UnimplementedError('unexpected page path: $path');
     }
     fetchCalls++;
     return parsePayload(messagesPayloadJson());
+  }
+}
+
+class DelayedMessagesPageRepository extends PageRepository {
+  DelayedMessagesPageRepository(super.client);
+
+  final requests = <Completer<PagePayload>>[];
+
+  @override
+  Future<PagePayload> fetch(String path, {Object? cancelToken}) {
+    if (path != '/messages') throw StateError('unexpected path: $path');
+    final request = Completer<PagePayload>();
+    requests.add(request);
+    return request.future;
   }
 }
 
@@ -547,7 +641,7 @@ class FailAfterFirstMessagesRepository extends CountingPageRepository {
   int messagesCalls = 0;
 
   @override
-  Future<PagePayload> fetch(String path) async {
+  Future<PagePayload> fetch(String path, {Object? cancelToken}) async {
     if (path == '/messages') {
       messagesCalls++;
       if (messagesCalls > 1) throw StateError('network down');
@@ -570,7 +664,7 @@ class RedesignPageRepository extends PageRepository {
   final paths = <String>[];
 
   @override
-  Future<PagePayload> fetch(String path) async {
+  Future<PagePayload> fetch(String path, {Object? cancelToken}) async {
     paths.add(path);
     if (path.startsWith('/p/post/')) {
       return parsePayload(topicPayload ?? redesignedTopicPayloadJson());
@@ -590,7 +684,7 @@ class _ShortProfileStreams extends RedesignPageRepository {
   bool fail = false;
   Future<void>? pending;
   @override
-  Future<PagePayload> fetch(String path) async {
+  Future<PagePayload> fetch(String path, {Object? cancelToken}) async {
     await pending;
     if (fail) throw StateError('stream unavailable');
     final payload = redesignedProfilePayloadJson();
@@ -632,7 +726,7 @@ class PagedTopicPageRepository extends PageRepository {
   PagedTopicPageRepository(super.client);
 
   @override
-  Future<PagePayload> fetch(String path) async {
+  Future<PagePayload> fetch(String path, {Object? cancelToken}) async {
     if (path.startsWith('/p/post/')) {
       return parsePayload(pagedTopicPayloadJson());
     }
@@ -644,7 +738,7 @@ class JumpingTopicPageRepository extends CountingPageRepository {
   JumpingTopicPageRepository(super.client);
   final paths = <String>[];
   @override
-  Future<PagePayload> fetch(String path) async {
+  Future<PagePayload> fetch(String path, {Object? cancelToken}) async {
     paths.add(path);
     if (path.endsWith('/2')) return parsePayload(anchoredTopicPayloadJson());
     return super.fetch(path);
@@ -655,7 +749,7 @@ class AnchoredTopicPageRepository extends PageRepository {
   AnchoredTopicPageRepository(super.client);
 
   @override
-  Future<PagePayload> fetch(String path) async {
+  Future<PagePayload> fetch(String path, {Object? cancelToken}) async {
     if (path.startsWith('/p/post/')) {
       return parsePayload(anchoredTopicPayloadJson());
     }
@@ -670,7 +764,8 @@ class DelayedPageRepository extends PageRepository {
   final Completer<PagePayload> response = Completer<PagePayload>();
 
   @override
-  Future<PagePayload> fetch(String path) => response.future;
+  Future<PagePayload> fetch(String path, {Object? cancelToken}) =>
+      response.future;
 
   void complete(Map<String, dynamic> payload) {
     if (!response.isCompleted) response.complete(parsePayload(payload));
@@ -936,7 +1031,7 @@ class MidWindowTopicPageRepository extends PageRepository {
   MidWindowTopicPageRepository(super.client);
 
   @override
-  Future<PagePayload> fetch(String path) async {
+  Future<PagePayload> fetch(String path, {Object? cancelToken}) async {
     if (path.startsWith('/p/post/')) {
       return parsePayload(midWindowTopicPayloadJson());
     }
@@ -995,7 +1090,7 @@ class ActivatingConversationPageRepository extends CountingPageRepository {
   int messagesFetches = 0;
 
   @override
-  Future<PagePayload> fetch(String path) async {
+  Future<PagePayload> fetch(String path, {Object? cancelToken}) async {
     if (path != '/messages') return super.fetch(path);
 
     fetchCalls++;
@@ -1020,7 +1115,7 @@ class ErroringProfilePageRepository extends CountingPageRepository {
   ErroringProfilePageRepository(super.client);
 
   @override
-  Future<PagePayload> fetch(String path) async {
+  Future<PagePayload> fetch(String path, {Object? cancelToken}) async {
     if (path.startsWith('/u/')) {
       fetchCalls++;
       throw StateError('profile request failed');
@@ -1038,6 +1133,7 @@ class ControlledSearchRepository extends PagingTopicRepository {
     required String query,
     String scope = '',
     int page = 1,
+    Object? cancelToken,
   }) async {
     if (page > 1) await pending;
     return super.search(query: query, scope: scope, page: page);
@@ -1054,6 +1150,7 @@ class PagingTopicRepository extends TopicRepository {
     required String query,
     String scope = '',
     int page = 1,
+    Object? cancelToken,
   }) async {
     searchPages.add(page);
     if (page <= 1) {
@@ -1109,6 +1206,7 @@ class AggregateSearchRepository extends PagingTopicRepository {
     required String query,
     String scope = '',
     int page = 1,
+    Object? cancelToken,
   }) async {
     scopes.add(scope);
     return SearchPageProps(
@@ -1273,7 +1371,7 @@ class DraftsPageRepository extends PageRepository {
   final String editUrl;
 
   @override
-  Future<PagePayload> fetch(String path) async {
+  Future<PagePayload> fetch(String path, {Object? cancelToken}) async {
     if (path != '/drafts') {
       throw UnimplementedError('unexpected page path: $path');
     }
@@ -1293,6 +1391,7 @@ class FilteringNotificationRepository extends NotificationRepository {
     String filter = 'all',
     int cursor = 0,
     int limit = 20,
+    Object? cancelToken,
   }) async {
     filters.add(filter);
     final NotificationPayload n = NotificationPayload(
@@ -1556,6 +1655,7 @@ void main() {
 
   setUp(() {
     SharedPreferences.setMockInitialValues(<String, Object>{});
+    FlutterSecureStorage.setMockInitialValues({});
     nativePushStops = 0;
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(const MethodChannel('yourtj/push'), (
@@ -1700,7 +1800,7 @@ void main() {
       final path = switch (stream) {
         'bookmarks' => '/u/1/bookmarks',
         'invalid' => '/u/1/activity',
-        _ => '/u/1/activity/$stream',
+        _ => '/u/1/$stream',
       };
       expect(repo.paths, contains(path));
       final label = switch (stream) {
@@ -1780,6 +1880,7 @@ void main() {
               : CountingPageRepository(client),
           chatRepo: chats,
           chatCache: scenario == 'cached' ? SeededMessageCache() : null,
+          currentUserId: 1,
         );
         await tester.pumpWidget(
           app(
@@ -1797,6 +1898,12 @@ void main() {
         }
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 400));
+        expect(
+          chats.initialCancel?.isCancelled,
+          isFalse,
+          reason:
+              'Configuring foreground polling must preserve initial history',
+        );
         await tester.enterText(
           find.descendant(
             of: find.byType(GfChatInput),
@@ -1810,7 +1917,7 @@ void main() {
             .controller!;
         expect(
           tester
-              .widget<FilledButton>(find.widgetWithText(FilledButton, '发送'))
+              .widget<IconButton>(find.byKey(const Key('chat-send')))
               .onPressed,
           isNull,
         );
@@ -1826,7 +1933,7 @@ void main() {
           }
           expect(
             tester
-                .widget<FilledButton>(find.widgetWithText(FilledButton, '发送'))
+                .widget<IconButton>(find.byKey(const Key('chat-send')))
                 .onPressed,
             isNull,
           );
@@ -1844,7 +1951,7 @@ void main() {
           ),
         );
         await tester.pumpAndSettle();
-        await tester.tap(find.text('发送'));
+        await tester.tap(find.byTooltip('发送'));
         await tester.pumpAndSettle();
         expect(chats.sent, [(2, 'OK')]);
         expect(input.text, isEmpty);
@@ -2022,7 +2129,7 @@ void main() {
       3: 'heart',
       4: 'user-round-plus',
       5: 'message-circle',
-      999: 'activity',
+      999: 'sparkles',
     }.entries) {
       final payload = redesignedProfilePayloadJson();
       final props = payload['props'] as Map<String, dynamic>;
@@ -2038,11 +2145,9 @@ void main() {
         app(container, ProfilePage(key: UniqueKey(), userId: 1)),
       );
       await tester.pumpAndSettle();
-      final rows = tester.widgetList<GfActivityCard>(
-        find.byType(GfActivityCard),
-      );
+      final rows = tester.widgetList<GfContentRow>(find.byType(GfContentRow));
       expect(
-        rows.singleWhere((r) => r.title.contains('活动内容')).symbol,
+        rows.singleWhere((r) => r.text.contains('活动内容')).contextSymbol,
         entry.value,
       );
     }
@@ -2103,29 +2208,31 @@ void main() {
     );
     await tester.pumpWidget(app(container, const ProfilePage(userId: 2)));
     await tester.pumpAndSettle();
-    final followed = find.widgetWithText(GfButton, '已关注');
+    final followed = find.widgetWithText(GfFollowButton, '已关注');
     expect(followed, findsOneWidget);
     await tester.tap(followed);
     await tester.pumpAndSettle();
     expect(repo.currentStates, [true]);
-    expect(find.widgetWithText(GfButton, '关注'), findsOneWidget);
+    expect(find.widgetWithText(GfFollowButton, '关注'), findsOneWidget);
     repo.pending = Completer<bool>();
     final retry = tester
-        .widget<GfButton>(find.widgetWithText(GfButton, '关注'))
+        .widget<GfFollowButton>(find.widgetWithText(GfFollowButton, '关注'))
         .onPressed!;
     retry();
     retry();
     await tester.pump();
     expect(repo.currentStates, [true, false]);
     expect(
-      tester.widget<GfButton>(find.widgetWithText(GfButton, '已关注')).loading,
+      tester
+          .widget<GfFollowButton>(find.widgetWithText(GfFollowButton, '已关注'))
+          .busy,
       isTrue,
     );
     repo.pending!.completeError(StateError('follow failed'));
     await tester.pumpAndSettle();
     await tester.pump(const Duration(seconds: 4));
     await tester.pumpAndSettle();
-    expect(find.widgetWithText(GfButton, '关注'), findsOneWidget);
+    expect(find.widgetWithText(GfFollowButton, '关注'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -2171,7 +2278,7 @@ void main() {
       await tester.pumpAndSettle();
       final avatar = tester
           .widgetList<GfAvatar>(find.byType(GfAvatar))
-          .firstWhere((a) => a.size == 80);
+          .firstWhere((a) => a.size == 88);
       expect(avatar.badge, isNotNull);
       expect(
         find.byWidgetPredicate((w) => w is GfSymbol && w.name == 'github'),
@@ -2206,7 +2313,7 @@ void main() {
         .widget<InkWell>(
           find
               .descendant(
-                of: find.byTooltip('获赞'),
+                of: find.byTooltip('赞过'),
                 matching: find.byType(InkWell),
               )
               .first,
@@ -2220,14 +2327,17 @@ void main() {
     repo.pending = pending.future;
     selectLikes();
     await tester.pump();
-    expect(visible(find.byType(GfLoadingIndicator)), isTrue);
+    expect(find.byType(GfSkeleton), findsWidgets);
+    expect(visible(find.byType(GfSkeleton).first), isTrue);
+    expect(visible(find.byTooltip('赞过')), isTrue);
+    expect(find.byType(GfUserCard), findsOneWidget);
     pending.complete();
     await tester.pumpAndSettle();
     expect(visible(find.text('暂无点赞')), isTrue);
     expect(scroll.offset, greaterThan(0));
     repo.fail = true;
-    await tester.ensureVisible(find.byTooltip('主题'));
-    await tester.tap(find.byTooltip('主题'));
+    await tester.ensureVisible(find.byTooltip('内容'));
+    await tester.tap(find.byTooltip('内容'));
     await tester.pumpAndSettle();
     expect(find.byType(GfErrorRetry), findsOneWidget);
     expect(visible(find.byType(GfErrorRetry)), isTrue);
@@ -2306,11 +2416,11 @@ void main() {
       scroll.jumpTo(180);
       await tester.pump();
       final offset = scroll.offset;
-      await tester.tap(find.byTooltip('获赞'));
+      await tester.tap(find.byTooltip('赞过'));
       await tester.pumpAndSettle();
       expect(scroll.offset, offset);
       repo.fail = true;
-      await tester.tap(find.byTooltip('主题'));
+      await tester.tap(find.byTooltip('内容'));
       await tester.pumpAndSettle();
       expect(find.byType(GfUserCard), findsOneWidget);
       expect(scroll.offset, offset);
@@ -2427,7 +2537,8 @@ void main() {
       await tester.tap(find.text('删除本机草稿').last);
       await tester.pumpAndSettle();
       expect(await WritingStore().drafts('site:1'), isEmpty);
-      expect(find.text('本机尚未完成'), findsNothing);
+      expect(find.byKey(const ValueKey('new-3')), findsNothing);
+      expect(find.text('撤销'), findsOneWidget);
     },
   );
 
@@ -2507,7 +2618,7 @@ void main() {
         addTearDown(router.dispose);
         await tester.pumpWidget(routerApp(container, router));
         await tester.pumpAndSettle();
-        expect(find.text('Alice'), findsOneWidget);
+        expect(find.text('Alice'), findsNWidgets(2));
         await tester.tap(find.byTooltip('更多功能'));
         await tester.pumpAndSettle();
         await tester.tap(find.text('设置').last);
@@ -2516,7 +2627,7 @@ void main() {
         repo.nickname = 'Updated profile';
         router.pop();
         await tester.pumpAndSettle();
-        expect(find.text('Updated profile'), findsOneWidget);
+        expect(find.text('Updated profile'), findsNWidgets(2));
         expect(find.text('Alice'), findsNothing);
       },
     );
@@ -2533,7 +2644,7 @@ void main() {
         final container = await makeContainer(pageRepo: repo);
         await tester.pumpWidget(app(container, const ProfilePage(userId: 1)));
         await tester.pumpAndSettle();
-        await tester.tap(find.byTooltip('主题'));
+        await tester.tap(find.byTooltip('内容'));
         await tester.pumpAndSettle();
         expect(repo.paths, contains('/u/1/activity/topics'));
       },
@@ -2583,7 +2694,7 @@ void main() {
       expect(find.byType(GfTopicRow), findsNothing);
       expect(find.text('新建话题'), findsNothing);
       expect(find.byType(GfLogo), findsOneWidget);
-      await tester.tap(find.byType(PopupMenuButton<GfTopicFeedMode>));
+      await tester.tap(find.byTooltip('显示方式'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('列表'));
       await tester.pumpAndSettle();
@@ -2597,6 +2708,106 @@ void main() {
   });
 
   group('消息轮询', () {
+    testWidgets(
+      'late older conversation snapshot cannot replace event refresh',
+      (tester) async {
+        final client = GfApiClient(
+          dio: Dio(),
+          tokenStorage: MemTokenStorage(),
+          baseUrl: 'http://fake.local',
+        );
+        final pageRepo = DelayedMessagesPageRepository(client);
+        final container = await makeContainer(pageRepo: pageRepo);
+        PagePayload snapshot(String text) {
+          final payload = messagesPayloadJson();
+          final props = payload['props'] as Map<String, dynamic>;
+          final conversations = props['conversations'] as List<dynamic>;
+          (conversations.first as Map<String, dynamic>)['lastMsg'] = text;
+          return parsePayload(payload);
+        }
+
+        await tester.pumpWidget(app(container, const MessagesPage()));
+        await tester.pump();
+        expect(pageRepo.requests.length, 1);
+        container.read(realtimeInvalidationsProvider.notifier).chat(1);
+        await tester.pump();
+        // Coalesce the hint behind the in-flight request and never paint its
+        // obsolete snapshot while waiting for the follow-up refresh.
+        expect(pageRepo.requests.length, 1);
+        pageRepo.requests[0].complete(snapshot('stale snapshot'));
+        await tester.pump();
+        expect(pageRepo.requests.length, 2);
+        expect(find.text('stale snapshot'), findsNothing);
+        pageRepo.requests[1].complete(snapshot('new snapshot'));
+        await tester.pumpAndSettle();
+        expect(find.text('new snapshot'), findsOneWidget);
+        expect(find.text('stale snapshot'), findsNothing);
+        await tester.pumpWidget(const SizedBox.shrink());
+      },
+    );
+
+    testWidgets('healthy stream stops polling and reconciles a chat hint', (
+      tester,
+    ) async {
+      final client = GfApiClient(
+        dio: Dio(),
+        tokenStorage: MemTokenStorage(),
+        baseUrl: 'http://fake.local',
+      );
+      final pageRepo = CountingMessagesPageRepository(client);
+      final container = await makeContainer(pageRepo: pageRepo);
+      await tester.pumpWidget(app(container, const MessagesPage()));
+      await tester.pumpAndSettle();
+      expect(pageRepo.fetchCalls, 1);
+
+      container.read(realtimeHealthyProvider.notifier).setHealthy(true);
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 16));
+      expect(pageRepo.fetchCalls, 1);
+
+      container.read(realtimeInvalidationsProvider.notifier).chat(7);
+      await tester.pumpAndSettle();
+      expect(pageRepo.fetchCalls, 2);
+
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      container.read(realtimeHealthyProvider.notifier).setHealthy(false);
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 15));
+      expect(pageRepo.fetchCalls, 2);
+
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pump();
+      expect(pageRepo.fetchCalls, greaterThanOrEqualTo(3));
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+
+    testWidgets('notification hint reconciles the visible filter', (
+      tester,
+    ) async {
+      final client = GfApiClient(
+        dio: Dio(),
+        tokenStorage: MemTokenStorage(),
+        baseUrl: 'http://fake.local',
+      );
+      final notifications = FilteringNotificationRepository(client);
+      final container = await makeContainer(
+        pageRepo: CountingPageRepository(client),
+        notifRepo: notifications,
+      );
+      await tester.pumpWidget(app(container, const NotificationsPage()));
+      await tester.pumpAndSettle();
+      expect(notifications.filters, ['all']);
+
+      container.read(realtimeInvalidationsProvider.notifier).notifications();
+      await tester.pumpAndSettle();
+      expect(notifications.filters, ['all', 'all']);
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+
     testWidgets('隐藏分支暂停轮询，重新可见后立即刷新', (tester) async {
       final GfApiClient client = GfApiClient(
         dio: Dio(),
@@ -2793,6 +3004,158 @@ void main() {
   }
 
   group('话题回复', () {
+    for (final compact in [false, true]) {
+      testWidgets(
+        'sticker composer keeps reply input above panel with live preview compact=$compact',
+        (tester) async {
+          tester.view.physicalSize = compact
+              ? const Size(320, 500)
+              : const Size(390, 844);
+          tester.view.devicePixelRatio = 1;
+          if (compact) tester.platformDispatcher.textScaleFactorTestValue = 2;
+          addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+          addTearDown(tester.view.reset);
+          final client = GfApiClient(
+            dio: Dio(),
+            tokenStorage: MemTokenStorage(),
+            baseUrl: 'http://fake.local',
+          );
+          final library = StickerLibrary(ComposerStickerRepository(client));
+          final container = await makeContainer(
+            pageRepo: CountingPageRepository(client),
+            extraOverrides: [
+              stickerLibraryProvider.overrideWithValue(library),
+              stickerCollectionProvider.overrideWith(
+                (ref) => StickerCollection(
+                  ComposerStickerRepository(client),
+                  library,
+                ),
+              ),
+            ],
+          );
+          await tester.pumpWidget(
+            app(container, const TopicPage(topicId: 100)),
+          );
+          await tester.pumpAndSettle();
+          await tester.tap(find.byTooltip('参与讨论'));
+          await tester.pump();
+          final field = find
+              .descendant(
+                of: find.byType(GfPostComposer),
+                matching: find.byType(TextField),
+              )
+              .first;
+          await tester.enterText(field, 'before after');
+          final controller = tester.widget<TextField>(field).controller!;
+          controller.selection = const TextSelection.collapsed(offset: 7);
+          await tester.tap(find.byTooltip('表情库'));
+          await tester.pumpAndSettle();
+          expect(find.byType(BottomSheet), findsNothing);
+          expect(field.hitTestable(), findsOneWidget);
+          expect(
+            tester.getBottomLeft(field).dy,
+            lessThan(tester.getTopLeft(find.byType(StickerPicker)).dy),
+          );
+          await tester.ensureVisible(find.text('Smile').last);
+          await tester.pumpAndSettle();
+          await tester.tap(find.text('Smile').last);
+          await tester.pumpAndSettle();
+          await tester.ensureVisible(find.text('Smile').last);
+          await tester.pumpAndSettle();
+          await tester.tap(find.text('Smile').last);
+          await tester.pumpAndSettle();
+          expect(
+            controller.text,
+            'before [:sticker:smile:][:sticker:smile:]after',
+          );
+          final preview = find.byKey(const Key('sticker-draft-preview'));
+          expect(
+            find.descendant(of: preview, matching: find.byType(StickerImage)),
+            findsNWidgets(2),
+          );
+          await tester.drag(find.byType(StickerPicker), const Offset(0, 300));
+          await tester.pumpAndSettle();
+          final search = find.descendant(
+            of: find.byType(StickerPicker),
+            matching: find.byType(TextField),
+          );
+          await tester.enterText(search, 'Smile');
+          tester.view.viewInsets = FakeViewPadding(bottom: compact ? 180 : 300);
+          await tester.pumpAndSettle();
+          expect(field.hitTestable(), findsOneWidget);
+          expect(find.byType(StickerPicker), findsOneWidget);
+          expect(tester.takeException(), isNull);
+          tester.view.viewInsets = const FakeViewPadding();
+          await tester.tap(find.byTooltip('键盘'));
+          await tester.pumpAndSettle();
+          expect(find.byType(StickerPicker), findsNothing);
+          expect(tester.testTextInput.isVisible, isTrue);
+          await tester.pumpWidget(const SizedBox.shrink());
+          await tester.pump(const Duration(seconds: 1));
+        },
+      );
+    }
+    testWidgets('sticker caret follows removal of the reply target', (
+      tester,
+    ) async {
+      final client = GfApiClient(
+        dio: Dio(),
+        tokenStorage: MemTokenStorage(),
+        baseUrl: 'http://fake.local',
+      );
+      final repository = ComposerStickerRepository(client);
+      final library = StickerLibrary(repository);
+      addTearDown(library.dispose);
+      final container = await makeContainer(
+        pageRepo: CountingPageRepository(client),
+        extraOverrides: [
+          stickerLibraryProvider.overrideWithValue(library),
+          stickerCollectionProvider.overrideWith(
+            (ref) => StickerCollection(repository, library),
+          ),
+        ],
+      );
+      await tester.pumpWidget(app(container, const TopicPage(topicId: 100)));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.byTooltip('回复').first);
+      await tester.tap(find.byTooltip('回复').first);
+      await tester.pumpAndSettle();
+      final composer = tester.widget<GfPostComposer>(
+        find.byType(GfPostComposer),
+      );
+      final controller = composer.controller;
+      controller.value = TextEditingValue(
+        text: '${controller.text}before after',
+        selection: const TextSelection.collapsed(offset: 8),
+      );
+      await tester.tap(find.byTooltip('表情库'));
+      await tester.pumpAndSettle();
+      final close = MaterialLocalizations.of(
+        tester.element(find.byType(GfPostComposer)),
+      ).closeButtonTooltip;
+      await tester.tap(
+        find
+            .descendant(
+              of: find.byType(GfPostComposer),
+              matching: find.byTooltip(close),
+            )
+            .first,
+      );
+      await tester.pumpAndSettle();
+      final caret = controller.selection.baseOffset;
+      final before = controller.text;
+      await tester.ensureVisible(find.text('Smile').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Smile').last);
+      await tester.pumpAndSettle();
+      expect(
+        controller.text,
+        before.replaceRange(caret, caret, '[:sticker:smile:]'),
+      );
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(const Duration(seconds: 1));
+    });
+
     testWidgets(
       'reply captcha challenge preserves the draft and can be completed',
       (tester) async {
@@ -3195,6 +3558,17 @@ void main() {
       expect(find.text('聚合帖子结果'), findsOneWidget);
       expect(find.text('Bob'), findsOneWidget);
       expect(find.text('@bob'), findsOneWidget);
+      // Results are built per row; reveal the later category section first.
+      await tester.scrollUntilVisible(
+        find.text('开发'),
+        200,
+        scrollable: find
+            .descendant(
+              of: find.byType(ListView),
+              matching: find.byType(Scrollable),
+            )
+            .first,
+      );
       expect(find.text('开发'), findsOneWidget);
 
       await tester.tap(find.text('用户').first);
@@ -3210,7 +3584,327 @@ void main() {
     });
   });
 
+  testWidgets(
+    'account closure still clears writing and signs out when chat cleanup fails',
+    (tester) async {
+      final storage = MemTokenStorage()..write('token');
+      final dio = Dio()
+        ..interceptors.add(
+          InterceptorsWrapper(
+            onRequest: (options, handler) {
+              handler.resolve(
+                Response(
+                  requestOptions: options,
+                  statusCode: 200,
+                  data: {'code': 0, 'result': null},
+                ),
+              );
+            },
+          ),
+        );
+      final client = GfApiClient(
+        dio: dio,
+        tokenStorage: storage,
+        baseUrl: 'http://fake.local',
+      );
+      final writing = RecordingWritingCleanup();
+      final container = await makeContainer(
+        pageRepo: CountingPageRepository(client),
+        currentUserId: 1,
+        tokenStorage: storage,
+        extraOverrides: [
+          contentRepositoryProvider.overrideWithValue(
+            ContentRepository(client),
+          ),
+          chatDraftStoreProvider.overrideWithValue(FailingChatDraftCleanup()),
+          writingStoreProvider.overrideWithValue(writing),
+        ],
+      );
+      final router = GoRouter(
+        initialLocation: '/settings',
+        routes: [
+          GoRoute(
+            path: '/settings',
+            builder: (_, _) => const SettingsPage(initialSection: 'account'),
+          ),
+          GoRoute(
+            path: '/login',
+            builder: (_, _) => const Scaffold(body: Text('signed-out')),
+          ),
+        ],
+      );
+      addTearDown(router.dispose);
+      await tester.pumpWidget(routerApp(container, router));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('注销账号'));
+      await tester.tap(find.text('注销账号'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), 'password');
+      await tester.pump();
+      await tester.tap(find.widgetWithText(FilledButton, '注销账号'));
+      await tester.pumpAndSettle();
+      expect(writing.scopes, hasLength(1));
+      expect(await storage.read(), isNull);
+      expect(find.text('signed-out'), findsOneWidget);
+    },
+  );
+
   group('私信列表', () {
+    testWidgets(
+      'local draft waits for server conversation and initial history',
+      (tester) async {
+        final client = GfApiClient(
+          dio: Dio(),
+          tokenStorage: MemTokenStorage(),
+          baseUrl: 'http://fake.local',
+        );
+        final pages = DelayedPageRepository(client);
+        final chats = InitialHistoryChatRepository(client);
+        final container = await makeContainer(
+          pageRepo: pages,
+          chatRepo: chats,
+          currentUserId: 1,
+        );
+        final server = parsePageProps<MessagesPageProps>(
+          parsePayload(messagesPayloadJson()),
+        )!.conversations.first;
+        final draftPeer = ChatItemPayload(
+          id: 0,
+          peerId: server.peerId,
+          peerUsername: server.peerUsername,
+          peerAvatar: '',
+          convId: 0,
+          lastMsg: '',
+          lastMsgTime: '',
+          unreadCount: 0,
+          peerUrl: server.peerUrl,
+        );
+        final drafts = container.read(chatDraftsProvider);
+        drafts.update(draftPeer, const TextEditingValue(text: '等待解析的草稿'));
+        await drafts.flush();
+        await tester.pumpWidget(app(container, const MessagesPage()));
+        await tester.pump();
+        final row = find.byType(GfConversationRow);
+        expect(find.text('草稿 · 等待解析的草稿'), findsOneWidget);
+        expect(tester.widget<GfConversationRow>(row).onTap, isNull);
+        pages.complete(messagesPayloadJson());
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('草稿 · 等待解析的草稿'));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 400));
+        expect(
+          tester.widget<GfChatInput>(find.byType(GfChatInput)).canSend,
+          isFalse,
+        );
+        expect(chats.sent, isEmpty);
+        chats.initial.complete(
+          ChatMessagesResponse(
+            list: [
+              makeChatMessage(42).copyWith(content: '等待解析的草稿', isSelf: true),
+            ],
+            hasMoreBefore: false,
+            hasMoreAfter: false,
+            nextBeforeId: 0,
+            latestId: 42,
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(
+          tester.widget<GfChatInput>(find.byType(GfChatInput)).canSend,
+          isTrue,
+        );
+        await tester.tap(find.byTooltip('发送'));
+        await tester.pumpAndSettle();
+        expect(chats.sent, [(server.peerId, '等待解析的草稿')]);
+        expect(
+          find.text('等待解析的草稿'),
+          findsNWidgets(2),
+          reason:
+              'An identical historical message cannot acknowledge the new send',
+        );
+        await tester.pumpWidget(const SizedBox.shrink());
+      },
+    );
+
+    testWidgets(
+      'acknowledgement after leaving still clears the submitted draft',
+      (tester) async {
+        final client = GfApiClient(
+          dio: Dio(),
+          tokenStorage: MemTokenStorage(),
+          baseUrl: 'http://fake.local',
+        );
+        final chats = DelayedChatRepository(client);
+        final container = await makeContainer(
+          pageRepo: CountingPageRepository(client),
+          chatRepo: chats,
+          currentUserId: 1,
+        );
+        await tester.pumpWidget(
+          app(
+            container,
+            const MessagesPage(targetUserId: 4, targetUsername: 'Dave'),
+          ),
+        );
+        await tester.pumpAndSettle();
+        await tester.enterText(find.byType(TextField), '等待发送结果');
+        await tester.pump();
+        await tester.tap(find.byTooltip('发送'));
+        await tester.pump();
+        expect(
+          tester.widget<TextField>(find.byType(TextField)).controller!.text,
+          '等待发送结果',
+        );
+        await tester.pumpWidget(const SizedBox.shrink());
+        chats.acknowledgement.complete(9);
+        await tester.pumpAndSettle();
+        await container.read(chatDraftsProvider).flush();
+        expect(container.read(chatDraftsProvider).items, isEmpty);
+        expect(tester.takeException(), isNull);
+      },
+    );
+
+    testWidgets(
+      'switching accounts hides the previous private draft and input',
+      (tester) async {
+        var scope = 'site:1';
+        final client = GfApiClient(
+          dio: Dio(),
+          tokenStorage: MemTokenStorage(),
+          baseUrl: 'http://fake.local',
+        );
+        final container = await makeContainer(
+          pageRepo: CountingPageRepository(client),
+          chatRepo: RecordingChatRepository(client),
+          extraOverrides: [
+            writingScopeProvider.overrideWith((ref) async {
+              ref.watch(offlineCacheEpochProvider);
+              return scope;
+            }),
+          ],
+        );
+        await tester.pumpWidget(
+          app(
+            container,
+            const MessagesPage(targetUserId: 2, targetUsername: 'Bob'),
+          ),
+        );
+        await tester.pumpAndSettle();
+        await tester.enterText(find.byType(TextField), '账号 A 的私密草稿');
+        await tester.pump(const Duration(seconds: 1));
+        await container.read(chatDraftsProvider).flush();
+        scope = 'site:2';
+        container.read(offlineCacheEpochProvider.notifier).invalidate();
+        await tester.pumpAndSettle();
+        expect(find.textContaining('账号 A 的私密草稿'), findsNothing);
+        expect(container.read(chatDraftsProvider).items, isEmpty);
+        expect(
+          (await ChatDraftStore().read('site:1')).single.value.text,
+          '账号 A 的私密草稿',
+        );
+        await tester.pumpWidget(const SizedBox.shrink());
+      },
+    );
+
+    testWidgets(
+      'successful send clears the composer and persisted conversation draft',
+      (tester) async {
+        final client = GfApiClient(
+          dio: Dio(),
+          tokenStorage: MemTokenStorage(),
+          baseUrl: 'http://fake.local',
+        );
+        final container = await makeContainer(
+          pageRepo: CountingPageRepository(client),
+          chatRepo: RecordingChatRepository(client),
+          currentUserId: 1,
+        );
+        await tester.pumpWidget(
+          app(
+            container,
+            const MessagesPage(targetUserId: 4, targetUsername: 'Dave'),
+          ),
+        );
+        await tester.pumpAndSettle();
+        await tester.enterText(find.byType(TextField), '成功后清除');
+        await container.read(chatDraftsProvider).flush();
+        await tester.pump();
+        await tester.tap(find.byTooltip('发送'));
+        await tester.pumpAndSettle();
+        expect(
+          tester.widget<TextField>(find.byType(TextField)).controller!.text,
+          isEmpty,
+        );
+        await container.read(chatDraftsProvider).flush();
+        expect(container.read(chatDraftsProvider).items, isEmpty);
+        expect(
+          await ChatDraftStore().read(
+            await container.read(writingScopeProvider.future),
+          ),
+          isEmpty,
+        );
+        await tester.pumpWidget(const SizedBox.shrink());
+      },
+    );
+
+    testWidgets(
+      'unsent conversation text and selection survive leaving and returning',
+      (tester) async {
+        final client = GfApiClient(
+          dio: Dio(),
+          tokenStorage: MemTokenStorage(),
+          baseUrl: 'http://fake.local',
+        );
+        final container = await makeContainer(
+          pageRepo: CountingPageRepository(client),
+          chatRepo: RecordingChatRepository(client),
+          currentUserId: 1,
+          extraOverrides: [
+            stickerLibraryProvider.overrideWithValue(
+              StickerLibrary(EmptyStickerRepository(client)),
+            ),
+          ],
+        );
+        await tester.pumpWidget(
+          app(
+            container,
+            const MessagesPage(targetUserId: 4, targetUsername: 'Dave'),
+          ),
+        );
+        await tester.pumpAndSettle();
+        final controller = tester
+            .widget<TextField>(find.byType(TextField))
+            .controller!;
+        controller.value = const TextEditingValue(
+          text: '还没写完的私信',
+          selection: TextSelection(baseOffset: 2, extentOffset: 5),
+        );
+        await tester.pump(const Duration(seconds: 1));
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pumpAndSettle();
+        await tester.pumpWidget(app(container, const MessagesPage()));
+        await tester.pumpAndSettle();
+        expect(find.text('草稿 · 还没写完的私信'), findsOneWidget);
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pumpWidget(
+          app(
+            container,
+            const MessagesPage(targetUserId: 4, targetUsername: 'Dave'),
+          ),
+        );
+        await tester.pumpAndSettle();
+        final restored = tester
+            .widget<TextField>(find.byType(TextField))
+            .controller!
+            .value;
+        expect(restored.text, '还没写完的私信');
+        expect(
+          restored.selection,
+          const TextSelection(baseOffset: 2, extentOffset: 5),
+        );
+        await tester.pumpWidget(const SizedBox.shrink());
+      },
+    );
     testWidgets('发送失败保留消息气泡并可重试且保留下一条输入', (tester) async {
       final client = GfApiClient(
         dio: Dio(),
@@ -3230,9 +3924,25 @@ void main() {
       await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextField), '不能丢失的消息');
       await tester.pump();
-      await tester.tap(find.text('发送'));
+      await tester.tap(find.byTooltip('发送'));
       await tester.pumpAndSettle();
-      expect(find.text('不能丢失的消息'), findsOneWidget);
+      expect(find.text('不能丢失的消息'), findsNWidgets(2));
+      expect(
+        tester.widget<TextField>(find.byType(TextField)).controller!.text,
+        '不能丢失的消息',
+      );
+      final pending = tester.widget<GfMessageBubble>(
+        find.byType(GfMessageBubble).last,
+      );
+      expect(pending.selectable, isTrue);
+      expect(pending.copyMessageLabel, '复制整条消息');
+      expect(
+        find.descendant(
+          of: find.byType(GfMessageBubble).last,
+          matching: find.byType(MessageContent),
+        ),
+        findsOneWidget,
+      );
       await tester.enterText(find.byType(TextField), '正在写下一条');
       chats.fail = false;
       await tester.tap(find.text('重新发送'));
@@ -3260,13 +3970,26 @@ void main() {
       expect(find.text('新私信'), findsOneWidget);
       expect(find.text('Bob'), findsOneWidget);
       expect(find.text('@bob'), findsOneWidget);
+      // Shared sheets own the sole visual handle; content must not draw a
+      // second legacy handle above its title/search field.
+      final handles = find.descendant(
+        of: find.byType(BottomSheet),
+        matching: find.byWidgetPredicate(
+          (widget) =>
+              widget is Container &&
+              widget.constraints?.maxHeight == 4 &&
+              (widget.constraints?.maxWidth == 32 ||
+                  widget.constraints?.maxWidth == 36),
+        ),
+      );
+      expect(handles, findsOneWidget);
       expect(tester.takeException(), isNull);
 
       await tester.enterText(find.byType(TextField).last, 'bob');
       await tester.pumpAndSettle();
       expect(find.text('Bob'), findsOneWidget);
 
-      await tester.tap(find.byIcon(Icons.close));
+      await tester.tap(find.byTooltip('关闭'));
       await tester.pumpAndSettle();
       await tester.pumpWidget(const SizedBox.shrink());
     });
@@ -3297,7 +4020,7 @@ void main() {
 
       await tester.enterText(find.byType(TextField), '你好');
       await tester.pump();
-      await tester.tap(find.text('发送'));
+      await tester.tap(find.byTooltip('发送'));
       await tester.pumpAndSettle();
       expect(chatRepo.sent, <(int, String)>[(4, '你好')]);
 
@@ -3349,7 +4072,12 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(chatRepo.afterCalls, 1);
-      expect(chatRepo.markReadCalls, 2);
+      expect(chatRepo.markReadCalls, 0);
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pumpAndSettle();
+      expect(chatRepo.visibleReadBatches, [
+        [101],
+      ]);
       expect(chatCache.putMessageCalls, 1);
       expect(chatCache.storedMessageIds, <List<int>>[
         <int>[101],
@@ -3360,7 +4088,10 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(chatRepo.afterCalls, 2);
-      expect(chatRepo.markReadCalls, 2);
+      expect(chatRepo.markReadCalls, 0);
+      expect(chatRepo.visibleReadBatches, [
+        [101],
+      ]);
       expect(chatCache.putMessageCalls, 1);
 
       await tester.pumpWidget(const SizedBox.shrink());
@@ -3707,8 +4438,8 @@ void main() {
       await tester.pumpWidget(routerApp(container, router));
       await tester.pumpAndSettle();
 
-      expect(find.text('Bob'), findsOneWidget);
-      await tester.tap(find.text('新私信'));
+      expect(find.text('Bob'), findsNWidgets(2));
+      await tester.tap(find.byTooltip('新私信'));
       await tester.pumpAndSettle();
 
       expect(router.state.uri.path, '/messages');
@@ -3720,7 +4451,7 @@ void main() {
       router.pop();
       await tester.pumpAndSettle();
       expect(router.state.uri.path, '/u/2');
-      expect(find.text('Bob'), findsOneWidget);
+      expect(find.text('Bob'), findsNWidgets(2));
 
       await tester.pumpWidget(const SizedBox.shrink());
     });
@@ -3851,7 +4582,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(notifRepo.filters, ['all']);
-      expect(find.text('全部通知'), findsOneWidget);
+      expect(find.textContaining('全部通知'), findsOneWidget);
 
       // 切到"未读"。
       await tester.tap(find.text('未读'));
@@ -3861,7 +4592,7 @@ void main() {
         'all',
         'unread',
       ], reason: '切换 tab 应以 filter=unread 重新请求');
-      expect(find.text('未读通知'), findsOneWidget);
+      expect(find.textContaining('未读通知'), findsOneWidget);
     });
   });
 
@@ -3971,7 +4702,9 @@ void main() {
         pageRepo: pages,
         userRepo: UserRepository(client),
       );
-      await tester.pumpWidget(app(container, const SettingsPage()));
+      await tester.pumpWidget(
+        app(container, const SettingsPage(initialSection: 'profile')),
+      );
       pages.complete(settingsPayloadJson());
       await tester.pumpAndSettle();
       await tester.tap(find.text('头像'));
@@ -4025,7 +4758,9 @@ void main() {
         pageRepo: pages,
         userRepo: UserRepository(client),
       );
-      await tester.pumpWidget(app(container, const SettingsPage()));
+      await tester.pumpWidget(
+        app(container, const SettingsPage(initialSection: 'profile')),
+      );
       final payload = settingsPayloadJson();
       final user = (payload['props'] as Map)['user'] as Map;
       user['websiteName'] = 'Alice’s notebook';
@@ -4035,8 +4770,13 @@ void main() {
       };
       pages.complete(payload);
       await tester.pumpAndSettle();
-      await tester.tap(find.text('昵称'));
+      await tester.tap(find.text('编辑资料'));
       await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const Key('profile-nickname')),
+        'Updated nickname',
+      );
+      await tester.pump();
       await tester.tap(find.text('保存'));
       await tester.pumpAndSettle();
       expect(saved?['websiteName'], 'Alice’s notebook');
@@ -4061,14 +4801,16 @@ void main() {
         userRepo: EmptySessionsUserRepository(client),
       );
 
-      await tester.pumpWidget(app(container, const SettingsPage()));
+      await tester.pumpWidget(
+        app(container, const SettingsPage(initialSection: 'profile')),
+      );
       await tester.pump();
       expect(find.byType(GfSettingsSkeleton), findsOneWidget);
 
       pageRepo.complete(settingsPayloadJson());
       await tester.pumpAndSettle();
       expect(find.byType(GfSettingsSkeleton), findsNothing);
-      expect(find.text('个人资料'), findsOneWidget);
+      expect(find.text('个人资料与展示'), findsOneWidget);
     });
 
     testWidgets('下拉刷新再次请求设置数据', (tester) async {
@@ -4082,7 +4824,9 @@ void main() {
       final ProviderContainer container = await makeContainer(
         pageRepo: pageRepo,
       );
-      await tester.pumpWidget(app(container, const SettingsPage()));
+      await tester.pumpWidget(
+        app(container, const SettingsPage(initialSection: 'profile')),
+      );
       await tester.pumpAndSettle();
       final int callsBefore = pageRepo.fetchCalls;
 
@@ -4168,7 +4912,7 @@ void main() {
       await tester.pumpWidget(app(container, const SettingsPage()));
       await tester.pumpAndSettle();
 
-      // 切到 Security tab 查看会话列表。
+      // 打开 Security 分类 查看会话列表。
       await tester.tap(find.text('安全'));
       await tester.pumpAndSettle();
 
@@ -4255,7 +4999,7 @@ void main() {
         ],
       );
 
-      // 设置更大视口,保证安全 tab 内"退出登录"按钮无需滚动即可见。
+      // 设置更大视口,保证安全分类内"退出登录"按钮无需滚动即可见。
       tester.view.physicalSize = const Size(1080, 2400);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.reset);
@@ -4273,7 +5017,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // 切到 Security tab 找登出按钮。
+      // 打开 Security 分类 找登出按钮。
       await tester.tap(find.text('安全'));
       await tester.pumpAndSettle();
       expect(find.text('退出登录'), findsOneWidget);
@@ -4346,7 +5090,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // 切到 Security tab 找"吊销全部会话"按钮。
+      // 打开 Security 分类 找"吊销全部会话"按钮。
       await tester.tap(find.text('安全'));
       await tester.pumpAndSettle();
       expect(find.text('吊销全部会话'), findsOneWidget);
@@ -4502,8 +5246,26 @@ void main() {
       expect(find.text('回复 用户 2'), findsOneWidget);
       expect(find.text('@user2 '), findsOneWidget);
 
-      await tester.tap(find.byTooltip('取消'));
+      final composerContext = tester.element(find.byType(GfPostComposer));
+      await tester.tap(
+        find.byTooltip(
+          MaterialLocalizations.of(composerContext).closeButtonTooltip,
+        ),
+      );
       await tester.pumpAndSettle();
+      expect(find.byType(GfPostComposer), findsOneWidget);
+      expect(
+        tester
+            .widget<GfPostComposer>(find.byType(GfPostComposer))
+            .controller
+            .text,
+        isEmpty,
+      );
+      await tester.tap(
+        find.byTooltip(AppLocalizations.of(composerContext).draftCollapse),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byType(GfPostComposer), findsNothing);
       await tester.tap(find.text('参与讨论'));
       await tester.pumpAndSettle();
       expect(find.text('回复 用户 2'), findsNothing);
@@ -4554,6 +5316,12 @@ void main() {
             ),
           ),
           GoRoute(
+            path: '/u/:id/following',
+            builder: (_, state) => ProfilePage.connections(
+              userId: int.parse(state.pathParameters['id']!),
+            ),
+          ),
+          GoRoute(
             path: '/u/:id',
             builder: (BuildContext context, GoRouterState state) {
               final int id = int.parse(state.pathParameters['id']!);
@@ -4587,16 +5355,15 @@ void main() {
       expect(router.state.uri.path, '/u/1');
       expect(router.canPop(), isTrue);
 
-      // TDesign default back occupies the standard 44dp top-left target.
-      await tester.tapAt(const Offset(28, 28));
+      await tester.tap(find.byTooltip('返回'));
       await tester.pumpAndSettle();
       expect(router.state.uri.path, '/profile-host');
 
       await tester.tap(find.text('打开个人主页'));
       await tester.pumpAndSettle();
-      await tester.ensureVisible(find.byTooltip('主题'));
+      await tester.ensureVisible(find.byTooltip('内容'));
       await tester.pumpAndSettle();
-      await tester.tap(find.byTooltip('主题'));
+      await tester.tap(find.byTooltip('内容'));
       await tester.pumpAndSettle();
       await tester.drag(
         find.byType(CustomScrollView).first,
@@ -4612,7 +5379,12 @@ void main() {
 
       router.pop();
       await tester.pumpAndSettle();
-      await tester.tap(find.byTooltip('关注'));
+      await tester.ensureVisible(
+        find.descendant(of: find.byType(GfUserCard), matching: find.text('关注')),
+      );
+      await tester.tap(
+        find.descendant(of: find.byType(GfUserCard), matching: find.text('关注')),
+      );
       await tester.pumpAndSettle();
       expect(find.text('Bob'), findsOneWidget);
       await tester.tap(find.text('Bob'));
@@ -4639,17 +5411,17 @@ void main() {
       await tester.pumpWidget(app(container, const ProfilePage(userId: 2)));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.widgetWithText(GfButton, '关注'));
+      await tester.tap(find.widgetWithText(GfFollowButton, '关注'));
       await tester.pump();
       expect(topicRepo.userIds, <int>[2]);
       expect(topicRepo.currentStates, <bool>[false]);
-      expect(find.widgetWithText(GfButton, '已关注'), findsOneWidget);
+      expect(find.widgetWithText(GfFollowButton, '已关注'), findsOneWidget);
 
-      await tester.tap(find.widgetWithText(GfButton, '已关注'));
+      await tester.tap(find.widgetWithText(GfFollowButton, '已关注'));
       await tester.pump();
       expect(topicRepo.userIds, <int>[2, 2]);
       expect(topicRepo.currentStates, <bool>[false, true]);
-      expect(find.widgetWithText(GfButton, '关注'), findsOneWidget);
+      expect(find.widgetWithText(GfFollowButton, '关注'), findsOneWidget);
     });
   });
 
@@ -4708,7 +5480,7 @@ void main() {
       repo.complete(userProfilePayloadJson());
       await tester.pumpAndSettle();
       expect(find.byType(GfProfileSkeleton), findsNothing);
-      expect(find.text('Alice'), findsOneWidget);
+      expect(find.text('Alice'), findsNWidgets(2));
     });
   });
 
@@ -5324,7 +6096,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(
         find.text('Alice'),
-        findsOneWidget,
+        findsNWidgets(2),
         reason: 'A 的 profile 应显示 Alice',
       );
 
@@ -5343,7 +6115,7 @@ void main() {
       // B 打开 profile:必须用 B 的 id(=2)请求,显示 Bob,而非缓存的 A。
       router.go('/profile');
       await tester.pumpAndSettle();
-      expect(find.text('Bob'), findsOneWidget, reason: 'B 的 profile 应显示 Bob');
+      expect(find.text('Bob'), findsNWidgets(2), reason: 'B 的 profile 应显示 Bob');
       expect(find.text('Alice'), findsNothing, reason: '不得残留 A 的 profile');
 
       await tester.pumpWidget(const SizedBox.shrink());

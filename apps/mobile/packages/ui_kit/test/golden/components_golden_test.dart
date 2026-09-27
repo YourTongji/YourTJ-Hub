@@ -22,6 +22,104 @@ void main() {
 
   for (final brightness in Brightness.values) {
     testWidgets(
+      'Connections ${brightness.name}',
+      skip: skipGoldens,
+      tags: 'golden',
+      (tester) async {
+        await pumpGfGolden(
+          tester,
+          Column(
+            children: [
+              GfConnectionRow(
+                name: 'Grey Goose',
+                username: 'greygoose',
+                avatarUrl: '',
+                bio: '在同济，记录日常，也分享一点新发现。',
+                action: GfFollowButton(
+                  following: true,
+                  label: '已关注',
+                  onPressed: () {},
+                ),
+              ),
+              GfConnectionRow(
+                name: 'Alice',
+                username: 'alice',
+                avatarUrl: '',
+                bio: 'Building a campus community. 分享校园生活与新想法。',
+                action: GfFollowButton(
+                  following: false,
+                  label: '关注',
+                  onPressed: () {},
+                ),
+              ),
+              const GfConnectionRow(
+                name: 'Bob',
+                username: 'bob',
+                avatarUrl: '',
+                bio: '',
+              ),
+            ],
+          ),
+          brightness: brightness,
+        );
+        await expectLater(
+          find.byType(Scaffold),
+          matchesGoldenFile('golden/gf_connections_${brightness.name}.png'),
+        );
+      },
+    );
+  }
+
+  for (final brightness in Brightness.values) {
+    testWidgets(
+      'Content preview ${brightness.name}',
+      skip: skipGoldens,
+      tags: 'golden',
+      (tester) async {
+        await pumpGfGolden(
+          tester,
+          const SizedBox(
+            width: 390,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                GfContentRow(
+                  author: 'Grey Goose',
+                  avatarUrl: '',
+                  time: '3 分钟前',
+                  text: '在同济，记录日常，也分享一点新发现。',
+                  contextLabel: '发表回复',
+                  contextSymbol: 'message-circle',
+                ),
+                GfContentRow(
+                  author: 'Alice',
+                  avatarUrl: '',
+                  time: '昨天',
+                  title: '这周的校园生活',
+                  text: '从一张课表开始，把学习和课余生活安排得更从容。',
+                ),
+                GfContentRow(
+                  author: '',
+                  avatarUrl: '',
+                  time: '昨天',
+                  title: '收藏的讨论',
+                  text: '旧服务器和匿名作者的内容仍然可以阅读。',
+                ),
+              ],
+            ),
+          ),
+          brightness: brightness,
+        );
+        await expectLater(
+          find.byType(Column).first,
+          matchesGoldenFile('golden/gf_content_row_${brightness.name}.png'),
+        );
+      },
+    );
+  }
+
+  for (final brightness in Brightness.values) {
+    testWidgets(
       'Profile presentation ${brightness.name}',
       skip: skipGoldens,
       tags: 'golden',
@@ -49,29 +147,29 @@ void main() {
                   GfSocialIcon('zhihu'),
                 ],
               ),
-              actions: Row(
+              actions: Wrap(
+                alignment: WrapAlignment.end,
                 spacing: 8,
+                runSpacing: 8,
                 children: [
-                  GfButton(
+                  GfFollowButton(
+                    following: true,
                     label: '已关注',
-                    variant: GfButtonVariant.secondary,
-                    icon: const GfSymbol('user-round-check', size: 18),
                     onPressed: () {},
                   ),
-                  GfButton(
-                    label: '新消息',
-                    variant: GfButtonVariant.secondary,
-                    icon: const GfSymbol('mail', size: 18),
+                  IconButton.outlined(
+                    icon: const GfSymbol('mail', size: 20),
+                    tooltip: '新私信',
                     onPressed: () {},
                   ),
                 ],
               ),
               stats: const [
-                ('主题', '24'),
-                ('回复', '108'),
-                ('点赞', '256'),
                 ('关注', '108'),
                 ('粉丝', '13'),
+                ('主题', '24'),
+                ('回复', '108'),
+                ('获赞', '256'),
               ],
             ),
           ),
@@ -328,13 +426,13 @@ void main() {
         child: GfFloatingControls(
           actions: [
             GfTopicAction(
-              icon: Icons.favorite_border,
+              symbol: 'heart-filled',
               active: true,
               activeColor: GfColors.light.error,
               onTap: () {},
             ),
             GfTopicAction(
-              icon: Icons.bookmark_border,
+              symbol: 'bookmark',
               active: false,
               activeColor: GfColors.light.primary,
               onTap: () {},
@@ -363,17 +461,21 @@ void main() {
         child: Column(
           children: [
             GfNotificationRow(
-              icon: Icons.message,
+              symbol: 'message-circle',
               tone: GfNotificationTone.primary,
-              title: '有人回复了你的话题',
+              actorName: 'Bob',
+              avatarUrl: '',
+              title: 'Bob 回复了你的话题',
               subtitle: '内容预览…',
               time: '3 分钟前',
               unread: true,
             ),
             GfNotificationRow(
-              icon: Icons.person_add,
-              tone: GfNotificationTone.success,
-              title: 'Alice 关注了你',
+              symbol: 'heart-filled',
+              tone: GfNotificationTone.like,
+              actorName: 'Alice',
+              avatarUrl: '',
+              title: 'Alice 赞了你的回复',
               subtitle: '',
               time: '昨天',
               unread: false,

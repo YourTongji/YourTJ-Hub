@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../theme/gf_theme.dart';
 import '../atoms/gf_loading_indicator.dart';
+import '../gf_symbol.dart';
 
 /// A readable state with a quiet symbol, explanation and optional next step.
 /// Scrolls on short viewports and with large accessibility text.
@@ -10,14 +11,16 @@ class GfEmpty extends StatelessWidget {
     super.key,
     required this.message,
     this.description,
-    this.icon,
+    this.symbol,
     this.loading = false,
     this.action,
   });
 
   final String message;
   final String? description;
-  final IconData? icon;
+
+  /// Shared outline symbol.
+  final String? symbol;
   final bool loading;
   final Widget? action;
 
@@ -36,16 +39,21 @@ class GfEmpty extends StatelessWidget {
                 const GfLoadingIndicator()
               else
                 Container(
-                  width: 64,
-                  height: 64,
+                  width: 56,
+                  height: 56,
                   decoration: BoxDecoration(
-                    color: colors.primary.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(20),
+                    color: colors.base200,
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(
+                      color: colors.line.withValues(alpha: .5),
+                    ),
                   ),
-                  child: Icon(
-                    icon ?? Icons.inbox_outlined,
-                    size: 28,
-                    color: colors.primary,
+                  child: Center(
+                    child: GfSymbol(
+                      symbol ?? 'inbox',
+                      size: 28,
+                      color: colors.iconMuted,
+                    ),
                   ),
                 ),
               const SizedBox(height: 24),

@@ -1,11 +1,19 @@
+import '../../report_content.dart';
+import '../../widgets/stickers/sticker_draft_preview.dart';
+import '../../widgets/stickers/sticker_picker.dart';
+import '../../widgets/stickers/sticker_strings.dart';
 import '../../private_notes.dart';
+import '../../local/writing_store.dart';
+
 import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:core/core.dart';
 import 'package:ui_kit/ui_kit.dart';
+
 import '../../widgets/app_refresh_indicator.dart';
 import '../../asset_url.dart';
 
@@ -18,6 +26,7 @@ import '../../server_messages.dart';
 import '../../widgets/markdown_view.dart';
 import '../../widgets/status_views.dart';
 import '../../widgets/skeletons.dart';
+import '../../widgets/user_badge.dart';
 import 'post_actions.dart';
 import 'topic_actions.dart';
 import 'mention_panel.dart';
@@ -39,7 +48,8 @@ class TopicPage extends ConsumerStatefulWidget {
 /// 评论排序(移动端评论胶囊):正序/倒序/只看楼主。
 enum CommentSort { asc, desc, onlyOp }
 
-class _TopicPageState extends ConsumerState<TopicPage> {
+class _TopicPageState extends ConsumerState<TopicPage>
+    with WidgetsBindingObserver {
   final GlobalKey _titleKey = GlobalKey();
   bool _showHeaderTitle = false;
   bool _titleCheckScheduled = false;
@@ -112,12 +122,29 @@ class _TopicPageState extends ConsumerState<TopicPage> {
   String? _replyTargetName;
   String? _replyMentionPrefix;
 
+  late final WritingStore _writingStore;
+  late final OfflineCacheEpoch _writingSession;
+  late final int _writingEpoch;
+  late final Future<String?> _replyOwner;
+  Timer? _replyAutosave;
+  int _replyRevision = 0, _replySavedRevision = 0, _replyDraftGeneration = 0;
+  bool _restoringReply = false;
+  bool _leavingReply = false;
+  bool _discardReplyOnLeave = false;
+  String _lastReplyText = '';
+  bool _replySaveFailed = false;
+  String _replySaveStatus = '';
+  bool get _writingCurrent => _writingSession.isCurrent(_writingEpoch);
+  bool get _replyDirty => _replyRevision != _replySavedRevision;
+
   // @mention 候选会话(issue #565):token/候选/防抖逻辑在 mention_session.dart。
   late final MentionSessionController _mentionSession;
   int _viewerId = 0;
 
   // 浮动层状态(web TopicFloatingControls / PostComposer 语义)。
   bool _composerOpen = false;
+  bool _replyStickerOpen = false;
+  TextSelection? _replyStickerSelection;
   bool _railOpen = false;
 
   // 引用目标缓存:post id → replyTarget,供平铺引用块渲染被引用内容。
@@ -127,34 +154,179 @@ class _TopicPageState extends ConsumerState<TopicPage> {
   @override
   void initState() {
     super.initState();
+    _writingStore = ref.read(writingStoreProvider);
+    _writingSession = ref.read(offlineCacheEpochProvider.notifier);
+    _writingEpoch = ref.read(offlineCacheEpochProvider);
+    _replyOwner = ref
+        .read(writingScopeProvider.future)
+        .then<String?>(
+          (scope) => scope.endsWith(':0') ? null : scope,
+          onError: (Object _) => null,
+        );
+    WidgetsBinding.instance.addObserver(this);
     _mentionSession = MentionSessionController(
       searchUsers: ref.read(mentionUserSearchProvider),
     );
     _replyController.addListener(_onReplyValueChanged);
     _replyFocus.addListener(_onReplyFocusChanged);
     _load(postNo: widget.initialPostNo);
+    _restoreReplyDraft();
   }
 
   @override
   void didUpdateWidget(TopicPage oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.topicId != oldWidget.topicId ||
-        widget.initialPostNo != oldWidget.initialPostNo) {
-      _railOpen = false;
-      _sort = CommentSort.asc;
-      _composerOpen = false;
+    if (widget.topicId != oldWidget.topicId) {
+      unawaited(_saveReplyDraft(topicId: oldWidget.topicId, notify: false));
+      _replyDraftGeneration++;
+      _restoringReply = true;
       _replyController.clear();
       _replyImageUrl = null;
       _replyToPostId = 0;
       _replyTargetName = null;
       _replyMentionPrefix = null;
+      _restoringReply = false;
+      _replyRevision = _replySavedRevision = 0;
+      _replySaveStatus = '';
+      _replySaveFailed = false;
+      _discardReplyOnLeave = false;
+      _composerOpen = false;
+      _replyStickerOpen = false;
       _mentionSession.close();
+      _restoreReplyDraft();
+    }
+    if (widget.topicId != oldWidget.topicId ||
+        widget.initialPostNo != oldWidget.initialPostNo) {
+      _railOpen = false;
+      _sort = CommentSort.asc;
       _load(postNo: widget.initialPostNo);
     }
   }
 
+  void _replyChanged() {
+    if (_restoringReply || !_writingCurrent) return;
+    _replyRevision++;
+    setState(() {
+      _replySaveFailed = false;
+      _replySaveStatus = AppLocalizations.of(context).draftLocalSaving;
+    });
+    _replyAutosave?.cancel();
+    _replyAutosave = Timer(const Duration(milliseconds: 700), _saveReplyDraft);
+  }
+
+  Future<void> _restoreReplyDraft() async {
+    final generation = _replyDraftGeneration;
+    final topicId = widget.topicId;
+    try {
+      final owner = await _replyOwner;
+      if (owner == null || !_writingCurrent) return;
+      final drafts = await _writingStore.drafts(owner);
+      if (!mounted ||
+          !_writingCurrent ||
+          generation != _replyDraftGeneration ||
+          _replyRevision != 0) {
+        return;
+      }
+      final draft = drafts
+          .where(
+            (d) => d.key == replyDraftKey(topicId) && d.kind == DraftKind.reply,
+          )
+          .firstOrNull;
+      if (draft == null) return;
+      _restoringReply = true;
+      _replyToPostId = draft.replyToPostId;
+      _replyTargetName = draft.replyTargetName;
+      _replyMentionPrefix = draft.replyMentionPrefix;
+      _replyImageUrl = draft.images.firstOrNull;
+      _replyController.text = draft.content;
+      _restoringReply = false;
+      setState(() {
+        _composerOpen = true;
+        _replySaveStatus = AppLocalizations.of(context).draftLocalRestored;
+      });
+      _syncMentionContext();
+    } catch (_) {
+      // Reading a damaged local store must not prevent viewing the topic.
+    }
+  }
+
+  Future<bool> _saveReplyDraft({int? topicId, bool notify = true}) async {
+    _replyAutosave?.cancel();
+    if (_discardReplyOnLeave) return true;
+    if (!_writingCurrent) return false;
+    if (!_replyDirty) return true;
+    final generation = _replyDraftGeneration;
+    final revision = _replyRevision;
+    final id = topicId ?? widget.topicId;
+    // Capture before awaiting identity/storage: disposal and navigation can
+    // replace the live controllers, but this copy always belongs to this topic.
+    final draft = LocalDraft(
+      key: replyDraftKey(id),
+      kind: DraftKind.reply,
+      title: _page.valueOrNull?.topic.title ?? '',
+      content: _replyController.text,
+      contentType: 2,
+      topicId: id,
+      categories: const [],
+      images: [?_replyImageUrl],
+      replyToPostId: _replyToPostId,
+      replyTargetName: _replyTargetName,
+      replyMentionPrefix: _replyMentionPrefix,
+      updatedAt: DateTime.now().millisecondsSinceEpoch,
+    );
+    try {
+      final owner = await _replyOwner;
+      if (owner == null) {
+        // A sent/cleared reply has no local content to preserve. Ownership was
+        // never resolved for this page, so no owned draft was written or read.
+        // Do not reopen an empty composer after the server acknowledged it.
+        if (!draft.isEmpty) throw StateError('Draft requires an account');
+      } else {
+        await _writingStore.save(
+          owner,
+          draft,
+          isCurrent: () => _writingCurrent && !_discardReplyOnLeave,
+        );
+      }
+      if (!mounted || !_writingCurrent || generation != _replyDraftGeneration) {
+        return false;
+      }
+      _replySavedRevision = revision;
+      if (notify) {
+        setState(() {
+          _replySaveFailed = false;
+          _replySaveStatus = owner != null && revision == _replyRevision
+              ? AppLocalizations.of(context).draftLocalSaved
+              : '';
+        });
+      }
+      return revision == _replyRevision;
+    } catch (_) {
+      if (notify &&
+          mounted &&
+          _writingCurrent &&
+          generation == _replyDraftGeneration &&
+          revision == _replyRevision) {
+        setState(() {
+          _replySaveFailed = true;
+          _replySaveStatus = AppLocalizations.of(context).draftLocalSaveFailed;
+          _composerOpen = true;
+        });
+      }
+      return false;
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) unawaited(_saveReplyDraft());
+  }
+
   @override
   void dispose() {
+    unawaited(_saveReplyDraft(notify: false));
+    _replyAutosave?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
     _replyController.dispose();
     _replyCaptchaCode.dispose();
     _replyFocus.dispose();
@@ -190,17 +362,6 @@ class _TopicPageState extends ConsumerState<TopicPage> {
         );
         return;
       }
-      // 写入 drift 离线缓存(供断网时回读);缓存失败静默降级。
-      // 仅当前世代允许写入,避免旧会话在途响应写回上一账号数据。
-      if (epoch == ref.read(offlineCacheEpochProvider)) {
-        await _cachePut(widget.topicId, payload.toJson());
-      }
-      // 写入期间会话可能已切换,再次校验世代再更新 UI。
-      if (!mounted ||
-          generation != _windowGeneration ||
-          epoch != ref.read(offlineCacheEpochProvider)) {
-        return;
-      }
       setState(() {
         _page = AsyncValue.data(props);
         _viewerAuthenticated = payload.layout.viewer.isAuthenticated;
@@ -227,6 +388,15 @@ class _TopicPageState extends ConsumerState<TopicPage> {
         _likeCount = props.topic.likeCount;
       });
       _recordReturnState();
+      _recordPostReturnStates(props.postStream.posts);
+      unawaited(() async {
+        if (!mounted ||
+            generation != _windowGeneration ||
+            epoch != ref.read(offlineCacheEpochProvider)) {
+          return;
+        }
+        await _cachePut(widget.topicId, payload.toJson());
+      }());
     } catch (e, st) {
       // 网络失败:回退 drift 离线缓存(已浏览话题离线可读)。
       if (!mounted ||
@@ -285,6 +455,10 @@ class _TopicPageState extends ConsumerState<TopicPage> {
       } else {
         setState(() => _page = AsyncValue.error(e, st));
       }
+    } finally {
+      if (mounted && _writingCurrent && generation == _windowGeneration) {
+        _syncMentionContext();
+      }
     }
   }
 
@@ -330,6 +504,7 @@ class _TopicPageState extends ConsumerState<TopicPage> {
           epoch != ref.read(offlineCacheEpochProvider)) {
         return;
       }
+      _recordPostReturnStates(window.posts);
       final ids = _posts.map((post) => post.id).toSet();
       setState(() {
         _posts.addAll(window.posts.where((post) => ids.add(post.id)));
@@ -499,6 +674,24 @@ class _TopicPageState extends ConsumerState<TopicPage> {
     );
   }
 
+  // Only server reads reach this path; offline fallback must not overwrite a
+  // newer activity state when the profile is still retained beneath this page.
+  void _recordPostReturnStates(List<PostPayload> posts) {
+    if (!_viewerAuthenticated) return;
+    final states = ref.read(postReturnStatesProvider);
+    for (final post in posts) {
+      if (post.isHidden || post.isAuthorDeleted || post.isModeratorRemoved) {
+        states.remove(post.id);
+      } else {
+        states[post.id] = (
+          liked: post.isLiked,
+          bookmarked: post.isBookmarked,
+          likeCount: post.likeCount,
+        );
+      }
+    }
+  }
+
   Future<void> _toggleWatch() async {
     final TopicDetailPayload? topic = _page.value?.topic;
     if (topic == null) return;
@@ -524,6 +717,15 @@ class _TopicPageState extends ConsumerState<TopicPage> {
 
   /// 编辑值变化:基于 caret 前文本驱动 @mention 会话(选区/无 caret 时关闭)。
   void _onReplyValueChanged() {
+    if (_replyStickerOpen && _replyController.selection.isValid) {
+      // Uploads and target/image removal can move the caret while the panel
+      // owns focus. Preserve that new position for the next sticker.
+      _replyStickerSelection = _replyController.selection;
+    }
+    if (_lastReplyText != _replyController.text) {
+      _lastReplyText = _replyController.text;
+      _replyChanged();
+    }
     if (!_composerOpen) return;
     final TextEditingValue value = _replyController.value;
     final int base = value.selection.baseOffset;
@@ -540,6 +742,9 @@ class _TopicPageState extends ConsumerState<TopicPage> {
   /// 焦点丢失(键盘收起/点按他处)关闭候选会话,不劫持系统返回。
   void _onReplyFocusChanged() {
     if (!_replyFocus.hasFocus) _mentionSession.close();
+    if (_replyFocus.hasFocus && _replyStickerOpen) {
+      setState(() => _replyStickerOpen = false);
+    }
   }
 
   /// 物理键盘:↑/↓ 移动 active、Enter 选中、Escape 只关候选不删 @query。
@@ -615,10 +820,11 @@ class _TopicPageState extends ConsumerState<TopicPage> {
     }
     if (replyTo != null) {
       final String mention = '@${replyTo.author.username} ';
+      _removeGeneratedMention();
       _replyToPostId = replyTo.id;
       _replyMentionPrefix = mention;
-      _replyController.text = mention;
       _replyTargetName = replyTo.author.nickname ?? replyTo.author.username;
+      _replyController.text = '$mention${_replyController.text}';
       _replyController.selection = TextSelection.collapsed(
         offset: _replyController.text.length,
       );
@@ -652,13 +858,16 @@ class _TopicPageState extends ConsumerState<TopicPage> {
     _replyTargetName = null;
     _replyMentionPrefix = null;
     _syncMentionContext();
+    _replyChanged();
   }
 
-  void _closeComposer() {
-    _replyFocus.unfocus();
-    _clearReplyTarget();
+  Future<void> _closeComposer() async {
+    FocusManager.instance.primaryFocus?.unfocus();
+    _replyStickerOpen = false;
     _mentionSession.close();
-    setState(() => _composerOpen = false);
+    if (await _saveReplyDraft() && mounted && _writingCurrent) {
+      setState(() => _composerOpen = false);
+    }
   }
 
   void _insertReplyImage(String url) {
@@ -683,6 +892,7 @@ class _TopicPageState extends ConsumerState<TopicPage> {
       composing: TextRange.empty,
     );
     setState(() => _replyImageUrl = url);
+    _replyChanged();
   }
 
   void _removeReplyImage() {
@@ -711,14 +921,43 @@ class _TopicPageState extends ConsumerState<TopicPage> {
       composing: TextRange.empty,
     );
     setState(() => _replyImageUrl = null);
+    _replyChanged();
+  }
+
+  void _pickReplySticker() {
+    if (_replyStickerOpen) {
+      FocusManager.instance.primaryFocus?.unfocus();
+      setState(() => _replyStickerOpen = false);
+      _replyFocus.requestFocus();
+    } else {
+      _replyStickerSelection = _replyController.selection;
+      FocusManager.instance.primaryFocus?.unfocus();
+      setState(() => _replyStickerOpen = true);
+    }
+  }
+
+  void _insertReplySticker(String token) {
+    if (!_writingCurrent || _replying) return;
+    insertStickerText(
+      _replyController,
+      token,
+      selection: _replyStickerSelection,
+    );
+    _replyStickerSelection = _replyController.selection;
   }
 
   Future<void> _pickReplyImage() async {
     if (_uploadingReplyImage) return;
+    final topicId = widget.topicId;
     setState(() => _uploadingReplyImage = true);
     try {
       final String? url = await pickAndUploadImage(ref: ref);
-      if (url != null && mounted) _insertReplyImage(url);
+      if (url != null &&
+          mounted &&
+          _writingCurrent &&
+          widget.topicId == topicId) {
+        _insertReplyImage(url);
+      }
     } catch (e) {
       if (mounted) {
         showGfToast(
@@ -762,10 +1001,11 @@ class _TopicPageState extends ConsumerState<TopicPage> {
     if (content.isEmpty) return;
     final topicId = widget.topicId;
     final target = _replyToPostId;
+    final submittedRevision = _replyRevision;
     final epoch = ref.read(offlineCacheEpochProvider);
     setState(() => _replying = true);
     try {
-      await ref
+      final result = await ref
           .read(postRepositoryProvider)
           .createPost(
             topicId: topicId,
@@ -779,20 +1019,23 @@ class _TopicPageState extends ConsumerState<TopicPage> {
           epoch != ref.read(offlineCacheEpochProvider)) {
         return;
       }
-      if (_replyController.text.trim() == content && _replyToPostId == target) {
+      if (_replyRevision == submittedRevision) {
         _clearReplyTarget();
         _replyController.clear();
         setState(() {
           _replyImageUrl = null;
           _composerOpen = false;
+          _replyStickerOpen = false;
         });
+        await _saveReplyDraft();
       }
+      if (!mounted || !_writingCurrent || topicId != widget.topicId) return;
       setState(() {
         _replyCaptcha = null;
         _replyCaptchaCode.clear();
       });
       showGfToast(context, AppLocalizations.of(context).topicReplySuccess);
-      await _load(silent: true);
+      await _showCreatedReply(result);
     } catch (error) {
       if (!mounted ||
           topicId != widget.topicId ||
@@ -816,6 +1059,84 @@ class _TopicPageState extends ConsumerState<TopicPage> {
     }
   }
 
+  Future<void> _showCreatedReply(CreatePostResult result) async {
+    final generation = ++_windowGeneration;
+    setState(() => _loadingMore = false);
+    final topicId = widget.topicId;
+    try {
+      // A one-post anchored window makes the acknowledgement visible even in a
+      // long topic. Earlier/later controls keep the rest of the thread reachable.
+      final window = await ref
+          .read(topicRepositoryProvider)
+          .getPostWindow(topicId: topicId, anchorPostId: result.id, limit: 1);
+      if (!mounted ||
+          !_writingCurrent ||
+          generation != _windowGeneration ||
+          topicId != widget.topicId) {
+        return;
+      }
+      setState(() {
+        _sort = CommentSort.asc;
+        final props = _page.valueOrNull;
+        if (props != null) {
+          _page = AsyncValue.data(
+            props.copyWith(
+              postStream: window,
+              topic: props.topic.copyWith(
+                maxPostNo: window.maxPostNo,
+                replyCount: (window.total - 1).clamp(0, window.total),
+              ),
+            ),
+          );
+        }
+        final mainPost = _mainPost(_posts);
+        _posts
+          ..clear()
+          ..addAll([
+            if (mainPost != null &&
+                !window.posts.any((post) => post.id == mainPost.id))
+              mainPost,
+            ...window.posts,
+          ]);
+        _replyTargets
+          ..clear()
+          ..addEntries(window.replyTargets.map((t) => MapEntry(t.id, t)));
+        _beforePostNo = window.beforePostNo;
+        _afterPostNo = window.afterPostNo;
+        _hasEarlierPosts = window.hasBefore;
+        _hasMorePosts = window.hasAfter;
+        _currentFloor =
+            result.postNo ?? window.posts.firstOrNull?.postNo ?? _currentFloor;
+      });
+      _recordReturnState();
+      _syncMentionContext();
+      await _scrollToTop.scrollToTop();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !_writingCurrent || generation != _windowGeneration) {
+          return;
+        }
+        final target = _discussionKey.currentContext;
+        if (target != null) {
+          unawaited(
+            Scrollable.ensureVisible(
+              target,
+              duration: GfMotion.duration(context, GfMotion.layout),
+              curve: GfMotion.enterCurve,
+            ),
+          );
+        }
+      });
+    } catch (error) {
+      if (mounted && _writingCurrent && generation == _windowGeneration) {
+        showGfToast(
+          context,
+          resolveErrorMessage(AppLocalizations.of(context), error),
+          error: true,
+        );
+      }
+    }
+  }
+
   Future<void> _reportPost(PostPayload post) async {
     await _reportTarget(targetType: 'post', targetId: post.id);
   }
@@ -827,63 +1148,7 @@ class _TopicPageState extends ConsumerState<TopicPage> {
   Future<void> _reportTarget({
     required String targetType,
     required int targetId,
-  }) async {
-    if (!mounted) return;
-    final AppLocalizations l10n = AppLocalizations.of(context);
-    final reason = await showGfModal<String>(
-      context,
-      builder: (ctx) {
-        final ctrl = TextEditingController();
-        return Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: <Widget>[
-            Text(l10n.topicReport, style: GfTheme.typographyOf(ctx).title3),
-            const SizedBox(height: 16),
-            GfInput(
-              controller: ctrl,
-              maxLines: 3,
-              hintText: l10n.topicReportHint,
-            ),
-            const SizedBox(height: 20),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: <Widget>[
-                GfButton(
-                  label: l10n.commonCancel,
-                  variant: GfButtonVariant.ghost,
-                  onPressed: () => Navigator.pop(ctx),
-                ),
-                const SizedBox(width: 8),
-                GfButton(
-                  label: l10n.topicReportSubmit,
-                  onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
-                ),
-              ],
-            ),
-          ],
-        );
-      },
-    );
-    if (reason == null || reason.isEmpty) return;
-    try {
-      await ref
-          .read(postRepositoryProvider)
-          .report(
-            targetType: targetType,
-            targetId: targetId,
-            reason: reason,
-            note: '',
-          );
-      if (mounted) {
-        showGfToast(context, l10n.topicReportSubmitted);
-      }
-    } catch (e) {
-      if (mounted) {
-        showGfToast(context, l10n.topicReportFailed('$e'), error: true);
-      }
-    }
-  }
+  }) => showContentReport(context, targetType: targetType, targetId: targetId);
 
   /// 楼层平铺:除主帖外全部楼层线性展示;排序由评论胶囊决定——
   /// 正序按 postNo 升序,倒序降序,只看楼主仅保留话题作者的楼层。
@@ -916,26 +1181,74 @@ class _TopicPageState extends ConsumerState<TopicPage> {
     return target.postNo != 1;
   }
 
-  void _goBack() {
-    if (context.canPop()) {
-      context.pop();
+  Future<void> _goBack() async {
+    if (_replyStickerOpen) {
+      FocusManager.instance.primaryFocus?.unfocus();
+      setState(() => _replyStickerOpen = false);
       return;
     }
-    context.go('/');
+    if (_replying || _leavingReply) return;
+    _leavingReply = true;
+    try {
+      final saved = await _saveReplyDraft();
+      if (!mounted || !_writingCurrent) return;
+      if (!saved) {
+        if (!_replySaveFailed) return;
+        final l10n = AppLocalizations.of(context);
+        final discard = await showDialog<bool>(
+          context: context,
+          animationStyle: GfMotion.dialogStyle(context),
+          builder: (context) => AlertDialog(
+            title: Text(l10n.draftLocalSaveFailed),
+            content: Text(l10n.draftReplyLeaveUnsaved),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: Text(l10n.publishContinue),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: Text(l10n.publishDiscard),
+              ),
+            ],
+          ),
+        );
+        if (discard != true || !mounted || !_writingCurrent) return;
+        // Leave the last successfully stored copy intact. Never report the
+        // current failed revision as saved or retry its write during disposal.
+        _replyAutosave?.cancel();
+        _discardReplyOnLeave = true;
+        _replyDraftGeneration++;
+      }
+      setState(() {});
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !_writingCurrent) return;
+        if (context.canPop()) {
+          context.pop();
+        } else {
+          context.go('/');
+        }
+      });
+    } finally {
+      _leavingReply = false;
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    if (ref.watch(offlineCacheEpochProvider) != _writingEpoch) {
+      return const SizedBox.shrink();
+    }
     final GfColors colors = GfTheme.colorsOf(context);
     final AppLocalizations l10n = AppLocalizations.of(context);
 
     final String appBarTitle = _showHeaderTitle
         ? (_page.value?.topic.title ?? l10n.topicTitle)
         : l10n.topicTitle;
-    return Scaffold(
+    final scaffold = Scaffold(
       appBar: GfAppBar(
         leading: GfIconButton(
-          icon: Icons.arrow_back,
+          symbol: 'chevron-left',
           tooltip: l10n.commonBack,
           size: 44,
           onPressed: _goBack,
@@ -1022,7 +1335,7 @@ class _TopicPageState extends ConsumerState<TopicPage> {
                             if (replyPosts.isEmpty)
                               SliverToBoxAdapter(
                                 child: GfEmpty(
-                                  icon: Icons.forum_outlined,
+                                  symbol: 'message-circle',
                                   message: _sort == CommentSort.onlyOp
                                       ? (_hasEarlierPosts || _hasMorePosts
                                             ? l10n.topicOpRepliesPending
@@ -1095,9 +1408,9 @@ class _TopicPageState extends ConsumerState<TopicPage> {
                   ),
                 ),
                 Positioned(
-                  left: 12,
-                  right: 12,
-                  bottom: 12,
+                  left: _composerOpen ? 0 : 12,
+                  right: _composerOpen ? 0 : 12,
+                  bottom: _composerOpen ? 0 : 12,
                   // Bound the open composer to the keyboard-resized viewport.
                   top: _composerOpen ? 0 : null,
                   child: SafeArea(
@@ -1108,7 +1421,7 @@ class _TopicPageState extends ConsumerState<TopicPage> {
                         mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: <Widget>[
-                          if (_composerOpen)
+                          if (_composerOpen && !_replyStickerOpen)
                             Flexible(
                               child: ConstrainedBox(
                                 constraints: const BoxConstraints(
@@ -1140,113 +1453,154 @@ class _TopicPageState extends ConsumerState<TopicPage> {
                               ),
                             ),
                           _composerOpen
-                              ? ConstrainedBox(
-                                  constraints: const BoxConstraints(
-                                    maxWidth: 560,
-                                  ),
-                                  child:
-                                      ValueListenableBuilder<TextEditingValue>(
-                                        valueListenable: _replyController,
-                                        builder: (context, value, _) {
-                                          return GfPostComposer(
-                                            hideKeyboardLabel:
-                                                l10n.commonHideKeyboard,
-                                            onCollapse: _closeComposer,
-                                            collapseLabel: l10n.commonCancel,
-                                            controller: _replyController,
-                                            focusNode: _replyFocus,
-                                            targetName: _replyTargetDisplayName(
-                                              context,
-                                            ),
-                                            targetLabel:
-                                                _replyTargetName == null
-                                                ? null
-                                                : l10n.topicReplyTarget(
-                                                    _replyTargetDisplayName(
-                                                      context,
-                                                    )!,
+                              ? Flexible(
+                                  key: const Key('topic-reply-composer'),
+                                  child: ConstrainedBox(
+                                    constraints: const BoxConstraints(
+                                      maxWidth: 560,
+                                    ),
+                                    child: ValueListenableBuilder<TextEditingValue>(
+                                      valueListenable: _replyController,
+                                      builder: (context, value, _) {
+                                        return GfPostComposer(
+                                          hideKeyboardLabel:
+                                              l10n.commonHideKeyboard,
+                                          onCollapse: _closeComposer,
+                                          collapseLabel: l10n.draftCollapse,
+                                          controller: _replyController,
+                                          focusNode: _replyFocus,
+                                          targetName: _replyTargetDisplayName(
+                                            context,
+                                          ),
+                                          targetLabel: _replyTargetName == null
+                                              ? null
+                                              : l10n.topicReplyTarget(
+                                                  _replyTargetDisplayName(
+                                                    context,
+                                                  )!,
+                                                ),
+                                          onCloseTarget: () {
+                                            _clearReplyTarget();
+                                            setState(() {});
+                                          },
+                                          onPickImage: _pickReplyImage,
+                                          onPickSticker: _pickReplySticker,
+                                          stickerOpen: _replyStickerOpen,
+                                          stickerTooltip: _replyStickerOpen
+                                              ? StickerStrings(context).keyboard
+                                              : StickerStrings(context).title,
+                                          preview: StickerDraftPreview(
+                                            content: value.text,
+                                            markdown: true,
+                                          ),
+                                          accessory: _replyStickerOpen
+                                              ? GfComposerPanel(
+                                                  child: StickerPicker(
+                                                    onInsert:
+                                                        _insertReplySticker,
                                                   ),
-                                            onCloseTarget: () {
-                                              _clearReplyTarget();
-                                              setState(() {});
-                                            },
-                                            onPickImage: _pickReplyImage,
-                                            imageTooltip: l10n.publishToolImage,
-                                            imageUrl: _replyImageUrl == null
-                                                ? null
-                                                : resolveApiAssetUrl(
-                                                    _replyImageUrl!,
-                                                  ),
-                                            onRemoveImage: _removeReplyImage,
-                                            removeImageTooltip:
-                                                l10n.publishRemoveImage,
-                                            uploading: _uploadingReplyImage,
-                                            publishing: _replying,
-                                            canPublish: value.text
-                                                .trim()
-                                                .isNotEmpty,
-                                            publishLabel: l10n.commonSend,
-                                            hintText: l10n.topicReplyHint,
-                                            onPublish: _submitReply,
-                                            toolbar: _replyCaptcha == null
-                                                ? null
-                                                : Row(
-                                                    children: [
-                                                      InkWell(
-                                                        onTap:
-                                                            _replyCaptchaLoading
-                                                            ? null
-                                                            : _loadReplyCaptcha,
-                                                        child: GfCaptchaImage(
-                                                          imageData:
-                                                              _replyCaptcha!
-                                                                  .captchaImg,
-                                                          width: 80,
-                                                          height: 42,
-                                                          fit: BoxFit.contain,
-                                                        ),
+                                                )
+                                              : null,
+                                          imageTooltip: l10n.publishToolImage,
+                                          imageUrl: _replyImageUrl == null
+                                              ? null
+                                              : resolveApiAssetUrl(
+                                                  _replyImageUrl!,
+                                                ),
+                                          onRemoveImage: _removeReplyImage,
+                                          removeImageTooltip:
+                                              l10n.publishRemoveImage,
+                                          uploading: _uploadingReplyImage,
+                                          publishing: _replying,
+                                          canPublish: value.text
+                                              .trim()
+                                              .isNotEmpty,
+                                          publishLabel: l10n.commonSend,
+                                          hintText: l10n.topicReplyHint,
+                                          onPublish: _submitReply,
+                                          toolbar: Column(
+                                            mainAxisSize: MainAxisSize.min,
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              if (_replySaveStatus.isNotEmpty)
+                                                Row(
+                                                  children: [
+                                                    Expanded(
+                                                      child: Text(
+                                                        _replySaveStatus,
+                                                        style: Theme.of(
+                                                          context,
+                                                        ).textTheme.bodySmall,
                                                       ),
-                                                      const SizedBox(width: 8),
-                                                      Expanded(
-                                                        child: TextField(
-                                                          key: const Key(
-                                                            'reply-captcha',
-                                                          ),
-                                                          controller:
-                                                              _replyCaptchaCode,
-                                                          decoration:
-                                                              InputDecoration(
-                                                                labelText: l10n
-                                                                    .authCaptcha,
-                                                              ),
-                                                          textCapitalization:
-                                                              TextCapitalization
-                                                                  .characters,
-                                                        ),
-                                                      ),
-                                                      IconButton(
-                                                        tooltip:
-                                                            l10n.commonRefresh,
+                                                    ),
+                                                    if (_replySaveFailed)
+                                                      TextButton(
                                                         onPressed:
-                                                            _replyCaptchaLoading
-                                                            ? null
-                                                            : _loadReplyCaptcha,
-                                                        icon: const Icon(
-                                                          Icons.refresh,
+                                                            _saveReplyDraft,
+                                                        child: Text(
+                                                          l10n.commonRetry,
                                                         ),
                                                       ),
-                                                    ],
-                                                  ),
-                                          );
-                                        },
-                                      ),
+                                                  ],
+                                                ),
+                                              if (_replyCaptcha != null)
+                                                Row(
+                                                  children: [
+                                                    InkWell(
+                                                      onTap:
+                                                          _replyCaptchaLoading
+                                                          ? null
+                                                          : _loadReplyCaptcha,
+                                                      child: GfCaptchaImage(
+                                                        imageData:
+                                                            _replyCaptcha!
+                                                                .captchaImg,
+                                                        width: 80,
+                                                        height: 42,
+                                                        fit: BoxFit.contain,
+                                                      ),
+                                                    ),
+                                                    const SizedBox(width: 8),
+                                                    Expanded(
+                                                      child: GfInput(
+                                                        key: const Key(
+                                                          'reply-captcha',
+                                                        ),
+                                                        controller:
+                                                            _replyCaptchaCode,
+                                                        labelText:
+                                                            l10n.authCaptcha,
+                                                        textCapitalization:
+                                                            TextCapitalization
+                                                                .characters,
+                                                      ),
+                                                    ),
+                                                    IconButton(
+                                                      tooltip:
+                                                          l10n.commonRefresh,
+                                                      onPressed:
+                                                          _replyCaptchaLoading
+                                                          ? null
+                                                          : _loadReplyCaptcha,
+                                                      icon: const GfSymbol(
+                                                        'refresh-cw',
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                            ],
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                  ),
                                 )
                               : GfFloatingControls(
                                   joinLabel: l10n.topicJoinDiscussion,
                                   actions: <GfTopicAction>[
                                     if (_topicAvailable) ...[
                                       GfTopicAction(
-                                        icon: Icons.favorite_border,
                                         symbol: _liked
                                             ? 'heart-filled'
                                             : 'heart',
@@ -1257,7 +1611,6 @@ class _TopicPageState extends ConsumerState<TopicPage> {
                                         onTap: _toggleLike,
                                       ),
                                       GfTopicAction(
-                                        icon: Icons.bookmark_border,
                                         symbol: _bookmarked
                                             ? 'bookmark-filled'
                                             : 'bookmark',
@@ -1269,10 +1622,9 @@ class _TopicPageState extends ConsumerState<TopicPage> {
                                         onTap: _toggleBookmark,
                                       ),
                                       GfTopicAction(
-                                        icon: _watched
-                                            ? Icons.notifications
-                                            : Icons.notifications_none,
-                                        symbol: 'bell',
+                                        symbol: _watched
+                                            ? 'bell-filled'
+                                            : 'bell',
                                         active: _watched,
                                         title: _watched
                                             ? l10n.topicUnwatch
@@ -1330,6 +1682,15 @@ class _TopicPageState extends ConsumerState<TopicPage> {
         ),
       ),
     );
+    return PopScope(
+      canPop:
+          !_replyStickerOpen &&
+          (_discardReplyOnLeave || (!_replyDirty && !_replying)),
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _goBack();
+      },
+      child: scaffold,
+    );
   }
 
   PostPayload? _mainPost(List<PostPayload> posts) {
@@ -1383,6 +1744,9 @@ class _TopicHeader extends StatelessWidget {
                 child: GfAvatar(
                   src: resolveApiAssetUrl(topic.author.avatarUrl),
                   size: 40,
+                  badge: topic.author.wornBadge == null
+                      ? null
+                      : UserWornBadge(topic.author.wornBadge!, avatarSize: 40),
                 ),
               ),
               const SizedBox(width: 10),
@@ -1412,7 +1776,7 @@ class _TopicHeader extends StatelessWidget {
               if (canReportTopic) ...<Widget>[
                 const SizedBox(width: 4),
                 GfIconButton(
-                  icon: Icons.flag_outlined,
+                  symbol: 'flag',
                   size: 44,
                   iconSize: 20,
                   tooltip: l10n.topicReport,
@@ -1657,6 +2021,9 @@ class _PostCard extends StatelessWidget {
                 child: GfAvatar(
                   src: resolveApiAssetUrl(post.author.avatarUrl),
                   size: 32,
+                  badge: post.isAnonymous || post.author.wornBadge == null
+                      ? null
+                      : UserWornBadge(post.author.wornBadge!, avatarSize: 32),
                 ),
               ),
               const SizedBox(width: 8),
@@ -1718,38 +2085,22 @@ class _PostCard extends StatelessWidget {
           else
             GfMarkdownView(data: post.content, mentions: post.mentions),
           const SizedBox(height: 4),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final timestamp = Text(
-                timeAgo(post.createdAt, l10n: l10n),
-                style: GfTheme.typographyOf(
-                  context,
-                ).caption.copyWith(color: GfTheme.colorsOf(context).iconMuted),
-              );
-              final actions = PostActions(
-                post: post,
-                onChanged: onChanged,
-                onReply: onReply,
-                onReport: onReport,
-              );
-              // Keep controls tappable at large text sizes and narrow widths.
-              if (constraints.maxWidth < 340 ||
-                  MediaQuery.textScalerOf(context).scale(14) > 20) {
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    timestamp,
-                    Align(alignment: Alignment.centerRight, child: actions),
-                  ],
-                );
-              }
-              return Row(
-                children: [
-                  Expanded(child: timestamp),
-                  actions,
-                ],
-              );
-            },
+          Text(
+            timeAgo(post.createdAt, l10n: l10n),
+            style: GfTheme.typographyOf(
+              context,
+            ).caption.copyWith(color: GfTheme.colorsOf(context).iconMuted),
+          ),
+          // Actions use the complete reading column. Sharing a flex row with
+          // the date needlessly forced a phone's five actions onto two lines.
+          SizedBox(
+            width: double.infinity,
+            child: PostActions(
+              post: post,
+              onChanged: onChanged,
+              onReply: onReply,
+              onReport: onReport,
+            ),
           ),
         ],
       ),
@@ -1885,8 +2236,8 @@ class _ReplyQuoteState extends State<_ReplyQuote> {
                           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                         ),
                         onPressed: () => setState(() => _expanded = !_expanded),
-                        icon: Icon(
-                          _expanded ? Icons.expand_less : Icons.expand_more,
+                        icon: GfSymbol(
+                          _expanded ? 'chevron-up' : 'chevron-down',
                           size: 16,
                         ),
                         label: Text(

@@ -10,11 +10,16 @@ import (
 
 	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pk"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/alertservice"
 	"gorm.io/gorm"
 )
 
 // batchRows 每个事务批次写入的教学班行数（AC：每批 500 行）。
 const batchRows = 500
+
+// notifySyncFailure 是同步失败站内告警入口的可注入点：生产走 alertservice，
+// 测试可换桩断言触发（与 users.verifyEncryptPassword 同款模式）。
+var notifySyncFailure = alertservice.NotifyPkSyncFailed
 
 // Sync 同步一系统排课数据到 PK 域。
 //   - cookie：一系统凭证（本科为 Cookie header，研究生为 X-Token）
@@ -342,6 +347,9 @@ func markFailed(log *pk.FetchLogEntity, err error) error {
 	if saveErr := pk.SaveFetchLog(log); saveErr != nil {
 		return fmt.Errorf("%w（另：更新 fetchlog 失败：%v）", err, saveErr)
 	}
+	// 同步失败（如凭证失效）后站内提醒管理员（issue #855）。best-effort：
+	// 告警失败绝不影响同步错误路径，错误文本已由客户端/服务端脱敏，不含凭证原文。
+	notifySyncFailure(string(pk.DefaultAudience(log.Audience)), err.Error())
 	return err
 }
 

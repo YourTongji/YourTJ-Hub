@@ -3,7 +3,6 @@ package migration
 import (
 	_ "embed"
 	"fmt"
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/campus"
 	"log/slog"
 	"regexp"
 	"strconv"
@@ -18,7 +17,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/filemodel/filedata"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/agents"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/badges"
-
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/campus"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/category"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/contentDeleteEvent"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/course"
@@ -641,6 +640,8 @@ func SchemaModels() []any {
 	return []any{
 		&badges.Entity{},
 		&sticker.Entity{},
+		&sticker.LibraryOwner{},
+		&sticker.LibraryEntry{},
 		&campus.Binding{},
 		&campus.IdentityReservation{},
 		&course.Entity{},
@@ -675,6 +676,8 @@ func SchemaModels() []any {
 		&pk.FetchLogEntity{},
 		&pk.SettingEntity{},
 		&pk.ScheduleSnapshotEntity{},
+		&pk.PlanSyncOwner{},
+		&pk.PlanItem{},
 		&eventNotification.Entity{},
 		&fileUsage.Entity{},
 		&moderationLog.Entity{},
@@ -707,6 +710,7 @@ func SchemaModels() []any {
 		&taskQueue.Entity{},
 		&userFollow.Entity{},
 		&users.PrivateNoteEntity{},
+		&users.BlockEntity{},
 		&userBadges.Entity{},
 		&oidcAuthRequests.Entity{},
 		&oidcAccessTokens.Entity{},

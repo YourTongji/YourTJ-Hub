@@ -59,6 +59,9 @@ getUserCard:
                 externalValue: ../fixtures/user-card-success.json
               userNotFound:
                 externalValue: ../fixtures/admin-save-user-badges-user-not-found.json
+              closedAccount:
+                summary: "Soft-deleted (closed) account tombstone card: minimal fields, badges/displayBadges always arrays."
+                externalValue: ../fixtures/user-card-closed.json
       '400':
         description: Missing or malformed userId query parameter.
         content:
@@ -959,6 +962,120 @@ privateNote:
             examples:
               rateLimited:
                 externalValue: ../fixtures/user-note-rate-limited.json
+
+userBlocks:
+  get:
+    tags: [User]
+    summary: List the caller’s blocked users
+    operationId: listUserBlocks
+    description: |
+      Owner comes only from the session. A block prevents new direct messages and
+      interaction notifications in both directions. Public posts and old messages remain.
+      Only the caller's own list is exposed, never the reverse relationship. Maximum
+      1000 blocks. Set blocked=false to remove one; retries are idempotent.
+      Either account closing erases the relationship. Responses use private, no-store.
+      Pending activation is allowed for this protective action.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    responses:
+      '200':
+        description: Own block list.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/UserBlocksSuccess
+            examples:
+              success:
+                externalValue: ../fixtures/user-blocks-success.json
+      '401':
+        description: Missing or invalid session.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+      '503':
+        description: Storage unavailable; no successful response is returned.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+userBlock:
+  post:
+    tags: [User]
+    summary: Block or unblock another user
+    operationId: setUserBlock
+    description: |
+      Owner comes only from the session. A block prevents new direct messages and
+      interaction notifications in both directions. Public posts and old messages remain.
+      Only the caller's own list is exposed, never the reverse relationship. Maximum
+      1000 blocks. Set blocked=false to remove one; retries are idempotent.
+      Either account closing erases the relationship. Responses use private, no-store.
+      Pending activation is allowed for this protective action.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/UserBlockRequest
+    responses:
+      '200':
+        description: Block saved or removed.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/InteractionResponse
+            examples:
+              success:
+                externalValue: ../fixtures/result-true.json
+      '401':
+        description: Missing or invalid session.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+      '503':
+        description: Storage unavailable; no successful response is returned.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+      '400':
+        description: Malformed JSON, body exceeds 4096 bytes, invalid block flag or unavailable target.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+      '403':
+        description: Account not writable or cookie request rejected with auth.csrf.rejected by the CSRF gate.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
+      '409':
+        description: The owner already has 1000 blocks; existing blocks can still be removed.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+      '429':
+        description: Interaction rate limit exceeded.
+        headers:
+          Retry-After:
+            required: true
+            schema:
+              type: integer
+              minimum: 1
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/RateLimitedFailure
 
 displayBadges:
   post:

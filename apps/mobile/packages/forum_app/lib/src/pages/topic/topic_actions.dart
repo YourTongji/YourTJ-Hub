@@ -70,6 +70,7 @@ class _TopicActionsState extends ConsumerState<TopicActions> {
     }
     final confirmed = await showDialog<bool>(
       context: context,
+      animationStyle: GfMotion.dialogStyle(context),
       builder: (context) => AlertDialog(
         title: Text(
           action == 'delete'
@@ -131,6 +132,7 @@ class _TopicActionsState extends ConsumerState<TopicActions> {
         !props.topic.authorDeleted && !props.topic.moderatorRemoved;
     return PopupMenuButton<String>(
       tooltip: l10n.profileMore,
+      icon: const GfSymbol('ellipsis', size: 20),
       useRootNavigator: true,
       enabled: !_busy,
       onSelected: _action,

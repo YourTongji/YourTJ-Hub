@@ -1,21 +1,16 @@
 import 'package:flutter/material.dart';
-import 'package:tdesign_flutter/tdesign_flutter.dart' as td;
 
 import '../../theme/gf_theme.dart';
-import '../gf_icon_tile.dart';
 import '../gf_symbol.dart';
 
-/// Settings list row mirroring web SettingsPage.vue form rows: an optional
-/// leading icon, a title + optional description, and a trailing widget.
-/// Uses the Material [ListTile] primitives with the Gf `listTileTheme`
-/// (contentPadding 16, minVerticalPadding 12).
+/// Shared navigation/value row. Root and detail settings use the same neutral
+/// icon, type scale and padding; text grows instead of shrinking or clipping.
 class GfSettingRow extends StatelessWidget {
   const GfSettingRow({
     super.key,
     required this.title,
     this.description,
     this.subtitleWidget,
-    this.icon,
     this.symbol,
     this.iconColor,
     this.leading,
@@ -29,12 +24,11 @@ class GfSettingRow extends StatelessWidget {
   /// Arbitrary subtitle widget; takes precedence over [description].
   final Widget? subtitleWidget;
 
-  final IconData? icon;
   final String? symbol;
   final Color? iconColor;
 
   /// Arbitrary leading widget (e.g. [GfAvatar]); takes precedence over
-  /// [icon].
+  /// [symbol].
   final Widget? leading;
 
   final Widget? trailing;
@@ -44,39 +38,69 @@ class GfSettingRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final GfColors colors = GfTheme.colorsOf(context);
 
-    return td.TCell(
+    final prefix =
+        leading ??
+        (symbol == null
+            ? null
+            : GfSymbol(
+                symbol!,
+                size: 22,
+                color: iconColor ?? colors.baseContent,
+              ));
+    final suffix =
+        trailing ??
+        (onTap == null
+            ? null
+            : GfSymbol('chevron-right', size: 18, color: colors.iconMuted));
+    final subtitle =
+        subtitleWidget ?? (description == null ? null : Text(description!));
+    return InkWell(
       onTap: onTap,
-      arrow: false,
-      prefix:
-          leading ??
-          (symbol != null
-              ? GfIconTile(symbol!, color: iconColor)
-              : icon == null
-              ? null
-              : Icon(icon, size: 20, color: colors.iconMuted)),
-      title: Text(
-        title,
-        maxLines: 3,
-        softWrap: true,
-        style: TextStyle(fontSize: 16, height: 1.35, color: colors.baseContent),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 56),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          child: Row(
+            children: [
+              if (prefix != null) ...[
+                if (leading != null)
+                  prefix
+                else
+                  SizedBox(width: 24, child: prefix),
+                const SizedBox(width: 14),
+              ],
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      softWrap: true,
+                      style: TextStyle(
+                        fontSize: 16,
+                        height: 1.35,
+                        color: colors.baseContent,
+                      ),
+                    ),
+                    if (subtitle != null) ...[
+                      const SizedBox(height: 4),
+                      DefaultTextStyle(
+                        style: TextStyle(
+                          fontSize: 13,
+                          height: 1.4,
+                          color: colors.iconMuted,
+                        ),
+                        child: subtitle,
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              if (suffix != null) ...[const SizedBox(width: 12), suffix],
+            ],
+          ),
+        ),
       ),
-      subtitle:
-          subtitleWidget ??
-          (description == null
-              ? null
-              : Text(
-                  description!,
-                  style: TextStyle(
-                    fontSize: 14,
-                    height: 1.45,
-                    color: colors.baseContent.withValues(alpha: 0.72),
-                  ),
-                )),
-      trailing:
-          trailing ??
-          (onTap == null
-              ? null
-              : GfSymbol('chevron-right', size: 20, color: colors.iconMuted)),
     );
   }
 }
@@ -91,7 +115,6 @@ class GfSwitchRow extends StatelessWidget {
     required this.onChanged,
     this.description,
     this.subtitleWidget,
-    this.icon,
     this.symbol,
     this.iconColor,
     this.leading,
@@ -103,11 +126,10 @@ class GfSwitchRow extends StatelessWidget {
   /// Arbitrary subtitle widget; takes precedence over [description].
   final Widget? subtitleWidget;
 
-  final IconData? icon;
   final String? symbol;
   final Color? iconColor;
 
-  /// Arbitrary leading widget; takes precedence over [icon].
+  /// Arbitrary leading widget; takes precedence over [symbol].
   final Widget? leading;
 
   final bool value;
@@ -115,36 +137,15 @@ class GfSwitchRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final GfColors colors = GfTheme.colorsOf(context);
-
-    return td.TCell(
+    return GfSettingRow(
       onTap: () => onChanged(!value),
-      prefix:
-          leading ??
-          (symbol != null
-              ? GfIconTile(symbol!, color: iconColor)
-              : icon == null
-              ? null
-              : Icon(icon, size: 20, color: colors.iconMuted)),
-      title: Text(
-        title,
-        maxLines: 3,
-        softWrap: true,
-        style: TextStyle(fontSize: 16, height: 1.35, color: colors.baseContent),
-      ),
-      subtitle:
-          subtitleWidget ??
-          (description == null
-              ? null
-              : Text(
-                  description!,
-                  style: TextStyle(
-                    fontSize: 14,
-                    height: 1.45,
-                    color: colors.baseContent.withValues(alpha: 0.72),
-                  ),
-                )),
-      trailing: td.TSwitch(value: value, onChanged: onChanged),
+      title: title,
+      description: description,
+      subtitleWidget: subtitleWidget,
+      leading: leading,
+      symbol: symbol,
+      iconColor: iconColor,
+      trailing: Switch.adaptive(value: value, onChanged: onChanged),
     );
   }
 }

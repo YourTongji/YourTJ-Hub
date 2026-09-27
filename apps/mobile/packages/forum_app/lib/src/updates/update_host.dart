@@ -1,3 +1,4 @@
+import 'package:ui_kit/ui_kit.dart';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
@@ -88,6 +89,7 @@ class MobileUpdateHostState extends State<MobileUpdateHost>
       }
       await showDialog<void>(
         context: context,
+        animationStyle: GfMotion.dialogStyle(context),
         barrierDismissible: false,
         builder: (_) => _UpdateDialog(
           release: release,

@@ -329,6 +329,22 @@ func ClearOnesystemSettingsConfigCache() {
 	oneSystemSettingsConfigCache.Clear()
 }
 
+var pkSyncScheduleConfigCache = &localcache.Cache[pageConfig.PkSyncScheduleConfig]{MaxEntries: cacheconfig.Current().PageConfig}
+
+// GetPkSyncScheduleConfigCache 读取排课数据定时同步配置（issue #569）。字段
+// 均非敏感，直接以领域结构缓存；未配置时返回默认值（默认关闭）。
+func GetPkSyncScheduleConfigCache() pageConfig.PkSyncScheduleConfig {
+	return pkSyncScheduleConfigCache.GetOrLoad("", func() (pageConfig.PkSyncScheduleConfig, error) {
+		return pageConfig.GetConfigByPageType(pageConfig.PkSyncSchedule, defaultconfig.GetDefaultPkSyncScheduleConfig()), nil
+	}, configFastCacheTTL)
+}
+
+// ClearPkSyncScheduleConfigCache 清理排课定时同步配置缓存：管理端保存后调用，
+// 保证下一次读取（cron 刷新与 RunScheduledSync）命中新配置。
+func ClearPkSyncScheduleConfigCache() {
+	pkSyncScheduleConfigCache.Clear()
+}
+
 var wikiSyncSettingsConfigCache = &localcache.Cache[pageConfig.WikiSyncSettingsConfig]{MaxEntries: cacheconfig.Current().PageConfig}
 
 // GetWikiSyncSettingsConfigCache 读取 wiki GitHub webhook 验签密钥配置（密文）。

@@ -10,13 +10,33 @@ library;
 
 /// 公开表情包条目（GET /api/forum/stickers，启用列表，name 全局唯一）。
 class StickerItemPayload {
-  const StickerItemPayload({required this.name, required this.url});
+  const StickerItemPayload({
+    required this.name,
+    required this.url,
+    this.id = 0,
+    this.displayName = '',
+    this.pack = '',
+    this.isOfficial = true,
+    this.isEnabled = true,
+  });
+  final int id;
   final String name;
   final String url;
+  final String displayName;
+  final String pack;
+  final bool isOfficial;
+  final bool isEnabled;
+  String get label => displayName.isEmpty ? name : displayName;
+  String get token => '[:sticker:$name:]';
   factory StickerItemPayload.fromJson(Map<String, dynamic> json) =>
       StickerItemPayload(
         name: json['name'] as String? ?? '',
         url: json['url'] as String? ?? '',
+        id: (json['id'] as num?)?.toInt() ?? 0,
+        displayName: json['displayName'] as String? ?? '',
+        pack: json['pack'] as String? ?? '',
+        isOfficial: json['isOfficial'] as bool? ?? true,
+        isEnabled: json['isEnabled'] as bool? ?? true,
       );
 }
 

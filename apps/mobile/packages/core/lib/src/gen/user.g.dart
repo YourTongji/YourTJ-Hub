@@ -95,6 +95,9 @@ Map<String, dynamic> _$$ExternalLinkPayloadImplToJson(
 _$UserActivityPayloadImpl _$$UserActivityPayloadImplFromJson(
   Map<String, dynamic> json,
 ) => _$UserActivityPayloadImpl(
+  liked: json['liked'] as bool?,
+  bookmarked: json['bookmarked'] as bool?,
+  likeCount: (json['likeCount'] as num?)?.toInt(),
   id: (json['id'] as num).toInt(),
   action: (json['action'] as num).toInt(),
   subjectType: json['subjectType'] as String,
@@ -108,6 +111,9 @@ _$UserActivityPayloadImpl _$$UserActivityPayloadImplFromJson(
 Map<String, dynamic> _$$UserActivityPayloadImplToJson(
   _$UserActivityPayloadImpl instance,
 ) => <String, dynamic>{
+  'liked': instance.liked,
+  'bookmarked': instance.bookmarked,
+  'likeCount': instance.likeCount,
   'id': instance.id,
   'action': instance.action,
   'subjectType': instance.subjectType,
@@ -121,6 +127,11 @@ Map<String, dynamic> _$$UserActivityPayloadImplToJson(
 _$UserLikePayloadImpl _$$UserLikePayloadImplFromJson(
   Map<String, dynamic> json,
 ) => _$UserLikePayloadImpl(
+  author: json['author'] == null
+      ? null
+      : UserBriefPayload.fromJson(json['author'] as Map<String, dynamic>),
+  excerpt: json['excerpt'] as String?,
+  thumbnailUrl: json['thumbnailUrl'] as String?,
   id: (json['id'] as num).toInt(),
   topicId: (json['topicId'] as num).toInt(),
   title: json['title'] as String,
@@ -131,6 +142,9 @@ _$UserLikePayloadImpl _$$UserLikePayloadImplFromJson(
 Map<String, dynamic> _$$UserLikePayloadImplToJson(
   _$UserLikePayloadImpl instance,
 ) => <String, dynamic>{
+  'author': instance.author,
+  'excerpt': instance.excerpt,
+  'thumbnailUrl': instance.thumbnailUrl,
   'id': instance.id,
   'topicId': instance.topicId,
   'title': instance.title,
@@ -141,6 +155,10 @@ Map<String, dynamic> _$$UserLikePayloadImplToJson(
 _$UserBookmarkPayloadImpl _$$UserBookmarkPayloadImplFromJson(
   Map<String, dynamic> json,
 ) => _$UserBookmarkPayloadImpl(
+  author: json['author'] == null
+      ? null
+      : UserBriefPayload.fromJson(json['author'] as Map<String, dynamic>),
+  thumbnailUrl: json['thumbnailUrl'] as String?,
   id: (json['id'] as num).toInt(),
   type: json['type'] as String,
   topicId: (json['topicId'] as num).toInt(),
@@ -155,6 +173,8 @@ _$UserBookmarkPayloadImpl _$$UserBookmarkPayloadImplFromJson(
 Map<String, dynamic> _$$UserBookmarkPayloadImplToJson(
   _$UserBookmarkPayloadImpl instance,
 ) => <String, dynamic>{
+  'author': instance.author,
+  'thumbnailUrl': instance.thumbnailUrl,
   'id': instance.id,
   'type': instance.type,
   'topicId': instance.topicId,
@@ -175,6 +195,8 @@ _$UserConnectionPayloadImpl _$$UserConnectionPayloadImplFromJson(
   avatarUrl: json['avatarUrl'] as String,
   bio: json['bio'] as String,
   url: json['url'] as String,
+  isFollowing: json['isFollowing'] as bool?,
+  isSelf: json['isSelf'] as bool? ?? false,
 );
 
 Map<String, dynamic> _$$UserConnectionPayloadImplToJson(
@@ -186,6 +208,8 @@ Map<String, dynamic> _$$UserConnectionPayloadImplToJson(
   'avatarUrl': instance.avatarUrl,
   'bio': instance.bio,
   'url': instance.url,
+  'isFollowing': instance.isFollowing,
+  'isSelf': instance.isSelf,
 };
 
 _$UserProfilePropsImpl _$$UserProfilePropsImplFromJson(
@@ -353,6 +377,7 @@ _$SettingsPagePropsImpl _$$SettingsPagePropsImplFromJson(
 ) => _$SettingsPagePropsImpl(
   user: SettingsUserPayload.fromJson(json['user'] as Map<String, dynamic>),
   googleOAuthReady: json['googleOAuthReady'] as bool? ?? false,
+  appleOAuthReady: json['appleOAuthReady'] as bool? ?? false,
   canSetPassword: json['canSetPassword'] as bool? ?? false,
   stats: SettingsStatsPayload.fromJson(json['stats'] as Map<String, dynamic>),
   tabs: (json['tabs'] as List<dynamic>)
@@ -365,6 +390,7 @@ Map<String, dynamic> _$$SettingsPagePropsImplToJson(
 ) => <String, dynamic>{
   'user': instance.user,
   'googleOAuthReady': instance.googleOAuthReady,
+  'appleOAuthReady': instance.appleOAuthReady,
   'canSetPassword': instance.canSetPassword,
   'stats': instance.stats,
   'tabs': instance.tabs,

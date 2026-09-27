@@ -1,10 +1,316 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ui_kit/ui_kit.dart';
 
 import '../helpers.dart';
 
 void main() {
+  for (final (width, scale) in [(390.0, 1.0), (320.0, 2.0)]) {
+    testWidgets('author and category share compact metadata at $width/$scale', (
+      tester,
+    ) async {
+      var authorTaps = 0;
+      var categoryTaps = 0;
+      var cardTaps = 0;
+      await tester.pumpWidget(
+        gfApp(
+          MediaQuery(
+            data: MediaQueryData(textScaler: TextScaler.linear(scale)),
+            child: SizedBox(
+              width: width,
+              child: GfTopicCard(
+                title: 'Campus',
+                description: '',
+                authorName: 'Student',
+                authorAvatarUrl: '',
+                activityText: 'now',
+                categories: [
+                  GfTopicCategory(
+                    name: '论坛运营',
+                    color: Colors.green,
+                    onTap: () => categoryTaps++,
+                  ),
+                ],
+                imageUrls: const [],
+                replyCount: 0,
+                viewCount: 0,
+                pinned: true,
+                onAuthorTap: () => authorTaps++,
+                onTap: () => cardTaps++,
+              ),
+            ),
+          ),
+        ),
+      );
+      final author = find
+          .ancestor(of: find.text('Student'), matching: find.byType(InkWell))
+          .first;
+      final authorRect = tester.getRect(author);
+      final categoryRect = tester.getRect(find.byType(GfChip));
+      expect(authorRect.height, greaterThanOrEqualTo(44));
+      expect(categoryRect.height, greaterThanOrEqualTo(44));
+      expect(authorRect.overlaps(categoryRect), isFalse);
+      expect(categoryRect.center.dy, closeTo(authorRect.center.dy, .01));
+      expect(
+        tester.getTopLeft(find.text('Campus')).dy - authorRect.bottom,
+        inInclusiveRange(0, 4),
+      );
+      await tester.tap(find.text('Student'));
+      await tester.ensureVisible(find.text('论坛运营'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('论坛运营'));
+      expect(authorTaps, 1);
+      expect(categoryTaps, 1);
+      expect(cardTaps, 0);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  testWidgets(
+    'long display name truncates before moving date or category to another row',
+    (tester) async {
+      const name = 'Sile Liu(WALKERKILLER)';
+      var authorTaps = 0;
+      var categoryTaps = 0;
+      var cardTaps = 0;
+      await tester.pumpWidget(
+        gfApp(
+          SizedBox(
+            width: 390,
+            child: GfTopicCard(
+              title: 'Campus',
+              description: '',
+              authorName: name,
+              authorAvatarUrl: '',
+              activityText: '2026-09-18',
+              categories: [
+                GfTopicCategory(
+                  name: '闲聊茶馆',
+                  color: Colors.green,
+                  onTap: () => categoryTaps++,
+                ),
+              ],
+              imageUrls: const [],
+              replyCount: 0,
+              viewCount: 0,
+              onAuthorTap: () => authorTaps++,
+              onTap: () => cardTaps++,
+            ),
+          ),
+        ),
+      );
+      final authorTarget = find
+          .ancestor(of: find.text(name), matching: find.byType(InkWell))
+          .first;
+      final author = tester.getRect(authorTarget);
+      final category = tester.getRect(find.byType(GfChip));
+      final card = tester.getRect(find.byType(GfTopicCard));
+      final date = tester.getRect(find.text('2026-09-18'));
+      expect(category.center.dy, closeTo(author.center.dy, .01));
+      expect(date.center.dy, closeTo(author.center.dy, .01));
+      expect(
+        tester.getCenter(find.text(name)).dy,
+        closeTo(author.center.dy, .01),
+      );
+      expect(
+        tester.getTopLeft(find.text('Campus')).dy - card.top,
+        closeTo(44, .01),
+      );
+      expect(
+        tester.getTopLeft(find.text('Campus')).dy - author.bottom,
+        inInclusiveRange(0, 2),
+      );
+      expect(author.overlaps(category), isFalse);
+      expect(category.right, lessThanOrEqualTo(card.right));
+      for (final target in [author, category]) {
+        expect(target.width, greaterThanOrEqualTo(44));
+        expect(target.height, greaterThanOrEqualTo(44));
+      }
+      final nameText = tester.widget<Text>(find.text(name));
+      final nameParagraph = tester.renderObject<RenderParagraph>(
+        find.text(name),
+      );
+      expect(nameText.maxLines, 1);
+      expect(nameText.overflow, TextOverflow.ellipsis);
+      expect(
+        nameParagraph.didExceedMaxLines,
+        isTrue,
+        reason:
+            'The name must actually truncate, not merely declare an overflow style.',
+      );
+      expect(
+        tester
+            .renderObject<RenderParagraph>(find.text('2026-09-18'))
+            .didExceedMaxLines,
+        isFalse,
+      );
+      expect(
+        tester
+            .renderObject<RenderParagraph>(find.text('闲聊茶馆'))
+            .didExceedMaxLines,
+        isFalse,
+      );
+      await tester.tap(authorTarget);
+      await tester.tap(find.text('闲聊茶馆'));
+      expect(authorTaps, 1);
+      expect(categoryTaps, 1);
+      expect(cardTaps, 0);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'narrow large-text metadata keeps multiple categories in one scrollable row',
+    (tester) async {
+      const name = 'Sile Liu(WALKERKILLER)';
+      const labels = ['闲聊茶馆', '论坛运营', '校园生活'];
+      final selected = <String>[];
+      var authorTaps = 0;
+      var cardTaps = 0;
+      await tester.pumpWidget(
+        gfApp(
+          MediaQuery(
+            data: const MediaQueryData(textScaler: TextScaler.linear(2)),
+            child: SizedBox(
+              width: 320,
+              child: GfTopicCard(
+                title: 'Campus',
+                description: '',
+                authorName: name,
+                authorAvatarUrl: '',
+                activityText: '2026-09-18',
+                categories: [
+                  for (final label in labels)
+                    GfTopicCategory(
+                      name: label,
+                      color: Colors.green,
+                      onTap: () => selected.add(label),
+                    ),
+                ],
+                imageUrls: const [],
+                replyCount: 0,
+                viewCount: 0,
+                pinned: true,
+                onAuthorTap: () => authorTaps++,
+                onTap: () => cardTaps++,
+              ),
+            ),
+          ),
+        ),
+      );
+      final authorTarget = find
+          .ancestor(of: find.text(name), matching: find.byType(InkWell))
+          .first;
+      final author = tester.getRect(authorTarget);
+      final date = tester.getRect(find.text('2026-09-18'));
+      expect(date.center.dy, closeTo(author.center.dy, .01));
+      expect(author.width, greaterThanOrEqualTo(44));
+      expect(author.height, greaterThanOrEqualTo(44));
+      expect(
+        tester.renderObject<RenderParagraph>(find.text(name)).didExceedMaxLines,
+        isTrue,
+      );
+      for (final chip in find.byType(GfChip).evaluate()) {
+        final rect = tester.getRect(find.byWidget(chip.widget));
+        expect(rect.center.dy, closeTo(author.center.dy, .01));
+        expect(rect.width, greaterThanOrEqualTo(44));
+        expect(rect.height, greaterThanOrEqualTo(44));
+      }
+      expect(
+        tester.getTopLeft(find.text('Campus')).dy - author.bottom,
+        inInclusiveRange(0, 4),
+      );
+      expect(tester.takeException(), isNull);
+      await tester.tap(authorTarget);
+      await tester.ensureVisible(find.text(labels.last));
+      await tester.pumpAndSettle();
+      expect(
+        tester.getRect(authorTarget),
+        author,
+        reason: 'Only categories scroll; author and date stay in place.',
+      );
+      expect(tester.getRect(find.text('2026-09-18')), date);
+      await tester.tap(find.text(labels.last));
+      expect(authorTaps, 1);
+      expect(selected, [labels.last]);
+      expect(cardTaps, 0);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'feed metadata sits higher while content stays clear of tap targets',
+    (tester) async {
+      await tester.pumpWidget(
+        gfApp(
+          SizedBox(
+            width: 390,
+            child: GfTopicCard(
+              title: 'Title',
+              description: 'Body preview',
+              authorName: 'Author',
+              authorAvatarUrl: '',
+              imageUrls: const [],
+              activityText: 'now',
+              replyCount: 0,
+              viewCount: 0,
+              likeTooltip: 'Like',
+              onLike: (_) async => true,
+              onAuthorTap: () {},
+              categories: [
+                GfTopicCategory(
+                  name: 'Category',
+                  color: Colors.blue,
+                  onTap: () {},
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+      final author = tester.getRect(find.text('Author'));
+      final card = tester.getRect(find.byType(GfTopicCard));
+      final title = tester.getRect(find.text('Title'));
+      final body = tester.getRect(find.text('Body preview'));
+      final action = tester.getRect(
+        find.byWidgetPredicate(
+          (widget) => widget is IconButton && widget.tooltip == 'Like',
+        ),
+      );
+      final authorTarget = tester.getRect(
+        find
+            .ancestor(of: find.text('Author'), matching: find.byType(InkWell))
+            .first,
+      );
+      final categoryTarget = tester.getRect(find.byType(GfChip));
+      expect(author.center.dy - card.top, closeTo(22, .01));
+      expect(
+        tester.getCenter(find.text('now')).dy - card.top,
+        closeTo(22, .01),
+      );
+      expect(
+        tester.getCenter(find.text('Category')).dy - card.top,
+        closeTo(22, .01),
+      );
+      expect(
+        tester.getTopLeft(find.byType(GfAvatar)).dy - card.top,
+        closeTo(8, .01),
+      );
+      expect(title.top - author.bottom, inInclusiveRange(0, 16));
+      expect(body.top - title.bottom, inInclusiveRange(0, 2));
+      expect(action.top - body.bottom, closeTo(2, .01));
+      expect(card.bottom - action.bottom, inInclusiveRange(4, 6));
+      expect(action.height, greaterThanOrEqualTo(44));
+      expect(title.top, greaterThanOrEqualTo(authorTarget.bottom));
+      expect(title.top, greaterThanOrEqualTo(categoryTarget.bottom));
+      expect(authorTarget.height, greaterThanOrEqualTo(44));
+      expect(categoryTarget.height, greaterThanOrEqualTo(44));
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets('feed uses one timestamp and compact readable rows', (
     tester,
   ) async {
@@ -60,6 +366,8 @@ void main() {
               likeCount: likeCount,
               liked: liked,
               likeTooltip: '点赞',
+              bookmarkTooltip: '收藏',
+              onBookmark: (_) async => true,
               onLike: (target) async {
                 if (!succeed) return false;
                 setState(() {
@@ -74,6 +382,13 @@ void main() {
       ),
     );
     expect(find.text('5'), findsOneWidget);
+    expect(find.byIcon(Icons.thumb_up_outlined), findsNothing);
+    final likeTarget = tester.getSize(find.byTooltip('点赞'));
+    expect(likeTarget.width, greaterThanOrEqualTo(44));
+    expect(likeTarget.height, greaterThanOrEqualTo(44));
+    final bookmarkTarget = tester.getSize(find.byTooltip('收藏'));
+    expect(bookmarkTarget.width, greaterThanOrEqualTo(44));
+    expect(bookmarkTarget.height, greaterThanOrEqualTo(44));
     await tester.tap(find.byTooltip('点赞'));
     await tester.pumpAndSettle();
     expect(find.text('6'), findsOneWidget);
@@ -84,7 +399,7 @@ void main() {
   });
 
   testWidgets(
-    'feed image keeps card navigation and does not open the lightbox',
+    'feed image opens the shared lightbox without navigating the card',
     (tester) async {
       var tapped = false;
       await tester.pumpWidget(
@@ -108,12 +423,63 @@ void main() {
       );
 
       await tester.tap(find.byType(Image).first);
-      await tester.pumpAndSettle();
+      // The lightbox keeps its network image loading animation in widget tests.
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
 
-      expect(tapped, isTrue);
-      expect(find.byType(GfImageViewer), findsNothing);
+      expect(tapped, isFalse);
+      expect(find.byType(GfImageViewer), findsOneWidget);
     },
   );
+
+  testWidgets('author name and image support keyboard activation', (
+    tester,
+  ) async {
+    var authorTaps = 0;
+    var cardTaps = 0;
+    await tester.pumpWidget(
+      gfApp(
+        SizedBox(
+          width: 390,
+          child: GfTopicCard(
+            title: 'Campus',
+            description: 'A short preview',
+            authorName: 'A',
+            authorAvatarUrl: '',
+            onAuthorTap: () => authorTaps++,
+            onTap: () => cardTaps++,
+            imageUrls: const ['https://example.test/preview.png'],
+            imageSemanticLabelBuilder: (index, count) => '查看图片 $index / $count',
+            categories: const [],
+            activityText: 'now',
+            replyCount: 0,
+            viewCount: 1,
+          ),
+        ),
+      ),
+    );
+    final author = find
+        .ancestor(of: find.text('A'), matching: find.byType(InkWell))
+        .first;
+    expect(tester.getSize(author).width, greaterThanOrEqualTo(44));
+    expect(tester.getSize(author).height, greaterThanOrEqualTo(44));
+    Focus.of(tester.element(find.text('A'))).requestFocus();
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pump();
+    expect(authorTaps, 1);
+    expect(cardTaps, 0);
+    final semantics = tester.ensureSemantics();
+    expect(find.bySemanticsLabel('查看图片 1 / 1'), findsOneWidget);
+    Focus.of(tester.element(find.byType(Image).first)).requestFocus();
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.byType(GfImageViewer), findsOneWidget);
+    expect(cardTaps, 0);
+    semantics.dispose();
+  });
 
   testWidgets(
     'compact feed remains readable on narrow screens with large text',
@@ -175,7 +541,10 @@ void main() {
         ),
       );
       final photos = find.byWidgetPredicate(
-        (w) => w is Image && w.image is NetworkImage,
+        (w) =>
+            w is Image &&
+            w.image is ResizeImage &&
+            (w.image as ResizeImage).imageProvider is NetworkImage,
       );
       expect(photos, findsNWidgets(count > 3 ? 3 : count));
       if (count == 0) return;
@@ -232,9 +601,76 @@ void main() {
     final images = tester
         .widgetList<Image>(find.byType(Image))
         .map((image) => image.image)
+        .whereType<ResizeImage>()
+        .map((image) => image.imageProvider)
         .whereType<NetworkImage>()
         .map((image) => image.url);
     expect(images, contains('https://example.test/one.png'));
     expect(images, contains('https://example.test/two.png'));
+  });
+
+  testWidgets('feed picks the closest DPR-sized variant before image decode', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      gfApp(
+        MediaQuery(
+          data: const MediaQueryData(devicePixelRatio: 2),
+          child: SizedBox(
+            width: 390,
+            child: GfTopicCard(
+              title: 'Campus',
+              description: 'Stable image geometry',
+              authorName: 'Student',
+              authorAvatarUrl: '',
+              categories: const [],
+              imageUrls: const ['https://example.test/original.jpg'],
+              imageMetadata: const [
+                GfTopicImageMetadata(
+                  url: 'https://example.test/original.jpg',
+                  width: 2048,
+                  height: 1152,
+                  variants: [
+                    GfTopicImageVariant(
+                      url: 'https://example.test/image__w320.jpg',
+                      width: 320,
+                      height: 180,
+                    ),
+                    GfTopicImageVariant(
+                      url: 'https://example.test/image__w640.jpg',
+                      width: 640,
+                      height: 360,
+                    ),
+                  ],
+                ),
+              ],
+              activityText: 'now',
+              replyCount: 0,
+              viewCount: 1,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final image = tester.widget<Image>(find.byType(Image).first);
+    final resize = image.image as ResizeImage;
+    expect((resize.imageProvider as NetworkImage).url, contains('__w640.jpg'));
+    final renderedWidth = tester.getSize(find.byType(Image).first).width;
+    expect(
+      resize.width,
+      (renderedWidth *
+              MediaQuery.devicePixelRatioOf(
+                tester.element(find.byType(Image).first),
+              ))
+          .round(),
+    );
+    expect(resize.width, lessThanOrEqualTo(640));
+    expect(resize.height, (resize.width! * 360 / 640).round());
+    expect(
+      tester.getSize(find.byType(Image).first).height,
+      renderedWidth * 1152 / 2048,
+    );
+    expect(tester.takeException(), isNull);
   });
 }

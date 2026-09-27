@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Drafts use secure storage; legacy plaintext remains until migration succeeds.
+     Android exclusions apply to entire preferences files, not individual keys. -->
+<full-backup-content>
+    <exclude domain="sharedpref" path="FlutterSharedPreferences.xml"/>
+    <exclude domain="sharedpref" path="FlutterSecureStorage.xml"/>
+    <exclude domain="sharedpref" path="FlutterSecureKeyStorage.xml"/>
+</full-backup-content>

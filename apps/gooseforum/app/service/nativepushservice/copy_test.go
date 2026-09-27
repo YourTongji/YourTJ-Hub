@@ -39,9 +39,9 @@ func TestBuildNativePayloadComment(t *testing.T) {
 // 未知事件类型返回 nil（调用方跳过）；未归一化语言回落 zh（与 webpush
 // 文案表同款回落语义，不返回 nil——语言未知仍能推送，只是用默认文案）。
 func TestBuildNativePayloadUnknownNil(t *testing.T) {
-	notification := eventNotification.Entity{EventType: eventNotification.EventTypeSystem}
+	notification := eventNotification.Entity{EventType: "unknown_type"}
 	if msg := buildNativePayload(notification, "zh"); msg != nil {
-		t.Errorf("system payload = %#v, want nil", msg)
+		t.Errorf("unknown-type payload = %#v, want nil", msg)
 	}
 	comment := eventNotification.Entity{
 		EventType: eventNotification.EventTypeComment,
@@ -55,6 +55,24 @@ func TestBuildNativePayloadUnknownNil(t *testing.T) {
 		t.Fatal("unknown-lang payload = nil, want zh fallback")
 	} else if msg.Body != "评论了你的内容" {
 		t.Errorf("unknown-lang body = %q, want zh fallback body", msg.Body)
+	}
+}
+
+// system 通知（管理告警）有文案，可走原生推送，路由回落通知中心。
+func TestBuildNativePayloadSystem(t *testing.T) {
+	notification := eventNotification.Entity{
+		EventType: eventNotification.EventTypeSystem,
+		Payload:   eventNotification.NotificationPayload{Title: "一系统排课同步失败", Content: "【本科】同步失败：未登录或会话失效"},
+	}
+	msg := buildNativePayload(notification, "zh")
+	if msg == nil {
+		t.Fatal("system payload is nil")
+	}
+	if msg.Body != "系统管理提醒" {
+		t.Errorf("system body = %q, want zh system copy", msg.Body)
+	}
+	if msg.Route != mobileFallbackRoute {
+		t.Errorf("system route = %q, want %q", msg.Route, mobileFallbackRoute)
 	}
 }
 

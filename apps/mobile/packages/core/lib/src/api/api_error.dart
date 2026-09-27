@@ -14,6 +14,7 @@ class ApiException implements Exception {
     this.messageCode,
     this.params,
     this.statusCode,
+    this.responseData,
   });
 
   /// 后端稳定的 messageCode(如 `auth.login.invalidRequest`),可映射为本地化 key。
@@ -24,6 +25,9 @@ class ApiException implements Exception {
   final String fallbackMessage;
 
   final int? statusCode;
+
+  /// Domain conflict payload; never included in error logs or display strings.
+  final Object? responseData;
 
   /// 本地化 key 形如 `server.<messageCode>`;无 messageCode 时返回 fallbackMessage。
   String get messageKey =>
@@ -67,6 +71,7 @@ class UnauthorizedException extends ApiException {
 /// [NetworkException]:这是**后端已应答**的业务失败,messageCode 稳定。
 class ApiFailureException extends ApiException {
   const ApiFailureException({
+    super.responseData,
     required super.fallbackMessage,
     super.messageCode,
     super.params,

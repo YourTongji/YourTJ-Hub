@@ -1,24 +1,21 @@
 import 'package:flutter/material.dart';
 
 import '../theme/gf_theme.dart';
+import 'gf_motion.dart';
 import 'gf_symbol.dart';
 
 class GfBottomNavigationItem {
   const GfBottomNavigationItem({
     required this.label,
-    required this.icon,
-    required this.selectedIcon,
+    required this.symbol,
+    required this.selectedSymbol,
     this.badge = false,
-    this.symbol,
-    this.selectedSymbol,
   });
 
   final String label;
-  final IconData icon;
-  final IconData selectedIcon;
+  final String symbol;
+  final String selectedSymbol;
   final bool badge;
-  final String? symbol;
-  final String? selectedSymbol;
 }
 
 /// Four accessible navigation destinations. The unified mobile shell uses
@@ -32,7 +29,7 @@ class GfBottomNavigation extends StatelessWidget {
     required this.onSelected,
     this.onAction,
     this.actionLabel = '发布',
-    this.actionIcon = Icons.add,
+    this.actionSymbol = 'plus',
     this.showLabels = true,
   });
 
@@ -41,7 +38,7 @@ class GfBottomNavigation extends StatelessWidget {
   final ValueChanged<int> onSelected;
   final VoidCallback? onAction;
   final String actionLabel;
-  final IconData actionIcon;
+  final String actionSymbol;
   final bool showLabels;
 
   @override
@@ -80,7 +77,7 @@ class GfBottomNavigation extends StatelessWidget {
               ),
               if (onAction != null)
                 _ComposeAction(
-                  icon: actionIcon,
+                  symbol: actionSymbol,
                   label: actionLabel,
                   onTap: onAction,
                 ),
@@ -134,35 +131,36 @@ class _Destination extends StatelessWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: <Widget>[
-                SizedBox(
-                  width: 28,
-                  height: 28,
+                AnimatedContainer(
+                  key: selected
+                      ? const ValueKey<String>(
+                          'gf-bottom-navigation-selected-indicator',
+                        )
+                      : null,
+                  duration: GfMotion.duration(context, GfMotion.selection),
+                  curve: GfMotion.layoutCurve,
+                  width: 48,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: selected
+                        ? colors.primary.withValues(alpha: 0.09)
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
                   child: Stack(
                     clipBehavior: Clip.none,
                     children: <Widget>[
                       Center(
-                        child: (selected && item.selectedSymbol != null)
-                            ? GfSymbol(
-                                item.selectedSymbol!,
-                                size: 26,
-                                color: foreground,
-                              )
-                            : (item.symbol != null
-                                  ? GfSymbol(
-                                      item.symbol!,
-                                      size: 26,
-                                      color: foreground,
-                                    )
-                                  : Icon(
-                                      selected ? item.selectedIcon : item.icon,
-                                      size: 24,
-                                      color: foreground,
-                                    )),
+                        child: GfSymbol(
+                          selected ? item.selectedSymbol : item.symbol,
+                          size: 24,
+                          color: foreground,
+                        ),
                       ),
                       if (item.badge)
                         Positioned(
-                          top: 0,
-                          right: 0,
+                          top: 3,
+                          right: 8,
                           child: Container(
                             width: 7,
                             height: 7,
@@ -179,20 +177,6 @@ class _Destination extends StatelessWidget {
                     ],
                   ),
                 ),
-                if (!showLabel)
-                  Container(
-                    key: selected
-                        ? const ValueKey<String>(
-                            'gf-bottom-navigation-selected-indicator',
-                          )
-                        : null,
-                    width: selected ? 4 : 0,
-                    height: 3,
-                    decoration: BoxDecoration(
-                      color: foreground,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
                 if (showLabel) const SizedBox(height: 2),
                 if (showLabel)
                   Text(
@@ -215,12 +199,12 @@ class _Destination extends StatelessWidget {
 
 class _ComposeAction extends StatelessWidget {
   const _ComposeAction({
-    required this.icon,
+    required this.symbol,
     required this.label,
     required this.onTap,
   });
 
-  final IconData icon;
+  final String symbol;
   final String label;
   final VoidCallback? onTap;
 
@@ -249,7 +233,11 @@ class _ComposeAction extends StatelessWidget {
                   child: SizedBox(
                     width: 44,
                     height: 44,
-                    child: Icon(icon, size: 25, color: colors.primaryContent),
+                    child: GfSymbol(
+                      symbol,
+                      size: 24,
+                      color: colors.primaryContent,
+                    ),
                   ),
                 ),
                 const SizedBox(height: 1),

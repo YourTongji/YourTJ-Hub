@@ -1,0 +1,295 @@
+resolveStickers:
+  post:
+    tags: [Forum]
+    summary: Resolve explicit shared sticker tokens
+    operationId: resolveStickers
+    description: |
+      Public read-only resolution of at most 200 explicit token names. Duplicate names are
+      returned once in request order; unknown/disabled/invalid token names are omitted.
+      The total input is limited to 200 names before invalid names are filtered. Personal
+      names are unguessable bearer references: knowing a shared token permits
+      rendering and collecting that asset. No enumeration or private library labels
+      are exposed. Uses the public sticker.list per-IP quota. Body limit 64 KiB.
+    security: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/StickerNamesRequest
+    responses:
+      '200':
+        description: Result or stable business failure envelope.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ForumStickerListResponse
+            examples:
+              success:
+                externalValue: ../fixtures/forum-sticker-list-success.json
+              invalidParams:
+                externalValue: ../fixtures/invalid-params.json
+      '400':
+        description: Malformed JSON or request body larger than 64 KiB.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              failure:
+                externalValue: ../fixtures/parse-failed.json
+      '429':
+        description: Rate quota exceeded.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              failure:
+                externalValue: ../fixtures/forum-sticker-rate-limited.json
+
+myStickers:
+  get:
+    tags: [Forum]
+    summary: List the current account sticker library
+    operationId: myStickers
+    description: |
+      Lists only the authenticated account's private memberships in saved order.
+      Labels are private to this account; the same asset may be collected by others.
+      Disabled assets remain with isEnabled=false so users can remove or reorder
+      them, but clients must prevent insertion. Permanent official deletion removes
+      the corresponding memberships.
+      At most 200 members. Removing a member never deletes an asset or sent history.
+      Account closure clears this list and fences in-flight membership writes.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    responses:
+      '200':
+        description: Result or stable business failure envelope.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ForumStickerListResponse
+            examples:
+              success:
+                externalValue: ../fixtures/forum-sticker-list-success.json
+              empty:
+                externalValue: ../fixtures/admin-sticker-list-empty.json
+      '401':
+        description: Authentication required.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              failure:
+                externalValue: ../fixtures/auth-required.json
+
+saveMySticker:
+  post:
+    tags: [Forum]
+    summary: Upload or collect a sticker in my library
+    operationId: saveMySticker
+    description: |
+      Supply exactly one of stickerName or fileName. A known enabled sticker token
+      is collected idempotently. fileName must identify a ready standard image/GIF
+      uploaded by this account, from 1 byte to 4 MiB; the same file reuses the same
+      personal asset on retries. Personal assets have immutable random token names
+      and image content. displayName changes only this account's library label.
+      Maximum 200 memberships and 1000 retained personal uploads per account;
+      removing a membership does not reset the retained-asset quota. Limit errors
+      are sticker.libraryFull or sticker.uploadQuota with params.limit. Unknown or
+      disabled tokens fail with sticker.unavailable. Invalid/foreign/pending/oversize
+      uploads fail with sticker.imageRequired and params.maxSizeMb = 4. Invalid
+      input fails with common.request.invalidParams. Membership, quota and file
+      reference writes are atomic and serialized per account. Body limit 64 KiB.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/MyStickerSaveRequest
+    responses:
+      '200':
+        description: Result or stable business failure envelope.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/MyStickerSaveResponse
+            examples:
+              success:
+                externalValue: ../fixtures/my-sticker-save-success.json
+              libraryFull:
+                externalValue: ../fixtures/my-sticker-library-full.json
+              unavailable:
+                externalValue: ../fixtures/my-sticker-unavailable.json
+              invalidParams:
+                externalValue: ../fixtures/invalid-params.json
+      '400':
+        description: Malformed JSON or request body larger than 64 KiB.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              failure:
+                externalValue: ../fixtures/parse-failed.json
+      '401':
+        description: Authentication required.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              failure:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Frozen account, pending activation or CSRF rejection.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              failure:
+                externalValue: ../fixtures/account-frozen.json
+      '429':
+        description: Rate quota exceeded.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+
+deleteMySticker:
+  post:
+    tags: [Forum]
+    summary: Remove a sticker from my private library
+    operationId: deleteMySticker
+    description: |
+      Idempotently removes only this account's membership. Does not delete or
+      disable the shared asset, release its file reference, affect another account,
+      or break previously sent tokens. Invalid names fail with
+      common.request.invalidParams. Body limit 64 KiB.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/MyStickerDeleteRequest
+    responses:
+      '200':
+        description: Result or stable business failure envelope.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ContentActionResponse
+            examples:
+              success:
+                externalValue: ../fixtures/my-sticker-action-success.json
+              invalidParams:
+                externalValue: ../fixtures/invalid-params.json
+      '400':
+        description: Malformed JSON or request body larger than 64 KiB.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              failure:
+                externalValue: ../fixtures/parse-failed.json
+      '401':
+        description: Authentication required.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              failure:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Frozen account, pending activation or CSRF rejection.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              failure:
+                externalValue: ../fixtures/account-frozen.json
+      '429':
+        description: Rate quota exceeded.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+
+orderMyStickers:
+  post:
+    tags: [Forum]
+    summary: Replace the order of my private sticker library
+    operationId: orderMyStickers
+    description: |
+      names must contain every current membership once, in desired display order.
+      Duplicate, foreign, missing and stale names fail atomically with
+      common.request.invalidParams; clients should reload on conflict. Empty names
+      is valid only for an empty library. Serialized with collection/removal and
+      bounded to 200 names. Body limit 64 KiB.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/StickerNamesRequest
+    responses:
+      '200':
+        description: Result or stable business failure envelope.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ContentActionResponse
+            examples:
+              success:
+                externalValue: ../fixtures/my-sticker-action-success.json
+              invalidParams:
+                externalValue: ../fixtures/invalid-params.json
+      '400':
+        description: Malformed JSON or request body larger than 64 KiB.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              failure:
+                externalValue: ../fixtures/parse-failed.json
+      '401':
+        description: Authentication required.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              failure:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Frozen account, pending activation or CSRF rejection.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              failure:
+                externalValue: ../fixtures/account-frozen.json
+      '429':
+        description: Rate quota exceeded.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
