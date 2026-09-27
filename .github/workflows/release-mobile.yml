@@ -195,8 +195,8 @@ jobs:
           cache: true
       - name: Bootstrap
         if: ${{ !inputs.recover_ios }}
-        working-directory: apps/mobile
-        run: dart pub get
+        working-directory: apps/mobile/packages/forum_app
+        run: flutter pub get
       - name: Install verified ASC CLI
         run: |
           python3 .release-tools/scripts/mobile-release/install_asc.py "$RUNNER_TEMP/asc"
@@ -263,8 +263,15 @@ jobs:
           path: |
             apps/mobile/build/release/ios/*.ipa
             apps/mobile/build/release/YourTJ.xcarchive/dSYMs/
+            apps/mobile/build/release/*.log
           retention-days: 30
           if-no-files-found: ignore
+      - name: Show iOS archive and export failures
+        if: failure() && !inputs.recover_ios
+        run: |
+          for log in apps/mobile/build/release/{archive,export}.log; do
+            if [[ -f "$log" ]]; then tail -n 100 "$log"; fi
+          done
       - name: Remove private signing inputs
         if: always()
         run: |
