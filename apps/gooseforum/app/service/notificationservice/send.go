@@ -3,7 +3,11 @@ package notificationservice
 import (
 	"log/slog"
 
+	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
+	"gorm.io/gorm"
+
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/eventNotification"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/nativepushservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/realtimeservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/unreadservice"
@@ -32,8 +36,8 @@ func SendCommentNotification(userId uint64, topicId uint64, commentContent strin
 		Payload:   payload,
 	}
 
-	err := eventNotification.Create(notification)
-	if err == nil {
+	created, err := persistInteractions(db.Connect(), []*eventNotification.Entity{notification})
+	if err == nil && len(created) > 0 {
 		notificationCommitted(userId)
 		webpushservice.EnqueueNotification(userId, notification.Id)
 		nativepushservice.EnqueueNotification(userId, notification.Id)
@@ -62,8 +66,8 @@ func SendPostReplyNotification(userId uint64, postId uint64, postNo uint64, topi
 		Payload:   payload,
 	}
 
-	err := eventNotification.Create(notification)
-	if err == nil {
+	created, err := persistInteractions(db.Connect(), []*eventNotification.Entity{notification})
+	if err == nil && len(created) > 0 {
 		notificationCommitted(userId)
 		webpushservice.EnqueueNotification(userId, notification.Id)
 		nativepushservice.EnqueueNotification(userId, notification.Id)
@@ -102,9 +106,9 @@ func SendTopicPostNotifications(userIds []uint64, topicId uint64, postId uint64,
 		return nil
 	}
 
-	err := eventNotification.CreateBatch(notifications, 100)
+	created, err := persistInteractions(db.Connect(), notifications)
 	if err == nil {
-		for _, notification := range notifications {
+		for _, notification := range created {
 			if notification == nil {
 				continue
 			}
@@ -149,10 +153,10 @@ func SendMentionNotifications(userIds []uint64, topicId uint64, postId uint64, p
 		return nil
 	}
 
-	err := eventNotification.CreateBatch(notifications, 100)
+	created, err := persistInteractions(db.Connect(), notifications)
 	if err == nil {
-		for _, userId := range userIds {
-			notificationCommitted(userId)
+		for _, notification := range created {
+			notificationCommitted(notification.UserId)
 		}
 	}
 	return err
@@ -227,8 +231,8 @@ func SendLikeNotification(userId uint64, topicId uint64, topicTitle string, post
 		Payload:   payload,
 	}
 
-	err := eventNotification.Create(notification)
-	if err == nil {
+	created, err := persistInteractions(db.Connect(), []*eventNotification.Entity{notification})
+	if err == nil && len(created) > 0 {
 		notificationCommitted(userId)
 		webpushservice.EnqueueNotification(userId, notification.Id)
 		nativepushservice.EnqueueNotification(userId, notification.Id)
@@ -250,8 +254,8 @@ func SendFollowNotification(userId uint64, followerId uint64, followerName strin
 		Payload:   payload,
 	}
 
-	err := eventNotification.Create(notification)
-	if err == nil {
+	created, err := persistInteractions(db.Connect(), []*eventNotification.Entity{notification})
+	if err == nil && len(created) > 0 {
 		notificationCommitted(userId)
 		webpushservice.EnqueueNotification(userId, notification.Id)
 		nativepushservice.EnqueueNotification(userId, notification.Id)
@@ -276,4 +280,51 @@ func NullifyContentPreviews(topicId uint64, postId uint64) {
 func notificationCommitted(userID uint64) {
 	unreadservice.Invalidate(userID)
 	realtimeservice.PublishNotificationsChanged(userID, "created")
+}
+
+// persistInteractions serializes the block check and notification insert with
+// block/unblock and chat writes. Callers publish SSE/push only for committed rows.
+func persistInteractions(conn *gorm.DB, notifications []*eventNotification.Entity) ([]*eventNotification.Entity, error) {
+	if len(notifications) == 0 {
+		return nil, nil
+	}
+	participants := make([]uint64, 0, len(notifications)*2)
+	recipients := make(map[uint64][]uint64)
+	for _, n := range notifications {
+		if n == nil || n.UserId == 0 {
+			continue
+		}
+		participants = append(participants, n.UserId)
+		if n.Payload.ActorId != 0 {
+			participants = append(participants, n.Payload.ActorId)
+		}
+		recipients[n.Payload.ActorId] = append(recipients[n.Payload.ActorId], n.UserId)
+	}
+	var committed []*eventNotification.Entity
+	err := conn.Transaction(func(tx *gorm.DB) error {
+		if err := users.LockInteractionUserIDs(tx, participants); err != nil {
+			return err
+		}
+		allowed := make(map[uint64]map[uint64]bool)
+		for actor, ids := range recipients {
+			filtered, err := users.FilterInteractionRecipientsTx(tx, actor, ids)
+			if err != nil {
+				return err
+			}
+			allowed[actor] = make(map[uint64]bool, len(filtered))
+			for _, id := range filtered {
+				allowed[actor][id] = true
+			}
+		}
+		for _, n := range notifications {
+			if n != nil && allowed[n.Payload.ActorId][n.UserId] {
+				committed = append(committed, n)
+			}
+		}
+		return eventNotification.CreateBatchTx(tx, committed, 100)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return committed, nil
 }

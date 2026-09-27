@@ -2763,4 +2763,45 @@ class AppLocalizationsJa extends AppLocalizations {
   String settingsProfilePartialSave(String saved) {
     return '保存済み：$saved。残りの変更は保持されています。もう一度保存してください。';
   }
+
+  @override
+  String get userBlock => 'ユーザーをブロック';
+
+  @override
+  String get userUnblock => 'ブロック解除';
+
+  @override
+  String get userBlocks => 'ブロックしたユーザー';
+
+  @override
+  String get userBlockExplanation =>
+      'ブロックすると、双方の新しいメッセージと交流通知が停止します。確認や報告のため、公開コンテンツと過去のメッセージは残ります。';
+
+  @override
+  String get userBlocksEmpty => 'ブロックしたユーザーはいません';
+
+  @override
+  String get messageReport => 'メッセージを報告';
+
+  @override
+  String get messageReportPrivacy =>
+      '送信すると、このメッセージと説明をサイト管理者が確認できます。会話全体は送信されません。';
+
+  @override
+  String get contentReport => 'コンテンツを報告';
+
+  @override
+  String get reportSpam => '迷惑情報';
+
+  @override
+  String get reportAbuse => '嫌がらせ';
+
+  @override
+  String get reportIllegal => '違法な内容';
+
+  @override
+  String get reportIrrelevant => '無関係な内容';
+
+  @override
+  String get reportOther => 'その他';
 }

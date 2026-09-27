@@ -53,8 +53,32 @@ jobs:
           TESTFLIGHT_ONLY: ${{ inputs.testflight_only }}
         run: python3 scripts/mobile-release/prepare_mobile.py
 
-  android:
+  verify:
     needs: prepare
+    if: needs.prepare.outputs.tag != '' && !inputs.recover_ios
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.44.9"
+          channel: stable
+          cache: true
+      - name: Verify release tooling and native privacy resources
+        run: python3 -m unittest discover -s scripts/mobile-release -p 'test_*.py'
+      - name: Bootstrap and test
+        working-directory: apps/mobile
+        run: |
+          dart pub get
+          dart run melos run analyze
+          dart run melos run test
+
+  android:
+    needs: [prepare, verify]
     if: needs.prepare.outputs.tag != '' && !inputs.recover_ios
     runs-on: ubuntu-latest
     environment: mobile-release
@@ -83,12 +107,9 @@ jobs:
           HUAWEI_AGCONNECT_JSON: ${{ secrets.HUAWEI_AGCONNECT_JSON }}
           FCM_GOOGLE_SERVICES_JSON: ${{ secrets.FCM_GOOGLE_SERVICES_JSON }}
         run: python3 scripts/mobile-release/prepare_push.py
-      - name: Bootstrap and test
+      - name: Bootstrap
         working-directory: apps/mobile
-        run: |
-          dart pub get
-          dart run melos run analyze
-          dart run melos run test
+        run: dart pub get
       - name: Install private Android signing inputs
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
@@ -136,8 +157,10 @@ jobs:
             apps/mobile/packages/forum_app/android/app/google-services.json
 
   ios:
-    needs: prepare
-    if: needs.prepare.outputs.tag != ''
+    needs: [prepare, verify]
+    if: >-
+      ${{ !cancelled() && needs.prepare.result == 'success' && needs.prepare.outputs.tag != '' &&
+          (needs.verify.result == 'success' || (inputs.recover_ios && needs.verify.result == 'skipped')) }}
     runs-on: macos-26
     environment: mobile-release
     timeout-minutes: 90

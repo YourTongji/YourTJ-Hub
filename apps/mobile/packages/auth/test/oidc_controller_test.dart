@@ -41,6 +41,14 @@ class FakeAppAuth extends FlutterAppAuth {
 
 /// 可编程 AuthRepository fake:记录 oidcExchange 参数,返回预设 token 或抛错。
 class FakeAuthRepository implements AuthRepository {
+  @override
+  Future<String> appleExchange(AppleCredentialRequest request) =>
+      throw UnimplementedError();
+
+  @override
+  Future<void> appleBind(AppleCredentialRequest request) =>
+      throw UnimplementedError();
+
   FakeAuthRepository({this.exchangeToken = 'forum-jwt'});
 
   String exchangeToken;

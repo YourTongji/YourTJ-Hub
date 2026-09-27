@@ -24,6 +24,7 @@ class DistributionProfileTest(unittest.TestCase):
                 "application-identifier": "4HJTS3G3T2.tj.yourtj.forumApp",
                 "get-task-allow": False,
                 "aps-environment": "production",
+                "com.apple.developer.applesignin": ["Default"],
                 "com.apple.security.application-groups": [
                     "group.tj.yourtj.forumApp.widgets"
                 ],
@@ -40,6 +41,13 @@ class DistributionProfileTest(unittest.TestCase):
                 ],
             },
         }
+
+    def test_apple_login_requires_profile_and_signed_entitlement(self):
+        self.profile["Entitlements"].pop("com.apple.developer.applesignin")
+        with self.assertRaisesRegex(ValueError, "Apple"):
+            validate_profile(self.profile, "4HJTS3G3T2", self.now)
+        with self.assertRaisesRegex(ValueError, "Apple"):
+            validate_app_entitlements(self.profile["Entitlements"], "4HJTS3G3T2")
 
     def test_app_store_profile(self):
         validate_profile(self.profile, "4HJTS3G3T2", self.now)

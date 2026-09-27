@@ -5,12 +5,13 @@ import (
 
 	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/eventNotification"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/realtimeservice"
 )
 
 func TestMentionCommitPublishesOnlyToRecipients(t *testing.T) {
 	conn := db.Connect()
-	if err := conn.AutoMigrate(&eventNotification.Entity{}); err != nil {
+	if err := conn.AutoMigrate(&eventNotification.Entity{}, &users.BlockEntity{}, &users.EntityComplete{}); err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
@@ -42,7 +43,7 @@ func TestMentionCommitPublishesOnlyToRecipients(t *testing.T) {
 
 func TestCommentNotificationsUseTopicPostPayload(t *testing.T) {
 	conn := db.Connect()
-	if err := conn.AutoMigrate(&eventNotification.Entity{}); err != nil {
+	if err := conn.AutoMigrate(&eventNotification.Entity{}, &users.BlockEntity{}, &users.EntityComplete{}); err != nil {
 		t.Fatalf("migrate notifications: %v", err)
 	}
 
@@ -61,7 +62,7 @@ func TestCommentNotificationsUseTopicPostPayload(t *testing.T) {
 
 func TestLikeNotificationsUseTopicPostPayload(t *testing.T) {
 	conn := db.Connect()
-	if err := conn.AutoMigrate(&eventNotification.Entity{}); err != nil {
+	if err := conn.AutoMigrate(&eventNotification.Entity{}, &users.BlockEntity{}, &users.EntityComplete{}); err != nil {
 		t.Fatalf("migrate notifications: %v", err)
 	}
 
@@ -80,7 +81,7 @@ func TestLikeNotificationsUseTopicPostPayload(t *testing.T) {
 
 func TestMentionNotificationsUseTopicPostPayload(t *testing.T) {
 	conn := db.Connect()
-	if err := conn.AutoMigrate(&eventNotification.Entity{}); err != nil {
+	if err := conn.AutoMigrate(&eventNotification.Entity{}, &users.BlockEntity{}, &users.EntityComplete{}); err != nil {
 		t.Fatalf("migrate notifications: %v", err)
 	}
 
@@ -107,5 +108,39 @@ func TestMentionNotificationsUseTopicPostPayload(t *testing.T) {
 	}
 	if notification.Payload.ActorId != 2 {
 		t.Fatalf("actorId = %d, want 2", notification.Payload.ActorId)
+	}
+}
+
+func TestBlockedInteractionsDoNotCreateNotifications(t *testing.T) {
+	conn := db.Connect()
+	if err := conn.AutoMigrate(&eventNotification.Entity{}, &users.BlockEntity{}, &users.EntityComplete{}); err != nil {
+		t.Fatal(err)
+	}
+	const actor, blocked, allowed = uint64(88211), uint64(88212), uint64(88213)
+	if err := conn.Create(&users.BlockEntity{OwnerID: blocked, TargetUserID: actor}).Error; err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		conn.Where("owner_id = ?", blocked).Delete(&users.BlockEntity{})
+		conn.Where("user_id IN ?", []uint64{blocked, allowed, actor}).Delete(&eventNotification.Entity{})
+	})
+	for _, send := range []func() error{
+		func() error { return SendFollowNotification(blocked, actor, "actor") },
+		func() error { return SendLikeNotification(actor, 1, "topic", 2, 1, blocked) },
+		func() error { return SendCommentNotification(blocked, 1, "body", actor, 2, 1) },
+		func() error { return SendPostReplyNotification(blocked, 2, 1, 1, "body", actor) },
+		func() error { return SendMentionNotifications([]uint64{blocked, allowed}, 1, 2, 1, "body", actor) },
+		func() error { return SendTopicPostNotifications([]uint64{blocked, allowed}, 1, 2, 1, "body", actor) },
+	} {
+		if err := send(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var count int64
+	if err := conn.Model(&eventNotification.Entity{}).Where("user_id IN ?", []uint64{blocked, actor}).Count(&count).Error; err != nil || count != 0 {
+		t.Fatalf("blocked notifications=%d, %v", count, err)
+	}
+	if err := conn.Model(&eventNotification.Entity{}).Where("user_id = ?", allowed).Count(&count).Error; err != nil || count != 2 {
+		t.Fatalf("allowed notifications=%d, %v", count, err)
 	}
 }

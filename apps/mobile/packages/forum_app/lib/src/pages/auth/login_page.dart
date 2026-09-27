@@ -14,6 +14,8 @@ import 'package:core/core.dart';
 
 import '../../../l10n/app_localizations.dart';
 import '../../app_config.dart';
+import '../../apple/apple_sign_in.dart';
+import '../../apple/apple_sign_in_button.dart';
 import '../../navigation/auth_navigation.dart';
 import '../../providers.dart';
 import '../../server_messages.dart';
@@ -521,6 +523,36 @@ class _LoginPageState extends ConsumerState<LoginPage>
     }
   }
 
+  Future<void> _loginApple() async {
+    if (_oidcBusy || _authController.busy || _finishingAuthentication) return;
+    setState(() {
+      _oidcBusy = true;
+      _oidcError = '';
+    });
+    try {
+      final proof = await ref.read(appleSignInProvider).authorize();
+      if (!mounted || proof == null) return;
+      final token = await AuthRepository(
+        _authClient,
+      ).appleExchange(proof.request);
+      if (!mounted) return;
+      await _authTokenStorage.write(token);
+      await _finishAuthentication(appleUserIdentifier: proof.userIdentifier);
+    } catch (error) {
+      await _authTokenStorage.clear();
+      if (mounted) {
+        setState(
+          () => _oidcError = resolveErrorMessage(
+            AppLocalizations.of(context),
+            error,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _oidcBusy = false);
+    }
+  }
+
   Future<void> _loginOidc(String provider) async {
     if (_oidcBusy) return;
     setState(() {
@@ -567,7 +599,10 @@ class _LoginPageState extends ConsumerState<LoginPage>
   /// 认证成功后的收尾:先确保旧账号缓存已清空,再把暂存的新会话提交到
   /// 安全存储。清理失败时新 token 从未持久化,因此重启也无法以新账号读取
   /// 旧账号离线数据。
-  Future<void> _finishAuthentication({bool saveAutofill = false}) async {
+  Future<void> _finishAuthentication({
+    bool saveAutofill = false,
+    String? appleUserIdentifier,
+  }) async {
     if (!mounted || _finishingAuthentication) return;
     setState(() => _finishingAuthentication = true);
     try {
@@ -592,6 +627,11 @@ class _LoginPageState extends ConsumerState<LoginPage>
       }
 
       try {
+        if (supportsNativeAppleSignIn) {
+          await ref
+              .read(appleSignInProvider)
+              .rememberSession(token, appleUserIdentifier);
+        }
         await ref.read(tokenStorageProvider).write(token);
       } catch (_) {
         // 安全存储写入可能在落盘后抛错,结果不确定。缓存已经清空,所以重启
@@ -1149,7 +1189,11 @@ class _LoginPageState extends ConsumerState<LoginPage>
       if (_mode == _AuthMode.login && options.googleReady) 'google',
       if (_mode == _AuthMode.login && options.githubUrl.isNotEmpty) 'github',
     ];
-    if (providers.isEmpty) return const SizedBox.shrink();
+    final showApple =
+        _mode == _AuthMode.login &&
+        options.appleReady &&
+        supportsNativeAppleSignIn;
+    if (providers.isEmpty && !showApple) return const SizedBox.shrink();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -1159,6 +1203,15 @@ class _LoginPageState extends ConsumerState<LoginPage>
           style: Theme.of(context).textTheme.labelLarge,
         ),
         const SizedBox(height: 8),
+        if (showApple) ...[
+          AppleSignInButton(
+            onPressed:
+                _authController.busy || _oidcBusy || _finishingAuthentication
+                ? null
+                : _loginApple,
+          ),
+          const SizedBox(height: 8),
+        ],
         for (final provider in providers) ...[
           OutlinedButton.icon(
             icon: provider == 'tongji'

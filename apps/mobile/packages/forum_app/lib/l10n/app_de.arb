@@ -994,5 +994,18 @@
   "sortNew": "Neue Beiträge",
   "profileRoleAdminDescription": "Betreut die Community und sorgt für den Betrieb des Forums.",
   "profileBadgeEarnedOn": "Erhalten am {date}",
-  "settingsProfilePartialSave": "Gespeichert: {saved}. Die übrigen Änderungen bleiben erhalten. Bitte erneut speichern."
+  "settingsProfilePartialSave": "Gespeichert: {saved}. Die übrigen Änderungen bleiben erhalten. Bitte erneut speichern.",
+  "userBlock": "Nutzer blockieren",
+  "userUnblock": "Blockierung aufheben",
+  "userBlocks": "Blockierte Nutzer",
+  "userBlockExplanation": "Eine Blockierung stoppt neue Direktnachrichten und Interaktionsbenachrichtigungen in beide Richtungen. Öffentliche Inhalte und bisherige Nachrichten bleiben zur Einordnung und Meldung verfügbar.",
+  "userBlocksEmpty": "Keine blockierten Nutzer",
+  "messageReport": "Nachricht melden",
+  "messageReportPrivacy": "Mit dem Absenden können Website-Administratoren diese Nachricht und Ihre Erklärung prüfen. Der restliche Gesprächsverlauf wird nicht übermittelt.",
+  "contentReport": "Inhalt melden",
+  "reportSpam": "Spam",
+  "reportAbuse": "Beleidigung oder Belästigung",
+  "reportIllegal": "Rechtswidrige Inhalte",
+  "reportIrrelevant": "Themenfremde Inhalte",
+  "reportOther": "Sonstiges"
 }

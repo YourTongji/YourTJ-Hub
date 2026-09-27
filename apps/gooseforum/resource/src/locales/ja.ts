@@ -2645,6 +2645,11 @@ export default {
       },
     },
     oauth: {
+      apple: {
+        unavailable: "Apple ログインは現在利用できません。後でもう一度お試しください。",
+        bindingRequired: "既存の方法でログインし、アカウント設定で Apple を連携してからご利用ください。",
+        alreadyBound: "この Apple アカウントは連携済み、または既に別の Apple アカウントが連携されています。",
+      },
       unbind: {
         failed: '連携解除に失敗しました: {error}',
         success: '連携を解除しました',
@@ -2667,7 +2672,7 @@ export default {
     },
     chat: {
       send: {
-        failed: '送信に失敗しました: {error}',
+        failed: 'メッセージを送信できません。しばらくしてから再試行してください',
       },
       messages: {
         failed: 'メッセージの読み込みに失敗しました',
@@ -2801,6 +2806,7 @@ export default {
       evidenceMeta: '著者 {author} · 削除者 {deletedBy} · 削除日時 {deletedAt} · 理由 {reason}',
       evidenceEmpty: '（原文は空です）',
       targetTypes: {
+        chat_message: 'プライベートメッセージ',
         topic: 'トピック',
         post: '投稿',
         course_review: 'コースレビュー',

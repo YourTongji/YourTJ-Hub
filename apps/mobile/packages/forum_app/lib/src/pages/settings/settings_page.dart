@@ -1,3 +1,4 @@
+import '../../user_blocks.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -94,6 +95,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   bool _uploadingAvatar = false;
   bool _accountClosing = false;
   bool _googleOAuthReady = false;
+  bool _appleOAuthReady = false;
   bool _autoEditProfileActive = false;
   _ProfileEditSession _autoEditSession = _ProfileEditSession();
   final ImagePicker _imagePicker = ImagePicker();
@@ -160,6 +162,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       }
       setState(() {
         _googleOAuthReady = props.googleOAuthReady;
+        _appleOAuthReady = props.appleOAuthReady;
         _user = AsyncValue.data(props.user);
       });
     } catch (e, st) {
@@ -642,6 +645,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       builder: (_) => OAuthBindingsSheet(
         username: user.username,
         googleReady: _googleOAuthReady,
+        appleReady: _appleOAuthReady,
       ),
     );
   }
@@ -957,6 +961,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         _user = const AsyncValue.loading();
         _sessions = const AsyncValue.loading();
         _googleOAuthReady = false;
+        _appleOAuthReady = false;
         _autoEditProfileActive = false;
         _autoEditSession = _ProfileEditSession();
       });
@@ -1382,6 +1387,12 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(16),
         children: [
+          GfSettingRow(
+            symbol: 'ban',
+            title: l10n.userBlocks,
+            onTap: () => showBlockedUsers(context),
+          ),
+          const SizedBox(height: 24),
           _settingsSection(
             context,
             title: l10n.profileContent,

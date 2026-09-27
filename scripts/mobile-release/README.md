@@ -22,6 +22,11 @@ python3 -m unittest discover -s scripts/mobile-release -p 'test_*.py'
 actionlint .github/workflows/release-mobile.yml .github/workflows/release-to-main.yml .github/workflows/deploy-main.yml .github/workflows/ci-mobile.yml
 ```
 
+Run these tests with the release source repository root as the working directory. iOS also runs
+them from a separate sparse `.release-tools` checkout; native manifest checks read the tagged
+source in the working directory, while publisher tests exercise the selected release tools.
+The checkout regression reproduces this layout without signing or uploading.
+
 The publish commands mutate external services. `--verify-only` on the Android publisher writes local
 checksums only. Build logs and outputs belong under ignored `apps/mobile/build/release/`; private inputs
 must come from an ignored local file or the CI runner's private temporary directory. Tests never print

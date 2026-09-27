@@ -928,6 +928,9 @@ class _PublishPageState extends ConsumerState<PublishPage>
         end - start,
         token,
         TextSelection.collapsed(offset: start + token.length),
+        // skipRequestKeyboard is consumed by Quill's first request. Every
+        // insertion must preserve accessory/search focus, including on Android.
+        ignoreFocus: true,
       );
       _stickerSelection = _quill.selection;
     } else {

@@ -41,6 +41,8 @@ def validate_profile(profile, team, now=None, bundle_id=BUNDLE_ID,
         raise ValueError("An App Store distribution profile is required")
     if require_push and entitlements.get("aps-environment") != "production":
         raise ValueError("App Store profile must enable production Push Notifications; regenerate the profile")
+    if bundle_id == BUNDLE_ID and entitlements.get("com.apple.developer.applesignin") != ["Default"]:
+        raise ValueError("App Store profile must enable Sign in with Apple")
     if WIDGET_APP_GROUP not in entitlements.get(
             "com.apple.security.application-groups", []):
         raise ValueError("Distribution profile must enable the schedule App Group")
@@ -49,6 +51,8 @@ def validate_profile(profile, team, now=None, bundle_id=BUNDLE_ID,
 
 
 def validate_app_entitlements(entitlements, team):
+    if entitlements.get("com.apple.developer.applesignin") != ["Default"]:
+        raise ValueError("Exported app must carry the Sign in with Apple entitlement")
     if entitlements.get("application-identifier") != f"{team}.{BUNDLE_ID}" or entitlements.get("aps-environment") != "production":
         raise ValueError("Exported app must carry the correct application identifier and production APNs entitlement")
     if WIDGET_APP_GROUP not in entitlements.get("com.apple.security.application-groups", []):
@@ -84,6 +88,25 @@ def validate_exported_ipa(path, team):
             stderr=subprocess.DEVNULL,
         )
         validate_widget_entitlements(plistlib.loads(raw), team)
+        validate_privacy_resources(apps[0])
+
+
+def validate_privacy_resources(app):
+    """Check the actual executable bundles, including the bundled local SDK."""
+    required = [app / "PrivacyInfo.xcprivacy",
+                app / "PlugIns/ScheduleWidgets.appex/PrivacyInfo.xcprivacy"]
+    sdk = [path for path in app.rglob("PrivacyInfo.xcprivacy")
+           if any("home_widget" in part.lower() for part in path.relative_to(app).parts)]
+    if not sdk:
+        raise ValueError("Exported app is missing home_widget privacy resources")
+    for path in [*required, *sdk]:
+        if not path.is_file():
+            raise ValueError(f"Exported bundle is missing privacy manifest: {path.name}")
+        manifest = plistlib.loads(path.read_bytes())
+        reasons = {item.get("NSPrivacyAccessedAPIType"): item.get("NSPrivacyAccessedAPITypeReasons", [])
+                   for item in manifest.get("NSPrivacyAccessedAPITypes", [])}
+        if "1C8F.1" not in reasons.get("NSPrivacyAccessedAPICategoryUserDefaults", []):
+            raise ValueError("Privacy manifest must declare App Group UserDefaults usage")
 
 
 def security(*args):

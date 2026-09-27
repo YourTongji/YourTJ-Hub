@@ -1,3 +1,4 @@
+import '../../user_blocks.dart';
 import '../../private_notes.dart';
 import '../../navigation/auth_navigation.dart';
 import 'dart:math' as math;
@@ -814,6 +815,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
         actions.add(
           PrivateNoteButton(userId: user.userId, username: user.username),
         );
+        actions.add(UserBlockButton(userId: user.userId));
       }
       if (props.canFollow) {
         actions.add(
@@ -939,6 +941,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     if (notes != null &&
         notes.ownerId > 0 &&
         notes.ownerId != props.user.userId) {
+      buttons.add(const Size(48, 48));
       final style = TextButtonTheme.of(context).style;
       final states = <WidgetState>{
         if (!notes.ready && !notes.failed) WidgetState.disabled,

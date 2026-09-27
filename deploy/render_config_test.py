@@ -137,6 +137,8 @@ check(
     <= rc.optional_tokens("dev"),
 )
 
+check("Apple login credentials are optional", {"APPLE_CLIENT_ID", "APPLE_TEAM_ID", "APPLE_KEY_ID", "APPLE_PRIVATE_KEY_BASE64"} <= rc.optional_tokens("main"))
+
 env_empty = {tok: "" for tok in real_tokens}
 expect_exit(
     "空必需 secret 应拒绝（dev）",

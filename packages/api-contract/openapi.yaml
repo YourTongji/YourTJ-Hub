@@ -97,6 +97,10 @@ paths:
     $ref: ./paths/auth-totp.yaml#/enable
   /api/user/totp/disable:
     $ref: ./paths/auth-totp.yaml#/disable
+  /api/auth/apple/exchange:
+    $ref: ./paths/apple-auth.yaml#/exchange
+  /api/auth/apple/bind:
+    $ref: ./paths/apple-auth.yaml#/bind
   /api/auth/oidc/exchange:
     $ref: ./paths/auth.yaml#/oidcExchange
   /api/auth/mobile-web-session:
@@ -151,6 +155,10 @@ paths:
     $ref: ./paths/forum-moderation.yaml#/viewDeletedContent
   /api/get-captcha:
     $ref: ./paths/user-account.yaml#/getCaptcha
+  /api/user-blocks:
+    $ref: './paths/user-account.yaml#/userBlocks'
+  /api/user-block:
+    $ref: './paths/user-account.yaml#/userBlock'
   /api/user-notes:
     $ref: './paths/user-account.yaml#/privateNotes'
   /api/user-note:
@@ -794,6 +802,8 @@ components:
       $ref: ./components/schemas.yaml#/LogoutResponse
     LogoutSuccess:
       $ref: ./components/schemas.yaml#/LogoutSuccess
+    AppleCredentialRequest:
+      $ref: ./components/schemas.yaml#/AppleCredentialRequest
     OidcExchangeRequest:
       $ref: ./components/schemas.yaml#/OidcExchangeRequest
     OidcExchangeResult:

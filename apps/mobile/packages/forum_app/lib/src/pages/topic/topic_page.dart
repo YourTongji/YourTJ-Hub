@@ -1,3 +1,4 @@
+import '../../report_content.dart';
 import '../../widgets/stickers/sticker_draft_preview.dart';
 import '../../widgets/stickers/sticker_picker.dart';
 import '../../widgets/stickers/sticker_strings.dart';
@@ -1147,63 +1148,7 @@ class _TopicPageState extends ConsumerState<TopicPage>
   Future<void> _reportTarget({
     required String targetType,
     required int targetId,
-  }) async {
-    if (!mounted) return;
-    final AppLocalizations l10n = AppLocalizations.of(context);
-    final reason = await showGfModal<String>(
-      context,
-      builder: (ctx) {
-        final ctrl = TextEditingController();
-        return Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: <Widget>[
-            Text(l10n.topicReport, style: GfTheme.typographyOf(ctx).title3),
-            const SizedBox(height: 16),
-            GfInput(
-              controller: ctrl,
-              maxLines: 3,
-              hintText: l10n.topicReportHint,
-            ),
-            const SizedBox(height: 20),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: <Widget>[
-                GfButton(
-                  label: l10n.commonCancel,
-                  variant: GfButtonVariant.ghost,
-                  onPressed: () => Navigator.pop(ctx),
-                ),
-                const SizedBox(width: 8),
-                GfButton(
-                  label: l10n.topicReportSubmit,
-                  onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
-                ),
-              ],
-            ),
-          ],
-        );
-      },
-    );
-    if (reason == null || reason.isEmpty) return;
-    try {
-      await ref
-          .read(postRepositoryProvider)
-          .report(
-            targetType: targetType,
-            targetId: targetId,
-            reason: reason,
-            note: '',
-          );
-      if (mounted) {
-        showGfToast(context, l10n.topicReportSubmitted);
-      }
-    } catch (e) {
-      if (mounted) {
-        showGfToast(context, l10n.topicReportFailed('$e'), error: true);
-      }
-    }
-  }
+  }) => showContentReport(context, targetType: targetType, targetId: targetId);
 
   /// 楼层平铺:除主帖外全部楼层线性展示;排序由评论胶囊决定——
   /// 正序按 postNo 升序,倒序降序,只看楼主仅保留话题作者的楼层。

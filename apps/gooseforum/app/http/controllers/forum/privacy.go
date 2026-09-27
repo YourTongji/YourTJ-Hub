@@ -7,12 +7,14 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/markdown2html"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/setting"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/defaultconfig"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
 	"github.com/gin-gonic/gin"
 )
 
 const umamiPrivacyDisclosureMarker = "自建 Umami"
+const appPrivacyDisclosureMarker = "## App 数据处理补充说明"
 const legacyInsightFlarePrivacyDisclosureMarker = "## 事件观测与性能数据"
 
 const umamiPrivacyDisclosure = `## 访问统计与会话回放
@@ -51,6 +53,9 @@ func buildPrivacyPageProps(config pageConfig.PrivacyPolicyConfig) PrivacyPagePro
 	// against an online policy that omits the current Umami data scope.
 	if setting.IsProduction() && config.Enabled && !strings.Contains(content, umamiPrivacyDisclosureMarker) {
 		contentHTML += markdown2html.MarkdownToHTML(umamiPrivacyDisclosure)
+	}
+	if config.Enabled && !strings.Contains(content, appPrivacyDisclosureMarker) {
+		contentHTML += markdown2html.MarkdownToHTML(defaultconfig.GetAppPrivacyDisclosure())
 	}
 	return PrivacyPageProps{
 		Enabled:     config.Enabled,

@@ -8,3 +8,9 @@ export interface OidcExchangeRequest {
 export interface OidcExchangeResult {
   token: string
 }
+
+export interface AppleCredentialRequest {
+  authorizationCode: string
+  identityToken: string
+  nonce: string
+}

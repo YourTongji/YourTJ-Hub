@@ -14,13 +14,18 @@ func Create(entity *Entity) error {
 }
 
 func CreateBatch(entities []*Entity, batchSize int) error {
+	return CreateBatchTx(builder(), entities, batchSize)
+}
+
+// CreateBatchTx participates in the caller's transaction.
+func CreateBatchTx(tx *gorm.DB, entities []*Entity, batchSize int) error {
 	if len(entities) == 0 {
 		return nil
 	}
 	if batchSize <= 0 {
 		batchSize = 100
 	}
-	return builder().CreateInBatches(entities, batchSize).Error
+	return tx.CreateInBatches(entities, batchSize).Error
 }
 
 // GetLatestByTopicAndType 返回某话题某类型的最新一条通知（wiki 通知节流用：

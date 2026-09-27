@@ -3,12 +3,12 @@ package api
 import (
 	"errors"
 	"fmt"
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/campus"
 	"testing"
 	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/campus"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/contentDeleteEvent"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/moderationLog"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/optRecord"
@@ -17,6 +17,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pushSubscription"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/sticker"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userOAuth"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"gorm.io/gorm"
 )
@@ -25,8 +26,8 @@ func setupBatchDeleteTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 	conn := dbconnect.Connect()
 	if err := conn.AutoMigrate(
-		&users.EntityComplete{},
-		&users.PrivateNoteEntity{},
+		&users.EntityComplete{}, &userOAuth.Entity{},
+		&users.PrivateNoteEntity{}, &users.BlockEntity{},
 		&topics.Entity{},
 		&posts.Entity{},
 		&optRecord.Entity{},

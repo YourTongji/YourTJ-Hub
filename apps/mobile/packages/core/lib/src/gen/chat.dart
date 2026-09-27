@@ -99,3 +99,23 @@ abstract class ChatMessageReadStatesResult with _$ChatMessageReadStatesResult {
   factory ChatMessageReadStatesResult.fromJson(Map<String, dynamic> json) =>
       _$ChatMessageReadStatesResultFromJson(json);
 }
+
+/// Sender-scoped retry key is optional for compatibility with existing clients.
+class SendChatMessageRequest {
+  const SendChatMessageRequest({
+    required this.peerId,
+    required this.content,
+    this.msgType = 1,
+    this.clientMessageId,
+  });
+  final int peerId;
+  final String content;
+  final int msgType;
+  final String? clientMessageId;
+  Map<String, dynamic> toJson() => {
+    'peerId': peerId,
+    'content': content,
+    'msgType': msgType,
+    if (clientMessageId != null) 'clientMessageId': clientMessageId,
+  };
+}

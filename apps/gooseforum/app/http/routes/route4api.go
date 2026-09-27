@@ -2,23 +2,23 @@ package routes
 
 import (
 	"errors"
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/preferences"
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/setting"
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/api"
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/forum"
-	"github.com/gin-contrib/gzip"
 	"io/fs"
 	"log/slog"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
 
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/preferences"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/setting"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/api"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/forum"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/pk"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/middleware"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/oidcservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/permission"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/resource"
+	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
 )
 
@@ -225,6 +225,7 @@ func apiRoute(ginApp *gin.Engine) {
 	}
 
 	baseApi.POST("auth/totp/verify", middleware.TOTPChallengeAuth, api.TotpVerify)
+	baseApi.POST("auth/apple/exchange", middleware.RateLimit(middleware.RateLimitLogin), api.AppleExchange)
 	baseApi.POST("auth/oidc/exchange", middleware.RateLimit(middleware.RateLimitLogin), api.OidcExchange)
 	baseApi.GET("auth/mobile-web-session", middleware.RateLimit(middleware.RateLimitLogin), api.MobileWebSession)
 
@@ -243,6 +244,8 @@ func apiRoute(ginApp *gin.Engine) {
 	loginApi.POST("set-user-name", middleware.CheckWritableAccount, UpButterReq(api.EditUsername))
 	loginApi.POST("set-preset-avatar", middleware.CheckWritableAccount, UpButterReq(api.SetPresetAvatar))
 	loginApi.GET("user-notes", UpQueryReq(api.GetPrivateNotes))
+	loginApi.GET("user-blocks", UpQueryReq(api.GetUserBlocks))
+	loginApi.POST("user-block", middleware.CheckWritableAccountAllowPendingActivation, middleware.RateLimit(middleware.RateLimitInteract), UpLimitedJsonReq(4096, api.SetUserBlock))
 	loginApi.POST("user-note", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitUserNote), UpLimitedJsonReq(4096, api.SetPrivateNote))
 	loginApi.POST("display-badges", middleware.CheckWritableAccount, UpLimitedJsonReq(4096, api.SetDisplayBadges))
 	loginApi.POST("wear-badge", middleware.CheckWritableAccount, UpButterReq(api.WearBadge))
@@ -252,6 +255,7 @@ func apiRoute(ginApp *gin.Engine) {
 	// 资格门禁在控制器内（Email=="" && HasOAuthBinding），限流复用 password.change。
 	loginApi.POST("set-password", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitPasswordChange), UpButterReq(api.SetPassword))
 	loginApi.POST("auth/:provider/unbind", middleware.CheckWritableAccount, UpButterReq(api.UnbindOAuth))
+	loginApi.POST("auth/apple/bind", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitLogin), api.AppleBind)
 	loginApi.GET("oauth/bindings", UpButterReq(api.GetOAuthBindings))
 	loginApi.GET("user/sessions", UpButterReq(api.ListSessions))
 	loginApi.POST("user/sessions/revoke", UpButterReq(api.RevokeSession))

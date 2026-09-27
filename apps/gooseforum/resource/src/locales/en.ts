@@ -2646,6 +2646,11 @@ export default {
       },
     },
     oauth: {
+      apple: {
+        unavailable: "Apple sign-in is temporarily unavailable. Please try again later.",
+        bindingRequired: "Sign in using an existing method, then connect Apple in account settings before using Apple sign-in.",
+        alreadyBound: "This Apple account is already connected, or your account already has an Apple connection.",
+      },
       unbind: {
         failed: 'Failed to unbind: {error}',
         success: 'Unbound successfully',
@@ -2668,7 +2673,7 @@ export default {
     },
     chat: {
       send: {
-        failed: 'Failed to send: {error}',
+        failed: 'Unable to send this message. Please try again later',
       },
       messages: {
         failed: 'Failed to load messages',
@@ -2802,6 +2807,7 @@ export default {
       evidenceMeta: 'Author {author} · Deleted by {deletedBy} · At {deletedAt} · Reason {reason}',
       evidenceEmpty: '(Original content is empty)',
       targetTypes: {
+        chat_message: 'Private message',
         topic: 'Topic',
         post: 'Post',
         course_review: 'Course review',

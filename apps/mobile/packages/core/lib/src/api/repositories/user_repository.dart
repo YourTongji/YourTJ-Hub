@@ -8,6 +8,17 @@ class UserRepository {
 
   final GfApiClient _client;
 
+  Future<UserBlocksPayload> getUserBlocks() => _client.get<UserBlocksPayload>(
+    '/api/user-blocks',
+    parser: (json) => UserBlocksPayload.fromJson(json as Map<String, dynamic>),
+  );
+  Future<void> setUserBlock(int targetUserId, bool blocked) async {
+    await _client.post<bool>(
+      '/api/user-block',
+      body: {'targetUserId': targetUserId, 'blocked': blocked},
+    );
+  }
+
   Future<PrivateNotesPayload> getPrivateNotes() =>
       _client.get<PrivateNotesPayload>(
         '/api/user-notes',

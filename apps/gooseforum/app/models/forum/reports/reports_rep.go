@@ -9,8 +9,12 @@ import (
 )
 
 func CreateOpen(entity Entity) (Entity, bool, error) {
+	return CreateOpenTx(builder(), entity)
+}
+
+func CreateOpenTx(tx *gorm.DB, entity Entity) (Entity, bool, error) {
 	var existing Entity
-	err := builder().
+	err := tx.Session(&gorm.Session{NewDB: true}).
 		Where(queryopt.Eq(fieldReporterId, entity.ReporterId)).
 		Where(queryopt.Eq(fieldTargetType, entity.TargetType)).
 		Where(queryopt.Eq(fieldTargetId, entity.TargetId)).
@@ -23,7 +27,7 @@ func CreateOpen(entity Entity) (Entity, bool, error) {
 		return Entity{}, false, err
 	}
 	entity.Status = StatusOpen
-	if err := builder().Create(&entity).Error; err != nil {
+	if err := tx.Session(&gorm.Session{NewDB: true}).Create(&entity).Error; err != nil {
 		return Entity{}, false, err
 	}
 	return entity, true, nil
@@ -48,11 +52,20 @@ func HasOpenForTopic(topicID uint64) bool {
 }
 
 type CursorPageQuery struct {
-	TargetType       string
-	Status           string
-	Statuses         []string
-	ScopeCategoryIDs []uint64
-	Cursor, PageSize uint64
+	TargetType             string
+	ExcludePrivateMessages bool
+	Status                 string
+	Statuses               []string
+	ScopeCategoryIDs       []uint64
+	Cursor, PageSize       uint64
+}
+
+// HasOpenPrivateMessages exposes only the presence of pending private reports.
+// The moderation service must restrict this signal to administrators.
+func HasOpenPrivateMessages() (bool, error) {
+	var id uint64
+	err := builder().Where("target_type = ? AND status = ?", TargetChatMessage, StatusOpen).Limit(1).Pluck("id", &id).Error
+	return id != 0, err
 }
 
 func CursorPage(q CursorPageQuery) []Entity {
@@ -61,6 +74,9 @@ func CursorPage(q CursorPageQuery) []Entity {
 		q.PageSize = 20
 	}
 	b := builder()
+	if q.ExcludePrivateMessages {
+		b = b.Where("target_type <> ?", TargetChatMessage)
+	}
 	if q.Status != "" {
 		b = b.Where(queryopt.Eq(fieldStatus, q.Status))
 	} else if len(q.Statuses) > 0 {

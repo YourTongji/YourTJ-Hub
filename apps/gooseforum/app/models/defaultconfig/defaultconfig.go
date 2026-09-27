@@ -12,6 +12,12 @@ import (
 //go:embed pageconfig/*.json
 var defaultConfigFS embed.FS
 
+//go:embed pageconfig/app_privacy.md
+var appPrivacyDisclosure string
+
+// GetAppPrivacyDisclosure is the versioned supplement to persisted site policies.
+func GetAppPrivacyDisclosure() string { return appPrivacyDisclosure }
+
 type pageConfigDefaults struct {
 	Announcement pageConfig.AnnouncementConfig
 	Email        pageConfig.MailSettingsConfig

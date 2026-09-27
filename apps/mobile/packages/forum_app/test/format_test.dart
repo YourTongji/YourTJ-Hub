@@ -48,7 +48,10 @@ void main() {
 
   group('formatDate', () {
     test('返回 YYYY-MM-DD', () {
-      expect(formatDate('2026-08-07T10:00:00+08:00'), '2026-08-07');
+      expect(
+        formatDate(DateTime(2026, 8, 7, 10).toUtc().toIso8601String()),
+        '2026-08-07',
+      );
     });
 
     test('空串返回空串', () {
@@ -62,7 +65,10 @@ void main() {
 
   group('formatDateTime', () {
     test('返回 YYYY-MM-DD HH:mm', () {
-      expect(formatDateTime('2026-08-07T10:05:00+08:00'), '2026-08-07 10:05');
+      expect(
+        formatDateTime(DateTime(2026, 8, 7, 10, 5).toUtc().toIso8601String()),
+        '2026-08-07 10:05',
+      );
     });
 
     test('无效输入返回原值', () {
@@ -93,6 +99,27 @@ void main() {
 
     test('无效输入返回原值', () {
       expect(formatChatTime('garbage', l10n: zh), 'garbage');
+    });
+  });
+
+  group('timestamp timezone conversion', () {
+    test(
+      'UTC and nonzero offsets render the same local instant across midnight',
+      () {
+        final local = DateTime(2026, 1, 1, 0, 15);
+        final utc = local.toUtc();
+        final offset =
+            '${utc.subtract(const Duration(hours: 7)).toIso8601String().replaceFirst('Z', '')}-07:00';
+        for (final value in [utc.toIso8601String(), offset]) {
+          expect(formatChatTime(value, now: local, l10n: zh), '00:15');
+          expect(formatDate(value), '2026-01-01');
+          expect(formatDateTime(value), '2026-01-01 00:15');
+        }
+      },
+    );
+    test('date-only school calendar values keep their date', () {
+      expect(formatDate('2026-01-01'), '2026-01-01');
+      expect(formatDateTime('2026-01-01'), '2026-01-01');
     });
   });
 

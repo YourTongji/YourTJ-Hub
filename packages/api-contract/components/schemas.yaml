@@ -376,6 +376,27 @@ TotpDisableResponse:
     - $ref: '#/TotpDisableSuccess'
     - $ref: '#/ApiFailure'
 
+AppleCredentialRequest:
+  type: object
+  required: [authorizationCode, identityToken, nonce]
+  properties:
+    authorizationCode:
+      type: string
+      minLength: 1
+      maxLength: 4096
+      description: Single-use native Apple authorization code.
+    identityToken:
+      type: string
+      minLength: 1
+      maxLength: 16384
+      description: Apple-signed RS256 identity token for the iOS bundle ID.
+    nonce:
+      type: string
+      minLength: 32
+      maxLength: 128
+      description: Random raw native-flow nonce; its SHA-256 hex digest must match the signed token nonce.
+  additionalProperties: false
+
 OidcExchangeRequest:
   type: object
   required: [code, codeVerifier, nonce, redirectUri]
@@ -2897,7 +2918,7 @@ CreateReportRequest:
   properties:
     targetType:
       type: string
-      enum: [topic, post]
+      enum: [topic, post, chat_message]
     targetId:
       type: integer
       format: uint64
@@ -4819,14 +4840,16 @@ OAuthBinding:
 
 OAuthBindingsResult:
   type: object
-  required: [github, google]
+  required: [github, google, apple]
   properties:
     github:
       $ref: '#/OAuthBinding'
     google:
       $ref: '#/OAuthBinding'
+    apple:
+      $ref: '#/OAuthBinding'
   additionalProperties: false
-  description: Binding state keyed by provider; the response always carries the fixed github and google keys.
+  description: Binding state keyed by provider; the response always carries the fixed github, google and apple keys.
 
 OAuthBindingsSuccess:
   allOf:
@@ -5223,6 +5246,11 @@ SendChatMessageRequest:
   type: object
   required: [peerId, content, msgType]
   properties:
+    clientMessageId:
+      type: string
+      maxLength: 64
+      pattern: '^[A-Za-z0-9_-]{1,64}$'
+      description: Optional sender-scoped retry key. Reuse only for the same peer, content and message type; changed payloads fail with chat.send.failed. Legacy omitted keys do not deduplicate. Retained with the message.
     peerId:
       type: integer
       format: uint64
@@ -5231,7 +5259,7 @@ SendChatMessageRequest:
     content:
       type: string
       minLength: 1
-      description: Message content; sensitive-word hits fail with `chat.sensitive.blocked` (HTTP 200, params `word` plus all matches in `words`).
+      description: Full message content is preserved; only the conversation-list preview is bounded to 255 Unicode characters. Sensitive-word hits fail with `chat.sensitive.blocked` (HTTP 200, params `word` plus all matches in `words`). Other send failures use `chat.send.failed` without raw storage-error details.
     msgType:
       type: integer
       enum: [1, 2, 3]
@@ -5563,19 +5591,19 @@ ModerationReportItem:
       minimum: 1
     targetType:
       type: string
-      enum: [topic, post]
+      enum: [topic, post, chat_message]
     targetId:
       type: integer
       format: uint64
       minimum: 1
     targetUrl:
       type: string
-      description: Deep link to the reported content; empty when it cannot be resolved.
+      description: Link to reported content, or the private-message author profile; never a link granting conversation access.
     title:
       type: string
     excerpt:
       type: string
-      description: Content snapshot taken at report time (max 120 runes).
+      description: Reported content preview. Private-message evidence is limited to 4000 runes and only visible to administrators.
     reason:
       type: string
       enum: [spam, abuse, illegal, irrelevant, other]
@@ -10575,3 +10603,47 @@ MyStickerSaveResponse:
   oneOf:
     - $ref: '#/MyStickerSaveSuccess'
     - $ref: '#/ApiFailure'
+
+UserBlock:
+  type: object
+  required: [targetUserId, username]
+  properties:
+    targetUserId:
+      type: integer
+      format: uint64
+      minimum: 1
+    username:
+      type: string
+  additionalProperties: false
+UserBlocksPayload:
+  type: object
+  required: [ownerId, blocks]
+  properties:
+    ownerId:
+      type: integer
+      format: uint64
+      minimum: 1
+    blocks:
+      type: array
+      maxItems: 1000
+      items:
+        $ref: '#/UserBlock'
+  additionalProperties: false
+UserBlocksSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      properties:
+        result:
+          $ref: '#/UserBlocksPayload'
+UserBlockRequest:
+  type: object
+  required: [targetUserId, blocked]
+  properties:
+    targetUserId:
+      type: integer
+      format: uint64
+      minimum: 1
+    blocked:
+      type: boolean
+  additionalProperties: false

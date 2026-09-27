@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/preferences"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/defaultconfig"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
 )
 
@@ -84,5 +85,27 @@ func TestBuildPrivacyPagePropsReplacesPersistedDefaultInsightFlareDisclosure(t *
 	}
 	if got := strings.Count(props.ContentHTML, `<h2 id="访问统计与会话回放`); got != 1 {
 		t.Fatalf("Umami disclosure marker count = %d, want 1: %s", got, props.ContentHTML)
+	}
+}
+
+func TestBuildPrivacyPagePropsIncludesAppDataDisclosure(t *testing.T) {
+	previousEnv := preferences.GetString("app.env", "production")
+	t.Cleanup(func() { preferences.Set("app.env", previousEnv) })
+	preferences.Set("app.env", "production")
+	config := pageConfig.PrivacyPolicyConfig{Enabled: true, Content: "# Existing policy\n\n保留站点联系方式。"}
+	props := buildPrivacyPageProps(config)
+	for _, text := range []string{"保留站点联系方式", "App 数据处理补充说明", "JPush", "APNs", "4000", "校园", "30 天", "桌面"} {
+		if !strings.Contains(props.ContentHTML, text) {
+			t.Fatalf("privacy disclosure missing %q", text)
+		}
+	}
+	config.Content += "\n\n" + defaultconfig.GetAppPrivacyDisclosure()
+	if got := strings.Count(buildPrivacyPageProps(config).ContentHTML, "id=\"app-数据处理补充说明"); got != 1 {
+		t.Fatalf("disclosure must appear once: %d", got)
+	}
+	config.Content = "# Existing policy"
+	config.Enabled = false
+	if strings.Contains(buildPrivacyPageProps(config).ContentHTML, "App 数据处理补充说明") {
+		t.Fatal("disabled policy received an appended disclosure")
 	}
 }

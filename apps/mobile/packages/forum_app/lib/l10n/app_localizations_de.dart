@@ -2887,4 +2887,45 @@ class AppLocalizationsDe extends AppLocalizations {
   String settingsProfilePartialSave(String saved) {
     return 'Gespeichert: $saved. Die übrigen Änderungen bleiben erhalten. Bitte erneut speichern.';
   }
+
+  @override
+  String get userBlock => 'Nutzer blockieren';
+
+  @override
+  String get userUnblock => 'Blockierung aufheben';
+
+  @override
+  String get userBlocks => 'Blockierte Nutzer';
+
+  @override
+  String get userBlockExplanation =>
+      'Eine Blockierung stoppt neue Direktnachrichten und Interaktionsbenachrichtigungen in beide Richtungen. Öffentliche Inhalte und bisherige Nachrichten bleiben zur Einordnung und Meldung verfügbar.';
+
+  @override
+  String get userBlocksEmpty => 'Keine blockierten Nutzer';
+
+  @override
+  String get messageReport => 'Nachricht melden';
+
+  @override
+  String get messageReportPrivacy =>
+      'Mit dem Absenden können Website-Administratoren diese Nachricht und Ihre Erklärung prüfen. Der restliche Gesprächsverlauf wird nicht übermittelt.';
+
+  @override
+  String get contentReport => 'Inhalt melden';
+
+  @override
+  String get reportSpam => 'Spam';
+
+  @override
+  String get reportAbuse => 'Beleidigung oder Belästigung';
+
+  @override
+  String get reportIllegal => 'Rechtswidrige Inhalte';
+
+  @override
+  String get reportIrrelevant => 'Themenfremde Inhalte';
+
+  @override
+  String get reportOther => 'Sonstiges';
 }

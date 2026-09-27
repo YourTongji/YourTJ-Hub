@@ -1,0 +1,141 @@
+exchange:
+  post:
+    tags: [Authentication]
+    summary: Exchange a native Apple authorization for a forum session
+    operationId: exchangeNativeAppleCode
+    description: |
+      Native iOS authorization only. The server validates signature, issuer, audience, expiry and
+      SHA-256 nonce, then redeems the single-use code with Apple and verifies the same subject.
+      No email-based account merge or automatic registration. Apple refresh credentials are stored
+      encrypted only to revoke authorization on unlink or account deletion. Maximum body size is 24 KiB.
+    security: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/AppleCredentialRequest
+    responses:
+      '200':
+        description: Authorization accepted.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/OidcExchangeSuccess
+            examples:
+              success:
+                externalValue: ../fixtures/oidc-exchange-success.json
+      '400':
+        description: Malformed or oversized credential request.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+      '401':
+        description: Invalid or expired Apple credentials, or consumed code.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+      '403':
+        description: Account is frozen, closed, or an agent.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+      '409':
+        description: Apple identity requires explicit binding, or conflicts with another binding.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+      '429':
+        description: Login rate limit exceeded.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+      '500':
+        description: Forum session creation failed.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+      '503':
+        description: Apple sign-in is not configured or a required service is unavailable.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unavailable:
+                externalValue: ../fixtures/apple-unavailable.json
+
+bind:
+  post:
+    tags: [Authentication]
+    summary: Connect a native Apple identity to the authenticated forum account
+    operationId: bindNativeAppleAccount
+    description: |
+      Native iOS authorization only. The server validates signature, issuer, audience, expiry and
+      SHA-256 nonce, then redeems the single-use code with Apple and verifies the same subject.
+      No email-based account merge or automatic registration. Apple refresh credentials are stored
+      encrypted only to revoke authorization on unlink or account deletion. Maximum body size is 24 KiB.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/AppleCredentialRequest
+    responses:
+      '200':
+        description: Authorization accepted.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminBoolSuccess
+            examples:
+              success:
+                externalValue: ../fixtures/result-true.json
+      '400':
+        description: Malformed or oversized request, invalid or expired Apple credentials, or consumed code.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+      '401':
+        description: Missing or expired forum session.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+      '403':
+        description: Account is frozen, closed, an agent, pending activation during bind, or CSRF protection rejected the request.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+      '409':
+        description: Apple identity requires explicit binding, or conflicts with another binding.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+      '429':
+        description: Login rate limit exceeded.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+      '503':
+        description: Apple sign-in is not configured or a required service is unavailable.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unavailable:
+                externalValue: ../fixtures/apple-unavailable.json

@@ -25,12 +25,15 @@ const fieldCreatedAt = "created_at"
 const fieldUpdatedAt = "updated_at"
 
 type Entity struct {
-	Id          uint64    `gorm:"primaryKey;column:id;autoIncrement;not null;" json:"id"`                                                                                                                         // id
-	UserId      uint64    `gorm:"column:user_id;not null;default:0;index;index:idx_user_provider,priority:1" json:"userId"`                                                                                       // 关联用户id
-	Provider    string    `gorm:"column:provider;type:varchar(32);default:0;index:idx_provider_uid,priority:1;index:idx_user_provider,priority:2;uniqueIndex:idx_provider_uid_unique,priority:1" json:"provider"` // 平台标识(github/twitter)
-	ProviderUid string    `gorm:"column:provider_uid;type:varchar(255);not null;default:'';index;index:idx_provider_uid,priority:2;uniqueIndex:idx_provider_uid_unique,priority:2" json:"providerUid"`            // 第三方用户唯一ID
-	CreatedAt   time.Time `gorm:"column:created_at;index;autoCreateTime;<-:create;" json:"createdAt"`                                                                                                             //
-	UpdatedAt   time.Time `gorm:"column:updated_at;autoUpdateTime;" json:"updatedAt"`
+	// Apple alone needs a revocable grant for unlink/account deletion. It is
+	// encrypted with an account-scoped key and never appears in API responses.
+	AppleRefreshToken string    `gorm:"type:text;not null;default:''" json:"-"`
+	Id                uint64    `gorm:"primaryKey;column:id;autoIncrement;not null;" json:"id"`                                                                                                                         // id
+	UserId            uint64    `gorm:"column:user_id;not null;default:0;index;index:idx_user_provider,priority:1" json:"userId"`                                                                                       // 关联用户id
+	Provider          string    `gorm:"column:provider;type:varchar(32);default:0;index:idx_provider_uid,priority:1;index:idx_user_provider,priority:2;uniqueIndex:idx_provider_uid_unique,priority:1" json:"provider"` // 平台标识(github/twitter)
+	ProviderUid       string    `gorm:"column:provider_uid;type:varchar(255);not null;default:'';index;index:idx_provider_uid,priority:2;uniqueIndex:idx_provider_uid_unique,priority:2" json:"providerUid"`            // 第三方用户唯一ID
+	CreatedAt         time.Time `gorm:"column:created_at;index;autoCreateTime;<-:create;" json:"createdAt"`                                                                                                             //
+	UpdatedAt         time.Time `gorm:"column:updated_at;autoUpdateTime;" json:"updatedAt"`
 }
 
 // func (itself *Entity) BeforeSave(tx *gorm.DB) (err error) {}

@@ -57,8 +57,10 @@ omission and preserves the existing review queue. It never withdraws another ver
 Apple agreements, review decisions and the system installer are not bypassed.
 
 Server tags remain `vX.Y.Z`. **Release / main** opens/reuses the `dev` → `main` PR when the trees
-differ and stops. After that PR passes checks and merges, rerun to tag the approved main commit,
-publish server binaries and dispatch production deployment. It never pushes to the main branch.
+differ, waits for that PR's checks and branch merge requirements, then merges, tags, publishes
+server binaries and dispatches production deployment in the same run. It stops without a tag
+if the source changes, checks fail, or merge requirements remain unmet until timeout. It never
+pushes to the main branch. See the [server release runbook](deployment.md) for recovery.
 Only exact server version tags participate in server version calculation; mobile releases do not
 replace GitHub's server `latest` release.
 
@@ -312,3 +314,62 @@ Public provider setup references: [Apple APNs keys](https://developer.apple.com/
 [JPush integration settings](https://docs.jiguang.cn/jpush/console/push_setting/integration_set),
 [OEM parameter applications](https://docs.jiguang.cn/jpush/client/Android/android_3rd_param),
 [JPush Android vendor-channel integration](https://docs.jiguang.cn/jpush/client/Android/android_3rd_guide).
+
+
+## Release verification and privacy disclosures
+
+`Current`: normal Android and iOS releases both depend on the same `verify` job against the
+reserved source SHA. It runs Flutter analysis/tests and release-tool tests before signing or
+publishing. Publisher-only iOS recovery explicitly skips this build gate because it reuses an
+already uploaded immutable build; it still runs publisher-tool checks. A successful local subset
+does not establish CI or physical-device acceptance.
+
+Runner, ScheduleWidgets and the bundled home_widget SDK contain privacy manifests. SwiftPM and
+CocoaPods both include the SDK resource. The exported IPA validator checks those actual bundles
+for the App Group UserDefaults reason; a source-only declaration does not satisfy this gate.
+Runner also declares the first-party account, user content, message, device and campus data
+categories. The local-only Widget/SDK do not collect data off device.
+
+`Current`: the [App privacy supplement](../../apps/gooseforum/app/models/defaultconfig/pageconfig/app_privacy.md)
+is embedded in the forum binary and appended to enabled `/privacy` pages, including persisted
+custom policies. A policy containing the supplement's heading does not receive another copy.
+It covers campus processing, device snapshots/Widget display, selected-message reporting and
+Android push processors. Publish this server before distributing the corresponding App.
+
+`Partial`: App Store Connect privacy declarations still require verification against the actual
+production SDK selection, retention and analytics configuration. Source privacy manifests and the
+public policy are not substitutes for the App Store Connect form.
+
+App Store privacy labels must account for account identifiers/contact information, private
+messages, uploaded images, other user content, interaction state, device push identifiers and
+school-authorized data. They support App Functionality and are linked to the account where
+applicable. The reviewed source implements no cross-company advertising tracking. WebView/public
+website analytics must be assessed from the actual Umami configuration before declaring labels;
+do not infer “no data collected” from the Widget manifest.
+
+`Current`: iOS retains password, Tongji, Google and GitHub and adds native Apple login.
+Users connect Apple to their existing account in settings first; no email/name scopes or automatic
+email-based account merging are used. Native Apple authorization must be tested with the actual
+candidate. The [Apple login decision](../decisions/0041-native-apple-login-and-revocation.md)
+describes credential retention and revocation.
+
+Enable Sign in with Apple for `tj.yourtj.forumApp`, and create a dedicated P-256 Sign in with Apple
+key associated only with that primary App ID. Native authorization does not require a web Services ID
+or email-relay source. Set `APPLE_CLIENT_ID` (the bundle ID), `APPLE_TEAM_ID`, `APPLE_KEY_ID` and
+`APPLE_PRIVATE_KEY_BASE64` (base64 of the `.p8` key) in the GitHub **production** environment used by
+main deployment. Feed values via stdin; never paste private key contents into chat, logs or commits.
+The renderer writes `[apple]` server configuration. All four values must be valid before public
+`appleReady`/`appleOAuthReady` become true. Dev credentials remain empty because its database is a
+production snapshot; production grants must not be redeemed or revoked there. A copied Apple binding
+cannot be disconnected or closed on dev without a separate isolated Apple test configuration.
+
+Distribution profiles and exported IPA entitlements must contain
+`com.apple.developer.applesignin = ["Default"]`; the signing validator rejects missing capabilities.
+Unlink/account closure calls Apple's revocation endpoint before committing local deletion. A provider
+outage preserves the encrypted grant and active account for retry. Preserve the forum signing key
+used to encrypt existing grants; rotating it without re-encryption prevents revocation.
+
+A new server containing block enforcement, private-message reporting and optional
+`clientMessageId` support must be deployed before releasing the matching mobile binary.
+Signed APK upgrade, external-browser OAuth return, APNs/JPush/OEM delivery and Widget behavior
+require recorded physical-device evidence for the actual candidate version/build.

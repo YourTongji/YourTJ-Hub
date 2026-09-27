@@ -310,6 +310,7 @@ class RetryChatRepository extends RecordingChatRepository {
     required int peerId,
     required String content,
     int msgType = 1,
+    String? clientMessageId,
   }) async {
     sent.add((peerId, content));
     if (fail) throw const NetworkException(fallbackMessage: 'offline');
@@ -340,6 +341,7 @@ class DelayedChatRepository extends RecordingChatRepository {
     required int peerId,
     required String content,
     int msgType = 1,
+    String? clientMessageId,
   }) {
     sent.add((peerId, content));
     return acknowledgement.future;
@@ -383,6 +385,7 @@ class RecordingChatRepository extends ChatRepository {
     required int peerId,
     required String content,
     int msgType = 1,
+    String? clientMessageId,
   }) async {
     sent.add((peerId, content));
     return 9;

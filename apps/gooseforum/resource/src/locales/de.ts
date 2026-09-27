@@ -2645,6 +2645,11 @@ export default {
       },
     },
     oauth: {
+      apple: {
+        unavailable: "Die Anmeldung mit Apple ist vorübergehend nicht verfügbar. Bitte später erneut versuchen.",
+        bindingRequired: "Melde dich mit einer bestehenden Methode an und verknüpfe Apple zuerst in den Kontoeinstellungen.",
+        alreadyBound: "Dieses Apple-Konto ist bereits verknüpft oder dein Konto hat bereits eine Apple-Verknüpfung.",
+      },
       unbind: {
         failed: 'Aufheben der Verknüpfung fehlgeschlagen: {error}',
         success: 'Erfolgreich getrennt',
@@ -2667,7 +2672,7 @@ export default {
     },
     chat: {
       send: {
-        failed: 'Senden fehlgeschlagen: {error}',
+        failed: 'Diese Nachricht konnte nicht gesendet werden. Bitte versuche es später erneut',
       },
       messages: {
         failed: 'Laden der Nachrichten fehlgeschlagen',
@@ -2801,6 +2806,7 @@ export default {
       evidenceMeta: 'Autor {author} · Gelöscht von {deletedBy} · Am {deletedAt} · Grund {reason}',
       evidenceEmpty: '(Der ursprüngliche Inhalt ist leer)',
       targetTypes: {
+        chat_message: 'Privatnachricht',
         topic: 'Thema',
         post: 'Beitrag',
         course_review: 'Kursbewertung',

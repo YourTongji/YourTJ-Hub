@@ -1,13 +1,20 @@
+import 'dart:math';
 import 'package:core/core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers.dart';
+
+final _messageRandom = Random.secure();
 
 enum DeliveryState { sending, sent, failed }
 
 class PendingMessage {
   PendingMessage(this.id, this.content, this.afterId, {this.draftRevision});
   final int id;
+  final String clientMessageId = List.generate(
+    16,
+    (_) => _messageRandom.nextInt(256).toRadixString(16).padLeft(2, '0'),
+  ).join();
   final String content;
   final int afterId;
   final int? draftRevision;
@@ -63,6 +70,7 @@ class ChatOutbox extends ChangeNotifier {
       final id = await repository.sendMessage(
         peerId: peerId,
         content: message.content,
+        clientMessageId: message.clientMessageId,
       );
       if (_disposed) return null;
       conversationId = id;

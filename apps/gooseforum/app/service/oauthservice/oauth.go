@@ -13,12 +13,14 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/preferences"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/sessionstore"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userOAuth"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/appleauthservice"
 	"github.com/markbates/goth"
 	"github.com/markbates/goth/gothic"
 	"github.com/markbates/goth/providers/github"
@@ -60,6 +62,7 @@ var (
 
 // InitOAuth configures available OAuth providers.
 func InitOAuth() {
+	appleauthservice.Init()
 	oauthProviderMu.Lock()
 	defer oauthProviderMu.Unlock()
 
@@ -490,38 +493,51 @@ func createOAuthRecord(userID uint64, userInfo OAuthUserInfo) error {
 
 // UnbindOAuth removes one OAuth binding after safety checks.
 func UnbindOAuth(userID uint64, provider string) error {
-	oauthEntity := userOAuth.GetByUserIDAndProvider(userID, provider)
-	if oauthEntity == nil {
-		return errors.New("OAuth绑定不存在")
-	}
-
-	if err := checkUnbindSafety(userID, provider); err != nil {
-		return err
-	}
-
-	return userOAuth.Delete(oauthEntity.Id)
+	return UnbindOAuthContext(context.Background(), userID, provider)
 }
 
-// checkUnbindSafety ensures the user keeps at least one login method.
-func checkUnbindSafety(userID uint64, providerToUnbind string) error {
-	user, err := users.Get(userID)
-	if err != nil {
-		return fmt.Errorf("获取用户信息失败: %w", err)
-	}
+func UnbindOAuthContext(ctx context.Context, userID uint64, provider string) error {
+	return unbindOAuth(ctx, dbconnect.Connect(), userID, provider)
+}
 
-	hasEmail := user.Email != ""
+var errUnbindMissing = errors.New("OAuth绑定不存在")
+var errUnbindLastMethod = errors.New("解绑失败：您必须至少保留一种登录方式（邮箱或其他OAuth绑定）")
 
-	bindings := GetUserOAuthBindings(userID)
-
-	remainingBindings := lo.CountBy(lo.Keys(bindings), func(p string) bool {
-		return p != providerToUnbind
+func unbindOAuth(ctx context.Context, conn *gorm.DB, userID uint64, provider string) error {
+	err := conn.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// Every provider removal shares the owner lock, so concurrent unlinks cannot
+		// both count the other provider as the remaining login method.
+		user, err := users.GetForAuthenticationTx(tx, userID)
+		if err != nil {
+			return errors.New("获取用户信息失败")
+		}
+		bindings, err := userOAuth.ListByOwnerTx(tx, userID, []string{ProviderGitHub, ProviderGoogle, appleauthservice.Provider})
+		if err != nil {
+			return err
+		}
+		var binding *userOAuth.Entity
+		for i := range bindings {
+			if bindings[i].Provider == provider {
+				binding = &bindings[i]
+				break
+			}
+		}
+		if binding == nil {
+			return errUnbindMissing
+		}
+		if user.Email == "" && len(bindings) <= 1 {
+			return errUnbindLastMethod
+		}
+		if provider == appleauthservice.Provider {
+			return appleauthservice.RevokeAndDeleteTx(ctx, tx, userID)
+		}
+		return userOAuth.DeleteTx(tx, binding)
 	})
-
-	if !hasEmail && remainingBindings == 0 {
-		return errors.New("解绑失败：您必须至少保留一种登录方式（邮箱或其他OAuth绑定）")
+	if err == nil || errors.Is(err, errUnbindMissing) || errors.Is(err, errUnbindLastMethod) {
+		return err
 	}
-
-	return nil
+	// The HTTP layer displays this error. Never expose database/credential details.
+	return errors.New("解绑失败，请稍后重试")
 }
 
 // ProcessOAuthBind binds a provider account to an existing user.
@@ -566,7 +582,7 @@ func rejectBotUser(userID uint64) error {
 
 // GetUserOAuthBindings returns active OAuth bindings keyed by provider.
 func GetUserOAuthBindings(userID uint64) map[string]*userOAuth.Entity {
-	providers := []string{ProviderGitHub, ProviderGoogle}
+	providers := []string{ProviderGitHub, ProviderGoogle, appleauthservice.Provider}
 	return lo.PickBy(lo.Associate(providers, func(p string) (string, *userOAuth.Entity) {
 		return p, userOAuth.GetByUserIDAndProvider(userID, p)
 	}), func(_ string, v *userOAuth.Entity) bool {

@@ -2,6 +2,7 @@ package chatservice
 
 import (
 	"errors"
+	"regexp"
 	"slices"
 	"strings"
 	"time"
@@ -35,11 +36,20 @@ type MessageCursorResult struct {
 }
 
 // SendMessage creates or updates a direct conversation and stores a message.
-func SendMessage(senderId, peerId uint64, content string, msgType int8) (uint64, error) {
-	return sendMessage(db.Connect(), senderId, peerId, content, msgType)
+func SendMessage(senderId, peerId uint64, content string, msgType int8, clientKeys ...string) (uint64, error) {
+	return sendMessage(db.Connect(), senderId, peerId, content, msgType, clientKeys...)
 }
 
-func sendMessage(conn *gorm.DB, senderId, peerId uint64, content string, msgType int8) (uint64, error) {
+var clientMessageKey = regexp.MustCompile(`^[A-Za-z0-9_-]{1,64}$`)
+
+func sendMessage(conn *gorm.DB, senderId, peerId uint64, content string, msgType int8, clientKeys ...string) (uint64, error) {
+	var key *string
+	if len(clientKeys) > 0 && clientKeys[0] != "" {
+		if !clientMessageKey.MatchString(clientKeys[0]) {
+			return 0, errors.New("invalid client message ID")
+		}
+		key = &clientKeys[0]
+	}
 	if senderId == peerId {
 		return 0, errors.New("cannot send message to yourself")
 	}
@@ -48,7 +58,35 @@ func sendMessage(conn *gorm.DB, senderId, peerId uint64, content string, msgType
 	// entire transaction before a bounded retry finds the winner's config.
 	for attempt := 0; attempt < 3; attempt++ {
 		var convId uint64
+		replayed := false
 		err := conn.Transaction(func(tx *gorm.DB) error {
+			if err := users.LockInteractionUsers(tx, senderId, peerId); err != nil {
+				return err
+			}
+			if key != nil {
+				var existing messages.Entity
+				err := tx.Where("sender_id = ? AND client_message_id = ?", senderId, *key).First(&existing).Error
+				if err == nil {
+					var membership imUserChatConfigs.Entity
+					if err := tx.Where("user_id = ? AND peer_id = ? AND conv_id = ?", senderId, peerId, existing.ConvId).First(&membership).Error; err != nil {
+						return errors.New("client message ID conflict")
+					}
+					if existing.Content != content || existing.MsgType != msgType {
+						return errors.New("client message ID conflict")
+					}
+					convId = existing.ConvId
+					replayed = true
+					return nil
+				}
+				if !errors.Is(err, gorm.ErrRecordNotFound) {
+					return err
+				}
+			}
+			// A committed retry acknowledges an earlier write even if either user
+			// blocked the other since then. Only new writes require permission.
+			if err := users.CheckInteractionAllowed(tx, senderId, peerId); err != nil {
+				return err
+			}
 			var senderConfig imUserChatConfigs.Entity
 			findErr := tx.Where("user_id = ? AND peer_id = ?", senderId, peerId).First(&senderConfig).Error
 			if findErr != nil && !errors.Is(findErr, gorm.ErrRecordNotFound) {
@@ -98,13 +136,13 @@ func sendMessage(conn *gorm.DB, senderId, peerId uint64, content string, msgType
 			}
 			now := time.Now()
 			if err := tx.Create(&messages.Entity{
-				ConvId: convId, SenderId: senderId, Content: content,
+				ClientMessageID: key, ConvId: convId, SenderId: senderId, Content: content,
 				MsgType: msgType, IsRead: 0, CreatedAt: now,
 			}).Error; err != nil {
 				return err
 			}
 			if err := tx.Model(&imConversations.Entity{}).Where("id = ?", convId).
-				Updates(map[string]any{"last_msg_content": content, "last_msg_time": now}).Error; err != nil {
+				Updates(map[string]any{"last_msg_content": imConversations.MessagePreview(content), "last_msg_time": now}).Error; err != nil {
 				return err
 			}
 			if err := tx.Model(&imUserChatConfigs.Entity{}).Where("id = ?", senderConfig.Id).
@@ -115,6 +153,9 @@ func sendMessage(conn *gorm.DB, senderId, peerId uint64, content string, msgType
 				Updates(map[string]any{"unread_count": gorm.Expr("unread_count + 1"), "updated_at": now, "is_deleted": 0}).Error
 		})
 		if err == nil {
+			if replayed {
+				return convId, nil
+			}
 			imUserChatConfigs.InvalidateConversationAccess(senderId, convId)
 			imUserChatConfigs.InvalidateConversationAccess(peerId, convId)
 			unreadservice.Invalidate(peerId)

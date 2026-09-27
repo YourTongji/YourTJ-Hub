@@ -120,3 +120,7 @@ A decision starts `Proposed`. Once implemented, its status becomes `Accepted` an
 - [0038](0038-personal-sticker-library.md) — 稳定共享表情素材与私有有序收藏库，原生选择、上传、收藏与独立渲染。
 
 - [0039](0039-native-gf-component-foundation.md) — Gf 组件直接组合 Flutter 原生能力，统一输入形状、状态、图标和触控区域。
+
+- [0040](0040-user-blocks-and-private-message-reports.md) — 账号私有屏蔽关系与仅管理员可见的单条私信举报证据。
+
+- [0041](0041-native-apple-login-and-revocation.md) — iOS 原生 Apple 登录、显式账号绑定和用于解绑/注销的加密撤销凭据。

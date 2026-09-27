@@ -15,6 +15,7 @@ import 'push/push_service.dart';
 import 'startup_experience.dart';
 import 'updates/update_host.dart';
 import 'providers.dart';
+import 'apple/apple_sign_in.dart';
 import 'widgets/app_system_ui_overlay.dart';
 
 /// yourtj 移动端根应用。
@@ -37,6 +38,7 @@ class GfApp extends ConsumerWidget {
 
     // Restore opted-in native delivery and notification navigation.
     ref.watch(pushBootstrapProvider);
+    ref.watch(appleAuthBootstrapProvider);
     ref.listen(scheduleWidgetLinkProvider, (_, next) {
       final uri = next.valueOrNull;
       if (uri?.scheme == 'yourtj' && uri?.host == 'campus') {

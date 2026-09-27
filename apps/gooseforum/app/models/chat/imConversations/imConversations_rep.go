@@ -1,10 +1,25 @@
 package imConversations
 
 import (
+	"strings"
 	"time"
 
 	"github.com/samber/lo"
 )
+
+// MessagePreview fits PostgreSQL's 255-character summary column without changing
+// the message body. Keep Unicode characters and complete sticker tokens intact.
+func MessagePreview(content string) string {
+	runes := []rune(content)
+	if len(runes) <= 255 {
+		return content
+	}
+	preview := string(runes[:254])
+	if start := strings.LastIndex(preview, "[:sticker:"); start >= 0 && !strings.Contains(preview[start:], ":]") {
+		preview = preview[:start]
+	}
+	return preview + "…"
+}
 
 func create(entity *Entity) int64 {
 	result := builder().Create(entity)
@@ -26,7 +41,7 @@ func SaveOrCreateById(entity *Entity) int64 {
 
 func UpdateLastMsg(id uint64, content string) {
 	builder().Where("id = ?", id).Updates(map[string]any{
-		"last_msg_content": content,
+		"last_msg_content": MessagePreview(content),
 		"last_msg_time":    time.Now(),
 	})
 }

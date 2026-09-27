@@ -6,23 +6,27 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../l10n/app_localizations.dart';
 import '../../providers.dart';
+import '../../apple/apple_sign_in.dart';
+import '../../apple/apple_sign_in_button.dart';
 import '../../server_messages.dart';
 import '../../widgets/status_views.dart';
 
 Future<bool> _openBrowser(Uri uri) =>
     launchUrl(uri, mode: LaunchMode.externalApplication);
 
-/// Provider authentication stays in the browser. No native credential is
-/// transferred; the user signs into the matching Web account before connecting.
+/// GitHub/Google connect in the browser; iOS Apple connects using native proof
+/// and the current forum session, without matching accounts by email.
 class OAuthBindingsSheet extends ConsumerStatefulWidget {
   const OAuthBindingsSheet({
     super.key,
     required this.username,
     required this.googleReady,
+    this.appleReady = false,
     this.openBrowser = _openBrowser,
   });
   final String username;
   final bool googleReady;
+  final bool appleReady;
   final Future<bool> Function(Uri) openBrowser;
   @override
   ConsumerState<OAuthBindingsSheet> createState() => _OAuthBindingsSheetState();
@@ -102,6 +106,35 @@ class _OAuthBindingsSheetState extends ConsumerState<OAuthBindingsSheet>
     }
   }
 
+  Future<void> _connectApple() async {
+    if (_busy) return;
+    final epoch = ref.read(offlineCacheEpochProvider);
+    final repository = AuthRepository(ref.read(apiClientProvider));
+    setState(() => _busy = true);
+    try {
+      final proof = await ref.read(appleSignInProvider).authorize();
+      if (!mounted ||
+          proof == null ||
+          epoch != ref.read(offlineCacheEpochProvider)) {
+        return;
+      }
+      await repository.appleBind(proof.request);
+      if (mounted && epoch == ref.read(offlineCacheEpochProvider)) {
+        await _load();
+      }
+    } catch (error) {
+      if (mounted && epoch == ref.read(offlineCacheEpochProvider)) {
+        showGfToast(
+          context,
+          resolveErrorMessage(AppLocalizations.of(context), error),
+          error: true,
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   Future<void> _unbind(String provider) async {
     if (_busy) return;
     setState(() => _busy = true);
@@ -162,9 +195,16 @@ class _OAuthBindingsSheetState extends ConsumerState<OAuthBindingsSheet>
                   for (final (key, name, supported) in [
                     ('github', 'GitHub', true),
                     ('google', 'Google', widget.googleReady),
+                    if (supportsNativeAppleSignIn ||
+                        bindings['apple']?.bound == true)
+                      (
+                        'apple',
+                        'Apple',
+                        widget.appleReady && supportsNativeAppleSignIn,
+                      ),
                   ])
                     GfSettingRow(
-                      symbol: key,
+                      symbol: key == 'apple' ? 'key-round' : key,
                       title: name,
                       description: bindings[key]?.bound == true
                           ? l10n.settingsBound
@@ -178,6 +218,12 @@ class _OAuthBindingsSheetState extends ConsumerState<OAuthBindingsSheet>
                             )
                           : null,
                     ),
+                  if (supportsNativeAppleSignIn &&
+                      widget.appleReady &&
+                      bindings['apple']?.bound != true) ...[
+                    const SizedBox(height: 12),
+                    AppleSignInButton(onPressed: _busy ? null : _connectApple),
+                  ],
                   const SizedBox(height: 16),
                   Text(
                     l10n.settingsOAuthBrowserHint(widget.username),

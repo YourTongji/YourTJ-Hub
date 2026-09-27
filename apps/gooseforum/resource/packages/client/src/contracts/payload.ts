@@ -52,6 +52,7 @@ export interface LoginPageProps {
   tongjiReady?: boolean
   tongjiUrl?: string
   tongjiNotice?: string
+  appleReady?: boolean
   googleReady: boolean
   termsOfServiceEnabled: boolean
   privacyPolicyEnabled: boolean
@@ -521,7 +522,7 @@ export interface ModerationLogListResponse {
 
 export interface ModerationReportItem {
   id: number
-  targetType: 'topic' | 'post'
+  targetType: 'topic' | 'post' | 'chat_message'
   targetId: number
   targetUrl: string
   title: string
@@ -897,6 +898,7 @@ export interface ChatItemPayload {
 
 export interface SettingsPageProps {
   user: SettingsUserPayload
+  appleOAuthReady?: boolean
   googleOAuthReady: boolean
   /** issue #530：无邮箱 OAuth 绑定账号可走 set-password 首次设密（服务端门禁）。 */
   canSetPassword: boolean
@@ -1187,3 +1189,8 @@ export interface WikiDetailProps {
   /** 复用现有 TopicPayload 类型（TopicPage 的 hotTopics 同型）。 */
   hotTopics: TopicPayload[]
 }
+
+export interface UserBlocksPayload { ownerId: number; blocks: { targetUserId: number; username: string }[] }
+export interface UserBlockRequest { targetUserId: number; blocked: boolean }
+
+export interface SendChatMessageRequest { peerId: number; content: string; msgType: 1 | 2 | 3; clientMessageId?: string }

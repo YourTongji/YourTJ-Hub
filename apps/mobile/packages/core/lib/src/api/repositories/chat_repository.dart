@@ -13,10 +13,16 @@ class ChatRepository {
     required int peerId,
     required String content,
     int msgType = 1,
+    String? clientMessageId,
   }) {
     return _client.post<int>(
       '/api/forum/chat/send',
-      body: {'peerId': peerId, 'content': content, 'msgType': msgType},
+      body: SendChatMessageRequest(
+        peerId: peerId,
+        content: content,
+        msgType: msgType,
+        clientMessageId: clientMessageId,
+      ).toJson(),
       parser: (json) {
         if (json is int) return json;
         return (json as Map<String, dynamic>)['convId'] as int? ?? 0;

@@ -49,6 +49,10 @@ BASE_OPTIONAL_TOKENS = {
     "CAMPUS_IDENTITY_KEY",
 
     "AI_API_KEY",
+    "APPLE_CLIENT_ID",
+    "APPLE_TEAM_ID",
+    "APPLE_KEY_ID",
+    "APPLE_PRIVATE_KEY_BASE64",
     "GOOGLE_CLIENT_ID",
     "GOOGLE_CLIENT_SECRET",
     # Web Push VAPID：未配置即通道关闭（dev 必须保持空——快照同步的

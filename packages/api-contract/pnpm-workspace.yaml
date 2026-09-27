@@ -1,2 +1,5 @@
 minimumReleaseAgeExclude:
   - '@redocly/cli@2.45.0'
+overrides:
+  # CVE-2026-84375 and CVE-2026-59870 also affect Redocly's transitive parser.
+  js-yaml: 4.3.2

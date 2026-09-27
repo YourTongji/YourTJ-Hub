@@ -4057,6 +4057,7 @@ SettingsPageProps _$SettingsPagePropsFromJson(Map<String, dynamic> json) {
 mixin _$SettingsPageProps {
   SettingsUserPayload get user => throw _privateConstructorUsedError;
   bool get googleOAuthReady => throw _privateConstructorUsedError;
+  bool get appleOAuthReady => throw _privateConstructorUsedError;
 
   /// issue #530：无邮箱 OAuth 绑定账号可走 set-password 首次设密（服务端门禁）。
   bool get canSetPassword => throw _privateConstructorUsedError;
@@ -4083,6 +4084,7 @@ abstract class $SettingsPagePropsCopyWith<$Res> {
   $Res call({
     SettingsUserPayload user,
     bool googleOAuthReady,
+    bool appleOAuthReady,
     bool canSetPassword,
     SettingsStatsPayload stats,
     List<TabItemPayload> tabs,
@@ -4109,6 +4111,7 @@ class _$SettingsPagePropsCopyWithImpl<$Res, $Val extends SettingsPageProps>
   $Res call({
     Object? user = null,
     Object? googleOAuthReady = null,
+    Object? appleOAuthReady = null,
     Object? canSetPassword = null,
     Object? stats = null,
     Object? tabs = null,
@@ -4122,6 +4125,10 @@ class _$SettingsPagePropsCopyWithImpl<$Res, $Val extends SettingsPageProps>
             googleOAuthReady: null == googleOAuthReady
                 ? _value.googleOAuthReady
                 : googleOAuthReady // ignore: cast_nullable_to_non_nullable
+                      as bool,
+            appleOAuthReady: null == appleOAuthReady
+                ? _value.appleOAuthReady
+                : appleOAuthReady // ignore: cast_nullable_to_non_nullable
                       as bool,
             canSetPassword: null == canSetPassword
                 ? _value.canSetPassword
@@ -4173,6 +4180,7 @@ abstract class _$$SettingsPagePropsImplCopyWith<$Res>
   $Res call({
     SettingsUserPayload user,
     bool googleOAuthReady,
+    bool appleOAuthReady,
     bool canSetPassword,
     SettingsStatsPayload stats,
     List<TabItemPayload> tabs,
@@ -4200,6 +4208,7 @@ class __$$SettingsPagePropsImplCopyWithImpl<$Res>
   $Res call({
     Object? user = null,
     Object? googleOAuthReady = null,
+    Object? appleOAuthReady = null,
     Object? canSetPassword = null,
     Object? stats = null,
     Object? tabs = null,
@@ -4213,6 +4222,10 @@ class __$$SettingsPagePropsImplCopyWithImpl<$Res>
         googleOAuthReady: null == googleOAuthReady
             ? _value.googleOAuthReady
             : googleOAuthReady // ignore: cast_nullable_to_non_nullable
+                  as bool,
+        appleOAuthReady: null == appleOAuthReady
+            ? _value.appleOAuthReady
+            : appleOAuthReady // ignore: cast_nullable_to_non_nullable
                   as bool,
         canSetPassword: null == canSetPassword
             ? _value.canSetPassword
@@ -4237,6 +4250,7 @@ class _$SettingsPagePropsImpl implements _SettingsPageProps {
   const _$SettingsPagePropsImpl({
     required this.user,
     this.googleOAuthReady = false,
+    this.appleOAuthReady = false,
     this.canSetPassword = false,
     required this.stats,
     required final List<TabItemPayload> tabs,
@@ -4250,6 +4264,9 @@ class _$SettingsPagePropsImpl implements _SettingsPageProps {
   @override
   @JsonKey()
   final bool googleOAuthReady;
+  @override
+  @JsonKey()
+  final bool appleOAuthReady;
 
   /// issue #530：无邮箱 OAuth 绑定账号可走 set-password 首次设密（服务端门禁）。
   @override
@@ -4267,7 +4284,7 @@ class _$SettingsPagePropsImpl implements _SettingsPageProps {
 
   @override
   String toString() {
-    return 'SettingsPageProps(user: $user, googleOAuthReady: $googleOAuthReady, canSetPassword: $canSetPassword, stats: $stats, tabs: $tabs)';
+    return 'SettingsPageProps(user: $user, googleOAuthReady: $googleOAuthReady, appleOAuthReady: $appleOAuthReady, canSetPassword: $canSetPassword, stats: $stats, tabs: $tabs)';
   }
 
   @override
@@ -4278,6 +4295,8 @@ class _$SettingsPagePropsImpl implements _SettingsPageProps {
             (identical(other.user, user) || other.user == user) &&
             (identical(other.googleOAuthReady, googleOAuthReady) ||
                 other.googleOAuthReady == googleOAuthReady) &&
+            (identical(other.appleOAuthReady, appleOAuthReady) ||
+                other.appleOAuthReady == appleOAuthReady) &&
             (identical(other.canSetPassword, canSetPassword) ||
                 other.canSetPassword == canSetPassword) &&
             (identical(other.stats, stats) || other.stats == stats) &&
@@ -4290,6 +4309,7 @@ class _$SettingsPagePropsImpl implements _SettingsPageProps {
     runtimeType,
     user,
     googleOAuthReady,
+    appleOAuthReady,
     canSetPassword,
     stats,
     const DeepCollectionEquality().hash(_tabs),
@@ -4316,6 +4336,7 @@ abstract class _SettingsPageProps implements SettingsPageProps {
   const factory _SettingsPageProps({
     required final SettingsUserPayload user,
     final bool googleOAuthReady,
+    final bool appleOAuthReady,
     final bool canSetPassword,
     required final SettingsStatsPayload stats,
     required final List<TabItemPayload> tabs,
@@ -4328,6 +4349,8 @@ abstract class _SettingsPageProps implements SettingsPageProps {
   SettingsUserPayload get user;
   @override
   bool get googleOAuthReady;
+  @override
+  bool get appleOAuthReady;
 
   /// issue #530：无邮箱 OAuth 绑定账号可走 set-password 首次设密（服务端门禁）。
   @override
