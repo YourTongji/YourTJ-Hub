@@ -46,7 +46,7 @@ type VersionContent struct {
 // 引用，具体内容永远存放在不可变的 Message Version 中。
 type MessageEntity struct {
 	Id        uint64    `gorm:"primaryKey;column:id;autoIncrement;not null" json:"id"`
-	Code      string    `gorm:"column:code;type:varchar(128);not null;default:'';uniqueIndex:uniq_inbox_message_code" json:"code"`
+	Code      string    `gorm:"column:code;type:varchar(128);not null;uniqueIndex:uniq_inbox_message_code;check:chk_inbox_message_code,code <> ''" json:"code"`
 	Name      string    `gorm:"column:name;type:varchar(128);not null;default:''" json:"name"`
 	Status    string    `gorm:"column:status;type:varchar(16);not null;default:'active';index:idx_inbox_message_status" json:"status"`
 	CreatedBy uint64    `gorm:"column:created_by;not null;default:0" json:"createdBy"`

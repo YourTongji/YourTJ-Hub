@@ -31,13 +31,17 @@ const (
 	PopupStateMuted     = "muted"     // 此封不再弹
 )
 
-// Claim 状态（Delivery 侧物化）：none 无附件，pending 有可领取附件，
-// partial 部分领取，completed 全部领取或已拥有（终态）。真源是 inbox_claim 行。
+// Claim 状态（Delivery 侧物化投影，词汇与 #778 对齐）：none 无附件；unclaimed 有
+// 可领取附件且尚未领取；partial 部分附件已领取；claimed 全部附件领取或已拥有
+// （成功终态）；expired 附件已全部过期且未成功领取（终态，需要 #778 的结算扫描）。
+// 真源是逐行的 inbox_claim.status（pending/granted/already_owned/failed/expired），
+// 本列只是客户端渲染领取入口与进度用的按 Delivery 聚合。
 const (
 	ClaimStateNone      = "none"
-	ClaimStatePending   = "pending"
+	ClaimStateUnclaimed = "unclaimed"
 	ClaimStatePartial   = "partial"
-	ClaimStateCompleted = "completed"
+	ClaimStateClaimed   = "claimed"
+	ClaimStateExpired   = "expired"
 )
 
 // DeliveryEntity 是物化的「每人一封」信件，也是信箱列表、未读、归档、待领取与
@@ -52,16 +56,19 @@ const (
 //   - (user_id, popup_state, id)：弹窗候选；
 //   - (campaign_id, status)：Campaign 维度统计与收件人排查。
 type DeliveryEntity struct {
-	Id                uint64     `gorm:"primaryKey;column:id;autoIncrement;not null;index:idx_inbox_delivery_user_id,priority:2;index:idx_inbox_delivery_user_read_id,priority:3;index:idx_inbox_delivery_user_archived_id,priority:3;index:idx_inbox_delivery_user_claim_id,priority:3;index:idx_inbox_delivery_user_popup_id,priority:3" json:"id"`
-	UserId            uint64     `gorm:"column:user_id;not null;default:0;index:idx_inbox_delivery_user_id,priority:1;index:idx_inbox_delivery_user_read_id,priority:1;index:idx_inbox_delivery_user_archived_id,priority:1;index:idx_inbox_delivery_user_claim_id,priority:1;index:idx_inbox_delivery_user_popup_id,priority:1" json:"userId"`
-	MessageId         uint64     `gorm:"column:message_id;not null;default:0;index:idx_inbox_delivery_message" json:"messageId"`
-	MessageVersionId  uint64     `gorm:"column:message_version_id;not null;default:0;index:idx_inbox_delivery_message_version" json:"messageVersionId"`
-	CampaignId        uint64     `gorm:"column:campaign_id;not null;default:0;index:idx_inbox_delivery_campaign_status,priority:1" json:"campaignId"` // trigger 来源为 0
-	CampaignRunId     uint64     `gorm:"column:campaign_run_id;not null;default:0;index:idx_inbox_delivery_campaign_run" json:"campaignRunId"`
-	SourceType        string     `gorm:"column:source_type;type:varchar(16);not null;default:'campaign'" json:"sourceType"`
-	TriggerEvent      string     `gorm:"column:trigger_event;type:varchar(32);not null;default:''" json:"triggerEvent,omitempty"`
-	TriggerEventId    string     `gorm:"column:trigger_event_id;type:varchar(128);not null;default:''" json:"triggerEventId,omitempty"`
-	DedupeKey         string     `gorm:"column:dedupe_key;type:varchar(255);not null;default:'';uniqueIndex:uniq_inbox_delivery_dedupe_key" json:"dedupeKey"`
+	Id               uint64 `gorm:"primaryKey;column:id;autoIncrement;not null;index:idx_inbox_delivery_user_id,priority:2;index:idx_inbox_delivery_user_read_id,priority:3;index:idx_inbox_delivery_user_archived_id,priority:3;index:idx_inbox_delivery_user_claim_id,priority:3;index:idx_inbox_delivery_user_popup_id,priority:3" json:"id"`
+	UserId           uint64 `gorm:"column:user_id;not null;default:0;index:idx_inbox_delivery_user_id,priority:1;index:idx_inbox_delivery_user_read_id,priority:1;index:idx_inbox_delivery_user_archived_id,priority:1;index:idx_inbox_delivery_user_claim_id,priority:1;index:idx_inbox_delivery_user_popup_id,priority:1" json:"userId"`
+	MessageId        uint64 `gorm:"column:message_id;not null;default:0;index:idx_inbox_delivery_message" json:"messageId"`
+	MessageVersionId uint64 `gorm:"column:message_version_id;not null;default:0;index:idx_inbox_delivery_message_version" json:"messageVersionId"`
+	CampaignId       uint64 `gorm:"column:campaign_id;not null;default:0;index:idx_inbox_delivery_campaign_status,priority:1" json:"campaignId"` // trigger 投递同样写入真实 campaign_id（收件人排查 / 领取率统计）
+	CampaignRunId    uint64 `gorm:"column:campaign_run_id;not null;default:0;index:idx_inbox_delivery_campaign_run" json:"campaignRunId"`
+	SourceType       string `gorm:"column:source_type;type:varchar(16);not null;default:'campaign'" json:"sourceType"`
+	TriggerEvent     string `gorm:"column:trigger_event;type:varchar(32);not null;default:''" json:"triggerEvent,omitempty"`
+	TriggerEventId   string `gorm:"column:trigger_event_id;type:varchar(128);not null;default:''" json:"triggerEventId,omitempty"`
+	// dedupe_key 必须非空（chk_inbox_delivery_dedupe_key）：GORM 会把 Go 零值 '' 写进
+	// INSERT，若只靠唯一索引，第一次漏传会静默写入、第二次才撞唯一键，而本仓库把
+	// gorm.ErrDuplicatedKey 当作「已投递」的幂等成功，收件人 B..N 会被静默跳过。
+	DedupeKey         string     `gorm:"column:dedupe_key;type:varchar(255);not null;uniqueIndex:uniq_inbox_delivery_dedupe_key;check:chk_inbox_delivery_dedupe_key,dedupe_key <> ''" json:"dedupeKey"`
 	Status            string     `gorm:"column:status;type:varchar(16);not null;default:'delivered';index:idx_inbox_delivery_campaign_status,priority:2" json:"status"`
 	SuppressionReason string     `gorm:"column:suppression_reason;type:varchar(64);not null;default:''" json:"suppressionReason,omitempty"`
 	IsRead            bool       `gorm:"column:is_read;type:boolean;not null;default:false;index:idx_inbox_delivery_user_read_id,priority:2" json:"isRead"`

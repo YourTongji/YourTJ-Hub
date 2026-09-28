@@ -83,7 +83,7 @@ func (itself *CampaignEntity) TableName() string {
 type CampaignAttachmentEntity struct {
 	Id            uint64          `gorm:"primaryKey;column:id;autoIncrement;not null" json:"id"`
 	CampaignId    uint64          `gorm:"column:campaign_id;not null;default:0;uniqueIndex:uniq_inbox_campaign_attachment_key,priority:1;index:idx_inbox_campaign_attachment_order,priority:1" json:"campaignId"`
-	AttachmentKey string          `gorm:"column:attachment_key;type:varchar(64);not null;default:'';uniqueIndex:uniq_inbox_campaign_attachment_key,priority:2" json:"attachmentKey"`
+	AttachmentKey string          `gorm:"column:attachment_key;type:varchar(64);not null;uniqueIndex:uniq_inbox_campaign_attachment_key,priority:2;check:chk_inbox_campaign_attachment_key,attachment_key <> ''" json:"attachmentKey"`
 	Handler       string          `gorm:"column:handler;type:varchar(32);not null;default:'';index:idx_inbox_campaign_attachment_handler" json:"handler"`
 	Name          string          `gorm:"column:name;type:varchar(128);not null;default:''" json:"name"`
 	Description   string          `gorm:"column:description;type:varchar(500);not null;default:''" json:"description"`

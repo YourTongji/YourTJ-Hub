@@ -24,7 +24,8 @@ var (
 )
 
 // CreateMessageTx 创建逻辑消息。code 全局唯一；重复 code 返回数据库唯一约束错误
-// （gorm.ErrDuplicatedKey），调用方据此做幂等创建。
+// （gorm.ErrDuplicatedKey），调用方据此做幂等创建。空 code 在此直接拒绝，
+// chk_inbox_message_code 作为绕过 Go 层写入的兜底。
 func CreateMessageTx(tx *gorm.DB, code, name string, createdBy uint64) (MessageEntity, error) {
 	code = strings.TrimSpace(code)
 	if code == "" {

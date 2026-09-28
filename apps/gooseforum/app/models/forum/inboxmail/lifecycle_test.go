@@ -12,7 +12,7 @@ func seedUserData(t *testing.T, tx *gorm.DB, userID uint64) (DeliveryEntity, Cla
 	delivery := createDelivery(t, tx, userID, CampaignDedupeKey(userID, 1, userID))
 	claim := ClaimEntity{
 		DeliveryId: delivery.Id, AttachmentId: 5, UserId: userID, CampaignId: 1,
-		Handler: "badge", SourceKey: ClaimSourceKey("badge", "welcome_2026", delivery.Id),
+		Handler: "badge", SourceKey: ClaimSourceKey(delivery.Id, 5),
 		Status: ClaimStatusGranted,
 	}
 	if err := tx.Create(&claim).Error; err != nil {

@@ -43,7 +43,7 @@ func TestSchemaModelsRegistersInboxModels(t *testing.T) {
 }
 
 // 全新数据库必须一次 AutoMigrate 建出全部站内信表（acceptance #1），
-// 且三个幂等唯一约束在 SQLite 方言下真实生效。
+// 且幂等唯一约束与非空 CHECK 在 SQLite 方言下真实生效。
 func TestInboxSchemaFreshDatabaseOnSQLite(t *testing.T) {
 	conn, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{TranslateError: true})
 	if err != nil {
@@ -118,7 +118,11 @@ func TestInboxSchemaUpgradePreservesExistingDataOnSQLite(t *testing.T) {
 
 // PostgreSQL 行为门禁：除了建表，还要验证 JSON 列写入、发布不可变、双重幂等
 // 与匿名化 SQL 在真实 PG 方言下成立（CAST/|| 的文本推断）。
-func TestInboxSchemaBehaviorOnPostgreSQL(t *testing.T) {
+//
+// 函数名必须包含 "TestSchema"：ci-backend.yml 只在设置了 YOURTJ_TEST_PG_URL 的 job
+// 里运行 `go test ./app/migration/ -run 'TestSchema' -v`，而未锚定的子串匹配不会
+// 选中旧名 TestInboxSchemaBehaviorOnPostgreSQL——那等于该测试从未在 CI 执行。
+func TestSchemaInboxBehaviorOnPostgreSQL(t *testing.T) {
 	dsn := os.Getenv("YOURTJ_TEST_PG_URL")
 	if dsn == "" {
 		t.Skip("YOURTJ_TEST_PG_URL not set; skipping PostgreSQL migration test")
@@ -263,8 +267,8 @@ func assertInboxTables(t *testing.T, conn *gorm.DB) {
 	}
 }
 
-// assertInboxUniqueConstraints 用真实插入验证三个幂等约束，而不是只看索引名：
-// 约束名/方言差异不会让「重复发信/重复发奖」漏网。
+// assertInboxUniqueConstraints 用真实插入验证幂等约束，而不是只看索引名：
+// 约束名/方言差异不会让「重复发信/重复发奖/空键漏传」漏网。
 func assertInboxUniqueConstraints(t *testing.T, conn *gorm.DB, dialect string) {
 	t.Helper()
 	delivery := inboxmail.DeliveryEntity{
@@ -283,15 +287,17 @@ func assertInboxUniqueConstraints(t *testing.T, conn *gorm.DB, dialect string) {
 	}
 	claim := inboxmail.ClaimEntity{
 		DeliveryId: delivery.Id, AttachmentId: 9, UserId: 601, CampaignId: 1,
-		Handler: "badge", SourceKey: inboxmail.ClaimSourceKey("badge", "welcome_2026", delivery.Id),
+		Handler: "badge", SourceKey: inboxmail.ClaimSourceKey(delivery.Id, 9),
 		Status: inboxmail.ClaimStatusGranted,
 	}
 	if err := conn.Create(&claim).Error; err != nil {
 		t.Fatalf("[%s] create claim: %v", dialect, err)
 	}
+	// 同一 (delivery, attachment) 必须被拦下；用不同的字面 source_key 证明拦截者
+	// 是 (delivery_id, attachment_id) 约束本身。
 	if err := conn.Create(&inboxmail.ClaimEntity{
 		DeliveryId: delivery.Id, AttachmentId: 9, UserId: 601, CampaignId: 1,
-		Handler: "badge", SourceKey: inboxmail.ClaimSourceKey("badge", "other", delivery.Id),
+		Handler: "badge", SourceKey: "probe:pair-constraint",
 		Status: inboxmail.ClaimStatusPending,
 	}).Error; !errors.Is(err, gorm.ErrDuplicatedKey) {
 		t.Fatalf("[%s] duplicate (delivery_id, attachment_id) error = %v, want gorm.ErrDuplicatedKey", dialect, err)
@@ -302,21 +308,57 @@ func assertInboxUniqueConstraints(t *testing.T, conn *gorm.DB, dialect string) {
 	}).Error; !errors.Is(err, gorm.ErrDuplicatedKey) {
 		t.Fatalf("[%s] duplicate source_key error = %v, want gorm.ErrDuplicatedKey", dialect, err)
 	}
-
-	// 幂等键的 NOT NULL 是唯一约束的前提：显式 NULL 必须被数据库拒绝，
-	// 否则「每人一封/每附件一次」会从 NULL 绕过（Go 结构体零值总是 ''，
-	// 只有裸 SQL 能构造该场景）。
-	if err := conn.Exec(
-		`INSERT INTO inbox_delivery (user_id, message_id, message_version_id, dedupe_key) VALUES (?, ?, ?, ?)`,
-		602, 1, 1, nil,
-	).Error; err == nil {
-		t.Fatalf("[%s] NULL dedupe_key accepted by inbox_delivery", dialect)
+	// 同一投递的另一个附件必须能各自领取（source_key 含 attachment_id，#777 粒度）。
+	if err := conn.Create(&inboxmail.ClaimEntity{
+		DeliveryId: delivery.Id, AttachmentId: 11, UserId: 601, CampaignId: 1,
+		Handler: "badge", SourceKey: inboxmail.ClaimSourceKey(delivery.Id, 11),
+		Status: inboxmail.ClaimStatusPending,
+	}).Error; err != nil {
+		t.Fatalf("[%s] second attachment of one delivery rejected: %v", dialect, err)
 	}
-	if err := conn.Exec(
-		`INSERT INTO inbox_claim (delivery_id, attachment_id, user_id, source_key) VALUES (?, ?, ?, ?)`,
-		999, 999, 602, nil,
-	).Error; err == nil {
-		t.Fatalf("[%s] NULL source_key accepted by inbox_claim", dialect)
+
+	// 四个业务键的非空 CHECK 必须真实存在（约束名是跨 issue 契约）。
+	for _, constraint := range []struct {
+		model any
+		name  string
+	}{
+		{&inboxmail.DeliveryEntity{}, "chk_inbox_delivery_dedupe_key"},
+		{&inboxmail.ClaimEntity{}, "chk_inbox_claim_source_key"},
+		{&inboxmail.MessageEntity{}, "chk_inbox_message_code"},
+		{&inboxmail.CampaignAttachmentEntity{}, "chk_inbox_campaign_attachment_key"},
+	} {
+		if !conn.Migrator().HasConstraint(constraint.model, constraint.name) {
+			t.Fatalf("[%s] constraint %s missing", dialect, constraint.name)
+		}
+	}
+
+	// 空串不是合法的业务键：GORM 会把 Go 零值 '' 写进 INSERT，只靠唯一索引时第一次
+	// 漏传会静默写入、第二次才报 gorm.ErrDuplicatedKey（被幂等语义吞掉）。CHECK
+	// 必须让 NULL、'' 与裸 INSERT 漏列三种漏传都在第一次就失败，且不是「重复」。
+	probes := []struct {
+		name string
+		sql  string
+		args []any
+	}{
+		{"NULL dedupe_key", `INSERT INTO inbox_delivery (user_id, message_id, message_version_id, dedupe_key) VALUES (?, ?, ?, ?)`, []any{602, 1, 1, nil}},
+		{"empty dedupe_key", `INSERT INTO inbox_delivery (user_id, message_id, message_version_id, dedupe_key) VALUES (?, ?, ?, ?)`, []any{602, 1, 1, ""}},
+		{"omitted dedupe_key", `INSERT INTO inbox_delivery (user_id, message_id, message_version_id) VALUES (?, ?, ?)`, []any{603, 1, 1}},
+		{"NULL source_key", `INSERT INTO inbox_claim (delivery_id, attachment_id, user_id, source_key) VALUES (?, ?, ?, ?)`, []any{999, 999, 602, nil}},
+		{"empty source_key", `INSERT INTO inbox_claim (delivery_id, attachment_id, user_id, source_key) VALUES (?, ?, ?, ?)`, []any{999, 997, 602, ""}},
+		{"omitted source_key", `INSERT INTO inbox_claim (delivery_id, attachment_id, user_id) VALUES (?, ?, ?)`, []any{999, 996, 603}},
+		{"empty message code", `INSERT INTO inbox_message (code) VALUES (?)`, []any{""}},
+		{"omitted message code", `INSERT INTO inbox_message (name) VALUES (?)`, []any{"probe"}},
+		{"empty attachment_key", `INSERT INTO inbox_campaign_attachment (campaign_id, attachment_key) VALUES (?, ?)`, []any{1, ""}},
+		{"omitted attachment_key", `INSERT INTO inbox_campaign_attachment (campaign_id, handler) VALUES (?, ?)`, []any{1, "badge"}},
+	}
+	for _, probe := range probes {
+		err := conn.Exec(probe.sql, probe.args...).Error
+		if err == nil {
+			t.Fatalf("[%s] %s accepted by database", dialect, probe.name)
+		}
+		if errors.Is(err, gorm.ErrDuplicatedKey) {
+			t.Fatalf("[%s] %s reported as duplicate; callers treat duplicates as idempotent success: %v", dialect, probe.name, err)
+		}
 	}
 }
 

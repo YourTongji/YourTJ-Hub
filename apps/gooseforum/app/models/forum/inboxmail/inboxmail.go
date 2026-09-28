@@ -14,12 +14,23 @@
 //     hash, schema version and version number can never be updated in place;
 //     a revision creates a new version row. Draft rows are editable through
 //     UpdateDraftContentTx.
-//   - Every materialized per-user delivery has a NOT NULL, globally unique
+//   - Every materialized per-user delivery has a globally unique, non-empty
 //     dedupe_key; worker retries and event replays therefore cannot duplicate
-//     a letter. Build keys with CampaignDedupeKey / TriggerDedupeKey.
-//   - Every claim has a NOT NULL, globally unique source_key (namespaced by
-//     reward handler) and is additionally protected by a unique
-//     (delivery_id, attachment_id) constraint. Build keys with ClaimSourceKey.
+//     a letter, while a forgotten key fails immediately on the
+//     chk_inbox_delivery_dedupe_key CHECK instead of silently colliding on an
+//     empty string.
+//     Build keys with CampaignDedupeKey / TriggerDedupeKey (both are
+//     campaign-scoped: the trigger key carries the owning campaign id).
+//   - Every claim has a globally unique, non-empty source_key scoped to one
+//     (delivery, attachment) pair (chk_inbox_claim_source_key), and is
+//     additionally protected by a unique (delivery_id, attachment_id)
+//     constraint. Build keys with ClaimSourceKey.
+//   - Business identity keys (inbox_message.code, campaign attachment keys)
+//     carry their own NOT NULL plus non-empty CHECK, so an omitted key is a
+//     loud error rather than an accidental empty-string identity.
+//   - DeliveryEntity.claim_state is the per-delivery projection clients
+//     render (none/unclaimed/partial/claimed/expired); each inbox_claim row
+//     carries its own status (pending/granted/already_owned/failed/expired).
 //   - Read, popup and claim state are separate columns on the delivery, so
 //     mailbox unread, popup annoyance and claim conversion each have their own
 //     accurate denominator.
