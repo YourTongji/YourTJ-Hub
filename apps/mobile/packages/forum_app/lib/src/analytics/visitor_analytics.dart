@@ -30,6 +30,10 @@ String? publicScreen(Uri uri) {
   return null;
 }
 
+/// Risk contract STATUS-ANALYTICS-926-927:
+/// https://github.com/YourTongji/YourTJ-Hub/pull/926#issuecomment-5874262017
+/// Protocol: https://github.com/umami-software/umami/blob/v3.3.0/src/app/api/send/route.ts
+///
 /// Best-effort page views for Umami's joint device/OS/browser report. This Dio
 /// is separate from authenticated forum transports. No persistent identifiers,
 /// disk queue, retries, credentials, referrers or free-form event data are used.

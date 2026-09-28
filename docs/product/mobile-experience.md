@@ -1259,3 +1259,6 @@ acceptance; simulator compilation does not establish those results.
 已送达副本不会随源消息、显示名或源会话的后续变化而改变；贴纸展示仍遵循素材可用性。
 
 详见 [私信转发决策](../decisions/0044-nested-private-message-history.md)。
+
+The approved permission/privacy/failure boundaries for optional analytics are recorded in
+[STATUS-ANALYTICS-926-927](https://github.com/YourTongji/YourTJ-Hub/pull/926#issuecomment-5874262017).

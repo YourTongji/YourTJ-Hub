@@ -19,6 +19,14 @@ class _Adapter implements HttpClientAdapter {
   Completer<void>? hold;
   bool fail = false;
   bool cancelled = false;
+  Future<void> waitForRequests(int count) async {
+    final deadline = DateTime.now().add(const Duration(seconds: 5));
+    while (requests.length < count && DateTime.now().isBefore(deadline)) {
+      await Future<void>.delayed(Duration.zero);
+    }
+    expect(requests, hasLength(count));
+  }
+
   @override
   Future<ResponseBody> fetch(
     RequestOptions options,
@@ -248,8 +256,8 @@ void main() {
       await flush();
       expect(adapter.requests, hasLength(1));
       adapter.hold!.complete();
-      await flush();
-      expect(adapter.requests, hasLength(4));
+      // Wait for the observable drain, not a 10 ms wall-clock assumption on CI.
+      await adapter.waitForRequests(4);
       adapter.hold = Completer<void>();
       analytics.visit(Uri.parse('/search'), tablet: false);
       await flush();
