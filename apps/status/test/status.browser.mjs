@@ -25,6 +25,8 @@ for (const [width, lang, theme] of [[320, 'zh', 'gf-light'], [390, 'de', 'gf-dar
         const response = structuredClone(fixture)
         response.result.range = new URL(route.request().url()).searchParams.get('range')
         response.result.serverRange = new URL(route.request().url()).searchParams.get('serverRange')
+        response.result.deviceRange = new URL(route.request().url()).searchParams.get('deviceRange')
+        response.result.devices.fetchedAt = new Date().toISOString()
         response.result.server.fetchedAt = response.result.traffic.fetchedAt = response.result.server.data.current.observedAt = new Date().toISOString()
         response.result.uptime.fetchedAt = response.result.uptime.data.monitors[0].current.time = new Date().toISOString()
         response.result.uptime.data.monitors[0].history = Array.from({ length: 100 }, (_, index) => ({ time: new Date(Date.now() - (99 - index) * 60_000).toISOString(), status: index % 20 === 0 ? 'down' : 'up', ping: 628 }))
@@ -55,10 +57,14 @@ for (const [width, lang, theme] of [[320, 'zh', 'gf-light'], [390, 'de', 'gf-dar
       }
       const uptimeHeight = await page.locator('.uptime-section').evaluate(el => el.getBoundingClientRect().height)
       const checks = page.locator('.heartbeat-strip button')
+      // Keep pointer movement inside the same strip; locator.hover() can auto-scroll
+      // between subpixel bars and test a leave/re-enter transition instead.
+      await page.locator('.heartbeat-history').evaluate(el => el.scrollIntoView({ block: 'center', behavior: 'instant' }))
       await checks.first().hover()
       await page.waitForFunction(() => getComputedStyle(document.querySelector('.heartbeat-detail')).opacity === '1')
       for (const index of [1, 20, 45, 99]) {
-        await checks.nth(index).hover()
+        const point = await checks.nth(index).boundingBox()
+        await page.mouse.move(point.x + point.width / 2, point.y + point.height / 2)
         assert.equal(await page.locator('.heartbeat-detail').getAttribute('aria-hidden'), 'false')
         assert.equal(await page.locator('.heartbeat-detail').textContent(), await checks.nth(index).getAttribute('aria-label'))
         assert.equal(await page.locator('.heartbeat-detail').evaluate(el => getComputedStyle(el).opacity), '1', 'moving between checks must not restart the fade')
@@ -93,6 +99,23 @@ for (const [width, lang, theme] of [[320, 'zh', 'gf-light'], [390, 'de', 'gf-dar
         await page.waitForFunction(() => !document.querySelector('.resource-tooltip'))
         assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'resource range and date labels must not overflow')
       }
+      await page.locator('.device-sankey').waitFor()
+      const deviceHeight = await page.locator('.status-devices').evaluate(el => el.getBoundingClientRect().height)
+      await page.locator('.device-node').first().focus()
+      await page.locator('.device-detail.active').waitFor()
+      await page.locator('.device-node').last().focus()
+      assert.equal(await page.locator('.status-devices').evaluate(el => el.getBoundingClientRect().height), deviceHeight)
+      await page.locator('.device-node').last().press('Escape')
+      assert.equal(await page.locator('.device-detail.active').count(), 0)
+      if (width <= 640) {
+        await page.locator('.device-stages button').nth(1).click()
+        assert.equal(await page.locator('.device-stages button').nth(1).getAttribute('aria-pressed'), 'true')
+        const labelSizes = await page.locator('.device-node text').evaluateAll(nodes => nodes.map(n => n.getBoundingClientRect().height))
+        assert.ok(labelSizes.every(h => h >= 20), 'mobile labels remain readable')
+      }
+      await page.locator('.status-devices .status-range button').nth(2).click()
+      await page.waitForFunction(() => document.querySelector('.status-devices .status-range button:nth-child(3)').getAttribute('aria-pressed') === 'true' && !document.querySelector('.status-refresh').disabled)
+      assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'device chart must not overflow')
       assert.deepEqual(errors, [])
     } finally { await page.close() }
   })

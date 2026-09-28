@@ -1,5 +1,6 @@
 import type { StatusRange, StatusServerRange } from '../src/types'
-import { cacheKey, configured, type Config } from './config'
+import { cacheKey, configured, devicesConfigured, type Config } from './config'
+import { deviceAccess, fetchDevices } from './devices'
 import { fetchCurrent, fetchHistory, serverHours } from './komari'
 import { fetchTraffic, trafficHours } from './umami'
 import { fetchUptime } from './uptime'
@@ -14,6 +15,12 @@ export async function collect(kind: 'current' | 'history', store: SnapshotStore,
   } else {
     if (configured(config, 'komari')) for (const range of Object.keys(serverHours) as StatusServerRange[]) jobs.push(collectOne(store, cacheKey(config, 'komari', `history-${range}`), () => fetchHistory(config, fetcher, timeout(), now(), range), now))
     if (configured(config, 'umami')) for (const range of Object.keys(trafficHours) as StatusRange[]) jobs.push(collectOne(store, cacheKey(config, 'umami', range), () => fetchTraffic(config, fetcher, timeout(), now(), range), now))
+    if (devicesConfigured(config)) {
+      // Share one short-lived login within this collection only; never persist the token.
+      // Joint 30-day reports include login and reconciliation and need a longer bounded budget.
+      const signal = AbortSignal.timeout(15_000), access = deviceAccess(config, fetcher, signal)
+      for (const range of Object.keys(trafficHours) as StatusRange[]) jobs.push(collectOne(store, cacheKey(config, 'umami', `devices-${range}`), () => fetchDevices(config, fetcher, signal, now(), range, access), now))
+    }
   }
   // One failed store write must not cancel successful writes from other sources.
   const results = await Promise.allSettled(jobs)

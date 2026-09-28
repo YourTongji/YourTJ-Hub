@@ -95,6 +95,62 @@
           }
         ]
       }
+    },
+    "deviceRange": "7d",
+    "devices": {
+      "state": "ok",
+      "fetchedAt": "2026-09-14T12:00:00Z",
+      "data": {
+        "startAt": "2026-09-07T12:00:00Z",
+        "endAt": "2026-09-14T12:00:00Z",
+        "visitors": 1000,
+        "totalVisitors": 1000,
+        "complete": true,
+        "rows": [
+          {
+            "device": "mobile",
+            "os": "ios",
+            "browser": "safari",
+            "visitors": 330
+          },
+          {
+            "device": "mobile",
+            "os": "android",
+            "browser": "chrome",
+            "visitors": 250
+          },
+          {
+            "device": "laptop",
+            "os": "windows",
+            "browser": "edge",
+            "visitors": 220
+          },
+          {
+            "device": "laptop",
+            "os": "macos",
+            "browser": "safari",
+            "visitors": 130
+          },
+          {
+            "device": "tablet",
+            "os": "ios",
+            "browser": "safari",
+            "visitors": 40
+          },
+          {
+            "device": "desktop",
+            "os": "linux",
+            "browser": "firefox",
+            "visitors": 20
+          },
+          {
+            "device": "mobile",
+            "os": "unknown",
+            "browser": "other",
+            "visitors": 10
+          }
+        ]
+      }
     }
   }
 }

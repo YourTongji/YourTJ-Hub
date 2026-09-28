@@ -28,6 +28,35 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        StatusDevicesSource: {
+            /** @enum {string} */
+            state: "ok" | "stale" | "unavailable" | "unconfigured";
+            /** Format: date-time */
+            fetchedAt?: string;
+            data: components["schemas"]["StatusDevices"] | null;
+        };
+        StatusDevices: {
+            /** Format: date-time */
+            startAt: string;
+            /** Format: date-time */
+            endAt: string;
+            /** @description Visitors represented by the joint device/OS/browser rows. */
+            visitors: number;
+            /** @description All unique visitors in exactly the same reporting window. */
+            totalVisitors: number;
+            /** @description False when the upstream 500-row cap is reached or represented visitors differ from the total. */
+            complete: boolean;
+            rows: components["schemas"]["StatusDeviceRow"][];
+        };
+        StatusDeviceRow: {
+            /** @enum {string} */
+            device: "mobile" | "laptop" | "desktop" | "tablet" | "other" | "unknown";
+            /** @enum {string} */
+            os: "windows" | "macos" | "ios" | "android" | "linux" | "chromeos" | "other" | "unknown";
+            /** @enum {string} */
+            browser: "yourtj-app" | "chrome" | "edge" | "safari" | "firefox" | "webview" | "opera" | "samsung" | "other" | "unknown";
+            visitors: number;
+        };
         StatusSnapshot: {
             /** @enum {string} */
             range: "24h" | "7d" | "30d";
@@ -41,6 +70,12 @@ export interface components {
             server: components["schemas"]["StatusServerSource"];
             traffic: components["schemas"]["StatusTrafficSource"];
             uptime: components["schemas"]["StatusUptimeSource"];
+            /**
+             * @description Visitor device range, independent of traffic and resource ranges.
+             * @enum {string}
+             */
+            deviceRange: "24h" | "7d" | "30d";
+            devices: components["schemas"]["StatusDevicesSource"];
         };
         StatusServerSource: {
             /** @enum {string} */
@@ -159,6 +194,7 @@ export interface operations {
             query?: {
                 range?: "24h" | "7d" | "30d";
                 serverRange?: "1h" | "6h" | "24h" | "7d";
+                deviceRange?: "24h" | "7d" | "30d";
             };
             header?: never;
             path?: never;
