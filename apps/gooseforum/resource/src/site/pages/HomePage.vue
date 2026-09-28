@@ -45,7 +45,7 @@ const pullStartY = ref(0)
 const pullRefreshEnabled = ref(false)
 const announcementUnread = ref(shouldRemindAnnouncement())
 const announcementCollapsed = ref(readAnnouncementCollapsed())
-const collapsedAnnouncementTitle = computed(() => announcementItems.value[0]?.title || '')
+const collapsedAnnouncementTitle = computed(() => announcementItems.value[0]?.title.trim() || '')
 const pullThreshold = 72
 const pullMaxDistance = 108
 const refreshPollMs = 45_000
@@ -592,7 +592,7 @@ onBeforeUnmount(() => {
               </button>
               <button
                 type="button"
-                class="flex min-w-0 flex-1 items-center gap-2 rounded-lg px-1 py-1 text-left text-[13px] leading-5 outline-none transition-colors hover:bg-primary/10 focus-visible:ring-2 focus-visible:ring-primary/50 sm:py-1.5"
+                class="group/announcement-expand flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-lg px-1 py-1 text-left text-[13px] leading-5 outline-none focus-visible:ring-2 focus-visible:ring-primary/50 sm:py-1.5"
                 data-testid="announcement-expand-button"
                 :aria-expanded="false"
                 :aria-controls="announcementPanelId"
@@ -602,8 +602,10 @@ onBeforeUnmount(() => {
               >
                 <span v-if="announcementUnread" aria-hidden="true" data-testid="announcement-unread-dot" class="h-2 w-2 shrink-0 rounded-full bg-primary" />
                 <span class="shrink-0 font-semibold text-primary">{{ t('topicList.announcement') }}</span>
-                <span v-if="collapsedAnnouncementTitle" class="truncate text-base-content/70">{{ collapsedAnnouncementTitle }}</span>
-                <ChevronDown class="ml-auto h-4 w-4 shrink-0 text-base-content/45" aria-hidden="true" />
+                <span class="truncate text-base-content/70">{{ collapsedAnnouncementTitle || t('topicList.expandAnnouncement') }}</span>
+                <span class="ml-auto inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-base-content/45 transition-colors group-hover/announcement-expand:bg-primary/10 group-hover/announcement-expand:text-primary group-focus-visible/announcement-expand:bg-primary/10 group-focus-visible/announcement-expand:text-primary" aria-hidden="true">
+                  <ChevronDown class="h-4 w-4" />
+                </span>
               </button>
             </div>
             <div v-else class="flex items-start gap-2 sm:gap-2.5">
