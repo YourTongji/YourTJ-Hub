@@ -60,6 +60,14 @@ const pendingFeedSort = computed(() => {
   const url = pendingHomeFeedUrl.value || failedHomeFeedUrl.value
   return url ? new URL(url, window.location.origin).searchParams.get('sort') || 'latest' : ''
 })
+// 切换中按目标排序高亮，否则回落到服务端给的 tab.active。
+// 集中算一次，:class 与 :aria-current 共用同一结果，避免两处表达式漂移。
+const sortTabs = computed(() =>
+  page.props.tabs.map((tab) => ({
+    ...tab,
+    isActive: pendingFeedSort.value ? tab.key === pendingFeedSort.value : Boolean(tab.active),
+  })),
+)
 const showPinnedLabels = computed(() => page.props.sort === '' || page.props.sort === 'latest')
 // 话题流切换挂起或失败期间，feedRevision 不会递增；
 // 在途的刷新/加载更多/新帖探测结果必须一并视为失效，不得写进当前列表。
@@ -356,10 +364,6 @@ function sortTabLabel(key: string, fallback?: string) {
   if (key === 'hot') return t('topicList.tabs.hot')
   if (key === 'popular') return t('topicList.tabs.popular')
   return fallback || key
-}
-
-function isSortTabActive(key: string, active: boolean) {
-  return pendingFeedSort.value ? key === pendingFeedSort.value : active
 }
 
 function retryFeedNavigation() {
@@ -677,12 +681,12 @@ onBeforeUnmount(() => {
         >
           <div class="gf-home-topic-tabs">
             <a
-              v-for="tab in page.props.tabs"
+              v-for="tab in sortTabs"
               :key="tab.key"
               :href="tab.url"
               class="gf-tab"
-              :class="isSortTabActive(tab.key, tab.active) ? 'gf-tab-active' : 'gf-tab-idle'"
-              :aria-current="isSortTabActive(tab.key, tab.active) ? 'page' : undefined"
+              :class="tab.isActive ? 'gf-tab-active' : 'gf-tab-idle'"
+              :aria-current="tab.isActive ? 'page' : undefined"
             >
               {{ sortTabLabel(tab.key, tab.label) }}
             </a>
