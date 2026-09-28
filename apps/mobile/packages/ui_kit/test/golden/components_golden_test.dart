@@ -490,28 +490,38 @@ void main() {
     );
   });
 
-  testWidgets('GfMessageBubble states', skip: skipGoldens, tags: 'golden', (
-    tester,
-  ) async {
-    await pumpGfGolden(
-      tester,
-      const Padding(
-        padding: EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            GfMessageBubble(text: '对方的消息内容', mine: false),
-            SizedBox(height: 8),
-            GfMessageBubble(text: '我的回复内容', mine: true),
-          ],
-        ),
-      ),
+  for (final brightness in Brightness.values) {
+    testWidgets(
+      'GfMessageBubble states ${brightness.name}',
+      skip: skipGoldens,
+      tags: 'golden',
+      (tester) async {
+        await pumpGfGolden(
+          tester,
+          const Padding(
+            padding: EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                GfMessageBubble(text: '对方的消息内容', mine: false),
+                SizedBox(height: 8),
+                GfMessageBubble(text: '我的回复内容', mine: true),
+              ],
+            ),
+          ),
+          brightness: brightness,
+        );
+        await expectLater(
+          find.byType(Column),
+          matchesGoldenFile(
+            brightness == Brightness.light
+                ? 'golden/gf_message_bubble_states.png'
+                : 'golden/gf_message_bubble_states_dark.png',
+          ),
+        );
+      },
     );
-    await expectLater(
-      find.byType(Column),
-      matchesGoldenFile('golden/gf_message_bubble_states.png'),
-    );
-  });
+  }
 
   testWidgets('GfAvatarStack sm', skip: skipGoldens, tags: 'golden', (
     tester,

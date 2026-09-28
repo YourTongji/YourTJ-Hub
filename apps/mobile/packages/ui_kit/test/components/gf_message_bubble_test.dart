@@ -7,6 +7,33 @@ import 'package:ui_kit/ui_kit.dart';
 import '../helpers.dart';
 
 void main() {
+  testWidgets('message preserves inherited reading fonts', (tester) async {
+    await tester.pumpWidget(
+      gfApp(
+        const DefaultTextStyle(
+          style: TextStyle(
+            fontFamily: 'ReadingFont',
+            fontFamilyFallback: ['CJKFallback'],
+            fontSize: 32,
+            color: Colors.red,
+          ),
+          child: GfMessageBubble(text: '中文消息', mine: true),
+        ),
+      ),
+    );
+    final richText = tester.widget<RichText>(
+      find.descendant(
+        of: find.byType(GfMessageBubble),
+        matching: find.byType(RichText),
+      ),
+    );
+    final style = (richText.text as TextSpan).style!;
+    expect(style.fontFamily, 'ReadingFont');
+    expect(style.fontFamilyFallback, ['CJKFallback']);
+    expect(style.fontSize, 16);
+    expect(style.color, Colors.white);
+  });
+
   for (final brightness in Brightness.values) {
     for (final mine in [false, true]) {
       testWidgets(

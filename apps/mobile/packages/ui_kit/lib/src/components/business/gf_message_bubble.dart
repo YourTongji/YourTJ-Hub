@@ -58,8 +58,13 @@ class GfMessageBubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final GfColors colors = GfTheme.colorsOf(context);
+    final inheritedStyle = DefaultTextStyle.of(context).style;
 
     final TextStyle contentStyle = TextStyle(
+      // Preserve the reading font and its CJK fallback while owning bubble
+      // size and color; replacing these loses glyphs in bundled-font themes.
+      fontFamily: inheritedStyle.fontFamily,
+      fontFamilyFallback: inheritedStyle.fontFamilyFallback,
       fontSize: 16,
       height: 1.4,
       color: mine && showBubble
