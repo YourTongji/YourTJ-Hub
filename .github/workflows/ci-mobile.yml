@@ -36,10 +36,11 @@ jobs:
       flutter: ${{ steps.filter.outputs.flutter }}
       release_tools: ${{ steps.filter.outputs.release_tools }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
-      - uses: dorny/paths-filter@v4
+          persist-credentials: false
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4
         id: filter
         with:
           base: ${{ github.event_name == 'push' && github.ref_name || '' }}
@@ -79,8 +80,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: subosito/flutter-action@v2
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
         with:
           channel: stable
           flutter-version: 3.44.9
@@ -110,8 +113,10 @@ jobs:
           - { package: forum_app, shard: 0, shards: 2 }
           - { package: forum_app, shard: 1, shards: 2 }
     steps:
-      - uses: actions/checkout@v4
-      - uses: subosito/flutter-action@v2
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
         with:
           channel: stable
           flutter-version: 3.44.9
@@ -132,7 +137,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
       # The effective Xcode signing check runs in the iOS native job after Flutter bootstrap.
       - name: Release script regression tests
         run: python3 -m unittest discover -s scripts/mobile-release -p 'test_*.py'

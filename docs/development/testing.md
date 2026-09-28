@@ -134,6 +134,10 @@ with path filters; unrelated PRs do not start Flutter runners. Their path-detect
 The trade-off between fast source checks and native compile coverage is recorded in
 [the mobile CI decision](../decisions/0045-mobile-ci-by-input.md).
 
+Both mobile workflows pin external actions to full commit SHAs and disable checkout credential
+persistence before running PR-controlled code. `node --test scripts/test-mobile-ci-*.mjs` checks
+the Flutter input selection and these workflow security settings in documentation CI.
+
 ## Documentation and governance
 
 `ci-docs.yml` runs for every PR and every push to `dev` or `main`, so renaming or deleting a linked
