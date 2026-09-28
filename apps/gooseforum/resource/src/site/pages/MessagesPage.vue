@@ -384,7 +384,7 @@ async function startChat(user: Pick<UserConnectionPayload, 'id' | 'username' | '
                     <div class="group relative min-w-0">
                       <div
                         class="whitespace-pre-wrap break-words px-3 py-2 text-sm leading-relaxed shadow-sm [border-radius:var(--gf-radius-box)] md:px-4"
-                        :class="item.message.isSelf ? 'bg-primary text-primary-content' : 'bg-base-300 text-base-content'"
+                        :class="item.message.isSelf ? 'bg-message-outgoing text-message-outgoing-content' : 'bg-base-300 text-base-content'"
                       >
                         <ForwardedMessageCard v-if="item.message.forwarded" :bundle="item.message.forwarded" :sticker-urls="stickerUrlMap" />
                         <template v-else><template v-for="(segment, index) in messageSegments(item.message.content)" :key="index">

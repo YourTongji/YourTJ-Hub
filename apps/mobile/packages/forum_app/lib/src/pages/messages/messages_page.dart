@@ -2358,7 +2358,6 @@ class _MessageRow extends ConsumerWidget {
           ? GfAvatar(
               src: resolveApiAssetUrl(viewerAvatar),
               size: 32,
-              ring: true,
             )
           : _PeerAvatarButton(
               key: Key('chat-peer-avatar-${message.id}'),

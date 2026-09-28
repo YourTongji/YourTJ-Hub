@@ -29,6 +29,56 @@ class _ForwardPreviewRepository extends CountingPageRepository {
 }
 
 void main() {
+  for (final brightness in Brightness.values) {
+    testWidgets(
+      'outgoing history text and chevron inherit white ($brightness)',
+      (tester) async {
+        await tester.pumpWidget(
+          ProviderScope(
+            child: MaterialApp(
+              theme: gfThemeData(brightness),
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              home: const Scaffold(
+                body: GfMessageBubble(
+                  text: '[Chat history]',
+                  mine: true,
+                  content: ForwardedMessageCard(
+                    bundle: ChatForwardBundle(
+                      version: 1,
+                      messages: [
+                        ChatForwardEntry(
+                          senderName: 'Bob',
+                          content: 'Preview',
+                          createdAt: '2026-09-28T09:00:00Z',
+                          msgType: 1,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+        final texts = tester.widgetList<RichText>(
+          find.descendant(
+            of: find.byType(ForwardedMessageCard),
+            matching: find.byType(RichText),
+          ),
+        );
+        expect(texts.length, 3, reason: 'title, preview and count');
+        for (final text in texts) {
+          expect((text.text as TextSpan).style!.color, Colors.white);
+        }
+        expect(
+          tester.widget<GfSymbol>(find.byType(GfSymbol)).color,
+          Colors.white,
+        );
+      },
+    );
+  }
+
   testWidgets('nested history keeps each sender avatar and opens as a card', (
     tester,
   ) async {

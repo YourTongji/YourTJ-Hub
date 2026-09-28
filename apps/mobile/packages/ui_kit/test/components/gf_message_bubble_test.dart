@@ -85,7 +85,10 @@ void main() {
           final colors = GfColors.forBrightness(brightness);
           final bubble = tester.widget<Container>(find.byKey(bubbleKey));
           final decoration = bubble.decoration! as BoxDecoration;
-          expect(decoration.color, mine ? colors.primary : colors.base300);
+          expect(
+            decoration.color,
+            mine ? const Color(0xFF2563EB) : colors.base300,
+          );
           expect(decoration.borderRadius, BorderRadius.circular(20));
           expect(
             bubble.padding,
@@ -95,7 +98,7 @@ void main() {
             DefaultTextStyle.of(
               tester.element(find.text('Ordinary message')),
             ).style.color,
-            mine ? colors.primaryContent : colors.baseContent,
+            mine ? Colors.white : colors.baseContent,
           );
         },
       );

@@ -81,34 +81,39 @@ class GfAvatar extends StatelessWidget {
       size: size,
       devicePixelRatio: MediaQuery.devicePixelRatioOf(context),
     );
+    final ringWidth = ring ? 2 * borders.width : 0.0;
+    final Widget image = provider == null
+        ? fallback
+        : Image(
+            image: provider,
+            fit: BoxFit.cover,
+            excludeFromSemantics: true,
+            frameBuilder: (_, child, frame, wasSynchronouslyLoaded) =>
+                wasSynchronouslyLoaded || frame != null ? child : fallback,
+            errorBuilder: (_, _, _) => fallback,
+          );
 
     final Widget avatar = Container(
       width: size,
       height: size,
       decoration: BoxDecoration(shape: BoxShape.circle, color: colors.base200),
-      // A decoration border also adds content padding. Insetting the square
-      // image then clipping it by the larger outer circle leaves flat sides.
-      // Paint the ring over the full circular image instead (issue #877).
+      // Reserve the ring outside the image: overlaying it on a full-size
+      // portrait hides its edges and makes small chat avatars look zoomed in.
+      // The inset image needs its own circle, otherwise clipping the smaller
+      // square only by the outer circle leaves flat sides (issue #877).
       foregroundDecoration: ring
           ? BoxDecoration(
               shape: BoxShape.circle,
-              border: Border.all(
-                color: colors.base100,
-                width: 2 * borders.width,
-              ),
+              border: Border.all(color: colors.base100, width: ringWidth),
             )
           : null,
       clipBehavior: Clip.antiAlias,
-      child: provider == null
-          ? fallback
-          : Image(
-              image: provider,
-              fit: BoxFit.cover,
-              excludeFromSemantics: true,
-              frameBuilder: (_, child, frame, wasSynchronouslyLoaded) =>
-                  wasSynchronouslyLoaded || frame != null ? child : fallback,
-              errorBuilder: (_, _, _) => fallback,
-            ),
+      child: ring
+          ? Padding(
+              padding: EdgeInsets.all(ringWidth),
+              child: ClipOval(child: image),
+            )
+          : image,
     );
 
     if (badge == null) return avatar;

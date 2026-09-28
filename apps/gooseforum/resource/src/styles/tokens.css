@@ -9,6 +9,9 @@
   --gf-color-line: oklch(92.9% 0.013 255.508);
   --gf-color-primary: oklch(54.6% 0.215 262.88);
   --gf-color-primary-content: oklch(98.4% 0.003 247.858);
+  /* 私信发送气泡固定深蓝底 + 白字，独立于可编辑的 primary 色对。 */
+  --gf-color-message-outgoing: #2563eb;
+  --gf-color-message-outgoing-content: #ffffff;
   --gf-color-secondary: oklch(96.8% 0.007 247.896);
   --gf-color-secondary-content: oklch(20.8% 0.042 265.755);
   --gf-color-accent: oklch(69.6% 0.17 162.48);
@@ -69,6 +72,9 @@
   --gf-color-line: oklch(31% 0 0);
   --gf-color-primary: oklch(68% 0.16 252);
   --gf-color-primary-content: oklch(12.8% 0 0);
+  /* 私信发送气泡固定深蓝底 + 白字，独立于可编辑的 primary 色对。 */
+  --gf-color-message-outgoing: #2563eb;
+  --gf-color-message-outgoing-content: #ffffff;
   --gf-color-secondary: oklch(24% 0 0);
   --gf-color-secondary-content: oklch(92.5% 0 0);
   --gf-color-accent: oklch(72.3% 0.219 149.579);
@@ -111,6 +117,8 @@
   --color-line: var(--gf-color-line);
   --color-primary: var(--gf-color-primary);
   --color-primary-content: var(--gf-color-primary-content);
+  --color-message-outgoing: var(--gf-color-message-outgoing);
+  --color-message-outgoing-content: var(--gf-color-message-outgoing-content);
   --color-secondary: var(--gf-color-secondary);
   --color-secondary-content: var(--gf-color-secondary-content);
   --color-accent: var(--gf-color-accent);

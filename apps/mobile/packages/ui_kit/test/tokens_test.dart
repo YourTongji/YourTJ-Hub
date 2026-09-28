@@ -44,10 +44,12 @@ const List<String> siteThemeTokenKeys = <String>[
 /// Static UI tokens that `tokens.json` may carry in addition to
 /// [siteThemeTokenKeys]. These mirror web `tokens.css` additions (AGENTS.md
 /// design-token sync rule) that have no site-theme counterpart in
-/// `payload.ts` and no `GfColors` field.
+/// `payload.ts`; outgoing-message colors have read-only `GfColors` getters.
 const List<String> staticUiTokenKeys = <String>[
   'color-tooltip-bg',
   'color-tooltip-content',
+  'color-message-outgoing',
+  'color-message-outgoing-content',
 ];
 
 String colorToHex(Color color) {
@@ -123,6 +125,28 @@ void main() {
       });
     }
   });
+
+  test(
+    'outgoing-message tokens match the mirror and keep readable contrast',
+    () {
+      for (final theme in ['light', 'dark']) {
+        final colors = theme == 'light' ? GfColors.light : GfColors.dark;
+        final themeTokens = tokens[theme] as Map<String, dynamic>;
+        expect(
+          colorToHex(colors.messageOutgoing),
+          themeTokens['color-message-outgoing'],
+        );
+        expect(
+          colorToHex(colors.messageOutgoingContent),
+          themeTokens['color-message-outgoing-content'],
+        );
+        final contrast =
+            (colors.messageOutgoingContent.computeLuminance() + .05) /
+            (colors.messageOutgoing.computeLuminance() + .05);
+        expect(contrast, greaterThanOrEqualTo(4.5));
+      }
+    },
+  );
 
   test('numeric tokens match GfRadii / GfBorders / GfSizes', () {
     for (final String theme in <String>['light', 'dark']) {

@@ -11,6 +11,7 @@ import 'package:ui_kit/ui_kit.dart';
 
 import 'package:forum_app/l10n/app_localizations.dart';
 import 'package:forum_app/src/current_user.dart';
+import 'package:forum_app/src/messages/chat_message_row.dart';
 import 'package:forum_app/src/navigation/route_visibility.dart';
 import 'package:forum_app/src/pages/messages/messages_page.dart';
 import 'package:forum_app/src/pages/profile/profile_page.dart';
@@ -186,8 +187,11 @@ void main() {
       tester,
       messages: [makeChatMessage(1), makeChatMessage(2).copyWith(isSelf: true)],
     );
-    final selfAvatar = find.byWidgetPredicate(
-      (Widget widget) => widget is GfAvatar && widget.size == 32 && widget.ring,
+    final selfAvatar = find.descendant(
+      of: find.byWidgetPredicate(
+        (Widget widget) => widget is ChatMessageRow && widget.mine,
+      ),
+      matching: find.byType(GfAvatar),
     );
     expect(selfAvatar, findsOneWidget);
     expect(_rowAvatar(2), findsNothing);

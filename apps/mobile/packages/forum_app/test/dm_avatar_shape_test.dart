@@ -41,22 +41,20 @@ Path? effectiveClipPath(RenderObject node) {
   return null;
 }
 
-/// Verifies the rendered clip geometry rather than one node's configuration:
-/// every clip applied to the avatar — inside [GfAvatar] and from any ancestor
-/// wrapper, whether [ClipPath], [PhysicalShape] or the oval/rect clips — must
-/// accept 24 sample points on the avatar's inscribed circle (95% of the
-/// radius, in global coordinates). A circular clip accepts all of them; a
-/// polygon clip — for example the repo's historical six-point hexagon clipper
-/// — rejects the directions that fall outside its edges (issue #877 review).
+/// The outer avatar and inset image each keep a circular clip at their own
+/// bounds. Ancestor clips must accept the whole outer circle. Sampling 24
+/// directions catches the historical hexagon without mistaking a correctly
+/// inset image circle for a clipped outer ring.
 void expectCircularClipGeometry(WidgetTester tester, Finder avatarFinder) {
   final RenderObject avatar = tester.renderObject(avatarFinder);
   final Rect avatarRect = tester.getRect(avatarFinder);
-  final List<Path> clips = <Path>[];
+  final List<(Path, Rect)> clips = <(Path, Rect)>[];
 
   void collect(RenderObject node) {
     final Path? path = effectiveClipPath(node);
     if (path != null) {
-      clips.add(path.transform(node.getTransformTo(null).storage));
+      final globalPath = path.transform(node.getTransformTo(null).storage);
+      clips.add((globalPath, globalPath.getBounds()));
     }
     node.visitChildren(collect);
   }
@@ -65,17 +63,20 @@ void expectCircularClipGeometry(WidgetTester tester, Finder avatarFinder) {
   for (RenderObject? node = avatar.parent; node != null; node = node.parent) {
     final Path? path = effectiveClipPath(node);
     if (path != null) {
-      clips.add(path.transform(node.getTransformTo(null).storage));
+      clips.add((
+        path.transform(node.getTransformTo(null).storage),
+        avatarRect,
+      ));
     }
   }
 
   expect(clips, isNotEmpty, reason: 'the avatar must be clipped');
-  final double radius = avatarRect.size.shortestSide / 2 * 0.95;
-  for (final Path clip in clips) {
+  for (final (clip, bounds) in clips) {
+    final double radius = bounds.size.shortestSide / 2 * 0.95;
     for (int step = 0; step < 24; step++) {
       final double angle = step * math.pi / 12;
       final Offset point =
-          avatarRect.center + Offset(math.cos(angle), math.sin(angle)) * radius;
+          bounds.center + Offset(math.cos(angle), math.sin(angle)) * radius;
       expect(
         clip.contains(point),
         isTrue,
@@ -121,7 +122,7 @@ void expectCircularAvatar(
   expect(
     decoration.border,
     isNull,
-    reason: 'ring must not inset the square image',
+    reason: 'the ring and inner image own their bounds independently',
   );
   expect(
     (container.foregroundDecoration as BoxDecoration?)?.border,
@@ -134,6 +135,18 @@ void expectCircularAvatar(
     reason:
         'a custom painter inside the avatar could draw a non-circular shape',
   );
+  if (ring) {
+    final inner = find.descendant(
+      of: avatarFinder,
+      matching: find.byType(ClipOval),
+    );
+    expect(inner, findsOneWidget);
+    expect(
+      tester.getRect(inner),
+      tester.getRect(avatarFinder).deflate(2),
+      reason: 'the inset portrait must have its own circular clip',
+    );
+  }
   expectCircularClipGeometry(tester, avatarFinder);
 }
 
@@ -188,10 +201,8 @@ void main() {
     expect(header, isNotNull);
     expectCircularAvatar(tester, header!, size: 36, ring: true);
 
-    // Direction comes from position, while `ring` is asserted explicitly per
-    // direction so the expectation cannot be derived from the widget under
-    // test: only the outgoing avatar carries the base-100 ring
-    // (messages_page.dart `_MessageRow`).
+    // Both directions use the full 32px image. An inset ring only on the
+    // outgoing avatar would shrink its portrait to 28px.
     expect(messageAvatars, hasLength(2));
     final double screenWidth = tester
         .getSize(find.byType(Scaffold).first)
@@ -203,6 +214,6 @@ void main() {
       (Finder finder) => tester.getCenter(finder).dx > screenWidth / 2,
     );
     expectCircularAvatar(tester, peerAvatar, size: 32, ring: false);
-    expectCircularAvatar(tester, selfAvatar, size: 32, ring: true);
+    expectCircularAvatar(tester, selfAvatar, size: 32, ring: false);
   });
 }

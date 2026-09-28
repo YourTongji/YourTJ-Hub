@@ -815,7 +815,7 @@ function hexToRgb(value: string) {
               <h3 class="text-sm font-semibold text-base-content">Messages</h3>
               <div class="mt-3 space-y-3">
                 <div class="rounded-box bg-base-300 px-3 py-2 text-sm text-base-content">{{ t('themePreview.sampleMessageIncoming') }}</div>
-                <div class="rounded-box bg-primary px-3 py-2 text-sm text-primary-content">{{ t('themePreview.sampleMessageOutgoing') }}</div>
+                <div class="rounded-box bg-message-outgoing px-3 py-2 text-sm text-message-outgoing-content">{{ t('themePreview.sampleMessageOutgoing') }}</div>
               </div>
             </section>
             <section class="gf-panel p-3">
