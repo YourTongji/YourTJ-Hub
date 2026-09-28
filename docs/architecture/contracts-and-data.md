@@ -595,3 +595,38 @@ OpenAPI、TypeScript 和 Dart 镜像同步维护，路由覆盖包含此操作�
 整个树最多 4 层、50 个条目（含卡片）、编码后 64 KiB，解析与写入均校验；文字回退与审核递归包含子记录。
 逐条转发直接复制原卡片，不额外增加层数；64 KiB 限制适用于单个合并快照，不限制逐条转发批次的正文总量。副本的隐私、生命周期和客户端队列边界见
 [决策 0044](../decisions/0044-nested-private-message-history.md)。
+
+## 站内信领域模型（inboxmail）
+
+`Partial`: 数据模型与迁移已落地（issue #770），服务、Worker、Web/App 表面、管理端与 OpenAPI
+契约尚未交付，因此该域当前只被后端代码引用，对用户和管理员均不可见。
+
+主模型固定为 `Message → Message Version → Campaign → Campaign Run → Delivery → Claim`，共七张表：
+`inbox_message`、`inbox_message_version`、`inbox_campaign`、`inbox_campaign_attachment`、
+`inbox_campaign_run`、`inbox_delivery`、`inbox_claim`（`app/models/forum/inboxmail`，注册于
+`app/migration` 的 `SchemaModels`，PostgreSQL 与 SQLite 双方言建表）。
+
+硬性不变量：
+
+- **已发布 Message Version 不可变**：`status = published` 之后内容、block JSON、内容哈希、
+  schema 版本与版本号不得原地修改或删除；修订必须新建 `version_no + 1` 的行。模型 hook 与
+  仓储函数（`UpdateDraftContentTx` / `PublishVersionTx`）共同拦截，历史 Delivery 固定引用
+  发布时的 `message_version_id`。
+- **投递幂等**：`inbox_delivery.dedupe_key` 为 NOT NULL + 全局唯一。Campaign 投递使用
+  `campaign:<campaign_id>:<version_no>:user:<uid>`，事件触发使用
+  `trigger:<event>:<event_id>:user:<uid>`（`CampaignDedupeKey` / `TriggerDedupeKey`）；
+  Worker 重试与事件重放不会重复发信。
+- **领取双重幂等**：`inbox_claim` 同时受 `UNIQUE (delivery_id, attachment_id)` 与
+  `UNIQUE source_key`（`inbox_claim:<handler>:<handler_key>:delivery:<delivery_id>`）保护；
+  用户已拥有该奖励时记为 `already_owned` 成功终态。
+- **状态分离**：已读（`is_read` / `read_at`）、归档（`is_archived` / `archived_at`）、弹窗
+  （`popup_state` / `popup_snooze_until`）与领取（`claim_state`）各自独立，弹窗关闭、收纳或
+  Snooze 不删除信件，三类指标各有独立分母。
+
+核心列表查询的索引：`(user_id, id)` 游标分页、`(user_id, is_read, id)` 未读、
+`(user_id, is_archived, id)` 归档、`(user_id, claim_state, id)` 待领取、
+`(user_id, popup_state, id)` 弹窗候选、`(campaign_id, status)` Campaign 维度统计。
+
+用户生命周期：`DeleteUserDataTx`（硬删该用户的投递与领取）与 `AnonymizeUserDataTx`
+（保留事实行、剥离身份并轮换唯一键）是预留的清理边界；接入账号关闭与保留期限策略由 #787 负责。
+该域不扩展 `event_notification` 或私信表，存量通知/私信的行与表结构不因升级改变。
