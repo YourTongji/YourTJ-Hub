@@ -1502,5 +1502,8 @@
   "messageForwardCancelRemaining": "Discard remaining deliveries",
   "messageForwardAbandonNotice": "Sent messages remain. Unacknowledged messages may already be delivered; starting a new forward can duplicate them.",
   "messageForwardSearch": "Search conversations or contacts",
-  "messageForwardChooseTargets": "Choose recipients"
+  "messageForwardChooseTargets": "Choose recipients",
+  "settingsVisitorAnalytics": "Share visit statistics",
+  "settingsVisitorAnalyticsDescription": "Off by default. Sends public screen categories, App marker, OS and phone/tablet type to YourTJ’s self-hosted analytics for the status page; the service also receives your network IP and derives an approximate location. No account, content, search terms, device identifiers, campus, messages or settings pages are sent. Turn off at any time.",
+  "settingsVisitorAnalyticsSaveFailed": "Could not save the analytics preference. Disabling still applies now; retry to save your choice for the next launch."
 }

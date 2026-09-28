@@ -19,6 +19,15 @@ YourTJ 移动端论坛客户端(Flutter)。`apps/mobile` melos 工作区的入�
 - **表情输入**:回复、私信和发帖将表情面板放在输入区下方，键盘按钮可切回文字输入；草稿表情提供实时图片预览，连续插入保留光标与原始 token。回复面板在窄屏和大字体下约束高度并允许滚动。私信在面板、预览和键盘改变高度时保持当前浏览位置，正在看的消息随输入区上移，浏览历史时不跳回最新消息。
 - **运行配置**(`lib/src/app_config.dart`):经 `--dart-define` 注入 `YOURTJ_OIDC_ISSUER` / `YOURTJ_OIDC_CLIENT_ID` / `YOURTJ_API_BASE_URL`;默认内建 OIDC issuer 为 `http://localhost:5234/api/oauth`,API baseUrl 为空时 Android 模拟器走 `10.0.2.2`。
 
+## 可选访问统计
+
+`Current`：设置的“本机设备”分组提供默认关闭的统计开关，访客也可使用。正式 Android/iOS
+构建连接 `https://f.yourtj.de` 且用户开启后，`lib/src/analytics/` 以独立无凭据 Dio 向 Umami
+上报公开页面的固定类别和 `yourtj-app` 客户端标记。调试、其他站点和其他平台不发送；
+前后台、去重、撤回选择、队列上限和网络失败由 `test/visitor_analytics_test.dart` 覆盖。
+数据边界见[移动端体验](../../../../docs/product/mobile-experience.md#profile-and-privacy)，
+上线核验见[移动发布](../../../../docs/operations/mobile-releases.md#optional-native-visitor-statistics)。
+
 ## 运行与验证
 
 前置:Flutter SDK + melos;工作区脚本定义在 `apps/mobile/pubspec.yaml` 的 `melos:` 键。

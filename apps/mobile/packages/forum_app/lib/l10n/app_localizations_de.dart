@@ -3079,4 +3079,15 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get messageForwardChooseTargets => 'Empfänger auswählen';
+
+  @override
+  String get settingsVisitorAnalytics => 'Besuchsstatistik teilen';
+
+  @override
+  String get settingsVisitorAnalyticsDescription =>
+      'Standardmäßig aus. Sendet öffentliche Seitenkategorien, App-Kennung, Betriebssystem und Gerätetyp (Telefon/Tablet) an YourTJs eigenen Statistikdienst für die Statusseite. Der Dienst empfängt auch Ihre Netzwerk-IP und ermittelt eine ungefähre Region. Keine Konten, Inhalte, Suchbegriffe, Gerätekennungen, Campus-, Nachrichten- oder Einstellungsseiten werden gesendet. Jederzeit abschaltbar.';
+
+  @override
+  String get settingsVisitorAnalyticsSaveFailed =>
+      'Die Statistikeinstellung konnte nicht gespeichert werden. Das Abschalten gilt weiterhin für diese Sitzung. Erneut versuchen, um die Auswahl für den nächsten Start zu speichern.';
 }

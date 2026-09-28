@@ -804,6 +804,27 @@ identity survive this layout change. The header keeps a small outer margin for i
 
 ## Profile and privacy
 
+- `Current`: Settings → Device includes an optional visit-statistics switch for guests and signed-in
+  users, off until explicitly enabled on that device. Only official Android/iOS release builds against
+  `https://f.yourtj.de` send page views to the existing first-party Umami website. Debug/profile,
+  Web, desktop and alternate-server builds do not send. Public home/search/topic/category/course/Wiki
+  navigation uses fixed `/app/*` categories; original IDs, slugs, search terms and fragments never leave
+  the app. Campus, schedule, chat, notifications, profiles, login, settings, writing and administration
+  routes are excluded. The payload supplies `browser: yourtj-app`, OS family and phone/tablet type;
+  no account, session credential, hardware/ad identifier, content or persistent visitor ID is supplied.
+- `Current`: analytics uses its own unauthenticated transport, three-second network timeouts, no
+  redirects, at most three pending views, no disk queue and no retry. Rebuilds and brief foreground
+  resumes do not repeat the same view; reopening after thirty minutes can start another view.
+  Backgrounding cancels transport and drops pending events. Disabling immediately stops reporting,
+  clears the memory-only Umami cache token and drops pending views; an already delivered event cannot
+  be withdrawn by this local switch. Storage failures are visible, and enabling starts only after a
+  successful preference save. Normal browsing never waits for analytics.
+- `Partial`: Umami receives network IP/UA and may derive country/region/city. Its salted visitor
+  calculation is approximate: installations sharing IP, OS and device family can collapse, and Web/App
+  visits are not joined to an account. Aggregates represent opted-in installations, not all App users.
+  Existing server retention and network-log policies still apply; no historical App identity is inferred
+  or backfilled. The public status page exposes only coarse device/OS/client aggregates.
+
 - `Current`: activity, topics, liked posts and bookmarks use flat avatar-led content rows with fine
   separators. Activity actor, action symbol/label and time share a compact wrapping header; excerpts
   and the separate like/bookmark controls align beneath it, with inset separators. Activity actions

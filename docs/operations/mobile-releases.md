@@ -336,8 +336,8 @@ categories. The local-only Widget/SDK do not collect data off device.
 `Current`: the [App privacy supplement](../../apps/gooseforum/app/models/defaultconfig/pageconfig/app_privacy.md)
 is embedded in the forum binary and appended to enabled `/privacy` pages, including persisted
 custom policies. A policy containing the supplement's heading does not receive another copy.
-It covers campus processing, device snapshots/Widget display, selected-message reporting and
-Android push processors. Publish this server before distributing the corresponding App.
+It covers campus processing, device snapshots/Widget display, selected-message reporting,
+Android push processors and optional first-party visit analytics. Publish this server before distributing the corresponding App.
 
 `Partial`: App Store Connect privacy declarations still require verification against the actual
 production SDK selection, retention and analytics configuration. Source privacy manifests and the
@@ -376,3 +376,29 @@ A new server containing block enforcement, private-message reporting and optiona
 `clientMessageId` support must be deployed before releasing the matching mobile binary.
 Signed APK upgrade, external-browser OAuth return, APNs/JPush/OEM delivery and Widget behavior
 require recorded physical-device evidence for the actual candidate version/build.
+
+## Optional native visitor statistics
+
+`Current`: release builds already supply `YOURTJ_API_BASE_URL=https://f.yourtj.de`; only that exact
+production origin on native Android/iOS enables the transport. No additional secret or analytics SDK
+is needed. The public website ID and collection URL are fixed in `analytics/visitor_analytics.dart`;
+never put Umami account credentials into Dart defines or the App. Each installation must opt in at
+Settings → Device → Share visit statistics. Installing an update does not enable it automatically.
+
+Umami accepts page views at `https://umi.yourtj.de/api/send` with explicit `browser: yourtj-app`,
+`os: iOS|Android OS`, `device: mobile|tablet` and `tag: yourtj-app`. The custom User-Agent includes
+OS and device family so the current Umami bot filter accepts native requests; its fixed protocol
+version is not the App release version. Queries/IDs/content are stripped locally. A named custom
+event would not contribute to the device page-view report, so `payload.name` must remain absent.
+
+Verify the candidate on an opted-in device: open a public page and inspect the joint Umami report
+for `yourtj-app`; then disable statistics and verify no further sends while browsing. Local automated
+tests use a fake transport and never inject test visitors into the production site. Historical WebView
+rows cannot be relabelled as App. The status collector refreshes device reports every five minutes
+when its server-only report credentials are configured.
+
+`Partial`: before App distribution, verify the App Store Connect privacy form against the actual
+Umami configuration and retention policy. The source manifest includes analytics use of product
+interaction/other data and IP-derived coarse location, with no advertising tracking. Consent text
+and the embedded privacy supplement disclose the receive-side IP and regional derivation; the
+switch stops future collection but does not delete already retained server aggregates.

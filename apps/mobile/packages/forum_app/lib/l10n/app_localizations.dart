@@ -5579,6 +5579,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Choose recipients'**
   String get messageForwardChooseTargets;
+
+  /// No description provided for @settingsVisitorAnalytics.
+  ///
+  /// In en, this message translates to:
+  /// **'Share visit statistics'**
+  String get settingsVisitorAnalytics;
+
+  /// No description provided for @settingsVisitorAnalyticsDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Off by default. Sends public screen categories, App marker, OS and phone/tablet type to YourTJ’s self-hosted analytics for the status page; the service also receives your network IP and derives an approximate location. No account, content, search terms, device identifiers, campus, messages or settings pages are sent. Turn off at any time.'**
+  String get settingsVisitorAnalyticsDescription;
+
+  /// No description provided for @settingsVisitorAnalyticsSaveFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not save the analytics preference. Disabling still applies now; retry to save your choice for the next launch.'**
+  String get settingsVisitorAnalyticsSaveFailed;
 }
 
 class _AppLocalizationsDelegate

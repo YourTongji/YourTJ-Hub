@@ -2952,4 +2952,15 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get messageForwardChooseTargets => '受信者を選択';
+
+  @override
+  String get settingsVisitorAnalytics => 'アクセス統計に参加';
+
+  @override
+  String get settingsVisitorAnalyticsDescription =>
+      '初期設定はオフです。有効にすると公開画面の種類、App マーク、OS、スマートフォン／タブレットの種類を YourTJ の自己ホスト型統計サービスへ送信し、ステータスページの集計に使用します。サービスは接続元 IP も受信し、おおよその地域を推定します。アカウント、内容、検索語、端末識別子、キャンパス・メッセージ・設定画面は送信しません。いつでも無効にできます。';
+
+  @override
+  String get settingsVisitorAnalyticsSaveFailed =>
+      '統計設定を保存できませんでした。今回の無効化は有効です。次回起動時の設定を保存するには再試行してください。';
 }
