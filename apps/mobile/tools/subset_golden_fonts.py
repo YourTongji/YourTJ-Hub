@@ -7,8 +7,12 @@ two hosts fall back to different system fonts and every golden pixel-diffs
 (331cfa90). The subsets are cut to the charset actually used by mobile sources
 — when new zh strings land (new l10n keys, new fixtures, new test copy), new
 glyphs can fall outside the subset and render as tofu (□) in goldens. Re-run
-this script after adding zh strings, then re-render the affected goldens via
-the `mobile-golden-refresh` workflow.
+this script after adding zh strings, then re-render the affected goldens in a
+matching Linux/Flutter environment (see docs/development/testing.md):
+    cd apps/mobile/packages/forum_app
+    flutter test --update-goldens test/golden/pages_golden_test.dart
+For ui_kit, run `flutter test --update-goldens test/golden/components_golden_test.dart`
+from apps/mobile/packages/ui_kit instead.
 
 Scope: defaults to forum_app. Use --package ui_kit or --package all when
 component samples also add glyphs. Re-render the affected package goldens

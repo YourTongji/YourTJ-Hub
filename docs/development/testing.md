@@ -112,7 +112,9 @@ with path filters; unrelated PRs do not start Flutter runners. Their path-detect
   TypeScript, client package manifest, and its own workflow configuration. The route-level HTTP
   contract fixture tests run inside the backend `go test ./...` gate.
 - ci-mobile.yml: Flutter source, tests, assets, dependency/tooling or native files trigger independent
-  analysis and test jobs. Each package tests on its own runner; `forum_app` has two disjoint Flutter
+  analysis and test jobs. Dart paths include `integration_test`, `test_driver` and package-local `tool`
+  so these sources still receive analysis; device integration tests remain a separate manual run.
+  Each package tests on its own runner; `forum_app` has two disjoint Flutter
   shards. All package suites run for a shared-code change, including dependent packages. The local
   `melos run test` remains serial to avoid sharing one SDK's startup lock across Flutter processes.
   Release-tool Python tests run in a separate Ubuntu job without installing Flutter. Store metadata

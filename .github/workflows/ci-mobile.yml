@@ -45,6 +45,7 @@ jobs:
           base: ${{ github.event_name == 'push' && github.ref_name || '' }}
           filters: |
             flutter:
+              - 'apps/mobile/**/*.dart'
               - 'apps/mobile/**/lib/**'
               - 'apps/mobile/**/test/**'
               - 'apps/mobile/**/assets/**'
