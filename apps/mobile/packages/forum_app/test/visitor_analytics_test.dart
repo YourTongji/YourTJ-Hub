@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:shared_preferences_platform_interface/shared_preferences_platform_interface.dart';
 import 'package:forum_app/l10n/app_localizations.dart';
 import 'package:forum_app/src/analytics/analytics_consent.dart';
 import 'package:forum_app/src/analytics/analytics_host.dart';
@@ -48,6 +49,31 @@ class _Adapter implements HttpClientAdapter {
 
   @override
   void close({bool force = false}) {}
+}
+
+class _FailingPreferences extends SharedPreferencesStorePlatform {
+  @override
+  Future<bool> clear() async {
+    data.clear();
+    return true;
+  }
+
+  @override
+  Future<bool> remove(String key) async {
+    data.remove(key);
+    return true;
+  }
+
+  final data = <String, Object>{'flutter.visitor_analytics_opt_in': true};
+  bool fail = true;
+  @override
+  Future<Map<String, Object>> getAll() async => Map.of(data);
+  @override
+  Future<bool> setValue(String type, String key, Object value) async {
+    if (fail) return false;
+    data[key] = value;
+    return true;
+  }
 }
 
 Future<void> flush() => Future<void>.delayed(const Duration(milliseconds: 10));
@@ -366,6 +392,45 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
     },
   );
+
+  testWidgets('failed revocation remains off and can retry persistence', (
+    tester,
+  ) async {
+    final platform = _FailingPreferences();
+    SharedPreferencesStorePlatform.instance = platform;
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    container.read(analyticsConsentProvider);
+    await tester.runAsync(flush);
+    expect(container.read(analyticsConsentProvider), isTrue);
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          locale: Locale('en'),
+          home: Scaffold(body: AnalyticsSetting()),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(Switch));
+    await tester.pumpAndSettle();
+    expect(container.read(analyticsConsentProvider), isFalse);
+    expect(platform.data['flutter.visitor_analytics_opt_in'], isTrue);
+    expect(find.text('Retry'), findsOneWidget);
+    platform.fail = false;
+    await tester.tap(find.text('Retry'));
+    await tester.pumpAndSettle();
+    expect(container.read(analyticsConsentProvider), isFalse);
+    expect(platform.data['flutter.visitor_analytics_opt_in'], isFalse);
+    final restored = ProviderContainer();
+    addTearDown(restored.dispose);
+    restored.read(analyticsConsentProvider);
+    await tester.runAsync(flush);
+    expect(restored.read(analyticsConsentProvider), isFalse);
+  });
 
   testWidgets('device preference is readable and usable without an account', (
     tester,

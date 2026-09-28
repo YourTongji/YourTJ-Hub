@@ -47,6 +47,9 @@ type PrivacyPageProps struct {
 
 func buildPrivacyPageProps(config pageConfig.PrivacyPolicyConfig) PrivacyPageProps {
 	content := replaceLegacyInsightFlareDisclosure(config.Content)
+	if config.Enabled {
+		content = refreshAppPrivacyDisclosure(content)
+	}
 	contentHTML := markdown2html.MarkdownToHTML(content)
 	// A persisted custom policy can outlive the repository default. Append the
 	// production disclosure at render time so collection is never enabled
@@ -54,13 +57,32 @@ func buildPrivacyPageProps(config pageConfig.PrivacyPolicyConfig) PrivacyPagePro
 	if setting.IsProduction() && config.Enabled && !strings.Contains(content, umamiPrivacyDisclosureMarker) {
 		contentHTML += markdown2html.MarkdownToHTML(umamiPrivacyDisclosure)
 	}
-	if config.Enabled && !strings.Contains(content, appPrivacyDisclosureMarker) {
-		contentHTML += markdown2html.MarkdownToHTML(defaultconfig.GetAppPrivacyDisclosure())
-	}
 	return PrivacyPageProps{
 		Enabled:     config.Enabled,
 		ContentHTML: contentHTML,
 	}
+}
+
+// Refresh the owned level-two section even when a persisted policy contains an
+// older copy. Preserve surrounding custom sections and avoid duplicate supplements.
+func refreshAppPrivacyDisclosure(content string) string {
+	lines := strings.Split(content, "\n")
+	kept := make([]string, 0, len(lines))
+	skipping := false
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == appPrivacyDisclosureMarker {
+			skipping = true
+			continue
+		}
+		if skipping && (strings.HasPrefix(line, "# ") || strings.HasPrefix(line, "## ")) {
+			skipping = false
+		}
+		if !skipping {
+			kept = append(kept, line)
+		}
+	}
+	return strings.TrimSpace(strings.Join(kept, "\n")) + "\n\n" + defaultconfig.GetAppPrivacyDisclosure()
 }
 
 func replaceLegacyInsightFlareDisclosure(content string) string {

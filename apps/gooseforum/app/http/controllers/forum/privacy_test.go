@@ -109,3 +109,19 @@ func TestBuildPrivacyPagePropsIncludesAppDataDisclosure(t *testing.T) {
 		t.Fatal("disabled policy received an appended disclosure")
 	}
 }
+
+func TestBuildPrivacyPagePropsRefreshesPersistedAppSupplement(t *testing.T) {
+	for _, ending := range []string{"", "\n## 联系\n保留联系方式", "\n# 后续政策\n保留联系方式"} {
+		config := pageConfig.PrivacyPolicyConfig{Enabled: true, Content: "# 自定义政策\n保留前文\n\n" + appPrivacyDisclosureMarker + "\n旧版说明\n### 子项\n旧子项" + ending}
+		html := buildPrivacyPageProps(config).ContentHTML
+		if !strings.Contains(html, "可选访问统计") || strings.Contains(html, "旧版说明") || strings.Contains(html, "旧子项") || !strings.Contains(html, "保留前文") {
+			t.Fatal("persisted supplement was not refreshed independently of custom policy")
+		}
+		if ending != "" && !strings.Contains(html, "保留联系方式") {
+			t.Fatal("custom following section was removed")
+		}
+		if strings.Count(html, "id=\"app-数据处理补充说明") != 1 {
+			t.Fatal("duplicate app supplement")
+		}
+	}
+}

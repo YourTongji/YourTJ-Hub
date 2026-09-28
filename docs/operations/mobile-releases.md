@@ -335,7 +335,8 @@ categories. The local-only Widget/SDK do not collect data off device.
 
 `Current`: the [App privacy supplement](../../apps/gooseforum/app/models/defaultconfig/pageconfig/app_privacy.md)
 is embedded in the forum binary and appended to enabled `/privacy` pages, including persisted
-custom policies. A policy containing the supplement's heading does not receive another copy.
+custom policies. Rendering replaces an existing App supplement section with the embedded current
+version, preserving surrounding custom policy sections and avoiding duplicates.
 It covers campus processing, device snapshots/Widget display, selected-message reporting,
 Android push processors and optional first-party visit analytics. Publish this server before distributing the corresponding App.
 

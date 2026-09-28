@@ -15,6 +15,30 @@ class AnalyticsSetting extends ConsumerStatefulWidget {
 class _AnalyticsSettingState extends ConsumerState<AnalyticsSetting> {
   bool _saving = false;
 
+  Future<void> _persist(bool enabled) async {
+    final l10n = AppLocalizations.of(context);
+    final saved = await ref
+        .read(analyticsConsentProvider.notifier)
+        .setEnabled(enabled);
+    _saving = false;
+    if (!mounted || saved) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(l10n.settingsVisitorAnalyticsSaveFailed),
+        action: !enabled
+            ? SnackBarAction(
+                label: l10n.commonRetry,
+                onPressed: () {
+                  if (_saving) return;
+                  _saving = true;
+                  _persist(false);
+                },
+              )
+            : null,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
@@ -50,14 +74,7 @@ class _AnalyticsSettingState extends ConsumerState<AnalyticsSetting> {
             return;
           }
         }
-        final saved = await ref
-            .read(analyticsConsentProvider.notifier)
-            .setEnabled(enabled);
-        _saving = false;
-        if (!context.mounted || saved) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(l10n.settingsVisitorAnalyticsSaveFailed)),
-        );
+        await _persist(enabled);
       },
     );
   }

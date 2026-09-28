@@ -818,7 +818,8 @@ identity survive this layout change. The header keeps a small outer margin for i
   Backgrounding cancels transport and drops pending events. Disabling immediately stops reporting,
   clears the memory-only Umami cache token and drops pending views; an already delivered event cannot
   be withdrawn by this local switch. Storage failures are visible, and enabling starts only after a
-  successful preference save. Normal browsing never waits for analytics.
+  successful preference save. Normal browsing never waits for analytics. Failed revocation keeps
+  collection off for the session and offers Retry to persist that choice before restarting.
 - `Partial`: Umami receives network IP/UA and may derive country/region/city. Its salted visitor
   calculation is approximate: installations sharing IP, OS and device family can collapse, and Web/App
   visits are not joined to an account. Aggregates represent opted-in installations, not all App users.
@@ -973,6 +974,9 @@ identity survive this layout change. The header keeps a small outer margin for i
 - `Current`: privacy settings link to content management and account closure. Closure offers
   anonymized-history and best-effort content-deletion modes, requires the current password and
   clears the native session on success. Retention and authorization rules match Web.
+
+The approved permission/privacy/failure boundaries for optional analytics are recorded in
+[STATUS-ANALYTICS-926-927](https://github.com/YourTongji/YourTJ-Hub/pull/926#issuecomment-5874262017).
 
 ## Management workspaces
 
@@ -1259,6 +1263,3 @@ acceptance; simulator compilation does not establish those results.
 已送达副本不会随源消息、显示名或源会话的后续变化而改变；贴纸展示仍遵循素材可用性。
 
 详见 [私信转发决策](../decisions/0044-nested-private-message-history.md)。
-
-The approved permission/privacy/failure boundaries for optional analytics are recorded in
-[STATUS-ANALYTICS-926-927](https://github.com/YourTongji/YourTJ-Hub/pull/926#issuecomment-5874262017).
