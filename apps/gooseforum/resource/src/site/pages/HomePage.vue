@@ -45,7 +45,7 @@ const pullStartY = ref(0)
 const pullRefreshEnabled = ref(false)
 const announcementUnread = ref(shouldRemindAnnouncement())
 const announcementCollapsed = ref(readAnnouncementCollapsed())
-const collapsedAnnouncementTitle = computed(() => announcementItems.value[0]?.title.trim() || '')
+const collapsedAnnouncementTitle = computed(() => announcementItems.value[0]?.title?.trim() || '')
 const pullThreshold = 72
 const pullMaxDistance = 108
 const refreshPollMs = 45_000
