@@ -1,7 +1,8 @@
 # YourTJ Status
 
 Standalone Vue/Vite app and Netlify Functions for `status.yourtj.de`. No forum process, database,
-login, admin password or forum runtime asset is required.
+login or forum runtime asset is required. Optional visitor-device reports use a server-only Umami
+account with read access to the configured website; basic traffic statistics remain public-share based.
 
 ## Local development
 
@@ -14,6 +15,13 @@ pnpm dev
 ```
 
 Fill `.env` with the public sources documented in the [Netlify runbook](../../docs/operations/status-netlify.md).
+Add `UMAMI_USERNAME` and `UMAMI_PASSWORD` for visitor-device reports. Use an ignored `.env.local`
+for local secrets; never use `VITE_*` names. `pnpm dev:local` serves both UI and the real snapshot API
+at `http://localhost:5247`, including automatic minute/five-minute collection. This worktree-friendly
+preview keeps snapshots in memory and never reads or writes production Blobs. Restart it after
+changing server code or environment settings; initial collection can take several seconds.
+
+For Netlify runtime/emulator verification, use `pnpm dev` instead:
 Netlify Dev serves the page and API at `http://localhost:8888`. In another terminal, invoke the
 collectors once (local schedules do not run automatically):
 
