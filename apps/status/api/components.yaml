@@ -7,6 +7,8 @@ StatusSnapshot:
     - server
     - traffic
     - uptime
+    - devices
+    - deviceRange
   properties:
     range:
       type: string
@@ -33,6 +35,71 @@ StatusSnapshot:
       $ref: '#/StatusTrafficSource'
     uptime:
       $ref: '#/StatusUptimeSource'
+    deviceRange:
+      type: string
+      enum: [24h, 7d, 30d]
+      description: Visitor device range, independent of traffic and resource ranges.
+    devices:
+      $ref: '#/StatusDevicesSource'
+  additionalProperties: false
+StatusDevicesSource:
+  type: object
+  required: [state, data]
+  properties:
+    state:
+      type: string
+      enum: [ok, stale, unavailable, unconfigured]
+    fetchedAt:
+      type: string
+      format: date-time
+    data:
+      anyOf:
+        - $ref: '#/StatusDevices'
+        - type: 'null'
+  additionalProperties: false
+StatusDevices:
+  type: object
+  required: [startAt, endAt, visitors, totalVisitors, complete, rows]
+  properties:
+    startAt:
+      type: string
+      format: date-time
+    endAt:
+      type: string
+      format: date-time
+    visitors:
+      type: integer
+      minimum: 0
+      description: Visitors represented by the joint device/OS/browser rows.
+    totalVisitors:
+      type: integer
+      minimum: 0
+      description: All unique visitors in exactly the same reporting window.
+    complete:
+      type: boolean
+      description: False when the upstream 500-row cap is reached or represented visitors differ from the total.
+    rows:
+      type: array
+      maxItems: 500
+      items:
+        $ref: '#/StatusDeviceRow'
+  additionalProperties: false
+StatusDeviceRow:
+  type: object
+  required: [device, os, browser, visitors]
+  properties:
+    device:
+      type: string
+      enum: [mobile, laptop, desktop, tablet, other, unknown]
+    os:
+      type: string
+      enum: [windows, macos, ios, android, linux, chromeos, other, unknown]
+    browser:
+      type: string
+      enum: [yourtj-app, chrome, edge, safari, firefox, webview, opera, samsung, other, unknown]
+    visitors:
+      type: integer
+      minimum: 1
   additionalProperties: false
 StatusServerSource:
   type: object

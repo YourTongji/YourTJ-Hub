@@ -1,5 +1,5 @@
-import type { Source, StatusSnapshot, StatusRange, StatusServerRange, StatusServer, StatusTraffic, StatusUptime } from '../src/types'
-import { cacheKey, configured, type Config, type Provider } from './config'
+import type { Source, StatusSnapshot, StatusRange, StatusServerRange, StatusServer, StatusTraffic, StatusUptime, StatusDevices } from '../src/types'
+import { cacheKey, configured, devicesConfigured, type Config, type Provider } from './config'
 import type { ServerHistory } from './komari'
 export const RETENTION = 900_000
 export const CURRENT_FRESHNESS = 150_000
@@ -28,27 +28,28 @@ export async function collectOne<T>(store: SnapshotStore, key: string, fetchValu
   }
   throw new Error('Snapshot changed concurrently')
 }
-export async function readSnapshot(store: SnapshotStore, config: Config, range: StatusRange, serverRange: StatusServerRange, now: number): Promise<StatusSnapshot> {
+export async function readSnapshot(store: SnapshotStore, config: Config, range: StatusRange, serverRange: StatusServerRange, now: number, deviceRange: StatusRange = '7d'): Promise<StatusSnapshot> {
   async function read<T>(provider: Provider, part: string, freshness: number): Promise<Source<T>> {
     if (!configured(config, provider)) return { state: 'unconfigured', data: null }
     return source((await store.read<T>(cacheKey(config, provider, part)))?.value, now, freshness)
   }
-  const [server, history, traffic, uptime] = await Promise.all([
+  const [server, history, traffic, uptime, devices] = await Promise.all([
     read<StatusServer>('komari', 'current', CURRENT_FRESHNESS), read<ServerHistory>('komari', `history-${serverRange}`, HISTORY_FRESHNESS),
     read<StatusTraffic>('umami', range, HISTORY_FRESHNESS), read<StatusUptime>('uptime', 'current', CURRENT_FRESHNESS),
+    devicesConfigured(config) ? read<StatusDevices>('umami', `devices-${deviceRange}`, HISTORY_FRESHNESS) : Promise.resolve<Source<StatusDevices>>({ state: 'unconfigured', data: null }),
   ])
   if (server.data) server.data = { ...server.data, history: history.data?.history ?? [], historyAvailable: history.data?.historyAvailable ?? false, ...(history.fetchedAt ? { historyFetchedAt: history.fetchedAt } : {}), historyStale: history.state === 'stale' }
-  return { range, serverRange, refreshAfter: 30, server, traffic, uptime }
+  return { range, serverRange, deviceRange, refreshAfter: 30, server, traffic, uptime, devices }
 }
 export async function serveSnapshot(request: Request, store: SnapshotStore, config: Config, now = Date.now()): Promise<Response> {
   const headers = { 'Cache-Control': 'no-store', 'Content-Type': 'application/json', 'X-Content-Type-Options': 'nosniff' }
   if (!['GET','HEAD'].includes(request.method)) return new Response(null, { status: 405, headers: { ...headers, Allow: 'GET, HEAD' } })
   const query = new URL(request.url).searchParams
-  const range = query.get('range') ?? '24h', serverRange = query.get('serverRange') ?? '1h'
-  if ([...query.keys()].some(k => !['range','serverRange'].includes(k) || query.getAll(k).length !== 1) || !['24h','7d','30d'].includes(range) || !['1h','6h','24h','7d'].includes(serverRange)) return Response.json({ error: 'Invalid range' }, { status: 400, headers })
+  const range = query.get('range') ?? '24h', serverRange = query.get('serverRange') ?? '1h', deviceRange = query.get('deviceRange') ?? '7d'
+  if ([...query.keys()].some(k => !['range','serverRange','deviceRange'].includes(k) || query.getAll(k).length !== 1) || !['24h','7d','30d'].includes(range) || !['1h','6h','24h','7d'].includes(serverRange) || !['24h','7d','30d'].includes(deviceRange)) return Response.json({ error: 'Invalid range' }, { status: 400, headers })
   try {
-    const result = await readSnapshot(store, config, range as StatusRange, serverRange as StatusServerRange, now)
-    // Cache variants include only the two permitted query keys. Responses never set cookies.
-    return new Response(request.method === 'HEAD' ? null : JSON.stringify({ code: 0, result }), { headers: { ...headers, 'Netlify-CDN-Cache-Control': 'public, durable, max-age=15', 'Netlify-Vary': 'query=range|serverRange' } })
+    const result = await readSnapshot(store, config, range as StatusRange, serverRange as StatusServerRange, now, deviceRange as StatusRange)
+    // Every independently selectable range participates in CDN cache variation.
+    return new Response(request.method === 'HEAD' ? null : JSON.stringify({ code: 0, result }), { headers: { ...headers, 'Netlify-CDN-Cache-Control': 'public, durable, max-age=15', 'Netlify-Vary': 'query=range|serverRange|deviceRange' } })
   } catch { return Response.json({ error: 'Snapshot storage unavailable' }, { status: 503, headers }) }
 }

@@ -106,7 +106,7 @@ it('switches resource history independently and hides the previous scope while l
   let resolveDay!: (value: StatusSnapshot) => void
   vi.mocked(getStatus).mockReturnValueOnce(new Promise(resolve => { resolveDay = resolve }))
   await wrapper.get('[aria-label="资源趋势时间范围"] button:nth-child(3)').trigger('click')
-  expect(getStatus).toHaveBeenLastCalledWith('24h', expect.any(AbortSignal), '24h')
+  expect(getStatus).toHaveBeenLastCalledWith('24h', expect.any(AbortSignal), '24h', '7d')
   expect(wrapper.find('.resource-history').exists()).toBe(false)
   expect(wrapper.text()).toContain('8,060')
   const daily = connected(); daily.serverRange = '24h'
@@ -115,7 +115,7 @@ it('switches resource history independently and hides the previous scope while l
   const weeklyTraffic = connected(); weeklyTraffic.range = '7d'; weeklyTraffic.serverRange = '24h'
   vi.mocked(getStatus).mockResolvedValueOnce(weeklyTraffic)
   await wrapper.get('.status-traffic .status-range button:nth-child(2)').trigger('click'); await flushPromises()
-  expect(getStatus).toHaveBeenLastCalledWith('7d', expect.any(AbortSignal), '24h')
+  expect(getStatus).toHaveBeenLastCalledWith('7d', expect.any(AbortSignal), '24h', '7d')
   expect(wrapper.get('[aria-label="资源趋势时间范围"] button:nth-child(3)').attributes('aria-pressed')).toBe('true')
 })
 
@@ -167,4 +167,49 @@ it.each([59_999, 60_000, 60_001])('bounds tolerated future probe skew at %i ms',
   vi.mocked(getStatus).mockResolvedValue(data)
   const wrapper = await open()
   expect(wrapper.get('#status-signal').text() === '服务器探针正常').toBe(skew <= 60_000)
+})
+
+it('switches device periods independently, cancels older requests, and never relabels an old graph', async () => {
+  const wrapper = await open()
+  expect(wrapper.get('.status-devices .status-range button:nth-child(2)').attributes('aria-pressed')).toBe('true')
+  let resolveOld!: (value: StatusSnapshot) => void
+  vi.mocked(getStatus).mockReturnValueOnce(new Promise(resolve => { resolveOld = resolve }))
+  await wrapper.get('.status-devices .status-range button:nth-child(3)').trigger('click')
+  expect(getStatus).toHaveBeenLastCalledWith('24h', expect.any(AbortSignal), '1h', '30d')
+  expect(wrapper.find('.device-sankey').exists()).toBe(false)
+  expect(wrapper.find('.chart-bucket').exists()).toBe(true)
+  const daily = connected(); daily.deviceRange = '24h'; daily.devices.data!.visitors = 321
+  vi.mocked(getStatus).mockResolvedValueOnce(daily)
+  await wrapper.get('.status-devices .status-range button:nth-child(1)').trigger('click'); await flushPromises()
+  const old = connected(); old.deviceRange = '30d'; old.devices.data!.visitors = 99999
+  resolveOld(old); await flushPromises()
+  expect(wrapper.get('.device-summary strong').text()).toBe('321')
+  expect(vi.mocked(getStatus).mock.calls[1]![1].aborted).toBe(true)
+})
+
+it('keeps device hover details stable across gaps and supports keyboard dismissal', async () => {
+  const wrapper = await open()
+  const nodes = wrapper.findAll('.device-node')
+  await nodes[0]!.trigger('focus')
+  expect(wrapper.get('.device-detail').classes()).toContain('active')
+  await nodes[0]!.trigger('blur')
+  await vi.advanceTimersByTimeAsync(80)
+  expect(wrapper.get('.device-detail').classes()).toContain('active')
+  await nodes[1]!.trigger('focus')
+  await vi.advanceTimersByTimeAsync(200)
+  expect(wrapper.get('.device-detail').classes()).toContain('active')
+  await nodes[1]!.trigger('keydown', { key: 'Escape' })
+  expect(wrapper.get('.device-detail').classes()).not.toContain('active')
+})
+
+it('keeps the other panels usable when the device report is unavailable or partial', async () => {
+  const data = connected(); data.devices = { state: 'unavailable', data: null }
+  vi.mocked(getStatus).mockResolvedValue(data)
+  const wrapper = await open()
+  expect(wrapper.get('.status-devices').text()).toContain('设备分布暂不可用')
+  expect(wrapper.get('.status-traffic').text()).toContain('8,060')
+  const partial = connected(); partial.devices.data!.complete = false; partial.devices.data!.totalVisitors = 1200
+  vi.mocked(getStatus).mockResolvedValueOnce(partial)
+  await wrapper.get('.status-refresh').trigger('click'); await flushPromises()
+  expect(wrapper.get('.status-devices').text()).toContain('1,000 / 1,200')
 })

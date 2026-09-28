@@ -9,11 +9,13 @@ import PageHeader from '@/components/PageHeader.vue'
 import StatusTrafficChart from '@/components/StatusTrafficChart.vue'
 import StatusResourceChart from '@/components/StatusResourceChart.vue'
 import StatusUptime from '@/components/StatusUptime.vue'
+import StatusDeviceChart from '@/components/StatusDeviceChart.vue'
 import { uptimeMonitorState } from '@/runtime/uptime-status'
 
 const { t, locale } = useI18n()
 const range = ref<StatusRange>('24h')
 const serverRange = ref<StatusServerRange>('1h')
+const deviceRange = ref<StatusRange>('7d')
 const snapshot = ref<StatusSnapshot | null>(null)
 const loading = ref(false)
 const failed = ref(false)
@@ -30,6 +32,7 @@ const server = computed(() => snapshot.value?.server.data)
 const historyServer = computed(() => snapshot.value?.serverRange === serverRange.value ? server.value : null)
 const current = computed(() => server.value?.current)
 const traffic = computed(() => snapshot.value?.range === range.value ? snapshot.value.traffic.data : null)
+const devices = computed(() => snapshot.value?.deviceRange === deviceRange.value ? snapshot.value.devices.data : null)
 const serverFresh = computed(() => sourceState('server') === 'sourceOk')
 const signal = computed(() => {
   if (!snapshot.value && loading.value) return 'checking'
@@ -88,13 +91,13 @@ function duration(value: number | null | undefined, long = false) {
   return `${t('status.minutes', { count: Math.floor(value / 60) })} ${t('status.seconds', { count: Math.floor(value % 60) })}`
 }
 function usage(used: number | undefined, total: number | undefined) { return used != null && total ? Math.min(100, used / total * 100) : undefined }
-function sourceState(source: 'server' | 'traffic' | 'uptime') {
-  const state = snapshot.value?.[source].state
+function sourceState(source: 'server' | 'traffic' | 'uptime' | 'devices') {
+  const state = snapshot.value?.[source]?.state
   if (!state) return loading.value ? 'checking' : 'sourceUnavailable'
-  if (state === 'ok' && (failed.value || !isRecentStatusTime(snapshot.value?.[source].fetchedAt, now.value, source === 'traffic' ? 600_000 : 150_000))) return 'sourceStale'
+  if (state === 'ok' && (failed.value || !isRecentStatusTime(snapshot.value?.[source]?.fetchedAt, now.value, source === 'traffic' || source === 'devices' ? 600_000 : 150_000))) return 'sourceStale'
   return { ok: 'sourceOk', stale: 'sourceStale', unavailable: 'sourceUnavailable', unconfigured: 'sourceUnconfigured' }[state]
 }
-function sourceNote(source: 'server' | 'traffic') {
+function sourceNote(source: 'server' | 'traffic' | 'devices') {
   const notes: Record<string, string> = { sourceStale: 'staleNote', sourceUnavailable: 'unavailableNote', sourceUnconfigured: 'unconfiguredNote' }
   return notes[sourceState(source)]
 }
@@ -110,7 +113,7 @@ async function refresh() {
   const timeout = setTimeout(() => requestController.abort(), 12_000)
   loading.value = true
   try {
-    const result = await getStatus(range.value, requestController.signal, serverRange.value)
+    const result = await getStatus(range.value, requestController.signal, serverRange.value, deviceRange.value)
     if (request !== sequence) return
     snapshot.value = result
     failed.value = false
@@ -149,7 +152,7 @@ function stop() {
   clearInterval(clock)
   document.removeEventListener('visibilitychange', visibilityChanged)
 }
-watch([range, serverRange], () => { void refresh() })
+watch([range, serverRange, deviceRange], () => { void refresh() })
 onMounted(start)
 onActivated(start)
 onDeactivated(stop)
@@ -222,6 +225,19 @@ function sourceStatusClass(source: 'server' | 'traffic' | 'uptime') {
       <div class="status-panel-source status-source"><span>{{ t('status.dataSource') }} <b>Umami</b><span class="source-badge" :class="{ connected: sourceState('traffic') === 'sourceOk' }">{{ t(`status.${sourceState('traffic')}`) }}</span></span><time>{{ t('status.updated', { time: dateTime(snapshot?.traffic.fetchedAt) }) }}</time></div>
     </section>
 
+    <section id="visitor-devices" class="status-panel status-devices" aria-labelledby="devices-title" :aria-busy="loading">
+      <div class="status-panel-heading"><div><h2 id="devices-title">{{ t('devices.title') }}</h2><p>{{ t('devices.description') }}</p></div><div class="status-range" role="group" :aria-label="t('devices.rangeLabel')"><button v-for="option in rangeOptions" :key="option.value" type="button" :aria-pressed="deviceRange === option.value" @click="deviceRange = option.value">{{ option.label }}</button></div></div>
+      <p v-if="sourceNote('devices')" class="status-notice">{{ t(sourceState('devices') === 'sourceUnconfigured' ? 'devices.unconfigured' : `status.${sourceNote('devices')}`) }}</p>
+      <p v-if="devices && !devices.complete" class="status-notice">{{ t('devices.partial', { count: number(devices.visitors), total: number(devices.totalVisitors) }) }}</p>
+      <template v-if="devices?.visitors">
+        <div class="device-summary"><span><strong>{{ number(devices.visitors) }}</strong> {{ t('status.visitors') }}</span><span>{{ t('devices.summary') }}</span></div>
+        <StatusDeviceChart :data="devices" />
+      </template>
+      <div v-else class="status-chart-empty device-empty"><Users :size="26" :stroke-width="1.3" /><span>{{ t(loading && !devices ? 'status.checking' : devices?.complete ? 'status.emptyChart' : 'devices.unavailable') }}</span></div>
+      <p class="device-note">{{ t('devices.note') }}</p>
+      <div class="status-panel-source status-source"><span>{{ t('status.dataSource') }} <b>Umami</b><span class="source-badge" :class="{ connected: sourceState('devices') === 'sourceOk' }">{{ t(`status.${sourceState('devices')}`) }}</span></span><time>{{ t('status.updated', { time: dateTime(snapshot?.devices?.fetchedAt) }) }}</time></div>
+    </section>
+
     <section class="status-panel status-infra" aria-labelledby="infra-title">
       <div class="status-panel-heading"><div><h2 id="infra-title">{{ t('status.serverTitle') }}</h2><p>{{ t('status.serverDescription') }}</p></div><span class="status-node-tag"><span>{{ server?.region }}</span>{{ server?.name || t('status.node') }}</span></div>
       <p v-if="sourceNote('server')" class="status-notice">{{ t(`status.${sourceNote('server')}`) }}</p>
@@ -246,6 +262,12 @@ function sourceStatusClass(source: 'server' | 'traffic' | 'uptime') {
 </template>
 
 <style scoped>
+.status-devices { scroll-margin-top: 108px; }
+.device-summary { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 16px; margin-bottom: 24px; color: var(--gf-color-icon-muted); font-size: 12px; }
+.device-summary > span:first-child { display: flex; align-items: baseline; gap: 9px; }
+.device-summary strong { color: var(--gf-color-base-content); font-size: 26px; font-weight: 700; letter-spacing: -.04em; }
+.device-note { margin-top: 14px; color: var(--gf-color-icon-muted); font-size: 11px; line-height: 1.6; }
+.device-empty { min-height: 280px; }
 .status-page {
   --status-primary: var(--gf-color-primary);
   --status-accent: var(--gf-color-accent);

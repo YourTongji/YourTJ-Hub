@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-09-20
+> Last verified: 2026-09-28
 
 ## 应用边界
 
@@ -49,8 +49,8 @@ Uptime Kuma 在独立于论坛的主机部署。产品口径见[运行状态](..
 ## 2. 配置 Functions 环境变量
 
 打开 Project configuration → Environment variables。下面是 YourTJ 的公开来源配置；
-环境变量作用域选择 **Functions**，上下文选择 **Production**。无需 Umami 管理员账号、
-管理员密码或额外 Blobs token；Blobs 使用 Netlify 函数运行时身份。
+环境变量作用域选择 **Functions**，上下文选择 **Production**。基础统计无需 Umami
+账号或额外 Blobs token；Blobs 使用 Netlify 函数运行时身份。
 
 | 变量 | YourTJ 配置 |
 |---|---|
@@ -61,6 +61,14 @@ Uptime Kuma 在独立于论坛的主机部署。产品口径见[运行状态](..
 | `KOMARI_NODE_ID` | `e643a364-0372-43b2-a341-b05d858866ad` |
 | `UPTIME_URL` | `https://uptime.mortis.de5.net` |
 | `UPTIME_SLUG` | `a` |
+
+**Current**：访客设备分布另需 `UMAMI_USERNAME`、`UMAMI_PASSWORD` 两项服务端秘密变量。
+使用有该网站读取权限的专用 Umami 账号；不需要管理员角色。采集器通过登录取得
+短期 token，只查询共享 ID 指向的网站的 Breakdown（device/os/browser）和访客总数。
+当前适配 `POST /api/reports/breakdown` 报表协议；升级 Umami 时应验证该接口兼容性。
+需要交互式二次验证的账号不能用于无人值守采集，采集器不会绕过该验证。
+没有这两项变量时面板显示尚未连接，其他统计仍使用公开共享页。
+不要扩大共享链接的报表权限；账号密码、登录 token 和原始报表不写入 Blobs 或日志。
 
 来源 URL 只能是 HTTPS origin，不带路径、查询串或用户凭据。设置环境变量后重新部署使
 函数获得新配置。通用 `.env.example` 默认关闭且来源为空；不要把这些变量改成 `VITE_*`。
@@ -74,14 +82,15 @@ Uptime Kuma 在独立于论坛的主机部署。产品口径见[运行状态](..
 发布完成后，在 Functions 页面确认三项函数：
 
 - `collect-current`：每分钟采集 Uptime 可用性与 Komari 当前资源。
-- `collect-history`：每五分钟采集四个资源范围和三个访问统计范围。
+- `collect-history`：每五分钟采集四个资源范围、三个访问统计范围和三个设备分布范围。
 - `status`：`GET /api/status`，只读取快照，不触发上游采集。
 
 对两个采集函数分别点击 **Run now**，然后打开已分配的 Netlify 站点域名查看页面。
 首次采集之前显示「暂时不可用」；history 采集之前可以显示当前资源但缺少曲线。
 定时函数仅对 published deploy 自动运行；Deploy Preview 和本地环境要手动触发。
 
-每个来源请求总预算八秒，来源独立失败。Blobs 成功快照跨正式发布保留，强一致读取与
+基础来源请求总预算八秒；设备分布的登录、联合报表和人数核对共用十五秒预算，三个
+范围共用一次登录并并行读取。来源独立失败。Blobs 成功快照跨正式发布保留，强一致读取与
 条件写避免旧采集覆盖新数据；来源配置变更会切换快照键，旧来源不会继续展示。
 存储按部署上下文选择：`production` 统一读写 `status-v1`，预览和分支部署使用
 `status-preview-v1-<deploy ID>`。不以单次调用的 `published` 标记选择存储，因为定时
@@ -114,6 +123,9 @@ Uptime Kuma 在独立于论坛的主机部署。产品口径见[运行状态](..
 - 当前资源／可用性获取时间超过 150 秒、统计／历史超过十分钟即过期；全部来源最长
   展示十五分钟前的成功数据，超过后显示不可用。最新检测与主机采样时间也独立判断。
 - 切换 `1h/6h/24h/7d` 与 `24h/7d/30d`，确认曲线所属范围和时间正确。
+- 设备分布默认 `7d`，切换范围不改变访问趋势或服务器范围；人数应与相同时间窗口的
+  联合报表对齐。报表超过 500 行或人数不全时显示覆盖提示。停用／更换账号会隔离旧
+  设备快照，报表鉴权失败仅使设备面板过期或不可用，不影响基础访问统计。
 - 正式部署后从目标用户网络检查域名、API 延迟、移动布局与明暗主题。
 
 Functions 日志只用于诊断执行失败，不应记录上游原始响应、共享 token 或访客数据。

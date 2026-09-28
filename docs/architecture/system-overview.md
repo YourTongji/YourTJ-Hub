@@ -171,6 +171,8 @@ Wiki 内容由公开 GitHub 仓库 `YourTongji/YourTJ-Wiki` 维护（PR 协作�
 `apps/status` is a separate Vue/Vite application on Netlify. The forum only links to
 `https://status.yourtj.de`; the status site does not call the forum API or load its runtime assets.
 Scheduled Functions read public Umami, one Komari node and the independent Uptime Kuma status page.
+An optional server-only Umami account reads joint device/OS/client aggregates; only allowlisted
+categories and counts reach the public Sankey chart. Explicit native App markers remain distinct from WebViews.
 Allowlisted snapshots persist in Netlify Blobs; `/api/status` only reads them, with short CDN caching.
 Production-context deployments share `status-v1` across releases, regardless of an invocation's
 `published` flag. Deploy-preview and branch-deploy contexts use stores isolated by deployment ID;
