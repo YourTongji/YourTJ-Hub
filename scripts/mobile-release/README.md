@@ -19,7 +19,7 @@ Run release-script regressions without signing credentials or external mutations
 
 ```bash
 python3 -m unittest discover -s scripts/mobile-release -p 'test_*.py'
-actionlint .github/workflows/release-mobile.yml .github/workflows/release-to-main.yml .github/workflows/deploy-main.yml .github/workflows/ci-mobile.yml
+actionlint .github/workflows/release-mobile.yml .github/workflows/release-to-main.yml .github/workflows/deploy-main.yml .github/workflows/ci-mobile.yml .github/workflows/ci-mobile-native.yml
 ```
 
 Run these tests with the release source repository root as the working directory. iOS also runs

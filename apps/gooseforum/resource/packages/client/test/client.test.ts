@@ -73,8 +73,9 @@ describe('page client', () => {
   })
 
   it('keeps the public page component list unique', () => {
-    expect(pageComponents).toHaveLength(27)
+    expect(pageComponents.length).toBeGreaterThan(0)
     expect(new Set(pageComponents).size).toBe(pageComponents.length)
+    expect(pageComponents).not.toContain('admin.shell')
   })
 
   it('matches the public page components declared by the Go server', () => {

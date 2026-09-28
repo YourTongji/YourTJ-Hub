@@ -29,9 +29,11 @@ Legacy URLs retain a fallback layout. The derivative storage and cleanup contrac
 
 ## Measurement boundaries
 
-`Current`: mobile CI retains an Android arm64 release size report with commit, Flutter version,
-build mode and APK size. Its build-only signing key and OEM configuration are not distribution
-credentials. Compare reports with matching toolchain, ABI and build configuration.
+`Current`: the native mobile CI workflow retains an Android arm64 release size report with commit,
+Flutter version, build mode and APK size. Its build-only signing key and OEM configuration are not distribution
+credentials. It runs for native/dependency changes or manual dispatch, not every Dart change;
+see the [CI mapping](testing.md#ci-mapping). Compare reports with matching toolchain, ABI and build
+configuration.
 
 `Partial`: reproducible physical-device cold/warm startup distributions, frame-time percentiles,
 and production-equivalent size budgets have not been established. Simulator debug timings and

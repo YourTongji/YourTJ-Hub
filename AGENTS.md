@@ -151,10 +151,10 @@ docs/        Docs center (product/architecture/development/operations)
 
 - Backend: `cd apps/gooseforum && go vet ./... && go test ./...` (use `GOPROXY=https://goproxy.cn,direct`
   if module fetch times out). **Any model/migration change must also pass the PostgreSQL migration
-  tests**: `YOURTJ_TEST_PG_URL="host=127.0.0.1 port=5432 user=postgres password=postgres dbname=postgres sslmode=disable" go test ./app/migration/ -run 'TestSchema' -v`
-  (both `TestSchemaMigratesOnPostgreSQL` and `TestSchemaUpgradeCreatesNewTablesOnPostgreSQL` in
-  `app/migration/migration_pg_test.go`; spin up `postgres:16-alpine` locally — CI runs the same
-  command in `ci-backend-pg`). MySQL-only type tags (`bigint unsigned` / `datetime` / `tinyint`)
+  tests**: `YOURTJ_TEST_PG_URL="host=127.0.0.1 port=5432 user=postgres password=postgres dbname=postgres sslmode=disable" go test ./app/migration/ -run 'PostgreSQL|Postgres' -v`
+  (including `TestSchemaMigratesOnPostgreSQL` and `TestSchemaUpgradeCreatesNewTablesOnPostgreSQL` in
+  `app/migration/migration_pg_test.go`; spin up `postgres:16-alpine` locally — CI additionally runs
+  all app PG tests in `ci-backend-pg`). MySQL-only type tags (`bigint unsigned` / `datetime` / `tinyint`)
   break PG and are forbidden in models (MySQL itself is not supported).
 - Web: `cd apps/gooseforum/resource && pnpm typecheck && pnpm test && pnpm check && pnpm build`
   (`pnpm check` is the i18n gate; output into resource/static/dist)

@@ -86,7 +86,7 @@ Select evidence by changed surface:
 | Surface | Evidence |
 |---|---|
 | Backend (bundles/models/service/controllers) | `cd apps/gooseforum && go vet ./... && go test ./...` — focus on affected packages with `-run` when practical |
-| Model/migration change (mandatory PG gate) | run the PostgreSQL migration tests (docker `postgres:16-alpine` + `YOURTJ_TEST_PG_URL=... go test ./app/migration/ -run TestSchemaMigratesOnPostgreSQL -v`; command in testing.md) |
+| Model/migration change (mandatory PG gate) | run the PostgreSQL migration tests (docker `postgres:16-alpine` + `YOURTJ_TEST_PG_URL=... go test ./app/migration/ -run 'PostgreSQL|Postgres' -v`; command in testing.md) |
 | Frontend (`resource/**`) | `cd apps/gooseforum/resource && pnpm typecheck` + affected component tests |
 | Contract (`packages/api-contract/**`) | `make contract-check` (regenerates and requires committed TS output) |
 | Docs | `git diff --check` + verify links and status words |

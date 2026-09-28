@@ -219,7 +219,10 @@ See [the release decision](../decisions/0014-mobile-release-distribution.md) and
 
 `Partial`: native authorization/registration, provider routing and release validation are implemented.
 APNs/JPush credentials, vendor console configuration and signed-device delivery must be verified for
-the deployed environment. CI compiles the iOS bridge and all seven Android push adapters with build-only identifiers. These APKs are never distributed. A passing SDK build is not a delivery test. The provider decision is
+the deployed environment. [Native CI](../development/testing.md#ci-mapping) compiles the changed
+platform on native/dependency changes, or both platforms on manual dispatch, using build-only
+identifiers for the iOS bridge and all seven Android push adapters. These APKs are never distributed.
+A passing SDK build is not a delivery test. The provider decision is
 [0019](../decisions/0019-native-push-providers.md).
 
 iOS uses APNs directly; no Firebase project or Firebase Dart defines are required. Enable **Push

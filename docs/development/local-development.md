@@ -134,7 +134,7 @@ url = "host=127.0.0.1 user=yourtj password=yourtj dbname=yourtj port=5432 sslmod
 The binary AutoMigrates all main-db models and runs the versioned data migrations on first boot.
 `TEST_PG_DSN` can be set to run the gated PostgreSQL integration tests
 (`go test ./app/bundles/connect/sqlconnect/...`); `YOURTJ_TEST_PG_URL` gates the migration schema
-tests (`go test ./app/migration/ -run 'TestSchema' -v`, see [testing.md](testing.md)).
+tests (`go test ./app/migration/ -run 'PostgreSQL|Postgres' -v`, see [testing.md](testing.md)).
 
 > config.toml contains signingKey — sensitive; it is gitignored, never commit it.
 
