@@ -47,6 +47,7 @@ _$NotificationActorPayloadImpl _$$NotificationActorPayloadImplFromJson(
 ) => _$NotificationActorPayloadImpl(
   id: (json['id'] as num).toInt(),
   username: json['username'] as String,
+  nickname: json['nickname'] as String?,
   avatarUrl: json['avatarUrl'] as String?,
 );
 
@@ -55,6 +56,7 @@ Map<String, dynamic> _$$NotificationActorPayloadImplToJson(
 ) => <String, dynamic>{
   'id': instance.id,
   'username': instance.username,
+  'nickname': instance.nickname,
   'avatarUrl': instance.avatarUrl,
 };
 

@@ -1,6 +1,7 @@
 package chatservice
 
 import (
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/chat/messages"
 	"strings"
 	"testing"
 
@@ -41,5 +42,24 @@ func TestMessageReportMembershipSnapshotAndRetry(t *testing.T) {
 	}
 	if len(reports.CursorPage(reports.CursorPageQuery{TargetType: reports.TargetChatMessage, ExcludePrivateMessages: true})) != 0 {
 		t.Fatal("private evidence leaked into moderator query")
+	}
+}
+
+func TestForwardReportUsesReadableSnapshotAndForwarder(t *testing.T) {
+	setupMarkReadTestDB(t)
+	conn := db.Connect()
+	if err := conn.AutoMigrate(&reports.Entity{}); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { conn.Where("target_type = ?", reports.TargetChatMessage).Delete(&reports.Entity{}) })
+	raw, _ := (&messages.ForwardedBundle{Version: 1, Messages: []messages.ForwardedEntry{{SenderName: "Original", Content: "Selected body", MsgType: 1}}}).Encode()
+	conn.Model(&messages.Entity{}).Where("id = ?", markReadTestMsgID).Updates(map[string]any{"content": raw, "msg_type": messages.ForwardType})
+	if err := ReportMessage(markReadTestMember, markReadTestMsgID, "abuse", ""); err != nil {
+		t.Fatal(err)
+	}
+	var got reports.Entity
+	conn.Where("target_type = ? AND target_id = ?", reports.TargetChatMessage, markReadTestMsgID).First(&got)
+	if got.EvidenceSnapshot.Excerpt != "[Chat history]\nOriginal: Selected body" || got.EvidenceSnapshot.AuthorID != markReadTestSender {
+		t.Fatalf("wrong forward evidence: %+v", got.EvidenceSnapshot)
 	}
 }

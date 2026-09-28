@@ -4,11 +4,13 @@ import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { ArrowLeft, MessageSquare, MessageSquarePlus, MoreVertical, Search, Send, Smile, X } from '@lucide/vue'
 import { getChatMessages, markChatRead, sendChatMessage, sensitiveWordsFromError, type ChatMessagePayload } from '@/runtime/api'
 import { containsSensitiveText } from '@/site/utils/sensitive-highlight'
-import { formatChatTime } from '@/runtime/format'
+import { formatChatClock, formatChatDayLabel, formatChatTime } from '@/runtime/format'
+import { buildChatTimeline } from '@/runtime/chat-timeline'
 import { parseStickerSegments, stickerPreviewLabel } from '@/site/utils/sticker-token'
 import { useResolvedStickers } from '@/site/composables/useResolvedStickers'
 import { useUnreadStatus } from '@/runtime/unread-status'
 import UserAvatar from '@/site/components/UserAvatar.vue'
+import ForwardedMessageCard from '@/site/components/ForwardedMessageCard.vue'
 import type { ChatItemPayload, LayoutPayload, MessagesPageProps, UserConnectionPayload } from '@gooseforum/client'
 import { useI18n } from 'vue-i18n'
 
@@ -53,8 +55,27 @@ watch(
 function messageSegments(content: string) {
   return parseStickerSegments(content, stickerUrlMap.value)
 }
+
+// Localize the stable legacy fallback marker without changing the stored copy.
+function conversationPreview(content: string) {
+  const preview = stickerPreviewLabel(content).replace(/\s+/g, ' ').trim()
+  return preview.startsWith('[Chat history]')
+    ? preview.replaceAll('[Chat history]', `[${t('messages.forwardHistory')}]`)
+    : preview
+}
 const messagePageLimit = 30
 const emojis = ['😀', '😂', '😍', '😊', '😭', '👍', '🙏', '🔥', '✨', '🎉', '🤔', '👀', '❤️', '🙌', '👏', '✅']
+
+/**
+ * 当前会话的时间分块：按本地日历日插入分隔，并按 5 分钟间隔决定气泡时刻。
+ * 分隔标签在这里只计算一次，避免午夜边界上两次绑定给出不一致的日期。
+ */
+const messageTimeline = computed(() =>
+  buildChatTimeline(active.value?.messages ?? []).map((item) => ({
+    ...item,
+    dayLabel: item.day && item.showDaySeparator ? formatChatDayLabel(item.day) : '',
+  })),
+)
 
 const filteredConversations = computed(() => {
   const keyword = search.value.trim().toLowerCase()
@@ -239,7 +260,8 @@ async function startChat(user: Pick<UserConnectionPayload, 'id' | 'username' | '
   const conversation: ChatConversation = {
     id: 0,
     peerId: user.id,
-    peerUsername: user.nickname || user.username,
+    peerUsername: user.username,
+    peerNickname: user.nickname || undefined,
     peerAvatar: user.avatarUrl,
     lastMsg: '',
     lastMsgTime: '',
@@ -302,12 +324,12 @@ async function startChat(user: Pick<UserConnectionPayload, 'id' | 'username' | '
               </span>
               <div class="min-w-0 flex-1">
                 <div class="flex items-baseline justify-between gap-2">
-                  <span class="truncate text-sm font-semibold text-base-content">{{ userDisplayName(conversation.peerId, '', conversation.peerUsername) }}</span>
+                  <span class="truncate text-sm font-semibold text-base-content">{{ userDisplayName(conversation.peerId, conversation.peerUsername, conversation.peerNickname) }}</span>
                   <time class="shrink-0 text-[11px] text-base-content/55">{{ conversation.lastMsgTime ? formatChatTime(conversation.lastMsgTime) : '' }}</time>
                 </div>
                 <div class="mt-1 flex items-center gap-2">
                   <p class="min-w-0 flex-1 truncate text-sm" :class="conversation.unreadCount ? 'font-semibold text-base-content' : 'text-base-content/55'">
-                    {{ stickerPreviewLabel(conversation.lastMsg) || t('messages.noMessagesYet') }}
+                    {{ conversationPreview(conversation.lastMsg) || t('messages.noMessagesYet') }}
                   </p>
                 </div>
               </div>
@@ -333,7 +355,7 @@ async function startChat(user: Pick<UserConnectionPayload, 'id' | 'username' | '
                 </button>
                 <UserAvatar :src="active.peerAvatar" :alt="active.peerUsername" class="h-9 w-9 rounded-full object-cover ring-1 ring-line" />
                 <div class="min-w-0">
-                  <a :href="active.peerUrl" class="truncate text-sm font-bold text-base-content hover:text-primary">{{ userDisplayName(active.peerId, '', active.peerUsername) }}</a>
+                  <a :href="active.peerUrl" class="truncate text-sm font-bold text-base-content hover:text-primary">{{ userDisplayName(active.peerId, active.peerUsername, active.peerNickname) }}</a>
                   <p class="text-xs text-base-content/55">{{ t('messages.conversation') }}</p>
                 </div>
               </div>
@@ -342,49 +364,49 @@ async function startChat(user: Pick<UserConnectionPayload, 'id' | 'username' | '
               </button>
             </header>
 
-            <div ref="messagesEl" class="min-h-0 flex-1 space-y-3 overflow-y-auto px-3 py-3 md:space-y-4 md:px-4 md:py-4" @scroll.passive="handleMessagesScroll">
-              <div class="flex justify-center">
-                <span class="bg-base-200 px-2 py-1 text-xs font-medium text-base-content/55 [border-radius:var(--gf-radius-selector)]">{{ t('messages.today') }}</span>
-              </div>
-
+            <div ref="messagesEl" data-test="chat-message-list" class="min-h-0 flex-1 space-y-3 overflow-y-auto px-3 py-3 md:space-y-4 md:px-4 md:py-4" @scroll.passive="handleMessagesScroll">
               <div v-if="active.loading" class="py-12 text-center text-sm text-base-content/55">{{ t('messages.loading') }}</div>
               <template v-else-if="active.messages.length">
                 <div v-if="active.loadingOlder" class="py-1 text-center text-xs text-base-content/45">{{ t('messages.loading') }}</div>
-                <div
-                  v-for="message in active.messages"
-                  :key="message.id"
-                  class="flex max-w-[88%] items-start gap-2 md:max-w-[82%]"
-                  :class="message.isSelf ? 'ml-auto flex-row-reverse' : ''"
-                >
-                  <UserAvatar
-                    :src="message.isSelf ? page.layout.viewer.avatarUrl : active.peerAvatar"
-                    :alt="message.isSelf ? page.layout.viewer.username : active.peerUsername"
-                    class="h-8 w-8 rounded-full object-cover ring-1 ring-line"
-                  />
-                  <div class="group relative min-w-0">
-                    <div
-                      class="whitespace-pre-wrap break-words px-3 py-2 text-sm leading-relaxed shadow-sm [border-radius:var(--gf-radius-box)] md:px-4"
-                      :class="message.isSelf ? 'bg-primary text-primary-content' : 'bg-base-300 text-base-content'"
-                    >
-                      <template v-for="(segment, index) in messageSegments(message.content)" :key="index">
-                        <img
-                          v-if="segment.type === 'sticker'"
-                          :src="segment.url"
-                          :alt="`[:sticker:${segment.name}:]`"
-                          class="inline-block h-14 w-14 max-w-full align-middle object-contain"
-                          loading="lazy"
-                        />
-                        <template v-else>{{ segment.text }}</template>
-                      </template>
+                <template v-for="item in messageTimeline" :key="item.message.id">
+                  <h2 v-if="item.dayLabel" class="flex justify-center">
+                    <span class="bg-base-200 px-2 py-1 text-xs font-medium text-base-content/55 [border-radius:var(--gf-radius-selector)]">{{ item.dayLabel }}</span>
+                  </h2>
+                  <div
+                    class="flex max-w-[88%] items-start gap-2 md:max-w-[82%]"
+                    :class="item.message.isSelf ? 'ml-auto flex-row-reverse' : ''"
+                  >
+                    <UserAvatar
+                      :src="item.message.isSelf ? page.layout.viewer.avatarUrl : active.peerAvatar"
+                      :alt="item.message.isSelf ? page.layout.viewer.username : active.peerUsername"
+                      class="h-8 w-8 rounded-full object-cover ring-1 ring-line"
+                    />
+                    <div class="group relative min-w-0">
+                      <div
+                        class="whitespace-pre-wrap break-words px-3 py-2 text-sm leading-relaxed shadow-sm [border-radius:var(--gf-radius-box)] md:px-4"
+                        :class="item.message.isSelf ? 'bg-message-outgoing text-message-outgoing-content' : 'bg-base-300 text-base-content'"
+                      >
+                        <ForwardedMessageCard v-if="item.message.forwarded" :bundle="item.message.forwarded" :sticker-urls="stickerUrlMap" />
+                        <template v-else><template v-for="(segment, index) in messageSegments(item.message.content)" :key="index">
+                          <img
+                            v-if="segment.type === 'sticker'"
+                            :src="segment.url"
+                            :alt="`[:sticker:${segment.name}:]`"
+                            class="inline-block h-14 w-14 max-w-full align-middle object-contain"
+                            loading="lazy"
+                          />
+                          <template v-else>{{ segment.text }}</template>
+                        </template></template>
+                      </div>
+                      <time v-if="item.showTimestamp" class="mt-1 block text-[11px] text-base-content/55" :class="item.message.isSelf ? 'text-right' : ''">{{ formatChatClock(item.message.createdAt) }}</time>
                     </div>
-                    <time class="mt-1 block text-[11px] text-base-content/55" :class="message.isSelf ? 'text-right' : ''">{{ formatChatTime(message.createdAt) }}</time>
                   </div>
-                </div>
+                </template>
               </template>
               <div v-else class="flex h-full flex-col items-center justify-center text-center">
                 <MessageSquare class="h-10 w-10 text-base-content/35" />
                 <h2 class="mt-3 text-base font-semibold text-base-content">{{ t('messages.startChat') }}</h2>
-                <p class="mt-1 text-sm text-base-content/55">{{ t('messages.firstMessageTo', { user: userDisplayName(active.peerId, '', active.peerUsername) }) }}</p>
+                <p class="mt-1 text-sm text-base-content/55">{{ t('messages.firstMessageTo', { user: userDisplayName(active.peerId, active.peerUsername, active.peerNickname) }) }}</p>
               </div>
             </div>
 

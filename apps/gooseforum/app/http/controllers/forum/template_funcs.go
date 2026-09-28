@@ -31,6 +31,22 @@ var templateFuncMap = template.FuncMap{
 	// {{ serverMessage .Lang .Payload.Props.MessageCode .Payload.Props.Params (t .Lang "common.loadFailed") }}.
 	// The last argument is a translated fallback.
 	"serverMessage": serverMessage,
+	// topicListLabel returns the crawler list link label for a topic. Usage:
+	// {{ topicListLabel .Title .Description }}.
+	"topicListLabel": topicListLabel,
+}
+
+// topicListLabel 返回爬虫话题列表的链接文案：无标题瞬间回退到正文摘要，
+// 摘要也为空时使用与 Web TopicRow（runtime/topic-description.ts）同族的颜文字，
+// 避免 SSR 列表出现空链接文案。
+func topicListLabel(title, description string) string {
+	if title != "" {
+		return title
+	}
+	if description != "" {
+		return description
+	}
+	return "(｀・ω・´)"
 }
 
 // serverMessage adapts i18n.ServerMessage for templates: payload fields are

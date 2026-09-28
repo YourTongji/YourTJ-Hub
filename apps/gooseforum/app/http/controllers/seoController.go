@@ -196,8 +196,17 @@ func buildRSSXML(host string) (string, error) {
 		firstPost := firstPostMap[item.FirstPostId]
 		itemURL := host + urlconfig.PostDetail(item.Id)
 
+		// 无标题瞬间：依次回退到摘要、话题链接，避免 RSS 出现空 <title>。
+		itemTitle := strings.TrimSpace(item.Title)
+		if itemTitle == "" {
+			itemTitle = strings.TrimSpace(item.Excerpt)
+		}
+		if itemTitle == "" {
+			itemTitle = itemURL
+		}
+
 		feed.Items = append(feed.Items, &feeds.Item{
-			Title:       item.Title,
+			Title:       itemTitle,
 			Link:        &feeds.Link{Href: itemURL},
 			Description: item.Excerpt,
 			Content:     postservice.EnsureRenderedHTML(firstPost),

@@ -52,7 +52,13 @@ import { useQuickPublish } from '@/site/composables/useQuickPublish'
 
 const props = withDefaults(defineProps<{
   topicId: number
+  /** 展示/分享用标题：无标题瞬间由页面传入正文摘要回退。 */
   topicTitle: string
+  /**
+   * 首楼编辑预填的原始标题（可为空串）。与 topicTitle 分开：topicTitle 允许带
+   * 摘要回退，预填绝不能把回退文案写回话题（issue #895）。
+   */
+  topicEditTitle?: string
   contentType?: 0 | 1 | 2 | 3
   topicImages?: string[]
   categories?: Array<{ id: number; name?: string }>
@@ -799,6 +805,12 @@ const isShortFormTopic = computed(() => props.contentType === 1 || props.content
 // 首楼是否具备短文置顶图窗（用于移动端图窗置顶与信息层级调优）
 const hasShortFormImages = computed(() => isShortFormTopic.value && Boolean(props.topicImages && props.topicImages.length > 0))
 
+// 删除确认中的话题摘要行：无标题瞬间的标题位本身已回退为摘要，这里去重，避免同一段文案出现两次。
+const deleteDialogDescription = computed(() => {
+  const description = props.topicActions?.description?.trim() ?? ''
+  return description && description !== props.topicTitle ? description : ''
+})
+
 // 正文渲染净化：仅当短文类型首楼图片在置顶轮播视窗呈现时，才剥离正文中重复的 <img> 标记；长文 100% 保持图文穿插
 function renderedPostContent(post: PostPayload) {
   let html = post.renderedContent
@@ -1449,7 +1461,7 @@ function startEditPost(post: PostPayload) {
       openQuickPublishEdit({
         topicId: props.topicId,
         contentType: props.contentType,
-        title: props.topicTitle,
+        title: props.topicEditTitle ?? props.topicTitle,
         content: post.content,
         categoryIds: props.categories?.map((c) => c.id) || [],
         images: props.topicImages,
@@ -2979,10 +2991,10 @@ defineExpose({ openFloatingPostComposer, focusPostComposer })
                 {{ topicTitle }}
               </div>
               <p
-                v-if="topicActions?.description"
+                v-if="deleteDialogDescription"
                 class="mt-1.5 line-clamp-2 whitespace-pre-wrap break-words text-xs leading-5 text-base-content/55 [overflow-wrap:anywhere]"
               >
-                {{ topicActions.description }}
+                {{ deleteDialogDescription }}
               </p>
             </div>
 

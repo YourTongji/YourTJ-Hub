@@ -21,8 +21,10 @@ vi.mock('@/runtime/unread-status', () => ({
 }))
 
 let wrapper: VueWrapper | undefined
+const initialLocale = i18n.global.locale.value
 afterEach(() => {
   wrapper?.unmount()
+  i18n.global.locale.value = initialLocale
   window.history.replaceState({}, '', '/')
   vi.resetAllMocks()
 })
@@ -59,4 +61,36 @@ it('resolves received personal tokens as inert images while preserving escaped t
   await flushPromises()
   expect(wrapper.find('[role="dialog"]').exists()).toBe(false)
   expect(window.location.pathname).toBe('/messages')
+})
+
+it.each(['en', 'zh'] as const)('会话列表显示昵称与本地化转发摘要（%s）', async (locale) => {
+  i18n.global.locale.value = locale
+  messages.mockResolvedValue({ list: [], hasMoreBefore: false })
+  resolve.mockResolvedValue([])
+  window.history.replaceState({}, '', '/messages?userId=2')
+  wrapper = mount(MessagesPage, {
+    props: {
+      layout: { viewer: { id: 1, username: 'alice', avatarUrl: '' } } as LayoutPayload,
+      props: {
+        conversations: [{
+          id: 1,
+          convId: 1,
+          peerId: 2,
+          peerUsername: 'bob',
+          peerNickname: '鲍勃',
+          peerAvatar: '',
+          lastMsg: '[Chat history]\nForwarder: [Chat history]\nBob: [:sticker:smile:]',
+          lastMsgTime: '',
+          unreadCount: 0,
+          peerUrl: '/u/2',
+        }],
+        suggestedUsers: [],
+      },
+    },
+    global: { plugins: [i18n], stubs: { UserAvatar: true } },
+  })
+  await flushPromises()
+  expect(wrapper.text()).toContain('鲍勃')
+  const label = `[${i18n.global.t('messages.forwardHistory')}]`
+  expect(wrapper.text()).toContain(`${label} Forwarder: ${label} Bob: [smile]`)
 })

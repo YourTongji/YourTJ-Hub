@@ -12,6 +12,7 @@ _$ChatItemPayloadImpl _$$ChatItemPayloadImplFromJson(
   id: (json['id'] as num).toInt(),
   peerId: (json['peerId'] as num).toInt(),
   peerUsername: json['peerUsername'] as String,
+  peerNickname: json['peerNickname'] as String?,
   peerAvatar: json['peerAvatar'] as String,
   lastMsg: json['lastMsg'] as String,
   lastMsgTime: json['lastMsgTime'] as String,
@@ -26,6 +27,7 @@ Map<String, dynamic> _$$ChatItemPayloadImplToJson(
   'id': instance.id,
   'peerId': instance.peerId,
   'peerUsername': instance.peerUsername,
+  'peerNickname': instance.peerNickname,
   'peerAvatar': instance.peerAvatar,
   'lastMsg': instance.lastMsg,
   'lastMsgTime': instance.lastMsgTime,
@@ -62,6 +64,9 @@ _$ChatMessagePayloadImpl _$$ChatMessagePayloadImplFromJson(
   isRead: (json['isRead'] as num).toInt(),
   createdAt: json['createdAt'] as String,
   isSelf: json['isSelf'] as bool,
+  forwarded: json['forwarded'] == null
+      ? null
+      : ChatForwardBundle.fromJson(json['forwarded'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$$ChatMessagePayloadImplToJson(
@@ -74,6 +79,7 @@ Map<String, dynamic> _$$ChatMessagePayloadImplToJson(
   'isRead': instance.isRead,
   'createdAt': instance.createdAt,
   'isSelf': instance.isSelf,
+  'forwarded': instance.forwarded,
 };
 
 _$ChatMessagesResponseImpl _$$ChatMessagesResponseImplFromJson(
@@ -141,4 +147,60 @@ Map<String, dynamic> _$$ChatMessageReadStatesResultImplToJson(
 ) => <String, dynamic>{
   'items': instance.items,
   'unreadCount': instance.unreadCount,
+};
+
+_$ChatForwardBundleImpl _$$ChatForwardBundleImplFromJson(
+  Map<String, dynamic> json,
+) => _$ChatForwardBundleImpl(
+  version: (json['version'] as num).toInt(),
+  messages: (json['messages'] as List<dynamic>)
+      .map((e) => ChatForwardEntry.fromJson(e as Map<String, dynamic>))
+      .toList(),
+);
+
+Map<String, dynamic> _$$ChatForwardBundleImplToJson(
+  _$ChatForwardBundleImpl instance,
+) => <String, dynamic>{
+  'version': instance.version,
+  'messages': instance.messages,
+};
+
+_$ChatForwardEntryImpl _$$ChatForwardEntryImplFromJson(
+  Map<String, dynamic> json,
+) => _$ChatForwardEntryImpl(
+  senderName: json['senderName'] as String,
+  avatarUrl: json['avatarUrl'] as String? ?? '',
+  content: json['content'] as String,
+  createdAt: json['createdAt'] as String,
+  msgType: (json['msgType'] as num).toInt(),
+  forwarded: json['forwarded'] == null
+      ? null
+      : ChatForwardBundle.fromJson(json['forwarded'] as Map<String, dynamic>),
+);
+
+Map<String, dynamic> _$$ChatForwardEntryImplToJson(
+  _$ChatForwardEntryImpl instance,
+) => <String, dynamic>{
+  'senderName': instance.senderName,
+  'avatarUrl': instance.avatarUrl,
+  'content': instance.content,
+  'createdAt': instance.createdAt,
+  'msgType': instance.msgType,
+  'forwarded': instance.forwarded,
+};
+
+_$ChatForwardResultImpl _$$ChatForwardResultImplFromJson(
+  Map<String, dynamic> json,
+) => _$ChatForwardResultImpl(
+  convId: (json['convId'] as num).toInt(),
+  messageIds: (json['messageIds'] as List<dynamic>)
+      .map((e) => (e as num).toInt())
+      .toList(),
+);
+
+Map<String, dynamic> _$$ChatForwardResultImplToJson(
+  _$ChatForwardResultImpl instance,
+) => <String, dynamic>{
+  'convId': instance.convId,
+  'messageIds': instance.messageIds,
 };

@@ -105,6 +105,74 @@ func TestLLMSProjectionVisibilityAndFeatureGates(t *testing.T) {
 	}
 }
 
+// issue #895：无标题瞬间的导出不能出现空链接 `- []` 或空标题行 `## `。
+// 有摘要时用摘要作标签；摘要也为空（纯图）时列表退化为自动链接、全文省略标题行。
+func TestLLMSProjectionUntitledMomentFallbacks(t *testing.T) {
+	conn := dbconnect.Connect()
+	if err := conn.AutoMigrate(&pageConfig.Entity{}, &category.Entity{}, &topics.Entity{}, &posts.Entity{}); err != nil {
+		t.Fatalf("migrate llms fallback tables: %v", err)
+	}
+	restoreLLMSPostingSettings(t, conn)
+
+	base := uint64(time.Now().UnixNano()%1_000_000_000) + 7_800_000_000
+	topicID := base + 10
+	postID := base + 101
+	t.Cleanup(func() {
+		conn.Unscoped().Where("id = ?", postID).Delete(&posts.Entity{})
+		conn.Unscoped().Where("id = ?", topicID).Delete(&topics.Entity{})
+		ClearCache()
+	})
+
+	now := time.Date(2026, 9, 28, 12, 0, 0, 0, time.UTC)
+	if err := conn.Create(&posts.Entity{Id: postID, TopicId: topicID, PostNo: 1, Content: "![image](/file/img/moment.png)", ProcessStatus: posts.ProcessStatusNormal, CreatedAt: now}).Error; err != nil {
+		t.Fatalf("create untitled moment post: %v", err)
+	}
+	if err := conn.Create(&topics.Entity{Id: topicID, Title: "", FirstPostId: postID, Status: 1, ProcessStatus: topics.ProcessStatusNormal, Excerpt: "untitled moment excerpt", CreatedAt: now, UpdatedAt: now}).Error; err != nil {
+		t.Fatalf("create untitled moment topic: %v", err)
+	}
+
+	host := "https://forum.example.test"
+	setLLMSSettings(t, conn, pageConfig.LLMSConfig{Enabled: true, FullText: true, Files: true})
+
+	index, err := BuildIndex(host)
+	if err != nil {
+		t.Fatalf("BuildIndex() err=%v", err)
+	}
+	assertContains(t, index, "[untitled moment excerpt]")
+	assertNotContains(t, index, "- []")
+
+	full, err := BuildFull(host)
+	if err != nil {
+		t.Fatalf("BuildFull() err=%v", err)
+	}
+	assertContains(t, full, "## untitled moment excerpt")
+
+	if err := conn.Model(&topics.Entity{}).Where("id = ?", topicID).Update("excerpt", "").Error; err != nil {
+		t.Fatalf("clear untitled moment excerpt: %v", err)
+	}
+	ClearCache()
+
+	index, err = BuildIndex(host)
+	if err != nil {
+		t.Fatalf("BuildIndex() without excerpt err=%v", err)
+	}
+	assertNotContains(t, index, "- []")
+	assertContains(t, index, fmt.Sprintf("- <%s/p/posts/%d.md>", host, topicID))
+
+	full, err = BuildFull(host)
+	if err != nil {
+		t.Fatalf("BuildFull() without excerpt err=%v", err)
+	}
+	assertNotContains(t, full, "## \n")
+
+	moment, err := BuildTopic(host, topicID)
+	if err != nil {
+		t.Fatalf("BuildTopic() err=%v", err)
+	}
+	assertNotContains(t, moment, "# \n")
+	assertContains(t, moment, "Source: ")
+}
+
 func TestLLMSProjectionFormattingHelpers(t *testing.T) {
 	if got := normalizeBaseURL("https://forum.example.test/path?q=1"); got != "https://forum.example.test" {
 		t.Fatalf("normalizeBaseURL()=%q", got)

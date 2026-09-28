@@ -18,12 +18,66 @@
         "isRead": 0,
         "createdAt": "2026-08-15T09:01:12Z",
         "isSelf": true
+      },
+      {
+        "id": 9003,
+        "senderId": 2048,
+        "content": "[Chat history]\nAlice: hello",
+        "msgType": 4,
+        "isRead": 0,
+        "createdAt": "2026-08-15T09:02:00Z",
+        "isSelf": true,
+        "forwarded": {
+          "version": 1,
+          "messages": [
+            {
+              "senderName": "Alice",
+              "avatarUrl": "/static/pic/3.webp",
+              "content": "hello",
+              "createdAt": "2026-08-15T08:00:00Z",
+              "msgType": 1
+            }
+          ]
+        }
+      },
+      {
+        "id": 9004,
+        "senderId": 2048,
+        "content": "[Chat history]\nForwarder: [Chat history]\nAlice: hello",
+        "msgType": 4,
+        "isRead": 0,
+        "createdAt": "2026-08-15T09:02:00Z",
+        "isSelf": true,
+        "forwarded": {
+          "version": 1,
+          "messages": [
+            {
+              "senderName": "Forwarder",
+              "avatarUrl": "/static/pic/6.webp",
+              "content": "[Chat history]\nAlice: hello",
+              "createdAt": "2026-08-15T09:02:00Z",
+              "msgType": 4,
+              "forwarded": {
+                "version": 1,
+                "messages": [
+                  {
+                    "senderName": "Alice",
+                    "avatarUrl": "/static/pic/3.webp",
+                    "content": "hello",
+                    "createdAt": "2026-08-15T08:00:00Z",
+                    "msgType": 1
+                  }
+                ]
+              }
+            }
+          ]
+        }
       }
     ],
     "hasMoreBefore": false,
     "hasMoreAfter": false,
     "nextBeforeId": 9001,
-    "latestId": 9002
+    "latestId": 9004
   },
   "code": 0
 }

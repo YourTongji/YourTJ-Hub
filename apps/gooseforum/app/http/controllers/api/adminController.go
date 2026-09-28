@@ -149,8 +149,10 @@ type UserListReq struct {
 }
 
 type UserItem struct {
-	UserId         uint64                              `json:"userId"`
-	Username       string                              `json:"username"`
+	UserId   uint64 `json:"userId"`
+	Username string `json:"username"`
+	// Nickname 当前昵称；备注名显示 note(display name) 需要，无昵称时省略。
+	Nickname       string                              `json:"nickname,omitempty"`
 	AvatarUrl      string                              `json:"avatarUrl"`
 	Email          string                              `json:"email"`
 	Status         int8                                `json:"status"`
@@ -200,6 +202,7 @@ func UserList(req component.BetterRequest[UserListReq]) component.Response {
 			UserId:         t.Id,
 			AvatarUrl:      t.GetWebAvatarUrl(),
 			Username:       t.Username,
+			Nickname:       t.Nickname,
 			Email:          t.Email,
 			ActorType:      t.ActorType,
 			Status:         t.IsFrozen,
@@ -446,7 +449,9 @@ type TopicAdminBaseVo struct {
 
 type TopicInfoAdminVo struct {
 	TopicAdminBaseVo
-	Username      string `json:"username"`
+	Username string `json:"username"`
+	// Nickname 作者当前昵称；备注名显示 note(display name) 需要，无昵称时省略。
+	Nickname      string `json:"nickname,omitempty"`
 	UserAvatarUrl string `json:"userAvatarUrl"`
 	ViewCount     uint64 `json:"viewCount"`
 	ReplyCount    uint64 `json:"replyCount"`
@@ -473,9 +478,11 @@ func TopicsList(req component.BetterRequest[TopicsListReq]) component.Response {
 	return component.SuccessResponse(component.Page[TopicInfoAdminVo]{
 		List: lo.Map(pageData.Data, func(t topics.Entity, _ int) TopicInfoAdminVo {
 			username := ""
+			nickname := ""
 			userAvatarUrl := ""
 			if user := userMap[t.UserId]; user != nil {
 				username = user.Username
+				nickname = user.Nickname
 				userAvatarUrl = user.GetWebAvatarUrl()
 			}
 			return TopicInfoAdminVo{
@@ -491,6 +498,7 @@ func TopicsList(req component.BetterRequest[TopicsListReq]) component.Response {
 					UpdatedAt:     t.UpdatedAt.Format(time.RFC3339),
 				},
 				Username:      username,
+				Nickname:      nickname,
 				UserAvatarUrl: userAvatarUrl,
 				ViewCount:     t.ViewCount,
 				ReplyCount:    t.ReplyCount,
@@ -932,9 +940,11 @@ type CategoryItem struct {
 }
 
 type CategoryModeratorItem struct {
-	Id        uint64 `json:"id"`
-	UserId    uint64 `json:"userId"`
-	Username  string `json:"username"`
+	Id       uint64 `json:"id"`
+	UserId   uint64 `json:"userId"`
+	Username string `json:"username"`
+	// Nickname 当前昵称；备注名显示 note(display name) 需要，无昵称时省略。
+	Nickname  string `json:"nickname,omitempty"`
 	AvatarUrl string `json:"avatarUrl"`
 	Status    int    `json:"status"`
 }
@@ -972,15 +982,18 @@ func buildCategoryModeratorItems(moderatorList []*moderators.Entity, userMap map
 	return lo.Map(moderatorList, func(item *moderators.Entity, _ int) CategoryModeratorItem {
 		user := userMap[item.UserId]
 		username := ""
+		nickname := ""
 		avatarURL := ""
 		if user != nil {
 			username = user.Username
+			nickname = user.Nickname
 			avatarURL = user.GetWebAvatarUrl()
 		}
 		return CategoryModeratorItem{
 			Id:        item.Id,
 			UserId:    item.UserId,
 			Username:  username,
+			Nickname:  nickname,
 			AvatarUrl: avatarURL,
 			Status:    item.Status,
 		}
@@ -2166,11 +2179,13 @@ type ReviewQueueReq struct {
 }
 
 type ReviewQueueItem struct {
-	Id            uint64 `json:"id"`
-	Title         string `json:"title"`
-	Excerpt       string `json:"excerpt"`
-	UserId        uint64 `json:"userId"`
+	Id      uint64 `json:"id"`
+	Title   string `json:"title"`
+	Excerpt string `json:"excerpt"`
+	UserId  uint64 `json:"userId"`
+	// Username/Nickname 作者身份；备注名显示 note(display name) 需要昵称，无昵称时省略。
 	Username      string `json:"username"`
+	Nickname      string `json:"nickname,omitempty"`
 	ProcessStatus int8   `json:"processStatus"`
 	CreatedAt     string `json:"createdAt"`
 	TopicId       uint64 `json:"topicId,omitempty"`
@@ -2199,8 +2214,10 @@ func ReviewQueue(req component.BetterRequest[ReviewQueueReq]) component.Response
 		userMap := users.GetMapByIds(userIDs)
 		for _, t := range result.Data {
 			username := ""
+			nickname := ""
 			if u, ok := userMap[t.UserId]; ok {
 				username = u.Username
+				nickname = u.Nickname
 			}
 			excerpt := t.Excerpt
 			if excerpt == "" {
@@ -2208,7 +2225,7 @@ func ReviewQueue(req component.BetterRequest[ReviewQueueReq]) component.Response
 			}
 			items = append(items, ReviewQueueItem{
 				Id: t.Id, Title: t.Title, Excerpt: excerpt,
-				UserId: t.UserId, Username: username,
+				UserId: t.UserId, Username: username, Nickname: nickname,
 				ProcessStatus: t.ProcessStatus,
 				CreatedAt:     t.CreatedAt.Format(time.RFC3339),
 			})
@@ -2233,8 +2250,10 @@ func ReviewQueue(req component.BetterRequest[ReviewQueueReq]) component.Response
 		}
 		for _, p := range result.Data {
 			username := ""
+			nickname := ""
 			if u, ok := userMap[p.UserId]; ok {
 				username = u.Username
+				nickname = u.Nickname
 			}
 			title := ""
 			if t, ok := topicMap[p.TopicId]; ok {
@@ -2246,7 +2265,7 @@ func ReviewQueue(req component.BetterRequest[ReviewQueueReq]) component.Response
 			}
 			items = append(items, ReviewQueueItem{
 				Id: p.Id, Title: title, Excerpt: excerpt,
-				UserId: p.UserId, Username: username,
+				UserId: p.UserId, Username: username, Nickname: nickname,
 				ProcessStatus: p.ProcessStatus,
 				CreatedAt:     p.CreatedAt.Format(time.RFC3339),
 				TopicId:       p.TopicId, PostNo: p.PostNo,

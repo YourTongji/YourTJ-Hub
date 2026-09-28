@@ -37,6 +37,7 @@ _$UserCardPayloadImpl _$$UserCardPayloadImplFromJson(
   isOnline: json['isOnline'] as bool,
   isFollowing: json['isFollowing'] as bool,
   isSelf: json['isSelf'] as bool,
+  isAccountClosed: json['isAccountClosed'] as bool? ?? false,
   displayBadges: (json['displayBadges'] as List<dynamic>?)
       ?.map((e) => UserBadgePayload.fromJson(e as Map<String, dynamic>))
       .toList(),
@@ -77,6 +78,7 @@ Map<String, dynamic> _$$UserCardPayloadImplToJson(
   'isOnline': instance.isOnline,
   'isFollowing': instance.isFollowing,
   'isSelf': instance.isSelf,
+  'isAccountClosed': instance.isAccountClosed,
   'displayBadges': instance.displayBadges,
   'badges': instance.badges,
   'wornBadge': instance.wornBadge,

@@ -319,3 +319,26 @@ func IncrementTokenVersionWithDB(conn *gorm.DB, userId uint64) error {
 	}
 	return nil
 }
+
+type PublicChatIdentity struct {
+	Name      string
+	AvatarURL string
+}
+
+// ChatIdentitiesByIDs reads public display fields inside the caller's transaction.
+// It does not expose account details or viewer-private notes.
+func ChatIdentitiesByIDs(tx *gorm.DB, ids []uint64) (map[uint64]PublicChatIdentity, error) {
+	var records []EntityComplete
+	if err := tx.Select("id", "username", "nickname", "avatar_url", "is_frozen").Where("id IN ?", ids).Find(&records).Error; err != nil {
+		return nil, err
+	}
+	result := make(map[uint64]PublicChatIdentity, len(records))
+	for _, user := range records {
+		name := strings.TrimSpace(user.Nickname)
+		if name == "" {
+			name = user.Username
+		}
+		result[user.Id] = PublicChatIdentity{Name: name, AvatarURL: user.GetWebAvatarUrl()}
+	}
+	return result, nil
+}

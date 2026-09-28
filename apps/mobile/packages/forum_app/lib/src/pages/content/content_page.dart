@@ -311,6 +311,20 @@ class _ContentPageState extends ConsumerState<ContentPage> {
                                 );
                         }
                         final item = _items[index];
+                        // 无标题瞬间（标题为空）用正文摘要作主文案，日期退回副文案，
+                        // 避免列表出现空标题行（与 Web TopicRow 的摘要回退一致）。
+                        final String dateText = widget.deleted
+                            ? item.deletedAt
+                            : item.createdAt;
+                        final String primaryText = item.title.isNotEmpty
+                            ? item.title
+                            : (item.excerpt.isNotEmpty
+                                  ? item.excerpt
+                                  : dateText);
+                        final String secondaryText =
+                            item.title.isNotEmpty && item.excerpt.isNotEmpty
+                            ? item.excerpt
+                            : (primaryText == dateText ? '' : dateText);
                         return ListTile(
                           leading: widget.deleted
                               ? const GfSymbol('file-text')
@@ -328,19 +342,17 @@ class _ContentPageState extends ConsumerState<ContentPage> {
                                         }),
                                 ),
                           title: Text(
-                            item.title,
+                            primaryText,
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                           ),
-                          subtitle: Text(
-                            item.excerpt.isEmpty
-                                ? (widget.deleted
-                                      ? item.deletedAt
-                                      : item.createdAt)
-                                : item.excerpt,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
+                          subtitle: secondaryText.isEmpty
+                              ? null
+                              : Text(
+                                  secondaryText,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
                           onTap: widget.deleted
                               ? null
                               : () => context.push(

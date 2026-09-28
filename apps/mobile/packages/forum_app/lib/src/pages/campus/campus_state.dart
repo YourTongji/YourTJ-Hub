@@ -77,6 +77,17 @@ class CampusController extends StateNotifier<CampusViewState> {
   final Set<String> _loading = {};
   String tab = 'today';
   CampusSnapshot? _snapshot;
+  bool _withholdDataUntilFresh = false;
+
+  // Unrelated snapshot reads may continue after this section has a fresh
+  // result or error. They still finish together before the snapshot is saved.
+  bool get withholdDataUntilFresh =>
+      _withholdDataUntilFresh &&
+      (campusTabKeys[tab] ?? const <String>[]).any(
+        (key) =>
+            _loading.contains(key) ||
+            (!state.data.containsKey(key) && !state.errors.containsKey(key)),
+      );
 
   Future<CampusCalendarExport?> exportCalendar({
     bool applyAdjustments = true,
@@ -110,6 +121,7 @@ class CampusController extends StateNotifier<CampusViewState> {
     _cancelReads();
     cache.clear();
     _refreshing = false;
+    _withholdDataUntilFresh = false;
     _receivedAt.clear();
     _snapshot = null;
     unawaited(
@@ -131,6 +143,7 @@ class CampusController extends StateNotifier<CampusViewState> {
 
   Future<void> refresh({bool reuseCache = false}) async {
     if (_refreshing || state.busy) return;
+    if (cache.refreshRequired) reuseCache = false;
     _cancelReads();
     final generation = _generation;
     final cacheFence = cache.generation;
@@ -170,6 +183,7 @@ class CampusController extends StateNotifier<CampusViewState> {
           !cache.isCurrent(cacheFence)) {
         return;
       }
+      cache.confirmFreshStatus();
       final binding =
           status.enabled && status.binding?.needsAuthorization == false
           ? status.binding
@@ -222,6 +236,7 @@ class CampusController extends StateNotifier<CampusViewState> {
         );
       } else if (!reuseCache ||
           (persistentStore != null && scope != null && persisted == null)) {
+        if (data.isEmpty) _withholdDataUntilFresh = true;
         if (reuseCache && persisted == null && !widgetCleared) {
           await widgetBridge?.clear();
         }
@@ -259,6 +274,7 @@ class CampusController extends StateNotifier<CampusViewState> {
       }
     } finally {
       if (mounted && generation == _generation) {
+        _withholdDataUntilFresh = false;
         state = CampusViewState(
           snapshot: _snapshot,
           fetching: Set.of(_loading),
@@ -313,7 +329,7 @@ class CampusController extends StateNotifier<CampusViewState> {
   /// A detail page can keep this controller alive while the overview is hidden.
   Future<void> enterTab(String value) async {
     tab = value;
-    if (state.loading || _refreshing) {
+    if (_refreshing) {
       return; // Initial provider refresh already verifies status.
     }
     await refresh(reuseCache: true);
@@ -554,12 +570,26 @@ class CampusController extends StateNotifier<CampusViewState> {
     _snapshot = null;
     _receivedAt.clear();
     _refreshing = false;
+    _withholdDataUntilFresh = false;
     state = CampusViewState(
       snapshot: _snapshot,
       fetching: Set.of(_loading),
       status: state.status,
       loading: false,
     );
+  }
+
+  /// Clears live campus data when the app leaves the foreground. The device
+  /// snapshot remains available for a later cold start, but is skipped on the
+  /// next foreground refresh.
+  void suspend() {
+    cache.requireFreshRefresh();
+    _cancelReads();
+    _snapshot = null;
+    _receivedAt.clear();
+    _refreshing = false;
+    _withholdDataUntilFresh = true;
+    state = const CampusViewState();
   }
 
   Future<void> _clearPersistent({String widgetState = 'needsData'}) async {

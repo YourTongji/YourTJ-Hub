@@ -46,6 +46,8 @@ export interface AdminCategoryModerator {
   id: number
   userId: number
   username: string
+  /** 当前昵称；无昵称时缺省（备注名显示 note(display name) 用）。 */
+  nickname?: string
   avatarUrl?: string
   status: number
 }
@@ -53,6 +55,8 @@ export interface AdminCategoryModerator {
 export interface AdminUser {
   userId: number
   username: string
+  /** 当前昵称；无昵称时缺省（备注名显示 note(display name) 用）。 */
+  nickname?: string
   avatarUrl?: string | null
   email: string
   status: number
@@ -98,6 +102,8 @@ export interface AdminTopic {
   categoryId: number[]
   userId: number
   username: string
+  /** 作者当前昵称；无昵称时缺省（备注名显示 note(display name) 用）。 */
+  nickname?: string
   userAvatarUrl?: string | null
   topicStatus: number
   processStatus: number
@@ -409,6 +415,8 @@ export interface ReviewQueueItem {
   excerpt: string
   userId: number
   username: string
+  /** 作者当前昵称；无昵称时缺省（备注名显示 note(display name) 用）。 */
+  nickname?: string
   processStatus: number
   createdAt: string
   topicId?: number

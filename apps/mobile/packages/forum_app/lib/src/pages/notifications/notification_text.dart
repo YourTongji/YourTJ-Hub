@@ -77,7 +77,7 @@ String notificationActorName(
   AppLocalizations l10n, {
   String Function(int id, String username)? displayName,
 }) {
-  final name =
+  final storedName =
       [
             item.actor.username,
             item.payload.actorName,
@@ -88,5 +88,8 @@ String notificationActorName(
             (value) => value.isNotEmpty,
             orElse: () => l10n.notificationSomeone,
           );
+  // 备注名按 note(display name) 展示：当前昵称优先，缺省回退存储的用户名。
+  final nickname = (item.actor.nickname ?? '').trim();
+  final name = nickname.isNotEmpty ? nickname : storedName;
   return displayName?.call(item.actor.id, name) ?? name;
 }

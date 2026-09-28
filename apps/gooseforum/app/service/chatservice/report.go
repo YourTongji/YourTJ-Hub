@@ -50,7 +50,7 @@ func ReportMessage(reporterID, messageID uint64, reason, note string) error {
 			EvidenceSnapshot: reports.EvidenceSnapshotData{
 				TargetType: reports.TargetChatMessage, TargetID: messageID,
 				AuthorID: message.SenderId, Title: "Private message",
-				Excerpt: boundedReportText(message.Content, 4000), CreatedAt: time.Now(),
+				Excerpt: boundedReportText(messages.DisplayContent(message.Content, message.MsgType), 4000), CreatedAt: time.Now(),
 			},
 		})
 		return err

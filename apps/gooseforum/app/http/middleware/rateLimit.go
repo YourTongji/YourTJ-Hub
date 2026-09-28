@@ -1,6 +1,9 @@
 package middleware
 
 import (
+	"bytes"
+	"encoding/json"
+	"io"
 	"log/slog"
 	"math"
 	"net/http"
@@ -105,6 +108,10 @@ func RateLimitCourseSummaryAware() gin.HandlerFunc {
 }
 
 func applyRateLimit(c *gin.Context, action string) {
+	applyRateLimitCost(c, action, 1)
+}
+
+func applyRateLimitCost(c *gin.Context, action string, cost int) {
 	cfg := hotdataserve.GetRateLimitConfigCache()
 	if !cfg.Enabled {
 		c.Next()
@@ -133,14 +140,14 @@ func applyRateLimit(c *gin.Context, action string) {
 	limited := false
 	if rule.LimitPerIp > 0 {
 		key := action + ":ip:" + ip
-		ok, retry, cnt := store.Allow(key, rule.LimitPerIp, window)
+		ok, retry, cnt := allowRateLimitCost(store, key, rule.LimitPerIp, window, cost)
 		if !ok {
 			limited, retryAfter, count, limit = true, retry, cnt, rule.LimitPerIp
 		}
 	}
 	if !limited && userId != 0 && rule.LimitPerUser > 0 {
 		key := action + ":user:" + strconv.FormatUint(userId, 10)
-		ok, retry, cnt := store.Allow(key, rule.LimitPerUser, window)
+		ok, retry, cnt := allowRateLimitCost(store, key, rule.LimitPerUser, window, cost)
 		if !ok {
 			limited, retryAfter, count, limit = true, retry, cnt, rule.LimitPerUser
 		}
@@ -170,4 +177,38 @@ func applyRateLimit(c *gin.Context, action string) {
 		return
 	}
 	c.Next()
+}
+
+// Individual forwarding consumes one normal-send attempt per selected message.
+// A bounded body is restored for the normal typed/strict request validation.
+func RateLimitChatForward() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		raw, err := io.ReadAll(http.MaxBytesReader(c.Writer, c.Request.Body, 8192))
+		if err != nil {
+			abortGuardFailure(c, http.StatusBadRequest, component.FailDataCode(component.MessageRequestInvalidParams, nil))
+			return
+		}
+		c.Request.Body = io.NopCloser(bytes.NewReader(raw))
+		var request struct {
+			Mode       string   `json:"mode"`
+			MessageIDs []uint64 `json:"messageIds"`
+		}
+		cost := 1
+		if json.Unmarshal(raw, &request) == nil && request.Mode == "individual" && len(request.MessageIDs) > 0 && len(request.MessageIDs) <= 50 {
+			cost = len(request.MessageIDs)
+		}
+		applyRateLimitCost(c, RateLimitMessageSend, cost)
+	}
+}
+
+func allowRateLimitCost(store ratelimit.Store, key string, limit int, window time.Duration, cost int) (bool, time.Duration, int) {
+	var count int
+	for range cost {
+		ok, retry, current := store.Allow(key, limit, window)
+		if !ok {
+			return false, retry, current
+		}
+		count = current
+	}
+	return true, 0, count
 }

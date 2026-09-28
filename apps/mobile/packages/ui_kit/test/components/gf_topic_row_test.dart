@@ -15,10 +15,11 @@ void main() {
       VoidCallback? onTap,
       bool pinned = false,
       bool unseen = false,
+      String title = '同济大学樱花大道拍照攻略',
     }) {
       return gfApp(
         GfTopicRow(
-          title: '同济大学樱花大道拍照攻略',
+          title: title,
           description: '三月末的樱花大道,适合清晨人少时去…',
           categories: const <GfTopicCategory>[category],
           participantAvatarUrls: const <String>[
@@ -51,6 +52,25 @@ void main() {
           findsOneWidget,
         );
       });
+    });
+
+    testWidgets('hides an empty title while keeping description and meta', (
+      tester,
+    ) async {
+      await tester.pumpWidget(buildRow(title: ''));
+      expect(find.text('同济大学樱花大道拍照攻略'), findsNothing);
+      // 空标题不占位：不渲染空 Text（标题字号 15）。
+      expect(
+        find.byWidgetPredicate(
+          (Widget w) => w is Text && w.data == '' && w.style?.fontSize == 15,
+        ),
+        findsNothing,
+      );
+      expect(find.text('三月末的樱花大道,适合清晨人少时去…'), findsOneWidget);
+      expect(find.text('校园生活'), findsOneWidget);
+      expect(find.text('3 小时前'), findsOneWidget);
+      expect(find.text('42'), findsOneWidget);
+      expect(tester.takeException(), isNull);
     });
 
     testWidgets('shows pin mark and unseen dot when flagged', (tester) async {

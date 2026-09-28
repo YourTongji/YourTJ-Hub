@@ -35,7 +35,37 @@ class _GatedClearTokenStorage extends _MemTokenStorage {
   }
 }
 
+class _GatedFollowRepository implements TopicRepository {
+  _GatedFollowRepository(this.result);
+
+  final Completer<bool> result;
+
+  @override
+  Future<bool> followUser({required int userId, required bool isFollowing}) =>
+      result.future;
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
 void main() {
+  test('a late profile read cannot undo an optimistic follow change', () async {
+    final response = Completer<bool>();
+    final state = UserFollowState(_GatedFollowRepository(response));
+    addTearDown(state.dispose);
+    final read = state.beginRead();
+
+    final mutation = state.toggle(userId: 42, fallback: false);
+    expect(state.following, isTrue);
+    state.acceptServerValue(false, read);
+    expect(state.following, isTrue);
+
+    response.complete(true);
+    await mutation;
+    expect(state.following, isTrue);
+    expect(state.busy, isFalse);
+  });
+
   group('tokenStorageProvider', () {
     test('生产实现为 SecureTokenStorage(flutter_secure_storage)', () {
       final container = ProviderContainer();

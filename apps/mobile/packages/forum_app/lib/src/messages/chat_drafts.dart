@@ -207,6 +207,10 @@ class ChatDrafts extends ChangeNotifier {
   final bool Function() isCurrent;
   final Map<int, ChatDraft> _items = {};
   final Map<int, int> _dirty = {};
+
+  /// Draft revision a peer's last acknowledgement left behind, so a failed
+  /// older bubble cannot refill a composer a newer send has already emptied.
+  final Map<int, int> _clearedBySend = {};
   int _serial = 0;
   String? _scope;
   Future<void>? _loading;
@@ -249,6 +253,12 @@ class ChatDrafts extends ChangeNotifier {
 
   void update(ChatItemPayload peer, TextEditingValue input) {
     if (!current || peer.peerId <= 0) return;
+    _install(peer, input);
+  }
+
+  /// Writes [input] for [peer], assigning a new revision unless [revision] is
+  /// given to keep an outbox message bound to this exact draft content.
+  void _install(ChatItemPayload peer, TextEditingValue input, {int? revision}) {
     final previous = _items[peer.peerId];
     final selection = input.selection.isValid
         ? TextSelection(
@@ -266,7 +276,8 @@ class ChatDrafts extends ChangeNotifier {
     if (previous?.value == value &&
         previous?.convId == convId &&
         previous?.peerName == peer.peerUsername &&
-        previous?.peerAvatar == peer.peerAvatar) {
+        previous?.peerAvatar == peer.peerAvatar &&
+        (revision == null || previous?.revision == revision)) {
       return;
     }
     final version = ++_serial;
@@ -280,7 +291,7 @@ class ChatDrafts extends ChangeNotifier {
       updatedAt: sameText
           ? previous!.updatedAt
           : DateTime.now().millisecondsSinceEpoch,
-      revision: sameText ? previous!.revision : version,
+      revision: revision ?? (sameText ? previous!.revision : version),
     );
     _dirty[peer.peerId] = version;
     notifyListeners();
@@ -305,8 +316,41 @@ class ChatDrafts extends ChangeNotifier {
     }
     if (draft.revision == revision) {
       update(_items[peerId]!.conversation, TextEditingValue.empty);
+      // The draft now sits in the emptied state produced by this send, which a
+      // late failure of an older message must not refill.
+      _clearedBySend[peerId] = _items[peerId]!.revision;
     }
     unawaited(flush());
+  }
+
+  /// Reinstalls the composer snapshot of a failed send. The snapshot keeps its
+  /// submitted revision, so the draft stays bound to the pending message: a
+  /// later acknowledgement still clears it and re-sending reuses that same
+  /// outbox entry instead of delivering the content twice under a new id.
+  ///
+  /// Text the user kept typing always wins. An empty draft is refilled unless a
+  /// newer send already emptied it, so a late failure of an old bubble cannot
+  /// inject its text into a composer the user has moved on from.
+  bool restoreFailed(
+    ChatItemPayload peer,
+    int? revision,
+    TextEditingValue? value,
+  ) {
+    if (!current || peer.peerId <= 0 || revision == null || value == null) {
+      return false;
+    }
+    final previous = _items[peer.peerId];
+    if (previous != null && previous.revision != revision) {
+      // hasText trims, so whitespace-only input still counts as user content.
+      // Any newer acknowledgement keeps the composer protected: emptying it by
+      // hand afterwards must not make a stale failure look restorable again.
+      if (previous.value.text.isNotEmpty ||
+          _clearedBySend.containsKey(peer.peerId)) {
+        return false;
+      }
+    }
+    _install(peer, value, revision: revision);
+    return true;
   }
 
   Future<bool> flush() {
@@ -344,6 +388,7 @@ class ChatDrafts extends ChangeNotifier {
     _debounce?.cancel();
     _items.clear();
     _dirty.clear();
+    _clearedBySend.clear();
     super.dispose();
   }
 }

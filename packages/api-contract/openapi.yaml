@@ -213,6 +213,8 @@ paths:
     $ref: ./paths/forum-notifications.yaml#/unregisterPushDevice
   /api/forum/chat/send:
     $ref: ./paths/forum-chat.yaml#/sendChatMessage
+  /api/forum/chat/forward:
+    $ref: ./paths/forum-chat-forward.yaml#/forwardChatMessages
   /api/forum/chat/messages:
     $ref: ./paths/forum-chat.yaml#/getChatMessages
   /api/forum/chat/mark-read:

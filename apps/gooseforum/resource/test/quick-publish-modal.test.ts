@@ -381,16 +381,16 @@ describe('QuickPublish 懒加载与首开锁存', () => {
 })
 
 test.each([
-  { limit: 4, body: '汉😀abc', expected: '汉😀ab' },
-  { limit: 30, body: 'a'.repeat(29) + '😀tail', expected: 'a'.repeat(29) + '😀' },
-  { limit: 4, body: '', expected: '' },
-])('automatic moment title respects code points and server limit: $limit / $body', async ({ limit, body, expected }) => {
+  { body: '汉😀abc', imageOnly: false },
+  { body: '阳光正好的校园', imageOnly: false },
+  { body: '', imageOnly: true },
+])('untitled moment is submitted without a derived title: $body', async ({ body, imageOnly }) => {
   i18n.global.locale.value = 'zh'
   const { openQuickPublish, closeQuickPublish } = useQuickPublish()
   openQuickPublish(2)
   const submit = vi.spyOn(api, 'submitTopic').mockRejectedValue(new Error('stop after capture'))
   const wrapper = mount(QuickPublishModal, {
-    props: { layout: { ...mockLayout, posting: { maxTitleLength: limit } } },
+    props: { layout: mockLayout },
     global: { plugins: [i18n, router] },
     attachTo: document.body,
   })
@@ -400,10 +400,36 @@ test.each([
     vm.categoryIds = [101]
     vm.content = body
     vm.editor = { syncValue: () => body }
-    if (!body) vm.uploadedImages = [{ id: 'image', url: '/file/img/test.png', uploading: false }]
+    if (imageOnly) vm.uploadedImages = [{ id: 'image', url: '/file/img/test.png', uploading: false }]
     await vm.handleSubmit()
-    const expectedTitle = body ? expected : Array.from(i18n.global.t('publish.modal.imageOnlyTitle')).slice(0, limit).join('')
-    expect(submit).toHaveBeenCalledWith(expect.objectContaining({ title: expectedTitle }))
+    expect(submit).toHaveBeenCalledWith(expect.objectContaining({ title: '', contentType: 2 }))
+  } finally {
+    closeQuickPublish()
+    await flushPromises()
+    wrapper.unmount()
+    submit.mockRestore()
+  }
+})
+
+test('question without title still requires one (no auto-extraction)', async () => {
+  i18n.global.locale.value = 'zh'
+  const { openQuickPublish, closeQuickPublish } = useQuickPublish()
+  openQuickPublish(1)
+  const submit = vi.spyOn(api, 'submitTopic').mockRejectedValue(new Error('stop after capture'))
+  const wrapper = mount(QuickPublishModal, {
+    props: { layout: mockLayout },
+    global: { plugins: [i18n, router] },
+    attachTo: document.body,
+  })
+  try {
+    await flushPromises()
+    const vm = wrapper.vm as any
+    vm.categoryIds = [101]
+    vm.content = '这里应该自动提取成标题吗？'
+    vm.editor = { syncValue: () => vm.content }
+    await vm.handleSubmit()
+    expect(submit).not.toHaveBeenCalled()
+    expect(vm.errorMessage).toBe(i18n.global.t('publish.validation.requiredFields'))
   } finally {
     closeQuickPublish()
     await flushPromises()

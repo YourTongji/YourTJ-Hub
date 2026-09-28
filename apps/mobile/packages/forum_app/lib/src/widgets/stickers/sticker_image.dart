@@ -16,12 +16,18 @@ class StickerImage extends StatefulWidget {
     this.label,
     this.size = 56,
     this.collectible = true,
+    this.deferLongPress = false,
   });
   final String name;
   final String url;
   final String? label;
   final double size;
   final bool collectible;
+
+  /// A surrounding surface (a chat message bubble) owns the long press for its
+  /// action menu, so this sticker must not consume it — not even for its own
+  /// retry/collection actions, and not through the unavailable-state tooltip.
+  final bool deferLongPress;
   @override
   State<StickerImage> createState() => _StickerImageState();
 }
@@ -88,51 +94,61 @@ class _StickerImageState extends State<StickerImage> {
   }
 
   @override
-  Widget build(BuildContext context) => Semantics(
-    label:
-        widget.label ??
-        (RegExp(r'^u_[0-9a-f]{48}$').hasMatch(widget.name)
-            ? StickerStrings(context).custom
-            : widget.name),
-    onLongPress: widget.collectible || _failed ? _actions : null,
-    child: GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: () {},
-      onLongPress: widget.collectible || _failed ? _actions : null,
-      child: SizedBox.square(
-        dimension: widget.size,
-        child: Image.network(
-          resolveApiAssetUrl(widget.url),
-          key: ValueKey(_revision),
-          fit: BoxFit.contain,
-          excludeFromSemantics: true,
-          loadingBuilder: (context, child, progress) => progress == null
-              ? child
-              : Center(
-                  child: SizedBox.square(
-                    dimension: 16,
-                    child: GfProgressIndicator(
-                      strokeWidth: 1.5,
-                      value: progress.expectedTotalBytes == null
-                          ? null
-                          : progress.cumulativeBytesLoaded /
-                                progress.expectedTotalBytes!,
+  Widget build(BuildContext context) {
+    final bool showActions =
+        !widget.deferLongPress && (widget.collectible || _failed);
+    return Semantics(
+      label:
+          widget.label ??
+          (RegExp(r'^u_[0-9a-f]{48}$').hasMatch(widget.name)
+              ? StickerStrings(context).custom
+              : widget.name),
+      onLongPress: showActions ? _actions : null,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () {},
+        onLongPress: showActions ? _actions : null,
+        child: SizedBox.square(
+          dimension: widget.size,
+          child: Image.network(
+            resolveApiAssetUrl(widget.url),
+            key: ValueKey(_revision),
+            fit: BoxFit.contain,
+            excludeFromSemantics: true,
+            loadingBuilder: (context, child, progress) => progress == null
+                ? child
+                : Center(
+                    child: SizedBox.square(
+                      dimension: 16,
+                      child: GfProgressIndicator(
+                        strokeWidth: 1.5,
+                        value: progress.expectedTotalBytes == null
+                            ? null
+                            : progress.cumulativeBytesLoaded /
+                                  progress.expectedTotalBytes!,
+                      ),
                     ),
                   ),
+            errorBuilder: (context, _, _) {
+              _failed = true;
+              return Tooltip(
+                message: StickerStrings(context).unavailable,
+                // The default long-press trigger would out-prioritize the
+                // bubble's action menu on a failed sticker; the message stays
+                // available to screen readers either way.
+                triggerMode: widget.deferLongPress
+                    ? TooltipTriggerMode.manual
+                    : null,
+                child: GfSymbol(
+                  'image-off',
+                  size: 22,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
-          errorBuilder: (context, _, _) {
-            _failed = true;
-            return Tooltip(
-              message: StickerStrings(context).unavailable,
-              child: GfSymbol(
-                'image-off',
-                size: 22,
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-            );
-          },
+              );
+            },
+          ),
         ),
       ),
-    ),
-  );
+    );
+  }
 }

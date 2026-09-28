@@ -10,6 +10,7 @@ import 'package:forum_app/src/navigation/route_visibility.dart';
 import 'package:forum_app/src/providers.dart';
 import 'package:forum_app/src/realtime/realtime_updates.dart';
 import 'package:forum_app/src/router.dart';
+import 'package:forum_app/src/widgets/account_drawer.dart';
 import 'package:go_router/go_router.dart';
 import 'package:ui_kit/ui_kit.dart';
 
@@ -216,13 +217,10 @@ void main() {
     await tester.pumpAndSettle();
     expect(connects, 0);
 
-    final shellScaffold = tester.state<ScaffoldState>(
-      find.byType(Scaffold).first,
-    );
-    shellScaffold.openDrawer();
+    accountDrawerLayerKey.currentState!.open();
     await tester.pumpAndSettle();
     expect(shellDrawerOpen.value, isTrue);
-    shellScaffold.closeDrawer();
+    accountDrawerLayerKey.currentState!.close();
     await tester.pumpAndSettle();
     expect(shellDrawerOpen.value, isFalse);
 

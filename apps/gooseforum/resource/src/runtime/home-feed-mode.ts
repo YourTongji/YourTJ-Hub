@@ -20,8 +20,7 @@ function readFeedMode(): HomeFeedMode {
     : 'card'
 }
 
-// 首页的最新、热门、流行页面会被 KeepAlive 缓存为多个组件实例，
-// 因此视图模式必须放在模块级别，不能放在 HomePage 的 setup 实例中。
+// 首页组件在 KeepAlive 恢复或重新创建时共享视图模式。
 const sharedFeedMode = ref<HomeFeedMode>(readFeedMode())
 
 function setFeedMode(mode: HomeFeedMode) {

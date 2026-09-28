@@ -446,9 +446,7 @@ void main() {
   });
 
   for (final boundary in ['background', 'session', 'expiry']) {
-    testWidgets('hidden campus restores persistent data after $boundary', (
-      tester,
-    ) async {
+    testWidgets('hidden campus resumes after $boundary', (tester) async {
       final visible = ValueNotifier(true);
       addTearDown(visible.dispose);
       final repo = ControlledCampusRepository();
@@ -494,7 +492,11 @@ void main() {
       }
       expect(container.read(campusControllerProvider).refreshing, isFalse);
       expect(repo.statusCalls, 2);
-      expect(repo.requested.length, requests);
+      if (boundary == 'background') {
+        expect(repo.requested.length, greaterThan(requests));
+      } else {
+        expect(repo.requested.length, requests);
+      }
       await tester.pumpWidget(const SizedBox());
       await tester.pumpAndSettle();
     });

@@ -184,6 +184,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get authSignInMethods => 'Other sign-in options';
 
   @override
+  String get authMoreSignInMethods => 'More sign-in options';
+
+  @override
   String get authLoginSubtitle =>
       'Welcome back. Continue your discussions and writing.';
 
@@ -214,6 +217,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get authConfirmPassword => 'Confirm password';
 
   @override
+  String get authShowPassword => 'Show password';
+
+  @override
+  String get authHidePassword => 'Hide password';
+
+  @override
   String get authCaptcha => 'Captcha';
 
   @override
@@ -239,6 +248,12 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get authGetCode => 'Get code';
+
+  @override
+  String get authRefreshCaptcha => 'Refresh captcha';
+
+  @override
+  String get authCaptchaRequired => 'Please enter the captcha';
 
   @override
   String get authOidcLogin => 'Sign in with yourtj';
@@ -497,6 +512,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get messagesConversation => 'Private conversation';
+
+  @override
+  String messagesViewProfile(String name) {
+    return 'View the profile of $name';
+  }
 
   @override
   String get messagesStartChat => 'Start a conversation';
@@ -928,6 +948,22 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get settingsImageDecodeFailed => 'Failed to decode image';
+
+  @override
+  String get dateToday => 'Today';
+
+  @override
+  String get dateYesterday => 'Yesterday';
+
+  @override
+  String dateMonthDay(int month, int day) {
+    return '$month/$day';
+  }
+
+  @override
+  String dateYearMonthDay(int year, int month, int day) {
+    return '$year/$month/$day';
+  }
 
   @override
   String dateMonthDayTime(int month, int day, String time) {
@@ -1739,6 +1775,16 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get profileOnline => 'Online';
+
+  @override
+  String get profileAccountClosedBadge => 'Deactivated';
+
+  @override
+  String get profileAccountClosedTitle => 'Account deactivated';
+
+  @override
+  String get profileAccountClosedDescription =>
+      'This account has been deactivated. Historical content stays visible, but the profile is no longer accessible.';
 
   @override
   String profileJoinedAt(String date) {
@@ -2874,6 +2920,18 @@ class AppLocalizationsEn extends AppLocalizations {
   String get userBlocksEmpty => 'No blocked users';
 
   @override
+  String get messageCopied => 'Copied';
+
+  @override
+  String get messageReply => 'Reply';
+
+  @override
+  String get messageReplyCancel => 'Cancel reply';
+
+  @override
+  String get messageReplySelf => 'You';
+
+  @override
   String get messageReport => 'Report message';
 
   @override
@@ -2897,4 +2955,107 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get reportOther => 'Other';
+
+  @override
+  String get messageActions => 'Message actions';
+
+  @override
+  String get messageForwardIndividualLimit =>
+      'Use merged history for more than 10 messages.';
+
+  @override
+  String get messageForward => 'Forward';
+
+  @override
+  String get messageSelect => 'Select messages';
+
+  @override
+  String messagesSelected(int count) {
+    return '$count selected';
+  }
+
+  @override
+  String get messageForwardTitle => 'Forward messages';
+
+  @override
+  String get messageForwardIndividual => 'Individually';
+
+  @override
+  String get messageForwardMerged => 'As chat history';
+
+  @override
+  String get messageForwardExplanation =>
+      'Selected messages are copied to recipients. Merged history includes original sender names and times.';
+
+  @override
+  String messageForwardTargets(int count) {
+    return 'Forward to $count people';
+  }
+
+  @override
+  String get messageForwardConfirm => 'Confirm forwarding';
+
+  @override
+  String get messageForwardSuccess => 'Sent';
+
+  @override
+  String get messageForwardFailed => 'Not sent';
+
+  @override
+  String get messageForwardPending => 'Pending';
+
+  @override
+  String get messageForwardSending => 'Sending';
+
+  @override
+  String get messageForwardRetry => 'Retry unfinished deliveries';
+
+  @override
+  String get messageForwardResume => 'Continue forwarding';
+
+  @override
+  String messageForwardLimit(int count) {
+    return 'Select up to $count messages';
+  }
+
+  @override
+  String messageForwardRecipientLimit(int count) {
+    return 'Select up to $count recipients';
+  }
+
+  @override
+  String get messageForwardHistory => 'Chat history';
+
+  @override
+  String messageForwardCount(int count) {
+    return '$count messages';
+  }
+
+  @override
+  String get messageForwardEmptyRecipients =>
+      'No conversations or contacts available';
+
+  @override
+  String get messageForwardCancelRemaining => 'Discard remaining deliveries';
+
+  @override
+  String get messageForwardAbandonNotice =>
+      'Sent messages remain. Unacknowledged messages may already be delivered; starting a new forward can duplicate them.';
+
+  @override
+  String get messageForwardSearch => 'Search conversations or contacts';
+
+  @override
+  String get messageForwardChooseTargets => 'Choose recipients';
+
+  @override
+  String get settingsVisitorAnalytics => 'Share visit statistics';
+
+  @override
+  String get settingsVisitorAnalyticsDescription =>
+      'Off by default. Sends public screen categories, App marker, OS and phone/tablet type to YourTJ’s self-hosted analytics for the status page; the service also receives your network IP and derives an approximate location. No account, content, search terms, device identifiers, campus, messages or settings pages are sent. Turn off at any time.';
+
+  @override
+  String get settingsVisitorAnalyticsSaveFailed =>
+      'Could not save the analytics preference. Disabling still applies now; retry to save your choice for the next launch.';
 }

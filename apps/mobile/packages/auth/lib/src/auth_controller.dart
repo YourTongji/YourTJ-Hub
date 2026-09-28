@@ -69,6 +69,10 @@ class AuthController extends ChangeNotifier {
   bool get busy => _busy;
   bool get isAuthenticated => _phase == LoginPhase.authenticated;
 
+  /// 验证码加载失败的展示文案;加载成功后清除,避免手动刷新重试成功后
+  /// 仍残留失败提示。
+  static const String _captchaLoadError = 'Failed to load captcha';
+
   /// 加载验证码图片。
   ///
   /// 预取失败时保留当前登录 phase,避免网络抖动把尚未提交的登录变成
@@ -98,10 +102,12 @@ class AuthController extends ChangeNotifier {
   }) async {
     try {
       _captcha = await _auth.getCaptcha();
+      // 仅清除本方法写入的验证码提示,不覆盖登录流程自身的错误文案。
+      if (_error == _captchaLoadError) _error = '';
       notifyListeners();
     } catch (_) {
       if (silentOnError) return;
-      _error = 'Failed to load captcha';
+      _error = _captchaLoadError;
       if (!preservePhaseOnError) _phase = LoginPhase.failed;
       notifyListeners();
     }

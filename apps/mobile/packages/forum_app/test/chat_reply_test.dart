@@ -1,0 +1,95 @@
+import 'package:flutter_test/flutter_test.dart';
+import 'package:forum_app/src/messages/chat_reply.dart';
+
+void main() {
+  group('chatReplyExcerpt', () {
+    test('collapses line breaks and runs of whitespace', () {
+      expect(chatReplyExcerpt('第一行\n\n第二行\t结束  '), '第一行 第二行 结束');
+    });
+
+    test('keeps short content untouched', () {
+      expect(chatReplyExcerpt('消息 1'), '消息 1');
+    });
+
+    test('bounds long content with one trailing marker', () {
+      final excerpt = chatReplyExcerpt('a' * 500, maxLength: 10);
+      expect(excerpt, '${'a' * 10}…');
+    });
+
+    test('never splits a surrogate pair while truncating', () {
+      final excerpt = chatReplyExcerpt('😀' * 50, maxLength: 5);
+      expect(excerpt, '${'😀' * 5}…');
+      expect(excerpt.runes.length, 6);
+    });
+
+    test('expands sticker tokens to their readable preview label', () {
+      expect(chatReplyExcerpt('[:sticker:smile:] 早'), '[smile] 早');
+    });
+
+    test('a non-positive bound yields an empty excerpt', () {
+      expect(chatReplyExcerpt('消息', maxLength: 0), '');
+    });
+  });
+
+  group('composeChatReply', () {
+    test('prefixes a plain-text quote and keeps the reply body', () {
+      expect(
+        composeChatReply(sender: '@bob', content: '你好', body: '收到'),
+        '> @bob: 你好\n\n收到',
+      );
+    });
+
+    test('omits a missing sender or empty excerpt', () {
+      expect(
+        composeChatReply(sender: '', content: '你好', body: '收到'),
+        '> 你好\n\n收到',
+      );
+      expect(
+        composeChatReply(sender: '@bob', content: '   ', body: '收到'),
+        '> @bob:\n\n收到',
+      );
+    });
+
+    test('without any quote context only the body is sent', () {
+      expect(composeChatReply(sender: '', content: '', body: '收到'), '收到');
+    });
+
+    test('bounds the quoted excerpt of very long content', () {
+      final content = 'a' * 5000;
+      final text = composeChatReply(
+        sender: '@bob',
+        content: content,
+        body: '收到',
+      );
+      final header = text.split('\n\n').first;
+      expect(
+        header.length,
+        lessThanOrEqualTo(chatReplyExcerptMaxLength + '> @bob: '.length + 1),
+      );
+      expect(header, endsWith('…'));
+    });
+
+    test('keeps multi-line reply bodies intact', () {
+      expect(
+        composeChatReply(sender: '@bob', content: 'hi', body: 'a\nb'),
+        '> @bob: hi\n\na\nb',
+      );
+    });
+  });
+
+  group('ChatReplyTarget', () {
+    test(
+      'derives a bounded excerpt and composes from the original content',
+      () {
+        final target = ChatReplyTarget(
+          messageId: 7,
+          sender: '@bob',
+          content: '你好\n世界',
+        );
+        expect(target.messageId, 7);
+        expect(target.excerpt, '你好 世界');
+        expect(target.compose('收到'), '> @bob: 你好 世界\n\n收到');
+      },
+    );
+  });
+}

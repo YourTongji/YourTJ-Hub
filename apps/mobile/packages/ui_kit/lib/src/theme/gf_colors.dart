@@ -54,6 +54,14 @@ class GfColors {
   /// Text / icons on primary fills. `--gf-color-primary-content`.
   final Color primaryContent;
 
+  /// Static outgoing-message surface, separate from the editable site palette.
+  /// `--gf-color-message-outgoing`, shared by light and dark themes.
+  Color get messageOutgoing => const Color(0xFF2563EB);
+
+  /// Text and icons on outgoing-message surfaces (including links and cards).
+  /// `--gf-color-message-outgoing-content`.
+  Color get messageOutgoingContent => const Color(0xFFFFFFFF);
+
   /// Secondary surface (tabs, subtle fills). `--gf-color-secondary`.
   final Color secondary;
 
@@ -96,7 +104,7 @@ class GfColors {
   /// Text on error fills. `--gf-color-error-content`.
   final Color errorContent;
 
-  /// All 22 color tokens keyed by their `tokens.css` names (without the
+  /// All 22 editable site-theme color tokens keyed by their `tokens.css` names (without the
   /// `color-` prefix). Used by tests to keep `GfColors` in sync with
   /// `tokens.json`.
   Map<String, Color> get asMap => {

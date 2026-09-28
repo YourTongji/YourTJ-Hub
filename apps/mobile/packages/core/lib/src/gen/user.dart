@@ -31,6 +31,7 @@ abstract class UserCardPayload with _$UserCardPayload {
     required bool isOnline,
     required bool isFollowing,
     required bool isSelf,
+    @Default(false) bool isAccountClosed,
     // 容错：旧后端（< 2026-09-06 修复）对无徽章用户序列化 badges 为 null
     // （违反 TS 契约），defaultValue 对显式 null 与缺键均生效。
     List<UserBadgePayload>? displayBadges,

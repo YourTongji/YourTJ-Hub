@@ -60,10 +60,7 @@ jobs:
               - 'packages/api-contract/**'
               - '.github/workflows/ci-backend.yml'
             backend_pg:
-              - 'apps/gooseforum/app/service/notificationservice/**'
-              - 'apps/gooseforum/app/service/oauthservice/**'
-              - 'apps/gooseforum/app/service/chatservice/**'
-              - 'apps/gooseforum/app/service/campusservice/**'
+              - 'apps/gooseforum/app/service/**'
               - 'apps/gooseforum/app/bundles/connect/sqlconnect/**'
               - 'apps/gooseforum/app/migration/**'
               - 'apps/gooseforum/app/models/**'
@@ -171,20 +168,8 @@ jobs:
         working-directory: apps/gooseforum
         env:
           YOURTJ_TEST_PG_URL: "host=127.0.0.1 port=5432 user=postgres password=postgres dbname=postgres sslmode=disable"
-        # PostgreSQL$ 覆盖已接线包内所有 PG 门控用例（course stats 并发/学期列表、
-        # dailyStats 增量、topicUserStat upsert 歧义）。刻意不逐个显式列举用例：
-        # 本类缺陷 pg-only（SQLite 宽松通过，只有 PostgreSQL 报错），一旦漏接线，
-        # 回归护栏形同虚设。包内同名模式的新用例会自动纳入；但新出现 PG 门控的
-        # 包必须在此显式接线（PR #589 的 topicUserStat 一度漏接）。
-        run: |
-          go test ./app/migration/ -run 'TestSchema' -v
-          go test ./app/models/forum/pk/ -run 'PostgreSQL$' -v
-          go test ./app/models/forum/course/ -run 'PostgreSQL$' -v
-          go test ./app/models/forum/dailyStats/ -run 'PostgreSQL$' -v
-          go test ./app/models/forum/topicUserStat/ -run 'PostgreSQL$' -v
-          go test ./app/models/forum/users/ -run 'PostgreSQL$' -v
-          go test ./app/models/forum/campus/ -run 'PostgreSQL$' -v
-          go test ./app/service/chatservice/ -run 'PostgreSQL$' -v
-          go test ./app/service/notificationservice/ -run 'PostgreSQL$' -v
-          go test ./app/service/oauthservice/ -run 'PostgreSQL$' -v
-          go test ./app/service/campusservice/ -run 'PostgreSQL$' -v
+          TEST_PG_DSN: "host=127.0.0.1 port=5432 user=postgres password=postgres dbname=postgres sslmode=disable"
+        # Include both PG naming conventions across the app; new packages need no CI allowlist.
+        # Tests share a disposable database and some DROP SCHEMA public CASCADE.
+        # Serialize packages and tests so one suite cannot destroy another suite's schema.
+        run: go test -p 1 -parallel 1 ./app/... -run 'PostgreSQL|Postgres' -count=1 -v

@@ -100,6 +100,47 @@ describe('TopicRow.vue 列表行一致性验证', () => {
     }
   })
 
+  test('无标题瞬间隐藏标题，用正文摘要作为列表链接且不重复渲染摘要', () => {
+    const topic = createMockTopic(2, { title: '' })
+    const wrapper = mount(TopicRow, {
+      props: {
+        topic,
+        home: true,
+      },
+      global: {
+        plugins: [i18n],
+      },
+    })
+
+    // 标题文本不出现，且详情链接仍可点击（链接文案回退为正文摘要）
+    const link = wrapper.find(`a[href="${topic.url}"]`)
+    expect(link.exists()).toBe(true)
+    expect(link.text()).toBe('测试内容描述')
+    expect(wrapper.text()).not.toContain('测试瞬间标题')
+    // 摘要只出现一次（作为链接，而不是链接 + 下方段落）
+    expect(wrapper.text().split('测试内容描述')).toHaveLength(2)
+    // 瞬间徽章与互动列仍完整
+    expect(wrapper.text()).toContain(i18n.global.t('publish.contentTypes.thought'))
+    expect(wrapper.find('article').findAll(':scope > div').length).toBe(5)
+  })
+
+  test('有标题的瞬间仍渲染标题链接与摘要段落', () => {
+    const topic = createMockTopic(2)
+    const wrapper = mount(TopicRow, {
+      props: {
+        topic,
+        home: true,
+      },
+      global: {
+        plugins: [i18n],
+      },
+    })
+
+    const link = wrapper.find(`a[href="${topic.url}"]`)
+    expect(link.text()).toBe('测试瞬间标题')
+    expect(wrapper.find('p').text()).toBe('测试内容描述')
+  })
+
   test('打开另一行预览时只保留最新的 Hover Card', async () => {
     vi.useFakeTimers()
     const first = mount(TopicRow, {

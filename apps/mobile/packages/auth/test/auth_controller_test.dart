@@ -370,6 +370,50 @@ void main() {
       expect(controller.captcha, isNotNull);
     });
 
+    test('手动刷新验证码失败展示提示,重试成功后清除提示', () async {
+      final auth = FakeAuthRepository(captchaError: StateError('offline'));
+      final controller = _buildController(
+        storage: MemoryTokenStorage(),
+        authRepository: auth,
+      );
+
+      await controller.loadCaptcha(
+        preservePhaseOnError: true,
+        silentOnError: false,
+      );
+
+      expect(controller.phase, LoginPhase.idle);
+      expect(controller.error, 'Failed to load captcha');
+
+      auth.captchaError = null;
+      await controller.loadCaptcha(
+        preservePhaseOnError: true,
+        silentOnError: false,
+      );
+
+      expect(controller.captcha, isNotNull);
+      expect(controller.error, isEmpty);
+    });
+
+    test('验证码加载成功不覆盖登录错误', () async {
+      final controller = _buildController(
+        storage: MemoryTokenStorage(),
+        loginMessageCode: 'auth.captcha.invalid',
+      );
+
+      await controller.login(username: 'alice', password: 'secret');
+      expect(controller.error, 'Invalid or expired captcha');
+
+      await controller.loadCaptcha(
+        preservePhaseOnError: true,
+        silentOnError: false,
+      );
+
+      expect(controller.captcha, isNotNull);
+      // 新验证码不抹掉"验证码错误"的登录提示。
+      expect(controller.error, 'Invalid or expired captcha');
+    });
+
     test('注册遇到 common.captchaRequired 进入 needsCaptcha', () async {
       final controller = _buildController(
         storage: MemoryTokenStorage(),

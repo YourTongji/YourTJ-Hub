@@ -24,8 +24,9 @@ bool isStickerOnlyMessage(String content, Map<String, String> urlByName) {
 /// (对齐 web 消息气泡的安全分段渲染语义:未识别 token 保持原文)。
 InlineSpan? buildStickerMessageSpan(
   String content,
-  Map<String, String> urlByName,
-) {
+  Map<String, String> urlByName, {
+  bool deferLongPress = false,
+}) {
   if (!containsStickerToken(content)) return null;
   final List<StickerMessageSegment> segments = parseStickerSegments(
     content,
@@ -41,7 +42,11 @@ InlineSpan? buildStickerMessageSpan(
           StickerTextSegment(:final text) => TextSpan(text: text),
           StickerImageSegment(:final name, :final url) => WidgetSpan(
             alignment: PlaceholderAlignment.middle,
-            child: StickerImage(name: name, url: url),
+            child: StickerImage(
+              name: name,
+              url: url,
+              deferLongPress: deferLongPress,
+            ),
           ),
         },
     ],

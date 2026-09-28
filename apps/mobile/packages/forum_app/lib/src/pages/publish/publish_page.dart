@@ -1085,26 +1085,15 @@ class _PublishPageState extends ConsumerState<PublishPage>
       return;
     }
 
-    final String title = _title.text.trim().isNotEmpty
-        ? _title.text.trim()
-        : _contentType == 2
-        ? (_simple.text.trim().isEmpty
-              ? AppLocalizations.of(context).publishImageOnlyTitle
-              : _simple.text
-                    .trim()
-                    .split('\n')
-                    .first
-                    .characters
-                    .take(60)
-                    .toString())
-        : '';
+    // 瞬间允许无标题：留空即空标题提交，不从正文首行/图片占位提取（issue #895）。
+    final String title = _title.text.trim();
     final String content = _markdownFromEditor().isEmpty && _images.isNotEmpty
         ? AppLocalizations.of(context).publishImageOnlyTitle
         : _markdownFromEditor();
     final AppLocalizations l10n = AppLocalizations.of(context);
 
     String validationError = '';
-    if (title.isEmpty) {
+    if (title.isEmpty && _contentType != 2) {
       validationError = l10n.publishTitleRequired;
     } else if (_categoryIds.isEmpty) {
       validationError = l10n.publishCategoryRequired;

@@ -226,6 +226,9 @@ func TestAdminListReviewQueueHTTPContract(t *testing.T) {
 	t.Run("success lists the seeded pending topic", func(t *testing.T) {
 		conn, router := setupAdminContentOpsContractTest(t)
 		author := createHTTPContractUser(t, conn, contractTestID())
+		if err := conn.Model(author).Update("nickname", "待审昵称").Error; err != nil {
+			t.Fatalf("set pending topic author nickname: %v", err)
+		}
 		topic := seedContractReviewTopic(t, conn, topics.Entity{
 			Id:            contractTestID(),
 			Title:         "契约待审主题",
@@ -254,6 +257,9 @@ func TestAdminListReviewQueueHTTPContract(t *testing.T) {
 		if item["username"] != author.Username {
 			t.Fatalf("item username = %#v, want %q", item["username"], author.Username)
 		}
+		if item["nickname"] != "待审昵称" {
+			t.Fatalf("item nickname = %#v, want hydrated nickname", item["nickname"])
+		}
 		if item["processStatus"] != float64(2) || item["createdAt"] != "2026-02-03T04:05:06Z" {
 			t.Fatalf("item processStatus/createdAt = %#v/%#v, want 2 and the seeded timestamp", item["processStatus"], item["createdAt"])
 		}
@@ -265,6 +271,9 @@ func TestAdminListReviewQueueHTTPContract(t *testing.T) {
 	t.Run("success lists the seeded pending post with topicId and postNo", func(t *testing.T) {
 		conn, router := setupAdminContentOpsContractTest(t)
 		author := createHTTPContractUser(t, conn, contractTestID())
+		if err := conn.Model(author).Update("nickname", "待审昵称").Error; err != nil {
+			t.Fatalf("set pending post author nickname: %v", err)
+		}
 		topic := seedContractReviewTopic(t, conn, topics.Entity{
 			Id:            contractTestID(),
 			Title:         "契约宿主主题",
@@ -299,6 +308,9 @@ func TestAdminListReviewQueueHTTPContract(t *testing.T) {
 		}
 		if item["topicId"] != float64(topic.Id) || item["postNo"] != float64(2) {
 			t.Fatalf("item topicId/postNo = %#v/%#v, want %d/2", item["topicId"], item["postNo"], topic.Id)
+		}
+		if item["nickname"] != "待审昵称" {
+			t.Fatalf("item nickname = %#v, want hydrated nickname", item["nickname"])
 		}
 	})
 

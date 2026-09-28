@@ -462,7 +462,7 @@ void main() {
 
   for (final draft in [false, true]) {
     testWidgets(
-      'a titleless moment ${draft ? 'saves a server draft' : 'publishes'} with a derived API title but no duplicate preview',
+      'a titleless moment ${draft ? 'saves a server draft' : 'publishes'} with an empty API title and no duplicate preview',
       (tester) async {
         usePhoneViewport(tester);
         final result = await pumpPublishPage(
@@ -488,7 +488,7 @@ void main() {
         await tester.pumpAndSettle();
         expect(result.topicRepository.writes, hasLength(1));
         final write = result.topicRepository.writes.single;
-        expect(write.title, '阳光正好的校园');
+        expect(write.title, isEmpty);
         expect(write.content, '阳光正好的校园\n随手记下这一刻');
         expect(write.topicStatus, draft ? 0 : 1);
         if (draft) {

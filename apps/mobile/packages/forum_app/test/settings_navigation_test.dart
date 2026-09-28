@@ -850,7 +850,13 @@ void main() {
             'security',
           ]) {
             final category = find.byKey(ValueKey('settings-category-$section'));
-            await tester.ensureVisible(category);
+            // Settings can extend beyond the lazy list's built children at
+            // large text sizes; scroll to construct the next category first.
+            await tester.scrollUntilVisible(
+              category,
+              180,
+              scrollable: find.byType(Scrollable).first,
+            );
             await tester.pumpAndSettle();
             await tester.tap(category);
             await tester.pumpAndSettle();

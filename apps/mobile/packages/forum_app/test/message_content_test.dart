@@ -15,6 +15,42 @@ Iterable<TextSpan> textSpans(InlineSpan root) sync* {
 }
 
 void main() {
+  for (final brightness in Brightness.values) {
+    testWidgets('outgoing prose and links inherit white ($brightness)', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: gfThemeData(brightness),
+          home: Scaffold(
+            body: GfMessageBubble(
+              text: 'See https://example.com',
+              mine: true,
+              content: MessageContent(
+                text: 'See https://example.com',
+                stickers: const {},
+                onOpenLink: (_) {},
+              ),
+            ),
+          ),
+        ),
+      );
+      final richText = tester.widget<RichText>(
+        find.descendant(
+          of: find.byType(MessageContent),
+          matching: find.byType(RichText),
+        ),
+      );
+      final root = richText.text as TextSpan;
+      expect(root.style!.color, Colors.white);
+      final link = textSpans(
+        root,
+      ).singleWhere((span) => span.recognizer != null);
+      expect(link.style?.color ?? root.style!.color, Colors.white);
+      expect(link.style!.decoration, TextDecoration.underline);
+    });
+  }
+
   testWidgets('curly-quoted URLs preserve quotes outside the link', (
     tester,
   ) async {

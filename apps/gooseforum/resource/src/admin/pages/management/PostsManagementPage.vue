@@ -344,7 +344,7 @@ onMounted(() => {
                 <div class="min-w-0 flex-1 space-y-1">
                   <div class="flex min-w-0 items-center gap-1.5">
                     <a :href="`/p/post/${post.id}`" target="_blank" rel="noreferrer" class="min-w-0 truncate text-[15px] font-semibold leading-5 text-foreground hover:text-primary hover:underline">
-                      {{ post.title }}
+                      {{ post.title || '-' }}
                     </a>
                     <Badge v-if="post.processStatus === 1" variant="destructive" class="h-5 shrink-0 rounded-full px-1.5 text-[10px]">{{ adminText('k0069') }}</Badge>
                     <Badge v-if="post.pinWeight > 0" variant="secondary" class="h-5 shrink-0 rounded-full px-1.5 text-[10px]">{{ adminText('k00ax') }} {{ post.pinWeight }}</Badge>
@@ -375,7 +375,7 @@ onMounted(() => {
                   <span v-else class="flex size-7 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold">{{ avatarText(post) }}</span>
                   <div class="min-w-0">
                     <a :href="`/u/${post.userId}`" target="_blank" rel="noreferrer" class="block truncate text-[13px] font-semibold hover:text-primary hover:underline">
-                      {{ userDisplayName(post.userId, post.username) }}
+                      {{ userDisplayName(post.userId, post.username, post.nickname) }}
                     </a>
                     <div class="truncate text-xs text-muted-foreground">{{ postDate(post.createdAt) }} {{ postTime(post.createdAt) }} · {{ post.processStatus === 1 ? adminText('k005x') : adminText('k005y') }}</div>
                   </div>
@@ -428,7 +428,7 @@ onMounted(() => {
                     <div class="min-w-0 space-y-1">
                       <div class="flex min-w-0 items-center gap-1.5">
                         <a :href="`/p/post/${post.id}`" target="_blank" rel="noreferrer" class="min-w-0 truncate text-[15px] font-semibold leading-5 text-foreground hover:text-primary hover:underline">
-                          {{ post.title }}
+                          {{ post.title || '-' }}
                         </a>
                         <Badge v-if="post.processStatus === 1" variant="destructive" class="h-5 shrink-0 rounded-full px-1.5 text-[10px]">{{ adminText('k0069') }}</Badge>
                         <Badge v-if="post.pinWeight > 0" variant="secondary" class="h-5 shrink-0 rounded-full px-1.5 text-[10px]">{{ adminText('k00ax') }} {{ post.pinWeight }}</Badge>
@@ -454,7 +454,7 @@ onMounted(() => {
                       <img v-if="post.userAvatarUrl" :src="post.userAvatarUrl" class="size-7 shrink-0 rounded-full object-cover ring-1 ring-border" alt="" />
                       <span v-else class="flex size-7 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold">{{ avatarText(post) }}</span>
                       <a :href="`/u/${post.userId}`" target="_blank" rel="noreferrer" class="min-w-0 truncate text-[13px] font-semibold hover:text-primary hover:underline">
-                        {{ userDisplayName(post.userId, post.username) }}
+                        {{ userDisplayName(post.userId, post.username, post.nickname) }}
                       </a>
                     </div>
                   </TableCell>

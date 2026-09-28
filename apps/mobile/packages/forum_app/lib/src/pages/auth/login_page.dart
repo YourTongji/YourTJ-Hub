@@ -4,7 +4,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:ui_kit/ui_kit.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -15,7 +14,6 @@ import 'package:core/core.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../app_config.dart';
 import '../../apple/apple_sign_in.dart';
-import '../../apple/apple_sign_in_button.dart';
 import '../../navigation/auth_navigation.dart';
 import '../../providers.dart';
 import '../../server_messages.dart';
@@ -26,6 +24,7 @@ import 'auth_ime_stabilizer.dart';
 import 'android_oidc_callback_source.dart';
 import 'android_oidc_coordinator.dart';
 import 'login_captcha_handoff.dart';
+import 'sign_in_methods_sheet.dart';
 
 /// 登录页模式。
 enum _AuthMode { login, register, forgotPassword }
@@ -86,6 +85,7 @@ class _LoginPageState extends ConsumerState<LoginPage>
   final Object _authInputGroup = Object();
   final FocusNode _usernameFocusNode = FocusNode();
   final FocusNode _passwordFocusNode = FocusNode();
+  final FocusNode _confirmPasswordFocusNode = FocusNode();
   final FocusNode _captchaFocusNode = FocusNode();
   final TextEditingController _email = TextEditingController();
   final TextEditingController _captcha = TextEditingController();
@@ -99,12 +99,20 @@ class _LoginPageState extends ConsumerState<LoginPage>
   bool _agreed = false;
   _AuthMode _mode = _AuthMode.login;
   bool _oidcBusy = false;
+  // Restores focus to the "more sign-in methods" control after its sheet
+  // closes without a choice.
+  final FocusNode _moreMethodsFocusNode = FocusNode();
   bool _finishingAuthentication = false;
   bool _passwordInteractionStarted = false;
+  // 明文显示是逐字段的显式用户选择,默认保持遮蔽。
+  bool _passwordVisible = false;
+  bool _confirmPasswordVisible = false;
   bool _loginCaptchaRevealed = false;
   bool _captchaRevealFrameScheduled = false;
   bool _captchaFocusEligible = false;
   bool _suppressPasswordTapOutside = false;
+  bool _captchaRefreshing = false;
+  bool _captchaCodeMissing = false;
   Future<void>? _captchaLoadFuture;
   final Stopwatch _authImeClock = Stopwatch()..start();
   late final AuthImeStabilizer<FocusNode> _authIme;
@@ -114,6 +122,8 @@ class _LoginPageState extends ConsumerState<LoginPage>
   String _cacheError = '';
   // 缓存清理失败后禁止返回旧 shell(其内存态可能含上一账号数据)。
   bool _authBlocked = false;
+  // 本次登录流程是否已推进会话世代(入口存在旧会话,或认证成功)。
+  bool _sessionBoundaryAdvanced = false;
 
   late final AuthController _authController;
   late final GfApiClient _authClient;
@@ -177,31 +187,60 @@ class _LoginPageState extends ConsumerState<LoginPage>
     _passwordFocusNode.addListener(_onPasswordFocusChanged);
     _captchaFocusNode.addListener(_onCaptchaFocusChanged);
 
-    // 进入登录页即进入新会话边界:先使旧会话在途写入失效,再清空缓存。
-    // 两者都延迟到首帧后执行(避免在 widget 构建期修改 provider),且
-    // 世代失效必须先于清库,保证不变量:
+    // 进入登录页时,若仍持有旧会话(登出/401 竞态),先使旧会话在途写入
+    // 失效,再清空缓存。两者都延迟到首帧后执行(避免在 widget 构建期修改
+    // provider),且世代失效必须先于清库,保证不变量:
     //   - 失效前提交的旧会话写入会被随后的清库清掉;
     //   - 失效后提交的写入会被世代守卫拦截。
+    // 游客打开登录页不是账号切换:取消后必须回到原页面继续浏览,因此不能
+    // 推进世代——下方仍存活的页面(如话题详情)会因世代失配而永久置空。
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      ref.read(offlineCacheEpochProvider.notifier).invalidate();
-      // 进入登录页即会话边界:使缓存的当前用户身份失效(旧账号 id 不再
-      // 被后续新 shell 读取)。
+      // 使缓存的当前用户身份失效(旧账号 id 不再被后续新 shell 读取)。
       ref.invalidate(currentUserProvider);
-      _cacheClearFuture = _clearOfflineCacheOnce();
+      unawaited(_beginLoginSessionBoundary());
       _loadRegistration();
       _authIme.metricsChanged();
     });
   }
 
+  /// 进入登录页的会话边界:只在旧会话仍存在时推进世代(生成新的账号边界)。
+  /// 游客入口不推进;若之后认证成功,[_finishAuthentication] 会补上这次账号
+  /// 切换的边界。
+  ///
+  /// 缓存清理与原语义一致:进入登录页即启动(上次登出/401 清理失败时每次
+  /// 进入都会重试),且不因 token 读取期间页面被返回而跳过;清理句柄在
+  /// await 前捕获,避免对已卸载页面的 ref 访问。
+  Future<void> _beginLoginSessionBoundary() async {
+    final storage = ref.read(tokenStorageProvider);
+    final epochNotifier = ref.read(offlineCacheEpochProvider.notifier);
+    final topicCache = ref.read(offlineTopicCacheProvider);
+    final chatCache = ref.read(offlineChatCacheProvider);
+    final widgetBridge = ref.read(scheduleWidgetBridgeProvider);
+    final bool hasSession = await hasSessionToken(storage);
+    if (hasSession && !_sessionBoundaryAdvanced) {
+      _sessionBoundaryAdvanced = true;
+      epochNotifier.invalidate();
+    }
+    final Future<bool> future = _runCacheClear(
+      () => clearOfflineCache(topicCache, chatCache, widgetBridge),
+    );
+    // 认证提交若已抢先启动清库,复用它而不是替换。
+    if (mounted) _cacheClearFuture ??= future;
+  }
+
   /// 执行一次离线缓存清理;成功返回 true,失败返回 false(不抛出)。
-  Future<bool> _clearOfflineCacheOnce() async {
+  Future<bool> _clearOfflineCacheOnce() => _runCacheClear(
+    () => clearOfflineCache(
+      ref.read(offlineTopicCacheProvider),
+      ref.read(offlineChatCacheProvider),
+      ref.read(scheduleWidgetBridgeProvider),
+    ),
+  );
+
+  Future<bool> _runCacheClear(Future<void> Function() clear) async {
     try {
-      await clearOfflineCache(
-        ref.read(offlineTopicCacheProvider),
-        ref.read(offlineChatCacheProvider),
-        ref.read(scheduleWidgetBridgeProvider),
-      );
+      await clear();
       return true;
     } catch (_) {
       return false;
@@ -229,7 +268,9 @@ class _LoginPageState extends ConsumerState<LoginPage>
     _captchaFocusNode.removeListener(_onCaptchaFocusChanged);
     _usernameFocusNode.dispose();
     _passwordFocusNode.dispose();
+    _confirmPasswordFocusNode.dispose();
     _captchaFocusNode.dispose();
+    _moreMethodsFocusNode.dispose();
     _confirmPassword.dispose();
     _username.dispose();
     _password.dispose();
@@ -435,6 +476,9 @@ class _LoginPageState extends ConsumerState<LoginPage>
       enableSuggestions: false,
       textInputAction: TextInputAction.done,
       onSubmitted: (_) => _submit(),
+      onChanged: (_) {
+        if (_captchaCodeMissing) setState(() => _captchaCodeMissing = false);
+      },
     );
     return _mode == _AuthMode.login
         ? _withAuthFocusIntent(_captchaFocusNode, input)
@@ -448,6 +492,80 @@ class _LoginPageState extends ConsumerState<LoginPage>
         silentOnError: false,
         force: true,
       ).then((_) => _captchaHandoff.captchaEligibilityChanged()),
+    );
+  }
+
+  /// 手动刷新验证码:请求新的一张,并在新挑战到达后清空旧输入。
+  ///
+  /// 单飞由 [_buildCaptchaChallenge] 保证:刷新在途时验证码图不可点击
+  /// (onTap 为 null),因此这里不会重入。刷新失败时保留旧图与仍有效的
+  /// 旧输入,由错误条提示,用户可再次点击重试。
+  void _refreshCaptcha() {
+    final CaptchaPayload? previous = _authController.captcha;
+    setState(() => _captchaRefreshing = true);
+    unawaited(
+      _loadCaptchaIfNeeded(
+            preservePhaseOnError: true,
+            silentOnError: false,
+            force: true,
+          )
+          .then((_) {
+            if (!mounted) return;
+            // 只有新挑战真正到达才作废旧输入:失败时旧图与旧码在服务端
+            // 仍然有效,用户可以直接重试提交或再次点击刷新。
+            if (!identical(_authController.captcha, previous)) {
+              _captcha.clear();
+              if (_captchaCodeMissing) {
+                setState(() => _captchaCodeMissing = false);
+              }
+            }
+            _captchaHandoff.captchaEligibilityChanged();
+          })
+          .whenComplete(() {
+            if (mounted) setState(() => _captchaRefreshing = false);
+          }),
+    );
+  }
+
+  /// 可点击刷新的验证码图。
+  ///
+  /// 点击请求新一张并清空旧输入;在途时显示进度并忽略再次点击。图片属于
+  /// 输入组,点刷新不会触发 TapRegion 的 onTapOutside 收起键盘。
+  Widget _buildCaptchaChallenge(CaptchaPayload captcha, AppLocalizations l10n) {
+    final GfColors colors = GfTheme.colorsOf(context);
+    final Widget image = ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: GfCaptchaImage(imageData: captcha.captchaImg),
+    );
+    return TapRegion(
+      groupId: _authInputGroup,
+      child: MergeSemantics(
+        child: Semantics(
+          label: l10n.authRefreshCaptcha,
+          button: true,
+          enabled: !_captchaRefreshing,
+          child: InkWell(
+            key: const Key('login-captcha-refresh'),
+            onTap: _captchaRefreshing ? null : _refreshCaptcha,
+            borderRadius: BorderRadius.circular(8),
+            child: Stack(
+              alignment: Alignment.center,
+              children: <Widget>[
+                image,
+                if (_captchaRefreshing)
+                  Positioned.fill(
+                    child: ColoredBox(
+                      color: colors.base100.withValues(alpha: 0.55),
+                      child: const Center(
+                        child: GfProgressIndicator(strokeWidth: 2),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 
@@ -606,6 +724,13 @@ class _LoginPageState extends ConsumerState<LoginPage>
     if (!mounted || _finishingAuthentication) return;
     setState(() => _finishingAuthentication = true);
     try {
+      // 游客进入登录页没有推进会话世代,认证成功才是账号切换:先补上
+      // 边界,再确保缓存已清空,最后才提交新令牌。游客会话只写公开数据,
+      // 入口清库之后没有再落盘账号私有数据,因此这里无需重复清库。
+      if (!_sessionBoundaryAdvanced) {
+        _sessionBoundaryAdvanced = true;
+        ref.read(offlineCacheEpochProvider.notifier).invalidate();
+      }
       if (!await _ensureCacheCleared()) {
         await _authTokenStorage.clear();
         if (!mounted) return;
@@ -748,6 +873,7 @@ class _LoginPageState extends ConsumerState<LoginPage>
       _loginCaptchaRevealed = false;
       _passwordInteractionStarted = false;
       _suppressPasswordTapOutside = false;
+      _captchaCodeMissing = false;
       _oidcError = '';
     });
   }
@@ -769,7 +895,7 @@ class _LoginPageState extends ConsumerState<LoginPage>
               // Keep navigation outside the form's scroll/hit-test area, even
               // when an error, large text or the keyboard makes the form tall.
               SizedBox(
-                height: 52,
+                height: 48,
                 child: Stack(
                   children: <Widget>[
                     Positioned(
@@ -808,23 +934,37 @@ class _LoginPageState extends ConsumerState<LoginPage>
                 ),
               ),
               Expanded(
-                child: Center(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 520),
-                      child: GfCard(
-                        showDivider: false,
-                        padding: const EdgeInsets.fromLTRB(4, 16, 4, 24),
-                        child: ListenableBuilder(
-                          listenable: _authController,
-                          builder: (BuildContext context, Widget? child) {
-                            return _buildCardContent(context, l10n, colors);
-                          },
+                child: LayoutBuilder(
+                  builder: (BuildContext context, BoxConstraints constraints) {
+                    // A short form area - a small phone, or the keyboard
+                    // covering it - drops the decorative header so the form
+                    // and its sign-in methods stay reachable (issue #888).
+                    final bool compactHeader =
+                        constraints.maxHeight < _compactHeaderHeight;
+                    return Center(
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 520),
+                          child: GfCard(
+                            showDivider: false,
+                            padding: const EdgeInsets.fromLTRB(4, 8, 4, 12),
+                            child: ListenableBuilder(
+                              listenable: _authController,
+                              builder: (BuildContext context, Widget? child) {
+                                return _buildCardContent(
+                                  context,
+                                  l10n,
+                                  colors,
+                                  compactHeader: compactHeader,
+                                );
+                              },
+                            ),
+                          ),
                         ),
                       ),
-                    ),
-                  ),
+                    );
+                  },
                 ),
               ),
             ],
@@ -834,11 +974,17 @@ class _LoginPageState extends ConsumerState<LoginPage>
     );
   }
 
+  /// Form areas shorter than this drop the brand lockup and subtitle.
+  static const double _compactHeaderHeight = 700;
+
   Widget _buildCardContent(
     BuildContext context,
     AppLocalizations l10n,
-    GfColors colors,
-  ) {
+    GfColors colors, {
+    required bool compactHeader,
+  }) {
+    final bool registrationHeader = _mode == _AuthMode.register;
+    final bool showBrand = !compactHeader;
     final bool showCaptcha =
         _authController.phase == LoginPhase.needsCaptcha ||
         (_mode == _AuthMode.login && _loginCaptchaRevealed);
@@ -859,33 +1005,46 @@ class _LoginPageState extends ConsumerState<LoginPage>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
-          Align(
-            alignment: Alignment.centerLeft,
-            child: Image.asset(
-              Theme.of(context).brightness == Brightness.dark
-                  ? 'assets/images/brand-default-dark.webp'
-                  : 'assets/images/brand-default.webp',
-              width: 176,
-              height: 40,
-              fit: BoxFit.contain,
-              semanticLabel: 'YourTJ',
+          // Keep the fields reachable in compact form areas by hiding the
+          // decorative brand lockup.
+          if (showBrand) ...[
+            Align(
+              alignment: Alignment.center,
+              child: Transform.translate(
+                // The wordmark asset's visible alpha bounds sit about 2 px
+                // right of its canvas center; correct that optical offset.
+                offset: const Offset(-2, 0),
+                child: Image.asset(
+                  Theme.of(context).brightness == Brightness.dark
+                      ? 'assets/images/brand-default-dark.webp'
+                      : 'assets/images/brand-default.webp',
+                  width: 192,
+                  height: 44,
+                  fit: BoxFit.contain,
+                  semanticLabel: 'YourTJ',
+                ),
+              ),
             ),
-          ),
-          const SizedBox(height: 24),
+            const SizedBox(height: 16),
+          ],
           Text(
             _title(l10n),
-            style: GfTheme.typographyOf(context).display.copyWith(fontSize: 27),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            _mode == _AuthMode.login && _returnTo != null && _returnTo != '/'
-                ? l10n.authContinueAfterLogin
-                : _subtitle(l10n),
             style: GfTheme.typographyOf(
               context,
-            ).small.copyWith(color: colors.baseContent.withValues(alpha: 0.55)),
+            ).display.copyWith(fontSize: 27, height: 1.15),
           ),
-          const SizedBox(height: 22),
+          if (!compactHeader) ...[
+            SizedBox(height: registrationHeader ? 8 : 4),
+            Text(
+              _mode == _AuthMode.login && _returnTo != null && _returnTo != '/'
+                  ? l10n.authContinueAfterLogin
+                  : _subtitle(l10n),
+              style: GfTheme.typographyOf(context).small.copyWith(
+                color: colors.baseContent.withValues(alpha: 0.55),
+              ),
+            ),
+          ],
+          SizedBox(height: registrationHeader ? 16 : 12),
           if (_mode != _AuthMode.forgotPassword) ...<Widget>[
             GfSegmented<_AuthMode>(
               segments: <(String, _AuthMode)>[
@@ -895,7 +1054,7 @@ class _LoginPageState extends ConsumerState<LoginPage>
               selected: _mode,
               onSelected: _switchMode,
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 12),
           ],
           if (_mode != _AuthMode.forgotPassword) ...<Widget>[
             _withAuthFocusIntent(
@@ -926,7 +1085,7 @@ class _LoginPageState extends ConsumerState<LoginPage>
                 prefixIcon: const GfSymbol('user-round', size: 20),
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 8),
           ],
           if (_mode != _AuthMode.login) ...<Widget>[
             _withAuthInputRegion(
@@ -990,7 +1149,7 @@ class _LoginPageState extends ConsumerState<LoginPage>
                 GfInput(
                   controller: _password,
                   focusNode: _passwordFocusNode,
-                  obscureText: true,
+                  obscureText: !_passwordVisible,
                   autofillHints: [
                     _mode == _AuthMode.login
                         ? AutofillHints.password
@@ -1001,9 +1160,19 @@ class _LoginPageState extends ConsumerState<LoginPage>
                   textInputAction: TextInputAction.next,
                   onEditingComplete: _mode == _AuthMode.login
                       ? () => _completePasswordStage(focusCaptcha: true)
-                      : () => FocusScope.of(context).nextFocus(),
+                      // 显示开关也是可聚焦后缀控件,nextFocus 会先停在它上面;
+                      // 注册流程显式前进到确认密码。
+                      : _confirmPasswordFocusNode.requestFocus,
                   labelText: l10n.authPassword,
                   prefixIcon: const GfSymbol('key-round', size: 20),
+                  suffixIcon: _PasswordVisibilityToggle(
+                    key: const Key('login-password-visibility'),
+                    visible: _passwordVisible,
+                    showLabel: l10n.authShowPassword,
+                    hideLabel: l10n.authHidePassword,
+                    onPressed: () =>
+                        setState(() => _passwordVisible = !_passwordVisible),
+                  ),
                   onChanged: _onPasswordChanged,
                 ),
               ),
@@ -1026,13 +1195,23 @@ class _LoginPageState extends ConsumerState<LoginPage>
             _withAuthInputRegion(
               GfInput(
                 controller: _confirmPassword,
+                focusNode: _confirmPasswordFocusNode,
                 labelText: l10n.authConfirmPassword,
-                obscureText: true,
+                obscureText: !_confirmPasswordVisible,
                 autofillHints: const [AutofillHints.newPassword],
                 autocorrect: false,
                 enableSuggestions: false,
                 textInputAction: TextInputAction.done,
                 onSubmitted: (_) => _submit(),
+                suffixIcon: _PasswordVisibilityToggle(
+                  key: const Key('register-confirm-password-visibility'),
+                  visible: _confirmPasswordVisible,
+                  showLabel: l10n.authShowPassword,
+                  hideLabel: l10n.authHidePassword,
+                  onPressed: () => setState(
+                    () => _confirmPasswordVisible = !_confirmPasswordVisible,
+                  ),
+                ),
               ),
             ),
             if (_registrationLoading) const LinearProgressIndicator(),
@@ -1079,10 +1258,7 @@ class _LoginPageState extends ConsumerState<LoginPage>
               child: captcha != null
                   ? LayoutBuilder(
                       builder: (context, constraints) {
-                        final image = ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: GfCaptchaImage(imageData: captcha.captchaImg),
-                        );
+                        final image = _buildCaptchaChallenge(captcha, l10n);
                         // Leave room for a complete code at the user's text size.
                         final inputWidth = MediaQuery.textScalerOf(
                           context,
@@ -1129,19 +1305,22 @@ class _LoginPageState extends ConsumerState<LoginPage>
               ),
             ),
           ],
-          if (_authController.error.isNotEmpty ||
+          if (_captchaCodeMissing ||
+              _authController.error.isNotEmpty ||
               _oidcError.isNotEmpty ||
               _cacheError.isNotEmpty) ...<Widget>[
             const SizedBox(height: 12),
             GfStatusMessage(
-              message: _cacheError.isNotEmpty
+              message: _captchaCodeMissing
+                  ? l10n.authCaptchaRequired
+                  : _cacheError.isNotEmpty
                   ? _cacheError
                   : _oidcError.isNotEmpty
                   ? _oidcError
                   : _authController.error,
             ),
           ],
-          const SizedBox(height: 20),
+          const SizedBox(height: 12),
           GfButton(
             label: _submitLabel(l10n),
             variant: GfButtonVariant.primary,
@@ -1152,6 +1331,7 @@ class _LoginPageState extends ConsumerState<LoginPage>
                 _authController.busy ||
                     _oidcBusy ||
                     _finishingAuthentication ||
+                    _captchaRefreshing ||
                     (_mode == _AuthMode.register &&
                         (_registration == null ||
                             _registrationLoading ||
@@ -1161,7 +1341,7 @@ class _LoginPageState extends ConsumerState<LoginPage>
                 ? null
                 : _submit,
           ),
-          if (_mode != _AuthMode.forgotPassword) _buildSsoOptions(l10n),
+          if (_mode != _AuthMode.forgotPassword) _buildSignInMethods(l10n),
           if (_mode == _AuthMode.login && _registrationError != null)
             TextButton(
               onPressed: _loadRegistration,
@@ -1181,94 +1361,69 @@ class _LoginPageState extends ConsumerState<LoginPage>
     );
   }
 
-  Widget _buildSsoOptions(AppLocalizations l10n) {
-    final options = _registration;
+  /// The secondary providers stay folded so the common phone viewport shows
+  /// the whole form without scrolling (issue #888).
+  Widget _buildSignInMethods(AppLocalizations l10n) {
+    final LoginPageProps? options = _registration;
     if (options == null) return const SizedBox.shrink();
-    final providers = [
-      if (options.tongjiReady) 'tongji',
-      if (_mode == _AuthMode.login && options.googleReady) 'google',
-      if (_mode == _AuthMode.login && options.githubUrl.isNotEmpty) 'github',
-    ];
-    final showApple =
-        _mode == _AuthMode.login &&
-        options.appleReady &&
-        supportsNativeAppleSignIn;
-    if (providers.isEmpty && !showApple) return const SizedBox.shrink();
+    final List<SignInMethod> methods = availableSignInMethods(
+      options,
+      loginMode: _mode == _AuthMode.login,
+    );
+    if (methods.isEmpty) return const SizedBox.shrink();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const SizedBox(height: 20),
-        Text(
-          l10n.authSignInMethods,
-          style: Theme.of(context).textTheme.labelLarge,
+      children: <Widget>[
+        const SizedBox(height: 12),
+        OutlinedButton.icon(
+          key: const Key('login-more-methods'),
+          focusNode: _moreMethodsFocusNode,
+          icon: const GfSymbol('chevron-down', size: 22),
+          label: Text(l10n.authMoreSignInMethods, textAlign: TextAlign.center),
+          onPressed:
+              _authController.busy || _oidcBusy || _finishingAuthentication
+              ? null
+              : () => _showSignInMethods(methods, options),
         ),
-        const SizedBox(height: 8),
-        if (showApple) ...[
-          AppleSignInButton(
-            onPressed:
-                _authController.busy || _oidcBusy || _finishingAuthentication
-                ? null
-                : _loginApple,
-          ),
-          const SizedBox(height: 8),
-        ],
-        for (final provider in providers) ...[
-          OutlinedButton.icon(
-            icon: provider == 'tongji'
-                ? SvgPicture.asset(
-                    'assets/images/tongji-university.svg',
-                    width: 32,
-                    height: 32,
-                    excludeFromSemantics: true,
-                    colorFilter: Theme.of(context).brightness == Brightness.dark
-                        ? ColorFilter.mode(
-                            GfTheme.colorsOf(context).info,
-                            BlendMode.srcIn,
-                          )
-                        : null,
-                  )
-                : GfSymbol(provider, size: 22),
-            label: Text(switch (provider) {
-              'tongji' => l10n.loginTongji,
-              'google' => l10n.loginGoogle,
-              _ => l10n.loginGithub,
-            }, textAlign: TextAlign.center),
-            onPressed:
-                _authController.busy || _oidcBusy || _finishingAuthentication
-                ? null
-                : () => _loginOidc(provider),
-          ),
-          const SizedBox(height: 8),
-        ],
-        if (options.tongjiReady) ...[
-          Text(
-            l10n.loginTongjiHint,
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
-          if (options.termsOfServiceEnabled ||
-              options.privacyPolicyEnabled) ...[
-            const SizedBox(height: 8),
-            Text(
-              l10n.loginTongjiPolicies,
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-            Wrap(
-              children: [
-                if (options.termsOfServiceEnabled)
-                  TextButton(
-                    onPressed: () => context.push('/terms'),
-                    child: Text(l10n.siteInfoTerms),
-                  ),
-                if (options.privacyPolicyEnabled)
-                  TextButton(
-                    onPressed: () => context.push('/privacy'),
-                    child: Text(l10n.siteInfoPrivacy),
-                  ),
-              ],
-            ),
-          ],
-        ],
       ],
+    );
+  }
+
+  /// Dismisses the form keyboard, then owns the chosen flow here so busy state
+  /// and provider errors stay on the page rather than in a closed sheet.
+  Future<void> _showSignInMethods(
+    List<SignInMethod> methods,
+    LoginPageProps options,
+  ) async {
+    _authIme.cancel();
+    _captchaHandoff.cancel();
+    FocusScope.of(context).unfocus();
+    final SignInMethod? method = await showGfBottomSheet<SignInMethod>(
+      context,
+      builder: (_) => SignInMethodsSheet(
+        methods: methods,
+        termsOfServiceEnabled: options.termsOfServiceEnabled,
+        privacyPolicyEnabled: options.privacyPolicyEnabled,
+      ),
+    );
+    if (!mounted) return;
+    if (method == null) {
+      _restoreMoreMethodsFocus();
+    } else if (method == SignInMethod.apple) {
+      await _loginApple();
+    } else {
+      await _loginOidc(method.name);
+    }
+  }
+
+  /// A dismissed sheet hands focus back to its control. A chosen provider
+  /// starts its own flow instead, so the control must not take focus back.
+  void _restoreMoreMethodsFocus() {
+    final Duration exit = GfMotion.duration(context, GfMotion.layout);
+    unawaited(
+      Future<void>.delayed(exit, () {
+        if (mounted) _moreMethodsFocusNode.requestFocus();
+      }),
     );
   }
 
@@ -1281,8 +1436,22 @@ class _LoginPageState extends ConsumerState<LoginPage>
     _AuthMode.forgotPassword => l10n.authSendResetEmail,
   };
 
+  /// 服务端已要求验证码,但输入框为空:此时提交必然被 `captchaRequired`
+  /// 拒绝并消耗一次登录限流额度,Web 端同样先做本地校验。
+  bool get _requiresCaptchaCode =>
+      _authController.phase == LoginPhase.needsCaptcha &&
+      _captcha.text.trim().isEmpty;
+
   Future<void> _submit() async {
     if (_authController.busy || _oidcBusy || _finishingAuthentication) return;
+    // 刷新在途:挑战与已输入内容都在更换中(按钮同样是禁用态,这里兜底
+    // 键盘提交路径),提交只会浪费一次登录尝试。
+    if (_captchaRefreshing) return;
+    if (_requiresCaptchaCode) {
+      setState(() => _captchaCodeMissing = true);
+      return;
+    }
+    if (_captchaCodeMissing) setState(() => _captchaCodeMissing = false);
     if (_authController.phase == LoginPhase.needsTotp) {
       await _authController.submitTotp(_totp.text.trim());
       if (mounted && _authController.phase == LoginPhase.authenticated) {
@@ -1295,5 +1464,42 @@ class _LoginPageState extends ConsumerState<LoginPage>
       _AuthMode.register => _register(),
       _AuthMode.forgotPassword => _forgotPassword(),
     };
+  }
+}
+
+/// 密码字段的明文/遮蔽切换。
+///
+/// 无状态:显示状态由所属页面持有,标签随状态变化以便读屏播报当前动作。
+class _PasswordVisibilityToggle extends StatelessWidget {
+  const _PasswordVisibilityToggle({
+    super.key,
+    required this.visible,
+    required this.showLabel,
+    required this.hideLabel,
+    required this.onPressed,
+  });
+
+  final bool visible;
+  final String showLabel;
+  final String hideLabel;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final String label = visible ? hideLabel : showLabel;
+    // 与发布页工具栏同一模式:合并语义让读屏把标签、按钮身份和开关状态
+    // 读成一个控件;按钮保持可聚焦,键盘/D-pad 也能到达显示开关。
+    return MergeSemantics(
+      child: Semantics(
+        toggled: visible,
+        child: GfIconButton(
+          symbol: visible ? 'eye-off' : 'eye',
+          tooltip: label,
+          size: 44,
+          iconSize: 20,
+          onPressed: onPressed,
+        ),
+      ),
+    );
   }
 }

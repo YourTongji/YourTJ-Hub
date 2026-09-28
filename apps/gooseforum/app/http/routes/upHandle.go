@@ -1,6 +1,7 @@
 package routes
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/validate"
@@ -30,11 +31,46 @@ func UpJsonReq[T any](action func(ctx component.BetterRequest[T]) component.Resp
 	}
 }
 
+// maxContentWriteBodyBytes 是正文/回复写接口的请求体硬上限。控制器内还有与
+// maxPostLength 联动的源文本护栏作为语义上限，这里只兜住解析超大请求体的内存
+// 与 CPU：2 MiB 覆盖默认配置下 UTF-8 最坏情况（maxPostLength×4 码点 × 4 字节
+// ≈ 800 KB）并留有余量。
+const maxContentWriteBodyBytes = 2 << 20
+
 // UpLimitedJsonReq applies a hard body limit before the standard strict JSON
 // binding path. It is intended for public endpoints whose work is more
 // expensive than decoding the request itself.
 func UpLimitedJsonReq[T any](maxBytes int64, action func(ctx component.BetterRequest[T]) component.Response) func(c *gin.Context) {
 	handler := UpJsonReq(action)
+	return func(c *gin.Context) {
+		c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxBytes)
+		handler(c)
+	}
+}
+
+// UpLimitedButterReq applies a hard body limit while preserving the lenient JSON
+// binding of content write endpoints. A body over maxBytes is rejected with the
+// standard parse-failure response before the controller runs; malformed bodies
+// within the limit keep the legacy lenient behavior (bound to zero values and
+// failed as business errors).
+func UpLimitedButterReq[T any](maxBytes int64, action func(ctx component.BetterRequest[T]) component.Response) func(c *gin.Context) {
+	handler := UpButterReq(action)
+	return func(c *gin.Context) {
+		// Content-Length 决定了大多数请求的拒绝路径；谎报/分块请求由
+		// MaxBytesReader + bindAndExecute 的 MaxBytesError 分支兜底。
+		if c.Request.ContentLength > maxBytes {
+			c.JSON(http.StatusBadRequest, component.FailDataCode(component.MessageRequestParseFailed, nil))
+			return
+		}
+		c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxBytes)
+		handler(c)
+	}
+}
+
+// UpUriLimitedJsonReq binds URI path parameters then a size-limited strict JSON
+// body. Bodies over maxBytes fail as parse errors, like UpLimitedJsonReq.
+func UpUriLimitedJsonReq[T any](maxBytes int64, action func(ctx component.BetterRequest[T]) component.Response) func(c *gin.Context) {
+	handler := UpUriJsonReq(action)
 	return func(c *gin.Context) {
 		c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxBytes)
 		handler(c)
@@ -101,7 +137,11 @@ func bindAndExecute[T any](c *gin.Context, binder func(any) error, action func(c
 	userId := c.GetUint64("userId")
 	var params T
 	if err := binder(&params); err != nil {
-		if strict {
+		// 请求体越过 MaxBytesReader 上限时一律按解析失败拒绝，即使路由使用
+		// 宽松绑定：被截断的请求体不能降级成零值业务错误。其余解析错误保持
+		// 宽松/严格各自的既有语义。
+		var maxBytesErr *http.MaxBytesError
+		if strict || errors.As(err, &maxBytesErr) {
 			c.JSON(http.StatusBadRequest, component.FailDataCode(
 				component.MessageRequestParseFailed, nil))
 			return

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:auth/auth.dart';
 import 'package:core/core.dart';
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'offline/drift_cache.dart';
@@ -234,6 +235,74 @@ final pageRepositoryProvider = Provider<PageRepository>((ref) {
 final topicRepositoryProvider = Provider<TopicRepository>((ref) {
   return TopicRepository(ref.watch(apiClientProvider));
 });
+
+typedef UserFollowRead = int;
+
+int _userFollowReadOrder = 0;
+
+int nextUserFollowReadOrder() => ++_userFollowReadOrder;
+
+final userFollowStateProvider = ChangeNotifierProvider.autoDispose
+    .family<UserFollowState, int>((ref, _) {
+      ref.watch(offlineCacheEpochProvider);
+      return UserFollowState(ref.watch(topicRepositoryProvider));
+    });
+
+/// One optimistic follow value shared by profile pages, lists and previews.
+class UserFollowState extends ChangeNotifier {
+  UserFollowState(this._repository);
+
+  final TopicRepository _repository;
+  bool? following;
+  bool busy = false;
+  int _mutation = 0;
+  int _lastAcceptedRead = 0;
+  int _lastMutationRead = 0;
+  bool _disposed = false;
+
+  UserFollowRead beginRead() => nextUserFollowReadOrder();
+
+  void acceptServerValue(bool value, UserFollowRead read) {
+    if (_disposed ||
+        busy ||
+        read <= _lastMutationRead ||
+        read <= _lastAcceptedRead) {
+      return;
+    }
+    _lastAcceptedRead = read;
+    following = value;
+    notifyListeners();
+  }
+
+  Future<void> toggle({required int userId, required bool fallback}) async {
+    if (_disposed || busy) return;
+    final previous = following ?? fallback;
+    final mutation = ++_mutation;
+    _lastMutationRead = nextUserFollowReadOrder();
+    following = !previous;
+    busy = true;
+    notifyListeners();
+    try {
+      await _repository.followUser(userId: userId, isFollowing: previous);
+    } catch (_) {
+      if (!_disposed && mutation == _mutation) following = previous;
+      rethrow;
+    } finally {
+      if (!_disposed && mutation == _mutation) {
+        busy = false;
+        _mutation++;
+        _lastMutationRead = nextUserFollowReadOrder();
+        notifyListeners();
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
+  }
+}
 
 final postRepositoryProvider = Provider<PostRepository>((ref) {
   return PostRepository(ref.watch(apiClientProvider));

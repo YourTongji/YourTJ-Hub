@@ -106,9 +106,11 @@ class PrivateNoteButton extends ConsumerWidget {
     super.key,
     required this.userId,
     required this.username,
+    this.compact = false,
   });
   final int userId;
   final String username;
+  final bool compact;
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final scope = PrivateNotesScope.of(context);
@@ -116,9 +118,32 @@ class PrivateNoteButton extends ConsumerWidget {
       return const SizedBox.shrink();
     }
     if (scope.failed) {
+      if (compact) {
+        return GfIconButton(
+          symbol: 'square-pen',
+          tooltip: AppLocalizations.of(context).commonRetry,
+          onPressed: () => ref.invalidate(privateNotesProvider),
+        );
+      }
       return TextButton(
         onPressed: () => ref.invalidate(privateNotesProvider),
         child: Text(AppLocalizations.of(context).commonRetry),
+      );
+    }
+    if (compact) {
+      return GfIconButton(
+        symbol: 'square-pen',
+        tooltip: AppLocalizations.of(context).privateNoteEdit,
+        onPressed: !scope.ready
+            ? null
+            : () => showDialog<void>(
+                context: context,
+                animationStyle: GfMotion.dialogStyle(context),
+                builder: (_) => _PrivateNoteDialog(
+                  userId: userId,
+                  initial: scope.notes[userId]?.note ?? '',
+                ),
+              ),
       );
     }
     return TextButton(

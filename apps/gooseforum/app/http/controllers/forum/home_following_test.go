@@ -158,15 +158,33 @@ func TestFollowingHomeRejectsInvalidCursorAndReadFailure(t *testing.T) {
 	}
 }
 
-func TestHomeGuestFollowingTabUsesLoginURL(t *testing.T) {
-	tabs := buildHomeTabs("latest", 0, "en")
-	for _, tab := range tabs {
-		if tab.Key == "following" {
-			if tab.Label != "Following" || tab.URL != followingLoginURL() {
-				t.Fatalf("guest tab: %+v", tab)
+func TestHomeTabsRespectLoginState(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		userID uint64
+		keys   []string
+	}{
+		{"guest", 0, []string{"latest", "hot", "popular"}},
+		{"signed in", 42, []string{"latest", "following", "hot", "popular"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			for _, sort := range []string{"", "latest", "following", "hot", "popular"} {
+				tabs := buildHomeTabs(sort, tc.userID, "en")
+				if len(tabs) != len(tc.keys) {
+					t.Fatalf("sort %q: tabs = %+v, want keys %v", sort, tabs, tc.keys)
+				}
+				for index, tab := range tabs {
+					if tab.Key != tc.keys[index] {
+						t.Fatalf("tab %d = %q, want %q", index, tab.Key, tc.keys[index])
+					}
+					if tab.Active != (tab.Key == sort || tab.Key == "latest" && sort == "") {
+						t.Fatalf("sort %q: unexpected active state: %+v", sort, tab)
+					}
+					if tab.Key == "following" && (tab.Label != "Following" || tab.URL != "/?sort=following") {
+						t.Fatalf("signed-in following tab: %+v", tab)
+					}
+				}
 			}
-			return
-		}
+		})
 	}
-	t.Fatal("following entry missing")
 }

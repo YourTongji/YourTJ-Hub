@@ -13,6 +13,7 @@ class GfChatInput extends StatefulWidget {
     super.key,
     required this.onSend,
     this.controller,
+    this.focusNode,
     this.hintText,
     this.sendLabel,
     this.enterHint,
@@ -29,6 +30,7 @@ class GfChatInput extends StatefulWidget {
 
   final ValueChanged<String> onSend;
   final TextEditingController? controller;
+  final FocusNode? focusNode;
   final String? hintText;
   final String? sendLabel;
   final String? enterHint;
@@ -74,9 +76,15 @@ class _GfChatInputState extends State<GfChatInput> with WidgetsBindingObserver {
     '✨',
   ];
 
+  static const double _fieldFontSize = 16;
+  static const double _fieldLineHeight = 1.4;
+
+  /// Vertical content padding (11 top + 11 bottom) of the field decoration.
+  static const double _fieldVerticalPadding = 22;
+
   late TextEditingController _controller =
       widget.controller ?? TextEditingController();
-  final FocusNode _inputFocus = FocusNode();
+  late FocusNode _inputFocus = widget.focusNode ?? FocusNode();
   final FocusNode _accessoryFocus = FocusNode();
   TextSelection? _lastSelection;
   bool _emojiOpen = false;
@@ -96,7 +104,11 @@ class _GfChatInputState extends State<GfChatInput> with WidgetsBindingObserver {
   }
 
   void _handleFocusChanged() {
-    if (mounted) setState(() {});
+    if (mounted) {
+      setState(() {
+        if (_inputFocus.hasFocus) _emojiOpen = false;
+      });
+    }
   }
 
   void _rememberSelection() {
@@ -124,6 +136,12 @@ class _GfChatInputState extends State<GfChatInput> with WidgetsBindingObserver {
       _rememberSelection();
       _controller.addListener(_handleTextChanged);
     }
+    if (oldWidget.focusNode != widget.focusNode) {
+      _inputFocus.removeListener(_handleFocusChanged);
+      if (oldWidget.focusNode == null) _inputFocus.dispose();
+      _inputFocus = widget.focusNode ?? FocusNode();
+      _inputFocus.addListener(_handleFocusChanged);
+    }
     if (!widget.enabled) _emojiOpen = false;
   }
 
@@ -133,7 +151,7 @@ class _GfChatInputState extends State<GfChatInput> with WidgetsBindingObserver {
     _controller.removeListener(_handleTextChanged);
     if (widget.controller == null) _controller.dispose();
     _inputFocus.removeListener(_handleFocusChanged);
-    _inputFocus.dispose();
+    if (widget.focusNode == null) _inputFocus.dispose();
     _accessoryFocus.dispose();
     super.dispose();
   }
@@ -162,6 +180,14 @@ class _GfChatInputState extends State<GfChatInput> with WidgetsBindingObserver {
       _accessoryFocus.requestFocus();
     }
   }
+
+  /// The accessory panel may shrink the editor's rendered height, but never its
+  /// multiline input configuration: a single-line field silently drops newline
+  /// insertion, which must stay available while a sticker panel is open.
+  double _collapsedFieldHeight(BuildContext context) =>
+      MediaQuery.textScalerOf(context).scale(_fieldFontSize) *
+          _fieldLineHeight +
+      _fieldVerticalPadding;
 
   void _insertEmoji(String emoji) {
     if (!widget.enabled) return;
@@ -282,49 +308,59 @@ class _GfChatInputState extends State<GfChatInput> with WidgetsBindingObserver {
                               crossAxisAlignment: CrossAxisAlignment.end,
                               children: [
                                 Expanded(
-                                  child: TextField(
-                                    controller: _controller,
-                                    focusNode: _inputFocus,
-                                    enabled: widget.enabled,
-                                    textInputAction: TextInputAction.newline,
-                                    minLines: 1,
-                                    maxLines: _emojiOpen ? 1 : 4,
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      height: 1.4,
-                                      color: widget.enabled
-                                          ? colors.baseContent
-                                          : colors.iconMuted,
+                                  child: ConstrainedBox(
+                                    constraints: _emojiOpen
+                                        ? BoxConstraints(
+                                            maxHeight: _collapsedFieldHeight(
+                                              context,
+                                            ),
+                                          )
+                                        : const BoxConstraints(),
+                                    child: TextField(
+                                      controller: _controller,
+                                      focusNode: _inputFocus,
+                                      enabled: widget.enabled,
+                                      textInputAction: TextInputAction.newline,
+                                      minLines: 1,
+                                      maxLines: 4,
+                                      style: TextStyle(
+                                        fontSize: _fieldFontSize,
+                                        height: _fieldLineHeight,
+                                        color: widget.enabled
+                                            ? colors.baseContent
+                                            : colors.iconMuted,
+                                      ),
+                                      cursorColor: colors.primary,
+                                      decoration: InputDecoration(
+                                        hintText: widget.hintText,
+                                        hintStyle: TextStyle(
+                                          color: colors.iconMuted,
+                                        ),
+                                        filled: false,
+                                        isDense: true,
+                                        constraints: const BoxConstraints(
+                                          minHeight: 44,
+                                        ),
+                                        contentPadding:
+                                            const EdgeInsets.fromLTRB(
+                                              16,
+                                              11,
+                                              4,
+                                              11,
+                                            ),
+                                        border: InputBorder.none,
+                                        enabledBorder: InputBorder.none,
+                                        focusedBorder: InputBorder.none,
+                                        disabledBorder: InputBorder.none,
+                                        errorBorder: InputBorder.none,
+                                        focusedErrorBorder: InputBorder.none,
+                                      ),
+                                      onTap: () {
+                                        if (_emojiOpen) {
+                                          setState(() => _emojiOpen = false);
+                                        }
+                                      },
                                     ),
-                                    cursorColor: colors.primary,
-                                    decoration: InputDecoration(
-                                      hintText: widget.hintText,
-                                      hintStyle: TextStyle(
-                                        color: colors.iconMuted,
-                                      ),
-                                      filled: false,
-                                      isDense: true,
-                                      constraints: const BoxConstraints(
-                                        minHeight: 44,
-                                      ),
-                                      contentPadding: const EdgeInsets.fromLTRB(
-                                        16,
-                                        11,
-                                        4,
-                                        11,
-                                      ),
-                                      border: InputBorder.none,
-                                      enabledBorder: InputBorder.none,
-                                      focusedBorder: InputBorder.none,
-                                      disabledBorder: InputBorder.none,
-                                      errorBorder: InputBorder.none,
-                                      focusedErrorBorder: InputBorder.none,
-                                    ),
-                                    onTap: () {
-                                      if (_emojiOpen) {
-                                        setState(() => _emojiOpen = false);
-                                      }
-                                    },
                                   ),
                                 ),
                                 IconButton(

@@ -408,6 +408,12 @@ abstract class AppLocalizations {
   /// **'Other sign-in options'**
   String get authSignInMethods;
 
+  /// No description provided for @authMoreSignInMethods.
+  ///
+  /// In en, this message translates to:
+  /// **'More sign-in options'**
+  String get authMoreSignInMethods;
+
   /// No description provided for @authLoginSubtitle.
   ///
   /// In en, this message translates to:
@@ -462,6 +468,18 @@ abstract class AppLocalizations {
   /// **'Confirm password'**
   String get authConfirmPassword;
 
+  /// No description provided for @authShowPassword.
+  ///
+  /// In en, this message translates to:
+  /// **'Show password'**
+  String get authShowPassword;
+
+  /// No description provided for @authHidePassword.
+  ///
+  /// In en, this message translates to:
+  /// **'Hide password'**
+  String get authHidePassword;
+
   /// No description provided for @authCaptcha.
   ///
   /// In en, this message translates to:
@@ -515,6 +533,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Get code'**
   String get authGetCode;
+
+  /// No description provided for @authRefreshCaptcha.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh captcha'**
+  String get authRefreshCaptcha;
+
+  /// No description provided for @authCaptchaRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Please enter the captcha'**
+  String get authCaptchaRequired;
 
   /// No description provided for @authOidcLogin.
   ///
@@ -995,6 +1025,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Private conversation'**
   String get messagesConversation;
+
+  /// Screen-reader label for the peer avatar control that opens a user profile from a private conversation.
+  ///
+  /// In en, this message translates to:
+  /// **'View the profile of {name}'**
+  String messagesViewProfile(String name);
 
   /// No description provided for @messagesStartChat.
   ///
@@ -1781,6 +1817,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Failed to decode image'**
   String get settingsImageDecodeFailed;
+
+  /// No description provided for @dateToday.
+  ///
+  /// In en, this message translates to:
+  /// **'Today'**
+  String get dateToday;
+
+  /// No description provided for @dateYesterday.
+  ///
+  /// In en, this message translates to:
+  /// **'Yesterday'**
+  String get dateYesterday;
+
+  /// No description provided for @dateMonthDay.
+  ///
+  /// In en, this message translates to:
+  /// **'{month}/{day}'**
+  String dateMonthDay(int month, int day);
+
+  /// No description provided for @dateYearMonthDay.
+  ///
+  /// In en, this message translates to:
+  /// **'{year}/{month}/{day}'**
+  String dateYearMonthDay(int year, int month, int day);
 
   /// No description provided for @dateMonthDayTime.
   ///
@@ -3269,6 +3329,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Online'**
   String get profileOnline;
+
+  /// No description provided for @profileAccountClosedBadge.
+  ///
+  /// In en, this message translates to:
+  /// **'Deactivated'**
+  String get profileAccountClosedBadge;
+
+  /// No description provided for @profileAccountClosedTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Account deactivated'**
+  String get profileAccountClosedTitle;
+
+  /// No description provided for @profileAccountClosedDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'This account has been deactivated. Historical content stays visible, but the profile is no longer accessible.'**
+  String get profileAccountClosedDescription;
 
   /// No description provided for @profileJoinedAt.
   ///
@@ -5274,6 +5352,30 @@ abstract class AppLocalizations {
   /// **'No blocked users'**
   String get userBlocksEmpty;
 
+  /// No description provided for @messageCopied.
+  ///
+  /// In en, this message translates to:
+  /// **'Copied'**
+  String get messageCopied;
+
+  /// No description provided for @messageReply.
+  ///
+  /// In en, this message translates to:
+  /// **'Reply'**
+  String get messageReply;
+
+  /// No description provided for @messageReplyCancel.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel reply'**
+  String get messageReplyCancel;
+
+  /// No description provided for @messageReplySelf.
+  ///
+  /// In en, this message translates to:
+  /// **'You'**
+  String get messageReplySelf;
+
   /// No description provided for @messageReport.
   ///
   /// In en, this message translates to:
@@ -5321,6 +5423,180 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Other'**
   String get reportOther;
+
+  /// No description provided for @messageActions.
+  ///
+  /// In en, this message translates to:
+  /// **'Message actions'**
+  String get messageActions;
+
+  /// No description provided for @messageForwardIndividualLimit.
+  ///
+  /// In en, this message translates to:
+  /// **'Use merged history for more than 10 messages.'**
+  String get messageForwardIndividualLimit;
+
+  /// No description provided for @messageForward.
+  ///
+  /// In en, this message translates to:
+  /// **'Forward'**
+  String get messageForward;
+
+  /// No description provided for @messageSelect.
+  ///
+  /// In en, this message translates to:
+  /// **'Select messages'**
+  String get messageSelect;
+
+  /// No description provided for @messagesSelected.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} selected'**
+  String messagesSelected(int count);
+
+  /// No description provided for @messageForwardTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Forward messages'**
+  String get messageForwardTitle;
+
+  /// No description provided for @messageForwardIndividual.
+  ///
+  /// In en, this message translates to:
+  /// **'Individually'**
+  String get messageForwardIndividual;
+
+  /// No description provided for @messageForwardMerged.
+  ///
+  /// In en, this message translates to:
+  /// **'As chat history'**
+  String get messageForwardMerged;
+
+  /// No description provided for @messageForwardExplanation.
+  ///
+  /// In en, this message translates to:
+  /// **'Selected messages are copied to recipients. Merged history includes original sender names and times.'**
+  String get messageForwardExplanation;
+
+  /// No description provided for @messageForwardTargets.
+  ///
+  /// In en, this message translates to:
+  /// **'Forward to {count} people'**
+  String messageForwardTargets(int count);
+
+  /// No description provided for @messageForwardConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Confirm forwarding'**
+  String get messageForwardConfirm;
+
+  /// No description provided for @messageForwardSuccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Sent'**
+  String get messageForwardSuccess;
+
+  /// No description provided for @messageForwardFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Not sent'**
+  String get messageForwardFailed;
+
+  /// No description provided for @messageForwardPending.
+  ///
+  /// In en, this message translates to:
+  /// **'Pending'**
+  String get messageForwardPending;
+
+  /// No description provided for @messageForwardSending.
+  ///
+  /// In en, this message translates to:
+  /// **'Sending'**
+  String get messageForwardSending;
+
+  /// No description provided for @messageForwardRetry.
+  ///
+  /// In en, this message translates to:
+  /// **'Retry unfinished deliveries'**
+  String get messageForwardRetry;
+
+  /// No description provided for @messageForwardResume.
+  ///
+  /// In en, this message translates to:
+  /// **'Continue forwarding'**
+  String get messageForwardResume;
+
+  /// No description provided for @messageForwardLimit.
+  ///
+  /// In en, this message translates to:
+  /// **'Select up to {count} messages'**
+  String messageForwardLimit(int count);
+
+  /// No description provided for @messageForwardRecipientLimit.
+  ///
+  /// In en, this message translates to:
+  /// **'Select up to {count} recipients'**
+  String messageForwardRecipientLimit(int count);
+
+  /// No description provided for @messageForwardHistory.
+  ///
+  /// In en, this message translates to:
+  /// **'Chat history'**
+  String get messageForwardHistory;
+
+  /// No description provided for @messageForwardCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} messages'**
+  String messageForwardCount(int count);
+
+  /// No description provided for @messageForwardEmptyRecipients.
+  ///
+  /// In en, this message translates to:
+  /// **'No conversations or contacts available'**
+  String get messageForwardEmptyRecipients;
+
+  /// No description provided for @messageForwardCancelRemaining.
+  ///
+  /// In en, this message translates to:
+  /// **'Discard remaining deliveries'**
+  String get messageForwardCancelRemaining;
+
+  /// No description provided for @messageForwardAbandonNotice.
+  ///
+  /// In en, this message translates to:
+  /// **'Sent messages remain. Unacknowledged messages may already be delivered; starting a new forward can duplicate them.'**
+  String get messageForwardAbandonNotice;
+
+  /// No description provided for @messageForwardSearch.
+  ///
+  /// In en, this message translates to:
+  /// **'Search conversations or contacts'**
+  String get messageForwardSearch;
+
+  /// No description provided for @messageForwardChooseTargets.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose recipients'**
+  String get messageForwardChooseTargets;
+
+  /// No description provided for @settingsVisitorAnalytics.
+  ///
+  /// In en, this message translates to:
+  /// **'Share visit statistics'**
+  String get settingsVisitorAnalytics;
+
+  /// No description provided for @settingsVisitorAnalyticsDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Off by default. Sends public screen categories, App marker, OS and phone/tablet type to YourTJ’s self-hosted analytics for the status page; the service also receives your network IP and derives an approximate location. No account, content, search terms, device identifiers, campus, messages or settings pages are sent. Turn off at any time.'**
+  String get settingsVisitorAnalyticsDescription;
+
+  /// No description provided for @settingsVisitorAnalyticsSaveFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not save the analytics preference. Disabling still applies now; retry to save your choice for the next launch.'**
+  String get settingsVisitorAnalyticsSaveFailed;
 }
 
 class _AppLocalizationsDelegate

@@ -1043,16 +1043,16 @@ func buildLoginPageProps(c *gin.Context) LoginPageProps {
 }
 
 func buildHomeTabs(sort string, userID uint64, lang string) []TabPayload {
-	followingURL := "/?sort=following"
-	if userID == 0 {
-		followingURL = followingLoginURL()
-	}
-	return []TabPayload{
+	tabs := []TabPayload{
 		{Key: "latest", URL: "/", Active: sort == "latest" || sort == ""},
-		{Key: "following", Label: i18n.T(lang, "followingFeed"), URL: followingURL, Active: sort == "following"},
-		{Key: "hot", URL: "/?sort=hot", Active: sort == "hot"},
-		{Key: "popular", URL: "/?sort=popular", Active: sort == "popular"},
 	}
+	if userID != 0 {
+		tabs = append(tabs, TabPayload{Key: "following", Label: i18n.T(lang, "followingFeed"), URL: "/?sort=following", Active: sort == "following"})
+	}
+	return append(tabs,
+		TabPayload{Key: "hot", URL: "/?sort=hot", Active: sort == "hot"},
+		TabPayload{Key: "popular", URL: "/?sort=popular", Active: sort == "popular"},
+	)
 }
 
 func buildTopicPayloads(topics []*vo.TopicsSimpleVo) []TopicPayload {
@@ -1716,6 +1716,11 @@ func buildTopicMeta(c *gin.Context, topic TopicDetailPayload, postStream ...[]Po
 	if description == "" {
 		description = i18n.T(requestLang(c), "meta.topicDesc", "title", topic.Title, "site", siteTitle())
 	}
+	// 无标题瞬间的结构化数据用摘要作 headline，避免导出空 headline。
+	headline := topic.Title
+	if headline == "" {
+		headline = description
+	}
 	inlineImages := topicImageURLs(topic, baseURL)
 	categoryNames := lo.Map(topic.Categories, func(item TopicCategoryPayload, _ int) string { return item.Name })
 	section := ""
@@ -1735,7 +1740,7 @@ func buildTopicMeta(c *gin.Context, topic TopicDetailPayload, postStream ...[]Po
 	jsonLD := vo.ArticleJSONLD{
 		Context:          "https://schema.org",
 		Type:             "DiscussionForumPosting",
-		Headline:         topic.Title,
+		Headline:         headline,
 		Description:      description,
 		Text:             topicPlainText(requestLang(c), topic),
 		Image:            inlineImages,
@@ -1762,7 +1767,7 @@ func buildTopicMeta(c *gin.Context, topic TopicDetailPayload, postStream ...[]Po
 		Description: description,
 		Canonical:   canonical,
 		OpenGraph: &OpenGraphMeta{
-			Title:         topic.Title,
+			Title:         headline,
 			Description:   description,
 			Type:          "article",
 			URL:           canonical,
@@ -1776,7 +1781,7 @@ func buildTopicMeta(c *gin.Context, topic TopicDetailPayload, postStream ...[]Po
 		},
 		Twitter: &TwitterMeta{
 			Card:        "summary",
-			Title:       topic.Title,
+			Title:       headline,
 			Description: description,
 			Image:       firstString(inlineImages),
 		},
@@ -2935,6 +2940,8 @@ func BuildNotificationPayloads(notifications []*eventNotification.Entity) []Noti
 			if item.Actor.Username == "" {
 				item.Actor.Username = author.Username
 			}
+			// 昵称同样以当前用户行为准（备注名显示 note(display name) 需要）。
+			item.Actor.Nickname = author.Nickname
 		}
 		if notification.EventType == eventNotification.EventTypeLike && item.Content == "" && item.Payload.TemplateParams.Preview == "" {
 			post := replies[notification.Payload.PostId]

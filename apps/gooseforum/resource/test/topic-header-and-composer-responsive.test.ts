@@ -4,6 +4,7 @@ import { mount, flushPromises } from '@vue/test-utils'
 import TopicPage from '../src/site/pages/TopicPage.vue'
 import PostComposer from '../src/site/components/PostComposer.vue'
 import { createI18n } from 'vue-i18n'
+import { useShellState } from '../src/runtime/shell-state'
 import zh from '../src/locales/zh'
 
 const i18n = createI18n({
@@ -83,6 +84,60 @@ describe('TopicPage 移动端与桌面端元数据自适应布局', () => {
     expect(row2.text()).toContain('345')
     expect(row2.text()).toContain('67')
 
+    wrapper.unmount()
+  })
+
+  it('无标题瞬间不渲染详情大标题，滚动页头标题保持为空', async () => {
+    const topic = {
+      id: 102,
+      title: '',
+      description: '只有正文的瞬间',
+      contentType: 2, // 瞬间
+      createdAt: '2026-08-06 17:03:00',
+      replyCount: 0,
+      viewCount: 12,
+      likeCount: 0,
+      isLiked: false,
+      isBookmarked: false,
+      author: {
+        id: 1,
+        username: 'testuser',
+        nickname: '测试作者',
+        avatarUrl: '/avatar.png',
+      },
+      categories: [
+        { id: 2, name: '闲聊茶馆', color: '#f59e0b', url: '/c/chat' },
+      ],
+    }
+
+    const wrapper = mount(TopicPage, {
+      props: {
+        layout: { viewer: null } as any,
+        props: {
+          topic,
+          posts: [],
+          totalPosts: 1,
+          replyTarget: null,
+          postWindow: null,
+          postStream: { posts: [] },
+          hotTopics: [],
+          permissions: { canPost: true },
+        } as any,
+      },
+      global: {
+        plugins: [i18n],
+        stubs: {
+          UserAvatar: true,
+          PostStream: true,
+          Breadcrumb: true,
+          PostStreamFloatingActions: true,
+        },
+      },
+    })
+    await flushPromises()
+
+    expect(wrapper.find('h1').exists()).toBe(false)
+    expect(useShellState().headerTitle).toBe('')
     wrapper.unmount()
   })
 })

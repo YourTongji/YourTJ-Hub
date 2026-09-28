@@ -122,10 +122,10 @@ class GfButton extends StatelessWidget {
             return foreground.withValues(alpha: 0.16);
           }
           if (states.contains(WidgetState.pressed)) {
-            return foreground.withValues(alpha: 0.12);
+            return foreground.withValues(alpha: 0.055);
           }
           if (states.contains(WidgetState.hovered)) {
-            return foreground.withValues(alpha: 0.08);
+            return foreground.withValues(alpha: 0.04);
           }
           return Colors.transparent;
         }),

@@ -146,6 +146,7 @@ class GfUserCard extends StatelessWidget {
     required this.name,
     required this.username,
     this.nameBadges = const <Widget>[],
+    this.usernameAction,
     this.bio,
     this.signature,
     this.coverUrl,
@@ -158,6 +159,7 @@ class GfUserCard extends StatelessWidget {
     this.avatarBadge,
     this.showHeader = true,
     this.coverHeight,
+    this.compact = false,
   });
 
   /// The same image crop is used by the public header and its live editor.
@@ -169,6 +171,9 @@ class GfUserCard extends StatelessWidget {
   final String name;
   final String username;
   final List<Widget> nameBadges;
+
+  /// Compact action kept beside the handle, away from the name badges.
+  final Widget? usernameAction;
   final String? bio;
   final String? signature;
   final String? coverUrl;
@@ -176,6 +181,10 @@ class GfUserCard extends StatelessWidget {
   /// Omit the complete cover/avatar/action block when it is rendered elsewhere.
   final bool showHeader;
   final double? coverHeight;
+
+  /// Tightens text grouping for bounded profile previews without changing the
+  /// public profile header's established rhythm.
+  final bool compact;
 
   /// Supplemental badge labels below public details (e.g. Admin, online).
   final List<String> badges;
@@ -202,6 +211,92 @@ class GfUserCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final GfColors colors = GfTheme.colorsOf(context);
+    final sectionGap = compact ? 6.0 : 8.0;
+    final nameText = Text(
+      name,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: TextStyle(
+        fontSize: 22,
+        fontWeight: FontWeight.w700,
+        color: colors.baseContent,
+      ),
+    );
+    final nameRow = compact
+        ? Row(
+            key: const ValueKey('profile-name-row'),
+            children: [
+              Expanded(child: nameText),
+              for (final badge in nameBadges) ...[
+                const SizedBox(width: 6),
+                badge,
+              ],
+            ],
+          )
+        : Wrap(
+            key: const ValueKey('profile-name-row'),
+            spacing: compact ? 6 : 8,
+            runSpacing: 4,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [nameText, ...nameBadges],
+          );
+    final usernameText = Text(
+      '@$username',
+      maxLines: compact ? 1 : null,
+      overflow: compact ? TextOverflow.ellipsis : null,
+      style: TextStyle(
+        fontSize: 13,
+        fontWeight: FontWeight.w500,
+        color: colors.baseContent.withValues(alpha: 0.55),
+      ),
+    );
+    final usernameRow = compact || usernameAction != null
+        ? Row(
+            children: [
+              Expanded(child: usernameText),
+              ?usernameAction,
+            ],
+          )
+        : usernameText;
+    final profileBadges = <Widget>[
+      for (final badge in badges)
+        GfBadge(label: badge, variant: GfBadgeVariant.info),
+      for (final badge in coloredBadges)
+        MergeSemantics(
+          child: Semantics(
+            label: badge.label,
+            button: badge.onTap != null,
+            child: Tooltip(
+              message: [
+                badge.label,
+                badge.description,
+              ].where((text) => text.isNotEmpty).join('\n'),
+              excludeFromSemantics: true,
+              child: TextButton(
+                onPressed: badge.onTap,
+                style: TextButton.styleFrom(
+                  padding: EdgeInsets.zero,
+                  minimumSize: const Size(44, 44),
+                  maximumSize: const Size(44, 44),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  shape: const CircleBorder(),
+                ),
+                child: Align(
+                  // Balance visible gaps around the taller stat target.
+                  alignment: Alignment.bottomCenter,
+                  child: ExcludeSemantics(
+                    child: GfBadgeMedallion(
+                      size: 34,
+                      color: badge.color ?? colors.primary,
+                      icon: badge.icon ?? const GfSymbol('award', size: 22),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+    ];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -219,35 +314,11 @@ class GfUserCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              Wrap(
-                spacing: 8,
-                runSpacing: 4,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: [
-                  Text(
-                    name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w700,
-                      color: colors.baseContent,
-                    ),
-                  ),
-                  ...nameBadges,
-                ],
-              ),
+              nameRow,
               const SizedBox(height: 2),
-              Text(
-                '@$username',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                  color: colors.baseContent.withValues(alpha: 0.55),
-                ),
-              ),
+              usernameRow,
               if (bio != null && bio!.trim().isNotEmpty) ...<Widget>[
-                const SizedBox(height: 8),
+                SizedBox(height: sectionGap),
                 Text(
                   bio!.trim(),
                   style: TextStyle(
@@ -258,7 +329,7 @@ class GfUserCard extends StatelessWidget {
                 ),
               ],
               if (signature?.trim().isNotEmpty == true) ...[
-                const SizedBox(height: 8),
+                SizedBox(height: sectionGap),
                 Align(
                   alignment: Alignment.centerLeft,
                   child: IntrinsicWidth(
@@ -282,7 +353,7 @@ class GfUserCard extends StatelessWidget {
                                 signature!.trim(),
                                 style: TextStyle(
                                   fontSize: 14,
-                                  height: 1.55,
+                                  height: compact ? 1.45 : 1.55,
                                   fontWeight: FontWeight.w500,
                                   color: colors.baseContent.withValues(
                                     alpha: .62,
@@ -308,7 +379,7 @@ class GfUserCard extends StatelessWidget {
                 ),
               ],
               if (details != null) ...<Widget>[
-                const SizedBox(height: 8),
+                SizedBox(height: sectionGap),
                 details!,
               ],
               if (badges.isNotEmpty || coloredBadges.isNotEmpty) ...[
@@ -316,53 +387,31 @@ class GfUserCard extends StatelessWidget {
                 SizedBox(
                   key: const ValueKey('profile-badges-row'),
                   width: double.infinity,
-                  child: Wrap(
-                    alignment: WrapAlignment.start,
-                    spacing: 2,
-                    runSpacing: 4,
-                    children: [
-                      for (final badge in badges)
-                        GfBadge(label: badge, variant: GfBadgeVariant.info),
-                      for (final badge in coloredBadges)
-                        MergeSemantics(
-                          child: Semantics(
-                            label: badge.label,
-                            button: badge.onTap != null,
-                            child: Tooltip(
-                              message: [
-                                badge.label,
-                                badge.description,
-                              ].where((text) => text.isNotEmpty).join('\n'),
-                              excludeFromSemantics: true,
-                              child: TextButton(
-                                onPressed: badge.onTap,
-                                style: TextButton.styleFrom(
-                                  padding: EdgeInsets.zero,
-                                  minimumSize: const Size(44, 44),
-                                  maximumSize: const Size(44, 44),
-                                  tapTargetSize:
-                                      MaterialTapTargetSize.shrinkWrap,
-                                  shape: const CircleBorder(),
-                                ),
-                                child: Align(
-                                  // Balance visible gaps around the taller stat target.
-                                  alignment: Alignment.bottomCenter,
-                                  child: ExcludeSemantics(
-                                    child: GfBadgeMedallion(
-                                      size: 34,
-                                      color: badge.color ?? colors.primary,
-                                      icon:
-                                          badge.icon ??
-                                          const GfSymbol('award', size: 22),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
+                  child: compact
+                      ? GfHorizontalScrollView(
+                          scrollViewKey: const ValueKey(
+                            'profile-badges-scroll',
                           ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              for (
+                                int i = 0;
+                                i < profileBadges.length;
+                                i++
+                              ) ...[
+                                if (i > 0) const SizedBox(width: 2),
+                                profileBadges[i],
+                              ],
+                            ],
+                          ),
+                        )
+                      : Wrap(
+                          alignment: WrapAlignment.start,
+                          spacing: 2,
+                          runSpacing: 4,
+                          children: profileBadges,
                         ),
-                    ],
-                  ),
                 ),
               ],
               if (stats.isNotEmpty) ...<Widget>[
@@ -373,7 +422,7 @@ class GfUserCard extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       for (int i = 0; i < stats.length; i++) ...[
-                        if (i > 0) const SizedBox(width: 8),
+                        if (i > 0) SizedBox(width: compact ? 6 : 8),
                         ConstrainedBox(
                           constraints: BoxConstraints(
                             minWidth: statActions[i] == null ? 0 : 48,

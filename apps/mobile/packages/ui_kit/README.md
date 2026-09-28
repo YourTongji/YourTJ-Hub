@@ -20,6 +20,9 @@ YourTJ 移动端设计系统(Flutter):设计 token、`ThemeData` 与 Gf* 组件�
 - 反馈与状态:`GfSkeleton`(结构化骨架)、`GfEmpty` / `GfStatusMessage` / `GfToast` / `GfAlertDialog` / `GfModal` / `GfBottomSheet` / `GfScrollToTop` / `GfLoadingIndicator`。
 - 表单与展示:`GfInput` / `GfTextarea` / `GfSegmented` / `GfPillSwitch` / `GfSelectTag` / `GfAvatar` / `GfAvatarStack` / `GfBadge` / `GfChip` / `GfDivider` / `GfTooltip` / `GfAlert` / `GfDotGridBackground`。
 
+`Current`: `GfAvatar.size` 包含外圈描边。图片等比缩放到描边内侧，并使用独立的圆形裁切；
+描边与图片各占自己的区域，使小尺寸私信头像保留图片边缘，加载占位与失败占位沿用相同边界。
+
 `Current`: `GfBadgeMedallion` 统一徽章的圆形外圈、高光和内盘；暗色主题保留浅色内盘以呈现服务端固定颜色图案。
 `GfUserCard` 的 `coloredBadges` 使用纯图标入口，保留名称语义、提示和详情回调；
 `GfAchievementCard` 使用同一徽章图案、居中名称与说明，随字号增高，点击详情由应用层处理。
@@ -28,6 +31,11 @@ YourTJ 移动端设计系统(Flutter):设计 token、`ThemeData` 与 Gf* 组件�
 
 - 主题数据来自 `lib/src/theme/tokens.json`(light/dark 双主题);`GfThemeData` 生成 `ThemeData`,`GfTheme.colorsOf(context)` 提供语义色。
 - 新增/修改组件样式走 token,不硬编码色值;与 web `tokens.css` 保持 1:1。
+
+`Current`: 发送气泡使用独立的 `color-message-outgoing` / `color-message-outgoing-content`
+色对（深蓝 `#2563EB`、白字 `#FFFFFF`），浅色与深色主题一致。`GfColors` 通过只读 getter
+提供这组静态组件 token，不纳入可编辑站点色板的 `asMap`。正文、链接和转发卡片继承气泡前景色；
+纯贴纸消息保持无底色，接收消息沿用中性表面。
 
 ## 动效
 
@@ -65,7 +73,7 @@ melos run analyze        # 或 melos exec -- flutter analyze
 melos run test           # 或 melos exec -- flutter test
 ```
 
-测试:`test/tokens_test.dart`(token 完整性)、`test/components/`(组件行为)、`test/golden/`(golden 快照)。
+测试:`test/tokens_test.dart`(token 完整性)、`test/components/`(组件行为)。
 
 ## 边界
 

@@ -8,6 +8,7 @@ import 'package:forum_app/src/current_user.dart';
 import 'package:forum_app/src/navigation/tab_scroll_registry.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:forum_app/l10n/app_localizations.dart';
 import 'package:forum_app/src/pages/campus/campus_page.dart';
@@ -15,6 +16,7 @@ import 'package:ui_kit/ui_kit.dart';
 
 import 'campus_native_test.dart' show campusTestApp;
 import 'fixtures/campus_fixtures.dart';
+import 'test_font_helpers.dart' show loadTestFonts;
 
 Finder get _search => find.descendant(
   of: find.byType(GfSearchField),
@@ -47,6 +49,30 @@ class _DelayedGrades extends FakeCampusRepository {
   }
 }
 
+class _DelayedResume extends FakeCampusRepository {
+  Completer<CampusStatus>? statusResponse;
+  Completer<CampusDataset>? messagesResponse;
+  Completer<CampusDataset>? timetableResponse;
+
+  @override
+  Future<CampusStatus> status({CancelToken? cancelToken}) {
+    final response = statusResponse;
+    if (response != null) return response.future;
+    return super.status(cancelToken: cancelToken);
+  }
+
+  @override
+  Future<CampusDataset> dataset(String key, {CancelToken? cancelToken}) {
+    if (key == 'messages' && messagesResponse != null) {
+      return messagesResponse!.future;
+    }
+    if (key == 'timetable' && timetableResponse != null) {
+      return timetableResponse!.future;
+    }
+    return super.dataset(key, cancelToken: cancelToken);
+  }
+}
+
 void main() {
   testWidgets('campus tab return preserves selected notice search', (
     tester,
@@ -69,6 +95,8 @@ void main() {
     await tester.pumpAndSettle();
     visible.value = false;
     await tester.pumpAndSettle();
+    expect(find.byType(GfTabBar), findsOneWidget);
+    expect(find.byType(GfSkeleton), findsWidgets);
     expect(find.byType(TextField), findsNothing);
     visible.value = true;
     await tester.pumpAndSettle();
@@ -77,6 +105,179 @@ void main() {
     expect(find.text('校园文化节报名开始（演示）'), findsNothing);
     await tester.pumpWidget(const SizedBox());
     await tester.pumpAndSettle();
+  });
+
+  testWidgets('campus navigation survives app backgrounding', (tester) async {
+    await tester.pumpWidget(campusTestApp(FakeCampusRepository()));
+    await tester.pumpAndSettle();
+    await _select(tester, 'messages');
+    await tester.enterText(_search, '图书馆');
+    await tester.pumpAndSettle();
+
+    for (final state in [
+      AppLifecycleState.inactive,
+      AppLifecycleState.hidden,
+      AppLifecycleState.paused,
+    ]) {
+      tester.binding.handleAppLifecycleStateChanged(state);
+      await tester.pumpAndSettle();
+      expect(find.byType(GfTabBar), findsOneWidget);
+      expect(find.byType(GfSkeleton), findsWidgets);
+      expect(find.byType(TextField), findsNothing);
+    }
+
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pumpAndSettle();
+
+    expect(tester.widget<GfTabBar>(find.byType(GfTabBar)).selected, 'messages');
+    expect(tester.widget<TextField>(_search).controller!.text, '图书馆');
+    await tester.pumpWidget(const SizedBox());
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets(
+    'campus keeps its shell and skeleton until fresh resume data arrives',
+    (tester) async {
+      final repo = _DelayedResume();
+      await tester.pumpWidget(campusTestApp(repo));
+      await tester.pumpAndSettle();
+      await _select(tester, 'messages');
+      await tester.enterText(_search, '图书馆');
+      await tester.pumpAndSettle();
+      final campusTitle = AppLocalizations.of(
+        tester.element(find.byType(CampusPage)),
+      ).campusTitle;
+
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      await tester.pumpAndSettle();
+      expect(find.text('校园文化节报名开始（演示）'), findsNothing);
+      expect(find.text(campusTitle), findsOneWidget);
+      expect(find.byType(GfTabBar), findsOneWidget);
+
+      repo.statusResponse = Completer<CampusStatus>();
+      repo.messagesResponse = Completer<CampusDataset>();
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+      await tester.pump();
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      await tester.pump();
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(find.byType(GfTabBar), findsOneWidget);
+      expect(
+        tester.widget<GfTabBar>(find.byType(GfTabBar)).selected,
+        'messages',
+      );
+      expect(find.byType(GfSkeleton), findsWidgets);
+      expect(find.byType(TextField), findsNothing);
+      expect(find.text('校园文化节报名开始（演示）'), findsNothing);
+
+      repo.statusResponse!.complete(testStatus);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(find.byType(GfSkeleton), findsWidgets);
+      expect(find.text('校园文化节报名开始（演示）'), findsNothing);
+
+      repo.messagesResponse!.complete(campusFixture('messages'));
+      await tester.pumpAndSettle();
+      expect(tester.widget<TextField>(_search).controller!.text, '图书馆');
+      expect(find.text('图书馆开放时间调整（演示）'), findsWidgets);
+      await tester.pumpWidget(const SizedBox());
+      await tester.pumpAndSettle();
+    },
+  );
+
+  for (final succeeds in [true, false]) {
+    testWidgets('current section resumes before unrelated data: $succeeds', (
+      tester,
+    ) async {
+      final repo = _DelayedResume();
+      await tester.pumpWidget(campusTestApp(repo));
+      await tester.pumpAndSettle();
+      await _select(tester, 'messages');
+      _list(tester).jumpTo(120);
+      await tester.pump();
+
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      await tester.pumpAndSettle();
+      repo.statusResponse = Completer<CampusStatus>();
+      repo.messagesResponse = Completer<CampusDataset>();
+      repo.timetableResponse = Completer<CampusDataset>();
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pump();
+      expect(_search, findsNothing);
+      repo.statusResponse!.complete(testStatus);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(_search, findsNothing);
+
+      if (succeeds) {
+        repo.messagesResponse!.complete(campusFixture('messages'));
+      } else {
+        repo.messagesResponse!.completeError(
+          const ApiException(fallbackMessage: 'Messages unavailable'),
+        );
+      }
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(CampusPage)),
+      );
+      final state = container.read(campusControllerProvider);
+      expect(state.fetching, contains('timetable'));
+      expect(state.snapshot, isNull); // Never commit an incomplete snapshot.
+      expect(state.errors.containsKey('messages'), !succeeds);
+      final currentSectionVisible = _search.evaluate().isNotEmpty;
+      final restoredOffset = _list(tester).offset;
+
+      repo.timetableResponse!.complete(campusFixture('timetable'));
+      await tester.pumpAndSettle();
+      expect(container.read(campusControllerProvider).snapshot, isNotNull);
+      await tester.pumpWidget(const SizedBox());
+      await tester.pumpAndSettle();
+      expect(currentSectionVisible, isTrue);
+      if (succeeds) expect(restoredOffset, closeTo(120, 1));
+    });
+  }
+
+  testWidgets('large-text timetable skeleton keeps its labels unclipped', (
+    tester,
+  ) async {
+    await loadTestFonts(tester);
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(320, 568);
+    addTearDown(tester.view.reset);
+    final repo = _DelayedResume();
+    await tester.pumpWidget(
+      campusTestApp(repo, scale: 2, locale: const Locale('de')),
+    );
+    await tester.pumpAndSettle();
+    await _select(tester, 'timetable');
+    final l = AppLocalizations.of(tester.element(find.byType(CampusPage)));
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    await tester.pumpAndSettle();
+    repo.statusResponse = Completer<CampusStatus>();
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pump();
+    final paragraph = tester.renderObject<RenderParagraph>(
+      find.descendant(
+        of: find.text(l.scheduleTimeAxis),
+        matching: find.byType(RichText),
+      ),
+    );
+    final painter = TextPainter(
+      text: paragraph.text,
+      textDirection: paragraph.textDirection,
+      textScaler: paragraph.textScaler,
+    )..layout(maxWidth: paragraph.size.width);
+    final naturalHeight = painter.height;
+    final availableHeight = paragraph.size.height;
+    painter.dispose();
+    repo.statusResponse!.complete(testStatus);
+    await tester.pumpAndSettle();
+    await tester.pumpWidget(const SizedBox());
+    await tester.pumpAndSettle();
+    expect(naturalHeight, lessThanOrEqualTo(availableHeight));
   });
 
   testWidgets('campus sections retain independent search text', (tester) async {
@@ -179,7 +380,7 @@ void main() {
     },
   );
 
-  for (final boundary in ['background', 'session', 'binding']) {
+  for (final boundary in ['session', 'binding']) {
     testWidgets('campus navigation clears at $boundary boundary', (
       tester,
     ) async {
@@ -202,33 +403,23 @@ void main() {
       final container = ProviderScope.containerOf(
         tester.element(find.byType(CampusPage)),
       );
-      if (boundary == 'background') {
-        tester.binding.handleAppLifecycleStateChanged(
-          AppLifecycleState.inactive,
-        );
-        await tester.pumpAndSettle();
-        tester.binding.handleAppLifecycleStateChanged(
-          AppLifecycleState.resumed,
-        );
+      visible.value = false;
+      await tester.pumpAndSettle();
+      if (boundary == 'session') {
+        container.read(offlineCacheEpochProvider.notifier).invalidate();
       } else {
-        visible.value = false;
-        await tester.pumpAndSettle();
-        if (boundary == 'session') {
-          container.read(offlineCacheEpochProvider.notifier).invalidate();
-        } else {
-          repo.current = const CampusStatus(
-            enabled: true,
-            candidate: null,
-            binding: CampusBinding(
-              maskedId: 'NEW',
-              boundAt: '',
-              revision: 'changed',
-              needsAuthorization: false,
-            ),
-          );
-        }
-        visible.value = true;
+        repo.current = const CampusStatus(
+          enabled: true,
+          candidate: null,
+          binding: CampusBinding(
+            maskedId: 'NEW',
+            boundAt: '',
+            revision: 'changed',
+            needsAuthorization: false,
+          ),
+        );
       }
+      visible.value = true;
       await tester.pumpAndSettle();
       expect(tester.widget<GfTabBar>(find.byType(GfTabBar)).selected, 'today');
       await _select(tester, 'messages');
@@ -504,20 +695,26 @@ void main() {
       visible.value = true;
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
-      final list = find.byType(ListView).first;
+      final list = find
+          .descendant(
+            of: find.byType(GfScrollToTop),
+            matching: find.byType(ListView),
+          )
+          .first;
+      final beforeInputOffset = _list(tester).offset;
       if (input == 'drag') {
-        await tester.drag(list, const Offset(0, -100));
+        await tester.drag(list, const Offset(0, 100));
       } else {
         await tester.sendEventToBinding(
           PointerScrollEvent(
             position: tester.getCenter(list),
-            scrollDelta: const Offset(0, 100),
+            scrollDelta: const Offset(0, -100),
           ),
         );
       }
       await tester.pump(const Duration(seconds: 1));
       final selectedOffset = _list(tester).offset;
-      expect(selectedOffset, lessThan(300));
+      expect(selectedOffset, lessThan(beforeInputOffset));
       repo.grades!.complete(campusFixture('grades'));
       await tester.pumpAndSettle();
       expect(_list(tester).offset, closeTo(selectedOffset, 1));

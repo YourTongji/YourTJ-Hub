@@ -1,0 +1,70 @@
+ChatForwardEntry:
+  type: object
+  required: [senderName, content, createdAt, msgType]
+  properties:
+    senderName: { type: string, description: Display name copied at forwarding time; no private notes. }
+    avatarUrl: { type: string, description: Optional public avatar URL copied at forwarding time. Older snapshots omit it; clients use a circular placeholder. The URL does not grant access to the source conversation. }
+    content: { type: string, description: 'Readable fallback, including nested history text for older clients.' }
+    createdAt: { type: string, format: date-time }
+    msgType: { type: integer, enum: [1, 2, 3, 4] }
+    forwarded: { $ref: '#/ChatForwardBundle' }
+  allOf:
+    - if:
+        properties:
+          msgType: { const: 4 }
+      then:
+        required: [forwarded]
+      else:
+        not:
+          required: [forwarded]
+ChatForwardBundle:
+  type: object
+  description: Immutable copy tree; at most 4 bundle levels, 50 total entries including history cards, and 64 KiB of encoded content. Nested cards retain their own sender metadata and copied children.
+  required: [version, messages]
+  properties:
+    version: { type: integer, enum: [1] }
+    messages:
+      type: array
+      minItems: 1
+      maxItems: 50
+      items: { $ref: '#/ChatForwardEntry' }
+ForwardChatMessagesRequest:
+  type: object
+  required: [convId, peerId, messageIds, mode, clientForwardId]
+  properties:
+    convId: { type: integer, format: uint64, minimum: 1 }
+    peerId: { type: integer, format: uint64, minimum: 1 }
+    messageIds:
+      description: At most 10 source messages in individual mode; at most 50 in merged mode.
+      type: array
+      minItems: 1
+      maxItems: 50
+      uniqueItems: true
+      items: { type: integer, format: uint64, minimum: 1 }
+    mode: { type: string, enum: [individual, merged] }
+    clientForwardId:
+      type: string
+      minLength: 1
+      maxLength: 64
+      pattern: '^[A-Za-z0-9_-]+$'
+ForwardChatMessagesResult:
+  type: object
+  required: [convId, messageIds]
+  properties:
+    convId: { type: integer, format: uint64, minimum: 1 }
+    messageIds:
+      type: array
+      minItems: 1
+      maxItems: 50
+      items: { type: integer, format: uint64, minimum: 1 }
+ForwardChatMessagesSuccess:
+  allOf:
+    - $ref: ./schemas.yaml#/ApiSuccess
+    - type: object
+      required: [result]
+      properties:
+        result: { $ref: '#/ForwardChatMessagesResult' }
+ForwardChatMessagesResponse:
+  oneOf:
+    - $ref: '#/ForwardChatMessagesSuccess'
+    - $ref: ./schemas.yaml#/ApiFailure

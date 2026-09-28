@@ -46,7 +46,7 @@ it('separates live metrics from history freshness and never invokes upstreams on
     expect(result.traffic.state).toBe('ok');expect(result.uptime.state).toBe('ok')
     expect(fetcher).not.toHaveBeenCalled()
     expect(response.headers.get('Netlify-CDN-Cache-Control')).toContain('max-age=15')
-    expect(response.headers.get('Netlify-Vary')).toBe('query=range|serverRange')
+    expect(response.headers.get('Netlify-Vary')).toBe('query=range|serverRange|deviceRange')
   } finally { fetcher.mockRestore() }
 })
 it('does not read previous source data when configuration is changed or disabled', async () => {

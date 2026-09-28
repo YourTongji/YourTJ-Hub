@@ -378,10 +378,13 @@ support.
 `Current`: A signed-in user can edit a private note from another user's Web profile/card or App
 profile. The note is visible only to its author and displays as `note(display name)` across user-name
 surfaces, including topic/reply authors, reply references, profiles, connections, search results,
-conversations, notification actors, mention candidates, revision editors, and Web moderation/admin
-lists. The display name is the current nickname, falling back to the username. Usernames used as
-identifiers, editor mention text, existing Markdown, exports and public payloads remain canonical.
-Clearing the note restores the existing nickname/username fallback.
+conversation peers, notification actors, mention candidates, revision editors, moderation reports and
+logs, and Web moderation/admin lists. Those actor-shaped payloads carry the current nickname as an
+optional field, so the overlay resolves the same display name on Web and App. The display name is the
+current nickname, falling back to the username. Usernames used as identifiers, editor mention text,
+existing Markdown, exports and public payloads remain canonical. Clearing the note restores the
+existing nickname/username fallback. Wiki page contributors are git authors without a forum account,
+so notes never apply to them.
 
 Notes are trimmed plain text, up to 64 Unicode characters, without control/formatting characters;
 each account can keep up to 1000 notes. Writes are throttled like other write endpoints: exceeding

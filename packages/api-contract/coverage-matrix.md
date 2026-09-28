@@ -4,11 +4,11 @@
 
 路由快照来自 `TestRoutesSnapshot`（`fixtures/routes-snapshot.json`，默认配置装配，不含 OIDC `/api/oauth/*` 端点——OIDC 另有专项）。
 
-- 快照路由总数：346
-- /api JSON 路由：280，已入契约：281（100%），已知未覆盖：0
+- 快照路由总数：347
+- /api JSON 路由：281，已入契约：282（100%），已知未覆盖：0
 - 非 API 排除路由：65
 
-## 已覆盖（281）
+## 已覆盖（282）
 
 | Method | Path | operationId |
 | --- | --- | --- |
@@ -192,6 +192,7 @@
 | POST | `/api/change-password` | `changePassword` |
 | POST | `/api/display-badges` | `displayBadges` |
 | POST | `/api/forgot-password` | `forgotPassword` |
+| POST | `/api/forum/chat/forward` | `forwardChatMessages` |
 | POST | `/api/forum/chat/mark-read` | `markChatRead` |
 | POST | `/api/forum/chat/mark-visible` | `markChatVisibleRead` |
 | POST | `/api/forum/chat/message-read-states` | `getChatMessageReadStates` |

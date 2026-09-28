@@ -9,6 +9,7 @@
   },
   "scripts": {
     "dev": "netlify dev",
+    "dev:local": "node scripts/dev-local.mjs",
     "dev:ui": "vite --host 127.0.0.1",
     "build": "pnpm typecheck && vite build",
     "typecheck": "vue-tsc --noEmit",
@@ -23,7 +24,8 @@
     "vue-i18n": "^11.4.4",
     "@lucide/vue": "^1.16.0",
     "@netlify/blobs": "11.1.0",
-    "@netlify/functions": "6.0.0"
+    "@netlify/functions": "6.0.0",
+    "d3-sankey": "0.12.3"
   },
   "devDependencies": {
     "vite": "^8.0.16",
@@ -39,6 +41,7 @@
     "yaml": "^2.8.0",
     "ajv": "^8.17.1",
     "ajv-formats": "^3.0.1",
-    "netlify-cli": "27.6.0"
+    "netlify-cli": "27.6.0",
+    "@types/d3-sankey": "0.12.4"
   }
 }

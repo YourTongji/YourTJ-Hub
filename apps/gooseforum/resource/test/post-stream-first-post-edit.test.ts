@@ -4,6 +4,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import type { PostPayload, PostWindowPayload, ViewerPayload } from '@gooseforum/client'
 import { i18n } from '../src/runtime/i18n'
 import PostStream from '../src/site/components/PostStream.vue'
+import { useQuickPublish } from '../src/site/composables/useQuickPublish'
 
 // PostComposer 是重型异步组件（vditor/prosemirror），与本回归无关，stub 掉以隔离。
 // 断言依赖其 props（mode 表示就地编辑态），故 stub 需透出 props。
@@ -60,7 +61,13 @@ const viewer: ViewerPayload = {
 
 const editButtonTitle = i18n.global.t('common.edit')
 
-function mountStream() {
+function mountStream(
+  overrides: {
+    contentType?: 0 | 1 | 2 | 3
+    topicTitle?: string
+    topicEditTitle?: string
+  } = {},
+) {
   const postStream: PostWindowPayload = {
     posts: [
       makePost({ id: 101, postNo: 1 }),
@@ -76,6 +83,7 @@ function mountStream() {
     props: {
       topicId: TOPIC_ID,
       topicTitle: '测试话题',
+      ...overrides,
       initialPostStream: postStream,
       viewer,
       canPost: true,
@@ -124,6 +132,51 @@ describe('PostStream 首楼编辑跳发布页（issue #379 回归）', () => {
     expect(composer.exists()).toBe(true)
     expect(composer.props('open')).toBe(true)
     expect(composer.props('mode')).toBe('edit')
+    wrapper.unmount()
+  })
+})
+
+// issue #895 回归：无标题瞬间的主题详情向 PostStream 传入的显示标题是正文摘要回退，
+// 首次编辑预填必须使用原始标题（空串），否则摘要会被当成标题保存回话题。
+describe('PostStream 瞬间首楼编辑预填原始标题（issue #895 回归）', () => {
+  afterEach(() => {
+    const { quickPublishEditPayload, quickPublishOpen } = useQuickPublish()
+    quickPublishEditPayload.value = null
+    quickPublishOpen.value = false
+  })
+
+  test('无标题瞬间首楼编辑用原始空标题预填，不回填展示用摘要', async () => {
+    const wrapper = mountStream({
+      contentType: 2,
+      topicTitle: '只有正文的瞬间摘要',
+      topicEditTitle: '',
+    })
+    await flushPromises()
+
+    const firstPostArticle = wrapper.get('article[data-post-no="1"]')
+    await firstPostArticle.get(`button[title="${editButtonTitle}"]`).trigger('click')
+    await flushPromises()
+
+    const { quickPublishEditPayload } = useQuickPublish()
+    expect(quickPublishEditPayload.value?.contentType).toBe(2)
+    expect(quickPublishEditPayload.value?.title).toBe('')
+    wrapper.unmount()
+  })
+
+  test('有标题瞬间首楼编辑回填原始标题', async () => {
+    const wrapper = mountStream({
+      contentType: 2,
+      topicTitle: '展示标题',
+      topicEditTitle: '作者标题',
+    })
+    await flushPromises()
+
+    const firstPostArticle = wrapper.get('article[data-post-no="1"]')
+    await firstPostArticle.get(`button[title="${editButtonTitle}"]`).trigger('click')
+    await flushPromises()
+
+    const { quickPublishEditPayload } = useQuickPublish()
+    expect(quickPublishEditPayload.value?.title).toBe('作者标题')
     wrapper.unmount()
   })
 })

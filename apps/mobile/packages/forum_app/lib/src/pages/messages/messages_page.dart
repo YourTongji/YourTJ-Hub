@@ -1,26 +1,32 @@
+import '../../messages/chat_message_bubble.dart';
+import '../../messages/chat_message_row.dart';
+import '../../messages/chat_forwarding.dart';
+import '../../messages/forward_messages_page.dart';
+import '../../messages/forwarded_message.dart';
 import '../../report_content.dart';
 import '../../user_blocks.dart';
 import '../../widgets/stickers/sticker_draft_preview.dart';
 import '../../widgets/stickers/sticker_picker.dart';
 import '../../widgets/stickers/sticker_strings.dart';
 import '../../widgets/stickers/sticker_library_page.dart';
-import '../../widgets/stickers/resolved_sticker_content.dart';
+import '../../widgets/stickers/sticker_library_state.dart';
 import '../../private_notes.dart';
 import '../../widgets/root_surface.dart';
 import '../../messages/chat_outbox.dart';
 import '../../messages/chat_drafts.dart';
+import '../../messages/chat_reply.dart';
+import '../../messages/chat_timeline.dart';
 import '../../messages/chat_viewport_scroll_physics.dart';
 import '../../messages/visible_chat_reads.dart';
-import '../../messages/message_content.dart';
-import '../../widgets/sticker_message_span.dart';
 import '../../navigation/route_visibility.dart';
 import '../../realtime/realtime_updates.dart';
-import '../../link_navigation.dart';
 import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:ui_kit/ui_kit.dart';
 import 'package:dio/dio.dart';
 
@@ -58,6 +64,7 @@ class _MessagesPageState extends ConsumerState<MessagesPage>
   AsyncValue<List<ChatItemPayload>> _conversations = const AsyncValue.loading();
   List<UserConnectionPayload> _suggestedUsers = const [];
   String _viewerAvatar = '';
+  String _viewerUsername = '';
   final TextEditingController _conversationSearch = TextEditingController();
   Timer? _pollTimer;
   final GfScrollToTopController _scrollToTopController =
@@ -207,6 +214,7 @@ class _MessagesPageState extends ConsumerState<MessagesPage>
           _serverConversationsResolved = true;
           _suggestedUsers = parsed?.suggestedUsers ?? const [];
           _viewerAvatar = resolveApiAssetUrl(props.layout.viewer.avatarUrl);
+          _viewerUsername = props.layout.viewer.username;
           _targetConversation = _targetConversationFor(items);
         });
       }
@@ -294,8 +302,11 @@ class _MessagesPageState extends ConsumerState<MessagesPage>
     if (conv.convId == 0 && !_serverConversationsResolved) return;
     await Navigator.of(context, rootNavigator: true).push(
       MaterialPageRoute<void>(
-        builder: (_) =>
-            _ConversationPage(conv: conv, viewerAvatar: _viewerAvatar),
+        builder: (_) => _ConversationPage(
+          conv: conv,
+          viewerAvatar: _viewerAvatar,
+          viewerUsername: _viewerUsername,
+        ),
       ),
     );
     // 返回后刷新会话列表未读数。
@@ -341,9 +352,8 @@ class _MessagesPageState extends ConsumerState<MessagesPage>
       ChatItemPayload(
         id: 0,
         peerId: selected.id,
-        peerUsername: selected.nickname.isEmpty
-            ? selected.username
-            : selected.nickname,
+        peerUsername: selected.username,
+        peerNickname: selected.nickname.isEmpty ? null : selected.nickname,
         peerAvatar: resolveApiAssetUrl(selected.avatarUrl),
         lastMsg: '',
         lastMsgTime: '',
@@ -431,6 +441,7 @@ class _MessagesPageState extends ConsumerState<MessagesPage>
         _targetConversation = null;
         _suggestedUsers = [];
         _viewerAvatar = '';
+        _viewerUsername = '';
       });
     });
     if (_ownerEpoch != ref.read(offlineCacheEpochProvider)) {
@@ -457,6 +468,7 @@ class _MessagesPageState extends ConsumerState<MessagesPage>
         key: ValueKey<int>(targetConversation.peerId),
         conv: targetConversation,
         viewerAvatar: _viewerAvatar,
+        viewerUsername: _viewerUsername,
       );
     }
     return RootSurface(
@@ -485,10 +497,12 @@ class _ConversationPage extends ConsumerStatefulWidget {
     super.key,
     required this.conv,
     required this.viewerAvatar,
+    required this.viewerUsername,
   });
 
   final ChatItemPayload conv;
   final String viewerAvatar;
+  final String viewerUsername;
 
   @override
   ConsumerState<_ConversationPage> createState() => _ConversationPageState();
@@ -500,6 +514,9 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
   bool _restoringDraft = false;
   final List<ChatMessagePayload> _messages = [];
   final TextEditingController _input = TextEditingController();
+  final FocusNode _composerFocus = FocusNode();
+  bool _selecting = false;
+  final Set<int> _selectedMessages = {};
   final ScrollController _scrollController = ScrollController();
   bool _loading = true;
   bool _loadingOlder = false;
@@ -525,6 +542,8 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
   int _scrollAdjustmentGeneration = 0;
   bool _adjustingScroll = false;
   double? _messageViewportHeight;
+  ChatReplyTarget? _replyTarget;
+  int _replySelection = 0;
 
   bool get _sessionCurrent =>
       mounted && _sessionEpoch == ref.read(offlineCacheEpochProvider);
@@ -742,6 +761,7 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
     shellDrawerOpen.removeListener(_visibilityChanged);
     _visibleReads.dispose();
     _input.dispose();
+    _composerFocus.dispose();
     _scrollController.dispose();
     super.dispose();
   }
@@ -998,36 +1018,234 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
       return;
     }
     _draftChanged();
+    final reply = _replyTarget;
+    final content = reply == null ? text : reply.compose(text);
     final revision = _drafts.forPeer(widget.conv.peerId)?.revision;
+    final submitted = _input.value;
     final failed = outbox.items
         .where(
           (item) =>
               item.state == DeliveryState.failed &&
               item.draftRevision == revision &&
-              item.content == text,
+              item.content == content,
         )
         .firstOrNull;
     final message =
-        failed ?? outbox.enqueue(text, _latestId, draftRevision: revision);
+        failed ??
+        outbox.enqueue(
+          content,
+          _latestId,
+          draftRevision: revision,
+          // Keep the whole pre-send composer state, not just the string, so a
+          // failure can restore sticker tokens, newlines and the caret.
+          draftValue: submitted,
+        );
+    // 引用随本次发送进入 outbox;失败时由 _sendPending 挂回,重试沿用同一条内容。
+    if (reply != null) setState(() => _replyTarget = null);
     _scrollToBottom();
-    await _sendPending(message);
+    await _sendPending(message, reply: reply);
   }
 
-  Future<void> _sendPending(PendingMessage message) async {
+  /// 引用头里的发送者标签:对方取会话对手的用户名,自己取页面布局的 viewer
+  /// 用户名(JWT 无 username 声明,currentUser 的用户名恒为空)。
+  String _replySender(ChatMessagePayload message) {
+    final String username = message.isSelf
+        ? widget.viewerUsername
+        : widget.conv.peerUsername;
+    final String trimmed = username.trim();
+    if (trimmed.isNotEmpty) return '@$trimmed';
+    return message.isSelf ? AppLocalizations.of(context).messageReplySelf : '';
+  }
+
+  /// 消息内已解析的表情名(长按菜单的收藏入口)。
+  List<String> _resolvedStickerNames(String content) {
+    final Map<String, String> resolved = ref
+        .read(stickerLibraryProvider)
+        .urlByName;
+    return parseStickerSegments(content, resolved)
+        .whereType<StickerImageSegment>()
+        .map((segment) => segment.name)
+        .toList(growable: false);
+  }
+
+  /// 长按消息呼出操作菜单:回复/复制/收藏表情;举报仅对方消息,沿用
+  /// chat_message 链路。
+  Future<void> _showMessageActions(ChatMessagePayload message) async {
+    final l10n = AppLocalizations.of(context);
+    final stickerNames = _resolvedStickerNames(message.content);
+    final collection = stickerNames.isEmpty
+        ? null
+        : ref.read(stickerCollectionProvider);
+    final canCollect = collection?.active ?? false;
+    final box = _bubbleKeys[message.id]?.currentContext?.findRenderObject();
+    final overlay = Navigator.of(
+      context,
+      rootNavigator: true,
+    ).overlay?.context.findRenderObject();
+    if (box is! RenderBox || overlay is! RenderBox || !_sessionCurrent) return;
+    final origin = box.localToGlobal(Offset.zero, ancestor: overlay);
+    final action = await showMenu<String>(
+      context: context,
+      useRootNavigator: true,
+      position: RelativeRect.fromRect(
+        origin & box.size,
+        Offset.zero & overlay.size,
+      ),
+      items: [
+        PopupMenuItem(value: 'reply', child: Text(l10n.messageReply)),
+        PopupMenuItem(value: 'copy', child: Text(l10n.messagesCopyAll)),
+        PopupMenuItem(value: 'forward', child: Text(l10n.messageForward)),
+        PopupMenuItem(value: 'select', child: Text(l10n.messageSelect)),
+        if (canCollect)
+          PopupMenuItem(
+            value: 'collect',
+            child: Text(StickerStrings(context).collect),
+          ),
+        if (!message.isSelf)
+          PopupMenuItem(value: 'report', child: Text(l10n.messageReport)),
+      ],
+    );
+    if (!mounted || !_sessionCurrent || action == null) return;
+    switch (action) {
+      case 'reply':
+        _replyTo(message);
+      case 'forward':
+        await _forward([message.id]);
+      case 'select':
+        _composerFocus.unfocus();
+        setState(() {
+          _selecting = true;
+          _selectedMessages.add(message.id);
+        });
+      case 'copy':
+        await Clipboard.setData(ClipboardData(text: message.content));
+        if (mounted) showGfToast(context, l10n.messageCopied);
+      case 'collect':
+        final strings = StickerStrings(context);
+        try {
+          for (final name in stickerNames) {
+            await ref.read(stickerCollectionProvider).save(stickerName: name);
+          }
+          if (mounted) {
+            showGfToast(context, strings.saved);
+          }
+        } catch (error) {
+          if (mounted) {
+            showGfToast(context, strings.failure(error), error: true);
+          }
+        }
+      case 'report':
+        await showContentReport(
+          context,
+          targetType: 'chat_message',
+          targetId: message.id,
+        );
+    }
+  }
+
+  void _replyTo(ChatMessagePayload message) {
+    if (!_sessionCurrent || _selecting) return;
+    setState(() {
+      _replySelection++;
+      _replyTarget = ChatReplyTarget(
+        messageId: message.id,
+        sender: _replySender(message),
+        content: message.content,
+      );
+    });
+    _composerFocus.requestFocus();
+  }
+
+  void _toggleMessage(int id) {
+    if (_selectedMessages.contains(id)) {
+      setState(() => _selectedMessages.remove(id));
+    } else if (_selectedMessages.length < 50) {
+      setState(() => _selectedMessages.add(id));
+    } else {
+      showGfToast(
+        context,
+        AppLocalizations.of(context).messageForwardLimit(50),
+      );
+    }
+  }
+
+  void _endSelection() => setState(() {
+    _selecting = false;
+    _selectedMessages.clear();
+  });
+
+  Future<void> _forward(List<int> ids) async {
+    if (!_sessionCurrent || _convId <= 0) return;
+    _composerFocus.unfocus();
+    await Navigator.of(context, rootNavigator: true).push(
+      MaterialPageRoute<void>(
+        builder: (_) => ForwardMessagesPage(
+          convId: _convId,
+          messageIds: ids,
+          ownerEpoch: _sessionEpoch,
+        ),
+      ),
+    );
+    if (!_sessionCurrent) return;
+    if (ref.read(chatForwardingProvider(_convId)).batch?.complete ?? false) {
+      _endSelection();
+    }
+    unawaited(_load(silent: true));
+  }
+
+  Future<void> _sendPending(
+    PendingMessage message, {
+    ChatReplyTarget? reply,
+  }) async {
     if (!_historyReady) return;
     final epoch = ref.read(offlineCacheEpochProvider);
     final peerId = widget.conv.peerId;
     final drafts = _drafts;
+    final replySelection = _replySelection;
+    final selectedReply = _replyTarget;
+    var restoredDraft = false;
+    var acknowledgedDraft = false;
     final convId = await ref
         .read(chatOutboxProvider(widget.conv.peerId))
         .send(message);
     if (convId != null) {
+      acknowledgedDraft =
+          message.draftRevision != null &&
+          drafts.forPeer(peerId)?.revision == message.draftRevision;
       drafts.acknowledge(peerId, message.draftRevision, convId);
+    } else if (message.state == DeliveryState.failed &&
+        mounted &&
+        epoch == ref.read(offlineCacheEpochProvider)) {
+      // Only a real failure rehydrates: a null return for an attempt another
+      // callback already claimed (same-frame double tap) must not restore.
+      // The pending bubble stays for retry with the same clientMessageId, and
+      // the submitted draft wins unless the user composed newer text.
+      restoredDraft = drafts.restoreFailed(
+        widget.conv,
+        message.draftRevision,
+        message.draftValue,
+      );
     }
-    if (!mounted ||
-        epoch != ref.read(offlineCacheEpochProvider) ||
-        convId == null) {
+    if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) return;
+    if (convId == null) {
+      // Restore the quote only with its own draft, and never undo a later
+      // selection/cancellation even when the composer text is unchanged.
+      if (restoredDraft &&
+          reply != null &&
+          _replySelection == replySelection &&
+          _replyTarget == null) {
+        setState(() => _replyTarget = reply);
+      }
       return;
+    }
+    // Retrying the failed bubble bypasses _send's preview reset. Release only
+    // that acknowledged draft's quote, preserving any newer reply selection.
+    if (acknowledgedDraft &&
+        selectedReply != null &&
+        _replySelection == replySelection &&
+        selectedReply.compose(message.draftValue?.text.trim() ?? '') ==
+            message.content) {
+      setState(() => _replyTarget = null);
     }
     if (_convId <= 0 && convId > 0) _convId = convId;
     await _load(silent: true);
@@ -1061,7 +1279,14 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
     });
     final AppLocalizations l10n = AppLocalizations.of(context);
     final GfColors colors = GfTheme.colorsOf(context);
+    final String peerName = privateDisplayName(
+      context,
+      widget.conv.peerId,
+      widget.conv.peerUsername,
+      widget.conv.peerNickname,
+    );
     final outbox = ref.watch(chatOutboxProvider(widget.conv.peerId));
+    final forwarding = ref.watch(chatForwardingProvider(_convId));
     ref.watch(chatDraftsProvider);
     ref.listen(offlineCacheEpochProvider, (_, epoch) {
       if (epoch == _sessionEpoch) return;
@@ -1077,311 +1302,429 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
         _loading = false;
         _historyReady = false;
         _unseenNewMessages = false;
+        _replyTarget = null;
+        _selecting = false;
+        _selectedMessages.clear();
       });
     });
     if (!_drafts.current) return const SizedBox.shrink();
     _visibleReads.changed();
+    final List<ChatTimelineItem> timeline = buildChatTimeline(_messages);
 
-    return Scaffold(
-      appBar: GfAppBar(
-        actions: [UserBlockButton(userId: widget.conv.peerId)],
-        title: Row(
+    return PopScope(
+      canPop: !_selecting,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && _selecting) _endSelection();
+      },
+      child: Scaffold(
+        appBar: GfAppBar(
+          leading: _selecting
+              ? IconButton(
+                  onPressed: _endSelection,
+                  tooltip: l10n.commonCancel,
+                  icon: const Icon(Icons.close),
+                )
+              : null,
+          actions: _selecting
+              ? []
+              : [UserBlockButton(userId: widget.conv.peerId, moreMenu: true)],
+          title: _selecting
+              ? Text(l10n.messagesSelected(_selectedMessages.length))
+              : Row(
+                  children: <Widget>[
+                    _PeerAvatarButton(
+                      key: const Key('chat-peer-avatar-appbar'),
+                      peerId: widget.conv.peerId,
+                      label: l10n.messagesViewProfile(peerName),
+                      src: resolveApiAssetUrl(widget.conv.peerAvatar),
+                      size: 36,
+                      ring: true,
+                      alignment: Alignment.centerLeft,
+                    ),
+                    // 44 命中区右侧的留白即是间距,补 2 保持标题与旧版 10 的视觉间距。
+                    const SizedBox(width: 2),
+                    Expanded(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Text(
+                            peerName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          Text(
+                            l10n.messagesConversation,
+                            style: TextStyle(
+                              color: colors.baseContent.withValues(alpha: 0.5),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w400,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+        ),
+        body: Column(
           children: <Widget>[
-            GfAvatar(
-              src: resolveApiAssetUrl(widget.conv.peerAvatar),
-              size: 36,
-              ring: true,
-            ),
-            const SizedBox(width: 10),
             Expanded(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Text(
-                    privateDisplayName(
-                      context,
-                      widget.conv.peerId,
-                      '',
-                      widget.conv.peerUsername,
+              child: NotificationListener<Notification>(
+                onNotification: (notification) {
+                  if (notification is ScrollStartNotification) {
+                    return _onUserScroll(notification);
+                  }
+                  if (notification is ScrollMetricsNotification &&
+                      notification.depth == 0 &&
+                      notification.metrics.viewportDimension !=
+                          _messageViewportHeight) {
+                    _messageViewportHeight =
+                        notification.metrics.viewportDimension;
+                    _visibleReads.changed(restartDwell: true);
+                  }
+                  return false;
+                },
+                child: Stack(
+                  children: [
+                    Positioned.fill(
+                      child: ColoredBox(
+                        key: _viewportKey,
+                        color: colors.base100,
+                        child: _loading
+                            ? const GfLoading()
+                            : _messages.isEmpty && outbox.items.isEmpty
+                            ? _ChatEmptyState(
+                                title: l10n.messagesStartChat,
+                                description: l10n.messagesFirstMessageTo(
+                                  privateDisplayName(
+                                    context,
+                                    widget.conv.peerId,
+                                    widget.conv.peerUsername,
+                                    widget.conv.peerNickname,
+                                  ),
+                                ),
+                              )
+                            : ListView.builder(
+                                controller: _scrollController,
+                                physics: const ChatViewportScrollPhysics(),
+                                padding: const EdgeInsets.fromLTRB(
+                                  12,
+                                  12,
+                                  12,
+                                  18,
+                                ),
+                                itemCount:
+                                    timeline.length +
+                                    outbox.items.length +
+                                    (_loadingOlder ? 1 : 0),
+                                itemBuilder: (BuildContext context, int index) {
+                                  if (_loadingOlder && index == 0) {
+                                    return const Padding(
+                                      padding: EdgeInsets.only(bottom: 10),
+                                      child: GfLoadingIndicator(small: true),
+                                    );
+                                  }
+                                  final int messageIndex =
+                                      index - (_loadingOlder ? 1 : 0);
+                                  if (messageIndex >= timeline.length) {
+                                    final pending = outbox
+                                        .items[messageIndex - timeline.length];
+                                    final reason = pending.error is ApiException
+                                        ? resolveErrorMessage(
+                                            l10n,
+                                            pending.error!,
+                                          )
+                                        : null;
+                                    final failureLabel =
+                                        reason == null ||
+                                            reason == l10n.commonLoadFailed
+                                        ? l10n.messagesFailed
+                                        : '${l10n.messagesFailed} · $reason';
+                                    return Padding(
+                                      key: ValueKey('pending-${pending.id}'),
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 8,
+                                      ),
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.end,
+                                        children: [
+                                          ChatMessageBubble(
+                                            text: pending.content,
+                                            mine: true,
+                                          ),
+                                          if (pending.state ==
+                                              DeliveryState.failed) ...[
+                                            Padding(
+                                              padding: const EdgeInsets.only(
+                                                top: 4,
+                                              ),
+                                              child: Text(
+                                                failureLabel,
+                                                style: TextStyle(
+                                                  color: colors.error,
+                                                  fontSize: 12,
+                                                ),
+                                                textAlign: TextAlign.end,
+                                              ),
+                                            ),
+                                            TextButton.icon(
+                                              onPressed: _historyReady
+                                                  ? () => _sendPending(pending)
+                                                  : null,
+                                              icon: const GfSymbol(
+                                                'circle-alert',
+                                                size: 18,
+                                              ),
+                                              label: Text(l10n.messagesRetry),
+                                            ),
+                                          ] else
+                                            Padding(
+                                              padding: const EdgeInsets.only(
+                                                top: 4,
+                                              ),
+                                              child: Text(
+                                                pending.state ==
+                                                        DeliveryState.sending
+                                                    ? l10n.messagesSending
+                                                    : l10n.messagesSent,
+                                                style: TextStyle(
+                                                  fontSize: 12,
+                                                  color: colors.iconMuted,
+                                                ),
+                                              ),
+                                            ),
+                                        ],
+                                      ),
+                                    );
+                                  }
+                                  final ChatTimelineItem item =
+                                      timeline[messageIndex];
+                                  final ChatMessagePayload message =
+                                      item.message;
+                                  final DateTime? day = item.day;
+                                  return Column(
+                                    children: <Widget>[
+                                      if (item.showDaySeparator && day != null)
+                                        _DatePill(
+                                          key: ValueKey<String>(
+                                            'chat-date-separator-${message.id}',
+                                          ),
+                                          label: formatChatDayLabel(
+                                            day,
+                                            l10n: l10n,
+                                          ),
+                                        ),
+                                      Semantics(
+                                        container: _selecting,
+                                        excludeSemantics: _selecting,
+                                        enabled: _selecting ? true : null,
+                                        checked: _selecting
+                                            ? _selectedMessages.contains(
+                                                message.id,
+                                              )
+                                            : null,
+                                        label: _selecting
+                                            ? '${_replySender(message)}: ${chatReplyExcerpt(message.content)}'
+                                            : null,
+                                        onTap: _selecting
+                                            ? () => _toggleMessage(message.id)
+                                            : null,
+                                        child: Row(
+                                          children: [
+                                            _MessageSelectionControl(
+                                              visible: _selecting,
+                                              selected: _selectedMessages
+                                                  .contains(message.id),
+                                              onChanged: () =>
+                                                  _toggleMessage(message.id),
+                                            ),
+                                            Expanded(
+                                              child: GestureDetector(
+                                                behavior:
+                                                    HitTestBehavior.opaque,
+                                                onTap: _selecting
+                                                    ? () => _toggleMessage(
+                                                        message.id,
+                                                      )
+                                                    : null,
+                                                child: IgnorePointer(
+                                                  ignoring: _selecting,
+                                                  child: _MessageRow(
+                                                    bubbleKey: _bubbleKeys
+                                                        .putIfAbsent(
+                                                          message.id,
+                                                          GlobalKey.new,
+                                                        ),
+                                                    message: message,
+                                                    peerId: widget.conv.peerId,
+                                                    peerProfileLabel: l10n
+                                                        .messagesViewProfile(
+                                                          peerName,
+                                                        ),
+                                                    peerAvatar:
+                                                        widget.conv.peerAvatar,
+                                                    viewerAvatar:
+                                                        widget.viewerAvatar,
+                                                    showTime:
+                                                        item.showTimestamp,
+                                                    onSwipeReply: _selecting
+                                                        ? null
+                                                        : () =>
+                                                              _replyTo(message),
+                                                    onLongPress: () =>
+                                                        unawaited(
+                                                          _showMessageActions(
+                                                            message,
+                                                          ),
+                                                        ),
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  );
+                                },
+                              ),
+                      ),
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  Text(
-                    l10n.messagesConversation,
-                    style: TextStyle(
-                      color: colors.baseContent.withValues(alpha: 0.5),
-                      fontSize: 11,
-                      fontWeight: FontWeight.w400,
-                    ),
-                  ),
-                ],
+                    if (_unseenNewMessages)
+                      Positioned(
+                        right: 12,
+                        bottom: 12,
+                        child: FloatingActionButton.small(
+                          key: const Key('chat-new-messages'),
+                          heroTag: null,
+                          tooltip: l10n.messagesNewMessages,
+                          onPressed: _scrollToBottom,
+                          child: const GfSymbol('arrow-down'),
+                        ),
+                      ),
+                  ],
+                ),
               ),
             ),
+            if (_selecting)
+              SafeArea(
+                top: false,
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                      onPressed: _selectedMessages.isEmpty
+                          ? null
+                          : () => _forward(_selectedMessages.toList()),
+                      icon: const Icon(Icons.forward),
+                      label: Text(l10n.messageForward),
+                    ),
+                  ),
+                ),
+              )
+            else
+              SafeArea(
+                top: false,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (_readSyncFailed)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                _readSyncUnsupported
+                                    ? l10n.messagesReadUnavailable
+                                    : l10n.messagesReadSyncFailed,
+                              ),
+                            ),
+                            if (!_readSyncUnsupported)
+                              TextButton(
+                                onPressed: _canObserve
+                                    ? _visibleReads.retry
+                                    : null,
+                                child: Text(l10n.commonRetry),
+                              ),
+                          ],
+                        ),
+                      ),
+                    if (!_historyReady && !_loading)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        child: Row(
+                          children: [
+                            Expanded(child: Text(l10n.commonLoadFailed)),
+                            TextButton.icon(
+                              onPressed: _load,
+                              icon: const GfSymbol('refresh-cw', size: 18),
+                              label: Text(l10n.commonRetry),
+                            ),
+                          ],
+                        ),
+                      ),
+                    if (forwarding.unfinished)
+                      ListTile(
+                        dense: true,
+                        title: Text(l10n.messageForwardPending),
+                        trailing: TextButton(
+                          onPressed: () =>
+                              _forward(forwarding.batch!.messageIds),
+                          child: Text(l10n.messageForwardResume),
+                        ),
+                      ),
+                    _ChatDraftStatus(
+                      drafts: _drafts,
+                      peerId: widget.conv.peerId,
+                    ),
+                    if (_replyTarget != null)
+                      _ReplyPreview(
+                        target: _replyTarget!,
+                        cancelLabel: l10n.messageReplyCancel,
+                        onCancel: () => setState(() {
+                          _replySelection++;
+                          _replyTarget = null;
+                        }),
+                      ),
+                    GfChatInput(
+                      controller: _input,
+                      focusNode: _composerFocus,
+                      previewBuilder: (text) =>
+                          StickerDraftPreview(content: text),
+                      accessoryBuilder: (insert) =>
+                          StickerPicker(onInsert: insert),
+                      onAttach: () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => const StickerLibraryPage(),
+                        ),
+                      ),
+                      attachLabel: StickerStrings(context).add,
+                      clearOnSend: false,
+                      enabled: _drafts.current,
+                      hintText: l10n.messagesInputHint,
+                      sendLabel: l10n.commonSend,
+                      emojiLabel: l10n.messagesEmoji,
+                      keyboardLabel: l10n.messagesKeyboard,
+                      canSend:
+                          _historyReady &&
+                          !outbox.items.any(
+                            (item) => item.state == DeliveryState.sending,
+                          ),
+                      onSend: _send,
+                    ),
+                  ],
+                ),
+              ),
           ],
         ),
-      ),
-      body: Column(
-        children: <Widget>[
-          Expanded(
-            child: NotificationListener<Notification>(
-              onNotification: (notification) {
-                if (notification is ScrollStartNotification) {
-                  return _onUserScroll(notification);
-                }
-                if (notification is ScrollMetricsNotification &&
-                    notification.depth == 0 &&
-                    notification.metrics.viewportDimension !=
-                        _messageViewportHeight) {
-                  _messageViewportHeight =
-                      notification.metrics.viewportDimension;
-                  _visibleReads.changed(restartDwell: true);
-                }
-                return false;
-              },
-              child: Stack(
-                children: [
-                  Positioned.fill(
-                    child: ColoredBox(
-                      key: _viewportKey,
-                      color: colors.base100,
-                      child: _loading
-                          ? const GfLoading()
-                          : _messages.isEmpty && outbox.items.isEmpty
-                          ? _ChatEmptyState(
-                              title: l10n.messagesStartChat,
-                              description: l10n.messagesFirstMessageTo(
-                                privateDisplayName(
-                                  context,
-                                  widget.conv.peerId,
-                                  '',
-                                  widget.conv.peerUsername,
-                                ),
-                              ),
-                            )
-                          : ListView.builder(
-                              controller: _scrollController,
-                              physics: const ChatViewportScrollPhysics(),
-                              padding: const EdgeInsets.fromLTRB(
-                                12,
-                                12,
-                                12,
-                                18,
-                              ),
-                              itemCount:
-                                  _messages.length +
-                                  outbox.items.length +
-                                  (_loadingOlder ? 1 : 0),
-                              itemBuilder: (BuildContext context, int index) {
-                                if (_loadingOlder && index == 0) {
-                                  return const Padding(
-                                    padding: EdgeInsets.only(bottom: 10),
-                                    child: GfLoadingIndicator(small: true),
-                                  );
-                                }
-                                final int messageIndex =
-                                    index - (_loadingOlder ? 1 : 0);
-                                if (messageIndex >= _messages.length) {
-                                  final pending = outbox
-                                      .items[messageIndex - _messages.length];
-                                  final reason = pending.error is ApiException
-                                      ? resolveErrorMessage(
-                                          l10n,
-                                          pending.error!,
-                                        )
-                                      : null;
-                                  final failureLabel =
-                                      reason == null ||
-                                          reason == l10n.commonLoadFailed
-                                      ? l10n.messagesFailed
-                                      : '${l10n.messagesFailed} · $reason';
-                                  return Padding(
-                                    key: ValueKey('pending-${pending.id}'),
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 8,
-                                    ),
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.end,
-                                      children: [
-                                        _ChatMessageBubble(
-                                          text: pending.content,
-                                          mine: true,
-                                        ),
-                                        if (pending.state ==
-                                            DeliveryState.failed) ...[
-                                          Padding(
-                                            padding: const EdgeInsets.only(
-                                              top: 4,
-                                            ),
-                                            child: Text(
-                                              failureLabel,
-                                              style: TextStyle(
-                                                color: colors.error,
-                                                fontSize: 12,
-                                              ),
-                                              textAlign: TextAlign.end,
-                                            ),
-                                          ),
-                                          TextButton.icon(
-                                            onPressed: _historyReady
-                                                ? () => _sendPending(pending)
-                                                : null,
-                                            icon: const GfSymbol(
-                                              'circle-alert',
-                                              size: 18,
-                                            ),
-                                            label: Text(l10n.messagesRetry),
-                                          ),
-                                        ] else
-                                          Padding(
-                                            padding: const EdgeInsets.only(
-                                              top: 4,
-                                            ),
-                                            child: Text(
-                                              pending.state ==
-                                                      DeliveryState.sending
-                                                  ? l10n.messagesSending
-                                                  : l10n.messagesSent,
-                                              style: TextStyle(
-                                                fontSize: 12,
-                                                color: colors.iconMuted,
-                                              ),
-                                            ),
-                                          ),
-                                      ],
-                                    ),
-                                  );
-                                }
-                                final ChatMessagePayload message =
-                                    _messages[messageIndex];
-                                final bool startsDay =
-                                    messageIndex == 0 ||
-                                    formatDate(
-                                          _messages[messageIndex - 1].createdAt,
-                                        ) !=
-                                        formatDate(message.createdAt);
-                                return Column(
-                                  children: <Widget>[
-                                    if (startsDay)
-                                      _DatePill(
-                                        date: formatDate(message.createdAt),
-                                      ),
-                                    _MessageRow(
-                                      bubbleKey: _bubbleKeys.putIfAbsent(
-                                        message.id,
-                                        GlobalKey.new,
-                                      ),
-                                      message: message,
-                                      peerAvatar: widget.conv.peerAvatar,
-                                      viewerAvatar: widget.viewerAvatar,
-                                    ),
-                                    if (!message.isSelf)
-                                      Align(
-                                        alignment: Alignment.centerLeft,
-                                        child: TextButton(
-                                          onPressed: () => showContentReport(
-                                            context,
-                                            targetType: 'chat_message',
-                                            targetId: message.id,
-                                          ),
-                                          child: Text(l10n.messageReport),
-                                        ),
-                                      ),
-                                  ],
-                                );
-                              },
-                            ),
-                    ),
-                  ),
-                  if (_unseenNewMessages)
-                    Positioned(
-                      right: 12,
-                      bottom: 12,
-                      child: FloatingActionButton.small(
-                        key: const Key('chat-new-messages'),
-                        heroTag: null,
-                        tooltip: l10n.messagesNewMessages,
-                        onPressed: _scrollToBottom,
-                        child: const GfSymbol('arrow-down'),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          ),
-          SafeArea(
-            top: false,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (_readSyncFailed)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            _readSyncUnsupported
-                                ? l10n.messagesReadUnavailable
-                                : l10n.messagesReadSyncFailed,
-                          ),
-                        ),
-                        if (!_readSyncUnsupported)
-                          TextButton(
-                            onPressed: _canObserve ? _visibleReads.retry : null,
-                            child: Text(l10n.commonRetry),
-                          ),
-                      ],
-                    ),
-                  ),
-                if (!_historyReady && !_loading)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    child: Row(
-                      children: [
-                        Expanded(child: Text(l10n.commonLoadFailed)),
-                        TextButton.icon(
-                          onPressed: _load,
-                          icon: const GfSymbol('refresh-cw', size: 18),
-                          label: Text(l10n.commonRetry),
-                        ),
-                      ],
-                    ),
-                  ),
-                _ChatDraftStatus(drafts: _drafts, peerId: widget.conv.peerId),
-                GfChatInput(
-                  controller: _input,
-                  previewBuilder: (text) => StickerDraftPreview(content: text),
-                  accessoryBuilder: (insert) => StickerPicker(onInsert: insert),
-                  onAttach: () => Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => const StickerLibraryPage(),
-                    ),
-                  ),
-                  attachLabel: StickerStrings(context).add,
-                  clearOnSend: false,
-                  enabled: _drafts.current,
-                  hintText: l10n.messagesInputHint,
-                  sendLabel: l10n.commonSend,
-                  emojiLabel: l10n.messagesEmoji,
-                  keyboardLabel: l10n.messagesKeyboard,
-                  canSend:
-                      _historyReady &&
-                      !outbox.items.any(
-                        (item) => item.state == DeliveryState.sending,
-                      ),
-                  onSend: _send,
-                ),
-              ],
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -1441,19 +1784,27 @@ class _ConversationList extends StatelessWidget {
       itemBuilder: (BuildContext context, int index) {
         final ChatItemPayload conversation = filtered[index];
         final draft = drafts[conversation.peerId];
+        final messagePreview = stickerPreviewLabel(
+          conversation.lastMsg,
+        ).replaceAll(RegExp(r'\s+'), ' ').trim();
         return GfConversationRow(
           avatarUrl: resolveApiAssetUrl(conversation.peerAvatar),
           name: privateDisplayName(
             context,
             conversation.peerId,
-            '',
             conversation.peerUsername,
+            conversation.peerNickname,
           ),
           lastMessage: draft != null
               ? '${l10n.messagesDraftLabel} · ${stickerPreviewLabel(draft.value.text)}'
               : conversation.lastMsg.isEmpty
               ? l10n.messagesNoMessagesYet
-              : stickerPreviewLabel(conversation.lastMsg),
+              : messagePreview.startsWith('[Chat history]')
+              ? messagePreview.replaceAll(
+                  '[Chat history]',
+                  '[${l10n.messageForwardHistory}]',
+                )
+              : messagePreview,
           time: formatChatTime(conversation.lastMsgTime, l10n: l10n),
           unreadCount: conversation.unreadCount,
           onTap: conversation.convId == 0 && !canOpenNewConversation
@@ -1491,6 +1842,83 @@ class _ChatDraftStatus extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
       child: Text(
         drafts.isDirty(peerId!) ? l10n.draftLocalSaving : l10n.draftLocalSaved,
+      ),
+    );
+  }
+}
+
+/// 输入框上方的引用预览:发送者 + 有界摘要,可单独取消。
+class _ReplyPreview extends StatelessWidget {
+  const _ReplyPreview({
+    required this.target,
+    required this.cancelLabel,
+    required this.onCancel,
+  });
+
+  final ChatReplyTarget target;
+  final String cancelLabel;
+  final VoidCallback onCancel;
+
+  @override
+  Widget build(BuildContext context) {
+    final GfColors colors = GfTheme.colorsOf(context);
+    return Padding(
+      key: const Key('chat-reply-preview'),
+      padding: const EdgeInsets.fromLTRB(12, 4, 4, 0),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(10, 6, 0, 6),
+        decoration: BoxDecoration(
+          color: colors.base200,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          children: <Widget>[
+            Container(
+              width: 3,
+              height: 34,
+              decoration: BoxDecoration(
+                color: colors.primary,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  if (target.sender.isNotEmpty)
+                    Text(
+                      target.sender,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: colors.primary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  Text(
+                    target.excerpt,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: colors.baseContent.withValues(alpha: 0.7),
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            GfIconButton(
+              symbol: 'x',
+              tooltip: cancelLabel,
+              size: 44,
+              iconSize: 18,
+              onPressed: onCancel,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1772,27 +2200,32 @@ class _ChatEmptyState extends StatelessWidget {
 }
 
 class _DatePill extends StatelessWidget {
-  const _DatePill({required this.date});
+  const _DatePill({super.key, required this.label});
 
-  final String date;
+  final String label;
 
   @override
   Widget build(BuildContext context) {
     final GfColors colors = GfTheme.colorsOf(context);
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-        decoration: BoxDecoration(
-          color: colors.base300,
-          borderRadius: BorderRadius.circular(999),
-        ),
-        child: Text(
-          date,
-          style: TextStyle(
-            color: colors.baseContent.withValues(alpha: 0.55),
-            fontSize: 11,
-            fontWeight: FontWeight.w600,
+    // 日期分隔按标题语义暴露(Web 用 <h2>),读屏不会把它当作一条消息。
+    return Semantics(
+      container: true,
+      header: true,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          decoration: BoxDecoration(
+            color: colors.base300,
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              color: colors.baseContent.withValues(alpha: 0.55),
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ),
       ),
@@ -1800,109 +2233,151 @@ class _DatePill extends StatelessWidget {
   }
 }
 
-class _ChatMessageBubble extends ConsumerWidget {
-  const _ChatMessageBubble({
-    this.bubbleKey,
-    required this.text,
-    required this.mine,
-    this.time,
-    this.maxWidthFactor = 0.88,
+/// 对方头像的主页入口:44×44 命中区包住视觉头像,头像本身不位移、不缩放,
+/// 命中区只向头像旁的空白扩展,点击进入 `/u/{peerId}`。
+class _PeerAvatarButton extends StatelessWidget {
+  const _PeerAvatarButton({
+    super.key,
+    required this.peerId,
+    required this.label,
+    required this.src,
+    required this.size,
+    this.ring = false,
+    this.alignment = Alignment.center,
   });
 
-  final GlobalKey? bubbleKey;
-  final String text;
-  final bool mine;
-  final String? time;
-  final double maxWidthFactor;
+  final int peerId;
+  final String label;
+  final String src;
+  final double size;
+  final bool ring;
+  final Alignment alignment;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return ResolvedStickerContent(
-      content: text,
-      errorAlignment: mine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-      builder: (stickers) => GfMessageBubble(
-        bubbleKey: bubbleKey,
-        text: text,
-        showBubble: !isStickerOnlyMessage(text, stickers),
-        selectable: true,
-        copyMessageLabel: AppLocalizations.of(context).messagesCopyAll,
-        content: MessageContent(
-          text: text,
-          stickers: stickers,
-          onOpenLink: (url) async {
-            try {
-              await LinkNavigation.open(
-                context,
-                url,
-                baseUrl: ref.read(apiClientProvider).baseUrl,
-              );
-            } catch (error) {
-              if (context.mounted) {
-                showGfToast(
-                  context,
-                  resolveErrorMessage(AppLocalizations.of(context), error),
-                  error: true,
-                );
-              }
-            }
-          },
+  Widget build(BuildContext context) {
+    return Semantics(
+      // 独立语义节点:头像标签不会与同行的消息文本/标题合并成一个按钮。
+      container: true,
+      button: true,
+      label: label,
+      child: InkWell(
+        onTap: () => context.push('/u/$peerId'),
+        customBorder: const CircleBorder(),
+        child: SizedBox(
+          width: 44,
+          height: 44,
+          child: Align(
+            alignment: alignment,
+            child: GfAvatar(src: src, size: size, ring: ring),
+          ),
         ),
-        mine: mine,
-        time: time,
-        maxWidthFactor: maxWidthFactor,
       ),
     );
   }
+}
+
+/// Keep the message subtree mounted while revealing the selection rail. Native
+/// checkboxes retain their checked-state animation and keyboard interaction.
+class _MessageSelectionControl extends StatelessWidget {
+  const _MessageSelectionControl({
+    required this.visible,
+    required this.selected,
+    required this.onChanged,
+  });
+
+  final bool visible;
+  final bool selected;
+  final VoidCallback onChanged;
+
+  @override
+  Widget build(BuildContext context) => IgnorePointer(
+    ignoring: !visible,
+    child: ExcludeFocus(
+      excluding: !visible,
+      child: ExcludeSemantics(
+        excluding: !visible,
+        child: TweenAnimationBuilder<double>(
+          tween: Tween(end: visible ? 1 : 0),
+          duration: GfMotion.duration(context, GfMotion.layout),
+          curve: GfMotion.layoutCurve,
+          child: SizedBox(
+            width: 44,
+            height: 48,
+            child: Checkbox(
+              shape: const CircleBorder(),
+              value: selected,
+              onChanged: (_) => onChanged(),
+            ),
+          ),
+          builder: (context, progress, child) => Offstage(
+            offstage: progress == 0,
+            child: ClipRect(
+              child: Align(
+                alignment: AlignmentDirectional.centerEnd,
+                widthFactor: progress,
+                child: Opacity(opacity: progress, child: child),
+              ),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
 }
 
 class _MessageRow extends ConsumerWidget {
   const _MessageRow({
     this.bubbleKey,
     required this.message,
+    required this.peerId,
+    required this.peerProfileLabel,
     required this.peerAvatar,
     required this.viewerAvatar,
+    this.onLongPress,
+    this.onSwipeReply,
+    this.showTime = true,
   });
 
   final GlobalKey? bubbleKey;
   final ChatMessagePayload message;
+  final int peerId;
+  final String peerProfileLabel;
   final String peerAvatar;
   final String viewerAvatar;
+  final VoidCallback? onLongPress;
+  final VoidCallback? onSwipeReply;
+
+  /// 由 [buildChatTimeline] 决定:只有分组首条消息显示时刻。
+  final bool showTime;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 5),
-      child: Row(
-        mainAxisAlignment: message.isSelf
-            ? MainAxisAlignment.end
-            : MainAxisAlignment.start,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          if (!message.isSelf) ...<Widget>[
-            GfAvatar(src: resolveApiAssetUrl(peerAvatar), size: 32),
-            const SizedBox(width: 8),
-          ],
-          Flexible(
-            child: _ChatMessageBubble(
-              bubbleKey: bubbleKey,
-              text: message.content,
-              mine: message.isSelf,
-              time: formatChatTime(
-                message.createdAt,
-                l10n: AppLocalizations.of(context),
-              ),
-              maxWidthFactor: 0.74,
-            ),
-          ),
-          if (message.isSelf) ...<Widget>[
-            const SizedBox(width: 8),
-            GfAvatar(
+    return ChatMessageRow(
+      mine: message.isSelf,
+      avatar: message.isSelf
+          ? GfAvatar(
               src: resolveApiAssetUrl(viewerAvatar),
               size: 32,
-              ring: true,
+            )
+          : _PeerAvatarButton(
+              key: Key('chat-peer-avatar-${message.id}'),
+              peerId: peerId,
+              label: peerProfileLabel,
+              src: resolveApiAssetUrl(peerAvatar),
+              size: 32,
+              alignment: Alignment.topLeft,
             ),
-          ],
-        ],
+      child: ChatMessageBubble(
+        bubbleKey: bubbleKey,
+        text: message.content,
+        mine: message.isSelf,
+        time: showTime ? formatChatClock(message.createdAt) : null,
+        maxWidthFactor: 0.74,
+        onLongPress: onLongPress,
+        onSwipeReply: onSwipeReply,
+        content: message.forwarded == null
+            ? null
+            : ForwardedMessageCard(bundle: message.forwarded!),
       ),
     );
   }

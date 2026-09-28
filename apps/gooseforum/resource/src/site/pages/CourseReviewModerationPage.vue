@@ -244,7 +244,7 @@ onMounted(() => {
                 >
                   <UserAvatar :src="item.reporter.avatarUrl" alt="" class="h-4 w-4 rounded-full object-cover ring-1 ring-line" />
                   <span class="shrink-0">{{ t('courseReviewModeration.reporterLabel') }}</span>
-                  <span class="max-w-28 truncate font-medium text-base-content/65">{{ userDisplayName(item.reporter.id, item.reporter.username) }}</span>
+                  <span class="max-w-28 truncate font-medium text-base-content/65">{{ userDisplayName(item.reporter.id, item.reporter.username, item.reporter.nickname) }}</span>
                 </a>
                 <time>{{ formatDateTime(item.createdAt) }}</time>
               </div>
@@ -264,7 +264,7 @@ onMounted(() => {
               >
                 <UserAvatar :src="item.reporter.avatarUrl" alt="" class="h-5 w-5 rounded-full object-cover ring-1 ring-line" />
                 <span class="shrink-0">{{ t('courseReviewModeration.reporterLabel') }}</span>
-                <span class="min-w-0 truncate font-medium text-base-content/65">{{ userDisplayName(item.reporter.id, item.reporter.username) }}</span>
+                <span class="min-w-0 truncate font-medium text-base-content/65">{{ userDisplayName(item.reporter.id, item.reporter.username, item.reporter.nickname) }}</span>
               </a>
               <time class="mt-0.5 block text-xs tabular-nums text-base-content/45">{{ formatDateTime(item.createdAt) }}</time>
             </div>

@@ -11,6 +11,7 @@ abstract class ChatItemPayload with _$ChatItemPayload {
     required int id,
     required int peerId,
     required String peerUsername,
+    String? peerNickname,
     required String peerAvatar,
     required String lastMsg,
     required String lastMsgTime,
@@ -44,6 +45,7 @@ abstract class ChatMessagePayload with _$ChatMessagePayload {
     required int isRead,
     required String createdAt,
     required bool isSelf,
+    ChatForwardBundle? forwarded,
   }) = _ChatMessagePayload;
 
   factory ChatMessagePayload.fromJson(Map<String, dynamic> json) =>
@@ -118,4 +120,39 @@ class SendChatMessageRequest {
     'msgType': msgType,
     if (clientMessageId != null) 'clientMessageId': clientMessageId,
   };
+}
+
+/// Server-validated copy of selected messages; never grants source-chat access.
+@freezed
+abstract class ChatForwardBundle with _$ChatForwardBundle {
+  const factory ChatForwardBundle({
+    required int version,
+    required List<ChatForwardEntry> messages,
+  }) = _ChatForwardBundle;
+  factory ChatForwardBundle.fromJson(Map<String, dynamic> json) =>
+      _$ChatForwardBundleFromJson(json);
+}
+
+@freezed
+abstract class ChatForwardEntry with _$ChatForwardEntry {
+  const factory ChatForwardEntry({
+    required String senderName,
+    @Default('') String avatarUrl,
+    required String content,
+    required String createdAt,
+    required int msgType,
+    ChatForwardBundle? forwarded,
+  }) = _ChatForwardEntry;
+  factory ChatForwardEntry.fromJson(Map<String, dynamic> json) =>
+      _$ChatForwardEntryFromJson(json);
+}
+
+@freezed
+abstract class ChatForwardResult with _$ChatForwardResult {
+  const factory ChatForwardResult({
+    required int convId,
+    required List<int> messageIds,
+  }) = _ChatForwardResult;
+  factory ChatForwardResult.fromJson(Map<String, dynamic> json) =>
+      _$ChatForwardResultFromJson(json);
 }

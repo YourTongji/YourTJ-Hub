@@ -12,14 +12,14 @@
     <li class="gf-crawler-topic-row">
         <div class="gf-crawler-topic-main">
             <article>
-            <h2 class="gf-crawler-topic-title"><a href="{{.URL}}" rel="bookmark">{{.Title}}</a></h2>
+            <h2 class="gf-crawler-topic-title"><a href="{{.URL}}" rel="bookmark">{{topicListLabel .Title .Description}}</a></h2>
             {{if or .Author.Username .Categories}}
             <p class="gf-crawler-topic-meta">
                 {{if .Author.Username}}<a href="/u/{{.Author.ID}}" rel="author">{{.Author.Username}}</a>{{end}}
                 {{range .Categories}}<a href="{{.URL}}" rel="tag">{{.Name}}</a> {{end}}
             </p>
             {{end}}
-            {{if .Description}}<p class="gf-crawler-topic-excerpt">{{.Description}}</p>{{end}}
+            {{if and .Title .Description}}<p class="gf-crawler-topic-excerpt">{{.Description}}</p>{{end}}
             </article>
         </div>
         <div class="gf-crawler-topic-number"><span class="gf-crawler-visually-hidden">{{ t $.Lang "replies" }}: </span>{{.ReplyCount}}</div>

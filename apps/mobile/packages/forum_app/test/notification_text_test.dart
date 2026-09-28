@@ -79,6 +79,38 @@ void main() {
     expect(notificationTarget(notification(event: 'mention')), isNull);
     expect(notificationTarget(notification(event: 'follow')), '/u/1');
   });
+  test('actor nickname takes precedence for note(display name)', () {
+    final en = AppLocalizationsEn();
+    final item = NotificationPayload(
+      id: 1,
+      eventType: 'post_reply',
+      isRead: false,
+      createdAt: '',
+      title: '',
+      content: '',
+      actor: const NotificationActorPayload(
+        id: 7,
+        username: 'alice',
+        nickname: '昵称甲',
+      ),
+      payload: const NotificationInnerPayload(
+        actorId: 7,
+        templateKey: 'notifications.templates.postReply',
+      ),
+    );
+    // 通知标题按当前昵称渲染，而不是存储的用户名。
+    expect(notificationText(item, en).$1, en.notificationPostReply('昵称甲'));
+    // 备注渲染回调拿到的是昵称，保证 note(display name)。
+    expect(
+      notificationActorName(
+        item,
+        en,
+        displayName: (id, username) => '备注($username)',
+      ),
+      '备注(昵称甲)',
+    );
+  });
+
   test('user text beginning with notifications stays literal', () {
     final en = AppLocalizationsEn();
     final item = notification(

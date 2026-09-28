@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 import 'package:core/core.dart';
+import 'package:flutter/gestures.dart' show PointerScrollEvent;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show ScrollDirection;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -19,10 +20,9 @@ import 'campus_connection.dart';
 import 'campus_data_views.dart';
 import 'campus_helpers.dart';
 import 'campus_message_page.dart';
-import 'campus_private_surface.dart';
 import 'campus_state.dart';
 
-/// Only navigation choices survive the disposable private view. This object is
+/// Only navigation choices survive the private response view. This object is
 /// never serialized and contains no school response, credential or notice body.
 class _CampusNavigation {
   String tab = 'today';
@@ -51,29 +51,8 @@ class CampusPage extends ConsumerStatefulWidget {
   ConsumerState<CampusPage> createState() => _CampusPageState();
 }
 
-class _CampusPageState extends ConsumerState<CampusPage>
-    with WidgetsBindingObserver {
+class _CampusPageState extends ConsumerState<CampusPage> {
   _CampusNavigation _navigation = _CampusNavigation();
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addObserver(this);
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state != AppLifecycleState.resumed) {
-      // Replace the object so a disposing child cannot refill the next session.
-      setState(() => _navigation = _CampusNavigation());
-    }
-  }
-
-  @override
-  void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -84,9 +63,9 @@ class _CampusPageState extends ConsumerState<CampusPage>
     ref.listen(campusRepositoryProvider, (_, _) {
       _navigation = _CampusNavigation();
     });
-    return CampusPrivateSurface(
+    return KeyedSubtree(
       key: ObjectKey(repository),
-      builder: (_) => _CampusAccount(navigation: _navigation),
+      child: _CampusAccount(navigation: _navigation),
     );
   }
 }
@@ -166,7 +145,8 @@ class _CampusWorkspace extends ConsumerStatefulWidget {
   ConsumerState<_CampusWorkspace> createState() => _CampusWorkspaceState();
 }
 
-class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace> {
+class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace>
+    with WidgetsBindingObserver {
   _CampusNavigation get _navigation => widget.navigation;
   String get _tab => _navigation.tab;
   String get _query => _navigation.queries[_tab] ?? '';
@@ -176,27 +156,69 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace> {
   final _scroll = GfScrollToTopController();
   late final GfTabScrollRegistry _registry;
   Timer? _clock;
+  bool _foreground = true;
+  bool? _visible;
   List<SectionTime> _times = [];
   @override
   void initState() {
     super.initState();
+    final lifecycle = WidgetsBinding.instance.lifecycleState;
+    _foreground = lifecycle == null || lifecycle == AppLifecycleState.resumed;
+    WidgetsBinding.instance.addObserver(this);
     _search.text = _query;
-    // A notice may have kept the shared connection alive while this tab was
-    // hidden. Verify the binding before reusing any foreground cache.
+    // A notice may have kept the controller alive while this page was hidden.
+    // Verify its binding and refresh private data when the page returns.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
+      if (mounted && _visible == true) {
         unawaited(ref.read(campusControllerProvider.notifier).enterTab(_tab));
       }
     });
     _registry = ref.read(tabScrollRegistryProvider)
       ..register(GfShellDestination.campus, _scroll);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _syncVisibility();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed && _visible == true) {
+      _restoreScroll = true;
+      ref.read(campusControllerProvider.notifier).suspend();
+    }
+    _foreground = state == AppLifecycleState.resumed;
+    _syncVisibility();
+    if (mounted) setState(() {});
+  }
+
+  void _syncVisibility() {
+    final visible = _foreground && TickerMode.valuesOf(context).enabled;
+    if (_visible == visible) return;
+    final wasVisible = _visible;
+    _visible = visible;
+    if (!visible) {
+      _clock?.cancel();
+      _clock = null;
+      if (wasVisible == true) _restoreScroll = true;
+      return;
+    }
+    _loadTimes();
     _clock = Timer.periodic(const Duration(minutes: 1), (_) {
-      if (mounted) {
+      if (mounted && _visible == true) {
         setState(() {});
         unawaited(ref.read(campusControllerProvider.notifier).refreshVisible());
       }
     });
-    unawaited(_loadTimes());
+    if (wasVisible == false) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _visible == true) {
+          unawaited(ref.read(campusControllerProvider.notifier).enterTab(_tab));
+        }
+      });
+    }
   }
 
   Future<void> _loadTimes() async {
@@ -220,6 +242,7 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace> {
   @override
   void dispose() {
     _clock?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
     _search.dispose();
     _registry.unregister(GfShellDestination.campus, _scroll);
     super.dispose();
@@ -281,7 +304,16 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace> {
     );
     final content = data == null
         ? (loading
-              ? const Padding(padding: EdgeInsets.all(20), child: GfLoading())
+              ? const ExcludeSemantics(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      GfSkeleton(height: 48, radius: 10),
+                      SizedBox(height: 10),
+                      GfSkeleton(height: 40, radius: 10),
+                    ],
+                  ),
+                )
               : refreshPrompt())
         : !usable
         ? Text(l.campusUnavailable)
@@ -410,7 +442,7 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace> {
     );
   }
 
-  Widget _today(CampusViewState state) {
+  Widget _todayHeader(CampusViewState state) {
     final l = AppLocalizations.of(context);
     final now = DateTime.now();
     final clock = campusNow(now);
@@ -444,6 +476,17 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace> {
           ),
         ),
         const SizedBox(height: 20),
+      ],
+    );
+  }
+
+  Widget _today(CampusViewState state) {
+    final l = AppLocalizations.of(context);
+    final now = DateTime.now();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _todayHeader(state),
         _section(
           l.campusTodayCourses,
           _dataset(state, 'today', (data) {
@@ -600,7 +643,13 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace> {
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
-    final state = ref.watch(campusControllerProvider);
+    final privateVisible = _visible ?? false;
+    final state = privateVisible
+        ? ref.watch(campusControllerProvider)
+        : const CampusViewState();
+    final withholdData =
+        privateVisible &&
+        ref.read(campusControllerProvider.notifier).withholdDataUntilFresh;
     final binding = state.status?.binding;
     final identityRejected =
         state.needsAuthorization || isCampusIdentityError(state.error);
@@ -631,9 +680,18 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace> {
       'calendars': l.campusCalendars,
       'connection': l.campusConnection,
     };
+    final tabKeys = labels.keys.toList(growable: false);
     Widget content;
-    if (state.loading) {
-      content = const GfLoading();
+    if (!privateVisible || state.loading || withholdData) {
+      content = _CampusRefreshSkeleton(
+        tab: _tab,
+        week: _navigation.week ?? 1,
+        todayHeader: _tab == 'today'
+            ? _todayHeader(const CampusViewState())
+            : null,
+        onSelectMessages: () => _select('messages'),
+        animate: privateVisible && _foreground,
+      );
     } else if (state.status == null) {
       content = GfErrorRetry(
         message: campusError(l, state.error),
@@ -719,6 +777,9 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace> {
       );
     }
     return RootSurface(
+      swipeTabIndex: tabKeys.indexOf(_tab),
+      swipeTabCount: tabKeys.length,
+      onSwipeTabChanged: (index) => _select(tabKeys[index]),
       title: l.campusTitle,
       showComposeAction: false,
       actions: [
@@ -748,7 +809,7 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace> {
           final ready =
               (navigation.offsets[tab] ?? 0) <= 0 ||
               (!state.loading &&
-                  !state.refreshing &&
+                  !withholdData &&
                   (campusTabKeys[tab] ?? []).every(
                     (key) =>
                         !state.fetching.contains(key) &&
@@ -776,41 +837,569 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace> {
               _restoreScroll = false;
             });
           }
-          return NotificationListener<ScrollNotification>(
-            onNotification: (notification) {
-              if (notification.depth != 0 || tab != _tab) return false;
-              if ((notification is ScrollStartNotification &&
-                      notification.dragDetails != null) ||
-                  (notification is UserScrollNotification &&
-                      notification.direction != ScrollDirection.idle)) {
-                // Explicit reading intent supersedes a saved position, including
-                // while a section is still waiting for its private data.
+          return Listener(
+            onPointerSignal: (signal) {
+              if (signal is PointerScrollEvent &&
+                  tab == _tab &&
+                  controller.hasClients) {
                 _restoreScroll = false;
+                navigation.offsets[tab] = controller.position.pixels;
               }
-              if (notification is ScrollUpdateNotification && !_restoreScroll) {
-                navigation.offsets[tab] = notification.metrics.pixels;
-              }
-              return false;
             },
-            child: AppRefreshIndicator(
-              edgeOffset: top,
-              onRefresh: () =>
-                  ref.read(campusControllerProvider.notifier).refresh(),
-              child: ListView(
-                controller: controller,
-                physics: const AlwaysScrollableScrollPhysics(),
-                padding: EdgeInsets.fromLTRB(20, top + 24, 20, bottom + 16),
-                children: [
-                  if (_tab == 'today') ...[
-                    const CampusShortcuts(),
-                    const SizedBox(height: 24),
+            child: NotificationListener<ScrollNotification>(
+              onNotification: (notification) {
+                if (notification.depth != 0 || tab != _tab) return false;
+                if ((notification is ScrollStartNotification &&
+                        notification.dragDetails != null) ||
+                    (notification is UserScrollNotification &&
+                        notification.direction != ScrollDirection.idle)) {
+                  // Explicit reading intent supersedes a saved position, including
+                  // while a section is still waiting for its private data.
+                  _restoreScroll = false;
+                  navigation.offsets[tab] = notification.metrics.pixels;
+                }
+                if (notification is ScrollUpdateNotification &&
+                    !_restoreScroll) {
+                  navigation.offsets[tab] = notification.metrics.pixels;
+                }
+                return false;
+              },
+              child: AppRefreshIndicator(
+                edgeOffset: top,
+                onRefresh: () =>
+                    ref.read(campusControllerProvider.notifier).refresh(),
+                child: ListView(
+                  controller: controller,
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: EdgeInsets.fromLTRB(20, top + 24, 20, bottom + 16),
+                  children: [
+                    if (_tab == 'today') ...[
+                      const CampusShortcuts(),
+                      const SizedBox(height: 24),
+                    ],
+                    content,
                   ],
-                  content,
-                ],
+                ),
               ),
             ),
           );
         },
+      ),
+    );
+  }
+}
+
+/// Clears private response widgets during refresh while preserving the
+/// tab's real headings, controls and data-independent layout.
+class _CampusRefreshSkeleton extends StatefulWidget {
+  const _CampusRefreshSkeleton({
+    required this.tab,
+    required this.week,
+    required this.animate,
+    required this.onSelectMessages,
+    this.todayHeader,
+  });
+
+  final String tab;
+  final int week;
+  final bool animate;
+  final Widget? todayHeader;
+  final VoidCallback onSelectMessages;
+
+  @override
+  State<_CampusRefreshSkeleton> createState() => _CampusRefreshSkeletonState();
+}
+
+class _CampusRefreshSkeletonState extends State<_CampusRefreshSkeleton>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _shimmer = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1500),
+  );
+  bool _reducedMotion = false;
+
+  bool get _shouldAnimate => widget.animate && !_reducedMotion;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _syncMotion();
+  }
+
+  @override
+  void didUpdateWidget(_CampusRefreshSkeleton oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _syncMotion();
+  }
+
+  void _syncMotion() {
+    _reducedMotion = GfMotion.reducedOf(context);
+    if (_shouldAnimate) {
+      if (!_shimmer.isAnimating) _shimmer.repeat();
+    } else {
+      _shimmer.stop();
+      _shimmer.value = 0;
+    }
+  }
+
+  @override
+  void dispose() {
+    _shimmer.dispose();
+    super.dispose();
+  }
+
+  Widget _bone({double? width, double height = 16, double radius = 6}) =>
+      GfSkeleton(width: width, height: height, radius: radius);
+
+  Widget _shine(Widget child) {
+    if (!_shouldAnimate) return child;
+    final colors = GfTheme.colorsOf(context);
+    return AnimatedBuilder(
+      animation: _shimmer,
+      child: child,
+      builder: (context, child) => ShaderMask(
+        blendMode: BlendMode.srcATop,
+        shaderCallback: (bounds) {
+          final start = -2.4 + _shimmer.value * 4.8;
+          return LinearGradient(
+            begin: Alignment(start, 0),
+            end: Alignment(start + 1.4, 0),
+            colors: [colors.base300, colors.base200, colors.base300],
+          ).createShader(bounds);
+        },
+        child: child,
+      ),
+    );
+  }
+
+  Widget _section(String title, Widget child, {Widget? action}) => Padding(
+    padding: const EdgeInsets.only(bottom: 28),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Wrap(
+          alignment: WrapAlignment.spaceBetween,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 8,
+          children: [
+            Text(title, style: GfTheme.typographyOf(context).title2),
+            ?action,
+          ],
+        ),
+        const SizedBox(height: 12),
+        child,
+      ],
+    ),
+  );
+
+  Widget _courseCard() => GfCard(
+    padding: const EdgeInsets.symmetric(vertical: 16),
+    child: _shine(
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _bone(width: 176, height: 12, radius: 5),
+          const SizedBox(height: 8),
+          _bone(width: 232, height: 18, radius: 5),
+          const SizedBox(height: 6),
+          _bone(width: 196, height: 14, radius: 5),
+        ],
+      ),
+    ),
+  );
+
+  Widget _messageCard({bool recent = false}) => GfCard(
+    padding: const EdgeInsets.symmetric(vertical: 16),
+    child: _shine(
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _bone(height: 18, radius: 5),
+          if (recent) ...[
+            const SizedBox(height: 6),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: _bone(width: 176, height: 18, radius: 5),
+            ),
+          ],
+          const SizedBox(height: 8),
+          _bone(width: 144, height: 12, radius: 5),
+        ],
+      ),
+    ),
+  );
+
+  Widget _metrics() => LayoutBuilder(
+    builder: (context, constraints) {
+      final wide =
+          constraints.maxWidth >= 360 &&
+          MediaQuery.textScalerOf(context).scale(16) < 25;
+      final width = wide
+          ? (constraints.maxWidth - 12) / 2
+          : constraints.maxWidth;
+      return Wrap(
+        spacing: 12,
+        runSpacing: 12,
+        children: [
+          for (var i = 0; i < 4; i++)
+            SizedBox(
+              width: width,
+              child: GfCard(
+                emphasized: true,
+                padding: const EdgeInsets.all(16),
+                child: _shine(
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _bone(width: 84 + (i % 2) * 24, height: 12, radius: 5),
+                      const SizedBox(height: 8),
+                      _bone(width: 56, height: 22, radius: 5),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+        ],
+      );
+    },
+  );
+
+  Widget _chart() => Column(
+    children: [
+      for (var i = 0; i < 3; i++)
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: _shine(
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _bone(width: 160 + i * 20, height: 14, radius: 5),
+                const SizedBox(height: 8),
+                _bone(height: 8, radius: 4),
+              ],
+            ),
+          ),
+        ),
+    ],
+  );
+
+  Widget _records() => Column(
+    children: [
+      for (var i = 0; i < 3; i++)
+        GfCard(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          child: _shine(
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _bone(width: 176 + (i % 2) * 36, height: 18, radius: 5),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 16,
+                  runSpacing: 6,
+                  children: [
+                    _bone(width: 88, height: 12, radius: 5),
+                    _bone(width: 104, height: 12, radius: 5),
+                    _bone(width: 64, height: 12, radius: 5),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+    ],
+  );
+
+  Widget _search() => Padding(
+    padding: const EdgeInsets.only(bottom: 12),
+    child: _shine(_bone(height: 48, radius: 28)),
+  );
+
+  Widget _snapshot() => Padding(
+    padding: const EdgeInsets.only(bottom: 12),
+    child: Row(
+      children: [
+        Expanded(child: _shine(_bone(width: 168, height: 12, radius: 5))),
+        const SizedBox(width: 8),
+        _shine(_bone(width: 44, height: 44, radius: 22)),
+      ],
+    ),
+  );
+
+  Widget _timetable(AppLocalizations l) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      Align(
+        alignment: Alignment.centerLeft,
+        child: _shine(_bone(width: 144, height: 44, radius: 22)),
+      ),
+      const SizedBox(height: 12),
+      Wrap(
+        alignment: WrapAlignment.center,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        spacing: 8,
+        children: [
+          _bone(width: 40, height: 40, radius: 20),
+          Text(
+            l.scheduleWeekN(widget.week),
+            style: GfTheme.typographyOf(context).heading,
+          ),
+          _bone(width: 40, height: 40, radius: 20),
+          TextButton(onPressed: null, child: Text(l.scheduleCurrentWeek)),
+        ],
+      ),
+      const SizedBox(height: 12),
+      _timetableGrid(l),
+    ],
+  );
+
+  Widget _timetableGrid(AppLocalizations l) => LayoutBuilder(
+    builder: (context, constraints) {
+      final scaler = MediaQuery.textScalerOf(context);
+      final scale = [
+        9.5,
+        10.0,
+        11.0,
+        12.0,
+      ].map((size) => scaler.scale(size) / size).fold(1.0, math.max);
+      final width = constraints.maxWidth;
+      final timeWidth = math.min(56 * scale, width * .4);
+      final available = width - timeWidth - 2;
+      final dayWidth = math.max(76 * scale, available / 7);
+      final rowHeight = 64 * scale;
+      final colors = GfTheme.colorsOf(context);
+      final days = [
+        l.scheduleDayMon,
+        l.scheduleDayTue,
+        l.scheduleDayWed,
+        l.scheduleDayThu,
+        l.scheduleDayFri,
+        l.scheduleDaySat,
+        l.scheduleDaySun,
+      ];
+      Widget header(String label, double width) => Container(
+        width: width,
+        height: 36 * scale,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: colors.base200.withValues(alpha: .7),
+          border: Border(
+            right: BorderSide(color: colors.line),
+            bottom: BorderSide(color: colors.line),
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            // Text applies the ambient scaler; only grid geometry scales here.
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: colors.baseContent,
+          ),
+        ),
+      );
+      Widget timeCell(int row) => Container(
+        width: timeWidth,
+        height: rowHeight,
+        padding: const EdgeInsets.symmetric(horizontal: 1, vertical: 3),
+        decoration: BoxDecoration(
+          border: Border(
+            right: BorderSide(color: colors.line),
+            bottom: BorderSide(color: colors.line),
+          ),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              '$row',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: colors.baseContent.withValues(alpha: .7),
+              ),
+            ),
+            SizedBox(height: 2 * scale),
+            _shine(
+              Column(
+                children: [
+                  _bone(width: 28 * scale, height: 8 * scale, radius: 3),
+                  SizedBox(height: 2 * scale),
+                  _bone(width: 28 * scale, height: 8 * scale, radius: 3),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+      Widget dayColumn(int day) => SizedBox(
+        width: dayWidth,
+        height: rowHeight * 12,
+        child: Stack(
+          children: [
+            Column(
+              children: [
+                for (var row = 0; row < 12; row++)
+                  Container(
+                    width: dayWidth,
+                    height: rowHeight,
+                    decoration: BoxDecoration(
+                      border: Border(
+                        right: BorderSide(color: colors.line),
+                        bottom: BorderSide(color: colors.line),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            for (final (courseDay, row, span) in const [
+              (1, 1, 2),
+              (3, 4, 2),
+              (5, 7, 2),
+            ])
+              if (day == courseDay)
+                Positioned(
+                  top: row * rowHeight + 4,
+                  left: 4,
+                  right: 4,
+                  height: span * rowHeight - 8,
+                  child: _shine(_bone(radius: 8)),
+                ),
+          ],
+        ),
+      );
+      final scrolls = dayWidth * 7 > available + 1;
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            decoration: BoxDecoration(
+              color: colors.base100,
+              borderRadius: BorderRadius.circular(GfTheme.radiiOf(context).box),
+              border: Border.all(color: colors.line),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(
+                  width: timeWidth,
+                  child: Column(
+                    children: [
+                      header(l.scheduleTimeAxis, timeWidth),
+                      for (var row = 1; row <= 12; row++) timeCell(row),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: SizedBox(
+                      width: dayWidth * 7,
+                      child: Column(
+                        children: [
+                          Row(
+                            children: [
+                              for (final day in days) header(day, dayWidth),
+                            ],
+                          ),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              for (var day = 0; day < 7; day++) dayColumn(day),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (scrolls)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(
+                l.scheduleGridScrollHint,
+                style: GfTheme.typographyOf(context).caption,
+              ),
+            ),
+        ],
+      );
+    },
+  );
+
+  Widget _body(AppLocalizations l) => switch (widget.tab) {
+    'today' => Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        ?widget.todayHeader,
+        _section(
+          l.campusTodayCourses,
+          Column(children: [_courseCard(), _courseCard()]),
+        ),
+        _section(
+          l.campusMessages,
+          Column(
+            children: [_messageCard(recent: true), _messageCard(recent: true)],
+          ),
+          action: TextButton(
+            onPressed: widget.onSelectMessages,
+            child: Text(l.campusAllNotices),
+          ),
+        ),
+      ],
+    ),
+    'timetable' => _timetable(l),
+    'academics' => Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _section(l.campusAcademics, _metrics()),
+        _section(l.campusGradeTrend, _chart()),
+        _section(
+          l.campusCourses,
+          Column(children: [_metrics(), _search(), _records()]),
+        ),
+        _section(l.campusCet, Column(children: [_chart(), _records()])),
+      ],
+    ),
+    'messages' => Column(
+      children: [_search(), for (var i = 0; i < 4; i++) _messageCard()],
+    ),
+    'calendars' => Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _section(l.scheduleCurrentWeek, _metrics()),
+        _section(l.campusCalendars, _records()),
+      ],
+    ),
+    _ => Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(l.campusConnection, style: GfTheme.typographyOf(context).title2),
+        const SizedBox(height: 12),
+        Text(l.campusPrivacy),
+        const SizedBox(height: 16),
+        _shine(_bone(width: 176, height: 24, radius: 5)),
+        const SizedBox(height: 20),
+        _shine(_bone(height: 48, radius: 12)),
+      ],
+    ),
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    return Semantics(
+      container: true,
+      liveRegion: true,
+      label: l.commonLoading,
+      child: ExcludeSemantics(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [if (widget.tab != 'connection') _snapshot(), _body(l)],
+        ),
       ),
     );
   }

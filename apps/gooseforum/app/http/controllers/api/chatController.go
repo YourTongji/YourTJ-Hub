@@ -103,3 +103,12 @@ func GetChatMessageReadStates(req component.BetterRequest[ChatMessageIDsReq]) co
 	}
 	return component.SuccessResponse(result)
 }
+
+// ForwardMessages validates source membership and copies only selected messages.
+func ForwardMessages(req component.BetterRequest[chatservice.ForwardRequest]) component.Response {
+	result, err := chatservice.ForwardMessages(req.UserId, req.Params)
+	if err != nil {
+		return component.FailResponseCode(component.MessageChatSendFailed, nil)
+	}
+	return component.SuccessResponse(result)
+}

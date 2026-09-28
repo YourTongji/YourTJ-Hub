@@ -9,7 +9,7 @@ import {
   registerTopicPreview,
   unregisterTopicPreview,
 } from '@/runtime/topic-hover-preview'
-import { topicDescription } from '@/runtime/topic-description'
+import { topicDescription, topicDisplayLabel } from '@/runtime/topic-description'
 import AvatarStack from '@/site/components/AvatarStack.vue'
 import TopicFeedPreview from '@/site/components/TopicFeedPreview.vue'
 import type { TopicPayload } from '@gooseforum/client'
@@ -160,8 +160,22 @@ onBeforeUnmount(() => {
             class="h-3.5 w-3.5 shrink-0 rotate-45 text-error"
             :aria-label="t('topicList.pinned')"
           />
-          <a :href="topic.url" class="min-w-0 truncate text-[15px] font-medium leading-6 text-base-content group-hover:text-primary sm:text-base" @click="closePreview">
+          <!-- 无标题瞬间（标题为空）不渲染标题；链接文案回退为正文摘要/稳定颜文字，保留整行可点击 -->
+          <a
+            v-if="topic.title"
+            :href="topic.url"
+            class="min-w-0 truncate text-[15px] font-medium leading-6 text-base-content group-hover:text-primary sm:text-base"
+            @click="closePreview"
+          >
             {{ topic.title }}
+          </a>
+          <a
+            v-else
+            :href="topic.url"
+            class="min-w-0 truncate text-[15px] leading-6 text-base-content/70 group-hover:text-primary sm:text-base"
+            @click="closePreview"
+          >
+            {{ topicDisplayLabel(topic.id, topic.title, topic.description) }}
           </a>
           <span
             v-if="topic.unseen"
@@ -195,7 +209,7 @@ onBeforeUnmount(() => {
           <Sparkles class="h-3 w-3" /> hot
         </span>
       </div>
-      <p class="mt-1 min-h-5 truncate text-[13px] leading-5 text-base-content/55">{{ topicDescription(topic) }}</p>
+      <p v-if="topic.title" class="mt-1 min-h-5 truncate text-[13px] leading-5 text-base-content/55">{{ topicDescription(topic) }}</p>
       <div class="mt-1.5 flex min-h-6 flex-wrap items-center gap-x-3 gap-y-1 text-xs text-base-content/55 lg:hidden">
         <AvatarStack :users="topic.participants" size="sm" />
         <span>{{ timeAgo(topic.lastUpdateTime) }}</span>

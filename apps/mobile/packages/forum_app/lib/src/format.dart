@@ -30,7 +30,8 @@ Color colorFromHex(String hex, {Color fallback = const Color(0xFF62748E)}) {
 /// `formatDate`(web format.ts:29-42)。
 String timeAgo(String isoTime, {DateTime? now, AppLocalizations? l10n}) {
   final AppLocalizations loc = l10n ?? _fallbackL10n;
-  final DateTime? parsed = DateTime.tryParse(isoTime.replaceFirst(' ', 'T'));
+  // 与聊天时间同一解析语义(无时区历史值按 UTC,见 [parseChatTimestamp])。
+  final DateTime? parsed = parseChatTimestamp(isoTime);
   if (parsed == null) return isoTime;
   // 只依赖绝对时刻差,不输出本地时区字段。
   final DateTime current = (now ?? DateTime.now()).toLocal();
@@ -42,13 +43,28 @@ String timeAgo(String isoTime, {DateTime? now, AppLocalizations? l10n}) {
   return formatDate(isoTime);
 }
 
-/// ISO instants are displayed in the device timezone, like the Web client.
-/// Date-only and legacy timestamps without an offset remain local calendar values.
-DateTime? _displayTime(String value) =>
-    DateTime.tryParse(value.replaceFirst(' ', 'T'))?.toLocal();
+/// 将服务端时间字符串解析为设备本地时刻;无效输入返回 null。
+///
+/// - 带偏移/Z 的 RFC3339:按绝对时刻解析。
+/// - 无时区标记的**日期时间**(旧服务端 `time.DateTime` 输出):按 UTC 墙钟解析
+///   (issue #221;服务器运行在 UTC,与 Web `parseDate` 一致),否则设备时区会
+///   固定偏移,日期分隔与相对时间都会错位。
+/// - 纯**日期**的日历值(校历、日期型字段):按本地日历日解析,不随时区偏移,
+///   任何时区下都保持同一个日历日。
+DateTime? parseChatTimestamp(String value) {
+  final String normalized = value.replaceFirst(' ', 'T');
+  if (!normalized.contains('T')) return DateTime.tryParse(normalized);
+  if (_hasZoneDesignator(normalized)) {
+    return DateTime.tryParse(normalized)?.toLocal();
+  }
+  return DateTime.tryParse('${normalized}Z')?.toLocal();
+}
+
+bool _hasZoneDesignator(String value) =>
+    RegExp(r'[zZ]$|[+-]\d{2}:?\d{2}$').hasMatch(value);
 
 String? _dateField(String value) {
-  final parsed = _displayTime(value);
+  final parsed = parseChatTimestamp(value);
   if (parsed == null) return null;
   final year = parsed.year.toString().padLeft(4, '0');
   final month = parsed.month.toString().padLeft(2, '0');
@@ -58,7 +74,7 @@ String? _dateField(String value) {
 
 String? _timeField(String value) {
   if (!value.replaceFirst(' ', 'T').contains('T')) return null;
-  final parsed = _displayTime(value);
+  final parsed = parseChatTimestamp(value);
   if (parsed == null) return null;
   return '${parsed.hour.toString().padLeft(2, '0')}:${parsed.minute.toString().padLeft(2, '0')}';
 }
@@ -99,6 +115,35 @@ String formatChatTime(String value, {AppLocalizations? l10n, DateTime? now}) {
   if (year == current.year) return loc.dateMonthDayTime(month, day, time);
   return loc.dateYearMonthDayTime(year, month, day, time);
 }
+
+/// 聊天气泡内的时刻(仅设备本地 `HH:mm`)。
+///
+/// 私信按日期分隔与时间分组渲染(见 `messages/chat_timeline.dart`),
+/// 日期已由分隔标签表达,气泡内只保留时刻;纯日期值与无法解析的输入返回原值。
+String formatChatClock(String value) => _timeField(value) ?? value;
+
+/// 私信日期分隔标签:今天/昨天/同年 `M月D日`/跨年 `YYYY年M月D日`。
+/// [day] 为设备本地时刻,与 [formatChatTime] 使用同一时区基准。
+String formatChatDayLabel(
+  DateTime day, {
+  AppLocalizations? l10n,
+  DateTime? now,
+}) {
+  final AppLocalizations loc = l10n ?? _fallbackL10n;
+  final DateTime current = (now ?? DateTime.now()).toLocal();
+  if (_sameLocalDay(day, current)) return loc.dateToday;
+  final DateTime yesterday = DateTime(
+    current.year,
+    current.month,
+    current.day - 1,
+  );
+  if (_sameLocalDay(day, yesterday)) return loc.dateYesterday;
+  if (day.year == current.year) return loc.dateMonthDay(day.month, day.day);
+  return loc.dateYearMonthDay(day.year, day.month, day.day);
+}
+
+bool _sameLocalDay(DateTime a, DateTime b) =>
+    a.year == b.year && a.month == b.month && a.day == b.day;
 
 // 无 context 场景(如纯工具调用)回退中文;页面内请传入 l10n。
 final AppLocalizations _fallbackL10n = AppLocalizationsZh();

@@ -5,6 +5,7 @@ on:
     branches: [dev, main]
     paths:
       - "apps/gooseforum/resource/**"
+      - "apps/gooseforum/app/http/controllers/forum/page_component.go"
       - "apps/mobile/tools/generate_server_messages.mjs"
       - "apps/mobile/packages/forum_app/lib/src/server_message_catalog.dart"
       - "apps/gooseforum/testdata/markdown-compat/**"
@@ -36,6 +37,7 @@ jobs:
           filters: |
             frontend:
               - 'apps/gooseforum/resource/**'
+              - 'apps/gooseforum/app/http/controllers/forum/page_component.go'
               - 'apps/mobile/tools/generate_server_messages.mjs'
               - 'apps/mobile/packages/forum_app/lib/src/server_message_catalog.dart'
               - 'apps/gooseforum/testdata/markdown-compat/**'

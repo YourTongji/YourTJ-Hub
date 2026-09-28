@@ -7,9 +7,33 @@ import (
 	"github.com/samber/lo"
 )
 
+// replyQuotePrefix starts the plain-text quote line a chat reply prepends
+// ("> @user: excerpt"); the reply body follows after a blank line.
+const replyQuotePrefix = "> "
+
+// stripReplyQuote drops a leading reply quote so a conversation preview shows
+// the reply itself instead of the quoted excerpt, which would otherwise consume
+// the bounded preview. Content without a quote, and a quote without a body,
+// stay untouched.
+func stripReplyQuote(content string) string {
+	if !strings.HasPrefix(content, replyQuotePrefix) {
+		return content
+	}
+	separator := strings.Index(content, "\n\n")
+	if separator < 0 {
+		return content
+	}
+	if body := content[separator+2:]; body != "" {
+		return body
+	}
+	return content
+}
+
 // MessagePreview fits PostgreSQL's 255-character summary column without changing
-// the message body. Keep Unicode characters and complete sticker tokens intact.
+// the message body. A leading reply quote is dropped first, and Unicode
+// characters and complete sticker tokens stay intact.
 func MessagePreview(content string) string {
+	content = stripReplyQuote(content)
 	runes := []rune(content)
 	if len(runes) <= 255 {
 		return content

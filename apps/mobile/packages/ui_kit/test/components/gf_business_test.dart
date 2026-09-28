@@ -1,6 +1,7 @@
 import 'dart:ui' show SemanticsAction;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show RenderParagraph;
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ui_kit/ui_kit.dart';
@@ -123,6 +124,101 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('参与讨论'), findsOneWidget);
+    });
+
+    testWidgets(
+      'floor number keeps its natural width while the dock has room',
+      (tester) async {
+        // Issue #886: the floor number was sliced into "1 …" on phones even
+        // though the reply control left most of its flex share unused.
+        await tester.pumpWidget(
+          gfApp(
+            Align(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 390),
+                child: GfFloatingControls(
+                  currentNo: 1,
+                  maxNo: 14,
+                  onFloorTap: () {},
+                  joinLabel: '参与讨论',
+                  onOpenReply: () {},
+                  actions: <GfTopicAction>[
+                    for (int index = 0; index < 3; index++)
+                      GfTopicAction(
+                        symbol: 'heart',
+                        active: false,
+                        activeColor: GfColors.light.error,
+                        onTap: () {},
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+        expect(find.text('参与讨论'), findsOneWidget);
+        expectFloorNumberRenderedInFull(tester, '1 / 14');
+      },
+    );
+
+    testWidgets(
+      'floor number keeps its natural width without a reply control',
+      (tester) async {
+        // Locked topics and restricted categories drop the reply control while
+        // the like/bookmark/watch actions stay, so the dock must not reserve
+        // the reply footprint it has nowhere to spend.
+        await tester.pumpWidget(
+          gfApp(
+            Align(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 272),
+                child: GfFloatingControls(
+                  currentNo: 1,
+                  maxNo: 14,
+                  onFloorTap: () {},
+                  onOpenReply: null,
+                  actions: <GfTopicAction>[
+                    for (int index = 0; index < 3; index++)
+                      GfTopicAction(
+                        symbol: 'heart',
+                        active: false,
+                        activeColor: GfColors.light.error,
+                        onTap: () {},
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+        expect(find.text('参与讨论'), findsNothing);
+        expectFloorNumberRenderedInFull(tester, '1 / 14');
+      },
+    );
+
+    testWidgets('dock dividers keep the footprint the dock reserves', (
+      tester,
+    ) async {
+      // The floor sizing subtracts one `GfDivider(inset: 4)` per gap, i.e.
+      // 4 * 2; a Flutter change that gave the hairline width along a Row would
+      // squeeze the reply control without any other test noticing.
+      await tester.pumpWidget(
+        gfApp(
+          GfFloatingControls(
+            currentNo: 1,
+            maxNo: 14,
+            onFloorTap: () {},
+            onOpenReply: () {},
+            actions: const <GfTopicAction>[],
+          ),
+        ),
+      );
+      expect(tester.getSize(find.byType(GfDivider).first).width, 4 * 2);
+      expect(find.byType(GfDivider), findsNWidgets(2));
     });
 
     testWidgets('hides floor button when maxNo is null', (tester) async {
@@ -601,4 +697,23 @@ void main() {
       },
     );
   });
+}
+
+/// Asserts the dock renders [label] (the floor number) at its natural width,
+/// i.e. not sliced into "1 …" by a narrower constraint.
+void expectFloorNumberRenderedInFull(WidgetTester tester, String label) {
+  final RenderParagraph floor = tester.renderObject<RenderParagraph>(
+    find.text(label),
+  );
+  final TextPainter natural = TextPainter(
+    text: floor.text,
+    textDirection: floor.textDirection,
+    textScaler: floor.textScaler,
+  )..layout();
+  expect(
+    floor.size.width,
+    moreOrLessEquals(natural.width, epsilon: .5),
+    reason: 'the floor number must render in full, not as "1 …"',
+  );
+  natural.dispose();
 }

@@ -211,6 +211,30 @@ describe('QuickPublishModal 草稿与离开保护（issue #583）', () => {
     }
   })
 
+  test('瞬间无标题时页脚保存草稿与离开确认一致：允许空标题草稿', async () => {
+    const submit = vi.spyOn(api, 'submitTopic').mockResolvedValue(124)
+    const { wrapper, vm, quickPublishOpen } = await mountModal(2)
+    try {
+      vm.title = ''
+      vm.content = '只有正文的瞬间草稿'
+      vm.categoryIds = [101]
+      await nextTick()
+
+      const saveDraftBtn = buttonByText(i18n.global.t('publish.saveDraft'))
+      expect(saveDraftBtn).not.toBeNull()
+      saveDraftBtn?.click()
+      await flushPromises()
+
+      expect(submit).toHaveBeenCalledWith(
+        expect.objectContaining({ title: '', topicStatus: 0, contentType: 2 }),
+      )
+      expect(vm.errorMessage).toBe('')
+      expect(quickPublishOpen.value).toBe(false)
+    } finally {
+      wrapper.unmount()
+    }
+  })
+
   test('发布成功清除本地暂存', async () => {
     const submit = vi.spyOn(api, 'submitTopic').mockResolvedValue(55)
     writeQuickPublishDraft(1, 2, { title: '旧标题', content: '旧正文', categoryIds: [101], images: [] })

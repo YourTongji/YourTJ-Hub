@@ -37,6 +37,7 @@ abstract class ModerationLogActor with _$ModerationLogActor {
   const factory ModerationLogActor({
     required int id,
     required String username,
+    String? nickname,
     required String avatarUrl,
   }) = _ModerationLogActor;
 

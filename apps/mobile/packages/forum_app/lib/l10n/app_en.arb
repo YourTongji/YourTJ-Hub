@@ -21,8 +21,12 @@
   "@imageViewPosition": {
     "description": "Accessible label for opening an image in the feed gallery.",
     "placeholders": {
-      "index": {"type": "int"},
-      "count": {"type": "int"}
+      "index": {
+        "type": "int"
+      },
+      "count": {
+        "type": "int"
+      }
     }
   },
   "imageSave": "Save image",
@@ -107,6 +111,7 @@
   "authForgotTitle": "Reset password",
   "authContinueAfterLogin": "Sign in to continue where you left off.",
   "authSignInMethods": "Other sign-in options",
+  "authMoreSignInMethods": "More sign-in options",
   "authLoginSubtitle": "Welcome back. Continue your discussions and writing.",
   "authRegisterSubtitle": "Create an account and join the campus conversation.",
   "authForgotSubtitle": "Enter your email and we will send a reset link.",
@@ -116,6 +121,8 @@
   "authPassword": "Password",
   "authNewPassword": "New password",
   "authConfirmPassword": "Confirm password",
+  "authShowPassword": "Show password",
+  "authHidePassword": "Hide password",
   "authCaptcha": "Captcha",
   "authForgotPassword": "Forgot password?",
   "authCreateAccount": "Create account",
@@ -125,6 +132,8 @@
   "authTwoFactorCode": "TOTP code",
   "authVerify": "Verify",
   "authGetCode": "Get code",
+  "authRefreshCaptcha": "Refresh captcha",
+  "authCaptchaRequired": "Please enter the captcha",
   "authOidcLogin": "Sign in with yourtj",
   "authRegisterSuccess": "Registered successfully, please sign in",
   "authResetEmailSent": "Reset email sent, please check your inbox",
@@ -254,6 +263,15 @@
   "messagesEmptyDescription": "Start a conversation with someone from the community.",
   "messagesSearchConversations": "Search conversations",
   "messagesConversation": "Private conversation",
+  "messagesViewProfile": "View the profile of {name}",
+  "@messagesViewProfile": {
+    "description": "Screen-reader label for the peer avatar control that opens a user profile from a private conversation.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "messagesStartChat": "Start a conversation",
   "messagesFirstMessageTo": "Send the first message to {user}.",
   "@messagesFirstMessageTo": {
@@ -493,6 +511,33 @@
     }
   },
   "settingsImageDecodeFailed": "Failed to decode image",
+  "dateToday": "Today",
+  "dateYesterday": "Yesterday",
+  "dateMonthDay": "{month}/{day}",
+  "@dateMonthDay": {
+    "placeholders": {
+      "month": {
+        "type": "int"
+      },
+      "day": {
+        "type": "int"
+      }
+    }
+  },
+  "dateYearMonthDay": "{year}/{month}/{day}",
+  "@dateYearMonthDay": {
+    "placeholders": {
+      "year": {
+        "type": "int"
+      },
+      "month": {
+        "type": "int"
+      },
+      "day": {
+        "type": "int"
+      }
+    }
+  },
   "dateMonthDayTime": "{month}/{day} {time}",
   "@dateMonthDayTime": {
     "placeholders": {
@@ -906,16 +951,23 @@
   "notificationSomeone": "Someone",
   "profileRoleAdmin": "Admin",
   "profileOnline": "Online",
+  "profileAccountClosedBadge": "Deactivated",
+  "profileAccountClosedTitle": "Account deactivated",
+  "profileAccountClosedDescription": "This account has been deactivated. Historical content stays visible, but the profile is no longer accessible.",
   "profileJoinedAt": "Joined {date}",
   "@profileJoinedAt": {
     "placeholders": {
-      "date": { "type": "String" }
+      "date": {
+        "type": "String"
+      }
     }
   },
   "profileLastActive": "Last active {time}",
   "@profileLastActive": {
     "placeholders": {
-      "time": { "type": "String" }
+      "time": {
+        "type": "String"
+      }
     }
   },
   "profileActionSignup": "Joined the community",
@@ -1378,6 +1430,10 @@
   "userBlocks": "Blocked users",
   "userBlockExplanation": "Blocking stops new direct messages and interaction notifications in both directions. Public content and existing messages remain available for context and reporting.",
   "userBlocksEmpty": "No blocked users",
+  "messageCopied": "Copied",
+  "messageReply": "Reply",
+  "messageReplyCancel": "Cancel reply",
+  "messageReplySelf": "You",
   "messageReport": "Report message",
   "messageReportPrivacy": "Submitting shares this message and your explanation with site administrators for review. The rest of the conversation is not submitted.",
   "contentReport": "Report content",
@@ -1385,5 +1441,69 @@
   "reportAbuse": "Abuse or harassment",
   "reportIllegal": "Illegal content",
   "reportIrrelevant": "Off-topic content",
-  "reportOther": "Other"
+  "reportOther": "Other",
+  "messageActions": "Message actions",
+  "messageForwardIndividualLimit": "Use merged history for more than 10 messages.",
+  "messageForward": "Forward",
+  "messageSelect": "Select messages",
+  "messagesSelected": "{count} selected",
+  "@messagesSelected": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "messageForwardTitle": "Forward messages",
+  "messageForwardIndividual": "Individually",
+  "messageForwardMerged": "As chat history",
+  "messageForwardExplanation": "Selected messages are copied to recipients. Merged history includes original sender names and times.",
+  "messageForwardTargets": "Forward to {count} people",
+  "@messageForwardTargets": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "messageForwardConfirm": "Confirm forwarding",
+  "messageForwardSuccess": "Sent",
+  "messageForwardFailed": "Not sent",
+  "messageForwardPending": "Pending",
+  "messageForwardSending": "Sending",
+  "messageForwardRetry": "Retry unfinished deliveries",
+  "messageForwardResume": "Continue forwarding",
+  "messageForwardLimit": "Select up to {count} messages",
+  "@messageForwardLimit": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "messageForwardRecipientLimit": "Select up to {count} recipients",
+  "@messageForwardRecipientLimit": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "messageForwardHistory": "Chat history",
+  "messageForwardCount": "{count} messages",
+  "@messageForwardCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "messageForwardEmptyRecipients": "No conversations or contacts available",
+  "messageForwardCancelRemaining": "Discard remaining deliveries",
+  "messageForwardAbandonNotice": "Sent messages remain. Unacknowledged messages may already be delivered; starting a new forward can duplicate them.",
+  "messageForwardSearch": "Search conversations or contacts",
+  "messageForwardChooseTargets": "Choose recipients",
+  "settingsVisitorAnalytics": "Share visit statistics",
+  "settingsVisitorAnalyticsDescription": "Off by default. Sends public screen categories, App marker, OS and phone/tablet type to YourTJ’s self-hosted analytics for the status page; the service also receives your network IP and derives an approximate location. No account, content, search terms, device identifiers, campus, messages or settings pages are sent. Turn off at any time.",
+  "settingsVisitorAnalyticsSaveFailed": "Could not save the analytics preference. Disabling still applies now; retry to save your choice for the next launch."
 }

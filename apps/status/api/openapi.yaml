@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: YourTJ Status API
-  version: 1.0.0
+  version: 1.1.0
   description: Read-only public snapshots collected independently of the forum.
 servers:
   - url: https://status.yourtj.de
@@ -23,6 +23,9 @@ paths:
         - in: query
           name: serverRange
           schema: {type: string, enum: [1h, 6h, 24h, 7d], default: 1h}
+        - in: query
+          name: deviceRange
+          schema: {type: string, enum: [24h, 7d, 30d], default: 7d}
       responses:
         '200':
           description: Available, stale, unavailable or unconfigured sources
@@ -35,6 +38,12 @@ paths:
           description: Snapshot storage is unavailable
 components:
   schemas:
+    StatusDevicesSource:
+      $ref: './components.yaml#/StatusDevicesSource'
+    StatusDevices:
+      $ref: './components.yaml#/StatusDevices'
+    StatusDeviceRow:
+      $ref: './components.yaml#/StatusDeviceRow'
     StatusSnapshot:
       $ref: './components.yaml#/StatusSnapshot'
     StatusServerSource:

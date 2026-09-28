@@ -1,10 +1,39 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ui_kit/ui_kit.dart';
 
 import '../helpers.dart';
 
 void main() {
+  testWidgets('message preserves inherited reading fonts', (tester) async {
+    await tester.pumpWidget(
+      gfApp(
+        const DefaultTextStyle(
+          style: TextStyle(
+            fontFamily: 'ReadingFont',
+            fontFamilyFallback: ['CJKFallback'],
+            fontSize: 32,
+            color: Colors.red,
+          ),
+          child: GfMessageBubble(text: '中文消息', mine: true),
+        ),
+      ),
+    );
+    final richText = tester.widget<RichText>(
+      find.descendant(
+        of: find.byType(GfMessageBubble),
+        matching: find.byType(RichText),
+      ),
+    );
+    final style = (richText.text as TextSpan).style!;
+    expect(style.fontFamily, 'ReadingFont');
+    expect(style.fontFamilyFallback, ['CJKFallback']);
+    expect(style.fontSize, 16);
+    expect(style.color, Colors.white);
+  });
+
   for (final brightness in Brightness.values) {
     for (final mine in [false, true]) {
       testWidgets(
@@ -83,7 +112,10 @@ void main() {
           final colors = GfColors.forBrightness(brightness);
           final bubble = tester.widget<Container>(find.byKey(bubbleKey));
           final decoration = bubble.decoration! as BoxDecoration;
-          expect(decoration.color, mine ? colors.primary : colors.base300);
+          expect(
+            decoration.color,
+            mine ? const Color(0xFF2563EB) : colors.base300,
+          );
           expect(decoration.borderRadius, BorderRadius.circular(20));
           expect(
             bubble.padding,
@@ -93,12 +125,73 @@ void main() {
             DefaultTextStyle.of(
               tester.element(find.text('Ordinary message')),
             ).style.color,
-            mine ? colors.primaryContent : colors.baseContent,
+            mine ? Colors.white : colors.baseContent,
           );
         },
       );
     }
   }
+
+  for (final selectable in [false, true]) {
+    testWidgets('long-press reports once (selectable: $selectable)', (
+      tester,
+    ) async {
+      var presses = 0;
+      await tester.pumpWidget(
+        gfApp(
+          GfMessageBubble(
+            text: '可长按的消息',
+            mine: false,
+            selectable: selectable,
+            onLongPress: () => presses++,
+          ),
+        ),
+      );
+      final handle = tester.ensureSemantics();
+      await tester.longPress(find.text('可长按的消息'));
+      await tester.pumpAndSettle();
+      expect(presses, 1);
+      expect(
+        tester
+            .getSemantics(find.text('可长按的消息'))
+            .getSemanticsData()
+            .hasAction(SemanticsAction.longPress),
+        isTrue,
+        reason: 'screen readers announce the action menu affordance',
+      );
+      expect(
+        find.byType(SelectionArea),
+        selectable ? findsOneWidget : findsNothing,
+      );
+      await tester.tap(find.text('可长按的消息'));
+      await tester.pumpAndSettle();
+      expect(presses, 1, reason: 'a plain tap must not open the menu');
+      expect(tester.takeException(), isNull);
+      handle.dispose();
+    });
+  }
+
+  testWidgets('a selectable bubble still drags text selection', (tester) async {
+    await tester.pumpWidget(
+      gfApp(
+        GfMessageBubble(
+          text: '可选择的消息内容',
+          mine: false,
+          selectable: true,
+          onLongPress: () {},
+        ),
+      ),
+    );
+    final gesture = await tester.startGesture(
+      tester.getCenter(find.text('可选择的消息内容')),
+      kind: PointerDeviceKind.mouse,
+    );
+    await gesture.moveBy(const Offset(60, 0));
+    await gesture.up();
+    await tester.pumpAndSettle();
+    expect(find.byType(SelectionArea), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 
   for (final mine in [false, true]) {
     testWidgets('unframed message keeps maximum width (mine: $mine)', (

@@ -76,6 +76,55 @@ func unreadCountOr(cfg *imUserChatConfigs.Entity) any {
 	return cfg.UnreadCount
 }
 
+// GetChatList 展示会话对端昵称（备注名 note(display name) 依赖它）。
+func TestGetChatListHydratesPeerNickname(t *testing.T) {
+	conn := db.Connect()
+	if err := conn.AutoMigrate(
+		&users.EntityComplete{},
+		&imConversations.Entity{},
+		&imUserChatConfigs.Entity{},
+	); err != nil {
+		t.Fatalf("autoMigrate chat tables: %v", err)
+	}
+	const (
+		listConvID = uint64(5101)
+		listUserID = uint64(5111)
+		listPeerID = uint64(5112)
+	)
+	if err := conn.Unscoped().Where("id = ?", listPeerID).Delete(&users.EntityComplete{}).Error; err != nil {
+		t.Fatalf("cleanup peer user: %v", err)
+	}
+	peer := users.MakeUser("chat_list_peer", "secret123", "chat-list-peer@example.test")
+	peer.Id = listPeerID
+	peer.Nickname = "列表昵称"
+	if err := conn.Create(peer).Error; err != nil {
+		t.Fatalf("create peer user: %v", err)
+	}
+	t.Cleanup(func() {
+		conn.Unscoped().Where("id = ?", listPeerID).Delete(&users.EntityComplete{})
+		conn.Where("conv_id = ?", listConvID).Delete(&imUserChatConfigs.Entity{})
+		conn.Where("id = ?", listConvID).Delete(&imConversations.Entity{})
+	})
+
+	now := time.Date(2026, 8, 11, 10, 0, 0, 0, time.UTC)
+	if err := conn.Create(&imConversations.Entity{Id: listConvID, Type: 1, LastMsgContent: "hi", LastMsgTime: now}).Error; err != nil {
+		t.Fatalf("create conversation: %v", err)
+	}
+	if err := conn.Create(&imUserChatConfigs.Entity{
+		UserId: listUserID, PeerId: listPeerID, ConvId: listConvID, UpdatedAt: now,
+	}).Error; err != nil {
+		t.Fatalf("create chat config: %v", err)
+	}
+
+	items, err := GetChatList(listUserID)
+	if err != nil {
+		t.Fatalf("GetChatList: %v", err)
+	}
+	if len(items) != 1 || items[0].PeerNickname != "列表昵称" {
+		t.Fatalf("chat list = %#v, want peer nickname", items)
+	}
+}
+
 func TestMarkReadRejectsNonMember(t *testing.T) {
 	setupMarkReadTestDB(t)
 

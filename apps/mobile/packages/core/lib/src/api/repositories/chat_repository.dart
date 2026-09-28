@@ -30,6 +30,25 @@ class ChatRepository {
     );
   }
 
+  /// One target is atomic. The caller keeps its operation key on retry.
+  Future<ChatForwardResult> forwardMessages({
+    required int convId,
+    required int peerId,
+    required List<int> messageIds,
+    required bool merged,
+    required String clientForwardId,
+  }) => _client.post<ChatForwardResult>(
+    '/api/forum/chat/forward',
+    body: {
+      'convId': convId,
+      'peerId': peerId,
+      'messageIds': messageIds,
+      'mode': merged ? 'merged' : 'individual',
+      'clientForwardId': clientForwardId,
+    },
+    parser: (json) => ChatForwardResult.fromJson(json as Map<String, dynamic>),
+  );
+
   /// 拉取会话消息(beforeId/afterId 游标,limit 页大小)。
   Future<ChatMessagesResponse> getMessages({
     required int convId,

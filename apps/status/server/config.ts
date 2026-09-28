@@ -1,10 +1,11 @@
 import { createHash } from 'node:crypto'
 import { uuid } from './http'
 export type Provider = 'uptime' | 'komari' | 'umami'
-export type Config = { enabled: boolean; uptime: { url: string; id: string }; komari: { url: string; id: string }; umami: { url: string; id: string } }
+export type Config = { enabled: boolean; uptime: { url: string; id: string }; komari: { url: string; id: string }; umami: { url: string; id: string; username?: string; password?: string } }
 export function loadConfig(env: Record<string, string | undefined> = process.env): Config {
-  return { enabled: env.STATUS_ENABLED === 'true', uptime: { url: env.UPTIME_URL ?? '', id: env.UPTIME_SLUG ?? '' }, komari: { url: env.KOMARI_URL ?? '', id: env.KOMARI_NODE_ID ?? '' }, umami: { url: env.UMAMI_URL ?? '', id: env.UMAMI_SHARE_ID ?? '' } }
+  return { enabled: env.STATUS_ENABLED === 'true', uptime: { url: env.UPTIME_URL ?? '', id: env.UPTIME_SLUG ?? '' }, komari: { url: env.KOMARI_URL ?? '', id: env.KOMARI_NODE_ID ?? '' }, umami: { url: env.UMAMI_URL ?? '', id: env.UMAMI_SHARE_ID ?? '', username: env.UMAMI_USERNAME, password: env.UMAMI_PASSWORD } }
 }
+export function devicesConfigured(config: Config) { return configured(config, 'umami') && !!(config.umami.username && config.umami.password) }
 export function configured(config: Config, provider: Provider) { return config.enabled && !!(config[provider].url || config[provider].id) }
 export function origin(config: Config, provider: Provider): string {
   const { url, id } = config[provider]
@@ -15,6 +16,7 @@ export function origin(config: Config, provider: Provider): string {
 }
 export function cacheKey(config: Config, provider: Provider, part: string) {
   // Changing or revoking a source cannot expose the previous source's retained data.
-  const fingerprint = createHash('sha256').update(JSON.stringify(config[provider])).digest('hex').slice(0, 24)
+  const identity = provider === 'umami' && !part.startsWith('devices-') ? { url: config.umami.url, id: config.umami.id } : config[provider]
+  const fingerprint = createHash('sha256').update(JSON.stringify(identity)).digest('hex').slice(0, 24)
   return `${provider}/${fingerprint}/${part}`
 }

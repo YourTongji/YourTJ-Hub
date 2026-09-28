@@ -6,6 +6,7 @@ import '../../private_notes.dart';
 import '../../local/writing_store.dart';
 
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -27,6 +28,7 @@ import '../../widgets/markdown_view.dart';
 import '../../widgets/status_views.dart';
 import '../../widgets/skeletons.dart';
 import '../../widgets/user_badge.dart';
+import '../../widgets/user_profile_preview.dart';
 import 'post_actions.dart';
 import 'topic_actions.dart';
 import 'mention_panel.dart';
@@ -50,6 +52,13 @@ enum CommentSort { asc, desc, onlyOp }
 
 class _TopicPageState extends ConsumerState<TopicPage>
     with WidgetsBindingObserver {
+  /// 回复完成后按新回复锚点取得的窗口大小(对齐 web revealCreatedPost)。
+  static const int _createdReplyWindowLimit = 20;
+
+  /// 揭示新回复时最多推进的帧数:新回复之后最多有 afterLimit(≤14)个
+  /// 楼层,逐屏检索足以覆盖;步数有界,不依赖定时器。
+  static const int _revealAttempts = 14;
+
   final GlobalKey _titleKey = GlobalKey();
   bool _showHeaderTitle = false;
   bool _titleCheckScheduled = false;
@@ -80,11 +89,16 @@ class _TopicPageState extends ConsumerState<TopicPage>
   bool _hasEarlierPosts = false;
   final _scrollToTop = GfScrollToTopController();
   final GlobalKey _discussionKey = GlobalKey();
+  final GlobalKey _revealPostKey = GlobalKey();
   final List<PostPayload> _posts = [];
+  // 回复成功后要滚入视野的楼层;0 表示没有待揭示的新回复。
+  int _revealPostId = 0;
   int? _afterPostNo;
   bool _hasMorePosts = false;
   CommentSort _sort = CommentSort.asc;
   bool _opScanning = false;
+  // 构建时的列表控制器,用于把新回复滚入视野。
+  ScrollController? _listScrollController;
 
   // 互动状态(乐观更新)。
   bool _liked = false;
@@ -124,8 +138,10 @@ class _TopicPageState extends ConsumerState<TopicPage>
 
   late final WritingStore _writingStore;
   late final OfflineCacheEpoch _writingSession;
-  late final int _writingEpoch;
-  late final Future<String?> _replyOwner;
+  // 页面存活期间的会话世代。会话边界在页面存活时推进(登录入口、401、
+  // 账号切换)时,页面先丢弃旧会话数据再按新世代重载,而不是永久置空。
+  late int _writingEpoch;
+  late Future<String?> _replyOwner;
   Timer? _replyAutosave;
   int _replyRevision = 0, _replySavedRevision = 0, _replyDraftGeneration = 0;
   bool _restoringReply = false;
@@ -157,12 +173,7 @@ class _TopicPageState extends ConsumerState<TopicPage>
     _writingStore = ref.read(writingStoreProvider);
     _writingSession = ref.read(offlineCacheEpochProvider.notifier);
     _writingEpoch = ref.read(offlineCacheEpochProvider);
-    _replyOwner = ref
-        .read(writingScopeProvider.future)
-        .then<String?>(
-          (scope) => scope.endsWith(':0') ? null : scope,
-          onError: (Object _) => null,
-        );
+    _replyOwner = _resolveReplyOwner();
     WidgetsBinding.instance.addObserver(this);
     _mentionSession = MentionSessionController(
       searchUsers: ref.read(mentionUserSearchProvider),
@@ -214,6 +225,15 @@ class _TopicPageState extends ConsumerState<TopicPage>
     _replyAutosave = Timer(const Duration(milliseconds: 700), _saveReplyDraft);
   }
 
+  /// 回复草稿的账号归属:每次会话世代推进后重新解析,新会话的编辑
+  /// 不会写进上一账号的草稿空间。游客(作用域 :0)没有可归属的草稿。
+  Future<String?> _resolveReplyOwner() => ref
+      .read(writingScopeProvider.future)
+      .then<String?>(
+        (scope) => scope.endsWith(':0') ? null : scope,
+        onError: (Object _) => null,
+      );
+
   Future<void> _restoreReplyDraft() async {
     final generation = _replyDraftGeneration;
     final topicId = widget.topicId;
@@ -255,6 +275,7 @@ class _TopicPageState extends ConsumerState<TopicPage>
     if (_discardReplyOnLeave) return true;
     if (!_writingCurrent) return false;
     if (!_replyDirty) return true;
+    final int sessionEpoch = _writingEpoch;
     final generation = _replyDraftGeneration;
     final revision = _replyRevision;
     final id = topicId ?? widget.topicId;
@@ -285,7 +306,12 @@ class _TopicPageState extends ConsumerState<TopicPage>
         await _writingStore.save(
           owner,
           draft,
-          isCurrent: () => _writingCurrent && !_discardReplyOnLeave,
+          // 会话世代在保存落盘前切换时丢弃:上一会话的文本不得写进新会话
+          // 的草稿空间。
+          isCurrent: () =>
+              _writingCurrent &&
+              _writingEpoch == sessionEpoch &&
+              !_discardReplyOnLeave,
         );
       }
       if (!mounted || !_writingCurrent || generation != _replyDraftGeneration) {
@@ -1064,24 +1090,85 @@ class _TopicPageState extends ConsumerState<TopicPage>
     setState(() => _loadingMore = false);
     final topicId = widget.topicId;
     try {
-      // A one-post anchored window makes the acknowledgement visible even in a
-      // long topic. Earlier/later controls keep the rest of the thread reachable.
+      // A full anchored window keeps the acknowledgement in context. Web's
+      // revealCreatedPost merges whenever the new floor is within 20 floors of
+      // the loaded end; this list's single before/after cursor pair cannot
+      // represent the resulting hole, so it merges only when the window
+      // adjoins the loaded floors and replaces the list otherwise (see
+      // _canMergeCreatedWindow).
       final window = await ref
           .read(topicRepositoryProvider)
-          .getPostWindow(topicId: topicId, anchorPostId: result.id, limit: 1);
+          .getPostWindow(
+            topicId: topicId,
+            anchorPostId: result.id,
+            limit: _createdReplyWindowLimit,
+          );
       if (!mounted ||
           !_writingCurrent ||
           generation != _windowGeneration ||
           topicId != widget.topicId) {
         return;
       }
+      // 待审回复被服务端从非版主可见的窗口中过滤,窗口不含新回复本身
+      // (见 payload.go 的 pending 过滤);此时保留已加载列表与游标,
+      // 不能因为一条尚不可见的回复清空用户正在读的上下文。
+      final PostPayload? created = window.posts
+          .where((PostPayload post) => post.id == result.id)
+          .firstOrNull;
+      final bool merge = created != null && _canMergeCreatedWindow(window);
       setState(() {
         _sort = CommentSort.asc;
         final props = _page.valueOrNull;
-        if (props != null) {
+        if (merge) {
+          // 按 id 去重并入,已加载楼层不回退;游标只向外扩展。
+          final Set<int> ids = _posts.map((post) => post.id).toSet();
+          _posts.addAll(window.posts.where((post) => ids.add(post.id)));
+          _replyTargets.addEntries(
+            window.replyTargets.map(
+              (ReplyTargetPayload target) => MapEntry(target.id, target),
+            ),
+          );
+          _afterPostNo = window.afterPostNo ?? _afterPostNo;
+          _hasMorePosts = window.hasAfter;
+        } else if (created != null) {
+          final mainPost = _mainPost(_posts);
+          _posts
+            ..clear()
+            ..addAll(<PostPayload>[
+              if (mainPost != null &&
+                  !window.posts.any((post) => post.id == mainPost.id))
+                mainPost,
+              ...window.posts,
+            ]);
+          _replyTargets
+            ..clear()
+            ..addEntries(
+              window.replyTargets.map(
+                (ReplyTargetPayload target) => MapEntry(target.id, target),
+              ),
+            );
+          _beforePostNo = window.beforePostNo;
+          _afterPostNo = window.afterPostNo;
+          _hasEarlierPosts = window.hasBefore;
+          _hasMorePosts = window.hasAfter;
+        }
+        if (props != null && created != null) {
           _page = AsyncValue.data(
             props.copyWith(
-              postStream: window,
+              postStream: merge
+                  ? PostWindowPayload(
+                      posts: List<PostPayload>.of(_posts),
+                      replyTargets: _replyTargets.values.toList(
+                        growable: false,
+                      ),
+                      beforePostNo: _beforePostNo,
+                      afterPostNo: _afterPostNo,
+                      hasBefore: _hasEarlierPosts,
+                      hasAfter: _hasMorePosts,
+                      total: window.total,
+                      maxPostNo: window.maxPostNo,
+                    )
+                  : window,
               topic: props.topic.copyWith(
                 maxPostNo: window.maxPostNo,
                 replyCount: (window.total - 1).clamp(0, window.total),
@@ -1089,43 +1176,19 @@ class _TopicPageState extends ConsumerState<TopicPage>
             ),
           );
         }
-        final mainPost = _mainPost(_posts);
-        _posts
-          ..clear()
-          ..addAll([
-            if (mainPost != null &&
-                !window.posts.any((post) => post.id == mainPost.id))
-              mainPost,
-            ...window.posts,
-          ]);
-        _replyTargets
-          ..clear()
-          ..addEntries(window.replyTargets.map((t) => MapEntry(t.id, t)));
-        _beforePostNo = window.beforePostNo;
-        _afterPostNo = window.afterPostNo;
-        _hasEarlierPosts = window.hasBefore;
-        _hasMorePosts = window.hasAfter;
-        _currentFloor =
-            result.postNo ?? window.posts.firstOrNull?.postNo ?? _currentFloor;
+        _revealPostId = created?.id ?? 0;
+        if (created != null) {
+          _currentFloor =
+              result.postNo ??
+              window.posts.firstOrNull?.postNo ??
+              _currentFloor;
+        }
       });
       _recordReturnState();
       _syncMentionContext();
-      await _scrollToTop.scrollToTop();
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted || !_writingCurrent || generation != _windowGeneration) {
-          return;
-        }
-        final target = _discussionKey.currentContext;
-        if (target != null) {
-          unawaited(
-            Scrollable.ensureVisible(
-              target,
-              duration: GfMotion.duration(context, GfMotion.layout),
-              curve: GfMotion.enterCurve,
-            ),
-          );
-        }
-      });
+      if (created != null) {
+        unawaited(_revealCreatedReply(generation));
+      }
     } catch (error) {
       if (mounted && _writingCurrent && generation == _windowGeneration) {
         showGfToast(
@@ -1134,6 +1197,57 @@ class _TopicPageState extends ConsumerState<TopicPage>
           error: true,
         );
       }
+    }
+  }
+
+  /// 新回复窗口是否与已加载列表相接(无跳楼空洞):相接才合并,
+  /// 相距过远仍整窗替换,保证长话题中的新回复可见且游标语义不歧义。
+  bool _canMergeCreatedWindow(PostWindowPayload window) {
+    final PostPayload? first = window.posts.firstOrNull;
+    if (first == null) return false;
+    final int loadedLastPostNo = _posts.fold<int>(
+      0,
+      (int last, PostPayload post) => post.postNo > last ? post.postNo : last,
+    );
+    return loadedLastPostNo > 0 && first.postNo <= loadedLastPostNo + 1;
+  }
+
+  /// 把新回复本身滚入视野(合并与替换窗口共用,对齐 web revealCreatedPost):
+  /// 目标已构建就直接对齐;尚未构建时逐帧推进——懒构建列表的末尾长度会
+  /// 随布局增长,先追当前末尾直到估算稳定,再逐屏向上检索(新回复之后
+  /// 最多 afterLimit 个楼层),目标一旦构建即精确对齐。步数有界。
+  Future<void> _revealCreatedReply(int generation) async {
+    await WidgetsBinding.instance.endOfFrame;
+    final ScrollController? controller = _listScrollController;
+    if (controller == null || !controller.hasClients) return;
+    double? settledExtent;
+    for (int attempt = 0; attempt < _revealAttempts; attempt++) {
+      if (!mounted || !_writingCurrent || generation != _windowGeneration) {
+        return;
+      }
+      final BuildContext? target = _revealPostKey.currentContext;
+      if (target != null && target.mounted) {
+        await Scrollable.ensureVisible(
+          target,
+          duration: GfMotion.duration(context, GfMotion.layout),
+          curve: GfMotion.enterCurve,
+        );
+        return;
+      }
+      final ScrollPosition position = controller.position;
+      final bool chaseEnd =
+          settledExtent == null ||
+          (position.maxScrollExtent - settledExtent).abs() > 1;
+      settledExtent = position.maxScrollExtent;
+      controller.jumpTo(
+        chaseEnd
+            ? position.maxScrollExtent
+            : math.max(
+                position.minScrollExtent,
+                position.pixels - position.viewportDimension,
+              ),
+      );
+      await WidgetsBinding.instance.endOfFrame;
     }
   }
 
@@ -1234,16 +1348,72 @@ class _TopicPageState extends ConsumerState<TopicPage>
     }
   }
 
+  /// 会话世代失配的那一帧先展示加载态,恢复在帧后执行。
+  void _scheduleSessionRecovery(int epoch) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || epoch == _writingEpoch) return;
+      _adoptSessionEpoch(epoch);
+    });
+  }
+
+  /// 页面存活期间会话世代推进(登录入口、401、账号切换):旧会话的页面
+  /// 数据、互动状态与未提交回复都属于上一账号,先全部丢弃再按新世代重载,
+  /// 保证不渲染也不写回上一账号的数据。
+  void _adoptSessionEpoch(int epoch) {
+    if (!mounted || epoch == _writingEpoch) return;
+    final int floor = _currentFloor;
+    _replyAutosave?.cancel();
+    _replyDraftGeneration++;
+    _restoringReply = true;
+    _replyController.clear();
+    _replyImageUrl = null;
+    _replyToPostId = 0;
+    _replyTargetName = null;
+    _replyMentionPrefix = null;
+    _restoringReply = false;
+    _replyRevision = _replySavedRevision = 0;
+    _replySaveStatus = '';
+    _replySaveFailed = false;
+    _discardReplyOnLeave = false;
+    _mentionSession.close();
+    _writingEpoch = epoch;
+    _replyOwner = _resolveReplyOwner();
+    _viewerAuthenticated = false;
+    _viewerId = 0;
+    _liked = false;
+    _bookmarked = false;
+    _watched = false;
+    _likeCount = 0;
+    _loadingMore = false;
+    _jumping = false;
+    _opScanning = false;
+    _sort = CommentSort.asc;
+    setState(() {
+      _page = const AsyncValue.loading();
+      _posts.clear();
+      _replyTargets.clear();
+      _composerOpen = false;
+      _replyStickerOpen = false;
+      _railOpen = false;
+    });
+    _load(postNo: floor > 1 ? floor : null);
+    unawaited(_restoreReplyDraft());
+  }
+
   @override
   Widget build(BuildContext context) {
-    if (ref.watch(offlineCacheEpochProvider) != _writingEpoch) {
-      return const SizedBox.shrink();
+    final int sessionEpoch = ref.watch(offlineCacheEpochProvider);
+    if (sessionEpoch != _writingEpoch) {
+      _scheduleSessionRecovery(sessionEpoch);
+      return const Scaffold(body: GfTopicDetailSkeleton());
     }
     final GfColors colors = GfTheme.colorsOf(context);
     final AppLocalizations l10n = AppLocalizations.of(context);
 
-    final String appBarTitle = _showHeaderTitle
-        ? (_page.value?.topic.title ?? l10n.topicTitle)
+    // 无标题瞬间（标题为空串）不显示空标题，回退到通用的「话题」标签。
+    final String topicTitle = _page.value?.topic.title.trim() ?? '';
+    final String appBarTitle = _showHeaderTitle && topicTitle.isNotEmpty
+        ? topicTitle
         : l10n.topicTitle;
     final scaffold = Scaffold(
       appBar: GfAppBar(
@@ -1287,6 +1457,7 @@ class _TopicPageState extends ConsumerState<TopicPage>
                     threshold: 360,
                     bottomInset: 84,
                     builder: (context, scrollController) {
+                      _listScrollController = scrollController;
                       return AppRefreshIndicator(
                         onRefresh: () => _load(silent: true),
                         child: CustomScrollView(
@@ -1350,7 +1521,10 @@ class _TopicPageState extends ConsumerState<TopicPage>
                                 itemBuilder: (BuildContext context, int index) {
                                   final PostPayload post = replyPosts[index];
                                   return RepaintBoundary(
-                                    key: ValueKey(post.id),
+                                    // 新回复用可定位的锚点 key,便于滚入视野。
+                                    key: post.id == _revealPostId
+                                        ? _revealPostKey
+                                        : ValueKey<int>(post.id),
                                     child: Column(
                                       children: <Widget>[
                                         _PostCard(
@@ -1738,7 +1912,14 @@ class _TopicHeader extends StatelessWidget {
             children: <Widget>[
               InkWell(
                 onTap: topic.author.id > 0
-                    ? () => context.push('/u/${topic.author.id}')
+                    ? () => showUserProfilePreview(
+                        context,
+                        userId: topic.author.id,
+                        username: topic.author.username,
+                        nickname: topic.author.nickname,
+                        avatarUrl: topic.author.avatarUrl,
+                        wornBadge: topic.author.wornBadge,
+                      )
                     : null,
                 borderRadius: BorderRadius.circular(40),
                 child: GfAvatar(
@@ -1799,12 +1980,15 @@ class _TopicHeader extends StatelessWidget {
               ],
             ),
           ],
-          const SizedBox(height: 14),
-          Text(
-            topic.title,
-            key: titleKey,
-            style: GfTheme.typographyOf(context).title1,
-          ),
+          // 无标题瞬间不渲染详情大标题（titleKey 缺失时滚动页头检测自动跳过）。
+          if (topic.title.trim().isNotEmpty) ...[
+            const SizedBox(height: 14),
+            Text(
+              topic.title,
+              key: titleKey,
+              style: GfTheme.typographyOf(context).title1,
+            ),
+          ],
           if (available &&
               topic.contentType != 3 &&
               topic.contentType != 0 &&
@@ -2014,8 +2198,15 @@ class _PostCard extends StatelessWidget {
           Row(
             children: <Widget>[
               InkWell(
-                onTap: post.author.id > 0
-                    ? () => context.push('/u/${post.author.id}')
+                onTap: post.author.id > 0 && !post.isAnonymous
+                    ? () => showUserProfilePreview(
+                        context,
+                        userId: post.author.id,
+                        username: post.author.username,
+                        nickname: post.author.nickname,
+                        avatarUrl: post.author.avatarUrl,
+                        wornBadge: post.author.wornBadge,
+                      )
                     : null,
                 borderRadius: BorderRadius.circular(24),
                 child: GfAvatar(

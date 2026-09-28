@@ -99,17 +99,28 @@ class _Topics extends FakeTopicRepository {
 }
 
 class _Pages extends FakePageRepository {
-  _Pages(super.client, this.hasMore);
+  _Pages(super.client, this.hasMore, {this.hasEarlier = false});
   final bool hasMore;
+  final bool hasEarlier;
   @override
   Future<PagePayload> fetch(String path, {Object? cancelToken}) async {
-    if (!hasMore || !path.startsWith('/p/post/')) {
+    if ((!hasMore && !hasEarlier) || !path.startsWith('/p/post/')) {
       return super.fetch(path, cancelToken: cancelToken);
     }
     final json = topicDetailPayloadJson();
     final stream = (json['props'] as Map)['postStream'] as Map;
-    stream['hasAfter'] = true;
-    stream['afterPostNo'] = 3;
+    if (hasEarlier) {
+      // 锚点窗口从中段开始:更早楼层存在但未加载。
+      final posts = stream['posts'] as List<dynamic>;
+      stream
+        ..['posts'] = [posts[1], posts[2]]
+        ..['hasBefore'] = true
+        ..['beforePostNo'] = 2;
+    }
+    if (hasMore) {
+      stream['hasAfter'] = true;
+      stream['afterPostNo'] = 3;
+    }
     return parsePayload(json);
   }
 }
@@ -129,6 +140,7 @@ void main() {
     Future<CurrentUser?>? identity,
     bool routed = false,
     bool hasMore = false,
+    bool hasEarlier = false,
     Completer<PostWindowPayload>? pendingPagination,
   }) async {
     if (fresh) {
@@ -148,7 +160,9 @@ void main() {
                 ? const CurrentUser(id: 1, username: 'alice')
                 : await identity,
           ),
-          pageRepositoryProvider.overrideWithValue(_Pages(client, hasMore)),
+          pageRepositoryProvider.overrideWithValue(
+            _Pages(client, hasMore, hasEarlier: hasEarlier),
+          ),
           topicRepositoryProvider.overrideWithValue(topics),
           postRepositoryProvider.overrideWithValue(posts),
           writingStoreProvider.overrideWithValue(store),
@@ -294,7 +308,12 @@ void main() {
     tester,
   ) async {
     final pending = Completer<PostWindowPayload>();
-    await pumpTopic(tester, hasMore: true, pendingPagination: pending);
+    await pumpTopic(
+      tester,
+      hasMore: true,
+      hasEarlier: true,
+      pendingPagination: pending,
+    );
     for (var i = 0; i < 6 && topics.paginatedCalls == 0; i++) {
       await tester.drag(find.byType(CustomScrollView), const Offset(0, -600));
       await tester.pump(const Duration(milliseconds: 100));
@@ -314,6 +333,12 @@ void main() {
     topics.pendingOlder!.complete(original);
     await tester.pump(const Duration(milliseconds: 400));
     final l10n = AppLocalizations.of(tester.element(find.byType(TopicPage)));
+    // 合并后停留在新回复处,回到顶部确认「更早回复」入口未被加载标志卡住。
+    await tester.scrollUntilVisible(
+      find.text(l10n.topicEarlierReplies),
+      -200,
+      scrollable: find.byType(Scrollable).first,
+    );
     expect(
       tester
           .widget<TextButton>(

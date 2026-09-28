@@ -88,6 +88,59 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('preview badge rows stay single-line with a scroll cue', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(240, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      gfApp(
+        SingleChildScrollView(
+          child: GfUserCard(
+            avatarUrl: '',
+            name: 'A very long profile display name',
+            username: 'a_very_long_account_name',
+            compact: true,
+            nameBadges: const [
+              GfBadge(label: 'Admin', variant: GfBadgeVariant.warning),
+              GfBadge(label: 'Online', variant: GfBadgeVariant.success),
+            ],
+            coloredBadges: const [
+              GfUserBadge(label: 'One', color: Colors.blue),
+              GfUserBadge(label: 'Two', color: Colors.green),
+              GfUserBadge(label: 'Three', color: Colors.red),
+              GfUserBadge(label: 'Four', color: Colors.orange),
+              GfUserBadge(label: 'Five', color: Colors.purple),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    final nameRow = find.byKey(const ValueKey('profile-name-row'));
+    expect(tester.widget<Row>(nameRow), isA<Row>());
+    final name = tester.widget<Text>(
+      find.descendant(of: nameRow, matching: find.byType(Text)).first,
+    );
+    expect(name.maxLines, 1);
+    expect(name.overflow, TextOverflow.ellipsis);
+
+    final badgeScroll = find.byKey(const ValueKey('profile-badges-scroll'));
+    expect(
+      tester.widget<SingleChildScrollView>(badgeScroll).scrollDirection,
+      Axis.horizontal,
+    );
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('profile-badges-row')),
+        matching: find.byType(Wrap),
+      ),
+      findsNothing,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
   for (final brightness in Brightness.values) {
     for (final scale in [1.0, 2.0]) {
       testWidgets(

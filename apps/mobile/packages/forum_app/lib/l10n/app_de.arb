@@ -58,6 +58,7 @@
   "authForgotTitle": "Passwort zurücksetzen",
   "authContinueAfterLogin": "Melde dich an, um dort weiterzumachen, wo du aufgehört hast.",
   "authSignInMethods": "Weitere Anmeldeoptionen",
+  "authMoreSignInMethods": "Mehr Anmeldeoptionen",
   "authLoginSubtitle": "Willkommen zurück. Setze deine Diskussionen und Beiträge fort.",
   "authRegisterSubtitle": "Erstelle ein Konto und tausche dich auf dem Campus aus.",
   "authForgotSubtitle": "Gib deine E-Mail ein und wir senden dir eine Nachricht zum Zurücksetzen des Passworts.",
@@ -67,6 +68,8 @@
   "authPassword": "Passwort",
   "authNewPassword": "Neues Passwort",
   "authConfirmPassword": "Passwort bestätigen",
+  "authShowPassword": "Passwort anzeigen",
+  "authHidePassword": "Passwort verbergen",
   "authCaptcha": "Captcha",
   "authForgotPassword": "Passwort vergessen?",
   "authCreateAccount": "Konto erstellen",
@@ -76,6 +79,8 @@
   "authTwoFactorCode": "TOTP-Code",
   "authVerify": "Überprüfen",
   "authGetCode": "Code anfordern",
+  "authRefreshCaptcha": "Captcha erneuern",
+  "authCaptchaRequired": "Bitte Captcha eingeben",
   "authOidcLogin": "Mit YourTJ anmelden",
   "authRegisterSuccess": "Registrierung erfolgreich. Bitte anmelden.",
   "authResetEmailSent": "E-Mail zum Zurücksetzen gesendet. Bitte prüfe deinen Posteingang.",
@@ -156,6 +161,7 @@
   "messagesEmptyDescription": "Beginne eine Unterhaltung mit jemandem aus der Community.",
   "messagesSearchConversations": "Unterhaltungen suchen",
   "messagesConversation": "Private Unterhaltung",
+  "messagesViewProfile": "Profil von {name} ansehen",
   "messagesStartChat": "Chat starten",
   "messagesFirstMessageTo": "Sende {user} die erste Nachricht.",
   "messagesNoMessagesYet": "Noch keine Nachrichten",
@@ -287,6 +293,10 @@
   "topicEmpty": "Noch keine Themen",
   "settingsAvatarUploaded": "Profilbild hochgeladen: {url}",
   "settingsImageDecodeFailed": "Bild konnte nicht gelesen werden",
+  "dateToday": "Heute",
+  "dateYesterday": "Gestern",
+  "dateMonthDay": "{day}.{month}.",
+  "dateYearMonthDay": "{day}.{month}.{year}",
   "dateMonthDayTime": "{day}.{month} {time}",
   "dateYearMonthDayTime": "{day}.{month}.{year} {time}",
   "topicFloorSelected": "Zu Beitrag {floor} gesprungen",
@@ -559,6 +569,9 @@
   "notificationSomeone": "Jemand",
   "profileRoleAdmin": "Administrator",
   "profileOnline": "Online",
+  "profileAccountClosedBadge": "Deaktiviert",
+  "profileAccountClosedTitle": "Konto deaktiviert",
+  "profileAccountClosedDescription": "Dieses Konto wurde deaktiviert. Historische Inhalte bleiben sichtbar, aber das Profil ist nicht mehr zugänglich.",
   "profileJoinedAt": "Beigetreten {date}",
   "profileLastActive": "Zuletzt aktiv {time}",
   "profileActionSignup": "Der Community beigetreten",
@@ -1000,6 +1013,10 @@
   "userBlocks": "Blockierte Nutzer",
   "userBlockExplanation": "Eine Blockierung stoppt neue Direktnachrichten und Interaktionsbenachrichtigungen in beide Richtungen. Öffentliche Inhalte und bisherige Nachrichten bleiben zur Einordnung und Meldung verfügbar.",
   "userBlocksEmpty": "Keine blockierten Nutzer",
+  "messageCopied": "Kopiert",
+  "messageReply": "Antworten",
+  "messageReplyCancel": "Antwort abbrechen",
+  "messageReplySelf": "Ich",
   "messageReport": "Nachricht melden",
   "messageReportPrivacy": "Mit dem Absenden können Website-Administratoren diese Nachricht und Ihre Erklärung prüfen. Der restliche Gesprächsverlauf wird nicht übermittelt.",
   "contentReport": "Inhalt melden",
@@ -1007,5 +1024,69 @@
   "reportAbuse": "Beleidigung oder Belästigung",
   "reportIllegal": "Rechtswidrige Inhalte",
   "reportIrrelevant": "Themenfremde Inhalte",
-  "reportOther": "Sonstiges"
+  "reportOther": "Sonstiges",
+  "messageActions": "Nachrichtenaktionen",
+  "messageForwardIndividualLimit": "Mehr als 10 Nachrichten werden als Verlauf weitergeleitet.",
+  "messageForward": "Weiterleiten",
+  "messageSelect": "Nachrichten auswählen",
+  "messagesSelected": "{count} ausgewählt",
+  "@messagesSelected": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "messageForwardTitle": "Nachrichten weiterleiten",
+  "messageForwardIndividual": "Einzeln",
+  "messageForwardMerged": "Als Chatverlauf",
+  "messageForwardExplanation": "Ausgewählte Nachrichten werden kopiert. Zusammengefasste Verläufe enthalten ursprüngliche Absendernamen und Zeiten.",
+  "messageForwardTargets": "An {count} Personen weiterleiten",
+  "@messageForwardTargets": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "messageForwardConfirm": "Weiterleitung bestätigen",
+  "messageForwardSuccess": "Gesendet",
+  "messageForwardFailed": "Nicht gesendet",
+  "messageForwardPending": "Ausstehend",
+  "messageForwardSending": "Wird gesendet",
+  "messageForwardRetry": "Offene Weiterleitungen wiederholen",
+  "messageForwardResume": "Weiterleitung fortsetzen",
+  "messageForwardLimit": "Bis zu {count} Nachrichten auswählen",
+  "@messageForwardLimit": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "messageForwardRecipientLimit": "Bis zu {count} Empfänger auswählen",
+  "@messageForwardRecipientLimit": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "messageForwardHistory": "Chatverlauf",
+  "messageForwardCount": "{count} Nachrichten",
+  "@messageForwardCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "messageForwardEmptyRecipients": "Keine Gespräche oder Kontakte verfügbar",
+  "messageForwardCancelRemaining": "Übrige Weiterleitungen verwerfen",
+  "messageForwardAbandonNotice": "Gesendete Nachrichten bleiben bestehen. Unbestätigte Nachrichten können bereits zugestellt sein; eine neue Weiterleitung kann Duplikate erzeugen.",
+  "messageForwardSearch": "Gespräche oder Kontakte suchen",
+  "messageForwardChooseTargets": "Empfänger auswählen",
+  "settingsVisitorAnalytics": "Besuchsstatistik teilen",
+  "settingsVisitorAnalyticsDescription": "Standardmäßig aus. Sendet öffentliche Seitenkategorien, App-Kennung, Betriebssystem und Gerätetyp (Telefon/Tablet) an YourTJs eigenen Statistikdienst für die Statusseite. Der Dienst empfängt auch Ihre Netzwerk-IP und ermittelt eine ungefähre Region. Keine Konten, Inhalte, Suchbegriffe, Gerätekennungen, Campus-, Nachrichten- oder Einstellungsseiten werden gesendet. Jederzeit abschaltbar.",
+  "settingsVisitorAnalyticsSaveFailed": "Die Statistikeinstellung konnte nicht gespeichert werden. Das Abschalten gilt weiterhin für diese Sitzung. Erneut versuchen, um die Auswahl für den nächsten Start zu speichern."
 }

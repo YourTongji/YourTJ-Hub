@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-08-07
+> Last verified: 2026-09-28
 
 ## Principles
 
@@ -32,6 +32,12 @@ cd apps/gooseforum/resource && pnpm typecheck && pnpm test && pnpm check && pnpm
 # Browser layout regressions (install Chromium once; Linux CI adds --with-deps)
 cd apps/gooseforum/resource && pnpm exec playwright install chromium && pnpm test:browser
 
+# PostgreSQL: use a disposable database; tests may DROP SCHEMA public CASCADE.
+cd apps/gooseforum
+export YOURTJ_TEST_PG_URL="host=127.0.0.1 port=5432 user=postgres password=postgres dbname=postgres sslmode=disable"
+export TEST_PG_DSN="$YOURTJ_TEST_PG_URL"
+go test -p 1 -parallel 1 ./app/... -run 'PostgreSQL|Postgres' -count=1 -v
+
 # Full
 make test
 
@@ -53,7 +59,7 @@ make build && ./bin/yourtj-hub serve   # then curl http://localhost:5234
 | http/controllers | handler + rendering tests (upstream has some) | go test + httptest |
 | resource (frontend) | typecheck + component tests | vue-tsc + Vitest |
 | contract | OpenAPI lint/bundle/type generation plus real Gin route-chain fixture assertions | pnpm + go test + httptest |
-| mobile | widget/unit | flutter test (melos analyze + test; pixel goldens are tagged `golden` and excluded from this gate; see local-development.md) |
+| mobile | widget/unit | flutter test (melos analyze + test; behavior, layout, accessibility and token assertions) |
 | mobile OIDC | controller chain unit + E2E script | `auth/test/oidc_controller_test.dart` (authorize→exchange 调用链) + `scripts/oidc_e2e.sh` (本地内建 Provider → AppAuth 模拟器回跳 → exchange 验证) |
 
 ## Test layout
@@ -81,37 +87,56 @@ PR branch is validated once by its `pull_request` run rather than again by a dup
 The required backend, frontend, and contract workflows start for every PR so their
 required status checks cannot remain pending. Each required job performs its own path
 detection, so a detection failure fails that required check; its heavy Go or pnpm steps
-run only when its owned inputs changed. `ci-mobile` is not a required check and uses
-path filters directly, so an unrelated PR does not start a Flutter runner.
+run only when its owned inputs changed. `ci-mobile` and `ci-mobile-native` are optional workflows
+with path filters; unrelated PRs do not start Flutter runners. Their path-detection jobs gate the heavier jobs.
 
 - ci-backend.yml: changed backend or contract-fixture paths run go vet + go test + go build
   (apps/gooseforum/app/**, main.go, go.mod, go.sum, embedded resource Go/GoHTML files,
-  markdown compatibility fixtures, packages/api-contract/**); the
-  PostgreSQL integration tests in `app/bundles/connect/sqlconnect` are gated by `TEST_PG_DSN` and
-  skip when unset (CI stays green without a PG service)
-- ci-backend.yml also runs `ci-backend-pg` only for model, migration, SQL-connection, campus/chat
-  service, or Go module changes: a real `postgres:16-alpine` service + the migration
-  schema tests in `app/migration/migration_pg_test.go` (`TestSchemaMigratesOnPostgreSQL`,
-  `TestSchemaUpgradeCreatesNewTablesOnPostgreSQL`), gated by `YOURTJ_TEST_PG_URL` (set in CI, skipped
-  locally when unset). **Any model/migration change must pass these PG tests** — models must not
-  hardcode MySQL-only types (`bigint unsigned` / `datetime` / `tinyint`), which GORM renders verbatim
-  and PostgreSQL rejects, silently leaving tables uncreated (issue #8 production regression).
-  The same PostgreSQL job covers campus binding timestamps, identity registration uniqueness, and
-  concurrent daily signup limits (`campus` models and `campusservice`, `PostgreSQL$` tests), plus
-  consistent chat read-state snapshots and send/read counter interleavings (`chatservice`, `PostgreSQL$` tests).
-- ci-frontend.yml: changed frontend paths run pnpm typecheck + site unit tests + Chromium layout tests + build
-  (apps/gooseforum/resource/** and shared markdown compatibility fixtures). Browser regressions live in
-  `resource/test/*.browser.mjs`, render the production Vue components and CSS through Vite, and stub API
-  responses. The scheduler export-menu cases cover viewport bounds across locales, sync-button states,
-  resize while open, and Escape focus restoration; these are separate from happy-dom component tests.
+  markdown compatibility fixtures, packages/api-contract/**).
+- ci-backend.yml also runs `ci-backend-pg` for model, migration, service, SQL-connection or Go module
+  changes. It uses a disposable `postgres:16-alpine` service, sets both `YOURTJ_TEST_PG_URL` and
+  `TEST_PG_DSN`, and runs every app package's tests matching `PostgreSQL|Postgres`. New PG tests
+  must include one of those names; they need no package allowlist or `TestSchema` prefix.
+  Packages and tests run serially (`-p 1 -parallel 1`) because migration suites reset the public schema.
+  **Any model/migration change must pass this PG gate**: SQLite cannot validate PostgreSQL types,
+  JSON comparisons, index upgrades, uniqueness or concurrency behavior. Without a test DSN these
+  integration cases skip locally, so ordinary `go test ./...` is not equivalent evidence.
+- ci-frontend.yml: changed frontend paths or the Go `page_component.go` registry run pnpm typecheck +
+  client/site unit tests + Chromium layout tests + build. `pnpm test` includes `packages/client/test`,
+  which checks the public component registry against Go, including order and exclusion of `admin.shell`.
+  Browser regressions live in `resource/test/*.browser.mjs`, render the production Vue components
+  and CSS through Vite, and stub API responses. These are separate from happy-dom component tests.
 - ci-contract.yml: changed contract inputs install the locked `packages/api-contract` pnpm tooling, run OpenAPI
   lint + bundle + TypeScript generation, then rejects an uncommitted diff below
   `apps/gooseforum/resource/packages/client/src/gen`. Its inputs are the contract package, generated
   TypeScript, client package manifest, and its own workflow configuration. The route-level HTTP
   contract fixture tests run inside the backend `go test ./...` gate.
-- ci-mobile.yml: changed mobile paths run melos bootstrap, analyze, and test (apps/mobile/**); pixel golden tests are tagged `golden` and excluded from the gate (regenerate per golden test file with `flutter test --update-goldens`, or use the mobile-golden-refresh workflow on Linux).
-  Native build jobs run `flutter pub get` from `packages/forum_app` so clean checkouts generate
-  the Flutter plugin and SwiftPM packages before compiling the APNs bridge or Android OEM adapters.
+- ci-mobile.yml: Flutter source, tests, assets, dependency/tooling or native files trigger independent
+  analysis and test jobs. Dart paths include `integration_test`, `test_driver` and package-local `tool`
+  so these sources still receive analysis; device integration tests remain a separate manual run.
+  Each package tests on its own runner; `forum_app` has two disjoint Flutter
+  shards. All package suites run for a shared-code change, including dependent packages. The local
+  `melos run test` remains serial to avoid sharing one SDK's startup lock across Flutter processes.
+  Release-tool Python tests run in a separate Ubuntu job without installing Flutter. Store metadata
+  and documentation alone do not run Flutter checks.
+- ci-mobile-native.yml: Android or iOS source/configuration changes build only that platform; shared
+  pubspecs/lockfiles, build hooks/scripts, release tooling or the native workflow itself build both.
+  Plain Dart/test/asset changes do not compile either native app. Manual dispatch builds both platforms
+  when compile or Android size evidence is needed for any ref. Android retains R8/all-push-adapter
+  compilation and the arm64 size artifact, with a Gradle user-home cache. iOS retains the simulator
+  build and effective distribution-signing checks. Clean checkouts use `flutter pub get` before native
+  compilation. Signed releases still perform full verification and both platform builds.
+- Mobile tests assert behavior, layout constraints, accessibility and design tokens without screenshot
+  baselines. Screenshot golden tests and their PNG fixtures are not maintained or run locally, in PR CI,
+  or during release verification. For visual changes, inspect the affected screens in a simulator or
+  on a device in both themes; keep acceptance captures outside Git.
+
+The trade-off between fast source checks and native compile coverage is recorded in
+[the mobile verification decision](../decisions/0047-mobile-visual-acceptance.md).
+
+Both mobile workflows pin external actions to full commit SHAs and disable checkout credential
+persistence before running PR-controlled code. `node --test scripts/test-mobile-ci-*.mjs` checks
+the Flutter input selection and these workflow security settings in documentation CI.
 
 ## Documentation and governance
 

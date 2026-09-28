@@ -965,6 +965,10 @@
   },
   {
     "method": "POST",
+    "path": "/api/forum/chat/forward"
+  },
+  {
+    "method": "POST",
     "path": "/api/forum/chat/mark-read"
   },
   {

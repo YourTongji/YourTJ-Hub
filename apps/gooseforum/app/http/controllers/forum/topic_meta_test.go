@@ -65,6 +65,36 @@ func TestTopicMetaJSONLDIncludesForumRequiredFields(t *testing.T) {
 	}
 }
 
+func TestTopicMetaJSONLDHeadlineFallsBackForUntitledMoment(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(nil)
+	c.Request = httptest.NewRequest(http.MethodGet, "https://example.com/p/post/895", nil)
+
+	meta := buildTopicMeta(c, TopicDetailPayload{
+		ID:          895,
+		Title:       "",
+		Description: "只有正文的瞬间摘要",
+		URL:         "/p/post/895",
+		Author:      TopicAuthorPayload{ID: 12, Username: "author"},
+		CreatedAt:   time.Now().Format(time.DateTime),
+		UpdatedAt:   time.Now().Format(time.DateTime),
+	})
+
+	jsonLD, ok := meta.JSONLD.(vo.ArticleJSONLD)
+	if !ok {
+		t.Fatalf("expected ArticleJSONLD, got %T", meta.JSONLD)
+	}
+	if jsonLD.Headline != "只有正文的瞬间摘要" {
+		t.Fatalf("headline = %q, want the description fallback for an untitled moment", jsonLD.Headline)
+	}
+	if meta.OpenGraph == nil || meta.OpenGraph.Title != "只有正文的瞬间摘要" {
+		t.Fatalf("og title = %#v, want the description fallback", meta.OpenGraph)
+	}
+	if meta.Twitter == nil || meta.Twitter.Title != "只有正文的瞬间摘要" {
+		t.Fatalf("twitter title = %#v, want the description fallback", meta.Twitter)
+	}
+}
+
 func TestTopicMetaJSONLDIncludesImageForImageOnlyTopic(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	c, _ := gin.CreateTestContext(nil)

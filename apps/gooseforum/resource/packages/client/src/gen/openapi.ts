@@ -758,7 +758,14 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Create or update a topic and its first post */
+        /**
+         * Create or update a topic and its first post
+         * @description Creates a topic and its first post, or updates an existing topic when `topicId`
+         *     is set. Length rules use rendered visible text (see `WriteTopicRequest.content`).
+         *     Request bodies over 2 MiB are rejected with HTTP 400 `common.request.parseFailed`
+         *     before binding; JSON binding is otherwise lenient, so a malformed body within the
+         *     limit binds to zero values and fails as `common.request.invalidParams` (HTTP 200).
+         */
         post: operations["writeTopic"];
         delete?: never;
         options?: never;
@@ -919,7 +926,9 @@ export interface paths {
          *     `permission.emailRequired` (params action=写入, actionCode=write; see the 403
          *     response below).
          *     Content length violations fail with `comment.content.tooShort` /
-         *     `comment.content.tooLong` (params minLength/maxLength).
+         *     `comment.content.tooLong` (params minLength/maxLength); bounds count rendered
+         *     visible text and the raw Markdown source is capped relative to `maxPostLength`.
+         *     Request bodies over 2 MiB are rejected with HTTP 400 `common.request.parseFailed`.
          */
         post: operations["createPost"];
         delete?: never;
@@ -945,7 +954,10 @@ export interface paths {
          *     wiki revision flow and is rejected with `topic.operationDenied`. JSON binding is
          *     lenient: a malformed body binds to zero values and fails as `post.notFound`
          *     (HTTP 200). Other business failures: `post.notFound`, `topic.operationDenied`,
-         *     `comment.content.tooShort` / `comment.content.tooLong` (params minLength/maxLength).
+         *     `comment.content.tooShort` / `comment.content.tooLong` (params minLength/maxLength);
+         *     bounds count rendered visible text and the raw Markdown source is capped relative
+         *     to `maxPostLength`. Request bodies over 2 MiB are rejected with HTTP 400
+         *     `common.request.parseFailed`.
          */
         post: operations["updatePost"];
         delete?: never;
@@ -2113,6 +2125,44 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/forum/chat/forward": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Forward selected private messages to one recipient atomically
+         * @description Requires uncached membership of convId and ownership of every selected ID by
+         *     that conversation. IDs are sorted chronologically; duplicates, missing IDs,
+         *     unknown types, self-targets and blocked interactions fail without any delivery.
+         *     Individual mode copies up to 10 original messages; merged mode stores one type-4
+         *     immutable snapshot. Nested snapshots remain independently readable history
+         *     cards, bounded to 4 bundle levels, 50 total entries (including cards) and
+         *     64 KiB per snapshot. Current sensitive-word checks include all nested text.
+         *     Recipients cannot use snapshots to access source conversation IDs/history.
+         *     Get-messages supplies a readable content fallback and an optional forwarded
+         *     object for type 4, so older clients can still read the copy.
+         *     The same actor, clientForwardId, recipient, source conversation, sorted IDs and
+         *     mode identify a retry; it returns the original stored IDs without new unread
+         *     increments, even after a display-name change. Different recipients are separate
+         *     transactions; clients explicitly select and acknowledge each recipient.
+         *     Individual mode consumes one message.send attempt per selected message;
+         *     merged mode consumes one. The request body is limited to 8192 bytes.
+         *     Business failures use HTTP 200 chat.send.failed; field validation uses HTTP 200
+         *     common.request.invalidParams. Malformed JSON/body limits
+         *     use the strict request wrapper. No private source details appear in errors.
+         */
+        post: operations["forwardChatMessages"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/forum/chat/messages": {
         parameters: {
             query?: never;
@@ -2743,7 +2793,10 @@ export interface paths {
         /** List published topics */
         get: operations["agentTopicList"];
         put?: never;
-        /** Create a published topic as the Agent */
+        /**
+         * Create a published topic as the Agent
+         * @description Shares the human topic write core, so length rules count rendered visible text and the raw Markdown source is capped relative to `maxPostLength`. Request bodies over 2 MiB are rejected with HTTP 400 `common.request.parseFailed`.
+         */
         post: operations["agentWriteTopic"];
         delete?: never;
         options?: never;
@@ -2761,7 +2814,10 @@ export interface paths {
         /** List posts in a topic window */
         get: operations["agentPostList"];
         put?: never;
-        /** Reply to a topic as the Agent */
+        /**
+         * Reply to a topic as the Agent
+         * @description Shares the human post write core, so length rules count rendered visible text and the raw Markdown source is capped relative to `maxPostLength`. Request bodies over 2 MiB are rejected with HTTP 400 `common.request.parseFailed`.
+         */
         post: operations["agentCreatePost"];
         delete?: never;
         options?: never;
@@ -7524,10 +7580,16 @@ export interface components {
              * @description Existing topic ID when updating; omit or send 0 when creating.
              */
             topicId?: number;
-            /** @description Markdown content; configurable minimum and maximum lengths count Unicode code points. */
+            /** @description Markdown content; configurable minimum and maximum lengths count rendered visible text in Unicode code points, excluding Markdown marks, link destinations, bare/auto-linked URLs and e-mail addresses (their rendered text included), image syntax, sticker tokens and zero-width format characters. The raw Markdown source is additionally capped at four times maxPostLength (never below 4096 code points) to bound storage; request bodies over 2 MiB are rejected with HTTP 400 `common.request.parseFailed`. */
             content: string;
-            /** @description Title; configurable minimum and maximum lengths count Unicode code points. */
-            title: string;
+            /**
+             * @description Title. Required and non-empty for content types 0/1/3 (see the `if`/`else`
+             *     constraint); moments (contentType=2) may omit it or send an empty string to
+             *     publish without a title — it is never derived from the body, and clients render
+             *     no title for such topics. When provided, configurable minimum and maximum
+             *     lengths count Unicode code points.
+             */
+            title?: string;
             categoryId: number[];
             /**
              * @description Existing draft/published status value; omitted values use the legacy draft default (0).
@@ -7618,7 +7680,7 @@ export interface components {
              * @description Target topic; unknown or not-viewable ids fail with `topic.notFound` (HTTP 200).
              */
             topicId: number;
-            /** @description Markdown reply content. The server trims whitespace and enforces configurable length bounds in Unicode code points (`comment.content.tooShort` / `comment.content.tooLong`, params minLength/maxLength). */
+            /** @description Markdown reply content. The server trims whitespace and enforces configurable length bounds on rendered visible text in Unicode code points (`comment.content.tooShort` / `comment.content.tooLong`, params minLength/maxLength); Markdown marks, link destinations, bare/auto-linked URLs and e-mail addresses (their rendered text included), image syntax, sticker tokens and zero-width format characters do not count. The raw Markdown source is additionally capped at four times maxPostLength (never below 4096 code points) to bound storage; request bodies over 2 MiB are rejected with HTTP 400 `common.request.parseFailed`. */
             content: string;
             /**
              * Format: uint64
@@ -7657,7 +7719,7 @@ export interface components {
              * @description Post owned by the caller; someone else's post fails with `topic.operationDenied` (HTTP 200).
              */
             postId: number;
-            /** @description Replacement markdown content; trimmed and length-checked in Unicode code points like posts/create. */
+            /** @description Replacement markdown content; trimmed and length-checked on rendered visible text in Unicode code points like posts/create, with the same raw-source cap and 2 MiB body limit. */
             content: string;
         };
         UpdatePostResult: {
@@ -8230,7 +8292,7 @@ export interface components {
             /** @description Full message content is preserved; only the conversation-list preview is bounded to 255 Unicode characters. Sensitive-word hits fail with `chat.sensitive.blocked` (HTTP 200, params `word` plus all matches in `words`). Other send failures use `chat.send.failed` without raw storage-error details. */
             content: string;
             /**
-             * @description 1 text, 2 image, 3 voice. Effectively required — omitting it binds 0 and fails validation with `common.request.invalidParams` (HTTP 200).
+             * @description 1 text, 2 image, 3 voice. Merged chat history (type 4) is created only by `/api/forum/chat/forward`. Effectively required — omitting it binds 0 and fails validation with `common.request.invalidParams` (HTTP 200).
              * @enum {integer}
              */
             msgType: 1 | 2 | 3;
@@ -8272,10 +8334,10 @@ export interface components {
             senderId: number;
             content: string;
             /**
-             * @description 1 text, 2 image, 3 voice.
+             * @description 1 text, 2 image, 3 voice, 4 merged chat history. Content always includes a readable plain-text fallback.
              * @enum {integer}
              */
-            msgType: 1 | 2 | 3;
+            msgType: 1 | 2 | 3 | 4;
             /**
              * @description Numeric read flag (0 unread, 1 read), not a boolean.
              * @enum {integer}
@@ -8285,6 +8347,7 @@ export interface components {
             createdAt: string;
             /** @description True when the caller sent this message. */
             isSelf: boolean;
+            forwarded?: components["schemas"]["ChatForwardBundle"];
         };
         ChatMessagesResult: {
             /** @description Ascending by message id within the page. */
@@ -9264,6 +9327,8 @@ export interface components {
         AdminTopicListItem: components["schemas"]["AdminTopicBase"] & {
             /** @description Author username; empty when the author account is gone. */
             username: string;
+            /** @description Author's current nickname; omitted when the user has none. */
+            nickname?: string;
             userAvatarUrl: string;
             /** Format: uint64 */
             viewCount: number;
@@ -9437,6 +9502,8 @@ export interface components {
             /** Format: uint64 */
             userId: number;
             username: string;
+            /** @description Current nickname; omitted when the user has none. */
+            nickname?: string;
             /** @description Web avatar URL; the banned avatar when the account is frozen, the default avatar when none is set. */
             avatarUrl: string;
             /** @description Account email (PII — admin-only surface). */
@@ -9625,6 +9692,8 @@ export interface components {
             userId: number;
             /** @description Empty when the user account is gone. */
             username: string;
+            /** @description Current nickname; omitted when the user has none (including gone accounts). */
+            nickname?: string;
             /** @description Empty when the user account is gone. */
             avatarUrl: string;
             /** @description 1 enabled, 0 disabled. */
@@ -10450,6 +10519,8 @@ export interface components {
             userId: number;
             /** @description Author username; empty when the user row is missing. */
             username: string;
+            /** @description Author's current nickname; omitted when the user has none. */
+            nickname?: string;
             /** @description Always 2 (pending review) in this queue. */
             processStatus: number;
             /**
@@ -12163,6 +12234,45 @@ export interface components {
         DisplayBadgesRequest: {
             badgeCodes: string[];
         };
+        ForwardChatMessagesRequest: {
+            /** Format: uint64 */
+            convId: number;
+            /** Format: uint64 */
+            peerId: number;
+            /** @description At most 10 source messages in individual mode; at most 50 in merged mode. */
+            messageIds: number[];
+            /** @enum {string} */
+            mode: "individual" | "merged";
+            clientForwardId: string;
+        };
+        ForwardChatMessagesResult: {
+            /** Format: uint64 */
+            convId: number;
+            messageIds: number[];
+        };
+        ForwardChatMessagesSuccess: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["ForwardChatMessagesResult"];
+        };
+        ForwardChatMessagesResponse: components["schemas"]["ForwardChatMessagesSuccess"] | components["schemas"]["ApiFailure"];
+        /** @description Immutable copy tree; at most 4 bundle levels, 50 total entries including history cards, and 64 KiB of encoded content. Nested cards retain their own sender metadata and copied children. */
+        ChatForwardBundle: {
+            /** @enum {integer} */
+            version: 1;
+            messages: components["schemas"]["ChatForwardEntry"][];
+        };
+        ChatForwardEntry: {
+            /** @description Display name copied at forwarding time; no private notes. */
+            senderName: string;
+            /** @description Optional public avatar URL copied at forwarding time. Older snapshots omit it; clients use a circular placeholder. The URL does not grant access to the source conversation. */
+            avatarUrl?: string;
+            /** @description Readable fallback, including nested history text for older clients. */
+            content: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** @enum {integer} */
+            msgType: 1 | 2 | 3 | 4;
+            forwarded?: components["schemas"]["ChatForwardBundle"];
+        } & unknown;
         ChatVisibleReadSuccess: components["schemas"]["ApiSuccess"] & {
             result: components["schemas"]["ChatVisibleReadResult"];
         };
@@ -16317,6 +16427,67 @@ export interface operations {
                 };
             };
             /** @description Message-send rate limit (action `message.send`) exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+        };
+    };
+    forwardChatMessages: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ForwardChatMessagesRequest"];
+            };
+        };
+        responses: {
+            /** @description Atomic recipient delivery, replay, or generic business failure. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForwardChatMessagesResponse"];
+                };
+            };
+            /** @description Invalid JSON or oversized body. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authentication required. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Account cannot write or cookie request fails CSRF validation. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Shared message.send quota exceeded. */
             429: {
                 headers: {
                     "Retry-After": number;

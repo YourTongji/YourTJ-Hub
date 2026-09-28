@@ -6,6 +6,8 @@ import UserAvatar from '@/site/components/UserAvatar.vue'
 interface StackUser {
   id: number
   username: string
+  /** 当前昵称；无昵称时缺省（备注名显示 note(display name) 用）。 */
+  nickname?: string
   avatarUrl: string
 }
 
@@ -26,14 +28,14 @@ withDefaults(defineProps<{
       v-for="user in users"
       :key="user.id"
       :href="`/u/${user.id}`"
-      :title="userDisplayName(user.id, user.username)"
+      :title="userDisplayName(user.id, user.username, user.nickname)"
       class="rounded-full ring-2 ring-base-100 transition hover:z-10 hover:scale-110"
       :class="size === 'sm' ? 'h-6 w-6' : 'h-8 w-8'"
       @click="showUserCard(user, $event)"
     >
       <UserAvatar
         :src="user.avatarUrl"
-        :alt="userDisplayName(user.id, user.username)"
+        :alt="userDisplayName(user.id, user.username, user.nickname)"
         class="rounded-full object-cover"
         :class="size === 'sm' ? 'h-6 w-6' : 'h-8 w-8'"
       />

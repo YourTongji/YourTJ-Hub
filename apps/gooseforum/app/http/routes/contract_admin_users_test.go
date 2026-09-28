@@ -1,6 +1,7 @@
 package routes
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -202,6 +203,29 @@ func TestAdminUserListHTTPContract(t *testing.T) {
 		// 按 userId 精确过滤，屏蔽同进程共享库中其他测试造的用户，保证分页响应确定性。
 		serveAdminUsersOK(t, conn, router, http.MethodPost, path,
 			`{"userId":8011,"page":1,"pageSize":10}`, "admin-user-list-success.json")
+	})
+
+	t.Run("hydrates nickname for note display", func(t *testing.T) {
+		conn, router := setupAdminUsersContractTest(t)
+		target := createContractEditableUser(t, conn, contractUserListTargetID, "list_target")
+		if err := conn.Model(target).Update("nickname", "列表昵称").Error; err != nil {
+			t.Fatalf("set list target nickname: %v", err)
+		}
+		recorder := serveAdminUsersRaw(t, conn, router, http.MethodPost, path,
+			`{"userId":8011,"page":1,"pageSize":10}`)
+		var result struct {
+			List []struct {
+				UserId   uint64 `json:"userId"`
+				Username string `json:"username"`
+				Nickname string `json:"nickname"`
+			} `json:"list"`
+		}
+		if err := json.Unmarshal(decodeContractEnvelope(t, recorder).Result, &result); err != nil {
+			t.Fatalf("decode user list: %v", err)
+		}
+		if len(result.List) != 1 || result.List[0].Nickname != "列表昵称" {
+			t.Fatalf("user list = %#v, want hydrated nickname", result.List)
+		}
 	})
 
 	adminUsersGuardScenarios(t, http.MethodPost, path, "admin-user-list")

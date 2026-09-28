@@ -7,18 +7,24 @@ import 'package:flutter/material.dart';
 /// or semantics node: a menu or button child keeps ownership of its action.
 /// The glass is static, including when reduced motion is requested.
 class GfGlassSurface extends StatelessWidget {
-  const GfGlassSurface({super.key, required this.child, this.size = 44})
-    : assert(size > 0 && size < double.infinity);
+  const GfGlassSurface({
+    super.key,
+    required this.child,
+    this.size = 44,
+    this.blurSigma = 12,
+  }) : assert(size > 0 && size < double.infinity),
+       assert(blurSigma >= 0 && blurSigma < double.infinity);
 
   final Widget child;
   final double size;
+  final double blurSigma;
 
   @override
   Widget build(BuildContext context) => SizedBox.square(
     dimension: math.max(44, size),
     child: ClipOval(
       child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+        filter: ImageFilter.blur(sigmaX: blurSigma, sigmaY: blurSigma),
         child: DecoratedBox(
           decoration: BoxDecoration(
             shape: BoxShape.circle,

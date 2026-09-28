@@ -101,6 +101,9 @@ pumpChat(
   List<ChatMessagePayload>? older,
   StickerLibrary? stickers,
   StickerCollection? stickerCollection,
+  List<Override> overrides = const <Override>[],
+  int? targetUserId = 2,
+  VisibleChatRepository Function(GfApiClient client)? repository,
 }) async {
   await tester.binding.setSurfaceSize(const Size(390, 700));
   addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -110,13 +113,16 @@ pumpChat(
     tokenStorage: storage,
     baseUrl: 'http://fake.local',
   );
-  final repo = VisibleChatRepository(
-    client,
-    hasMoreBefore: older != null,
-    messages:
-        messages ?? List.generate(40, (index) => makeChatMessage(index + 1)),
-  );
-  repo.olderMessages = older ?? [];
+  final repo =
+      repository?.call(client) ??
+      VisibleChatRepository(
+        client,
+        hasMoreBefore: older != null,
+        messages:
+            messages ??
+            List.generate(40, (index) => makeChatMessage(index + 1)),
+      );
+  if (repository == null) repo.olderMessages = older ?? [];
   final container = ProviderContainer(
     overrides: [
       tokenStorageProvider.overrideWithValue(storage),
@@ -130,6 +136,7 @@ pumpChat(
       if (stickers != null) stickerLibraryProvider.overrideWithValue(stickers),
       if (stickerCollection != null)
         stickerCollectionProvider.overrideWith((ref) => stickerCollection),
+      ...overrides,
     ],
   );
   addTearDown(container.dispose);
@@ -138,8 +145,10 @@ pumpChat(
   addTearDown(active.dispose);
   Widget page() => ValueListenableBuilder<bool>(
     valueListenable: active,
-    builder: (_, value, _) =>
-        TickerMode(enabled: value, child: const MessagesPage(targetUserId: 2)),
+    builder: (_, value, _) => TickerMode(
+      enabled: value,
+      child: MessagesPage(targetUserId: targetUserId),
+    ),
   );
   await tester.pumpWidget(
     UncontrolledProviderScope(

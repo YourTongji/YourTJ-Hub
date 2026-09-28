@@ -14,6 +14,17 @@
 	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
+	<!-- The languages the Flutter UI ships. System-framework UI that the app
+	     cannot localize itself (AuthenticationServices' Sign in with Apple
+	     button and sheet, system alerts) follows these declarations; without
+	     them the bundle resolves to the development region and stays English. -->
+	<key>CFBundleLocalizations</key>
+	<array>
+		<string>en</string>
+		<string>de</string>
+		<string>ja</string>
+		<string>zh-Hans</string>
+	</array>
 	<key>CFBundleName</key>
 	<string>forum_app</string>
 	<key>CFBundlePackageType</key>

@@ -543,6 +543,7 @@ void main() {
       final photos = find.byWidgetPredicate(
         (w) =>
             w is Image &&
+            w.frameBuilder != null &&
             w.image is ResizeImage &&
             (w.image as ResizeImage).imageProvider is NetworkImage,
       );
@@ -673,4 +674,40 @@ void main() {
     );
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets(
+    'untitled moment hides the title but keeps description and meta',
+    (tester) async {
+      await tester.pumpWidget(
+        gfApp(
+          GfTopicCard(
+            title: '',
+            description: '只有正文的瞬间',
+            authorName: 'Student',
+            authorAvatarUrl: '',
+            activityText: 'now',
+            categories: const <GfTopicCategory>[],
+            imageUrls: const <String>[],
+            replyCount: 0,
+            viewCount: 1,
+          ),
+        ),
+      );
+
+      expect(find.text('只有正文的瞬间'), findsOneWidget);
+      expect(find.text('Student'), findsOneWidget);
+      // 空标题不占位：不渲染空标题 Text（标题字号 17 / w600）。
+      expect(
+        find.byWidgetPredicate(
+          (Widget w) =>
+              w is Text &&
+              w.data == '' &&
+              w.style?.fontSize == 17 &&
+              w.style?.fontWeight == FontWeight.w600,
+        ),
+        findsNothing,
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
 }

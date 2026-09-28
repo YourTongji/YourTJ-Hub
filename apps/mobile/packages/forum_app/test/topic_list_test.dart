@@ -66,6 +66,7 @@ void main() {
       find.byWidgetPredicate(
         (w) =>
             w is Image &&
+            w.frameBuilder != null &&
             w.image is ResizeImage &&
             (w.image as ResizeImage).imageProvider is NetworkImage &&
             ((w.image as ResizeImage).imageProvider as NetworkImage).url
@@ -212,4 +213,67 @@ void main() {
       findsNothing,
     );
   });
+
+  // issue #895：无标题瞬间的列表行要与 Web TopicRow/SSR 一致，始终有可识别的行标题。
+  Future<void> pumpList(WidgetTester tester, TopicPayload topic) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        locale: const Locale('zh'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: Scaffold(
+          body: GfTopicList(
+            loading: false,
+            topics: [topic],
+            hasMore: false,
+            onLoadMore: () {},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+  }
+
+  testWidgets('untitled moment uses its excerpt as the row title', (
+    tester,
+  ) async {
+    final home = parsePageProps<HomeProps>(parsePayload(homePayloadJson()))!;
+    final topic = home.topics.first.copyWith(
+      title: '',
+      description: '只有正文的瞬间摘要',
+      contentType: 2,
+    );
+    await pumpList(tester, topic);
+
+    // 摘要作为行标题（15px）出现一次，而不是作为 13px 的摘要行重复出现。
+    expect(
+      find.byWidgetPredicate(
+        (Widget w) =>
+            w is Text && w.data == '只有正文的瞬间摘要' && w.style?.fontSize == 15,
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.byWidgetPredicate(
+        (Widget w) =>
+            w is Text && w.data == '只有正文的瞬间摘要' && w.style?.fontSize == 13,
+      ),
+      findsNothing,
+    );
+  });
+
+  testWidgets(
+    'untitled moment without excerpt still has an identifying title',
+    (tester) async {
+      final home = parsePageProps<HomeProps>(parsePayload(homePayloadJson()))!;
+      final topic = home.topics.first.copyWith(
+        title: '',
+        description: '',
+        contentType: 2,
+      );
+      await pumpList(tester, topic);
+
+      expect(find.text('(｀・ω・´)'), findsOneWidget);
+    },
+  );
 }

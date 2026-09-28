@@ -15,11 +15,21 @@ class CampusMemoryCache with WidgetsBindingObserver {
   final _entries = <String, ({CampusDataset data, DateTime receivedAt})>{};
   final _expiry = <String, Timer>{};
   String? _revision;
+  bool _refreshRequired = false;
   int generation = 0;
   bool _foreground = true;
   bool _disposed = false;
 
   bool isCurrent(int fence) => !_disposed && _foreground && fence == generation;
+
+  bool get refreshRequired => _refreshRequired;
+
+  void requireFreshRefresh() {
+    _refreshRequired = true;
+    clear();
+  }
+
+  void confirmFreshStatus() => _refreshRequired = false;
 
   static String schoolDate(DateTime value) => value
       .toUtc()
@@ -92,7 +102,7 @@ class CampusMemoryCache with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     _foreground = state == AppLifecycleState.resumed;
-    if (!_foreground) clear();
+    if (!_foreground) requireFreshRefresh();
   }
 
   void dispose() {

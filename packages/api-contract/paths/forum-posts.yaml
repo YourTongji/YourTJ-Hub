@@ -16,7 +16,9 @@ createPost:
       `permission.emailRequired` (params action=写入, actionCode=write; see the 403
       response below).
       Content length violations fail with `comment.content.tooShort` /
-      `comment.content.tooLong` (params minLength/maxLength).
+      `comment.content.tooLong` (params minLength/maxLength); bounds count rendered
+      visible text and the raw Markdown source is capped relative to `maxPostLength`.
+      Request bodies over 2 MiB are rejected with HTTP 400 `common.request.parseFailed`.
     security:
       - bearerAuth: []
       - accessTokenCookie: []
@@ -96,7 +98,10 @@ updatePost:
       wiki revision flow and is rejected with `topic.operationDenied`. JSON binding is
       lenient: a malformed body binds to zero values and fails as `post.notFound`
       (HTTP 200). Other business failures: `post.notFound`, `topic.operationDenied`,
-      `comment.content.tooShort` / `comment.content.tooLong` (params minLength/maxLength).
+      `comment.content.tooShort` / `comment.content.tooLong` (params minLength/maxLength);
+      bounds count rendered visible text and the raw Markdown source is capped relative
+      to `maxPostLength`. Request bodies over 2 MiB are rejected with HTTP 400
+      `common.request.parseFailed`.
     security:
       - bearerAuth: []
       - accessTokenCookie: []

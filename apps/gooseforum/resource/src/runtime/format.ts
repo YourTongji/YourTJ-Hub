@@ -8,6 +8,8 @@ export function formatNumber(value: number): string {
 
 export function formatDateTime(value: string): string {
   if (!value) return ''
+  // 纯日期值没有时刻可显示，保留原值（与移动端 `_timeField` 的兜底一致）。
+  if (!hasTimePart(value)) return value
   const date = parseDate(value)
   if (Number.isNaN(date.getTime())) return value
   return `${formatDate(value)} ${pad(date.getHours())}:${pad(date.getMinutes())}`
@@ -15,6 +17,7 @@ export function formatDateTime(value: string): string {
 
 export function formatChatTime(value: string): string {
   if (!value) return ''
+  if (!hasTimePart(value)) return value
   const date = parseDate(value)
   if (Number.isNaN(date.getTime())) return value
   const now = new Date()
@@ -51,11 +54,56 @@ export function formatDate(value: string): string {
   return `${year}-${month}-${day}`
 }
 
-function parseDate(value: string): Date {
+/**
+ * 私信日期分隔标签：今天/昨天/同年 `M月D日`/跨年 `YYYY年M月D日`。
+ * [day] 为浏览器本地时刻，与 [formatChatTime] 使用同一时区基准。
+ */
+export function formatChatDayLabel(day: Date, now: Date = new Date()): string {
+  if (isSameDay(day, now)) return i18n.global.t('date.today')
+  const yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1)
+  if (isSameDay(day, yesterday)) return i18n.global.t('date.yesterday')
+  if (day.getFullYear() === now.getFullYear()) {
+    return i18n.global.t('date.monthDay', { month: day.getMonth() + 1, day: day.getDate() })
+  }
+  return i18n.global.t('date.yearMonthDay', {
+    year: day.getFullYear(),
+    month: day.getMonth() + 1,
+    day: day.getDate(),
+  })
+}
+
+/**
+ * 聊天气泡内的时刻（仅浏览器本地 `HH:mm`）。
+ *
+ * 私信按日期分隔与时间分组渲染（见 `runtime/chat-timeline.ts`），日期已由分隔
+ * 标签表达，气泡内只保留时刻；无法解析时返回原值。
+ */
+export function formatChatClock(value: string): string {
+  if (!value) return ''
+  // 纯日期值不编造时刻，保留原值（移动端 `formatChatClock` 同规则）。
+  if (!hasTimePart(value)) return value
+  const date = parseDate(value)
+  if (Number.isNaN(date.getTime())) return value
+  return `${pad(date.getHours())}:${pad(date.getMinutes())}`
+}
+
+/** 值是否带时刻部分（纯日期日历值没有）。 */
+function hasTimePart(value: string): boolean {
+  return value.replace(' ', 'T').includes('T')
+}
+
+/**
+ * 解析服务端时间字符串。
+ *
+ * - 带偏移/Z 的 RFC3339：按绝对时刻解析。
+ * - 无时区标记的**日期时间**（旧服务端 `time.DateTime` 输出）：按 UTC 墙钟解析
+ *   （issue #221；服务器运行在 UTC）。补 'Z' 避免被按浏览器本地时区误解。
+ * - 纯**日期**的日历值（校历、日期型字段）：按本地日历日解析，不随时区偏移，
+ *   与移动端 `parseChatTimestamp` 的日期分支一致。
+ */
+export function parseDate(value: string): Date {
   const normalized = value.includes('T') ? value : value.replace(' ', 'T')
-  // 无时区标记的字符串按 UTC 墙钟解析（后端 time.DateTime/RFC3339 输出
-  // 均为 UTC 语义）：补 'Z' 避免被 new Date() 按浏览器本地时区误解，
-  // 否则服务器 UTC 与客户端 UTC+8 时相对时间会固定偏移 8 小时。
+  if (!normalized.includes('T')) return new Date(`${normalized}T00:00:00`)
   return /[zZ]|[+-]\d{2}:?\d{2}$/.test(normalized)
     ? new Date(normalized)
     : new Date(`${normalized}Z`)

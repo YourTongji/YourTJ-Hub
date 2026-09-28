@@ -159,9 +159,9 @@ function editorSnapshot() {
 const uploadedImageUrls = computed(() => uploadedImages.value.filter((i) => !i.uploading && i.url).map((i) => i.url))
 const dirty = computed(() => uploading.value || editorSnapshot() !== baselineSnapshot.value)
 const hasContent = computed(() => Boolean(title.value.trim() || content.value.trim() || categoryIds.value.length > 0 || uploadedImageUrls.value.length > 0))
-// 服务端草稿需要标题/正文/分类（与 PublishPage draftRequirement 同规则）；编辑模式不提供
-// 保存草稿（把已发布话题降级为 topicStatus:0 草稿是错误语义）。
-const canSaveDraft = computed(() => !isEditing.value && Boolean(title.value.trim() && content.value.trim() && categoryIds.value.length > 0) && !submitting.value && !savingDraft.value && !uploading.value)
+// 服务端草稿需要正文/分类；标题仅对非瞬间类型必填（瞬间留空即空标题草稿）。
+// 编辑模式不提供保存草稿（把已发布话题降级为 topicStatus:0 草稿是错误语义）。
+const canSaveDraft = computed(() => !isEditing.value && Boolean((title.value.trim() || quickPublishType.value === 2) && content.value.trim() && categoryIds.value.length > 0) && !submitting.value && !savingDraft.value && !uploading.value)
 
 function stashHasContent(stash: QuickPublishDraftStash): boolean {
   return Boolean(stash.title.trim() || stash.content.trim() || stash.categoryIds.length > 0 || stash.images.length > 0)
@@ -261,7 +261,8 @@ function saveDraftFromFooter() {
     void nextTick(() => categoryPickerTrigger.value?.focus())
     return
   }
-  if (!title.value.trim() || !content.value.trim()) {
+  // 与 canSaveDraft 同规则：瞬间允许空标题草稿，其余类型标题必填。
+  if ((!title.value.trim() && quickPublishType.value !== 2) || !content.value.trim()) {
     errorMessage.value = t('publish.validation.requiredFields')
     return
   }
@@ -553,12 +554,8 @@ async function handleSubmit() {
   validationAttempted.value = true
   content.value = editor.value?.syncValue() ?? content.value
 
-  let finalTitle = title.value.trim()
-  if (quickPublishType.value === 2 && !finalTitle) {
-    const cleanContent = content.value.replace(/[#*`~>[\]()\n]/g, ' ').trim()
-    const fallbackTitle = cleanContent || (uploadedImages.value.length > 0 ? t('publish.modal.imageOnlyTitle') : t('publish.contentTypesAction.thought'))
-    finalTitle = Array.from(fallbackTitle).slice(0, titleMaxLength.value).join('')
-  }
+  // 瞬间允许无标题：留空即空标题提交，不再从正文/图片占位提取（issue #895）。
+  const finalTitle = title.value.trim()
 
   let finalContent = content.value.trim()
   if (quickPublishType.value === 2 && !finalContent && uploadedImages.value.length > 0) {
@@ -572,7 +569,7 @@ async function handleSubmit() {
     return
   }
 
-  if (!finalTitle || !finalContent) {
+  if ((!finalTitle && quickPublishType.value !== 2) || !finalContent) {
     errorMessage.value = t('publish.validation.requiredFields')
     return
   }

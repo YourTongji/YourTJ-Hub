@@ -31,7 +31,7 @@ func setupActivationWriteGateContractTest(t *testing.T) (*gorm.DB, *gin.Engine) 
 	loginAPI.POST("/resend-activation-email", middleware.CheckWritableAccountAllowPendingActivation, UpButterReq(api.ResendActivationEmail))
 
 	forumLoginAPI := router.Group("/api/forum").Use(middleware.JWTAuthCheck)
-	forumLoginAPI.POST("/posts/create", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitPostCreate), UpButterReq(api.CreatePost))
+	forumLoginAPI.POST("/posts/create", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitPostCreate), UpLimitedButterReq(maxContentWriteBodyBytes, api.CreatePost))
 	return conn, router
 }
 

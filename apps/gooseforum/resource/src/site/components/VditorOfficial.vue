@@ -1541,7 +1541,9 @@ onMounted(async () => {
       // 必须始终提供 outline 对象（enable 为 false 也传完整对象）：
       // Vditor 的 merge 会保留显式 undefined，导致 initUI 读 options.outline.position 崩溃
       outline: { enable: props.outline === true, position: 'left' },
-      counter: { enable: props.counter === true },
+      // 字数统计按渲染后的可见文字（wysiwyg DOM 文本）而非 Markdown 源文本，
+      // 与服务端正文/回复长度校验口径一致（issue #890）：标记、链接目标、图片不计入。
+      counter: { enable: props.counter === true, type: 'text' },
       theme: isDark.value ? 'dark' : 'classic',
       // 移动端用官方精简工具栏，桌面用完整工具栏
       toolbar: resolveToolbar(),

@@ -100,6 +100,7 @@
   "authForgotTitle": "重置密码",
   "authContinueAfterLogin": "登录后继续刚才的浏览或创作。",
   "authSignInMethods": "其他登录方式",
+  "authMoreSignInMethods": "更多登录方式",
   "authLoginSubtitle": "欢迎回来，继续你的讨论和创作。",
   "authRegisterSubtitle": "创建账号，加入校园里的每一次讨论。",
   "authForgotSubtitle": "输入邮箱，我们会发送一封重置密码邮件。",
@@ -109,6 +110,8 @@
   "authPassword": "密码",
   "authNewPassword": "新密码",
   "authConfirmPassword": "确认密码",
+  "authShowPassword": "显示密码",
+  "authHidePassword": "隐藏密码",
   "authCaptcha": "验证码",
   "authForgotPassword": "忘记密码？",
   "authCreateAccount": "创建账号",
@@ -118,6 +121,8 @@
   "authTwoFactorCode": "TOTP 验证码",
   "authVerify": "验证",
   "authGetCode": "获取验证码",
+  "authRefreshCaptcha": "刷新验证码",
+  "authCaptchaRequired": "请输入验证码",
   "authOidcLogin": "使用 yourtj 统一登录",
   "authRegisterSuccess": "注册成功,请登录",
   "authResetEmailSent": "重置邮件已发送,请查收",
@@ -247,6 +252,7 @@
   "messagesEmptyDescription": "从社区里找一个人开始聊聊。",
   "messagesSearchConversations": "搜索会话",
   "messagesConversation": "私信对话",
+  "messagesViewProfile": "查看 {name} 的主页",
   "messagesStartChat": "开始聊天",
   "messagesFirstMessageTo": "给 {user} 发出第一条消息。",
   "@messagesFirstMessageTo": {
@@ -476,6 +482,33 @@
     }
   },
   "settingsImageDecodeFailed": "图片解码失败",
+  "dateToday": "今天",
+  "dateYesterday": "昨天",
+  "dateMonthDay": "{month}月{day}日",
+  "@dateMonthDay": {
+    "placeholders": {
+      "month": {
+        "type": "int"
+      },
+      "day": {
+        "type": "int"
+      }
+    }
+  },
+  "dateYearMonthDay": "{year}年{month}月{day}日",
+  "@dateYearMonthDay": {
+    "placeholders": {
+      "year": {
+        "type": "int"
+      },
+      "month": {
+        "type": "int"
+      },
+      "day": {
+        "type": "int"
+      }
+    }
+  },
   "dateMonthDayTime": "{month}月{day}日 {time}",
   "@dateMonthDayTime": {
     "placeholders": {
@@ -889,6 +922,9 @@
   "notificationSomeone": "有人",
   "profileRoleAdmin": "管理员",
   "profileOnline": "在线",
+  "profileAccountClosedBadge": "已注销",
+  "profileAccountClosedTitle": "已注销用户",
+  "profileAccountClosedDescription": "该账号已注销，历史内容保留展示，主页不再开放。",
   "profileJoinedAt": "加入于 {date}",
   "profileLastActive": "最后活跃 {time}",
   "profileActionSignup": "加入社区",
@@ -1330,6 +1366,10 @@
   "userBlocks": "已屏蔽用户",
   "userBlockExplanation": "屏蔽后，你们无法互发新私信，也不会收到彼此的互动通知。公开内容和历史私信仍保留，方便核查与举报。",
   "userBlocksEmpty": "尚未屏蔽任何用户",
+  "messageCopied": "已复制",
+  "messageReply": "回复",
+  "messageReplyCancel": "取消回复",
+  "messageReplySelf": "我",
   "messageReport": "举报私信",
   "messageReportPrivacy": "提交后，站点管理员可以查看这条私信及你的说明，用于处理举报。不会提交整段会话。",
   "contentReport": "举报内容",
@@ -1337,5 +1377,69 @@
   "reportAbuse": "辱骂或骚扰",
   "reportIllegal": "违法内容",
   "reportIrrelevant": "无关内容",
-  "reportOther": "其他"
+  "reportOther": "其他",
+  "messageActions": "消息操作",
+  "messageForwardIndividualLimit": "超过 10 条消息时使用合并转发。",
+  "messageForward": "转发",
+  "messageSelect": "多选",
+  "messagesSelected": "已选 {count} 条",
+  "@messagesSelected": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "messageForwardTitle": "转发消息",
+  "messageForwardIndividual": "逐条转发",
+  "messageForwardMerged": "合并转发",
+  "messageForwardExplanation": "所选消息会复制给接收者；合并转发会附上原发送者名称和时间。",
+  "messageForwardTargets": "转发给 {count} 人",
+  "@messageForwardTargets": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "messageForwardConfirm": "确认转发",
+  "messageForwardSuccess": "已发送",
+  "messageForwardFailed": "未发送",
+  "messageForwardPending": "待发送",
+  "messageForwardSending": "正在发送",
+  "messageForwardRetry": "重试未完成的转发",
+  "messageForwardResume": "继续转发",
+  "messageForwardLimit": "最多选择 {count} 条消息",
+  "@messageForwardLimit": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "messageForwardRecipientLimit": "最多选择 {count} 位接收者",
+  "@messageForwardRecipientLimit": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "messageForwardHistory": "聊天记录",
+  "messageForwardCount": "共 {count} 条消息",
+  "@messageForwardCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "messageForwardEmptyRecipients": "暂无可转发的会话或联系人",
+  "messageForwardCancelRemaining": "放弃剩余转发",
+  "messageForwardAbandonNotice": "已发送的消息会保留。未确认送达的消息可能已被接收；再次新建转发可能产生重复。",
+  "messageForwardSearch": "搜索会话或联系人",
+  "messageForwardChooseTargets": "选择接收者",
+  "settingsVisitorAnalytics": "参与访问统计",
+  "settingsVisitorAnalyticsDescription": "默认关闭。开启后向 YourTJ 自托管统计服务发送公开页面类别、App 标记、系统和手机／平板类型，用于状态页访客统计；服务也会接收到网络 IP 并推算大致地区。不发送账号、内容、搜索词或设备标识，不记录校园、私信及设置页面。可随时关闭。",
+  "settingsVisitorAnalyticsSaveFailed": "未能保存统计设置。本次关闭仍有效，请稍后重试以保存下次启动的选择。"
 }

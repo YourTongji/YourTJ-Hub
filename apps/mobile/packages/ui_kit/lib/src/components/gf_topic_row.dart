@@ -84,19 +84,25 @@ class GfTopicRow extends StatelessWidget {
                 if (pinned)
                   Semantics(
                     label: 'pinned',
-                    child: GfSymbol('pin-filled', size: 16, color: colors.error),
+                    child: GfSymbol(
+                      'pin-filled',
+                      size: 16,
+                      color: colors.error,
+                    ),
                   ),
-                Text(
-                  title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: colors.baseContent,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w500,
-                    height: 1.5,
+                // 无标题瞬间（title 为空串）不渲染标题行。
+                if (title.isNotEmpty)
+                  Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: colors.baseContent,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w500,
+                      height: 1.5,
+                    ),
                   ),
-                ),
                 if (hot)
                   Container(
                     height: 20,

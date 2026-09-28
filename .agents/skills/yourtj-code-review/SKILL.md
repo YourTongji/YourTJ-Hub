@@ -18,7 +18,7 @@ description: Use when reviewing a yourtj-hub code change (own or others') before
 
 ## Database & migration safety
 
-- 模型/迁移改动必须过 PG 门禁：`YOURTJ_TEST_PG_URL` 下跑 `TestSchema*`（`app/migration/migration_pg_test.go`）。
+- 模型/迁移改动必须过 PG 门禁：`YOURTJ_TEST_PG_URL` 下跑 `PostgreSQL|Postgres`（覆盖 `app/migration/` 全部 PG 用例；完整 CI 命令见 testing.md）。
 - 模型禁止 MySQL-only 类型标签（`bigint unsigned` / `datetime` / `tinyint`）。
 - 迁移是否 append-only？backfill/数据迁移是否可重入、有游标/幂等？删除生命周期（`contentdeleteservice`）
   是否覆盖关联数据（附件、搜索索引、通知、审计）？

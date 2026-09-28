@@ -192,7 +192,8 @@ function notificationText(item: NotificationPayload) {
   if (item.eventType === 'follow') {
     return templateText || item.content || item.payload.content || t('notifications.followDescription', { actor: actorName(item) })
   }
-  if (item.topic) {
+  // 无标题瞬间：无标题时回退到模板文案/正文，避免渲染空通知文本。
+  if (item.topic?.title) {
     return item.topic.title
   }
   if (templateText) return templateText
@@ -249,7 +250,7 @@ function notificationTone(item: NotificationPayload) {
 
 function actorName(item: NotificationPayload) {
   if (item.eventType === 'badge') return notificationTemplateText(item) || item.title || t('notifications.actorFallback')
-  return userDisplayName(item.actor.id, item.actor.username || item.payload.actorName || item.payload.metadata?.followerName || t('notifications.actorFallback'))
+  return userDisplayName(item.actor.id, item.actor.username || item.payload.actorName || item.payload.metadata?.followerName || t('notifications.actorFallback'), item.actor.nickname)
 }
 
 function actorURL(item: NotificationPayload) {

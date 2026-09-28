@@ -383,4 +383,22 @@ func TestAgentStrictBindingRejectsMalformedInput(t *testing.T) {
 			t.Fatalf("envelope = %#v, want common.request.invalidParams", envelope)
 		}
 	})
+
+	t.Run("oversized topic body", func(t *testing.T) {
+		_, token := createAgentForumAgent(t, db.Connect(), "oversized-agent-topic")
+		body := fmt.Sprintf(`{"title":"t","content":%q,"categoryId":[1]}`, strings.Repeat("a", maxContentWriteBodyBytes))
+		rec, envelope := agentRequest(t, agentForumRouter(), http.MethodPost, "/api/v1/agent/topics", body, token)
+		if rec.Code != http.StatusBadRequest || envelope.MessageCode != "common.request.parseFailed" {
+			t.Fatalf("oversized topic response = %d %#v, want 400 common.request.parseFailed", rec.Code, envelope)
+		}
+	})
+
+	t.Run("oversized reply body", func(t *testing.T) {
+		_, token := createAgentForumAgent(t, db.Connect(), "oversized-agent-reply")
+		body := fmt.Sprintf(`{"content":%q}`, strings.Repeat("a", maxContentWriteBodyBytes))
+		rec, envelope := agentRequest(t, agentForumRouter(), http.MethodPost, "/api/v1/agent/topics/1/posts", body, token)
+		if rec.Code != http.StatusBadRequest || envelope.MessageCode != "common.request.parseFailed" {
+			t.Fatalf("oversized reply response = %d %#v, want 400 common.request.parseFailed", rec.Code, envelope)
+		}
+	})
 }

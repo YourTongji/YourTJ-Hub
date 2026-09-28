@@ -43,7 +43,8 @@ mixin _$UserCardPayload {
   int get collectionCount => throw _privateConstructorUsedError;
   bool get isOnline => throw _privateConstructorUsedError;
   bool get isFollowing => throw _privateConstructorUsedError;
-  bool get isSelf =>
+  bool get isSelf => throw _privateConstructorUsedError;
+  bool get isAccountClosed =>
       throw _privateConstructorUsedError; // 容错：旧后端（< 2026-09-06 修复）对无徽章用户序列化 badges 为 null
   // （违反 TS 契约），defaultValue 对显式 null 与缺键均生效。
   List<UserBadgePayload>? get displayBadges =>
@@ -94,6 +95,7 @@ abstract class $UserCardPayloadCopyWith<$Res> {
     bool isOnline,
     bool isFollowing,
     bool isSelf,
+    bool isAccountClosed,
     List<UserBadgePayload>? displayBadges,
     @JsonKey(defaultValue: []) List<UserBadgePayload> badges,
     UserBadgePayload? wornBadge,
@@ -141,6 +143,7 @@ class _$UserCardPayloadCopyWithImpl<$Res, $Val extends UserCardPayload>
     Object? isOnline = null,
     Object? isFollowing = null,
     Object? isSelf = null,
+    Object? isAccountClosed = null,
     Object? displayBadges = freezed,
     Object? badges = null,
     Object? wornBadge = freezed,
@@ -237,6 +240,10 @@ class _$UserCardPayloadCopyWithImpl<$Res, $Val extends UserCardPayload>
                 ? _value.isSelf
                 : isSelf // ignore: cast_nullable_to_non_nullable
                       as bool,
+            isAccountClosed: null == isAccountClosed
+                ? _value.isAccountClosed
+                : isAccountClosed // ignore: cast_nullable_to_non_nullable
+                      as bool,
             displayBadges: freezed == displayBadges
                 ? _value.displayBadges
                 : displayBadges // ignore: cast_nullable_to_non_nullable
@@ -309,6 +316,7 @@ abstract class _$$UserCardPayloadImplCopyWith<$Res>
     bool isOnline,
     bool isFollowing,
     bool isSelf,
+    bool isAccountClosed,
     List<UserBadgePayload>? displayBadges,
     @JsonKey(defaultValue: []) List<UserBadgePayload> badges,
     UserBadgePayload? wornBadge,
@@ -356,6 +364,7 @@ class __$$UserCardPayloadImplCopyWithImpl<$Res>
     Object? isOnline = null,
     Object? isFollowing = null,
     Object? isSelf = null,
+    Object? isAccountClosed = null,
     Object? displayBadges = freezed,
     Object? badges = null,
     Object? wornBadge = freezed,
@@ -452,6 +461,10 @@ class __$$UserCardPayloadImplCopyWithImpl<$Res>
             ? _value.isSelf
             : isSelf // ignore: cast_nullable_to_non_nullable
                   as bool,
+        isAccountClosed: null == isAccountClosed
+            ? _value.isAccountClosed
+            : isAccountClosed // ignore: cast_nullable_to_non_nullable
+                  as bool,
         displayBadges: freezed == displayBadges
             ? _value._displayBadges
             : displayBadges // ignore: cast_nullable_to_non_nullable
@@ -503,6 +516,7 @@ class _$UserCardPayloadImpl implements _UserCardPayload {
     required this.isOnline,
     required this.isFollowing,
     required this.isSelf,
+    this.isAccountClosed = false,
     final List<UserBadgePayload>? displayBadges,
     @JsonKey(defaultValue: []) required final List<UserBadgePayload> badges,
     this.wornBadge,
@@ -566,6 +580,9 @@ class _$UserCardPayloadImpl implements _UserCardPayload {
   final bool isFollowing;
   @override
   final bool isSelf;
+  @override
+  @JsonKey()
+  final bool isAccountClosed;
   // 容错：旧后端（< 2026-09-06 修复）对无徽章用户序列化 badges 为 null
   // （违反 TS 契约），defaultValue 对显式 null 与缺键均生效。
   final List<UserBadgePayload>? _displayBadges;
@@ -598,7 +615,7 @@ class _$UserCardPayloadImpl implements _UserCardPayload {
 
   @override
   String toString() {
-    return 'UserCardPayload(userId: $userId, username: $username, nickname: $nickname, avatarUrl: $avatarUrl, profileCoverUrl: $profileCoverUrl, bio: $bio, signature: $signature, websiteName: $websiteName, website: $website, prestige: $prestige, externalInformation: $externalInformation, isAdmin: $isAdmin, topicCount: $topicCount, replyCount: $replyCount, likeReceivedCount: $likeReceivedCount, likeGivenCount: $likeGivenCount, followerCount: $followerCount, followingCount: $followingCount, collectionCount: $collectionCount, isOnline: $isOnline, isFollowing: $isFollowing, isSelf: $isSelf, displayBadges: $displayBadges, badges: $badges, wornBadge: $wornBadge, lastActiveTime: $lastActiveTime, createdAt: $createdAt)';
+    return 'UserCardPayload(userId: $userId, username: $username, nickname: $nickname, avatarUrl: $avatarUrl, profileCoverUrl: $profileCoverUrl, bio: $bio, signature: $signature, websiteName: $websiteName, website: $website, prestige: $prestige, externalInformation: $externalInformation, isAdmin: $isAdmin, topicCount: $topicCount, replyCount: $replyCount, likeReceivedCount: $likeReceivedCount, likeGivenCount: $likeGivenCount, followerCount: $followerCount, followingCount: $followingCount, collectionCount: $collectionCount, isOnline: $isOnline, isFollowing: $isFollowing, isSelf: $isSelf, isAccountClosed: $isAccountClosed, displayBadges: $displayBadges, badges: $badges, wornBadge: $wornBadge, lastActiveTime: $lastActiveTime, createdAt: $createdAt)';
   }
 
   @override
@@ -647,6 +664,8 @@ class _$UserCardPayloadImpl implements _UserCardPayload {
             (identical(other.isFollowing, isFollowing) ||
                 other.isFollowing == isFollowing) &&
             (identical(other.isSelf, isSelf) || other.isSelf == isSelf) &&
+            (identical(other.isAccountClosed, isAccountClosed) ||
+                other.isAccountClosed == isAccountClosed) &&
             const DeepCollectionEquality().equals(
               other._displayBadges,
               _displayBadges,
@@ -686,6 +705,7 @@ class _$UserCardPayloadImpl implements _UserCardPayload {
     isOnline,
     isFollowing,
     isSelf,
+    isAccountClosed,
     const DeepCollectionEquality().hash(_displayBadges),
     const DeepCollectionEquality().hash(_badges),
     wornBadge,
@@ -734,6 +754,7 @@ abstract class _UserCardPayload implements UserCardPayload {
     required final bool isOnline,
     required final bool isFollowing,
     required final bool isSelf,
+    final bool isAccountClosed,
     final List<UserBadgePayload>? displayBadges,
     @JsonKey(defaultValue: []) required final List<UserBadgePayload> badges,
     final UserBadgePayload? wornBadge,
@@ -787,7 +808,9 @@ abstract class _UserCardPayload implements UserCardPayload {
   @override
   bool get isFollowing;
   @override
-  bool get isSelf; // 容错：旧后端（< 2026-09-06 修复）对无徽章用户序列化 badges 为 null
+  bool get isSelf;
+  @override
+  bool get isAccountClosed; // 容错：旧后端（< 2026-09-06 修复）对无徽章用户序列化 badges 为 null
   // （违反 TS 契约），defaultValue 对显式 null 与缺键均生效。
   @override
   List<UserBadgePayload>? get displayBadges;

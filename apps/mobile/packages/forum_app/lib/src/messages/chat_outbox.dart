@@ -1,6 +1,7 @@
 import 'dart:math';
 import 'package:core/core.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers.dart';
 
@@ -9,7 +10,13 @@ final _messageRandom = Random.secure();
 enum DeliveryState { sending, sent, failed }
 
 class PendingMessage {
-  PendingMessage(this.id, this.content, this.afterId, {this.draftRevision});
+  PendingMessage(
+    this.id,
+    this.content,
+    this.afterId, {
+    this.draftRevision,
+    this.draftValue,
+  });
   final int id;
   final String clientMessageId = List.generate(
     16,
@@ -18,6 +25,10 @@ class PendingMessage {
   final String content;
   final int afterId;
   final int? draftRevision;
+
+  /// Composer snapshot captured on submit, so a failed send can rehydrate text,
+  /// sticker tokens and selection instead of relying on untouched state.
+  final TextEditingValue? draftValue;
   DeliveryState state = DeliveryState.failed;
   Object? error;
 }
@@ -43,7 +54,12 @@ class ChatOutbox extends ChangeNotifier {
   int _latestObservedId = 0;
   bool _disposed = false;
 
-  PendingMessage enqueue(String content, int afterId, {int? draftRevision}) {
+  PendingMessage enqueue(
+    String content,
+    int afterId, {
+    int? draftRevision,
+    TextEditingValue? draftValue,
+  }) {
     final floor = afterId > _latestObservedId ? afterId : _latestObservedId;
     if (items.isEmpty) _matchedIds.clear();
     final message = PendingMessage(
@@ -51,6 +67,7 @@ class ChatOutbox extends ChangeNotifier {
       content,
       floor,
       draftRevision: draftRevision,
+      draftValue: draftValue,
     );
     items.add(message);
     notifyListeners();

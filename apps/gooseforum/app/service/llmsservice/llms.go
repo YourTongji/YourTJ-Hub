@@ -115,11 +115,19 @@ func buildIndex(baseURL string, filesEnabled bool) (string, error) {
 		if filesEnabled {
 			path = urlconfig.PostMarkdown(topic.Id)
 		}
-		builder.WriteString("- [")
-		builder.WriteString(escapeLinkLabel(topic.Title))
-		builder.WriteString("](")
-		builder.WriteString(baseURL + path)
-		builder.WriteString(")")
+		label := topicLabel(topic)
+		if label == "" {
+			// 标题与摘要都为空（如纯图瞬间）：退化为自动链接，避免导出空链接文案。
+			builder.WriteString("- <")
+			builder.WriteString(baseURL + path)
+			builder.WriteString(">")
+		} else {
+			builder.WriteString("- [")
+			builder.WriteString(escapeLinkLabel(label))
+			builder.WriteString("](")
+			builder.WriteString(baseURL + path)
+			builder.WriteString(")")
+		}
 		if description := topicDescription(topic); description != "" {
 			builder.WriteString(": ")
 			builder.WriteString(description)
@@ -209,7 +217,10 @@ func appendTopicDocument(builder *strings.Builder, baseURL string, topic *topics
 	heading := strings.Repeat("#", topicHeadingLevel)
 	subheading := heading + "#"
 	replyHeading := subheading + "#"
-	builder.WriteString(heading + " " + singleLine(topic.Title) + "\n\n")
+	// 无标题瞬间使用正文摘要作标题；两者都为空时省略标题行，避免导出空标题 `## `。
+	if label := topicLabel(topic); label != "" {
+		builder.WriteString(heading + " " + label + "\n\n")
+	}
 	builder.WriteString("Source: [View topic](" + baseURL + urlconfig.PostDetail(topic.Id) + ")\n\n")
 	if categories := categoryNames(topic.CategoryIds); len(categories) > 0 {
 		builder.WriteString("Categories: " + strings.Join(categories, ", ") + "\n\n")
@@ -297,6 +308,15 @@ func writeSiteHeader(builder *strings.Builder) {
 	if description := singleLine(settings.SiteDescription); description != "" {
 		builder.WriteString("> " + description + "\n\n")
 	}
+}
+
+// topicLabel 返回导出文档的标题文本：无标题瞬间回退到正文摘要（与 Web/SSR 列表一致），
+// 摘要也为空时返回空串，由调用方省略标题行或退化为自动链接。
+func topicLabel(topic *topics.Entity) string {
+	if title := singleLine(topic.Title); title != "" {
+		return title
+	}
+	return truncateRunes(singleLine(topic.Excerpt), 200)
 }
 
 func topicDescription(topic *topics.Entity) string {

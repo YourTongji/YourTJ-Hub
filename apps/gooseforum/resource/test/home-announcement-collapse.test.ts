@@ -162,6 +162,19 @@ describe('首页公告栏折叠/展开（issue #799，方案 A：localStorage �
     second.unmount()
   })
 
+  test.each(['', '   ', undefined, null])('标题为空白或缺失 %j 时显示展开提示，并仍可点击恢复正文', async (title) => {
+    storage.setItem(COLLAPSE_KEY, '1')
+    // Exercise incomplete runtime payloads as well as the declared string field.
+    const wrapper = mountHome(announcementFixture({
+      items: [{ id: 'ann-1', title: title as string, html: '<p>欢迎来到 YourTJHub！</p>' }],
+    }))
+    const expand = wrapper.get('[data-testid="announcement-expand-button"]')
+    expect(expand.text()).toContain('展开公告')
+    await expand.trigger('click')
+    expect(wrapper.find('.gf-prose-announcement').text()).toContain('欢迎来到 YourTJHub！')
+    wrapper.unmount()
+  })
+
   test('新公告未读时收起栏显示提示点；标记已读后提示消失但保持收起（互不耦合）', async () => {
     // 无已读记录 → 新公告未读
     const wrapper = mountHome()

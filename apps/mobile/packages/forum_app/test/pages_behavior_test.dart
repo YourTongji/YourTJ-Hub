@@ -8,6 +8,7 @@ import 'dart:convert';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -1993,7 +1994,10 @@ void main() {
     addTearDown(container.dispose);
     await tester.pumpWidget(app(container, const TopicPage(topicId: 100)));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('参与讨论'));
+    // On a 320dp dock the join label collapses into the reply icon, so the
+    // control is reached through its tooltip (same as the sticker composer
+    // integration test).
+    await tester.tap(find.byTooltip('参与讨论'));
     await tester.pumpAndSettle();
     tester.view.viewInsets = const FakeViewPadding(bottom: 280);
     await tester.enterText(
@@ -2111,6 +2115,119 @@ void main() {
       await tester.pump(const Duration(milliseconds: 600));
     },
   );
+
+  testWidgets(
+    'untitled moment hides the detail title and keeps a generic app bar label',
+    (tester) async {
+      final client = GfApiClient(
+        dio: Dio(),
+        tokenStorage: MemTokenStorage(),
+        baseUrl: 'http://fake.local',
+      );
+      // 两种标题状态都跑：有标题时断言同一探针能找到 title1 文本，
+      // 无标题时断言找不到，避免「把 fixture 标题清空后断言旧标题不存在」的空洞测试。
+      for (final title in <String>['', '移动端测试话题']) {
+        final payload = redesignedTopicPayloadJson();
+        final topic =
+            (payload['props'] as Map)['topic'] as Map<String, dynamic>;
+        topic
+          ..['title'] = title
+          ..['contentType'] = 2;
+        final container = await makeContainer(
+          pageRepo: RedesignPageRepository(client, topicPayload: payload),
+        );
+        await tester.pumpWidget(app(container, const TopicPage(topicId: 100)));
+        await tester.pumpAndSettle();
+
+        final l10n = AppLocalizations.of(tester.element(find.byType(GfAppBar)));
+        final titleStyle = GfTheme.typographyOf(
+          tester.element(find.byType(TopicPage)),
+        ).title1;
+        final detailTitle = find.byWidgetPredicate(
+          (Widget w) =>
+              w is Text &&
+              w.data == title &&
+              w.style?.fontSize == titleStyle.fontSize &&
+              w.style?.fontWeight == titleStyle.fontWeight,
+        );
+        if (title.isEmpty) {
+          // 详情页大标题不渲染空标题（探针在没有守卫时能命中空 Text）。
+          expect(
+            detailTitle,
+            findsNothing,
+            reason: 'untitled moment must not render an empty detail title',
+          );
+        } else {
+          expect(
+            detailTitle,
+            findsOneWidget,
+            reason: 'titled topic must render its detail title',
+          );
+        }
+
+        expect(
+          (tester.widget<GfAppBar>(find.byType(GfAppBar)).title as Text).data,
+          l10n.topicTitle,
+          reason: 'app bar shows the generic label until the title scrolls in',
+        );
+        await tester.drag(
+          find.byType(CustomScrollView).first,
+          const Offset(0, -500),
+        );
+        await tester.pumpAndSettle();
+        expect(
+          (tester.widget<GfAppBar>(find.byType(GfAppBar)).title as Text).data,
+          title.isEmpty ? l10n.topicTitle : title,
+          reason:
+              'scrolled app bar falls back to the generic label only when untitled',
+        );
+        expect(tester.takeException(), isNull);
+
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pump(const Duration(milliseconds: 600));
+      }
+    },
+  );
+
+  testWidgets('narrow topic dock renders the floor number in full', (
+    tester,
+  ) async {
+    // Issue #886: on phone widths the dock showed "1 …" because the floor
+    // number was squeezed into a flex share the reply control never used.
+    tester.view.physicalSize = const Size(360, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final client = GfApiClient(
+      dio: Dio(),
+      tokenStorage: MemTokenStorage(),
+      baseUrl: 'http://fake.local',
+    );
+    final container = await makeContainer(
+      pageRepo: RedesignPageRepository(
+        client,
+        topicPayload: redesignedTopicPayloadJson(),
+      ),
+    );
+    await tester.pumpWidget(app(container, const TopicPage(topicId: 100)));
+    await tester.pumpAndSettle();
+    final RenderParagraph floor = tester.renderObject<RenderParagraph>(
+      find.text('1 / 14'),
+    );
+    final TextPainter natural = TextPainter(
+      text: floor.text,
+      textDirection: floor.textDirection,
+      textScaler: floor.textScaler,
+    )..layout();
+    expect(
+      floor.size.width,
+      moreOrLessEquals(natural.width, epsilon: .5),
+      reason: '楼层号必须完整渲染,不能被省略号截断',
+    );
+    natural.dispose();
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
+  });
 
   testWidgets('profile activity types have distinct semantic icons', (
     tester,

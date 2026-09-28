@@ -6,6 +6,7 @@ import 'package:ui_kit/ui_kit.dart';
 
 import '../l10n/app_localizations.dart';
 import 'navigation/session_overlays.dart';
+import 'analytics/analytics_host.dart';
 import 'router.dart';
 import 'private_notes.dart';
 import 'app_locale.dart';
@@ -71,7 +72,12 @@ class GfApp extends ConsumerWidget {
             navigatorKey: appNavigatorKey,
             child: SessionOverlayHost(
               registry: appSessionOverlays,
-              child: PrivateNotesHost(child: child ?? const SizedBox.shrink()),
+              child: AnalyticsHost(
+                router: appRouter,
+                child: PrivateNotesHost(
+                  child: child ?? const SizedBox.shrink(),
+                ),
+              ),
             ),
           ),
         ),

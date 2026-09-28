@@ -5,6 +5,7 @@ import 'package:ui_kit/ui_kit.dart';
 import '../../l10n/app_localizations.dart';
 import '../navigation/reading_chrome.dart';
 import '../navigation/reading_window.dart';
+import '../navigation/tab_swipe_surface.dart';
 import 'account_drawer.dart';
 import 'compose_menu.dart';
 
@@ -24,6 +25,9 @@ class RootSurface extends ConsumerWidget {
     this.showComposeAction = true,
     this.actionLabel,
     this.actionSymbol = 'plus',
+    this.swipeTabIndex,
+    this.swipeTabCount = 0,
+    this.onSwipeTabChanged,
   });
   final String title;
   final Widget? titleWidget;
@@ -36,6 +40,9 @@ class RootSurface extends ConsumerWidget {
   final bool showComposeAction;
   final String? actionLabel;
   final String actionSymbol;
+  final int? swipeTabIndex;
+  final int swipeTabCount;
+  final ValueChanged<int>? onSwipeTabChanged;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -44,7 +51,7 @@ class RootSurface extends ConsumerWidget {
     final duration = GfMotion.duration(context, GfMotion.layout);
     final bottom = MediaQuery.paddingOf(context).bottom;
     final hasRail = ReadingWindowScope.hasRailOf(context);
-    return Scaffold(
+    final surface = Scaffold(
       body: SafeArea(
         bottom: false,
         child: ClipRect(
@@ -79,8 +86,9 @@ class RootSurface extends ConsumerWidget {
                                     tooltip: AppLocalizations.of(
                                       context,
                                     ).navProfile,
-                                    onPressed: () =>
-                                        Scaffold.of(context).openDrawer(),
+                                    onPressed: () => accountDrawerLayerKey
+                                        .currentState
+                                        ?.open(),
                                     icon: const AccountAvatar(),
                                   ),
                                   Expanded(
@@ -146,5 +154,15 @@ class RootSurface extends ConsumerWidget {
         ),
       ),
     );
+    return swipeTabIndex != null &&
+            swipeTabCount > 1 &&
+            onSwipeTabChanged != null
+        ? TabSwipeSurface(
+            index: swipeTabIndex!,
+            length: swipeTabCount,
+            onChanged: onSwipeTabChanged!,
+            child: surface,
+          )
+        : surface;
   }
 }

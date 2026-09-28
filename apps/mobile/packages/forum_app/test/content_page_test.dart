@@ -207,4 +207,48 @@ void main() {
       expect(find.text('Previous account topic'), findsNothing);
     },
   );
+
+  testWidgets('untitled moment uses its excerpt as the primary content line', (
+    tester,
+  ) async {
+    final repo = _Content(
+      GfApiClient(
+        dio: Dio(),
+        tokenStorage: MemoryTokenStorage(),
+        baseUrl: 'https://example.test',
+      ),
+    );
+    repo.pending.complete(
+      const UserContentPage(
+        items: [
+          UserContentItem(
+            id: 7,
+            contentType: 'topic',
+            title: '',
+            excerpt: '只有正文的瞬间摘要',
+            createdAt: '2026-09-28 10:00:00',
+          ),
+        ],
+        hasMore: false,
+        nextCursorId: 0,
+      ),
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [contentRepositoryProvider.overrideWithValue(repo)],
+        child: MaterialApp(
+          theme: gfThemeData(Brightness.light),
+          locale: const Locale('en'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: const ContentPage(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final tile = tester.widget<ListTile>(find.byType(ListTile).first);
+    expect((tile.title as Text).data, '只有正文的瞬间摘要');
+    expect((tile.subtitle as Text).data, '2026-09-28 10:00:00');
+  });
 }

@@ -106,10 +106,29 @@ func GetSiteStatistics() component.Response {
 	return component.SuccessResponse(hotdataserve.GetSiteStatisticsData())
 }
 
+// Markdown 源文本护栏（issue #890 review）：可见文字是面向用户的长度口径，
+// 链接目标、图片、表格与贴纸等语法不受可见长度约束；只看可见文字会让
+// maxPostLength 变成「可存档无限 Markdown」的邀请（例如 200 KB 链接目标配
+// 5 个可见字）。因此源文本码点数还不得超过 maxPostLength 的
+// maxPostSourceRatio 倍；同时保留下限，避免 maxPostLength 配得很小时连一条
+// 正常的长链接都发不出去。标题是纯文本，仍按自身上限计数。
+const (
+	maxPostSourceRatio = 4
+	minPostSourceLimit = 4096
+)
+
+// postSourceLimit 返回正文/回复 Markdown 源文本的码点数护栏。
+func postSourceLimit(maxPostLength int) int {
+	if limit := maxPostLength * maxPostSourceRatio; limit > minPostSourceLimit {
+		return limit
+	}
+	return minPostSourceLimit
+}
+
 type WriteTopicReq struct {
 	TopicId     uint64   `json:"topicId"`
 	Content     string   `json:"content" validate:"required"`
-	Title       string   `json:"title" validate:"required"`
+	Title       string   `json:"title"` // 瞬间（contentType=2）可留空，其余类型由 writeTopic 强制非空
 	CategoryId  []uint64 `json:"categoryId" validate:"min=1,max=3"`
 	TopicStatus int8     `json:"topicStatus" validate:"oneof=0 1"`
 	Website     string   `json:"website,omitempty"` // 蜜罐字段，正常用户不可见
@@ -130,6 +149,16 @@ func WriteTopic(req component.BetterRequest[WriteTopicReq]) component.Response {
 func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) component.Response {
 	// 获取发布设置
 	postingConfig := hotdataserve.GetPostingSettingsConfigCache()
+
+	// 瞬间（thought）允许无标题：空白标题规范化为空串，不从正文自动提取。
+	// 非瞬间类型必须携带标题；该检查必须排在验证码/蜜罐/权限之前，与原先
+	// bind-time validate:"required" 的语义一致——无效请求不消耗验证码等一次性凭据。
+	if req.Params.ContentType == posts.ContentTypeThought && strings.TrimSpace(req.Params.Title) == "" {
+		req.Params.Title = ""
+	}
+	if req.Params.Title == "" && req.Params.ContentType != posts.ContentTypeThought {
+		return component.FailResponseCode(component.MessageRequestInvalidParams, nil)
+	}
 
 	userEntity, err := req.GetUser()
 	if err != nil || userEntity.Id == 0 {
@@ -166,7 +195,8 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 	}
 
 	titleLength := utf8.RuneCountInString(req.Params.Title)
-	if titleLength < postingConfig.TextControl.MinTitleLength {
+	// 空标题仅瞬间合法，跳过最小长度校验；填写了标题的瞬间仍受最小/最大长度约束。
+	if titleLength > 0 && titleLength < postingConfig.TextControl.MinTitleLength {
 		minLength := postingConfig.TextControl.MinTitleLength
 		return component.FailResponseCode(
 			component.MessageTopicTitleTooShort,
@@ -184,8 +214,22 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 
 	}
 
-	contentLength := utf8.RuneCountInString(req.Params.Content)
-	if contentLength < postingConfig.TextControl.MinPostLength {
+	// 源文本护栏是纯字节扫描，先于 VisibleTextLength 的 goldmark 解析执行：
+	// 注定超限的请求体（如 2 MiB 链接目标）零解析成本被拒，也不做无意义的
+	// 下限判定。
+	maxLength := postingConfig.TextControl.MaxPostLength
+	if utf8.RuneCountInString(req.Params.Content) > postSourceLimit(maxLength) {
+		return component.FailResponseCode(
+			component.MessageTopicContentTooLong,
+
+			component.MessageParams{"maxLength": maxLength})
+
+	}
+
+	// 正文长度按渲染后可见文字统计（issue #890）：Markdown 标记、链接目标、
+	// 图片与贴纸 token 不计入，纯图片/纯链接内容不能绕过下限。
+	visibleLength := markdown2html.VisibleTextLength(req.Params.Content)
+	if visibleLength < postingConfig.TextControl.MinPostLength {
 		minLength := postingConfig.TextControl.MinPostLength
 		return component.FailResponseCode(
 			component.MessageTopicContentTooShort,
@@ -194,8 +238,7 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 
 	}
 
-	if contentLength > postingConfig.TextControl.MaxPostLength {
-		maxLength := postingConfig.TextControl.MaxPostLength
+	if visibleLength > maxLength {
 		return component.FailResponseCode(
 			component.MessageTopicContentTooLong,
 
@@ -511,8 +554,20 @@ func createPost(req component.BetterRequest[CreatePostReq], agent bool) componen
 	}
 
 	content := strings.TrimSpace(req.Params.Content)
-	contentLength := utf8.RuneCountInString(content)
-	if contentLength < postingConfig.TextControl.MinPostLength {
+	// 源文本护栏是纯字节扫描，先于 VisibleTextLength 的 goldmark 解析执行：
+	// 注定超限的请求体（如 2 MiB 链接目标）零解析成本被拒。
+	maxLength := postingConfig.TextControl.MaxPostLength
+	if utf8.RuneCountInString(content) > postSourceLimit(maxLength) {
+		return component.FailResponseCode(
+			component.MessageCommentContentTooLong,
+
+			component.MessageParams{"maxLength": maxLength})
+
+	}
+
+	// 长度按渲染后可见文字统计（issue #890），与正文校验同一口径。
+	visibleLength := markdown2html.VisibleTextLength(content)
+	if visibleLength < postingConfig.TextControl.MinPostLength {
 		minLength := postingConfig.TextControl.MinPostLength
 		return component.FailResponseCode(
 			component.MessageCommentContentTooShort,
@@ -521,8 +576,7 @@ func createPost(req component.BetterRequest[CreatePostReq], agent bool) componen
 
 	}
 
-	if contentLength > postingConfig.TextControl.MaxPostLength {
-		maxLength := postingConfig.TextControl.MaxPostLength
+	if visibleLength > maxLength {
 		return component.FailResponseCode(
 			component.MessageCommentContentTooLong,
 
@@ -675,8 +729,20 @@ func UpdatePost(req component.BetterRequest[UpdatePostReq]) component.Response {
 	}
 
 	content := strings.TrimSpace(req.Params.Content)
-	contentLength := utf8.RuneCountInString(content)
-	if contentLength < postingConfig.TextControl.MinPostLength {
+	// 源文本护栏是纯字节扫描，先于 VisibleTextLength 的 goldmark 解析执行：
+	// 注定超限的请求体（如 2 MiB 链接目标）零解析成本被拒。
+	maxLength := postingConfig.TextControl.MaxPostLength
+	if utf8.RuneCountInString(content) > postSourceLimit(maxLength) {
+		return component.FailResponseCode(
+			component.MessageCommentContentTooLong,
+
+			component.MessageParams{"maxLength": maxLength})
+
+	}
+
+	// 长度按渲染后可见文字统计（issue #890），与正文校验同一口径。
+	visibleLength := markdown2html.VisibleTextLength(content)
+	if visibleLength < postingConfig.TextControl.MinPostLength {
 		minLength := postingConfig.TextControl.MinPostLength
 		return component.FailResponseCode(
 			component.MessageCommentContentTooShort,
@@ -685,8 +751,7 @@ func UpdatePost(req component.BetterRequest[UpdatePostReq]) component.Response {
 
 	}
 
-	if contentLength > postingConfig.TextControl.MaxPostLength {
-		maxLength := postingConfig.TextControl.MaxPostLength
+	if visibleLength > maxLength {
 		return component.FailResponseCode(
 			component.MessageCommentContentTooLong,
 

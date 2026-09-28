@@ -174,7 +174,9 @@ const currentTypeEditTitle = computed(() => {
   }
 })
 
-const isValid = computed(() => Boolean(title.value.trim() && content.value.trim() && categoryIds.value.length > 0))
+// 瞬间（contentType=2）允许无标题；其余类型标题必填（issue #895）。
+const titleRequired = computed(() => contentType.value !== 2)
+const isValid = computed(() => Boolean((title.value.trim() || !titleRequired.value) && content.value.trim() && categoryIds.value.length > 0))
 const categoryMissing = computed(() => validationAttempted.value && categoryIds.value.length === 0)
 const validationError = computed(() => validationAttempted.value && !isValid.value ? t('publish.validation.requiredFields') : '')
 const draftSaveable = computed(() => isValid.value && !submitting.value && !uploading.value)
@@ -248,7 +250,7 @@ async function validateRequiredFields() {
   validationAttempted.value = true
   await nextTick()
 
-  if (!title.value.trim()) {
+  if (titleRequired.value && !title.value.trim()) {
     titleInput.value?.scrollIntoView({ behavior: 'smooth', block: 'center' })
     titleInput.value?.focus({ preventScroll: true })
   } else if (!categoryIds.value.length) {
@@ -652,13 +654,13 @@ async function persistDraft(nextUrl?: string, redirect = true): Promise<boolean>
                 {{ t('publish.checklist.title') }}
               </span>
               <span class="hidden h-3 w-px bg-line sm:inline-block" aria-hidden="true" />
-              <span class="inline-flex items-center gap-1">
+              <span v-if="titleRequired || titleFilled" class="inline-flex items-center gap-1">
                 <span>{{ t('publish.fields.title') }}</span>
                 <span :class="titleFilled ? 'font-medium text-success' : 'text-base-content/55'">
                   {{ titleFilled ? t('publish.checklist.done') : t('publish.checklist.pending') }}
                 </span>
               </span>
-              <span class="text-base-content/35" aria-hidden="true">·</span>
+              <span v-if="titleRequired || titleFilled" class="text-base-content/35" aria-hidden="true">·</span>
               <span class="inline-flex items-center gap-1">
                 <span>{{ t('publish.fields.category') }}</span>
                 <span :class="categoryIds.length ? 'font-medium text-success' : 'text-base-content/55'">

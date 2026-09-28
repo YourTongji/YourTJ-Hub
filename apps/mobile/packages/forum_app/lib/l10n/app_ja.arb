@@ -58,6 +58,7 @@
   "authForgotTitle": "パスワード再設定",
   "authContinueAfterLogin": "ログインして、先ほどのページに戻ります。",
   "authSignInMethods": "その他のログイン方法",
+  "authMoreSignInMethods": "ログイン方法をさらに表示",
   "authLoginSubtitle": "おかえりなさい。議論と投稿を続けましょう。",
   "authRegisterSubtitle": "アカウントを作成して、キャンパスの会話に参加しましょう。",
   "authForgotSubtitle": "メールアドレスを入力すると、再設定メールを送信します。",
@@ -67,6 +68,8 @@
   "authPassword": "パスワード",
   "authNewPassword": "新しいパスワード",
   "authConfirmPassword": "パスワード確認",
+  "authShowPassword": "パスワードを表示",
+  "authHidePassword": "パスワードを隠す",
   "authCaptcha": "認証コード",
   "authForgotPassword": "パスワードを忘れましたか？",
   "authCreateAccount": "アカウント作成",
@@ -76,6 +79,8 @@
   "authTwoFactorCode": "TOTPコード",
   "authVerify": "確認",
   "authGetCode": "コードを取得",
+  "authRefreshCaptcha": "認証コードを更新",
+  "authCaptchaRequired": "認証コードを入力してください",
   "authOidcLogin": "YourTJでログイン",
   "authRegisterSuccess": "登録しました。ログインしてください",
   "authResetEmailSent": "再設定メールを送信しました。受信箱をご確認ください",
@@ -156,6 +161,7 @@
   "messagesEmptyDescription": "コミュニティのメンバーと会話を始めましょう。",
   "messagesSearchConversations": "会話を検索",
   "messagesConversation": "プライベート会話",
+  "messagesViewProfile": "{name} さんのプロフィールを見る",
   "messagesStartChat": "チャットを開始",
   "messagesFirstMessageTo": "{user} さんに最初のメッセージを送ります。",
   "messagesNoMessagesYet": "まだメッセージはありません",
@@ -287,6 +293,10 @@
   "topicEmpty": "まだトピックはありません",
   "settingsAvatarUploaded": "アバターをアップロードしました：{url}",
   "settingsImageDecodeFailed": "画像を読み込めませんでした",
+  "dateToday": "今日",
+  "dateYesterday": "昨日",
+  "dateMonthDay": "{month}月{day}日",
+  "dateYearMonthDay": "{year}年{month}月{day}日",
   "dateMonthDayTime": "{month}月{day}日 {time}",
   "dateYearMonthDayTime": "{year}年{month}月{day}日 {time}",
   "topicFloorSelected": "{floor}階へ移動しました",
@@ -559,6 +569,9 @@
   "notificationSomeone": "誰か",
   "profileRoleAdmin": "管理者",
   "profileOnline": "オンライン",
+  "profileAccountClosedBadge": "退会済み",
+  "profileAccountClosedTitle": "退会済みアカウント",
+  "profileAccountClosedDescription": "このアカウントは退会済みです。過去の投稿は表示されますが、プロフィールは利用できません。",
   "profileJoinedAt": "{date} に参加",
   "profileLastActive": "最終アクティブ {time}",
   "profileActionSignup": "コミュニティに参加",
@@ -1000,6 +1013,10 @@
   "userBlocks": "ブロックしたユーザー",
   "userBlockExplanation": "ブロックすると、双方の新しいメッセージと交流通知が停止します。確認や報告のため、公開コンテンツと過去のメッセージは残ります。",
   "userBlocksEmpty": "ブロックしたユーザーはいません",
+  "messageCopied": "コピーしました",
+  "messageReply": "返信",
+  "messageReplyCancel": "返信をキャンセル",
+  "messageReplySelf": "自分",
   "messageReport": "メッセージを報告",
   "messageReportPrivacy": "送信すると、このメッセージと説明をサイト管理者が確認できます。会話全体は送信されません。",
   "contentReport": "コンテンツを報告",
@@ -1007,5 +1024,69 @@
   "reportAbuse": "嫌がらせ",
   "reportIllegal": "違法な内容",
   "reportIrrelevant": "無関係な内容",
-  "reportOther": "その他"
+  "reportOther": "その他",
+  "messageActions": "メッセージ操作",
+  "messageForwardIndividualLimit": "10 件を超える場合はまとめて転送します。",
+  "messageForward": "転送",
+  "messageSelect": "複数選択",
+  "messagesSelected": "{count} 件選択",
+  "@messagesSelected": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "messageForwardTitle": "メッセージを転送",
+  "messageForwardIndividual": "個別に転送",
+  "messageForwardMerged": "まとめて転送",
+  "messageForwardExplanation": "選択したメッセージを受信者にコピーします。まとめた履歴には元の送信者名と日時が含まれます。",
+  "messageForwardTargets": "{count} 人に転送",
+  "@messageForwardTargets": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "messageForwardConfirm": "転送の確認",
+  "messageForwardSuccess": "送信済み",
+  "messageForwardFailed": "未送信",
+  "messageForwardPending": "送信待ち",
+  "messageForwardSending": "送信中",
+  "messageForwardRetry": "未完了の転送を再試行",
+  "messageForwardResume": "転送を続ける",
+  "messageForwardLimit": "最大 {count} 件選択できます",
+  "@messageForwardLimit": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "messageForwardRecipientLimit": "最大 {count} 人選択できます",
+  "@messageForwardRecipientLimit": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "messageForwardHistory": "チャット履歴",
+  "messageForwardCount": "{count} 件のメッセージ",
+  "@messageForwardCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "messageForwardEmptyRecipients": "転送先の会話や連絡先がありません",
+  "messageForwardCancelRemaining": "残りの転送を破棄",
+  "messageForwardAbandonNotice": "送信済みのメッセージは残ります。未確認のメッセージも届いている可能性があり、新しい転送では重複する場合があります。",
+  "messageForwardSearch": "会話や連絡先を検索",
+  "messageForwardChooseTargets": "受信者を選択",
+  "settingsVisitorAnalytics": "アクセス統計に参加",
+  "settingsVisitorAnalyticsDescription": "初期設定はオフです。有効にすると公開画面の種類、App マーク、OS、スマートフォン／タブレットの種類を YourTJ の自己ホスト型統計サービスへ送信し、ステータスページの集計に使用します。サービスは接続元 IP も受信し、おおよその地域を推定します。アカウント、内容、検索語、端末識別子、キャンパス・メッセージ・設定画面は送信しません。いつでも無効にできます。",
+  "settingsVisitorAnalyticsSaveFailed": "統計設定を保存できませんでした。今回の無効化は有効です。次回起動時の設定を保存するには再試行してください。"
 }

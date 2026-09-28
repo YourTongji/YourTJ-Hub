@@ -14,6 +14,7 @@ import 'package:forum_app/src/pages/profile/profile_page.dart';
 import 'package:forum_app/src/private_notes.dart';
 import 'package:forum_app/src/providers.dart';
 import 'package:forum_app/src/router.dart';
+import 'package:forum_app/src/user_blocks.dart';
 import 'package:forum_app/src/widgets/status_views.dart';
 import 'package:forum_app/src/widgets/skeletons.dart';
 import 'package:forum_app/src/widgets/app_refresh_indicator.dart';
@@ -135,6 +136,36 @@ class _ContentActions extends _FollowActions {
   }
 }
 
+class _UserBlocks extends UserRepository {
+  _UserBlocks()
+    : super(
+        GfApiClient(
+          dio: Dio(),
+          tokenStorage: _Storage(),
+          baseUrl: 'http://fake.local',
+        ),
+      );
+  final blocked = <int>{};
+
+  @override
+  Future<UserBlocksPayload> getUserBlocks() async => UserBlocksPayload(
+    ownerId: 1,
+    blocks: [
+      for (final id in blocked)
+        BlockedUserPayload(targetUserId: id, username: 'alice'),
+    ],
+  );
+
+  @override
+  Future<void> setUserBlock(int targetUserId, bool value) async {
+    if (value) {
+      blocked.add(targetUserId);
+    } else {
+      blocked.remove(targetUserId);
+    }
+  }
+}
+
 void _contentFixture(String path, Map<String, dynamic> props) {
   final home = homePayloadJson()['props'] as Map<String, dynamic>;
   props['topics'] = [
@@ -179,6 +210,7 @@ Future<ProviderContainer> _pump(
   Widget home = const ProfilePage(userId: 1),
   GoRouter? router,
   TopicRepository? topics,
+  UserRepository? users,
   bool settle = true,
   double scale = 1,
   bool disableAnimations = false,
@@ -189,6 +221,7 @@ Future<ProviderContainer> _pump(
       currentUserProvider.overrideWith((ref) async => currentUser),
       pageRepositoryProvider.overrideWithValue(repo),
       if (topics != null) topicRepositoryProvider.overrideWithValue(topics),
+      if (users != null) userRepositoryProvider.overrideWithValue(users),
     ],
   );
   addTearDown(container.dispose);
@@ -238,6 +271,62 @@ void _select(WidgetTester tester, String label) {
 }
 
 void main() {
+  testWidgets('other profile actions use the overflow menu for blocking', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final repo = _Profiles()
+      ..configure = (_, props) {
+        props['isOwnProfile'] = false;
+        props['canMessage'] = true;
+        props['canFollow'] = true;
+        props['messageUrl'] = '/messages?userId=2&username=Bob&avatar=';
+        (props['user'] as Map<String, dynamic>)
+          ..['userId'] = 2
+          ..['isSelf'] = false;
+      };
+    final users = _UserBlocks();
+    await _pump(
+      tester,
+      repo,
+      home: Theme(
+        data: gfThemeData(Brightness.light),
+        child: const PrivateNotesScope(
+          ownerId: 1,
+          notes: {},
+          child: ProfilePage(userId: 2),
+        ),
+      ),
+      currentUser: const CurrentUser(id: 1, username: 'owner'),
+      users: users,
+    );
+
+    expect(find.byType(GfFollowButton), findsOneWidget);
+    expect(find.byTooltip('新私信'), findsOneWidget);
+    expect(find.byType(UserBlockButton), findsNothing);
+    final actions = [
+      tester.getRect(find.byType(PrivateNoteButton)),
+      tester.getRect(find.byType(GfFollowButton)),
+      tester.getRect(find.byTooltip('新私信')),
+    ];
+    final actionTops = actions.map((rect) => rect.top).toList()..sort();
+    expect(actionTops.last - actionTops.first, lessThan(8));
+    await tester.tap(find.byTooltip('更多功能'));
+    await tester.pumpAndSettle();
+    expect(find.text('屏蔽用户'), findsOneWidget);
+    await tester.tap(find.text('屏蔽用户'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, '屏蔽用户'));
+    await tester.pumpAndSettle();
+    expect(users.blocked, {2});
+
+    await tester.tap(find.byTooltip('更多功能'));
+    await tester.pumpAndSettle();
+    expect(find.text('取消屏蔽'), findsOneWidget);
+  });
+
   testWidgets(
     'initial profile skeleton matches the immersive header geometry',
     (tester) async {
@@ -1155,7 +1244,7 @@ void main() {
     _select(tester, '赞过');
     await tester.pump();
     final indicator = find.byKey(const ValueKey('profile-tab-indicator'));
-    final selected = find.byKey(const ValueKey('profile-tab-active-segment'));
+    final selected = find.byKey(const ValueKey('profile-tab-segment-2'));
     final rect = tester.getRect(indicator);
     expect(rect.center.dx, closeTo(tester.getRect(selected).center.dx, .1));
     await tester.pump(const Duration(milliseconds: 110));
@@ -1187,7 +1276,7 @@ void main() {
       }
 
       expectNoGaps();
-      final segment = find.byKey(const ValueKey('profile-tab-active-segment'));
+      var segment = find.byKey(const ValueKey('profile-tab-segment-0'));
       final underline = find.byKey(const ValueKey('profile-tab-indicator'));
       final start = tester.getRect(segment).center.dx;
       expect(tester.getRect(underline).width, greaterThan(40));
@@ -1196,12 +1285,89 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 110));
       expectNoGaps();
+      segment = find.byKey(const ValueKey('profile-tab-segment-2'));
       final halfway = tester.getRect(segment).center.dx;
       expect(halfway, greaterThan(start));
       await tester.pumpAndSettle();
       expect(tester.getRect(segment).center.dx, greaterThan(halfway));
     },
   );
+
+  testWidgets('profile tab taps animate icons and labels quickly', (
+    tester,
+  ) async {
+    await _pump(tester, _Profiles());
+    final from = find.byTooltip('动态');
+    final to = find.byTooltip('赞过');
+    final indicator = find.byKey(const ValueKey('profile-tab-indicator'));
+    final start = tester.getRect(indicator).center.dx;
+
+    await tester.tap(to);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 80));
+
+    final fromLabel = tester.widget<AnimatedOpacity>(
+      find.descendant(of: from, matching: find.byType(AnimatedOpacity)),
+    );
+    final toLabel = tester.widget<AnimatedOpacity>(
+      find.descendant(of: to, matching: find.byType(AnimatedOpacity)),
+    );
+    final toIcon = tester.widget<AnimatedScale>(
+      find.descendant(of: to, matching: find.byType(AnimatedScale)),
+    );
+    expect(fromLabel.opacity, greaterThan(0));
+    expect(fromLabel.opacity, lessThan(1));
+    expect(toLabel.opacity, greaterThan(0));
+    expect(toLabel.opacity, lessThan(1));
+    expect(toIcon.scale, greaterThan(.96));
+    expect(toIcon.scale, lessThan(1));
+    expect(tester.getRect(indicator).center.dx, greaterThan(start));
+    expect(
+      tester.getRect(indicator).center.dx,
+      lessThan(tester.getRect(to).center.dx),
+    );
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('profile icons and labels follow a held swipe', (tester) async {
+    await _pump(tester, _Profiles());
+    final Rect viewport = tester.getRect(find.byType(CustomScrollView));
+    final gesture = await tester.startGesture(
+      Offset(viewport.center.dx, viewport.bottom - 48),
+    );
+    await gesture.moveBy(
+      const Offset(-32, 0),
+      timeStamp: const Duration(milliseconds: 16),
+    );
+    await tester.pump(const Duration(milliseconds: 16));
+    await gesture.moveBy(
+      const Offset(-60, 0),
+      timeStamp: const Duration(milliseconds: 32),
+    );
+    await tester.pump(const Duration(milliseconds: 16));
+
+    final nextTab = find.byTooltip('内容');
+    final label = tester.widget<AnimatedOpacity>(
+      find.descendant(of: nextTab, matching: find.byType(AnimatedOpacity)),
+    );
+    final icon = tester.widget<AnimatedScale>(
+      find.descendant(of: nextTab, matching: find.byType(AnimatedScale)),
+    );
+    expect(label.opacity, greaterThan(0));
+    expect(label.opacity, lessThan(1));
+    expect(icon.scale, greaterThan(.9));
+    expect(icon.scale, lessThan(1));
+    expect(
+      tester
+          .getSize(
+            find.descendant(of: nextTab, matching: find.byType(ClipRect)),
+          )
+          .width,
+      greaterThan(0),
+    );
+    await gesture.up(timeStamp: const Duration(milliseconds: 48));
+    await tester.pumpAndSettle();
+  });
 
   testWidgets(
     'profile tabs support keyboard activation and selected semantics',
@@ -1643,6 +1809,8 @@ void main() {
       );
       expect(find.text('Bob'), findsOneWidget);
       expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(const Duration(milliseconds: 1));
     });
   }
   for (final nextUrl in [

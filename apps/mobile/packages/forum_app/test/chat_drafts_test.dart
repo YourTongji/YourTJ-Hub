@@ -396,6 +396,129 @@ void main() {
   );
 
   test(
+    'failed send rehydrate restores only when no newer draft exists',
+    () async {
+      final drafts = registry();
+      drafts.update(peer, input);
+      final revision = drafts.forPeer(2)!.revision;
+      // The composer still holds the submitted draft: restoring is a no-op.
+      expect(drafts.restoreFailed(peer, revision, input), isTrue);
+      expect(drafts.forPeer(2)!.value, input);
+
+      // Text written while the message was in flight wins over the late failure.
+      const newer = TextEditingValue(
+        text: '发送期间的新草稿',
+        selection: TextSelection.collapsed(offset: 3),
+      );
+      drafts.update(peer, newer);
+      expect(drafts.restoreFailed(peer, revision, input), isFalse);
+      expect(drafts.forPeer(2)!.value, newer);
+
+      // An emptied composer has nothing to protect, so the submitted draft
+      // returns instead of being lost with the failed request.
+      drafts.update(peer, const TextEditingValue(text: ''));
+      expect(drafts.restoreFailed(peer, revision, input), isTrue);
+      expect(drafts.forPeer(2)!.value, input);
+      await drafts.flush();
+      expect((await ChatDraftStore().read('site:1')).single.value, input);
+    },
+  );
+
+  test('a restored draft stays bound to the submitted revision', () async {
+    final drafts = registry();
+    drafts.update(peer, input);
+    final revision = drafts.forPeer(2)!.revision;
+    drafts.update(peer, const TextEditingValue(text: ''));
+    expect(drafts.restoreFailed(peer, revision, input), isTrue);
+    expect(
+      drafts.forPeer(2)!.revision,
+      revision,
+      reason: 'the draft must keep matching its pending outbox message',
+    );
+    drafts.acknowledge(2, revision, 42);
+    await drafts.flush();
+    expect(drafts.items, isEmpty);
+    expect(await ChatDraftStore().read('site:1'), isEmpty);
+  });
+
+  test('an acknowledged draft is not refilled by an older failure', () {
+    final drafts = registry();
+    drafts.update(peer, input);
+    final oldRevision = drafts.forPeer(2)!.revision;
+    drafts.update(
+      peer,
+      const TextEditingValue(
+        text: '新消息',
+        selection: TextSelection.collapsed(offset: 3),
+      ),
+    );
+    drafts.acknowledge(2, drafts.forPeer(2)!.revision, 42);
+    expect(drafts.forPeer(2)!.value.text, isEmpty);
+    expect(drafts.restoreFailed(peer, oldRevision, input), isFalse);
+    expect(drafts.forPeer(2)!.value.text, isEmpty);
+  });
+
+  test('an older failure never refills after a newer send was acknowledged', () {
+    final drafts = registry();
+    drafts.update(peer, input);
+    final oldRevision = drafts.forPeer(2)!.revision;
+    drafts.update(
+      peer,
+      const TextEditingValue(
+        text: '新消息',
+        selection: TextSelection.collapsed(offset: 3),
+      ),
+    );
+    drafts.acknowledge(2, drafts.forPeer(2)!.revision, 42);
+    expect(drafts.forPeer(2)!.value.text, isEmpty);
+    // Emptying the composer by hand must not make the cleared state look
+    // restorable: the newer send was already acknowledged.
+    drafts.update(peer, const TextEditingValue(text: ''));
+    expect(drafts.forPeer(2)!.value.text, isEmpty);
+    expect(drafts.restoreFailed(peer, oldRevision, input), isFalse);
+    expect(drafts.forPeer(2)!.value.text, isEmpty);
+  });
+
+  test('whitespace written while sending is user content', () {
+    final drafts = registry();
+    drafts.update(peer, input);
+    final revision = drafts.forPeer(2)!.revision;
+    drafts.update(peer, const TextEditingValue(text: ' '));
+    expect(drafts.restoreFailed(peer, revision, input), isFalse);
+    expect(drafts.forPeer(2)!.value.text, ' ');
+  });
+
+  test('an invalidated session never restores a failed draft', () {
+    var current = true;
+    final drafts = registry(current: () => current);
+    drafts.update(peer, input);
+    final revision = drafts.forPeer(2)!.revision;
+    current = false;
+    expect(drafts.restoreFailed(peer, revision, input), isFalse);
+  });
+
+  test('restoreFailed rejects a malformed request without touching drafts', () {
+    final drafts = registry();
+    drafts.update(peer, input);
+    final revision = drafts.forPeer(2)!.revision;
+    final unresolved = ChatItemPayload(
+      id: 0,
+      peerId: 0,
+      peerUsername: 'Bob',
+      peerAvatar: '',
+      convId: 0,
+      lastMsg: '',
+      lastMsgTime: '',
+      unreadCount: 0,
+      peerUrl: '/u/0',
+    );
+    expect(drafts.restoreFailed(unresolved, revision, input), isFalse);
+    expect(drafts.restoreFailed(peer, null, input), isFalse);
+    expect(drafts.restoreFailed(peer, revision, null), isFalse);
+    expect(drafts.forPeer(2)!.value, input);
+  });
+
+  test(
     'failed save and failed acknowledgement cleanup stay dirty and retry platform truth',
     () async {
       final platform = _FailingSecurePlatform();

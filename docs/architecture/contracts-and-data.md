@@ -515,7 +515,11 @@ account in the same transaction as marking the user closed. Private reads obtain
 usernames from the users domain and exclude closed targets. Public user models/caches do not carry
 viewer notes; Web and native renderers apply a private in-memory overlay without changing saved
 content or identity values. A noted display name uses the current nickname, falling back to the
-canonical username. The authenticated `/api/user-notes` and `/api/user-note` operations are
+canonical username. Actor-shaped payloads that feed user-name surfaces — notification actors,
+moderation reports/logs, conversation peers and the admin user/topic/category-moderator/review-queue
+lists — expose the current nickname as an optional field (absent without one), so renderers resolve
+`note(display name)` from batch-loaded users instead of a per-row lookup. The authenticated
+`/api/user-notes` and `/api/user-note` operations are
 covered by OpenAPI, generated TS, Dart mirrors and route/fixture tests.
 
 ## Native post mentions
@@ -575,3 +579,19 @@ stored content. Deleted/blocked replies, retained deletion tombstones, and hidde
 parent topics (including hidden first posts) are not hydrated;
 stored event snapshots and read-state semantics are unchanged. OpenAPI examples and the shared
 notification fixture cover the enriched response without introducing fields.
+
+### 私信转发快照
+
+`Current`: `/api/forum/chat/forward` 在一次收件人事务内核验源会话成员、全部消息归属与互动权限，
+复用普通消息写入、未读计数和提交后的实时失效提示。`individual` 复制正文，`merged` 将版本 1
+的有界快照写入现有 `messages.content`，`msgType=4`；不新增数据库列。普通 send 的类型仍为 1/2/3。
+读取返回可读 `content` 及可选 `forwarded`，旧客户端可显示文字，新 Web/Flutter 客户端可显示卡片。
+快照条目的可选 `avatarUrl` 保存转发时的公开头像 URL；旧快照省略该字段，客户端显示圆形占位。
+OpenAPI、TypeScript 和 Dart 镜像同步维护，路由覆盖包含此操作。
+
+`Current`: 操作标识绑定操作者、规范排序的源消息 ID、收件人和方式。每位收件人独立提交/重试，
+避免跨收件人的部分成功被伪装成整批失败。个别消息插入失败会回滚该收件人的整批记录、会话与计数。
+请求体最多 8 KiB；快照保留嵌套卡片，条目以可选 `forwarded` 保存子快照，`msgType=4` 必须有子快照。
+整个树最多 4 层、50 个条目（含卡片）、编码后 64 KiB，解析与写入均校验；文字回退与审核递归包含子记录。
+逐条转发直接复制原卡片，不额外增加层数；64 KiB 限制适用于单个合并快照，不限制逐条转发批次的正文总量。副本的隐私、生命周期和客户端队列边界见
+[决策 0044](../decisions/0044-nested-private-message-history.md)。

@@ -124,3 +124,12 @@ A decision starts `Proposed`. Once implemented, its status becomes `Accepted` an
 - [0040](0040-user-blocks-and-private-message-reports.md) — 账号私有屏蔽关系与仅管理员可见的单条私信举报证据。
 
 - [0041](0041-native-apple-login-and-revocation.md) — iOS 原生 Apple 登录、显式账号绑定和用于解绑/注销的加密撤销凭据。
+
+- [0042](0042-optional-moment-titles.md) — 瞬间允许空标题，服务端存空字符串，各端按无标题内容展示。
+
+- [0043](0043-private-message-forward-snapshots.md) — 私信逐条与合并转发采用有界服务端快照，按收件人原子提交与幂等重试。
+- [0044](0044-nested-private-message-history.md) — 再次合并转发保留可逐层打开的记录卡片，整个快照树有界。
+- [0045](0045-mobile-ci-by-input.md) — 移动 CI 按输入拆分行为测试、原生编译与发布工具检查。
+- [0046](0046-status-device-aggregates.md) — 后台读取联合设备统计，仅公开设备、系统和浏览器类别及人数。
+
+- [0047](0047-mobile-visual-acceptance.md) — 移除移动端截图基线，保留行为与布局断言和模拟器/设备视觉验收。

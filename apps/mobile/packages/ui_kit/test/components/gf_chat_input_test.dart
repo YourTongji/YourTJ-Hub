@@ -6,6 +6,26 @@ import 'package:ui_kit/ui_kit.dart';
 import '../helpers.dart';
 
 void main() {
+  testWidgets(
+    'external reply focus closes accessories and stays caller owned',
+    (tester) async {
+      final focus = FocusNode();
+      await tester.pumpWidget(
+        gfApp(GfChatInput(focusNode: focus, onSend: (_) {})),
+      );
+      await tester.tap(find.byTooltip('Emoji'));
+      await tester.pumpAndSettle();
+      expect(find.text('😀'), findsOneWidget);
+      focus.requestFocus();
+      await tester.pumpAndSettle();
+      expect(find.text('😀'), findsNothing);
+      expect(focus.hasFocus, isTrue);
+      await tester.pumpWidget(const SizedBox());
+      focus.addListener(() {});
+      focus.dispose();
+    },
+  );
+
   testWidgets('sticker search keyboard keeps draft and send control visible', (
     tester,
   ) async {
@@ -227,6 +247,86 @@ void main() {
       expect(find.text('😀'), findsNothing);
     },
   );
+
+  testWidgets('sticker panel keeps the composer multiline', (tester) async {
+    final controller = TextEditingController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(
+      gfApp(
+        GfChatInput(
+          controller: controller,
+          onSend: (_) {},
+          accessoryBuilder: (insert) => TextButton(
+            key: const Key('insert-sticker'),
+            onPressed: () => insert('[:sticker:smile:]'),
+            child: const Text('Smile'),
+          ),
+        ),
+      ),
+    );
+    TextField field() => tester.widget<TextField>(find.byType(TextField));
+    expect(field().minLines, 1);
+    expect(field().maxLines, 4);
+
+    await tester.tap(find.byTooltip('Emoji'));
+    await tester.pumpAndSettle();
+    expect(
+      field().maxLines,
+      4,
+      reason: 'the accessory owns focus and height, never input semantics',
+    );
+    await tester.tap(find.byKey(const Key('insert-sticker')));
+    await tester.pumpAndSettle();
+    expect(controller.text, '[:sticker:smile:]');
+
+    // Returning to the keyboard accepts a newline right after the sticker.
+    await tester.tap(find.byTooltip('Keyboard'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byType(TextField),
+      '${controller.text}\nsecond line',
+    );
+    await tester.pumpAndSettle();
+    expect(controller.text, '[:sticker:smile:]\nsecond line');
+    expect(field().maxLines, 4);
+  });
+
+  testWidgets('deleting a sticker does not leave a single-line composer', (
+    tester,
+  ) async {
+    final controller = TextEditingController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(
+      gfApp(
+        GfChatInput(
+          controller: controller,
+          onSend: (_) {},
+          accessoryBuilder: (insert) => TextButton(
+            key: const Key('insert-sticker'),
+            onPressed: () => insert('[:sticker:smile:]'),
+            child: const Text('Smile'),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.byTooltip('Emoji'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('insert-sticker')));
+    await tester.pumpAndSettle();
+    expect(controller.text, '[:sticker:smile:]');
+
+    // Deleting the sticker must not require leaving the panel to restore
+    // multiline input.
+    controller.clear();
+    await tester.pumpAndSettle();
+    expect(tester.widget<TextField>(find.byType(TextField)).maxLines, 4);
+
+    await tester.tap(find.byTooltip('Keyboard'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'first\nsecond');
+    await tester.pumpAndSettle();
+    expect(controller.text, 'first\nsecond');
+  });
 
   testWidgets('disabled composer cannot change text with emoji', (
     tester,

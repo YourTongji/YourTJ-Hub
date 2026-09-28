@@ -67,11 +67,14 @@ void main() {
           locale: const Locale('zh'),
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
-          home: RepaintBoundary(
-            key: boundary,
-            child: Scaffold(
-              drawer: const Drawer(child: Text('drawer')),
-              body: RootSurface(
+          home: AccountDrawerLayer(
+            key: accountDrawerLayerKey,
+            onChanged: (open) {
+              if (open) container.read(readingChromeProvider).show();
+            },
+            child: RepaintBoundary(
+              key: boundary,
+              child: RootSurface(
                 title: 'YourTJ',
                 showLogo: true,
                 onAction: () {},
@@ -130,7 +133,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('我的'));
     await tester.pumpAndSettle();
-    expect(find.text('drawer'), findsOneWidget);
+    expect(find.byType(Drawer), findsOneWidget);
   });
   testWidgets('scheduler tip exposes the full public web destination', (
     tester,

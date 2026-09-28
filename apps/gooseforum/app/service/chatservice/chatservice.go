@@ -43,6 +43,11 @@ func SendMessage(senderId, peerId uint64, content string, msgType int8, clientKe
 var clientMessageKey = regexp.MustCompile(`^[A-Za-z0-9_-]{1,64}$`)
 
 func sendMessage(conn *gorm.DB, senderId, peerId uint64, content string, msgType int8, clientKeys ...string) (uint64, error) {
+	return sendMessageWithEffects(conn, senderId, peerId, content, msgType, true, clientKeys...)
+}
+
+// Forward batches defer invalidation until their outer transaction commits.
+func sendMessageWithEffects(conn *gorm.DB, senderId, peerId uint64, content string, msgType int8, publish bool, clientKeys ...string) (uint64, error) {
 	var key *string
 	if len(clientKeys) > 0 && clientKeys[0] != "" {
 		if !clientMessageKey.MatchString(clientKeys[0]) {
@@ -142,7 +147,7 @@ func sendMessage(conn *gorm.DB, senderId, peerId uint64, content string, msgType
 				return err
 			}
 			if err := tx.Model(&imConversations.Entity{}).Where("id = ?", convId).
-				Updates(map[string]any{"last_msg_content": imConversations.MessagePreview(content), "last_msg_time": now}).Error; err != nil {
+				Updates(map[string]any{"last_msg_content": imConversations.MessagePreview(messages.DisplayContent(content, msgType)), "last_msg_time": now}).Error; err != nil {
 				return err
 			}
 			if err := tx.Model(&imUserChatConfigs.Entity{}).Where("id = ?", senderConfig.Id).
@@ -153,7 +158,7 @@ func sendMessage(conn *gorm.DB, senderId, peerId uint64, content string, msgType
 				Updates(map[string]any{"unread_count": gorm.Expr("unread_count + 1"), "updated_at": now, "is_deleted": 0}).Error
 		})
 		if err == nil {
-			if replayed {
+			if replayed || !publish {
 				return convId, nil
 			}
 			imUserChatConfigs.InvalidateConversationAccess(senderId, convId)
@@ -202,6 +207,7 @@ func GetChatList(userId uint64) ([]*vo.ChatItemVo, error) {
 
 		if peer != nil {
 			chatItem.PeerUsername = peer.Username
+			chatItem.PeerNickname = peer.Nickname
 			chatItem.PeerAvatar = peer.GetWebAvatarUrl()
 		} else {
 			chatItem.PeerUsername = "Unknown User"
@@ -256,7 +262,8 @@ func GetMessages(userId, convId uint64, beforeId, afterId uint64, limit int) (*M
 		return &vo.MessageVo{
 			Id:        m.Id,
 			SenderId:  m.SenderId,
-			Content:   m.Content,
+			Content:   messages.DisplayContent(m.Content, m.MsgType),
+			Forwarded: forwardedPayload(m),
 			MsgType:   m.MsgType,
 			IsRead:    m.IsRead,
 			CreatedAt: m.CreatedAt.Format(time.RFC3339),

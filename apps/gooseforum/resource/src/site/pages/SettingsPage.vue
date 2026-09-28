@@ -2492,8 +2492,9 @@ async function toggleBinding(provider: string) {
                     @change="toggleMyContent(item)"
                   />
                   <span class="min-w-0">
-                    <span class="block truncate text-sm font-semibold text-base-content">{{ item.title }}</span>
-                    <span v-if="item.excerpt" class="mt-0.5 block truncate text-[13px] leading-5 text-base-content/55">{{ item.excerpt }}</span>
+                    <!-- 无标题瞬间（标题为空）用摘要作主文案，避免空标题行；摘要不重复展示 -->
+                    <span class="block truncate text-sm font-semibold text-base-content">{{ item.title || item.excerpt || t('settings.deleted.untitled') }}</span>
+                    <span v-if="item.title && item.excerpt" class="mt-0.5 block truncate text-[13px] leading-5 text-base-content/55">{{ item.excerpt }}</span>
                     <span class="mt-0.5 block text-xs text-base-content/45">{{ formatDate(item.createdAt) }}</span>
                   </span>
                 </label>

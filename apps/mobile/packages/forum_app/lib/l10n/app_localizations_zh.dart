@@ -178,6 +178,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get authSignInMethods => '其他登录方式';
 
   @override
+  String get authMoreSignInMethods => '更多登录方式';
+
+  @override
   String get authLoginSubtitle => '欢迎回来，继续你的讨论和创作。';
 
   @override
@@ -205,6 +208,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get authConfirmPassword => '确认密码';
 
   @override
+  String get authShowPassword => '显示密码';
+
+  @override
+  String get authHidePassword => '隐藏密码';
+
+  @override
   String get authCaptcha => '验证码';
 
   @override
@@ -230,6 +239,12 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get authGetCode => '获取验证码';
+
+  @override
+  String get authRefreshCaptcha => '刷新验证码';
+
+  @override
+  String get authCaptchaRequired => '请输入验证码';
 
   @override
   String get authOidcLogin => '使用 yourtj 统一登录';
@@ -484,6 +499,11 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get messagesConversation => '私信对话';
+
+  @override
+  String messagesViewProfile(String name) {
+    return '查看 $name 的主页';
+  }
 
   @override
   String get messagesStartChat => '开始聊天';
@@ -914,6 +934,22 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get settingsImageDecodeFailed => '图片解码失败';
+
+  @override
+  String get dateToday => '今天';
+
+  @override
+  String get dateYesterday => '昨天';
+
+  @override
+  String dateMonthDay(int month, int day) {
+    return '$month月$day日';
+  }
+
+  @override
+  String dateYearMonthDay(int year, int month, int day) {
+    return '$year年$month月$day日';
+  }
 
   @override
   String dateMonthDayTime(int month, int day, String time) {
@@ -1703,6 +1739,15 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get profileOnline => '在线';
+
+  @override
+  String get profileAccountClosedBadge => '已注销';
+
+  @override
+  String get profileAccountClosedTitle => '已注销用户';
+
+  @override
+  String get profileAccountClosedDescription => '该账号已注销，历史内容保留展示，主页不再开放。';
 
   @override
   String profileJoinedAt(String date) {
@@ -2755,6 +2800,18 @@ class AppLocalizationsZh extends AppLocalizations {
   String get userBlocksEmpty => '尚未屏蔽任何用户';
 
   @override
+  String get messageCopied => '已复制';
+
+  @override
+  String get messageReply => '回复';
+
+  @override
+  String get messageReplyCancel => '取消回复';
+
+  @override
+  String get messageReplySelf => '我';
+
+  @override
   String get messageReport => '举报私信';
 
   @override
@@ -2777,4 +2834,104 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get reportOther => '其他';
+
+  @override
+  String get messageActions => '消息操作';
+
+  @override
+  String get messageForwardIndividualLimit => '超过 10 条消息时使用合并转发。';
+
+  @override
+  String get messageForward => '转发';
+
+  @override
+  String get messageSelect => '多选';
+
+  @override
+  String messagesSelected(int count) {
+    return '已选 $count 条';
+  }
+
+  @override
+  String get messageForwardTitle => '转发消息';
+
+  @override
+  String get messageForwardIndividual => '逐条转发';
+
+  @override
+  String get messageForwardMerged => '合并转发';
+
+  @override
+  String get messageForwardExplanation => '所选消息会复制给接收者；合并转发会附上原发送者名称和时间。';
+
+  @override
+  String messageForwardTargets(int count) {
+    return '转发给 $count 人';
+  }
+
+  @override
+  String get messageForwardConfirm => '确认转发';
+
+  @override
+  String get messageForwardSuccess => '已发送';
+
+  @override
+  String get messageForwardFailed => '未发送';
+
+  @override
+  String get messageForwardPending => '待发送';
+
+  @override
+  String get messageForwardSending => '正在发送';
+
+  @override
+  String get messageForwardRetry => '重试未完成的转发';
+
+  @override
+  String get messageForwardResume => '继续转发';
+
+  @override
+  String messageForwardLimit(int count) {
+    return '最多选择 $count 条消息';
+  }
+
+  @override
+  String messageForwardRecipientLimit(int count) {
+    return '最多选择 $count 位接收者';
+  }
+
+  @override
+  String get messageForwardHistory => '聊天记录';
+
+  @override
+  String messageForwardCount(int count) {
+    return '共 $count 条消息';
+  }
+
+  @override
+  String get messageForwardEmptyRecipients => '暂无可转发的会话或联系人';
+
+  @override
+  String get messageForwardCancelRemaining => '放弃剩余转发';
+
+  @override
+  String get messageForwardAbandonNotice =>
+      '已发送的消息会保留。未确认送达的消息可能已被接收；再次新建转发可能产生重复。';
+
+  @override
+  String get messageForwardSearch => '搜索会话或联系人';
+
+  @override
+  String get messageForwardChooseTargets => '选择接收者';
+
+  @override
+  String get settingsVisitorAnalytics => '参与访问统计';
+
+  @override
+  String get settingsVisitorAnalyticsDescription =>
+      '默认关闭。开启后向 YourTJ 自托管统计服务发送公开页面类别、App 标记、系统和手机／平板类型，用于状态页访客统计；服务也会接收到网络 IP 并推算大致地区。不发送账号、内容、搜索词或设备标识，不记录校园、私信及设置页面。可随时关闭。';
+
+  @override
+  String get settingsVisitorAnalyticsSaveFailed =>
+      '未能保存统计设置。本次关闭仍有效，请稍后重试以保存下次启动的选择。';
 }

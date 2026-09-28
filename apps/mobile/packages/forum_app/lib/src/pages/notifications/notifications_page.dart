@@ -157,6 +157,12 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
     error: true,
   );
 
+  void _selectFilter(String filter) {
+    if (filter == _filter) return;
+    setState(() => _filter = filter);
+    _load();
+  }
+
   Future<void> _loadMore() async {
     final l10n = AppLocalizations.of(context);
     final resp = _list.valueOrNull;
@@ -328,6 +334,10 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
     });
 
     return RootSurface(
+      swipeTabIndex: _filter == 'all' ? 0 : 1,
+      swipeTabCount: 2,
+      onSwipeTabChanged: (index) =>
+          _selectFilter(index == 0 ? 'all' : 'unread'),
       title: l10n.notificationsTitle,
       showComposeAction: false,
       actions: <Widget>[
@@ -362,11 +372,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
             GfTab(label: l10n.notificationsUnread, value: 'unread'),
           ],
           selected: _filter,
-          onSelected: (Object value) {
-            if (value == _filter) return;
-            setState(() => _filter = value as String);
-            _load();
-          },
+          onSelected: (Object value) => _selectFilter(value as String),
         ),
       ),
       body: (top, bottom) => Column(
@@ -413,8 +419,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                                           : l10n.navHome,
                                       onPressed: () {
                                         if (_filter == 'unread') {
-                                          setState(() => _filter = 'all');
-                                          _load();
+                                          _selectFilter('all');
                                         } else {
                                           context.go('/');
                                         }

@@ -3,6 +3,12 @@ writeTopic:
     tags: [Forum]
     summary: Create or update a topic and its first post
     operationId: writeTopic
+    description: |
+      Creates a topic and its first post, or updates an existing topic when `topicId`
+      is set. Length rules use rendered visible text (see `WriteTopicRequest.content`).
+      Request bodies over 2 MiB are rejected with HTTP 400 `common.request.parseFailed`
+      before binding; JSON binding is otherwise lenient, so a malformed body within the
+      limit binds to zero values and fails as `common.request.invalidParams` (HTTP 200).
     security:
       - bearerAuth: []
       - accessTokenCookie: []

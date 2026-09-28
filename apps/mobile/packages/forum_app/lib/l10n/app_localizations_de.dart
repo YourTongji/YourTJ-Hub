@@ -185,6 +185,9 @@ class AppLocalizationsDe extends AppLocalizations {
   String get authSignInMethods => 'Weitere Anmeldeoptionen';
 
   @override
+  String get authMoreSignInMethods => 'Mehr Anmeldeoptionen';
+
+  @override
   String get authLoginSubtitle =>
       'Willkommen zurück. Setze deine Diskussionen und Beiträge fort.';
 
@@ -215,6 +218,12 @@ class AppLocalizationsDe extends AppLocalizations {
   String get authConfirmPassword => 'Passwort bestätigen';
 
   @override
+  String get authShowPassword => 'Passwort anzeigen';
+
+  @override
+  String get authHidePassword => 'Passwort verbergen';
+
+  @override
   String get authCaptcha => 'Captcha';
 
   @override
@@ -240,6 +249,12 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get authGetCode => 'Code anfordern';
+
+  @override
+  String get authRefreshCaptcha => 'Captcha erneuern';
+
+  @override
+  String get authCaptchaRequired => 'Bitte Captcha eingeben';
 
   @override
   String get authOidcLogin => 'Mit YourTJ anmelden';
@@ -501,6 +516,11 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get messagesConversation => 'Private Unterhaltung';
+
+  @override
+  String messagesViewProfile(String name) {
+    return 'Profil von $name ansehen';
+  }
 
   @override
   String get messagesStartChat => 'Chat starten';
@@ -937,6 +957,22 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get settingsImageDecodeFailed => 'Bild konnte nicht gelesen werden';
+
+  @override
+  String get dateToday => 'Heute';
+
+  @override
+  String get dateYesterday => 'Gestern';
+
+  @override
+  String dateMonthDay(int month, int day) {
+    return '$day.$month.';
+  }
+
+  @override
+  String dateYearMonthDay(int year, int month, int day) {
+    return '$day.$month.$year';
+  }
 
   @override
   String dateMonthDayTime(int month, int day, String time) {
@@ -1760,6 +1796,16 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get profileOnline => 'Online';
+
+  @override
+  String get profileAccountClosedBadge => 'Deaktiviert';
+
+  @override
+  String get profileAccountClosedTitle => 'Konto deaktiviert';
+
+  @override
+  String get profileAccountClosedDescription =>
+      'Dieses Konto wurde deaktiviert. Historische Inhalte bleiben sichtbar, aber das Profil ist nicht mehr zugänglich.';
 
   @override
   String profileJoinedAt(String date) {
@@ -2905,6 +2951,18 @@ class AppLocalizationsDe extends AppLocalizations {
   String get userBlocksEmpty => 'Keine blockierten Nutzer';
 
   @override
+  String get messageCopied => 'Kopiert';
+
+  @override
+  String get messageReply => 'Antworten';
+
+  @override
+  String get messageReplyCancel => 'Antwort abbrechen';
+
+  @override
+  String get messageReplySelf => 'Ich';
+
+  @override
   String get messageReport => 'Nachricht melden';
 
   @override
@@ -2928,4 +2986,108 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get reportOther => 'Sonstiges';
+
+  @override
+  String get messageActions => 'Nachrichtenaktionen';
+
+  @override
+  String get messageForwardIndividualLimit =>
+      'Mehr als 10 Nachrichten werden als Verlauf weitergeleitet.';
+
+  @override
+  String get messageForward => 'Weiterleiten';
+
+  @override
+  String get messageSelect => 'Nachrichten auswählen';
+
+  @override
+  String messagesSelected(int count) {
+    return '$count ausgewählt';
+  }
+
+  @override
+  String get messageForwardTitle => 'Nachrichten weiterleiten';
+
+  @override
+  String get messageForwardIndividual => 'Einzeln';
+
+  @override
+  String get messageForwardMerged => 'Als Chatverlauf';
+
+  @override
+  String get messageForwardExplanation =>
+      'Ausgewählte Nachrichten werden kopiert. Zusammengefasste Verläufe enthalten ursprüngliche Absendernamen und Zeiten.';
+
+  @override
+  String messageForwardTargets(int count) {
+    return 'An $count Personen weiterleiten';
+  }
+
+  @override
+  String get messageForwardConfirm => 'Weiterleitung bestätigen';
+
+  @override
+  String get messageForwardSuccess => 'Gesendet';
+
+  @override
+  String get messageForwardFailed => 'Nicht gesendet';
+
+  @override
+  String get messageForwardPending => 'Ausstehend';
+
+  @override
+  String get messageForwardSending => 'Wird gesendet';
+
+  @override
+  String get messageForwardRetry => 'Offene Weiterleitungen wiederholen';
+
+  @override
+  String get messageForwardResume => 'Weiterleitung fortsetzen';
+
+  @override
+  String messageForwardLimit(int count) {
+    return 'Bis zu $count Nachrichten auswählen';
+  }
+
+  @override
+  String messageForwardRecipientLimit(int count) {
+    return 'Bis zu $count Empfänger auswählen';
+  }
+
+  @override
+  String get messageForwardHistory => 'Chatverlauf';
+
+  @override
+  String messageForwardCount(int count) {
+    return '$count Nachrichten';
+  }
+
+  @override
+  String get messageForwardEmptyRecipients =>
+      'Keine Gespräche oder Kontakte verfügbar';
+
+  @override
+  String get messageForwardCancelRemaining =>
+      'Übrige Weiterleitungen verwerfen';
+
+  @override
+  String get messageForwardAbandonNotice =>
+      'Gesendete Nachrichten bleiben bestehen. Unbestätigte Nachrichten können bereits zugestellt sein; eine neue Weiterleitung kann Duplikate erzeugen.';
+
+  @override
+  String get messageForwardSearch => 'Gespräche oder Kontakte suchen';
+
+  @override
+  String get messageForwardChooseTargets => 'Empfänger auswählen';
+
+  @override
+  String get settingsVisitorAnalytics => 'Besuchsstatistik teilen';
+
+  @override
+  String get settingsVisitorAnalyticsDescription =>
+      'Standardmäßig aus. Sendet öffentliche Seitenkategorien, App-Kennung, Betriebssystem und Gerätetyp (Telefon/Tablet) an YourTJs eigenen Statistikdienst für die Statusseite. Der Dienst empfängt auch Ihre Netzwerk-IP und ermittelt eine ungefähre Region. Keine Konten, Inhalte, Suchbegriffe, Gerätekennungen, Campus-, Nachrichten- oder Einstellungsseiten werden gesendet. Jederzeit abschaltbar.';
+
+  @override
+  String get settingsVisitorAnalyticsSaveFailed =>
+      'Die Statistikeinstellung konnte nicht gespeichert werden. Das Abschalten gilt weiterhin für diese Sitzung. Erneut versuchen, um die Auswahl für den nächsten Start zu speichern.';
 }

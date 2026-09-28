@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:core/core.dart';
 import 'package:dio/dio.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:forum_app/src/messages/chat_outbox.dart';
@@ -71,6 +72,27 @@ void main() {
       outbox.dispose();
     },
   );
+  test('enqueue binds the submitted composer snapshot to the bubble', () async {
+    final repo = _Chat();
+    final outbox = ChatOutbox(repo, 2);
+    const value = TextEditingValue(
+      text: '第一行\n[:sticker:smile:]',
+      selection: TextSelection.collapsed(offset: 4),
+    );
+    final pending = outbox.enqueue(
+      value.text,
+      10,
+      draftRevision: 3,
+      draftValue: value,
+    );
+    final attempt = outbox.send(pending);
+    repo.attempts.single.completeError(Exception('offline'));
+    expect(await attempt, isNull);
+    expect(pending.draftRevision, 3);
+    expect(pending.draftValue, value);
+    outbox.dispose();
+  });
+
   test(
     'one server message cannot acknowledge two identical pending bubbles',
     () async {

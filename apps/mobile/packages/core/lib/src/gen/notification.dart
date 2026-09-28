@@ -29,6 +29,7 @@ abstract class NotificationActorPayload with _$NotificationActorPayload {
   const factory NotificationActorPayload({
     required int id,
     required String username,
+    String? nickname,
     String? avatarUrl,
   }) = _NotificationActorPayload;
 

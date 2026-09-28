@@ -1,6 +1,7 @@
 package routes
 
 import (
+	"encoding/json"
 	"net/http"
 	"testing"
 
@@ -109,6 +110,35 @@ func TestAdminTopicsListHTTPContract(t *testing.T) {
 		prepareContractModerationTopic(t, conn)
 		// 按作者过滤，屏蔽同进程共享库中其他测试造的话题，保证分页响应确定性。
 		serveAdminTopicsOK(t, conn, router, path, `{"userId":1024}`, "admin-topics-list-success.json")
+	})
+
+	t.Run("hydrates author nickname for note display", func(t *testing.T) {
+		conn, router := setupAdminTopicsContractTest(t)
+		prepareContractModerationTopic(t, conn)
+		author, err := users.Get(contractModerationAuthorID)
+		if err != nil {
+			t.Fatalf("load contract moderation author: %v", err)
+		}
+		if err := conn.Model(&author).Update("nickname", "作者昵称").Error; err != nil {
+			t.Fatalf("set contract moderation author nickname: %v", err)
+		}
+		manager := createContractTopicsManager(t, conn)
+		recorder := serveJSON(router, path, `{"userId":1024}`, contractSessionToken(t, manager))
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("status = %d, want 200: %s", recorder.Code, recorder.Body.String())
+		}
+		var result struct {
+			List []struct {
+				UserId   uint64 `json:"userId"`
+				Nickname string `json:"nickname"`
+			} `json:"list"`
+		}
+		if err := json.Unmarshal(decodeContractEnvelope(t, recorder).Result, &result); err != nil {
+			t.Fatalf("decode admin topics list: %v", err)
+		}
+		if len(result.List) == 0 || result.List[0].Nickname != "作者昵称" {
+			t.Fatalf("admin topics list = %#v, want hydrated author nickname", result.List)
+		}
 	})
 
 	adminTopicsGuardScenarios(t, path, "admin-topics-list")

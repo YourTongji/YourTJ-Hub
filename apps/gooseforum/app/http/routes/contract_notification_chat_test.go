@@ -55,6 +55,7 @@ func setupNotificationChatContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 
 	chatAPI := forumAPI.Group("/chat", middleware.JWTAuthCheck)
 	chatAPI.POST("/send", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitMessageSend), UpButterReq(api.SendMessage))
+	chatAPI.POST("/forward", middleware.CheckWritableAccount, middleware.RateLimitChatForward(), UpLimitedJsonReq(8192, api.ForwardMessages))
 	chatAPI.POST("/messages", UpButterReq(api.GetMessages))
 	chatAPI.POST("/mark-read", middleware.CheckWritableAccountAllowPendingActivation, UpButterReq(api.MarkChatRead))
 	chatAPI.POST("/mark-visible", middleware.CheckWritableAccountAllowPendingActivation, UpButterReq(api.MarkChatVisibleRead))
@@ -164,6 +165,37 @@ func TestNotificationListHTTPContract(t *testing.T) {
 			t.Fatalf("notifications status = %d: %s", recorder.Code, recorder.Body.String())
 		}
 		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "notifications-like-preview-success.json"))
+	})
+
+	t.Run("hydrates current actor nickname for note display", func(t *testing.T) {
+		conn, router := setupNotificationChatContractTest(t)
+		user := createHTTPContractUser(t, conn, contractTestID())
+		actor := users.EntityComplete{Id: 978611, Username: "nickname_actor", Nickname: "昵称演员"}
+		if err := conn.Create(&actor).Error; err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { conn.Unscoped().Delete(&actor) })
+		createContractNotification(t, conn, 978612, user.Id, eventNotification.EventTypePostReply, false,
+			eventNotification.NotificationPayload{ActorId: actor.Id, ActorName: actor.Username},
+			time.Date(2026, 8, 15, 10, 20, 30, 0, time.UTC))
+		recorder := serveAuthSecurityJSON(router, http.MethodGet, "/api/forum/notifications", "", contractSessionToken(t, user))
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("notifications status = %d: %s", recorder.Code, recorder.Body.String())
+		}
+		var result struct {
+			Items []struct {
+				Actor struct {
+					Username string `json:"username"`
+					Nickname string `json:"nickname"`
+				} `json:"actor"`
+			} `json:"items"`
+		}
+		if err := json.Unmarshal(decodeContractEnvelope(t, recorder).Result, &result); err != nil {
+			t.Fatalf("decode notifications: %v", err)
+		}
+		if len(result.Items) != 1 || result.Items[0].Actor.Nickname != "昵称演员" {
+			t.Fatalf("notification actor = %#v, want hydrated nickname", result.Items)
+		}
 	})
 
 	t.Run("success", func(t *testing.T) {
@@ -380,6 +412,32 @@ func TestChatMessagesHTTPContract(t *testing.T) {
 			time.Date(2026, 8, 15, 9, 0, 0, 0, time.UTC))
 		createContractMessage(t, conn, 9002, 7701, viewer.Id, "可以，稍后传你", 0,
 			time.Date(2026, 8, 15, 9, 1, 12, 0, time.UTC))
+		bundle := &messages.ForwardedBundle{Version: 1, Messages: []messages.ForwardedEntry{{
+			SenderName: "Alice", AvatarURL: "/static/pic/3.webp", Content: "hello",
+			CreatedAt: "2026-08-15T08:00:00Z", MsgType: 1,
+		}}}
+		encoded, err := bundle.Encode()
+		if err != nil {
+			t.Fatal(err)
+		}
+		createContractMessage(t, conn, 9003, 7701, viewer.Id, encoded, 0,
+			time.Date(2026, 8, 15, 9, 2, 0, 0, time.UTC))
+		if err := conn.Model(&messages.Entity{}).Where("id = ?", 9003).Update("msg_type", messages.ForwardType).Error; err != nil {
+			t.Fatal(err)
+		}
+		nested := &messages.ForwardedBundle{Version: 1, Messages: []messages.ForwardedEntry{{
+			SenderName: "Forwarder", AvatarURL: "/static/pic/6.webp", Content: bundle.Text(),
+			CreatedAt: "2026-08-15T09:02:00Z", MsgType: messages.ForwardType, Forwarded: bundle,
+		}}}
+		nestedEncoded, err := nested.Encode()
+		if err != nil {
+			t.Fatal(err)
+		}
+		createContractMessage(t, conn, 9004, 7701, viewer.Id, nestedEncoded, 0,
+			time.Date(2026, 8, 15, 9, 2, 0, 0, time.UTC))
+		if err := conn.Model(&messages.Entity{}).Where("id = ?", 9004).Update("msg_type", messages.ForwardType).Error; err != nil {
+			t.Fatal(err)
+		}
 		recorder := serveJSON(router, "/api/forum/chat/messages", `{"convId":7701}`, contractSessionToken(t, viewer))
 		if recorder.Code != http.StatusOK {
 			t.Fatalf("chat messages status = %d, want 200: %s", recorder.Code, recorder.Body.String())

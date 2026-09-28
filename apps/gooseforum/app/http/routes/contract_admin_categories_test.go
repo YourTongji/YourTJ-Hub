@@ -1,6 +1,7 @@
 package routes
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -182,6 +183,38 @@ func TestAdminCategoryListHTTPContract(t *testing.T) {
 		seedContractCategory(t, conn, contractCategorySecondID, "生活广场", "校园生活分享", "life", "#f59e0b", "life", 2)
 		seedContractModerator(t, conn, contractCategoryModeratorID, contractModeratorUserID, moderators.ScopeCategory, contractCategoryID)
 		serveAdminCategoriesOK(t, conn, router, path, `{}`, "admin-category-list-success.json")
+	})
+
+	t.Run("hydrates moderator nickname for note display", func(t *testing.T) {
+		conn, router := setupAdminCategoriesContractTest(t)
+		createContractModeratorCandidate(t, conn, contractModeratorUserID, "mod_user", false)
+		if err := conn.Model(&users.EntityComplete{}).Where("id = ?", contractModeratorUserID).
+			Update("nickname", "版主昵称").Error; err != nil {
+			t.Fatalf("set contract moderator nickname: %v", err)
+		}
+		seedContractCategory(t, conn, contractCategoryID, "学习交流", "课程与学习讨论", "book", "#3b82f6", "study", 1)
+		seedContractModerator(t, conn, contractCategoryModeratorID, contractModeratorUserID, moderators.ScopeCategory, contractCategoryID)
+		recorder := serveAdminCategoriesRaw(t, conn, router, path, `{}`)
+		var result []struct {
+			Id         uint64 `json:"id"`
+			Moderators []struct {
+				UserId   uint64 `json:"userId"`
+				Nickname string `json:"nickname"`
+			} `json:"moderators"`
+		}
+		if err := json.Unmarshal(decodeContractEnvelope(t, recorder).Result, &result); err != nil {
+			t.Fatalf("decode category list: %v", err)
+		}
+		for _, item := range result {
+			if item.Id != contractCategoryID || len(item.Moderators) == 0 {
+				continue
+			}
+			if item.Moderators[0].Nickname != "版主昵称" {
+				t.Fatalf("category moderators = %#v, want hydrated nickname", item.Moderators)
+			}
+			return
+		}
+		t.Fatalf("category %d with moderator not found in %#v", contractCategoryID, result)
 	})
 
 	adminCategoriesGuardScenarios(t, path, "admin-category-list")

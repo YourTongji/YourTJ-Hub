@@ -2,8 +2,10 @@
 import { computed, nextTick, onActivated, onBeforeUnmount, onDeactivated, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Bell, ChevronDown, ChevronUp, LayoutGrid, List, Mail, RefreshCw, UsersRound } from '@lucide/vue'
+import { useRouter } from 'vue-router'
 import { fetchPage } from '@/runtime/router'
 import { useHomeFeedMode } from '@/runtime/home-feed-mode'
+import { homeFeedNavigation } from '@/runtime/home-feed-navigation'
 import { countNewTopics, firstPageUrl, prependTopics } from '@/site/utils/home-feed-refresh'
 import EmptyState from '@/site/components/EmptyState.vue'
 import TopicListFooter from '@/site/components/TopicListFooter.vue'
@@ -15,7 +17,9 @@ const page = defineProps<{
   props: HomeProps
   pageUrl: string
 }>()
+const router = useRouter()
 const { t, locale } = useI18n()
+const { pendingUrl: pendingHomeFeedUrl, failedUrl: failedHomeFeedUrl } = homeFeedNavigation
 const announcementReadStorageKey = 'goose:announcement:last-read-published-at'
 const announcementReminderWindow = 7 * 24 * 60 * 60 * 1000
 const announcementCollapseStorageKey = 'goose:announcement:collapsed'
@@ -41,7 +45,7 @@ const pullStartY = ref(0)
 const pullRefreshEnabled = ref(false)
 const announcementUnread = ref(shouldRemindAnnouncement())
 const announcementCollapsed = ref(readAnnouncementCollapsed())
-const collapsedAnnouncementTitle = computed(() => announcementItems.value[0]?.title || '')
+const collapsedAnnouncementTitle = computed(() => announcementItems.value[0]?.title?.trim() || '')
 const pullThreshold = 72
 const pullMaxDistance = 108
 const refreshPollMs = 45_000
@@ -49,9 +53,25 @@ let observer: IntersectionObserver | undefined
 let refreshPollTimer: number | undefined
 let refreshPollingActive = false
 let refreshViewportQuery: MediaQueryList | undefined
+let feedRevision = 0
 
 const hasTopics = computed(() => topics.value.length > 0)
+const pendingFeedSort = computed(() => {
+  const url = pendingHomeFeedUrl.value || failedHomeFeedUrl.value
+  return url ? new URL(url, window.location.origin).searchParams.get('sort') || 'latest' : ''
+})
+// 切换中按目标排序高亮，否则回落到服务端给的 tab.active。
+// 集中算一次，:class 与 :aria-current 共用同一结果，避免两处表达式漂移。
+const sortTabs = computed(() =>
+  page.props.tabs.map((tab) => ({
+    ...tab,
+    isActive: pendingFeedSort.value ? tab.key === pendingFeedSort.value : Boolean(tab.active),
+  })),
+)
 const showPinnedLabels = computed(() => page.props.sort === '' || page.props.sort === 'latest')
+// 话题流切换挂起或失败期间，feedRevision 不会递增；
+// 在途的刷新/加载更多/新帖探测结果必须一并视为失效，不得写进当前列表。
+const feedSwitchInProgress = computed(() => Boolean(pendingHomeFeedUrl.value || failedHomeFeedUrl.value))
 const pullLabel = computed(() => {
   if (refreshing.value) return t('topicList.refreshing')
   return pullDistance.value >= pullThreshold ? t('topicList.releaseToRefresh') : t('topicList.pullToRefresh')
@@ -160,10 +180,16 @@ function selectAnnouncement(index: number) {
 watch(
   () => page.pageUrl,
   () => {
+    feedRevision++
     topics.value = [...page.props.topics]
     pagination.value = page.props.pagination
     announcement.value = page.props.announcement
     requiresEmailVerification.value = page.layout.viewer.requiresEmailVerification
+    loadingMore.value = false
+    refreshing.value = false
+    checkingForNew.value = false
+    pullDistance.value = 0
+    pullActive.value = false
     newTopicCount.value = mockNewTopicCount
     loadError.value = ''
     refreshStatusMessage.value = ''
@@ -199,25 +225,29 @@ function currentFirstPageUrl() {
 async function checkForNewTopics() {
   // 仅供本地设计预览：固定待刷新数量，避免 45 秒探测覆盖 mock 状态。
   if (mockNewTopicCount > 0) return
-  if (checkingForNew.value || refreshing.value || loadingMore.value || document.hidden) return
+  if (pendingHomeFeedUrl.value || failedHomeFeedUrl.value || checkingForNew.value || refreshing.value || loadingMore.value || document.hidden) return
+  const revision = feedRevision
   checkingForNew.value = true
   try {
     const payload = (await fetchPage(currentFirstPageUrl())) as PagePayload<HomeProps>
+    if (revision !== feedRevision || feedSwitchInProgress.value) return
     newTopicCount.value = countNewTopics(topics.value, payload.props.topics)
   } catch {
     // 后台探测失败不打断用户；显式刷新时才显示可恢复错误。
   } finally {
-    checkingForNew.value = false
+    if (revision === feedRevision) checkingForNew.value = false
   }
 }
 
 async function refreshFirstPage(mode: 'prepend' | 'replace') {
-  if (refreshing.value || loadingMore.value) return
+  if (pendingHomeFeedUrl.value || failedHomeFeedUrl.value || refreshing.value || loadingMore.value) return
+  const revision = feedRevision
   refreshing.value = true
   loadError.value = ''
   refreshStatusMessage.value = t('topicList.refreshing')
   try {
     const payload = (await fetchPage(currentFirstPageUrl())) as PagePayload<HomeProps>
+    if (revision !== feedRevision || feedSwitchInProgress.value) return
     // Following refreshes replace retained rows so unfollowed authors disappear.
     topics.value = mode === 'prepend' && page.props.sort !== 'following'
       ? prependTopics(topics.value, payload.props.topics)
@@ -231,12 +261,16 @@ async function refreshFirstPage(mode: 'prepend' | 'replace') {
     refreshStatusMessage.value = t('topicList.refreshComplete')
     void nextTick(observeSentinel)
   } catch (error) {
-    loadError.value = error instanceof Error ? error.message : t('common.loadFailed')
-    refreshStatusMessage.value = t('topicList.refreshFailed')
+    if (revision === feedRevision && !feedSwitchInProgress.value) {
+      loadError.value = error instanceof Error ? error.message : t('common.loadFailed')
+      refreshStatusMessage.value = t('topicList.refreshFailed')
+    }
   } finally {
-    refreshing.value = false
-    pullDistance.value = 0
-    pullActive.value = false
+    if (revision === feedRevision) {
+      refreshing.value = false
+      pullDistance.value = 0
+      pullActive.value = false
+    }
   }
 }
 
@@ -302,18 +336,20 @@ function stopRefreshPollTimer() {
 }
 
 async function loadMore() {
-  if (loadingMore.value || refreshing.value || !pagination.value.hasNext || !pagination.value.nextUrl) return
+  if (pendingHomeFeedUrl.value || failedHomeFeedUrl.value || loadingMore.value || refreshing.value || !pagination.value.hasNext || !pagination.value.nextUrl) return
 
+  const revision = feedRevision
   loadingMore.value = true
   loadError.value = ''
   try {
     const payload = (await fetchPage(new URL(pagination.value.nextUrl, window.location.origin))) as PagePayload<HomeProps>
+    if (revision !== feedRevision || feedSwitchInProgress.value) return
     topics.value = mergeTopics(topics.value, payload.props.topics)
     pagination.value = payload.props.pagination
   } catch (error) {
-    loadError.value = error instanceof Error ? error.message : t('common.loadFailed')
+    if (revision === feedRevision && !feedSwitchInProgress.value) loadError.value = error instanceof Error ? error.message : t('common.loadFailed')
   } finally {
-    loadingMore.value = false
+    if (revision === feedRevision) loadingMore.value = false
   }
 }
 
@@ -328,6 +364,11 @@ function sortTabLabel(key: string, fallback?: string) {
   if (key === 'hot') return t('topicList.tabs.hot')
   if (key === 'popular') return t('topicList.tabs.popular')
   return fallback || key
+}
+
+function retryFeedNavigation() {
+  const target = failedHomeFeedUrl.value
+  if (target) void router.push(target)
 }
 
 // 铃铛为提醒开关：摇铃（未读提醒）↔ 静止（已读静音），
@@ -551,7 +592,7 @@ onBeforeUnmount(() => {
               </button>
               <button
                 type="button"
-                class="flex min-w-0 flex-1 items-center gap-2 rounded-lg px-1 py-1 text-left text-[13px] leading-5 outline-none transition-colors hover:bg-primary/10 focus-visible:ring-2 focus-visible:ring-primary/50 sm:py-1.5"
+                class="group/announcement-expand flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-lg px-1 py-1 text-left text-[13px] leading-5 outline-none focus-visible:ring-2 focus-visible:ring-primary/50 sm:py-1.5"
                 data-testid="announcement-expand-button"
                 :aria-expanded="false"
                 :aria-controls="announcementPanelId"
@@ -561,8 +602,10 @@ onBeforeUnmount(() => {
               >
                 <span v-if="announcementUnread" aria-hidden="true" data-testid="announcement-unread-dot" class="h-2 w-2 shrink-0 rounded-full bg-primary" />
                 <span class="shrink-0 font-semibold text-primary">{{ t('topicList.announcement') }}</span>
-                <span v-if="collapsedAnnouncementTitle" class="truncate text-base-content/70">{{ collapsedAnnouncementTitle }}</span>
-                <ChevronDown class="ml-auto h-4 w-4 shrink-0 text-base-content/45" aria-hidden="true" />
+                <span class="truncate text-base-content/70">{{ collapsedAnnouncementTitle || t('topicList.expandAnnouncement') }}</span>
+                <span class="ml-auto inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-base-content/45 transition-colors group-hover/announcement-expand:bg-primary/10 group-hover/announcement-expand:text-primary group-focus-visible/announcement-expand:bg-primary/10 group-focus-visible/announcement-expand:text-primary" aria-hidden="true">
+                  <ChevronDown class="h-4 w-4" />
+                </span>
               </button>
             </div>
             <div v-else class="flex items-start gap-2 sm:gap-2.5">
@@ -640,11 +683,12 @@ onBeforeUnmount(() => {
         >
           <div class="gf-home-topic-tabs">
             <a
-              v-for="tab in page.props.tabs"
+              v-for="tab in sortTabs"
               :key="tab.key"
               :href="tab.url"
               class="gf-tab"
-              :class="tab.active ? 'gf-tab-active' : 'gf-tab-idle'"
+              :class="tab.isActive ? 'gf-tab-active' : 'gf-tab-idle'"
+              :aria-current="tab.isActive ? 'page' : undefined"
             >
               {{ sortTabLabel(tab.key, tab.label) }}
             </a>
@@ -656,7 +700,7 @@ onBeforeUnmount(() => {
               :class="newTopicCount > 0
                 ? 'border-primary/25 bg-primary/10 text-primary'
                 : 'border-line bg-base-100 text-base-content/55 hover:bg-base-200 hover:text-base-content'"
-              :disabled="refreshing || loadingMore"
+              :disabled="refreshing || loadingMore || Boolean(pendingHomeFeedUrl) || Boolean(failedHomeFeedUrl)"
               :title="newTopicCount > 0 ? t('topicList.newTopics', { count: newTopicCount }) : t('topicList.refreshTopics')"
               :aria-label="newTopicCount > 0 ? t('topicList.newTopics', { count: newTopicCount }) : t('topicList.refreshTopics')"
               @click="refreshFirstPage('prepend')"
@@ -710,22 +754,34 @@ onBeforeUnmount(() => {
           </div>
         </div>
 
-        <TopicList :topics="topics" :viewer-id="page.layout.viewer.id" home :show-pinned="showPinnedLabels" :feed-mode="feedMode">
-          <template #empty>
-            <EmptyState v-if="!hasTopics" :icon="UsersRound" :title="t('topicList.emptyTitle')" :description="t('topicList.emptyDescription')" />
-          </template>
-        </TopicList>
-
-        <div ref="loadMoreSentinel">
-          <TopicListFooter
-            :pagination="pagination"
-            :loading-more="loadingMore"
-            :has-topics="hasTopics"
-            :load-error="loadError"
-            :bare="feedMode === 'card'"
-            @load-more="loadMore"
-          />
+        <div v-if="pendingHomeFeedUrl" class="flex min-h-48 items-center justify-center gap-2 text-sm text-base-content/55" role="status" aria-live="polite">
+          <RefreshCw class="h-4 w-4 animate-spin" aria-hidden="true" />
+          {{ t('common.loadingShort') }}
         </div>
+        <div v-else-if="failedHomeFeedUrl" class="flex min-h-48 flex-col items-center justify-center gap-3 text-sm text-base-content/65" role="alert">
+          <span>{{ t('common.loadFailed') }}</span>
+          <button type="button" class="rounded-full border border-line px-3 py-1.5 font-semibold hover:bg-base-200" @click="retryFeedNavigation">
+            {{ t('common.retry') }}
+          </button>
+        </div>
+        <template v-else>
+          <TopicList :topics="topics" :viewer-id="page.layout.viewer.id" home :show-pinned="showPinnedLabels" :feed-mode="feedMode">
+            <template #empty>
+              <EmptyState v-if="!hasTopics" :icon="UsersRound" :title="t('topicList.emptyTitle')" :description="t('topicList.emptyDescription')" />
+            </template>
+          </TopicList>
+
+          <div ref="loadMoreSentinel">
+            <TopicListFooter
+              :pagination="pagination"
+              :loading-more="loadingMore"
+              :has-topics="hasTopics"
+              :load-error="loadError"
+              :bare="feedMode === 'card'"
+              @load-more="loadMore"
+            />
+          </div>
+        </template>
       </section>
     </div>
 </template>

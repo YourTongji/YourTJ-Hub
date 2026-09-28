@@ -53,6 +53,7 @@ _$ModerationLogActorImpl _$$ModerationLogActorImplFromJson(
 ) => _$ModerationLogActorImpl(
   id: (json['id'] as num).toInt(),
   username: json['username'] as String,
+  nickname: json['nickname'] as String?,
   avatarUrl: json['avatarUrl'] as String,
 );
 
@@ -61,6 +62,7 @@ Map<String, dynamic> _$$ModerationLogActorImplToJson(
 ) => <String, dynamic>{
   'id': instance.id,
   'username': instance.username,
+  'nickname': instance.nickname,
   'avatarUrl': instance.avatarUrl,
 };
 

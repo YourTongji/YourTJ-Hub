@@ -409,6 +409,7 @@ NotificationActorPayload _$NotificationActorPayloadFromJson(
 mixin _$NotificationActorPayload {
   int get id => throw _privateConstructorUsedError;
   String get username => throw _privateConstructorUsedError;
+  String? get nickname => throw _privateConstructorUsedError;
   String? get avatarUrl => throw _privateConstructorUsedError;
 
   /// Serializes this NotificationActorPayload to a JSON map.
@@ -428,7 +429,7 @@ abstract class $NotificationActorPayloadCopyWith<$Res> {
     $Res Function(NotificationActorPayload) then,
   ) = _$NotificationActorPayloadCopyWithImpl<$Res, NotificationActorPayload>;
   @useResult
-  $Res call({int id, String username, String? avatarUrl});
+  $Res call({int id, String username, String? nickname, String? avatarUrl});
 }
 
 /// @nodoc
@@ -451,6 +452,7 @@ class _$NotificationActorPayloadCopyWithImpl<
   $Res call({
     Object? id = null,
     Object? username = null,
+    Object? nickname = freezed,
     Object? avatarUrl = freezed,
   }) {
     return _then(
@@ -463,6 +465,10 @@ class _$NotificationActorPayloadCopyWithImpl<
                 ? _value.username
                 : username // ignore: cast_nullable_to_non_nullable
                       as String,
+            nickname: freezed == nickname
+                ? _value.nickname
+                : nickname // ignore: cast_nullable_to_non_nullable
+                      as String?,
             avatarUrl: freezed == avatarUrl
                 ? _value.avatarUrl
                 : avatarUrl // ignore: cast_nullable_to_non_nullable
@@ -482,7 +488,7 @@ abstract class _$$NotificationActorPayloadImplCopyWith<$Res>
   ) = __$$NotificationActorPayloadImplCopyWithImpl<$Res>;
   @override
   @useResult
-  $Res call({int id, String username, String? avatarUrl});
+  $Res call({int id, String username, String? nickname, String? avatarUrl});
 }
 
 /// @nodoc
@@ -505,6 +511,7 @@ class __$$NotificationActorPayloadImplCopyWithImpl<$Res>
   $Res call({
     Object? id = null,
     Object? username = null,
+    Object? nickname = freezed,
     Object? avatarUrl = freezed,
   }) {
     return _then(
@@ -517,6 +524,10 @@ class __$$NotificationActorPayloadImplCopyWithImpl<$Res>
             ? _value.username
             : username // ignore: cast_nullable_to_non_nullable
                   as String,
+        nickname: freezed == nickname
+            ? _value.nickname
+            : nickname // ignore: cast_nullable_to_non_nullable
+                  as String?,
         avatarUrl: freezed == avatarUrl
             ? _value.avatarUrl
             : avatarUrl // ignore: cast_nullable_to_non_nullable
@@ -532,6 +543,7 @@ class _$NotificationActorPayloadImpl implements _NotificationActorPayload {
   const _$NotificationActorPayloadImpl({
     required this.id,
     required this.username,
+    this.nickname,
     this.avatarUrl,
   });
 
@@ -543,11 +555,13 @@ class _$NotificationActorPayloadImpl implements _NotificationActorPayload {
   @override
   final String username;
   @override
+  final String? nickname;
+  @override
   final String? avatarUrl;
 
   @override
   String toString() {
-    return 'NotificationActorPayload(id: $id, username: $username, avatarUrl: $avatarUrl)';
+    return 'NotificationActorPayload(id: $id, username: $username, nickname: $nickname, avatarUrl: $avatarUrl)';
   }
 
   @override
@@ -558,13 +572,16 @@ class _$NotificationActorPayloadImpl implements _NotificationActorPayload {
             (identical(other.id, id) || other.id == id) &&
             (identical(other.username, username) ||
                 other.username == username) &&
+            (identical(other.nickname, nickname) ||
+                other.nickname == nickname) &&
             (identical(other.avatarUrl, avatarUrl) ||
                 other.avatarUrl == avatarUrl));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
   @override
-  int get hashCode => Object.hash(runtimeType, id, username, avatarUrl);
+  int get hashCode =>
+      Object.hash(runtimeType, id, username, nickname, avatarUrl);
 
   /// Create a copy of NotificationActorPayload
   /// with the given fields replaced by the non-null parameter values.
@@ -587,6 +604,7 @@ abstract class _NotificationActorPayload implements NotificationActorPayload {
   const factory _NotificationActorPayload({
     required final int id,
     required final String username,
+    final String? nickname,
     final String? avatarUrl,
   }) = _$NotificationActorPayloadImpl;
 
@@ -597,6 +615,8 @@ abstract class _NotificationActorPayload implements NotificationActorPayload {
   int get id;
   @override
   String get username;
+  @override
+  String? get nickname;
   @override
   String? get avatarUrl;
 

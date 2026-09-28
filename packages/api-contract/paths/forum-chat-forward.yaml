@@ -1,0 +1,66 @@
+forwardChatMessages:
+  post:
+    tags: [Forum]
+    summary: Forward selected private messages to one recipient atomically
+    operationId: forwardChatMessages
+    description: |
+      Requires uncached membership of convId and ownership of every selected ID by
+      that conversation. IDs are sorted chronologically; duplicates, missing IDs,
+      unknown types, self-targets and blocked interactions fail without any delivery.
+      Individual mode copies up to 10 original messages; merged mode stores one type-4
+      immutable snapshot. Nested snapshots remain independently readable history
+      cards, bounded to 4 bundle levels, 50 total entries (including cards) and
+      64 KiB per snapshot. Current sensitive-word checks include all nested text.
+      Recipients cannot use snapshots to access source conversation IDs/history.
+      Get-messages supplies a readable content fallback and an optional forwarded
+      object for type 4, so older clients can still read the copy.
+      The same actor, clientForwardId, recipient, source conversation, sorted IDs and
+      mode identify a retry; it returns the original stored IDs without new unread
+      increments, even after a display-name change. Different recipients are separate
+      transactions; clients explicitly select and acknowledge each recipient.
+      Individual mode consumes one message.send attempt per selected message;
+      merged mode consumes one. The request body is limited to 8192 bytes.
+      Business failures use HTTP 200 chat.send.failed; field validation uses HTTP 200
+      common.request.invalidParams. Malformed JSON/body limits
+      use the strict request wrapper. No private source details appear in errors.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: { $ref: ../components/chat-forward.yaml#/ForwardChatMessagesRequest }
+    responses:
+      '200':
+        description: Atomic recipient delivery, replay, or generic business failure.
+        content:
+          application/json:
+            schema: { $ref: ../components/chat-forward.yaml#/ForwardChatMessagesResponse }
+            examples:
+              success: { externalValue: ../fixtures/chat-forward-success.json }
+              failed: { externalValue: ../fixtures/chat-forward-failed.json }
+      '400':
+        description: Invalid JSON or oversized body.
+        content:
+          application/json:
+            schema: { $ref: ../components/schemas.yaml#/ApiFailure }
+      '401':
+        description: Authentication required.
+        content:
+          application/json:
+            schema: { $ref: ../components/schemas.yaml#/ApiFailure }
+      '403':
+        description: Account cannot write or cookie request fails CSRF validation.
+        content:
+          application/json:
+            schema: { $ref: ../components/schemas.yaml#/ApiFailure }
+      '429':
+        description: Shared message.send quota exceeded.
+        headers:
+          Retry-After:
+            required: true
+            schema: { type: integer, minimum: 1 }
+        content:
+          application/json:
+            schema: { $ref: ../components/schemas.yaml#/RateLimitedFailure }

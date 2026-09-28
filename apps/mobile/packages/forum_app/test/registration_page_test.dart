@@ -287,6 +287,11 @@ void main() {
       'Tongji sign-in appears in register=$register when configured',
       (tester) async {
         await pump(tester, register: register, tongji: true);
+        // Secondary providers stay folded until the control is opened.
+        expect(find.text('Continue with Tongji SSO'), findsNothing);
+        await tester.ensureVisible(find.byKey(const Key('login-more-methods')));
+        await tester.tap(find.byKey(const Key('login-more-methods')));
+        await tester.pumpAndSettle();
         final button = find.widgetWithText(
           OutlinedButton,
           'Continue with Tongji SSO',
@@ -302,7 +307,11 @@ void main() {
     tester,
   ) async {
     await pump(tester, register: false);
+    await tester.ensureVisible(find.byKey(const Key('login-more-methods')));
+    await tester.tap(find.byKey(const Key('login-more-methods')));
+    await tester.pumpAndSettle();
     expect(find.text('Continue with Tongji SSO'), findsNothing);
+    expect(find.text('Continue with GitHub'), findsOneWidget);
   });
 
   testWidgets('login captcha starts folded before password interaction', (
@@ -750,6 +759,9 @@ void main() {
     (tester) async {
       final h = await pump(tester, register: false, oldSession: true);
       expect(h.options.headers, [null]);
+      await tester.ensureVisible(find.byKey(const Key('login-more-methods')));
+      await tester.tap(find.byKey(const Key('login-more-methods')));
+      await tester.pumpAndSettle();
       final github = tester.widget<OutlinedButton>(
         find.widgetWithText(OutlinedButton, 'Continue with GitHub'),
       );
