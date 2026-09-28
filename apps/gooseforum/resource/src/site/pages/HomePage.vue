@@ -61,6 +61,9 @@ const pendingFeedSort = computed(() => {
   return url ? new URL(url, window.location.origin).searchParams.get('sort') || 'latest' : ''
 })
 const showPinnedLabels = computed(() => page.props.sort === '' || page.props.sort === 'latest')
+// 话题流切换挂起或失败期间，feedRevision 不会递增；
+// 在途的刷新/加载更多/新帖探测结果必须一并视为失效，不得写进当前列表。
+const feedSwitchInProgress = computed(() => Boolean(pendingHomeFeedUrl.value || failedHomeFeedUrl.value))
 const pullLabel = computed(() => {
   if (refreshing.value) return t('topicList.refreshing')
   return pullDistance.value >= pullThreshold ? t('topicList.releaseToRefresh') : t('topicList.pullToRefresh')
@@ -219,7 +222,7 @@ async function checkForNewTopics() {
   checkingForNew.value = true
   try {
     const payload = (await fetchPage(currentFirstPageUrl())) as PagePayload<HomeProps>
-    if (revision !== feedRevision) return
+    if (revision !== feedRevision || feedSwitchInProgress.value) return
     newTopicCount.value = countNewTopics(topics.value, payload.props.topics)
   } catch {
     // 后台探测失败不打断用户；显式刷新时才显示可恢复错误。
@@ -236,7 +239,7 @@ async function refreshFirstPage(mode: 'prepend' | 'replace') {
   refreshStatusMessage.value = t('topicList.refreshing')
   try {
     const payload = (await fetchPage(currentFirstPageUrl())) as PagePayload<HomeProps>
-    if (revision !== feedRevision) return
+    if (revision !== feedRevision || feedSwitchInProgress.value) return
     // Following refreshes replace retained rows so unfollowed authors disappear.
     topics.value = mode === 'prepend' && page.props.sort !== 'following'
       ? prependTopics(topics.value, payload.props.topics)
@@ -250,7 +253,7 @@ async function refreshFirstPage(mode: 'prepend' | 'replace') {
     refreshStatusMessage.value = t('topicList.refreshComplete')
     void nextTick(observeSentinel)
   } catch (error) {
-    if (revision === feedRevision) {
+    if (revision === feedRevision && !feedSwitchInProgress.value) {
       loadError.value = error instanceof Error ? error.message : t('common.loadFailed')
       refreshStatusMessage.value = t('topicList.refreshFailed')
     }
@@ -332,11 +335,11 @@ async function loadMore() {
   loadError.value = ''
   try {
     const payload = (await fetchPage(new URL(pagination.value.nextUrl, window.location.origin))) as PagePayload<HomeProps>
-    if (revision !== feedRevision) return
+    if (revision !== feedRevision || feedSwitchInProgress.value) return
     topics.value = mergeTopics(topics.value, payload.props.topics)
     pagination.value = payload.props.pagination
   } catch (error) {
-    if (revision === feedRevision) loadError.value = error instanceof Error ? error.message : t('common.loadFailed')
+    if (revision === feedRevision && !feedSwitchInProgress.value) loadError.value = error instanceof Error ? error.message : t('common.loadFailed')
   } finally {
     if (revision === feedRevision) loadingMore.value = false
   }
