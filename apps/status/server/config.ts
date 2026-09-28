@@ -5,7 +5,7 @@ export type Config = { enabled: boolean; uptime: { url: string; id: string }; ko
 export function loadConfig(env: Record<string, string | undefined> = process.env): Config {
   return { enabled: env.STATUS_ENABLED === 'true', uptime: { url: env.UPTIME_URL ?? '', id: env.UPTIME_SLUG ?? '' }, komari: { url: env.KOMARI_URL ?? '', id: env.KOMARI_NODE_ID ?? '' }, umami: { url: env.UMAMI_URL ?? '', id: env.UMAMI_SHARE_ID ?? '', username: env.UMAMI_USERNAME, password: env.UMAMI_PASSWORD } }
 }
-export function devicesConfigured(config: Config) { return configured(config, 'umami') && !!(config.umami.username || config.umami.password) }
+export function devicesConfigured(config: Config) { return configured(config, 'umami') && !!(config.umami.username && config.umami.password) }
 export function configured(config: Config, provider: Provider) { return config.enabled && !!(config[provider].url || config[provider].id) }
 export function origin(config: Config, provider: Provider): string {
   const { url, id } = config[provider]

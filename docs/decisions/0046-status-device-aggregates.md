@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed
+Accepted
 Class: architecture
 
 ## Context and Problem Statement
@@ -48,6 +48,8 @@ joint reports need more time than basic counters. Other providers retain their e
   should use a dedicated read-only account instead of an administrator account.
 
 ## Links
+
+- [Approved risk contract STATUS-ANALYTICS-926-927](https://github.com/YourTongji/YourTJ-Hub/pull/926#issuecomment-5874262017)
 
 - [Status product semantics](../product/server-status.md)
 - [Functions configuration](../operations/status-netlify.md)

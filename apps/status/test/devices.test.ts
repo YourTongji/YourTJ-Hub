@@ -1,6 +1,6 @@
 import { expect, it, vi } from 'vitest'
 import { fetchDevices } from '../server/devices'
-import { cacheKey, loadConfig } from '../server/config'
+import { cacheKey, devicesConfigured, loadConfig } from '../server/config'
 import { collect } from '../server/collect'
 import { serveSnapshot, type SnapshotStore, type Stored } from '../server/snapshots'
 import { deviceGraph } from '../src/runtime/device-sankey'
@@ -109,4 +109,22 @@ it('recognizes only the explicit native client marker and retains small App flow
   expect(data.rows.find(row => row.browser === 'webview')?.visitors).toBe(99)
   const graph = deviceGraph(data, 800, ['device', 'os', 'browser'])
   expect(graph.nodes.find(node => node.id === 'browser:yourtj-app')?.value).toBe(1)
+})
+
+it.each([
+  { username: undefined, password: 'secret' },
+  { username: 'readonly', password: undefined },
+  { username: '', password: 'secret' },
+  { username: 'readonly', password: '' },
+])('leaves incomplete device credentials unconfigured: %j', async credentials => {
+  const incomplete = { ...config, umami: { ...config.umami, ...credentials } }
+  expect(devicesConfigured(incomplete)).toBe(false)
+  const keys: string[] = []
+  const store: SnapshotStore = { read: async () => null, write: async key => { keys.push(key); return true } }
+  const fetcher = vi.fn<typeof fetch>(async () => { throw new Error('offline') })
+  await collect('history', store, incomplete, fetcher, () => now)
+  expect(fetcher.mock.calls.some(([url]) => String(url).includes('/api/auth/'))).toBe(false)
+  expect(keys.some(key => key.includes('devices-'))).toBe(false)
+  const response = await serveSnapshot(new Request('https://status.example.com/api/status'), store, incomplete, now)
+  expect((await response.json()).result.devices).toEqual({ state: 'unconfigured', data: null })
 })

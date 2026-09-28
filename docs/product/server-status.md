@@ -79,6 +79,8 @@ UI 脚本必须启用才能读取指标；无脚本入口提供独立 Uptime 页
 
 **Planned**：事故公告管理、长期每日可用率历史与通知订阅。
 
+权限、隐私、保留与失败边界的批准记录：[STATUS-ANALYTICS-926-927](https://github.com/YourTongji/YourTJ-Hub/pull/926#issuecomment-5874262017)。
+
 ## 配置与契约
 
 按[Netlify 部署手册](../operations/status-netlify.md)设置项目、环境变量与域名。
@@ -87,4 +89,4 @@ UI 脚本必须启用才能读取指标；无脚本入口提供独立 Uptime 页
 
 ## 原生客户端识别
 
-`Current`：客户端列仅将明确携带 `browser: yourtj-app` 的上报显示为 **YourTJ App**，即使占比很小也保留单独节点。普通 WebView 仍显示“内嵌浏览器”，不猜测来源。历史数据无法补回 App 身份。App 数据只覆盖已启用统计的安装；Umami 访客不是账号人数，Web 与 App 不做身份合并。接口保留 `browser` 字段名，枚举增加 `yourtj-app`。
+`Partial`：状态页识别已实现；实际 App 数据仍需发布包含可选原生统计的移动版本（[#927](https://github.com/YourTongji/YourTJ-Hub/pull/927)），并由用户主动开启。客户端列仅将明确携带 `browser: yourtj-app` 的上报显示为 **YourTJ App**，即使占比很小也保留单独节点。普通 WebView 仍显示“内嵌浏览器”，不猜测来源。历史数据无法补回 App 身份。App 数据只覆盖已启用统计的安装；Umami 访客不是账号人数，Web 与 App 不做身份合并。接口保留 `browser` 字段名，枚举增加 `yourtj-app`。

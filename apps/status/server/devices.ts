@@ -26,6 +26,7 @@ function browser(value: unknown): DeviceRow['browser'] {
   return typeof value === 'string' ? browsers.get(value) ?? 'other' : 'other'
 }
 
+// Risk contract STATUS-ANALYTICS-926-927: https://github.com/YourTongji/YourTJ-Hub/pull/926#issuecomment-5874262017
 export async function deviceAccess(config: Config, fetcher: Fetcher, signal: AbortSignal) {
   if (!devicesConfigured(config) || !config.umami.username || !config.umami.password) throw new Error('Device reports not configured')
   const base = origin(config, 'umami')
@@ -42,6 +43,7 @@ export async function fetchDevices(config: Config, fetcher: Fetcher, signal: Abo
   const start = now - trafficHours[range] * 3_600_000
   const startAt = new Date(start).toISOString(), endAt = new Date(now).toISOString()
   const query = new URLSearchParams({ startAt: String(start), endAt: String(now) })
+  // Protocol provenance: docs/decisions/0046-status-device-aggregates.md (Umami v3.3.0).
   // This instance uses Umami's report API. A single joint query preserves relationships;
   // independent metrics must never be joined into invented flows.
   const [report, stats] = await Promise.all([
