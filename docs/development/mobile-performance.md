@@ -40,5 +40,5 @@ and production-equivalent size budgets have not been established. Simulator debu
 a passing compile do not establish production performance. Capture profile/release timelines
 on target devices before assigning latency or frame-rate guarantees.
 
-Run the relevant package tests and analyzer using the [testing guide](testing.md). Pixel goldens
-are platform-specific and are separate from behavior regression tests.
+Run the relevant package tests and analyzer using the [testing guide](testing.md). Visual acceptance uses a simulator
+or device; automated regression tests cover behavior and layout without screenshot baselines.

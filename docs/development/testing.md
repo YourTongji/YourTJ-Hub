@@ -59,7 +59,7 @@ make build && ./bin/yourtj-hub serve   # then curl http://localhost:5234
 | http/controllers | handler + rendering tests (upstream has some) | go test + httptest |
 | resource (frontend) | typecheck + component tests | vue-tsc + Vitest |
 | contract | OpenAPI lint/bundle/type generation plus real Gin route-chain fixture assertions | pnpm + go test + httptest |
-| mobile | widget/unit | flutter test (melos analyze + test; pixel goldens are tagged `golden` and excluded from this gate; see local-development.md) |
+| mobile | widget/unit | flutter test (melos analyze + test; behavior, layout, accessibility and token assertions) |
 | mobile OIDC | controller chain unit + E2E script | `auth/test/oidc_controller_test.dart` (authorize→exchange 调用链) + `scripts/oidc_e2e.sh` (本地内建 Provider → AppAuth 模拟器回跳 → exchange 验证) |
 
 ## Test layout
@@ -126,13 +126,13 @@ with path filters; unrelated PRs do not start Flutter runners. Their path-detect
   compilation and the arm64 size artifact, with a Gradle user-home cache. iOS retains the simulator
   build and effective distribution-signing checks. Clean checkouts use `flutter pub get` before native
   compilation. Signed releases still perform full verification and both platform builds.
-- Pixel golden tests are tagged `golden`, excluded from all CI behavior-test shards, and have no
-  refresh workflow. For an intentional baseline update, use a matching Linux/Flutter environment
-  and run `flutter test --update-goldens test/golden/pages_golden_test.dart` in `forum_app`, or
-  `flutter test --update-goldens test/golden/components_golden_test.dart` in `ui_kit`.
+- Mobile tests assert behavior, layout constraints, accessibility and design tokens without screenshot
+  baselines. Screenshot golden tests and their PNG fixtures are not maintained or run locally, in PR CI,
+  or during release verification. For visual changes, inspect the affected screens in a simulator or
+  on a device in both themes; keep acceptance captures outside Git.
 
 The trade-off between fast source checks and native compile coverage is recorded in
-[the mobile CI decision](../decisions/0045-mobile-ci-by-input.md).
+[the mobile verification decision](../decisions/0047-mobile-visual-acceptance.md).
 
 Both mobile workflows pin external actions to full commit SHAs and disable checkout credential
 persistence before running PR-controlled code. `node --test scripts/test-mobile-ci-*.mjs` checks

@@ -1,7 +1,7 @@
 # Mobile CI separates behavior tests from native compilation
 
 ## Status
-Accepted
+Superseded by [0047](0047-mobile-visual-acceptance.md)
 Class: testing
 
 ## Context and Problem Statement

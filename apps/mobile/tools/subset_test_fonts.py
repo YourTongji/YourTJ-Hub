@@ -1,28 +1,13 @@
 #!/usr/bin/env python3
-"""Regenerate the deterministic CJK font subsets used by forum_app golden tests.
+"""Regenerate CJK font subsets for forum_app text layout regression tests.
 
-Why this exists: golden tests must render identically on macOS and the Linux CI
-runner. The bundled `NotoSansCJKsc` subsets pin the CJK font; without them the
-two hosts fall back to different system fonts and every golden pixel-diffs
-(331cfa90). The subsets are cut to the charset actually used by mobile sources
-— when new zh strings land (new l10n keys, new fixtures, new test copy), new
-glyphs can fall outside the subset and render as tofu (□) in goldens. Re-run
-this script after adding zh strings, then re-render the affected goldens in a
-matching Linux/Flutter environment (see docs/development/testing.md):
-    cd apps/mobile/packages/forum_app
-    flutter test --update-goldens test/golden/pages_golden_test.dart
-For ui_kit, run `flutter test --update-goldens test/golden/components_golden_test.dart`
-from apps/mobile/packages/ui_kit instead.
+The bundled subsets provide stable glyph metrics for Chinese text and overflow
+assertions without screenshot comparisons. Run after adding test text whose
+characters are absent from the existing subset:
+    python3 apps/mobile/tools/subset_test_fonts.py [--source-dir DIR]
 
-Scope: defaults to forum_app. Use --package ui_kit or --package all when
-component samples also add glyphs. Re-render the affected package goldens
-after changing its font bytes.
-
-Usage:
-    python3 apps/mobile/tools/subset_golden_fonts.py [--source-dir DIR] [--package forum_app|ui_kit|all]
-
-`--source-dir` defaults to ~/Library/Fonts and must contain the full static
-`NotoSansSC-Regular.ttf` / `NotoSansSC-Bold.ttf` (the non-variable releases).
+The source directory defaults to ~/Library/Fonts and must contain the full
+static NotoSansSC-Regular.ttf and NotoSansSC-Bold.ttf releases.
 """
 
 from __future__ import annotations
@@ -96,7 +81,6 @@ def main() -> int:
         default=Path.home() / "Library" / "Fonts",
         help="directory containing full NotoSansSC-{Regular,Bold}.ttf",
     )
-    parser.add_argument("--package", choices=("forum_app", "ui_kit", "all"), default="forum_app")
     args = parser.parse_args()
 
     unicodes = sorted(collect_charset())
@@ -105,10 +89,8 @@ def main() -> int:
         if not source.exists():
             print(f"missing full font: {source}", file=sys.stderr)
             return 1
-        packages = ("forum_app", "ui_kit") if args.package == "all" else (args.package,)
-        for package in packages:
-            output = MOBILE_ROOT / "packages" / package / "test/assets/fonts" / f"NotoSansCJKsc-{weight}.otf"
-            subset_font(source, output, unicodes)
+        output = MOBILE_ROOT / "packages/forum_app/test/assets/fonts" / f"NotoSansCJKsc-{weight}.otf"
+        subset_font(source, output, unicodes)
     return 0
 
 

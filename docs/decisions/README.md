@@ -131,3 +131,5 @@ A decision starts `Proposed`. Once implemented, its status becomes `Accepted` an
 - [0044](0044-nested-private-message-history.md) — 再次合并转发保留可逐层打开的记录卡片，整个快照树有界。
 - [0045](0045-mobile-ci-by-input.md) — 移动 CI 按输入拆分行为测试、原生编译与发布工具检查。
 - [0046](0046-status-device-aggregates.md) — 后台读取联合设备统计，仅公开设备、系统和浏览器类别及人数。
+
+- [0047](0047-mobile-visual-acceptance.md) — 移除移动端截图基线，保留行为与布局断言和模拟器/设备视觉验收。

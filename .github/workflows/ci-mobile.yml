@@ -129,7 +129,7 @@ jobs:
       - name: Test
         working-directory: apps/mobile/packages/${{ matrix.package }}
         # Each runner owns a Flutter SDK, so package jobs do not contend for its startup lock.
-        run: flutter test --exclude-tags=golden --total-shards=${{ matrix.shards }} --shard-index=${{ matrix.shard }}
+        run: flutter test --total-shards=${{ matrix.shards }} --shard-index=${{ matrix.shard }}
 
   release-tools:
     needs: changes

@@ -998,7 +998,7 @@ identity survive this layout change. The header keeps a small outer margin for i
 The source, contract and focused Flutter/Go tests define the implemented behavior. Figma is the
 editable visual counterpart, not an alternative API or permission model. The maintained design is
 [06 Mobile · Unified](https://www.figma.com/design/eLF6vFbmdwDQXec1IyuA4X/YourTJ_Mob_App_Design?node-id=284-302). Native device behavior,
-Linux-rendered goldens, distribution and additional locales have independent verification gates;
+visual acceptance, distribution and additional locales require separate verification;
 local widget tests do not imply those gates passed.
 
 ## System notifications

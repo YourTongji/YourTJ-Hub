@@ -16,7 +16,7 @@ import 'package:ui_kit/ui_kit.dart';
 
 import 'campus_native_test.dart' show campusTestApp;
 import 'fixtures/campus_fixtures.dart';
-import 'golden_helper.dart' show loadTestFonts;
+import 'test_font_helpers.dart' show loadTestFonts;
 
 Finder get _search => find.descendant(
   of: find.byType(GfSearchField),

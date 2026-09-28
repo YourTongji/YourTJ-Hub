@@ -73,7 +73,7 @@ melos run analyze        # 或 melos exec -- flutter analyze
 melos run test           # 或 melos exec -- flutter test
 ```
 
-测试:`test/tokens_test.dart`(token 完整性)、`test/components/`(组件行为)、`test/golden/`(golden 快照)。
+测试:`test/tokens_test.dart`(token 完整性)、`test/components/`(组件行为)。
 
 ## 边界
 

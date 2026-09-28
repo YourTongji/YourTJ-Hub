@@ -18,7 +18,7 @@ import 'package:image/image.dart' as img;
 import 'package:ui_kit/ui_kit.dart';
 
 import 'fixtures/page_fixtures.dart';
-import 'golden_helper.dart';
+import 'test_font_helpers.dart';
 import 'pages_behavior_test.dart' show NoopCache;
 import 'pages_smoke_test.dart' show MemoryTokenStorage;
 
