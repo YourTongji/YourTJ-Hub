@@ -60,8 +60,25 @@ Future<void> saveImageFromUrl(BuildContext context, String imageUrl) async {
 /// Web falls back to the browser download behavior exposed by share_plus.
 Future<void> shareImageFromUrl(BuildContext context, String imageUrl) async {
   final AppLocalizations l10n = AppLocalizations.of(context);
-  final RenderBox? box = context.findRenderObject() as RenderBox?;
   try {
+    final RenderObject? renderObject = context.findRenderObject();
+    final Rect? sharePositionOrigin;
+    if (renderObject is RenderBox &&
+        renderObject.attached &&
+        renderObject.hasSize &&
+        !renderObject.size.isEmpty) {
+      sharePositionOrigin =
+          renderObject.localToGlobal(Offset.zero) & renderObject.size;
+    } else {
+      final Size? size = MediaQuery.maybeOf(context)?.size;
+      sharePositionOrigin = size == null
+          ? null
+          : Rect.fromCenter(
+              center: size.center(Offset.zero),
+              width: 1,
+              height: 1,
+            );
+    }
     final Uint8List bytes = await _downloadImageBytes(context, imageUrl);
     final String fileName = _fileNameFor(imageUrl);
     await SharePlus.instance.share(
@@ -70,9 +87,7 @@ Future<void> shareImageFromUrl(BuildContext context, String imageUrl) async {
           XFile.fromData(bytes, name: fileName, mimeType: _mimeType(fileName)),
         ],
         fileNameOverrides: <String>[fileName],
-        sharePositionOrigin: box == null
-            ? null
-            : box.localToGlobal(Offset.zero) & box.size,
+        sharePositionOrigin: sharePositionOrigin,
         downloadFallbackEnabled: true,
       ),
     );

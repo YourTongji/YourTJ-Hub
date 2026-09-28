@@ -53,9 +53,10 @@ Future<({GoRouter router, ProviderContainer container})> pumpNavigation(
     routes: [
       GoRoute(
         path: '/',
-        builder: (_, _) => Scaffold(
-          drawer: const AccountDrawer(),
-          body: RootSurface(
+        builder: (_, _) => AccountDrawerLayer(
+          key: accountDrawerLayerKey,
+          onChanged: (_) {},
+          child: RootSurface(
             title: 'YourTJ',
             titleWidget: const GfLogo(size: 32),
             onAction: onAction,

@@ -25,17 +25,10 @@ void main() {
         for (final GfTab tab in tabs) {
           expect(find.text(tab.label), findsOneWidget);
         }
-        final active = tester.widget<Semantics>(
-          find
-              .ancestor(
-                of: find.text('热门'),
-                matching: find.byWidgetPredicate(
-                  (w) => w is Semantics && w.properties.selected == true,
-                ),
-              )
-              .first,
+        final tabBar = tester.widget<TabBar>(
+          find.byKey(const ValueKey('gf-tab-bar')),
         );
-        expect(active.properties.selected, isTrue);
+        expect(tabBar.controller!.index, 1);
       });
     });
 
@@ -62,7 +55,47 @@ void main() {
       await tester.pumpWidget(
         gfApp(GfTabBar(tabs: tabs, selected: 'latest', onSelected: (_) {})),
       );
-      expect(find.byType(SingleChildScrollView), findsOneWidget);
+      expect(
+        tester
+            .widget<TabBar>(find.byKey(const ValueKey('gf-tab-bar')))
+            .isScrollable,
+        isTrue,
+      );
+    });
+
+    testWidgets('reveals a newly selected tab outside the viewport', (
+      tester,
+    ) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(220, 800);
+      addTearDown(tester.view.reset);
+      final tabs = [
+        for (var index = 0; index < 5; index++)
+          GfTab(label: '分类 $index', value: index),
+      ];
+      late StateSetter update;
+      Object selected = 0;
+      await tester.pumpWidget(
+        gfApp(
+          StatefulBuilder(
+            builder: (context, setState) {
+              update = setState;
+              return GfTabBar(
+                tabs: tabs,
+                selected: selected,
+                onSelected: (_) {},
+              );
+            },
+          ),
+        ),
+      );
+
+      update(() => selected = 4);
+      await tester.pumpAndSettle();
+      final viewport = tester.getRect(find.byKey(const ValueKey('gf-tab-bar')));
+      final selectedTab = tester.getRect(find.text('分类 4'));
+      expect(selectedTab.left, greaterThanOrEqualTo(viewport.left));
+      expect(selectedTab.right, lessThanOrEqualTo(viewport.right));
     });
 
     testWidgets('desktop mode wraps instead of scrolling', (tester) async {
@@ -80,7 +113,7 @@ void main() {
       expect(find.byType(Wrap), findsOneWidget);
     });
 
-    testWidgets('indicator moves continuously to the newly selected tab', (
+    testWidgets('indicator follows the native elastic tab animation', (
       tester,
     ) async {
       late StateSetter update;
@@ -99,19 +132,28 @@ void main() {
           ),
         ),
       );
-      final indicator = find.byKey(const ValueKey('gf-tab-indicator'));
-      final start = tester.getTopLeft(indicator).dx;
+      final tabBar = find.byKey(const ValueKey('gf-tab-bar'));
+      final controller = tester.widget<TabBar>(tabBar).controller!;
+      final start = controller.animation!.value;
       update(() => selected = 'digest');
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 110));
-      final middle = tester.getTopLeft(indicator).dx;
+      final middle = controller.animation!.value;
       await tester.pumpAndSettle();
-      final end = tester.getTopLeft(indicator).dx;
+      final end = controller.animation!.value;
       expect(middle, greaterThan(start));
       expect(middle, lessThan(end));
+      expect(
+        tester.widget<TabBar>(tabBar).indicatorAnimation,
+        TabIndicatorAnimation.elastic,
+      );
+      expect(
+        tester.widget<TabBar>(tabBar).indicator.toString(),
+        contains('width: 28.0'),
+      );
     });
 
-    testWidgets('reduced motion disables the underline and label transitions', (
+    testWidgets('reduced motion disables the underline transition', (
       tester,
     ) async {
       await tester.pumpWidget(
@@ -122,17 +164,10 @@ void main() {
           ),
         ),
       );
-      final indicator = tester.widget<AnimatedPositionedDirectional>(
-        find.byKey(const ValueKey('gf-tab-indicator')),
+      final tabBar = tester.widget<TabBar>(
+        find.byKey(const ValueKey('gf-tab-bar')),
       );
-      expect(indicator.duration, Duration.zero);
-      final labels = tester.widgetList<AnimatedDefaultTextStyle>(
-        find.descendant(
-          of: find.byType(GfTabBar),
-          matching: find.byType(AnimatedDefaultTextStyle),
-        ),
-      );
-      expect(labels.every((label) => label.duration == Duration.zero), isTrue);
+      expect(tabBar.controller!.animationDuration, Duration.zero);
       expect(tester.takeException(), isNull);
     });
   });

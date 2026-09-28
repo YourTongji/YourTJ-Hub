@@ -30,6 +30,22 @@ import '../../startup_metrics.dart';
 double _categoryRailHeight(BuildContext context) =>
     math.max(48, MediaQuery.textScalerOf(context).scale(14) * 1.4 + 16);
 
+List<TabItemPayload> _homeSortTabs(
+  HomeProps? props,
+  CategoryNavPayload? category,
+) =>
+    props?.tabs ??
+    (category == null
+        ? const [
+            TabItemPayload(key: 'latest', url: '', active: true),
+            TabItemPayload(key: 'hot', url: '', active: false),
+            TabItemPayload(key: 'popular', url: '', active: false),
+          ]
+        : const [
+            TabItemPayload(key: 'latest', url: '', active: true),
+            TabItemPayload(key: 'new', url: '', active: false),
+          ]);
+
 /// 首页:公告 + 话题流(web HomePage.vue 的移动端形态)。
 class HomePage extends ConsumerStatefulWidget {
   const HomePage({super.key});
@@ -788,7 +804,21 @@ class _HomePageState extends ConsumerState<HomePage> {
       if (_category case final active?)
         if (!_categories.any((category) => category.id == active.id)) active,
     ];
+    final toolbarProps =
+        _activeFeed.page.valueOrNull ??
+        (_category == null ? _navigationProps : null);
+    final sortKeys = [
+      for (final tab in _homeSortTabs(toolbarProps, _category)) tab.key,
+    ];
+    final selectedSort = _sort.isEmpty ? 'latest' : _sort;
+    final selectedSortPosition = sortKeys.indexOf(selectedSort);
+    final selectedSortIndex = selectedSortPosition < 0
+        ? 0
+        : selectedSortPosition;
     return RootSurface(
+      swipeTabIndex: selectedSortIndex,
+      swipeTabCount: sortKeys.length,
+      onSwipeTabChanged: (index) => _switchSort(sortKeys[index]),
       titleWidget: const GfLogo(size: 32),
       actions: [
         IconButton(
@@ -801,13 +831,11 @@ class _HomePageState extends ConsumerState<HomePage> {
           GfTabBar.heightFor(context) +
           (categories.isEmpty ? 0 : _categoryRailHeight(context)),
       toolbar: _HomeToolbar(
-        props:
-            _activeFeed.page.valueOrNull ??
-            (_category == null ? _navigationProps : null),
+        props: toolbarProps,
         categories: categories,
         activeCategory: _category,
         onCategorySelected: _switchCategory,
-        selected: _sort.isEmpty ? 'latest' : _sort,
+        selected: selectedSort,
         feedMode: _feedMode,
         onSelected: _switchSort,
         onFeedModeSelected: _setFeedMode,
@@ -906,18 +934,7 @@ class _HomeToolbar extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     // 选中项:显式 selected 优先;为空时回退到服务端标记的 active tab。
-    final tabs =
-        props?.tabs ??
-        (activeCategory == null
-            ? const [
-                TabItemPayload(key: 'latest', url: '', active: true),
-                TabItemPayload(key: 'hot', url: '', active: false),
-                TabItemPayload(key: 'popular', url: '', active: false),
-              ]
-            : const [
-                TabItemPayload(key: 'latest', url: '', active: true),
-                TabItemPayload(key: 'new', url: '', active: false),
-              ]);
+    final tabs = _homeSortTabs(props, activeCategory);
     String effective = selected;
     if (effective.isEmpty) {
       for (final tab in tabs) {
@@ -952,7 +969,9 @@ class _HomeToolbar extends ConsumerWidget {
               IconButton(
                 tooltip: l10n.homeFeedOptions,
                 icon: GfSymbol(
-                  feedMode == GfTopicFeedMode.card ? 'layout-grid' : 'list',
+                  feedMode == GfTopicFeedMode.card
+                      ? 'layout-grid'
+                      : 'list-square',
                   size: 20,
                 ),
                 onPressed: () => _showOptions(context),
@@ -991,7 +1010,7 @@ class _HomeToolbar extends ConsumerWidget {
             for (final mode in GfTopicFeedMode.values)
               ListTile(
                 leading: GfSymbol(
-                  mode == GfTopicFeedMode.card ? 'layout-grid' : 'list',
+                  mode == GfTopicFeedMode.card ? 'layout-grid' : 'list-square',
                 ),
                 title: Text(
                   mode == GfTopicFeedMode.card

@@ -836,6 +836,10 @@ export default {
   topicList: {
     newTopic: '新規トピック',
     pinned: '固定',
+    pinnedTopics: '固定トピック',
+    pinnedTopicsCount: '全 {count} 件',
+    expandPinnedTopics: 'すべて表示',
+    collapsePinnedTopics: '折りたたむ',
     announcement: 'お知らせ',
     markAnnouncementRead: '既読にする',
     markAnnouncementUnread: '通知を再開',

@@ -1,8 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:extended_image/extended_image.dart';
-import 'package:flutter/gestures.dart'
-    show kDoubleTapSlop, kDoubleTapTimeout, kTouchSlop;
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
 import '../theme/gf_theme.dart';
@@ -91,9 +90,13 @@ class GfImageViewer extends StatefulWidget {
   State<GfImageViewer> createState() => _GfImageViewerState();
 }
 
+enum _ImageDragAxis { undecided, horizontal, vertical }
+
 class _GfImageViewerState extends State<GfImageViewer>
     with SingleTickerProviderStateMixin {
   static const double _thumbnailItemExtent = 64;
+  static const double _verticalDismissDominanceRatio = 1.5;
+  static const double _horizontalTakeoverDominanceRatio = 1.05;
 
   late final ExtendedPageController _pageController;
   final ScrollController _thumbnailController = ScrollController();
@@ -115,7 +118,15 @@ class _GfImageViewerState extends State<GfImageViewer>
   bool _multiTouch = false;
   bool _pointerMoved = false;
   Offset? _pointerStart;
+  Offset? _lastSwipePosition;
   Duration? _pointerStartTime;
+  double _gestureTouchSlop = kTouchSlop;
+  double _pageAtPointerDown = 0;
+  VelocityTracker? _dismissVelocityTracker;
+  _ImageDragAxis _imageDragAxis = _ImageDragAxis.undecided;
+  bool _trackDismissGesture = false;
+  bool _slideResetInterrupted = false;
+  bool _cancelingSlide = false;
   Offset? _lastTapPosition;
   Duration? _lastTapTime;
 
@@ -138,7 +149,7 @@ class _GfImageViewerState extends State<GfImageViewer>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final duration = GfMotion.duration(context, GfMotion.overlay);
+    final duration = GfMotion.duration(context, GfMotion.content);
     _initialSlideResetDuration ??= duration;
     // extended_image 9.1.0 recreates a SingleTicker controller when the widget
     // duration changes. Update its public controller instead, retaining the
@@ -504,27 +515,182 @@ class _GfImageViewerState extends State<GfImageViewer>
 
   void _toggleChrome() => setState(() => _chromeVisible = !_chromeVisible);
 
+  bool get _imageAtMinimumScale =>
+      (_gestureKeys[_currentIndex]?.currentState?.gestureDetails?.totalScale ??
+          1) <=
+      1.01;
+
+  void _interruptSlideReset() {
+    final AnimationController? reset =
+        _slidePageKey.currentState?.backAnimationController;
+    if (reset?.isAnimating ?? false) {
+      reset!.stop();
+      _slideResetInterrupted = true;
+    }
+  }
+
+  void _finishInterruptedSlideReset() {
+    if (!_slideResetInterrupted) return;
+    _slideResetInterrupted = false;
+    _cancelSlide();
+  }
+
+  void _cancelSlide() {
+    // extended_image evaluates slideEndHandler synchronously. A cancelled drag
+    // must take its return-animation path even beyond the dismissal threshold.
+    _cancelingSlide = true;
+    try {
+      _slidePageKey.currentState?.endSlide(ScaleEndDetails());
+    } finally {
+      _cancelingSlide = false;
+    }
+  }
+
+  void _lockHorizontalSwipe() {
+    final ExtendedImageSlidePageState? slide = _slidePageKey.currentState;
+    if (_imageDragAxis == _ImageDragAxis.vertical || _slideResetInterrupted) {
+      final Offset offset = slide?.offset ?? Offset.zero;
+      if (offset != Offset.zero) slide?.slide(-offset);
+    }
+    _slideResetInterrupted = false;
+    _imageDragAxis = _ImageDragAxis.horizontal;
+  }
+
+  bool _shouldAcceptPageDrag(Map<int, VelocityTracker> velocityTrackers) {
+    if (!_trackDismissGesture ||
+        _activePointers.length != 1 ||
+        velocityTrackers.length != 1) {
+      return false;
+    }
+    if (_imageDragAxis == _ImageDragAxis.horizontal) return true;
+
+    final Offset movement = _lastSwipePosition! - _pointerStart!;
+    if (movement.dx.abs() < _gestureTouchSlop ||
+        movement.dx.abs() <=
+            movement.dy.abs() * _horizontalTakeoverDominanceRatio) {
+      return false;
+    }
+    if (_imageDragAxis == _ImageDragAxis.vertical) _lockHorizontalSwipe();
+    return true;
+  }
+
+  void _settleFastHorizontalSwipe() {
+    if (_imageDragAxis != _ImageDragAxis.horizontal ||
+        !_pageController.hasClients) {
+      return;
+    }
+    final double velocityX =
+        _dismissVelocityTracker?.getVelocity().pixelsPerSecond.dx ?? 0;
+    if (velocityX.abs() < 650) return;
+
+    final double page = _pageController.page ?? _currentIndex.toDouble();
+    final int direction = velocityX < 0 ? 1 : -1;
+    final int releasePage = page.round();
+    final int targetPage = releasePage == _pageAtPointerDown.round()
+        ? releasePage + direction
+        : releasePage;
+    final int boundedTarget = targetPage.clamp(0, widget.images.length - 1);
+    final Duration duration = GfMotion.duration(context, GfMotion.selection);
+
+    // A quick new fling can interrupt PageView before it reaches its previous
+    // snap target. Preserve one-page intent instead of restarting that target.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_pageController.hasClients) return;
+      if (duration == Duration.zero) {
+        _pageController.jumpToPage(boundedTarget);
+      } else {
+        _pageController.animateToPage(
+          boundedTarget,
+          duration: duration,
+          curve: GfMotion.enterCurve,
+        );
+      }
+    });
+  }
+
   void _pointerDown(PointerDownEvent event) {
     _activePointers.add(event.pointer);
     if (_activePointers.length > 1) {
       _multiTouch = true;
+      _trackDismissGesture = false;
+      if (_imageDragAxis == _ImageDragAxis.vertical) {
+        _cancelSlide();
+      } else {
+        _finishInterruptedSlideReset();
+      }
+      _imageDragAxis = _ImageDragAxis.undecided;
+      _dismissVelocityTracker = null;
     } else {
+      _interruptSlideReset();
       _pointerStart = event.position;
       _pointerStartTime = event.timeStamp;
+      _gestureTouchSlop = computeHitSlop(
+        event.kind,
+        MediaQuery.gestureSettingsOf(context),
+      );
+      _pageAtPointerDown = _pageController.hasClients
+          ? _pageController.page ?? _currentIndex.toDouble()
+          : _currentIndex.toDouble();
       _pointerMoved = false;
+      _lastSwipePosition = event.position;
+      _imageDragAxis = _ImageDragAxis.undecided;
+      _trackDismissGesture = _imageAtMinimumScale;
+      _dismissVelocityTracker = _trackDismissGesture
+          ? (VelocityTracker.withKind(event.kind)
+              ..addPosition(event.timeStamp, event.position))
+          : null;
     }
   }
 
   void _pointerMove(PointerMoveEvent event) {
+    _dismissVelocityTracker?.addPosition(event.timeStamp, event.position);
     if (_pointerStart != null &&
         (event.position - _pointerStart!).distance > kTouchSlop) {
       _pointerMoved = true;
       _lastTapTime = null;
       _lastTapPosition = null;
     }
+
+    if (!_trackDismissGesture || _activePointers.length != 1) return;
+    final Offset delta = event.position - _pointerStart!;
+    if (_imageDragAxis == _ImageDragAxis.undecided) {
+      if (delta.distance < _gestureTouchSlop) return;
+
+      if (delta.dx.abs() > delta.dy.abs()) {
+        _lockHorizontalSwipe();
+        return;
+      }
+      if (delta.dy.abs() < _gestureTouchSlop * _verticalDismissDominanceRatio ||
+          delta.dy.abs() < delta.dx.abs() * _verticalDismissDominanceRatio) {
+        return;
+      }
+
+      _imageDragAxis = _ImageDragAxis.vertical;
+      _slideResetInterrupted = false;
+      _slidePageKey.currentState?.slide(Offset(0, delta.dy));
+    } else if (_imageDragAxis == _ImageDragAxis.vertical) {
+      if (delta.dx.abs() >= _gestureTouchSlop &&
+          delta.dx.abs() > delta.dy.abs() * _horizontalTakeoverDominanceRatio) {
+        _lockHorizontalSwipe();
+      } else {
+        final double dy = event.position.dy - _lastSwipePosition!.dy;
+        _slidePageKey.currentState?.slide(Offset(0, dy));
+      }
+    }
+    _lastSwipePosition = event.position;
   }
 
   void _pointerUp(PointerUpEvent event) {
+    _dismissVelocityTracker?.addPosition(event.timeStamp, event.position);
+    if (_imageDragAxis == _ImageDragAxis.vertical) {
+      _slidePageKey.currentState?.endSlide(
+        ScaleEndDetails(
+          velocity: _dismissVelocityTracker?.getVelocity() ?? Velocity.zero,
+        ),
+      );
+    } else {
+      _settleFastHorizontalSwipe();
+    }
     _activePointers.remove(event.pointer);
     if (_activePointers.isNotEmpty) return;
 
@@ -543,19 +709,33 @@ class _GfImageViewerState extends State<GfImageViewer>
       _lastTapPosition = doubleTap ? null : event.position;
     }
 
+    _finishInterruptedSlideReset();
+
     _multiTouch = false;
     _pointerMoved = false;
     _pointerStart = null;
+    _lastSwipePosition = null;
     _pointerStartTime = null;
+    _dismissVelocityTracker = null;
+    _trackDismissGesture = false;
+    _imageDragAxis = _ImageDragAxis.undecided;
   }
 
   void _pointerCancel(PointerCancelEvent event) {
+    if (_imageDragAxis == _ImageDragAxis.vertical) {
+      _cancelSlide();
+    }
     _activePointers.remove(event.pointer);
     if (_activePointers.isEmpty) {
+      _finishInterruptedSlideReset();
       _multiTouch = false;
       _pointerMoved = false;
       _pointerStart = null;
+      _lastSwipePosition = null;
       _pointerStartTime = null;
+      _dismissVelocityTracker = null;
+      _trackDismissGesture = false;
+      _imageDragAxis = _ImageDragAxis.undecided;
       _lastTapTime = null;
       _lastTapPosition = null;
     }
@@ -573,6 +753,19 @@ class _GfImageViewerState extends State<GfImageViewer>
         slideAxis: SlideAxis.vertical,
         slideType: SlideType.wholePage,
         resetPageDuration: _initialSlideResetDuration!,
+        slideEndHandler:
+            (
+              Offset offset, {
+              ExtendedImageSlidePageState? state,
+              ScaleEndDetails? details,
+            }) {
+              if (_cancelingSlide) return false;
+              final double pageHeight =
+                  state?.pageSize.height ?? MediaQuery.sizeOf(context).height;
+              final double velocity =
+                  details?.velocity.pixelsPerSecond.dy.abs() ?? 0;
+              return offset.dy.abs() >= pageHeight / 10 || velocity >= 420;
+            },
         slidePageBackgroundHandler: (Offset offset, Size size) =>
             defaultSlidePageBackgroundHandler(
               offset: offset,
@@ -595,6 +788,7 @@ class _GfImageViewerState extends State<GfImageViewer>
                   controller: _pageController,
                   itemCount: widget.images.length,
                   physics: const BouncingScrollPhysics(),
+                  shouldAccpetHorizontalOrVerticalDrag: _shouldAcceptPageDrag,
                   canScrollPage: (GestureDetails? details) =>
                       (details?.totalScale ?? 1) <= 1.01,
                   onPageChanged: (int index) {
@@ -618,7 +812,7 @@ class _GfImageViewerState extends State<GfImageViewer>
                         widget.images[index],
                         fit: _actualSize ? BoxFit.none : BoxFit.contain,
                         gaplessPlayback: true,
-                        enableSlideOutPage: true,
+                        enableSlideOutPage: false,
                         mode: ExtendedImageMode.gesture,
                         extendedImageGestureKey: _gestureKeyFor(index),
                         initGestureConfigHandler: (ExtendedImageState state) =>

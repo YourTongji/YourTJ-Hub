@@ -31,37 +31,14 @@ class _UserBlockButtonState extends ConsumerState<UserBlockButton> {
   Future<void> _change(bool blocked) async {
     final epoch = ref.read(offlineCacheEpochProvider);
     final l10n = AppLocalizations.of(context);
-    final approved = await showDialog<bool>(
-      context: context,
-      animationStyle: GfMotion.dialogStyle(context),
-      builder: (ctx) => AlertDialog(
-        scrollable: true,
-        title: Text(blocked ? l10n.userBlock : l10n.userUnblock),
-        content: Text(l10n.userBlockExplanation),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: Text(l10n.commonCancel),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: Text(blocked ? l10n.userBlock : l10n.userUnblock),
-          ),
-        ],
-      ),
-    );
-    if (!mounted ||
-        approved != true ||
-        epoch != ref.read(offlineCacheEpochProvider)) {
-      return;
-    }
     setState(() => _busy = true);
     try {
-      await ref
-          .read(userRepositoryProvider)
-          .setUserBlock(widget.userId, blocked);
-      if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) return;
-      ref.invalidate(userBlocksProvider);
+      await changeUserBlock(
+        context,
+        ref,
+        userId: widget.userId,
+        blocked: blocked,
+      );
     } catch (error) {
       if (mounted && epoch == ref.read(offlineCacheEpochProvider)) {
         showGfToast(context, resolveErrorMessage(l10n, error), error: true);
@@ -101,6 +78,45 @@ class _UserBlockButtonState extends ConsumerState<UserBlockButton> {
           : () => _change(!blocked),
     );
   }
+}
+
+Future<void> changeUserBlock(
+  BuildContext context,
+  WidgetRef ref, {
+  required int userId,
+  required bool blocked,
+}) async {
+  final epoch = ref.read(offlineCacheEpochProvider);
+  final l10n = AppLocalizations.of(context);
+  final approved = await showDialog<bool>(
+    context: context,
+    animationStyle: GfMotion.dialogStyle(context),
+    builder: (ctx) => AlertDialog(
+      scrollable: true,
+      title: Text(blocked ? l10n.userBlock : l10n.userUnblock),
+      content: Text(l10n.userBlockExplanation),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(ctx, false),
+          child: Text(l10n.commonCancel),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(ctx, true),
+          child: Text(blocked ? l10n.userBlock : l10n.userUnblock),
+        ),
+      ],
+    ),
+  );
+  if (!context.mounted ||
+      approved != true ||
+      epoch != ref.read(offlineCacheEpochProvider)) {
+    return;
+  }
+  await ref.read(userRepositoryProvider).setUserBlock(userId, blocked);
+  if (!context.mounted || epoch != ref.read(offlineCacheEpochProvider)) {
+    return;
+  }
+  ref.invalidate(userBlocksProvider);
 }
 
 Future<void> showBlockedUsers(BuildContext context) => showDialog<void>(

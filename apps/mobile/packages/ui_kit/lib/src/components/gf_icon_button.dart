@@ -61,10 +61,10 @@ class GfIconButton extends StatelessWidget {
               return colors.primary.withValues(alpha: 0.16);
             }
             if (states.contains(WidgetState.pressed)) {
-              return colors.baseContent.withValues(alpha: 0.10);
+              return colors.baseContent.withValues(alpha: 0.045);
             }
             if (states.contains(WidgetState.hovered)) {
-              return colors.baseContent.withValues(alpha: 0.06);
+              return colors.baseContent.withValues(alpha: 0.04);
             }
             return Colors.transparent;
           }),

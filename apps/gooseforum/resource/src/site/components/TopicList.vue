@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { onBeforeUnmount, shallowReactive, useSlots, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, shallowReactive, useId, useSlots, watch } from 'vue'
+import { ChevronDown } from '@lucide/vue'
 import { useI18n } from 'vue-i18n'
 import type { TopicPayload } from '@gooseforum/client'
 import { createTopicCardInteraction, type TopicCardInteraction } from '@/site/utils/topic-card-interactions'
@@ -25,6 +26,13 @@ const props = withDefaults(defineProps<{
 
 const { t } = useI18n()
 const slots = useSlots()
+const pinnedTopicsId = `gf-pinned-topics-${useId()}`
+const pinnedTopicsExpanded = ref(false)
+const pinnedTopics = computed(() => props.home && props.showPinned ? props.topics.filter(topic => topic.pinWeight > 0) : [])
+const visiblePinnedTopics = computed(() => pinnedTopicsExpanded.value ? pinnedTopics.value.slice(1) : [])
+const regularTopics = computed(() => pinnedTopics.value.length
+  ? props.topics.filter(topic => topic.pinWeight <= 0)
+  : props.topics)
 
 const interactions = shallowReactive(new Map<number, TopicCardInteraction>())
 function clearInteractions() {
@@ -53,6 +61,55 @@ onBeforeUnmount(clearInteractions)
 </script>
 
 <template>
+  <section
+    v-if="pinnedTopics.length"
+    :aria-label="t('topicList.pinnedTopics')"
+    class="mx-4 mt-3 overflow-hidden rounded-xl border border-primary/15 bg-primary/[0.025]"
+    :class="feedMode === 'table' ? 'mb-3' : ''"
+  >
+    <!-- 所有行共用一套内缩：行距边缘由列表层 [&>li] 统一定义，行内 px-1 是 hover 高亮的内衬；改任一处需两处同动，否则首行与展开行错位 -->
+    <ul :id="pinnedTopicsId" class="[&>li]:mx-2 sm:[&>li]:mx-3">
+      <li>
+        <div class="flex min-h-11 items-center gap-2 px-1">
+          <span class="shrink-0 rounded bg-primary/10 px-1.5 py-0.5 text-[11px] font-medium text-primary">{{ t('topicList.pinned') }}</span>
+          <a
+            :href="pinnedTopics[0]!.url"
+            :title="pinnedTopics[0]!.title"
+            class="flex min-h-11 min-w-0 flex-1 items-center rounded text-sm font-medium text-base-content/90 outline-none hover:text-primary focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary"
+          >
+            <span class="truncate">{{ pinnedTopics[0]!.title }}</span>
+          </a>
+          <button
+            v-if="pinnedTopics.length > 1"
+            type="button"
+            class="ml-auto flex min-h-11 shrink-0 items-center gap-1 whitespace-nowrap rounded-md px-1 text-xs tabular-nums text-base-content/60 outline-none transition-colors hover:text-primary focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary motion-reduce:transition-none"
+            :aria-expanded="pinnedTopicsExpanded"
+            :aria-controls="pinnedTopicsId"
+            :aria-label="`${pinnedTopicsExpanded ? t('topicList.collapsePinnedTopics') : t('topicList.expandPinnedTopics')} · ${t('topicList.pinnedTopicsCount', { count: pinnedTopics.length })}`"
+            @click="pinnedTopicsExpanded = !pinnedTopicsExpanded"
+          >
+            {{ t('topicList.pinnedTopicsCount', { count: pinnedTopics.length }) }}
+            <ChevronDown class="size-3.5 transition-transform duration-200 motion-reduce:transition-none" :class="{ 'rotate-180': pinnedTopicsExpanded }" aria-hidden="true" />
+          </button>
+          <span v-else class="ml-auto shrink-0 whitespace-nowrap text-xs tabular-nums text-base-content/60">{{ t('topicList.pinnedTopicsCount', { count: pinnedTopics.length }) }}</span>
+        </div>
+      </li>
+      <TransitionGroup name="pinned-topic">
+        <li v-for="topic in visiblePinnedTopics" :key="topic.id" class="grid grid-rows-[1fr]">
+          <div class="min-h-0 overflow-hidden">
+            <a
+              :href="topic.url"
+              :title="topic.title"
+              class="group flex min-h-11 items-center gap-2.5 rounded-md border-t border-primary/5 px-1 py-2 text-sm outline-none transition-colors hover:bg-primary/5 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary motion-reduce:transition-none"
+            >
+              <span class="shrink-0 rounded bg-primary/10 px-1.5 py-0.5 text-[11px] font-medium text-primary">{{ t('topicList.pinned') }}</span>
+              <span class="min-w-0 flex-1 line-clamp-2 break-words font-medium leading-5 text-base-content/90 group-hover:text-primary">{{ topic.title }}</span>
+            </a>
+          </div>
+        </li>
+      </TransitionGroup>
+    </ul>
+  </section>
   <template v-if="feedMode === 'table'">
     <div class="gf-topic-list-header">
       <div>{{ t('topicList.columns.topic') }}</div>
@@ -68,7 +125,7 @@ onBeforeUnmount(clearInteractions)
 
     <div class="relative bg-base-100">
       <TopicRow
-        v-for="topic in topics"
+        v-for="topic in regularTopics"
         :key="topic.id"
         :topic="topic"
         :home="home"
@@ -89,7 +146,7 @@ onBeforeUnmount(clearInteractions)
   <template v-else>
     <div class="relative space-y-4 p-4">
       <div
-        v-for="topic in topics"
+        v-for="topic in regularTopics"
         :key="topic.id"
         class="gf-card group relative overflow-hidden [&_a.gf-topic-chip]:pointer-events-auto [&_a.gf-topic-chip]:relative [&_a.gf-topic-chip]:z-10"
       >
@@ -110,3 +167,23 @@ onBeforeUnmount(clearInteractions)
   </template>
   <slot name="empty" />
 </template>
+
+<style scoped>
+.pinned-topic-enter-active,
+.pinned-topic-leave-active {
+  transition: grid-template-rows 200ms ease, opacity 200ms ease;
+}
+
+.pinned-topic-enter-from,
+.pinned-topic-leave-to {
+  grid-template-rows: 0fr;
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pinned-topic-enter-active,
+  .pinned-topic-leave-active {
+    transition: none;
+  }
+}
+</style>

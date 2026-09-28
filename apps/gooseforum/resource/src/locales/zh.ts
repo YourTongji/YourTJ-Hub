@@ -837,6 +837,10 @@ export default {
   topicList: {
     newTopic: '新建内容',
     pinned: '置顶',
+    pinnedTopics: '置顶话题',
+    pinnedTopicsCount: '共 {count} 条',
+    expandPinnedTopics: '展开全部',
+    collapsePinnedTopics: '收起',
     announcement: '公告',
     markAnnouncementRead: '标记为已读',
     markAnnouncementUnread: '恢复提醒',

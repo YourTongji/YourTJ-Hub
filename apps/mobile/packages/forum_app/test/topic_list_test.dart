@@ -66,6 +66,7 @@ void main() {
       find.byWidgetPredicate(
         (w) =>
             w is Image &&
+            w.frameBuilder != null &&
             w.image is ResizeImage &&
             (w.image as ResizeImage).imageProvider is NetworkImage &&
             ((w.image as ResizeImage).imageProvider as NetworkImage).url

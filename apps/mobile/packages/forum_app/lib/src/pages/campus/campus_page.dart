@@ -631,6 +631,7 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace> {
       'calendars': l.campusCalendars,
       'connection': l.campusConnection,
     };
+    final tabKeys = labels.keys.toList(growable: false);
     Widget content;
     if (state.loading) {
       content = const GfLoading();
@@ -719,6 +720,9 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace> {
       );
     }
     return RootSurface(
+      swipeTabIndex: tabKeys.indexOf(_tab),
+      swipeTabCount: tabKeys.length,
+      onSwipeTabChanged: (index) => _select(tabKeys[index]),
       title: l.campusTitle,
       showComposeAction: false,
       actions: [

@@ -55,9 +55,11 @@ When both list and detail are visible, back first closes the detail context; nar
 normal pushed route. System safe areas and keyboard insets are consumed exactly once.
 
 `Current`: public profile tabs form a continuous row. The active item expands its icon and localized
-label; other items retain accessible icon controls. The selected underline moves with the changing
-cell widths, with reduced-motion support. Loading affects only the content stream; the identity and
-tab row remain stable. Loaded pages and scroll positions are independent per stream, while obsolete
+label; other items retain accessible icon controls. During a held swipe, the outgoing and incoming
+icons and labels move together with the segment widths, using a slight scale and fade. The selected
+underline moves with the changing cell widths, with reduced-motion support. Loading affects only the content stream; the identity and
+tab row remain stable. Direct selection by tap animates the same icon, label and underline transition
+with the 180 ms content motion. Loaded pages and scroll positions are independent per stream, while obsolete
 requests are cancelled or ignored. Following/follower statistics open the matching lists.
 Device preferences are separate from account editing, binding and security. Appearance offers System,
 Light and Dark, and an already open choice sheet updates with the selected theme.
@@ -69,6 +71,8 @@ pill buttons, 24-pixel dialogs and consistent outline symbols. Native text selec
 input purposes and focus remain intact. Search, short reply and long-form writing use distinct
 surfaces with shared colors and state treatment; the component model is recorded in
 [0039](../decisions/0039-native-gf-component-foundation.md).
+Touch input uses a faint pressed-state tint without a spreading ink splash; keyboard focus remains
+more visible for accessibility.
 
 Focusing an editor is not an edit. Keyboard layouts prioritize the active writing surface over
 introductory guidance, retain focus, and keep the primary action reachable. Implemented behavior

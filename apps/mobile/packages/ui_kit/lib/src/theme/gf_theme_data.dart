@@ -8,6 +8,20 @@ import 'gf_shadows.dart';
 import 'gf_theme_extensions.dart';
 import 'gf_typography.dart';
 
+WidgetStateProperty<Color?> _softTouchOverlay(Color color) =>
+    WidgetStateProperty.resolveWith((states) {
+      if (states.contains(WidgetState.focused)) {
+        return color.withValues(alpha: 0.14);
+      }
+      if (states.contains(WidgetState.pressed)) {
+        return color.withValues(alpha: 0.045);
+      }
+      if (states.contains(WidgetState.hovered)) {
+        return color.withValues(alpha: 0.04);
+      }
+      return Colors.transparent;
+    });
+
 /// Builds the yourtj `ThemeData` for a [Brightness], wiring the Gf design
 /// tokens into Material widgets (color scheme, shapes, typography, motion).
 ///
@@ -61,6 +75,10 @@ ThemeData gfThemeData(
     useMaterial3: true,
     brightness: brightness,
     colorScheme: colorScheme,
+    // Keep Material's interaction lifecycle but remove its visible ink spread.
+    splashFactory: InkRipple.splashFactory,
+    splashColor: Colors.transparent,
+    highlightColor: colors.baseContent.withValues(alpha: 0.04),
     scaffoldBackgroundColor: colors.base100,
     canvasColor: colors.base100,
     dividerColor: colors.line,
@@ -108,6 +126,7 @@ ThemeData gfThemeData(
       surfaceTintColor: Colors.transparent,
       indicatorColor: colors.base300,
       height: 64,
+      overlayColor: _softTouchOverlay(colors.primary),
       labelTextStyle: WidgetStatePropertyAll(
         TextStyle(
           fontSize: 12,
@@ -122,6 +141,12 @@ ThemeData gfThemeData(
           color: selected ? colors.primary : colors.iconMuted,
         );
       }),
+    ),
+    iconButtonTheme: IconButtonThemeData(
+      style: ButtonStyle(overlayColor: _softTouchOverlay(colors.baseContent)),
+    ),
+    tabBarTheme: TabBarThemeData(
+      overlayColor: _softTouchOverlay(colors.baseContent),
     ),
     listTileTheme: ListTileThemeData(
       iconColor: colors.iconMuted,
@@ -150,6 +175,7 @@ ThemeData gfThemeData(
       behavior: SnackBarBehavior.floating,
     ),
     switchTheme: SwitchThemeData(
+      overlayColor: _softTouchOverlay(colors.primary),
       thumbColor: WidgetStateProperty.resolveWith((Set<WidgetState> states) {
         return states.contains(WidgetState.selected)
             ? colors.primaryContent
@@ -176,6 +202,7 @@ ThemeData gfThemeData(
               ? colors.baseContent.withValues(alpha: 0.38)
               : colors.primaryContent,
         ),
+        overlayColor: _softTouchOverlay(colors.primaryContent),
         shape: WidgetStatePropertyAll(StadiumBorder()),
         textStyle: WidgetStatePropertyAll(
           TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
@@ -190,6 +217,7 @@ ThemeData gfThemeData(
               ? colors.baseContent.withValues(alpha: 0.38)
               : colors.baseContent,
         ),
+        overlayColor: _softTouchOverlay(colors.baseContent),
         side: WidgetStateProperty.resolveWith(
           (states) => BorderSide(
             color: states.contains(WidgetState.disabled)
@@ -209,6 +237,7 @@ ThemeData gfThemeData(
               ? colors.baseContent.withValues(alpha: 0.38)
               : colors.primary,
         ),
+        overlayColor: _softTouchOverlay(colors.primary),
         shape: WidgetStatePropertyAll(StadiumBorder()),
       ),
     ),
@@ -258,11 +287,13 @@ ThemeData gfThemeData(
       ),
     ),
     checkboxTheme: CheckboxThemeData(
+      overlayColor: _softTouchOverlay(colors.primary),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(5)),
       side: BorderSide(color: colors.iconMuted, width: 1.5),
       visualDensity: VisualDensity.standard,
       materialTapTargetSize: MaterialTapTargetSize.padded,
     ),
+    radioTheme: RadioThemeData(overlayColor: _softTouchOverlay(colors.primary)),
     chipTheme: ChipThemeData(
       backgroundColor: colors.base300,
       labelStyle: TextStyle(
@@ -319,7 +350,6 @@ ThemeData gfThemeData(
         TargetPlatform.iOS: const CupertinoPageTransitionsBuilder(),
       },
     ),
-    splashFactory: InkRipple.splashFactory,
     textTheme: TextTheme(
       displaySmall: typography.display,
       headlineMedium: typography.title1,

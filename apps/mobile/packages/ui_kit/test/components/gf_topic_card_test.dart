@@ -543,6 +543,7 @@ void main() {
       final photos = find.byWidgetPredicate(
         (w) =>
             w is Image &&
+            w.frameBuilder != null &&
             w.image is ResizeImage &&
             (w.image as ResizeImage).imageProvider is NetworkImage,
       );

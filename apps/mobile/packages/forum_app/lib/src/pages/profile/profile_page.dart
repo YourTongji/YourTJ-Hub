@@ -1,9 +1,11 @@
 import '../../user_blocks.dart';
 import '../../private_notes.dart';
 import '../../navigation/auth_navigation.dart';
+import '../../navigation/tab_swipe_surface.dart';
 import 'dart:math' as math;
 
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -27,6 +29,7 @@ import '../../widgets/topic_list.dart';
 import '../../widgets/user_badge.dart';
 
 typedef _ContentKey = (bool, int); // isReply, content ID
+const _profileBlockAction = '__user_block__';
 _ContentKey? _activityKey(UserActivityPayload activity) {
   final type = activity.subjectType.toLowerCase();
   if (activity.action == 5 && type == 'post') return (true, activity.subjectId);
@@ -719,31 +722,54 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     BuildContext context,
     AppLocalizations l10n, {
     bool glass = false,
-  }) =>
-      !widget.connectionsOnly &&
-          (_isShellProfile || _page.valueOrNull?.isOwnProfile == true)
-      ? <Widget>[
-          _profileMenu(context, l10n, glass: glass),
-          if (glass)
-            GfGlassIconButton(
-              symbol: 'bell',
-              tooltip: l10n.notificationsTitle,
-              onPressed: () => context.go('/notifications'),
-            )
-          else
-            GfIconButton(
-              symbol: 'bell',
-              tooltip: l10n.notificationsTitle,
-              onPressed: () => context.go('/notifications'),
-            ),
-        ]
-      : const <Widget>[];
+  }) {
+    final props = _page.valueOrNull;
+    final isOwnProfile =
+        _isShellProfile ||
+        props?.isOwnProfile == true ||
+        props?.user.isSelf == true;
+    if (widget.connectionsOnly || (!_isShellProfile && props == null)) {
+      return const <Widget>[];
+    }
+    if (!isOwnProfile && ref.watch(currentUserProvider).valueOrNull == null) {
+      return const <Widget>[];
+    }
+    return <Widget>[
+      _profileMenu(
+        context,
+        l10n,
+        glass: glass,
+        profileUser: isOwnProfile ? null : props!.user,
+      ),
+      if (isOwnProfile)
+        if (glass)
+          GfGlassIconButton(
+            symbol: 'bell',
+            tooltip: l10n.notificationsTitle,
+            onPressed: () => context.go('/notifications'),
+          )
+        else
+          GfIconButton(
+            symbol: 'bell',
+            tooltip: l10n.notificationsTitle,
+            onPressed: () => context.go('/notifications'),
+          ),
+    ];
+  }
 
   Widget _profileMenu(
     BuildContext context,
     AppLocalizations l10n, {
     required bool glass,
+    required UserCardPayload? profileUser,
   }) {
+    final blocks = profileUser == null ? null : ref.watch(userBlocksProvider);
+    final profileUserId = profileUser?.userId;
+    final isBlocked =
+        blocks?.valueOrNull?.blocks.any(
+          (item) => item.targetUserId == profileUserId,
+        ) ??
+        false;
     final menu = PopupMenuButton<String>(
       tooltip: l10n.profileMore,
       icon: GfSymbol(
@@ -751,41 +777,101 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
         color: glass ? Colors.white : GfTheme.colorsOf(context).baseContent,
       ),
       useRootNavigator: true,
-      onSelected: _openProfileTool,
-      itemBuilder: (_) => [
-        PopupMenuItem(value: '/drafts', child: Text(l10n.draftsTitle)),
-        PopupMenuItem(
-          value: '/my-course-reviews',
-          child: Text(l10n.myCourseReviewsTitle),
-        ),
-        PopupMenuItem(value: '/my-content', child: Text(l10n.profileContent)),
-        PopupMenuItem(value: '/recycle-bin', child: Text(l10n.profileTrash)),
-        if (_canModerate)
-          PopupMenuItem(
-            value: '/moderation',
-            child: Text(l10n.profileModeration),
-          ),
-        if (_canAccessAdmin)
-          PopupMenuItem(value: '/admin', child: Text(l10n.profileAdmin)),
-        if (_canManageCourses) ...[
-          PopupMenuItem(
-            value: '/moderation/courses',
-            child: Text(l10n.coursesManagement),
-          ),
-          PopupMenuItem(
-            value: '/moderation/course-reviews',
-            child: Text(l10n.coursesReviewModeration),
-          ),
-        ],
-        const PopupMenuDivider(),
-        PopupMenuItem(
-          value: '/settings/account',
-          child: Text(l10n.profileSecurity),
-        ),
-        PopupMenuItem(value: '/settings', child: Text(l10n.settingsTitle)),
-      ],
+      onSelected: (value) => _onProfileMenuSelected(value, profileUser),
+      itemBuilder: (_) => profileUser != null
+          ? [
+              PopupMenuItem(
+                value: _profileBlockAction,
+                child: Text(
+                  blocks?.hasError == true
+                      ? l10n.commonRetry
+                      : isBlocked
+                      ? l10n.userUnblock
+                      : l10n.userBlock,
+                ),
+              ),
+            ]
+          : [
+              PopupMenuItem(value: '/drafts', child: Text(l10n.draftsTitle)),
+              PopupMenuItem(
+                value: '/my-course-reviews',
+                child: Text(l10n.myCourseReviewsTitle),
+              ),
+              PopupMenuItem(
+                value: '/my-content',
+                child: Text(l10n.profileContent),
+              ),
+              PopupMenuItem(
+                value: '/recycle-bin',
+                child: Text(l10n.profileTrash),
+              ),
+              if (_canModerate)
+                PopupMenuItem(
+                  value: '/moderation',
+                  child: Text(l10n.profileModeration),
+                ),
+              if (_canAccessAdmin)
+                PopupMenuItem(value: '/admin', child: Text(l10n.profileAdmin)),
+              if (_canManageCourses) ...[
+                PopupMenuItem(
+                  value: '/moderation/courses',
+                  child: Text(l10n.coursesManagement),
+                ),
+                PopupMenuItem(
+                  value: '/moderation/course-reviews',
+                  child: Text(l10n.coursesReviewModeration),
+                ),
+              ],
+              const PopupMenuDivider(),
+              PopupMenuItem(
+                value: '/settings/account',
+                child: Text(l10n.profileSecurity),
+              ),
+              PopupMenuItem(
+                value: '/settings',
+                child: Text(l10n.settingsTitle),
+              ),
+            ],
     );
     return glass ? GfGlassSurface(child: menu) : menu;
+  }
+
+  Future<void> _onProfileMenuSelected(
+    String value,
+    UserCardPayload? profileUser,
+  ) async {
+    if (value == _profileBlockAction) {
+      if (profileUser != null) await _toggleProfileUserBlock(profileUser);
+      return;
+    }
+    await _openProfileTool(value);
+  }
+
+  Future<void> _toggleProfileUserBlock(UserCardPayload user) async {
+    final epoch = ref.read(offlineCacheEpochProvider);
+    final l10n = AppLocalizations.of(context);
+    if (ref.read(userBlocksProvider).hasError) {
+      ref.invalidate(userBlocksProvider);
+      return;
+    }
+    try {
+      final blocks = await ref.read(userBlocksProvider.future);
+      if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) return;
+      if (blocks.ownerId == 0) return;
+      final isBlocked = blocks.blocks.any(
+        (item) => item.targetUserId == user.userId,
+      );
+      await changeUserBlock(
+        context,
+        ref,
+        userId: user.userId,
+        blocked: !isBlocked,
+      );
+    } catch (error) {
+      if (mounted && epoch == ref.read(offlineCacheEpochProvider)) {
+        showGfToast(context, resolveErrorMessage(l10n, error), error: true);
+      }
+    }
   }
 
   Widget? _profileButtons(UserProfileProps props) {
@@ -815,7 +901,6 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
         actions.add(
           PrivateNoteButton(userId: user.userId, username: user.username),
         );
-        actions.add(UserBlockButton(userId: user.userId));
       }
       if (props.canFollow) {
         actions.add(
@@ -941,7 +1026,6 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     if (notes != null &&
         notes.ownerId > 0 &&
         notes.ownerId != props.user.userId) {
-      buttons.add(const Size(48, 48));
       final style = TextButtonTheme.of(context).style;
       final states = <WidgetState>{
         if (!notes.ready && !notes.failed) WidgetState.disabled,
@@ -1187,6 +1271,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                   ),
             data: (UserProfileProps props) {
               final tabs = _tabs(props, l10n);
+              var profileHeaderExtent = 0.0;
               return GfScrollToTop(
                 semanticLabel: l10n.commonBackToTop,
                 controller: _isShellProfile ? _scrollToTopController : null,
@@ -1197,21 +1282,42 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                         ? 0
                         : MediaQuery.paddingOf(context).top + 56,
                     onRefresh: () => _load(),
-                    child: CustomScrollView(
-                      controller: controller,
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      slivers: <Widget>[
-                        if (!widget.connectionsOnly)
-                          _immersiveHeader(context, _headerProps ?? props),
-                        if (!widget.connectionsOnly)
-                          SliverToBoxAdapter(
-                            child: _profileCard(_headerProps ?? props),
-                          ),
-                        const SliverToBoxAdapter(child: GfDivider()),
-                        if (tabs.isNotEmpty)
-                          SliverLayoutBuilder(
-                            builder: (context, constraints) =>
-                                SliverPersistentHeader(
+                    child: TabSwipeSurface(
+                      index: tabs.indexWhere((tab) => tab.key == _stream),
+                      length: tabs.length,
+                      onChanged: (index) => _selectStream(
+                        tabs[index].key,
+                        controller,
+                        profileHeaderExtent,
+                      ),
+                      child: CustomScrollView(
+                        controller: controller,
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        slivers: <Widget>[
+                          if (!widget.connectionsOnly)
+                            _immersiveHeader(context, _headerProps ?? props),
+                          if (!widget.connectionsOnly)
+                            SliverToBoxAdapter(
+                              child: _profileCard(_headerProps ?? props),
+                            ),
+                          const SliverToBoxAdapter(child: GfDivider()),
+                          if (tabs.isNotEmpty)
+                            SliverLayoutBuilder(
+                              builder: (context, constraints) {
+                                final headerExtent = math
+                                    .max(
+                                      0,
+                                      constraints.precedingScrollExtent -
+                                          (widget.connectionsOnly
+                                              ? 0
+                                              : MediaQuery.paddingOf(
+                                                      context,
+                                                    ).top +
+                                                    56),
+                                    )
+                                    .toDouble();
+                                profileHeaderExtent = headerExtent;
+                                return SliverPersistentHeader(
                                   pinned: true,
                                   delegate: _ProfileTabsHeader(
                                     height: math.max(
@@ -1230,82 +1336,82 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                                       onChanged: (index) => _selectStream(
                                         tabs[index].key,
                                         controller,
-                                        math.max(
-                                          0,
-                                          constraints.precedingScrollExtent -
-                                              (widget.connectionsOnly
-                                                  ? 0
-                                                  : MediaQuery.paddingOf(
-                                                          context,
-                                                        ).top +
-                                                        56),
-                                        ),
+                                        headerExtent,
                                       ),
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                          if (_streamLoading)
+                            _ProfileStreamSkeleton(
+                              connectionsOnly: widget.connectionsOnly,
+                            )
+                          else if (_streamError != null)
+                            SliverToBoxAdapter(
+                              child: GfErrorRetry(
+                                message: resolveErrorMessage(
+                                  l10n,
+                                  _streamError!,
+                                ),
+                                onRetry: () {
+                                  _load(streamChange: true);
+                                },
+                              ),
+                            ),
+                          if (!_streamLoading && _active.props != null)
+                            // Key each stream so recycled SliverList geometry cannot
+                            // shift its restored scroll offset.
+                            _ProfileBody(
+                              key: ValueKey(_stream),
+                              props: props,
+                              selectedKey: _stream,
+                              following: _connectionFollowing,
+                              busy: _connectionBusy,
+                              onFollow: _toggleConnection,
+                              onReturn: _syncReturnedInteractions,
+                              onInteraction: _toggleInteraction,
+                              interactionBusy: _interactionBusy,
+                            ),
+                          if (!_streamLoading &&
+                              _streamError == null &&
+                              props.pagination.hasNext)
+                            SliverToBoxAdapter(
+                              child: GfListFooter(
+                                key: ValueKey(_stream),
+                                error: _active.paginationError == null
+                                    ? null
+                                    : resolveErrorMessage(
+                                        l10n,
+                                        _active.paginationError!,
+                                      ),
+                                progressKey: (
+                                  _stream,
+                                  props.pagination.nextUrl,
+                                ),
+                                hasMore: props.pagination.hasNext,
+                                loading: _loadingMore,
+                                onLoadMore: () => _loadMore(props),
+                              ),
+                            ),
+
+                          // Keep short streams from clamping a restored offset.
+                          // First visits retain only the header-collapse offset.
+                          SliverLayoutBuilder(
+                            builder: (context, constraints) =>
+                                SliverToBoxAdapter(
+                                  child: SizedBox(
+                                    height: math.max(
+                                      32,
+                                      _minimumScrollOffset +
+                                          constraints.viewportMainAxisExtent -
+                                          constraints.precedingScrollExtent,
                                     ),
                                   ),
                                 ),
                           ),
-                        if (_streamLoading)
-                          _ProfileStreamSkeleton(
-                            connectionsOnly: widget.connectionsOnly,
-                          )
-                        else if (_streamError != null)
-                          SliverToBoxAdapter(
-                            child: GfErrorRetry(
-                              message: resolveErrorMessage(l10n, _streamError!),
-                              onRetry: () {
-                                _load(streamChange: true);
-                              },
-                            ),
-                          ),
-                        if (!_streamLoading && _active.props != null)
-                          // Key each stream so recycled SliverList geometry cannot
-                          // shift its restored scroll offset.
-                          _ProfileBody(
-                            key: ValueKey(_stream),
-                            props: props,
-                            selectedKey: _stream,
-                            following: _connectionFollowing,
-                            busy: _connectionBusy,
-                            onFollow: _toggleConnection,
-                            onReturn: _syncReturnedInteractions,
-                            onInteraction: _toggleInteraction,
-                            interactionBusy: _interactionBusy,
-                          ),
-                        if (!_streamLoading &&
-                            _streamError == null &&
-                            props.pagination.hasNext)
-                          SliverToBoxAdapter(
-                            child: GfListFooter(
-                              key: ValueKey(_stream),
-                              error: _active.paginationError == null
-                                  ? null
-                                  : resolveErrorMessage(
-                                      l10n,
-                                      _active.paginationError!,
-                                    ),
-                              progressKey: (_stream, props.pagination.nextUrl),
-                              hasMore: props.pagination.hasNext,
-                              loading: _loadingMore,
-                              onLoadMore: () => _loadMore(props),
-                            ),
-                          ),
-
-                        // Keep short streams from clamping a restored offset.
-                        // First visits retain only the header-collapse offset.
-                        SliverLayoutBuilder(
-                          builder: (context, constraints) => SliverToBoxAdapter(
-                            child: SizedBox(
-                              height: math.max(
-                                32,
-                                _minimumScrollOffset +
-                                    constraints.viewportMainAxisExtent -
-                                    constraints.precedingScrollExtent,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   );
                 },
@@ -1606,22 +1712,80 @@ class _ProfileTabs extends StatefulWidget {
 class _ProfileTabsState extends State<_ProfileTabs>
     with SingleTickerProviderStateMixin {
   static const _animationDuration = GfMotion.layout;
-  static const _animationCurve = GfMotion.layoutCurve;
+  static const _animationCurve = GfLogarithmicEaseOutCurve();
 
   late final AnimationController _controller = AnimationController(
     vsync: this,
     duration: _animationDuration,
     value: 1,
+  )..addStatusListener(_handleAnimationStatus);
+  ValueListenable<GfTabSwipeProgress>? _swipeProgressNotifier;
+  GfTabSwipeProgress _dragProgress = const GfTabSwipeProgress(
+    originIndex: 0,
+    offset: 0,
   );
   List<double> _fromShares = [];
   List<double> _displayedShares = [];
+  List<double> _fromTapFractions = [];
+  List<double> _displayedActiveFractions = [];
   Offset? _fromSegmentShares;
   Offset? _displayedSegmentShares;
+  double? _fromIndicatorCenterShare;
+  double? _fromIndicatorWidthShare;
+  double? _displayedIndicatorCenterShare;
+  double? _displayedIndicatorWidthShare;
   bool _disableAnimations = false;
+  bool _tapSelection = false;
+
+  void _handleAnimationStatus(AnimationStatus status) {
+    if (status != AnimationStatus.completed) return;
+    _fromIndicatorCenterShare = null;
+    _fromIndicatorWidthShare = null;
+    if (_tapSelection) {
+      _tapSelection = false;
+      _controller.duration = _animationDuration;
+      _fromTapFractions = [];
+    }
+  }
+
+  void _onSwipeProgressChanged() {
+    final previous = _dragProgress;
+    _dragProgress = _swipeProgressNotifier!.value;
+    final progress = _dragProgress;
+    if (progress.offset == 0 &&
+        previous.offset != 0 &&
+        previous.originIndex == progress.originIndex &&
+        progress.originIndex == widget.index) {
+      _fromShares = List.of(_displayedShares);
+      _fromSegmentShares = _displayedSegmentShares;
+      _fromIndicatorCenterShare = _displayedIndicatorCenterShare;
+      _fromIndicatorWidthShare = _displayedIndicatorWidthShare;
+      if (_disableAnimations) {
+        _controller.value = 1;
+      } else {
+        _controller.forward(from: 0);
+      }
+    } else if (progress.offset != 0 && progress.originIndex == widget.index) {
+      _tapSelection = false;
+      _controller.duration = _animationDuration;
+      _fromTapFractions = [];
+      _controller.stop();
+    }
+    if (mounted) setState(() {});
+  }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    final progress = GfTabSwipeProgressScope.maybeOf(context);
+    if (progress != _swipeProgressNotifier) {
+      _swipeProgressNotifier?.removeListener(_onSwipeProgressChanged);
+      _swipeProgressNotifier = progress;
+      _swipeProgressNotifier?.addListener(_onSwipeProgressChanged);
+      _dragProgress =
+          progress?.value ??
+          const GfTabSwipeProgress(originIndex: 0, offset: 0);
+    }
     final disableAnimations = MediaQuery.disableAnimationsOf(context);
     if (disableAnimations && !_disableAnimations) {
       _fromShares = List.of(_displayedShares);
@@ -1637,15 +1801,35 @@ class _ProfileTabsState extends State<_ProfileTabs>
     if (widget.index == oldWidget.index) return;
     _fromShares = List.of(_displayedShares);
     _fromSegmentShares = _displayedSegmentShares;
+    _fromIndicatorCenterShare = _displayedIndicatorCenterShare;
+    _fromIndicatorWidthShare = _displayedIndicatorWidthShare;
     if (_disableAnimations) {
       _controller.value = 1;
+      _tapSelection = false;
+      _controller.duration = _animationDuration;
     } else {
+      _controller.duration = _tapSelection
+          ? GfMotion.duration(context, GfMotion.selection)
+          : _animationDuration;
       _controller.forward(from: 0);
     }
   }
 
+  void _selectTab(int index) {
+    if (index == widget.index) return;
+    _tapSelection = true;
+    _fromTapFractions = _displayedActiveFractions.length == widget.tabs.length
+        ? List.of(_displayedActiveFractions)
+        : [
+            for (var i = 0; i < widget.tabs.length; i++)
+              i == widget.index ? 1 : 0,
+          ];
+    widget.onChanged(index);
+  }
+
   @override
   void dispose() {
+    _swipeProgressNotifier?.removeListener(_onSwipeProgressChanged);
     _controller.dispose();
     super.dispose();
   }
@@ -1686,7 +1870,12 @@ class _ProfileTabsState extends State<_ProfileTabs>
           final colors = GfTheme.colorsOf(context);
           final animationDuration = _disableAnimations
               ? Duration.zero
+              : _tapSelection
+              ? GfMotion.duration(context, GfMotion.content)
               : _animationDuration;
+          final animationCurve = _tapSelection
+              ? GfMotion.enterCurve
+              : _animationCurve;
           final labelWidths = [
             for (final tab in widget.tabs)
               _labelWidth(context, tab.label ?? tab.key),
@@ -1694,26 +1883,65 @@ class _ProfileTabsState extends State<_ProfileTabs>
           final expandedWidths = [
             for (final width in labelWidths) math.max(48.0, width + 42),
           ];
+          final drag = _dragProgress;
+          final dragTarget = drag.originIndex + drag.offset.sign.toInt();
+          final bool dragAnimating =
+              drag.offset != 0 &&
+              drag.originIndex == selectedIndex &&
+              dragTarget >= 0 &&
+              dragTarget < widget.tabs.length;
+          final double dragFraction = dragAnimating
+              ? drag.offset.abs().clamp(0.0, 1.0)
+              : 0;
+          final tapProgress = _tapSelection
+              ? animationCurve.transform(_controller.value)
+              : 1.0;
+          double activeFraction(int index) {
+            if (dragAnimating) {
+              if (index == selectedIndex) return 1 - dragFraction;
+              return index == dragTarget ? dragFraction : 0;
+            }
+            if (_tapSelection &&
+                _fromTapFractions.length == widget.tabs.length) {
+              final target = index == selectedIndex ? 1.0 : 0.0;
+              return _fromTapFractions[index] +
+                  (target - _fromTapFractions[index]) * tapProgress;
+            }
+            return index == selectedIndex ? 1 : 0;
+          }
+
+          _displayedActiveFractions = [
+            for (var i = 0; i < widget.tabs.length; i++) activeFraction(i),
+          ];
+
           final rowWidth = math.max(
             constraints.maxWidth,
             widget.tabs.length <= 2
                 ? expandedWidths.reduce((a, b) => a > b ? a : b) *
                       widget.tabs.length
-                : expandedWidths[selectedIndex] +
+                : math.max(
+                        expandedWidths[selectedIndex],
+                        dragAnimating ? expandedWidths[dragTarget] : 0,
+                      ) +
                       48.0 * (widget.tabs.length - 1),
           );
-          final targetWidths = widget.tabs.length <= 2
+          List<double> widthsForSelection(int activeIndex) =>
+              widget.tabs.length <= 2
               ? List<double>.filled(
                   widget.tabs.length,
                   rowWidth / widget.tabs.length,
                 )
               : [
                   for (int i = 0; i < widget.tabs.length; i++)
-                    i == selectedIndex
+                    i == activeIndex
                         ? expandedWidths[i]
-                        : (rowWidth - expandedWidths[selectedIndex]) /
+                        : (rowWidth - expandedWidths[activeIndex]) /
                               (widget.tabs.length - 1),
                 ];
+          final targetWidths = widthsForSelection(selectedIndex);
+          final destinationWidths = dragAnimating
+              ? widthsForSelection(dragTarget)
+              : targetWidths;
           final targetShares = [
             for (final width in targetWidths) width / rowWidth,
           ];
@@ -1733,13 +1961,18 @@ class _ProfileTabsState extends State<_ProfileTabs>
 
           final progress = _disableAnimations
               ? 1.0
-              : _animationCurve.transform(_controller.value);
+              : animationCurve.transform(_controller.value);
           final shares = [
             for (int i = 0; i < targetShares.length; i++)
               _fromShares[i] + (targetShares[i] - _fromShares[i]) * progress,
           ];
-          _displayedShares = List.of(shares);
-          final widths = [for (final share in shares) share * rowWidth];
+          final baseWidths = [for (final share in shares) share * rowWidth];
+          final widths = [
+            for (int i = 0; i < baseWidths.length; i++)
+              baseWidths[i] +
+                  (destinationWidths[i] - baseWidths[i]) * dragFraction,
+          ];
+          _displayedShares = [for (final width in widths) width / rowWidth];
           final fromSegment = _fromSegmentShares!;
           final activeSegmentShares = Offset(
             fromSegment.dx + (targetSegment.dx - fromSegment.dx) * progress,
@@ -1748,11 +1981,40 @@ class _ProfileTabsState extends State<_ProfileTabs>
           _displayedSegmentShares = activeSegmentShares;
           final activeLeft = activeSegmentShares.dx * rowWidth;
           final activeWidth = activeSegmentShares.dy * rowWidth;
-          final indicatorWidth = math.min(
+          final baseIndicatorWidth = math.min(
             64.0,
             math.max(40.0, activeWidth * .72),
           );
-          final indicatorLeft = activeLeft + (activeWidth - indicatorWidth) / 2;
+          var indicatorCenter = activeLeft + activeWidth / 2;
+          var indicatorWidth = baseIndicatorWidth;
+          if (dragAnimating) {
+            final double targetCenter =
+                destinationWidths
+                    .take(dragTarget)
+                    .fold(0.0, (sum, width) => sum + width) +
+                destinationWidths[dragTarget] / 2;
+            final double distance = (targetCenter - indicatorCenter).abs();
+            indicatorCenter += (targetCenter - indicatorCenter) * dragFraction;
+            indicatorWidth = baseIndicatorWidth + distance * dragFraction;
+          } else if (_fromIndicatorCenterShare != null &&
+              _fromIndicatorWidthShare != null) {
+            final double targetCenter =
+                (targetSegment.dx + targetSegment.dy / 2) * rowWidth;
+            final double targetWidth = math.min(
+              64.0,
+              math.max(40.0, targetSegment.dy * rowWidth * .72),
+            );
+            indicatorCenter =
+                _fromIndicatorCenterShare! * rowWidth +
+                (targetCenter - _fromIndicatorCenterShare! * rowWidth) *
+                    progress;
+            indicatorWidth =
+                _fromIndicatorWidthShare! * rowWidth +
+                (targetWidth - _fromIndicatorWidthShare! * rowWidth) * progress;
+          }
+          _displayedIndicatorCenterShare = indicatorCenter / rowWidth;
+          _displayedIndicatorWidthShare = indicatorWidth / rowWidth;
+          final indicatorLeft = indicatorCenter - indicatorWidth / 2;
           final height = math.max(
             52.0,
             MediaQuery.textScalerOf(context).scale(16) * 1.4 + 24,
@@ -1769,9 +2031,7 @@ class _ProfileTabsState extends State<_ProfileTabs>
                     children: [
                       for (int i = 0; i < widget.tabs.length; i++)
                         SizedBox(
-                          key: i == selectedIndex
-                              ? const ValueKey('profile-tab-active-segment')
-                              : null,
+                          key: ValueKey('profile-tab-segment-$i'),
                           width: widths[i],
                           height: height,
                           child: Tooltip(
@@ -1783,7 +2043,7 @@ class _ProfileTabsState extends State<_ProfileTabs>
                               label: widget.tabs[i].label ?? widget.tabs[i].key,
                               child: InkWell(
                                 borderRadius: BorderRadius.circular(8),
-                                onTap: () => widget.onChanged(i),
+                                onTap: () => _selectTab(i),
                                 child: Padding(
                                   padding: const EdgeInsets.symmetric(
                                     horizontal: 8,
@@ -1792,48 +2052,67 @@ class _ProfileTabsState extends State<_ProfileTabs>
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     mainAxisSize: MainAxisSize.max,
                                     children: [
-                                      GfSymbol(
-                                        _iconFor(widget.tabs[i].key),
-                                        size: 20,
-                                        color: i == selectedIndex
-                                            ? colors.baseContent
-                                            : colors.iconMuted,
+                                      AnimatedScale(
+                                        scale: .9 + .1 * activeFraction(i),
+                                        duration: dragAnimating || _tapSelection
+                                            ? Duration.zero
+                                            : animationDuration,
+                                        curve: animationCurve,
+                                        child: GfSymbol(
+                                          _iconFor(widget.tabs[i].key),
+                                          size: 20,
+                                          color: Color.lerp(
+                                            colors.iconMuted,
+                                            colors.baseContent,
+                                            activeFraction(i),
+                                          ),
+                                        ),
                                       ),
                                       Flexible(
                                         fit: FlexFit.loose,
                                         child: AnimatedContainer(
-                                          duration: animationDuration,
-                                          curve: _animationCurve,
-                                          width: i == selectedIndex
-                                              ? labelWidths[i] + 6
-                                              : 0,
+                                          duration:
+                                              dragAnimating || _tapSelection
+                                              ? Duration.zero
+                                              : animationDuration,
+                                          curve: animationCurve,
+                                          width:
+                                              (labelWidths[i] + 6) *
+                                              activeFraction(i),
                                           child: ClipRect(
                                             child: AnimatedOpacity(
-                                              duration: animationDuration,
-                                              curve: _animationCurve,
-                                              opacity: i == selectedIndex
-                                                  ? 1
-                                                  : 0,
+                                              duration:
+                                                  dragAnimating || _tapSelection
+                                                  ? Duration.zero
+                                                  : animationDuration,
+                                              curve: animationCurve,
+                                              opacity: activeFraction(i),
                                               child: Padding(
                                                 padding: const EdgeInsets.only(
                                                   left: 6,
                                                 ),
-                                                child: ExcludeSemantics(
-                                                  child: Text(
-                                                    widget.tabs[i].label ??
-                                                        widget.tabs[i].key,
-                                                    maxLines: 1,
-                                                    softWrap: false,
-                                                    style:
-                                                        DefaultTextStyle.of(
-                                                          context,
-                                                        ).style.copyWith(
-                                                          fontSize: 16,
-                                                          fontWeight:
-                                                              FontWeight.w600,
-                                                          color: colors
-                                                              .baseContent,
-                                                        ),
+                                                child: Transform.translate(
+                                                  offset: Offset(
+                                                    8 * (1 - activeFraction(i)),
+                                                    0,
+                                                  ),
+                                                  child: ExcludeSemantics(
+                                                    child: Text(
+                                                      widget.tabs[i].label ??
+                                                          widget.tabs[i].key,
+                                                      maxLines: 1,
+                                                      softWrap: false,
+                                                      style:
+                                                          DefaultTextStyle.of(
+                                                            context,
+                                                          ).style.copyWith(
+                                                            fontSize: 16,
+                                                            fontWeight:
+                                                                FontWeight.w600,
+                                                            color: colors
+                                                                .baseContent,
+                                                          ),
+                                                    ),
                                                   ),
                                                 ),
                                               ),

@@ -124,9 +124,20 @@ ordered after the active route in the accessibility tree so iOS does not hide it
   focus; selecting a thumbnail changes the image and resets zoom and actual-size mode. Distant
   selections jump directly; adjacent selections use the shared media cadence. Tapping
   toggles the viewer controls and rail together; a vertical drag dismisses at minimum scale, moving
-  and scaling the image while the background fades. Paging and dismiss gestures stay out of the way
-  while an image is zoomed. Changing reduced motion while viewing keeps the current image and
-  settles active zoom or return animations. Home feed previews use the same viewer and image actions.
+  and scaling the image while the background fades. At minimum scale, horizontal paging uses the
+  image page view's horizontal drag recognizer and cumulative pointer displacement after device
+  touch slop; velocity is reserved for release physics, so a quick new swipe can interrupt the
+  previous page settle immediately. Vertical dismissal starts only after at least 1.5 touch-slops
+  of travel with 1.5:1 vertical-to-horizontal dominance. A later, clearly horizontal movement can
+  hand a provisional dismiss drag back to paging. A new touch can interrupt a slide-return animation; clear
+  horizontal intent returns any partial vertical offset to rest and pages immediately. Dismissal
+  accepts a light drag (one tenth of the viewport height) or a quick vertical flick (420 logical
+  pixels per second) on release. A cancelled drag or a second finger joining the gesture returns
+  the image to rest without dismissing the viewer, even beyond that distance threshold. Zoomed
+  images keep gestures for image navigation and panning.
+  Paging and dismiss gestures stay out of the way while an image is zoomed. Changing reduced motion
+  while viewing keeps the current image and settles active zoom or return animations. Home feed
+  previews use the same viewer and image actions.
 - `Current`: Home topic cards expose compact authenticated like and bookmark shortcuts beside the
   reply/view metrics. A single heart action includes the topic's total like count; both actions
   retain a minimum 44-by-44 logical-pixel touch target while their icons animate. Actions switch
@@ -146,6 +157,11 @@ ordered after the active route in the accessibility tree so iOS does not hide it
 - `Current`: Home displays categories in a horizontal row below the feed sorts. Category pills
   filter the existing stream in place, with a highlighted selection and an All categories action.
   The display menu contains list/card preferences; unavailable categories take no space.
+- `Current`: Home sort, Campus section and notification filter rails share a scrollable tab bar.
+  The page-swipe recognizer feeds the shared tab controller's live drag offset, so the selected
+  underline follows a held slow swipe and stretches evenly toward the adjacent tab. After release,
+  the extended segment contracts with a logarithmic ease-out curve. Profile stream tabs use the same
+  drag progress; the bar reveals selected tabs outside its viewport and honors reduced-motion settings.
 - `Current`: root headers, filter rails and bottom navigation overlay the reading viewport. They
   hide after 48 logical pixels downward and return after 12 pixels upward, with 220 ms transitions.
   Hidden headers are clipped at the system safe-area edge; the reading viewport stays stable.
@@ -736,7 +752,9 @@ identity survive this layout change. The header keeps a small outer margin for i
   tabs below it; a status-area scrim protects white system indicators during collapse. The application supplies a theme-aware status-bar fallback, so returning from
   an immersive cover to a plain feed restores legible system indicators. Cover, avatar and profile actions share one header layer so the avatar stays
   fully visible. The compact action band keeps the display name eight pixels below the avatar
-  ring; account ID, bio and statistics use tighter related-content spacing. The band grows for
+  ring. Other users' profiles show the same top-right overflow control; its menu offers block or
+  unblock for that profile, while the own profile keeps its existing account actions. Account ID,
+  bio and statistics use tighter related-content spacing. The band grows for
   wrapped actions and larger text. Pull-to-refresh starts below the safe area and toolbar. The editor crop preview
   uses the same available width and system inset as the public cover.
 
@@ -751,9 +769,13 @@ identity survive this layout change. The header keeps a small outer margin for i
 - `Current`: the root avatar opens an account drawer with aligned 24-pixel outline icons, compact
   56-pixel minimum rows and a clear nickname/account-handle hierarchy. The full-height, square-edged
   panel slides over the leading side at 84% of the viewport width, capped at 400 pixels. Its contents
-  scroll within the safe area. A rightward drag beginning in the leading
-  55% of the viewport can open it; vertical scrolling and interactive horizontal child controls keep
-  their gestures. Following/follower counts open the matching native connection lists. Unavailable
+  scroll within the safe area. On tabbed root pages, opening drags track the finger across the leading
+  55% only while the first tab is selected. On later tabs, horizontal drags stay with tab navigation
+  and never open the drawer. Pages without swipe tabs retain the leading-side drawer gesture. Once
+  open, a drag toward the leading edge closes it. An accepted drawer drag keeps following the finger
+  when it reverses past its starting point. The outside shade exposes a localized close action to
+  screen readers. Vertical scrolling and nested horizontal controls keep their gestures.
+  Following/follower counts open the matching native connection lists. Unavailable
   counts show a placeholder with retry instead of zero. Opening the drawer refreshes the card, and
   account changes discard previous identity data. Profile, bookmarks, drafts, my content, recycle bin,
   course reviews, settings, community information and permission-gated workspaces remain available.
@@ -803,8 +825,10 @@ identity survive this layout change. The header keeps a small outer margin for i
   including administrators. It displays the followed state and toggles to unfollow, prevents duplicate
   in-flight requests and restores the previous state when a request fails.
 - `Current`: profile content tabs form a continuous pinned rail. The selected item expands its icon
-  and localized label; inactive items show icons with accessible names. The underline animates with
-  the tab widths, respecting reduced motion. Activity, content, likes, own bookmarks and badges fetch
+  and localized label; during a held horizontal swipe, the old and incoming icons move with their
+  labels as the segment widths interpolate, using a subtle scale and fade. Inactive items show icons
+  with accessible names. The underline animates with the tab widths, respecting reduced motion.
+  Activity, content, likes, own bookmarks and badges fetch
   their corresponding streams. The header and tabs stay visible while an unloaded stream displays
   skeleton rows. Each stream retains loaded pages and scroll position; leaving a stream cancels
   unfinished reads, which restart if needed on return. Inactive reads cannot replace the selected
@@ -992,7 +1016,8 @@ topic card, with the current category omitted from repeated card labels. Topic h
 name, timestamp and categories on one row: long display names ellipsize before metadata can wrap.
 Very narrow or enlarged-text layouts let the category group scroll horizontally; author and category
 touch targets remain separate and at least 44 pixels. Full names remain available to accessibility
-and through the author profile.
+and through the author profile. Feed card previews use the topic gallery's blurred image fill and
+theme-tinted veil behind the uncropped image.
 Unread notifications have a filter-specific empty state and no unrelated publishing action.
 Wiki recent items prioritize titles and update times; repository editing stays in the detail header.
 

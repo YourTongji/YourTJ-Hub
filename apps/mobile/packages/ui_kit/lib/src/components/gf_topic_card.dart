@@ -1,5 +1,6 @@
 import 'dart:developer' as developer;
 import 'dart:math' as math;
+import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
 
@@ -718,29 +719,48 @@ class _TopicImage extends StatelessWidget {
                     .round()
                     .clamp(1, 1000000)
                     .toInt();
+          final image = _feedImageProvider(
+            source?.url ?? url,
+            pixelWidth,
+            cacheHeight,
+          );
           return SizedBox(
             width: width,
             height: height,
-            child: Image(
-              image: _feedImageProvider(
-                source?.url ?? url,
-                pixelWidth,
-                cacheHeight,
-              ),
-              fit: fit,
-              frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
-                if (frame != null) {
-                  _GfTopicCardState._recordFirstMediaFrame(onFirstMediaFrame);
-                }
-                return child;
-              },
-              errorBuilder:
-                  (BuildContext context, Object error, StackTrace? stack) {
-                    return ColoredBox(
-                      color: colors.base200,
-                      child: GfSymbol('image-off', color: colors.iconMuted),
-                    );
-                  },
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                ImageFiltered(
+                  imageFilter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+                  child: Image(
+                    image: image,
+                    fit: BoxFit.cover,
+                    gaplessPlayback: true,
+                    errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                  ),
+                ),
+                ColoredBox(color: colors.base100.withValues(alpha: .46)),
+                Image(
+                  image: image,
+                  fit: fit,
+                  frameBuilder:
+                      (context, child, frame, wasSynchronouslyLoaded) {
+                        if (frame != null) {
+                          _GfTopicCardState._recordFirstMediaFrame(
+                            onFirstMediaFrame,
+                          );
+                        }
+                        return child;
+                      },
+                  errorBuilder:
+                      (BuildContext context, Object error, StackTrace? stack) {
+                        return ColoredBox(
+                          color: colors.base200,
+                          child: GfSymbol('image-off', color: colors.iconMuted),
+                        );
+                      },
+                ),
+              ],
             ),
           );
         },

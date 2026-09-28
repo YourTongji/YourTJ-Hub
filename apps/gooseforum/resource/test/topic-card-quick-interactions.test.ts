@@ -268,4 +268,76 @@ describe('TopicCardActions 卡片快捷互动（issue #380）', () => {
     })
     expect(view.findComponent(TopicCardActions).exists()).toBe(false)
   })
+
+  it.each(['table', 'card'] as const)('首页 %s 置顶标题可直达，展开状态跨视图保留', async (feedMode) => {
+    wrapper = mount(TopicList, {
+      attachTo: document.body,
+      props: {
+        topics: [
+          ...[1, 2, 3, 4].map(id => baseTopic({
+            id, url: `/p/${id}`, title: `置顶${id}`, pinWeight: 5 - id,
+            categories: [{ id: 1, name: 'YourTJHub', url: '/c/1', color: '' }],
+          })),
+          baseTopic({ id: 5, title: '普通话题' }),
+        ],
+        home: true,
+        feedMode,
+        showPinned: true,
+      },
+      global: {
+        plugins: [i18n],
+        stubs: {
+          TopicFeedPreview: { props: ['topic'], template: '<div>{{ topic.title }}</div>' },
+          TopicRow: { props: ['topic'], template: '<div class="test-topic-row">{{ topic.title }}</div>' },
+          TopicCardActions: true,
+        },
+      },
+    })
+    const view = wrapper
+    const visiblePinned = () => view.findAll('section a').filter(link => link.isVisible())
+    const toggle = () => view.get('button[aria-controls]')
+    expect(visiblePinned().map(link => link.attributes('href'))).toEqual(['/p/1'])
+    expect(toggle().text()).toContain('共 4 条')
+    expect(toggle().attributes('aria-expanded')).toBe('false')
+    expect(view.get(`#${toggle().attributes('aria-controls')}`).exists()).toBe(true)
+    expect(view.text()).toContain('普通话题')
+    // Pinned items are always compact links, not full feed cards or rows.
+    expect(view.findAllComponents(TopicFeedPreview)).toHaveLength(feedMode === 'card' ? 1 : 0)
+    expect(view.findAll('.test-topic-row')).toHaveLength(feedMode === 'table' ? 1 : 0)
+
+    await toggle().trigger('click')
+    expect(visiblePinned()).toHaveLength(4)
+    // 每一行（含汇总首行）都有置顶徽标；svg 仅剩汇总行的展开箭头
+    expect(view.findAll('section li .text-primary')).toHaveLength(4)
+    expect(view.find('section').text()).not.toContain('YourTJHub')
+    expect(view.findAll('section li svg')).toHaveLength(1)
+    await view.setProps({ feedMode: feedMode === 'table' ? 'card' : 'table' })
+    expect(toggle().attributes('aria-expanded')).toBe('true')
+    expect(visiblePinned()).toHaveLength(4)
+    await toggle().trigger('click')
+    expect(visiblePinned()).toHaveLength(1)
+
+    // Refresh can remove pins: update the count and remove an unnecessary toggle.
+    await view.setProps({ topics: [baseTopic({ id: 1, pinWeight: 2 }), baseTopic({ id: 2, pinWeight: 1 })] })
+    expect(visiblePinned()).toHaveLength(1)
+    expect(toggle().text()).toContain('共 2 条')
+    await view.setProps({ topics: [baseTopic({ id: 1, title: '唯一置顶', pinWeight: 1 })] })
+    expect(visiblePinned()).toHaveLength(1)
+    expect(view.find('section').text()).toContain('共 1 条')
+    expect(view.find('button[aria-controls]').exists()).toBe(false)
+    await view.setProps({ topics: [] })
+    expect(view.find('section').exists()).toBe(false)
+  })
+
+  it.each([
+    { home: true, showPinned: false },
+    { home: false, showPinned: true },
+  ])('只在首页最新排序收纳置顶：%j', (props) => {
+    wrapper = mount(TopicList, {
+      props: { ...props, topics: [baseTopic({ pinWeight: 1 })] },
+      global: { plugins: [i18n], stubs: { TopicRow: true } },
+    })
+    expect(wrapper.find('section').exists()).toBe(false)
+    expect(wrapper.findAllComponents({ name: 'TopicRow' })).toHaveLength(1)
+  })
 })
