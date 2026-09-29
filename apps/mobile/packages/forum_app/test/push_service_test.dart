@@ -342,6 +342,15 @@ void main() {
       appRouter.go('/');
       await settle();
       expect(driver.requests, 1);
+      final configReadsAfterLogin = repo.reads;
+      final nativeRegistrationsAfterLogin = driver.registrations;
+      final deviceRegistrationsAfterLogin = repo.registered.length;
+      appRouter.go('/notifications');
+      await settle();
+      expect(driver.requests, 1);
+      expect(repo.reads, configReadsAfterLogin);
+      expect(driver.registrations, nativeRegistrationsAfterLogin);
+      expect(repo.registered.length, deviceRegistrationsAfterLogin);
       appRouter.go('/');
     },
   );

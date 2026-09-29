@@ -86,6 +86,7 @@ class PushController extends Notifier<PushChannelStatus>
   int _generation = 0;
   bool _disposed = false;
   bool _firstFrameComplete = false;
+  bool _permissionRequestAttempted = false;
   bool _busy = false;
   bool _refreshAgain = false;
   Completer<void>? _pendingEnable;
@@ -141,10 +142,22 @@ class PushController extends Notifier<PushChannelStatus>
   }
 
   void _onRouteChanged() {
-    if (_firstFrameComplete &&
+    if (_driver.platform == 'android' &&
+        _firstFrameComplete &&
+        !_permissionRequestAttempted &&
         appRouter.routeInformationProvider.value.uri.path != '/login') {
-      unawaited(refresh());
+      unawaited(_refreshAfterLoginRoute());
     }
+  }
+
+  Future<void> _refreshAfterLoginRoute() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (_disposed ||
+        _permissionRequestAttempted ||
+        (prefs.getBool(_permissionRequestedKey) ?? false)) {
+      return;
+    }
+    await refresh();
   }
 
   Future<void> refresh() async {
@@ -195,6 +208,7 @@ class PushController extends Notifier<PushChannelStatus>
         request = true;
       }
       if (request) {
+        _permissionRequestAttempted = true;
         await prefs.setBool(_enabledKey, true);
         await prefs.setBool(_permissionRequestedKey, true);
       }
