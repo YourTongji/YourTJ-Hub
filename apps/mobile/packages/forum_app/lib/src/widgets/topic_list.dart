@@ -108,6 +108,7 @@ class GfTopicList extends StatelessWidget {
             return _PinnedTopicGroup(
               key: const ValueKey('pinned-topic-group'),
               topics: pinned,
+              showTrailingDivider: visibleTopics.isNotEmpty,
               onCategorySelected: onCategorySelected,
               hiddenCategoryId: hiddenCategoryId,
               onReturn: onReturnFromTopic,
@@ -157,11 +158,16 @@ class _PinnedTopicGroup extends StatefulWidget {
   const _PinnedTopicGroup({
     super.key,
     required this.topics,
+    required this.showTrailingDivider,
     this.hiddenCategoryId,
     this.onCategorySelected,
     this.onReturn,
   });
   final List<TopicPayload> topics;
+
+  /// Whether regular rows follow the group; when none do (pinned-only list)
+  /// the group must end like a regular last row, without its own divider.
+  final bool showTrailingDivider;
   final int? hiddenCategoryId;
   final ValueChanged<int>? onCategorySelected;
   final VoidCallback? onReturn;
@@ -226,11 +232,13 @@ class _PinnedTopicGroupState extends State<_PinnedTopicGroup>
           ),
         ),
         if (_expanded)
-          for (final topic in widget.topics)
+          for (var i = 0; i < widget.topics.length; i++)
             _topicRow(
               context,
-              topic,
-              isLast: false,
+              widget.topics[i],
+              isLast:
+                  !widget.showTrailingDivider &&
+                  i == widget.topics.length - 1,
               onCategorySelected: widget.onCategorySelected,
               hiddenCategoryId: widget.hiddenCategoryId,
               onReturn: widget.onReturn,

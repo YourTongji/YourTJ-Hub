@@ -18,6 +18,11 @@ class GfTopicCategory {
 
 enum GfTopicContentType { question, moment, article }
 
+/// Compact title size; text scale beyond [_enlargedTextScaleCeiling] × this
+/// lets the title and excerpt wrap instead of staying single-line.
+const double _titleFontSize = 15;
+const double _enlargedTextScaleCeiling = 1.5;
+
 /// Compact reading row with categories sharing the metadata band. Interactive
 /// chips keep their 44px targets; narrow windows/large text wrap the metadata.
 /// The inset divider is painted and never adds an empty footer to the layout.
@@ -64,7 +69,9 @@ class GfTopicRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = GfTheme.colorsOf(context);
-    final enlargedText = MediaQuery.textScalerOf(context).scale(15) > 22.5;
+    final enlargedText =
+        MediaQuery.textScalerOf(context).scale(_titleFontSize) >
+        _titleFontSize * _enlargedTextScaleCeiling;
     return InkWell(
       onTap: onTap,
       child: Container(
@@ -99,7 +106,7 @@ class GfTopicRow extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               color: colors.baseContent,
-                              fontSize: 15,
+                              fontSize: _titleFontSize,
                               fontWeight: FontWeight.w500,
                               height: 1.5,
                             ),
@@ -261,6 +268,10 @@ class GfTopicRow extends StatelessWidget {
       builder: (context, constraints) {
         // Measure the actual localized/scaled metadata. A fixed-width shortcut
         // clips long German dates or large counts at otherwise ordinary widths.
+        // Perf-sensitive: each build runs two TextPainter layouts, but only for
+        // rows with categories. ListView builds rows lazily so this stays off
+        // the frame-critical path today; revisit here first if list scroll
+        // profiling regresses.
         double textWidth(String text) {
           final painter = TextPainter(
             text: TextSpan(

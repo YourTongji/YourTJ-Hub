@@ -264,6 +264,14 @@ void main() {
       tester.getTopLeft(find.text('Regular topic')).dy,
       greaterThan(collapsedHeight),
     );
+    // Regular rows follow the group, so the final pinned row keeps its
+    // divider (a pinned-only group instead ends like a regular last row).
+    expect(
+      hairlines(
+        of: find.ancestor(of: find.text('Pinned two'), matching: find.byType(GfTopicRow)),
+      ),
+      findsOneWidget,
+    );
     controller.jumpTo(1500);
     await tester.pumpAndSettle();
     controller.jumpTo(0);
@@ -354,11 +362,50 @@ void main() {
       expect(tester.getSize(target).height, greaterThanOrEqualTo(48));
       await tester.tap(label);
       await tester.pumpAndSettle();
+      expect(
+        tester.getSemantics(label).getSemanticsData().flagsCollection.isExpanded,
+        ui.Tristate.isTrue,
+      );
       expect(find.text(topic.title), findsOneWidget);
       expect(find.text(l10n.publishArticle), findsOneWidget);
       expect(tester.takeException(), isNull);
     }
     semanticsHandle.dispose();
+  });
+
+  testWidgets('expanded pin group omits the divider after its final row', (
+    tester,
+  ) async {
+    final home = parsePageProps<HomeProps>(parsePayload(homePayloadJson()))!;
+    final topic = home.topics.first;
+    await tester.pumpWidget(
+      MaterialApp(
+        locale: const Locale('zh'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: Scaffold(
+          body: GfTopicList(
+            collapsePinned: true,
+            loading: false,
+            topics: [
+              topic.copyWith(id: 1, title: 'Pinned one', pinWeight: 1),
+              topic.copyWith(id: 2, title: 'Pinned two', pinWeight: 2),
+            ],
+            hasMore: false,
+            onLoadMore: () {},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(hairlines(), findsNothing);
+    await tester.tap(find.text('置顶话题（2）'));
+    await tester.pumpAndSettle();
+    expect(find.text('Pinned one'), findsOneWidget);
+    expect(find.text('Pinned two'), findsOneWidget);
+    // Only the hairline between the two pinned rows; the group ends like a
+    // regular last row because no regular rows follow it.
+    expect(hairlines(), findsOneWidget);
   });
 
   // issue #895：无标题瞬间的列表行要与 Web TopicRow/SSR 一致，始终有可识别的行标题。
@@ -437,3 +484,12 @@ void main() {
     },
   );
 }
+
+Finder hairlines({Finder? of}) => find.descendant(
+  of: of ?? find.byType(GfTopicRow),
+  matching: find.byWidgetPredicate(
+    (widget) =>
+        widget is Container &&
+        widget.constraints == BoxConstraints.tightFor(height: 1),
+  ),
+);
