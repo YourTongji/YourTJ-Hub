@@ -18,6 +18,7 @@ import 'cache_coordinator.dart';
 import 'device_storage.dart';
 import 'media_repository.dart';
 import 'private_database.dart';
+import 'reset_journal.dart';
 import 'user_work_database.dart';
 
 final mediaRepositoryProvider = Provider<MediaRepository>((ref) {
@@ -93,7 +94,8 @@ final storageResetStateProvider = StateProvider<AsyncValue<void>?>(
 final storageBootstrapProvider = FutureProvider<void>((ref) async {
   final service = ref.read(deviceStorageProvider);
   final db = ref.read(offlineDatabaseProvider);
-  if (await db.operation('reset') != null) {
+  if (await ref.read(resetJournalProvider).isPending() ||
+      await db.operation('reset') != null) {
     await service.reset();
   } else {
     // Ordinary partial cleanup leaves only failed categories suspended. Its
@@ -128,9 +130,12 @@ class _DeviceStorage implements DeviceStorage {
       chatDrafts: chats.count,
       plans: work.planCount,
       unsyncedPlans: work.unsyncedPlanCount,
-      recoveryPlans: work.legacyPlanCount,
+      recoveryPlans: work.recoveryPlanCount,
+      legacyPlans: work.legacyPlanCount,
       pending: await coordinator.pending(),
-      resetPending: await db.operation('reset') != null,
+      resetPending:
+          await ref.read(resetJournalProvider).isPending() ||
+          await db.operation('reset') != null,
     );
   }
 
@@ -151,6 +156,9 @@ class _DeviceStorage implements DeviceStorage {
     try {
       // Write the intent before destroying any local work. The same idempotent
       // sequence resumes on launch if any independent owner fails or the app dies.
+      // The independent marker survives cache corruption/key loss and prefs
+      // clearing. Keep the legacy row until completion for upgrade compatibility.
+      await ref.read(resetJournalProvider).begin();
       await db.setOperation('reset', '1');
       ref.read(offlineCacheEpochProvider.notifier).invalidate();
       ref.invalidate(currentUserProvider);
@@ -198,6 +206,7 @@ class _DeviceStorage implements DeviceStorage {
       ref.invalidate(themeModeProvider);
       ref.invalidate(siteThemeProvider);
       await db.finishOperation('reset');
+      await ref.read(resetJournalProvider).finish();
       ref.read(storageResetStateProvider.notifier).state = null;
     } catch (error, stack) {
       ref.read(storageResetStateProvider.notifier).state = AsyncValue.error(

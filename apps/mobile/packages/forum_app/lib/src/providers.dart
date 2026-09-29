@@ -205,9 +205,15 @@ Future<void> clearOfflineCache(
   OfflineChatCache chatCache,
   ScheduleWidgetBridge widgetBridge,
 ) async {
-  // The production Drift cache clears campus_snapshots in the same transaction.
+  // Production topic/chat views share one coordinated cleanup, including
+  // campus and media owners. Do not repeat its sweep and database compaction.
+  final sharedStorage =
+      identical(topicCache, chatCache) ||
+      (topicCache is DriftOfflineCache &&
+          topicCache.sharesStorageWith(chatCache));
   await topicCache.clear();
-  await chatCache.clear();
+  if (!sharedStorage) await chatCache.clear();
+  // Publish the session's terminal widget state after category cleanup.
   await widgetBridge.clear(state: 'signedOut');
 }
 

@@ -245,14 +245,19 @@ void main() {
       await settle();
       expect(driver.requests, 1);
       expect(status(), PushChannelStatus.enabled);
-      // Initial refresh and current-user resolution may coalesce or run
-      // sequentially; this case requires one consent prompt, not one
-      // idempotent device-registration request.
-      expect(repo.registered, isNotEmpty);
+      // Startup and current-user resolution may share a refresh or queue one
+      // extra refresh. Neither path may prompt twice or keep registering.
+      expect(repo.registered.length, inInclusiveRange(1, 2));
       expect(repo.registered, everyElement('ios:apns:native-token'));
       final prefs = await SharedPreferences.getInstance();
       expect(prefs.getBool('push_enabled'), true);
       expect(prefs.getBool('push_permission_requested'), true);
+      final startupRegistrations = repo.registered.length;
+      await controller().refresh();
+      await settle();
+      expect(repo.registered.length, startupRegistrations + 1);
+      expect(repo.registered, everyElement('ios:apns:native-token'));
+      expect(driver.requests, 1);
     },
   );
   test(

@@ -117,8 +117,18 @@ class _StorageSettingsPanelState extends ConsumerState<StorageSettingsPanel> {
     final s = StorageStrings(context), u = _usage!;
     if (!await _confirm(
       title: s.reset,
-      content:
-          '${s.workSummary(u.drafts, u.chatDrafts, u.plans, u.unsyncedPlans)}\n\n${s.resetHint}\n\n${s.resetConfirm}',
+      content: [
+        s.workSummary(
+          u.drafts,
+          u.chatDrafts,
+          u.plans,
+          u.unsyncedPlans,
+          u.recoveryPlans,
+        ),
+        if (u.legacyPlans > 0) s.recovery(u.legacyPlans),
+        s.resetHint,
+        s.resetConfirm,
+      ].join('\n\n'),
       danger: true,
     )) {
       return;
@@ -204,9 +214,17 @@ class _StorageSettingsPanelState extends ConsumerState<StorageSettingsPanel> {
         Text(s.localWork, style: heading),
         const SizedBox(height: 8),
         if (u != null) ...[
-          Text(s.workSummary(u.drafts, u.chatDrafts, u.plans, u.unsyncedPlans)),
+          Text(
+            s.workSummary(
+              u.drafts,
+              u.chatDrafts,
+              u.plans,
+              u.unsyncedPlans,
+              u.recoveryPlans,
+            ),
+          ),
           Text(storageSize(u.workBytes)),
-          if (u.recoveryPlans > 0) Text(s.recovery(u.recoveryPlans)),
+          if (u.legacyPlans > 0) Text(s.recovery(u.legacyPlans)),
         ],
         Text(s.excluded),
         if (widget.signedIn)

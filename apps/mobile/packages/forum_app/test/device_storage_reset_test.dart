@@ -1,8 +1,12 @@
+import 'dart:io';
+
+import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
 import 'package:core/core.dart';
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:forum_app/src/app_locale.dart';
@@ -15,9 +19,18 @@ import 'package:forum_app/src/push/push_service.dart';
 import 'package:forum_app/src/site_theme.dart';
 import 'package:forum_app/src/storage/cache_coordinator.dart';
 import 'package:forum_app/src/storage/device_storage.dart';
+import 'package:forum_app/src/storage/private_database.dart';
+import 'package:forum_app/src/storage/reset_journal.dart';
 import 'package:forum_app/src/storage/storage_providers.dart';
 import 'package:forum_app/src/storage/user_work_database.dart';
 import 'package:forum_app/src/theme_mode.dart';
+
+class _Paths extends PathProviderPlatform {
+  _Paths(this.root);
+  final String root;
+  @override
+  Future<String?> getApplicationSupportPath() async => root;
+}
 
 class _Tokens implements TokenStorage {
   String? value = 'fixture-session';
@@ -123,7 +136,8 @@ class _MediaOwner {
 /// The production DeviceStorage and CacheCoordinator run against real SQLite.
 /// Only OS/network owners are replaced; no DeviceStorage implementation is faked.
 class _Fixture {
-  _Fixture(this.database, this.work) {
+  _Fixture(this.database, this.work, {_Chats? chatOwner})
+    : chats = chatOwner ?? _Chats() {
     coordinator = CacheCoordinator(
       database: database,
       databaseBytes: () async => 0,
@@ -148,7 +162,7 @@ class _Fixture {
   final AppDatabase database;
   final UserWorkDatabase work;
   final tokens = _Tokens();
-  final chats = _Chats();
+  final _Chats chats;
   final widget = _WidgetBridge();
   final media = _MediaOwner();
   final invalidated = <Set<CacheCategory>>[];
@@ -216,7 +230,13 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   late AppDatabase database;
   late _Fixture fixture;
+  late Directory directory;
+  late PathProviderPlatform oldPaths;
   setUp(() async {
+    directory = await Directory.systemTemp.createTemp('yourtj-reset-');
+    oldPaths = PathProviderPlatform.instance;
+    PathProviderPlatform.instance = _Paths(directory.path);
+    FlutterSecureStorage.setMockInitialValues({});
     database = AppDatabase(NativeDatabase.memory());
     await database.customSelect('SELECT 1').get();
     fixture = _Fixture(database, UserWorkDatabase.instance);
@@ -225,6 +245,8 @@ void main() {
   tearDown(() async {
     fixture.dispose();
     await database.close();
+    PathProviderPlatform.instance = oldPaths;
+    await directory.delete(recursive: true);
   });
 
   test(
@@ -253,6 +275,7 @@ void main() {
       final epoch = fixture.container.read(offlineCacheEpochProvider);
       await fixture.service.reset();
       expect(await fixture.database.operation('reset'), isNull);
+      expect(await ResetJournal().isPending(), isFalse);
       expect(await fixture.database.operation('clear'), isNull);
       expect(await fixture.cache.getMessages(1), isEmpty);
       final work = await fixture.work.usage();
@@ -281,6 +304,7 @@ void main() {
       fixture.chats.failNextClear = true;
       await expectLater(fixture.service.reset(), throwsStateError);
       expect(await fixture.database.operation('reset'), '1');
+      expect(await ResetJournal().isPending(), isTrue);
       expect(
         fixture.chats.count,
         1,
@@ -297,8 +321,100 @@ void main() {
       expect(fixture.chats.clears, 2);
       expect(fixture.chats.count, 0);
       expect(await fixture.database.operation('reset'), isNull);
+      expect(await ResetJournal().isPending(), isFalse);
       expect(await fixture.database.operation('clear'), isNull);
       expect((await fixture.work.usage()).draftCount, 0);
+    },
+  );
+
+  test(
+    'reset recovery survives loss of the disposable cache journal',
+    () async {
+      fixture.chats.failNextClear = true;
+      await expectLater(fixture.service.reset(), throwsStateError);
+      expect(fixture.chats.count, 1);
+      // Rebuilding an unreadable cache loses all storage_operations rows.
+      await database.customStatement('DELETE FROM storage_operations');
+      fixture.reopenService();
+      await fixture.container.read(storageBootstrapProvider.future);
+      expect(fixture.chats.count, 0);
+      expect(fixture.chats.clears, 2);
+      expect(fixture.container.read(storageResetStateProvider), isNull);
+    },
+  );
+
+  for (final failure in ['missing cache key', 'corrupt cache']) {
+    test(
+      'production bootstrap continues a partial reset after $failure',
+      () async {
+        fixture.dispose();
+        await database.close();
+        database = AppDatabase(
+          openPrivateDatabase(name: 'cache', disposable: true),
+        );
+        fixture = _Fixture(database, UserWorkDatabase.instance);
+        await fixture.seed();
+        fixture.chats.failNextClear = true;
+        await expectLater(fixture.service.reset(), throwsStateError);
+        final chats = fixture.chats;
+        fixture.dispose();
+        await database.close();
+        if (failure == 'missing cache key') {
+          FlutterSecureStorage.setMockInitialValues({});
+        } else {
+          await File(
+            '${directory.path}/yourtj_private/cache.sqlite',
+          ).writeAsBytes(List.filled(4096, 42), flush: true);
+        }
+        database = AppDatabase(
+          openPrivateDatabase(name: 'cache', disposable: true),
+        );
+        fixture = _Fixture(
+          database,
+          UserWorkDatabase.instance,
+          chatOwner: chats,
+        );
+        await fixture.container.read(storageBootstrapProvider.future);
+        expect(chats.count, 0);
+        expect(chats.clears, 2);
+        expect(await ResetJournal().isPending(), isFalse);
+        expect(await database.operation('reset'), isNull);
+        expect(fixture.container.read(storageResetStateProvider), isNull);
+      },
+    );
+  }
+
+  test(
+    'failure to persist reset intent leaves every owner untouched',
+    () async {
+      final marker = Directory('${directory.path}/yourtj_private/reset.intent');
+      await marker.create(recursive: true);
+      await expectLater(
+        fixture.service.reset(),
+        throwsA(isA<FileSystemException>()),
+      );
+      expect(fixture.tokens.clears, 0);
+      expect(fixture.chats.clears, 0);
+      expect(fixture.media.clears, 0);
+      expect((await fixture.work.usage()).draftCount, 1);
+      expect(
+        fixture.container.read(storageResetStateProvider)?.hasError,
+        isTrue,
+      );
+    },
+  );
+
+  test(
+    'an interrupted marker write remains pending until the reset completes',
+    () async {
+      final marker = File('${directory.path}/yourtj_private/reset.intent');
+      await marker.parent.create(recursive: true);
+      await marker.writeAsString('', flush: true);
+      fixture.reopenService();
+      await fixture.container.read(storageBootstrapProvider.future);
+      expect((await fixture.work.usage()).draftCount, 0);
+      expect(fixture.chats.count, 0);
+      expect(await marker.exists(), isFalse);
     },
   );
 

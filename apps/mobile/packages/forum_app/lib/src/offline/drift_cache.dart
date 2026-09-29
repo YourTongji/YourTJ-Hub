@@ -712,6 +712,11 @@ class DriftOfflineCache
         CacheCategory.chat,
         CacheCategory.campus,
       });
+
+  /// Clearing either view already clears every cache owned by this database.
+  bool sharesStorageWith(Object other) =>
+      other is DriftOfflineCache && identical(_db, other._db);
+
   @override
   Future<void> close() => _db.close();
 }

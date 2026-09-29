@@ -115,11 +115,27 @@ class StorageStrings {
   String get retry => s('重试', 'Retry', 'Erneut versuchen', '再試行');
   String get localWork =>
       s('本机内容', 'Work on this device', 'Lokale Inhalte', 'この端末の作業');
-  String workSummary(int drafts, int chats, int plans, int dirty) => s(
-    '$drafts 份草稿 · $chats 份未发送私信 · $plans 个排课方案（$dirty 个未同步）',
-    '$drafts drafts · $chats unsent messages · $plans schedule plans ($dirty unsynced)',
-    '$drafts Entwürfe · $chats ungesendete Nachrichten · $plans Stundenpläne ($dirty nicht synchronisiert)',
-    '下書き $drafts 件・未送信 $chats 件・履修計画 $plans 件（未同期 $dirty 件）',
+  String workSummary(
+    int drafts,
+    int chats,
+    int plans,
+    int dirty,
+    int recovery,
+  ) {
+    final work = s(
+      '$drafts 份草稿 · $chats 份未发送私信 · $plans 个排课方案（$dirty 个未同步）',
+      '$drafts drafts · $chats unsent messages · $plans schedule plans ($dirty unsynced)',
+      '$drafts Entwürfe · $chats ungesendete Nachrichten · $plans Stundenpläne ($dirty nicht synchronisiert)',
+      '下書き $drafts 件・未送信 $chats 件・履修計画 $plans 件（未同期 $dirty 件）',
+    );
+    return recovery > 0 ? '$work\n${recoveryDrafts(recovery)}' : work;
+  }
+
+  String recoveryDrafts(int count) => s(
+    '排课恢复草稿：$count',
+    'Schedule recovery drafts: $count',
+    'Wiederherstellungsentwürfe für Stundenpläne: $count',
+    '履修計画の復元用下書き：$count 件',
   );
   String get excluded => s(
     '这些内容不参与缓存回收。请先保存到云端或导出重要作品。',

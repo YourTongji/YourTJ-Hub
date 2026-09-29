@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:dio/dio.dart';
@@ -20,6 +21,28 @@ class _Http implements HttpClientAdapter {
 
   @override
   void close({bool force = false}) {}
+}
+
+class _CountingDirectory implements Directory {
+  _CountingDirectory(this.directory);
+  final Directory directory;
+  int listings = 0;
+  @override
+  String get path => directory.path;
+  @override
+  Future<Directory> create({bool recursive = false}) =>
+      directory.create(recursive: recursive);
+  @override
+  Stream<FileSystemEntity> list({
+    bool recursive = false,
+    bool followLinks = true,
+  }) {
+    listings++;
+    return directory.list(recursive: recursive, followLinks: followLinks);
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 ResponseBody response({
@@ -167,6 +190,101 @@ void main() {
     expect(http.requests.length, 3);
     now = now.add(const Duration(days: 15));
     expect(await cache.usageBytes(), 0);
+  });
+  test(
+    'large eviction scans the directory a bounded number of times',
+    () async {
+      String key(int id) => id.toRadixString(16).padLeft(64, '0');
+      final entries = <String, Map<String, dynamic>>{};
+      for (var id = 0; id < 128; id++) {
+        entries[key(id)] = {
+          'bytes': 32,
+          'accessed': now.millisecondsSinceEpoch + id,
+          'freshUntil': now
+              .add(const Duration(hours: 1))
+              .millisecondsSinceEpoch,
+          'cacheControl': 'public, max-age=3600',
+          'etag': '"表情-$id"',
+        };
+        await File('${dir.path}/${key(id)}').writeAsBytes(List.filled(32, id));
+      }
+      // Missing/mis-sized entries and interrupted writes must not skew either
+      // physical accounting or the retained LRU suffix.
+      entries[key(128)] = {...entries[key(0)]!, 'bytes': 4096};
+      await File('${dir.path}/${key(128)}').writeAsBytes([1]);
+      entries[key(129)] = {...entries[key(0)]!};
+      await File(
+        '${dir.path}/interrupted.tmp',
+      ).writeAsBytes(List.filled(4096, 0));
+      await File(
+        '${dir.path}/index.json',
+      ).writeAsString(jsonEncode({'version': 1, 'entries': entries}));
+      final directory = _CountingDirectory(dir);
+      cache.dispose();
+      const budget = 18000;
+      cache = MediaRepository(
+        directory: () async => directory,
+        dio: dio,
+        now: () => now,
+        budgetBytes: budget,
+      );
+      final usage = await cache.usageBytes();
+      final files = await dir.list().cast<File>().toList();
+      var actual = 0;
+      for (final file in files) {
+        actual += await file.length();
+      }
+      final retained =
+          (jsonDecode(await File('${dir.path}/index.json').readAsString())
+                  as Map)['entries']
+              as Map;
+      expect(usage, actual);
+      expect(usage, lessThanOrEqualTo(budget * .8));
+      expect(usage, greaterThan(budget * .8 - 500));
+      expect(retained.length, inExclusiveRange(0, 128));
+      expect(retained.keys, [
+        for (var id = 128 - retained.length; id < 128; id++) key(id),
+      ]);
+      expect(await File('${dir.path}/${key(128)}').exists(), isFalse);
+      expect(await File('${dir.path}/interrupted.tmp').exists(), isFalse);
+      expect(directory.listings, lessThanOrEqualTo(8));
+    },
+  );
+  test('eviction uses actual file sizes between sweeps', () async {
+    cache.dispose();
+    cache = MediaRepository(
+      directory: () async => dir,
+      dio: dio,
+      now: () => now,
+      budgetBytes: 4000,
+    );
+    http.handle = (_) async => response(bytes: List.filled(500, 1));
+    await load(url: '$_origin/first');
+    now = now.add(const Duration(seconds: 1));
+    await load(url: '$_origin/second');
+    final index =
+        (jsonDecode(await File('${dir.path}/index.json').readAsString())
+                as Map)['entries']
+            as Map;
+    final older = File('${dir.path}/${index.keys.first}');
+    final newer = File('${dir.path}/${index.keys.last}');
+    // An external file change must not make incremental accounting subtract
+    // stale index metadata and unnecessarily evict the newer valid image.
+    await older.writeAsBytes(List.filled(2500, 1));
+    final temporary = File('${dir.path}/interrupted.tmp');
+    await temporary.writeAsBytes(List.filled(600, 0));
+    now = now.add(const Duration(seconds: 1));
+    await load(url: '$_origin/third');
+    expect(await older.exists(), isFalse);
+    expect(await newer.exists(), isTrue);
+    expect(await temporary.exists(), isTrue);
+    var actual = 0;
+    await for (final file in dir.list().cast<File>()) {
+      actual += await file.length();
+    }
+    expect(actual, lessThanOrEqualTo(4000));
+    expect(await cache.usageBytes(), actual - 600);
+    expect(await temporary.exists(), isFalse);
   });
   test('oversized downloads fail without persistence', () async {
     cache.dispose();

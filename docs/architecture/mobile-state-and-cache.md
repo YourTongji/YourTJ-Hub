@@ -130,7 +130,11 @@ decoded-image cache targets 48 MiB; active animation codecs and other UI objects
 Native cache and work files use different SQLite3MultipleCiphers keys held in secure storage. Native
 opening checks cipher availability even in release mode, enables WAL and full synchronous commits,
 and excludes the managed directory from backup. An unavailable work key is an error, never permission
-to rebuild or erase the user's database. The public file cache lives in the OS cache directory.
+to rebuild or erase the user's database. On opening an existing disposable cache, SQLite corruption,
+failed integrity checks or an unreadable cipher rebuild only the cache and its migration sidecars.
+Lock contention, disk/permission errors and unavailable cipher support propagate without deleting
+files. User work is never rebuilt on either corruption or key failure. The public file cache lives in
+the OS cache directory.
 The explicit campus offline document shares the encrypted cache database in application support so
 it retains its existing managed lifetime. Cache deletion cannot address `user_work.sqlite`.
 
@@ -159,6 +163,16 @@ cannot rewrite cleared records. Settings reports what will be cleared, what rema
 partial failures; it does not report success until the requested deletion completes. Clearing during
 offline use leads to an honest empty state. Retention limits apply by age and size without evicting
 user work.
+
+A destructive local reset first flushes and verifies a content-free `reset.intent` marker in the
+backup-excluded private directory. This marker is outside cache databases, encryption keys and
+preferences, so rebuilding a corrupt or keyless cache cannot lose the pending reset. Startup checks it
+before opening cache projections; any existing marker, including an interrupted write, requires
+recovery. The legacy cache journal remains readable for compatibility. Both markers are removed only
+after every reset owner succeeds. A missing user-work key still blocks reset completion and preserves
+the encrypted work file. Retrying can recover transient secure-storage access failures; a permanently
+lost key cannot be reconstructed by reinstalling or creating a new key. Support must preserve the file
+and must not promise an in-app recovery path or silently erase it.
 
 ## Verification boundaries
 

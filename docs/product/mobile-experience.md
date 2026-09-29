@@ -1283,9 +1283,10 @@ acceptance; simulator compilation does not establish those results.
   requests before deletion. Partial failure remains visible with retry, including after app restart.
 - `Current`: cloud content management and the recycle bin remain in the side drawer. The storage
   surface offers local drafts and plans; account settings owns blocked-user management.
-- `Current`: local reset confirms the number of local drafts, unsent messages and unsynchronized
-  plans before removing them, signing out and restoring preferences. It does not delete cloud
-  content, close the account or remove school bindings. Interrupted reset retains an intent for retry;
+- `Current`: local reset confirms the number of local drafts, unsent messages, unsynchronized
+  plans and schedule recovery drafts before removing them, signing out and restoring preferences.
+  Storage reports recovery drafts separately from legacy schedules awaiting an owner. It does not
+  delete cloud content, close the account or remove school bindings. Interrupted reset retains an intent for retry;
   business routes remain unavailable until it finishes, so new work cannot enter a pending reset.
 - `Current`: ordinary writing and schedule plans commit to a dedicated encrypted transaction store.
   Legacy schedules without a known site are held for explicit recovery into a confirmed identity;

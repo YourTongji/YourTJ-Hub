@@ -181,6 +181,16 @@ class MediaRepository extends ChangeNotifier {
   }
 
   Future<void> _trim(int target) async {
+    // Measure actual files once, including unindexed/temporary and legacy bytes.
+    // All repository disk mutations share this lock, so each successful removal
+    // can update the total without rescanning the directory for every entry.
+    var remaining = await _diskBytes();
+    final index = File('${_dir!.path}/index.json');
+    final storedIndexBytes = await index.exists() ? await index.length() : 0;
+    var indexBytes = _entries.isEmpty
+        ? 0
+        : utf8.encode(jsonEncode({'version': 1, 'entries': _entries})).length;
+    remaining += indexBytes - storedIndexBytes;
     final oldest = _entries.keys.toList()
       ..sort(
         (a, b) => (_entries[a]!['accessed'] as int).compareTo(
@@ -188,10 +198,22 @@ class MediaRepository extends ChangeNotifier {
         ),
       );
     for (final key in oldest) {
-      if (await _diskBytes() <= target) break;
+      if (remaining <= target) break;
+      final entry = _entries[key]!;
+      final file = _file(key);
+      final removedBytes = await file.exists() ? await file.length() : 0;
       await _delete(key);
-      await _saveIndex();
+      // Removing one JSON member also removes one comma, except that an empty
+      // index is deleted entirely. Count UTF-8, including non-ASCII validators.
+      final removedIndexBytes = _entries.isEmpty
+          ? indexBytes
+          : utf8.encode(jsonEncode({key: entry})).length - 2 + 1;
+      indexBytes -= removedIndexBytes;
+      remaining -= removedBytes + removedIndexBytes;
     }
+    // A crash mid-batch leaves only missing-file index entries, which _sweep
+    // already repairs. Commit once instead of rewriting the full map per file.
+    await _saveIndex();
   }
 
   Future<int> usageBytes() => _locked(() async {

@@ -37,7 +37,10 @@ is durable before deletion; every failed owner remains suspended until retry suc
 does not change authentication or erase user work. Explicit local reset additionally signs out, erases
 local work and restores preferences; it never deletes remote content or school bindings. Startup
 recovery and an unfinished reset block business routes, preventing new work from being created inside
-a pending destructive operation.
+a pending destructive operation. Destructive reset intent also has a content-free, flushed marker in
+backup-excluded application support, independent of the disposable cache, its encryption key and
+preferences. Cache reconstruction cannot release the reset gate; only successful completion of every
+owner removes the marker.
 
 `cache.sqlite` holds versioned, disposable business projections and the campus allowlist. It is
 physically separate from `user_work.sqlite`. Both native databases use SQLite3MultipleCiphers through

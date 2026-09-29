@@ -11,6 +11,7 @@ class DeviceStorageUsage {
     required this.plans,
     required this.unsyncedPlans,
     this.recoveryPlans = 0,
+    this.legacyPlans = 0,
     this.resetPending = false,
     this.pending = const {},
   });
@@ -20,8 +21,13 @@ class DeviceStorageUsage {
       drafts,
       chatDrafts,
       plans,
-      unsyncedPlans,
-      recoveryPlans;
+      unsyncedPlans;
+
+  /// Synchronization recovery copies, separate from active [plans].
+  final int recoveryPlans;
+
+  /// The subset of [plans] still awaiting explicit ownership confirmation.
+  final int legacyPlans;
   final Set<CacheCategory> pending;
   final bool resetPending;
 }

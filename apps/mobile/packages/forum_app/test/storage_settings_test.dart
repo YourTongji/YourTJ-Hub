@@ -14,6 +14,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:ui_kit/ui_kit.dart';
 
 class FakeDeviceStorage implements DeviceStorage {
+  FakeDeviceStorage({this.recoveryPlans = 0, this.legacyPlans = 0});
+  final int recoveryPlans;
+  final int legacyPlans;
   Set<CacheCategory>? cleared;
   bool fail = false;
   int resets = 0;
@@ -26,6 +29,8 @@ class FakeDeviceStorage implements DeviceStorage {
     chatDrafts: 1,
     plans: 2,
     unsyncedPlans: 1,
+    recoveryPlans: recoveryPlans,
+    legacyPlans: legacyPlans,
     pending: fail ? {CacheCategory.media} : {},
   );
   @override
@@ -135,6 +140,70 @@ void main() {
     await tester.pumpAndSettle();
     expect(service.resets, 0);
   });
+  for (final (locale, recovery, legacy, reset, cancel) in [
+    ('zh', '排课恢复草稿：2', '1 份旧排课数据待确认归属', '重置本机数据', '取消'),
+    (
+      'en',
+      'Schedule recovery drafts: 2',
+      '1 legacy schedules need an owner',
+      'Reset local data',
+      'Cancel',
+    ),
+    (
+      'de',
+      'Wiederherstellungsentwürfe für Stundenpläne: 2',
+      '1 alte Stundenpläne benötigen eine Zuordnung',
+      'Lokale Daten zurücksetzen',
+      'Abbrechen',
+    ),
+    ('ja', '履修計画の復元用下書き：2 件', '旧履修計画 1 件の所有者を確認', '端末データをリセット', 'キャンセル'),
+  ]) {
+    testWidgets('recovery drafts appear in storage and reset summary $locale', (
+      tester,
+    ) async {
+      final service = FakeDeviceStorage(recoveryPlans: 2, legacyPlans: 1);
+      await tester.pumpWidget(fixture(service, locale: locale));
+      await tester.pumpAndSettle();
+      final summary = find.textContaining(recovery);
+      await tester.scrollUntilVisible(
+        summary,
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(summary, findsOneWidget);
+      await tester.scrollUntilVisible(
+        find.textContaining(legacy),
+        100,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(find.textContaining(legacy), findsOneWidget);
+      final resetButton = find.widgetWithText(GfButton, reset);
+      await tester.scrollUntilVisible(
+        resetButton,
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.tap(resetButton);
+      await tester.pumpAndSettle();
+      expect(
+        find.descendant(
+          of: find.byType(GfAlertDialog),
+          matching: find.textContaining(recovery),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byType(GfAlertDialog),
+          matching: find.textContaining(legacy),
+        ),
+        findsOneWidget,
+      );
+      await tester.tap(find.text(cancel));
+      await tester.pumpAndSettle();
+      expect(service.resets, 0);
+    });
+  }
   for (final locale in ['zh', 'en', 'ja', 'de']) {
     for (final brightness in Brightness.values) {
       testWidgets(

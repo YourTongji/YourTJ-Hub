@@ -49,6 +49,115 @@ void main() {
       expect(await file.readAsBytes(), bytes);
     },
   );
+  for (final failure in ['corrupt', 'wrong key']) {
+    test(
+      'disposable cache recovers from $failure with an existing key',
+      () async {
+        final work = AppDatabase(openPrivateDatabase(name: 'user_work'));
+        await work.setOperation('fixture', 'keep my work');
+        await work.close();
+        final workFile = File(
+          '${directory.path}/yourtj_private/user_work.sqlite',
+        );
+        final originalWork = await workFile.readAsBytes();
+        final db = AppDatabase(
+          openPrivateDatabase(name: 'cache', disposable: true),
+        );
+        await db.setOperation('fixture', 'stale cache');
+        await db.close();
+        final cacheFile = File('${directory.path}/yourtj_private/cache.sqlite');
+        if (failure == 'corrupt') {
+          await cacheFile.writeAsBytes(List.filled(4096, 42), flush: true);
+        } else {
+          await const FlutterSecureStorage().write(
+            key: 'yourtj.database.cache.key.v1',
+            value: 'b' * 64,
+          );
+        }
+        final recovered = AppDatabase(
+          openPrivateDatabase(name: 'cache', disposable: true),
+        );
+        try {
+          expect(await recovered.operation('fixture'), isNull);
+          await recovered.setOperation('new', 'new encrypted cache');
+        } finally {
+          await recovered.close();
+        }
+        expect(await workFile.readAsBytes(), originalWork);
+        expect(
+          latin1.decode(await cacheFile.readAsBytes()),
+          isNot(contains('new encrypted cache')),
+        );
+      },
+    );
+  }
+  test(
+    'unreadable user work with an existing key is never recreated',
+    () async {
+      final db = AppDatabase(openPrivateDatabase(name: 'user_work'));
+      await db.setOperation('fixture', 'keep encrypted work');
+      await db.close();
+      final file = File('${directory.path}/yourtj_private/user_work.sqlite');
+      final before = await file.readAsBytes();
+      await const FlutterSecureStorage().write(
+        key: 'yourtj.database.user_work.key.v1',
+        value: 'c' * 64,
+      );
+      final unavailable = AppDatabase(openPrivateDatabase(name: 'user_work'));
+      await expectLater(
+        unavailable.operation('fixture'),
+        throwsA(
+          predicate(
+            (error) => error.toString().contains('SqliteException(26)'),
+          ),
+        ),
+      );
+      try {
+        await unavailable.close();
+      } catch (_) {
+        /* failed opener */
+      }
+      expect(await file.readAsBytes(), before);
+    },
+  );
+  test('corrupt legacy migration is retired without touching work', () async {
+    final legacy = File('${directory.path}/yourtj_cache.sqlite');
+    await legacy.writeAsBytes(List.filled(4096, 42), flush: true);
+    final db = AppDatabase(
+      openPrivateDatabase(
+        name: 'cache',
+        disposable: true,
+        legacyName: 'yourtj_cache',
+      ),
+    );
+    expect(await db.operation('fixture'), isNull);
+    await db.close();
+    expect(await legacy.exists(), isFalse);
+  });
+
+  test(
+    'an inaccessible cache path is not treated as database corruption',
+    () async {
+      final path = Directory('${directory.path}/yourtj_private/cache.sqlite');
+      await path.create(recursive: true);
+      final sentinel = File('${path.path}/keep');
+      await sentinel.writeAsString('filesystem error, not corrupt data');
+      final db = AppDatabase(
+        openPrivateDatabase(name: 'cache', disposable: true),
+      );
+      await expectLater(db.operation('fixture'), throwsA(anything));
+      try {
+        await db.close();
+      } catch (_) {
+        /* failed opener */
+      }
+      expect(
+        await sentinel.readAsString(),
+        'filesystem error, not corrupt data',
+      );
+    },
+  );
+
   test(
     'legacy plaintext migration verifies encrypted campus copy then removes plaintext',
     () async {

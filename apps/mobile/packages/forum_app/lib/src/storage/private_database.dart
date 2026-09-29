@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:isolate';
 import 'dart:math';
 
 import 'package:drift/drift.dart';
@@ -56,10 +57,7 @@ QueryExecutor openPrivateDatabase({
       if (!disposable) {
         throw StateError('Local work encryption key unavailable');
       }
-      for (final suffix in ['', '-wal', '-shm', '.migrating']) {
-        final stale = File('${file.path}$suffix');
-        if (await stale.exists()) await stale.delete();
-      }
+      await _deleteDatabaseFiles(file.path);
     }
     final random = Random.secure();
     key = List.generate(
@@ -82,65 +80,29 @@ QueryExecutor openPrivateDatabase({
         );
   final path = file.path;
   final legacyPath = legacy?.path;
+  // Drift's isolateSetup runs before its reply port is published. An exception
+  // there can strand the opener. Await a separate worker so preflight/migration
+  // failures reach StorageGate and every opened SQLite handle is already closed.
+  await Isolate.run(() async {
+    try {
+      _verifyEncryptedDatabase(path, secret);
+      await _migrateLegacyDatabase(path, legacyPath, secret);
+    } on SqliteException catch (error) {
+      // BUSY, IOERR, FULL, permissions and unavailable cipher support are not
+      // proof of corruption. Never erase user work for any opener failure.
+      if (!disposable ||
+          (error.resultCode != SqlError.SQLITE_CORRUPT &&
+              error.resultCode != SqlError.SQLITE_NOTADB)) {
+        rethrow;
+      }
+      await _deleteDatabaseFiles(path);
+      // A corrupt plaintext source must not trigger the same failed migration
+      // forever or resurrect obsolete cache rows on the next launch.
+      if (legacyPath != null) await _deleteDatabaseFiles(legacyPath);
+    }
+  });
   return NativeDatabase.createInBackground(
     file,
-    isolateSetup: () async {
-      if (legacyPath == null) return;
-      final old = File(legacyPath);
-      final target = File(path);
-      if (!await old.exists()) return;
-      if (await target.exists()) {
-        // A crash after atomic rename may leave plaintext cleanup unfinished.
-        final installed = sqlite3.open(path);
-        try {
-          requireCipher(installed);
-          installed.execute("PRAGMA key = '$secret'");
-          if (installed.select('PRAGMA integrity_check').single.values.single !=
-              'ok') {
-            throw StateError('Local cache migration verification failed');
-          }
-        } finally {
-          installed.close();
-        }
-        for (final suffix in ['', '-wal', '-shm']) {
-          final leftover = File('$legacyPath$suffix');
-          if (await leftover.exists()) await leftover.delete();
-        }
-        return;
-      }
-      final temporary = File('$path.migrating');
-      if (await temporary.exists()) await temporary.delete();
-      final source = sqlite3.open(legacyPath);
-      try {
-        source.execute("VACUUM INTO '${temporary.path.replaceAll("'", "''")}'");
-      } finally {
-        source.close();
-      }
-      final copy = sqlite3.open(temporary.path);
-      try {
-        requireCipher(copy);
-        copy.execute("PRAGMA rekey = '$secret'");
-      } finally {
-        copy.close();
-      }
-      final verify = sqlite3.open(temporary.path);
-      try {
-        requireCipher(verify);
-        verify.execute("PRAGMA key = '$secret'");
-        if (verify.select('PRAGMA integrity_check').single.values.single !=
-            'ok') {
-          throw StateError('Local cache migration verification failed');
-        }
-      } finally {
-        verify.close();
-      }
-      await temporary.rename(path);
-      // A verified encrypted copy is authoritative before removing plaintext.
-      for (final suffix in ['', '-wal', '-shm']) {
-        final oldFile = File('$legacyPath$suffix');
-        if (await oldFile.exists()) await oldFile.delete();
-      }
-    },
     setup: (raw) {
       requireCipher(raw);
       raw.execute("PRAGMA key = '$secret'");
@@ -160,6 +122,95 @@ QueryExecutor openPrivateDatabase({
     },
   );
 });
+
+Future<void> _deleteDatabaseFiles(String path) async {
+  // Remove the main file last: an interrupted cleanup must not leave orphan
+  // WAL/journal pages next to a newly created database on the next launch.
+  for (final suffix in [
+    '-wal',
+    '-shm',
+    '-journal',
+    '.migrating',
+    '.migrating-wal',
+    '.migrating-shm',
+    '.migrating-journal',
+    '',
+  ]) {
+    final file = File('$path$suffix');
+    if (await file.exists()) await file.delete();
+  }
+}
+
+void _verifyEncryptedDatabase(String path, String secret) {
+  if (!File(path).existsSync()) return;
+  final database = sqlite3.open(path);
+  try {
+    requireCipher(database);
+    database.execute("PRAGMA key = '$secret'");
+    final result = database.select('PRAGMA quick_check');
+    if (result.length != 1 || result.single.values.single != 'ok') {
+      throw SqliteException(
+        extendedResultCode: SqlError.SQLITE_CORRUPT,
+        message: 'Local database integrity verification failed',
+      );
+    }
+  } finally {
+    database.close();
+  }
+}
+
+Future<void> _migrateLegacyDatabase(
+  String path,
+  String? legacyPath,
+  String secret,
+) async {
+  if (legacyPath == null) return;
+  final old = File(legacyPath);
+  final target = File(path);
+  if (!await old.exists()) return;
+  if (await target.exists()) {
+    // A verified installed encrypted copy wins after an interrupted rename.
+    for (final suffix in ['', '-wal', '-shm']) {
+      final leftover = File('$legacyPath$suffix');
+      if (await leftover.exists()) await leftover.delete();
+    }
+    return;
+  }
+  final temporary = File('$path.migrating');
+  if (await temporary.exists()) await temporary.delete();
+  final source = sqlite3.open(legacyPath);
+  try {
+    source.execute("VACUUM INTO '${temporary.path.replaceAll("'", "''")}'");
+  } finally {
+    source.close();
+  }
+  final copy = sqlite3.open(temporary.path);
+  try {
+    requireCipher(copy);
+    copy.execute("PRAGMA rekey = '$secret'");
+  } finally {
+    copy.close();
+  }
+  final verify = sqlite3.open(temporary.path);
+  try {
+    requireCipher(verify);
+    verify.execute("PRAGMA key = '$secret'");
+    if (verify.select('PRAGMA integrity_check').single.values.single != 'ok') {
+      throw SqliteException(
+        extendedResultCode: SqlError.SQLITE_CORRUPT,
+        message: 'Local cache migration verification failed',
+      );
+    }
+  } finally {
+    verify.close();
+  }
+  await temporary.rename(path);
+  // A verified encrypted copy is authoritative before removing plaintext.
+  for (final suffix in ['', '-wal', '-shm']) {
+    final oldFile = File('$legacyPath$suffix');
+    if (await oldFile.exists()) await oldFile.delete();
+  }
+}
 
 void requireCipher(Database database) {
   if (database.select('PRAGMA cipher').isEmpty) {
