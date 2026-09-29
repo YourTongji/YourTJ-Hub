@@ -66,6 +66,19 @@ class AppLocaleNotifier extends Notifier<Locale?> {
       }
     });
   }
+
+  Future<void> resetToDefault() {
+    _revision++;
+    state = null;
+    final next = _writes.then((_) async {
+      final prefs = await SharedPreferences.getInstance();
+      if (!await prefs.remove(preferenceKey)) {
+        throw StateError('Locale reset failed');
+      }
+    });
+    _writes = next.catchError((_) {});
+    return next;
+  }
 }
 
 final appLocaleProvider = NotifierProvider<AppLocaleNotifier, Locale?>(

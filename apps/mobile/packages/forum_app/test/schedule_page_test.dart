@@ -19,6 +19,8 @@ import 'package:forum_app/l10n/app_localizations.dart';
 import 'package:forum_app/src/pages/schedule/schedule_page.dart';
 import 'package:forum_app/src/schedule/schedule_store.dart';
 import 'package:forum_app/src/providers.dart';
+import 'package:forum_app/src/storage/user_work_database.dart';
+import 'package:forum_app/src/local/writing_store.dart';
 import 'package:forum_app/src/widgets/schedule_time_grid.dart';
 
 /// 测试用内存 TokenStorage（与 pages_smoke_test 同构，副本内联）。
@@ -342,7 +344,14 @@ void main() {
       await first.flush;
 
       final SharedPreferences prefs = await SharedPreferences.getInstance();
-      expect(prefs.getString(ScheduleStorageKeys.plans), isNotNull);
+      expect(prefs.getString(ScheduleStorageKeys.plans), isNull);
+      expect(
+        (await UserWorkDatabase.instance.readDomain(
+          writingScope(first.site, 0),
+          'schedule',
+        ))[ScheduleStorageKeys.plans],
+        isNotNull,
+      );
 
       final ScheduleStoreNotifier second = ScheduleStoreNotifier();
       await second.ready;
@@ -434,6 +443,7 @@ void main() {
       await notifier.ready;
       addTearDown(notifier.dispose);
 
+      expect(await notifier.restoreUnassignedLegacyPlans(owner: 0), isTrue);
       final PkPlan plan = notifier.activePlan;
       final PkCourseDetail detailX =
           plan.stagedCourses.first.courseDetail.first;

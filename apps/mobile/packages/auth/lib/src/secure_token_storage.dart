@@ -8,6 +8,7 @@ class SecureTokenStorage implements TokenStorage {
   SecureTokenStorage({FlutterSecureStorage? storage})
     : _storage = storage ?? const FlutterSecureStorage();
 
+  static const _keyRevoked = 'yourtj.session.locallyRevoked';
   static const _keyToken = 'yourtj.session.token';
   static const _keyUserId = 'yourtj.session.userId';
   static const _keyUsername = 'yourtj.session.username';
@@ -29,22 +30,25 @@ class SecureTokenStorage implements TokenStorage {
     }
     if (_hasCachedToken) return _cachedToken;
     final revision = _revision;
-    return _pendingRead ??= _storage
-        .read(key: _keyToken)
-        .then((token) async {
-          if (revision == _revision) {
-            _cachedToken = token;
-            _hasCachedToken = true;
-            return token;
-          }
-          try {
-            await _mutationQueue;
-          } catch (_) {
-            // A failed mutation still permits reading the persisted value.
-          }
-          return _hasCachedToken ? _cachedToken : null;
-        })
-        .whenComplete(() => _pendingRead = null);
+    return _pendingRead ??=
+        (() async {
+              if (await _storage.read(key: _keyRevoked) != null) return null;
+              return _storage.read(key: _keyToken);
+            })()
+            .then((token) async {
+              if (revision == _revision) {
+                _cachedToken = token;
+                _hasCachedToken = true;
+                return token;
+              }
+              try {
+                await _mutationQueue;
+              } catch (_) {
+                // A failed mutation still permits reading the persisted value.
+              }
+              return _hasCachedToken ? _cachedToken : null;
+            })
+            .whenComplete(() => _pendingRead = null);
   }
 
   @override
@@ -54,6 +58,10 @@ class SecureTokenStorage implements TokenStorage {
     _hasCachedToken = false;
     final operation = _mutationQueue.then((_) async {
       await _storage.write(key: _keyToken, value: token);
+      if (await _storage.read(key: _keyToken) != token) {
+        throw StateError('Session storage verification failed');
+      }
+      await _storage.delete(key: _keyRevoked);
       if (revision == _revision) {
         _cachedToken = token;
         _hasCachedToken = true;
@@ -69,6 +77,12 @@ class SecureTokenStorage implements TokenStorage {
     _cachedToken = null;
     _hasCachedToken = true;
     final operation = _mutationQueue.then((_) async {
+      // Persist the tombstone before deletion. A failed delete cannot revive the
+      // previous session after process restart; a verified new login removes it.
+      await _storage.write(key: _keyRevoked, value: '1');
+      if (await _storage.read(key: _keyRevoked) != '1') {
+        throw StateError('Session revocation could not be saved');
+      }
       await _storage.delete(key: _keyToken);
       await _storage.delete(key: _keyUserId);
       await _storage.delete(key: _keyUsername);

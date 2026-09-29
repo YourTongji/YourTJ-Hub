@@ -13,6 +13,7 @@ import 'package:ui_kit/ui_kit.dart';
 
 import 'package:forum_app/l10n/app_localizations.dart';
 import 'package:forum_app/src/app.dart';
+import 'package:forum_app/src/storage/storage_providers.dart';
 import 'package:forum_app/src/offline/drift_cache.dart';
 import 'package:forum_app/src/pages/auth/login_page.dart';
 import 'package:forum_app/src/pages/topic/topic_page.dart';
@@ -193,6 +194,7 @@ void main() {
     );
     final container = ProviderContainer(
       overrides: [
+        storageBootstrapProvider.overrideWith((ref) async {}),
         tokenStorageProvider.overrideWithValue(storage),
         pageRepositoryProvider.overrideWithValue(_GuestPageRepository(client)),
         offlineTopicCacheProvider.overrideWithValue(_NoopOfflineCache()),

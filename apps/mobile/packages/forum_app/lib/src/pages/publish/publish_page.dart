@@ -2266,7 +2266,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
                           Positioned.fill(
                             child: Padding(
                               padding: const EdgeInsets.all(4),
-                              child: Image.network(
+                              child: GfNetworkImage(
                                 resolveApiAssetUrl(_images[index]),
                                 fit: BoxFit.contain,
                                 cacheWidth:
@@ -2311,7 +2311,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
                 : PageView(
                     children: [
                       for (final url in _images)
-                        Image.network(
+                        GfNetworkImage(
                           resolveApiAssetUrl(url),
                           fit: BoxFit.contain,
                           cacheWidth:
@@ -2482,7 +2482,7 @@ class _ComposerImageBuilder extends EmbedBuilder {
 
   @override
   Widget build(BuildContext context, EmbedContext embedContext) {
-    final Widget image = Image.network(
+    final Widget image = GfNetworkImage(
       resolveApiAssetUrl(embedContext.node.value.data.toString()),
       fit: BoxFit.contain,
       cacheWidth:

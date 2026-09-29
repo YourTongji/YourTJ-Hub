@@ -931,6 +931,14 @@ class AppLocalizationsZh extends AppLocalizations {
   String get topicEmpty => '暂无话题';
 
   @override
+  String homePinnedTopics(int count) {
+    return '置顶话题（$count）';
+  }
+
+  @override
+  String get topicPinned => '置顶';
+
+  @override
   String settingsAvatarUploaded(String url) {
     return '头像已上传:$url';
   }

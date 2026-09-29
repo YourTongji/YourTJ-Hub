@@ -20,7 +20,7 @@ Future<void> cachePhoto(WidgetTester tester, String url) async {
     picture.dispose();
     return image;
   });
-  final provider = ExtendedImage.network(url).image;
+  final provider = GfMediaScope.imageProvider(null, url);
   final key = await provider.obtainKey(ImageConfiguration.empty);
   PaintingBinding.instance.imageCache.putIfAbsent(
     key,

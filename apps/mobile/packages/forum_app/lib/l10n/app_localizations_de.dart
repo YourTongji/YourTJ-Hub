@@ -954,6 +954,14 @@ class AppLocalizationsDe extends AppLocalizations {
   String get topicEmpty => 'Noch keine Themen';
 
   @override
+  String homePinnedTopics(int count) {
+    return 'Angeheftete Themen ($count)';
+  }
+
+  @override
+  String get topicPinned => 'Angeheftet';
+
+  @override
   String settingsAvatarUploaded(String url) {
     return 'Profilbild hochgeladen: $url';
   }

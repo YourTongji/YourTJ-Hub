@@ -76,6 +76,21 @@ class ThemeModeNotifier extends Notifier<ThemeMode> {
     _writes = _writes.then((_) => _persist(mode));
   }
 
+  /// Drain older writes before local reset so they cannot restore an old theme.
+  Future<void> resetToDefault() {
+    _revision++;
+    state = ThemeMode.system;
+    final next = _writes.then((_) async {
+      await _syncNativeMode(ThemeMode.system);
+      final prefs = await SharedPreferences.getInstance();
+      if (!await prefs.remove(_prefsKey)) {
+        throw StateError('Theme reset failed');
+      }
+    });
+    _writes = next.catchError((_) {});
+    return next;
+  }
+
   void toggleDark(bool dark) {
     setMode(dark ? ThemeMode.dark : ThemeMode.light);
   }

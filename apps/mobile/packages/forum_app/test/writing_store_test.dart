@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shared_preferences_platform_interface/shared_preferences_platform_interface.dart';
 import 'package:forum_app/src/local/writing_store.dart';
+import 'package:forum_app/src/storage/user_work_database.dart';
 
 // Android 平台的 SharedPreferences.remove 对缺失 key 返回 false（报告的是
 // key 是否存在，而非写入成败）；默认 InMemory mock 恒返回 true 复现不了 #704，
@@ -41,23 +42,6 @@ class _DelayedStore extends _ExistenceAccurateStore {
     if (first) {
       first = false;
       await pending.future;
-    }
-    return super.setValue(valueType, key, value);
-  }
-}
-
-class _FailingRemovalStore extends _ExistenceAccurateStore {
-  @override
-  Future<bool> remove(String key) async => false;
-}
-
-class _FailOnceStore extends _ExistenceAccurateStore {
-  bool failNext = true;
-  @override
-  Future<bool> setValue(String valueType, String key, Object value) async {
-    if (failNext) {
-      failNext = false;
-      return false;
     }
     return super.setValue(valueType, key, value);
   }
@@ -141,15 +125,19 @@ void main() {
     },
   );
   test(
-    'failed platform restoration remains retryable despite preferences cache',
+    'failed transaction restoration preserves absence and remains retryable',
     () async {
-      SharedPreferencesStorePlatform.instance = _FailOnceStore();
-      SharedPreferences.resetStatic();
+      final db = UserWorkDatabase.instance;
+      await db.readDomain('site:1', 'draft');
+      await db.customStatement(
+        "CREATE TRIGGER fail_restore BEFORE INSERT ON work_records BEGIN SELECT RAISE(ABORT, 'disk full'); END",
+      );
       final store = WritingStore();
       await expectLater(
         store.restoreIfAbsent('site:1', draft),
-        throwsStateError,
+        throwsA(anything),
       );
+      await db.customStatement('DROP TRIGGER fail_restore');
       expect(await store.restoreIfAbsent('site:1', draft), isTrue);
       SharedPreferences.resetStatic();
       expect(
@@ -238,11 +226,13 @@ void main() {
   });
 
   test('a failed deletion of an existing recovery copy is reported', () async {
-    SharedPreferencesStorePlatform.instance = _FailingRemovalStore();
-    SharedPreferences.resetStatic();
     final store = WritingStore();
     await store.save('site:1', draft);
-    await expectLater(store.delete('site:1', draft.key), throwsStateError);
+    await UserWorkDatabase.instance.customStatement(
+      "CREATE TRIGGER fail_delete BEFORE UPDATE ON work_records BEGIN SELECT RAISE(ABORT, 'disk full'); END",
+    );
+    await expectLater(store.delete('site:1', draft.key), throwsA(anything));
+    expect((await store.drafts('site:1')).single.content, draft.content);
   });
 
   test('a contextual reply title alone does not create a draft', () async {

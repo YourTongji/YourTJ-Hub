@@ -850,6 +850,13 @@ void main() {
             'security',
           ]) {
             final category = find.byKey(ValueKey('settings-category-$section'));
+            // Categories now span device and account groups. Start each lookup
+            // from the top so an earlier device row can also be constructed.
+            final position = tester
+                .state<ScrollableState>(find.byType(Scrollable).first)
+                .position;
+            position.jumpTo(position.minScrollExtent);
+            await tester.pump();
             // Settings can extend beyond the lazy list's built children at
             // large text sizes; scroll to construct the next category first.
             await tester.scrollUntilVisible(

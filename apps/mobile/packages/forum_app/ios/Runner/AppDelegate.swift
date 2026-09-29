@@ -27,6 +27,39 @@ import Darwin
     if let appleRegistrar = engineBridge.pluginRegistry.registrar(forPlugin: "YourTJAppleAuth") {
       appleAuth = YourTJAppleAuth(registrar: appleRegistrar)
     }
+    if let storageRegistrar = engineBridge.pluginRegistry.registrar(forPlugin: "YourTJStorage") {
+      let storage = FlutterMethodChannel(name: "yourtj/storage", binaryMessenger: storageRegistrar.messenger())
+      storage.setMethodCallHandler { call, result in
+        guard call.method == "excludeFromBackup",
+              let arguments = call.arguments as? [String: Any],
+              let path = arguments["path"] as? String else {
+          result(FlutterMethodNotImplemented)
+          return
+        }
+        var url = URL(fileURLWithPath: path).standardizedFileURL
+        let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].standardizedFileURL
+        guard url.path == support.appendingPathComponent("yourtj_private").path else {
+          result(FlutterError(code: "invalid_path", message: "Unsupported storage path", details: nil))
+          return
+        }
+        do {
+          var values = URLResourceValues()
+          values.isExcludedFromBackup = true
+          try url.setResourceValues(values)
+          // This App Group is dedicated to disposable schedule projections.
+          // Exclude the container, including future UserDefaults rewrites.
+          guard var widgetDirectory = FileManager.default.containerURL(
+            forSecurityApplicationGroupIdentifier: "group.tj.yourtj.forumApp.widgets"
+          ) else {
+            throw NSError(domain: "YourTJStorage", code: 1)
+          }
+          try widgetDirectory.setResourceValues(values)
+          result(nil)
+        } catch {
+          result(FlutterError(code: "backup_exclusion_failed", message: "Unable to configure local storage", details: nil))
+        }
+      }
+    }
     if let startupRegistrar = engineBridge.pluginRegistry.registrar(forPlugin: "YourTJStartup") {
       let startupChannel = FlutterMethodChannel(
         name: "yourtj/startup",

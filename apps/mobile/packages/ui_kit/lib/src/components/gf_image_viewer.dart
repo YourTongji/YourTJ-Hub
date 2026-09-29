@@ -8,6 +8,7 @@ import '../theme/gf_theme.dart';
 import 'atoms/gf_loading_indicator.dart';
 import 'gf_glass_icon_button.dart';
 import 'gf_motion.dart';
+import 'gf_media_image.dart';
 import 'gf_symbol.dart';
 
 /// Shows the shared image action surface used by inline images and the
@@ -289,8 +290,9 @@ class _GfImageViewerState extends State<GfImageViewer>
                             final bool selected = index == _currentIndex;
                             final double pixelRatio =
                                 MediaQuery.devicePixelRatioOf(context);
-                            final ResizeImage thumbnail = ResizeImage(
-                              NetworkImage(widget.images[index]),
+                            final thumbnail = GfMediaScope.imageProvider(
+                              context,
+                              widget.images[index],
                               policy: ResizeImagePolicy.fit,
                               width: (48 * pixelRatio).round(),
                               height: (60 * pixelRatio).round(),
@@ -357,7 +359,7 @@ class _GfImageViewerState extends State<GfImageViewer>
                                                     width: 44,
                                                     height: 56,
                                                     fit: BoxFit.cover,
-                                                    gaplessPlayback: true,
+                                                    gaplessPlayback: false,
                                                     excludeFromSemantics: true,
                                                     errorBuilder: (_, _, _) =>
                                                         ColoredBox(
@@ -808,10 +810,13 @@ class _GfImageViewerState extends State<GfImageViewer>
                       onLongPress: widget.onSaveImage == null
                           ? null
                           : () => _showImageActions(context),
-                      child: ExtendedImage.network(
-                        widget.images[index],
+                      child: ExtendedImage(
+                        image: GfMediaScope.imageProvider(
+                          context,
+                          widget.images[index],
+                        ),
                         fit: _actualSize ? BoxFit.none : BoxFit.contain,
-                        gaplessPlayback: true,
+                        gaplessPlayback: false,
                         enableSlideOutPage: false,
                         mode: ExtendedImageMode.gesture,
                         extendedImageGestureKey: _gestureKeyFor(index),

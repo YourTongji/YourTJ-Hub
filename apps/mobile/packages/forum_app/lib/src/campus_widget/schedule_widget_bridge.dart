@@ -79,6 +79,17 @@ class ScheduleWidgetBridge {
     }
   }
 
+  Future<int> usageBytes() async {
+    if (!Platform.isAndroid && !Platform.isIOS) return 0;
+    await HomeWidget.setAppGroupId(appGroupId);
+    var total = 0;
+    for (final key in [projectionKey, _temporaryKey]) {
+      final value = await HomeWidget.getWidgetData<String>(key);
+      if (value != null) total += utf8.encode(value).length;
+    }
+    return total;
+  }
+
   Future<int> readTransparency() async {
     if (!Platform.isAndroid && !Platform.isIOS) {
       return defaultTransparencyPercent;

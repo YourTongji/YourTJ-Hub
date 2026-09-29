@@ -420,7 +420,7 @@ class _WikiProse extends StatelessWidget {
                   borderRadius: BorderRadius.circular(radii.box),
                 ),
                 clipBehavior: Clip.antiAlias,
-                child: Image.network(
+                child: GfNetworkImage(
                   resolved,
                   fit: BoxFit.contain,
                   cacheWidth:

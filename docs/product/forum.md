@@ -98,7 +98,7 @@ Web 确认弹窗约束键盘焦点。规则覆盖主题、回复、Wiki 和课�
 `Planned`：Vditor 对替代数学分隔符的所见即所得预览；保存及阅读不受此编辑器限制影响。
 
 `Current`：官方表情目录、管理员 CRUD／zip 导入及个人 token 渲染可用；Flutter 提供最近／我的／官方
-选择器与个人库管理，表情不进入普通图片灯箱。`Planned`：Web 个人库管理界面。
+选择器与个人库管理；原生表情可单独放大预览，不混入附件图库。`Planned`：Web 个人库管理界面。
 配额、历史素材保留和隐私规则见[移动端表情规范](mobile-experience.md#sticker-library)与
 [个人表情库决策](../decisions/0038-personal-sticker-library.md)。
 

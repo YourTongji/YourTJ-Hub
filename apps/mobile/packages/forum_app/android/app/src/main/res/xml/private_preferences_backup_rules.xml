@@ -5,4 +5,9 @@
     <exclude domain="sharedpref" path="FlutterSharedPreferences.xml"/>
     <exclude domain="sharedpref" path="FlutterSecureStorage.xml"/>
     <exclude domain="sharedpref" path="FlutterSecureKeyStorage.xml"/>
+    <exclude domain="sharedpref" path="HomeWidgetPreferences.xml"/>
+    <exclude domain="file" path="yourtj_private/"/>
+    <exclude domain="root" path="app_flutter/yourtj_cache.sqlite"/>
+    <exclude domain="root" path="app_flutter/yourtj_cache.sqlite-wal"/>
+    <exclude domain="root" path="app_flutter/yourtj_cache.sqlite-shm"/>
 </full-backup-content>

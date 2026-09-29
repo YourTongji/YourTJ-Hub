@@ -48,9 +48,10 @@ assets. Administrative official-library operations cannot mutate personal assets
 Native composition uses one Recent / My / Official picker in messages, replies and publishing.
 Selection replaces text at the current caret and never sends automatically. Management supports
 upload, private labels, ordering and removal; long-pressing a received sticker offers collection.
-A dedicated inline renderer consumes taps without opening the ordinary image gallery. Normal
-attachments keep their existing gallery interaction. Unknown or unavailable tokens remain readable
-and resolvable content can be retried after a network failure.
+A dedicated inline renderer consumes taps to preview the selected sticker alone, without adding
+it to the ordinary attachment gallery. Picker taps still insert; a separate long-press preview never
+inserts or sends. Normal attachments keep their existing gallery interaction. Unknown or unavailable
+tokens remain readable and resolvable content can be retried after a network failure.
 
 This supersedes [0030](0030-global-sticker-library.md) for product scope, public lookup and personal
 asset lifecycle. Its official pack licensing, server rendering exclusions, single-binary deployment,

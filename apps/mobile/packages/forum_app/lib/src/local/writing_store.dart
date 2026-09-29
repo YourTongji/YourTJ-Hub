@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:math';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import '../storage/user_work_database.dart';
 import '../current_user.dart';
 import '../providers.dart';
 
@@ -16,7 +16,10 @@ final writingScopeProvider = FutureProvider<String>((ref) async {
 String writingScope(String site, int userId) =>
     '${Uri.encodeComponent(site)}:$userId';
 
-final writingStoreProvider = Provider<WritingStore>((ref) => WritingStore());
+final writingStoreProvider = Provider<WritingStore>((ref) {
+  ref.watch(offlineCacheEpochProvider);
+  return WritingStore(database: ref.watch(userWorkDatabaseProvider));
+});
 
 enum DraftKind { newTopic, serverDraft, topicEdit, reply }
 
@@ -97,126 +100,96 @@ class LocalDraft {
 }
 
 class WritingStore {
-  Future<void> _tail = Future.value();
-  String _prefix(String scope) => 'yourtj:writing:v1:$scope:';
-
-  // Serialize mutations so deletion follows any in-flight save. A platform
-  // remove(false) is success only when the key was already absent; failure to
-  // remove an existing recovery copy must remain visible to the caller.
-  Future<void> _remove(SharedPreferences prefs, String key) async {
-    final existed = prefs.containsKey(key);
-    if (!await prefs.remove(key) && existed) {
-      throw StateError('Local draft could not be removed');
-    }
-  }
-
-  Future<T> _write<T>(Future<T> Function(SharedPreferences) action) {
-    final next = _tail.then(
-      (_) async => action(await SharedPreferences.getInstance()),
-    );
-    _tail = next.then<void>((_) {}, onError: (Object _, StackTrace _) {});
-    return next;
-  }
+  WritingStore({UserWorkDatabase? database})
+    : _database = database ?? UserWorkDatabase.instance,
+      _generation = (database ?? UserWorkDatabase.instance).generation;
+  final UserWorkDatabase _database;
+  final int _generation;
 
   Future<void> save(
     String scope,
     LocalDraft draft, {
     bool Function()? isCurrent,
-  }) => _write((prefs) async {
-    if (isCurrent != null && !isCurrent()) {
-      throw StateError('Draft session changed');
-    }
+  }) async {
     if (scope.endsWith(':0')) throw StateError('Draft requires an account');
-    final key = '${_prefix(scope)}draft:${draft.key}';
-    if (draft.isEmpty) {
-      await _remove(prefs, key);
-      return;
-    }
-    final ok = await prefs.setString(key, jsonEncode(draft.toJson()));
-    if (!ok) throw StateError('Local draft could not be saved');
-  });
-  Future<void> delete(String scope, String key, {bool Function()? isCurrent}) =>
-      _write((prefs) async {
-        if (isCurrent != null && !isCurrent()) {
-          throw StateError('Draft session changed');
-        }
-        await _remove(prefs, '${_prefix(scope)}draft:$key');
-      });
+    await _database.writeBatch(
+      scope,
+      'draft',
+      {draft.key: draft.isEmpty ? null : jsonEncode(draft.toJson())},
+      isCurrent: isCurrent,
+      generation: _generation,
+    );
+  }
 
-  /// Undo only a deletion that is still absent. The check and write share the
-  /// mutation queue, so an editor save queued first always wins over recovery.
+  Future<void> delete(String scope, String key, {bool Function()? isCurrent}) =>
+      _database.writeBatch(
+        scope,
+        'draft',
+        {key: null},
+        isCurrent: isCurrent,
+        generation: _generation,
+      );
+
+  /// The absence check and restore share a transaction across all store instances.
   Future<bool> restoreIfAbsent(
     String scope,
     LocalDraft draft, {
     bool Function()? isCurrent,
-  }) => _write((prefs) async {
-    // SharedPreferences updates its cache before a platform write succeeds.
-    // Reload allows retry after a failed restore without mistaking cache for disk.
-    await prefs.reload();
-    if (isCurrent != null && !isCurrent()) {
-      throw StateError('Draft session changed');
-    }
+  }) async {
     if (scope.endsWith(':0')) throw StateError('Draft requires an account');
-    final key = '${_prefix(scope)}draft:${draft.key}';
-    if (prefs.containsKey(key)) return false;
-    if (!await prefs.setString(key, jsonEncode(draft.toJson()))) {
-      throw StateError('Local draft could not be restored');
-    }
-    return true;
-  });
+    return _database.writeIfAbsent(
+      scope,
+      'draft',
+      draft.key,
+      jsonEncode(draft.toJson()),
+      isCurrent: isCurrent,
+      generation: _generation,
+    );
+  }
 
   Future<List<LocalDraft>> drafts(String scope) async {
-    await _tail;
     if (scope.endsWith(':0')) return [];
-    final prefs = await SharedPreferences.getInstance();
+    final records = await _database.readDomain(scope, 'draft');
     final drafts = <LocalDraft>[];
-    for (final key in prefs.getKeys().where(
-      (key) => key.startsWith('${_prefix(scope)}draft:'),
-    )) {
+    for (final raw in records.values) {
       try {
         drafts.add(
-          LocalDraft.fromJson(
-            jsonDecode(prefs.getString(key)!) as Map<String, dynamic>,
-          ),
+          LocalDraft.fromJson(jsonDecode(raw) as Map<String, dynamic>),
         );
       } on FormatException {
-        /* A damaged record must not hide other drafts. */
+        /* Damaged raw records remain in the database for recovery. */
       } on TypeError {
-        /* Preserve the raw record for recovery. */
+        /* A damaged record must not hide other drafts. */
       }
     }
     return drafts..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
   }
 
   Future<List<String>> history(String scope) async {
-    await _tail;
-    return (await SharedPreferences.getInstance()).getStringList(
-          '${_prefix(scope)}history',
-        ) ??
-        [];
+    final values = await _database.readDomain(scope, 'history');
+    return values['search'] == null
+        ? []
+        : List<String>.from(jsonDecode(values['search']!) as List);
   }
 
-  Future<void> remember(String scope, String query) => _write((prefs) async {
+  Future<void> remember(String scope, String query) async {
     final value = query.trim();
     if (value.isEmpty || value.length > 200) return;
-    final key = '${_prefix(scope)}history';
-    final old = prefs.getStringList(key) ?? [];
-    if (!await prefs.setStringList(
-      key,
-      [value, ...old.where((q) => q != value)].take(10).toList(),
-    )) {
-      throw StateError('Search history could not be saved');
-    }
-  });
-  Future<void> clearAccount(String scope) => _write((prefs) async {
-    for (final key in prefs.getKeys().where(
-      (key) => key.startsWith(_prefix(scope)),
-    )) {
-      await prefs.remove(key);
-    }
-  });
+    await _database.updateValue(scope, 'history', 'search', (raw) {
+      final old = raw == null
+          ? <String>[]
+          : List<String>.from(jsonDecode(raw) as List);
+      return jsonEncode(
+        [value, ...old.where((q) => q != value)].take(10).toList(),
+      );
+    }, generation: _generation);
+  }
 
-  Future<void> clearHistory(String scope) => _write((prefs) async {
-    await prefs.remove('${_prefix(scope)}history');
-  });
+  Future<void> clearAccount(String scope) => _database.clearScope(scope);
+  Future<void> clearHistory(String scope) => _database.writeBatch(
+    scope,
+    'history',
+    {'search': null},
+    generation: _generation,
+  );
 }

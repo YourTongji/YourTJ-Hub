@@ -2,11 +2,12 @@ import 'package:flutter/material.dart';
 
 import '../../theme/gf_theme.dart';
 import '../gf_symbol.dart';
+import '../gf_media_image.dart';
 
 /// Circular user avatar matching the web app's avatar usage
 /// (UserAvatar.vue). Any logical [size] is valid: decoding snaps up to a
 /// shared ladder, so nearby display sizes reuse one decoded image (see
-/// [_decodeSizes]). Renders the image via [NetworkImage] with a muted
+/// [_decodeSizes]). Renders the image via [GfMediaScope] with a muted
 /// fallback while loading.
 class GfAvatar extends StatelessWidget {
   const GfAvatar({
@@ -56,13 +57,15 @@ class GfAvatar extends StatelessWidget {
   /// pixels), so a caller cannot force a one-pixel decode.
   static ImageProvider<Object>? imageProviderFor(
     String src, {
+    BuildContext? context,
     required double size,
     required double devicePixelRatio,
   }) {
     if (src.isEmpty) return null;
     final pixels = (_decodeSizeFor(size) * devicePixelRatio).round();
-    return ResizeImage(
-      NetworkImage(src),
+    return GfMediaScope.imageProvider(
+      context,
+      src,
       policy: ResizeImagePolicy.fit,
       width: pixels < 1 ? 1 : pixels,
       height: pixels < 1 ? 1 : pixels,
@@ -78,6 +81,7 @@ class GfAvatar extends StatelessWidget {
     );
     final provider = imageProviderFor(
       src,
+      context: context,
       size: size,
       devicePixelRatio: MediaQuery.devicePixelRatioOf(context),
     );

@@ -573,7 +573,11 @@ void main() {
     );
     await tester.tap(find.byType(StickerImage));
     await tester.pump();
-    expect(find.byType(GfImageViewer), findsNothing);
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(find.byType(GfImageViewer), findsOneWidget);
+    expect(tester.widget<GfImageViewer>(find.byType(GfImageViewer)).images, [
+      endsWith('/file/img/stickers/smile.png'),
+    ]);
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 600));

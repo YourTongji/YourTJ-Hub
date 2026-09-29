@@ -933,6 +933,14 @@ class AppLocalizationsJa extends AppLocalizations {
   String get topicEmpty => 'まだトピックはありません';
 
   @override
+  String homePinnedTopics(int count) {
+    return '固定トピック（$count）';
+  }
+
+  @override
+  String get topicPinned => '固定';
+
+  @override
   String settingsAvatarUploaded(String url) {
     return 'アバターをアップロードしました：$url';
   }

@@ -160,6 +160,13 @@ ordered after the active route in the accessibility tree so iOS does not hide it
 - `Current`: Home displays categories in a horizontal row below the feed sorts. Category pills
   filter the existing stream in place, with a highlighted selection and an All categories action.
   The display menu contains list/card preferences; unavailable categories take no space.
+- `Current`: list mode uses a compact title/type row, optional excerpt, and a shared category/metadata
+  band. Categories retain separate 44-pixel targets and a horizontal rail; long metadata moves the
+  rail onto a new line rather than reducing text size. Dividers do not add a blank footer. Question,
+  moment and article labels are localized, and enlarged text allows the title/excerpt to grow.
+  Home's unfiltered list groups pinned topics into a 48-pixel-minimum expandable summary, initially
+  collapsed. Category streams and Following retain the server's ordering; cards keep pins in place.
+  Expanding pins neither reloads the stream nor changes its pagination cursor.
 - `Current`: Home sort, Campus section and notification filter rails share a scrollable tab bar.
   The page-swipe recognizer feeds the shared tab controller's live drag offset, so the selected
   underline follows a held slow swipe and stretches evenly toward the adjacent tab. After release,
@@ -1117,7 +1124,12 @@ servers that omit interaction fields retain read-only content previews.
   retry flow as files, without applying the post-photo resize/compression settings to stickers.
   The personal library supports image upload, collecting a shared sticker by long press (in a chat
   message, the bubble's action menu offers the same collection for its resolved stickers),
-  private display names, reordering and removal. It holds up to 200 stickers; images are limited to
+  private display names, reordering and removal. Each library row opens a single-sticker preview
+  and has a labeled action menu for preview, rename and removal; disabled stickers remain removable.
+  Upload guidance and library rows scroll together so large text does not crowd out the controls.
+  Both single and selected removals require confirmation and preserve already-sent stickers. Failed
+  removals keep the remaining entries available for retry. Account changes close pending library
+  action sheets, library-launched previews and removal confirmations. It holds up to 200 stickers; images are limited to
   4 MiB and an account can create up to 1000 retained personal assets. Uploads use the authenticated
   file service. Failed requests retain the current input and expose retry. Concurrent collection
   writes are rejected explicitly so a skipped operation cannot report success.
@@ -1126,9 +1138,13 @@ servers that omit interaction fields retain read-only content previews.
   shared posts and messages renderable. Account closure removes collection membership while shared
   assets retain their history references. [0038](../decisions/0038-personal-sticker-library.md) owns this
   storage and privacy decision.
-- `Current`: native stickers render inline at a compact size and consume taps without a lightbox,
-  zoom or details page. Ordinary image attachments still open the shared gallery. Unknown or
-  unavailable sticker tokens retain a readable fallback. Library state is isolated by site and account.
+- `Current`: tapping a native inline sticker or a library row opens that sticker alone in the shared
+  image viewer, with animated GIF playback, pinch/double-tap zoom and actual-size viewing. Stickers
+  remain excluded from surrounding attachment galleries. Picker taps still insert without sending;
+  a visible hint and each item’s long-press action expose a separate large preview on all three tabs.
+  Previewing does not insert a token or change recent use. Chat long presses still open the message
+  action menu, including when an image fails to load. Unknown or unavailable tokens retain a readable
+  fallback. Library state is isolated by site and account.
 - `Current`: disabled official stickers stay in personal management for ordering/removal and are
   unavailable for insertion; permanently deleted official stickers leave the collection. Older servers
   without personal-library endpoints show a compatibility message while official stickers remain usable.
@@ -1179,8 +1195,8 @@ push disclosure; account closure remains inside account settings rather than the
 
 ## User safety and message retries
 
-`Current`: profiles and conversation headers expose reversible user blocking; Settings → Data and
-storage lists the caller's blocks. Server enforcement stops new private messages and interaction
+`Current`: profiles and conversation headers expose reversible user blocking; Settings → Account
+lists the caller's blocks. Server enforcement stops new private messages and interaction
 notifications in both directions. Public content, message history and already delivered notifications
 remain available. Pending activation does not prevent managing a block.
 
@@ -1286,3 +1302,29 @@ acceptance; simulator compilation does not establish those results.
 已送达副本不会随源消息、显示名或源会话的后续变化而改变；贴纸展示仍遵循素材可用性。
 
 详见 [私信转发决策](../decisions/0044-nested-private-message-history.md)。
+
+
+## Device storage
+
+- `Current`: Settings → Data and storage is available without signing in. It shows forum reading,
+  synchronized chat, images/GIFs and campus/widget cache categories, the managed on-device total and
+  recoverable user work separately. Category values are payload estimates; database and journal
+  overhead contributes to the total. Unavailable storage is an error, not zero usage.
+- `Current`: clear-cache confirmation names the selected categories and explicitly preserves login,
+  drafts, unsent messages and schedule plans. Forum/chat/media are selected initially; campus is
+  opt-in because its offline document and timetable widget are removed together. Clearing fences old
+  requests before deletion. Partial failure remains visible with retry, including after app restart.
+- `Current`: cloud content management and the recycle bin remain in the side drawer. The storage
+  surface offers local drafts and plans; account settings owns blocked-user management.
+- `Current`: local reset confirms the number of local drafts, unsent messages, unsynchronized
+  plans and schedule recovery drafts before removing them, signing out and restoring preferences.
+  Storage reports recovery drafts separately from legacy schedules awaiting an owner. It does not
+  delete cloud content, close the account or remove school bindings. Interrupted reset retains an intent for retry;
+  business routes remain unavailable until it finishes, so new work cannot enter a pending reset.
+- `Current`: ordinary writing and schedule plans commit to a dedicated encrypted transaction store.
+  Legacy schedules without a known site are held for explicit recovery into a confirmed identity;
+  they are never automatically adopted by a matching numeric ID on another site.
+- `Partial`: offline coverage is bounded reading recovery for home/topic/chat plus the existing campus
+  allowlist. Search, notification, Wiki and course pages do not gain a blanket disk cache. The media
+  upload queue is not a durable offline-send service. See the authoritative
+  [storage boundaries and limits](../architecture/mobile-state-and-cache.md#cache-policy).

@@ -11,6 +11,7 @@ import 'gf_card.dart';
 import 'gf_chip.dart';
 import 'gf_image_viewer.dart';
 import 'gf_symbol.dart';
+import 'gf_media_image.dart';
 import 'gf_topic_row.dart';
 
 class GfTopicImageVariant {
@@ -724,6 +725,7 @@ class _TopicImage extends StatelessWidget {
                     .clamp(1, 1000000)
                     .toInt();
           final image = _feedImageProvider(
+            context,
             source?.url ?? url,
             pixelWidth,
             cacheHeight,
@@ -739,7 +741,7 @@ class _TopicImage extends StatelessWidget {
                   child: Image(
                     image: image,
                     fit: BoxFit.cover,
-                    gaplessPlayback: true,
+                    gaplessPlayback: false,
                     errorBuilder: (_, _, _) => const SizedBox.shrink(),
                   ),
                 ),
@@ -807,8 +809,18 @@ GfTopicImageVariant? _closestImageSource(
   return closest;
 }
 
-ResizeImage _feedImageProvider(String url, int pixelWidth, int? pixelHeight) {
-  return ResizeImage(NetworkImage(url), width: pixelWidth, height: pixelHeight);
+ImageProvider<Object> _feedImageProvider(
+  BuildContext context,
+  String url,
+  int pixelWidth,
+  int? pixelHeight,
+) {
+  return GfMediaScope.imageProvider(
+    context,
+    url,
+    width: pixelWidth,
+    height: pixelHeight,
+  );
 }
 
 class _Metric extends StatelessWidget {

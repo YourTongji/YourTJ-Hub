@@ -83,3 +83,6 @@ export 'src/components/business/gf_content_row.dart';
 export 'src/components/business/gf_connection_row.dart';
 
 export 'src/components/business/gf_composer_panel.dart';
+
+export 'src/components/gf_media_image.dart';
+export 'src/components/gf_network_svg.dart';
