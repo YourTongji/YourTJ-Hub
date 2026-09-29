@@ -721,7 +721,9 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace>
       }
       if (state.loading || withholdData) return true;
       return (campusTabKeys[tab] ?? const <String>[]).any((key) {
-        return state.data[key] == null && !state.errors.containsKey(key);
+        return state.data[key] == null &&
+            state.fetching.contains(key) &&
+            !state.errors.containsKey(key);
       });
     }
 
@@ -845,9 +847,14 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace>
       );
     }
 
-    Widget scrollPage(String tab, double top, double bottom) {
+    Widget scrollPage(
+      String tab,
+      double top,
+      double bottom, {
+      bool swipePreview = false,
+    }) {
       final showSwipeLoader =
-          isPending(tab) && (tab != _tab || tab == _swipeLoadingTab);
+          isPending(tab) && (swipePreview || tab == _swipeLoadingTab);
       return GfScrollToTop(
         key: _scrollKeyFor(tab),
         controller: _scrollFor(tab),
@@ -945,7 +952,7 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace>
       swipePageKey: (index) => tabKeys[index],
       swipePageBuilder: (index, top, bottom) {
         final tab = tabKeys[index];
-        return scrollPage(tab, top, bottom);
+        return scrollPage(tab, top, bottom, swipePreview: true);
       },
       title: l.campusTitle,
       showComposeAction: false,

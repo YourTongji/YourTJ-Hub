@@ -76,7 +76,9 @@ class _HomeFeedState {
   int loadSequence = 0;
   CancelToken? loadCancel;
   CancelToken? loadMoreCancel;
-  final scrollKey = GlobalKey();
+  late final PageStorageKey<String> scrollKey = PageStorageKey<String>(
+    'home:${category?.id ?? 'all'}:$sort',
+  );
 
   void cancel() {
     loadCancel?.cancel("home feed disposed");
