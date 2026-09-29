@@ -32,6 +32,7 @@ class Driver extends PushDriver {
   String? deviceToken = 'native-token';
   void Function(String)? changed;
   Completer<String?>? pending;
+  Completer<bool>? pendingPermission;
   Completer<void>? pendingStop;
   @override
   String get platform => transport == 'apns' ? 'ios' : 'android';
@@ -42,7 +43,7 @@ class Driver extends PushDriver {
   @override
   Future<bool> permission({required bool request}) async {
     if (request) requests++;
-    return allowed;
+    return pendingPermission?.future ?? allowed;
   }
 
   @override
@@ -133,6 +134,15 @@ void main() {
     await pumpEventQueue();
   }
 
+  ProviderContainer createContainer() => ProviderContainer(
+    overrides: [
+      pushDriverProvider.overrideWithValue(driver),
+      pushRepositoryProvider.overrideWithValue(repo),
+      tokenStorageProvider.overrideWithValue(storage),
+      currentUserProvider.overrideWith((ref) async => user),
+    ],
+  );
+
   setUp(() {
     // Steady state: the iOS one-shot permission request already happened, so
     // startup refreshes stay silent. First-launch behavior gets its own tests
@@ -144,14 +154,7 @@ void main() {
     repo = Repository();
     storage = MemoryStorage();
     user = const CurrentUser(id: 1, username: 'one');
-    container = ProviderContainer(
-      overrides: [
-        pushDriverProvider.overrideWithValue(driver),
-        pushRepositoryProvider.overrideWithValue(repo),
-        tokenStorageProvider.overrideWithValue(storage),
-        currentUserProvider.overrideWith((ref) async => user),
-      ],
-    );
+    container = createContainer();
     container.read(pushControllerProvider);
   });
   tearDown(() => container.dispose());
@@ -348,6 +351,29 @@ void main() {
     expect(driver.requests, 1);
     expect(status(), PushChannelStatus.enabled);
   });
+  test(
+    'Android retries if the app exits while the OS prompt is open',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      driver.transport = 'jpush';
+      final interruptedDriver = driver;
+      interruptedDriver.pendingPermission = Completer<bool>();
+      await settle(firstFrame: true);
+      expect(interruptedDriver.requests, 1);
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getBool('push_permission_requested'), isNull);
+
+      container.dispose();
+      interruptedDriver.pendingPermission!.complete(false);
+      await settle();
+      driver = Driver()..transport = 'jpush';
+      container = createContainer();
+      container.read(pushControllerProvider);
+      await settle(firstFrame: true);
+      expect(driver.requests, 1);
+      expect(prefs.getBool('push_permission_requested'), true);
+    },
+  );
   test(
     'Android waits for the first frame and main route before requesting',
     () async {

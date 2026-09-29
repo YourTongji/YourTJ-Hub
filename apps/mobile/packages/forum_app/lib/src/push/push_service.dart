@@ -212,7 +212,6 @@ class PushController extends Notifier<PushChannelStatus>
       if (request) {
         _permissionRequestAttempted = true;
         await prefs.setBool(_enabledKey, true);
-        await prefs.setBool(_permissionRequestedKey, true);
       }
       if (!(prefs.getBool(_enabledKey) ?? false)) {
         state = PushChannelStatus.disabled;
@@ -220,6 +219,8 @@ class PushController extends Notifier<PushChannelStatus>
         return;
       }
       final allowed = await _driver.permission(request: request);
+      if (!_current(generation, epoch)) return;
+      if (request) await prefs.setBool(_permissionRequestedKey, true);
       if (!_current(generation, epoch)) return;
       if (!allowed) {
         state = PushChannelStatus.permissionDenied;
