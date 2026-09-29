@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../theme/gf_theme.dart';
@@ -14,12 +16,11 @@ class GfTopicCategory {
   final VoidCallback? onTap;
 }
 
-/// Topic list row mirroring web `TopicRow.vue` / `.gf-topic-row`
-/// (patterns.css): `px-4 py-2.5`, title 15px w500, description 13px
-/// `base-content/55`, meta 12px with participant stack + time + reply count.
-///
-/// The row draws its own bottom hairline (`after:inset-x-4 line/70`); pass
-/// `showDivider: false` for the last row (web `:last-child::after` hides it).
+enum GfTopicContentType { question, moment, article }
+
+/// Compact reading row with categories sharing the metadata band. Interactive
+/// chips keep their 44px targets; narrow windows/large text wrap the metadata.
+/// The inset divider is painted and never adds an empty footer to the layout.
 class GfTopicRow extends StatelessWidget {
   const GfTopicRow({
     super.key,
@@ -31,11 +32,14 @@ class GfTopicRow extends StatelessWidget {
     required this.replyCount,
     this.onTap,
     this.pinned = false,
+    this.pinnedLabel = 'pinned',
     this.unseen = false,
     this.viewCount,
     this.hot = false,
     this.showDivider = true,
     this.home = false,
+    this.contentType,
+    this.contentTypeLabel,
   });
 
   final String title;
@@ -46,165 +50,258 @@ class GfTopicRow extends StatelessWidget {
   final int replyCount;
   final VoidCallback? onTap;
   final bool pinned;
+  final String pinnedLabel;
   final bool unseen;
-
-  /// View count shown in the desktop meta layout; optional on mobile.
   final int? viewCount;
-
-  /// Whether the row is trending; shows the `hot` badge (web
-  /// `showHot && viewCount > 500`).
   final bool hot;
-
-  /// Whether the bottom hairline divider is rendered (web `:last-child`
-  /// hides it; list containers manage this via [GfCardList]).
   final bool showDivider;
 
-  /// Home-page variant: `min-h-[88px]` (web `.gf-topic-row-home`).
+  /// Retains the web Home minimum; text can always grow beyond it.
   final bool home;
+  final GfTopicContentType? contentType;
+  final String? contentTypeLabel;
 
   @override
   Widget build(BuildContext context) {
-    final GfColors colors = GfTheme.colorsOf(context);
-
+    final colors = GfTheme.colorsOf(context);
+    final enlargedText = MediaQuery.textScalerOf(context).scale(15) > 22.5;
     return InkWell(
       onTap: onTap,
       child: Container(
-        constraints: home ? const BoxConstraints(minHeight: 88) : null,
+        constraints: BoxConstraints(minHeight: home ? 88 : 44),
         color: colors.base100,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            // Title row: pin mark, title, unseen dot, hot badge, chips.
-            Wrap(
-              spacing: 8,
-              runSpacing: 4,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: <Widget>[
-                if (pinned)
-                  Semantics(
-                    label: 'pinned',
-                    child: GfSymbol(
-                      'pin-filled',
-                      size: 16,
-                      color: colors.error,
-                    ),
-                  ),
-                // 无标题瞬间（title 为空串）不渲染标题行。
-                if (title.isNotEmpty)
-                  Text(
-                    title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: colors.baseContent,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w500,
-                      height: 1.5,
-                    ),
-                  ),
-                if (hot)
-                  Container(
-                    height: 20,
-                    padding: const EdgeInsets.symmetric(horizontal: 6),
-                    decoration: BoxDecoration(
-                      color: colors.warning.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: <Widget>[
-                        GfSymbol('flame', size: 12, color: colors.warning),
-                        const SizedBox(width: 2),
-                        Text(
-                          'hot',
-                          style: TextStyle(
-                            color: colors.warning,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
+        child: Stack(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 6),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (title.isNotEmpty || pinned || contentType != null || hot)
+                    Row(
+                      children: [
+                        if (pinned) ...[
+                          Semantics(
+                            label: pinnedLabel,
+                            child: GfSymbol(
+                              'pin-filled',
+                              size: 16,
+                              color: colors.error,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                        ],
+                        Expanded(
+                          child: Text(
+                            title,
+                            maxLines: enlargedText ? 2 : 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: colors.baseContent,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w500,
+                              height: 1.5,
+                            ),
                           ),
                         ),
+                        if (unseen) ...[
+                          const SizedBox(width: 6),
+                          Container(
+                            width: 8,
+                            height: 8,
+                            decoration: BoxDecoration(
+                              color: colors.primary,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                        ],
+                        if (contentType != null &&
+                            contentTypeLabel != null) ...[
+                          const SizedBox(width: 6),
+                          _typeBadge(context),
+                        ],
+                        if (hot) ...[
+                          const SizedBox(width: 6),
+                          GfSymbol('flame', size: 12, color: colors.warning),
+                          const SizedBox(width: 2),
+                          Text(
+                            'hot',
+                            style: TextStyle(
+                              color: colors.warning,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ],
                       ],
                     ),
-                  ),
-                if (unseen)
-                  Container(
-                    width: 8,
-                    height: 8,
-                    decoration: BoxDecoration(
-                      color: colors.primary,
-                      shape: BoxShape.circle,
+                  if (description.isNotEmpty)
+                    Padding(
+                      padding: EdgeInsets.only(top: title.isEmpty ? 0 : 2),
+                      child: Text(
+                        description,
+                        maxLines: enlargedText ? 2 : 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: colors.baseContent.withValues(alpha: 0.55),
+                          fontSize: 13,
+                          height: 1.4,
+                        ),
+                      ),
                     ),
-                  ),
-                for (final GfTopicCategory category in categories)
-                  GfChip(
-                    label: category.name,
-                    color: category.color,
-                    onTap: category.onTap,
-                  ),
-              ],
-            ),
-            if (description.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: Text(
-                  description,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: colors.baseContent.withValues(alpha: 0.55),
-                    fontSize: 13,
-                    height: 1.4,
-                  ),
-                ),
-              ),
-            Padding(
-              padding: const EdgeInsets.only(top: 6),
-              child: Row(
-                children: <Widget>[
-                  if (participantAvatarUrls.isNotEmpty) ...<Widget>[
-                    GfAvatarStack(
-                      avatarUrls: participantAvatarUrls,
-                      size: GfAvatarStackSize.sm,
-                    ),
-                    const SizedBox(width: 8),
-                  ],
-                  Text(
-                    activityText,
-                    style: TextStyle(
-                      color: colors.baseContent.withValues(alpha: 0.55),
-                      fontSize: 12,
-                    ),
-                  ),
-                  const Spacer(),
-                  GfSymbol(
-                    'message-circle',
-                    size: 14,
-                    color: colors.baseContent.withValues(alpha: 0.55),
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    '$replyCount',
-                    style: TextStyle(
-                      color: colors.baseContent.withValues(alpha: 0.55),
-                      fontSize: 12,
-                    ),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: _metadata(context),
                   ),
                 ],
               ),
             ),
             if (showDivider)
-              Padding(
-                padding: const EdgeInsets.only(top: 10),
-                child: Container(
-                  height: 1,
-                  margin: const EdgeInsets.symmetric(horizontal: 0),
-                  color: colors.line.withValues(alpha: 0.7),
+              PositionedDirectional(
+                start: 16,
+                end: 16,
+                bottom: 0,
+                child: IgnorePointer(
+                  child: Container(
+                    height: 1,
+                    color: colors.line.withValues(alpha: 0.7),
+                  ),
                 ),
               ),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _typeBadge(BuildContext context) {
+    final colors = GfTheme.colorsOf(context);
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final (symbol, color) = switch (contentType!) {
+      GfTopicContentType.question => (
+        'circle-help',
+        dark ? colors.success : const Color(0xFF047857),
+      ),
+      GfTopicContentType.moment => (
+        'sparkles',
+        dark ? const Color(0xFFC084FC) : const Color(0xFF9333EA),
+      ),
+      GfTopicContentType.article => (
+        'book-open',
+        dark ? colors.warning : const Color(0xFF92400E),
+      ),
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          GfSymbol(symbol, size: 12, color: color),
+          const SizedBox(width: 3),
+          Text(
+            contentTypeLabel!,
+            style: TextStyle(
+              color: color,
+              fontSize: 11,
+              height: 1.25,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _metadata(BuildContext context) {
+    final colors = GfTheme.colorsOf(context);
+    final style = TextStyle(
+      color: colors.baseContent.withValues(alpha: 0.55),
+      fontSize: 12,
+    );
+    final avatars = participantAvatarUrls.take(4).toList();
+    final metrics = Wrap(
+      spacing: 8,
+      runSpacing: 4,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        if (avatars.isNotEmpty)
+          GfAvatarStack(avatarUrls: avatars, size: GfAvatarStackSize.sm),
+        Text(activityText, style: style),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            GfSymbol('message-circle', size: 14, color: style.color),
+            const SizedBox(width: 4),
+            Text('$replyCount', style: style),
+          ],
+        ),
+      ],
+    );
+    if (categories.isEmpty) return metrics;
+    final categoryRail = SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          for (var i = 0; i < categories.length; i++) ...[
+            if (i > 0) const SizedBox(width: 4),
+            GfChip(
+              label: categories[i].name,
+              color: categories[i].color,
+              onTap: categories[i].onTap,
+            ),
+          ],
+        ],
+      ),
+    );
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Measure the actual localized/scaled metadata. A fixed-width shortcut
+        // clips long German dates or large counts at otherwise ordinary widths.
+        double textWidth(String text) {
+          final painter = TextPainter(
+            text: TextSpan(
+              text: text,
+              style: DefaultTextStyle.of(context).style.merge(style),
+            ),
+            textDirection: Directionality.of(context),
+            textScaler: MediaQuery.textScalerOf(context),
+          )..layout();
+          final width = painter.width;
+          painter.dispose();
+          return width;
+        }
+
+        final avatarWidth = avatars.isEmpty
+            ? 0
+            : 24 + (avatars.length - 1) * 16 + 8;
+        final metricsWidth =
+            avatarWidth +
+            textWidth(activityText) +
+            8 +
+            18 +
+            textWidth('$replyCount');
+        final categoryWidth = math.max(
+          88.0,
+          MediaQuery.textScalerOf(context).scale(64),
+        );
+        if (metricsWidth + 8 + categoryWidth > constraints.maxWidth) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [metrics, categoryRail],
+          );
+        }
+        return Row(
+          children: [
+            metrics,
+            const SizedBox(width: 8),
+            Expanded(child: categoryRail),
+          ],
+        );
+      },
     );
   }
 }

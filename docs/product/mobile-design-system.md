@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-09-26
+> Last verified: 2026-09-29
 
 This standard applies the native reading direction in [0037](../decisions/0037-adaptive-mobile-reading-window.md)
 to the Flutter app. [Mobile experience](mobile-experience.md) records implemented behavior. Rules marked
@@ -23,6 +23,11 @@ restores its items, cursor and reading position. Latest, popular, trending and f
 streams; following contains posts from followed authors in `created_at DESC, id DESC` order, with
 pagination cursors based on that tuple. Latest retains its existing
 server ordering unless the product explicitly changes that ordering.
+
+`Current`: compact topic lists share a metadata band with the category rail and keep the category
+hit areas at least 44 × 44 logical pixels. Row separators are painted without extra layout height.
+Type labels distinguish question, moment and article. Narrow widths and enlarged system text increase
+row height as needed; Home list pins use an expandable summary with a minimum 48-pixel target.
 
 The implemented reading scale is defined in [mobile experience](mobile-experience.md#navigation-and-reading).
 `Planned`: all surfaces use that shared type hierarchy instead of shrinking text to fit controls.

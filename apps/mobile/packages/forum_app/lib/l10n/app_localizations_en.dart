@@ -942,6 +942,14 @@ class AppLocalizationsEn extends AppLocalizations {
   String get topicEmpty => 'No topics yet';
 
   @override
+  String homePinnedTopics(int count) {
+    return 'Pinned topics ($count)';
+  }
+
+  @override
+  String get topicPinned => 'Pinned';
+
+  @override
   String settingsAvatarUploaded(String url) {
     return 'Avatar uploaded: $url';
   }

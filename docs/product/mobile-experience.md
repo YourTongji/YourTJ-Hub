@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-09-28
+> Last verified: 2026-09-29
 
 The Flutter app combines the forum, course catalog, scheduler and Wiki. Ordinary browsing and
 writing use native pages. Management uses the same first-party workspaces and permission checks as
@@ -160,6 +160,13 @@ ordered after the active route in the accessibility tree so iOS does not hide it
 - `Current`: Home displays categories in a horizontal row below the feed sorts. Category pills
   filter the existing stream in place, with a highlighted selection and an All categories action.
   The display menu contains list/card preferences; unavailable categories take no space.
+- `Current`: list mode uses a compact title/type row, optional excerpt, and a shared category/metadata
+  band. Categories retain separate 44-pixel targets and a horizontal rail; long metadata moves the
+  rail onto a new line rather than reducing text size. Dividers do not add a blank footer. Question,
+  moment and article labels are localized, and enlarged text allows the title/excerpt to grow.
+  Home's unfiltered list groups pinned topics into a 48-pixel-minimum expandable summary, initially
+  collapsed. Category streams and Following retain the server's ordering; cards keep pins in place.
+  Expanding pins neither reloads the stream nor changes its pagination cursor.
 - `Current`: Home sort, Campus section and notification filter rails share a scrollable tab bar.
   The page-swipe recognizer feeds the shared tab controller's live drag offset, so the selected
   underline follows a held slow swipe and stretches evenly toward the adjacent tab. After release,

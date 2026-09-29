@@ -16,6 +16,7 @@ void main() {
       bool pinned = false,
       bool unseen = false,
       String title = '同济大学樱花大道拍照攻略',
+      Brightness brightness = Brightness.light,
     }) {
       return gfApp(
         GfTopicRow(
@@ -32,6 +33,7 @@ void main() {
           pinned: pinned,
           unseen: unseen,
         ),
+        brightness: brightness,
       );
     }
 
@@ -39,7 +41,7 @@ void main() {
       tester,
     ) async {
       await forEachBrightness(tester, (tester, brightness) async {
-        await tester.pumpWidget(buildRow());
+        await tester.pumpWidget(buildRow(brightness: brightness));
         expect(find.text('同济大学樱花大道拍照攻略'), findsOneWidget);
         expect(find.text('三月末的樱花大道,适合清晨人少时去…'), findsOneWidget);
         expect(find.text('校园生活'), findsOneWidget);
@@ -114,6 +116,179 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('hot'), findsOneWidget);
+    });
+
+    testWidgets(
+      'compact row preserves category targets and separate gestures',
+      (tester) async {
+        var rowTaps = 0;
+        var categoryTaps = 0;
+        await tester.pumpWidget(
+          gfApp(
+            SingleChildScrollView(
+              child: SizedBox(
+                width: 402,
+                child: GfTopicRow(
+                  title: '校园短标题',
+                  description: '摘要仍然清晰可读',
+                  categories: [
+                    GfTopicCategory(
+                      name: '校园生活',
+                      color: Colors.green,
+                      onTap: () => categoryTaps++,
+                    ),
+                  ],
+                  participantAvatarUrls: const ['', ''],
+                  activityText: '3 小时前',
+                  replyCount: 42,
+                  onTap: () => rowTaps++,
+                ),
+              ),
+            ),
+          ),
+        );
+        expect(
+          tester.getSize(find.byType(GfTopicRow)).height,
+          lessThanOrEqualTo(104),
+        );
+        final chip = find.byType(GfChip);
+        expect(tester.getSize(chip).height, greaterThanOrEqualTo(44));
+        expect(tester.getSize(chip).width, greaterThanOrEqualTo(44));
+        await tester.tap(find.text('校园生活'));
+        expect(categoryTaps, 1);
+        expect(rowTaps, 0);
+        await tester.tap(find.text('校园短标题'));
+        expect(rowTaps, 1);
+      },
+    );
+
+    testWidgets('divider does not add a blank footer to each row', (
+      tester,
+    ) async {
+      Future<double> height(bool divider) async {
+        await tester.pumpWidget(
+          gfApp(
+            SingleChildScrollView(
+              child: SizedBox(
+                width: 402,
+                child: GfTopicRow(
+                  title: 'A readable topic',
+                  description: 'A short excerpt',
+                  categories: const [],
+                  participantAvatarUrls: const [],
+                  activityText: '1 h',
+                  replyCount: 2,
+                  showDivider: divider,
+                ),
+              ),
+            ),
+          ),
+        );
+        return tester.getSize(find.byType(GfTopicRow)).height;
+      }
+
+      final withDivider = await height(true);
+      expect(await height(false), withDivider);
+    });
+
+    testWidgets('long metadata remains usable at narrow widths and large text', (
+      tester,
+    ) async {
+      for (final width in [320.0, 390.0, 600.0, 768.0, 1024.0]) {
+        tester.view.physicalSize = Size(width, 1200);
+        tester.view.devicePixelRatio = 1;
+        for (final scale in [1.0, 2.0]) {
+          await tester.pumpWidget(
+            MaterialApp(
+              theme: gfThemeData(Brightness.dark),
+              home: MediaQuery(
+                data: MediaQueryData(
+                  size: Size(width, 1200),
+                  textScaler: TextScaler.linear(scale),
+                ),
+                child: Scaffold(
+                  body: SingleChildScrollView(
+                    child: GfTopicRow(
+                      title:
+                          'Ein sehr langer Titel für die gemeinsame Diskussion auf dem Campus',
+                      description:
+                          'A longer readable excerpt should not overflow the reading column.',
+                      categories: [
+                        GfTopicCategory(
+                          name: 'Studium und Campusleben',
+                          color: Colors.green,
+                          onTap: () {},
+                        ),
+                        GfTopicCategory(
+                          name: '第二个完整分类名称',
+                          color: Colors.blue,
+                          onTap: () {},
+                        ),
+                      ],
+                      participantAvatarUrls: const ['', '', '', ''],
+                      activityText: 'vor mehreren Monaten',
+                      replyCount: 123456,
+                      contentType: GfTopicContentType.question,
+                      contentTypeLabel: 'Frage',
+                      pinned: true,
+                      unseen: true,
+                      hot: true,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          );
+          await tester.pump();
+          expect(tester.takeException(), isNull, reason: '$width @ $scale');
+          expect(
+            tester.getSize(find.byType(GfChip).first).height,
+            greaterThanOrEqualTo(44),
+          );
+        }
+      }
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+    });
+
+    testWidgets('type badge text maintains contrast in both themes', (
+      tester,
+    ) async {
+      for (final brightness in Brightness.values) {
+        for (final type in GfTopicContentType.values) {
+          await tester.pumpWidget(
+            gfApp(
+              GfTopicRow(
+                title: 'Topic',
+                description: '',
+                categories: const [],
+                participantAvatarUrls: const [],
+                activityText: '1 h',
+                replyCount: 2,
+                contentType: type,
+                contentTypeLabel: 'Type',
+              ),
+              brightness: brightness,
+            ),
+          );
+          await tester.pumpAndSettle();
+          final color = tester.widget<Text>(find.text('Type')).style!.color!;
+          final background = Color.alphaBlend(
+            color.withValues(alpha: 0.12),
+            GfColors.forBrightness(brightness).base100,
+          );
+          final light = color.computeLuminance();
+          final dark = background.computeLuminance();
+          final contrast = light > dark
+              ? (light + 0.05) / (dark + 0.05)
+              : (dark + 0.05) / (light + 0.05);
+          expect(
+            contrast,
+            greaterThanOrEqualTo(4.5),
+            reason: '$type $brightness',
+          );
+        }
+      }
     });
 
     testWidgets('row tap fires onTap', (tester) async {

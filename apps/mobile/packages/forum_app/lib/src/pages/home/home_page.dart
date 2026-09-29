@@ -897,6 +897,7 @@ class _HomePageState extends ConsumerState<HomePage> {
           hiddenCategoryId: feed.category?.id,
           onCategorySelected: _filterCategory,
           feedMode: _feedMode,
+          collapsePinned: feed.category == null && feed.sort != 'following',
           onFirstMediaFrame: recordFirstHomeMediaFrame,
           onLikeTopic: _toggleTopicInteraction,
           onBookmarkTopic: (topic, target) =>

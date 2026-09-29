@@ -1806,6 +1806,18 @@ abstract class AppLocalizations {
   /// **'No topics yet'**
   String get topicEmpty;
 
+  /// No description provided for @homePinnedTopics.
+  ///
+  /// In en, this message translates to:
+  /// **'Pinned topics ({count})'**
+  String homePinnedTopics(int count);
+
+  /// No description provided for @topicPinned.
+  ///
+  /// In en, this message translates to:
+  /// **'Pinned'**
+  String get topicPinned;
+
   /// No description provided for @settingsAvatarUploaded.
   ///
   /// In en, this message translates to:

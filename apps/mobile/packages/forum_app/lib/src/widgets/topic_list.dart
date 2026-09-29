@@ -22,6 +22,7 @@ class GfTopicList extends StatelessWidget {
     this.padding = EdgeInsets.zero,
     this.header,
     this.feedMode = GfTopicFeedMode.list,
+    this.collapsePinned = false,
     this.onLikeTopic,
     this.onBookmarkTopic,
     this.onFirstMediaFrame,
@@ -39,6 +40,9 @@ class GfTopicList extends StatelessWidget {
   final ScrollController? controller;
   final List<TopicPayload> topics;
   final GfTopicFeedMode feedMode;
+
+  /// Home list mode may group pins; ordered streams (Following) keep server order.
+  final bool collapsePinned;
   final Future<bool> Function(TopicPayload topic, bool target)? onLikeTopic;
   final Future<bool> Function(TopicPayload topic, bool target)? onBookmarkTopic;
   final VoidCallback? onFirstMediaFrame;
@@ -78,18 +82,40 @@ class GfTopicList extends StatelessWidget {
         ],
       );
     }
+    final pinned = collapsePinned && feedMode == GfTopicFeedMode.list
+        ? topics.where((topic) => topic.pinWeight > 0).toList()
+        : <TopicPayload>[];
+    final visibleTopics = pinned.isEmpty
+        ? topics
+        : topics.where((topic) => topic.pinWeight <= 0).toList();
     return ListView.separated(
       controller: controller,
       physics: const AlwaysScrollableScrollPhysics(),
       padding: padding,
-      itemCount: topics.length + 1 + (header == null ? 0 : 1),
+      itemCount:
+          visibleTopics.length +
+          1 +
+          (header == null ? 0 : 1) +
+          (pinned.isEmpty ? 0 : 1),
       separatorBuilder: (_, _) => const SizedBox.shrink(),
       itemBuilder: (context, index) {
         if (header != null) {
           if (index == 0) return header!;
           index -= 1;
         }
-        if (index == topics.length) {
+        if (pinned.isNotEmpty) {
+          if (index == 0) {
+            return _PinnedTopicGroup(
+              key: const ValueKey('pinned-topic-group'),
+              topics: pinned,
+              onCategorySelected: onCategorySelected,
+              hiddenCategoryId: hiddenCategoryId,
+              onReturn: onReturnFromTopic,
+            );
+          }
+          index -= 1;
+        }
+        if (index == visibleTopics.length) {
           return GfListFooter(
             progressKey: topics.length,
             loading: loading,
@@ -98,7 +124,7 @@ class GfTopicList extends StatelessWidget {
             onLoadMore: onLoadMore,
           );
         }
-        final TopicPayload topic = topics[index];
+        final TopicPayload topic = visibleTopics[index];
         return feedMode == GfTopicFeedMode.card
             ? buildTopicFeedCard(
                 context,
@@ -117,12 +143,99 @@ class GfTopicList extends StatelessWidget {
             : _topicRow(
                 context,
                 topic,
-                isLast: index == topics.length - 1,
+                isLast: index == visibleTopics.length - 1,
                 onCategorySelected: onCategorySelected,
                 hiddenCategoryId: hiddenCategoryId,
                 onReturn: onReturnFromTopic,
               );
       },
+    );
+  }
+}
+
+class _PinnedTopicGroup extends StatefulWidget {
+  const _PinnedTopicGroup({
+    super.key,
+    required this.topics,
+    this.hiddenCategoryId,
+    this.onCategorySelected,
+    this.onReturn,
+  });
+  final List<TopicPayload> topics;
+  final int? hiddenCategoryId;
+  final ValueChanged<int>? onCategorySelected;
+  final VoidCallback? onReturn;
+
+  @override
+  State<_PinnedTopicGroup> createState() => _PinnedTopicGroupState();
+}
+
+class _PinnedTopicGroupState extends State<_PinnedTopicGroup>
+    with AutomaticKeepAliveClientMixin {
+  bool _expanded = false;
+
+  // Retain the disclosure when its lazy list item leaves the viewport.
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    final colors = GfTheme.colorsOf(context);
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Semantics(
+          button: true,
+          expanded: _expanded,
+          child: InkWell(
+            onTap: () => setState(() => _expanded = !_expanded),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 48),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
+                child: Row(
+                  children: [
+                    GfSymbol('pin-filled', size: 16, color: colors.error),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        AppLocalizations.of(
+                          context,
+                        ).homePinnedTopics(widget.topics.length),
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: colors.baseContent,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    GfSymbol(
+                      _expanded ? 'chevron-up' : 'chevron-down',
+                      size: 18,
+                      color: colors.baseContent.withValues(alpha: 0.6),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+        if (_expanded)
+          for (final topic in widget.topics)
+            _topicRow(
+              context,
+              topic,
+              isLast: false,
+              onCategorySelected: widget.onCategorySelected,
+              hiddenCategoryId: widget.hiddenCategoryId,
+              onReturn: widget.onReturn,
+            ),
+      ],
     );
   }
 }
@@ -171,6 +284,19 @@ Widget _topicRow(
     replyCount: topic.replyCount,
     viewCount: topic.viewCount,
     pinned: topic.pinWeight > 0,
+    pinnedLabel: l10n.topicPinned,
+    contentType: switch (topic.contentType) {
+      1 => GfTopicContentType.question,
+      2 => GfTopicContentType.moment,
+      3 => GfTopicContentType.article,
+      _ => null,
+    },
+    contentTypeLabel: switch (topic.contentType) {
+      1 => l10n.publishQuestion,
+      2 => l10n.publishMoment,
+      3 => l10n.publishArticle,
+      _ => null,
+    },
     unseen: topic.unseen == true,
     showDivider: !isLast,
     onTap: () async {
