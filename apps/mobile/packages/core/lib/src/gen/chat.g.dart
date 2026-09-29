@@ -64,6 +64,7 @@ _$ChatMessagePayloadImpl _$$ChatMessagePayloadImplFromJson(
   isRead: (json['isRead'] as num).toInt(),
   createdAt: json['createdAt'] as String,
   isSelf: json['isSelf'] as bool,
+  replyToMessageId: (json['replyToMessageId'] as num?)?.toInt(),
   forwarded: json['forwarded'] == null
       ? null
       : ChatForwardBundle.fromJson(json['forwarded'] as Map<String, dynamic>),
@@ -79,6 +80,7 @@ Map<String, dynamic> _$$ChatMessagePayloadImplToJson(
   'isRead': instance.isRead,
   'createdAt': instance.createdAt,
   'isSelf': instance.isSelf,
+  'replyToMessageId': instance.replyToMessageId,
   'forwarded': instance.forwarded,
 };
 

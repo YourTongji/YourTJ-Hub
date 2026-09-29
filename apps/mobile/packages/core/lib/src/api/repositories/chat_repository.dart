@@ -14,6 +14,7 @@ class ChatRepository {
     required String content,
     int msgType = 1,
     String? clientMessageId,
+    int? replyToMessageId,
   }) {
     return _client.post<int>(
       '/api/forum/chat/send',
@@ -22,6 +23,7 @@ class ChatRepository {
         content: content,
         msgType: msgType,
         clientMessageId: clientMessageId,
+        replyToMessageId: replyToMessageId,
       ).toJson(),
       parser: (json) {
         if (json is int) return json;
@@ -54,6 +56,7 @@ class ChatRepository {
     required int convId,
     int beforeId = 0,
     int afterId = 0,
+    int aroundId = 0,
     int limit = 30,
     CancelToken? cancelToken,
   }) {
@@ -64,6 +67,7 @@ class ChatRepository {
         'convId': convId,
         'beforeId': beforeId,
         'afterId': afterId,
+        'aroundId': aroundId,
         'limit': limit,
       },
       parser: (json) =>

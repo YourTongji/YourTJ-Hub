@@ -40,14 +40,27 @@ func SendMessage(senderId, peerId uint64, content string, msgType int8, clientKe
 	return sendMessage(db.Connect(), senderId, peerId, content, msgType, clientKeys...)
 }
 
+// SendMessageWithReply stores an optional same-conversation reply target.
+func SendMessageWithReply(senderId, peerId uint64, content string, msgType int8, replyToMessageID uint64, clientKeys ...string) (uint64, error) {
+	return sendMessageWithReply(db.Connect(), senderId, peerId, content, msgType, replyToMessageID, clientKeys...)
+}
+
 var clientMessageKey = regexp.MustCompile(`^[A-Za-z0-9_-]{1,64}$`)
 
 func sendMessage(conn *gorm.DB, senderId, peerId uint64, content string, msgType int8, clientKeys ...string) (uint64, error) {
-	return sendMessageWithEffects(conn, senderId, peerId, content, msgType, true, clientKeys...)
+	return sendMessageWithReply(conn, senderId, peerId, content, msgType, 0, clientKeys...)
+}
+
+func sendMessageWithReply(conn *gorm.DB, senderId, peerId uint64, content string, msgType int8, replyToMessageID uint64, clientKeys ...string) (uint64, error) {
+	return sendMessageWithEffectsAndReply(conn, senderId, peerId, content, msgType, true, replyToMessageID, clientKeys...)
 }
 
 // Forward batches defer invalidation until their outer transaction commits.
 func sendMessageWithEffects(conn *gorm.DB, senderId, peerId uint64, content string, msgType int8, publish bool, clientKeys ...string) (uint64, error) {
+	return sendMessageWithEffectsAndReply(conn, senderId, peerId, content, msgType, publish, 0, clientKeys...)
+}
+
+func sendMessageWithEffectsAndReply(conn *gorm.DB, senderId, peerId uint64, content string, msgType int8, publish bool, replyToMessageID uint64, clientKeys ...string) (uint64, error) {
 	var key *string
 	if len(clientKeys) > 0 && clientKeys[0] != "" {
 		if !clientMessageKey.MatchString(clientKeys[0]) {
@@ -76,7 +89,11 @@ func sendMessageWithEffects(conn *gorm.DB, senderId, peerId uint64, content stri
 					if err := tx.Where("user_id = ? AND peer_id = ? AND conv_id = ?", senderId, peerId, existing.ConvId).First(&membership).Error; err != nil {
 						return errors.New("client message ID conflict")
 					}
-					if existing.Content != content || existing.MsgType != msgType {
+					existingReplyTo := uint64(0)
+					if existing.ReplyToMessageID != nil {
+						existingReplyTo = *existing.ReplyToMessageID
+					}
+					if existing.Content != content || existing.MsgType != msgType || existingReplyTo != replyToMessageID {
 						return errors.New("client message ID conflict")
 					}
 					convId = existing.ConvId
@@ -118,6 +135,14 @@ func sendMessageWithEffects(conn *gorm.DB, senderId, peerId uint64, content stri
 			if err := lockConversation(tx, convId); err != nil {
 				return err
 			}
+			var replyTarget *uint64
+			if replyToMessageID > 0 {
+				var target messages.Entity
+				if err := tx.Select("id").Where("id = ? AND conv_id = ?", replyToMessageID, convId).First(&target).Error; err != nil {
+					return errors.New("invalid reply target")
+				}
+				replyTarget = &replyToMessageID
+			}
 			if senderConfig.Id == 0 {
 				senderConfig = imUserChatConfigs.Entity{UserId: senderId, PeerId: peerId, ConvId: convId}
 				if err := tx.Create(&senderConfig).Error; err != nil {
@@ -141,7 +166,7 @@ func sendMessageWithEffects(conn *gorm.DB, senderId, peerId uint64, content stri
 			}
 			now := time.Now()
 			if err := tx.Create(&messages.Entity{
-				ClientMessageID: key, ConvId: convId, SenderId: senderId, Content: content,
+				ClientMessageID: key, ReplyToMessageID: replyTarget, ConvId: convId, SenderId: senderId, Content: content,
 				MsgType: msgType, IsRead: 0, CreatedAt: now,
 			}).Error; err != nil {
 				return err
@@ -225,12 +250,16 @@ func GetChatList(userId uint64) ([]*vo.ChatItemVo, error) {
 }
 
 // GetMessages returns cursor-paginated messages for a conversation.
-func GetMessages(userId, convId uint64, beforeId, afterId uint64, limit int) (*MessageCursorResult, error) {
+func GetMessages(userId, convId uint64, beforeId, afterId uint64, limit int, aroundIDs ...uint64) (*MessageCursorResult, error) {
+	var aroundId uint64
+	if len(aroundIDs) > 0 {
+		aroundId = aroundIDs[0]
+	}
 	if !imUserChatConfigs.CanAccessConversation(userId, convId) {
 		return nil, errors.New("conversation not found")
 	}
-	if beforeId > 0 && afterId > 0 {
-		return nil, errors.New("beforeId and afterId cannot be used together")
+	if beforeId > 0 && afterId > 0 || aroundId > 0 && (beforeId > 0 || afterId > 0) {
+		return nil, errors.New("message cursors cannot be used together")
 	}
 	if limit <= 0 {
 		limit = defaultMessageLimit
@@ -241,33 +270,52 @@ func GetMessages(userId, convId uint64, beforeId, afterId uint64, limit int) (*M
 
 	queryLimit := limit + 1
 	var msgs []messages.Entity
-	switch {
-	case beforeId > 0:
-		msgs = messages.GetBeforeId(convId, beforeId, queryLimit)
-	case afterId > 0:
-		msgs = messages.GetAfterId(convId, afterId, queryLimit)
-	default:
-		msgs = messages.GetLatestByConvId(convId, queryLimit)
-	}
+	var hasMoreBefore, hasMoreAfter bool
+	if aroundId > 0 {
+		target, err := messages.GetInConversation(convId, aroundId)
+		if err != nil {
+			return nil, errors.New("message not found")
+		}
+		newer := messages.GetAfterId(convId, aroundId, limit)
+		hasMoreAfter = len(newer) >= limit
+		if len(newer) >= limit {
+			newer = newer[:limit-1]
+		}
+		msgs = append([]messages.Entity{target}, newer...)
+		hasMoreBefore = len(messages.GetBeforeId(convId, aroundId, 1)) > 0
+	} else {
+		switch {
+		case beforeId > 0:
+			msgs = messages.GetBeforeId(convId, beforeId, queryLimit)
+		case afterId > 0:
+			msgs = messages.GetAfterId(convId, afterId, queryLimit)
+		default:
+			msgs = messages.GetLatestByConvId(convId, queryLimit)
+		}
 
-	hasMore := len(msgs) > limit
-	if hasMore {
-		msgs = msgs[:limit]
-	}
-	if afterId == 0 {
-		slices.Reverse(msgs)
+		hasMore := len(msgs) > limit
+		if hasMore {
+			msgs = msgs[:limit]
+		}
+		if afterId == 0 {
+			slices.Reverse(msgs)
+			hasMoreBefore = hasMore
+		} else {
+			hasMoreAfter = hasMore
+		}
 	}
 
 	list := lo.Map(msgs, func(m messages.Entity, _ int) *vo.MessageVo {
 		return &vo.MessageVo{
-			Id:        m.Id,
-			SenderId:  m.SenderId,
-			Content:   messages.DisplayContent(m.Content, m.MsgType),
-			Forwarded: forwardedPayload(m),
-			MsgType:   m.MsgType,
-			IsRead:    m.IsRead,
-			CreatedAt: m.CreatedAt.Format(time.RFC3339),
-			IsSelf:    m.SenderId == userId,
+			Id:               m.Id,
+			SenderId:         m.SenderId,
+			Content:          messages.DisplayContent(m.Content, m.MsgType),
+			Forwarded:        forwardedPayload(m),
+			ReplyToMessageId: m.ReplyToMessageID,
+			MsgType:          m.MsgType,
+			IsRead:           m.IsRead,
+			CreatedAt:        m.CreatedAt.Format(time.RFC3339),
+			IsSelf:           m.SenderId == userId,
 		}
 	})
 
@@ -278,11 +326,8 @@ func GetMessages(userId, convId uint64, beforeId, afterId uint64, limit int) (*M
 		result.NextBeforeId = list[0].Id
 		result.LatestId = list[len(list)-1].Id
 	}
-	if afterId > 0 {
-		result.HasMoreAfter = hasMore
-	} else {
-		result.HasMoreBefore = hasMore
-	}
+	result.HasMoreBefore = hasMoreBefore
+	result.HasMoreAfter = hasMoreAfter
 	return result, nil
 }
 

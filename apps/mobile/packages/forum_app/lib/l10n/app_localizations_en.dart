@@ -99,6 +99,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get commonLoading => 'Loading…';
 
   @override
+  String get tabPageLoading => 'Loading, just a moment…';
+
+  @override
   String get commonLoadMore => 'Load more';
 
   @override
@@ -2932,6 +2935,12 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get messageReply => 'Reply';
+
+  @override
+  String get messagesJumpToQuotedMessage => 'Jump to quoted message';
+
+  @override
+  String get messagesReturnToReplySource => 'Return to source message';
 
   @override
   String get messageReplyCancel => 'Cancel reply';

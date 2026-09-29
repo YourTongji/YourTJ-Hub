@@ -34,6 +34,7 @@
     }
   },
   "commonLoading": "読み込み中…",
+  "tabPageLoading": "読み込み中です…",
   "commonLoadMore": "さらに読み込む",
   "commonRetry": "再試行",
   "commonClose": "閉じる",
@@ -1018,6 +1019,8 @@
   "userBlocksEmpty": "ブロックしたユーザーはいません",
   "messageCopied": "コピーしました",
   "messageReply": "返信",
+  "messagesJumpToQuotedMessage": "引用元のメッセージへ移動",
+  "messagesReturnToReplySource": "引用元に戻る",
   "messageReplyCancel": "返信をキャンセル",
   "messageReplySelf": "自分",
   "messageReport": "メッセージを報告",

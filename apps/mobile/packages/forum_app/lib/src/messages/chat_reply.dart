@@ -3,6 +3,46 @@ import 'package:core/core.dart';
 /// Upper bound for the quoted excerpt embedded in a reply.
 const int chatReplyExcerptMaxLength = 120;
 
+class ChatReplyQuote {
+  const ChatReplyQuote({
+    required this.sender,
+    required this.excerpt,
+    required this.body,
+  });
+
+  final String sender;
+  final String excerpt;
+  final String body;
+}
+
+/// Reads the inline quote format used by current and already-sent replies.
+///
+/// Sender-less legacy headers (`> excerpt`) are indistinguishable from
+/// hand-typed blockquotes, so both render as a sender-less quote block; the
+/// message text itself is never altered.
+ChatReplyQuote? parseChatReplyQuote(String content) {
+  final separator = RegExp(r'\r?\n\r?\n').firstMatch(content);
+  if (separator == null) return null;
+  final firstLine = content
+      .substring(0, separator.start)
+      .replaceFirst(RegExp(r'\r$'), '');
+  if (!firstLine.startsWith('>')) return null;
+
+  final quote = firstLine.substring(1).trimLeft();
+  final colon = quote.indexOf(':');
+  final sender = colon < 0 ? '' : quote.substring(0, colon);
+  final hasSender =
+      colon >= 0 &&
+      (sender.startsWith('@') ||
+          const {'我', 'You', 'Ich', '自分'}.contains(sender)) &&
+      (colon == quote.length - 1 || quote[colon + 1] == ' ');
+  return ChatReplyQuote(
+    sender: hasSender ? quote.substring(0, colon) : '',
+    excerpt: hasSender ? quote.substring(colon + 1).trimLeft() : quote,
+    body: content.substring(separator.end),
+  );
+}
+
 /// Single-line, bounded excerpt of a quoted message.
 ///
 /// Sticker tokens expand to their readable preview label; line breaks and runs

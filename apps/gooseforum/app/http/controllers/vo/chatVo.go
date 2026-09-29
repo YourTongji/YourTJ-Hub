@@ -19,12 +19,13 @@ type ChatItemVo struct {
 
 // MessageVo represents one chat message decorated for the current viewer.
 type MessageVo struct {
-	Forwarded *messages.ForwardedBundle `json:"forwarded,omitempty"`
-	Id        uint64                    `json:"id"`
-	SenderId  uint64                    `json:"senderId"`
-	Content   string                    `json:"content"`
-	MsgType   int8                      `json:"msgType"`
-	IsRead    int                       `json:"isRead"`
-	CreatedAt string                    `json:"createdAt"`
-	IsSelf    bool                      `json:"isSelf"`
+	Forwarded        *messages.ForwardedBundle `json:"forwarded,omitempty"`
+	ReplyToMessageId *uint64                   `json:"replyToMessageId,omitempty"`
+	Id               uint64                    `json:"id"`
+	SenderId         uint64                    `json:"senderId"`
+	Content          string                    `json:"content"`
+	MsgType          int8                      `json:"msgType"`
+	IsRead           int                       `json:"isRead"`
+	CreatedAt        string                    `json:"createdAt"`
+	IsSelf           bool                      `json:"isSelf"`
 }

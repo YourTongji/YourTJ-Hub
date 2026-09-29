@@ -12,10 +12,11 @@ import (
 
 // SendMessageReq 发送私信请求
 type SendMessageReq struct {
-	ClientMessageID string `json:"clientMessageId" validate:"omitempty,max=64"`
-	PeerId          uint64 `json:"peerId" validate:"required"`
-	Content         string `json:"content" validate:"required"`
-	MsgType         int8   `json:"msgType" validate:"oneof=1 2 3"` // 1: Text, 2: Image, 3: Voice
+	ClientMessageID  string `json:"clientMessageId" validate:"omitempty,max=64"`
+	ReplyToMessageID uint64 `json:"replyToMessageId" validate:"omitempty,min=1"`
+	PeerId           uint64 `json:"peerId" validate:"required"`
+	Content          string `json:"content" validate:"required"`
+	MsgType          int8   `json:"msgType" validate:"oneof=1 2 3"` // 1: Text, 2: Image, 3: Voice
 }
 
 // SendMessage 发送私信
@@ -35,7 +36,7 @@ func SendMessage(req component.BetterRequest[SendMessageReq]) component.Response
 	if msgType == 0 {
 		msgType = 1
 	}
-	convId, err := chatservice.SendMessage(req.UserId, req.Params.PeerId, req.Params.Content, msgType, req.Params.ClientMessageID)
+	convId, err := chatservice.SendMessageWithReply(req.UserId, req.Params.PeerId, req.Params.Content, msgType, req.Params.ReplyToMessageID, req.Params.ClientMessageID)
 	if err != nil {
 		// Database errors can contain private values. Record diagnostic categories,
 		// never message bodies or raw driver details in the response or this log.
@@ -55,12 +56,13 @@ type GetMessagesReq struct {
 	ConvId   uint64 `json:"convId" validate:"required"`
 	BeforeId uint64 `json:"beforeId"`
 	AfterId  uint64 `json:"afterId"`
+	AroundId uint64 `json:"aroundId"`
 	Limit    int    `json:"limit" validate:"omitempty,min=1,max=100"`
 }
 
 // GetMessages 获取消息记录
 func GetMessages(req component.BetterRequest[GetMessagesReq]) component.Response {
-	result, err := chatservice.GetMessages(req.UserId, req.Params.ConvId, req.Params.BeforeId, req.Params.AfterId, req.Params.Limit)
+	result, err := chatservice.GetMessages(req.UserId, req.Params.ConvId, req.Params.BeforeId, req.Params.AfterId, req.Params.Limit, req.Params.AroundId)
 	if err != nil {
 		return component.FailResponseCode(component.MessageChatGetMessagesFailed, nil)
 	}

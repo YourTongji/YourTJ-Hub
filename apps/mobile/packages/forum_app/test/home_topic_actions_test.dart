@@ -7,10 +7,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:forum_app/l10n/app_localizations.dart';
 import 'package:forum_app/src/offline/drift_cache.dart';
+import 'package:forum_app/src/navigation/reading_chrome.dart';
 import 'package:forum_app/src/pages/home/home_page.dart';
 import 'package:forum_app/src/pages/topic/topic_page.dart';
 import 'package:forum_app/src/providers.dart';
 import 'package:forum_app/src/widgets/app_refresh_indicator.dart';
+import 'package:forum_app/src/widgets/logo_motion_loader.dart';
 import 'package:forum_app/src/widgets/topic_list.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:ui_kit/ui_kit.dart';
@@ -355,6 +357,24 @@ void main() {
     });
   }
 
+  testWidgets('initial home loading shows the tab loading message', (
+    tester,
+  ) async {
+    final pages = _Pages()..pending = Completer<PagePayload>();
+    await pump(tester, pages, _Topics(pages), settle: false);
+
+    expect(
+      tester
+          .widget<LogoMotionLoader>(find.byType(LogoMotionLoader))
+          .showMessage,
+      isTrue,
+    );
+    expect(find.text('正在努力加载...'), findsOneWidget);
+
+    pages.pending!.complete(pages.payload());
+    await tester.pump();
+  });
+
   testWidgets('server state and toggles survive card recycling', (
     tester,
   ) async {
@@ -411,6 +431,43 @@ void main() {
     expect(list.hasMore, isFalse);
     expect(list.controller!.offset, 800);
     expect(pages.calls['latest'], initialLatestCalls);
+  });
+
+  testWidgets('swiping with hidden chrome retains each sort scroll offset', (
+    tester,
+  ) async {
+    final pages = _SortedPages();
+    final container = await pump(tester, pages, _Topics(pages));
+
+    var list = tester.widget<GfTopicList>(find.byType(GfTopicList));
+    list.onLoadMore();
+    await tester.pumpAndSettle();
+    list = tester.widget<GfTopicList>(find.byType(GfTopicList));
+    list.controller!.jumpTo(800);
+    await tester.pump();
+    expect(list.controller!.offset, 800);
+    await tester.tap(find.text('热门'));
+    await tester.pumpAndSettle();
+    list = tester.widget<GfTopicList>(find.byType(GfTopicList));
+    list.controller!.jumpTo(500);
+    await tester.pump();
+    await tester.tap(find.text('最新'));
+    await tester.pumpAndSettle();
+    list = tester.widget<GfTopicList>(find.byType(GfTopicList));
+    expect(list.controller!.offset, 800);
+
+    container.read(readingChromeProvider).update(48, 48);
+    await tester.pumpAndSettle();
+    list = tester.widget<GfTopicList>(find.byType(GfTopicList));
+    expect(list.padding.top, 0);
+    expect(list.controller!.offset, 800);
+
+    await tester.drag(find.byType(GfTopicList), const Offset(-300, 0));
+    await tester.pumpAndSettle();
+    list = tester.widget<GfTopicList>(find.byType(GfTopicList));
+    expect(list.topics.first.title, 'hot 0');
+    expect(list.controller!.offset, 500);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets(
@@ -494,9 +551,9 @@ void main() {
       final topics = _Topics(pages);
       await pump(tester, pages, topics);
       await tester.tap(find.text('热门'));
-      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
       await tester.tap(find.text('最新'));
-      await tester.pump();
+      await tester.pumpAndSettle();
       await tester.tap(find.byTooltip('点赞').first);
       await tester.pumpAndSettle();
       // A newer read may accept server data, but must not retire the mutation
@@ -527,9 +584,9 @@ void main() {
     final stale = pages.sorted('hot');
     final container = await pump(tester, pages, _Topics(pages));
     await tester.tap(find.text('热门'));
-    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
     await tester.tap(find.text('最新'));
-    await tester.pump();
+    await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('点赞').first);
     await tester.pumpAndSettle();
     // A subsequent detail visit returns a newer unlike and counters. Its

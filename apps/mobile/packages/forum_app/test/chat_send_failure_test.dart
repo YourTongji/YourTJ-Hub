@@ -29,6 +29,7 @@ class GatedChatRepository extends VisibleChatRepository {
     required String content,
     int msgType = 0,
     String? clientMessageId,
+    int? replyToMessageId,
   }) {
     contents.add(content);
     clientMessageIds.add(clientMessageId);

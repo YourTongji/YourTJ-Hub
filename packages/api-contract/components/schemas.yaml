@@ -5268,7 +5268,12 @@ SendChatMessageRequest:
       type: string
       maxLength: 64
       pattern: '^[A-Za-z0-9_-]{1,64}$'
-      description: Optional sender-scoped retry key. Reuse only for the same peer, content and message type; changed payloads fail with chat.send.failed. Legacy omitted keys do not deduplicate. Retained with the message.
+      description: Optional sender-scoped retry key. Reuse only for the same peer, content, message type, and reply target; changed payloads fail with chat.send.failed. Legacy omitted keys do not deduplicate. Retained with the message.
+    replyToMessageId:
+      type: integer
+      format: uint64
+      minimum: 1
+      description: Optional message being quoted. It must belong to this direct conversation; omitted for legacy replies without a stable target ID.
     peerId:
       type: integer
       format: uint64
@@ -5327,7 +5332,12 @@ GetChatMessagesRequest:
       type: integer
       format: uint64
       minimum: 0
-      description: Return the page of messages newer than this message id; mutually exclusive with beforeId. 0 is treated as omitted.
+      description: Return the page of messages newer than this message id; mutually exclusive with beforeId and aroundId. 0 is treated as omitted.
+    aroundId:
+      type: integer
+      format: uint64
+      minimum: 1
+      description: Return a page beginning with this message followed by newer messages. Older messages remain available through beforeId pagination. Mutually exclusive with beforeId and afterId; unknown or cross-conversation message IDs fail with chat.messages.failed.
     limit:
       type: integer
       minimum: 1
@@ -5363,6 +5373,11 @@ ChatMessageVo:
     isSelf:
       type: boolean
       description: True when the caller sent this message.
+    replyToMessageId:
+      type: integer
+      format: uint64
+      minimum: 1
+      description: Stable target ID for newly persisted replies. Omitted for older messages and legacy clients; the quote content remains readable but cannot be navigated to exactly.
     forwarded:
       $ref: ./chat-forward.yaml#/ChatForwardBundle
   additionalProperties: false

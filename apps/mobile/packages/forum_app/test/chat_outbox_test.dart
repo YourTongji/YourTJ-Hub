@@ -20,14 +20,17 @@ class _Chat extends ChatRepository {
   _Chat() : super(GfApiClient(dio: Dio(), tokenStorage: _Storage()));
   final attempts = <Completer<int>>[];
   final keys = <String?>[];
+  final replyTargets = <int?>[];
   @override
   Future<int> sendMessage({
     required int peerId,
     required String content,
     int msgType = 0,
     String? clientMessageId,
+    int? replyToMessageId,
   }) {
     keys.add(clientMessageId);
+    replyTargets.add(replyToMessageId);
     final result = Completer<int>();
     attempts.add(result);
     return result.future;
@@ -49,7 +52,7 @@ void main() {
     () async {
       final repo = _Chat();
       final outbox = ChatOutbox(repo, 2);
-      final pending = outbox.enqueue('same', 10);
+      final pending = outbox.enqueue('same', 10, replyToMessageId: 7);
       final first = outbox.send(pending);
       expect(pending.state, DeliveryState.sending);
       expect(await outbox.send(pending), isNull);
@@ -63,6 +66,7 @@ void main() {
       await retry;
       expect(repo.keys.first, isNotEmpty);
       expect(repo.keys.last, repo.keys.first);
+      expect(repo.replyTargets, [7, 7]);
       expect(outbox.conversationId, 9);
       expect(pending.state, DeliveryState.sent);
       outbox.reconcile([message(10)]);

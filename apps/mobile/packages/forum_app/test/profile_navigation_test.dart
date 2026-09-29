@@ -204,6 +204,14 @@ Future<void> _showContent(WidgetTester tester, Type type) async {
   await tester.pumpAndSettle();
 }
 
+ScrollPosition _innerPosition(WidgetTester tester) {
+  final scrollable = find.descendant(
+    of: find.byType(CustomScrollView).first,
+    matching: find.byType(Scrollable),
+  );
+  return tester.state<ScrollableState>(scrollable.first).position;
+}
+
 Future<ProviderContainer> _pump(
   WidgetTester tester,
   _Profiles repo, {
@@ -796,10 +804,8 @@ void main() {
         currentUser: const CurrentUser(id: 1, username: 'alice'),
       );
       await _showContent(tester, GfTopicCard);
-      final controller = tester
-          .widget<CustomScrollView>(find.byType(CustomScrollView).first)
-          .controller!;
-      final offset = controller.offset;
+      final position = _innerPosition(tester);
+      final offset = position.pixels;
       tester.widget<GfTopicCard>(find.byType(GfTopicCard).first).onTap!();
       await tester.pumpAndSettle();
       container.read(topicReturnStatesProvider)[100] = (
@@ -816,7 +822,7 @@ void main() {
       expect(card.liked, isTrue);
       expect(card.bookmarked, isTrue);
       expect(card.likeCount, 3);
-      expect(controller.offset, offset);
+      expect(position.pixels, offset);
       expect(repo.paths, ['/u/1/activity/topics']);
       _select(tester, '动态');
       await tester.pumpAndSettle();
@@ -1183,11 +1189,6 @@ void main() {
       await _pump(tester, repo, router: router);
       _select(tester, '赞过');
       await tester.pumpAndSettle();
-      tester
-          .widget<CustomScrollView>(find.byType(CustomScrollView))
-          .controller!
-          .jumpTo(500);
-      await tester.pumpAndSettle();
       var row = tester.widget<GfContentRow>(find.byType(GfContentRow).first);
       expect(row.author, 'Post Author');
       expect(row.text, 'Original body');
@@ -1276,8 +1277,10 @@ void main() {
       }
 
       expectNoGaps();
-      var segment = find.byKey(const ValueKey('profile-tab-segment-0'));
-      final underline = find.byKey(const ValueKey('profile-tab-indicator'));
+      var segment = find.byKey(const ValueKey('profile-tab-segment-0')).first;
+      final underline = find
+          .byKey(const ValueKey('profile-tab-indicator'))
+          .first;
       final start = tester.getRect(segment).center.dx;
       expect(tester.getRect(underline).width, greaterThan(40));
 
@@ -1285,7 +1288,7 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 110));
       expectNoGaps();
-      segment = find.byKey(const ValueKey('profile-tab-segment-2'));
+      segment = find.byKey(const ValueKey('profile-tab-segment-2')).first;
       final halfway = tester.getRect(segment).center.dx;
       expect(halfway, greaterThan(start));
       await tester.pumpAndSettle();
@@ -1297,9 +1300,9 @@ void main() {
     tester,
   ) async {
     await _pump(tester, _Profiles());
-    final from = find.byTooltip('动态');
-    final to = find.byTooltip('赞过');
-    final indicator = find.byKey(const ValueKey('profile-tab-indicator'));
+    final from = find.byTooltip('动态').first;
+    final to = find.byTooltip('赞过').first;
+    final indicator = find.byKey(const ValueKey('profile-tab-indicator')).first;
     final start = tester.getRect(indicator).center.dx;
 
     await tester.tap(to);
@@ -1307,13 +1310,13 @@ void main() {
     await tester.pump(const Duration(milliseconds: 80));
 
     final fromLabel = tester.widget<AnimatedOpacity>(
-      find.descendant(of: from, matching: find.byType(AnimatedOpacity)),
+      find.descendant(of: from, matching: find.byType(AnimatedOpacity)).first,
     );
     final toLabel = tester.widget<AnimatedOpacity>(
-      find.descendant(of: to, matching: find.byType(AnimatedOpacity)),
+      find.descendant(of: to, matching: find.byType(AnimatedOpacity)).first,
     );
     final toIcon = tester.widget<AnimatedScale>(
-      find.descendant(of: to, matching: find.byType(AnimatedScale)),
+      find.descendant(of: to, matching: find.byType(AnimatedScale)).first,
     );
     expect(fromLabel.opacity, greaterThan(0));
     expect(fromLabel.opacity, lessThan(1));
@@ -1346,12 +1349,14 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 16));
 
-    final nextTab = find.byTooltip('内容');
+    final nextTab = find.byTooltip('内容').first;
     final label = tester.widget<AnimatedOpacity>(
-      find.descendant(of: nextTab, matching: find.byType(AnimatedOpacity)),
+      find
+          .descendant(of: nextTab, matching: find.byType(AnimatedOpacity))
+          .first,
     );
     final icon = tester.widget<AnimatedScale>(
-      find.descendant(of: nextTab, matching: find.byType(AnimatedScale)),
+      find.descendant(of: nextTab, matching: find.byType(AnimatedScale)).first,
     );
     expect(label.opacity, greaterThan(0));
     expect(label.opacity, lessThan(1));
@@ -1360,7 +1365,7 @@ void main() {
     expect(
       tester
           .getSize(
-            find.descendant(of: nextTab, matching: find.byType(ClipRect)),
+            find.descendant(of: nextTab, matching: find.byType(ClipRect)).first,
           )
           .width,
       greaterThan(0),
@@ -1397,23 +1402,24 @@ void main() {
     (tester) async {
       final repo = _Profiles();
       await _pump(tester, repo);
-      final scroll = tester
-          .widget<CustomScrollView>(find.byType(CustomScrollView))
-          .controller!;
+      ScrollPosition scroll = _innerPosition(tester);
       scroll.jumpTo(1100);
       await tester.pump();
       _select(tester, '赞过');
       await tester.pumpAndSettle();
+      scroll = _innerPosition(tester);
       scroll.jumpTo(850);
       await tester.pump();
       _select(tester, '动态');
       await tester.pumpAndSettle();
       expect(repo.paths.where((path) => path == '/u/1/activity'), hasLength(1));
-      expect(scroll.offset, 1100);
+      scroll = _innerPosition(tester);
+      expect(scroll.pixels, 1100);
       _select(tester, '赞过');
       await tester.pumpAndSettle();
       expect(repo.paths.where((path) => path.endsWith('/likes')), hasLength(1));
-      expect(scroll.offset, 850);
+      scroll = _innerPosition(tester);
+      expect(scroll.pixels, 850);
     },
   );
 
@@ -1544,10 +1550,7 @@ void main() {
       _select(tester, '赞过');
       await tester.pumpAndSettle();
       expect(repo.paths.where((path) => path.endsWith('/likes')), hasLength(2));
-      tester
-          .widget<CustomScrollView>(find.byType(CustomScrollView))
-          .controller!
-          .jumpTo(500);
+      _innerPosition(tester).jumpTo(0);
       await tester.pump();
       expect(find.text('like-0'), findsOneWidget);
     },
@@ -1768,10 +1771,7 @@ void main() {
       expect(oldRead.isCancelled, isTrue);
       pending.complete(old);
       await tester.pumpAndSettle();
-      tester
-          .widget<CustomScrollView>(find.byType(CustomScrollView))
-          .controller!
-          .jumpTo(500);
+      _innerPosition(tester).jumpTo(0);
       await tester.pump();
       expect(find.text('暂无点赞'), findsOneWidget);
       expect(find.text('like-0'), findsNothing);
@@ -1791,9 +1791,7 @@ void main() {
         tester.getSize(find.byType(CustomScrollView)).width,
         lessThanOrEqualTo(760),
       );
-      final scroll = tester
-          .widget<CustomScrollView>(find.byType(CustomScrollView))
-          .controller!;
+      final scroll = _innerPosition(tester);
       scroll.jumpTo(1000);
       await tester.pump();
       await tester.ensureVisible(find.byTooltip('徽章'));

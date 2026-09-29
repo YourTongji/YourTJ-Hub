@@ -34,6 +34,7 @@
     }
   },
   "commonLoading": "加载中…",
+  "tabPageLoading": "正在努力加载...",
   "commonLoadMore": "加载更多",
   "commonRetry": "重试",
   "commonClose": "关闭",
@@ -1371,6 +1372,8 @@
   "userBlocksEmpty": "尚未屏蔽任何用户",
   "messageCopied": "已复制",
   "messageReply": "回复",
+  "messagesJumpToQuotedMessage": "跳转到引用消息",
+  "messagesReturnToReplySource": "返回引用来源",
   "messageReplyCancel": "取消回复",
   "messageReplySelf": "我",
   "messageReport": "举报私信",

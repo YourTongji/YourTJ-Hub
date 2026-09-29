@@ -170,8 +170,11 @@ ordered after the active route in the accessibility tree so iOS does not hide it
 - `Current`: Home sort, Campus section and notification filter rails share a scrollable tab bar.
   The page-swipe recognizer feeds the shared tab controller's live drag offset, so the selected
   underline follows a held slow swipe and stretches evenly toward the adjacent tab. After release,
-  the extended segment contracts with a logarithmic ease-out curve. Profile stream tabs use the same
-  drag progress; the bar reveals selected tabs outside its viewport and honors reduced-motion settings.
+  the extended segment contracts with a logarithmic ease-out curve. Home, Campus and Notifications
+  move both content panes with the same drag or tap transition while retaining each visited page's
+  scroll state. A pending pane uses the transparent animated YourTJ mark until its data is ready.
+  Profile stream tabs use the same drag progress; the bar reveals selected tabs outside its viewport
+  and honors reduced-motion settings.
 - `Current`: root headers, filter rails and bottom navigation overlay the reading viewport. They
   hide after 48 logical pixels downward and return after 12 pixels upward, with 220 ms transitions.
   Hidden headers are clipped at the system safe-area edge; the reading viewport stays stable.
@@ -1278,6 +1281,10 @@ acceptance; simulator compilation does not establish those results.
 `Current`: 消息气泡与纯贴纸支持向左滑动回复；短滑、右滑和垂直滚动不触发回复。
 长按浮动菜单提供回复、复制、转发、多选，以及适用的收藏表情和举报入口。回复选定后聚焦输入框，
 保留未发送草稿；多选模式暂停输入，返回键先退出多选，草稿与原引用保留。
+回复正文仍保存为现有纯文本引用行；客户端把引用行呈现为有界引用块，旧消息也可直接显示。
+新回复另外持久化可空的目标消息 ID。点击有目标 ID 的引用块会按 ID 加载并定位原消息、短暂高亮，
+并提供返回来源消息的入口；旧记录与旧客户端发送的引用仍显示原文本，不做不确定的内容匹配。
+合并聊天记录只以本地化的“[聊天记录]”占位参与引用；外层记录气泡隐藏复制整条和收藏入口，详情条目长按可复制单条或收藏其中的贴纸。
 消息与转发收件人均使用圆形多选控件；消息选择栏平滑展开/收起并淡入/淡出，勾选状态使用原生填色与勾号动画，
 开启系统“减少动态效果”时省略选择栏过渡。头像统一使用圆形裁切，
 包括会话列表、会话标题、收发气泡和转发收件人列表；加载失败使用同形占位。

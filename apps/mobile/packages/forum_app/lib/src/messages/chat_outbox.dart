@@ -16,6 +16,7 @@ class PendingMessage {
     this.afterId, {
     this.draftRevision,
     this.draftValue,
+    this.replyToMessageId,
   });
   final int id;
   final String clientMessageId = List.generate(
@@ -25,6 +26,7 @@ class PendingMessage {
   final String content;
   final int afterId;
   final int? draftRevision;
+  final int? replyToMessageId;
 
   /// Composer snapshot captured on submit, so a failed send can rehydrate text,
   /// sticker tokens and selection instead of relying on untouched state.
@@ -59,6 +61,7 @@ class ChatOutbox extends ChangeNotifier {
     int afterId, {
     int? draftRevision,
     TextEditingValue? draftValue,
+    int? replyToMessageId,
   }) {
     final floor = afterId > _latestObservedId ? afterId : _latestObservedId;
     if (items.isEmpty) _matchedIds.clear();
@@ -68,6 +71,7 @@ class ChatOutbox extends ChangeNotifier {
       floor,
       draftRevision: draftRevision,
       draftValue: draftValue,
+      replyToMessageId: replyToMessageId,
     );
     items.add(message);
     notifyListeners();
@@ -88,6 +92,7 @@ class ChatOutbox extends ChangeNotifier {
         peerId: peerId,
         content: message.content,
         clientMessageId: message.clientMessageId,
+        replyToMessageId: message.replyToMessageId,
       );
       if (_disposed) return null;
       conversationId = id;

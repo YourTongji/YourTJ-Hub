@@ -10,6 +10,7 @@ import '../gf_symbol.dart';
 /// return to the beginning" behaviour without owning the page's scroll view.
 class GfScrollToTopController {
   Future<void> Function()? _scrollToTop;
+  Object? _attachment;
 
   bool get isAttached => _scrollToTop != null;
 
@@ -17,11 +18,14 @@ class GfScrollToTopController {
     await _scrollToTop?.call();
   }
 
-  void _attach(Future<void> Function() callback) {
+  void _attach(Object attachment, Future<void> Function() callback) {
+    _attachment = attachment;
     _scrollToTop = callback;
   }
 
-  void _detach() {
+  void _detach(Object attachment) {
+    if (!identical(_attachment, attachment)) return;
+    _attachment = null;
     _scrollToTop = null;
   }
 }
@@ -59,6 +63,7 @@ class GfScrollToTop extends StatefulWidget {
 }
 
 class _GfScrollToTopState extends State<GfScrollToTop> {
+  final Object _attachment = Object();
   late final ScrollController _scrollController;
   bool _visible = false;
 
@@ -66,15 +71,15 @@ class _GfScrollToTopState extends State<GfScrollToTop> {
   void initState() {
     super.initState();
     _scrollController = ScrollController()..addListener(_handleScroll);
-    widget.controller?._attach(_scrollToTop);
+    widget.controller?._attach(_attachment, _scrollToTop);
   }
 
   @override
   void didUpdateWidget(covariant GfScrollToTop oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.controller != widget.controller) {
-      oldWidget.controller?._detach();
-      widget.controller?._attach(_scrollToTop);
+      oldWidget.controller?._detach(_attachment);
+      widget.controller?._attach(_attachment, _scrollToTop);
     }
     if (!widget.showButton && _visible) {
       _visible = false;
@@ -83,7 +88,7 @@ class _GfScrollToTopState extends State<GfScrollToTop> {
 
   @override
   void dispose() {
-    widget.controller?._detach();
+    widget.controller?._detach(_attachment);
     _scrollController
       ..removeListener(_handleScroll)
       ..dispose();

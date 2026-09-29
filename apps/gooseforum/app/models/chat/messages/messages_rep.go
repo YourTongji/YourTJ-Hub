@@ -36,6 +36,12 @@ func GetAfterId(convId uint64, afterId uint64, limit int) []Entity {
 	return entities
 }
 
+func GetInConversation(convId, id uint64) (Entity, error) {
+	var entity Entity
+	err := builder().Where("conv_id = ? AND id = ?", convId, id).First(&entity).Error
+	return entity, err
+}
+
 func MarkMessagesRead(convId, readerId uint64) {
 	builder().Where("conv_id = ? AND sender_id != ? AND is_read = 0", convId, readerId).Update("is_read", 1)
 }

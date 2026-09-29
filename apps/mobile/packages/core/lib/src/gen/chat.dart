@@ -45,6 +45,7 @@ abstract class ChatMessagePayload with _$ChatMessagePayload {
     required int isRead,
     required String createdAt,
     required bool isSelf,
+    int? replyToMessageId,
     ChatForwardBundle? forwarded,
   }) = _ChatMessagePayload;
 
@@ -109,16 +110,19 @@ class SendChatMessageRequest {
     required this.content,
     this.msgType = 1,
     this.clientMessageId,
+    this.replyToMessageId,
   });
   final int peerId;
   final String content;
   final int msgType;
   final String? clientMessageId;
+  final int? replyToMessageId;
   Map<String, dynamic> toJson() => {
     'peerId': peerId,
     'content': content,
     'msgType': msgType,
     if (clientMessageId != null) 'clientMessageId': clientMessageId,
+    if (replyToMessageId != null) 'replyToMessageId': replyToMessageId,
   };
 }
 

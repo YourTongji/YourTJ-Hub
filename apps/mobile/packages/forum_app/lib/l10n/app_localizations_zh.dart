@@ -94,6 +94,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get commonLoading => '加载中…';
 
   @override
+  String get tabPageLoading => '正在努力加载...';
+
+  @override
   String get commonLoadMore => '加载更多';
 
   @override
@@ -2812,6 +2815,12 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get messageReply => '回复';
+
+  @override
+  String get messagesJumpToQuotedMessage => '跳转到引用消息';
+
+  @override
+  String get messagesReturnToReplySource => '返回引用来源';
 
   @override
   String get messageReplyCancel => '取消回复';

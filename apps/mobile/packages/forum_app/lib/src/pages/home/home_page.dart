@@ -18,10 +18,10 @@ import '../../providers.dart';
 import '../../format.dart';
 import '../../navigation/tab_scroll_registry.dart';
 import '../../server_messages.dart';
-import '../../widgets/skeletons.dart';
 import '../../widgets/status_views.dart';
 import '../../widgets/topic_list.dart';
 import '../../widgets/root_surface.dart';
+import '../../widgets/logo_motion_loader.dart';
 import '../../widgets/announcement_banner.dart';
 import '../../app_config.dart';
 import '../../current_user.dart';
@@ -81,6 +81,9 @@ class _HomeFeedState {
   int loadSequence = 0;
   CancelToken? loadCancel;
   CancelToken? loadMoreCancel;
+  late final PageStorageKey<String> scrollKey = PageStorageKey<String>(
+    'home:${category?.id ?? 'all'}:$sort',
+  );
 
   void cancel() {
     loadCancel?.cancel("home feed disposed");
@@ -104,6 +107,7 @@ class _HomePageState extends ConsumerState<HomePage> {
   _HomeFeedState get _activeFeed => _feeds[_activeKey]!;
   HomeProps? _navigationProps;
   bool _announcementCollapsed = true;
+  String? _swipeLoadingFeedKey;
   int _interactionRevision = 0;
   bool _firstCardFrameRecorded = false;
   final _pendingInteractions = <(int, bool)>{};
@@ -788,16 +792,18 @@ class _HomePageState extends ConsumerState<HomePage> {
     if (firstVisit) _load();
   }
 
-  void _switchSort(String sort) {
+  void _switchSort(String sort, {bool fromSwipe = false}) {
     if (sort == 'latest') sort = '';
     if (sort == _sort) return;
     _sort = sort;
+    _swipeLoadingFeedKey = fromSwipe ? _key(sort, _category) : null;
     if (_category == null) _allSort = sort;
     _activateFeed();
   }
 
   void _switchCategory(CategoryNavPayload? category) {
     if (_category?.id == category?.id) return;
+    _swipeLoadingFeedKey = null;
     if (_category == null) {
       _allSort = _sort;
     } else {
@@ -901,10 +907,15 @@ class _HomePageState extends ConsumerState<HomePage> {
     final selectedSortIndex = selectedSortPosition < 0
         ? 0
         : selectedSortPosition;
+    if (_swipeLoadingFeedKey != null &&
+        _feeds[_swipeLoadingFeedKey]?.page.isLoading != true) {
+      _swipeLoadingFeedKey = null;
+    }
     return RootSurface(
       swipeTabIndex: selectedSortIndex,
       swipeTabCount: sortKeys.length,
-      onSwipeTabChanged: (index) => _switchSort(sortKeys[index]),
+      onSwipeTabChanged: (index) =>
+          _switchSort(sortKeys[index], fromSwipe: true),
       titleWidget: const GfLogo(size: 32),
       actions: [
         IconButton(
@@ -926,24 +937,31 @@ class _HomePageState extends ConsumerState<HomePage> {
         onSelected: _switchSort,
         onFeedModeSelected: _setFeedMode,
       ),
-      body: (top, bottom) => IndexedStack(
-        index: _feeds.keys.toList().indexOf(_activeKey),
-        children: [
-          for (final feed in _feeds.values)
-            TickerMode(
-              key: ObjectKey(feed),
-              enabled:
-                  feed == _activeFeed && TickerMode.valuesOf(context).enabled,
-              child: GfScrollToTop(
-                semanticLabel: l10n.commonBackToTop,
-                controller: feed.scrollToTop,
-                showButton: false,
-                builder: (_, controller) =>
-                    _buildFeed(feed, controller, top, bottom),
-              ),
-            ),
-        ],
+      body: (top, bottom) => GfScrollToTop(
+        key: _activeFeed.scrollKey,
+        semanticLabel: l10n.commonBackToTop,
+        controller: _activeFeed.scrollToTop,
+        showButton: false,
+        builder: (_, controller) =>
+            _buildFeed(_activeFeed, controller, top, bottom),
       ),
+      swipePageKey: (index) => _key(sortKeys[index], _category),
+      swipePageBuilder: (index, top, bottom) {
+        if (index < 0 || index >= sortKeys.length) {
+          return const LogoMotionLoader();
+        }
+        final sort = sortKeys[index] == 'latest' ? '' : sortKeys[index];
+        final feed = _feeds[_key(sort, _category)];
+        if (feed == null) return const LogoMotionLoader(showMessage: true);
+        return GfScrollToTop(
+          key: feed.scrollKey,
+          semanticLabel: l10n.commonBackToTop,
+          controller: feed.scrollToTop,
+          showButton: false,
+          builder: (_, controller) =>
+              _buildFeed(feed, controller, top, bottom, swipePreview: true),
+        );
+      },
     );
   }
 
@@ -951,8 +969,9 @@ class _HomePageState extends ConsumerState<HomePage> {
     _HomeFeedState feed,
     ScrollController controller,
     double top,
-    double bottom,
-  ) {
+    double bottom, {
+    bool swipePreview = false,
+  }) {
     final l10n = AppLocalizations.of(context);
     if (feed.cleared) {
       return Padding(
@@ -965,8 +984,13 @@ class _HomePageState extends ConsumerState<HomePage> {
     }
     return feed.page.when(
       loading: () => Padding(
-        padding: EdgeInsets.only(top: top),
-        child: const GfTopicFeedSkeleton(),
+        padding: EdgeInsets.only(top: top, bottom: bottom),
+        child: LogoMotionLoader(
+          showMessage:
+              swipePreview ||
+              _swipeLoadingFeedKey == _key(feed.sort, feed.category) ||
+              (feed.sort.isEmpty && feed.category == null),
+        ),
       ),
       error: (e, _) => Padding(
         padding: EdgeInsets.only(top: top, bottom: bottom),

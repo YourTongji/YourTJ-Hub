@@ -96,6 +96,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String get commonLoading => '読み込み中…';
 
   @override
+  String get tabPageLoading => '読み込み中です…';
+
+  @override
   String get commonLoadMore => 'さらに読み込む';
 
   @override
@@ -2839,6 +2842,12 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get messageReply => '返信';
+
+  @override
+  String get messagesJumpToQuotedMessage => '引用元のメッセージへ移動';
+
+  @override
+  String get messagesReturnToReplySource => '引用元に戻る';
 
   @override
   String get messageReplyCancel => '返信をキャンセル';
