@@ -218,18 +218,6 @@ class _StickerPickerState extends ConsumerState<StickerPicker> {
                   ),
                 ),
               ),
-              SliverPadding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 4,
-                ),
-                sliver: SliverToBoxAdapter(
-                  child: Text(
-                    strings.pickerHint,
-                    style: TextStyle(fontSize: 12, color: colors.iconMuted),
-                  ),
-                ),
-              ),
               if (_tab == 2 && packs.isNotEmpty)
                 SliverToBoxAdapter(
                   child: SingleChildScrollView(
@@ -339,6 +327,18 @@ class _StickerPickerState extends ConsumerState<StickerPicker> {
                     },
                   ),
                 ),
+              SliverPadding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 4,
+                ),
+                sliver: SliverToBoxAdapter(
+                  child: Text(
+                    strings.pickerHint,
+                    style: TextStyle(fontSize: 12, color: colors.iconMuted),
+                  ),
+                ),
+              ),
               if (_tab == 2)
                 SliverToBoxAdapter(
                   child: Align(
