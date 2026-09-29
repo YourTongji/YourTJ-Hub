@@ -6,6 +6,11 @@ import '../../asset_url.dart';
 import 'sticker_library_state.dart';
 
 /// A sticker opens alone: it never joins the surrounding attachment gallery.
+///
+/// Pass the owning [collection] for previews launched inside the personal
+/// library or the picker, so account or site switches close them with the
+/// account that opened them. Inline content previews omit it: they carry no
+/// session state, so they stay until dismissed by the viewer.
 Future<void> showStickerPreview(
   BuildContext context,
   String url, {

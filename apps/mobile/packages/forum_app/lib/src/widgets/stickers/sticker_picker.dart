@@ -312,6 +312,7 @@ class _StickerPickerState extends ConsumerState<StickerPicker> {
                                   url: item.url,
                                   label: strings.displayLabel(item),
                                   collectible: false,
+                                  excludeSemantics: true,
                                 ),
                               ),
                               Text(

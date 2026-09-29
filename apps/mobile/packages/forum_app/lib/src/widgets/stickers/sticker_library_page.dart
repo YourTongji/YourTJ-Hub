@@ -377,6 +377,7 @@ class _StickerLibraryPageState extends ConsumerState<_StickerLibrarySession> {
                             url: item.url,
                             label: strings.displayLabel(item),
                             collectible: false,
+                            excludeSemantics: true,
                             size: 48,
                           ),
                         ),

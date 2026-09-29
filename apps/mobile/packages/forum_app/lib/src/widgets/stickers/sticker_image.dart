@@ -18,12 +18,18 @@ class StickerImage extends StatefulWidget {
     this.size = 56,
     this.collectible = true,
     this.deferLongPress = false,
+    this.excludeSemantics = false,
   });
   final String name;
   final String url;
   final String? label;
   final double size;
   final bool collectible;
+
+  /// Embedded copies (picker grids, library rows) sit inside an outer labeled
+  /// control behind an [IgnorePointer]: the outer label owns accessibility, so
+  /// this inner button node is excluded to avoid announcing two nested buttons.
+  final bool excludeSemantics;
 
   /// A surrounding surface (a chat message bubble) owns the long press for its
   /// action menu, so this sticker must not consume it — not even for its own
@@ -98,7 +104,7 @@ class _StickerImageState extends State<StickerImage> {
   Widget build(BuildContext context) {
     final bool showActions =
         !widget.deferLongPress && (widget.collectible || _failed);
-    return Semantics(
+    final semantics = Semantics(
       label:
           widget.label ??
           (RegExp(r'^u_[0-9a-f]{48}$').hasMatch(widget.name)
@@ -153,5 +159,7 @@ class _StickerImageState extends State<StickerImage> {
         ),
       ),
     );
+    if (!widget.excludeSemantics) return semantics;
+    return ExcludeSemantics(child: semantics);
   }
 }

@@ -1109,7 +1109,7 @@ servers that omit interaction fields retain read-only content previews.
   Upload guidance and library rows scroll together so large text does not crowd out the controls.
   Both single and selected removals require confirmation and preserve already-sent stickers. Failed
   removals keep the remaining entries available for retry. Account changes close pending library
-  action sheets, previews and removal confirmations. It holds up to 200 stickers; images are limited to
+  action sheets, library-launched previews and removal confirmations. It holds up to 200 stickers; images are limited to
   4 MiB and an account can create up to 1000 retained personal assets. Uploads use the authenticated
   file service. Failed requests retain the current input and expose retry. Concurrent collection
   writes are rejected explicitly so a skipped operation cannot report success.

@@ -54,6 +54,44 @@ Future<StickerCollection> _pump(
 }
 
 void main() {
+  testWidgets('embedded sticker copies expose a single outer button label', (
+    tester,
+  ) async {
+    final handle = tester.ensureSemantics();
+    final repository = _Repository();
+    final state = StickerCollection(repository, StickerLibrary(repository));
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [stickerCollectionProvider.overrideWith((_) => state)],
+        child: MaterialApp(
+          theme: gfThemeData(Brightness.light),
+          home: Scaffold(
+            body: SizedBox(
+              height: 400,
+              child: StickerPicker(onInsert: (_) {}),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(TextButton, 'Official'));
+    await tester.pumpAndSettle();
+    expect(
+      tester.getSemantics(find.text('Dance')),
+      matchesSemantics(
+        isButton: true,
+        isFocusable: true,
+        hasTapAction: true,
+        hasFocusAction: true,
+        hasLongPressAction: true,
+        hint: 'Tap to insert. Hold to preview.',
+        children: [],
+      ),
+    );
+    handle.dispose();
+  });
+
   testWidgets('unavailable stickers remain removable from their row menu', (
     tester,
   ) async {
@@ -215,6 +253,32 @@ void main() {
     await tester.pumpAndSettle();
     expect(inserted, [_item.token]);
     expect(state.recent, [_item]);
+    await tester.tap(find.widgetWithText(TextButton, 'Recent'));
+    await tester.pumpAndSettle();
+    await tester.longPress(find.text('Dance'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('View larger'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(tester.widget<GfImageViewer>(find.byType(GfImageViewer)).images, [
+      _item.url,
+    ]);
+    expect(inserted, [_item.token]);
+    expect(state.recent, [_item]);
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('library row tap opens a single-sticker preview', (tester) async {
+    await _pump(tester, _Repository());
+    await tester.tap(find.text('Dance'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(tester.widget<GfImageViewer>(find.byType(GfImageViewer)).images, [
+      _item.url,
+    ]);
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
   });
 
   testWidgets('inline preview consumes tap while message keeps long press', (
