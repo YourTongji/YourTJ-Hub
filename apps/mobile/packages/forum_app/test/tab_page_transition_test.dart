@@ -149,16 +149,20 @@ void main() {
     addTearDown(tester.platformDispatcher.clearAccessibilityFeaturesTestValue);
     await tester.pumpWidget(const _Pager());
 
+    // A 40px drag crosses the recognizer slop so progress is published, but
+    // stays under the 48px switch threshold, so the pane never changes. The
+    // origin page must not translate while the drag progress is live.
     final gesture = await tester.startGesture(
       tester.getCenter(find.text('Page 0')),
     );
-    await gesture.moveBy(const Offset(-280, 0));
+    await gesture.moveBy(const Offset(-40, 0));
     await tester.pump();
     expect(tester.getTopLeft(find.text('Page 0')).dx, closeTo(0, 1));
 
     await gesture.up();
     await tester.pumpAndSettle();
-    expect(tester.getTopLeft(find.text('Page 1')).dx, closeTo(0, 1));
+    expect(find.text('Page 0'), findsOneWidget);
+    expect(find.text('Page 1'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
