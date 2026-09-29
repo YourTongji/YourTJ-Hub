@@ -189,7 +189,10 @@ class _TabPageTransitionState extends State<TabPageTransition> {
     final progress =
         _progress?.value ??
         GfTabSwipeProgress(originIndex: widget.index, offset: 0);
-    final target = _targetIndex(progress);
+    // Reduced motion must match _ensureVisiblePages and TabSwipeSurface's
+    // settle path: drag progress keeps pages in place and the pane swaps
+    // instantly on index change instead of translating.
+    final target = GfMotion.reducedOf(context) ? null : _targetIndex(progress);
     final transitioning = target != null;
     final origin = transitioning ? progress.originIndex : widget.index;
     final direction = target != null && target > origin ? 1.0 : -1.0;

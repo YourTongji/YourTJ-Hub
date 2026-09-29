@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:forum_app/src/navigation/tab_page_transition.dart';
@@ -136,6 +137,27 @@ void main() {
     await tester.drag(find.text('Page 0'), const Offset(-280, 0));
     await tester.pumpAndSettle();
 
+    expect(tester.getTopLeft(find.text('Page 1')).dx, closeTo(0, 1));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('reduced motion keeps drag progress from translating pages', (
+    tester,
+  ) async {
+    tester.platformDispatcher.accessibilityFeaturesTestValue =
+        const FakeAccessibilityFeatures(disableAnimations: true);
+    addTearDown(tester.platformDispatcher.clearAccessibilityFeaturesTestValue);
+    await tester.pumpWidget(const _Pager());
+
+    final gesture = await tester.startGesture(
+      tester.getCenter(find.text('Page 0')),
+    );
+    await gesture.moveBy(const Offset(-280, 0));
+    await tester.pump();
+    expect(tester.getTopLeft(find.text('Page 0')).dx, closeTo(0, 1));
+
+    await gesture.up();
+    await tester.pumpAndSettle();
     expect(tester.getTopLeft(find.text('Page 1')).dx, closeTo(0, 1));
     expect(tester.takeException(), isNull);
   });
