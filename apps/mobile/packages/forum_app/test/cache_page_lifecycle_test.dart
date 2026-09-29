@@ -44,6 +44,7 @@ class _DelayedChat extends PollingChatRepository {
     required int convId,
     int beforeId = 0,
     int afterId = 0,
+    int aroundId = 0,
     int limit = 30,
     Object? cancelToken,
   }) {
