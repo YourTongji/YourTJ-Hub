@@ -25,6 +25,31 @@ class StickerStrings {
   String get title =>
       _s('表情库', 'Sticker library', 'Stickerbibliothek', 'ステッカー');
   String get preview => _s('实时预览', 'Live preview', 'Live-Vorschau', 'プレビュー');
+  String get viewLarger => _s('放大预览', 'View larger', 'Groß anzeigen', '拡大表示');
+  String actions(String label) => _s(
+    '表情操作：$label',
+    'Sticker actions: $label',
+    'Sticker-Aktionen: $label',
+    'ステッカーの操作：$label',
+  );
+  String get pickerHint => _s(
+    '点按插入，长按放大预览',
+    'Tap to insert. Hold to preview.',
+    'Antippen zum Einfügen. Gedrückt halten für die Vorschau.',
+    'タップで挿入、長押しで拡大表示',
+  );
+  String get removeTitle => _s(
+    '从我的表情中移除？',
+    'Remove from your stickers?',
+    'Aus deinen Stickern entfernen?',
+    'マイステッカーから削除しますか？',
+  );
+  String get removeHint => _s(
+    '已发送的表情仍可正常显示。',
+    'Sent stickers will remain available.',
+    'Gesendete Sticker bleiben verfügbar.',
+    '送信済みのステッカーは引き続き表示されます。',
+  );
   String get keyboard => _s('键盘', 'Keyboard', 'Tastatur', 'キーボード');
   String get recent => _s('最近', 'Recent', 'Zuletzt', '最近');
   String get mine => _s('我的', 'Mine', 'Meine', 'マイ');
@@ -108,10 +133,10 @@ class StickerStrings {
     '4 MB 以下の画像・GIFを選んでください',
   );
   String get reorderHint => _s(
-    '拖动右侧手柄调整顺序；移除不影响已发送的表情',
-    'Drag handles to reorder. Removing keeps sent stickers available.',
-    'Mit Griffen sortieren. Gesendete Sticker bleiben erhalten.',
-    'ハンドルをドラッグして並べ替え。削除しても送信済みは残ります',
+    '点按表情放大预览；更多菜单可重命名或移除，拖动手柄调整顺序',
+    'Tap to preview. Use the action menu to rename or remove; drag handles to reorder.',
+    'Antippen für die Vorschau. Im Menü umbenennen oder entfernen; mit Griffen sortieren.',
+    'タップで拡大表示。メニューで名前変更・削除、ハンドルで並べ替え',
   );
   String get limit => _s(
     '我的表情库已达上限（200 个）',

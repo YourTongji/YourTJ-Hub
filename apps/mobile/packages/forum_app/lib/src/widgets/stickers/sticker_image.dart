@@ -5,9 +5,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../asset_url.dart';
 import 'sticker_library_state.dart';
 import 'sticker_strings.dart';
+import 'sticker_preview.dart';
 
-/// Shared expression renderer. A sticker consumes taps without opening a
-/// gallery or activating the surrounding post; holding exposes collection.
+/// Shared expression renderer. Taps preview this sticker alone; holding exposes
+/// collection unless the surrounding message owns the long-press menu.
 class StickerImage extends StatefulWidget {
   const StickerImage({
     super.key,
@@ -103,10 +104,12 @@ class _StickerImageState extends State<StickerImage> {
           (RegExp(r'^u_[0-9a-f]{48}$').hasMatch(widget.name)
               ? StickerStrings(context).custom
               : widget.name),
+      button: true,
+      hint: StickerStrings(context).viewLarger,
       onLongPress: showActions ? _actions : null,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
-        onTap: () {},
+        onTap: () => showStickerPreview(context, widget.url),
         onLongPress: showActions ? _actions : null,
         child: SizedBox.square(
           dimension: widget.size,

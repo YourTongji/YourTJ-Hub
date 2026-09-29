@@ -10,6 +10,7 @@ import 'sticker_image.dart';
 import 'sticker_library_page.dart';
 import 'sticker_library_state.dart';
 import 'sticker_strings.dart';
+import 'sticker_preview.dart';
 
 /// Inserts into the remembered selection without sending or discarding IME text.
 void insertStickerText(
@@ -57,20 +58,44 @@ class _StickerPickerState extends ConsumerState<StickerPicker> {
     });
   }
 
-  Future<void> _collect(StickerItemPayload item) async {
+  Future<void> _actions(StickerItemPayload item) async {
     final collection = ref.read(stickerCollectionProvider);
     final strings = StickerStrings(context);
     final saved = collection.mine.any((value) => value.name == item.name);
-    final confirmed = await showGfBottomSheet<bool>(
+    final action = await showGfBottomSheet<String>(
       context,
-      builder: (context) => ListTile(
-        leading: GfSymbol(saved ? 'bookmark-filled' : 'bookmark', size: 22),
-        title: Text(saved ? strings.saved : strings.collect),
-        enabled: !saved && !collection.busy,
-        onTap: () => Navigator.pop(context, true),
+      builder: (context) => StickerSessionSurface(
+        collection: collection,
+        child: SafeArea(
+          child: ListView(
+            shrinkWrap: true,
+            padding: EdgeInsets.zero,
+            children: [
+              ListTile(
+                leading: const GfSymbol('maximize', size: 22),
+                title: Text(strings.viewLarger),
+                onTap: () => Navigator.pop(context, 'preview'),
+              ),
+              ListTile(
+                leading: GfSymbol(
+                  saved ? 'bookmark-filled' : 'bookmark',
+                  size: 22,
+                ),
+                title: Text(saved ? strings.saved : strings.collect),
+                enabled: !saved && !collection.busy,
+                onTap: () => Navigator.pop(context, 'save'),
+              ),
+            ],
+          ),
+        ),
       ),
     );
-    if (confirmed != true || !mounted || !collection.active) return;
+    if (!mounted || !collection.active) return;
+    if (action == 'preview') {
+      await showStickerPreview(context, item.url, collection: collection);
+      return;
+    }
+    if (action != 'save') return;
     try {
       await collection.save(stickerName: item.name);
       if (mounted && collection.active) showGfToast(context, strings.saved);
@@ -193,6 +218,18 @@ class _StickerPickerState extends ConsumerState<StickerPicker> {
                   ),
                 ),
               ),
+              SliverPadding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 4,
+                ),
+                sliver: SliverToBoxAdapter(
+                  child: Text(
+                    strings.pickerHint,
+                    style: TextStyle(fontSize: 12, color: colors.iconMuted),
+                  ),
+                ),
+              ),
               if (_tab == 2 && packs.isNotEmpty)
                 SliverToBoxAdapter(
                   child: SingleChildScrollView(
@@ -271,9 +308,10 @@ class _StickerPickerState extends ConsumerState<StickerPicker> {
                       return Semantics(
                         button: true,
                         label: strings.displayLabel(item),
+                        hint: strings.pickerHint,
                         child: InkWell(
                           borderRadius: BorderRadius.circular(12),
-                          onLongPress: _tab == 1 ? null : () => _collect(item),
+                          onLongPress: () => _actions(item),
                           onTap: () {
                             widget.onInsert(item.token);
                             state.used(item);

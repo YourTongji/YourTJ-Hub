@@ -1104,7 +1104,12 @@ servers that omit interaction fields retain read-only content previews.
   retry flow as files, without applying the post-photo resize/compression settings to stickers.
   The personal library supports image upload, collecting a shared sticker by long press (in a chat
   message, the bubble's action menu offers the same collection for its resolved stickers),
-  private display names, reordering and removal. It holds up to 200 stickers; images are limited to
+  private display names, reordering and removal. Each library row opens a single-sticker preview
+  and has a labeled action menu for preview, rename and removal; disabled stickers remain removable.
+  Upload guidance and library rows scroll together so large text does not crowd out the controls.
+  Both single and selected removals require confirmation and preserve already-sent stickers. Failed
+  removals keep the remaining entries available for retry. Account changes close pending library
+  action sheets, previews and removal confirmations. It holds up to 200 stickers; images are limited to
   4 MiB and an account can create up to 1000 retained personal assets. Uploads use the authenticated
   file service. Failed requests retain the current input and expose retry. Concurrent collection
   writes are rejected explicitly so a skipped operation cannot report success.
@@ -1113,9 +1118,13 @@ servers that omit interaction fields retain read-only content previews.
   shared posts and messages renderable. Account closure removes collection membership while shared
   assets retain their history references. [0038](../decisions/0038-personal-sticker-library.md) owns this
   storage and privacy decision.
-- `Current`: native stickers render inline at a compact size and consume taps without a lightbox,
-  zoom or details page. Ordinary image attachments still open the shared gallery. Unknown or
-  unavailable sticker tokens retain a readable fallback. Library state is isolated by site and account.
+- `Current`: tapping a native inline sticker or a library row opens that sticker alone in the shared
+  image viewer, with animated GIF playback, pinch/double-tap zoom and actual-size viewing. Stickers
+  remain excluded from surrounding attachment galleries. Picker taps still insert without sending;
+  a visible hint and each item’s long-press action expose a separate large preview on all three tabs.
+  Previewing does not insert a token or change recent use. Chat long presses still open the message
+  action menu, including when an image fails to load. Unknown or unavailable tokens retain a readable
+  fallback. Library state is isolated by site and account.
 - `Current`: disabled official stickers stay in personal management for ordering/removal and are
   unavailable for insertion; permanently deleted official stickers leave the collection. Older servers
   without personal-library endpoints show a compatibility message while official stickers remain usable.
