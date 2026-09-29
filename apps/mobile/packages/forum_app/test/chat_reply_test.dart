@@ -25,6 +25,23 @@ void main() {
     test('returns null for ordinary messages', () {
       expect(parseChatReplyQuote('ordinary\n\nmessage'), isNull);
     });
+
+    test('renders sender-less quote lines without a sender row', () {
+      // Legacy replies composed with an unknown sender send `> excerpt`; a
+      // hand-typed blockquote is indistinguishable, so both keep the text
+      // intact and render as a sender-less quote block.
+      final quote = parseChatReplyQuote('> 逐字引用\n\n正文');
+      expect(quote?.sender, '');
+      expect(quote?.excerpt, '逐字引用');
+      expect(quote?.body, '正文');
+    });
+
+    test('keeps unrecognized sender labels in the excerpt', () {
+      final quote = parseChatReplyQuote('> bob: hi\n\nreply');
+      expect(quote?.sender, '');
+      expect(quote?.excerpt, 'bob: hi');
+      expect(quote?.body, 'reply');
+    });
   });
 
   group('chatReplyExcerpt', () {

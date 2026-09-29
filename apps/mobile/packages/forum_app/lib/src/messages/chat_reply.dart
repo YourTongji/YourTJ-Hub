@@ -16,6 +16,10 @@ class ChatReplyQuote {
 }
 
 /// Reads the inline quote format used by current and already-sent replies.
+///
+/// Sender-less legacy headers (`> excerpt`) are indistinguishable from
+/// hand-typed blockquotes, so both render as a sender-less quote block; the
+/// message text itself is never altered.
 ChatReplyQuote? parseChatReplyQuote(String content) {
   final separator = RegExp(r'\r?\n\r?\n').firstMatch(content);
   if (separator == null) return null;
