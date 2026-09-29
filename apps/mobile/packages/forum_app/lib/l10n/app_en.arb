@@ -1505,5 +1505,12 @@
   "messageForwardChooseTargets": "Choose recipients",
   "settingsVisitorAnalytics": "Share visit statistics",
   "settingsVisitorAnalyticsDescription": "Off by default. Sends public screen categories, App marker, OS and phone/tablet type to YourTJ’s self-hosted analytics for the status page; the service also receives your network IP and derives an approximate location. No account, content, search terms, device identifiers, campus, messages or settings pages are sent. Turn off at any time.",
-  "settingsVisitorAnalyticsSaveFailed": "Could not save the analytics preference. Disabling still applies now; retry to save your choice for the next launch."
+  "settingsVisitorAnalyticsSaveFailed": "Could not save the analytics preference. Disabling still applies now; retry to save your choice for the next launch.",
+  "draftDeleteCloud": "Delete cloud draft",
+  "draftDeleteLocalConfirm": "Only this device copy will be deleted. The cloud draft and published content will stay unchanged. You can undo this deletion while this page stays open.",
+  "draftDeleteCloudConfirm": "The cloud content will move to the recycle bin and may be restored there within 30 days if eligible. Device recovery copies will be kept.",
+  "draftDeleteCloudFailed": "Could not delete this cloud draft. It is still in the list; try again.",
+  "draftDeleteCloudDone": "Cloud draft moved to the recycle bin. Device copies were kept.",
+  "draftOpenRecycleBin": "Open recycle bin",
+  "draftCloudLimit": "This page loads the 100 most recently updated cloud drafts. Deleting a draft refreshes the list to show the next one."
 }

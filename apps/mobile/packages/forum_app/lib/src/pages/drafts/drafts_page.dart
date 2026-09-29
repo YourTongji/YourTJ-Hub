@@ -35,10 +35,14 @@ class _DraftsPageState extends ConsumerState<DraftsPage> {
   int _loadSequence = 0;
   int _localLoadSequence = 0;
   String? _deletingKey;
+  int? _deletingCloudId;
+  int _cloudRevision = 0;
+  String? _cloudDeletedTitle;
   bool _restoring = false;
   ({LocalDraft draft, String owner, int epoch})? _deleted;
 
-  bool get _managing => _deletingKey != null || _restoring;
+  bool get _managing =>
+      _deletingKey != null || _deletingCloudId != null || _restoring;
   bool get _filtered =>
       _search.text.trim().isNotEmpty || _filter != _DraftFilter.all;
 
@@ -82,7 +86,9 @@ class _DraftsPageState extends ConsumerState<DraftsPage> {
   }
 
   Future<void> _load({bool silent = false}) async {
+    if (_deletingCloudId != null) return;
     final sequence = ++_loadSequence;
+    final cloudRevision = _cloudRevision;
     final epoch = ref.read(offlineCacheEpochProvider);
     final previous = _page.valueOrNull;
     final local = _loadLocal(sequence, epoch);
@@ -91,6 +97,7 @@ class _DraftsPageState extends ConsumerState<DraftsPage> {
       final payload = await ref.read(pageRepositoryProvider).fetch('/drafts');
       if (!mounted ||
           sequence != _loadSequence ||
+          cloudRevision != _cloudRevision ||
           epoch != ref.read(offlineCacheEpochProvider)) {
         return;
       }
@@ -103,6 +110,7 @@ class _DraftsPageState extends ConsumerState<DraftsPage> {
     } catch (error, stack) {
       if (mounted &&
           sequence == _loadSequence &&
+          cloudRevision == _cloudRevision &&
           epoch == ref.read(offlineCacheEpochProvider)) {
         setState(() {
           if (previous != null) {
@@ -119,7 +127,10 @@ class _DraftsPageState extends ConsumerState<DraftsPage> {
   }
 
   Future<void> _open(String route) async {
-    setState(() => _deleted = null);
+    setState(() {
+      _deleted = null;
+      _cloudDeletedTitle = null;
+    });
     FocusManager.instance.primaryFocus?.unfocus();
     await context.push(route);
     if (mounted) await _load(silent: true);
@@ -158,10 +169,18 @@ class _DraftsPageState extends ConsumerState<DraftsPage> {
       animationStyle: GfMotion.dialogStyle(context),
       builder: (context) => AlertDialog(
         title: Text(l10n.draftDeleteLocal),
-        content: Text(
-          _title(draft, l10n),
-          maxLines: 3,
-          overflow: TextOverflow.ellipsis,
+        scrollable: true,
+        content: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              _title(draft, l10n),
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 12),
+            Text(l10n.draftDeleteLocalConfirm),
+          ],
         ),
         actions: [
           TextButton(
@@ -192,6 +211,7 @@ class _DraftsPageState extends ConsumerState<DraftsPage> {
               .where((item) => item.key != draft.key)
               .toList();
           _deleted = (draft: draft, owner: owner, epoch: epoch);
+          _cloudDeletedTitle = null;
         });
         await _loadLocal(_loadSequence, epoch);
       }
@@ -203,6 +223,91 @@ class _DraftsPageState extends ConsumerState<DraftsPage> {
       if (mounted && session.isCurrent(epoch)) {
         setState(() => _deletingKey = null);
       }
+    }
+  }
+
+  Future<void> _deleteCloud(DraftPayload draft) async {
+    if (_managing) return;
+    final session = ref.read(offlineCacheEpochProvider.notifier);
+    final epoch = ref.read(offlineCacheEpochProvider);
+    final l10n = AppLocalizations.of(context);
+    final title = draft.title.isEmpty ? l10n.topicNoTitle : draft.title;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      animationStyle: GfMotion.dialogStyle(context),
+      builder: (context) => AlertDialog(
+        title: Text(l10n.draftDeleteCloud),
+        scrollable: true,
+        content: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(title, maxLines: 3, overflow: TextOverflow.ellipsis),
+            const SizedBox(height: 12),
+            Text(l10n.draftDeleteCloudConfirm),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(l10n.commonCancel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(l10n.draftDeleteCloud),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true ||
+        !mounted ||
+        !session.isCurrent(epoch) ||
+        _managing) {
+      return;
+    }
+    setState(() {
+      _deletingCloudId = draft.id;
+      _cloudRevision++;
+    });
+    var deleted = false;
+    try {
+      final results = await ref
+          .read(contentRepositoryProvider)
+          .delete(contentType: 'topic', ids: [draft.id]);
+      if (!mounted || !session.isCurrent(epoch)) return;
+      // A successful HTTP response can still contain a failed (or missing) item.
+      final matching = results.where((result) => result.contentId == draft.id);
+      if (matching.length != 1 || !matching.single.success) {
+        showGfToast(context, l10n.draftDeleteCloudFailed, error: true);
+        return;
+      }
+      deleted = true;
+      setState(() {
+        _cloudRevision++;
+        final page = _page.valueOrNull;
+        if (page != null) {
+          final drafts = page.drafts
+              .where((item) => item.id != draft.id)
+              .toList();
+          _page = AsyncValue.data(
+            page.copyWith(drafts: drafts, total: drafts.length),
+          );
+        }
+        _refreshError = null;
+        _deleted = null;
+        _cloudDeletedTitle = title;
+      });
+    } catch (error) {
+      if (mounted && session.isCurrent(epoch)) {
+        showGfToast(context, resolveErrorMessage(l10n, error), error: true);
+      }
+    } finally {
+      if (mounted && session.isCurrent(epoch)) {
+        setState(() => _deletingCloudId = null);
+      }
+    }
+    // Refresh the bounded cloud window so its next draft can become visible.
+    if (deleted && mounted && session.isCurrent(epoch)) {
+      await _load(silent: true);
     }
   }
 
@@ -312,18 +417,26 @@ class _DraftsPageState extends ConsumerState<DraftsPage> {
             ].join(' · '),
           ),
           const SizedBox(height: 4),
-          Text(
-            l10n.publishContinue,
-            style: TextStyle(color: GfTheme.colorsOf(context).primary),
+          Wrap(
+            spacing: 8,
+            children: [
+              TextButton(
+                onPressed: _managing ? null : () => _openLocal(draft),
+                child: Text(l10n.publishContinue),
+              ),
+              Tooltip(
+                message: l10n.draftDeleteLocal,
+                child: TextButton.icon(
+                  onPressed: _managing ? null : () => _delete(draft),
+                  icon: const GfSymbol('trash-2', size: 18),
+                  label: Text(l10n.draftDeleteLocal),
+                ),
+              ),
+            ],
           ),
         ],
       ),
       onTap: _managing ? null : () => _openLocal(draft),
-      trailing: IconButton(
-        tooltip: l10n.draftDeleteLocal,
-        icon: const GfSymbol('trash-2'),
-        onPressed: _managing ? null : () => _delete(draft),
-      ),
     );
   }
 
@@ -340,6 +453,9 @@ class _DraftsPageState extends ConsumerState<DraftsPage> {
         _refreshError = null;
         _deleted = null;
         _deletingKey = null;
+        _deletingCloudId = null;
+        _cloudDeletedTitle = null;
+        _cloudRevision++;
         _restoring = false;
         _filter = _DraftFilter.all;
         _page = const AsyncValue.loading();
@@ -387,7 +503,37 @@ class _DraftsPageState extends ConsumerState<DraftsPage> {
           ),
         ],
       ),
-      bottomNavigationBar: _deleted == null
+      bottomNavigationBar: _cloudDeletedTitle != null
+          ? SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Semantics(
+                      liveRegion: true,
+                      child: Text(l10n.draftDeleteCloudDone),
+                    ),
+                    Text(
+                      _cloudDeletedTitle!,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    Align(
+                      alignment: AlignmentDirectional.centerEnd,
+                      child: TextButton(
+                        onPressed: _managing
+                            ? null
+                            : () => _open('/recycle-bin'),
+                        child: Text(l10n.draftOpenRecycleBin),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          : _deleted == null
           ? null
           : SafeArea(
               child: Padding(
@@ -509,6 +655,13 @@ class _DraftsPageState extends ConsumerState<DraftsPage> {
               ],
               if (showCloud) ...[
                 SliverToBoxAdapter(child: _section(l10n.draftCloudSection)),
+                if ((_page.valueOrNull?.drafts.length ?? 0) >= 100)
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Text(l10n.draftCloudLimit),
+                    ),
+                  ),
                 if (_refreshError != null)
                   SliverToBoxAdapter(
                     child: _retry(_refreshError!, () => _load(silent: true)),
@@ -540,7 +693,16 @@ class _DraftsPageState extends ConsumerState<DraftsPage> {
                           itemBuilder: (context, index) {
                             final draft = cloud[index];
                             return GfDraftRow(
+                              key: ValueKey('cloud-${draft.id}'),
                               editLabel: l10n.publishContinue,
+                              deleteLabel: l10n.draftDeleteCloud,
+                              onDelete: _managing
+                                  ? null
+                                  : () => _deleteCloud(draft),
+                              showDelete: true,
+                              onEdit: _managing
+                                  ? null
+                                  : () => _open('/publish?id=${draft.id}'),
                               blockedLabel: l10n.draftsBlocked,
                               title: draft.title.isEmpty
                                   ? l10n.topicNoTitle
@@ -558,7 +720,9 @@ class _DraftsPageState extends ConsumerState<DraftsPage> {
                                 formatDateTime(draft.createdAt),
                               ),
                               updatedTime: formatDate(draft.updatedAt),
-                              onTap: () => _open('/publish?id=${draft.id}'),
+                              onTap: _managing
+                                  ? null
+                                  : () => _open('/publish?id=${draft.id}'),
                             );
                           },
                         ),

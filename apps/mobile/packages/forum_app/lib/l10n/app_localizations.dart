@@ -5597,6 +5597,48 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Could not save the analytics preference. Disabling still applies now; retry to save your choice for the next launch.'**
   String get settingsVisitorAnalyticsSaveFailed;
+
+  /// No description provided for @draftDeleteCloud.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete cloud draft'**
+  String get draftDeleteCloud;
+
+  /// No description provided for @draftDeleteLocalConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Only this device copy will be deleted. The cloud draft and published content will stay unchanged. You can undo this deletion while this page stays open.'**
+  String get draftDeleteLocalConfirm;
+
+  /// No description provided for @draftDeleteCloudConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'The cloud content will move to the recycle bin and may be restored there within 30 days if eligible. Device recovery copies will be kept.'**
+  String get draftDeleteCloudConfirm;
+
+  /// No description provided for @draftDeleteCloudFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not delete this cloud draft. It is still in the list; try again.'**
+  String get draftDeleteCloudFailed;
+
+  /// No description provided for @draftDeleteCloudDone.
+  ///
+  /// In en, this message translates to:
+  /// **'Cloud draft moved to the recycle bin. Device copies were kept.'**
+  String get draftDeleteCloudDone;
+
+  /// No description provided for @draftOpenRecycleBin.
+  ///
+  /// In en, this message translates to:
+  /// **'Open recycle bin'**
+  String get draftOpenRecycleBin;
+
+  /// No description provided for @draftCloudLimit.
+  ///
+  /// In en, this message translates to:
+  /// **'This page loads the 100 most recently updated cloud drafts. Deleting a draft refreshes the list to show the next one.'**
+  String get draftCloudLimit;
 }
 
 class _AppLocalizationsDelegate

@@ -3058,4 +3058,30 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get settingsVisitorAnalyticsSaveFailed =>
       'Could not save the analytics preference. Disabling still applies now; retry to save your choice for the next launch.';
+
+  @override
+  String get draftDeleteCloud => 'Delete cloud draft';
+
+  @override
+  String get draftDeleteLocalConfirm =>
+      'Only this device copy will be deleted. The cloud draft and published content will stay unchanged. You can undo this deletion while this page stays open.';
+
+  @override
+  String get draftDeleteCloudConfirm =>
+      'The cloud content will move to the recycle bin and may be restored there within 30 days if eligible. Device recovery copies will be kept.';
+
+  @override
+  String get draftDeleteCloudFailed =>
+      'Could not delete this cloud draft. It is still in the list; try again.';
+
+  @override
+  String get draftDeleteCloudDone =>
+      'Cloud draft moved to the recycle bin. Device copies were kept.';
+
+  @override
+  String get draftOpenRecycleBin => 'Open recycle bin';
+
+  @override
+  String get draftCloudLimit =>
+      'This page loads the 100 most recently updated cloud drafts. Deleting a draft refreshes the list to show the next one.';
 }

@@ -2963,4 +2963,29 @@ class AppLocalizationsJa extends AppLocalizations {
   @override
   String get settingsVisitorAnalyticsSaveFailed =>
       '統計設定を保存できませんでした。今回の無効化は有効です。次回起動時の設定を保存するには再試行してください。';
+
+  @override
+  String get draftDeleteCloud => 'クラウドの下書きを削除';
+
+  @override
+  String get draftDeleteLocalConfirm =>
+      'この端末のコピーだけを削除します。クラウドの下書きと公開済みの内容は変更されません。このページを開いている間は元に戻せます。';
+
+  @override
+  String get draftDeleteCloudConfirm =>
+      'クラウドの内容をゴミ箱へ移動します。条件を満たせば30日以内に復元できます。端末の復元用コピーは保持されます。';
+
+  @override
+  String get draftDeleteCloudFailed =>
+      'クラウドの下書きを削除できませんでした。一覧に残っています。再試行してください。';
+
+  @override
+  String get draftDeleteCloudDone => 'クラウドの下書きをゴミ箱へ移動しました。端末のコピーは保持されます。';
+
+  @override
+  String get draftOpenRecycleBin => 'ゴミ箱を開く';
+
+  @override
+  String get draftCloudLimit =>
+      'このページは更新日時が新しいクラウドの下書きを最大100件読み込みます。削除後に一覧を更新し、次の下書きを表示します。';
 }

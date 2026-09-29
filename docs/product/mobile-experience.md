@@ -592,14 +592,22 @@ identity survive this layout change. The header keeps a small outer margin for i
   reopens the same writing identity; replies reopen their topic. Returning from new or resumed writing
   refreshes the list. Title/text search and all/device/cloud/reply
   filters operate on device copies and the currently loaded cloud list; the cloud endpoint returns at most
-  100 drafts and only its title/description are searchable here. Counts describe displayed copies, so a
+  100 drafts and only its title/description are searchable here. A full 100-item window shows its limit
+  and explains that deletion refreshes it to reveal subsequent drafts. Counts describe displayed copies, so a
   device recovery copy and its cloud draft count separately. Empty matches offer a filter reset. Local
   loading is distinct from an empty list; failed local or cloud refreshes retain displayed content with
   an inline retry. Local snapshots use app-private device
   preferences scoped by API origin and numeric account ID, with no token or background cloud upload.
   Logging out hides them; logging back into the same account restores access. Explicit discard or
   successful server acknowledgement removes the matching recovery snapshot; local deletion is
-  confirmed. The latest local deletion can be undone from a persistent action while the drafts page stays
+  confirmed with an explicit explanation that cloud content stays unchanged. Device and cloud rows both
+  show labeled delete actions beside Continue editing. Cloud deletion uses the existing topic content
+  lifecycle: confirmation moves the exact server ID to the recycle bin and preserves every local
+  recovery copy, including copies associated with that ID. Only a matching successful per-item result
+  removes the row; network, missing-result and item failures retain it. Success offers a direct recycle-bin
+  action and refreshes the cloud window. In-flight deletion disables repeat actions, rejects stale
+  list reads and rejects confirmation/results after account or site changes. The latest local deletion
+  can be undone from a persistent action while the drafts page stays
   open; another deletion replaces that undo and leaving the page ends it. Restoration keeps the original
   identity and metadata, never overwrites an existing copy, and remains retryable on storage failure.
   Account/site changes clear search and undo state and reject queued stale restoration. Account closure

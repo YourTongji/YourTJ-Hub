@@ -2934,4 +2934,26 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String get settingsVisitorAnalyticsSaveFailed =>
       '未能保存统计设置。本次关闭仍有效，请稍后重试以保存下次启动的选择。';
+
+  @override
+  String get draftDeleteCloud => '删除云端草稿';
+
+  @override
+  String get draftDeleteLocalConfirm => '只删除这份本机副本，不影响云端草稿和已发布内容。留在本页时可撤销本次删除。';
+
+  @override
+  String get draftDeleteCloudConfirm =>
+      '云端内容会移入回收站，符合恢复条件时可在 30 天内恢复。本机恢复副本会保留。';
+
+  @override
+  String get draftDeleteCloudFailed => '未能删除这份云端草稿，列表已保留，请重试。';
+
+  @override
+  String get draftDeleteCloudDone => '云端草稿已移入回收站，本机副本已保留。';
+
+  @override
+  String get draftOpenRecycleBin => '打开回收站';
+
+  @override
+  String get draftCloudLimit => '此页最多加载最近 100 份云端草稿，删除后会刷新并显示后续草稿。';
 }

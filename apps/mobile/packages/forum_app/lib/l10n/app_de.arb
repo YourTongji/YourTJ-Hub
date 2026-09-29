@@ -1088,5 +1088,12 @@
   "messageForwardChooseTargets": "Empfänger auswählen",
   "settingsVisitorAnalytics": "Besuchsstatistik teilen",
   "settingsVisitorAnalyticsDescription": "Standardmäßig aus. Sendet öffentliche Seitenkategorien, App-Kennung, Betriebssystem und Gerätetyp (Telefon/Tablet) an YourTJs eigenen Statistikdienst für die Statusseite. Der Dienst empfängt auch Ihre Netzwerk-IP und ermittelt eine ungefähre Region. Keine Konten, Inhalte, Suchbegriffe, Gerätekennungen, Campus-, Nachrichten- oder Einstellungsseiten werden gesendet. Jederzeit abschaltbar.",
-  "settingsVisitorAnalyticsSaveFailed": "Die Statistikeinstellung konnte nicht gespeichert werden. Das Abschalten gilt weiterhin für diese Sitzung. Erneut versuchen, um die Auswahl für den nächsten Start zu speichern."
+  "settingsVisitorAnalyticsSaveFailed": "Die Statistikeinstellung konnte nicht gespeichert werden. Das Abschalten gilt weiterhin für diese Sitzung. Erneut versuchen, um die Auswahl für den nächsten Start zu speichern.",
+  "draftDeleteCloud": "Cloud-Entwurf löschen",
+  "draftDeleteLocalConfirm": "Nur diese Gerätekopie wird gelöscht. Der Cloud-Entwurf und veröffentlichte Inhalte bleiben erhalten. Solange diese Seite offen bleibt, kann das Löschen rückgängig gemacht werden.",
+  "draftDeleteCloudConfirm": "Der Cloud-Inhalt wird in den Papierkorb verschoben. Sofern zulässig, kann er dort innerhalb von 30 Tagen wiederhergestellt werden. Lokale Wiederherstellungskopien bleiben erhalten.",
+  "draftDeleteCloudFailed": "Dieser Cloud-Entwurf konnte nicht gelöscht werden. Er bleibt in der Liste. Bitte erneut versuchen.",
+  "draftDeleteCloudDone": "Cloud-Entwurf in den Papierkorb verschoben. Gerätekopien bleiben erhalten.",
+  "draftOpenRecycleBin": "Papierkorb öffnen",
+  "draftCloudLimit": "Diese Seite lädt die 100 zuletzt bearbeiteten Cloud-Entwürfe. Nach dem Löschen wird die Liste aktualisiert und der nächste Entwurf angezeigt."
 }

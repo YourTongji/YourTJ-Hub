@@ -3090,4 +3090,30 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get settingsVisitorAnalyticsSaveFailed =>
       'Die Statistikeinstellung konnte nicht gespeichert werden. Das Abschalten gilt weiterhin für diese Sitzung. Erneut versuchen, um die Auswahl für den nächsten Start zu speichern.';
+
+  @override
+  String get draftDeleteCloud => 'Cloud-Entwurf löschen';
+
+  @override
+  String get draftDeleteLocalConfirm =>
+      'Nur diese Gerätekopie wird gelöscht. Der Cloud-Entwurf und veröffentlichte Inhalte bleiben erhalten. Solange diese Seite offen bleibt, kann das Löschen rückgängig gemacht werden.';
+
+  @override
+  String get draftDeleteCloudConfirm =>
+      'Der Cloud-Inhalt wird in den Papierkorb verschoben. Sofern zulässig, kann er dort innerhalb von 30 Tagen wiederhergestellt werden. Lokale Wiederherstellungskopien bleiben erhalten.';
+
+  @override
+  String get draftDeleteCloudFailed =>
+      'Dieser Cloud-Entwurf konnte nicht gelöscht werden. Er bleibt in der Liste. Bitte erneut versuchen.';
+
+  @override
+  String get draftDeleteCloudDone =>
+      'Cloud-Entwurf in den Papierkorb verschoben. Gerätekopien bleiben erhalten.';
+
+  @override
+  String get draftOpenRecycleBin => 'Papierkorb öffnen';
+
+  @override
+  String get draftCloudLimit =>
+      'Diese Seite lädt die 100 zuletzt bearbeiteten Cloud-Entwürfe. Nach dem Löschen wird die Liste aktualisiert und der nächste Entwurf angezeigt.';
 }

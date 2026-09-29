@@ -20,6 +20,9 @@ class GfDraftRow extends StatelessWidget {
     required this.updatedTime,
     this.onTap,
     this.onEdit,
+    this.onDelete,
+    this.showDelete = false,
+    this.deleteLabel = 'Delete',
     this.editLabel = 'Edit',
     this.blockedLabel = 'Blocked',
   });
@@ -39,6 +42,9 @@ class GfDraftRow extends StatelessWidget {
 
   final VoidCallback? onTap;
   final VoidCallback? onEdit;
+  final VoidCallback? onDelete;
+  final bool showDelete;
+  final String deleteLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -104,7 +110,9 @@ class GfDraftRow extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 4),
-            Row(
+            Wrap(
+              spacing: 8,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: <Widget>[
                 Text(
                   updatedTime,
@@ -113,7 +121,6 @@ class GfDraftRow extends StatelessWidget {
                     color: colors.baseContent.withValues(alpha: 0.55),
                   ),
                 ),
-                const Spacer(),
                 if (onEdit != null)
                   TextButton(
                     onPressed: onEdit,
@@ -123,10 +130,15 @@ class GfDraftRow extends StatelessWidget {
                         horizontal: 12,
                         vertical: 4,
                       ),
-                      minimumSize: Size.zero,
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      minimumSize: const Size(44, 44),
                     ),
                     child: Text(editLabel),
+                  ),
+                if (showDelete)
+                  TextButton.icon(
+                    onPressed: onDelete,
+                    icon: const GfSymbol('trash-2', size: 18),
+                    label: Text(deleteLabel),
                   ),
               ],
             ),

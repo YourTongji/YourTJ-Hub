@@ -20,9 +20,12 @@ import 'pages_smoke_test.dart' show MemoryTokenStorage;
 class _Pages extends PageRepository {
   _Pages(super.client);
   bool fail = false;
+  int count = 1;
+  Completer<PagePayload>? pending;
   @override
   Future<PagePayload> fetch(String path, {Object? cancelToken}) async {
     if (fail) throw const NetworkException(fallbackMessage: 'offline');
+    if (pending != null) return pending!.future;
     return parsePayload({
       'component': PageComponent.drafts,
       'url': '/drafts',
@@ -30,20 +33,21 @@ class _Pages extends PageRepository {
       'layout': minimalLayoutJson(),
       'meta': {'title': 'Drafts'},
       'props': {
-        'total': 1,
+        'total': count,
         'drafts': [
-          {
-            'id': 42,
-            'title': '云端未完成内容',
-            'description': '云端正文',
-            'editUrl': '/publish?id=42',
-            'replyCount': 0,
-            'viewCount': 0,
-            'processStatus': 0,
-            'createdAt': '2026-09-24',
-            'updatedAt': '2026-09-24',
-            'categories': [],
-          },
+          for (var index = 0; index < count; index++)
+            {
+              'id': 42 + index,
+              'title': '云端未完成内容',
+              'description': '云端正文',
+              'editUrl': '/publish?id=42',
+              'replyCount': 0,
+              'viewCount': 0,
+              'processStatus': 0,
+              'createdAt': '2026-09-24',
+              'updatedAt': '2026-09-24',
+              'categories': [],
+            },
         ],
         'pagination': {
           'page': 1,
@@ -57,6 +61,37 @@ class _Pages extends PageRepository {
 }
 
 const _scope = 'http%3A%2F%2Ffake.local:1';
+final _client = GfApiClient(
+  dio: Dio(),
+  tokenStorage: MemoryTokenStorage(),
+  baseUrl: 'http://fake.local',
+);
+
+class _Content extends ContentRepository {
+  _Content() : super(_client);
+  final calls = <List<int>>[];
+  String? contentType;
+  bool fail = false;
+  List<ContentDeletionResult> results = const [
+    ContentDeletionResult(contentId: 42, success: true),
+  ];
+  Completer<List<ContentDeletionResult>>? pending;
+  void Function()? onDelete;
+
+  @override
+  Future<List<ContentDeletionResult>> delete({
+    required String contentType,
+    required List<int> ids,
+    String? password,
+  }) async {
+    this.contentType = contentType;
+    calls.add(ids);
+    if (fail) throw const NetworkException(fallbackMessage: 'offline');
+    onDelete?.call();
+    return pending == null ? results : pending!.future;
+  }
+}
+
 const _article = LocalDraft(
   key: 'new-article',
   title: 'Campus notes',
@@ -85,6 +120,9 @@ Future<ProviderContainer> _mount(
   bool settle = true,
   Locale locale = const Locale('zh'),
   double textScale = 1,
+  ContentRepository? content,
+  PageRepository? pages,
+  Brightness brightness = Brightness.light,
 }) async {
   final client = GfApiClient(
     dio: Dio(),
@@ -102,6 +140,14 @@ Future<ProviderContainer> _mount(
         ),
       ),
       GoRoute(
+        path: '/recycle-bin',
+        builder: (_, _) => const Scaffold(body: Text('recycle-bin')),
+      ),
+      GoRoute(
+        path: '/my-content',
+        builder: (_, _) => const Scaffold(body: Text('content-management')),
+      ),
+      GoRoute(
         path: '/p/:id',
         builder: (_, state) =>
             Scaffold(body: Text('reply-topic-${state.pathParameters['id']}')),
@@ -113,15 +159,17 @@ Future<ProviderContainer> _mount(
     ProviderScope(
       overrides: [
         apiClientProvider.overrideWithValue(client),
-        pageRepositoryProvider.overrideWithValue(_Pages(client)),
+        pageRepositoryProvider.overrideWithValue(pages ?? _Pages(client)),
         writingStoreProvider.overrideWithValue(store),
+        if (content != null)
+          contentRepositoryProvider.overrideWithValue(content),
         currentUserProvider.overrideWith(
           (ref) async => const CurrentUser(id: 1, username: 'alice'),
         ),
       ],
       child: MaterialApp.router(
         routerConfig: router,
-        theme: gfThemeData(Brightness.light),
+        theme: gfThemeData(brightness),
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         locale: locale,
@@ -182,12 +230,164 @@ Future<void> _deleteArticle(WidgetTester tester) async {
     find.descendant(of: row, matching: find.byTooltip('删除本机草稿')),
   );
   await tester.pumpAndSettle();
-  await tester.tap(find.widgetWithText(TextButton, '删除本机草稿'));
+  await tester.tap(find.widgetWithText(TextButton, '删除本机草稿').last);
+  await tester.pumpAndSettle();
+}
+
+Future<void> _confirmCloudDelete(WidgetTester tester) async {
+  final action = find.widgetWithText(TextButton, '删除云端草稿').first;
+  await tester.ensureVisible(action);
+  await tester.tap(action);
+  await tester.pumpAndSettle();
+  await tester.tap(find.widgetWithText(TextButton, '删除云端草稿').last);
   await tester.pumpAndSettle();
 }
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
+  testWidgets('device and cloud drafts expose visible delete actions', (
+    tester,
+  ) async {
+    final store = WritingStore();
+    await store.save(_scope, _article);
+    await _mount(tester, store);
+    expect(find.widgetWithText(TextButton, '删除本机草稿'), findsOneWidget);
+    expect(find.widgetWithText(TextButton, '删除云端草稿'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+  testWidgets(
+    'cloud deletion is confirmed and preserves every local identity',
+    (tester) async {
+      final store = WritingStore();
+      final recovery = LocalDraft.fromJson({
+        ..._article.toJson(),
+        'key': 'server-42',
+        'topicId': 42,
+      });
+      await store.save(_scope, _article);
+      await store.save(_scope, recovery);
+      final pages = _Pages(_client);
+      final content = _Content()..onDelete = () => pages.count = 0;
+      await _mount(tester, store, content: content, pages: pages);
+      await tester.tap(find.widgetWithText(ChoiceChip, '云端草稿'));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.widgetWithText(TextButton, '删除云端草稿'));
+      await tester.tap(find.widgetWithText(TextButton, '删除云端草稿'));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('本机恢复副本会保留'), findsOneWidget);
+      await tester.tap(find.widgetWithText(TextButton, '取消'));
+      await tester.pumpAndSettle();
+      expect(content.calls, isEmpty);
+      await _confirmCloudDelete(tester);
+      await tester.pumpAndSettle();
+      expect(content.contentType, 'topic');
+      expect(content.calls, [
+        [42],
+      ]);
+      expect(find.byKey(const ValueKey('cloud-42')), findsNothing);
+      expect(
+        (await store.drafts(_scope)).map((draft) => draft.key),
+        containsAll(['new-article', 'server-42']),
+      );
+      expect(find.text('云端草稿已移入回收站，本机副本已保留。'), findsOneWidget);
+      await tester.tap(find.text('打开回收站'));
+      await tester.pumpAndSettle();
+      expect(find.text('recycle-bin'), findsOneWidget);
+      await tester.pumpWidget(const SizedBox.shrink());
+    },
+  );
+  for (final failure in ['network', 'item', 'missing', 'wrong-id']) {
+    testWidgets('cloud $failure failure keeps the row and device copy', (
+      tester,
+    ) async {
+      final store = WritingStore();
+      await store.save(_scope, _article);
+      final content = _Content()
+        ..fail = failure == 'network'
+        ..results = switch (failure) {
+          'missing' => [],
+          'wrong-id' => [
+            const ContentDeletionResult(contentId: 99, success: true),
+          ],
+          _ => [const ContentDeletionResult(contentId: 42, success: false)],
+        };
+      await _mount(tester, store, content: content);
+      await _confirmCloudDelete(tester);
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('cloud-42')), findsOneWidget);
+      expect(find.text('打开回收站'), findsNothing);
+      expect(await store.drafts(_scope), hasLength(1));
+      expect(content.calls, [
+        [42],
+      ]);
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+  }
+  testWidgets(
+    'in-flight cloud deletion prevents duplicate actions and stale refresh refill',
+    (tester) async {
+      final pages = _Pages(_client);
+      final oldPayload = await pages.fetch('/drafts');
+      final content = _Content()
+        ..pending = Completer<List<ContentDeletionResult>>();
+      await _mount(tester, WritingStore(), content: content, pages: pages);
+      final pendingRead = Completer<PagePayload>();
+      pages.pending = pendingRead;
+      final refreshing = tester
+          .widget<AppRefreshIndicator>(find.byType(AppRefreshIndicator))
+          .onRefresh();
+      await tester.pump();
+      await _confirmCloudDelete(tester);
+      expect(
+        tester
+            .widget<TextButton>(find.widgetWithText(TextButton, '删除云端草稿'))
+            .onPressed,
+        isNull,
+      );
+      pages.pending = null;
+      pages.count = 0;
+      content.pending!.complete(content.results);
+      await tester.pumpAndSettle();
+      pendingRead.complete(oldPayload);
+      await refreshing;
+      await tester.pumpAndSettle();
+      expect(content.calls, [
+        [42],
+      ]);
+      expect(find.byKey(const ValueKey('cloud-42')), findsNothing);
+      await tester.pumpWidget(const SizedBox.shrink());
+    },
+  );
+  testWidgets(
+    'session change cancels cloud confirmation and ignores late deletion acknowledgement',
+    (tester) async {
+      final content = _Content();
+      final container = await _mount(tester, WritingStore(), content: content);
+      await tester.tap(find.widgetWithText(TextButton, '删除云端草稿'));
+      await tester.pumpAndSettle();
+      container.read(offlineCacheEpochProvider.notifier).invalidate();
+      await tester.pump();
+      await tester.tap(find.widgetWithText(TextButton, '删除云端草稿'));
+      await tester.pump();
+      expect(content.calls, isEmpty);
+      await tester.pumpWidget(const SizedBox.shrink());
+      content.pending = Completer<List<ContentDeletionResult>>();
+      final next = await _mount(tester, WritingStore(), content: content);
+      await _confirmCloudDelete(tester);
+      next.read(offlineCacheEpochProvider.notifier).invalidate();
+      content.pending!.complete(content.results);
+      await tester.pump();
+      expect(find.text('打开回收站'), findsNothing);
+      expect(find.byKey(const ValueKey('cloud-42')), findsNothing);
+      await tester.pumpWidget(const SizedBox.shrink());
+    },
+  );
+  testWidgets('100 draft window explains the bounded list', (tester) async {
+    final pages = _Pages(_client)..count = 100;
+    await _mount(tester, WritingStore(), pages: pages);
+    expect(find.textContaining('此页最多加载最近 100 份云端草稿'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
   testWidgets('new composition returns to a refreshed draft list', (
     tester,
   ) async {
@@ -341,6 +541,44 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
     },
   );
+  for (final brightness in Brightness.values) {
+    testWidgets('cloud controls wrap at large German text in $brightness', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(320, 700);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await _mount(
+        tester,
+        WritingStore(),
+        locale: const Locale('de'),
+        textScale: 1.6,
+        brightness: brightness,
+      );
+      final l10n = AppLocalizations.of(tester.element(find.byType(DraftsPage)));
+      final action = find.widgetWithText(TextButton, l10n.draftDeleteCloud);
+      await tester.scrollUntilVisible(
+        action,
+        120,
+        scrollable: find
+            .descendant(
+              of: find.byType(CustomScrollView),
+              matching: find.byType(Scrollable),
+            )
+            .first,
+      );
+      await tester.pumpAndSettle();
+      expect(tester.getSize(action).height, greaterThanOrEqualTo(44));
+      expect(tester.takeException(), isNull);
+      await tester.tap(action);
+      await tester.pumpAndSettle();
+      expect(find.text(l10n.draftDeleteCloudConfirm), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await tester.tap(find.widgetWithText(TextButton, l10n.commonCancel));
+      await tester.pumpAndSettle();
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+  }
   testWidgets('narrow large-text German drafts remain usable with a keyboard', (
     tester,
   ) async {
@@ -378,7 +616,9 @@ void main() {
     );
     await tester.pumpAndSettle();
     final l10n = AppLocalizations.of(tester.element(find.byType(AlertDialog)));
-    await tester.tap(find.widgetWithText(TextButton, l10n.draftDeleteLocal));
+    await tester.tap(
+      find.widgetWithText(TextButton, l10n.draftDeleteLocal).last,
+    );
     await tester.pumpAndSettle();
     expect(find.text(l10n.publishUndo), findsOneWidget);
     expect(tester.takeException(), isNull);
