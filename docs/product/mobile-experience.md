@@ -1053,7 +1053,8 @@ local widget tests do not imply those gates passed.
   On iOS the first launch after login requests the system permission once; granting it counts as
   push consent and enables delivery without visiting Settings. Android requests system permission
   once after a valid login reaches the main screen and its first frame is stable; an upgraded install
-  without the one-shot marker receives the same request. A grant counts as push consent. A denial
+  without the one-shot marker receives the same request unless the user had explicitly turned push
+  off in Settings. A grant counts as push consent. A denial
   keeps the app preference enabled and shows `permissionDenied` without initializing JPush or
   registering a device. Below Android 13, the bridge only reads system notification authorization.
   Settings retains explicit retry and disable actions. Resume checks existing authorization without

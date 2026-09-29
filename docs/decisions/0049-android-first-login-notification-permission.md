@@ -30,9 +30,10 @@ time while preserving consent and device-collection boundaries.
 
 After a valid Android session reaches the main app and its first frame is stable, request system
 notification permission once if the device has not been authorized and the shared
-`push_permission_requested` marker is absent. Existing Android installations without that marker
-receive the same one-time request after upgrading. The existing Settings switch remains available
-for explicit retry and disabling.
+`push_permission_requested` marker is absent, unless the stored app preference is explicitly false.
+Existing Android installations without that marker receive the same one-time request after upgrading
+when they have not explicitly disabled push in Settings. Preserve that opt-out across upgrade; the
+Settings switch remains available for explicit retry and disabling.
 
 Treat a system grant as push consent: set the app preference and continue through the existing
 provider configuration, token, and device-registration path. Preserve the established iOS denial
@@ -52,7 +53,8 @@ registration is still the only SDK initialization path.
 - Settings-only opt-in avoids an automatic prompt but leaves the permission gap for users who never
   discover Settings.
 - One login-time request makes the choice visible at a relevant point and reuses the existing bridge
-  and marker. Upgraded installations without the marker see the prompt once after their next login.
+  and marker. Upgraded installations without the marker see the prompt once after their next login,
+  unless they previously turned push off in Settings.
 - A custom rationale can add context but creates another dialog and decline path without changing
   the system permission or provider contract.
 

@@ -329,6 +329,25 @@ void main() {
     expect(repo.registered, everyElement('android:jpush:native-token'));
     expect(driver.requests, 1);
   });
+  test('Android upgrade preserves an explicit push opt-out', () async {
+    SharedPreferences.setMockInitialValues({'push_enabled': false});
+    driver.transport = 'jpush';
+    await settle(firstFrame: true);
+    expect(driver.requests, 0);
+    expect(status(), PushChannelStatus.disabled);
+    expect(repo.registered, isEmpty);
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getBool('push_enabled'), false);
+    expect(prefs.getBool('push_permission_requested'), isNull);
+    final readsAfterStartup = repo.reads;
+    appRouter.go('/notifications');
+    await settle();
+    expect(repo.reads, readsAfterStartup);
+
+    await controller().enable();
+    expect(driver.requests, 1);
+    expect(status(), PushChannelStatus.enabled);
+  });
   test(
     'Android waits for the first frame and main route before requesting',
     () async {

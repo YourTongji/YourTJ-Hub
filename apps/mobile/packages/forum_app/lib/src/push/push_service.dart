@@ -154,6 +154,7 @@ class PushController extends Notifier<PushChannelStatus>
     final prefs = await SharedPreferences.getInstance();
     if (_disposed ||
         _permissionRequestAttempted ||
+        prefs.getBool(_enabledKey) == false ||
         (prefs.getBool(_permissionRequestedKey) ?? false)) {
       return;
     }
@@ -201,7 +202,8 @@ class PushController extends Notifier<PushChannelStatus>
           _pendingEnable == null &&
           !(prefs.getBool(_permissionRequestedKey) ?? false) &&
           (_driver.platform == 'ios' ||
-              (user != null &&
+              (prefs.getBool(_enabledKey) != false &&
+                  user != null &&
                   _firstFrameComplete &&
                   appRouter.routeInformationProvider.value.uri.path !=
                       '/login'))) {

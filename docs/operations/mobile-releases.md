@@ -298,8 +298,10 @@ to the processor policy. Do not include account passwords or forum session token
 Validate on a physical iPhone using the exact TestFlight build and on each enabled manufacturer's
 Android phone without Google services:
 
-1. On Android, install fresh or upgrade from a build without the one-shot permission marker. Sign in
-   and verify the OS prompt appears only after the main screen is stable, never on the login route or
+1. On Android, install fresh or upgrade from a build without the one-shot permission marker. For an
+   upgraded install, verify a previously explicit push opt-out stays off and does not trigger a
+   prompt; with no saved preference, sign in and verify the OS prompt appears only after the main
+   screen is stable, never on the login route or
    during OAuth return. Allowing reaches the existing registration path; declining shows
    `permissionDenied`, does not register a device, and does not prompt again on restart/resume. Settings
    retains system-settings recovery and explicit retry. On iOS, verify the existing one-time request.
