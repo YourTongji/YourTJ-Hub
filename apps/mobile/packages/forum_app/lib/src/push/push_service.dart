@@ -23,10 +23,10 @@ enum PushChannelStatus {
 }
 
 /// Native bridge: iOS APNs; Android JPush + configured OEM offline channels.
-/// No SDK initialization or device collection before the user enables push.
+/// No SDK initialization or device collection before OS permission is granted.
 /// On iOS the first launch after login requests the system permission once;
-/// granting it counts as push consent (issue #658). Android keeps explicit
-/// opt-in (decision 0019: the JPush SDK must not initialize before consent).
+/// granting it counts as push consent (issue #658). Android requests once after
+/// login too; the JPush SDK still starts only after permission is granted.
 class PushDriver {
   static const channel = MethodChannel('yourtj/push');
   String get platform => Platform.isIOS ? 'ios' : 'android';
@@ -80,11 +80,12 @@ class PushController extends Notifier<PushChannelStatus>
   static const _enabledKey = 'push_enabled';
   static const _tokenKey = 'push_token';
   static const _tokenOwnerKey = 'push_token_owner';
-  // iOS-only one-shot marker: the system permission prompt has been requested
-  // (either by the first-launch auto-request or by the settings switch).
+  // Shared one-shot marker: the system permission prompt has been requested
+  // automatically after login or from the settings switch.
   static const _permissionRequestedKey = 'push_permission_requested';
   int _generation = 0;
   bool _disposed = false;
+  bool _firstFrameComplete = false;
   bool _busy = false;
   bool _refreshAgain = false;
   Completer<void>? _pendingEnable;
@@ -104,6 +105,12 @@ class PushController extends Notifier<PushChannelStatus>
       unawaited(refresh());
     }, _open);
     WidgetsBinding.instance.addObserver(this);
+    appRouter.routeInformationProvider.addListener(_onRouteChanged);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_disposed) return;
+      _firstFrameComplete = true;
+      unawaited(refresh());
+    });
     ref.listen(offlineCacheEpochProvider, (_, _) {
       unawaited(disable());
     });
@@ -116,6 +123,7 @@ class PushController extends Notifier<PushChannelStatus>
       _pendingEnable = null;
       _generation++;
       WidgetsBinding.instance.removeObserver(this);
+      appRouter.routeInformationProvider.removeListener(_onRouteChanged);
       _driver.dispose();
     });
     Future.microtask(refresh);
@@ -130,6 +138,13 @@ class PushController extends Notifier<PushChannelStatus>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) unawaited(refresh());
+  }
+
+  void _onRouteChanged() {
+    if (_firstFrameComplete &&
+        appRouter.routeInformationProvider.value.uri.path != '/login') {
+      unawaited(refresh());
+    }
   }
 
   Future<void> refresh() async {
@@ -166,32 +181,28 @@ class PushController extends Notifier<PushChannelStatus>
       if (!_current(generation, epoch)) return;
       _sessionRepository = session;
       _sessionUserId = user?.id;
-      // iOS 首次登录后的启动自动申请一次系统通知权限；系统授权即视为推送同意
-      // （issue #658）。Android 维持显式 opt-in（决策 0019：同意前不初始化 SDK）。
-      // 已有显式 enable 排队时交给该 enable 申请，避免重复弹窗；已弹过则不再申请。
+      // 登录后首次自动申请一次系统权限。Android 等首帧稳定并离开登录页后
+      // 再申请，避免打断 OAuth 回跳；缺少标记的升级安装也会申请一次。
+      // 已有显式 enable 排队时交给该 enable 申请，避免重复弹窗。
       if (!request &&
-          _driver.platform == 'ios' &&
           _pendingEnable == null &&
-          !(prefs.getBool(_permissionRequestedKey) ?? false)) {
+          !(prefs.getBool(_permissionRequestedKey) ?? false) &&
+          (_driver.platform == 'ios' ||
+              (user != null &&
+                  _firstFrameComplete &&
+                  appRouter.routeInformationProvider.value.uri.path !=
+                      '/login'))) {
         request = true;
       }
       if (request) {
         await prefs.setBool(_enabledKey, true);
-        if (_driver.platform == 'ios') {
-          await prefs.setBool(_permissionRequestedKey, true);
-        }
+        await prefs.setBool(_permissionRequestedKey, true);
       }
       if (!(prefs.getBool(_enabledKey) ?? false)) {
         state = PushChannelStatus.disabled;
         await _unregister(session, prefs, user?.id);
         return;
       }
-      if (!await _driver.configured()) {
-        if (_current(generation, epoch)) state = PushChannelStatus.unsupported;
-        return;
-      }
-      if (!_current(generation, epoch)) return;
-      // Explicit consent reaches the OS even while delivery configuration is absent.
       final allowed = await _driver.permission(request: request);
       if (!_current(generation, epoch)) return;
       if (!allowed) {
@@ -200,6 +211,11 @@ class PushController extends Notifier<PushChannelStatus>
         await _unregister(session, prefs, user?.id);
         return;
       }
+      if (!await _driver.configured()) {
+        if (_current(generation, epoch)) state = PushChannelStatus.unsupported;
+        return;
+      }
+      if (!_current(generation, epoch)) return;
       final config = await session.config();
       if (!_current(generation, epoch)) return;
       final available = _driver.provider == 'apns'

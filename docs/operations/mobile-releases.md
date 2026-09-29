@@ -298,8 +298,11 @@ to the processor policy. Do not include account passwords or forum session token
 Validate on a physical iPhone using the exact TestFlight build and on each enabled manufacturer's
 Android phone without Google services:
 
-1. Sign in and enable push in Settings. The OS permission prompt appears; declining shows a settings
-   recovery action. Allowing adds the app to system notification settings.
+1. On Android, install fresh or upgrade from a build without the one-shot permission marker. Sign in
+   and verify the OS prompt appears only after the main screen is stable, never on the login route or
+   during OAuth return. Allowing reaches the existing registration path; declining shows
+   `permissionDenied`, does not register a device, and does not prompt again on restart/resume. Settings
+   retains system-settings recovery and explicit retry. On iOS, verify the existing one-time request.
 2. Confirm authenticated `GET /api/forum/push/config` enables the matching provider, and
    `POST /api/forum/push/device/register` succeeds with `provider=apns` or `jpush`. An empty token or
    failed API call must not display enabled. Never paste tokens into public logs.

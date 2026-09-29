@@ -133,3 +133,4 @@ A decision starts `Proposed`. Once implemented, its status becomes `Accepted` an
 - [0046](0046-status-device-aggregates.md) — 后台读取联合设备统计，仅公开设备、系统和浏览器类别及人数。
 
 - [0047](0047-mobile-visual-acceptance.md) — 移除移动端截图基线，保留行为与布局断言和模拟器/设备视觉验收。
+- [0048](0048-android-first-login-notification-permission.md) — Android 登录后一次性请求系统通知权限，并在授权后开启 JPush。

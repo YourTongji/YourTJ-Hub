@@ -1,7 +1,7 @@
 # Native push delivery providers
 
 ## Status
-Accepted
+Superseded by [0048](0048-android-first-login-notification-permission.md)
 Class: architecture
 
 ## Context and Problem Statement

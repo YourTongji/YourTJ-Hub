@@ -1,12 +1,14 @@
 import 'dart:async';
 import 'package:core/core.dart';
 import 'package:dio/dio.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:forum_app/src/providers.dart';
 import 'package:forum_app/src/current_user.dart';
 import 'package:forum_app/src/push/push_service.dart';
+import 'package:forum_app/src/router.dart';
 
 class MemoryStorage implements TokenStorage {
   String? value = 'session';
@@ -123,7 +125,14 @@ void main() {
   late MemoryStorage storage;
   late ProviderContainer container;
   CurrentUser? user;
-  Future<void> settle() => pumpEventQueue();
+  Future<void> settle({bool firstFrame = false}) async {
+    if (firstFrame) {
+      WidgetsBinding.instance.handleBeginFrame(Duration.zero);
+      WidgetsBinding.instance.handleDrawFrame();
+    }
+    await pumpEventQueue();
+  }
+
   setUp(() {
     // Steady state: the iOS one-shot permission request already happened, so
     // startup refreshes stay silent. First-launch behavior gets its own tests
@@ -242,7 +251,7 @@ void main() {
     'iOS first launch after login requests permission and treats grant as consent',
     () async {
       SharedPreferences.setMockInitialValues({});
-      await settle();
+      await settle(firstFrame: true);
       expect(driver.requests, 1);
       expect(status(), PushChannelStatus.enabled);
       expect(repo.registered, ['ios:apns:native-token']);
@@ -251,19 +260,21 @@ void main() {
       expect(prefs.getBool('push_permission_requested'), true);
     },
   );
-  test('first-launch request happens once; later refreshes restore silently',
-      () async {
-    SharedPreferences.setMockInitialValues({});
-    await settle();
-    expect(driver.requests, 1);
-    await controller().refresh();
-    expect(driver.requests, 1);
-    expect(status(), PushChannelStatus.enabled);
-  });
+  test(
+    'first-launch request happens once; later refreshes restore silently',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      await settle(firstFrame: true);
+      expect(driver.requests, 1);
+      await controller().refresh();
+      expect(driver.requests, 1);
+      expect(status(), PushChannelStatus.enabled);
+    },
+  );
   test('iOS first-launch denial keeps the denied recovery state', () async {
     SharedPreferences.setMockInitialValues({});
     driver.allowed = false;
-    await settle();
+    await settle(firstFrame: true);
     expect(driver.requests, 1);
     expect(status(), PushChannelStatus.permissionDenied);
     expect(repo.registered, isEmpty);
@@ -274,7 +285,7 @@ void main() {
   test('queued enable suppresses the first-launch auto-request', () async {
     SharedPreferences.setMockInitialValues({});
     repo.pendingSession = Completer<void>();
-    await settle();
+    await settle(firstFrame: true);
     final enabling = controller().enable();
     await settle();
     repo.pendingSession!.complete();
@@ -288,13 +299,79 @@ void main() {
     final prefs = await SharedPreferences.getInstance();
     expect(prefs.getBool('push_permission_requested'), true);
   });
-  test('Android first launch never auto-requests permission', () async {
+  test('Android first launch or upgrade requests permission once', () async {
     SharedPreferences.setMockInitialValues({});
     driver.transport = 'jpush';
-    await settle();
-    expect(driver.requests, 0);
-    expect(status(), PushChannelStatus.disabled);
+    await settle(firstFrame: true);
+    expect(driver.requests, 1);
+    expect(status(), PushChannelStatus.enabled);
+    expect(repo.registered, ['android:jpush:native-token']);
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getBool('push_enabled'), true);
+    expect(prefs.getBool('push_permission_requested'), true);
+    await controller().refresh();
+    expect(driver.requests, 1);
   });
+  test(
+    'Android waits for the first frame and main route before requesting',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      driver.transport = 'jpush';
+      appRouter.go('/login');
+      await settle();
+      expect(driver.requests, 0);
+      await settle(firstFrame: true);
+      expect(driver.requests, 0);
+      appRouter.go('/');
+      await settle();
+      expect(driver.requests, 1);
+      appRouter.go('/');
+    },
+  );
+  test(
+    'Android denial keeps preference but never registers a device',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      driver.transport = 'jpush';
+      driver.allowed = false;
+      await settle(firstFrame: true);
+      expect(driver.requests, 1);
+      expect(status(), PushChannelStatus.permissionDenied);
+      expect(driver.registrations, 0);
+      expect(repo.registered, isEmpty);
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getBool('push_enabled'), true);
+      expect(prefs.getBool('push_permission_requested'), true);
+      await controller().refresh();
+      expect(driver.requests, 1);
+      expect(repo.registered, isEmpty);
+    },
+  );
+  test(
+    'Android requests OS permission before local JPush config check',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      driver.transport = 'jpush';
+      driver.supported = false;
+      await settle(firstFrame: true);
+      expect(driver.requests, 1);
+      expect(status(), PushChannelStatus.unsupported);
+      expect(driver.registrations, 0);
+      expect(repo.registered, isEmpty);
+    },
+  );
+  test(
+    'Android guest launch does not request notification permission',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      driver.transport = 'jpush';
+      storage.value = null;
+      await settle(firstFrame: true);
+      expect(driver.requests, 0);
+      expect(repo.reads, 0);
+      expect(status(), PushChannelStatus.disabled);
+    },
+  );
   test('Android uses JPush registration, never FCM/APNs token', () async {
     driver.transport = 'jpush';
     await settle();
