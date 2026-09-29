@@ -341,7 +341,7 @@ class _UserProfilePreviewState extends ConsumerState<UserProfilePreview> {
                       Positioned.fill(
                         child: ImageFiltered(
                           imageFilter: ImageFilter.blur(sigmaX: 34, sigmaY: 42),
-                          child: Image.network(
+                          child: GfNetworkImage(
                             coverUrl,
                             // Stretching only the blurred duplicate lets its
                             // full-width color field flow through the tall card.
@@ -377,7 +377,7 @@ class _UserProfilePreviewState extends ConsumerState<UserProfilePreview> {
                               ],
                               stops: [0, .58, 1],
                             ).createShader(bounds),
-                            child: Image.network(
+                            child: GfNetworkImage(
                               coverUrl,
                               fit: BoxFit.cover,
                               errorBuilder: (_, _, _) =>

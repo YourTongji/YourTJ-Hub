@@ -147,42 +147,19 @@ class ScheduleSyncController {
       return false;
     }
     final run = _generation;
-    final baseMap = {
-      for (final e in _bases.entries) e.key: e.value.toJson(),
-    };
+    final baseMap = {for (final e in _bases.entries) e.key: e.value.toJson()};
     final draftMap = {
       for (final e in drafts.value.entries) e.key: e.value.toJson(),
     };
-    // Degrade instead of failing wholesale: bases keep conflict detection
-    // alive, plans are re-derivable from bases, drafts are the last thing to go.
-    final shapes = <Map<String, dynamic>>[
-      {
-        'bases': baseMap,
-        'plans': _plans.map((p) => p.toJson()).toList(),
-        'drafts': draftMap,
-        'placeholderID': _placeholderID,
-        'placeholderKey': _placeholderKey,
-      },
-      {
-        'bases': baseMap,
-        'plans': <Map<String, dynamic>>[],
-        'drafts': draftMap,
-        'placeholderID': _placeholderID,
-        'placeholderKey': _placeholderKey,
-      },
-      {
-        'bases': baseMap,
-        'plans': <Map<String, dynamic>>[],
-        'drafts': <String, Map<String, dynamic>>{},
-        'placeholderID': _placeholderID,
-        'placeholderKey': _placeholderKey,
-      },
-    ];
-    var saved = false;
-    for (final shape in shapes) {
-      saved = await store.writePlanSyncCache(_owner!, shape);
-      if (saved) break;
-    }
+    // Recovery copies are user work: a storage failure must retain all copies
+    // and leave synchronization pending instead of dropping drafts to fit.
+    final saved = await store.writePlanSyncCache(_owner!, {
+      'bases': baseMap,
+      'plans': _plans.map((p) => p.toJson()).toList(),
+      'drafts': draftMap,
+      'placeholderID': _placeholderID,
+      'placeholderKey': _placeholderKey,
+    });
     if (run == _generation && !_disposed) _persistenceFailed = !saved;
     return saved;
   }
@@ -204,6 +181,16 @@ class ScheduleSyncController {
     _placeholderKey = null;
     _retrySeconds = 3;
     _lastRead = null;
+    if (!await store.activateOwner(
+      owner,
+      canWrite: () => !_disposed && run == _generation,
+    )) {
+      if (!_disposed && run == _generation) {
+        _persistenceFailed = true;
+        _owner = null; // A later retry must attempt scope activation again.
+      }
+      return;
+    }
     final cache = store.readPlanSyncCache(owner);
     _bases = {};
     drafts.value = {};
@@ -228,26 +215,7 @@ class ScheduleSyncController {
         drafts.value = {};
       }
     }
-    if (store.syncOwner != null && store.syncOwner != owner) {
-      if (!await store.setSyncOwner(
-        owner,
-        canWrite: () => !_disposed && run == _generation,
-      )) {
-        if (!_disposed && run == _generation) needsAdoption.value = true;
-        return;
-      }
-      final cachedPlans = (cache?['plans'] as List? ?? [])
-          .map((p) => PkPlan.fromJson(Map<String, dynamic>.from(p as Map)))
-          .toList();
-      // A cache persisted under storage pressure carries no plans copy;
-      // rebuild device-local content from the acknowledged bases.
-      final plans = cachedPlans.isNotEmpty
-          ? cachedPlans
-          : [for (final item in _bases.values) item.plan];
-      if (!await _current(run)) return;
-      store.applyPlanItems(plans);
-      if (plans.isEmpty) _markPlaceholder();
-    } else if (store.syncOwner == null &&
+    if (store.syncOwner == null &&
         !(_plans.length == 1 &&
             _plans.every(
               (p) =>
@@ -487,6 +455,13 @@ class ScheduleSyncController {
         DateTime.now().difference(_lastRead!) >= const Duration(seconds: 30)) {
       await syncOnEnter();
     }
+  }
+
+  Future<void> reloadLocalAfterRecovery() async {
+    cancelPendingUpload();
+    _generation++;
+    _owner = null;
+    await syncOnEnter();
   }
 
   Future<bool> adoptLocal() async {

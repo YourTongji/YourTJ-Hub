@@ -11,6 +11,8 @@ import 'offline/campus_snapshot_store.dart';
 import 'campus_widget/schedule_widget_bridge.dart';
 import 'app_config.dart';
 import 'app_locale.dart';
+import 'current_user.dart';
+import 'storage/storage_providers.dart';
 
 /// 会话令牌存储:生产用 auth 包 SecureTokenStorage(flutter_secure_storage)。
 /// 测试可通过 override 注入内存实现。
@@ -104,32 +106,85 @@ Dio _localizedDio(Ref ref) {
 }
 
 /// drift 数据库单例(话题 + IM 会话缓存共用)。
-final offlineDatabaseProvider = Provider<AppDatabase>((ref) {
+final Provider<AppDatabase> offlineDatabaseProvider = Provider<AppDatabase>((
+  ref,
+) {
   final db = openDatabase();
+  db.clearAllCaches = () async {
+    final result = await ref
+        .read(cacheCoordinatorProvider)
+        .clear(CacheCategory.values.toSet());
+    if (!result.succeeded) throw StateError('Session cache cleanup incomplete');
+  };
   ref.onDispose(db.close);
   return db;
 });
 
 /// 已浏览话题离线缓存(生产为 drift;测试 override 为 no-op)。
 final offlineTopicCacheProvider = Provider<OfflineTopicCache>((ref) {
-  return DriftOfflineCache(ref.watch(offlineDatabaseProvider));
+  return _scopedOfflineCache(ref);
 });
 
 /// IM 会话离线缓存(与话题缓存共用同一 drift 数据库)。
 final offlineChatCacheProvider = Provider<OfflineChatCache>((ref) {
-  return DriftOfflineCache(ref.watch(offlineDatabaseProvider));
+  return _scopedOfflineCache(ref);
 });
+
+DriftOfflineCache _scopedOfflineCache(Ref ref) {
+  final epoch = ref.watch(offlineCacheEpochProvider);
+  final session = ref.read(offlineCacheEpochProvider.notifier);
+  final user = ref.watch(currentUserProvider.future);
+  final storage = ref.watch(tokenStorageProvider);
+  final language = resolveAppLocale(ref.watch(appLocaleProvider)).languageCode;
+  final scope = () async {
+    final account = await user;
+    if (account == null && await hasSessionToken(storage)) {
+      throw StateError('Unresolved cache account');
+    }
+    return CacheScope(
+      AppConfig.apiBaseUrl.isNotEmpty
+          ? AppConfig.apiBaseUrl
+          : GfApiClient.defaultBaseUrl,
+      account?.id ?? 0,
+      language: language,
+    );
+  }();
+  // Resolution may fail before a page requests the optional cache. Attach an
+  // error observer while retaining the failed future for its actual caller.
+  unawaited(scope.then<void>((_) {}, onError: (Object _, StackTrace _) {}));
+  return DriftOfflineCache(
+    ref.watch(offlineDatabaseProvider),
+    resolveScope: () => scope,
+    sessionCurrent: () => session.isCurrent(epoch),
+  );
+}
+
+/// Cache cleanup is independent of authentication and recoverable user work.
+class CacheClearEpoch extends Notifier<Map<CacheCategory, int>> {
+  @override
+  Map<CacheCategory, int> build() => {};
+  void invalidate(Set<CacheCategory> categories) => state = {
+    ...state,
+    for (final category in categories) category: (state[category] ?? 0) + 1,
+  };
+}
+
+final cacheClearEpochProvider =
+    NotifierProvider<CacheClearEpoch, Map<CacheCategory, int>>(
+      CacheClearEpoch.new,
+    );
 
 /// Invalidate campus reads without clearing drafts, plans or the forum session.
 final campusCacheEpochProvider = NotifierProvider<OfflineCacheEpoch, int>(
   OfflineCacheEpoch.new,
 );
 
-final campusSnapshotStoreProvider = Provider<CampusSnapshotStore>((ref) {
-  final store = CampusSnapshotStore(ref.watch(offlineDatabaseProvider));
-  ref.listen(offlineCacheEpochProvider, (_, _) => store.invalidate());
-  return store;
-});
+final Provider<CampusSnapshotStore> campusSnapshotStoreProvider =
+    Provider<CampusSnapshotStore>((ref) {
+      final store = CampusSnapshotStore(ref.watch(offlineDatabaseProvider));
+      ref.listen(offlineCacheEpochProvider, (_, _) => store.invalidate());
+      return store;
+    });
 
 final scheduleWidgetBridgeProvider = Provider<ScheduleWidgetBridge>((ref) {
   final bridge = ScheduleWidgetBridge();
@@ -150,9 +205,15 @@ Future<void> clearOfflineCache(
   OfflineChatCache chatCache,
   ScheduleWidgetBridge widgetBridge,
 ) async {
-  // The production Drift cache clears campus_snapshots in the same transaction.
+  // Production topic/chat views share one coordinated cleanup, including
+  // campus and media owners. Do not repeat its sweep and database compaction.
+  final sharedStorage =
+      identical(topicCache, chatCache) ||
+      (topicCache is DriftOfflineCache &&
+          topicCache.sharesStorageWith(chatCache));
   await topicCache.clear();
-  await chatCache.clear();
+  if (!sharedStorage) await chatCache.clear();
+  // Publish the session's terminal widget state after category cleanup.
   await widgetBridge.clear(state: 'signedOut');
 }
 

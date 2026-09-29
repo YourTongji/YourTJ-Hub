@@ -137,9 +137,9 @@ void main() {
     // Steady state: the iOS one-shot permission request already happened, so
     // startup refreshes stay silent. First-launch behavior gets its own tests
     // that clear the marker.
-    SharedPreferences.setMockInitialValues(
-      const {'push_permission_requested': true},
-    );
+    SharedPreferences.setMockInitialValues(const {
+      'push_permission_requested': true,
+    });
     driver = Driver();
     repo = Repository();
     storage = MemoryStorage();
@@ -254,10 +254,19 @@ void main() {
       await settle(firstFrame: true);
       expect(driver.requests, 1);
       expect(status(), PushChannelStatus.enabled);
-      expect(repo.registered, ['ios:apns:native-token']);
+      // Startup and current-user resolution may share a refresh or queue one
+      // extra refresh. Neither path may prompt twice or keep registering.
+      expect(repo.registered.length, inInclusiveRange(1, 2));
+      expect(repo.registered, everyElement('ios:apns:native-token'));
       final prefs = await SharedPreferences.getInstance();
       expect(prefs.getBool('push_enabled'), true);
       expect(prefs.getBool('push_permission_requested'), true);
+      final startupRegistrations = repo.registered.length;
+      await controller().refresh();
+      await settle();
+      expect(repo.registered.length, startupRegistrations + 1);
+      expect(repo.registered, everyElement('ios:apns:native-token'));
+      expect(driver.requests, 1);
     },
   );
   test(
@@ -271,6 +280,7 @@ void main() {
       expect(status(), PushChannelStatus.enabled);
     },
   );
+
   test('iOS first-launch denial keeps the denied recovery state', () async {
     SharedPreferences.setMockInitialValues({});
     driver.allowed = false;
@@ -305,11 +315,18 @@ void main() {
     await settle(firstFrame: true);
     expect(driver.requests, 1);
     expect(status(), PushChannelStatus.enabled);
-    expect(repo.registered, ['android:jpush:native-token']);
+    // The storage bootstrap may queue one extra startup refresh. It must not
+    // repeat the permission prompt or register any other device token.
+    expect(repo.registered.length, inInclusiveRange(1, 2));
+    expect(repo.registered, everyElement('android:jpush:native-token'));
     final prefs = await SharedPreferences.getInstance();
     expect(prefs.getBool('push_enabled'), true);
     expect(prefs.getBool('push_permission_requested'), true);
+    final startupRegistrations = repo.registered.length;
     await controller().refresh();
+    await settle();
+    expect(repo.registered.length, startupRegistrations + 1);
+    expect(repo.registered, everyElement('android:jpush:native-token'));
     expect(driver.requests, 1);
   });
   test(
@@ -530,7 +547,12 @@ void main() {
     );
   });
   test('notification navigation is restricted to actual app routes', () {
-    for (final route in ['/p/12', '/p/12?postNo=8', '/u/34', '/notifications']) {
+    for (final route in [
+      '/p/12',
+      '/p/12?postNo=8',
+      '/u/34',
+      '/notifications',
+    ]) {
       expect(pushRoute(route), route);
     }
     for (final route in [

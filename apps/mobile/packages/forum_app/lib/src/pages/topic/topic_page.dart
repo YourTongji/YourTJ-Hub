@@ -9,6 +9,8 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import '../../offline/drift_cache.dart';
+import '../../widgets/cache_snapshot_hint.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -81,6 +83,10 @@ class _TopicPageState extends ConsumerState<TopicPage>
 
   AsyncValue<TopicDetailProps> _page = const AsyncValue.loading();
   bool _viewerAuthenticated = false;
+  bool _fromCache = false;
+  bool _cacheRefreshing = false;
+  bool _cacheCleared = false;
+  DateTime? _snapshotTime;
   bool _loadingMore = false;
   bool _jumping = false;
   int _windowGeneration = 0;
@@ -360,155 +366,159 @@ class _TopicPageState extends ConsumerState<TopicPage>
     super.dispose();
   }
 
-  Future<void> _load({bool silent = false, int? postNo}) async {
-    final generation = ++_windowGeneration;
-    _loadingMore = false;
-    // 记录发起时的缓存世代;401/登出/换账号后世代自增,返回时丢弃旧会话数据。
-    final int epoch = ref.read(offlineCacheEpochProvider);
-    if (!silent) setState(() => _page = const AsyncValue.loading());
-    try {
-      final PagePayload payload = await ref
-          .read(pageRepositoryProvider)
-          .topicDetail(
-            widget.topicId,
-            postNo: postNo != null && postNo > 1 ? postNo : null,
-          );
-      if (!mounted ||
-          generation != _windowGeneration ||
-          epoch != ref.read(offlineCacheEpochProvider)) {
-        return;
-      }
-      final props = parsePageProps<TopicDetailProps>(payload);
-      if (props == null) {
-        setState(
-          () => _page = AsyncValue.error(
-            AppLocalizations.of(context).commonParseFailed,
-            StackTrace.current,
+  void _showPage(
+    PagePayload payload,
+    TopicDetailProps props, {
+    required bool cached,
+    int? postNo,
+  }) {
+    setState(() {
+      _fromCache = cached;
+      _page = AsyncValue.data(props);
+      _viewerAuthenticated = !cached && payload.layout.viewer.isAuthenticated;
+      _viewerId = cached ? 0 : payload.layout.viewer.id;
+      _posts.clear();
+      _posts.addAll(props.postStream.posts);
+      _replyTargets
+        ..clear()
+        ..addEntries(
+          props.postStream.replyTargets.map(
+            (ReplyTargetPayload t) => MapEntry(t.id, t),
           ),
         );
-        return;
-      }
+      _currentFloor = postNo != null && postNo > 1
+          ? postNo
+          : props.postStream.posts.firstOrNull?.postNo ?? 1;
+      _beforePostNo = props.postStream.beforePostNo;
+      _hasEarlierPosts = !cached && props.postStream.hasBefore;
+      _afterPostNo = props.postStream.afterPostNo;
+      _hasMorePosts = !cached && props.postStream.hasAfter;
+      _liked = props.topic.isLiked;
+      _bookmarked = props.topic.isBookmarked;
+      _watched = props.topic.isWatched;
+      _likeCount = props.topic.likeCount;
+    });
+  }
+
+  Future<void> _load({bool silent = false, int? postNo}) async {
+    if (silent && _cacheCleared) return;
+    final generation = ++_windowGeneration;
+    final epoch = ref.read(offlineCacheEpochProvider);
+    final cache = captureTopicCache(ref.read(offlineTopicCacheProvider));
+    if (!cacheRequestCurrent(cache, CacheCategory.forum)) {
       setState(() {
-        _page = AsyncValue.data(props);
-        _viewerAuthenticated = payload.layout.viewer.isAuthenticated;
-        _viewerId = payload.layout.viewer.id;
-        _posts.clear();
-        _posts.addAll(props.postStream.posts);
-        _replyTargets
-          ..clear()
-          ..addEntries(
-            props.postStream.replyTargets.map(
-              (ReplyTargetPayload t) => MapEntry(t.id, t),
-            ),
-          );
-        _currentFloor = postNo != null && postNo > 1
-            ? postNo
-            : props.postStream.posts.firstOrNull?.postNo ?? 1;
-        _beforePostNo = props.postStream.beforePostNo;
-        _hasEarlierPosts = props.postStream.hasBefore;
-        _afterPostNo = props.postStream.afterPostNo;
-        _hasMorePosts = props.postStream.hasAfter;
-        _liked = props.topic.isLiked;
-        _bookmarked = props.topic.isBookmarked;
-        _watched = props.topic.isWatched;
-        _likeCount = props.topic.likeCount;
+        _cacheCleared = true;
+        _page = const AsyncValue.loading();
       });
-      _recordReturnState();
-      _recordPostReturnStates(props.postStream.posts);
-      unawaited(() async {
-        if (!mounted ||
-            generation != _windowGeneration ||
-            epoch != ref.read(offlineCacheEpochProvider)) {
+      return;
+    }
+    final topicId = widget.topicId;
+    final defaultWindow = postNo == null || postNo <= 1;
+    final storage = ref.read(tokenStorageProvider);
+    bool current() =>
+        mounted &&
+        generation == _windowGeneration &&
+        epoch == ref.read(offlineCacheEpochProvider) &&
+        cacheRequestCurrent(cache, CacheCategory.forum);
+    _loadingMore = false;
+    _cacheCleared = false;
+    _cacheRefreshing = true;
+    setState(() {
+      if (!silent) _page = const AsyncValue.loading();
+    });
+    var networkShown = false;
+    final localRead = () async {
+      if (silent || !defaultWindow) return;
+      try {
+        // Production caches resolve the owner before reading. Legacy adapters
+        // still need a token gate so they cannot expose a previous session.
+        if (cache is! DriftOfflineCache && !await hasSessionToken(storage)) {
           return;
         }
-        await _cachePut(widget.topicId, payload.toJson());
-      }());
-    } catch (e, st) {
-      // 网络失败:回退 drift 离线缓存(已浏览话题离线可读)。
-      if (!mounted ||
-          generation != _windowGeneration ||
-          epoch != ref.read(offlineCacheEpochProvider)) {
+        final payload = await cache.get(topicId);
+        if (!current() || networkShown || payload == null) return;
+        final source = parsePageProps<TopicDetailProps>(payload);
+        if (source == null ||
+            source.postStream.hasBefore ||
+            (source.postStream.posts.firstOrNull?.postNo ?? 1) > 1) {
+          return;
+        }
+        final props = source.copyWith(
+          permissions: const TopicDetailPermissions(
+            isOwnTopic: false,
+            canPost: false,
+            canModerateTopic: false,
+          ),
+          postStream: source.postStream.copyWith(
+            posts: [
+              for (final post in source.postStream.posts)
+                post.copyWith(isOwnPost: false, canModerate: false),
+            ],
+          ),
+        );
+        _snapshotTime = cache is DriftOfflineCache ? cache.snapshotTime : null;
+        _showPage(payload, props, cached: true);
+      } catch (_) {
+        /* Disk failures do not prevent a network read. */
+      }
+    }();
+    try {
+      final payload = await ref
+          .read(pageRepositoryProvider)
+          .topicDetail(topicId, postNo: defaultWindow ? null : postNo);
+      if (!current()) return;
+      final props = parsePageProps<TopicDetailProps>(payload);
+      if (props == null) throw const FormatException('topic props');
+      networkShown = true;
+      _showPage(payload, props, cached: false, postNo: postNo);
+      _recordReturnState();
+      _recordPostReturnStates(props.postStream.posts);
+      // A deep-linked middle window must never masquerade as the first page.
+      if (defaultWindow && current()) {
+        try {
+          await cache.put(topicId, payload.toJson());
+        } catch (_) {}
+      }
+    } catch (error, stack) {
+      if (!current()) return;
+      if (revokesSnapshot(error)) {
+        networkShown = true;
+        // Revoke the visible snapshot immediately, even when disk cleanup fails.
+        setState(() {
+          _fromCache = false;
+          _posts.clear();
+          _viewerAuthenticated = false;
+          _viewerId = 0;
+          _page = AsyncValue.error(error, stack);
+        });
+        if (cache is DriftOfflineCache) {
+          try {
+            await cache.removeTopic(topicId);
+          } catch (_) {}
+        }
         return;
       }
-      if (postNo != null && silent) {
+      await localRead;
+      if (!current()) return;
+      if (!_page.hasValue) {
+        setState(() => _page = AsyncValue.error(error, stack));
+      } else if (mounted && !_fromCache) {
         showGfToast(
           context,
-          resolveErrorMessage(AppLocalizations.of(context), e),
+          resolveErrorMessage(AppLocalizations.of(context), error),
           error: true,
         );
-        return;
-      }
-      // 无会话令牌(如 401 后进程被杀重启)时不得回退上一账号残留缓存。
-      if (!await hasSessionToken(ref.read(tokenStorageProvider))) {
-        // 静默刷新失败时保留当前内容,不打断阅读。
-        if (!silent) setState(() => _page = AsyncValue.error(e, st));
-        return;
-      }
-      final PagePayload? cached = await _cacheGet(widget.topicId);
-      // 读缓存期间会话可能已切换,再次校验世代再更新 UI。
-      if (!mounted ||
-          generation != _windowGeneration ||
-          epoch != ref.read(offlineCacheEpochProvider)) {
-        return;
-      }
-      final props = cached == null
-          ? null
-          : parsePageProps<TopicDetailProps>(cached);
-      if (props != null) {
-        setState(() {
-          _page = AsyncValue.data(props);
-          _viewerAuthenticated = cached!.layout.viewer.isAuthenticated;
-          _viewerId = cached.layout.viewer.id;
-          _posts.clear();
-          _posts.addAll(props.postStream.posts);
-          _replyTargets
-            ..clear()
-            ..addEntries(
-              props.postStream.replyTargets.map(
-                (target) => MapEntry(target.id, target),
-              ),
-            );
-          _currentFloor = props.postStream.posts.firstOrNull?.postNo ?? 1;
-          _beforePostNo = props.postStream.beforePostNo;
-          _hasEarlierPosts = props.postStream.hasBefore;
-          _afterPostNo = props.postStream.afterPostNo;
-          _hasMorePosts = props.postStream.hasAfter;
-          _liked = props.topic.isLiked;
-          _bookmarked = props.topic.isBookmarked;
-          _watched = props.topic.isWatched;
-          _likeCount = props.topic.likeCount;
-        });
-      } else {
-        setState(() => _page = AsyncValue.error(e, st));
       }
     } finally {
-      if (mounted && _writingCurrent && generation == _windowGeneration) {
-        _syncMentionContext();
+      if (current()) {
+        setState(() => _cacheRefreshing = false);
+        if (_writingCurrent) _syncMentionContext();
       }
     }
   }
 
-  /// 写缓存;失败静默(缓存不可用不影响页面加载)。
-  Future<void> _cachePut(int topicId, Map<String, dynamic> json) async {
-    try {
-      await ref.read(offlineTopicCacheProvider).put(topicId, json);
-    } catch (_) {
-      // 缓存不可用时忽略(页面加载不依赖缓存)。
-    }
-  }
-
-  /// 读缓存;失败返回 null。
-  Future<PagePayload?> _cacheGet(int topicId) async {
-    try {
-      return await ref.read(offlineTopicCacheProvider).get(topicId);
-    } catch (_) {
-      return null;
-    }
-  }
-
-  /// 倒序模式翻转列表语义:列表底部加载的是更早楼层(before 游标),
-  /// 顶部按钮加载更新楼层(after 游标);正序/只看楼主保持原方向。
   Future<void> _loadMore({bool earlier = false}) async {
+    if (_fromCache || _cacheCleared) return;
     final bool fetchEarlier = _sort == CommentSort.desc ? !earlier : earlier;
     if (_loadingMore || (fetchEarlier ? !_hasEarlierPosts : !_hasMorePosts)) {
       return;
@@ -645,10 +655,13 @@ class _TopicPageState extends ConsumerState<TopicPage>
   }
 
   Future<void> _toggleLike() async {
-    final topic = _page.value?.topic;
+    if (!_topicAvailable) return;
+    final topic = _page.valueOrNull?.topic;
     if (topic == null) return;
     final bool target = !_liked;
     final epoch = ref.read(offlineCacheEpochProvider);
+    final clearEpoch =
+        ref.read(cacheClearEpochProvider)[CacheCategory.forum] ?? 0;
     setState(() {
       _liked = target;
       _likeCount += target ? 1 : -1;
@@ -657,9 +670,10 @@ class _TopicPageState extends ConsumerState<TopicPage>
       await ref
           .read(topicRepositoryProvider)
           .likeTopic(topicId: topic.id, action: target ? 1 : 2);
-      if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) return;
+      if (!_interactionCurrent(epoch, clearEpoch)) return;
       _recordReturnState();
     } catch (_) {
+      if (!_interactionCurrent(epoch, clearEpoch)) return;
       // 回滚。
       setState(() {
         _liked = !target;
@@ -669,18 +683,22 @@ class _TopicPageState extends ConsumerState<TopicPage>
   }
 
   Future<void> _toggleBookmark() async {
-    final topic = _page.value?.topic;
+    if (!_topicAvailable) return;
+    final topic = _page.valueOrNull?.topic;
     if (topic == null) return;
     final bool target = !_bookmarked;
     final epoch = ref.read(offlineCacheEpochProvider);
+    final clearEpoch =
+        ref.read(cacheClearEpochProvider)[CacheCategory.forum] ?? 0;
     setState(() => _bookmarked = target);
     try {
       await ref
           .read(topicRepositoryProvider)
           .bookmarkTopic(topicId: topic.id, action: target ? 1 : 2);
-      if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) return;
+      if (!_interactionCurrent(epoch, clearEpoch)) return;
       _recordReturnState();
     } catch (_) {
+      if (!_interactionCurrent(epoch, clearEpoch)) return;
       setState(() => _bookmarked = !target);
     }
   }
@@ -719,8 +737,12 @@ class _TopicPageState extends ConsumerState<TopicPage>
   }
 
   Future<void> _toggleWatch() async {
-    final TopicDetailPayload? topic = _page.value?.topic;
+    if (!_topicAvailable) return;
+    final TopicDetailPayload? topic = _page.valueOrNull?.topic;
     if (topic == null) return;
+    final epoch = ref.read(offlineCacheEpochProvider);
+    final clearEpoch =
+        ref.read(cacheClearEpochProvider)[CacheCategory.forum] ?? 0;
     final bool target = !_watched;
     setState(() => _watched = target);
     try {
@@ -728,11 +750,19 @@ class _TopicPageState extends ConsumerState<TopicPage>
           .read(topicRepositoryProvider)
           .watchTopic(topicId: topic.id, action: target ? 1 : 2);
     } catch (_) {
+      if (!_interactionCurrent(epoch, clearEpoch)) return;
       if (mounted) setState(() => _watched = !target);
     }
   }
 
+  bool _interactionCurrent(int epoch, int clearEpoch) =>
+      mounted &&
+      epoch == ref.read(offlineCacheEpochProvider) &&
+      clearEpoch ==
+          (ref.read(cacheClearEpochProvider)[CacheCategory.forum] ?? 0);
+
   bool get _topicAvailable {
+    if (_fromCache || _cacheCleared) return false;
     final topic = _page.valueOrNull?.topic;
     return topic != null && !topic.authorDeleted && !topic.moderatorRemoved;
   }
@@ -1402,6 +1432,31 @@ class _TopicPageState extends ConsumerState<TopicPage>
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<int>(
+      cacheClearEpochProvider.select(
+        (epochs) => epochs[CacheCategory.forum] ?? 0,
+      ),
+      (_, _) {
+        _windowGeneration++;
+        setState(() {
+          _cacheCleared = true;
+          _cacheRefreshing = false;
+          _fromCache = false;
+          _viewerAuthenticated = false;
+          _viewerId = 0;
+          _loadingMore = false;
+          _hasEarlierPosts = false;
+          _hasMorePosts = false;
+          _beforePostNo = null;
+          _afterPostNo = null;
+          _jumping = false;
+          _posts.clear();
+          _replyTargets.clear();
+          _composerOpen = false;
+          _page = const AsyncValue.loading();
+        });
+      },
+    );
     final int sessionEpoch = ref.watch(offlineCacheEpochProvider);
     if (sessionEpoch != _writingEpoch) {
       _scheduleSessionRecovery(sessionEpoch);
@@ -1411,7 +1466,7 @@ class _TopicPageState extends ConsumerState<TopicPage>
     final AppLocalizations l10n = AppLocalizations.of(context);
 
     // 无标题瞬间（标题为空串）不显示空标题，回退到通用的「话题」标签。
-    final String topicTitle = _page.value?.topic.title.trim() ?? '';
+    final String topicTitle = _page.valueOrNull?.topic.title.trim() ?? '';
     final String appBarTitle = _showHeaderTitle && topicTitle.isNotEmpty
         ? topicTitle
         : l10n.topicTitle;
@@ -1425,9 +1480,9 @@ class _TopicPageState extends ConsumerState<TopicPage>
         ),
         title: Text(appBarTitle, maxLines: 1, overflow: TextOverflow.ellipsis),
         actions: [
-          if (_page.valueOrNull case final props?)
+          if (!_fromCache && _page.valueOrNull != null)
             TopicActions(
-              props: props,
+              props: _page.valueOrNull!,
               firstPostId: _mainPost(_posts)?.id,
               onChanged: () => _load(silent: true, postNo: _currentFloor),
             ),
@@ -1436,7 +1491,9 @@ class _TopicPageState extends ConsumerState<TopicPage>
       body: NotificationListener<ScrollNotification>(
         onNotification: _updateHeaderTitle,
         child: _page.when(
-          loading: () => const GfTopicDetailSkeleton(),
+          loading: () => _cacheCleared
+              ? CacheSnapshotHint(cleared: true, onRetry: _load)
+              : const GfTopicDetailSkeleton(),
           error: (e, _) => GfErrorRetry(
             message: resolveErrorMessage(l10n, e),
             onRetry: _load,
@@ -1466,6 +1523,14 @@ class _TopicPageState extends ConsumerState<TopicPage>
                           controller: scrollController,
                           physics: const AlwaysScrollableScrollPhysics(),
                           slivers: <Widget>[
+                            if (_fromCache)
+                              SliverToBoxAdapter(
+                                child: CacheSnapshotHint(
+                                  savedAt: _snapshotTime,
+                                  refreshing: _cacheRefreshing,
+                                  onRetry: () => _load(silent: true),
+                                ),
+                              ),
                             SliverToBoxAdapter(
                               child: _TopicHeader(
                                 titleKey: _titleKey,
@@ -1529,6 +1594,7 @@ class _TopicPageState extends ConsumerState<TopicPage>
                                       children: <Widget>[
                                         _PostCard(
                                           post: post,
+                                          readOnly: _fromCache,
                                           showReplyQuote: _showReplyQuote(
                                             post,
                                             mainPost,
@@ -2167,6 +2233,7 @@ class _TopicStat extends StatelessWidget {
 
 class _PostCard extends StatelessWidget {
   const _PostCard({
+    this.readOnly = false,
     required this.post,
     required this.showReplyQuote,
     required this.quoteTarget,
@@ -2175,6 +2242,7 @@ class _PostCard extends StatelessWidget {
     required this.onChanged,
   });
 
+  final bool readOnly;
   final PostPayload post;
 
   /// 平铺模式下的引用块开关：回复其他楼层显示引用块，回复主帖保持轻量文本。
@@ -2284,15 +2352,16 @@ class _PostCard extends StatelessWidget {
           ),
           // Actions use the complete reading column. Sharing a flex row with
           // the date needlessly forced a phone's five actions onto two lines.
-          SizedBox(
-            width: double.infinity,
-            child: PostActions(
-              post: post,
-              onChanged: onChanged,
-              onReply: onReply,
-              onReport: onReport,
+          if (!readOnly)
+            SizedBox(
+              width: double.infinity,
+              child: PostActions(
+                post: post,
+                onChanged: onChanged,
+                onReply: onReply,
+                onReport: onReport,
+              ),
             ),
-          ),
         ],
       ),
     );

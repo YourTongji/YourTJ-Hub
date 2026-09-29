@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
-import '../gf_symbol.dart';
-import 'package:flutter_svg/flutter_svg.dart';
+
 import '../../theme/gf_theme.dart';
+import '../gf_media_image.dart';
+import '../gf_network_svg.dart';
+import '../gf_symbol.dart';
 
 /// A server-defined badge, including the SVG assets used by Web UserAvatar.
 class GfBadgeIcon extends StatelessWidget {
@@ -42,13 +44,8 @@ class GfBadgeIcon extends StatelessWidget {
             child: url.isEmpty
                 ? fallback
                 : isSvg
-                ? SvgPicture.network(
-                    url,
-                    fit: BoxFit.contain,
-                    placeholderBuilder: (_) => fallback,
-                    errorBuilder: (_, _, _) => fallback,
-                  )
-                : Image.network(
+                ? GfNetworkSvg(url, fallback: fallback)
+                : GfNetworkImage(
                     url,
                     fit: BoxFit.contain,
                     errorBuilder: (_, _, _) => fallback,

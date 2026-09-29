@@ -42,16 +42,37 @@ class SiteThemeState {
 /// - 「跟随站点主题」关闭时 runtime 置 null（GfApp 回退内置 tokens.json 主题）；
 /// - 服务端 `enabled:false` 时 available=false（设置页隐藏开关），runtime 置 null。
 class SiteThemeController extends Notifier<SiteThemeState> {
+  int _revision = 0;
+  bool _disposed = false;
+  Future<void>? _writes;
+  Future<void> _enqueue(Future<void> Function() action) {
+    final next = _writes?.then((_) => action()) ?? Future<void>.sync(action);
+    late final Future<void> completion;
+    void release() {
+      if (identical(_writes, completion)) _writes = null;
+    }
+
+    completion = next.then<void>(
+      (_) => release(),
+      onError: (Object _, StackTrace _) => release(),
+    );
+    _writes = completion;
+    return next;
+  }
+
+  bool _current(int revision) => !_disposed && revision == _revision;
   static const String _followKey = 'follow_site_theme';
   static const String _cacheKey = 'site_theme_cache';
 
   @override
   SiteThemeState build() {
+    ref.onDispose(() => _disposed = true);
     _restoreAndRefresh();
     return const SiteThemeState(available: false, following: true);
   }
 
   Future<void> _restoreAndRefresh() async {
+    final revision = ++_revision;
     bool following = true;
     Map<String, Map<String, String>>? cached;
     try {
@@ -73,6 +94,7 @@ class SiteThemeController extends Notifier<SiteThemeState> {
     } catch (_) {
       // 无本地存储（测试/权限异常）时按默认值继续。
     }
+    if (!_current(revision)) return;
     _apply(available: state.available, following: following, themes: cached);
 
     // 后台刷新：失败静默保留缓存态。
@@ -80,12 +102,12 @@ class SiteThemeController extends Notifier<SiteThemeState> {
       final SiteThemePublicPayload? payload = await ref
           .read(themeRepositoryProvider)
           .fetchTokens();
-      if (payload == null) return; // 旧后端无端点：保留缓存态
+      if (payload == null || !_current(revision)) return; // 旧后端无端点：保留缓存态
       final Map<String, Map<String, String>> themes = payload.enabled
           ? {for (final t in payload.themes) t.mode: t.tokens}
           : const {};
       if (themes.isNotEmpty) {
-        _persistCache(themes);
+        _persistCache(themes, revision);
       }
       _apply(
         available: payload.enabled && themes.isNotEmpty,
@@ -113,10 +135,16 @@ class SiteThemeController extends Notifier<SiteThemeState> {
     );
   }
 
-  Future<void> _persistCache(Map<String, Map<String, String>> themes) async {
+  Future<void> _persistCache(
+    Map<String, Map<String, String>> themes,
+    int revision,
+  ) async {
     try {
-      final SharedPreferences prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_cacheKey, jsonEncode({'themes': themes}));
+      await _enqueue(() async {
+        final prefs = await SharedPreferences.getInstance();
+        if (!_current(revision)) return;
+        await prefs.setString(_cacheKey, jsonEncode({'themes': themes}));
+      });
     } catch (_) {
       // 持久化失败不影响本次会话。
     }
@@ -124,19 +152,30 @@ class SiteThemeController extends Notifier<SiteThemeState> {
 
   /// 切换「跟随站点主题」：关闭立即回内置主题，开启时用缓存即刻生效并后台刷新。
   Future<void> setFollowing(bool value) async {
-    state = state.copyWith(following: value);
-    if (!value) {
-      state = SiteThemeState(available: state.available, following: false);
-    } else {
-      await _restoreAndRefresh();
-      return;
-    }
+    final revision = ++_revision;
+    state = value
+        ? state.copyWith(following: true)
+        : SiteThemeState(available: state.available, following: false);
     try {
-      final SharedPreferences prefs = await SharedPreferences.getInstance();
-      await prefs.setBool(_followKey, value);
+      await _enqueue(() async {
+        final prefs = await SharedPreferences.getInstance();
+        if (_current(revision)) await prefs.setBool(_followKey, value);
+      });
     } catch (_) {
       // 持久化失败保留会话内选择。
     }
+    if (value && _current(revision)) await _restoreAndRefresh();
+  }
+
+  Future<void> resetToDefault() {
+    _revision++;
+    state = const SiteThemeState(available: false, following: true);
+    return _enqueue(() async {
+      final prefs = await SharedPreferences.getInstance();
+      if (!await prefs.remove(_cacheKey) || !await prefs.remove(_followKey)) {
+        throw StateError('Site theme reset failed');
+      }
+    });
   }
 }
 

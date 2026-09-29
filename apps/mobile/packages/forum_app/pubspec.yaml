@@ -36,7 +36,7 @@ dependencies:
   drift: ^2.34.3
   drift_flutter: ^0.3.1
   home_widget: ^0.10.0
-  sqlite3_flutter_libs: ^0.6.0+eol
+  sqlite3: ^3.5.1
   share_plus: ^11.0.0
   app_settings: ^9.0.0
 

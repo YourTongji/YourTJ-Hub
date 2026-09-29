@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:forum_app/l10n/app_localizations_en.dart';
 import 'package:forum_app/l10n/app_localizations_zh.dart';
 import 'package:forum_app/src/app.dart';
+import 'package:forum_app/src/storage/storage_providers.dart';
 import 'package:forum_app/src/current_user.dart';
 import 'package:forum_app/src/offline/drift_cache.dart';
 import 'package:forum_app/src/providers.dart';
@@ -97,6 +98,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          storageBootstrapProvider.overrideWith((ref) async {}),
           tokenStorageProvider.overrideWithValue(MemoryTokenStorage()),
           offlineTopicCacheProvider.overrideWithValue(NoopOfflineCache()),
           offlineChatCacheProvider.overrideWithValue(NoopOfflineCache()),
@@ -181,6 +183,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          storageBootstrapProvider.overrideWith((ref) async {}),
           tokenStorageProvider.overrideWithValue(storage),
           currentUserProvider.overrideWith(
             (ref) async => const CurrentUser(id: 1, username: 'alice'),
@@ -218,6 +221,7 @@ void main() {
   ) async {
     final container = ProviderContainer(
       overrides: [
+        storageBootstrapProvider.overrideWith((ref) async {}),
         tokenStorageProvider.overrideWithValue(MemoryTokenStorage()),
         offlineTopicCacheProvider.overrideWithValue(NoopOfflineCache()),
         offlineChatCacheProvider.overrideWithValue(NoopOfflineCache()),

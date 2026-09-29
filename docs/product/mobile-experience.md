@@ -1196,8 +1196,8 @@ push disclosure; account closure remains inside account settings rather than the
 
 ## User safety and message retries
 
-`Current`: profiles and conversation headers expose reversible user blocking; Settings → Data and
-storage lists the caller's blocks. Server enforcement stops new private messages and interaction
+`Current`: profiles and conversation headers expose reversible user blocking; Settings → Account
+lists the caller's blocks. Server enforcement stops new private messages and interaction
 notifications in both directions. Public content, message history and already delivered notifications
 remain available. Pending activation does not prevent managing a block.
 
@@ -1299,3 +1299,29 @@ acceptance; simulator compilation does not establish those results.
 已送达副本不会随源消息、显示名或源会话的后续变化而改变；贴纸展示仍遵循素材可用性。
 
 详见 [私信转发决策](../decisions/0044-nested-private-message-history.md)。
+
+
+## Device storage
+
+- `Current`: Settings → Data and storage is available without signing in. It shows forum reading,
+  synchronized chat, images/GIFs and campus/widget cache categories, the managed on-device total and
+  recoverable user work separately. Category values are payload estimates; database and journal
+  overhead contributes to the total. Unavailable storage is an error, not zero usage.
+- `Current`: clear-cache confirmation names the selected categories and explicitly preserves login,
+  drafts, unsent messages and schedule plans. Forum/chat/media are selected initially; campus is
+  opt-in because its offline document and timetable widget are removed together. Clearing fences old
+  requests before deletion. Partial failure remains visible with retry, including after app restart.
+- `Current`: cloud content management and the recycle bin remain in the side drawer. The storage
+  surface offers local drafts and plans; account settings owns blocked-user management.
+- `Current`: local reset confirms the number of local drafts, unsent messages, unsynchronized
+  plans and schedule recovery drafts before removing them, signing out and restoring preferences.
+  Storage reports recovery drafts separately from legacy schedules awaiting an owner. It does not
+  delete cloud content, close the account or remove school bindings. Interrupted reset retains an intent for retry;
+  business routes remain unavailable until it finishes, so new work cannot enter a pending reset.
+- `Current`: ordinary writing and schedule plans commit to a dedicated encrypted transaction store.
+  Legacy schedules without a known site are held for explicit recovery into a confirmed identity;
+  they are never automatically adopted by a matching numeric ID on another site.
+- `Partial`: offline coverage is bounded reading recovery for home/topic/chat plus the existing campus
+  allowlist. Search, notification, Wiki and course pages do not gain a blanket disk cache. The media
+  upload queue is not a durable offline-send service. See the authoritative
+  [storage boundaries and limits](../architecture/mobile-state-and-cache.md#cache-policy).

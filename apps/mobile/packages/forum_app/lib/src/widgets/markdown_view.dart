@@ -233,7 +233,7 @@ class _GfMarkdownViewState extends ConsumerState<GfMarkdownView> {
                     borderRadius: BorderRadius.circular(8),
                   ),
                   clipBehavior: Clip.antiAlias,
-                  child: Image.network(
+                  child: GfNetworkImage(
                     resolvedUrl,
                     fit: BoxFit.contain,
                     cacheWidth: imageCacheWidth,
@@ -534,7 +534,7 @@ class _GfLinkPreviewCardState extends ConsumerState<GfLinkPreviewCard> {
                 if (faviconUrl != null) ...<Widget>[
                   ClipRRect(
                     borderRadius: BorderRadius.circular(4),
-                    child: Image.network(
+                    child: GfNetworkImage(
                       faviconUrl,
                       width: 16,
                       height: 16,
@@ -652,7 +652,7 @@ class _GfLinkPreviewCardState extends ConsumerState<GfLinkPreviewCard> {
                         height: railCover ? null : coverWidth,
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(6),
-                          child: Image.network(
+                          child: GfNetworkImage(
                             coverUrl,
                             fit: railCover ? BoxFit.contain : BoxFit.cover,
                             cacheWidth:

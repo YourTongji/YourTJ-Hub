@@ -1,3 +1,5 @@
+import '../../offline/drift_cache.dart';
+import '../../widgets/cache_snapshot_hint.dart';
 import '../../messages/chat_message_bubble.dart';
 import '../../messages/chat_message_row.dart';
 import '../../messages/chat_forwarding.dart';
@@ -75,6 +77,10 @@ class _MessagesPageState extends ConsumerState<MessagesPage>
   int _seenRealtimeRevision = 0;
   bool _foreground = true;
   int _loadGeneration = 0;
+  bool _cacheCleared = false;
+  bool _fromCache = false;
+  bool _cacheRefreshing = false;
+  DateTime? _snapshotTime;
   bool _loadingRequest = false;
   bool _loadDirty = false;
   CancelToken? _loadCancel;
@@ -185,88 +191,117 @@ class _MessagesPageState extends ConsumerState<MessagesPage>
   }
 
   Future<void> _load({bool silent = false}) async {
-    if (_ownerEpoch != ref.read(offlineCacheEpochProvider)) return;
+    if (_ownerEpoch != ref.read(offlineCacheEpochProvider) ||
+        (silent && _cacheCleared)) {
+      return;
+    }
     if (_loadingRequest) {
       _loadDirty = true;
       return;
     }
     _loadingRequest = true;
-    // 记录发起时的缓存世代;401/登出/换账号后世代自增,返回时丢弃旧会话数据。
-    final int epoch = ref.read(offlineCacheEpochProvider);
-    final int generation = ++_loadGeneration;
+    _cacheCleared = false;
+    setState(() => _cacheRefreshing = true);
+    final epoch = ref.read(offlineCacheEpochProvider);
+    final generation = ++_loadGeneration;
+    final cache = captureChatCache(ref.read(offlineChatCacheProvider));
+    if (!cacheRequestCurrent(cache, CacheCategory.chat)) {
+      setState(() {
+        _loadingRequest = false;
+        _cacheRefreshing = false;
+        _cacheCleared = true;
+        _conversations = const AsyncValue.data([]);
+      });
+      return;
+    }
+    final storage = ref.read(tokenStorageProvider);
     final cancel = _loadCancel = CancelToken();
+    bool current() =>
+        mounted &&
+        !cancel.isCancelled &&
+        generation == _loadGeneration &&
+        epoch == ref.read(offlineCacheEpochProvider) &&
+        cacheRequestCurrent(cache, CacheCategory.chat);
+    var networkShown = false;
+    final localRead = () async {
+      if (silent || _serverConversationsResolved) return;
+      try {
+        if (cache is! DriftOfflineCache && !await hasSessionToken(storage)) {
+          return;
+        }
+        final cached = await cache.getConversations();
+        if (!current() ||
+            networkShown ||
+            _loadDirty ||
+            !(cache is DriftOfflineCache
+                ? cache.snapshotFound
+                : cached.isNotEmpty)) {
+          return;
+        }
+        setState(() {
+          _fromCache = true;
+          _snapshotTime = cache is DriftOfflineCache
+              ? cache.snapshotTime
+              : null;
+          _conversations = AsyncValue.data(cached);
+          _targetConversation = _targetConversationFor(cached);
+        });
+      } catch (_) {}
+    }();
     try {
-      final props = await ref
+      final payload = await ref
           .read(pageRepositoryProvider)
           .fetch('/messages', cancelToken: cancel);
-      // A newer foreground hint arrived while this snapshot was in flight.
-      // Let the queued request own both the screen and the offline cache.
-      if (cancel.isCancelled || _loadDirty) return;
-      final MessagesPageProps? parsed = parsePageProps<MessagesPageProps>(
-        props,
-      );
-      final List<ChatItemPayload> items = parsed?.conversations ?? [];
-      if (mounted &&
-          epoch == ref.read(offlineCacheEpochProvider) &&
-          generation == _loadGeneration) {
-        setState(() {
-          _conversations = AsyncValue.data(items);
-          _serverConversationsResolved = true;
-          _suggestedUsers = parsed?.suggestedUsers ?? const [];
-          _viewerAvatar = resolveApiAssetUrl(props.layout.viewer.avatarUrl);
-          _viewerUsername = props.layout.viewer.username;
-          _targetConversation = _targetConversationFor(items);
-        });
-      }
-      // 会话列表在单事务中批量写入离线缓存(断网可读);仅当前世代允许写入,
-      // 避免 401/登出后旧会话在途响应把上一账号数据写回刚清空的缓存。
-      if (epoch == ref.read(offlineCacheEpochProvider) &&
-          generation == _loadGeneration) {
-        await ref.read(offlineChatCacheProvider).putConversations(items);
-      }
-    } catch (e, st) {
-      // 网络失败:回退离线缓存的会话列表。
-      if (cancel.isCancelled || _loadDirty) return;
-      if (!mounted ||
-          epoch != ref.read(offlineCacheEpochProvider) ||
-          generation != _loadGeneration) {
-        return;
-      }
-      // 无会话令牌(如 401 后进程被杀重启)时不得回退上一账号残留缓存。
-      if (!await hasSessionToken(ref.read(tokenStorageProvider))) {
-        if (!silent && mounted && generation == _loadGeneration) {
-          setState(() => _conversations = AsyncValue.error(e, st));
-        }
-        return;
-      }
+      if (!current() || _loadDirty) return;
+      final parsed = parsePageProps<MessagesPageProps>(payload);
+      if (parsed == null) throw const FormatException('messages props');
+      networkShown = true;
+      final items = parsed.conversations;
+      setState(() {
+        _fromCache = false;
+        _conversations = AsyncValue.data(items);
+        _serverConversationsResolved = true;
+        _suggestedUsers = parsed.suggestedUsers;
+        _viewerAvatar = resolveApiAssetUrl(payload.layout.viewer.avatarUrl);
+        _viewerUsername = payload.layout.viewer.username;
+        _targetConversation = _targetConversationFor(items);
+      });
       try {
-        final cached = await ref
-            .read(offlineChatCacheProvider)
-            .getConversations();
-        // 读缓存期间会话可能已切换,再次校验世代再更新 UI。
-        if (!mounted ||
-            epoch != ref.read(offlineCacheEpochProvider) ||
-            generation != _loadGeneration) {
-          return;
-        }
-        if (cached.isNotEmpty) {
+        if (current()) await cache.putConversations(items);
+      } catch (_) {}
+    } catch (error, stack) {
+      if (!current() || _loadDirty) return;
+      if (revokesSnapshot(error)) {
+        // Revoke the visible snapshot immediately, even when disk cleanup fails.
+        if (mounted) {
           setState(() {
-            _conversations = AsyncValue.data(cached);
-            _targetConversation = _targetConversationFor(cached);
+            _fromCache = false;
+            _snapshotTime = null;
+            _conversations = AsyncValue.error(error, stack);
           });
-          return;
         }
-      } catch (_) {
-        // 缓存不可用时继续走错误态。
+        if (cache is DriftOfflineCache) {
+          try {
+            await cache.removeConversations();
+          } catch (_) {}
+        }
+        return;
       }
-      if (!silent && mounted && generation == _loadGeneration) {
-        setState(() => _conversations = AsyncValue.error(e, st));
+      await localRead;
+      if (!current()) return;
+      if (!_conversations.hasValue) {
+        setState(() => _conversations = AsyncValue.error(error, stack));
       }
     } finally {
-      _loadingRequest = false;
+      if (generation == _loadGeneration) {
+        _loadingRequest = false;
+        if (mounted) setState(() => _cacheRefreshing = false);
+      }
       if (identical(_loadCancel, cancel)) _loadCancel = null;
       if (_loadDirty &&
           mounted &&
+          !_cacheCleared &&
+          generation == _loadGeneration &&
           epoch == ref.read(offlineCacheEpochProvider)) {
         _loadDirty = false;
         unawaited(_load(silent: true));
@@ -369,7 +404,11 @@ class _MessagesPageState extends ConsumerState<MessagesPage>
     final waitingForServer =
         _conversations.isLoading && drafts.items.isNotEmpty;
     final hasStatus =
-        drafts.error != null || _conversations.hasError || waitingForServer;
+        drafts.error != null ||
+        _conversations.hasError ||
+        waitingForServer ||
+        _fromCache ||
+        _cacheCleared;
     final items = [...?_conversations.valueOrNull];
     final peers = items.map((item) => item.peerId).toSet();
     final local = drafts.items.toList()
@@ -411,6 +450,13 @@ class _MessagesPageState extends ConsumerState<MessagesPage>
     return Column(
       children: [
         if (hasStatus) SizedBox(height: top),
+        if (_fromCache || _cacheCleared)
+          CacheSnapshotHint(
+            savedAt: _snapshotTime,
+            refreshing: _cacheRefreshing,
+            cleared: _cacheCleared,
+            onRetry: _load,
+          ),
         if (waitingForServer) const LinearProgressIndicator(),
         _ChatDraftStatus(drafts: drafts),
         if (_conversations.hasError && items.isNotEmpty)
@@ -430,6 +476,25 @@ class _MessagesPageState extends ConsumerState<MessagesPage>
   @override
   Widget build(BuildContext context) {
     final drafts = ref.watch(chatDraftsProvider);
+    ref.listen<int>(
+      cacheClearEpochProvider.select(
+        (epochs) => epochs[CacheCategory.chat] ?? 0,
+      ),
+      (_, _) {
+        _loadGeneration++;
+        _loadCancel?.cancel('chat cache cleared');
+        setState(() {
+          _loadingRequest = false;
+          _loadDirty = false;
+          _cacheCleared = true;
+          _cacheRefreshing = false;
+          _fromCache = false;
+          _serverConversationsResolved = false;
+          _conversations = const AsyncValue.data([]);
+          _suggestedUsers = const [];
+        });
+      },
+    );
     ref.listen(offlineCacheEpochProvider, (_, _) {
       _pollTimer?.cancel();
       _pollTimer = null;
@@ -528,6 +593,15 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
   int _nextBeforeId = 0;
   bool _pollingConfigured = false;
   int _seenRealtimeRevision = 0;
+  bool _cacheCleared = false;
+  bool _fromCache = false;
+  bool _cacheRefreshing = false;
+  DateTime? _snapshotTime;
+
+  /// An access denial that revoked the cached thread; surfaces as an error
+  /// instead of an empty conversation while a retry is available.
+  Object? _loadError;
+  int _loadGeneration = 0;
   bool _loadingRequest = false;
   bool _loadDirty = false;
   CancelToken? _loadCancel;
@@ -549,6 +623,8 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
       mounted && _sessionEpoch == ref.read(offlineCacheEpochProvider);
   bool get _canObserve =>
       _sessionCurrent &&
+      _historyReady &&
+      !_cacheCleared &&
       _foreground &&
       !shellDrawerOpen.value &&
       !_adjustingScroll &&
@@ -789,7 +865,9 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
   }
 
   Future<void> _load({bool silent = false}) async {
-    if (!_sessionCurrent) return;
+    if (!_sessionCurrent || (silent && _cacheCleared)) return;
+    _cacheCleared = false;
+    _loadError = null;
     if (_loadingRequest) {
       _loadDirty = true;
       return;
@@ -808,100 +886,144 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
       return;
     }
     _loadingRequest = true;
-    if (!silent && !_historyReady && mounted) {
-      setState(() => _loading = true);
+    setState(() {
+      _cacheRefreshing = true;
+      if (!silent && !_historyReady) _loading = true;
+    });
+    final epoch = ref.read(offlineCacheEpochProvider);
+    final generation = ++_loadGeneration;
+    final cache = captureChatCache(ref.read(offlineChatCacheProvider));
+    if (!cacheRequestCurrent(cache, CacheCategory.chat)) {
+      setState(() {
+        _loadingRequest = false;
+        _cacheRefreshing = false;
+        _cacheCleared = true;
+        _loading = false;
+        _historyReady = false;
+      });
+      return;
     }
-    // 记录发起时的缓存世代;401/登出/换账号后世代自增,返回时丢弃旧会话数据。
-    final int epoch = ref.read(offlineCacheEpochProvider);
+    final storage = ref.read(tokenStorageProvider);
+    final convId = _convId;
     final cancel = _loadCancel = CancelToken();
+    bool current() =>
+        _sessionCurrent &&
+        !cancel.isCancelled &&
+        generation == _loadGeneration &&
+        epoch == ref.read(offlineCacheEpochProvider) &&
+        cacheRequestCurrent(cache, CacheCategory.chat);
+    final initial = !_historyReady;
+    var networkShown = false;
+    final localRead = () async {
+      if (!initial || silent) return;
+      try {
+        if (cache is! DriftOfflineCache && !await hasSessionToken(storage)) {
+          return;
+        }
+        final cached = await cache.getMessages(convId);
+        if (!current() ||
+            networkShown ||
+            !(cache is DriftOfflineCache
+                ? cache.snapshotFound
+                : cached.isNotEmpty)) {
+          return;
+        }
+        setState(() {
+          _fromCache = true;
+          _snapshotTime = cache is DriftOfflineCache
+              ? cache.snapshotTime
+              : null;
+          _messages
+            ..clear()
+            ..addAll(cached);
+          _loading = false;
+          // Snapshot display grants neither send reconciliation nor read receipts.
+          _historyReady = false;
+        });
+        _scrollToBottom();
+      } catch (_) {}
+    }();
     try {
-      final bool initial = _latestId == 0;
-      final ChatMessagesResponse resp = await ref
+      final response = await ref
           .read(chatRepositoryProvider)
           .getMessages(
-            convId: _convId,
-            afterId: _latestId,
+            convId: convId,
+            afterId: initial ? 0 : _latestId,
             cancelToken: cancel,
           );
-      if (cancel.isCancelled) return;
-      final bool pinnedToBottom =
+      if (!current()) return;
+      networkShown = true;
+      final pinnedToBottom =
           !_scrollController.hasClients ||
           _scrollController.position.extentAfter < 80;
-      final Set<int> seenIds = _messages
-          .map((ChatMessagePayload message) => message.id)
-          .toSet();
-      final List<ChatMessagePayload> newMessages = resp.list
-          .where((ChatMessagePayload message) => seenIds.add(message.id))
+      final seenIds = initial
+          ? <int>{}
+          : _messages.map((message) => message.id).toSet();
+      final newMessages = response.list
+          .where((message) => seenIds.add(message.id))
           .toList();
-      if (mounted && epoch == ref.read(offlineCacheEpochProvider)) {
-        setState(() {
-          if (newMessages.isNotEmpty) {
-            _messages.addAll(newMessages);
-            _messages.sort((a, b) => a.id.compareTo(b.id));
-            if (!initial &&
-                (!pinnedToBottom || !_canObserve) &&
-                newMessages.any((m) => !m.isSelf && m.isRead == 0)) {
-              _unseenNewMessages = true;
-            }
-          }
-          if (resp.latestId > _latestId) _latestId = resp.latestId;
-          // Only server history establishes a safe lower bound for new sends.
-          // Cached history may omit a newer, identical self-authored message.
-          _historyReady = true;
-          // An afterId response describes its newer window, not the oldest
-          // loaded cursor. Preserve older history pagination across live pulls.
-          if (initial) {
-            _hasMoreBefore = resp.hasMoreBefore;
-            _nextBeforeId = resp.nextBeforeId;
-          }
-          _loading = false;
-        });
-        ref.read(chatOutboxProvider(widget.conv.peerId)).reconcile(_messages);
-        if (initial || pinnedToBottom) _scrollToBottom();
+      setState(() {
+        // The first server window replaces a snapshot, including deleted rows.
+        if (initial) _messages.clear();
+        _fromCache = false;
+        _messages.addAll(newMessages);
+        _messages.sort((a, b) => a.id.compareTo(b.id));
+        if (!initial &&
+            (!pinnedToBottom || !_canObserve) &&
+            newMessages.any((m) => !m.isSelf && m.isRead == 0)) {
+          _unseenNewMessages = true;
+        }
+        if (initial || response.latestId > _latestId) {
+          _latestId = response.latestId;
+        }
+        _historyReady = true;
+        if (initial) {
+          _hasMoreBefore = response.hasMoreBefore;
+          _nextBeforeId = response.nextBeforeId;
+        }
+        _loading = false;
+      });
+      ref.read(chatOutboxProvider(widget.conv.peerId)).reconcile(_messages);
+      if (initial || pinnedToBottom) _scrollToBottom();
+      if (newMessages.isNotEmpty && current()) {
+        try {
+          await cache.putMessages(convId, newMessages);
+        } catch (_) {}
       }
-      if (newMessages.isNotEmpty &&
-          epoch == ref.read(offlineCacheEpochProvider)) {
-        // 只持久化真正新增的消息，避免轮询重复写缓存和重复上报已读。
-        await ref
-            .read(offlineChatCacheProvider)
-            .putMessages(_convId, newMessages);
-      }
-    } catch (_) {
-      // 网络失败:回退离线缓存消息。
-      if (cancel.isCancelled) return;
-      if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) return;
-      // 无会话令牌(如 401 后进程被杀重启)时不得回退上一账号残留缓存。
-      if (!await hasSessionToken(ref.read(tokenStorageProvider))) {
-        if (mounted && (!silent || !_historyReady)) {
-          setState(() => _loading = false);
+    } catch (error) {
+      if (!current() || _loadDirty) return;
+      if (revokesSnapshot(error)) {
+        // Revoke the visible snapshot immediately, even when disk cleanup fails.
+        if (mounted) {
+          setState(() {
+            _fromCache = false;
+            _snapshotTime = null;
+            _loadError = error;
+            _messages.clear();
+            _loading = false;
+            _historyReady = false;
+          });
+        }
+        if (cache is DriftOfflineCache) {
+          try {
+            await cache.removeMessages(convId);
+          } catch (_) {}
         }
         return;
       }
-      try {
-        final cached = await ref
-            .read(offlineChatCacheProvider)
-            .getMessages(_convId);
-        // 读缓存期间会话可能已切换,再次校验世代再更新 UI。
-        if (epoch != ref.read(offlineCacheEpochProvider)) return;
-        if (cached.isNotEmpty) {
-          setState(() {
-            _messages
-              ..clear()
-              ..addAll(cached);
-            _loading = false;
-          });
-          return;
-        }
-      } catch (_) {
-        // 缓存不可用。
-      }
-      if (mounted && (!silent || !_historyReady)) {
-        setState(() => _loading = false);
-      }
+      await localRead;
+      if (current()) setState(() => _loading = false);
     } finally {
-      _loadingRequest = false;
+      if (generation == _loadGeneration) {
+        _loadingRequest = false;
+        if (mounted) setState(() => _cacheRefreshing = false);
+      }
       if (identical(_loadCancel, cancel)) _loadCancel = null;
-      if (_loadDirty && _sessionCurrent) {
+      if (_loadDirty &&
+          mounted &&
+          !_cacheCleared &&
+          generation == _loadGeneration &&
+          epoch == ref.read(offlineCacheEpochProvider)) {
         _loadDirty = false;
         unawaited(_load(silent: true));
       }
@@ -910,18 +1032,27 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
 
   Future<void> _loadOlder() async {
     if (!_sessionCurrent ||
+        !_historyReady ||
+        _cacheCleared ||
         _loadingOlder ||
         !_hasMoreBefore ||
         _nextBeforeId <= 0) {
       return;
     }
+    final clearEpoch =
+        ref.read(cacheClearEpochProvider)[CacheCategory.chat] ?? 0;
     final int epoch = ref.read(offlineCacheEpochProvider);
     setState(() => _loadingOlder = true);
     try {
       final ChatMessagesResponse resp = await ref
           .read(chatRepositoryProvider)
           .getMessages(convId: _convId, beforeId: _nextBeforeId);
-      if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) return;
+      if (!mounted ||
+          clearEpoch !=
+              (ref.read(cacheClearEpochProvider)[CacheCategory.chat] ?? 0) ||
+          epoch != ref.read(offlineCacheEpochProvider)) {
+        return;
+      }
       final previousExtent = _scrollController.hasClients
           ? _scrollController.position.maxScrollExtent
           : 0.0;
@@ -955,7 +1086,11 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
     } catch (_) {
       // 历史消息加载失败保持当前列表，允许下一次滚动重试。
     } finally {
-      if (mounted) setState(() => _loadingOlder = false);
+      if (mounted &&
+          clearEpoch ==
+              (ref.read(cacheClearEpochProvider)[CacheCategory.chat] ?? 0)) {
+        setState(() => _loadingOlder = false);
+      }
     }
   }
 
@@ -1092,20 +1227,24 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
         Offset.zero & overlay.size,
       ),
       items: [
-        PopupMenuItem(value: 'reply', child: Text(l10n.messageReply)),
+        if (_historyReady)
+          PopupMenuItem(value: 'reply', child: Text(l10n.messageReply)),
         PopupMenuItem(value: 'copy', child: Text(l10n.messagesCopyAll)),
-        PopupMenuItem(value: 'forward', child: Text(l10n.messageForward)),
-        PopupMenuItem(value: 'select', child: Text(l10n.messageSelect)),
-        if (canCollect)
+        if (_historyReady)
+          PopupMenuItem(value: 'forward', child: Text(l10n.messageForward)),
+        if (_historyReady)
+          PopupMenuItem(value: 'select', child: Text(l10n.messageSelect)),
+        if (_historyReady && canCollect)
           PopupMenuItem(
             value: 'collect',
             child: Text(StickerStrings(context).collect),
           ),
-        if (!message.isSelf)
+        if (_historyReady && !message.isSelf)
           PopupMenuItem(value: 'report', child: Text(l10n.messageReport)),
       ],
     );
     if (!mounted || !_sessionCurrent || action == null) return;
+    if (action != 'copy' && (!_historyReady || _cacheCleared)) return;
     switch (action) {
       case 'reply':
         _replyTo(message);
@@ -1175,6 +1314,7 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
   });
 
   Future<void> _forward(List<int> ids) async {
+    if (!_historyReady || _cacheCleared) return;
     if (!_sessionCurrent || _convId <= 0) return;
     _composerFocus.unfocus();
     await Navigator.of(context, rootNavigator: true).push(
@@ -1253,6 +1393,34 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<int>(
+      cacheClearEpochProvider.select(
+        (epochs) => epochs[CacheCategory.chat] ?? 0,
+      ),
+      (_, _) {
+        _loadGeneration++;
+        _loadCancel?.cancel('chat cache cleared');
+        _visibleReads.suspend();
+        setState(() {
+          _messages.clear();
+          _bubbleKeys.clear();
+          _cacheCleared = true;
+          _fromCache = false;
+          _cacheRefreshing = false;
+          _loadingRequest = false;
+          _loadDirty = false;
+          _loading = false;
+          _loadingOlder = false;
+          _historyReady = false;
+          _hasMoreBefore = false;
+          _latestId = 0;
+          _nextBeforeId = 0;
+          _unseenNewMessages = false;
+          _selecting = false;
+          _selectedMessages.clear();
+        });
+      },
+    );
     ref.listen(realtimeHealthyProvider, (_, healthy) {
       _syncPolling(
         _foreground &&
@@ -1373,6 +1541,13 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
         ),
         body: Column(
           children: <Widget>[
+            if (_fromCache || _cacheCleared)
+              CacheSnapshotHint(
+                savedAt: _snapshotTime,
+                refreshing: _cacheRefreshing,
+                cleared: _cacheCleared,
+                onRetry: _load,
+              ),
             Expanded(
               child: NotificationListener<Notification>(
                 onNotification: (notification) {
@@ -1398,17 +1573,25 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
                         child: _loading
                             ? const GfLoading()
                             : _messages.isEmpty && outbox.items.isEmpty
-                            ? _ChatEmptyState(
-                                title: l10n.messagesStartChat,
-                                description: l10n.messagesFirstMessageTo(
-                                  privateDisplayName(
-                                    context,
-                                    widget.conv.peerId,
-                                    widget.conv.peerUsername,
-                                    widget.conv.peerNickname,
-                                  ),
-                                ),
-                              )
+                            ? (_loadError != null
+                                  ? GfErrorRetry(
+                                      message: resolveErrorMessage(
+                                        l10n,
+                                        _loadError!,
+                                      ),
+                                      onRetry: _load,
+                                    )
+                                  : _ChatEmptyState(
+                                      title: l10n.messagesStartChat,
+                                      description: l10n.messagesFirstMessageTo(
+                                        privateDisplayName(
+                                          context,
+                                          widget.conv.peerId,
+                                          widget.conv.peerUsername,
+                                          widget.conv.peerNickname,
+                                        ),
+                                      ),
+                                    ))
                             : ListView.builder(
                                 controller: _scrollController,
                                 physics: const ChatViewportScrollPhysics(),
@@ -1657,7 +1840,10 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
                           ],
                         ),
                       ),
-                    if (!_historyReady && !_loading)
+                    if (!_historyReady &&
+                        !_loading &&
+                        !_fromCache &&
+                        !_cacheCleared)
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 12),
                         child: Row(
@@ -2355,10 +2541,7 @@ class _MessageRow extends ConsumerWidget {
     return ChatMessageRow(
       mine: message.isSelf,
       avatar: message.isSelf
-          ? GfAvatar(
-              src: resolveApiAssetUrl(viewerAvatar),
-              size: 32,
-            )
+          ? GfAvatar(src: resolveApiAssetUrl(viewerAvatar), size: 32)
           : _PeerAvatarButton(
               key: Key('chat-peer-avatar-${message.id}'),
               peerId: peerId,
