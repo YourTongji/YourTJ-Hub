@@ -280,7 +280,8 @@ show push as unavailable. Local dev APKs can use the same `prepare_push.py` inpu
 
 FCM is an optional transport inside JPush; it does not bypass a disabled server JPush channel.
 Keep Firebase Messaging auto initialization and Analytics collection disabled in the Android manifest:
-JPush requests the FCM token only after the existing push opt-in flow initializes the SDK.
+JPush requests the FCM token only after OS notification permission is granted and the existing
+consent-aware registration flow initializes the SDK.
 The settings screen continues to report a disabled server channel accurately on both Android and iOS.
 See [Firebase startup controls](https://firebase.google.com/docs/cloud-messaging/android/get-started#prevent-auto-initialization).
 

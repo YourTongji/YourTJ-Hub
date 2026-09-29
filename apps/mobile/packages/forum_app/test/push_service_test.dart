@@ -84,8 +84,10 @@ class Repository extends PushRepository {
   );
   Completer<bool>? pendingRegistration;
   Completer<void>? pendingSession;
+  int sessions = 0;
   @override
   Future<PushRepository> forSession() async {
+    sessions++;
     await pendingSession?.future;
     return this;
   }
@@ -441,6 +443,32 @@ void main() {
       expect(driver.requests, 0);
       expect(repo.reads, 0);
       expect(status(), PushChannelStatus.disabled);
+    },
+  );
+  test(
+    'Android route changes do not refresh before user data is available',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      driver.transport = 'jpush';
+      container.dispose();
+      user = null;
+      container = createContainer();
+      container.read(pushControllerProvider);
+      appRouter.go('/login');
+      await settle(firstFrame: true);
+      await settle();
+      final sessionsBeforeNavigation = repo.sessions;
+      appRouter.go('/');
+      await settle();
+      appRouter.go('/notifications');
+      await settle();
+      expect(repo.sessions, sessionsBeforeNavigation);
+      expect(driver.requests, 0);
+
+      user = const CurrentUser(id: 1, username: 'one');
+      container.invalidate(currentUserProvider);
+      await settle();
+      expect(driver.requests, 1);
     },
   );
   test('Android uses JPush registration, never FCM/APNs token', () async {

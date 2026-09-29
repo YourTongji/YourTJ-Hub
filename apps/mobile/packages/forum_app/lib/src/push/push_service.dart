@@ -151,6 +151,7 @@ class PushController extends Notifier<PushChannelStatus>
   }
 
   Future<void> _refreshAfterLoginRoute() async {
+    if (_disposed || ref.read(currentUserProvider).valueOrNull == null) return;
     final prefs = await SharedPreferences.getInstance();
     if (_disposed ||
         _permissionRequestAttempted ||
