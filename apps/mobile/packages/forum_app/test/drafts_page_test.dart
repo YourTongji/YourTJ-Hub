@@ -72,6 +72,8 @@ class _Content extends ContentRepository {
   final calls = <List<int>>[];
   String? contentType;
   bool fail = false;
+  bool requirePassword = false;
+  final passwords = <String?>[];
   List<ContentDeletionResult> results = const [
     ContentDeletionResult(contentId: 42, success: true),
   ];
@@ -86,6 +88,13 @@ class _Content extends ContentRepository {
   }) async {
     this.contentType = contentType;
     calls.add(ids);
+    passwords.add(password);
+    if (requirePassword && password == null) {
+      throw const ApiException(
+        messageCode: 'content.confirmRequired',
+        fallbackMessage: 'Confirm',
+      );
+    }
     if (fail) throw const NetworkException(fallbackMessage: 'offline');
     onDelete?.call();
     return pending == null ? results : pending!.future;
@@ -296,6 +305,43 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
     },
   );
+
+  testWidgets(
+    'cloud delete reauthenticates only after the server requests it',
+    (tester) async {
+      final pages = _Pages(_client);
+      final content = _Content()
+        ..requirePassword = true
+        ..onDelete = () => pages.count = 0;
+      await _mount(tester, WritingStore(), content: content, pages: pages);
+      await _confirmCloudDelete(tester);
+      await tester.pumpAndSettle();
+      final field = find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.byType(TextField),
+      );
+      expect(tester.widget<TextField>(field).obscureText, isTrue);
+      await tester.enterText(field, ' fixture password ');
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pumpAndSettle();
+      expect(content.passwords, [null, ' fixture password ']);
+      expect(find.byKey(const ValueKey('cloud-42')), findsNothing);
+      await tester.pumpWidget(const SizedBox.shrink());
+    },
+  );
+  testWidgets('cancelled cloud reauthentication retains the draft', (
+    tester,
+  ) async {
+    final content = _Content()..requirePassword = true;
+    await _mount(tester, WritingStore(), content: content);
+    await _confirmCloudDelete(tester);
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(TextButton, '取消'));
+    await tester.pumpAndSettle();
+    expect(content.passwords, [null]);
+    expect(find.byKey(const ValueKey('cloud-42')), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
   for (final failure in ['network', 'item', 'missing', 'wrong-id']) {
     testWidgets('cloud $failure failure keeps the row and device copy', (
       tester,

@@ -13,6 +13,7 @@ import '../../server_messages.dart';
 import '../../widgets/status_views.dart';
 import '../../widgets/compose_menu.dart';
 import '../publish/publish_type.dart';
+import '../content/content_password_dialog.dart';
 
 enum _DraftFilter { all, local, cloud, replies }
 
@@ -270,9 +271,29 @@ class _DraftsPageState extends ConsumerState<DraftsPage> {
     });
     var deleted = false;
     try {
-      final results = await ref
-          .read(contentRepositoryProvider)
-          .delete(contentType: 'topic', ids: [draft.id]);
+      final repository = ref.read(contentRepositoryProvider);
+      List<ContentDeletionResult> results;
+      try {
+        results = await repository.delete(
+          contentType: 'topic',
+          ids: [draft.id],
+        );
+      } on ApiException catch (error) {
+        if (error.messageCode != 'content.confirmRequired') rethrow;
+        if (!mounted || !session.isCurrent(epoch)) return;
+        final password = await showContentPasswordDialog(context);
+        if (!mounted ||
+            !session.isCurrent(epoch) ||
+            password == null ||
+            password.isEmpty) {
+          return;
+        }
+        results = await repository.delete(
+          contentType: 'topic',
+          ids: [draft.id],
+          password: password,
+        );
+      }
       if (!mounted || !session.isCurrent(epoch)) return;
       // A successful HTTP response can still contain a failed (or missing) item.
       final matching = results.where((result) => result.contentId == draft.id);

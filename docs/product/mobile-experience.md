@@ -604,7 +604,9 @@ identity survive this layout change. The header keeps a small outer margin for i
   show labeled delete actions beside Continue editing. Cloud deletion uses the existing topic content
   lifecycle: confirmation moves the exact server ID to the recycle bin and preserves every local
   recovery copy, including copies associated with that ID. Only a matching successful per-item result
-  removes the row; network, missing-result and item failures retain it. Success offers a direct recycle-bin
+  removes the row; network, missing-result and item failures retain it. The server deletion-rate guard
+  can request password confirmation using the same protected dialog as content management; cancellation
+  keeps the draft. Success offers a direct recycle-bin
   action and refreshes the cloud window. In-flight deletion disables repeat actions, rejects stale
   list reads and rejects confirmation/results after account or site changes. The latest local deletion
   can be undone from a persistent action while the drafts page stays
