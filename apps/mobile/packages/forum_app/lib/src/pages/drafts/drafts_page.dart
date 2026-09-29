@@ -279,7 +279,7 @@ class _DraftsPageState extends ConsumerState<DraftsPage> {
           ids: [draft.id],
         );
       } on ApiException catch (error) {
-        if (error.messageCode != 'content.confirmRequired') rethrow;
+        if (error.messageCode != 'content.batchDelete.confirmRequired') rethrow;
         if (!mounted || !session.isCurrent(epoch)) return;
         final password = await showContentPasswordDialog(context);
         if (!mounted ||

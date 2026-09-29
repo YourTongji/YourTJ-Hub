@@ -113,7 +113,7 @@ class _ContentPageState extends ConsumerState<ContentPage> {
       try {
         await action(null);
       } on ApiException catch (error) {
-        if (!error.messageKey.contains('confirmRequired')) rethrow;
+        if (error.messageCode != 'content.batchDelete.confirmRequired') rethrow;
         if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) return;
         final password = await showContentPasswordDialog(context);
         if (!mounted ||
