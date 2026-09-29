@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:forum_app/src/offline/drift_cache.dart';
@@ -223,6 +225,83 @@ void main() {
       expect((await coordinator.resume()).succeeded, isTrue);
       expect(holds, 1);
       expect(releases, 1);
+    },
+  );
+
+  test('identical concurrent cleanup shares the in-flight operation', () async {
+    final db = AppDatabase(NativeDatabase.memory());
+    addTearDown(db.close);
+    final entered = Completer<void>();
+    final release = Completer<void>();
+    var clears = 0;
+    final coordinator = CacheCoordinator(
+      database: db,
+      databaseBytes: () async => 0,
+      onInvalidated: (_) {},
+      owners: {
+        CacheCategory.media: CacheOwner(
+          invalidate: () {},
+          clear: () async {
+            clears++;
+            entered.complete();
+            await release.future;
+          },
+          bytes: () async => 0,
+        ),
+      },
+    );
+
+    final first = coordinator.clear({CacheCategory.forum, CacheCategory.media});
+    await entered.future;
+    final second = coordinator.clear({
+      CacheCategory.forum,
+      CacheCategory.media,
+    });
+
+    expect(identical(second, first), isTrue);
+    release.complete();
+    final results = await Future.wait([first, second]);
+    expect(results.every((result) => result.succeeded), isTrue);
+    expect(clears, 1);
+  });
+
+  test(
+    'concurrent cleanup for another category waits and runs afterward',
+    () async {
+      final db = AppDatabase(NativeDatabase.memory());
+      addTearDown(db.close);
+      await db.customStatement(
+        "INSERT INTO cache_entries VALUES ('s','forum','a','{}',0,0,2,1)",
+      );
+      final entered = Completer<void>();
+      final release = Completer<void>();
+      final coordinator = CacheCoordinator(
+        database: db,
+        databaseBytes: () async => 0,
+        onInvalidated: (_) {},
+        owners: {
+          CacheCategory.media: CacheOwner(
+            invalidate: () {},
+            clear: () async {
+              entered.complete();
+              await release.future;
+            },
+            bytes: () async => 0,
+          ),
+        },
+      );
+
+      final first = coordinator.clear({CacheCategory.media});
+      await entered.future;
+      final second = coordinator.clear({CacheCategory.forum});
+      release.complete();
+
+      final results = await Future.wait([first, second]);
+      expect(results.every((result) => result.succeeded), isTrue);
+      expect(
+        await db.customSelect('SELECT * FROM cache_entries').get(),
+        isEmpty,
+      );
     },
   );
 }
