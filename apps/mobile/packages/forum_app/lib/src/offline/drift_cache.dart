@@ -2,10 +2,23 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:core/core.dart';
+import 'package:dio/dio.dart';
 import 'package:drift/drift.dart';
 import '../storage/private_database.dart';
 
 import 'cache_schema.dart';
+
+/// A server answer that denies, deletes or revokes access to a resource must
+/// revoke its visible snapshot and disk copy instead of falling back to it.
+/// 401 additionally triggers the global session invalidation.
+bool revokesSnapshot(Object error) {
+  final status = switch (error) {
+    ApiException(statusCode: final status) => status,
+    DioException(:final response?) => response.statusCode,
+    _ => null,
+  };
+  return status == 401 || status == 403 || status == 404 || status == 410;
+}
 
 abstract class OfflineTopicCache {
   Future<void> put(int topicId, Map<String, dynamic> payload);
@@ -178,8 +191,10 @@ class AppDatabase extends GeneratedDatabase {
 
   Future<void> purgePrivateScopes() => serial(
     () => transaction(() async {
+      // Null-safe and fail-closed: a scope that is not a JSON array with a
+      // numeric account cannot prove it belongs to a guest, so it is removed.
       await customStatement(
-        r"DELETE FROM cache_entries WHERE json_extract(scope, '$[1]') != 0",
+        r"DELETE FROM cache_entries WHERE json_valid(scope) IS NOT 1 OR json_extract(scope, '$[1]') IS NOT 0",
       );
       await customStatement('DELETE FROM campus_snapshots');
     }),
@@ -402,6 +417,47 @@ class DriftOfflineCache
     await _db.serial(() async {
       if (isCurrent(CacheCategory.forum)) {
         await _remove(scope, CacheCategory.forum, 'topic:$topicId');
+      }
+    });
+  }
+
+  /// Access denial on the home feed revokes every sort of the owner scope the
+  /// page addressed. A resolver mismatch removes nothing, like reads and writes.
+  Future<void> removeHome({
+    required int accountId,
+    required String baseUrl,
+  }) async {
+    final scope = await _homeScope(accountId, baseUrl);
+    if (scope == null) return;
+    await _db.serial(() async {
+      if (!isCurrent(CacheCategory.forum)) return;
+      await _db.customStatement(
+        "DELETE FROM cache_entries WHERE scope = ? AND domain = 'forum' AND entry_key LIKE 'home:%'",
+        [scope],
+      );
+    });
+  }
+
+  /// Access denial on the conversation list revokes the snapshot and every
+  /// cached message thread of the resolved scope.
+  Future<void> removeConversations() async {
+    final scope = (await _scope()).key;
+    await _db.serial(() async {
+      if (!isCurrent(CacheCategory.chat)) return;
+      await _remove(scope, CacheCategory.chat, 'conversations');
+      await _db.customStatement(
+        "DELETE FROM cache_entries WHERE scope = ? AND domain = 'chat' AND entry_key LIKE 'messages:%'",
+        [scope],
+      );
+    });
+  }
+
+  /// Access denial inside one conversation revokes only that thread.
+  Future<void> removeMessages(int convId) async {
+    final scope = (await _scope()).key;
+    await _db.serial(() async {
+      if (isCurrent(CacheCategory.chat)) {
+        await _remove(scope, CacheCategory.chat, 'messages:$convId');
       }
     });
   }

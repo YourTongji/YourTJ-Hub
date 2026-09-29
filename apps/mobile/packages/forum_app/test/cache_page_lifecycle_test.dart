@@ -336,6 +336,136 @@ void main() {
       },
     );
   }
+  for (final status in [403, 404, 410]) {
+    testWidgets(
+      'home $status removes the snapshot instead of retaining stale access',
+      (tester) async {
+        final database = AppDatabase(NativeDatabase.memory());
+        addTearDown(database.close);
+        final cache = DriftOfflineCache(database);
+        await tester.runAsync(
+          () => cache.putHomePage(
+            accountId: 1,
+            baseUrl: GfApiClient.defaultBaseUrl,
+            sort: '',
+            payload: PagePayload.fromJson(homePayloadJson()),
+          ),
+        );
+        final app = await pump(
+          tester,
+          const HomePage(),
+          overrides: [offlineTopicCacheProvider.overrideWithValue(cache)],
+        );
+        await tester.runAsync(() async {
+          await Future<void>.delayed(const Duration(milliseconds: 20));
+        });
+        await tester.pump();
+        expect(find.textContaining('Local copy'), findsOneWidget);
+        app.pages.response.completeError(
+          ApiException(fallbackMessage: 'Access denied', statusCode: status),
+        );
+        await tester.pumpAndSettle();
+        await tester.runAsync(() async {
+          await Future<void>.delayed(const Duration(milliseconds: 20));
+        });
+        await tester.pumpAndSettle();
+        expect(find.textContaining('Local copy'), findsNothing);
+        expect(find.byType(GfErrorRetry), findsOneWidget);
+        expect(
+          await tester.runAsync(
+            () => cache.getHomePage(
+              accountId: 1,
+              baseUrl: GfApiClient.defaultBaseUrl,
+              sort: '',
+            ),
+          ),
+          isNull,
+        );
+        await tester.pumpWidget(const SizedBox());
+        await tester.pump(const Duration(seconds: 1));
+      },
+    );
+  }
+  testWidgets(
+    'messages 403 removes the snapshot instead of retaining stale access',
+    (tester) async {
+      final database = AppDatabase(NativeDatabase.memory());
+      addTearDown(database.close);
+      final cache = DriftOfflineCache(database);
+      await tester.runAsync(() async {
+        await cache.putConversations(
+          parsePageProps<MessagesPageProps>(
+            parsePayload(messagesPayloadJson()),
+          )!.conversations,
+        );
+      });
+      final app = await pump(
+        tester,
+        const MessagesPage(),
+        overrides: [offlineChatCacheProvider.overrideWithValue(cache)],
+      );
+      await tester.runAsync(() async {
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+      });
+      await tester.pump();
+      expect(find.textContaining('Local copy'), findsOneWidget);
+      app.pages.response.completeError(
+        const ApiException(fallbackMessage: 'Access denied', statusCode: 403),
+      );
+      await tester.pumpAndSettle();
+      await tester.runAsync(() async {
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+      });
+      await tester.pumpAndSettle();
+      expect(find.textContaining('Local copy'), findsNothing);
+      expect(find.byType(GfErrorRetry), findsOneWidget);
+      expect(
+        await tester.runAsync(() => cache.getConversations()),
+        isEmpty,
+      );
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump(const Duration(seconds: 1));
+    },
+  );
+  testWidgets(
+    'conversation 403 removes the cached thread instead of retaining stale access',
+    (tester) async {
+      final database = AppDatabase(NativeDatabase.memory());
+      addTearDown(database.close);
+      final cache = DriftOfflineCache(database);
+      await tester.runAsync(() => cache.putMessages(1, [makeChatMessage(9)]));
+      final tokens = MemTokenStorage();
+      await tokens.write('token');
+      final client = GfApiClient(dio: Dio(), tokenStorage: tokens, baseUrl: 'http://fake');
+      final chat = _DelayedChat(client);
+      await pump(
+        tester,
+        const MessagesPage(targetUserId: 2),
+        overrides: [
+          pageRepositoryProvider.overrideWithValue(CountingPageRepository(client)),
+          chatRepositoryProvider.overrideWithValue(chat),
+          offlineChatCacheProvider.overrideWithValue(cache),
+        ],
+      );
+      await tester.pump(const Duration(seconds: 1));
+      expect(find.text('消息 9'), findsOneWidget);
+      expect(find.textContaining('Local copy'), findsOneWidget);
+      chat.response.completeError(
+        const ApiException(fallbackMessage: 'Access denied', statusCode: 403),
+      );
+      await tester.pumpAndSettle();
+      await tester.runAsync(() async {
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+      });
+      await tester.pumpAndSettle();
+      expect(find.text('消息 9'), findsNothing);
+      expect(find.textContaining('Local copy'), findsNothing);
+      expect(find.byType(GfErrorRetry), findsOneWidget);
+      expect(await tester.runAsync(() => cache.getMessages(1)), isEmpty);
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump(const Duration(seconds: 1));
+    },
+  );
   testWidgets(
     'access denial hides a topic even when removing the disk snapshot fails',
     (tester) async {

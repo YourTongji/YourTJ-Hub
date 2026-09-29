@@ -405,6 +405,24 @@ class _HomePageState extends ConsumerState<HomePage> {
           epoch != ref.read(offlineCacheEpochProvider)) {
         return;
       }
+      if (revokesSnapshot(e)) {
+        // Revoke the visible snapshot immediately, even when disk cleanup fails.
+        setState(() {
+          feed.cached = false;
+          feed.snapshotTime = null;
+          feed.page = AsyncValue.error(e, st);
+          feed.topics.clear();
+        });
+        if (cache is DriftOfflineCache) {
+          try {
+            final scope = await cacheScopeFuture;
+            if (scope != null) {
+              await cache.removeHome(accountId: scope.$1, baseUrl: scope.$2);
+            }
+          } catch (_) {}
+        }
+        return;
+      }
       if ((silent || cachedPageShown) && feed.page.hasValue) {
         showGfToast(
           context,

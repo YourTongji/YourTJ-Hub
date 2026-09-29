@@ -271,6 +271,22 @@ class _MessagesPageState extends ConsumerState<MessagesPage>
       } catch (_) {}
     } catch (error, stack) {
       if (!current() || _loadDirty) return;
+      if (revokesSnapshot(error)) {
+        // Revoke the visible snapshot immediately, even when disk cleanup fails.
+        if (mounted) {
+          setState(() {
+            _fromCache = false;
+            _snapshotTime = null;
+            _conversations = AsyncValue.error(error, stack);
+          });
+        }
+        if (cache is DriftOfflineCache) {
+          try {
+            await cache.removeConversations();
+          } catch (_) {}
+        }
+        return;
+      }
       await localRead;
       if (!current()) return;
       if (!_conversations.hasValue) {
@@ -581,6 +597,10 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
   bool _fromCache = false;
   bool _cacheRefreshing = false;
   DateTime? _snapshotTime;
+
+  /// An access denial that revoked the cached thread; surfaces as an error
+  /// instead of an empty conversation while a retry is available.
+  Object? _loadError;
   int _loadGeneration = 0;
   bool _loadingRequest = false;
   bool _loadDirty = false;
@@ -847,6 +867,7 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
   Future<void> _load({bool silent = false}) async {
     if (!_sessionCurrent || (silent && _cacheCleared)) return;
     _cacheCleared = false;
+    _loadError = null;
     if (_loadingRequest) {
       _loadDirty = true;
       return;
@@ -969,8 +990,27 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
           await cache.putMessages(convId, newMessages);
         } catch (_) {}
       }
-    } catch (_) {
-      if (!current()) return;
+    } catch (error) {
+      if (!current() || _loadDirty) return;
+      if (revokesSnapshot(error)) {
+        // Revoke the visible snapshot immediately, even when disk cleanup fails.
+        if (mounted) {
+          setState(() {
+            _fromCache = false;
+            _snapshotTime = null;
+            _loadError = error;
+            _messages.clear();
+            _loading = false;
+            _historyReady = false;
+          });
+        }
+        if (cache is DriftOfflineCache) {
+          try {
+            await cache.removeMessages(convId);
+          } catch (_) {}
+        }
+        return;
+      }
       await localRead;
       if (current()) setState(() => _loading = false);
     } finally {
@@ -1533,17 +1573,25 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
                         child: _loading
                             ? const GfLoading()
                             : _messages.isEmpty && outbox.items.isEmpty
-                            ? _ChatEmptyState(
-                                title: l10n.messagesStartChat,
-                                description: l10n.messagesFirstMessageTo(
-                                  privateDisplayName(
-                                    context,
-                                    widget.conv.peerId,
-                                    widget.conv.peerUsername,
-                                    widget.conv.peerNickname,
-                                  ),
-                                ),
-                              )
+                            ? (_loadError != null
+                                  ? GfErrorRetry(
+                                      message: resolveErrorMessage(
+                                        l10n,
+                                        _loadError!,
+                                      ),
+                                      onRetry: _load,
+                                    )
+                                  : _ChatEmptyState(
+                                      title: l10n.messagesStartChat,
+                                      description: l10n.messagesFirstMessageTo(
+                                        privateDisplayName(
+                                          context,
+                                          widget.conv.peerId,
+                                          widget.conv.peerUsername,
+                                          widget.conv.peerNickname,
+                                        ),
+                                      ),
+                                    ))
                             : ListView.builder(
                                 controller: _scrollController,
                                 physics: const ChatViewportScrollPhysics(),

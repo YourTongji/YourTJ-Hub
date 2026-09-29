@@ -95,6 +95,62 @@ void lifecycleCases() {
   });
 
   test(
+    'boot purge keeps guest rows and removes every private or unknown scope',
+    () async {
+      // The purge SQL reads accountId from the JSON scope array; pin the shape.
+      expect(
+        CacheScope('https://dev.example', 7).key,
+        jsonEncode(['https://dev.example', 7, 'zh']),
+      );
+      expect(
+        CacheScope('https://dev.example', 7, language: 'en').key,
+        jsonEncode(['https://dev.example', 7, 'en']),
+      );
+      final guest = scoped(user: 0);
+      final topic = topicDetailPayloadJson();
+      (topic['props'] as Map)['topic']['topicStatus'] = 1;
+      await guest.putConversations([conversation(1)]);
+      await guest.putMessages(1, [message(1)]);
+      await guest.put(100, topic);
+      await scoped().putConversations([conversation(2)]);
+      await scoped(site: 'https://prod.example').putConversations([
+        conversation(3),
+      ]);
+      await db.customStatement(
+        "INSERT INTO cache_entries VALUES ('not-json','forum','topic:9','{}',0,0,2,1)",
+      );
+      await db.customStatement(
+        "INSERT INTO campus_snapshots VALUES ('https://dev.example',7,'binding',1,'campus','now')",
+      );
+
+      await db.purgePrivateScopes();
+
+      expect(await scoped(user: 0).getConversations(), hasLength(1));
+      expect(await scoped(user: 0).getMessages(1), hasLength(1));
+      expect(await scoped(user: 0).get(100), isNotNull);
+      expect(await scoped().getConversations(), isEmpty);
+      expect(
+        await scoped(site: 'https://prod.example').getConversations(),
+        isEmpty,
+      );
+      expect(
+        await db
+            .customSelect('SELECT COUNT(*) AS n FROM cache_entries')
+            .getSingle()
+            .then((row) => row.read<int>('n')),
+        3,
+      );
+      expect(
+        await db
+            .customSelect('SELECT COUNT(*) AS n FROM campus_snapshots')
+            .getSingle()
+            .then((row) => row.read<int>('n')),
+        0,
+      );
+    },
+  );
+
+  test(
     'clear fences requests started earlier while new requests may write',
     () async {
       final request = scoped().capture();

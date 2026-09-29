@@ -9,7 +9,6 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import 'package:dio/dio.dart';
 import '../../offline/drift_cache.dart';
 import '../../widgets/cache_snapshot_hint.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -482,12 +481,7 @@ class _TopicPageState extends ConsumerState<TopicPage>
       }
     } catch (error, stack) {
       if (!current()) return;
-      final status = error is ApiException
-          ? error.statusCode
-          : error is DioException
-          ? error.response?.statusCode
-          : null;
-      if (status == 401 || status == 403 || status == 404 || status == 410) {
+      if (revokesSnapshot(error)) {
         networkShown = true;
         // Revoke the visible snapshot immediately, even when disk cleanup fails.
         setState(() {
