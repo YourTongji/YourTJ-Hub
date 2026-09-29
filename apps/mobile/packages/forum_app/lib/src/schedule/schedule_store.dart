@@ -17,6 +17,10 @@ import 'dart:math';
 import 'package:core/core.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/foundation.dart';
+import '../providers.dart';
+import '../local/writing_store.dart';
+import '../storage/user_work_database.dart';
 
 /// 配置区折叠记忆键（web CONFIG_COLLAPSED_STORAGE_KEY，原始 '1'/'0'）。
 const String kScheduleConfigCollapsedKey = 'goose:scheduleConfigCollapsed';
@@ -142,38 +146,51 @@ String _fallbackPlanName(int index) => '方案 $index';
 
 /// 排课器 Notifier。
 ///
-/// 使用方先调用 [initialize]（绑定方案名文案并异步从 SharedPreferences
+/// 使用方先调用 [initialize]（绑定方案名文案并异步从事务数据库
 /// 恢复），再 await [ready]；测试可在构造时注入 [planNameOf] 后直接 await
 /// [ready]。持久化写入排入内部队列，[flush] 等待全部落盘（测试确定性用）。
 class ScheduleStoreNotifier extends StateNotifier<ScheduleState> {
-  ScheduleStoreNotifier({String Function(int index)? planNameOf})
-    : _planNameOf = planNameOf ?? _fallbackPlanName,
-      super(
-        ScheduleState(
-          majorSelected: PkMajorSelection(),
-          plans: <PkPlan>[],
-          activePlanId: '',
-          weekView: PkWeekView(),
-          isConfigCollapsed: false,
-          updateTime: '',
-          latestUpdateTime: '',
-          occupied: createEmptyOccupied(),
-          grid: _emptyGrid(),
-          stats: const ScheduleStats(
-            courseCount: 0,
-            totalCredit: 0,
-            totalHours: 0,
-            conflictCount: 0,
-          ),
-        ),
-      ) {
+  ScheduleStoreNotifier({
+    String Function(int index)? planNameOf,
+    UserWorkDatabase? database,
+    this.site = 'https://local.invalid',
+  }) : _database = database ?? UserWorkDatabase.instance,
+       _databaseGeneration = (database ?? UserWorkDatabase.instance).generation,
+       _planNameOf = planNameOf ?? _fallbackPlanName,
+       super(
+         ScheduleState(
+           majorSelected: PkMajorSelection(),
+           plans: <PkPlan>[],
+           activePlanId: '',
+           weekView: PkWeekView(),
+           isConfigCollapsed: false,
+           updateTime: '',
+           latestUpdateTime: '',
+           occupied: createEmptyOccupied(),
+           grid: _emptyGrid(),
+           stats: const ScheduleStats(
+             courseCount: 0,
+             totalCredit: 0,
+             totalHours: 0,
+             conflictCount: 0,
+           ),
+         ),
+       ) {
     _initial = _initialize();
   }
 
   String Function(int index) _planNameOf;
   SharedPreferences? _prefs;
+  final UserWorkDatabase _database;
+  final int _databaseGeneration;
+  final String site;
+  int _owner = 0;
+  String get _scope => writingScope(site, _owner);
+  Map<String, String> _values = {};
+  bool _loaded = false;
+  final persistenceError = ValueNotifier<Object?>(null);
   late final Future<void> _initial;
-  Future<void> _writeQueue = Future<void>.value();
+  Future<void>? _writeQueue;
 
   bool _applyingRemote = false;
   String _syncedAt = '';
@@ -185,7 +202,7 @@ class ScheduleStoreNotifier extends StateNotifier<ScheduleState> {
   Future<void> get ready => _initial;
 
   /// 等待全部持久化写入完成（测试确定性）。
-  Future<void> get flush => _writeQueue;
+  Future<void> get flush => _writeQueue ?? Future.value();
 
   /// 更换方案默认名文案生成器（页面在首次渲染前绑定 l10n）。
   void setPlanNaming(String Function(int index) planNameOf) {
@@ -195,51 +212,190 @@ class ScheduleStoreNotifier extends StateNotifier<ScheduleState> {
   Future<void> _initialize() async {
     try {
       _prefs = await SharedPreferences.getInstance();
-    } catch (_) {
-      _prefs = null; // 存储不可用：保持内存态，写入静默跳过。
+      _values = await _database.readDomain(_scope, 'schedule');
+      _loaded = true;
+    } catch (error) {
+      // Keep durable data untouched when its store cannot be read.
+      if (mounted) persistenceError.value = error;
     }
-    _loadFrom(_prefs);
-    final String? syncedRaw = _prefs?.getString(ScheduleStorageKeys.syncedAt);
-    if (syncedRaw != null && syncedRaw.isNotEmpty) _syncedAt = syncedRaw;
-    _syncDirty = _prefs?.getString('pk.syncDirty') == '1';
+    _restoreValues();
+  }
+
+  void _restoreValues() {
+    if (!mounted) return;
+    _loadFrom({
+      ..._values,
+      if (_prefs?.getString(kScheduleConfigCollapsedKey)
+          case final String value)
+        kScheduleConfigCollapsedKey: value,
+    });
+    _syncedAt = _values[ScheduleStorageKeys.syncedAt] ?? '';
+    _syncDirty = _values['pk.syncDirty'] == '1';
     _rebuild();
   }
 
-  // ---- 持久化 ----
+  Map<String, String> _snapshotValues() => {
+    ..._values,
+    ScheduleStorageKeys.plans: jsonEncode(
+      state.plans.map((p) => p.toJson()).toList(),
+    ),
+    ScheduleStorageKeys.activePlanId: jsonEncode(state.activePlanId),
+    ScheduleStorageKeys.majorSelected: jsonEncode(state.majorSelected.toJson()),
+    ScheduleStorageKeys.weekView: jsonEncode({
+      'week': state.weekView.week,
+      'useCurrent': state.weekView.useCurrent,
+    }),
+    ScheduleStorageKeys.updateTime: jsonEncode(state.updateTime),
+  };
 
-  void _persist(String key, String value) {
-    final SharedPreferences? prefs = _prefs;
-    if (prefs == null) return;
-    _writeQueue = _writeQueue.then((_) async {
+  Future<void> _enqueue(Future<void> Function() action) {
+    final next =
+        _writeQueue?.then((_) => action()) ?? Future<void>.sync(action);
+    late final Future<void> completion;
+    completion = next.whenComplete(() {
+      if (identical(_writeQueue, completion)) _writeQueue = null;
+    });
+    _writeQueue = completion;
+    return completion;
+  }
+
+  Future<bool> _saveValues(
+    Map<String, String> values, {
+    String? scope,
+    bool Function()? canWrite,
+  }) {
+    final target = scope ?? _scope;
+    final copy = Map<String, String>.of(values);
+    var saved = false;
+    final pending = _enqueue(() async {
       try {
-        await prefs.setString(key, value);
-      } catch (_) {
-        // localStorage 不可用时的静默降级（web 同款）。
+        if (!_loaded) throw StateError('Local work is unavailable');
+        await _database.writeBatch(
+          target,
+          'schedule',
+          copy,
+          generation: _databaseGeneration,
+          isCurrent: canWrite,
+        );
+        saved = true;
+        if (mounted) persistenceError.value = null;
+      } catch (error) {
+        if (mounted) persistenceError.value = error;
       }
     });
+    return pending.then((_) => saved);
+  }
+
+  void _persist(String key, String value) {
+    if (key == kScheduleConfigCollapsedKey) {
+      unawaited(
+        _enqueue(() async {
+          try {
+            if (!await (_prefs?.setString(key, value) ?? Future.value(false))) {
+              throw StateError('Preference could not be saved');
+            }
+          } catch (error) {
+            if (mounted) persistenceError.value = error;
+          }
+        }),
+      );
+      return;
+    }
+    _values[key] = value;
+    _values = _snapshotValues();
+    unawaited(_saveValues(_values));
   }
 
   void _persistPlanData() {
-    _persist(
-      ScheduleStorageKeys.plans,
-      jsonEncode(state.plans.map((p) => p.toJson()).toList()),
-    );
-    _persist(ScheduleStorageKeys.activePlanId, jsonEncode(state.activePlanId));
-    // 云端同步钩子：本地变更（非整包采用路径）→ dirty + 防抖上行。
-    if (!_applyingRemote) {
-      scheduleLocalPlansChanged?.call();
+    _values = _snapshotValues();
+    unawaited(_saveValues(_values));
+    if (!_applyingRemote) scheduleLocalPlansChanged?.call();
+  }
+
+  /// Switch only among origin/account namespaces. Legacy plans without an
+  /// origin remain quarantined and require a separate explicit recovery flow.
+  Future<bool> activateOwner(int owner, {bool Function()? canWrite}) async {
+    await ready;
+    await flush;
+    if (canWrite != null && !canWrite()) return false;
+    if (_owner == owner) return _loaded;
+    try {
+      final values = await _database.readDomain(
+        writingScope(site, owner),
+        'schedule',
+      );
+      if (canWrite != null && !canWrite()) return false;
+      // A new account may explicitly adopt current site's guest work.
+      if (values.isEmpty && _owner == 0) return _loaded;
+      _owner = owner;
+      _values = values;
+      _loaded = true;
+      _restoreValues();
+      return true;
+    } catch (error) {
+      if (mounted) persistenceError.value = error;
+      return false;
     }
+  }
+
+  Future<Map<String, String>> readRecoveryArchive({int? owner}) => _database
+      .readDomain(writingScope(site, owner ?? _owner), 'schedule-recovery');
+
+  Future<Map<String, String>> readUnassignedLegacyPlans() =>
+      _database.readDomain('legacy-unassigned', 'schedule-legacy');
+
+  bool get storageReady => _loaded;
+  Future<void> retryPersistence() async {
+    if (!_loaded) {
+      await _initialize();
+      return;
+    }
+    await _saveValues(_snapshotValues());
+  }
+
+  Future<bool> restoreUnassignedLegacyPlans({
+    required int owner,
+    bool Function()? canWrite,
+  }) async {
+    await ready;
+    await flush;
+    if (!_loaded || (canWrite != null && !canWrite())) return false;
+    try {
+      await _database.recoverLegacySchedule(
+        writingScope(site, owner),
+        owner,
+        generation: _databaseGeneration,
+        isCurrent: canWrite,
+      );
+      final values = await _database.readDomain(
+        writingScope(site, owner),
+        'schedule',
+      );
+      if (canWrite != null && !canWrite()) return false;
+      _owner = owner;
+      _values = values;
+      _restoreValues();
+      return true;
+    } catch (error) {
+      if (mounted) persistenceError.value = error;
+      return false;
+    }
+  }
+
+  @override
+  void dispose() {
+    if (!mounted) return;
+    persistenceError.dispose();
+    super.dispose();
   }
 
   // ---- 加载 / 消毒 ----
 
-  /// 从 SharedPreferences 恢复；损坏数据按 web sanitize* 语义丢弃/回退。
-  /// v1 旧键迁移不做：本应用无排课器遗留数据。
-  void _loadFrom(SharedPreferences? prefs) {
+  /// 从事务快照恢复；损坏数据按 web sanitize* 语义丢弃/回退。
+  /// 旧偏好由 UserWorkDatabase 隔离迁移，经明确确认后才导入当前作用域。
+  void _loadFrom(Map<String, String> prefs) {
     PkMajorSelection majorSelected = PkMajorSelection();
-    final String? majorRaw = prefs?.getString(
-      ScheduleStorageKeys.majorSelected,
-    );
+    final String? majorRaw = prefs[ScheduleStorageKeys.majorSelected];
     if (majorRaw != null) {
       final Object? decoded = _tryJsonDecode(majorRaw);
       if (decoded is Map<String, dynamic>) {
@@ -248,7 +404,7 @@ class ScheduleStoreNotifier extends StateNotifier<ScheduleState> {
     }
 
     List<PkPlan> plans = <PkPlan>[];
-    final String? plansRaw = prefs?.getString(ScheduleStorageKeys.plans);
+    final String? plansRaw = prefs[ScheduleStorageKeys.plans];
     if (plansRaw != null) {
       final Object? decoded = _tryJsonDecode(plansRaw);
       if (decoded is List<dynamic>) {
@@ -264,9 +420,7 @@ class ScheduleStoreNotifier extends StateNotifier<ScheduleState> {
     }
 
     String activePlanId = '';
-    final String? activeRaw = prefs?.getString(
-      ScheduleStorageKeys.activePlanId,
-    );
+    final String? activeRaw = prefs[ScheduleStorageKeys.activePlanId];
     if (activeRaw != null) {
       final Object? decoded = _tryJsonDecode(activeRaw);
       if (decoded is String && plans.any((p) => p.id == decoded)) {
@@ -276,7 +430,7 @@ class ScheduleStoreNotifier extends StateNotifier<ScheduleState> {
     if (activePlanId.isEmpty) activePlanId = plans.first.id;
 
     PkWeekView weekView = PkWeekView();
-    final String? weekRaw = prefs?.getString(ScheduleStorageKeys.weekView);
+    final String? weekRaw = prefs[ScheduleStorageKeys.weekView];
     if (weekRaw != null) {
       final Object? decoded = _tryJsonDecode(weekRaw);
       if (decoded is Map<String, dynamic>) {
@@ -288,9 +442,7 @@ class ScheduleStoreNotifier extends StateNotifier<ScheduleState> {
         majorSelected.calendarId != null &&
         majorSelected.grade != null &&
         majorSelected.major != null;
-    final String? collapsedRaw = prefs?.getString(
-      ScheduleStorageKeys.configCollapsed,
-    );
+    final String? collapsedRaw = prefs[ScheduleStorageKeys.configCollapsed];
     if (collapsedRaw == '1') {
       isConfigCollapsed = true;
     } else if (collapsedRaw == '0') {
@@ -298,7 +450,7 @@ class ScheduleStoreNotifier extends StateNotifier<ScheduleState> {
     }
 
     String updateTime = '';
-    final String? updateRaw = prefs?.getString(ScheduleStorageKeys.updateTime);
+    final String? updateRaw = prefs[ScheduleStorageKeys.updateTime];
     if (updateRaw != null) {
       final Object? decoded = _tryJsonDecode(updateRaw);
       if (decoded is String) updateTime = decoded;
@@ -668,7 +820,7 @@ class ScheduleStoreNotifier extends StateNotifier<ScheduleState> {
 
   Map<String, dynamic>? readPlanSyncCache(int owner) {
     try {
-      final raw = _prefs?.getString('pk.planSync.v3.$owner');
+      final raw = _values['pk.planSync.v3.$owner'];
       return raw == null
           ? null
           : Map<String, dynamic>.from(jsonDecode(raw) as Map);
@@ -677,16 +829,15 @@ class ScheduleStoreNotifier extends StateNotifier<ScheduleState> {
     }
   }
 
-  Future<bool> writePlanSyncCache(int owner, Map<String, dynamic> value) {
-    final encoded = jsonEncode(value);
-    var saved = false;
-    _writeQueue = _writeQueue.then((_) async {
-      try {
-        saved =
-            await _prefs?.setString('pk.planSync.v3.$owner', encoded) ?? false;
-      } catch (_) {}
-    });
-    return _writeQueue.then((_) => saved);
+  Future<bool> writePlanSyncCache(int owner, Map<String, dynamic> value) async {
+    if (_owner != owner) return false;
+    final next = {
+      ..._snapshotValues(),
+      'pk.planSync.v3.$owner': jsonEncode(value),
+    };
+    // Later queued snapshots must include this ancestor/recovery update.
+    _values['pk.planSync.v3.$owner'] = next['pk.planSync.v3.$owner']!;
+    return _saveValues(next);
   }
 
   void applyPlanItems(List<PkPlan> plans) => applyRemoteSnapshot(
@@ -703,14 +854,29 @@ class ScheduleStoreNotifier extends StateNotifier<ScheduleState> {
   String get syncedAt => _syncedAt;
 
   bool get syncDirty => _syncDirty;
-  int? get syncOwner => int.tryParse(_prefs?.getString('pk.syncOwner') ?? '');
+  int? get syncOwner => int.tryParse(_values['pk.syncOwner'] ?? '');
 
   Future<bool> setSyncOwner(int id, {bool Function()? canWrite}) async {
     await flush;
-    if (canWrite != null && !canWrite()) return false;
+    if (!_loaded || (canWrite != null && !canWrite())) return false;
+    if (_owner != 0 && _owner != id) return false;
+    final next = {..._snapshotValues(), 'pk.syncOwner': '$id'};
+    final previousScope = _scope;
+    final target = writingScope(site, id);
+    _owner = id;
+    _values['pk.syncOwner'] = '$id';
     try {
-      return await _prefs?.setString('pk.syncOwner', '$id') ?? false;
-    } catch (_) {
+      await _database.transferScope(
+        previousScope,
+        target,
+        'schedule',
+        next,
+        generation: _databaseGeneration,
+        isCurrent: canWrite,
+      );
+      return true;
+    } catch (error) {
+      if (mounted) persistenceError.value = error;
       return false;
     }
   }
@@ -722,38 +888,19 @@ class ScheduleStoreNotifier extends StateNotifier<ScheduleState> {
   }
 
   /// Persist a complete local snapshot before advancing its synchronization clock.
-  Future<bool> markSyncedAt(String updatedAt) {
+  Future<bool> markSyncedAt(String updatedAt) async {
     final seq = _syncSeq;
-    final payload = buildSnapshotPayload().toJson();
-    var saved = false;
-    _writeQueue = _writeQueue.then((_) async {
-      final prefs = _prefs;
-      if (prefs == null) return;
-      try {
-        for (final key in [
-          'plans',
-          'activePlanId',
-          'majorSelected',
-          'weekView',
-        ]) {
-          if (!await prefs.setString('pk.$key', jsonEncode(payload[key]))) {
-            return;
-          }
-        }
-        if (seq != _syncSeq) return;
-        if (!await prefs.setString(ScheduleStorageKeys.syncedAt, updatedAt)) {
-          return;
-        }
-        if (!await prefs.setString('pk.syncDirty', '0')) return;
-        if (seq != _syncSeq) return;
-        _syncedAt = updatedAt;
-        _syncDirty = false;
-        saved = true;
-      } catch (_) {
-        /* A failed write leaves reconciliation pending. */
-      }
-    });
-    return _writeQueue.then((_) => saved);
+    final next = {
+      ..._snapshotValues(),
+      ScheduleStorageKeys.syncedAt: updatedAt,
+      'pk.syncDirty': '0',
+    };
+    final saved = await _saveValues(next, canWrite: () => seq == _syncSeq);
+    if (!saved || seq != _syncSeq) return false;
+    _values = next;
+    _syncedAt = updatedAt;
+    _syncDirty = false;
+    return true;
   }
 
   /// Snapshot upload with an optional observed server revision.
@@ -1425,9 +1572,13 @@ ScheduleStats computeScheduleStats(
 /// 排课器 Notifier Provider（页面初始化时 await notifier.ready）。
 final StateNotifierProvider<ScheduleStoreNotifier, ScheduleState>
 scheduleStoreProvider =
-    StateNotifierProvider<ScheduleStoreNotifier, ScheduleState>(
-      (ref) => ScheduleStoreNotifier(),
-    );
+    StateNotifierProvider<ScheduleStoreNotifier, ScheduleState>((ref) {
+      ref.watch(offlineCacheEpochProvider);
+      return ScheduleStoreNotifier(
+        database: ref.watch(userWorkDatabaseProvider),
+        site: Uri.parse(ref.watch(apiClientProvider).baseUrl).origin,
+      );
+    });
 
 /// 当前激活方案（跟随 [scheduleStoreProvider] 的派生 Provider）。
 final Provider<PkPlan> activePlanProvider = Provider<PkPlan>((ref) {

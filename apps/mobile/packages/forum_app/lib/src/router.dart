@@ -1,3 +1,4 @@
+import 'offline/drift_cache.dart';
 import 'dart:async';
 import 'dart:convert';
 
@@ -229,11 +230,18 @@ class _GfShellState extends ConsumerState<GfShell> with WidgetsBindingObserver {
   Future<void> _purgeStaleOfflineCacheOnBoot() async {
     try {
       if (await hasSessionToken(ref.read(tokenStorageProvider))) return;
-      await clearOfflineCacheQuietly(
-        ref.read(offlineTopicCacheProvider),
-        ref.read(offlineChatCacheProvider),
-        ref.read(scheduleWidgetBridgeProvider),
-      );
+      // Guest forum snapshots have their own scope and survive app restarts.
+      final cache = ref.read(offlineTopicCacheProvider);
+      if (cache is DriftOfflineCache) {
+        await ref.read(offlineDatabaseProvider).purgePrivateScopes();
+        await ref.read(scheduleWidgetBridgeProvider).clear(state: 'signedOut');
+      } else {
+        await clearOfflineCacheQuietly(
+          cache,
+          ref.read(offlineChatCacheProvider),
+          ref.read(scheduleWidgetBridgeProvider),
+        );
+      }
     } catch (_) {
       // 兜底清理失败(缓存不可用)不阻塞启动。
     }

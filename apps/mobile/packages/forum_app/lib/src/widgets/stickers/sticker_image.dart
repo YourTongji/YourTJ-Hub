@@ -66,7 +66,10 @@ class _StickerImageState extends State<StickerImage> {
     );
     if (!mounted) return;
     if (action == 'retry') {
-      await NetworkImage(resolveApiAssetUrl(widget.url)).evict();
+      await GfMediaScope.imageProvider(
+        context,
+        resolveApiAssetUrl(widget.url),
+      ).evict();
       if (mounted) {
         setState(() {
           _revision++;
@@ -110,7 +113,7 @@ class _StickerImageState extends State<StickerImage> {
         onLongPress: showActions ? _actions : null,
         child: SizedBox.square(
           dimension: widget.size,
-          child: Image.network(
+          child: GfNetworkImage(
             resolveApiAssetUrl(widget.url),
             key: ValueKey(_revision),
             fit: BoxFit.contain,

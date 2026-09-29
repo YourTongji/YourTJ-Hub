@@ -497,57 +497,61 @@ void main() {
     },
   );
 
-  testWidgets(
-    'cache clear is campus-only and retry completes partial failure',
-    (tester) async {
-      store = CampusSnapshotStore(db);
-      final failing = _FailingClearStore(db);
-      await failing.write(appScope, 'binding', dataAt(DateTime.now()));
-      await db.customStatement(
-        "INSERT INTO cached_topics VALUES (7, '{}', 'now')",
-      );
-      SharedPreferences.setMockInitialValues({
-        'schedule_plans': 'plan',
-        'composer_draft': 'draft',
-      });
-      final bridge = RecordingWidgetBridge();
-      await tester.pumpWidget(
-        testApp(
-          db,
-          failing,
-          ControlledCampusRepository(),
-          bridge,
-          child: const Scaffold(body: CampusCacheClearTile()),
-        ),
-      );
+  testWidgets('cache clear is campus-only and retry completes partial failure', (
+    tester,
+  ) async {
+    store = CampusSnapshotStore(db);
+    final failing = _FailingClearStore(db);
+    await failing.write(appScope, 'binding', dataAt(DateTime.now()));
+    await db.customStatement(
+      "INSERT INTO cache_entries VALUES ('fixture','forum','topic:7','{}',0,0,2,1)",
+    );
+    SharedPreferences.setMockInitialValues({
+      'schedule_plans': 'plan',
+      'composer_draft': 'draft',
+    });
+    final bridge = RecordingWidgetBridge();
+    await tester.pumpWidget(
+      testApp(
+        db,
+        failing,
+        ControlledCampusRepository(),
+        bridge,
+        child: const Scaffold(body: CampusCacheClearTile()),
+      ),
+    );
+    await tester.pumpAndSettle();
+    Future<void> clear() async {
+      await tester.tap(find.text('清除校园缓存'));
       await tester.pumpAndSettle();
-      Future<void> clear() async {
-        await tester.tap(find.text('清除校园缓存'));
-        await tester.pumpAndSettle();
-        await tester.tap(find.text('确认'));
-        await tester.pumpAndSettle();
-      }
+      await tester.tap(find.text('确认'));
+      await tester.pumpAndSettle();
+    }
 
-      await clear();
-      expect(find.text('部分缓存未能清除，请重试。'), findsOneWidget);
-      expect(bridge.clears, 1);
-      expect(await failing.read(appScope), isNotNull);
-      failing.fail = false;
-      await clear();
-      expect(find.text('部分缓存未能清除，请重试。'), findsNothing);
-      expect(await failing.read(appScope), isNull);
-      expect(bridge.clears, 2);
-      expect(
-        (await db.customSelect('SELECT * FROM cached_topics').get()).length,
-        1,
-      );
-      final prefs = await SharedPreferences.getInstance();
-      expect(prefs.getString('schedule_plans'), 'plan');
-      expect(prefs.getString('composer_draft'), 'draft');
-      await tester.pumpWidget(const SizedBox());
-      await tester.pumpAndSettle();
-    },
-  );
+    await clear();
+    expect(find.text('部分缓存未能清除，请重试。'), findsOneWidget);
+    expect(bridge.clears, 1);
+    expect(await failing.read(appScope), isNotNull);
+    failing.fail = false;
+    await clear();
+    expect(find.text('部分缓存未能清除，请重试。'), findsNothing);
+    expect(await failing.read(appScope), isNull);
+    expect(bridge.clears, 2);
+    expect(
+      (await db
+              .customSelect(
+                "SELECT * FROM cache_entries WHERE domain = 'forum'",
+              )
+              .get())
+          .length,
+      1,
+    );
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getString('schedule_plans'), 'plan');
+    expect(prefs.getString('composer_draft'), 'draft');
+    await tester.pumpWidget(const SizedBox());
+    await tester.pumpAndSettle();
+  });
 
   testWidgets(
     'widget settings cannot republish a snapshot deleted during rules lookup',

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../theme/gf_theme.dart';
 import '../atoms/gf_loading_indicator.dart';
 import '../gf_button.dart';
+import '../gf_media_image.dart';
 import '../gf_motion.dart';
 import '../gf_symbol.dart';
 
@@ -194,7 +195,10 @@ class _GfPostComposerState extends State<GfPostComposer> {
                                   borderRadius: BorderRadius.circular(16),
                                   child: Image(
                                     image: ResizeImage(
-                                      NetworkImage(widget.imageUrl!),
+                                      GfMediaScope.imageProvider(
+                                        context,
+                                        widget.imageUrl!,
+                                      ),
                                       policy: ResizeImagePolicy.fit,
                                       width:
                                           (176 *
