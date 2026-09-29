@@ -305,7 +305,9 @@ Android phone without Google services:
    during OAuth return. Allowing reaches the existing registration path; declining shows
    `permissionDenied`, does not register a device, and does not prompt again on restart/resume. Settings
    retains system-settings recovery and explicit retry. If the app process exits while the OS prompt
-   is open, verify that the next launch retries it. On iOS, verify the existing one-time request.
+   is open, verify that the next launch repeats the permission check/request. On iOS, verify the
+   existing one-time request and that an interrupted request leaves the shared marker unset until
+   the native permission call returns.
 2. Confirm authenticated `GET /api/forum/push/config` enables the matching provider, and
    `POST /api/forum/push/device/register` succeeds with `provider=apns` or `jpush`. An empty token or
    failed API call must not display enabled. Never paste tokens into public logs.

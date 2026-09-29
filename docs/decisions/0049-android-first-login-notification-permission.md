@@ -33,8 +33,10 @@ notification permission once if the device has not been authorized and the share
 `push_permission_requested` marker is absent, unless the stored app preference is explicitly false.
 Existing Android installations without that marker receive the same one-time request after upgrading
 when they have not explicitly disabled push in Settings. Preserve that opt-out across upgrade; the
-one-shot marker is stored after the OS request returns so an interrupted prompt can retry on the next
-launch. The Settings switch remains available for explicit retry and disabling.
+shared one-shot marker is stored only after the OS permission call returns on either platform. If the
+app process exits while a permission prompt is open, the next launch repeats the native permission
+check/request and lets the OS determine whether another prompt is needed. The Settings switch remains
+available for explicit retry and disabling.
 
 Treat a system grant as push consent: set the app preference and continue through the existing
 provider configuration, token, and device-registration path. Preserve the established iOS denial
