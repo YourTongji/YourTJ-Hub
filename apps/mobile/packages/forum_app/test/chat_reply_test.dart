@@ -2,6 +2,31 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:forum_app/src/messages/chat_reply.dart';
 
 void main() {
+  group('parseChatReplyQuote', () {
+    test('reads the existing sender and excerpt prefix', () {
+      final quote = parseChatReplyQuote('> @bob: 你好\n\n收到\n第二行');
+      expect(quote?.sender, '@bob');
+      expect(quote?.excerpt, '你好');
+      expect(quote?.body, '收到\n第二行');
+    });
+
+    test(
+      'supports self labels and CRLF messages without changing the body',
+      () {
+        final quote = parseChatReplyQuote(
+          '> You: Original\r\n\r\nReply\r\n\r\nNext',
+        );
+        expect(quote?.sender, 'You');
+        expect(quote?.excerpt, 'Original');
+        expect(quote?.body, 'Reply\r\n\r\nNext');
+      },
+    );
+
+    test('returns null for ordinary messages', () {
+      expect(parseChatReplyQuote('ordinary\n\nmessage'), isNull);
+    });
+  });
+
   group('chatReplyExcerpt', () {
     test('collapses line breaks and runs of whitespace', () {
       expect(chatReplyExcerpt('第一行\n\n第二行\t结束  '), '第一行 第二行 结束');

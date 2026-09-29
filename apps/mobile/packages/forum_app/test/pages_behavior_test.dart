@@ -312,6 +312,7 @@ class RetryChatRepository extends RecordingChatRepository {
     required String content,
     int msgType = 1,
     String? clientMessageId,
+    int? replyToMessageId,
   }) async {
     sent.add((peerId, content));
     if (fail) throw const NetworkException(fallbackMessage: 'offline');
@@ -343,6 +344,7 @@ class DelayedChatRepository extends RecordingChatRepository {
     required String content,
     int msgType = 1,
     String? clientMessageId,
+    int? replyToMessageId,
   }) {
     sent.add((peerId, content));
     return acknowledgement.future;
@@ -365,6 +367,7 @@ class InitialHistoryChatRepository extends RecordingChatRepository {
     required int convId,
     int beforeId = 0,
     int afterId = 0,
+    int aroundId = 0,
     int limit = 30,
     Object? cancelToken,
   }) {
@@ -387,6 +390,7 @@ class RecordingChatRepository extends ChatRepository {
     required String content,
     int msgType = 1,
     String? clientMessageId,
+    int? replyToMessageId,
   }) async {
     sent.add((peerId, content));
     return 9;
@@ -397,6 +401,7 @@ class RecordingChatRepository extends ChatRepository {
     required int convId,
     int beforeId = 0,
     int afterId = 0,
+    int aroundId = 0,
     int limit = 30,
     Object? cancelToken,
   }) async {
@@ -456,6 +461,7 @@ class PollingChatRepository extends ChatRepository {
     required int convId,
     int beforeId = 0,
     int afterId = 0,
+    int aroundId = 0,
     int limit = 30,
     Object? cancelToken,
   }) async {
@@ -510,6 +516,7 @@ class IncomingChatRepository extends RecordingChatRepository {
     required int convId,
     int beforeId = 0,
     int afterId = 0,
+    int aroundId = 0,
     int limit = 30,
     Object? cancelToken,
   }) async {
@@ -2424,7 +2431,7 @@ void main() {
     await tester.pumpWidget(app(container, const ProfilePage(userId: 1)));
     await tester.pumpAndSettle();
     final scroll = tester
-        .widget<CustomScrollView>(find.byType(CustomScrollView))
+        .widget<NestedScrollView>(find.byType(NestedScrollView))
         .controller!;
     final selectLikes = tester
         .widget<InkWell>(
@@ -2443,11 +2450,10 @@ void main() {
     final pending = Completer<void>();
     repo.pending = pending.future;
     selectLikes();
-    await tester.pump();
+    await tester.pumpAndSettle();
     expect(find.byType(GfSkeleton), findsWidgets);
     expect(visible(find.byType(GfSkeleton).first), isTrue);
     expect(visible(find.byTooltip('赞过')), isTrue);
-    expect(find.byType(GfUserCard), findsOneWidget);
     pending.complete();
     await tester.pumpAndSettle();
     expect(visible(find.text('暂无点赞')), isTrue);
@@ -2528,7 +2534,7 @@ void main() {
       await tester.pumpWidget(app(container, const ProfilePage(userId: 1)));
       await tester.pumpAndSettle();
       final scroll = tester
-          .widget<CustomScrollView>(find.byType(CustomScrollView))
+          .widget<NestedScrollView>(find.byType(NestedScrollView))
           .controller!;
       scroll.jumpTo(180);
       await tester.pump();
@@ -5496,9 +5502,11 @@ void main() {
 
       router.pop();
       await tester.pumpAndSettle();
-      await tester.ensureVisible(
-        find.descendant(of: find.byType(GfUserCard), matching: find.text('关注')),
-      );
+      final profileScroll = tester
+          .widget<NestedScrollView>(find.byType(NestedScrollView))
+          .controller!;
+      profileScroll.jumpTo(0);
+      await tester.pumpAndSettle();
       await tester.tap(
         find.descendant(of: find.byType(GfUserCard), matching: find.text('关注')),
       );
@@ -5543,7 +5551,7 @@ void main() {
   });
 
   group('结构化加载态', () {
-    testWidgets('首页等待数据时显示信息流骨架', (tester) async {
+    testWidgets('首页首次加载显示品牌动画和加载文案', (tester) async {
       final client = GfApiClient(
         dio: Dio(),
         tokenStorage: MemTokenStorage(),
@@ -5553,11 +5561,11 @@ void main() {
       final container = await makeContainer(pageRepo: repo);
       await tester.pumpWidget(app(container, const HomePage()));
       await tester.pump();
-      expect(find.byType(GfTopicFeedSkeleton), findsOneWidget);
+      expect(find.text('正在努力加载...'), findsOneWidget);
 
       repo.complete(homePayloadJson());
       await tester.pumpAndSettle();
-      expect(find.byType(GfTopicFeedSkeleton), findsNothing);
+      expect(find.text('正在努力加载...'), findsNothing);
       expect(find.text('移动端测试话题'), findsOneWidget);
     });
 

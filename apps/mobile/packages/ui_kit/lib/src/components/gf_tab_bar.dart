@@ -17,29 +17,41 @@ class GfTab {
 
 @immutable
 class GfTabSwipeProgress {
-  const GfTabSwipeProgress({required this.originIndex, required this.offset});
+  const GfTabSwipeProgress({
+    required this.originIndex,
+    required this.offset,
+    this.targetIndex,
+  });
 
   final int originIndex;
   final double offset;
+  final int? targetIndex;
 }
 
 class GfTabSwipeProgressScope extends InheritedWidget {
   const GfTabSwipeProgressScope({
     super.key,
     required this.progress,
+    this.onTabSelected,
     required super.child,
   });
 
   final ValueListenable<GfTabSwipeProgress> progress;
+  final ValueChanged<int>? onTabSelected;
 
   static ValueListenable<GfTabSwipeProgress>? maybeOf(BuildContext context) =>
       context
           .dependOnInheritedWidgetOfExactType<GfTabSwipeProgressScope>()
           ?.progress;
 
+  static ValueChanged<int>? onTabSelectedOf(BuildContext context) => context
+      .getInheritedWidgetOfExactType<GfTabSwipeProgressScope>()
+      ?.onTabSelected;
+
   @override
   bool updateShouldNotify(GfTabSwipeProgressScope oldWidget) =>
-      progress != oldWidget.progress;
+      progress != oldWidget.progress ||
+      onTabSelected != oldWidget.onTabSelected;
 }
 
 /// Scrollable tab bar mirroring web `.gf-tab` semantics.
@@ -251,13 +263,22 @@ class _GfTabBarState extends State<GfTabBar> with TickerProviderStateMixin {
         _settlingExtension *
         (1 - _indicatorCurve.transform(_settleController.value));
 
+    void selectTab(int index) {
+      final onTabSelected = GfTabSwipeProgressScope.onTabSelectedOf(context);
+      if (onTabSelected == null) {
+        onSelected(tabs[index].value);
+      } else {
+        onTabSelected(index);
+      }
+    }
+
     Widget item(int index) {
       final active = index == selectedIndex;
       return Semantics(
         selected: active,
         button: true,
         child: InkWell(
-          onTap: () => onSelected(tabs[index].value),
+          onTap: () => selectTab(index),
           child: SizedBox(
             width: _itemWidth(context, tabs[index], measureStyle),
             height: height,
@@ -326,7 +347,7 @@ class _GfTabBarState extends State<GfTabBar> with TickerProviderStateMixin {
               child: Text(tab.label, maxLines: 1, softWrap: false),
             ),
         ],
-        onTap: (index) => onSelected(tabs[index].value),
+        onTap: selectTab,
       ),
     );
   }

@@ -6,11 +6,11 @@ import '../../l10n/app_localizations.dart';
 import '../navigation/reading_chrome.dart';
 import '../navigation/reading_window.dart';
 import '../navigation/tab_swipe_surface.dart';
+import '../navigation/tab_page_transition.dart';
 import 'account_drawer.dart';
 import 'compose_menu.dart';
 
-/// Root content scrolls underneath an overlay header. The initial header inset
-/// belongs inside the scroll view, so hiding controls cannot jump the content.
+/// Root content scrolls underneath overlay chrome; swipe tabs follow its visibility.
 class RootSurface extends ConsumerWidget {
   const RootSurface({
     super.key,
@@ -28,6 +28,8 @@ class RootSurface extends ConsumerWidget {
     this.swipeTabIndex,
     this.swipeTabCount = 0,
     this.onSwipeTabChanged,
+    this.swipePageBuilder,
+    this.swipePageKey,
   });
   final String title;
   final Widget? titleWidget;
@@ -43,6 +45,9 @@ class RootSurface extends ConsumerWidget {
   final int? swipeTabIndex;
   final int swipeTabCount;
   final ValueChanged<int>? onSwipeTabChanged;
+  final Widget Function(int index, double topInset, double bottomInset)?
+  swipePageBuilder;
+  final Object Function(int index)? swipePageKey;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -58,7 +63,30 @@ class RootSurface extends ConsumerWidget {
           child: Stack(
             children: [
               Positioned.fill(
-                child: body(56 + toolbarHeight, (hasRail ? 24 : 80) + bottom),
+                child:
+                    swipeTabIndex != null &&
+                        swipeTabCount > 1 &&
+                        swipePageBuilder != null
+                    ? TabPageTransition(
+                        index: swipeTabIndex!,
+                        length: swipeTabCount,
+                        chromeHidden: hidden,
+                        pageKey: swipePageKey,
+                        pageBuilder: (index, chromeHidden) {
+                          final top = chromeHidden ? 0.0 : 56 + toolbarHeight;
+                          final pageBottom =
+                              (hasRail
+                                  ? 24
+                                  : chromeHidden
+                                  ? 0
+                                  : 80) +
+                              bottom;
+                          return index == swipeTabIndex
+                              ? body(top, pageBottom)
+                              : swipePageBuilder!(index, top, pageBottom);
+                        },
+                      )
+                    : body(56 + toolbarHeight, (hasRail ? 24 : 80) + bottom),
               ),
               Positioned(
                 top: 0,

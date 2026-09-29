@@ -34,6 +34,7 @@
     }
   },
   "commonLoading": "Wird geladen…",
+  "tabPageLoading": "Wird gerade geladen…",
   "commonLoadMore": "Mehr laden",
   "commonRetry": "Erneut versuchen",
   "commonClose": "Schließen",
@@ -1015,6 +1016,8 @@
   "userBlocksEmpty": "Keine blockierten Nutzer",
   "messageCopied": "Kopiert",
   "messageReply": "Antworten",
+  "messagesJumpToQuotedMessage": "Zur zitierten Nachricht springen",
+  "messagesReturnToReplySource": "Zur Ausgangsnachricht zurückkehren",
   "messageReplyCancel": "Antwort abbrechen",
   "messageReplySelf": "Ich",
   "messageReport": "Nachricht melden",

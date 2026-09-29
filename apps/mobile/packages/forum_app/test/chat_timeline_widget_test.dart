@@ -65,6 +65,7 @@ class _GatedOlderRepository extends VisibleChatRepository {
     required int convId,
     int beforeId = 0,
     int afterId = 0,
+    int aroundId = 0,
     int limit = 30,
     Object? cancelToken,
   }) async {
@@ -73,6 +74,7 @@ class _GatedOlderRepository extends VisibleChatRepository {
       convId: convId,
       beforeId: beforeId,
       afterId: afterId,
+      aroundId: aroundId,
       limit: limit,
       cancelToken: cancelToken,
     );

@@ -34,6 +34,8 @@ void main() {
           _fixture('chat-messages-success.json')['result']
               as Map<String, dynamic>;
       final response = ChatMessagesResponse.fromJson(result);
+      expect(response.list.first.replyToMessageId, isNull);
+      expect(response.list[1].replyToMessageId, 9001);
       final parent = response.list.last.forwarded!.messages.single;
       expect(parent.avatarUrl, '/static/pic/6.webp');
       expect(parent.forwarded!.messages.single.avatarUrl, '/static/pic/3.webp');
@@ -71,6 +73,46 @@ void main() {
           );
       expect(result.convId, 1001);
       expect(result.messageIds, [2001]);
+    },
+  );
+  test(
+    'reply and around message IDs are sent as optional wire fields',
+    () async {
+      final dio = Dio();
+      dio.httpClientAdapter = MockAdapter((request) async {
+        if (request.path == '/api/forum/chat/send') {
+          expect(request.data, {
+            'peerId': 3,
+            'content': 'reply',
+            'msgType': 1,
+            'replyToMessageId': 2,
+          });
+          return ResponseData(200, _fixture('chat-send-success.json'));
+        }
+        expect(request.path, '/api/forum/chat/messages');
+        expect(request.data, {
+          'convId': 1,
+          'beforeId': 0,
+          'afterId': 0,
+          'aroundId': 2,
+          'limit': 30,
+        });
+        return ResponseData(200, _fixture('chat-messages-success.json'));
+      });
+      final repository = ChatRepository(
+        GfApiClient(dio: dio, tokenStorage: _Storage()),
+      );
+
+      expect(
+        await repository.sendMessage(
+          peerId: 3,
+          content: 'reply',
+          replyToMessageId: 2,
+        ),
+        1001,
+      );
+      final response = await repository.getMessages(convId: 1, aroundId: 2);
+      expect(response.list[1].replyToMessageId, 9001);
     },
   );
   test(

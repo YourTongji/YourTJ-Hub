@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math' as math;
+
 import 'package:core/core.dart';
 import 'package:flutter/gestures.dart' show PointerScrollEvent;
 import 'package:flutter/material.dart';
@@ -8,12 +9,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:ui_kit/ui_kit.dart';
+
 import '../../../l10n/app_localizations.dart';
 import '../../current_user.dart';
 import '../../providers.dart';
 import '../../navigation/tab_scroll_registry.dart';
 import '../../widgets/app_refresh_indicator.dart';
 import '../../widgets/root_surface.dart';
+import '../../widgets/logo_motion_loader.dart';
 import '../../widgets/status_views.dart';
 import '../../widgets/campus_shortcuts.dart';
 import 'campus_connection.dart';
@@ -149,15 +152,28 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace>
     with WidgetsBindingObserver {
   _CampusNavigation get _navigation => widget.navigation;
   String get _tab => _navigation.tab;
-  String get _query => _navigation.queries[_tab] ?? '';
+  String _queryFor(String tab) => _navigation.queries[tab] ?? '';
   bool _restoreScroll = true;
   int _wish = math.Random().nextInt(4);
-  final _search = TextEditingController();
-  final _scroll = GfScrollToTopController();
+  final _searches = <String, TextEditingController>{};
+  final _scrolls = <String, GfScrollToTopController>{};
+  final _scrollKeys = <String, GlobalKey>{};
+  GfScrollToTopController _scrollFor(String tab) =>
+      _scrolls.putIfAbsent(tab, GfScrollToTopController.new);
+  GlobalKey _scrollKeyFor(String tab) => _scrollKeys.putIfAbsent(
+    tab,
+    () => GlobalKey(debugLabel: 'campus-scroll-$tab'),
+  );
+  TextEditingController _searchFor(String tab) => _searches.putIfAbsent(
+    tab,
+    () => TextEditingController(text: _queryFor(tab)),
+  );
+  GfScrollToTopController get _scroll => _scrollFor(_tab);
   late final GfTabScrollRegistry _registry;
   Timer? _clock;
   bool _foreground = true;
   bool? _visible;
+  String? _swipeLoadingTab;
   List<SectionTime> _times = [];
   @override
   void initState() {
@@ -165,7 +181,7 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace>
     final lifecycle = WidgetsBinding.instance.lifecycleState;
     _foreground = lifecycle == null || lifecycle == AppLifecycleState.resumed;
     WidgetsBinding.instance.addObserver(this);
-    _search.text = _query;
+    _searchFor(_tab);
     // A notice may have kept the controller alive while this page was hidden.
     // Verify its binding and refresh private data when the page returns.
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -200,6 +216,7 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace>
     final wasVisible = _visible;
     _visible = visible;
     if (!visible) {
+      _swipeLoadingTab = null;
       _clock?.cancel();
       _clock = null;
       if (wasVisible == true) _restoreScroll = true;
@@ -243,19 +260,23 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace>
   void dispose() {
     _clock?.cancel();
     WidgetsBinding.instance.removeObserver(this);
-    _search.dispose();
+    for (final search in _searches.values) {
+      search.dispose();
+    }
     _registry.unregister(GfShellDestination.campus, _scroll);
     super.dispose();
   }
 
-  void _select(String tab) {
+  void _select(String tab, {bool fromSwipe = false}) {
     if (tab == _tab) return;
     FocusManager.instance.primaryFocus?.unfocus();
+    _swipeLoadingTab = fromSwipe ? tab : null;
     setState(() {
       _navigation.tab = tab;
-      _search.text = _query;
+      _searchFor(tab).text = _queryFor(tab);
       _restoreScroll = true;
     });
+    _registry.register(GfShellDestination.campus, _scrollFor(tab));
     unawaited(ref.read(campusControllerProvider.notifier).loadTab(tab));
   }
 
@@ -398,15 +419,20 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace>
     );
   }
 
-  Widget _messages(CampusDataset data, {bool recent = false}) {
+  Widget _messages(
+    CampusDataset data, {
+    bool recent = false,
+    String tab = 'messages',
+  }) {
     final l = AppLocalizations.of(context);
+    final query = _queryFor(tab);
     final sorted = [...data.messages]
       ..sort((a, b) => b.publishedAt.compareTo(a.publishedAt));
     final messages = recent
         ? sorted.take(5)
         : sorted.where(
             (m) => '${m.title} ${m.publisher}'.toLowerCase().contains(
-              _query.toLowerCase(),
+              query.toLowerCase(),
             ),
           );
     if (messages.isEmpty) return Text(l.campusNoNotices);
@@ -556,7 +582,7 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace>
     );
   }
 
-  Widget _academics(CampusViewState state) {
+  Widget _academics(CampusViewState state, String tab) {
     final l = AppLocalizations.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -608,8 +634,12 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace>
               children: [
                 if (data.metrics.isNotEmpty) CampusMetrics(data: data),
                 const SizedBox(height: 12),
-                _searchField(),
-                CampusRecords(data: data, query: _query, titleColumn: 1),
+                _searchField(tab),
+                CampusRecords(
+                  data: data,
+                  query: _queryFor(tab),
+                  titleColumn: 1,
+                ),
               ],
             ),
           ),
@@ -631,13 +661,13 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace>
     );
   }
 
-  Widget _searchField() => Padding(
+  Widget _searchField(String tab) => Padding(
     padding: const EdgeInsets.only(bottom: 12),
     child: GfSearchField(
-      controller: _search,
+      controller: _searchFor(tab),
       hintText: AppLocalizations.of(context).commonSearch,
       clearLabel: MaterialLocalizations.of(context).deleteButtonTooltip,
-      onChanged: (value) => setState(() => _navigation.queries[_tab] = value),
+      onChanged: (value) => setState(() => _navigation.queries[tab] = value),
     ),
   );
   @override
@@ -658,7 +688,9 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace>
               _navigation.binding != binding?.revision) ||
           (!_navigation.identityRejected && identityRejected)) {
         _navigation.clear();
-        _search.clear();
+        for (final search in _searches.values) {
+          search.clear();
+        }
         _restoreScroll = true;
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted) {
@@ -681,26 +713,58 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace>
       'connection': l.campusConnection,
     };
     final tabKeys = labels.keys.toList(growable: false);
-    Widget content;
-    if (!privateVisible || state.loading || withholdData) {
-      content = _CampusRefreshSkeleton(
-        tab: _tab,
-        week: _navigation.week ?? 1,
-        todayHeader: _tab == 'today'
-            ? _todayHeader(const CampusViewState())
-            : null,
-        onSelectMessages: () => _select('messages'),
-        animate: privateVisible && _foreground,
-      );
-    } else if (state.status == null) {
-      content = GfErrorRetry(
-        message: campusError(l, state.error),
-        onRetry: () => ref.read(campusControllerProvider.notifier).refresh(),
-      );
-    } else if (state.status?.binding == null || _tab == 'connection') {
-      content = const CampusConnection();
-    } else {
-      content = Column(
+    bool isPending(String tab) {
+      if (!privateVisible ||
+          tab == 'connection' ||
+          (state.status != null && state.status?.binding == null)) {
+        return false;
+      }
+      if (state.loading || withholdData) return true;
+      return (campusTabKeys[tab] ?? const <String>[]).any((key) {
+        return state.data[key] == null && !state.errors.containsKey(key);
+      });
+    }
+
+    if (_swipeLoadingTab != null && !isPending(_swipeLoadingTab!)) {
+      _swipeLoadingTab = null;
+    }
+
+    Widget contentFor(String tab) {
+      if (isPending(tab) && tab == _swipeLoadingTab) {
+        return const LogoMotionLoader(showMessage: true);
+      }
+      if (!privateVisible || state.loading || withholdData) {
+        return _CampusRefreshSkeleton(
+          tab: tab,
+          week: _navigation.week ?? 1,
+          todayHeader: tab == 'today'
+              ? _todayHeader(const CampusViewState())
+              : null,
+          onSelectMessages: () => _select('messages'),
+          animate: privateVisible && _foreground,
+        );
+      }
+      if (isPending(tab)) {
+        return _CampusRefreshSkeleton(
+          tab: tab,
+          week: _navigation.week ?? 1,
+          todayHeader: tab == 'today'
+              ? _todayHeader(const CampusViewState())
+              : null,
+          onSelectMessages: () => _select('messages'),
+          animate: privateVisible && _foreground,
+        );
+      }
+      if (state.status == null) {
+        return GfErrorRetry(
+          message: campusError(l, state.error),
+          onRetry: () => ref.read(campusControllerProvider.notifier).refresh(),
+        );
+      }
+      if (state.status?.binding == null || tab == 'connection') {
+        return const CampusConnection();
+      }
+      return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _snapshotNotice(state),
@@ -715,7 +779,7 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace>
               child: CampusConnection(compact: true),
             ),
           if (!state.needsAuthorization)
-            switch (_tab) {
+            switch (tab) {
               'today' => _today(state),
               'timetable' => _dataset(
                 state,
@@ -744,11 +808,15 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace>
                   times: _times,
                 ),
               ),
-              'academics' => _academics(state),
+              'academics' => _academics(state, tab),
               'messages' => Column(
                 children: [
-                  _searchField(),
-                  _dataset(state, 'messages', _messages),
+                  _searchField(tab),
+                  _dataset(
+                    state,
+                    'messages',
+                    (data) => _messages(data, tab: tab),
+                  ),
                 ],
               ),
               'calendars' => Column(
@@ -776,36 +844,20 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace>
         ],
       );
     }
-    return RootSurface(
-      swipeTabIndex: tabKeys.indexOf(_tab),
-      swipeTabCount: tabKeys.length,
-      onSwipeTabChanged: (index) => _select(tabKeys[index]),
-      title: l.campusTitle,
-      showComposeAction: false,
-      actions: [
-        IconButton(
-          tooltip: l.campusExplore,
-          icon: const GfSymbol('graduation-cap'),
-          onPressed: () => context.push('/campus/explore'),
-        ),
-      ],
-      toolbarHeight: GfTabBar.heightFor(context),
-      toolbar: GfTabBar(
-        tabs: [
-          for (final e in labels.entries) GfTab(label: e.value, value: e.key),
-        ],
-        selected: _tab,
-        onSelected: (value) => _select(value as String),
-      ),
-      body: (top, bottom) => GfScrollToTop(
-        controller: _scroll,
+
+    Widget scrollPage(String tab, double top, double bottom) {
+      final showSwipeLoader =
+          isPending(tab) && (tab != _tab || tab == _swipeLoadingTab);
+      return GfScrollToTop(
+        key: _scrollKeyFor(tab),
+        controller: _scrollFor(tab),
         showButton: false,
         semanticLabel: l.commonBackToTop,
         builder: (_, controller) {
-          final tab = _tab;
+          if (showSwipeLoader) {
+            return const LogoMotionLoader(showMessage: true);
+          }
           final navigation = _navigation;
-          // A first visit already starts at zero. Settle that immediately:
-          // waiting for missing datasets could later undo a manual refresh/scroll.
           final ready =
               (navigation.offsets[tab] ?? 0) <= 0 ||
               (!state.loading &&
@@ -853,8 +905,6 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace>
                         notification.dragDetails != null) ||
                     (notification is UserScrollNotification &&
                         notification.direction != ScrollDirection.idle)) {
-                  // Explicit reading intent supersedes a saved position, including
-                  // while a section is still waiting for its private data.
                   _restoreScroll = false;
                   navigation.offsets[tab] = notification.metrics.pixels;
                 }
@@ -869,22 +919,52 @@ class _CampusWorkspaceState extends ConsumerState<_CampusWorkspace>
                 onRefresh: () =>
                     ref.read(campusControllerProvider.notifier).refresh(),
                 child: ListView(
+                  key: PageStorageKey<String>('campus-list-$tab'),
                   controller: controller,
                   physics: const AlwaysScrollableScrollPhysics(),
                   padding: EdgeInsets.fromLTRB(20, top + 24, 20, bottom + 16),
                   children: [
-                    if (_tab == 'today') ...[
+                    if (tab == 'today') ...[
                       const CampusShortcuts(),
                       const SizedBox(height: 24),
                     ],
-                    content,
+                    contentFor(tab),
                   ],
                 ),
               ),
             ),
           );
         },
+      );
+    }
+
+    return RootSurface(
+      swipeTabIndex: tabKeys.indexOf(_tab),
+      swipeTabCount: tabKeys.length,
+      onSwipeTabChanged: (index) => _select(tabKeys[index], fromSwipe: true),
+      swipePageKey: (index) => tabKeys[index],
+      swipePageBuilder: (index, top, bottom) {
+        final tab = tabKeys[index];
+        return scrollPage(tab, top, bottom);
+      },
+      title: l.campusTitle,
+      showComposeAction: false,
+      actions: [
+        IconButton(
+          tooltip: l.campusExplore,
+          icon: const GfSymbol('graduation-cap'),
+          onPressed: () => context.push('/campus/explore'),
+        ),
+      ],
+      toolbarHeight: GfTabBar.heightFor(context),
+      toolbar: GfTabBar(
+        tabs: [
+          for (final e in labels.entries) GfTab(label: e.value, value: e.key),
+        ],
+        selected: _tab,
+        onSelected: (value) => _select(value as String),
       ),
+      body: (top, bottom) => scrollPage(_tab, top, bottom),
     );
   }
 }

@@ -100,6 +100,9 @@ class AppLocalizationsDe extends AppLocalizations {
   String get commonLoading => 'Wird geladen…';
 
   @override
+  String get tabPageLoading => 'Wird gerade geladen…';
+
+  @override
   String get commonLoadMore => 'Mehr laden';
 
   @override
@@ -2955,6 +2958,13 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get messageReply => 'Antworten';
+
+  @override
+  String get messagesJumpToQuotedMessage => 'Zur zitierten Nachricht springen';
+
+  @override
+  String get messagesReturnToReplySource =>
+      'Zur Ausgangsnachricht zurückkehren';
 
   @override
   String get messageReplyCancel => 'Antwort abbrechen';

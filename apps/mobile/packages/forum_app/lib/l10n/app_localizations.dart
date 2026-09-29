@@ -264,6 +264,12 @@ abstract class AppLocalizations {
   /// **'Loading…'**
   String get commonLoading;
 
+  /// No description provided for @tabPageLoading.
+  ///
+  /// In en, this message translates to:
+  /// **'Loading, just a moment…'**
+  String get tabPageLoading;
+
   /// No description provided for @commonLoadMore.
   ///
   /// In en, this message translates to:
@@ -5363,6 +5369,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Reply'**
   String get messageReply;
+
+  /// No description provided for @messagesJumpToQuotedMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Jump to quoted message'**
+  String get messagesJumpToQuotedMessage;
+
+  /// No description provided for @messagesReturnToReplySource.
+  ///
+  /// In en, this message translates to:
+  /// **'Return to source message'**
+  String get messagesReturnToReplySource;
 
   /// No description provided for @messageReplyCancel.
   ///

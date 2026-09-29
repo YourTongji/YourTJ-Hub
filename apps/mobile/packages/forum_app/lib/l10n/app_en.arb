@@ -45,6 +45,7 @@
     }
   },
   "commonLoading": "Loading…",
+  "tabPageLoading": "Loading, just a moment…",
   "commonLoadMore": "Load more",
   "commonRetry": "Retry",
   "commonClose": "Close",
@@ -1432,6 +1433,8 @@
   "userBlocksEmpty": "No blocked users",
   "messageCopied": "Copied",
   "messageReply": "Reply",
+  "messagesJumpToQuotedMessage": "Jump to quoted message",
+  "messagesReturnToReplySource": "Return to source message",
   "messageReplyCancel": "Cancel reply",
   "messageReplySelf": "You",
   "messageReport": "Report message",

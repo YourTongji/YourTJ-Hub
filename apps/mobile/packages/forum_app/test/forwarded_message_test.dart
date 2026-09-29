@@ -2,6 +2,7 @@ import 'package:core/core.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:forum_app/l10n/app_localizations.dart';
 import 'package:forum_app/src/format.dart';
@@ -212,4 +213,62 @@ void main() {
       await tester.pumpWidget(const SizedBox());
     },
   );
+
+  testWidgets('history entries expose only a one-entry copy action', (
+    tester,
+  ) async {
+    final calls = <MethodCall>[];
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (call) async {
+        calls.add(call);
+        return null;
+      },
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      ),
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          theme: gfThemeData(Brightness.light),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: const ForwardedMessagesPage(
+            ownerEpoch: 0,
+            bundle: ChatForwardBundle(
+              version: 1,
+              messages: [
+                ChatForwardEntry(
+                  senderName: 'Alice',
+                  content: 'single entry body',
+                  createdAt: '2026-09-28T01:00:00Z',
+                  msgType: 1,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.longPress(find.text('single entry body'));
+    await tester.pumpAndSettle();
+    expect(find.text('Copy entire message'), findsOneWidget);
+    expect(find.text('Reply'), findsNothing);
+    expect(find.text('Report message'), findsNothing);
+    await tester.tap(find.text('Copy entire message'));
+    await tester.pumpAndSettle();
+    final copy = calls.singleWhere(
+      (call) => call.method == 'Clipboard.setData',
+    );
+    expect(
+      (copy.arguments as Map<Object?, Object?>)['text'],
+      'single entry body',
+    );
+    await tester.pumpWidget(const SizedBox());
+  });
 }

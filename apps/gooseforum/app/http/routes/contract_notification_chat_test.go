@@ -373,6 +373,55 @@ func TestChatSendHTTPContract(t *testing.T) {
 		}
 	})
 
+	t.Run("reply target is persisted, scoped, and participates in retry identity", func(t *testing.T) {
+		conn, router := setupNotificationChatContractTest(t)
+		user := createHTTPContractUser(t, conn, contractTestID())
+		peer := createHTTPContractUser(t, conn, contractTestID())
+		first := serveJSON(router, "/api/forum/chat/send", fmt.Sprintf(`{"peerId":%d,"content":"first","msgType":1}`, peer.Id), contractSessionToken(t, user))
+		var firstResult struct {
+			Result struct {
+				ConvID uint64 `json:"convId"`
+			} `json:"result"`
+		}
+		if err := json.Unmarshal(first.Body.Bytes(), &firstResult); err != nil || firstResult.Result.ConvID == 0 {
+			t.Fatalf("decode first send: result=%s err=%v", first.Body.String(), err)
+		}
+		var target messages.Entity
+		if err := conn.Where("conv_id = ?", firstResult.Result.ConvID).First(&target).Error; err != nil {
+			t.Fatalf("load reply target: %v", err)
+		}
+		foreignPeer := createHTTPContractUser(t, conn, contractTestID())
+		foreignConvID := contractTestID()
+		createContractConversation(t, conn, foreignConvID, user.Id, foreignPeer.Id)
+		foreignTargetID := contractTestID()
+		createContractMessage(t, conn, foreignTargetID, foreignConvID, foreignPeer.Id, "foreign target", 1, time.Now())
+		foreignReply := fmt.Sprintf(`{"peerId":%d,"content":"must not link across conversations","msgType":1,"replyToMessageId":%d}`, peer.Id, foreignTargetID)
+		if response := decodeContractEnvelope(t, serveJSON(router, "/api/forum/chat/send", foreignReply, contractSessionToken(t, user))); response.Code == 0 {
+			t.Fatal("reply to a message in another conversation unexpectedly succeeded")
+		}
+
+		body := fmt.Sprintf(`{"peerId":%d,"content":"> @user: first\\n\\nreply","msgType":1,"replyToMessageId":%d,"clientMessageId":"reply-contract-key"}`, peer.Id, target.Id)
+		for attempt := 0; attempt < 2; attempt++ {
+			recorder := serveJSON(router, "/api/forum/chat/send", body, contractSessionToken(t, user))
+			if recorder.Code != http.StatusOK || decodeContractEnvelope(t, recorder).Code != 0 {
+				t.Fatalf("reply send attempt %d failed: %d %s", attempt, recorder.Code, recorder.Body.String())
+			}
+		}
+		var replies []messages.Entity
+		if err := conn.Where("conv_id = ? AND sender_id = ?", firstResult.Result.ConvID, user.Id).Order("id ASC").Find(&replies).Error; err != nil {
+			t.Fatalf("load sent messages: %v", err)
+		}
+		if len(replies) != 2 || replies[1].ReplyToMessageID == nil || *replies[1].ReplyToMessageID != target.Id {
+			t.Fatalf("sent messages = %+v, want one reply to %d", replies, target.Id)
+		}
+
+		changedRetry := fmt.Sprintf(`{"peerId":%d,"content":"> @user: first\\n\\nreply","msgType":1,"replyToMessageId":%d,"clientMessageId":"reply-contract-key"}`, peer.Id, replies[1].Id)
+		conflict := serveJSON(router, "/api/forum/chat/send", changedRetry, contractSessionToken(t, user))
+		if got := decodeContractEnvelope(t, conflict).Code; got == 0 {
+			t.Fatal("retry with a different reply target unexpectedly succeeded")
+		}
+	})
+
 	t.Run("missing session returns 401", func(t *testing.T) {
 		_, router := setupNotificationChatContractTest(t)
 		assertInteractionUnauthenticated(t, router, "/api/forum/chat/send", `{}`, "auth-required.json")
@@ -410,8 +459,11 @@ func TestChatMessagesHTTPContract(t *testing.T) {
 		createContractConversation(t, conn, 7701, viewer.Id, 1024)
 		createContractMessage(t, conn, 9001, 7701, 1024, "你好，请问资料还能发我一份吗？", 1,
 			time.Date(2026, 8, 15, 9, 0, 0, 0, time.UTC))
-		createContractMessage(t, conn, 9002, 7701, viewer.Id, "可以，稍后传你", 0,
+		createContractMessage(t, conn, 9002, 7701, viewer.Id, "> @alice: 你好，请问资料还能发我一份吗？\n\n可以，稍后传你", 0,
 			time.Date(2026, 8, 15, 9, 1, 12, 0, time.UTC))
+		if err := conn.Model(&messages.Entity{}).Where("id = ?", 9002).Update("reply_to_message_id", 9001).Error; err != nil {
+			t.Fatalf("link reply target in fixture message: %v", err)
+		}
 		bundle := &messages.ForwardedBundle{Version: 1, Messages: []messages.ForwardedEntry{{
 			SenderName: "Alice", AvatarURL: "/static/pic/3.webp", Content: "hello",
 			CreatedAt: "2026-08-15T08:00:00Z", MsgType: 1,
@@ -460,6 +512,48 @@ func TestChatMessagesHTTPContract(t *testing.T) {
 		}
 		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "chat-messages-failed.json"))
 	})
+}
+
+func TestChatMessagesAroundTargetStartsAtRequestedMessage(t *testing.T) {
+	conn, router := setupNotificationChatContractTest(t)
+	viewer := createHTTPContractUser(t, conn, 2051)
+	createContractConversation(t, conn, 7711, viewer.Id, 1025)
+	for i := uint64(0); i < 5; i++ {
+		createContractMessage(t, conn, 9101+i, 7711, 1025, fmt.Sprintf("message %d", i+1), 1,
+			time.Date(2026, 8, 15, 9, int(i), 0, 0, time.UTC))
+	}
+
+	recorder := serveJSON(router, "/api/forum/chat/messages", `{"convId":7711,"aroundId":9103,"limit":2}`, contractSessionToken(t, viewer))
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("chat messages status = %d, want 200: %s", recorder.Code, recorder.Body.String())
+	}
+	var response struct {
+		Result struct {
+			List []struct {
+				Id uint64 `json:"id"`
+			} `json:"list"`
+			HasMoreBefore bool `json:"hasMoreBefore"`
+			HasMoreAfter  bool `json:"hasMoreAfter"`
+		} `json:"result"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+		t.Fatalf("decode around response: %v", err)
+	}
+	if len(response.Result.List) != 2 || response.Result.List[0].Id != 9103 || response.Result.List[1].Id != 9104 {
+		t.Fatalf("around message ids = %+v, want target 9103 followed by 9104", response.Result.List)
+	}
+	if !response.Result.HasMoreBefore || !response.Result.HasMoreAfter {
+		t.Fatalf("around pagination = before %v after %v, want older and newer pages", response.Result.HasMoreBefore, response.Result.HasMoreAfter)
+	}
+
+	foreignPeer := createHTTPContractUser(t, conn, contractTestID())
+	foreignConvID, foreignMessageID := contractTestID(), contractTestID()
+	createContractConversation(t, conn, foreignConvID, viewer.Id, foreignPeer.Id)
+	createContractMessage(t, conn, foreignMessageID, foreignConvID, foreignPeer.Id, "foreign message", 1, time.Now())
+	foreignRecorder := serveJSON(router, "/api/forum/chat/messages", fmt.Sprintf(`{"convId":7711,"aroundId":%d}`, foreignMessageID), contractSessionToken(t, viewer))
+	if response := decodeContractEnvelope(t, foreignRecorder); response.Code == 0 {
+		t.Fatal("around request for a message in another conversation unexpectedly succeeded")
+	}
 }
 
 func TestChatMarkReadHTTPContract(t *testing.T) {
