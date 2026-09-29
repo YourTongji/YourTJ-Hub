@@ -20,6 +20,7 @@ void main() {
     }) {
       return gfApp(
         GfTopicRow(
+          pinnedLabel: 'pinned',
           title: title,
           description: '三月末的樱花大道,适合清晨人少时去…',
           categories: const <GfTopicCategory>[category],
@@ -99,6 +100,7 @@ void main() {
       await tester.pumpWidget(
         gfApp(
           GfTopicRow(
+            pinnedLabel: 'pinned',
             title: 'hot topic',
             description: '',
             categories: const <GfTopicCategory>[],
@@ -129,6 +131,7 @@ void main() {
               child: SizedBox(
                 width: 402,
                 child: GfTopicRow(
+                  pinnedLabel: 'pinned',
                   title: '校园短标题',
                   description: '摘要仍然清晰可读',
                   categories: [
@@ -172,6 +175,7 @@ void main() {
               child: SizedBox(
                 width: 402,
                 child: GfTopicRow(
+                  pinnedLabel: 'pinned',
                   title: 'A readable topic',
                   description: 'A short excerpt',
                   categories: const [],
@@ -209,6 +213,7 @@ void main() {
                 child: Scaffold(
                   body: SingleChildScrollView(
                     child: GfTopicRow(
+                      pinnedLabel: 'pinned',
                       title:
                           'Ein sehr langer Titel für die gemeinsame Diskussion auf dem Campus',
                       description:
@@ -259,6 +264,7 @@ void main() {
           await tester.pumpWidget(
             gfApp(
               GfTopicRow(
+                pinnedLabel: 'pinned',
                 title: 'Topic',
                 description: '',
                 categories: const [],

@@ -37,7 +37,7 @@ class GfTopicRow extends StatelessWidget {
     required this.replyCount,
     this.onTap,
     this.pinned = false,
-    this.pinnedLabel = 'pinned',
+    required this.pinnedLabel,
     this.unseen = false,
     this.viewCount,
     this.hot = false,
@@ -55,6 +55,9 @@ class GfTopicRow extends StatelessWidget {
   final int replyCount;
   final VoidCallback? onTap;
   final bool pinned;
+
+  /// Localized screen-reader label for the pin mark; required so call sites
+  /// cannot fall back to an untranslated default.
   final String pinnedLabel;
   final bool unseen;
   final int? viewCount;
