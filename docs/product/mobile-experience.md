@@ -827,6 +827,12 @@ identity survive this layout change. The header keeps a small outer margin for i
   email domains use a prefix field and domain selector; unrestricted sites accept the full address.
   Password confirmation is checked locally. Only published terms/privacy policies are linked and
   require explicit agreement. Configuration failures preserve the form and offer retry.
+- `Current`: the restricted email field accepts either a prefix or a full address at a published
+  domain, matching domains without case sensitivity. A full address selects its own domain instead
+  of appending another suffix; malformed or unlisted addresses stay on the form with a localized
+  error. Registration API failures use the shared server-message catalog, including daily quotas
+  and retry-login instructions. Occupied usernames/emails and creation failures retain the same
+  generic registration error, preserving the server's account-enumeration boundary.
 
 ## Profile and privacy
 

@@ -38,6 +38,7 @@ class AuthController extends ChangeNotifier {
     required GfApiClient apiClient,
     required TokenStorage tokenStorage,
     RsaEncryptor? rsaEncryptor,
+    this.registrationErrorMessage,
   }) : _auth = authRepository,
        _client = apiClient,
        _tokenStorage = tokenStorage,
@@ -47,6 +48,11 @@ class AuthController extends ChangeNotifier {
   final GfApiClient _client;
   final TokenStorage _tokenStorage;
   final RsaEncryptor _rsa;
+
+  /// Presentation-layer localization of registration failures. The controller
+  /// still owns captcha/failed phase transitions; the resolver receives the
+  /// server code and parameters without exposing account occupancy details.
+  final String Function(ApiException)? registrationErrorMessage;
 
   LoginPhase _phase = LoginPhase.idle;
   String _error = '';
@@ -235,6 +241,7 @@ class AuthController extends ChangeNotifier {
       _phase = LoginPhase.idle;
     } on ApiException catch (e) {
       _error = _mapAuthError(e, fallback: 'Unable to register, please retry');
+      _error = registrationErrorMessage?.call(e) ?? _error;
     } catch (e) {
       _phase = LoginPhase.failed;
       _error = 'Registration failed: $e';

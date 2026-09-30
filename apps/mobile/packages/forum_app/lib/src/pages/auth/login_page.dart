@@ -151,6 +151,9 @@ class _LoginPageState extends ConsumerState<LoginPage>
           authRepository: AuthRepository(_authClient),
           apiClient: _authClient,
           tokenStorage: _authTokenStorage,
+          registrationErrorMessage: (error) => mounted
+              ? resolveErrorMessage(AppLocalizations.of(context), error)
+              : 'Registration failed',
         );
     _authIme = AuthImeStabilizer<FocusNode>(
       enabled: !kIsWeb && defaultTargetPlatform == TargetPlatform.android,
@@ -607,9 +610,8 @@ class _LoginPageState extends ConsumerState<LoginPage>
       return;
     }
     setState(() => _registrationError = null);
-    final email = options.allowedDomains.isEmpty
-        ? _email.text.trim()
-        : '${_email.text.trim()}@$_emailDomain';
+    final email = _registrationEmail(options, l10n);
+    if (email == null) return;
     final String? captchaId = _authController.captcha?.captchaId;
     final String captchaCode = _captcha.text.trim();
     await _authController.register(
@@ -626,6 +628,47 @@ class _LoginPageState extends ConsumerState<LoginPage>
       showGfToast(context, AppLocalizations.of(context).authRegisterSuccess);
       setState(() => _mode = _AuthMode.login);
     }
+  }
+
+  String? _registrationEmail(LoginPageProps options, AppLocalizations l10n) {
+    final entered = _email.text.trim();
+    if (options.allowedDomains.isEmpty) return entered;
+
+    // Pasting a full address must not append a second domain. Only a published
+    // domain can be selected, and a foreign address is never silently rewritten.
+    final parts = entered.split('@');
+    final prefix = parts.first;
+    final malformed =
+        parts.length > 2 || prefix.isEmpty || RegExp(r'\s').hasMatch(entered);
+    final domain = parts.length == 1
+        ? _emailDomain
+        : options.allowedDomains
+              .where(
+                (domain) => domain.toLowerCase() == parts.last.toLowerCase(),
+              )
+              .firstOrNull;
+    if (malformed || domain == null) {
+      setState(() {
+        _registrationError = resolveErrorMessage(
+          l10n,
+          ApiException(
+            fallbackMessage: 'Invalid email address',
+            messageCode: malformed || parts.last.isEmpty
+                ? 'auth.emailDomain.invalid'
+                : 'auth.emailDomain.notAllowed',
+            params: {'domain': parts.last},
+          ),
+        );
+      });
+      return null;
+    }
+    if (parts.length == 2) {
+      setState(() {
+        _email.text = prefix;
+        _emailDomain = domain;
+      });
+    }
+    return '$prefix@$domain';
   }
 
   Future<void> _forgotPassword() async {
