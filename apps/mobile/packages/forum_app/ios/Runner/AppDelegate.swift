@@ -36,24 +36,19 @@ import Darwin
           result(FlutterMethodNotImplemented)
           return
         }
-        var url = URL(fileURLWithPath: path).standardizedFileURL
+        let url = URL(fileURLWithPath: path).standardizedFileURL
         let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].standardizedFileURL
         guard url.path == support.appendingPathComponent("yourtj_private").path else {
           result(FlutterError(code: "invalid_path", message: "Unsupported storage path", details: nil))
           return
         }
         do {
-          var values = URLResourceValues()
-          values.isExcludedFromBackup = true
-          try url.setResourceValues(values)
-          // This App Group is dedicated to disposable schedule projections.
-          // Exclude the container, including future UserDefaults rewrites.
-          guard var widgetDirectory = FileManager.default.containerURL(
+          guard let widgetDirectory = FileManager.default.containerURL(
             forSecurityApplicationGroupIdentifier: "group.tj.yourtj.forumApp.widgets"
           ) else {
             throw NSError(domain: "YourTJStorage", code: 1)
           }
-          try widgetDirectory.setResourceValues(values)
+          try Self.excludeStorageFromBackup(privateDirectory: url, widgetContainer: widgetDirectory)
           result(nil)
         } catch {
           result(FlutterError(code: "backup_exclusion_failed", message: "Unable to configure local storage", details: nil))
@@ -130,6 +125,25 @@ import Darwin
       default: result(FlutterMethodNotImplemented)
       }
     }
+  }
+
+  static func excludeStorageFromBackup(
+    privateDirectory: URL,
+    widgetContainer: URL,
+    exclude: (URL) throws -> Void = { url in
+      var url = url
+      var values = URLResourceValues()
+      values.isExcludedFromBackup = true
+      try url.setResourceValues(values)
+    }
+  ) throws {
+    try exclude(privateDirectory)
+    // iOS owns the App Group root and denies file-write-xattr there on devices.
+    // HomeWidget stores its projection in this app-owned preferences directory;
+    // excluding the directory also covers future atomic UserDefaults rewrites.
+    let preferences = widgetContainer.appendingPathComponent("Library/Preferences", isDirectory: true)
+    try FileManager.default.createDirectory(at: preferences, withIntermediateDirectories: true)
+    try exclude(preferences)
   }
 
   override func applicationDidBecomeActive(_ application: UIApplication) {

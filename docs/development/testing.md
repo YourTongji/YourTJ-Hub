@@ -123,9 +123,10 @@ with path filters; unrelated PRs do not start Flutter runners. Their path-detect
   pubspecs/lockfiles, build hooks/scripts, release tooling or the native workflow itself build both.
   Plain Dart/test/asset changes do not compile either native app. Manual dispatch builds both platforms
   when compile or Android size evidence is needed for any ref. Android retains R8/all-push-adapter
-  compilation and the arm64 size artifact, with a Gradle user-home cache. iOS retains the simulator
-  build and effective distribution-signing checks. Clean checkouts use `flutter pub get` before native
-  compilation. Signed releases still perform full verification and both platform builds.
+  compilation and the arm64 size artifact, with a Gradle user-home cache. iOS runs the simulator
+  build, native `RunnerTests` storage-policy regressions and effective distribution-signing checks.
+  Clean checkouts use `flutter pub get` before native compilation. Signed releases still perform full
+  verification and both platform builds.
 - Mobile tests assert behavior, layout constraints, accessibility and design tokens without screenshot
   baselines. Screenshot golden tests and their PNG fixtures are not maintained or run locally, in PR CI,
   or during release verification. For visual changes, inspect the affected screens in a simulator or
