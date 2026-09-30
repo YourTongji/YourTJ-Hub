@@ -1,3 +1,5 @@
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -214,6 +216,198 @@ void main() {
     );
   });
 
+  testWidgets('pinned summary expands without hiding regular rows or footer', (
+    tester,
+  ) async {
+    final home = parsePageProps<HomeProps>(parsePayload(homePayloadJson()))!;
+    final topic = home.topics.first;
+    var loads = 0;
+    final controller = ScrollController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        locale: const Locale('zh'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        theme: gfThemeData(Brightness.light),
+        home: Scaffold(
+          body: GfTopicList(
+            collapsePinned: true,
+            loading: false,
+            controller: controller,
+            header: const Text('Announcement'),
+            topics: [
+              topic.copyWith(id: 1, title: 'Pinned one', pinWeight: 1),
+              topic.copyWith(id: 2, title: 'Pinned two', pinWeight: 2),
+              topic.copyWith(id: 3, title: 'Regular topic', pinWeight: 0),
+              for (var i = 4; i <= 30; i++)
+                topic.copyWith(id: i, title: 'Topic $i', pinWeight: 0),
+            ],
+            hasMore: false,
+            onLoadMore: () => loads++,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Pinned one'), findsNothing);
+    expect(find.text('Pinned two'), findsNothing);
+    expect(find.text('Regular topic'), findsOneWidget);
+    expect(find.text('Announcement'), findsOneWidget);
+    expect(find.text('置顶话题（2）'), findsOneWidget);
+    final collapsedHeight = tester.getTopLeft(find.text('Regular topic')).dy;
+    await tester.tap(find.text('置顶话题（2）'));
+    await tester.pumpAndSettle();
+    expect(find.text('Pinned one'), findsOneWidget);
+    expect(find.text('Pinned two'), findsOneWidget);
+    expect(
+      tester.getTopLeft(find.text('Regular topic')).dy,
+      greaterThan(collapsedHeight),
+    );
+    // Regular rows follow the group, so the final pinned row keeps its
+    // divider (a pinned-only group instead ends like a regular last row).
+    expect(
+      hairlines(
+        of: find.ancestor(of: find.text('Pinned two'), matching: find.byType(GfTopicRow)),
+      ),
+      findsOneWidget,
+    );
+    controller.jumpTo(1500);
+    await tester.pumpAndSettle();
+    controller.jumpTo(0);
+    await tester.pumpAndSettle();
+    expect(find.text('Pinned one'), findsOneWidget);
+    await tester.tap(find.text('置顶话题（2）'));
+    await tester.pumpAndSettle();
+    expect(find.text('Pinned one'), findsNothing);
+    expect(loads, 0);
+  });
+
+  testWidgets('ordered streams and card mode retain pinned rows in place', (
+    tester,
+  ) async {
+    final home = parsePageProps<HomeProps>(parsePayload(homePayloadJson()))!;
+    final topic = home.topics.first;
+    for (final mode in GfTopicFeedMode.values) {
+      await tester.pumpWidget(
+        MaterialApp(
+          locale: const Locale('zh'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: GfTopicList(
+              collapsePinned: mode == GfTopicFeedMode.card,
+              feedMode: mode,
+              loading: false,
+              topics: [
+                topic.copyWith(id: 1, title: 'First regular', pinWeight: 0),
+                topic.copyWith(id: 2, title: 'Then pinned', pinWeight: 1),
+              ],
+              hasMore: false,
+              onLoadMore: () {},
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Then pinned'), findsOneWidget);
+      expect(find.text('置顶话题（1）'), findsNothing);
+      expect(
+        tester.getTopLeft(find.text('First regular')).dy,
+        lessThan(tester.getTopLeft(find.text('Then pinned')).dy),
+      );
+    }
+  });
+
+  testWidgets('pinned-only feeds and all locales keep the summary accessible', (
+    tester,
+  ) async {
+    final home = parsePageProps<HomeProps>(parsePayload(homePayloadJson()))!;
+    final semanticsHandle = tester.ensureSemantics();
+
+    final topic = home.topics.first.copyWith(pinWeight: 1);
+    tester.view.physicalSize = const Size(320, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    for (final locale in AppLocalizations.supportedLocales) {
+      final l10n = await AppLocalizations.delegate.load(locale);
+      await tester.pumpWidget(
+        MaterialApp(
+          key: ValueKey(locale),
+          locale: locale,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: MediaQuery(
+            data: const MediaQueryData(textScaler: TextScaler.linear(2)),
+            child: Scaffold(
+              body: GfTopicList(
+                collapsePinned: true,
+                loading: false,
+                topics: [topic],
+                hasMore: false,
+                onLoadMore: () {},
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final label = find.text(l10n.homePinnedTopics(1));
+      final semantics = tester.getSemantics(label).getSemanticsData();
+      expect(semantics.flagsCollection.isExpanded, ui.Tristate.isFalse);
+      final target = find
+          .ancestor(of: label, matching: find.byType(InkWell))
+          .first;
+      expect(tester.getSize(target).height, greaterThanOrEqualTo(48));
+      await tester.tap(label);
+      await tester.pumpAndSettle();
+      expect(
+        tester.getSemantics(label).getSemanticsData().flagsCollection.isExpanded,
+        ui.Tristate.isTrue,
+      );
+      expect(find.text(topic.title), findsOneWidget);
+      expect(find.text(l10n.publishArticle), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    }
+    semanticsHandle.dispose();
+  });
+
+  testWidgets('expanded pin group omits the divider after its final row', (
+    tester,
+  ) async {
+    final home = parsePageProps<HomeProps>(parsePayload(homePayloadJson()))!;
+    final topic = home.topics.first;
+    await tester.pumpWidget(
+      MaterialApp(
+        locale: const Locale('zh'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: Scaffold(
+          body: GfTopicList(
+            collapsePinned: true,
+            loading: false,
+            topics: [
+              topic.copyWith(id: 1, title: 'Pinned one', pinWeight: 1),
+              topic.copyWith(id: 2, title: 'Pinned two', pinWeight: 2),
+            ],
+            hasMore: false,
+            onLoadMore: () {},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(hairlines(), findsNothing);
+    await tester.tap(find.text('置顶话题（2）'));
+    await tester.pumpAndSettle();
+    expect(find.text('Pinned one'), findsOneWidget);
+    expect(find.text('Pinned two'), findsOneWidget);
+    // Only the hairline between the two pinned rows; the group ends like a
+    // regular last row because no regular rows follow it.
+    expect(hairlines(), findsOneWidget);
+  });
+
   // issue #895：无标题瞬间的列表行要与 Web TopicRow/SSR 一致，始终有可识别的行标题。
   Future<void> pumpList(WidgetTester tester, TopicPayload topic) async {
     await tester.pumpWidget(
@@ -233,6 +427,19 @@ void main() {
     );
     await tester.pumpAndSettle();
   }
+
+  testWidgets('list identifies question, moment and article types', (
+    tester,
+  ) async {
+    final home = parsePageProps<HomeProps>(parsePayload(homePayloadJson()))!;
+    for (final entry in {1: '提问', 2: '瞬间', 3: '文章'}.entries) {
+      await pumpList(
+        tester,
+        home.topics.first.copyWith(contentType: entry.key),
+      );
+      expect(find.text(entry.value), findsOneWidget);
+    }
+  });
 
   testWidgets('untitled moment uses its excerpt as the row title', (
     tester,
@@ -277,3 +484,12 @@ void main() {
     },
   );
 }
+
+Finder hairlines({Finder? of}) => find.descendant(
+  of: of ?? find.byType(GfTopicRow),
+  matching: find.byWidgetPredicate(
+    (widget) =>
+        widget is Container &&
+        widget.constraints == BoxConstraints.tightFor(height: 1),
+  ),
+);

@@ -26,7 +26,7 @@ class _Content extends ContentRepository {
     passwords.add(password);
     if (requirePassword && password == null) {
       throw const ApiException(
-        messageCode: 'content.confirmRequired',
+        messageCode: 'content.batchDelete.confirmRequired',
         fallbackMessage: 'Password confirmation required',
       );
     }

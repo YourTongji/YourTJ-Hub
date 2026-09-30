@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Superseded by [0048](0048-mobile-storage-lifecycle.md)
 Class: feature
 
 ## Context and Problem Statement

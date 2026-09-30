@@ -291,6 +291,7 @@ void main() {
         const SizedBox(
           width: 360,
           child: GfTopicRow(
+            pinnedLabel: 'pinned',
             title: 'Topic',
             description: '',
             categories: <GfTopicCategory>[],

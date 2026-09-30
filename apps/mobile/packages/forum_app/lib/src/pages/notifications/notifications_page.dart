@@ -1,11 +1,14 @@
 import 'package:dio/dio.dart';
+
 import '../../private_notes.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:ui_kit/ui_kit.dart';
 
 import 'package:core/core.dart';
+
 import 'notification_text.dart';
 import 'notification_target.dart';
 import '../../widgets/app_refresh_indicator.dart';
@@ -17,6 +20,7 @@ import '../../asset_url.dart';
 import '../../providers.dart';
 import '../../navigation/tab_scroll_registry.dart';
 import '../../widgets/root_surface.dart';
+import '../../widgets/logo_motion_loader.dart';
 import '../../widgets/status_views.dart';
 import '../../realtime/realtime_updates.dart';
 
@@ -32,6 +36,7 @@ class NotificationsPage extends ConsumerStatefulWidget {
 class _NotificationsPageState extends ConsumerState<NotificationsPage> {
   AsyncValue<NotificationListResponse> _list = const AsyncValue.loading();
   String _filter = 'all';
+  String? _swipeLoadingFilter;
   int _cursor = 0;
   final List<NotificationPayload> _items = [];
   bool _loadingMore = false;
@@ -44,7 +49,10 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
   final Set<int> _reading = {};
   final Set<int> _acknowledged = {};
   final Map<int, String> _readErrors = {};
-  final _scroll = GfScrollToTopController();
+  final _scrolls = <String, GfScrollToTopController>{};
+  GfScrollToTopController _scrollFor(String filter) =>
+      _scrolls.putIfAbsent(filter, GfScrollToTopController.new);
+  GfScrollToTopController get _scroll => _scrollFor(_filter);
   late final GfTabScrollRegistry _registry;
   int _seenRealtimeRevision = 0;
   bool _realtimeDirty = false;
@@ -157,9 +165,11 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
     error: true,
   );
 
-  void _selectFilter(String filter) {
+  void _selectFilter(String filter, {bool fromSwipe = false}) {
     if (filter == _filter) return;
+    _swipeLoadingFilter = fromSwipe ? filter : null;
     setState(() => _filter = filter);
+    _registry.register(GfShellDestination.notifications, _scrollFor(filter));
     _load();
   }
 
@@ -333,11 +343,17 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
       _load();
     });
 
+    if (_swipeLoadingFilter == _filter && !_list.isLoading) {
+      _swipeLoadingFilter = null;
+    }
     return RootSurface(
       swipeTabIndex: _filter == 'all' ? 0 : 1,
       swipeTabCount: 2,
       onSwipeTabChanged: (index) =>
-          _selectFilter(index == 0 ? 'all' : 'unread'),
+          _selectFilter(index == 0 ? 'all' : 'unread', fromSwipe: true),
+      swipePageKey: (index) => index == 0 ? 'all' : 'unread',
+      swipePageBuilder: (index, top, bottom) =>
+          const LogoMotionLoader(showMessage: true),
       title: l10n.notificationsTitle,
       showComposeAction: false,
       actions: <Widget>[
@@ -379,7 +395,8 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
         children: [
           Expanded(
             child: _list.when(
-              loading: () => const GfLoading(),
+              loading: () =>
+                  LogoMotionLoader(showMessage: _swipeLoadingFilter == _filter),
               error: (e, _) => GfErrorRetry(
                 message: resolveErrorMessage(l10n, e),
                 onRetry: _load,

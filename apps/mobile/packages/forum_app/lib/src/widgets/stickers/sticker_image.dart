@@ -5,24 +5,36 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../asset_url.dart';
 import 'sticker_library_state.dart';
 import 'sticker_strings.dart';
+import 'sticker_preview.dart';
 
-/// Shared expression renderer. A sticker consumes taps without opening a
-/// gallery or activating the surrounding post; holding exposes collection.
+/// Shared expression renderer. Taps preview this sticker alone; holding exposes
+/// collection unless the surrounding message owns the long-press menu.
 class StickerImage extends StatefulWidget {
+  /// Reading surfaces need enough room for captions in animated stickers.
+  /// Pickers and bounded draft previews retain the smaller thumbnail size.
+  static const double readingSize = 128;
+  static const double thumbnailSize = 56;
+
   const StickerImage({
     super.key,
     required this.name,
     required this.url,
     this.label,
-    this.size = 56,
+    this.size = thumbnailSize,
     this.collectible = true,
     this.deferLongPress = false,
+    this.excludeSemantics = false,
   });
   final String name;
   final String url;
   final String? label;
   final double size;
   final bool collectible;
+
+  /// Embedded copies (picker grids, library rows) sit inside an outer labeled
+  /// control behind an [IgnorePointer]: the outer label owns accessibility, so
+  /// this inner button node is excluded to avoid announcing two nested buttons.
+  final bool excludeSemantics;
 
   /// A surrounding surface (a chat message bubble) owns the long press for its
   /// action menu, so this sticker must not consume it — not even for its own
@@ -66,7 +78,10 @@ class _StickerImageState extends State<StickerImage> {
     );
     if (!mounted) return;
     if (action == 'retry') {
-      await NetworkImage(resolveApiAssetUrl(widget.url)).evict();
+      await GfMediaScope.imageProvider(
+        context,
+        resolveApiAssetUrl(widget.url),
+      ).evict();
       if (mounted) {
         setState(() {
           _revision++;
@@ -97,20 +112,22 @@ class _StickerImageState extends State<StickerImage> {
   Widget build(BuildContext context) {
     final bool showActions =
         !widget.deferLongPress && (widget.collectible || _failed);
-    return Semantics(
+    final semantics = Semantics(
       label:
           widget.label ??
           (RegExp(r'^u_[0-9a-f]{48}$').hasMatch(widget.name)
               ? StickerStrings(context).custom
               : widget.name),
+      button: true,
+      hint: StickerStrings(context).viewLarger,
       onLongPress: showActions ? _actions : null,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
-        onTap: () {},
+        onTap: () => showStickerPreview(context, widget.url),
         onLongPress: showActions ? _actions : null,
         child: SizedBox.square(
           dimension: widget.size,
-          child: Image.network(
+          child: GfNetworkImage(
             resolveApiAssetUrl(widget.url),
             key: ValueKey(_revision),
             fit: BoxFit.contain,
@@ -150,5 +167,7 @@ class _StickerImageState extends State<StickerImage> {
         ),
       ),
     );
+    if (!widget.excludeSemantics) return semantics;
+    return ExcludeSemantics(child: semantics);
   }
 }

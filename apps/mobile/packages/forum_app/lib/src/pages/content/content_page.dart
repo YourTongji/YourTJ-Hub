@@ -1,3 +1,4 @@
+import 'content_password_dialog.dart';
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -112,38 +113,9 @@ class _ContentPageState extends ConsumerState<ContentPage> {
       try {
         await action(null);
       } on ApiException catch (error) {
-        if (!error.messageKey.contains('confirmRequired')) rethrow;
+        if (error.messageCode != 'content.batchDelete.confirmRequired') rethrow;
         if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) return;
-        String enteredPassword = '';
-        final password = await showDialog<String>(
-          context: context,
-          animationStyle: GfMotion.dialogStyle(context),
-          builder: (context) => AlertDialog(
-            title: Text(AppLocalizations.of(context).contentPassword),
-            scrollable: true,
-            content: GfInput(
-              labelText: AppLocalizations.of(context).contentPassword,
-              onChanged: (value) => enteredPassword = value,
-              obscureText: true,
-              autofocus: true,
-              autofillHints: const [AutofillHints.password],
-              autocorrect: false,
-              enableSuggestions: false,
-              textInputAction: TextInputAction.done,
-              onSubmitted: (value) => Navigator.pop(context, value),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: Text(AppLocalizations.of(context).commonCancel),
-              ),
-              TextButton(
-                onPressed: () => Navigator.pop(context, enteredPassword),
-                child: Text(AppLocalizations.of(context).commonConfirm),
-              ),
-            ],
-          ),
-        );
+        final password = await showContentPasswordDialog(context);
         if (!mounted ||
             epoch != ref.read(offlineCacheEpochProvider) ||
             password == null ||

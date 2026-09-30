@@ -594,6 +594,7 @@ mixin _$ChatMessagePayload {
   int get isRead => throw _privateConstructorUsedError;
   String get createdAt => throw _privateConstructorUsedError;
   bool get isSelf => throw _privateConstructorUsedError;
+  int? get replyToMessageId => throw _privateConstructorUsedError;
   ChatForwardBundle? get forwarded => throw _privateConstructorUsedError;
 
   /// Serializes this ChatMessagePayload to a JSON map.
@@ -621,6 +622,7 @@ abstract class $ChatMessagePayloadCopyWith<$Res> {
     int isRead,
     String createdAt,
     bool isSelf,
+    int? replyToMessageId,
     ChatForwardBundle? forwarded,
   });
 
@@ -649,6 +651,7 @@ class _$ChatMessagePayloadCopyWithImpl<$Res, $Val extends ChatMessagePayload>
     Object? isRead = null,
     Object? createdAt = null,
     Object? isSelf = null,
+    Object? replyToMessageId = freezed,
     Object? forwarded = freezed,
   }) {
     return _then(
@@ -681,6 +684,10 @@ class _$ChatMessagePayloadCopyWithImpl<$Res, $Val extends ChatMessagePayload>
                 ? _value.isSelf
                 : isSelf // ignore: cast_nullable_to_non_nullable
                       as bool,
+            replyToMessageId: freezed == replyToMessageId
+                ? _value.replyToMessageId
+                : replyToMessageId // ignore: cast_nullable_to_non_nullable
+                      as int?,
             forwarded: freezed == forwarded
                 ? _value.forwarded
                 : forwarded // ignore: cast_nullable_to_non_nullable
@@ -722,6 +729,7 @@ abstract class _$$ChatMessagePayloadImplCopyWith<$Res>
     int isRead,
     String createdAt,
     bool isSelf,
+    int? replyToMessageId,
     ChatForwardBundle? forwarded,
   });
 
@@ -750,6 +758,7 @@ class __$$ChatMessagePayloadImplCopyWithImpl<$Res>
     Object? isRead = null,
     Object? createdAt = null,
     Object? isSelf = null,
+    Object? replyToMessageId = freezed,
     Object? forwarded = freezed,
   }) {
     return _then(
@@ -782,6 +791,10 @@ class __$$ChatMessagePayloadImplCopyWithImpl<$Res>
             ? _value.isSelf
             : isSelf // ignore: cast_nullable_to_non_nullable
                   as bool,
+        replyToMessageId: freezed == replyToMessageId
+            ? _value.replyToMessageId
+            : replyToMessageId // ignore: cast_nullable_to_non_nullable
+                  as int?,
         forwarded: freezed == forwarded
             ? _value.forwarded
             : forwarded // ignore: cast_nullable_to_non_nullable
@@ -802,6 +815,7 @@ class _$ChatMessagePayloadImpl implements _ChatMessagePayload {
     required this.isRead,
     required this.createdAt,
     required this.isSelf,
+    this.replyToMessageId,
     this.forwarded,
   });
 
@@ -823,11 +837,13 @@ class _$ChatMessagePayloadImpl implements _ChatMessagePayload {
   @override
   final bool isSelf;
   @override
+  final int? replyToMessageId;
+  @override
   final ChatForwardBundle? forwarded;
 
   @override
   String toString() {
-    return 'ChatMessagePayload(id: $id, senderId: $senderId, content: $content, msgType: $msgType, isRead: $isRead, createdAt: $createdAt, isSelf: $isSelf, forwarded: $forwarded)';
+    return 'ChatMessagePayload(id: $id, senderId: $senderId, content: $content, msgType: $msgType, isRead: $isRead, createdAt: $createdAt, isSelf: $isSelf, replyToMessageId: $replyToMessageId, forwarded: $forwarded)';
   }
 
   @override
@@ -844,6 +860,8 @@ class _$ChatMessagePayloadImpl implements _ChatMessagePayload {
             (identical(other.createdAt, createdAt) ||
                 other.createdAt == createdAt) &&
             (identical(other.isSelf, isSelf) || other.isSelf == isSelf) &&
+            (identical(other.replyToMessageId, replyToMessageId) ||
+                other.replyToMessageId == replyToMessageId) &&
             (identical(other.forwarded, forwarded) ||
                 other.forwarded == forwarded));
   }
@@ -859,6 +877,7 @@ class _$ChatMessagePayloadImpl implements _ChatMessagePayload {
     isRead,
     createdAt,
     isSelf,
+    replyToMessageId,
     forwarded,
   );
 
@@ -888,6 +907,7 @@ abstract class _ChatMessagePayload implements ChatMessagePayload {
     required final int isRead,
     required final String createdAt,
     required final bool isSelf,
+    final int? replyToMessageId,
     final ChatForwardBundle? forwarded,
   }) = _$ChatMessagePayloadImpl;
 
@@ -908,6 +928,8 @@ abstract class _ChatMessagePayload implements ChatMessagePayload {
   String get createdAt;
   @override
   bool get isSelf;
+  @override
+  int? get replyToMessageId;
   @override
   ChatForwardBundle? get forwarded;
 

@@ -99,6 +99,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get commonLoading => 'Loading…';
 
   @override
+  String get tabPageLoading => 'Loading, just a moment…';
+
+  @override
   String get commonLoadMore => 'Load more';
 
   @override
@@ -942,6 +945,14 @@ class AppLocalizationsEn extends AppLocalizations {
   String get topicEmpty => 'No topics yet';
 
   @override
+  String homePinnedTopics(int count) {
+    return 'Pinned topics ($count)';
+  }
+
+  @override
+  String get topicPinned => 'Pinned';
+
+  @override
   String settingsAvatarUploaded(String url) {
     return 'Avatar uploaded: $url';
   }
@@ -1514,6 +1525,13 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get siteInfoTitle => 'About the community';
+
+  @override
+  String get siteInfoAnalytics => 'App visit statistics';
+
+  @override
+  String get siteInfoAnalyticsDescription =>
+      'Official Android and iOS releases connected to https://f.yourtj.de automatically collect public-page visits for guests and signed-in users. There is no statistics switch. New installations and upgrades use this policy, including when statistics were disabled in an older version. Debug builds, other servers, Web and desktop builds do not use this native collection channel.\n\nWhile the App is in the foreground, it sends fixed public-page categories, the YourTJ App marker, OS family and phone/tablet type to YourTJ’s own Umami service at umi.yourtj.de for visit statistics and the status page. It does not send accounts, credentials, device or advertising identifiers, post/course IDs, search terms or content. Campus, schedules, messages, notifications, profiles, login, settings, writing and administration pages are excluded.\n\nThe service receives your network IP and general client headers and may derive an approximate country, region or city. No GPS location is collected. Visitor estimates are not linked to accounts.\n\nBackgrounding stops sends and discards pending visits. Requests are not retried, and the App stores no visit queue or visitor identifier on disk. The analytics cache token exists only in memory. Delivered records follow the service’s retention settings and are not removed when you leave the App. The status page shows only coarse device, OS and client categories and aggregate counts.';
 
   @override
   String get siteInfoLinks => 'Community links';
@@ -2926,6 +2944,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get messageReply => 'Reply';
 
   @override
+  String get messagesJumpToQuotedMessage => 'Jump to quoted message';
+
+  @override
+  String get messagesReturnToReplySource => 'Return to source message';
+
+  @override
   String get messageReplyCancel => 'Cancel reply';
 
   @override
@@ -3049,13 +3073,28 @@ class AppLocalizationsEn extends AppLocalizations {
   String get messageForwardChooseTargets => 'Choose recipients';
 
   @override
-  String get settingsVisitorAnalytics => 'Share visit statistics';
+  String get draftDeleteCloud => 'Delete cloud draft';
 
   @override
-  String get settingsVisitorAnalyticsDescription =>
-      'Off by default. Sends public screen categories, App marker, OS and phone/tablet type to YourTJ’s self-hosted analytics for the status page; the service also receives your network IP and derives an approximate location. No account, content, search terms, device identifiers, campus, messages or settings pages are sent. Turn off at any time.';
+  String get draftDeleteLocalConfirm =>
+      'Only this device copy will be deleted. The cloud draft and published content will stay unchanged. You can undo this deletion while this page stays open.';
 
   @override
-  String get settingsVisitorAnalyticsSaveFailed =>
-      'Could not save the analytics preference. Disabling still applies now; retry to save your choice for the next launch.';
+  String get draftDeleteCloudConfirm =>
+      'The cloud content will move to the recycle bin and may be restored there within 30 days if eligible. Device recovery copies will be kept.';
+
+  @override
+  String get draftDeleteCloudFailed =>
+      'Could not delete this cloud draft. It is still in the list; try again.';
+
+  @override
+  String get draftDeleteCloudDone =>
+      'Cloud draft moved to the recycle bin. Device copies were kept.';
+
+  @override
+  String get draftOpenRecycleBin => 'Open recycle bin';
+
+  @override
+  String get draftCloudLimit =>
+      'This page loads the 100 most recently updated cloud drafts. Deleting a draft refreshes the list to show the next one.';
 }

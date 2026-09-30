@@ -12,15 +12,16 @@ import 'package:ui_kit/ui_kit.dart';
 
 import '../../asset_url.dart';
 import '../../widgets/app_refresh_indicator.dart';
+import '../../widgets/cache_snapshot_hint.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../providers.dart';
 import '../../format.dart';
 import '../../navigation/tab_scroll_registry.dart';
 import '../../server_messages.dart';
-import '../../widgets/skeletons.dart';
 import '../../widgets/status_views.dart';
 import '../../widgets/topic_list.dart';
 import '../../widgets/root_surface.dart';
+import '../../widgets/logo_motion_loader.dart';
 import '../../widgets/announcement_banner.dart';
 import '../../app_config.dart';
 import '../../current_user.dart';
@@ -71,11 +72,18 @@ class _HomeFeedState {
   final CategoryNavPayload? category;
   AsyncValue<HomeProps> page = const AsyncValue.loading();
   final List<TopicPayload> topics = [];
+  bool cached = false;
+  bool refreshing = false;
+  bool cleared = false;
+  DateTime? snapshotTime;
   bool loadingMore = false;
   String? loadMoreError;
   int loadSequence = 0;
   CancelToken? loadCancel;
   CancelToken? loadMoreCancel;
+  late final PageStorageKey<String> scrollKey = PageStorageKey<String>(
+    'home:${category?.id ?? 'all'}:$sort',
+  );
 
   void cancel() {
     loadCancel?.cancel("home feed disposed");
@@ -99,6 +107,7 @@ class _HomePageState extends ConsumerState<HomePage> {
   _HomeFeedState get _activeFeed => _feeds[_activeKey]!;
   HomeProps? _navigationProps;
   bool _announcementCollapsed = true;
+  String? _swipeLoadingFeedKey;
   int _interactionRevision = 0;
   bool _firstCardFrameRecorded = false;
   final _pendingInteractions = <(int, bool)>{};
@@ -251,7 +260,14 @@ class _HomePageState extends ConsumerState<HomePage> {
 
   Future<void> _load({bool silent = false, _HomeFeedState? target}) async {
     final feed = target ?? _activeFeed;
-    if (!mounted) return;
+    if (!mounted || (silent && feed.cleared)) return;
+    final cache = captureTopicCache(ref.read(offlineTopicCacheProvider));
+    if (!cacheRequestCurrent(cache, CacheCategory.forum)) {
+      setState(() => feed.cleared = true);
+      return;
+    }
+    feed.cleared = false;
+    feed.refreshing = true;
     final shouldPrecacheAvatars = !feed.page.hasValue;
     final sequence = ++feed.loadSequence;
     final revision = _interactionRevision;
@@ -267,14 +283,15 @@ class _HomePageState extends ConsumerState<HomePage> {
         : Future<(int, String)?>.value(null);
     var cachedPageShown = false;
     var networkPageShown = false;
-    if (!silent) setState(() => feed.page = const AsyncValue.loading());
+    setState(() {
+      if (!silent) feed.page = const AsyncValue.loading();
+    });
     final cacheShownFuture =
         (!silent
                 ? () async {
                     try {
                       final scope = await cacheScopeFuture;
                       if (scope == null) return false;
-                      final cache = ref.read(offlineTopicCacheProvider);
                       if (cache is! OfflineHomeCache) return false;
                       final cached = await (cache as OfflineHomeCache)
                           .getHomePage(
@@ -285,6 +302,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                       if (cached == null ||
                           networkPageShown ||
                           !mounted ||
+                          !cacheRequestCurrent(cache, CacheCategory.forum) ||
                           sequence != feed.loadSequence ||
                           epoch != ref.read(offlineCacheEpochProvider)) {
                         return false;
@@ -296,11 +314,16 @@ class _HomePageState extends ConsumerState<HomePage> {
                       }
                       if (networkPageShown ||
                           !mounted ||
+                          !cacheRequestCurrent(cache, CacheCategory.forum) ||
                           sequence != feed.loadSequence ||
                           epoch != ref.read(offlineCacheEpochProvider)) {
                         return false;
                       }
                       setState(() {
+                        feed.cached = true;
+                        feed.snapshotTime = cache is DriftOfflineCache
+                            ? cache.snapshotTime
+                            : null;
                         feed.page = AsyncValue.data(cachedProps);
                         _navigationProps ??= cachedProps;
                         _categories = cached.layout.sidebar.categories;
@@ -321,6 +344,7 @@ class _HomePageState extends ConsumerState<HomePage> {
     try {
       final PagePayload payload = await _fetchFeed(feed, cancel);
       if (!mounted ||
+          !cacheRequestCurrent(cache, CacheCategory.forum) ||
           sequence != feed.loadSequence ||
           epoch != ref.read(offlineCacheEpochProvider)) {
         return;
@@ -332,12 +356,14 @@ class _HomePageState extends ConsumerState<HomePage> {
         await _precacheFirstAvatars(props.topics);
       }
       if (!mounted ||
+          !cacheRequestCurrent(cache, CacheCategory.forum) ||
           cancel.isCancelled ||
           sequence != feed.loadSequence ||
           epoch != ref.read(offlineCacheEpochProvider)) {
         return;
       }
       setState(() {
+        feed.cached = false;
         feed.page = AsyncValue.data(props);
         if (feed.category == null) {
           _navigationProps = props;
@@ -356,7 +382,6 @@ class _HomePageState extends ConsumerState<HomePage> {
               scope == null) {
             return;
           }
-          final cache = ref.read(offlineTopicCacheProvider);
           if (cache is OfflineHomeCache) {
             await (cache as OfflineHomeCache).putHomePage(
               accountId: scope.$1,
@@ -371,6 +396,7 @@ class _HomePageState extends ConsumerState<HomePage> {
       }());
     } catch (e, st) {
       if (!mounted ||
+          !cacheRequestCurrent(cache, CacheCategory.forum) ||
           sequence != feed.loadSequence ||
           epoch != ref.read(offlineCacheEpochProvider)) {
         return;
@@ -378,8 +404,27 @@ class _HomePageState extends ConsumerState<HomePage> {
       if (cancel.isCancelled) return;
       await cacheShownFuture;
       if (!mounted ||
+          !cacheRequestCurrent(cache, CacheCategory.forum) ||
           sequence != feed.loadSequence ||
           epoch != ref.read(offlineCacheEpochProvider)) {
+        return;
+      }
+      if (revokesSnapshot(e)) {
+        // Revoke the visible snapshot immediately, even when disk cleanup fails.
+        setState(() {
+          feed.cached = false;
+          feed.snapshotTime = null;
+          feed.page = AsyncValue.error(e, st);
+          feed.topics.clear();
+        });
+        if (cache is DriftOfflineCache) {
+          try {
+            final scope = await cacheScopeFuture;
+            if (scope != null) {
+              await cache.removeHome(accountId: scope.$1, baseUrl: scope.$2);
+            }
+          } catch (_) {}
+        }
         return;
       }
       if ((silent || cachedPageShown) && feed.page.hasValue) {
@@ -392,6 +437,9 @@ class _HomePageState extends ConsumerState<HomePage> {
         setState(() => feed.page = AsyncValue.error(e, st));
       }
     } finally {
+      if (mounted && sequence == feed.loadSequence) {
+        setState(() => feed.refreshing = false);
+      }
       if (identical(feed.loadCancel, cancel)) feed.loadCancel = null;
     }
   }
@@ -408,6 +456,7 @@ class _HomePageState extends ConsumerState<HomePage> {
       for (final url in urls)
         ?GfAvatar.imageProviderFor(
           url,
+          context: context,
           size: 36,
           devicePixelRatio: devicePixelRatio,
         ),
@@ -456,6 +505,7 @@ class _HomePageState extends ConsumerState<HomePage> {
   /// 滚动位置不跳顶(MADR 0012 Preserve scroll position)。下拉刷新仍走
   /// _load(silent: true) 的整页重置语义,两条静默路径分开接线。
   Future<void> _refreshAfterReturn(_HomeFeedState feed) async {
+    if (feed.cleared || feed.cached) return;
     if (!mounted) return;
     // Replies are only needed by retained profile activity pages. Once back at
     // the home feed, discard their detail handoff along with the topic handoff.
@@ -535,7 +585,8 @@ class _HomePageState extends ConsumerState<HomePage> {
   }
 
   Future<void> _loadMore(_HomeFeedState feed) async {
-    final HomeProps? props = feed.page.value;
+    if (feed.cleared || feed.cached) return;
+    final HomeProps? props = feed.page.valueOrNull;
     if (props == null || !props.pagination.hasNext || feed.loadingMore) return;
     final String nextUrl = props.pagination.nextUrl;
     if (nextUrl.isEmpty) return;
@@ -593,10 +644,12 @@ class _HomePageState extends ConsumerState<HomePage> {
     bool target, {
     bool bookmark = false,
   }) async {
-    if (!mounted) return false;
+    if (!mounted || _activeFeed.cached || _activeFeed.cleared) return false;
     final key = (topic.id, bookmark);
     if (!_pendingInteractions.add(key)) return false;
     final epoch = ref.read(offlineCacheEpochProvider);
+    final clearEpoch =
+        ref.read(cacheClearEpochProvider)[CacheCategory.forum] ?? 0;
     final topics = _activeFeed.topics;
     final index = topics.indexWhere((t) => t.id == topic.id);
     final current = index >= 0 ? topics[index] : topic;
@@ -636,7 +689,10 @@ class _HomePageState extends ConsumerState<HomePage> {
               topicId: topic.id,
               action: target ? 1 : 2,
             );
-      if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) {
+      if (!mounted ||
+          clearEpoch !=
+              (ref.read(cacheClearEpochProvider)[CacheCategory.forum] ?? 0) ||
+          epoch != ref.read(offlineCacheEpochProvider)) {
         return false;
       }
       if (!success) {
@@ -658,7 +714,10 @@ class _HomePageState extends ConsumerState<HomePage> {
       );
       return true;
     } catch (error) {
-      if (mounted && epoch == ref.read(offlineCacheEpochProvider)) {
+      if (mounted &&
+          clearEpoch ==
+              (ref.read(cacheClearEpochProvider)[CacheCategory.forum] ?? 0) &&
+          epoch == ref.read(offlineCacheEpochProvider)) {
         _rollbackInteraction(topic.id, bookmark, snapshot);
         showGfToast(
           context,
@@ -668,7 +727,10 @@ class _HomePageState extends ConsumerState<HomePage> {
       }
       return false;
     } finally {
-      if (mounted && epoch == ref.read(offlineCacheEpochProvider)) {
+      if (mounted &&
+          clearEpoch ==
+              (ref.read(cacheClearEpochProvider)[CacheCategory.forum] ?? 0) &&
+          epoch == ref.read(offlineCacheEpochProvider)) {
         _pendingInteractions.remove(key);
       }
     }
@@ -730,16 +792,18 @@ class _HomePageState extends ConsumerState<HomePage> {
     if (firstVisit) _load();
   }
 
-  void _switchSort(String sort) {
+  void _switchSort(String sort, {bool fromSwipe = false}) {
     if (sort == 'latest') sort = '';
     if (sort == _sort) return;
     _sort = sort;
+    _swipeLoadingFeedKey = fromSwipe ? _key(sort, _category) : null;
     if (_category == null) _allSort = sort;
     _activateFeed();
   }
 
   void _switchCategory(CategoryNavPayload? category) {
     if (_category?.id == category?.id) return;
+    _swipeLoadingFeedKey = null;
     if (_category == null) {
       _allSort = _sort;
     } else {
@@ -777,6 +841,29 @@ class _HomePageState extends ConsumerState<HomePage> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<int>(
+      cacheClearEpochProvider.select(
+        (epochs) => epochs[CacheCategory.forum] ?? 0,
+      ),
+      (_, _) {
+        for (final feed in _feeds.values) {
+          feed.cancel();
+          feed.loadSequence++;
+          feed.topics.clear();
+          feed.page = const AsyncValue.loading();
+          feed.cached = false;
+          feed.refreshing = false;
+          feed.cleared = true;
+          feed.loadingMore = false;
+        }
+        _pendingInteractions.clear();
+        _interactionOverrides.clear();
+        _returnedTopicOverrides.clear();
+        _navigationProps = null;
+        _categories = [];
+        setState(() {});
+      },
+    );
     ref.listen<int>(offlineCacheEpochProvider, (_, _) {
       _pendingInteractions.clear();
       _interactionOverrides.clear();
@@ -796,7 +883,12 @@ class _HomePageState extends ConsumerState<HomePage> {
         GfShellDestination.home,
         _scrollToTopController,
       );
-      _load();
+      // Wait until every provider has observed the new session before
+      // capturing a cache lease; synchronous listeners run in registration order.
+      final epoch = ref.read(offlineCacheEpochProvider);
+      scheduleMicrotask(() {
+        if (mounted && epoch == ref.read(offlineCacheEpochProvider)) _load();
+      });
     });
     final AppLocalizations l10n = AppLocalizations.of(context);
     final categories = [
@@ -815,10 +907,15 @@ class _HomePageState extends ConsumerState<HomePage> {
     final selectedSortIndex = selectedSortPosition < 0
         ? 0
         : selectedSortPosition;
+    if (_swipeLoadingFeedKey != null &&
+        _feeds[_swipeLoadingFeedKey]?.page.isLoading != true) {
+      _swipeLoadingFeedKey = null;
+    }
     return RootSurface(
       swipeTabIndex: selectedSortIndex,
       swipeTabCount: sortKeys.length,
-      onSwipeTabChanged: (index) => _switchSort(sortKeys[index]),
+      onSwipeTabChanged: (index) =>
+          _switchSort(sortKeys[index], fromSwipe: true),
       titleWidget: const GfLogo(size: 32),
       actions: [
         IconButton(
@@ -840,24 +937,31 @@ class _HomePageState extends ConsumerState<HomePage> {
         onSelected: _switchSort,
         onFeedModeSelected: _setFeedMode,
       ),
-      body: (top, bottom) => IndexedStack(
-        index: _feeds.keys.toList().indexOf(_activeKey),
-        children: [
-          for (final feed in _feeds.values)
-            TickerMode(
-              key: ObjectKey(feed),
-              enabled:
-                  feed == _activeFeed && TickerMode.valuesOf(context).enabled,
-              child: GfScrollToTop(
-                semanticLabel: l10n.commonBackToTop,
-                controller: feed.scrollToTop,
-                showButton: false,
-                builder: (_, controller) =>
-                    _buildFeed(feed, controller, top, bottom),
-              ),
-            ),
-        ],
+      body: (top, bottom) => GfScrollToTop(
+        key: _activeFeed.scrollKey,
+        semanticLabel: l10n.commonBackToTop,
+        controller: _activeFeed.scrollToTop,
+        showButton: false,
+        builder: (_, controller) =>
+            _buildFeed(_activeFeed, controller, top, bottom),
       ),
+      swipePageKey: (index) => _key(sortKeys[index], _category),
+      swipePageBuilder: (index, top, bottom) {
+        if (index < 0 || index >= sortKeys.length) {
+          return const LogoMotionLoader();
+        }
+        final sort = sortKeys[index] == 'latest' ? '' : sortKeys[index];
+        final feed = _feeds[_key(sort, _category)];
+        if (feed == null) return const LogoMotionLoader(showMessage: true);
+        return GfScrollToTop(
+          key: feed.scrollKey,
+          semanticLabel: l10n.commonBackToTop,
+          controller: feed.scrollToTop,
+          showButton: false,
+          builder: (_, controller) =>
+              _buildFeed(feed, controller, top, bottom, swipePreview: true),
+        );
+      },
     );
   }
 
@@ -865,13 +969,28 @@ class _HomePageState extends ConsumerState<HomePage> {
     _HomeFeedState feed,
     ScrollController controller,
     double top,
-    double bottom,
-  ) {
+    double bottom, {
+    bool swipePreview = false,
+  }) {
     final l10n = AppLocalizations.of(context);
+    if (feed.cleared) {
+      return Padding(
+        padding: EdgeInsets.only(top: top),
+        child: CacheSnapshotHint(
+          cleared: true,
+          onRetry: () => _load(target: feed),
+        ),
+      );
+    }
     return feed.page.when(
       loading: () => Padding(
-        padding: EdgeInsets.only(top: top),
-        child: const GfTopicFeedSkeleton(),
+        padding: EdgeInsets.only(top: top, bottom: bottom),
+        child: LogoMotionLoader(
+          showMessage:
+              swipePreview ||
+              _swipeLoadingFeedKey == _key(feed.sort, feed.category) ||
+              (feed.sort.isEmpty && feed.category == null),
+        ),
       ),
       error: (e, _) => Padding(
         padding: EdgeInsets.only(top: top, bottom: bottom),
@@ -887,22 +1006,35 @@ class _HomePageState extends ConsumerState<HomePage> {
           loadMoreError: feed.loadMoreError,
           controller: controller,
           padding: EdgeInsets.only(top: top, bottom: bottom),
-          header: AnnouncementBanner(
-            announcement: props.announcement,
-            collapsed: _announcementCollapsed,
-            onCollapsedChanged: _setAnnouncementCollapsed,
+          header: Column(
+            children: [
+              if (feed.cached)
+                CacheSnapshotHint(
+                  savedAt: feed.snapshotTime,
+                  refreshing: feed.refreshing,
+                  onRetry: () => _load(silent: true, target: feed),
+                ),
+              AnnouncementBanner(
+                announcement: props.announcement,
+                collapsed: _announcementCollapsed,
+                onCollapsedChanged: _setAnnouncementCollapsed,
+              ),
+            ],
           ),
           loading: feed.loadingMore,
           topics: feed.topics,
           hiddenCategoryId: feed.category?.id,
           onCategorySelected: _filterCategory,
           feedMode: _feedMode,
+          collapsePinned: feed.category == null && feed.sort != 'following',
           onFirstMediaFrame: recordFirstHomeMediaFrame,
-          onLikeTopic: _toggleTopicInteraction,
-          onBookmarkTopic: (topic, target) =>
-              _toggleTopicInteraction(topic, target, bookmark: true),
+          onLikeTopic: feed.cached ? null : _toggleTopicInteraction,
+          onBookmarkTopic: feed.cached
+              ? null
+              : (topic, target) =>
+                    _toggleTopicInteraction(topic, target, bookmark: true),
           onReturnFromTopic: () => _refreshAfterReturn(feed),
-          hasMore: props.pagination.hasNext,
+          hasMore: !feed.cached && props.pagination.hasNext,
           onLoadMore: () => _loadMore(feed),
         ),
       ),

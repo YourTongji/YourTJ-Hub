@@ -7,6 +7,7 @@ import '../atoms/gf_avatar.dart';
 import '../atoms/gf_badge.dart';
 import '../atoms/gf_badge_medallion.dart';
 import '../gf_horizontal_scroll_view.dart';
+import '../gf_media_image.dart';
 import '../gf_symbol.dart';
 
 @immutable
@@ -92,7 +93,7 @@ class GfUserCardHeader extends StatelessWidget {
                   child: ColoredBox(
                     color: colors.base300,
                     child: coverUrl?.isNotEmpty == true
-                        ? Image.network(
+                        ? GfNetworkImage(
                             coverUrl!,
                             fit: BoxFit.cover,
                             excludeFromSemantics: true,

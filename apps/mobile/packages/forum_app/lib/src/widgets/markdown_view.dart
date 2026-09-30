@@ -33,7 +33,7 @@ TextStyle readingBodyStyle(BuildContext context) =>
 ///
 /// 帖子 content 是 raw markdown(表情包 token 未展开,服务端只展开
 /// renderedContent HTML 链路):渲染前把 `[:sticker:name:]` 重写为标准图片
-/// 语法保留表情语义，使用紧凑 renderer 并排除灯箱;库未就绪时先用原文渲染,拉取完成
+/// 语法保留表情语义，独立预览并排除普通图片画廊;库未就绪时先用原文渲染,拉取完成
 /// 后异步刷新,未知/停用 token 保持原文。
 class GfMarkdownView extends ConsumerStatefulWidget {
   const GfMarkdownView({
@@ -42,6 +42,7 @@ class GfMarkdownView extends ConsumerStatefulWidget {
     this.images,
     this.mentions = const <PostMention>[],
     this.selectable = false,
+    this.stickerSize = StickerImage.readingSize,
   });
 
   final String data;
@@ -51,6 +52,9 @@ class GfMarkdownView extends ConsumerStatefulWidget {
   final List<String>? images;
 
   final bool selectable;
+
+  /// Draft previews opt into thumbnails; posts and replies use reading size.
+  final double stickerSize;
 
   @override
   ConsumerState<GfMarkdownView> createState() => _GfMarkdownViewState();
@@ -73,6 +77,7 @@ class _GfMarkdownViewState extends ConsumerState<GfMarkdownView> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.data != widget.data ||
         oldWidget.selectable != widget.selectable ||
+        oldWidget.stickerSize != widget.stickerSize ||
         !listEquals(oldWidget.images, widget.images) ||
         !listEquals(oldWidget.mentions, widget.mentions)) {
       if (oldWidget.data != widget.data) _linkPreviews = null;
@@ -202,7 +207,11 @@ class _GfMarkdownViewState extends ConsumerState<GfMarkdownView> {
           builder: (String url, Map<String, String> attributes) {
             final sticker = stickerImages[url];
             if (sticker != null) {
-              return StickerImage(name: sticker.name, url: sticker.url);
+              return StickerImage(
+                name: sticker.name,
+                url: sticker.url,
+                size: widget.stickerSize,
+              );
             }
             final String resolvedUrl = resolveApiAssetUrl(url);
             return GestureDetector(
@@ -233,7 +242,7 @@ class _GfMarkdownViewState extends ConsumerState<GfMarkdownView> {
                     borderRadius: BorderRadius.circular(8),
                   ),
                   clipBehavior: Clip.antiAlias,
-                  child: Image.network(
+                  child: GfNetworkImage(
                     resolvedUrl,
                     fit: BoxFit.contain,
                     cacheWidth: imageCacheWidth,
@@ -534,7 +543,7 @@ class _GfLinkPreviewCardState extends ConsumerState<GfLinkPreviewCard> {
                 if (faviconUrl != null) ...<Widget>[
                   ClipRRect(
                     borderRadius: BorderRadius.circular(4),
-                    child: Image.network(
+                    child: GfNetworkImage(
                       faviconUrl,
                       width: 16,
                       height: 16,
@@ -652,7 +661,7 @@ class _GfLinkPreviewCardState extends ConsumerState<GfLinkPreviewCard> {
                         height: railCover ? null : coverWidth,
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(6),
-                          child: Image.network(
+                          child: GfNetworkImage(
                             coverUrl,
                             fit: railCover ? BoxFit.contain : BoxFit.cover,
                             cacheWidth:

@@ -264,6 +264,12 @@ abstract class AppLocalizations {
   /// **'Loading…'**
   String get commonLoading;
 
+  /// No description provided for @tabPageLoading.
+  ///
+  /// In en, this message translates to:
+  /// **'Loading, just a moment…'**
+  String get tabPageLoading;
+
   /// No description provided for @commonLoadMore.
   ///
   /// In en, this message translates to:
@@ -1806,6 +1812,18 @@ abstract class AppLocalizations {
   /// **'No topics yet'**
   String get topicEmpty;
 
+  /// No description provided for @homePinnedTopics.
+  ///
+  /// In en, this message translates to:
+  /// **'Pinned topics ({count})'**
+  String homePinnedTopics(int count);
+
+  /// No description provided for @topicPinned.
+  ///
+  /// In en, this message translates to:
+  /// **'Pinned'**
+  String get topicPinned;
+
   /// No description provided for @settingsAvatarUploaded.
   ///
   /// In en, this message translates to:
@@ -2867,6 +2885,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'About the community'**
   String get siteInfoTitle;
+
+  /// No description provided for @siteInfoAnalytics.
+  ///
+  /// In en, this message translates to:
+  /// **'App visit statistics'**
+  String get siteInfoAnalytics;
+
+  /// No description provided for @siteInfoAnalyticsDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Official Android and iOS releases connected to https://f.yourtj.de automatically collect public-page visits for guests and signed-in users. There is no statistics switch. New installations and upgrades use this policy, including when statistics were disabled in an older version. Debug builds, other servers, Web and desktop builds do not use this native collection channel.\n\nWhile the App is in the foreground, it sends fixed public-page categories, the YourTJ App marker, OS family and phone/tablet type to YourTJ’s own Umami service at umi.yourtj.de for visit statistics and the status page. It does not send accounts, credentials, device or advertising identifiers, post/course IDs, search terms or content. Campus, schedules, messages, notifications, profiles, login, settings, writing and administration pages are excluded.\n\nThe service receives your network IP and general client headers and may derive an approximate country, region or city. No GPS location is collected. Visitor estimates are not linked to accounts.\n\nBackgrounding stops sends and discards pending visits. Requests are not retried, and the App stores no visit queue or visitor identifier on disk. The analytics cache token exists only in memory. Delivered records follow the service’s retention settings and are not removed when you leave the App. The status page shows only coarse device, OS and client categories and aggregate counts.'**
+  String get siteInfoAnalyticsDescription;
 
   /// No description provided for @siteInfoLinks.
   ///
@@ -5364,6 +5394,18 @@ abstract class AppLocalizations {
   /// **'Reply'**
   String get messageReply;
 
+  /// No description provided for @messagesJumpToQuotedMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Jump to quoted message'**
+  String get messagesJumpToQuotedMessage;
+
+  /// No description provided for @messagesReturnToReplySource.
+  ///
+  /// In en, this message translates to:
+  /// **'Return to source message'**
+  String get messagesReturnToReplySource;
+
   /// No description provided for @messageReplyCancel.
   ///
   /// In en, this message translates to:
@@ -5580,23 +5622,47 @@ abstract class AppLocalizations {
   /// **'Choose recipients'**
   String get messageForwardChooseTargets;
 
-  /// No description provided for @settingsVisitorAnalytics.
+  /// No description provided for @draftDeleteCloud.
   ///
   /// In en, this message translates to:
-  /// **'Share visit statistics'**
-  String get settingsVisitorAnalytics;
+  /// **'Delete cloud draft'**
+  String get draftDeleteCloud;
 
-  /// No description provided for @settingsVisitorAnalyticsDescription.
+  /// No description provided for @draftDeleteLocalConfirm.
   ///
   /// In en, this message translates to:
-  /// **'Off by default. Sends public screen categories, App marker, OS and phone/tablet type to YourTJ’s self-hosted analytics for the status page; the service also receives your network IP and derives an approximate location. No account, content, search terms, device identifiers, campus, messages or settings pages are sent. Turn off at any time.'**
-  String get settingsVisitorAnalyticsDescription;
+  /// **'Only this device copy will be deleted. The cloud draft and published content will stay unchanged. You can undo this deletion while this page stays open.'**
+  String get draftDeleteLocalConfirm;
 
-  /// No description provided for @settingsVisitorAnalyticsSaveFailed.
+  /// No description provided for @draftDeleteCloudConfirm.
   ///
   /// In en, this message translates to:
-  /// **'Could not save the analytics preference. Disabling still applies now; retry to save your choice for the next launch.'**
-  String get settingsVisitorAnalyticsSaveFailed;
+  /// **'The cloud content will move to the recycle bin and may be restored there within 30 days if eligible. Device recovery copies will be kept.'**
+  String get draftDeleteCloudConfirm;
+
+  /// No description provided for @draftDeleteCloudFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not delete this cloud draft. It is still in the list; try again.'**
+  String get draftDeleteCloudFailed;
+
+  /// No description provided for @draftDeleteCloudDone.
+  ///
+  /// In en, this message translates to:
+  /// **'Cloud draft moved to the recycle bin. Device copies were kept.'**
+  String get draftDeleteCloudDone;
+
+  /// No description provided for @draftOpenRecycleBin.
+  ///
+  /// In en, this message translates to:
+  /// **'Open recycle bin'**
+  String get draftOpenRecycleBin;
+
+  /// No description provided for @draftCloudLimit.
+  ///
+  /// In en, this message translates to:
+  /// **'This page loads the 100 most recently updated cloud drafts. Deleting a draft refreshes the list to show the next one.'**
+  String get draftCloudLimit;
 }
 
 class _AppLocalizationsDelegate

@@ -297,7 +297,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                 gaplessPlayback: true,
               )
             : !_coverChanged && _coverUrl.isNotEmpty
-            ? Image.network(
+            ? GfNetworkImage(
                 resolveApiAssetUrl(_coverUrl),
                 fit: BoxFit.cover,
                 width: double.infinity,

@@ -6,6 +6,7 @@ import 'package:forum_app/src/pages/campus/campus_state.dart';
 import 'package:forum_app/src/providers.dart';
 import 'package:forum_app/src/current_user.dart';
 import 'package:forum_app/src/navigation/tab_scroll_registry.dart';
+import 'package:forum_app/src/navigation/reading_chrome.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/rendering.dart';
@@ -40,12 +41,36 @@ ScrollController _list(WidgetTester tester) => tester
     )
     .controller!;
 
+ScrollController _listForTab(WidgetTester tester, String tab) => tester
+    .widget<ListView>(find.byKey(PageStorageKey<String>('campus-list-$tab')))
+    .controller!;
+
 class _DelayedGrades extends FakeCampusRepository {
   Completer<CampusDataset>? grades;
   @override
   Future<CampusDataset> dataset(String key, {CancelToken? cancelToken}) {
     if (key == 'grades' && grades != null) return grades!.future;
     return super.dataset(key, cancelToken: cancelToken);
+  }
+}
+
+class _LongMessages extends FakeCampusRepository {
+  @override
+  Future<CampusDataset> dataset(String key, {CancelToken? cancelToken}) async {
+    final data = await super.dataset(key, cancelToken: cancelToken);
+    if (key != 'messages') return data;
+    return CampusDataset(
+      key: data.key,
+      status: data.status,
+      updatedAt: data.updatedAt,
+      metrics: data.metrics,
+      columns: data.columns,
+      rows: data.rows,
+      events: data.events,
+      series: data.series,
+      messages: [for (var i = 0; i < 40; i++) ...data.messages],
+      teachingDay: data.teachingDay,
+    );
   }
 }
 
@@ -365,20 +390,125 @@ void main() {
       expect(_list(tester).offset, closeTo(academicOffset, 1));
       await _select(tester, 'messages');
       expect(_list(tester).offset, closeTo(noticeOffset, 1));
+      final messageList = find.byKey(
+        const PageStorageKey<String>('campus-list-messages'),
+      );
+      final scrollHandle = tester
+          .widget<GfScrollToTop>(
+            find
+                .ancestor(of: messageList, matching: find.byType(GfScrollToTop))
+                .first,
+          )
+          .controller!;
+      expect(scrollHandle.isAttached, isTrue);
       final container = ProviderScope.containerOf(
         tester.element(find.byType(CampusPage)),
       );
-      unawaited(
-        container
-            .read(tabScrollRegistryProvider)
-            .scrollToTop(GfShellDestination.campus),
-      );
+      final scrollToTop = container
+          .read(tabScrollRegistryProvider)
+          .scrollToTop(GfShellDestination.campus);
       await tester.pumpAndSettle();
+      await scrollToTop;
       expect(_list(tester).offset, 0);
       await tester.pumpWidget(const SizedBox());
       await tester.pumpAndSettle();
     },
   );
+
+  testWidgets('hidden chrome swipes retain each campus section scroll offset', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final visible = ValueNotifier(true);
+    addTearDown(visible.dispose);
+    final repo = _LongMessages();
+    await tester.pumpWidget(
+      campusTestApp(
+        repo,
+        child: ValueListenableBuilder<bool>(
+          valueListenable: visible,
+          builder: (_, active, _) =>
+              TickerMode(enabled: active, child: const CampusPage()),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(CampusPage)),
+    );
+    Future<void> selectSection(String tab) async {
+      tester.widget<GfTabBar>(find.byType(GfTabBar)).onSelected(tab);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pump();
+      expect(tester.widget<GfTabBar>(find.byType(GfTabBar)).selected, tab);
+    }
+
+    Future<void> swipeTo(int index) async {
+      GfTabSwipeProgressScope.onTabSelectedOf(
+        tester.element(find.byType(GfTabBar)),
+      )!(index);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pump();
+    }
+
+    Future<void> waitForList(String tab) async {
+      final finder = find.byKey(PageStorageKey<String>('campus-list-$tab'));
+      for (
+        var attempt = 0;
+        attempt < 20 && finder.evaluate().isEmpty;
+        attempt++
+      ) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      expect(finder, findsOneWidget);
+    }
+
+    await selectSection('academics');
+    await waitForList('academics');
+    await selectSection('messages');
+    await waitForList('messages');
+
+    container.read(readingChromeProvider).update(48, 48);
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.drag(
+      find.byKey(const PageStorageKey<String>('campus-list-messages')),
+      const Offset(0, -50),
+    );
+    await tester.pump();
+    final messageOffset = _listForTab(tester, 'messages').offset;
+    expect(messageOffset, greaterThan(0));
+
+    await selectSection('academics');
+    await tester.drag(
+      find.byKey(const PageStorageKey<String>('campus-list-academics')),
+      const Offset(0, -400),
+    );
+    await tester.pump();
+    final academicOffset = _listForTab(tester, 'academics').offset;
+    expect(academicOffset, greaterThan(100));
+
+    await swipeTo(3);
+    expect(tester.widget<GfTabBar>(find.byType(GfTabBar)).selected, 'messages');
+    await waitForList('messages');
+    expect(_listForTab(tester, 'messages').offset, closeTo(messageOffset, 1));
+
+    await swipeTo(2);
+    expect(
+      tester.widget<GfTabBar>(find.byType(GfTabBar)).selected,
+      'academics',
+    );
+    await waitForList('academics');
+    expect(_listForTab(tester, 'academics').offset, closeTo(academicOffset, 1));
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+    await tester.pumpAndSettle();
+  });
 
   for (final boundary in ['session', 'binding']) {
     testWidgets('campus navigation clears at $boundary boundary', (
@@ -420,7 +550,9 @@ void main() {
         );
       }
       visible.value = true;
-      await tester.pumpAndSettle();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pump();
       expect(tester.widget<GfTabBar>(find.byType(GfTabBar)).selected, 'today');
       await _select(tester, 'messages');
       expect(tester.widget<TextField>(_search).controller!.text, isEmpty);
@@ -538,7 +670,9 @@ void main() {
               fallbackMessage: 'Authorize',
             ),
           );
-      await tester.pumpAndSettle();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pump();
       expect(tester.widget<GfTabBar>(find.byType(GfTabBar)).selected, 'today');
       await _select(tester, 'connection');
       expect(
@@ -570,7 +704,9 @@ void main() {
           database: container.read(offlineDatabaseProvider),
         ),
       );
-      await tester.pumpAndSettle();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pump();
       expect(tester.state(find.byType(CampusPage)), same(pageState));
       if (boundary == 'logout') {
         container.invalidate(currentUserProvider);
@@ -650,7 +786,9 @@ void main() {
         );
         final controller = container.read(campusControllerProvider.notifier);
         controller.invalidateForError(error);
-        await tester.pumpAndSettle();
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 300));
+        await tester.pump();
         expect(
           tester.widget<GfTabBar>(find.byType(GfTabBar)).selected,
           'today',

@@ -168,7 +168,9 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Mine'));
+      await tester.tap(find.byTooltip('Sticker actions: Mine'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Rename'));
       await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextField), 'My new label');
       await tester.tap(find.text('Done'));
@@ -232,7 +234,9 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Mine'));
+    await tester.tap(find.byTooltip('Sticker actions: Mine'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Rename'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField), 'Private account label');
     container.read(offlineCacheEpochProvider.notifier).invalidate();
@@ -447,7 +451,16 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 100));
     expect(tester.takeException(), isNull);
-    await tester.ensureVisible(find.text('Smile').last);
+    await tester.scrollUntilVisible(
+      find.text('Smile'),
+      80,
+      scrollable: find
+          .descendant(
+            of: find.byType(CustomScrollView),
+            matching: find.byType(Scrollable),
+          )
+          .first,
+    );
     await tester.pump();
     await tester.tap(find.text('Smile').last);
     expect(inserted, [official.token]);

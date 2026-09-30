@@ -65,4 +65,81 @@ void main() {
       );
     },
   );
+
+  test(
+    'with a resolver, home access requires the resolved owner identity',
+    () async {
+      final database = AppDatabase(NativeDatabase.memory());
+      addTearDown(database.close);
+      final cache = DriftOfflineCache(
+        database,
+        resolveScope:
+            () async => CacheScope('https://forum.example', 7, language: 'zh'),
+      );
+      final payload = PagePayload.fromJson(homePayloadJson());
+
+      // A caller presenting the resolved owner reads and writes normally.
+      await cache.putHomePage(
+        accountId: 7,
+        baseUrl: 'https://forum.example',
+        sort: 'latest',
+        payload: payload,
+      );
+      expect(
+        await cache.getHomePage(
+          accountId: 7,
+          baseUrl: 'https://forum.example',
+          sort: 'latest',
+        ),
+        isNotNull,
+      );
+
+      // A mismatched caller is fenced: nothing is written and nothing is read.
+      await cache.putHomePage(
+        accountId: 9,
+        baseUrl: 'https://forum.example',
+        sort: 'latest',
+        payload: payload,
+      );
+      expect(
+        await cache.getHomePage(
+          accountId: 9,
+          baseUrl: 'https://forum.example',
+          sort: 'latest',
+        ),
+        isNull,
+      );
+      expect(
+        await cache.getHomePage(
+          accountId: 7,
+          baseUrl: 'https://forum.example',
+          sort: 'latest',
+        ),
+        isNotNull,
+      );
+      expect(
+        await cache.getHomePage(
+          accountId: 7,
+          baseUrl: 'https://other.example',
+          sort: 'latest',
+        ),
+        isNull,
+      );
+
+      // Another representation of the same account shares nothing.
+      final english = DriftOfflineCache(
+        database,
+        resolveScope:
+            () async => CacheScope('https://forum.example', 7, language: 'en'),
+      );
+      expect(
+        await english.getHomePage(
+          accountId: 7,
+          baseUrl: 'https://forum.example',
+          sort: 'latest',
+        ),
+        isNull,
+      );
+    },
+  );
 }

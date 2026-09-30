@@ -1,5 +1,6 @@
 import 'scheduler_web_tip.dart';
 import 'schedule_sync_panel.dart';
+import 'schedule_storage_panel.dart';
 import '../../widgets/schedule_time_grid.dart';
 
 // 排课器主页面（/schedule 路由目标）：移动端双 tab（课表 / 选课）+ 方案条 +
@@ -256,11 +257,14 @@ class _SchedulePageState extends ConsumerState<SchedulePage>
       ),
       body: !_ready
           ? const GfScheduleSkeleton()
+          : !_notifier.storageReady
+          ? const ScheduleStoragePanel()
           : ListView(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
               children: <Widget>[
                 const SchedulerWebTip(),
                 const ScheduleSyncPanel(),
+                const ScheduleStoragePanel(),
                 _PlanBar(notifier: _notifier, state: state),
                 const SizedBox(height: 8),
                 if (state.isConfigCollapsed)

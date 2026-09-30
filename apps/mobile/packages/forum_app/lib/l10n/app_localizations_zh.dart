@@ -94,6 +94,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get commonLoading => '加载中…';
 
   @override
+  String get tabPageLoading => '正在努力加载...';
+
+  @override
   String get commonLoadMore => '加载更多';
 
   @override
@@ -928,6 +931,14 @@ class AppLocalizationsZh extends AppLocalizations {
   String get topicEmpty => '暂无话题';
 
   @override
+  String homePinnedTopics(int count) {
+    return '置顶话题（$count）';
+  }
+
+  @override
+  String get topicPinned => '置顶';
+
+  @override
   String settingsAvatarUploaded(String url) {
     return '头像已上传:$url';
   }
@@ -1488,6 +1499,13 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get siteInfoTitle => '关于社区';
+
+  @override
+  String get siteInfoAnalytics => 'App 访问统计说明';
+
+  @override
+  String get siteInfoAnalyticsDescription =>
+      '正式 Android/iOS 版本连接 https://f.yourtj.de 时会自动统计公开页面访问，访客和已登录用户均适用。App 内没有统计开关；新安装及升级后均按此方式运行，包括旧版曾关闭统计的安装。调试版本、其他站点、Web 和桌面端构建不会通过此原生统计通道发送数据。\n\nApp 在前台时向 YourTJ 自托管的 Umami 服务（umi.yourtj.de）发送公开页面的固定类别、YourTJ App 标记、系统家族和手机／平板类型，用于访问统计及状态页。不发送账号、登录凭据、设备或广告标识、帖子／课程标识、搜索词及内容；校园、课表、私信、通知、个人资料、登录、设置、创作及管理页面不参与统计。\n\n服务会接收到网络 IP 和通用客户端请求头，并可能推算大致国家、地区或城市；不获取 GPS 定位。访客数通过统计规则估算，不与账号关联。\n\nApp 进入后台即停止发送并丢弃待发送项，不重试失败的请求，不在磁盘保存访问队列或访客标识；统计缓存标记仅保留在内存中。已送达的数据按服务端保留设置管理，不会随退出 App 而撤回。状态页仅公开粗粒度设备、系统、客户端类别及汇总数量。';
 
   @override
   String get siteInfoLinks => '友情链接';
@@ -2806,6 +2824,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get messageReply => '回复';
 
   @override
+  String get messagesJumpToQuotedMessage => '跳转到引用消息';
+
+  @override
+  String get messagesReturnToReplySource => '返回引用来源';
+
+  @override
   String get messageReplyCancel => '取消回复';
 
   @override
@@ -2925,13 +2949,24 @@ class AppLocalizationsZh extends AppLocalizations {
   String get messageForwardChooseTargets => '选择接收者';
 
   @override
-  String get settingsVisitorAnalytics => '参与访问统计';
+  String get draftDeleteCloud => '删除云端草稿';
 
   @override
-  String get settingsVisitorAnalyticsDescription =>
-      '默认关闭。开启后向 YourTJ 自托管统计服务发送公开页面类别、App 标记、系统和手机／平板类型，用于状态页访客统计；服务也会接收到网络 IP 并推算大致地区。不发送账号、内容、搜索词或设备标识，不记录校园、私信及设置页面。可随时关闭。';
+  String get draftDeleteLocalConfirm => '只删除这份本机副本，不影响云端草稿和已发布内容。留在本页时可撤销本次删除。';
 
   @override
-  String get settingsVisitorAnalyticsSaveFailed =>
-      '未能保存统计设置。本次关闭仍有效，请稍后重试以保存下次启动的选择。';
+  String get draftDeleteCloudConfirm =>
+      '云端内容会移入回收站，符合恢复条件时可在 30 天内恢复。本机恢复副本会保留。';
+
+  @override
+  String get draftDeleteCloudFailed => '未能删除这份云端草稿，列表已保留，请重试。';
+
+  @override
+  String get draftDeleteCloudDone => '云端草稿已移入回收站，本机副本已保留。';
+
+  @override
+  String get draftOpenRecycleBin => '打开回收站';
+
+  @override
+  String get draftCloudLimit => '此页最多加载最近 100 份云端草稿，删除后会刷新并显示后续草稿。';
 }

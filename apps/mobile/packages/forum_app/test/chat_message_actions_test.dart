@@ -56,7 +56,40 @@ class RecordingSendsChatRepository extends VisibleChatRepository {
   RecordingSendsChatRepository(super.client, {required super.messages});
 
   final sent = <(int, String)>[];
+  final replyTargets = <int?>[];
+  int? requestedAroundId;
   int failures = 0;
+
+  @override
+  Future<ChatMessagesResponse> getMessages({
+    required int convId,
+    int beforeId = 0,
+    int afterId = 0,
+    int aroundId = 0,
+    int limit = 30,
+    Object? cancelToken,
+  }) {
+    if (aroundId > 0) {
+      requestedAroundId = aroundId;
+      return Future.value(
+        ChatMessagesResponse(
+          list: [makeChatMessage(aroundId)],
+          hasMoreBefore: false,
+          hasMoreAfter: false,
+          nextBeforeId: aroundId,
+          latestId: aroundId,
+        ),
+      );
+    }
+    return super.getMessages(
+      convId: convId,
+      beforeId: beforeId,
+      afterId: afterId,
+      aroundId: aroundId,
+      limit: limit,
+      cancelToken: cancelToken,
+    );
+  }
 
   @override
   Future<int> sendMessage({
@@ -64,12 +97,14 @@ class RecordingSendsChatRepository extends VisibleChatRepository {
     required String content,
     int msgType = 1,
     String? clientMessageId,
+    int? replyToMessageId,
   }) async {
     sent.add((peerId, content));
     if (failures > 0) {
       failures--;
       throw StateError('offline');
     }
+    replyTargets.add(replyToMessageId);
     return 9;
   }
 }
@@ -86,6 +121,7 @@ class _DelayedReplyRepository extends RecordingSendsChatRepository {
     required String content,
     int msgType = 1,
     String? clientMessageId,
+    int? replyToMessageId,
   }) => result.future;
 }
 
@@ -300,6 +336,45 @@ void main() {
     expect(find.text('Report message'), findsNothing);
     await dispose(tester);
   });
+
+  testWidgets(
+    'forwarded history can be replied to but not copied or collected',
+    (tester) async {
+      final repository = await pumpActions(
+        tester,
+        messages: [
+          makeChatMessage(
+            1,
+          ).copyWith(msgType: 4, content: '[Chat history]\nprivate snapshot'),
+        ],
+      );
+      await openActions(tester, find.textContaining('Chat history'));
+      expect(find.text('Reply'), findsOneWidget);
+      expect(find.text('Forward'), findsOneWidget);
+      expect(find.text('Select messages'), findsOneWidget);
+      expect(find.text('Report message'), findsOneWidget);
+      expect(find.text('Copy entire message'), findsNothing);
+      expect(find.text('Save to my stickers'), findsNothing);
+      await tester.tap(find.text('Reply'));
+      await tester.pumpAndSettle();
+      expect(
+        find.descendant(of: _preview, matching: find.text('[Chat history]')),
+        findsOneWidget,
+      );
+      await tester.enterText(
+        find.descendant(
+          of: find.byType(GfChatInput),
+          matching: find.byType(TextField),
+        ),
+        '收到',
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('chat-send')));
+      await tester.pumpAndSettle();
+      expect(repository.sent, [(2, '> @bob: [Chat history]\n\n收到')]);
+      await dispose(tester);
+    },
+  );
 
   testWidgets('the inline report link is gone and reporting keeps its target', (
     tester,
@@ -551,9 +626,37 @@ void main() {
     await tester.tap(find.byKey(const Key('chat-send')));
     await tester.pumpAndSettle();
     expect(repository.sent, [(2, '> @bob: 消息 1\n\n收到')]);
+    expect(repository.replyTargets, [1]);
     expect(_preview, findsNothing);
     await dispose(tester);
   });
+
+  testWidgets(
+    'quote tap loads an old target, highlights it, and returns to source',
+    (tester) async {
+      final repository = await pumpActions(
+        tester,
+        messages: [
+          makeChatMessage(2).copyWith(
+            content: '> @bob: older content\n\nanswer',
+            replyToMessageId: 1,
+          ),
+        ],
+      );
+
+      await tester.tap(find.text('older content'));
+      await tester.pumpAndSettle();
+      expect(repository.requestedAroundId, 1);
+      expect(find.byKey(const Key('chat-reply-return')), findsOneWidget);
+      expect(find.text('消息 1'), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('chat-reply-return')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('chat-reply-return')), findsNothing);
+      expect(find.text('answer'), findsOneWidget);
+      await dispose(tester);
+    },
+  );
 
   testWidgets('quoting own message labels the quote with the viewer username', (
     tester,
@@ -651,8 +754,9 @@ void main() {
       (2, '> @bob: 消息 1\n\n收到'),
       (2, '> @bob: 消息 1\n\n收到'),
     ]);
-    expect(find.text('> @bob: 消息 1\n\n收到'), findsOneWidget);
-    expect(find.text('收到'), findsNothing, reason: 'no unquoted duplicate');
+    expect(find.text('> @bob: 消息 1\n\n收到'), findsNothing);
+    expect(find.text('@bob'), findsOneWidget);
+    expect(find.text('收到'), findsOneWidget);
     expect(_preview, findsNothing);
     await dispose(tester);
   });

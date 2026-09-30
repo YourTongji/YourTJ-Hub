@@ -133,3 +133,8 @@ A decision starts `Proposed`. Once implemented, its status becomes `Accepted` an
 - [0046](0046-status-device-aggregates.md) — 后台读取联合设备统计，仅公开设备、系统和浏览器类别及人数。
 
 - [0047](0047-mobile-visual-acceptance.md) — 移除移动端截图基线，保留行为与布局断言和模拟器/设备视觉验收。
+- [0048](0048-mobile-storage-lifecycle.md) — 按身份、保留期和字节预算管理缓存；加密事务库分离本机作品，清理可恢复并拒绝旧请求回填。
+
+- [0049](0049-android-first-login-notification-permission.md) — Android 登录后一次性请求系统通知权限，并在授权后开启 JPush。
+- [0050](0050-android-stable-download-links.md) — Android 使用独立 mobile-latest 固定下载入口，保留版本化安装包和服务端 Latest。
+- [0051](0051-mobile-automatic-visitor-statistics.md) — 正式移动端自动统计公开页面，移除统计开关与偏好门控，同步升级语义和隐私披露。

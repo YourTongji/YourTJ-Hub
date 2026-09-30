@@ -254,6 +254,46 @@ Future<_Harness> _mount(
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
+  for (final brightness in Brightness.values) {
+    for (final signedIn in [false, true]) {
+      testWidgets(
+        'settings icons are bundled in $brightness signedIn=$signedIn',
+        (tester) async {
+          tester.platformDispatcher.platformBrightnessTestValue = brightness;
+          addTearDown(
+            tester.platformDispatcher.clearPlatformBrightnessTestValue,
+          );
+          await _mount(tester, signedIn: signedIn);
+          final row = find.byKey(const ValueKey('settings-category-privacy'));
+          await tester.scrollUntilVisible(
+            row,
+            200,
+            scrollable: find.byType(Scrollable).first,
+          );
+          final symbols = find.byType(GfSymbol);
+          expect(symbols, findsWidgets);
+          // Exercise the actual package bundle: a named GfSymbol can reserve space
+          // while its missing SVG silently leaves the settings glyph invisible.
+          for (final symbol in tester.widgetList<GfSymbol>(symbols)) {
+            final asset = 'packages/ui_kit/assets/icons/${symbol.name}.svg';
+            final svg = await rootBundle.loadString(asset, cache: false);
+            expect(svg, contains('<svg'), reason: asset);
+            expect(
+              svg,
+              contains(
+                RegExp(
+                  r'<(?:path|polyline|polygon|rect|circle|ellipse|line)\b',
+                ),
+              ),
+              reason: asset,
+            );
+          }
+          expect(tester.takeException(), isNull);
+        },
+      );
+    }
+  }
+
   Finder input(String label) => find.byWidgetPredicate(
     (w) => w is TextField && w.decoration?.labelText == label,
   );
@@ -850,6 +890,13 @@ void main() {
             'security',
           ]) {
             final category = find.byKey(ValueKey('settings-category-$section'));
+            // Categories now span device and account groups. Start each lookup
+            // from the top so an earlier device row can also be constructed.
+            final position = tester
+                .state<ScrollableState>(find.byType(Scrollable).first)
+                .position;
+            position.jumpTo(position.minScrollExtent);
+            await tester.pump();
             // Settings can extend beyond the lazy list's built children at
             // large text sizes; scroll to construct the next category first.
             await tester.scrollUntilVisible(

@@ -39,6 +39,7 @@ class VisibleChatRepository extends PollingChatRepository {
     required int convId,
     int beforeId = 0,
     int afterId = 0,
+    int aroundId = 0,
     int limit = 30,
     Object? cancelToken,
   }) {
@@ -59,6 +60,7 @@ class VisibleChatRepository extends PollingChatRepository {
           convId: convId,
           beforeId: beforeId,
           afterId: afterId,
+          aroundId: aroundId,
           limit: limit,
           cancelToken: cancelToken,
         )

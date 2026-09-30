@@ -1,5 +1,4 @@
 import '../../user_blocks.dart';
-import '../../analytics/analytics_setting.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -29,7 +28,7 @@ import '../../widgets/status_views.dart';
 import '../../current_user.dart';
 import '../../navigation/auth_navigation.dart';
 import 'account_closure_dialog.dart';
-import 'campus_cache_clear_tile.dart';
+import 'storage_settings_panel.dart';
 import 'profile_edit_dialog.dart';
 import 'password_edit_page.dart';
 import 'session_device_label.dart';
@@ -1056,7 +1055,12 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               onTap: () => showAppLanguagePicker(context),
             ),
             const GfDivider(),
-            const AnalyticsSetting(),
+            _categoryRow(
+              key: const ValueKey('settings-category-privacy'),
+              symbol: 'archive',
+              title: l10n.settingsDataStorage,
+              onTap: () => _openSection(_SettingsTab.privacy),
+            ),
             const GfDivider(),
             _categoryRow(
               symbol: 'info',
@@ -1076,7 +1080,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               for (final section in const [
                 _SettingsTab.profile,
                 _SettingsTab.account,
-                _SettingsTab.privacy,
                 _SettingsTab.binding,
                 _SettingsTab.notifications,
                 _SettingsTab.security,
@@ -1095,6 +1098,14 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   title: section.label(l10n),
                   onTap: () => _openSection(section),
                 ),
+                if (section == _SettingsTab.account) ...[
+                  const GfDivider(),
+                  GfSettingRow(
+                    symbol: 'eye-off',
+                    title: l10n.userBlocks,
+                    onTap: () => showBlockedUsers(context),
+                  ),
+                ],
                 if (section == _SettingsTab.profile) ...[
                   const GfDivider(),
                   GfSettingRow(
@@ -1146,7 +1157,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   );
 
   Widget _buildTabBody(AppLocalizations l10n) {
-    if (_tab != _SettingsTab.appearance) {
+    if (_tab != _SettingsTab.appearance && _tab != _SettingsTab.privacy) {
       if (_signedIn == null) return const GfSettingsSkeleton();
       if (_signedIn == false) return _buildIndex(l10n);
     }
@@ -1385,44 +1396,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
   /// Legacy privacy deep links now open data and local-storage tools.
   Widget _buildPrivacyTab(AppLocalizations l10n, ScrollController controller) =>
-      ListView(
-        controller: controller,
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.all(16),
-        children: [
-          GfSettingRow(
-            symbol: 'ban',
-            title: l10n.userBlocks,
-            onTap: () => showBlockedUsers(context),
-          ),
-          const SizedBox(height: 24),
-          _settingsSection(
-            context,
-            title: l10n.profileContent,
-            child: Column(
-              children: [
-                GfSettingRow(
-                  symbol: 'folder',
-                  title: l10n.profileContent,
-                  onTap: () => context.push('/my-content'),
-                ),
-                const GfDivider(),
-                GfSettingRow(
-                  symbol: 'trash-2',
-                  title: l10n.profileTrash,
-                  onTap: () => context.push('/recycle-bin'),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 24),
-          _settingsSection(
-            context,
-            title: l10n.settingsDataStorage,
-            child: const CampusCacheClearTile(),
-          ),
-        ],
-      );
+      StorageSettingsPanel(controller: controller, signedIn: _signedIn == true);
 
   /// 绑定:OAuth 绑定(web binding tab)。
   Widget _buildBindingTab(AppLocalizations l10n, ScrollController controller) {
@@ -1713,9 +1687,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   Future<void> _signOutLocally({String? successMessage}) async {
     // 原生推送：尽力注销当前设备的用户绑定（幂等；失败不阻塞登出）。
     await ref.read(pushControllerProvider.notifier).handleLogout();
-    await ref.read(tokenStorageProvider).clear();
-    // 会话边界:先使旧会话在途写入失效、当前用户身份失效,再清空缓存。
+    // Fence requests before waiting for secure storage or disk cleanup.
     ref.read(offlineCacheEpochProvider.notifier).invalidate();
+    await ref.read(tokenStorageProvider).clear();
     ref.invalidate(currentUserProvider);
     // 清空话题/会话/私信离线缓存;失败静默(下次登出/登录会重试)。
     await clearOfflineCacheQuietly(

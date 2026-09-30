@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../theme/gf_theme.dart';
 import 'gf_image_viewer.dart';
+import 'gf_media_image.dart';
 import 'gf_motion.dart';
 import 'gf_symbol.dart';
 
@@ -63,8 +64,9 @@ class _GfMediaCarouselState extends State<GfMediaCarousel> {
                   itemCount: widget.images.length,
                   onPageChanged: (index) => setState(() => _index = index),
                   itemBuilder: (context, index) {
-                    final ResizeImage preview = ResizeImage(
-                      NetworkImage(widget.images[index]),
+                    final preview = GfMediaScope.imageProvider(
+                      context,
+                      widget.images[index],
                       policy: ResizeImagePolicy.fit,
                       width: (constraints.maxWidth * pixelRatio).round(),
                       height: (height * pixelRatio).round(),
@@ -77,7 +79,7 @@ class _GfMediaCarouselState extends State<GfMediaCarousel> {
                           child: Image(
                             image: preview,
                             fit: BoxFit.cover,
-                            gaplessPlayback: true,
+                            gaplessPlayback: false,
                             errorBuilder: (_, _, _) => const SizedBox.shrink(),
                           ),
                         ),
@@ -140,7 +142,7 @@ class _GfMediaCarouselState extends State<GfMediaCarousel> {
                               child: Image(
                                 image: preview,
                                 fit: BoxFit.contain,
-                                gaplessPlayback: true,
+                                gaplessPlayback: false,
                                 errorBuilder: (_, _, _) => GfSymbol(
                                   'image-off',
                                   color: colors.iconMuted,

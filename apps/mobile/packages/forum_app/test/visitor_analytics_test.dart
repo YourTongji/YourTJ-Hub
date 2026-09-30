@@ -8,11 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:shared_preferences_platform_interface/shared_preferences_platform_interface.dart';
-import 'package:forum_app/l10n/app_localizations.dart';
-import 'package:forum_app/src/analytics/analytics_consent.dart';
 import 'package:forum_app/src/analytics/analytics_host.dart';
-import 'package:forum_app/src/analytics/analytics_setting.dart';
 import 'package:forum_app/src/analytics/visitor_analytics.dart';
 
 class _Adapter implements HttpClientAdapter {
@@ -49,31 +45,6 @@ class _Adapter implements HttpClientAdapter {
 
   @override
   void close({bool force = false}) {}
-}
-
-class _FailingPreferences extends SharedPreferencesStorePlatform {
-  @override
-  Future<bool> clear() async {
-    data.clear();
-    return true;
-  }
-
-  @override
-  Future<bool> remove(String key) async {
-    data.remove(key);
-    return true;
-  }
-
-  final data = <String, Object>{'flutter.visitor_analytics_opt_in': true};
-  bool fail = true;
-  @override
-  Future<Map<String, Object>> getAll() async => Map.of(data);
-  @override
-  Future<bool> setValue(String type, String key, Object value) async {
-    if (fail) return false;
-    data[key] = value;
-    return true;
-  }
 }
 
 Future<void> flush() => Future<void>.delayed(const Duration(milliseconds: 10));
@@ -142,36 +113,6 @@ void main() {
   });
 
   test(
-    'defaults off; later revocation wins over pending preference restoration',
-    () async {
-      final container = ProviderContainer();
-      addTearDown(container.dispose);
-      expect(container.read(analyticsConsentProvider), isFalse);
-      await flush();
-      expect(container.read(analyticsConsentProvider), isFalse);
-      expect(
-        await container
-            .read(analyticsConsentProvider.notifier)
-            .setEnabled(true),
-        isTrue,
-      );
-      expect(container.read(analyticsConsentProvider), isTrue);
-      final restored = ProviderContainer();
-      addTearDown(restored.dispose);
-      restored.read(analyticsConsentProvider);
-      await restored.read(analyticsConsentProvider.notifier).setEnabled(false);
-      await flush();
-      expect(restored.read(analyticsConsentProvider), isFalse);
-      expect(
-        (await SharedPreferences.getInstance()).getBool(
-          AnalyticsConsent.preferenceKey,
-        ),
-        isFalse,
-      );
-    },
-  );
-
-  test(
     'sends only allowlisted pageview fields; no credentials; deduplicates rebuilds',
     () async {
       final adapter = _Adapter();
@@ -180,11 +121,10 @@ void main() {
         transport: Dio()..httpClientAdapter = adapter,
       );
       addTearDown(analytics.dispose);
-      analytics.setActive(true);
       analytics.visit(Uri.parse('/p/123?q=private#secret'), tablet: false);
       await flush();
       expect(adapter.requests, isEmpty);
-      analytics.setEnabled(true);
+      analytics.setActive(true);
       analytics.visit(Uri.parse('/p/123?q=private#secret'), tablet: false);
       await flush();
       final request = adapter.requests.single;
@@ -225,11 +165,6 @@ void main() {
         adapter.requests.last.headers['x-umami-cache'],
         'memory-only-token',
       );
-      analytics.setEnabled(false);
-      analytics.setEnabled(true);
-      analytics.visit(Uri.parse('/'), tablet: false);
-      await flush();
-      expect(adapter.requests.last.headers['x-umami-cache'], isNull);
     },
   );
 
@@ -244,7 +179,6 @@ void main() {
         clock: () => time,
       );
       addTearDown(analytics.dispose);
-      analytics.setEnabled(true);
       analytics.setActive(true);
       analytics.visit(Uri.parse('/'), tablet: false);
       await flush();
@@ -266,7 +200,7 @@ void main() {
   );
 
   test(
-    'bounded memory queue, revocation cancels in-flight and discards unsent views',
+    'bounded memory queue, backgrounding cancels in-flight and discards unsent views',
     () async {
       final adapter = _Adapter()..hold = Completer<void>();
       final analytics = VisitorAnalytics(
@@ -274,7 +208,6 @@ void main() {
         transport: Dio()..httpClientAdapter = adapter,
       );
       addTearDown(analytics.dispose);
-      analytics.setEnabled(true);
       analytics.setActive(true);
       for (var i = 0; i < 12; i++) {
         analytics.visit(Uri.parse('/p/$i'), tablet: false);
@@ -288,16 +221,19 @@ void main() {
       analytics.visit(Uri.parse('/search'), tablet: false);
       await flush();
       analytics.visit(Uri.parse('/'), tablet: false);
-      analytics.setEnabled(false);
+      analytics.setActive(false);
       await flush();
       expect(adapter.cancelled, isTrue);
       adapter.hold!.complete();
       await flush();
       expect(adapter.requests, hasLength(5));
-      analytics.setEnabled(true);
+      analytics.setActive(true);
       analytics.visit(Uri.parse('/'), tablet: false);
       await flush();
-      expect(adapter.requests.last.headers['x-umami-cache'], isNull);
+      // Canceled views are not replayed when the foreground host resumes.
+      analytics.visit(Uri.parse('/courses'), tablet: false);
+      await flush();
+      expect(adapter.requests, hasLength(6));
     },
   );
 
@@ -308,7 +244,6 @@ void main() {
       transport: Dio()..httpClientAdapter = adapter,
     );
     addTearDown(analytics.dispose);
-    analytics.setEnabled(true);
     analytics.setActive(true);
     analytics.visit(Uri.parse('/'), tablet: false);
     await flush();
@@ -319,151 +254,76 @@ void main() {
     expect(adapter.requests, hasLength(2));
   });
 
-  testWidgets(
-    'router integration counts visible public destinations after consent',
-    (tester) async {
-      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
-      Future<void> settleAnalytics() async {
-        await tester.pumpAndSettle();
-        // Dio schedules transport/transform work on subsequent event-loop turns.
-        for (var i = 0; i < 10; i++) {
-          await tester.pump(const Duration(milliseconds: 20));
+  for (final previousChoice in <bool?>[null, false, true]) {
+    testWidgets(
+      'automatically counts public destinations with legacy preference $previousChoice',
+      (tester) async {
+        SharedPreferences.setMockInitialValues({
+          'visitor_analytics_opt_in': ?previousChoice,
+        });
+        tester.binding.handleAppLifecycleStateChanged(
+          AppLifecycleState.resumed,
+        );
+        Future<void> settleAnalytics() async {
+          await tester.pumpAndSettle();
+          // Dio schedules transport/transform work on subsequent event-loop turns.
+          for (var i = 0; i < 10; i++) {
+            await tester.pump(const Duration(milliseconds: 20));
+          }
         }
-      }
 
-      final adapter = _Adapter();
-      final analytics = VisitorAnalytics(
-        os: 'iOS',
-        transport: Dio()..httpClientAdapter = adapter,
-      );
-      final router = GoRouter(
-        routes: [
-          for (final path in ['/', '/search', '/settings'])
-            GoRoute(path: path, builder: (_, _) => Text(path)),
-        ],
-      );
-      final container = ProviderContainer(
-        overrides: [visitorAnalyticsProvider.overrideWithValue(analytics)],
-      );
-      addTearDown(() {
-        container.dispose();
-        analytics.dispose();
-        router.dispose();
-      });
-      await tester.pumpWidget(
-        UncontrolledProviderScope(
-          container: container,
-          child: MaterialApp.router(
-            routerConfig: router,
-            builder: (_, child) => AnalyticsHost(router: router, child: child!),
+        final adapter = _Adapter();
+        final analytics = VisitorAnalytics(
+          os: 'iOS',
+          transport: Dio()..httpClientAdapter = adapter,
+        );
+        final router = GoRouter(
+          routes: [
+            for (final path in ['/', '/search', '/settings'])
+              GoRoute(path: path, builder: (_, _) => Text(path)),
+          ],
+        );
+        final container = ProviderContainer(
+          overrides: [visitorAnalyticsProvider.overrideWithValue(analytics)],
+        );
+        addTearDown(() {
+          container.dispose();
+          analytics.dispose();
+          router.dispose();
+        });
+        await tester.pumpWidget(
+          UncontrolledProviderScope(
+            container: container,
+            child: MaterialApp.router(
+              routerConfig: router,
+              builder: (_, child) =>
+                  AnalyticsHost(router: router, child: child!),
+            ),
           ),
-        ),
-      );
-      await settleAnalytics();
-      expect(adapter.requests, isEmpty);
-      await tester.runAsync(
-        () =>
-            container.read(analyticsConsentProvider.notifier).setEnabled(true),
-      );
-      await settleAnalytics();
-      expect(container.read(analyticsConsentProvider), isTrue);
-      expect(adapter.requests, hasLength(1));
-      router.go('/settings');
-      await settleAnalytics();
-      expect(adapter.requests, hasLength(1));
-      router.go('/search?q=secret');
-      await settleAnalytics();
-      expect(adapter.requests.last.data['payload']['url'], '/app/search');
-      expect(adapter.requests, hasLength(2));
-      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
-      router.go('/');
-      await settleAnalytics();
-      expect(adapter.requests, hasLength(2));
-      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
-      await settleAnalytics();
-      expect(adapter.requests, hasLength(3));
-      await tester.runAsync(
-        () =>
-            container.read(analyticsConsentProvider.notifier).setEnabled(false),
-      );
-      router.go('/search');
-      await settleAnalytics();
-      expect(adapter.requests, hasLength(3));
-      await tester.pumpWidget(const SizedBox.shrink());
-    },
-  );
-
-  testWidgets('failed revocation remains off and can retry persistence', (
-    tester,
-  ) async {
-    final platform = _FailingPreferences();
-    SharedPreferencesStorePlatform.instance = platform;
-    final container = ProviderContainer();
-    addTearDown(container.dispose);
-    container.read(analyticsConsentProvider);
-    await tester.runAsync(flush);
-    expect(container.read(analyticsConsentProvider), isTrue);
-    await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: const MaterialApp(
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-          locale: Locale('en'),
-          home: Scaffold(body: AnalyticsSetting()),
-        ),
-      ),
+        );
+        await settleAnalytics();
+        expect(adapter.requests, hasLength(1));
+        router.go('/settings');
+        await settleAnalytics();
+        expect(adapter.requests, hasLength(1));
+        router.go('/search?q=secret');
+        await settleAnalytics();
+        expect(adapter.requests.last.data['payload']['url'], '/app/search');
+        expect(adapter.requests, hasLength(2));
+        tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+        router.go('/');
+        await settleAnalytics();
+        expect(adapter.requests, hasLength(2));
+        tester.binding.handleAppLifecycleStateChanged(
+          AppLifecycleState.resumed,
+        );
+        await settleAnalytics();
+        expect(adapter.requests, hasLength(3));
+        await tester.pumpWidget(const SizedBox.shrink());
+        analytics.visit(Uri.parse('/search'), tablet: false);
+        await settleAnalytics();
+        expect(adapter.requests, hasLength(3));
+      },
     );
-    await tester.pumpAndSettle();
-    await tester.tap(find.byType(Switch));
-    await tester.pumpAndSettle();
-    expect(container.read(analyticsConsentProvider), isFalse);
-    expect(platform.data['flutter.visitor_analytics_opt_in'], isTrue);
-    expect(find.text('Retry'), findsOneWidget);
-    platform.fail = false;
-    await tester.tap(find.text('Retry'));
-    await tester.pumpAndSettle();
-    expect(container.read(analyticsConsentProvider), isFalse);
-    expect(platform.data['flutter.visitor_analytics_opt_in'], isFalse);
-    final restored = ProviderContainer();
-    addTearDown(restored.dispose);
-    restored.read(analyticsConsentProvider);
-    await tester.runAsync(flush);
-    expect(restored.read(analyticsConsentProvider), isFalse);
-  });
-
-  testWidgets('device preference is readable and usable without an account', (
-    tester,
-  ) async {
-    await tester.pumpWidget(
-      const ProviderScope(
-        child: MaterialApp(
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-          locale: Locale('en'),
-          home: Scaffold(
-            body: SingleChildScrollView(child: AnalyticsSetting()),
-          ),
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
-    expect(tester.widget<Switch>(find.byType(Switch)).value, isFalse);
-    await tester.tap(find.byType(Switch));
-    await tester.pumpAndSettle();
-    expect(find.byType(AlertDialog), findsOneWidget);
-    await tester.tap(find.text('Cancel'));
-    await tester.pumpAndSettle();
-    expect(tester.widget<Switch>(find.byType(Switch)).value, isFalse);
-    await tester.tap(find.byType(Switch));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Confirm'));
-    await tester.pumpAndSettle();
-    expect(tester.widget<Switch>(find.byType(Switch)).value, isTrue);
-    await tester.tap(find.byType(Switch));
-    await tester.pumpAndSettle();
-    expect(find.byType(AlertDialog), findsNothing);
-    expect(tester.widget<Switch>(find.byType(Switch)).value, isFalse);
-    expect(tester.takeException(), isNull);
-  });
+  }
 }

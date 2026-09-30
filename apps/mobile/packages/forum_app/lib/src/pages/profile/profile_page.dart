@@ -1,6 +1,7 @@
 import '../../user_blocks.dart';
 import '../../private_notes.dart';
 import '../../navigation/auth_navigation.dart';
+import '../../navigation/tab_page_transition.dart';
 import '../../navigation/tab_swipe_surface.dart';
 import 'dart:math' as math;
 
@@ -71,6 +72,7 @@ class _ProfileStreamState {
   int request = 0;
   double? offset;
   CancelToken? cancelToken;
+  final scrollToTop = GfScrollToTopController();
 }
 
 class _ProfilePageState extends ConsumerState<ProfilePage> {
@@ -86,11 +88,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     return const AsyncValue.loading();
   }
 
-  bool get _loadingMore => _active.loadingMore;
-  bool get _streamLoading => _active.loading && _active.props == null;
-  Object? get _streamError => _active.error;
   UserProfileProps? _headerProps;
-  double _minimumScrollOffset = 0;
   String _stream = 'timeline';
   int _profileGeneration = 0;
   final _seenTopicReturns = <int, TopicReturnState>{};
@@ -103,9 +101,6 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   bool _canAccessAdmin = false;
   bool _canModerate = false;
   bool _canManageCourses = false;
-
-  final GfScrollToTopController _scrollToTopController =
-      GfScrollToTopController();
 
   bool get _isShellProfile => widget.userId == null;
 
@@ -143,7 +138,6 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     _interactionRevision++;
     _profileGeneration++;
     _headerProps = null;
-    _minimumScrollOffset = 0;
     _canAccessAdmin = false;
     _canModerate = false;
     _canManageCourses = false;
@@ -167,9 +161,13 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     super.dispose();
   }
 
-  Future<void> _load({String? nextUrl, bool streamChange = false}) async {
-    final key = _stream;
-    final state = _active;
+  Future<void> _load({
+    String? streamKey,
+    String? nextUrl,
+    bool streamChange = false,
+  }) async {
+    final key = streamKey ?? _stream;
+    final state = _streams.putIfAbsent(key, _ProfileStreamState.new);
     _cancelStreamRead(state);
     final cancelToken = CancelToken();
     state.cancelToken = cancelToken;
@@ -331,31 +329,15 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     for (final item in next) id(item): item,
   }.values.toList();
 
-  void _selectStream(
-    String key,
-    ScrollController controller,
-    double headerExtent,
-  ) {
+  void _selectStream(String key) {
     if (key == _stream) return;
-    _active.offset = controller.offset;
     _cancelStreamRead(_active);
     final state = _streams.putIfAbsent(key, _ProfileStreamState.new);
-    final offset =
-        state.offset ??
-        math.min(math.max(0.0, controller.offset), headerExtent);
     setState(() {
       _stream = key;
-      _minimumScrollOffset = offset;
-    });
-    // Restore after the new slivers have laid out, preserving deep offsets for
-    // visited streams and only the collapsed header for a first visit.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && _stream == key && controller.hasClients) {
-        controller.jumpTo(offset);
-      }
     });
     if (state.props == null && !state.loading && state.error == null) {
-      _load(streamChange: true);
+      _load(streamKey: key, streamChange: true);
     }
   }
 
@@ -382,17 +364,23 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       TabItemPayload(key: key, label: label, url: '', active: key == _stream),
   ];
 
-  Future<void> _loadMore(UserProfileProps props) async {
-    if (_active.loading || _loadingMore || !props.pagination.hasNext) return;
+  Future<void> _loadMore(UserProfileProps props, String streamKey) async {
+    final stream = _streams[streamKey];
+    if (stream == null ||
+        stream.loading ||
+        stream.loadingMore ||
+        !props.pagination.hasNext) {
+      return;
+    }
     final uri = Uri.tryParse(props.pagination.nextUrl);
     // Follow only relative pagination URLs for this exact user and stream.
     if (uri == null ||
         uri.hasScheme ||
         uri.hasAuthority ||
-        uri.path != _streamPath(props.user.userId, _stream)) {
+        uri.path != _streamPath(props.user.userId, streamKey)) {
       return;
     }
-    await _load(nextUrl: uri.toString());
+    await _load(streamKey: streamKey, nextUrl: uri.toString());
   }
 
   Future<void> _toggleFollow(UserCardPayload user) async {
@@ -1224,148 +1212,168 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                   ),
             data: (UserProfileProps props) {
               final tabs = _tabs(props, l10n);
-              var profileHeaderExtent = 0.0;
-              return GfScrollToTop(
-                semanticLabel: l10n.commonBackToTop,
-                controller: _isShellProfile ? _scrollToTopController : null,
-                threshold: 360,
-                builder: (BuildContext context, ScrollController controller) {
-                  return AppRefreshIndicator(
-                    edgeOffset: widget.connectionsOnly
-                        ? 0
-                        : MediaQuery.paddingOf(context).top + 56,
-                    onRefresh: () => _load(),
-                    child: TabSwipeSurface(
-                      index: tabs.indexWhere((tab) => tab.key == _stream),
-                      length: tabs.length,
-                      onChanged: (index) => _selectStream(
-                        tabs[index].key,
-                        controller,
-                        profileHeaderExtent,
-                      ),
-                      child: CustomScrollView(
-                        controller: controller,
-                        physics: const AlwaysScrollableScrollPhysics(),
-                        slivers: <Widget>[
-                          if (!widget.connectionsOnly)
-                            _immersiveHeader(context, _headerProps ?? props),
-                          if (!widget.connectionsOnly)
-                            SliverToBoxAdapter(
-                              child: _profileCard(_headerProps ?? props),
+              final selectedIndex = tabs.indexWhere(
+                (tab) => tab.key == _stream,
+              );
+              return TabSwipeSurface(
+                index: selectedIndex,
+                length: tabs.length,
+                onChanged: (index) => _selectStream(tabs[index].key),
+                tabSelectionDuration: GfMotion.duration(
+                  context,
+                  GfMotion.selection,
+                ),
+                child: GfScrollToTop(
+                  semanticLabel: l10n.commonBackToTop,
+                  controller: _isShellProfile ? _active.scrollToTop : null,
+                  threshold: 360,
+                  builder: (context, controller) => NestedScrollView(
+                    key: ValueKey('profile-$_profileGeneration'),
+                    controller: controller,
+                    headerSliverBuilder: (context, innerBoxIsScrolled) => [
+                      if (!widget.connectionsOnly)
+                        _immersiveHeader(context, _headerProps ?? props),
+                      if (!widget.connectionsOnly)
+                        SliverToBoxAdapter(
+                          child: _profileCard(_headerProps ?? props),
+                        ),
+                      const SliverToBoxAdapter(child: GfDivider()),
+                      SliverOverlapAbsorber(
+                        handle: NestedScrollView.sliverOverlapAbsorberHandleFor(
+                          context,
+                        ),
+                        sliver: SliverPersistentHeader(
+                          pinned: true,
+                          delegate: _ProfileTabsHeader(
+                            height: math.max(
+                              52,
+                              MediaQuery.textScalerOf(context).scale(16) * 1.4 +
+                                  24,
                             ),
-                          const SliverToBoxAdapter(child: GfDivider()),
-                          if (tabs.isNotEmpty)
-                            SliverLayoutBuilder(
-                              builder: (context, constraints) {
-                                final headerExtent = math
-                                    .max(
-                                      0,
-                                      constraints.precedingScrollExtent -
-                                          (widget.connectionsOnly
-                                              ? 0
-                                              : MediaQuery.paddingOf(
-                                                      context,
-                                                    ).top +
-                                                    56),
-                                    )
-                                    .toDouble();
-                                profileHeaderExtent = headerExtent;
-                                return SliverPersistentHeader(
-                                  pinned: true,
-                                  delegate: _ProfileTabsHeader(
-                                    height: math.max(
-                                      52,
-                                      MediaQuery.textScalerOf(
-                                                context,
-                                              ).scale(16) *
-                                              1.4 +
-                                          24,
-                                    ),
-                                    child: _ProfileTabs(
-                                      tabs: tabs,
-                                      index: tabs.indexWhere(
-                                        (tab) => tab.key == _stream,
-                                      ),
-                                      onChanged: (index) => _selectStream(
-                                        tabs[index].key,
-                                        controller,
-                                        headerExtent,
-                                      ),
-                                    ),
-                                  ),
-                                );
-                              },
+                            child: _ProfileTabs(
+                              tabs: tabs,
+                              index: selectedIndex,
+                              onChanged: (selected) =>
+                                  _selectStream(tabs[selected].key),
                             ),
-                          if (_streamLoading)
-                            _ProfileStreamSkeleton(
-                              connectionsOnly: widget.connectionsOnly,
-                            )
-                          else if (_streamError != null)
-                            SliverToBoxAdapter(
-                              child: GfErrorRetry(
-                                message: resolveErrorMessage(
-                                  l10n,
-                                  _streamError!,
-                                ),
-                                onRetry: () {
-                                  _load(streamChange: true);
-                                },
-                              ),
-                            ),
-                          if (!_streamLoading && _active.props != null)
-                            // Key each stream so recycled SliverList geometry cannot
-                            // shift its restored scroll offset.
-                            _ProfileBody(
-                              key: ValueKey(_stream),
-                              props: props,
-                              selectedKey: _stream,
-                              onFollow: _toggleConnection,
-                              onReturn: _syncReturnedInteractions,
-                              onInteraction: _toggleInteraction,
-                              interactionBusy: _interactionBusy,
-                            ),
-                          if (!_streamLoading &&
-                              _streamError == null &&
-                              props.pagination.hasNext)
-                            SliverToBoxAdapter(
-                              child: GfListFooter(
-                                key: ValueKey(_stream),
-                                error: _active.paginationError == null
-                                    ? null
-                                    : resolveErrorMessage(
-                                        l10n,
-                                        _active.paginationError!,
-                                      ),
-                                progressKey: (
-                                  _stream,
-                                  props.pagination.nextUrl,
-                                ),
-                                hasMore: props.pagination.hasNext,
-                                loading: _loadingMore,
-                                onLoadMore: () => _loadMore(props),
-                              ),
-                            ),
-
-                          // Keep short streams from clamping a restored offset.
-                          // First visits retain only the header-collapse offset.
-                          SliverLayoutBuilder(
-                            builder: (context, constraints) =>
-                                SliverToBoxAdapter(
-                                  child: SizedBox(
-                                    height: math.max(
-                                      32,
-                                      _minimumScrollOffset +
-                                          constraints.viewportMainAxisExtent -
-                                          constraints.precedingScrollExtent,
-                                    ),
-                                  ),
-                                ),
                           ),
-                        ],
+                        ),
                       ),
+                    ],
+                    body: TabPageTransition(
+                      index: selectedIndex,
+                      length: tabs.length,
+                      retainInactivePages: false,
+                      pageKey: (index) => tabs[index].key,
+                      pageBuilder: (index, _) {
+                        final key = tabs[index].key;
+                        final stream = _streams.putIfAbsent(
+                          key,
+                          _ProfileStreamState.new,
+                        );
+                        final streamProps = stream.props;
+                        return Builder(
+                          builder: (context) => AppRefreshIndicator(
+                            edgeOffset: widget.connectionsOnly
+                                ? 0
+                                : MediaQuery.paddingOf(context).top + 56,
+                            onRefresh: () => _load(streamKey: key),
+                            child: NotificationListener<ScrollNotification>(
+                              onNotification: (notification) {
+                                if (notification.depth == 0 &&
+                                    notification.metrics.axis ==
+                                        Axis.vertical) {
+                                  stream.offset = notification.metrics.pixels;
+                                }
+                                return false;
+                              },
+                              child: CustomScrollView(
+                                key: PageStorageKey<String>(
+                                  'profile-$_profileGeneration-$key',
+                                ),
+                                physics: const AlwaysScrollableScrollPhysics(),
+                                slivers: <Widget>[
+                                  SliverOverlapInjector(
+                                    handle:
+                                        NestedScrollView.sliverOverlapAbsorberHandleFor(
+                                          context,
+                                        ),
+                                  ),
+                                  if (stream.error == null &&
+                                      streamProps == null)
+                                    _ProfileStreamSkeleton(
+                                      connectionsOnly: widget.connectionsOnly,
+                                    )
+                                  else if (stream.error != null)
+                                    SliverToBoxAdapter(
+                                      child: GfErrorRetry(
+                                        message: resolveErrorMessage(
+                                          l10n,
+                                          stream.error!,
+                                        ),
+                                        onRetry: () => _load(
+                                          streamKey: key,
+                                          streamChange: true,
+                                        ),
+                                      ),
+                                    ),
+                                  if (streamProps != null &&
+                                      stream.error == null)
+                                    _ProfileBody(
+                                      key: ValueKey(key),
+                                      props: streamProps,
+                                      selectedKey: key,
+                                      onFollow: _toggleConnection,
+                                      onReturn: _syncReturnedInteractions,
+                                      onInteraction: _toggleInteraction,
+                                      interactionBusy: _interactionBusy,
+                                    ),
+                                  if (streamProps != null &&
+                                      stream.error == null &&
+                                      streamProps.pagination.hasNext)
+                                    SliverToBoxAdapter(
+                                      child: GfListFooter(
+                                        key: ValueKey(key),
+                                        error: stream.paginationError == null
+                                            ? null
+                                            : resolveErrorMessage(
+                                                l10n,
+                                                stream.paginationError!,
+                                              ),
+                                        progressKey: (
+                                          key,
+                                          streamProps.pagination.nextUrl,
+                                        ),
+                                        hasMore: streamProps.pagination.hasNext,
+                                        loading: stream.loadingMore,
+                                        onLoadMore: () =>
+                                            _loadMore(streamProps, key),
+                                      ),
+                                    ),
+                                  SliverLayoutBuilder(
+                                    builder: (context, constraints) =>
+                                        SliverToBoxAdapter(
+                                          child: SizedBox(
+                                            height: math.max(
+                                              32,
+                                              (stream.offset ?? 0) +
+                                                  constraints
+                                                      .viewportMainAxisExtent -
+                                                  constraints
+                                                      .precedingScrollExtent,
+                                            ),
+                                          ),
+                                        ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      },
                     ),
-                  );
-                },
+                  ),
+                ),
               );
             },
           ),
@@ -1705,7 +1713,6 @@ class _ProfileTabsState extends State<_ProfileTabs>
     final progress = _dragProgress;
     if (progress.offset == 0 &&
         previous.offset != 0 &&
-        previous.originIndex == progress.originIndex &&
         progress.originIndex == widget.index) {
       _fromShares = List.of(_displayedShares);
       _fromSegmentShares = _displayedSegmentShares;
@@ -1716,11 +1723,13 @@ class _ProfileTabsState extends State<_ProfileTabs>
       } else {
         _controller.forward(from: 0);
       }
-    } else if (progress.offset != 0 && progress.originIndex == widget.index) {
+    } else if (progress.targetIndex != null || progress.offset != 0) {
       _tapSelection = false;
       _controller.duration = _animationDuration;
       _fromTapFractions = [];
       _controller.stop();
+      _fromShares = [];
+      _fromSegmentShares = null;
     }
     if (mounted) setState(() {});
   }
@@ -1775,7 +1784,12 @@ class _ProfileTabsState extends State<_ProfileTabs>
             for (var i = 0; i < widget.tabs.length; i++)
               i == widget.index ? 1 : 0,
           ];
-    widget.onChanged(index);
+    final selectTab = GfTabSwipeProgressScope.onTabSelectedOf(context);
+    if (selectTab == null) {
+      widget.onChanged(index);
+    } else {
+      selectTab(index);
+    }
   }
 
   @override
@@ -1835,10 +1849,12 @@ class _ProfileTabsState extends State<_ProfileTabs>
             for (final width in labelWidths) math.max(48.0, width + 42),
           ];
           final drag = _dragProgress;
-          final dragTarget = drag.originIndex + drag.offset.sign.toInt();
+          final dragTarget =
+              drag.targetIndex ?? drag.originIndex + drag.offset.sign.toInt();
           final bool dragAnimating =
-              drag.offset != 0 &&
-              drag.originIndex == selectedIndex &&
+              (drag.offset != 0 || drag.targetIndex != null) &&
+              drag.originIndex >= 0 &&
+              drag.originIndex < widget.tabs.length &&
               dragTarget >= 0 &&
               dragTarget < widget.tabs.length;
           final double dragFraction = dragAnimating
@@ -1849,7 +1865,7 @@ class _ProfileTabsState extends State<_ProfileTabs>
               : 1.0;
           double activeFraction(int index) {
             if (dragAnimating) {
-              if (index == selectedIndex) return 1 - dragFraction;
+              if (index == drag.originIndex) return 1 - dragFraction;
               return index == dragTarget ? dragFraction : 0;
             }
             if (_tapSelection &&
@@ -1864,6 +1880,7 @@ class _ProfileTabsState extends State<_ProfileTabs>
           _displayedActiveFractions = [
             for (var i = 0; i < widget.tabs.length; i++) activeFraction(i),
           ];
+          final layoutIndex = dragAnimating ? drag.originIndex : selectedIndex;
 
           final rowWidth = math.max(
             constraints.maxWidth,
@@ -1871,7 +1888,7 @@ class _ProfileTabsState extends State<_ProfileTabs>
                 ? expandedWidths.reduce((a, b) => a > b ? a : b) *
                       widget.tabs.length
                 : math.max(
-                        expandedWidths[selectedIndex],
+                        expandedWidths[layoutIndex],
                         dragAnimating ? expandedWidths[dragTarget] : 0,
                       ) +
                       48.0 * (widget.tabs.length - 1),
@@ -1889,7 +1906,7 @@ class _ProfileTabsState extends State<_ProfileTabs>
                         : (rowWidth - expandedWidths[activeIndex]) /
                               (widget.tabs.length - 1),
                 ];
-          final targetWidths = widthsForSelection(selectedIndex);
+          final targetWidths = widthsForSelection(layoutIndex);
           final destinationWidths = dragAnimating
               ? widthsForSelection(dragTarget)
               : targetWidths;
@@ -1897,7 +1914,7 @@ class _ProfileTabsState extends State<_ProfileTabs>
             for (final width in targetWidths) width / rowWidth,
           ];
           var targetSegmentLeft = 0.0;
-          for (int i = 0; i < selectedIndex; i++) {
+          for (int i = 0; i < layoutIndex; i++) {
             targetSegmentLeft += targetShares[i];
           }
           final targetSegment = Offset(

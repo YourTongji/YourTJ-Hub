@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-09-28
+> Last verified: 2026-09-29
 
 The Flutter app combines the forum, course catalog, scheduler and Wiki. Ordinary browsing and
 writing use native pages. Management uses the same first-party workspaces and permission checks as
@@ -160,11 +160,21 @@ ordered after the active route in the accessibility tree so iOS does not hide it
 - `Current`: Home displays categories in a horizontal row below the feed sorts. Category pills
   filter the existing stream in place, with a highlighted selection and an All categories action.
   The display menu contains list/card preferences; unavailable categories take no space.
+- `Current`: list mode uses a compact title/type row, optional excerpt, and a shared category/metadata
+  band. Categories retain separate 44-pixel targets and a horizontal rail; long metadata moves the
+  rail onto a new line rather than reducing text size. Dividers do not add a blank footer. Question,
+  moment and article labels are localized, and enlarged text allows the title/excerpt to grow.
+  Home's unfiltered list groups pinned topics into a 48-pixel-minimum expandable summary, initially
+  collapsed. Category streams and Following retain the server's ordering; cards keep pins in place.
+  Expanding pins neither reloads the stream nor changes its pagination cursor.
 - `Current`: Home sort, Campus section and notification filter rails share a scrollable tab bar.
   The page-swipe recognizer feeds the shared tab controller's live drag offset, so the selected
   underline follows a held slow swipe and stretches evenly toward the adjacent tab. After release,
-  the extended segment contracts with a logarithmic ease-out curve. Profile stream tabs use the same
-  drag progress; the bar reveals selected tabs outside its viewport and honors reduced-motion settings.
+  the extended segment contracts with a logarithmic ease-out curve. Home, Campus and Notifications
+  move both content panes with the same drag or tap transition while retaining each visited page's
+  scroll state. A pending pane uses the transparent animated YourTJ mark until its data is ready.
+  Profile stream tabs use the same drag progress; the bar reveals selected tabs outside its viewport
+  and honors reduced-motion settings.
 - `Current`: root headers, filter rails and bottom navigation overlay the reading viewport. They
   hide after 48 logical pixels downward and return after 12 pixels upward, with 220 ms transitions.
   Hidden headers are clipped at the system safe-area edge; the reading viewport stays stable.
@@ -592,14 +602,24 @@ identity survive this layout change. The header keeps a small outer margin for i
   reopens the same writing identity; replies reopen their topic. Returning from new or resumed writing
   refreshes the list. Title/text search and all/device/cloud/reply
   filters operate on device copies and the currently loaded cloud list; the cloud endpoint returns at most
-  100 drafts and only its title/description are searchable here. Counts describe displayed copies, so a
+  100 drafts and only its title/description are searchable here. A full 100-item window shows its limit
+  and explains that deletion refreshes it to reveal subsequent drafts. Counts describe displayed copies, so a
   device recovery copy and its cloud draft count separately. Empty matches offer a filter reset. Local
   loading is distinct from an empty list; failed local or cloud refreshes retain displayed content with
   an inline retry. Local snapshots use app-private device
   preferences scoped by API origin and numeric account ID, with no token or background cloud upload.
   Logging out hides them; logging back into the same account restores access. Explicit discard or
   successful server acknowledgement removes the matching recovery snapshot; local deletion is
-  confirmed. The latest local deletion can be undone from a persistent action while the drafts page stays
+  confirmed with an explicit explanation that cloud content stays unchanged. Device and cloud rows both
+  show labeled delete actions beside Continue editing. Cloud deletion uses the existing topic content
+  lifecycle: confirmation moves the exact server ID to the recycle bin and preserves every local
+  recovery copy, including copies associated with that ID. Only a matching successful per-item result
+  removes the row; network, missing-result and item failures retain it. The server deletion-rate guard
+  can request password confirmation using the same protected dialog as content management; cancellation
+  keeps the draft. Success offers a direct recycle-bin
+  action and refreshes the cloud window. In-flight deletion disables repeat actions, rejects stale
+  list reads and rejects confirmation/results after account or site changes. The latest local deletion
+  can be undone from a persistent action while the drafts page stays
   open; another deletion replaces that undo and leaving the page ends it. Restoration keeps the original
   identity and metadata, never overwrites an existing copy, and remains retryable on storage failure.
   Account/site changes clear search and undo state and reject queued stale restoration. Account closure
@@ -804,9 +824,10 @@ identity survive this layout change. The header keeps a small outer margin for i
 
 ## Profile and privacy
 
-- `Current`: Settings → Device includes an optional visit-statistics switch for guests and signed-in
-  users, off until explicitly enabled on that device. Only official Android/iOS release builds against
-  `https://f.yourtj.de` send page views to the existing first-party Umami website. Debug/profile,
+- `Current`: visit statistics run automatically for guests and signed-in users in official Android/iOS
+  release builds against `https://f.yourtj.de`, with no settings switch or consent preference. Fresh
+  installations and upgrades use the same policy, regardless of any legacy saved analytics choice.
+  Page views go to the existing first-party Umami website. Debug/profile,
   Web, desktop and alternate-server builds do not send. Public home/search/topic/category/course/Wiki
   navigation uses fixed `/app/*` categories; original IDs, slugs, search terms and fragments never leave
   the app. Campus, schedule, chat, notifications, profiles, login, settings, writing and administration
@@ -815,14 +836,18 @@ identity survive this layout change. The header keeps a small outer margin for i
 - `Current`: analytics uses its own unauthenticated transport, three-second network timeouts, no
   redirects, at most three pending views, no disk queue and no retry. Rebuilds and brief foreground
   resumes do not repeat the same view; reopening after thirty minutes can start another view.
-  Backgrounding cancels transport and drops pending events. Disabling immediately stops reporting,
-  clears the memory-only Umami cache token and drops pending views; an already delivered event cannot
-  be withdrawn by this local switch. Storage failures are visible, and enabling starts only after a
-  successful preference save. Normal browsing never waits for analytics. Failed revocation keeps
-  collection off for the session and offers Retry to persist that choice before restarting.
+  Backgrounding cancels transport and drops pending events; disposing the collector also clears its
+  memory-only Umami cache token. Normal browsing never waits for analytics or preference storage.
+  Already delivered events remain subject to the server retention policy.
+  About → App visit statistics provides a bundled, localized disclosure without login or network
+  access, including when the administrator disables the site privacy policy. This read-only page
+  explains automatic collection, upgrade behavior, data scope and retention; it has no switch.
+  The automatic collection decision is recorded in
+  [0051](../decisions/0051-mobile-automatic-visitor-statistics.md).
 - `Partial`: Umami receives network IP/UA and may derive country/region/city. Its salted visitor
   calculation is approximate: installations sharing IP, OS and device family can collapse, and Web/App
-  visits are not joined to an account. Aggregates represent opted-in installations, not all App users.
+  visits are not joined to an account. Aggregates cover reporting production installations, not a
+  count of App accounts; offline clients, older builds and failed requests can be absent.
   Existing server retention and network-log policies still apply; no historical App identity is inferred
   or backfilled. The public status page exposes only coarse device/OS/client aggregates.
 
@@ -1028,16 +1053,26 @@ local widget tests do not imply those gates passed.
 
 ## System notifications
 
+`Current`: session cleanup preserves an absent push preference when a guest completes their first
+login, so it cannot manufacture an opt-out before the one-time Android permission request. Existing
+consent is cleared at account boundaries; an explicit Settings opt-out remains effective even while
+native cleanup is pending.
+
 - `Partial`: iOS uses direct APNs; Android uses JPush with selected OEM offline adapters and does not
   require Google Play services. Provider credentials, signing profiles and physical-device delivery
   remain deployment requirements; app-local notification lists are independent of system delivery.
 - `Current`: Settings retains the push entry with a provider-processing disclosure and shows missing
   build configuration, unavailable server channels, permission denial and registration failure.
   On iOS the first launch after login requests the system permission once; granting it counts as
-  push consent and enables delivery without visiting Settings. Android keeps explicit opt-in —
-  the JPush SDK is never initialized before the user enables push. Explicit enable requests system
-  permission. Resume checks existing authorization without repeatedly prompting; a non-empty token
-  and successful API registration are required to display enabled.
+  push consent and enables delivery without visiting Settings. Android requests system permission
+  once after a valid login reaches the main screen and its first frame is stable; an upgraded install
+  without the one-shot marker receives the same request unless the user had explicitly turned push
+  off in Settings. A grant counts as push consent. A denial
+  keeps the app preference enabled and shows `permissionDenied` without initializing JPush or
+  registering a device. Below Android 13, the bridge only reads system notification authorization.
+  Settings retains explicit retry and disable actions. Resume checks existing authorization without
+  repeatedly prompting; a non-empty token and successful API registration are required to display
+  enabled.
   Enable taps during startup/resume or stop are queued; a later disable or account change cancels
   queued consent. Failed unbinding is retained and retried on resume while push stays disabled,
   using the owning account; signing in to a different account does not acknowledge that cleanup.
@@ -1104,7 +1139,12 @@ servers that omit interaction fields retain read-only content previews.
   retry flow as files, without applying the post-photo resize/compression settings to stickers.
   The personal library supports image upload, collecting a shared sticker by long press (in a chat
   message, the bubble's action menu offers the same collection for its resolved stickers),
-  private display names, reordering and removal. It holds up to 200 stickers; images are limited to
+  private display names, reordering and removal. Each library row opens a single-sticker preview
+  and has a labeled action menu for preview, rename and removal; disabled stickers remain removable.
+  Upload guidance and library rows scroll together so large text does not crowd out the controls.
+  Both single and selected removals require confirmation and preserve already-sent stickers. Failed
+  removals keep the remaining entries available for retry. Account changes close pending library
+  action sheets, library-launched previews and removal confirmations. It holds up to 200 stickers; images are limited to
   4 MiB and an account can create up to 1000 retained personal assets. Uploads use the authenticated
   file service. Failed requests retain the current input and expose retry. Concurrent collection
   writes are rejected explicitly so a skipped operation cannot report success.
@@ -1113,9 +1153,17 @@ servers that omit interaction fields retain read-only content previews.
   shared posts and messages renderable. Account closure removes collection membership while shared
   assets retain their history references. [0038](../decisions/0038-personal-sticker-library.md) owns this
   storage and privacy decision.
-- `Current`: native stickers render inline at a compact size and consume taps without a lightbox,
-  zoom or details page. Ordinary image attachments still open the shared gallery. Unknown or
-  unavailable sticker tokens retain a readable fallback. Library state is isolated by site and account.
+- `Current`: native post/reply bodies and private messages display image stickers in a 128 × 128
+  logical-pixel box, preserving aspect ratio and GIF animation. Consecutive stickers wrap within
+  the content width. Picker and draft-preview thumbnails remain 56 × 56, and personal-library
+  rows use 48 × 48, so the reading size does not crowd the input controls.
+- `Current`: tapping a native inline sticker or a library row opens that sticker alone in the shared
+  image viewer, with animated GIF playback, pinch/double-tap zoom and actual-size viewing. Stickers
+  remain excluded from surrounding attachment galleries. Picker taps still insert without sending;
+  a visible hint and each item’s long-press action expose a separate large preview on all three tabs.
+  Previewing does not insert a token or change recent use. Chat long presses still open the message
+  action menu, including when an image fails to load. Unknown or unavailable tokens retain a readable
+  fallback. Library state is isolated by site and account.
 - `Current`: disabled official stickers stay in personal management for ordering/removal and are
   unavailable for insertion; permanently deleted official stickers leave the collection. Older servers
   without personal-library endpoints show a compatibility message while official stickers remain usable.
@@ -1166,8 +1214,8 @@ push disclosure; account closure remains inside account settings rather than the
 
 ## User safety and message retries
 
-`Current`: profiles and conversation headers expose reversible user blocking; Settings → Data and
-storage lists the caller's blocks. Server enforcement stops new private messages and interaction
+`Current`: profiles and conversation headers expose reversible user blocking; Settings → Account
+lists the caller's blocks. Server enforcement stops new private messages and interaction
 notifications in both directions. Public content, message history and already delivered notifications
 remain available. Pending activation does not prevent managing a block.
 
@@ -1247,6 +1295,10 @@ acceptance; simulator compilation does not establish those results.
 `Current`: 消息气泡与纯贴纸支持向左滑动回复；短滑、右滑和垂直滚动不触发回复。
 长按浮动菜单提供回复、复制、转发、多选，以及适用的收藏表情和举报入口。回复选定后聚焦输入框，
 保留未发送草稿；多选模式暂停输入，返回键先退出多选，草稿与原引用保留。
+回复正文仍保存为现有纯文本引用行；客户端把引用行呈现为有界引用块，旧消息也可直接显示。
+新回复另外持久化可空的目标消息 ID。点击有目标 ID 的引用块会按 ID 加载并定位原消息、短暂高亮，
+并提供返回来源消息的入口；旧记录与旧客户端发送的引用仍显示原文本，不做不确定的内容匹配。
+合并聊天记录只以本地化的“[聊天记录]”占位参与引用；外层记录气泡隐藏复制整条和收藏入口，详情条目长按可复制单条或收藏其中的贴纸。
 消息与转发收件人均使用圆形多选控件；消息选择栏平滑展开/收起并淡入/淡出，勾选状态使用原生填色与勾号动画，
 开启系统“减少动态效果”时省略选择栏过渡。头像统一使用圆形裁切，
 包括会话列表、会话标题、收发气泡和转发收件人列表；加载失败使用同形占位。
@@ -1269,3 +1321,29 @@ acceptance; simulator compilation does not establish those results.
 已送达副本不会随源消息、显示名或源会话的后续变化而改变；贴纸展示仍遵循素材可用性。
 
 详见 [私信转发决策](../decisions/0044-nested-private-message-history.md)。
+
+
+## Device storage
+
+- `Current`: Settings → Data and storage is available without signing in. It shows forum reading,
+  synchronized chat, images/GIFs and campus/widget cache categories, the managed on-device total and
+  recoverable user work separately. Category values are payload estimates; database and journal
+  overhead contributes to the total. Unavailable storage is an error, not zero usage.
+- `Current`: clear-cache confirmation names the selected categories and explicitly preserves login,
+  drafts, unsent messages and schedule plans. Forum/chat/media are selected initially; campus is
+  opt-in because its offline document and timetable widget are removed together. Clearing fences old
+  requests before deletion. Partial failure remains visible with retry, including after app restart.
+- `Current`: cloud content management and the recycle bin remain in the side drawer. The storage
+  surface offers local drafts and plans; account settings owns blocked-user management.
+- `Current`: local reset confirms the number of local drafts, unsent messages, unsynchronized
+  plans and schedule recovery drafts before removing them, signing out and restoring preferences.
+  Storage reports recovery drafts separately from legacy schedules awaiting an owner. It does not
+  delete cloud content, close the account or remove school bindings. Interrupted reset retains an intent for retry;
+  business routes remain unavailable until it finishes, so new work cannot enter a pending reset.
+- `Current`: ordinary writing and schedule plans commit to a dedicated encrypted transaction store.
+  Legacy schedules without a known site are held for explicit recovery into a confirmed identity;
+  they are never automatically adopted by a matching numeric ID on another site.
+- `Partial`: offline coverage is bounded reading recovery for home/topic/chat plus the existing campus
+  allowlist. Search, notification, Wiki and course pages do not gain a blanket disk cache. The media
+  upload queue is not a durable offline-send service. See the authoritative
+  [storage boundaries and limits](../architecture/mobile-state-and-cache.md#cache-policy).

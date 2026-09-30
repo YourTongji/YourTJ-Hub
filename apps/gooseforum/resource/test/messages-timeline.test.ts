@@ -38,11 +38,14 @@ const locale = i18n.global.locale as unknown as { value: string }
 const originalLocale = locale.value
 
 beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] })
+  vi.setSystemTime(new Date(2026, 8, 28, 12))
   // resetAllMocks 会清掉实现，重新挂上真实格式化函数。
   dayLabel.mockImplementation((day: Date, now?: Date) => realDayLabel.current!(day, now))
 })
 
 afterEach(() => {
+  vi.useRealTimers()
   wrapper?.unmount()
   locale.value = originalLocale
   window.history.replaceState({}, '', '/')

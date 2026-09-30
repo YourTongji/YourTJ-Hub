@@ -30,13 +30,15 @@ String? publicScreen(Uri uri) {
   return null;
 }
 
-/// Risk contract STATUS-ANALYTICS-926-927:
-/// https://github.com/YourTongji/YourTJ-Hub/pull/926#issuecomment-5874262017
+/// Collection policy and data boundaries:
+/// docs/product/mobile-experience.md#profile-and-privacy
 /// Protocol: https://github.com/umami-software/umami/blob/v3.3.0/src/app/api/send/route.ts
 ///
 /// Best-effort page views for Umami's joint device/OS/browser report. This Dio
 /// is separate from authenticated forum transports. No persistent identifiers,
 /// disk queue, retries, credentials, referrers or free-form event data are used.
+/// The host activates collection for foreground visits in supported release
+/// builds. No device preference is required or read.
 class VisitorAnalytics {
   VisitorAnalytics({
     required this.os,
@@ -57,22 +59,11 @@ class VisitorAnalytics {
   final Dio _dio;
   final DateTime Function() _clock;
   final _pending = Queue<({String screen, String device})>();
-  bool _enabled = false, _active = false, _sending = false, _disposed = false;
+  bool _active = false, _sending = false, _disposed = false;
   int _generation = 0;
   String? _lastPath, _cache;
   DateTime? _lastVisit;
   CancelToken? _cancel;
-
-  void setEnabled(bool value) {
-    if (_enabled == value || _disposed) return;
-    _enabled = value;
-    if (!value) {
-      _stop();
-      _cache = null;
-      _lastPath = null;
-      _lastVisit = null;
-    }
-  }
 
   void setActive(bool value) {
     if (_disposed) return;
@@ -81,7 +72,7 @@ class VisitorAnalytics {
   }
 
   void visit(Uri uri, {required bool tablet}) {
-    if (!_enabled || !_active || _disposed) return;
+    if (!_active || _disposed) return;
     final screen = publicScreen(uri);
     if (screen == null) {
       _lastPath = null;
@@ -104,7 +95,7 @@ class VisitorAnalytics {
     if (_sending) return;
     _sending = true;
     try {
-      while (_enabled && _active && !_disposed && _pending.isNotEmpty) {
+      while (_active && !_disposed && _pending.isNotEmpty) {
         final event = _pending.removeFirst();
         final generation = _generation;
         final cancel = _cancel = CancelToken();

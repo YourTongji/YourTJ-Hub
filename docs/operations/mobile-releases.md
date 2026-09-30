@@ -135,6 +135,39 @@ local files before it becomes public. The publisher resolves drafts through `gh 
 queries their database ID, since the REST tag lookup may return 404 for a draft. Existing asset names with different bytes are never overwritten.
 The release is published with `latest=false`, so server downloads keep their separate latest marker.
 
+`Current`: after publishing the original APKs, the Android job refreshes an independent
+[`mobile-latest` download channel](https://github.com/YourTongji/YourTJ-Hub/releases/tag/mobile-latest):
+
+| Device architecture | Fixed APK download |
+|---|---|
+| ARM64, most current Android phones | [YourTJ-arm64-v8a.apk](https://github.com/YourTongji/YourTJ-Hub/releases/download/mobile-latest/YourTJ-arm64-v8a.apk) |
+| ARM 32-bit | [YourTJ-armeabi-v7a.apk](https://github.com/YourTongji/YourTJ-Hub/releases/download/mobile-latest/YourTJ-armeabi-v7a.apk) |
+| x86 64-bit | [YourTJ-x86_64.apk](https://github.com/YourTongji/YourTJ-Hub/releases/download/mobile-latest/YourTJ-x86_64.apk) |
+
+The publisher selects the highest stable mobile version among the most recent 100 releases, downloads
+all three source APKs and verifies their GitHub digests, sizes and matching ABI build numbers before
+changing the aliases. It uploads identical bytes under fixed names and verifies GitHub's resulting
+digests. `SHA256SUMS.txt` covers the alias filenames. The channel is marked pre-release only to keep it
+out of the repository-wide Latest and the in-app updater; its APKs are stable release copies.
+The source marker prevents older recovery from replacing a newer channel, and matching files are
+skipped on retry. Canonical `mobile-vX.Y.Z` assets are never overwritten.
+
+Alias updates replace files individually. A URL can briefly return 404, and checksums may lag while
+publication is running; use the original version linked in the channel notes for a consistent set.
+The alias tag is not moved, so use the versioned source tag from those notes rather than the channel's
+automatically generated source archives. These trade-offs are recorded in
+[the fixed-download decision](../decisions/0050-android-stable-download-links.md).
+
+To verify or repair only this download channel, with authenticated `gh` and no mobile release running:
+
+```bash
+python3 scripts/mobile-release/publish_android_latest.py --verify-only
+python3 scripts/mobile-release/publish_android_latest.py
+```
+
+This needs no signing inputs and never rebuilds or publishes a new application version. An immutable
+or unrecognized release at `mobile-latest` fails safely instead of changing its protections.
+
 On Android, startup/resume checks at most once every six hours; About exposes a manual check. The
 user can defer, ignore a version or cancel a download. Only stable `mobile-vX.Y.Z` releases with a
 newer compatible APK and a GitHub digest are considered (the most recent 100 repository releases).
@@ -280,7 +313,8 @@ show push as unavailable. Local dev APKs can use the same `prepare_push.py` inpu
 
 FCM is an optional transport inside JPush; it does not bypass a disabled server JPush channel.
 Keep Firebase Messaging auto initialization and Analytics collection disabled in the Android manifest:
-JPush requests the FCM token only after the existing push opt-in flow initializes the SDK.
+JPush requests the FCM token only after OS notification permission is granted and the existing
+consent-aware registration flow initializes the SDK.
 The settings screen continues to report a disabled server channel accurately on both Android and iOS.
 See [Firebase startup controls](https://firebase.google.com/docs/cloud-messaging/android/get-started#prevent-auto-initialization).
 
@@ -298,8 +332,16 @@ to the processor policy. Do not include account passwords or forum session token
 Validate on a physical iPhone using the exact TestFlight build and on each enabled manufacturer's
 Android phone without Google services:
 
-1. Sign in and enable push in Settings. The OS permission prompt appears; declining shows a settings
-   recovery action. Allowing adds the app to system notification settings.
+1. On Android, install fresh or upgrade from a build without the one-shot permission marker. For an
+   upgraded install, verify a previously explicit push opt-out stays off and does not trigger a
+   prompt; with no saved preference, sign in and verify the OS prompt appears only after the main
+   screen is stable, never on the login route or
+   during OAuth return. Allowing reaches the existing registration path; declining shows
+   `permissionDenied`, does not register a device, and does not prompt again on restart/resume. Settings
+   retains system-settings recovery and explicit retry. If the app process exits while the OS prompt
+   is open, verify that the next launch repeats the permission check/request. On iOS, verify the
+   existing one-time request and that an interrupted request leaves the shared marker unset until
+   the native permission call returns.
 2. Confirm authenticated `GET /api/forum/push/config` enables the matching provider, and
    `POST /api/forum/push/device/register` succeeds with `provider=apns` or `jpush`. An empty token or
    failed API call must not display enabled. Never paste tokens into public logs.
@@ -336,9 +378,11 @@ categories. The local-only Widget/SDK do not collect data off device.
 `Current`: the [App privacy supplement](../../apps/gooseforum/app/models/defaultconfig/pageconfig/app_privacy.md)
 is embedded in the forum binary and appended to enabled `/privacy` pages, including persisted
 custom policies. Rendering replaces an existing App supplement section with the embedded current
-version, preserving surrounding custom policy sections and avoiding duplicates.
+version, preserving surrounding custom policy sections and avoiding duplicates. The App also bundles
+a four-language visit-statistics disclosure under About, independent of the server policy toggle or
+network availability.
 It covers campus processing, device snapshots/Widget display, selected-message reporting,
-Android push processors and optional first-party visit analytics. Publish this server before distributing the corresponding App.
+Android push processors and automatic first-party visit analytics. Publish this server before distributing the corresponding App.
 
 `Partial`: App Store Connect privacy declarations still require verification against the actual
 production SDK selection, retention and analytics configuration. Source privacy manifests and the
@@ -378,13 +422,15 @@ A new server containing block enforcement, private-message reporting and optiona
 Signed APK upgrade, external-browser OAuth return, APNs/JPush/OEM delivery and Widget behavior
 require recorded physical-device evidence for the actual candidate version/build.
 
-## Optional native visitor statistics
+## Native visitor statistics
 
 `Current`: release builds already supply `YOURTJ_API_BASE_URL=https://f.yourtj.de`; only that exact
 production origin on native Android/iOS enables the transport. No additional secret or analytics SDK
 is needed. The public website ID and collection URL are fixed in `analytics/visitor_analytics.dart`;
-never put Umami account credentials into Dart defines or the App. Each installation must opt in at
-Settings → Device → Share visit statistics. Installing an update does not enable it automatically.
+never put Umami account credentials into Dart defines or the App. Public-page statistics start
+without user action for guests and signed-in users. There is no settings switch; new installations
+and upgrades ignore the legacy `visitor_analytics_opt_in` value, including a saved `false`. Release
+notes must disclose the automatic collection policy when distributing this change.
 
 Umami accepts page views at `https://umi.yourtj.de/api/send` with explicit `browser: yourtj-app`,
 `os: iOS|Android OS`, `device: mobile|tablet` and `tag: yourtj-app`. The custom User-Agent includes
@@ -392,14 +438,16 @@ OS and device family so the current Umami bot filter accepts native requests; it
 version is not the App release version. Queries/IDs/content are stripped locally. A named custom
 event would not contribute to the device page-view report, so `payload.name` must remain absent.
 
-Verify the candidate on an opted-in device: open a public page and inspect the joint Umami report
-for `yourtj-app`; then disable statistics and verify no further sends while browsing. Local automated
-tests use a fake transport and never inject test visitors into the production site. Historical WebView
+Verify the candidate on a fresh installation and an upgrade with a previously disabled preference:
+open a public page without configuring statistics and inspect the joint Umami report for `yourtj-app`.
+Verify private pages send nothing and backgrounding stops sends. Local automated tests use a fake
+transport and never inject test visitors into the production site. Historical WebView
 rows cannot be relabelled as App. The status collector refreshes device reports every five minutes
 when its server-only report credentials are configured.
 
 `Partial`: before App distribution, verify the App Store Connect privacy form against the actual
 Umami configuration and retention policy. The source manifest includes analytics use of product
-interaction/other data and IP-derived coarse location, with no advertising tracking. Consent text
-and the embedded privacy supplement disclose the receive-side IP and regional derivation; the
-switch stops future collection but does not delete already retained server aggregates.
+interaction/other data and IP-derived coarse location, with no advertising tracking. The embedded
+privacy supplement discloses automatic collection without a switch, receive-side IP and regional
+derivation. Deploy the updated server privacy supplement alongside the App so persisted site policies
+also show the current disclosure. Leaving the App does not delete retained server aggregates.

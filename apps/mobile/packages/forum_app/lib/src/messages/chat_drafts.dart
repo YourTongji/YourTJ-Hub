@@ -177,6 +177,39 @@ class ChatDraftStore {
     if (!draft.hasText) await secureStorage.delete(key: key);
   });
 
+  Future<({int count, int bytes})> usage() => _serial(() async {
+    final secure = await secureStorage.readAll();
+    final prefs = await SharedPreferences.getInstance();
+    final values = <String, String>{
+      for (final key in prefs.getKeys().where(_isChatKey))
+        key: prefs.getString(key) ?? '',
+      for (final entry in secure.entries.where((e) => _isChatKey(e.key)))
+        entry.key: entry.value,
+    };
+    return (
+      count: values.values.where((v) => v.isNotEmpty).length,
+      bytes: values.values.fold<int>(
+        0,
+        (sum, v) => sum + utf8.encode(v).length,
+      ),
+    );
+  });
+
+  /// The caller advances the session epoch before entering this ordered erase.
+  Future<void> clearAll() => _serial(() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.reload();
+    final keys = {
+      ...(await secureStorage.readAll()).keys,
+      ...prefs.getKeys(),
+    }.where(_isChatKey).toList();
+    for (final key in keys) {
+      await _put(key, '');
+      await _removeLegacy(prefs, key);
+      await secureStorage.delete(key: key);
+    }
+  });
+
   Future<void> clearAccount(String scope) => _serial(() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.reload();

@@ -76,7 +76,7 @@ class CampusSnapshotStore {
           ],
         )
         .get();
-    if (rows.isEmpty) return null;
+    if (rows.isEmpty || !_db.available(CacheCategory.campus)) return null;
     try {
       final row = rows.single.data;
       if (row['schema_version'] != schemaVersion) throw const FormatException();
@@ -128,7 +128,9 @@ class CampusSnapshotStore {
   }) {
     final fence = expectedGeneration ?? generation;
     return _serialize(() async {
-      if (fence != generation) throw const CampusSnapshotSuperseded();
+      if (fence != generation || !_db.available(CacheCategory.campus)) {
+        throw const CampusSnapshotSuperseded();
+      }
       if (bindingRevision.isEmpty ||
           !data.keys.toSet().containsAll(campusPersistentKeys)) {
         throw ArgumentError('A complete campus snapshot is required.');
@@ -151,7 +153,9 @@ class CampusSnapshotStore {
         throw StateError('Campus snapshot exceeds its storage limit');
       }
       await _db.transaction(() async {
-        if (fence != generation) throw const CampusSnapshotSuperseded();
+        if (fence != generation || !_db.available(CacheCategory.campus)) {
+          throw const CampusSnapshotSuperseded();
+        }
         await _db.customStatement(
           'INSERT OR REPLACE INTO campus_snapshots '
           '(site, account_id, binding_revision, schema_version, payload, committed_at) '
@@ -171,7 +175,10 @@ class CampusSnapshotStore {
           [maxScopes],
         );
       });
-      if (fence != generation) throw const CampusSnapshotSuperseded();
+      await _db.maintainBudget();
+      if (fence != generation || !_db.available(CacheCategory.campus)) {
+        throw const CampusSnapshotSuperseded();
+      }
       return CampusSnapshot(
         bindingRevision: bindingRevision,
         committedAt: timestamp,

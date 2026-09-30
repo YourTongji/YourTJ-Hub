@@ -5,6 +5,7 @@ import 'package:ui_kit/ui_kit.dart';
 import '../markdown_view.dart';
 import '../sticker_message_span.dart';
 import 'resolved_sticker_content.dart';
+import 'sticker_image.dart';
 import 'sticker_strings.dart';
 
 /// A bounded, live view of the draft; persisted and submitted text stays intact.
@@ -46,11 +47,18 @@ class StickerDraftPreview extends StatelessWidget {
               child: SingleChildScrollView(
                 reverse: true,
                 child: markdown
-                    ? GfMarkdownView(data: content)
+                    ? GfMarkdownView(
+                        data: content,
+                        stickerSize: StickerImage.thumbnailSize,
+                      )
                     : ResolvedStickerContent(
                         content: content,
                         builder: (urls) => Text.rich(
-                          buildStickerMessageSpan(content, urls) ??
+                          buildStickerMessageSpan(
+                                content,
+                                urls,
+                                stickerSize: StickerImage.thumbnailSize,
+                              ) ??
                               TextSpan(text: content),
                           style: TextStyle(
                             fontSize: 16,

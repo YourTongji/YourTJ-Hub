@@ -130,6 +130,7 @@ void main() {
           tester.element(find.byType(SettingsPage)),
         );
         expect(calls, isEmpty);
+        expect(find.byType(GfSwitchRow), findsNothing);
         expect(find.text(l10n.settingsAppearance), findsOneWidget);
         expect(find.text(l10n.settingsAppLanguage), findsOneWidget);
         await tester.scrollUntilVisible(
@@ -138,7 +139,13 @@ void main() {
           scrollable: find.byType(Scrollable).first,
         );
         expect(find.text(l10n.authLoginTitle), findsOneWidget);
-        await tester.ensureVisible(find.text(l10n.settingsAppLanguage));
+        // Center the row after scrolling from the account section; its long
+        // description can otherwise place the title above the viewport.
+        await Scrollable.ensureVisible(
+          tester.element(find.text(l10n.settingsAppLanguage)),
+          alignment: 0.5,
+        );
+        await tester.pumpAndSettle();
         await tester.tap(find.text(l10n.settingsAppLanguage));
         await tester.pumpAndSettle();
         expect(find.text('English'), findsOneWidget);

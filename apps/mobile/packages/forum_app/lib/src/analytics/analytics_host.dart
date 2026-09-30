@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../app_config.dart';
-import 'analytics_consent.dart';
 import 'visitor_analytics.dart';
 
 final visitorAnalyticsProvider = Provider<VisitorAnalytics?>((ref) {
@@ -73,7 +72,6 @@ class _AnalyticsHostState extends ConsumerState<AnalyticsHost>
       analytics?.setActive(
         lifecycle == null || lifecycle == AppLifecycleState.resumed,
       );
-      analytics?.setEnabled(ref.read(analyticsConsentProvider));
       final display = View.of(context).display;
       analytics?.visit(
         widget.router.routerDelegate.currentConfiguration.uri,
@@ -86,10 +84,6 @@ class _AnalyticsHostState extends ConsumerState<AnalyticsHost>
   @override
   Widget build(BuildContext context) {
     _analytics = ref.watch(visitorAnalyticsProvider);
-    ref.listen(analyticsConsentProvider, (_, enabled) {
-      ref.read(visitorAnalyticsProvider)?.setEnabled(enabled);
-      if (enabled) _schedule();
-    });
     _schedule();
     return widget.child;
   }

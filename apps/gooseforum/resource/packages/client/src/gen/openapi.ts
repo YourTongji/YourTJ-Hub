@@ -2114,6 +2114,8 @@ export interface paths {
          *     sensitive-word list is blocked outright with `chat.sensitive.blocked`
          *     (params `word` plus all matches in `words`) — chat has no delayed-visibility state. Messaging oneself and
          *     other service failures surface as `chat.send.failed` (params error). JSON
+         *     replyToMessageId is optional for compatibility with older clients and is
+         *     stored only when the target belongs to the resulting conversation. JSON
          *     binding is lenient: a malformed body binds to zero values and fails
          *     validation as `common.request.invalidParams` (HTTP 200). The success
          *     envelope carries no messageCode.
@@ -2175,11 +2177,14 @@ export interface paths {
         /**
          * Read a cursor-paginated page of chat messages
          * @description Read-only endpoint guarded by authentication only (no writable-account
-         *     check), so frozen accounts can still read their conversations. beforeId and
-         *     afterId are mutually exclusive cursors; passing both, targeting an unknown
+         *     check), so frozen accounts can still read their conversations. beforeId,
+         *     afterId, and aroundId are mutually exclusive. aroundId returns the target
+         *     first, followed by newer messages; older messages can be loaded with
+         *     beforeId. Passing conflicting cursors, targeting an unknown
          *     conversation, or reading a conversation the caller is not a member of all
          *     fail with `chat.messages.failed` (HTTP 200) without revealing which case
-         *     matched. limit <= 0 falls back to 30; values above 100 fail validation with
+         *     matched. A missing or cross-conversation aroundId fails the same way. limit
+         *     <= 0 falls back to 30; values above 100 fail validation with
          *     `common.request.invalidParams` (HTTP 200). JSON binding is lenient: a
          *     malformed body binds to zero values and fails validation the same way because
          *     convId is required.
@@ -8282,8 +8287,13 @@ export interface components {
         };
         PushDeviceUnregisterResponse: components["schemas"]["PushDeviceUnregisterSuccess"] | components["schemas"]["ApiFailure"];
         SendChatMessageRequest: {
-            /** @description Optional sender-scoped retry key. Reuse only for the same peer, content and message type; changed payloads fail with chat.send.failed. Legacy omitted keys do not deduplicate. Retained with the message. */
+            /** @description Optional sender-scoped retry key. Reuse only for the same peer, content, message type, and reply target; changed payloads fail with chat.send.failed. Legacy omitted keys do not deduplicate. Retained with the message. */
             clientMessageId?: string;
+            /**
+             * Format: uint64
+             * @description Optional message being quoted. It must belong to this direct conversation; omitted for legacy replies without a stable target ID.
+             */
+            replyToMessageId?: number;
             /**
              * Format: uint64
              * @description Recipient user id; messaging oneself fails with `chat.send.failed` (HTTP 200).
@@ -8321,9 +8331,14 @@ export interface components {
             beforeId?: number;
             /**
              * Format: uint64
-             * @description Return the page of messages newer than this message id; mutually exclusive with beforeId. 0 is treated as omitted.
+             * @description Return the page of messages newer than this message id; mutually exclusive with beforeId and aroundId. 0 is treated as omitted.
              */
             afterId?: number;
+            /**
+             * Format: uint64
+             * @description Return a page beginning with this message followed by newer messages. Older messages remain available through beforeId pagination. Mutually exclusive with beforeId and afterId; unknown or cross-conversation message IDs fail with chat.messages.failed.
+             */
+            aroundId?: number;
             /** @description Page size; omitted or 0 falls back to the server default (30), values above 100 fail validation with `common.request.invalidParams` (HTTP 200). */
             limit?: number;
         };
@@ -8347,6 +8362,11 @@ export interface components {
             createdAt: string;
             /** @description True when the caller sent this message. */
             isSelf: boolean;
+            /**
+             * Format: uint64
+             * @description Stable target ID for newly persisted replies. Omitted for older messages and legacy clients; the quote content remains readable but cannot be navigated to exactly.
+             */
+            replyToMessageId?: number;
             forwarded?: components["schemas"]["ChatForwardBundle"];
         };
         ChatMessagesResult: {

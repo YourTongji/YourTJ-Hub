@@ -96,6 +96,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String get commonLoading => '読み込み中…';
 
   @override
+  String get tabPageLoading => '読み込み中です…';
+
+  @override
   String get commonLoadMore => 'さらに読み込む';
 
   @override
@@ -930,6 +933,14 @@ class AppLocalizationsJa extends AppLocalizations {
   String get topicEmpty => 'まだトピックはありません';
 
   @override
+  String homePinnedTopics(int count) {
+    return '固定トピック（$count）';
+  }
+
+  @override
+  String get topicPinned => '固定';
+
+  @override
   String settingsAvatarUploaded(String url) {
     return 'アバターをアップロードしました：$url';
   }
@@ -1491,6 +1502,13 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get siteInfoTitle => 'コミュニティについて';
+
+  @override
+  String get siteInfoAnalytics => 'App アクセス統計';
+
+  @override
+  String get siteInfoAnalyticsDescription =>
+      'https://f.yourtj.de に接続する正式な Android/iOS 版は、ゲストとログイン済みユーザーの公開ページへのアクセスを自動的に集計します。統計の切り替えスイッチはありません。旧版で無効にしていた場合も、新規インストールと更新後にはこの方針が適用されます。デバッグ版、別のサーバー、Web 版、デスクトップ版はこのネイティブ統計経路を利用しません。\n\nApp が前面にある間、公開ページの固定カテゴリ、YourTJ App マーク、OS、スマートフォン／タブレットの種類を YourTJ の自己ホスト型 Umami サービス（umi.yourtj.de）へ送信し、アクセス統計とステータスページに使用します。アカウント、認証情報、端末・広告識別子、投稿・科目 ID、検索語や内容は送信しません。キャンパス、時間割、メッセージ、通知、プロフィール、ログイン、設定、投稿作成、管理ページは対象外です。\n\nサービスはネットワーク IP と一般的なクライアントヘッダーを受信し、おおよその国・地域・都市を推定する場合があります。GPS 位置情報は取得しません。訪問者数は推定値であり、アカウントには結び付けません。\n\nバックグラウンドでは送信を停止し、未送信データを破棄します。失敗した送信は再試行せず、アクセス待ち行列や訪問者識別子をディスクに保存しません。統計キャッシュのトークンはメモリ内だけに保持します。送信済みデータはサービスの保存設定に従い、App を終了しても撤回されません。ステータスページには大まかな端末・OS・クライアントの分類と集計数のみを表示します。';
 
   @override
   String get siteInfoLinks => 'コミュニティリンク';
@@ -2833,6 +2851,12 @@ class AppLocalizationsJa extends AppLocalizations {
   String get messageReply => '返信';
 
   @override
+  String get messagesJumpToQuotedMessage => '引用元のメッセージへ移動';
+
+  @override
+  String get messagesReturnToReplySource => '引用元に戻る';
+
+  @override
   String get messageReplyCancel => '返信をキャンセル';
 
   @override
@@ -2954,13 +2978,27 @@ class AppLocalizationsJa extends AppLocalizations {
   String get messageForwardChooseTargets => '受信者を選択';
 
   @override
-  String get settingsVisitorAnalytics => 'アクセス統計に参加';
+  String get draftDeleteCloud => 'クラウドの下書きを削除';
 
   @override
-  String get settingsVisitorAnalyticsDescription =>
-      '初期設定はオフです。有効にすると公開画面の種類、App マーク、OS、スマートフォン／タブレットの種類を YourTJ の自己ホスト型統計サービスへ送信し、ステータスページの集計に使用します。サービスは接続元 IP も受信し、おおよその地域を推定します。アカウント、内容、検索語、端末識別子、キャンパス・メッセージ・設定画面は送信しません。いつでも無効にできます。';
+  String get draftDeleteLocalConfirm =>
+      'この端末のコピーだけを削除します。クラウドの下書きと公開済みの内容は変更されません。このページを開いている間は元に戻せます。';
 
   @override
-  String get settingsVisitorAnalyticsSaveFailed =>
-      '統計設定を保存できませんでした。今回の無効化は有効です。次回起動時の設定を保存するには再試行してください。';
+  String get draftDeleteCloudConfirm =>
+      'クラウドの内容をゴミ箱へ移動します。条件を満たせば30日以内に復元できます。端末の復元用コピーは保持されます。';
+
+  @override
+  String get draftDeleteCloudFailed =>
+      'クラウドの下書きを削除できませんでした。一覧に残っています。再試行してください。';
+
+  @override
+  String get draftDeleteCloudDone => 'クラウドの下書きをゴミ箱へ移動しました。端末のコピーは保持されます。';
+
+  @override
+  String get draftOpenRecycleBin => 'ゴミ箱を開く';
+
+  @override
+  String get draftCloudLimit =>
+      'このページは更新日時が新しいクラウドの下書きを最大100件読み込みます。削除後に一覧を更新し、次の下書きを表示します。';
 }

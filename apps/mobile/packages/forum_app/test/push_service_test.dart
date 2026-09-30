@@ -1,12 +1,14 @@
 import 'dart:async';
 import 'package:core/core.dart';
 import 'package:dio/dio.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:forum_app/src/providers.dart';
 import 'package:forum_app/src/current_user.dart';
 import 'package:forum_app/src/push/push_service.dart';
+import 'package:forum_app/src/router.dart';
 
 class MemoryStorage implements TokenStorage {
   String? value = 'session';
@@ -30,6 +32,7 @@ class Driver extends PushDriver {
   String? deviceToken = 'native-token';
   void Function(String)? changed;
   Completer<String?>? pending;
+  Completer<bool>? pendingPermission;
   Completer<void>? pendingStop;
   @override
   String get platform => transport == 'apns' ? 'ios' : 'android';
@@ -40,7 +43,7 @@ class Driver extends PushDriver {
   @override
   Future<bool> permission({required bool request}) async {
     if (request) requests++;
-    return allowed;
+    return pendingPermission?.future ?? allowed;
   }
 
   @override
@@ -81,8 +84,10 @@ class Repository extends PushRepository {
   );
   Completer<bool>? pendingRegistration;
   Completer<void>? pendingSession;
+  int sessions = 0;
   @override
   Future<PushRepository> forSession() async {
+    sessions++;
     await pendingSession?.future;
     return this;
   }
@@ -123,26 +128,35 @@ void main() {
   late MemoryStorage storage;
   late ProviderContainer container;
   CurrentUser? user;
-  Future<void> settle() => pumpEventQueue();
+  Future<void> settle({bool firstFrame = false}) async {
+    if (firstFrame) {
+      WidgetsBinding.instance.handleBeginFrame(Duration.zero);
+      WidgetsBinding.instance.handleDrawFrame();
+    }
+    await pumpEventQueue();
+  }
+
+  ProviderContainer createContainer() => ProviderContainer(
+    overrides: [
+      pushDriverProvider.overrideWithValue(driver),
+      pushRepositoryProvider.overrideWithValue(repo),
+      tokenStorageProvider.overrideWithValue(storage),
+      currentUserProvider.overrideWith((ref) async => user),
+    ],
+  );
+
   setUp(() {
     // Steady state: the iOS one-shot permission request already happened, so
     // startup refreshes stay silent. First-launch behavior gets its own tests
     // that clear the marker.
-    SharedPreferences.setMockInitialValues(
-      const {'push_permission_requested': true},
-    );
+    SharedPreferences.setMockInitialValues(const {
+      'push_permission_requested': true,
+    });
     driver = Driver();
     repo = Repository();
     storage = MemoryStorage();
     user = const CurrentUser(id: 1, username: 'one');
-    container = ProviderContainer(
-      overrides: [
-        pushDriverProvider.overrideWithValue(driver),
-        pushRepositoryProvider.overrideWithValue(repo),
-        tokenStorageProvider.overrideWithValue(storage),
-        currentUserProvider.overrideWith((ref) async => user),
-      ],
-    );
+    container = createContainer();
     container.read(pushControllerProvider);
   });
   tearDown(() => container.dispose());
@@ -242,28 +256,40 @@ void main() {
     'iOS first launch after login requests permission and treats grant as consent',
     () async {
       SharedPreferences.setMockInitialValues({});
-      await settle();
+      await settle(firstFrame: true);
       expect(driver.requests, 1);
       expect(status(), PushChannelStatus.enabled);
-      expect(repo.registered, ['ios:apns:native-token']);
+      // Startup and current-user resolution may share a refresh or queue one
+      // extra refresh. Neither path may prompt twice or keep registering.
+      expect(repo.registered.length, inInclusiveRange(1, 2));
+      expect(repo.registered, everyElement('ios:apns:native-token'));
       final prefs = await SharedPreferences.getInstance();
       expect(prefs.getBool('push_enabled'), true);
       expect(prefs.getBool('push_permission_requested'), true);
+      final startupRegistrations = repo.registered.length;
+      await controller().refresh();
+      await settle();
+      expect(repo.registered.length, startupRegistrations + 1);
+      expect(repo.registered, everyElement('ios:apns:native-token'));
+      expect(driver.requests, 1);
     },
   );
-  test('first-launch request happens once; later refreshes restore silently',
-      () async {
-    SharedPreferences.setMockInitialValues({});
-    await settle();
-    expect(driver.requests, 1);
-    await controller().refresh();
-    expect(driver.requests, 1);
-    expect(status(), PushChannelStatus.enabled);
-  });
+  test(
+    'first-launch request happens once; later refreshes restore silently',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      await settle(firstFrame: true);
+      expect(driver.requests, 1);
+      await controller().refresh();
+      expect(driver.requests, 1);
+      expect(status(), PushChannelStatus.enabled);
+    },
+  );
+
   test('iOS first-launch denial keeps the denied recovery state', () async {
     SharedPreferences.setMockInitialValues({});
     driver.allowed = false;
-    await settle();
+    await settle(firstFrame: true);
     expect(driver.requests, 1);
     expect(status(), PushChannelStatus.permissionDenied);
     expect(repo.registered, isEmpty);
@@ -274,7 +300,7 @@ void main() {
   test('queued enable suppresses the first-launch auto-request', () async {
     SharedPreferences.setMockInitialValues({});
     repo.pendingSession = Completer<void>();
-    await settle();
+    await settle(firstFrame: true);
     final enabling = controller().enable();
     await settle();
     repo.pendingSession!.complete();
@@ -288,13 +314,221 @@ void main() {
     final prefs = await SharedPreferences.getInstance();
     expect(prefs.getBool('push_permission_requested'), true);
   });
-  test('Android first launch never auto-requests permission', () async {
+  test('Android first launch or upgrade requests permission once', () async {
     SharedPreferences.setMockInitialValues({});
     driver.transport = 'jpush';
+    await settle(firstFrame: true);
+    expect(driver.requests, 1);
+    expect(status(), PushChannelStatus.enabled);
+    // The storage bootstrap may queue one extra startup refresh. It must not
+    // repeat the permission prompt or register any other device token.
+    expect(repo.registered.length, inInclusiveRange(1, 2));
+    expect(repo.registered, everyElement('android:jpush:native-token'));
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getBool('push_enabled'), true);
+    expect(prefs.getBool('push_permission_requested'), true);
+    final startupRegistrations = repo.registered.length;
+    await controller().refresh();
     await settle();
+    expect(repo.registered.length, startupRegistrations + 1);
+    expect(repo.registered, everyElement('android:jpush:native-token'));
+    expect(driver.requests, 1);
+  });
+  test(
+    'Android first login still requests after the guest session boundary',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      driver.transport = 'jpush';
+      storage.value = null;
+      user = null;
+      container.invalidate(currentUserProvider);
+      appRouter.go('/login');
+      addTearDown(() => appRouter.go('/'));
+      await settle(firstFrame: true);
+      expect(driver.requests, 0);
+
+      // LoginPage advances the guest epoch before committing the first token.
+      container.read(offlineCacheEpochProvider.notifier).invalidate();
+      await settle();
+      storage.value = 'first-session';
+      user = const CurrentUser(id: 1, username: 'one');
+      container.invalidate(currentUserProvider);
+      await settle();
+      appRouter.go('/');
+      await settle();
+
+      expect(driver.requests, 1);
+      expect(status(), PushChannelStatus.enabled);
+      expect(repo.registered, isNotEmpty);
+      expect(
+        (await SharedPreferences.getInstance()).getBool(
+          'push_permission_requested',
+        ),
+        true,
+      );
+    },
+  );
+  test(
+    'explicit opt-out wins while guest boundary cleanup is pending',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      driver.transport = 'jpush';
+      storage.value = null;
+      await settle(firstFrame: true);
+      driver.pendingStop = Completer<void>();
+      container.read(offlineCacheEpochProvider.notifier).invalidate();
+      await settle();
+      final disabling = controller().disable();
+      await settle();
+      expect(
+        (await SharedPreferences.getInstance()).getBool('push_enabled'),
+        false,
+      );
+      driver.pendingStop!.complete();
+      await disabling;
+      storage.value = 'first-session';
+      container.invalidate(currentUserProvider);
+      await settle();
+      expect(driver.requests, 0);
+    },
+  );
+  test('Android upgrade preserves an explicit push opt-out', () async {
+    SharedPreferences.setMockInitialValues({'push_enabled': false});
+    driver.transport = 'jpush';
+    await settle(firstFrame: true);
     expect(driver.requests, 0);
     expect(status(), PushChannelStatus.disabled);
+    expect(repo.registered, isEmpty);
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getBool('push_enabled'), false);
+    expect(prefs.getBool('push_permission_requested'), isNull);
+    final readsAfterStartup = repo.reads;
+    appRouter.go('/notifications');
+    await settle();
+    expect(repo.reads, readsAfterStartup);
+
+    await controller().enable();
+    expect(driver.requests, 1);
+    expect(status(), PushChannelStatus.enabled);
   });
+  test(
+    'Android retries if the app exits while the OS prompt is open',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      driver.transport = 'jpush';
+      final interruptedDriver = driver;
+      interruptedDriver.pendingPermission = Completer<bool>();
+      await settle(firstFrame: true);
+      expect(interruptedDriver.requests, 1);
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getBool('push_permission_requested'), isNull);
+
+      container.dispose();
+      interruptedDriver.pendingPermission!.complete(false);
+      await settle();
+      driver = Driver()..transport = 'jpush';
+      container = createContainer();
+      container.read(pushControllerProvider);
+      await settle(firstFrame: true);
+      expect(driver.requests, 1);
+      expect(prefs.getBool('push_permission_requested'), true);
+    },
+  );
+  test(
+    'Android waits for the first frame and main route before requesting',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      driver.transport = 'jpush';
+      appRouter.go('/login');
+      await settle();
+      expect(driver.requests, 0);
+      await settle(firstFrame: true);
+      expect(driver.requests, 0);
+      appRouter.go('/');
+      await settle();
+      expect(driver.requests, 1);
+      final configReadsAfterLogin = repo.reads;
+      final nativeRegistrationsAfterLogin = driver.registrations;
+      final deviceRegistrationsAfterLogin = repo.registered.length;
+      appRouter.go('/notifications');
+      await settle();
+      expect(driver.requests, 1);
+      expect(repo.reads, configReadsAfterLogin);
+      expect(driver.registrations, nativeRegistrationsAfterLogin);
+      expect(repo.registered.length, deviceRegistrationsAfterLogin);
+      appRouter.go('/');
+    },
+  );
+  test(
+    'Android denial keeps preference but never registers a device',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      driver.transport = 'jpush';
+      driver.allowed = false;
+      await settle(firstFrame: true);
+      expect(driver.requests, 1);
+      expect(status(), PushChannelStatus.permissionDenied);
+      expect(driver.registrations, 0);
+      expect(repo.registered, isEmpty);
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getBool('push_enabled'), true);
+      expect(prefs.getBool('push_permission_requested'), true);
+      await controller().refresh();
+      expect(driver.requests, 1);
+      expect(repo.registered, isEmpty);
+    },
+  );
+  test(
+    'Android requests OS permission before local JPush config check',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      driver.transport = 'jpush';
+      driver.supported = false;
+      await settle(firstFrame: true);
+      expect(driver.requests, 1);
+      expect(status(), PushChannelStatus.unsupported);
+      expect(driver.registrations, 0);
+      expect(repo.registered, isEmpty);
+    },
+  );
+  test(
+    'Android guest launch does not request notification permission',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      driver.transport = 'jpush';
+      storage.value = null;
+      await settle(firstFrame: true);
+      expect(driver.requests, 0);
+      expect(repo.reads, 0);
+      expect(status(), PushChannelStatus.disabled);
+    },
+  );
+  test(
+    'Android route changes do not refresh before user data is available',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      driver.transport = 'jpush';
+      container.dispose();
+      user = null;
+      container = createContainer();
+      container.read(pushControllerProvider);
+      appRouter.go('/login');
+      await settle(firstFrame: true);
+      await settle();
+      final sessionsBeforeNavigation = repo.sessions;
+      appRouter.go('/');
+      await settle();
+      appRouter.go('/notifications');
+      await settle();
+      expect(repo.sessions, sessionsBeforeNavigation);
+      expect(driver.requests, 0);
+
+      user = const CurrentUser(id: 1, username: 'one');
+      container.invalidate(currentUserProvider);
+      await settle();
+      expect(driver.requests, 1);
+    },
+  );
   test('Android uses JPush registration, never FCM/APNs token', () async {
     driver.transport = 'jpush';
     await settle();
@@ -453,7 +687,12 @@ void main() {
     );
   });
   test('notification navigation is restricted to actual app routes', () {
-    for (final route in ['/p/12', '/p/12?postNo=8', '/u/34', '/notifications']) {
+    for (final route in [
+      '/p/12',
+      '/p/12?postNo=8',
+      '/u/34',
+      '/notifications',
+    ]) {
       expect(pushRoute(route), route);
     }
     for (final route in [

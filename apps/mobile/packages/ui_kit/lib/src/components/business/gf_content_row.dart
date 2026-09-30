@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+
 import '../../theme/gf_theme.dart';
 import '../atoms/gf_avatar.dart';
+import '../gf_media_image.dart';
 import '../gf_symbol.dart';
 
 /// A flat preview with one compact identity/action line and an aligned body.
@@ -147,7 +149,7 @@ class GfContentRow extends StatelessWidget {
                                   const SizedBox(width: 10),
                                   ClipRRect(
                                     borderRadius: BorderRadius.circular(12),
-                                    child: Image.network(
+                                    child: GfNetworkImage(
                                       thumbnailUrl,
                                       width: 64,
                                       height: 64,
