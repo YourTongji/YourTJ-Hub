@@ -10,6 +10,7 @@ abstract class ReviewAuthorPayload with _$ReviewAuthorPayload {
   const factory ReviewAuthorPayload({
     required String kind,
     required String label,
+    String? avatarUrl,
   }) = _ReviewAuthorPayload;
 
   factory ReviewAuthorPayload.fromJson(Map<String, dynamic> json) =>
@@ -22,6 +23,7 @@ abstract class ReviewViewerPayload with _$ReviewViewerPayload {
     required bool canEdit,
     required bool canDelete,
     required bool isHelpful,
+    @Default(false) bool isDisliked,
   }) = _ReviewViewerPayload;
 
   factory ReviewViewerPayload.fromJson(Map<String, dynamic> json) =>
@@ -39,6 +41,7 @@ abstract class ReviewPayload with _$ReviewPayload {
     required ReviewAuthorPayload author,
     required ReviewViewerPayload viewer,
     required int helpfulCount,
+    @Default(0) int dislikeCount,
     required String createdAt,
     required String updatedAt,
     double? offeringRatingAvg,

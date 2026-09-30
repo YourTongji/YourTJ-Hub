@@ -21,6 +21,7 @@ import '../../images/image_upload.dart';
 import '../../images/composer_upload_queue.dart';
 import '../../server_messages.dart';
 import '../../widgets/markdown_view.dart';
+import '../../widgets/editor/rich_markdown_editor.dart';
 import '../../widgets/status_views.dart';
 import 'embed_image_move.dart';
 import 'publish_type.dart';
@@ -1769,10 +1770,16 @@ class _PublishPageState extends ConsumerState<PublishPage>
       );
     }
     final defaults = DefaultStyles.getInstance(context);
-    return ConstrainedBox(
+    return RichMarkdownEditor(
       key: const Key('publish-editor'),
-      constraints: const BoxConstraints(minHeight: 220),
-      child: DragTarget<ComposerImageDragPayload>(
+      controller: _quill,
+      focusNode: _editorFocusNode,
+      placeholder: l10n.publishBodyPlaceholder,
+      onHeading: () => _toggleFormat(Attribute.h2),
+      onHeadingLongPress: () => _showHeadingLevelMenu(l10n),
+      onInsertLink: _insertLink,
+      showToolbar: false,
+      editorBuilder: (context) => DragTarget<ComposerImageDragPayload>(
         onMove: (DragTargetDetails<ComposerImageDragPayload> details) {
           _dragPointer = details.offset;
         },
@@ -1891,6 +1898,8 @@ class _PublishPageState extends ConsumerState<PublishPage>
                         ),
                       ),
                     ),
+                  // Publish owns media insertion; the shared toolbar handles
+                  // Markdown formatting only.
                   if (_contentType == 3 ||
                       MediaQuery.viewInsetsOf(context).bottom > 0)
                     _toolButton(
@@ -2001,94 +2010,12 @@ class _PublishPageState extends ConsumerState<PublishPage>
     _quill.formatSelection(LinkAttribute(url));
   }
 
-  Widget _buildToolbar(AppLocalizations l10n) {
-    final GfColors colors = GfTheme.colorsOf(context);
-
-    return ListenableBuilder(
-      listenable: _quill,
-      builder: (context, _) {
-        final attributes = _quill.getSelectionStyle().attributes;
-        bool selected(Attribute attribute) =>
-            attributes[attribute.key]?.value == attribute.value;
-        return ColoredBox(
-          color: colors.base200.withValues(alpha: 0.55),
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-            child: Row(
-              children: <Widget>[
-                _toolButton(
-                  symbol: 'undo-2',
-                  tooltip: l10n.publishUndo,
-                  onPressed: _quill.hasUndo ? _quill.undo : null,
-                ),
-                _toolButton(
-                  symbol: 'redo-2',
-                  tooltip: l10n.publishRedo,
-                  onPressed: _quill.hasRedo ? _quill.redo : null,
-                ),
-                _toolButton(
-                  symbol: 'heading',
-                  tooltip: l10n.publishHeading,
-                  selected: attributes[Attribute.header.key]?.value != null,
-                  onPressed: () => _toggleFormat(Attribute.h2),
-                  onLongPress: () => _showHeadingLevelMenu(l10n),
-                ),
-                _toolButton(
-                  symbol: 'link',
-                  tooltip: l10n.publishToolLink,
-                  onPressed: _insertLink,
-                ),
-
-                _toolButton(
-                  symbol: 'bold',
-                  tooltip: l10n.publishToolBold,
-                  selected: selected(Attribute.bold),
-                  onPressed: () => _toggleFormat(Attribute.bold),
-                ),
-                _toolButton(
-                  symbol: 'italic',
-                  tooltip: l10n.publishToolItalic,
-                  selected: selected(Attribute.italic),
-                  onPressed: () => _toggleFormat(Attribute.italic),
-                ),
-                _toolButton(
-                  symbol: 'strikethrough',
-                  tooltip: l10n.publishToolStrike,
-                  selected: selected(Attribute.strikeThrough),
-                  onPressed: () => _toggleFormat(Attribute.strikeThrough),
-                ),
-                _toolButton(
-                  symbol: 'quote',
-                  tooltip: l10n.publishToolQuote,
-                  selected: selected(Attribute.blockQuote),
-                  onPressed: () => _toggleFormat(Attribute.blockQuote),
-                ),
-                _toolButton(
-                  symbol: 'code',
-                  tooltip: l10n.publishToolCode,
-                  selected: selected(Attribute.inlineCode),
-                  onPressed: () => _toggleFormat(Attribute.inlineCode),
-                ),
-                _toolButton(
-                  symbol: 'unordered-list',
-                  tooltip: l10n.publishToolBulletList,
-                  selected: selected(Attribute.ul),
-                  onPressed: () => _toggleFormat(Attribute.ul),
-                ),
-                _toolButton(
-                  symbol: 'list-ordered',
-                  tooltip: l10n.publishToolOrderedList,
-                  selected: selected(Attribute.ol),
-                  onPressed: () => _toggleFormat(Attribute.ol),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
+  Widget _buildToolbar(AppLocalizations l10n) => RichMarkdownToolbar(
+    controller: _quill,
+    onHeading: () => _toggleFormat(Attribute.h2),
+    onHeadingLongPress: () => _showHeadingLevelMenu(l10n),
+    onInsertLink: _insertLink,
+  );
 
   Widget _toolButton({
     required String symbol,

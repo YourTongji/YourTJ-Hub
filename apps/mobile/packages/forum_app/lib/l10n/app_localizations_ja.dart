@@ -76,6 +76,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String get imageSaveFailed => '画像を保存できませんでした。後でもう一度お試しください。';
 
   @override
+  String get imagePermissionDenied => '写真へのアクセスが拒否されました。システム設定で許可してください。';
+
+  @override
   String get announcementLabel => 'お知らせ';
 
   @override
@@ -3001,4 +3004,113 @@ class AppLocalizationsJa extends AppLocalizations {
   @override
   String get draftCloudLimit =>
       'このページは更新日時が新しいクラウドの下書きを最大100件読み込みます。削除後に一覧を更新し、次の下書きを表示します。';
+
+  @override
+  String get topicShareImage => '共有画像を作成';
+
+  @override
+  String get shareImageTitle => '画像を共有';
+
+  @override
+  String get shareImageTheme => 'テーマ';
+
+  @override
+  String get shareImageThemePaper => 'ペーパー';
+
+  @override
+  String get shareImageThemeSand => 'サンド';
+
+  @override
+  String get shareImageThemeBlue => 'ブルー';
+
+  @override
+  String get shareImageThemeMint => 'ミント';
+
+  @override
+  String get shareImageThemeDark => 'ダーク';
+
+  @override
+  String get shareImageGenerating => '画像を作成中…';
+
+  @override
+  String get reviewDislike => '役に立たない';
+
+  @override
+  String get courseReviewShare => '共有';
+
+  @override
+  String get courseReviewShareImage => '共有画像を作成';
+
+  @override
+  String get courseReviewReportReasonHint => '通報理由を選択してください';
+
+  @override
+  String get courseReviewReportNoteLabel => '補足説明';
+
+  @override
+  String get courseReviewTemplates => '評価テンプレート';
+
+  @override
+  String get courseReviewTemplateApply => '適用';
+
+  @override
+  String get courseReviewTemplateReplaceTitle => '既存の内容を置き換えますか？';
+
+  @override
+  String get courseReviewTemplateReplaceBody => '現在のレビュー内容はテンプレートに置き換えられます。';
+
+  @override
+  String get courseReviewTemplateKeepEditing => '編集を続ける';
+
+  @override
+  String get courseReviewTemplateComprehensiveName => '総合評価';
+
+  @override
+  String get courseReviewTemplateComprehensiveDescription =>
+      '授業、教員、課題量、評価方法、アドバイスを評価します。';
+
+  @override
+  String get courseReviewTemplateQuickName => '簡易レビュー';
+
+  @override
+  String get courseReviewTemplateQuickDescription => '授業全体の感想を短くまとめます。';
+
+  @override
+  String get courseReviewTemplateTeacherFocusedName => '教員について';
+
+  @override
+  String get courseReviewTemplateTeacherFocusedDescription =>
+      '教え方、進度、コミュニケーションを中心に評価します。';
+
+  @override
+  String get courseReviewTemplateExamFocusedName => '評価方法について';
+
+  @override
+  String get courseReviewTemplateExamFocusedDescription => '試験、課題、採点について説明します。';
+
+  @override
+  String get courseReviewTemplateWorkloadName => '課題量について';
+
+  @override
+  String get courseReviewTemplateWorkloadDescription => '毎週の課題量と必要な時間を説明します。';
+
+  @override
+  String get courseReviewTemplateBlankName => '空白テンプレート';
+
+  @override
+  String get courseReviewTemplateBlankDescription => '空のレビューから始めます。';
+
+  @override
+  String get courseReviewContentLimitError => 'レビューは2,000文字までです。';
+
+  @override
+  String courseReviewCharacterCount(Object count) {
+    return '$count/2000';
+  }
+
+  @override
+  String get shareImageTooLong => '投稿が長すぎるため共有画像を作成できません。';
+
+  @override
+  String get shareImageFailed => '画像を共有できませんでした。後でもう一度お試しください。';
 }

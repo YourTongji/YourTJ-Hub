@@ -74,6 +74,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get imageSaveFailed => '图片保存失败，请稍后重试';
 
   @override
+  String get imagePermissionDenied => '相册权限已拒绝，请前往系统设置开启权限。';
+
+  @override
   String get announcementLabel => '公告';
 
   @override
@@ -2969,4 +2972,112 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get draftCloudLimit => '此页最多加载最近 100 份云端草稿，删除后会刷新并显示后续草稿。';
+
+  @override
+  String get topicShareImage => '生成分享图片';
+
+  @override
+  String get shareImageTitle => '分享图片';
+
+  @override
+  String get shareImageTheme => '主题';
+
+  @override
+  String get shareImageThemePaper => '纸白';
+
+  @override
+  String get shareImageThemeSand => '暖砂';
+
+  @override
+  String get shareImageThemeBlue => '晴蓝';
+
+  @override
+  String get shareImageThemeMint => '薄荷';
+
+  @override
+  String get shareImageThemeDark => '深色';
+
+  @override
+  String get shareImageGenerating => '正在生成图片…';
+
+  @override
+  String get reviewDislike => '无用';
+
+  @override
+  String get courseReviewShare => '分享';
+
+  @override
+  String get courseReviewShareImage => '生成分享图片';
+
+  @override
+  String get courseReviewReportReasonHint => '请选择举报理由';
+
+  @override
+  String get courseReviewReportNoteLabel => '补充说明';
+
+  @override
+  String get courseReviewTemplates => '评价模板';
+
+  @override
+  String get courseReviewTemplateApply => '应用';
+
+  @override
+  String get courseReviewTemplateReplaceTitle => '替换现有内容？';
+
+  @override
+  String get courseReviewTemplateReplaceBody => '现有评价内容将被模板替换。';
+
+  @override
+  String get courseReviewTemplateKeepEditing => '继续编辑';
+
+  @override
+  String get courseReviewTemplateComprehensiveName => '综合评价';
+
+  @override
+  String get courseReviewTemplateComprehensiveDescription =>
+      '从课程、教师、工作量、考核和建议几个方面评价。';
+
+  @override
+  String get courseReviewTemplateQuickName => '简短评价';
+
+  @override
+  String get courseReviewTemplateQuickDescription => '简要概括课程整体体验。';
+
+  @override
+  String get courseReviewTemplateTeacherFocusedName => '教师评价';
+
+  @override
+  String get courseReviewTemplateTeacherFocusedDescription => '重点评价教学风格、进度和交流。';
+
+  @override
+  String get courseReviewTemplateExamFocusedName => '考核评价';
+
+  @override
+  String get courseReviewTemplateExamFocusedDescription => '介绍考试、作业和评分方式。';
+
+  @override
+  String get courseReviewTemplateWorkloadName => '工作量评价';
+
+  @override
+  String get courseReviewTemplateWorkloadDescription => '介绍每周工作量和时间投入。';
+
+  @override
+  String get courseReviewTemplateBlankName => '空白模板';
+
+  @override
+  String get courseReviewTemplateBlankDescription => '从空白评价开始。';
+
+  @override
+  String get courseReviewContentLimitError => '评价内容最多 2000 个字符。';
+
+  @override
+  String courseReviewCharacterCount(Object count) {
+    return '$count/2000';
+  }
+
+  @override
+  String get shareImageTooLong => '帖子内容过长，无法生成分享图片。';
+
+  @override
+  String get shareImageFailed => '分享图片失败，请稍后重试。';
 }

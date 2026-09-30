@@ -1594,6 +1594,8 @@ class _TopicPageState extends ConsumerState<TopicPage>
                                       children: <Widget>[
                                         _PostCard(
                                           post: post,
+                                          topicTitle: topicTitle,
+                                          topicAvailable: _topicAvailable,
                                           readOnly: _fromCache,
                                           showReplyQuote: _showReplyQuote(
                                             post,
@@ -2235,6 +2237,8 @@ class _PostCard extends StatelessWidget {
   const _PostCard({
     this.readOnly = false,
     required this.post,
+    required this.topicTitle,
+    required this.topicAvailable,
     required this.showReplyQuote,
     required this.quoteTarget,
     required this.onReply,
@@ -2244,6 +2248,8 @@ class _PostCard extends StatelessWidget {
 
   final bool readOnly;
   final PostPayload post;
+  final String topicTitle;
+  final bool topicAvailable;
 
   /// 平铺模式下的引用块开关：回复其他楼层显示引用块，回复主帖保持轻量文本。
   final bool showReplyQuote;
@@ -2357,6 +2363,8 @@ class _PostCard extends StatelessWidget {
               width: double.infinity,
               child: PostActions(
                 post: post,
+                topicTitle: topicTitle,
+                topicAvailable: topicAvailable,
                 onChanged: onChanged,
                 onReply: onReply,
                 onReport: onReport,

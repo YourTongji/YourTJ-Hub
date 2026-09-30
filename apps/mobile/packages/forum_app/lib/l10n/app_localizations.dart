@@ -228,6 +228,12 @@ abstract class AppLocalizations {
   /// **'Couldn’t save the image. Try again later.'**
   String get imageSaveFailed;
 
+  /// No description provided for @imagePermissionDenied.
+  ///
+  /// In en, this message translates to:
+  /// **'Photo access was denied. Enable it in system settings.'**
+  String get imagePermissionDenied;
+
   /// No description provided for @announcementLabel.
   ///
   /// In en, this message translates to:
@@ -5663,6 +5669,216 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'This page loads the 100 most recently updated cloud drafts. Deleting a draft refreshes the list to show the next one.'**
   String get draftCloudLimit;
+
+  /// No description provided for @topicShareImage.
+  ///
+  /// In en, this message translates to:
+  /// **'Generate share image'**
+  String get topicShareImage;
+
+  /// No description provided for @shareImageTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Share image'**
+  String get shareImageTitle;
+
+  /// No description provided for @shareImageTheme.
+  ///
+  /// In en, this message translates to:
+  /// **'Theme'**
+  String get shareImageTheme;
+
+  /// No description provided for @shareImageThemePaper.
+  ///
+  /// In en, this message translates to:
+  /// **'Paper'**
+  String get shareImageThemePaper;
+
+  /// No description provided for @shareImageThemeSand.
+  ///
+  /// In en, this message translates to:
+  /// **'Sand'**
+  String get shareImageThemeSand;
+
+  /// No description provided for @shareImageThemeBlue.
+  ///
+  /// In en, this message translates to:
+  /// **'Blue'**
+  String get shareImageThemeBlue;
+
+  /// No description provided for @shareImageThemeMint.
+  ///
+  /// In en, this message translates to:
+  /// **'Mint'**
+  String get shareImageThemeMint;
+
+  /// No description provided for @shareImageThemeDark.
+  ///
+  /// In en, this message translates to:
+  /// **'Dark'**
+  String get shareImageThemeDark;
+
+  /// No description provided for @shareImageGenerating.
+  ///
+  /// In en, this message translates to:
+  /// **'Preparing image…'**
+  String get shareImageGenerating;
+
+  /// No description provided for @reviewDislike.
+  ///
+  /// In en, this message translates to:
+  /// **'Not useful'**
+  String get reviewDislike;
+
+  /// No description provided for @courseReviewShare.
+  ///
+  /// In en, this message translates to:
+  /// **'Share'**
+  String get courseReviewShare;
+
+  /// No description provided for @courseReviewShareImage.
+  ///
+  /// In en, this message translates to:
+  /// **'Generate share image'**
+  String get courseReviewShareImage;
+
+  /// No description provided for @courseReviewReportReasonHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Select a reason'**
+  String get courseReviewReportReasonHint;
+
+  /// No description provided for @courseReviewReportNoteLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Additional details'**
+  String get courseReviewReportNoteLabel;
+
+  /// No description provided for @courseReviewTemplates.
+  ///
+  /// In en, this message translates to:
+  /// **'Review templates'**
+  String get courseReviewTemplates;
+
+  /// No description provided for @courseReviewTemplateApply.
+  ///
+  /// In en, this message translates to:
+  /// **'Apply'**
+  String get courseReviewTemplateApply;
+
+  /// No description provided for @courseReviewTemplateReplaceTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Replace existing content?'**
+  String get courseReviewTemplateReplaceTitle;
+
+  /// No description provided for @courseReviewTemplateReplaceBody.
+  ///
+  /// In en, this message translates to:
+  /// **'The current review content will be replaced by the template.'**
+  String get courseReviewTemplateReplaceBody;
+
+  /// No description provided for @courseReviewTemplateKeepEditing.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep editing'**
+  String get courseReviewTemplateKeepEditing;
+
+  /// No description provided for @courseReviewTemplateComprehensiveName.
+  ///
+  /// In en, this message translates to:
+  /// **'Comprehensive'**
+  String get courseReviewTemplateComprehensiveName;
+
+  /// No description provided for @courseReviewTemplateComprehensiveDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Cover the course, instructor, workload, assessment and advice.'**
+  String get courseReviewTemplateComprehensiveDescription;
+
+  /// No description provided for @courseReviewTemplateQuickName.
+  ///
+  /// In en, this message translates to:
+  /// **'Quick review'**
+  String get courseReviewTemplateQuickName;
+
+  /// No description provided for @courseReviewTemplateQuickDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'A short summary of your overall experience.'**
+  String get courseReviewTemplateQuickDescription;
+
+  /// No description provided for @courseReviewTemplateTeacherFocusedName.
+  ///
+  /// In en, this message translates to:
+  /// **'Instructor focused'**
+  String get courseReviewTemplateTeacherFocusedName;
+
+  /// No description provided for @courseReviewTemplateTeacherFocusedDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Focus on teaching style, pace and communication.'**
+  String get courseReviewTemplateTeacherFocusedDescription;
+
+  /// No description provided for @courseReviewTemplateExamFocusedName.
+  ///
+  /// In en, this message translates to:
+  /// **'Assessment focused'**
+  String get courseReviewTemplateExamFocusedName;
+
+  /// No description provided for @courseReviewTemplateExamFocusedDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Describe exams, assignments and grading.'**
+  String get courseReviewTemplateExamFocusedDescription;
+
+  /// No description provided for @courseReviewTemplateWorkloadName.
+  ///
+  /// In en, this message translates to:
+  /// **'Workload focused'**
+  String get courseReviewTemplateWorkloadName;
+
+  /// No description provided for @courseReviewTemplateWorkloadDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Describe weekly workload and time commitment.'**
+  String get courseReviewTemplateWorkloadDescription;
+
+  /// No description provided for @courseReviewTemplateBlankName.
+  ///
+  /// In en, this message translates to:
+  /// **'Blank'**
+  String get courseReviewTemplateBlankName;
+
+  /// No description provided for @courseReviewTemplateBlankDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Start with an empty review.'**
+  String get courseReviewTemplateBlankDescription;
+
+  /// No description provided for @courseReviewContentLimitError.
+  ///
+  /// In en, this message translates to:
+  /// **'Reviews can contain up to 2,000 characters.'**
+  String get courseReviewContentLimitError;
+
+  /// No description provided for @courseReviewCharacterCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count}/2000'**
+  String courseReviewCharacterCount(Object count);
+
+  /// No description provided for @shareImageTooLong.
+  ///
+  /// In en, this message translates to:
+  /// **'This post is too long to turn into one image.'**
+  String get shareImageTooLong;
+
+  /// No description provided for @shareImageFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn’t share the image. Try again later.'**
+  String get shareImageFailed;
 }
 
 class _AppLocalizationsDelegate

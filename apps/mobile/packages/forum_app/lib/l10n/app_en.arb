@@ -32,6 +32,7 @@
   "imageSave": "Save image",
   "imageSaved": "Image saved",
   "imageSaveFailed": "Couldn’t save the image. Try again later.",
+  "imagePermissionDenied": "Photo access was denied. Enable it in system settings.",
   "announcementLabel": "Announcement",
   "announcementCollapse": "Collapse announcement",
   "announcementCollapseAction": "Collapse",
@@ -504,7 +505,13 @@
   "commonLoadFailed": "Failed to load",
   "topicEmpty": "No topics yet",
   "homePinnedTopics": "Pinned topics ({count})",
-  "@homePinnedTopics": {"placeholders": {"count": {"type": "int"}}},
+  "@homePinnedTopics": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "topicPinned": "Pinned",
   "settingsAvatarUploaded": "Avatar uploaded: {url}",
   "@settingsAvatarUploaded": {
@@ -1517,5 +1524,40 @@
   "draftDeleteCloudFailed": "Could not delete this cloud draft. It is still in the list; try again.",
   "draftDeleteCloudDone": "Cloud draft moved to the recycle bin. Device copies were kept.",
   "draftOpenRecycleBin": "Open recycle bin",
-  "draftCloudLimit": "This page loads the 100 most recently updated cloud drafts. Deleting a draft refreshes the list to show the next one."
+  "draftCloudLimit": "This page loads the 100 most recently updated cloud drafts. Deleting a draft refreshes the list to show the next one.",
+  "topicShareImage": "Generate share image",
+  "shareImageTitle": "Share image",
+  "shareImageTheme": "Theme",
+  "shareImageThemePaper": "Paper",
+  "shareImageThemeSand": "Sand",
+  "shareImageThemeBlue": "Blue",
+  "shareImageThemeMint": "Mint",
+  "shareImageThemeDark": "Dark",
+  "shareImageGenerating": "Preparing image…",
+  "reviewDislike": "Not useful",
+  "courseReviewShare": "Share",
+  "courseReviewShareImage": "Generate share image",
+  "courseReviewReportReasonHint": "Select a reason",
+  "courseReviewReportNoteLabel": "Additional details",
+  "courseReviewTemplates": "Review templates",
+  "courseReviewTemplateApply": "Apply",
+  "courseReviewTemplateReplaceTitle": "Replace existing content?",
+  "courseReviewTemplateReplaceBody": "The current review content will be replaced by the template.",
+  "courseReviewTemplateKeepEditing": "Keep editing",
+  "courseReviewTemplateComprehensiveName": "Comprehensive",
+  "courseReviewTemplateComprehensiveDescription": "Cover the course, instructor, workload, assessment and advice.",
+  "courseReviewTemplateQuickName": "Quick review",
+  "courseReviewTemplateQuickDescription": "A short summary of your overall experience.",
+  "courseReviewTemplateTeacherFocusedName": "Instructor focused",
+  "courseReviewTemplateTeacherFocusedDescription": "Focus on teaching style, pace and communication.",
+  "courseReviewTemplateExamFocusedName": "Assessment focused",
+  "courseReviewTemplateExamFocusedDescription": "Describe exams, assignments and grading.",
+  "courseReviewTemplateWorkloadName": "Workload focused",
+  "courseReviewTemplateWorkloadDescription": "Describe weekly workload and time commitment.",
+  "courseReviewTemplateBlankName": "Blank",
+  "courseReviewTemplateBlankDescription": "Start with an empty review.",
+  "courseReviewContentLimitError": "Reviews can contain up to 2,000 characters.",
+  "courseReviewCharacterCount": "{count}/2000",
+  "shareImageTooLong": "This post is too long to turn into one image.",
+  "shareImageFailed": "Couldn’t share the image. Try again later."
 }

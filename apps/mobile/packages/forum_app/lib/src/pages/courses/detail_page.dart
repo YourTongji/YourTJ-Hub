@@ -10,12 +10,17 @@ import 'package:ui_kit/ui_kit.dart';
 import '../../widgets/app_refresh_indicator.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../format.dart';
+import '../../current_user.dart';
 import '../../providers.dart';
 import '../../server_messages.dart';
 import '../../widgets/status_views.dart';
 import 'course_common.dart';
 import 'review_form_sheet.dart';
 import 'review_delete_dialog.dart';
+import 'review_reaction.dart';
+import 'review_report_sheet.dart';
+import '../../widgets/markdown_view.dart';
+import '../../widgets/share/share_image_preview.dart';
 
 /// 课程详情页（web CourseDetailPage.vue 的移动端形态，路由 `/courses/:courseId`）。
 ///
@@ -63,6 +68,8 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
   int _reviewTotal = 0;
   // 写操作代际守卫：写成功后自增，使 in-flight 列表响应失效。
   int _reviewsSeq = 0;
+  final Set<int> _reviewReactionBusy = <int>{};
+  final Set<int> _reviewReportBusy = <int>{};
 
   /// 聚焦教学班（null = 课程全部课评）。初始值来自路由参数，详情加载后校验。
   int? _activeOfferingId;
@@ -252,7 +259,11 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
     } catch (_) {
       // 加载更多失败静默，滚动可再次触发。
     } finally {
-      if (mounted) setState(() => _loadingMore = false);
+      if (mounted &&
+          seq == _reviewsSeq &&
+          epoch == ref.read(offlineCacheEpochProvider)) {
+        setState(() => _loadingMore = false);
+      }
     }
   }
 
@@ -398,32 +409,228 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
     }
   }
 
-  Future<void> _toggleHelpful(ReviewPayload review) async {
-    final bool target = !review.viewer.isHelpful;
-    final int index = _reviews.indexWhere(
-      (ReviewPayload r) => r.id == review.id,
-    );
-    if (index < 0) return;
-    setState(() {
-      _reviews[index] = _reviews[index].copyWith(
-        viewer: review.viewer.copyWith(isHelpful: target),
-        helpfulCount: review.helpfulCount + (target ? 1 : -1),
-      );
-    });
+  Future<bool> _requireSignedIn() async {
+    final int epoch = ref.read(offlineCacheEpochProvider);
     try {
-      await _repository.markHelpful(review.id, on: target);
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        final int i = _reviews.indexWhere(
-          (ReviewPayload r) => r.id == review.id,
-        );
-        if (i >= 0) _reviews[i] = review;
-      });
-      if (!_isUnauthorized(e)) {
+      final user = await ref.read(currentUserProvider.future);
+      if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) {
+        return false;
+      }
+      if (user != null) return true;
+      context.push('/login');
+      return false;
+    } catch (error) {
+      if (mounted &&
+          epoch == ref.read(offlineCacheEpochProvider) &&
+          !_isUnauthorized(error)) {
         _toast(_copy().operationFailed, error: true);
       }
+      return false;
     }
+  }
+
+  Future<void> _toggleReviewReaction(
+    ReviewPayload review,
+    CourseReviewReaction reaction,
+  ) async {
+    if (_reviewReactionBusy.contains(review.id)) return;
+    final int epoch = ref.read(offlineCacheEpochProvider);
+    setState(() => _reviewReactionBusy.add(review.id));
+    try {
+      final user = await ref.read(currentUserProvider.future);
+      if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) return;
+      if (user == null) {
+        context.push('/login');
+        return;
+      }
+      final int index = _reviews.indexWhere((r) => r.id == review.id);
+      if (index < 0) return;
+      final ReviewPayload current = _reviews[index];
+      final bool on = reaction == CourseReviewReaction.helpful
+          ? !current.viewer.isHelpful
+          : !current.viewer.isDisliked;
+      // Invalidate any list request as soon as this write can affect its result.
+      _reviewsSeq++;
+      setState(() {
+        _reviewsLoading = false;
+        _loadingMore = false;
+      });
+      await _writeReviewReaction(current, reaction, on, epoch);
+      if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) return;
+      setState(() {
+        final int i = _reviews.indexWhere((r) => r.id == review.id);
+        if (i >= 0) {
+          _reviews[i] = applyCourseReviewReaction(
+            _reviews[i],
+            reaction,
+            on: on,
+          );
+        }
+      });
+      // Re-read the authoritative counts after a successful write; another
+      // request may have changed the baseline while this action was in flight.
+      await _loadReviews();
+    } catch (e) {
+      if (mounted &&
+          epoch == ref.read(offlineCacheEpochProvider) &&
+          !_isUnauthorized(e)) {
+        _toast(_copy().operationFailed, error: true);
+      }
+    } finally {
+      if (mounted) setState(() => _reviewReactionBusy.remove(review.id));
+    }
+  }
+
+  Future<void> _writeReviewReaction(
+    ReviewPayload current,
+    CourseReviewReaction reaction,
+    bool on,
+    int epoch,
+  ) async {
+    Future<void> write(CourseReviewReaction target, bool enabled) =>
+        target == CourseReviewReaction.helpful
+        ? _repository.markHelpful(current.id, on: enabled)
+        : _repository.markDislike(current.id, on: enabled);
+    bool currentSession() =>
+        mounted && epoch == ref.read(offlineCacheEpochProvider);
+
+    final CourseReviewReaction opposite =
+        reaction == CourseReviewReaction.helpful
+        ? CourseReviewReaction.dislike
+        : CourseReviewReaction.helpful;
+    final bool oppositeSelected = opposite == CourseReviewReaction.helpful
+        ? current.viewer.isHelpful
+        : current.viewer.isDisliked;
+    if (!on || !oppositeSelected) {
+      try {
+        await write(reaction, on);
+      } catch (_) {
+        if (currentSession()) await _loadReviews();
+        rethrow;
+      }
+      return;
+    }
+
+    try {
+      await write(opposite, false);
+    } catch (_) {
+      if (currentSession()) await _loadReviews();
+      rethrow;
+    }
+    if (!currentSession()) return;
+    try {
+      await write(reaction, true);
+    } catch (_) {
+      if (currentSession()) {
+        try {
+          // A lost response can follow a committed target write. Clear it before
+          // restoring the prior side, then reread the server's actual viewer state.
+          await write(reaction, false);
+        } catch (_) {}
+        if (currentSession()) {
+          try {
+            await write(opposite, true);
+          } catch (_) {}
+        }
+        if (currentSession()) await _loadReviews();
+      }
+      rethrow;
+    }
+  }
+
+  Future<void> _reportReview(ReviewPayload review) async {
+    if (_reviewReportBusy.contains(review.id)) return;
+    setState(() => _reviewReportBusy.add(review.id));
+    try {
+      if (!await _requireSignedIn() || review.viewer.canEdit) return;
+      if (!mounted) return;
+      await showCourseReviewReportSheet(
+        context,
+        repository: _repository,
+        reviewId: review.id,
+      );
+    } finally {
+      if (mounted) setState(() => _reviewReportBusy.remove(review.id));
+    }
+  }
+
+  Future<void> _shareReview(CourseDetailPayload course, ReviewPayload review) {
+    final rating = review.rating?.clamp(0, 5).toInt() ?? 0;
+    final String reviewUrl = Uri.parse(ref.read(apiClientProvider).baseUrl)
+        .replace(
+          path: '/courses/${course.id}',
+          queryParameters: {
+            'offeringId': '${review.offeringId}',
+            'reviewId': '${review.id}',
+          },
+        )
+        .toString();
+    return showShareImagePreview(
+      context,
+      fileName: 'course-review-${review.id}.png',
+      cardBuilder: (theme) => ShareImageCard(
+        theme: theme,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '${course.name} · ${course.primaryCode}',
+              style: GfTheme.typographyOf(context).heading.copyWith(
+                color: theme.colors.baseContent,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              _offeringLabel(course, review.offeringId),
+              style: GfTheme.typographyOf(context).caption.copyWith(
+                color: theme.colors.baseContent.withValues(alpha: 0.65),
+              ),
+            ),
+            const SizedBox(height: 20),
+            if (rating > 0)
+              Text(
+                '${List.filled(rating, '★').join()}${List.filled(5 - rating, '☆').join()}',
+                style: TextStyle(color: theme.colors.warning, fontSize: 18),
+              ),
+            const SizedBox(height: 4),
+            Text(
+              formatDateTime(review.createdAt),
+              style: GfTheme.typographyOf(context).meta.copyWith(
+                color: theme.colors.baseContent.withValues(alpha: 0.55),
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              _reviewAuthorLabel(
+                review,
+                CourseCopy(AppLocalizations.of(context)),
+              ),
+              style: GfTheme.typographyOf(context).small.copyWith(
+                color: theme.colors.baseContent,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 16),
+            GfDivider(color: theme.colors.line),
+            GfMarkdownView(
+              data: review.content,
+              screenshot: true,
+              colors: theme.colors,
+            ),
+            const SizedBox(height: 20),
+            GfDivider(color: theme.colors.line),
+            Text(
+              'YourTJ  ·  $reviewUrl',
+              softWrap: true,
+              style: GfTheme.typographyOf(context).meta.copyWith(
+                color: theme.colors.baseContent.withValues(alpha: 0.55),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   // ---- UI ----
@@ -613,7 +820,16 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
                   : ValueKey(review.id),
               review: review,
               offeringLabel: _offeringLabel(detail, review.offeringId),
-              onHelpful: () => _toggleHelpful(review),
+              reactionBusy: _reviewReactionBusy.contains(review.id),
+              reportBusy: _reviewReportBusy.contains(review.id),
+              onHelpful: () =>
+                  _toggleReviewReaction(review, CourseReviewReaction.helpful),
+              onDislike: () =>
+                  _toggleReviewReaction(review, CourseReviewReaction.dislike),
+              onReport: review.viewer.canEdit
+                  ? null
+                  : () => _reportReview(review),
+              onShare: () => _shareReview(detail, review),
               onEdit: review.viewer.canEdit
                   ? () => _openEditSheet(review)
                   : null,
@@ -966,11 +1182,11 @@ class _RatingSection extends StatelessWidget {
               ),
             )
           else
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: <Widget>[
-                // One text baseline for the score and denominator.
-                Text.rich(
+            LayoutBuilder(
+              builder: (context, constraints) {
+                // Keep the score and its distribution readable on narrow phones
+                // and when the user enlarges text.
+                final score = Text.rich(
                   TextSpan(
                     children: [
                       TextSpan(
@@ -988,28 +1204,39 @@ class _RatingSection extends StatelessWidget {
                     ],
                   ),
                   key: const ValueKey('course-rating-score'),
-                ),
-                const SizedBox(width: 20),
+                );
                 // 分布条 5★ → 1★。
-                Expanded(
-                  child: Column(
-                    children: <Widget>[
-                      for (int star = 5; star >= 1; star--)
-                        _DistributionRow(
-                          star: star,
-                          count: distribution.length >= star
-                              ? distribution[star - 1]
-                              : 0,
-                          max: distribution.isEmpty
-                              ? 1
-                              : distribution.reduce(
-                                  (int a, int b) => a > b ? a : b,
-                                ),
-                        ),
-                    ],
-                  ),
-                ),
-              ],
+                final bars = Column(
+                  children: <Widget>[
+                    for (int star = 5; star >= 1; star--)
+                      _DistributionRow(
+                        star: star,
+                        count: distribution.length >= star
+                            ? distribution[star - 1]
+                            : 0,
+                        max: distribution.isEmpty
+                            ? 1
+                            : distribution.reduce(
+                                (int a, int b) => a > b ? a : b,
+                              ),
+                      ),
+                  ],
+                );
+                if (constraints.maxWidth < 360) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [score, const SizedBox(height: 8), bars],
+                  );
+                }
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    score,
+                    const SizedBox(width: 20),
+                    Expanded(child: bars),
+                  ],
+                );
+              },
             ),
         ],
       ),
@@ -1574,19 +1801,35 @@ class _ProConList extends StatelessWidget {
 
 // ---- 课评行 ----
 
+String _reviewAuthorLabel(ReviewPayload review, CourseCopy copy) {
+  if (review.author.kind == 'member') return review.author.label;
+  if (review.author.kind == 'legacy') return copy.authorLegacyLabel;
+  return copy.authorAnonymousLabel;
+}
+
 class _ReviewRow extends StatelessWidget {
   const _ReviewRow({
     super.key,
     required this.review,
     required this.offeringLabel,
+    required this.reactionBusy,
+    required this.reportBusy,
     required this.onHelpful,
+    required this.onDislike,
+    required this.onShare,
+    this.onReport,
     this.onEdit,
     this.onDelete,
   });
 
   final ReviewPayload review;
   final String offeringLabel;
+  final bool reactionBusy;
+  final bool reportBusy;
   final VoidCallback onHelpful;
+  final VoidCallback onDislike;
+  final VoidCallback onShare;
+  final VoidCallback? onReport;
   final VoidCallback? onEdit;
   final VoidCallback? onDelete;
 
@@ -1598,6 +1841,7 @@ class _ReviewRow extends StatelessWidget {
     final GfTypography type = GfTheme.typographyOf(context);
     final int? rating = review.rating;
     final bool helpful = review.viewer.isHelpful;
+    final bool disliked = review.viewer.isDisliked;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
@@ -1612,7 +1856,7 @@ class _ReviewRow extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
                     Text(
-                      _authorLabel(review, copy),
+                      _reviewAuthorLabel(review, copy),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: type.small.copyWith(
@@ -1650,13 +1894,7 @@ class _ReviewRow extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 8),
-          Text(
-            review.content,
-            style: type.small.copyWith(
-              color: colors.baseContent.withValues(alpha: 0.85),
-              height: 1.5,
-            ),
-          ),
+          GfMarkdownView(data: review.content, compact: true),
           const SizedBox(height: 8),
           Wrap(
             spacing: 8,
@@ -1667,9 +1905,34 @@ class _ReviewRow extends StatelessWidget {
                 label: '${review.helpfulCount} ${l10n.reviewHelpful}',
                 symbol: 'thumbs-up',
                 active: helpful,
+                selectedSemantics: true,
                 activeColor: colors.warning,
-                onTap: onHelpful,
+                onTap: reactionBusy ? null : onHelpful,
               ),
+              _actionChip(
+                context,
+                label: '${review.dislikeCount} ${l10n.reviewDislike}',
+                symbol: 'thumbs-down',
+                active: disliked,
+                selectedSemantics: true,
+                activeColor: colors.error,
+                onTap: reactionBusy ? null : onDislike,
+              ),
+              _actionChip(
+                context,
+                label: l10n.courseReviewShare,
+                symbol: 'share-2',
+                active: false,
+                onTap: onShare,
+              ),
+              if (onReport != null)
+                _actionChip(
+                  context,
+                  label: l10n.contentReport,
+                  symbol: 'flag',
+                  active: false,
+                  onTap: reportBusy ? null : onReport,
+                ),
               if (onEdit != null) ...<Widget>[
                 _actionChip(
                   context,
@@ -1695,12 +1958,6 @@ class _ReviewRow extends StatelessWidget {
     );
   }
 
-  String _authorLabel(ReviewPayload review, CourseCopy copy) {
-    if (review.author.kind == 'member') return review.author.label;
-    if (review.author.kind == 'legacy') return copy.authorLegacyLabel;
-    return copy.authorAnonymousLabel;
-  }
-
   Widget _actionChip(
     BuildContext context, {
     required String label,
@@ -1708,33 +1965,43 @@ class _ReviewRow extends StatelessWidget {
     required bool active,
     VoidCallback? onTap,
     Color? activeColor,
+    bool selectedSemantics = false,
   }) {
     final GfColors colors = GfTheme.colorsOf(context);
     final Color? tint = active ? (activeColor ?? colors.primary) : null;
-    return TextButton(
-      onPressed: onTap,
-      style: TextButton.styleFrom(
-        minimumSize: const Size(44, 44),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        foregroundColor: tint ?? colors.baseContent.withValues(alpha: 0.7),
-        backgroundColor: active
-            ? (tint ?? colors.primary).withValues(alpha: 0.1)
-            : colors.base100,
-        shape: const StadiumBorder(),
-        side: BorderSide(
-          color: active
-              ? (tint ?? colors.primary).withValues(alpha: 0.4)
-              : colors.line.withValues(alpha: 0.7),
+    return Semantics(
+      toggled: selectedSemantics ? active : null,
+      child: TextButton(
+        onPressed: onTap,
+        style: TextButton.styleFrom(
+          minimumSize: const Size(44, 44),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          foregroundColor: tint ?? colors.baseContent.withValues(alpha: 0.7),
+          backgroundColor: active
+              ? (tint ?? colors.primary).withValues(alpha: 0.1)
+              : colors.base100,
+          shape: const StadiumBorder(),
+          side: BorderSide(
+            color: active
+                ? (tint ?? colors.primary).withValues(alpha: 0.4)
+                : colors.line.withValues(alpha: 0.7),
+          ),
+          textStyle: const TextStyle(fontSize: 14, height: 1.25),
         ),
-        textStyle: const TextStyle(fontSize: 14, height: 1.25),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          GfSymbol(symbol, size: 18),
-          const SizedBox(width: 6),
-          Flexible(child: Text(label, textAlign: TextAlign.center)),
-        ],
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            if (symbol == 'thumbs-down')
+              const RotatedBox(
+                quarterTurns: 2,
+                child: GfSymbol('thumbs-up', size: 18),
+              )
+            else
+              GfSymbol(symbol, size: 18),
+            const SizedBox(width: 6),
+            Flexible(child: Text(label, textAlign: TextAlign.center)),
+          ],
+        ),
       ),
     );
   }

@@ -10,7 +10,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:forum_app/l10n/app_localizations.dart';
 import 'package:forum_app/src/pages/topic/post_actions.dart';
 import 'package:forum_app/src/pages/topic/post_history_sheet.dart';
+import 'package:forum_app/src/widgets/share/share_image_preview.dart';
 import 'package:forum_app/src/providers.dart';
+import 'package:forum_app/src/private_notes.dart';
 import 'package:ui_kit/ui_kit.dart';
 import 'fixtures/page_fixtures.dart';
 import 'pages_smoke_test.dart' show MemoryTokenStorage;
@@ -175,6 +177,166 @@ void main() {
     );
     pending.complete();
     await tester.pumpAndSettle();
+  });
+
+  testWidgets('share actions open for an available post', (tester) async {
+    await pump(
+      tester,
+      repo(),
+      PostActions(
+        post: post().copyWith(isOwnPost: false, isAnonymous: true),
+        topicTitle: 'A topic title',
+        onChanged: () async {},
+        onReply: null,
+        onReport: () {},
+      ),
+    );
+    await tester.tap(find.byType(PopupMenuButton<String>));
+    await tester.pumpAndSettle();
+    expect(find.text('Share'), findsOneWidget);
+    expect(find.text('Generate share image'), findsOneWidget);
+    await tester.tap(find.text('Generate share image'));
+    await tester.pumpAndSettle();
+    expect(find.byType(ShareImageCard), findsOneWidget);
+    expect(find.text('A topic title'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(seconds: 1));
+  });
+
+  for (final (state, removedPost) in <(String, PostPayload)>[
+    ('hidden', post().copyWith(isHidden: true)),
+    ('author deleted', post().copyWith(isAuthorDeleted: true)),
+    ('moderator removed', post().copyWith(isModeratorRemoved: true)),
+  ]) {
+    testWidgets('share actions are absent for $state posts', (tester) async {
+      await pump(
+        tester,
+        repo(),
+        PostActions(
+          post: removedPost.copyWith(isOwnPost: false),
+          onChanged: () async {},
+          onReply: null,
+          onReport: () {},
+        ),
+      );
+      await tester.tap(find.byType(PopupMenuButton<String>));
+      await tester.pumpAndSettle();
+      expect(find.text('Share'), findsNothing);
+      expect(find.text('Generate share image'), findsNothing);
+    });
+  }
+
+  testWidgets('share actions are absent when the containing topic is unavailable', (
+    tester,
+  ) async {
+    await pump(
+      tester,
+      repo(),
+      PostActions(
+        post: post().copyWith(isOwnPost: false),
+        topicAvailable: false,
+        onChanged: () async {},
+        onReply: null,
+        onReport: () {},
+      ),
+    );
+    await tester.tap(find.byType(PopupMenuButton<String>));
+    await tester.pumpAndSettle();
+    expect(find.text('Share'), findsNothing);
+    expect(find.text('Generate share image'), findsNothing);
+  });
+
+  testWidgets('share card uses public author data, never private notes', (
+    tester,
+  ) async {
+    final author = const UserBriefPayload(
+      id: 99,
+      username: 'login-name',
+      nickname: 'Public name',
+      avatarUrl: '/file/img/avatar.png',
+    );
+    final widget = PrivateNotesScope(
+      ownerId: 1,
+      notes: const <int, PrivateNotePayload>{
+        99: PrivateNotePayload(
+          targetUserId: 99,
+          username: 'login-name',
+          note: 'My note',
+        ),
+      },
+      child: PostActions(
+        post: post().copyWith(
+          isOwnPost: false,
+          isAnonymous: false,
+          author: author,
+        ),
+        onChanged: () async {},
+        onReply: null,
+        onReport: () {},
+      ),
+    );
+    await pump(tester, repo(), widget);
+    await tester.tap(find.byType(PopupMenuButton<String>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Generate share image'));
+    await tester.pumpAndSettle();
+
+    // Share images are exported artifacts. PrivateNotesScope must not change
+    // their author label or leak the viewer's local contact notes.
+    expect(find.text('Public name'), findsOneWidget);
+    expect(find.text('My note'), findsNothing);
+    expect(find.text('login-name'), findsNothing);
+    final avatar = tester.widget<ShareImageNetworkImage>(
+      find.byType(ShareImageNetworkImage).first,
+    );
+    expect(avatar.url, contains('/file/img/avatar.png'));
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(seconds: 1));
+  });
+
+  testWidgets('anonymous share card does not reveal author DTO fields', (
+    tester,
+  ) async {
+    await pump(
+      tester,
+      repo(),
+      PostActions(
+        post: post().copyWith(
+          isOwnPost: false,
+          isAnonymous: true,
+          author: const UserBriefPayload(
+            id: 99,
+            username: 'private-login',
+            nickname: 'Private real name',
+            avatarUrl: '/file/img/private-avatar.png',
+          ),
+        ),
+        onChanged: () async {},
+        onReply: null,
+        onReport: () {},
+      ),
+    );
+    await tester.tap(find.byType(PopupMenuButton<String>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Generate share image'));
+    await tester.pumpAndSettle();
+
+    final anonymousLabel = AppLocalizations.of(
+      tester.element(find.byType(PostActions)),
+    ).courseCopyAuthorAnonymousLabel;
+    expect(find.text(anonymousLabel), findsOneWidget);
+    expect(find.text('private-login'), findsNothing);
+    expect(find.text('Private real name'), findsNothing);
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is ShareImageNetworkImage &&
+            widget.url.contains('private-avatar.png'),
+      ),
+      findsNothing,
+    );
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(seconds: 1));
   });
 
   for (final size in [(320.0, 1.0), (390.0, 1.0), (220.0, 2.0)]) {
@@ -376,7 +538,8 @@ void main() {
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
     expect(find.byType(PostActions), findsOneWidget);
-    await tester.pump(const Duration(seconds: 4));
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(seconds: 1));
   });
   testWidgets(
     'reply likes and bookmarks call the API and refresh the server state',

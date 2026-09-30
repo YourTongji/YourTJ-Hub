@@ -638,7 +638,6 @@ identity survive this layout change. The header keeps a small outer margin for i
   resets obsolete pagination and updates the reply count used when returning to the feed.
   Reading a topic without editing creates no draft. Session invalidation prevents queued writing from
   crossing the account boundary; cache clearing does not delete writing recovery copies.
-- `Planned`: text-to-image cards. No UI claims this feature exists.
 
 ## Campus and sign-in
 
@@ -736,7 +735,26 @@ identity survive this layout change. The header keeps a small outer margin for i
 - `Current`: course details retain offering-specific five-star reviews and existing review fields;
   bookmark and write-review actions stay in a bottom dock. Scores share a baseline with their
   five-point denominator. The signed-in user’s own reviews (including anonymous reviews) appear
-  first across pagination; edit/delete controls remain on those rows.
+  first across pagination; edit/delete controls remain on those rows. Review bodies use the shared
+  Markdown renderer, and the editor uses the app’s rich Markdown surface with six Web-matched templates.
+- `Current`: review rows offer helpful/dislike, image sharing and reporting for other authors’ reviews.
+  Guests are sent to sign-in for reactions and reports. Reports require an explicit reason and limit
+  supplemental notes to 300 characters; a failed submission keeps the entered values visible. A
+  reaction switch deletes the old reaction before adding the new one, updates counts after success,
+  and attempts cleanup plus a list reload when the second request fails.
+- `Partial`: the review API stores helpful and dislike records independently, so cross-device
+  concurrent changes are not atomically mutually exclusive. Flutter serializes changes per review
+  and reconciles failures from the server, but the API contract has no atomic switch operation.
+- `Current`: course reviews and forum posts/replies can open a shared image preview with themes,
+  fixed-width Markdown cards, save and system-share actions. Cards render at 375 logical pixels,
+  2× capture scale, and a fixed text scale; compact Markdown styles keep long posts within bounds.
+  The five palettes include paper, dark and three pastel themes; pastels are mobile-only and derive
+  their surfaces from GF color tokens. Long captures are tiled at 4096 physical pixels and
+  capped at 48 MiB of RGBA output (about 12.6 megapixels at the fixed width); CPU stitching and PNG
+  encoding run in an isolate. Network images settle or use a stable placeholder after 20 seconds.
+  Review cards keep the public author label rules for member, anonymous and legacy reviews.
+- `Partial`: automated tests cover PNG capture and tiled stitching; native save/share behavior and
+  visual layout still need simulator and device acceptance.
 - `Current`: Profile includes a private My course reviews entry for paginated management across
   courses, including anonymous reviews. Each visible review can be edited, deleted or opened at
   its offering and review position. Hidden reviews remain listed for deletion, with no edit or

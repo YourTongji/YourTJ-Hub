@@ -1,9 +1,14 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter_quill/flutter_quill.dart';
 import 'package:core/core.dart';
 import 'package:ui_kit/ui_kit.dart';
 import '../../../l10n/app_localizations.dart';
 import 'course_common.dart';
 import '../../widgets/confirm_discard_edit.dart';
+import '../../widgets/editor/course_review_templates.dart';
+import '../../widgets/editor/rich_markdown_editor.dart';
 
 // ---- 写评 / 编辑表单 sheet ----
 
@@ -33,7 +38,13 @@ class CourseReviewFormSheet extends StatefulWidget {
 }
 
 class CourseReviewFormSheetState extends State<CourseReviewFormSheet> {
-  final TextEditingController _contentController = TextEditingController();
+  final FocusNode _editorFocusNode = FocusNode(
+    debugLabel: 'course-review-body',
+  );
+  final MarkdownConverter _converter = MarkdownConverter();
+  late QuillController _editorController;
+  late StreamSubscription<DocChange> _editorChanges;
+  String _content = '';
   late int? _offeringId;
   late int _rating;
   late bool _anonymous;
@@ -41,8 +52,7 @@ class CourseReviewFormSheetState extends State<CourseReviewFormSheet> {
   bool _allowPop = false, _closing = false;
   late final (int?, int, String, bool) _initial;
 
-  bool get _dirty =>
-      _initial != (_offeringId, _rating, _contentController.text, _anonymous);
+  bool get _dirty => _initial != (_offeringId, _rating, _content, _anonymous);
 
   void _finish([ReviewPayload? result]) {
     setState(() => _allowPop = true);
@@ -68,20 +78,41 @@ class CourseReviewFormSheetState extends State<CourseReviewFormSheet> {
     if (editing != null) {
       _offeringId = editing.offeringId;
       _rating = editing.rating ?? 0;
-      _contentController.text = editing.content;
+      _content = editing.content;
       _anonymous = editing.author.kind == 'anonymous';
     } else {
       _offeringId = widget.initialOfferingId;
       _rating = 0;
       _anonymous = true;
     }
-    _initial = (_offeringId, _rating, _contentController.text, _anonymous);
-    _contentController.addListener(() => setState(() {}));
+    _initial = (_offeringId, _rating, _content, _anonymous);
+    _editorController = _createEditor(_content);
+  }
+
+  QuillController _createEditor(String markdown) {
+    final controller = QuillController(
+      document: _converter.mdToDocument(markdown),
+      selection: const TextSelection.collapsed(offset: 0),
+    );
+    _editorChanges = controller.document.changes.listen(
+      (_) => _editorChanged(),
+    );
+    return controller;
+  }
+
+  void _editorChanged() {
+    final String next = _converter
+        .documentToMarkdown(_editorController.document)
+        .trim();
+    if (next == _content || !mounted) return;
+    setState(() => _content = next);
   }
 
   @override
   void dispose() {
-    _contentController.dispose();
+    unawaited(_editorChanges.cancel());
+    _editorController.dispose();
+    _editorFocusNode.dispose();
     super.dispose();
   }
 
@@ -92,14 +123,20 @@ class CourseReviewFormSheetState extends State<CourseReviewFormSheet> {
 
   Future<void> _submit() async {
     if (_submitting) return;
-    final CourseCopy copy = CourseCopy(AppLocalizations.of(context));
+    final AppLocalizations l10n = AppLocalizations.of(context);
+    final CourseCopy copy = CourseCopy(l10n);
     if (_rating < 1) {
       _toast(copy.ratingRequired, error: true);
       return;
     }
-    final String content = _contentController.text.trim();
+    final String content = _content.trim();
+    final int contentLength = content.runes.length;
     if (content.isEmpty) {
       _toast(copy.contentRequired, error: true);
+      return;
+    }
+    if (contentLength > 2000) {
+      _toast(l10n.courseReviewContentLimitError, error: true);
       return;
     }
     final int? offeringId = _offeringId;
@@ -107,7 +144,10 @@ class CourseReviewFormSheetState extends State<CourseReviewFormSheet> {
       _toast(copy.operationFailed, error: true);
       return;
     }
-    setState(() => _submitting = true);
+    setState(() {
+      _submitting = true;
+      _editorController.readOnly = true;
+    });
     try {
       final ReviewPayload? result;
       final ReviewPayload? editing = widget.editing;
@@ -134,7 +174,10 @@ class CourseReviewFormSheetState extends State<CourseReviewFormSheet> {
       _finish(result);
     } catch (e) {
       if (!mounted) return;
-      setState(() => _submitting = false);
+      setState(() {
+        _submitting = false;
+        _editorController.readOnly = false;
+      });
       if (e is! UnauthorizedException) {
         _toast(courseReviewError(AppLocalizations.of(context), e), error: true);
       }
@@ -248,18 +291,45 @@ class CourseReviewFormSheetState extends State<CourseReviewFormSheet> {
                             ],
                           ),
                           const SizedBox(height: 12),
-                          Text(
-                            copy.contentLabel,
-                            style: type.caption.copyWith(
-                              color: colors.baseContent.withValues(alpha: 0.7),
-                            ),
+                          Row(
+                            children: <Widget>[
+                              Expanded(
+                                child: Text(
+                                  copy.contentLabel,
+                                  style: type.caption.copyWith(
+                                    color: colors.baseContent.withValues(
+                                      alpha: 0.7,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              Text(
+                                '${_content.runes.length}/2000',
+                                style: type.meta.copyWith(
+                                  color: _content.runes.length > 2000
+                                      ? colors.error
+                                      : colors.iconMuted,
+                                ),
+                              ),
+                            ],
                           ),
                           const SizedBox(height: 6),
-                          GfTextarea(
-                            controller: _contentController,
-                            hintText: copy.contentPlaceholder,
-                            maxLength: 2000,
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: TextButton.icon(
+                              key: const Key('course-review-templates'),
+                              onPressed: _submitting ? null : _chooseTemplate,
+                              icon: const GfSymbol('file-text', size: 18),
+                              label: Text(l10n.courseReviewTemplates),
+                            ),
+                          ),
+                          RichMarkdownEditor(
+                            controller: _editorController,
+                            focusNode: _editorFocusNode,
+                            placeholder: copy.contentPlaceholder,
                             enabled: !_submitting,
+                            onHeading: () => _chooseHeading(l10n),
+                            onInsertLink: _insertLink,
                           ),
                           const SizedBox(height: 4),
                           Row(
@@ -324,6 +394,174 @@ class CourseReviewFormSheetState extends State<CourseReviewFormSheet> {
         ),
       ),
     );
+  }
+
+  Future<void> _chooseTemplate() async {
+    final l10n = AppLocalizations.of(context);
+    final selected = await showGfBottomSheet<CourseReviewTemplate>(
+      context,
+      keyboardAware: true,
+      builder: (sheetContext) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          children: <Widget>[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+              child: Text(
+                l10n.courseReviewTemplates,
+                style: GfTheme.typographyOf(context).heading,
+              ),
+            ),
+            for (final template in courseReviewTemplates)
+              ListTile(
+                leading: GfSymbol(_templateIcon(template.id), size: 20),
+                title: Text(_templateName(l10n, template.id)),
+                subtitle: Text(_templateDescription(l10n, template.id)),
+                onTap: () => Navigator.pop(sheetContext, template),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (selected == null || !mounted) return;
+    if (_content.trim().isNotEmpty) {
+      final replace = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: Text(l10n.courseReviewTemplateReplaceTitle),
+          content: Text(l10n.courseReviewTemplateReplaceBody),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: Text(l10n.courseReviewTemplateKeepEditing),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: Text(l10n.courseReviewTemplateApply),
+            ),
+          ],
+        ),
+      );
+      if (replace != true || !mounted) return;
+    }
+    final cancellation = _editorChanges.cancel();
+    if (!mounted) return;
+    final previous = _editorController;
+    setState(() {
+      _content = selected.content.trim();
+      _editorController = _createEditor(selected.content);
+    });
+    await cancellation;
+    WidgetsBinding.instance.addPostFrameCallback((_) => previous.dispose());
+  }
+
+  String _templateIcon(String id) => switch (id) {
+    'comprehensive' => 'book-open',
+    'quick' => 'star',
+    'teacher-focused' => 'graduation-cap',
+    'exam-focused' => 'shield-check',
+    'workload' => 'clock',
+    _ => 'file-text',
+  };
+
+  String _templateName(AppLocalizations l10n, String id) => switch (id) {
+    'comprehensive' => l10n.courseReviewTemplateComprehensiveName,
+    'quick' => l10n.courseReviewTemplateQuickName,
+    'teacher-focused' => l10n.courseReviewTemplateTeacherFocusedName,
+    'exam-focused' => l10n.courseReviewTemplateExamFocusedName,
+    'workload' => l10n.courseReviewTemplateWorkloadName,
+    _ => l10n.courseReviewTemplateBlankName,
+  };
+
+  String _templateDescription(AppLocalizations l10n, String id) => switch (id) {
+    'comprehensive' => l10n.courseReviewTemplateComprehensiveDescription,
+    'quick' => l10n.courseReviewTemplateQuickDescription,
+    'teacher-focused' => l10n.courseReviewTemplateTeacherFocusedDescription,
+    'exam-focused' => l10n.courseReviewTemplateExamFocusedDescription,
+    'workload' => l10n.courseReviewTemplateWorkloadDescription,
+    _ => l10n.courseReviewTemplateBlankDescription,
+  };
+
+  Future<void> _chooseHeading(AppLocalizations l10n) async {
+    final level =
+        _editorController
+                .getSelectionStyle()
+                .attributes[Attribute.header.key]
+                ?.value
+            as int?;
+    final selected = await showGfBottomSheet<Attribute>(
+      context,
+      keyboardAware: true,
+      builder: (sheetContext) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          children: <Widget>[
+            for (final (attribute, label, value) in <(Attribute, String, int)>[
+              (Attribute.h1, l10n.publishHeadingLevel1, 1),
+              (Attribute.h2, l10n.publishHeadingLevel2, 2),
+              (Attribute.h3, l10n.publishHeadingLevel3, 3),
+            ])
+              ListTile(
+                title: Text(label),
+                trailing: level == value
+                    ? const GfSymbol('check', size: 20)
+                    : null,
+                onTap: () => Navigator.pop(sheetContext, attribute),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (selected != null && mounted) {
+      _editorController.formatSelection(selected);
+    }
+  }
+
+  Future<void> _insertLink() async {
+    final input = TextEditingController();
+    final l10n = AppLocalizations.of(context);
+    final url = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(l10n.publishToolLink),
+        content: TextField(
+          controller: input,
+          autofocus: true,
+          keyboardType: TextInputType.url,
+          decoration: InputDecoration(hintText: 'https://'),
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: Text(l10n.commonCancel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, input.text.trim()),
+            child: Text(l10n.commonSave),
+          ),
+        ],
+      ),
+    );
+    input.dispose();
+    if (url == null || !mounted) return;
+    final uri = Uri.tryParse(url);
+    if (uri == null ||
+        !['https', 'http', 'mailto'].contains(uri.scheme) ||
+        (uri.scheme != 'mailto' && uri.host.isEmpty)) {
+      showGfToast(context, l10n.publishLinkInvalid, error: true);
+      return;
+    }
+    final selection = _editorController.selection;
+    if (selection.isCollapsed || !selection.isValid) {
+      final start = selection.isValid ? selection.start : 0;
+      _editorController.replaceText(
+        start,
+        0,
+        url,
+        TextSelection(baseOffset: start, extentOffset: start + url.length),
+      );
+    }
+    _editorController.formatSelection(LinkAttribute(url));
   }
 
   Widget _offeringOption(
