@@ -26,6 +26,7 @@ InlineSpan? buildStickerMessageSpan(
   String content,
   Map<String, String> urlByName, {
   bool deferLongPress = false,
+  double stickerSize = StickerImage.readingSize,
 }) {
   if (!containsStickerToken(content)) return null;
   final List<StickerMessageSegment> segments = parseStickerSegments(
@@ -45,6 +46,7 @@ InlineSpan? buildStickerMessageSpan(
             child: StickerImage(
               name: name,
               url: url,
+              size: stickerSize,
               deferLongPress: deferLongPress,
             ),
           ),

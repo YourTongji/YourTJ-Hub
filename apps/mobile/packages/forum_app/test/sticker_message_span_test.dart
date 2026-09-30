@@ -59,7 +59,7 @@ void main() {
     expect((textSpan.children![2] as TextSpan).text, ' 后');
   });
 
-  testWidgets('贴纸段渲染为语义标注的 56 方块占位', (tester) async {
+  testWidgets('贴纸段渲染为语义标注的 128 方块占位', (tester) async {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
@@ -78,7 +78,7 @@ void main() {
       ),
       findsOneWidget,
     );
-    // 加载完成前渲染 56x56 占位方块,行高不跳动。
-    expect(tester.getSize(find.byType(SizedBox).first), const Size(56, 56));
+    // 加载完成前保留完整阅读尺寸,行高不跳动。
+    expect(tester.getSize(find.byType(SizedBox).first), const Size(128, 128));
   });
 }

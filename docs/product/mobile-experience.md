@@ -1148,6 +1148,10 @@ servers that omit interaction fields retain read-only content previews.
   shared posts and messages renderable. Account closure removes collection membership while shared
   assets retain their history references. [0038](../decisions/0038-personal-sticker-library.md) owns this
   storage and privacy decision.
+- `Current`: native post/reply bodies and private messages display image stickers in a 128 × 128
+  logical-pixel box, preserving aspect ratio and GIF animation. Consecutive stickers wrap within
+  the content width. Picker and draft-preview thumbnails remain 56 × 56, and personal-library
+  rows use 48 × 48, so the reading size does not crowd the input controls.
 - `Current`: tapping a native inline sticker or a library row opens that sticker alone in the shared
   image viewer, with animated GIF playback, pinch/double-tap zoom and actual-size viewing. Stickers
   remain excluded from surrounding attachment galleries. Picker taps still insert without sending;

@@ -90,16 +90,16 @@ void main() {
         ),
       },
     );
-    db.clearAllCaches = () async {
+    Future<void> clearAllCaches() async {
       coordinatorRuns++;
       final result = await coordinator.clear(CacheCategory.values.toSet());
       if (!result.succeeded) throw StateError('Session cleanup incomplete');
-    };
+    }
 
     // Topic/chat providers create separate views of the same database.
     await clearOfflineCache(
-      DriftOfflineCache(db),
-      DriftOfflineCache(db),
+      DriftOfflineCache(db, clearAllCaches: clearAllCaches),
+      DriftOfflineCache(db, clearAllCaches: clearAllCaches),
       widget,
     );
 
@@ -159,14 +159,19 @@ void main() {
     final db = _CountingDatabase();
     addTearDown(db.close);
     var attempts = 0;
-    db.clearAllCaches = () async {
+    Future<void> clearAllCaches() async {
       attempts++;
       throw StateError('Cleanup failed');
-    };
+    }
+
     final widget = _WidgetBridge();
 
     await expectLater(
-      clearOfflineCache(DriftOfflineCache(db), DriftOfflineCache(db), widget),
+      clearOfflineCache(
+        DriftOfflineCache(db, clearAllCaches: clearAllCaches),
+        DriftOfflineCache(db, clearAllCaches: clearAllCaches),
+        widget,
+      ),
       throwsStateError,
     );
 

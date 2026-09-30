@@ -86,8 +86,6 @@ class AppDatabase extends GeneratedDatabase {
     }
   }
 
-  Future<void> Function()? clearAllCaches;
-
   final Map<CacheCategory, int> _generations = {};
   final Set<CacheCategory> _suspended = {};
   bool available(CacheCategory category) => !_suspended.contains(category);
@@ -295,6 +293,7 @@ class DriftOfflineCache
     this._db, {
     this.resolveScope,
     this.sessionCurrent,
+    this.clearAllCaches,
     DateTime Function()? now,
     this.forumBudget = 32 * 1024 * 1024,
     this.chatBudget = 16 * 1024 * 1024,
@@ -306,6 +305,7 @@ class DriftOfflineCache
   final AppDatabase _db;
   final Future<CacheScope> Function()? resolveScope;
   final bool Function()? sessionCurrent;
+  final Future<void> Function()? clearAllCaches;
   final DateTime Function() now;
   final int forumBudget, chatBudget;
   final Map<CacheCategory, int>? _lease;
@@ -320,6 +320,7 @@ class DriftOfflineCache
     _db,
     resolveScope: resolveScope,
     sessionCurrent: sessionCurrent,
+    clearAllCaches: clearAllCaches,
     now: now,
     forumBudget: forumBudget,
     chatBudget: chatBudget,
@@ -762,7 +763,7 @@ class DriftOfflineCache
 
   @override
   Future<void> clear() =>
-      _db.clearAllCaches?.call() ??
+      clearAllCaches?.call() ??
       _db.clearCategories({
         CacheCategory.forum,
         CacheCategory.chat,

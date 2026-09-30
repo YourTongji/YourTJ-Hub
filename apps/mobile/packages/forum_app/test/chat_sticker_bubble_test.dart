@@ -57,6 +57,7 @@ void main() {
         find.descendant(of: preview, matching: find.byType(StickerImage)),
         findsOneWidget,
       );
+      expect(tester.getSize(find.byType(StickerImage)), const Size(56, 56));
       await tester.enterText(input, 'Hello');
       await tester.pumpAndSettle();
       expect(preview, findsNothing);
@@ -71,6 +72,7 @@ void main() {
       ('[:sticker:smile:]', true),
       (' \n[:sticker:smile:] [:sticker:smile:]\n ', true),
       ('Hello [:sticker:smile:]', false),
+      ('看看 [:sticker:smile:][:sticker:smile:][:sticker:smile:]', false),
       ('[:sticker:unknown:]', false),
       ('[:sticker:smile:] [:sticker:unknown:]', false),
     ]) {
@@ -84,7 +86,15 @@ void main() {
           stickers: library,
           messages: [makeChatMessage(1).copyWith(content: text, isSelf: mine)],
         );
+        await tester.binding.setSurfaceSize(const Size(320, 700));
+        await tester.pumpAndSettle();
         final surface = _surface(tester);
+        for (final sticker in find.byType(StickerImage).evaluate()) {
+          final bounds = tester.getRect(find.byWidget(sticker.widget));
+          expect(bounds.size, const Size(128, 128));
+          expect(bounds.left, greaterThanOrEqualTo(0));
+          expect(bounds.right, lessThanOrEqualTo(320));
+        }
         expect(surface.decoration == null, plain);
         expect(
           surface.padding ?? EdgeInsets.zero,

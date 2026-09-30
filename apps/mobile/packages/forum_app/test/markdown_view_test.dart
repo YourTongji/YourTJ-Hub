@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:forum_app/src/widgets/stickers/sticker_image.dart';
+import 'package:forum_app/src/widgets/stickers/sticker_draft_preview.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:markdown_widget/markdown_widget.dart';
@@ -82,6 +83,70 @@ TapGestureRecognizer? _linkRecognizer(InlineSpan span) {
 }
 
 void main() {
+  for (final markdown in [false, true]) {
+    testWidgets('draft stickers remain compact markdown=$markdown', (
+      tester,
+    ) async {
+      final library = StickerLibrary(_FakeStickerRepository());
+      addTearDown(library.dispose);
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [stickerLibraryProvider.overrideWithValue(library)],
+          child: MaterialApp(
+            theme: gfThemeData(Brightness.light),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: Scaffold(
+              body: StickerDraftPreview(
+                content: '[:sticker:smile:]',
+                markdown: markdown,
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(tester.getSize(find.byType(StickerImage)), const Size(56, 56));
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(const Duration(milliseconds: 600));
+    });
+  }
+
+  testWidgets('large stickers wrap within narrow quoted prose', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(320, 700));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final library = StickerLibrary(_FakeStickerRepository());
+    addTearDown(library.dispose);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [stickerLibraryProvider.overrideWithValue(library)],
+        child: _wrap(
+          const GfMarkdownView(
+            data:
+                '> 看看这些表情 [:sticker:smile:][:sticker:smile:][:sticker:smile:]',
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final stickers = find.byType(StickerImage);
+    expect(stickers, findsNWidgets(3));
+    final boxes = [
+      for (final element in stickers.evaluate())
+        tester.getRect(find.byWidget(element.widget)),
+    ];
+    expect(boxes.last.top, greaterThan(boxes.first.top));
+    for (final box in boxes) {
+      expect(box.size, const Size(128, 128));
+      expect(box.left, greaterThanOrEqualTo(0));
+      expect(box.right, lessThanOrEqualTo(320));
+    }
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
+  });
+
   testWidgets('server mention mapping opens native user page', (tester) async {
     final router = GoRouter(
       routes: [
@@ -567,6 +632,7 @@ void main() {
     );
     expect(find.byType(Image), findsOneWidget);
     expect(find.byType(StickerImage), findsOneWidget);
+    expect(tester.getSize(find.byType(StickerImage)), const Size(128, 128));
     expect(
       tester.widget<StickerImage>(find.byType(StickerImage)).url,
       '/file/img/stickers/smile.png',
