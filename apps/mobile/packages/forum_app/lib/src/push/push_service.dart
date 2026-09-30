@@ -113,7 +113,7 @@ class PushController extends Notifier<PushChannelStatus>
       unawaited(refresh());
     });
     ref.listen(offlineCacheEpochProvider, (_, _) {
-      unawaited(disable());
+      unawaited(_disable(preserveUnsetPreference: true));
     });
     ref.listen(currentUserProvider, (_, next) {
       if (next.hasValue) unawaited(refresh());
@@ -329,16 +329,27 @@ class PushController extends Notifier<PushChannelStatus>
     }
   }
 
-  Future<void> disable() {
+  Future<void> disable() => _disable();
+
+  Future<void> _disable({bool preserveUnsetPreference = false}) {
     _pendingEnable?.complete();
     _pendingEnable = null;
     _refreshAgain = false;
-    if (_stopping != null) return _stopping!;
+    if (_stopping != null) {
+      if (preserveUnsetPreference) return _stopping!;
+      // An explicit switch-off still takes effect when automatic session
+      // cleanup is already waiting for an SDK or registration response.
+      return Future.wait<void>([_stopping!, _recordOptOut()]).then((_) {});
+    }
     _generation++;
     if (!_disposed) state = PushChannelStatus.disabled;
     final PushRepository repository =
         _sessionRepository ?? ref.read<PushRepository>(pushRepositoryProvider);
-    final operation = _stop(repository, _sessionUserId);
+    final operation = _stop(
+      repository,
+      _sessionUserId,
+      preserveUnsetPreference: preserveUnsetPreference,
+    );
     _stopping = operation;
     return operation.whenComplete(() {
       _stopping = null;
@@ -346,9 +357,23 @@ class PushController extends Notifier<PushChannelStatus>
     });
   }
 
-  Future<void> _stop(PushRepository repository, int? userId) async {
+  Future<void> _recordOptOut() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_enabledKey, false);
+  }
+
+  Future<void> _stop(
+    PushRepository repository,
+    int? userId, {
+    required bool preserveUnsetPreference,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    // Guest → first login also advances the cache epoch. Stopping delivery
+    // must not turn an absent preference into an explicit user opt-out.
+    // Existing consent is still cleared at every account boundary.
+    if (!preserveUnsetPreference || prefs.containsKey(_enabledKey)) {
+      await prefs.setBool(_enabledKey, false);
+    }
     try {
       await _driver.stop();
     } catch (_) {
@@ -364,7 +389,7 @@ class PushController extends Notifier<PushChannelStatus>
   }
 
   /// Require fresh consent for the next account on a shared device.
-  Future<void> handleLogout() => disable();
+  Future<void> handleLogout() => _disable(preserveUnsetPreference: true);
 
   Future<void> _unregister(
     PushRepository repository,

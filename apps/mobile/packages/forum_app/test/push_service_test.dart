@@ -334,6 +334,64 @@ void main() {
     expect(repo.registered, everyElement('android:jpush:native-token'));
     expect(driver.requests, 1);
   });
+  test(
+    'Android first login still requests after the guest session boundary',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      driver.transport = 'jpush';
+      storage.value = null;
+      user = null;
+      container.invalidate(currentUserProvider);
+      appRouter.go('/login');
+      addTearDown(() => appRouter.go('/'));
+      await settle(firstFrame: true);
+      expect(driver.requests, 0);
+
+      // LoginPage advances the guest epoch before committing the first token.
+      container.read(offlineCacheEpochProvider.notifier).invalidate();
+      await settle();
+      storage.value = 'first-session';
+      user = const CurrentUser(id: 1, username: 'one');
+      container.invalidate(currentUserProvider);
+      await settle();
+      appRouter.go('/');
+      await settle();
+
+      expect(driver.requests, 1);
+      expect(status(), PushChannelStatus.enabled);
+      expect(repo.registered, isNotEmpty);
+      expect(
+        (await SharedPreferences.getInstance()).getBool(
+          'push_permission_requested',
+        ),
+        true,
+      );
+    },
+  );
+  test(
+    'explicit opt-out wins while guest boundary cleanup is pending',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      driver.transport = 'jpush';
+      storage.value = null;
+      await settle(firstFrame: true);
+      driver.pendingStop = Completer<void>();
+      container.read(offlineCacheEpochProvider.notifier).invalidate();
+      await settle();
+      final disabling = controller().disable();
+      await settle();
+      expect(
+        (await SharedPreferences.getInstance()).getBool('push_enabled'),
+        false,
+      );
+      driver.pendingStop!.complete();
+      await disabling;
+      storage.value = 'first-session';
+      container.invalidate(currentUserProvider);
+      await settle();
+      expect(driver.requests, 0);
+    },
+  );
   test('Android upgrade preserves an explicit push opt-out', () async {
     SharedPreferences.setMockInitialValues({'push_enabled': false});
     driver.transport = 'jpush';

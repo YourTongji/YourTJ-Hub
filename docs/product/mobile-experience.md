@@ -1048,6 +1048,11 @@ local widget tests do not imply those gates passed.
 
 ## System notifications
 
+`Current`: session cleanup preserves an absent push preference when a guest completes their first
+login, so it cannot manufacture an opt-out before the one-time Android permission request. Existing
+consent is cleared at account boundaries; an explicit Settings opt-out remains effective even while
+native cleanup is pending.
+
 - `Partial`: iOS uses direct APNs; Android uses JPush with selected OEM offline adapters and does not
   require Google Play services. Provider credentials, signing profiles and physical-device delivery
   remain deployment requirements; app-local notification lists are independent of system delivery.
