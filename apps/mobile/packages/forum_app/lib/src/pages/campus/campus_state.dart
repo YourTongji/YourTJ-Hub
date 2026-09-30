@@ -235,7 +235,10 @@ class CampusController extends StateNotifier<CampusViewState> {
               : 'unbound',
         );
       } else if (!reuseCache ||
-          (persistentStore != null && scope != null && persisted == null)) {
+          (persistentStore != null && scope != null && persisted == null) ||
+          (persisted != null &&
+              CampusMemoryCache.schoolDate(persisted.committedAt) !=
+                  CampusMemoryCache.schoolDate(cache.now()))) {
         if (data.isEmpty) _withholdDataUntilFresh = true;
         if (reuseCache && persisted == null && !widgetCleared) {
           await widgetBridge?.clear();
@@ -246,10 +249,17 @@ class CampusController extends StateNotifier<CampusViewState> {
         };
         final storeFence = persistentStore?.generation;
         final dataFence = cache.generation;
+        final refreshDate = CampusMemoryCache.schoolDate(cache.now());
         await Future.wait(keys.map((key) => load(key, force: true)));
         if (!mounted ||
             generation != _generation ||
             !cache.isCurrent(dataFence)) {
+          return;
+        }
+        // A complete snapshot is also the durable daily refresh marker. Never
+        // stamp yesterday's reads as a successful update for the new day.
+        if (refreshDate != CampusMemoryCache.schoolDate(cache.now())) {
+          _expireTeachingDate();
           return;
         }
         await _commitPersistent(binding.revision, generation, storeFence);

@@ -19,7 +19,22 @@ typedef GfMediaProviderFactory =
       int? width,
       int? height,
       ResizeImagePolicy policy,
+      Set<String>? allowedOrigins,
     });
+
+/// Optional request policy for untrusted user-supplied media, including redirects.
+class GfMediaOriginPolicy extends InheritedWidget {
+  const GfMediaOriginPolicy({
+    super.key,
+    required this.origins,
+    required super.child,
+  });
+  final Set<String> origins;
+
+  @override
+  bool updateShouldNotify(GfMediaOriginPolicy oldWidget) =>
+      !setEquals(origins, oldWidget.origins);
+}
 
 /// Inverts the dependency: reusable UI components know no forum/storage APIs.
 class GfMediaScope extends InheritedWidget {
@@ -41,7 +56,15 @@ class GfMediaScope extends InheritedWidget {
   }) {
     final scope = context?.dependOnInheritedWidgetOfExactType<GfMediaScope>();
     if (scope != null) {
-      return scope.factory(url, width: width, height: height, policy: policy);
+      return scope.factory(
+        url,
+        width: width,
+        height: height,
+        policy: policy,
+        allowedOrigins: context
+            ?.dependOnInheritedWidgetOfExactType<GfMediaOriginPolicy>()
+            ?.origins,
+      );
     }
     // Standalone design-system previews/tests have no application host.
     final image = NetworkImage(url);
@@ -245,6 +268,7 @@ class GfNetworkImage extends StatelessWidget {
     this.fit,
     this.cacheWidth,
     this.cacheHeight,
+    this.cacheResizePolicy = ResizeImagePolicy.exact,
     this.semanticLabel,
     this.excludeFromSemantics = false,
     this.errorBuilder,
@@ -258,6 +282,7 @@ class GfNetworkImage extends StatelessWidget {
   final BoxFit? fit;
   final int? cacheWidth;
   final int? cacheHeight;
+  final ResizeImagePolicy cacheResizePolicy;
   final String? semanticLabel;
   final bool excludeFromSemantics;
   final ImageErrorWidgetBuilder? errorBuilder;
@@ -272,6 +297,7 @@ class GfNetworkImage extends StatelessWidget {
       url,
       width: cacheWidth,
       height: cacheHeight,
+      policy: cacheResizePolicy,
     ),
     width: width,
     height: height,

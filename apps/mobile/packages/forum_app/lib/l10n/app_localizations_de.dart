@@ -540,6 +540,12 @@ class AppLocalizationsDe extends AppLocalizations {
   String get messagesEmptyDetail => 'Noch keine Nachrichten. Sag Hallo!';
 
   @override
+  String get messagesImage => 'Bild';
+
+  @override
+  String get messagesAttachments => 'Anhänge';
+
+  @override
   String get messagesInputHint => 'Nachricht eingeben …';
 
   @override
@@ -2978,8 +2984,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get messagesJumpToQuotedMessage => 'Zur zitierten Nachricht springen';
 
   @override
-  String get messagesReturnToReplySource =>
-      'Zur Ausgangsnachricht zurückkehren';
+  String get messagesReturnToReplySource => 'Zur letzten Position';
 
   @override
   String get messageReplyCancel => 'Antwort abbrechen';

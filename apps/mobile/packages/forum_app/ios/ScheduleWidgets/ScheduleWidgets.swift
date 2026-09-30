@@ -1,8 +1,6 @@
 import SwiftUI
 import WidgetKit
 
-private let appGroup = "group.tj.yourtj.forumApp.widgets"
-private let projectionKey = "schedule_widget_projection"
 private let emptyStateKey = "schedule_widget_empty_state"
 private let transparencyKey = "schedule_widget_transparency_percent"
 
@@ -21,233 +19,6 @@ private struct WidgetBrandMark: View {
             .widgetAccent()
             .accessibilityHidden(true)
     }
-}
-
-private func safeText(_ value: String?) -> String? {
-    guard let text = value?.trimmingCharacters(in: .whitespacesAndNewlines),
-          !text.isEmpty, !["null", "undefined"].contains(text.lowercased()) else { return nil }
-    return text
-}
-
-private struct Projection: Decodable {
-    struct Identity: Decodable {
-        let siteKey: String
-        let accountScope: String
-        let bindingRevision: String
-
-        init(from decoder: Decoder) throws {
-            let values = try decoder.container(keyedBy: CodingKeys.self)
-            guard let siteKey = safeText(try values.decodeIfPresent(String.self, forKey: .siteKey)),
-                  let accountScope = safeText(try values.decodeIfPresent(String.self, forKey: .accountScope)),
-                  let bindingRevision = safeText(try values.decodeIfPresent(String.self, forKey: .bindingRevision)) else {
-                throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Invalid identity"))
-            }
-            self.siteKey = siteKey
-            self.accountScope = accountScope
-            self.bindingRevision = bindingRevision
-        }
-
-        private enum CodingKeys: String, CodingKey { case siteKey, accountScope, bindingRevision }
-    }
-
-    struct Semester: Decodable {
-        let id: String
-        let week: Int?
-
-        init(from decoder: Decoder) throws {
-            let values = try decoder.container(keyedBy: CodingKeys.self)
-            id = safeText(try values.decodeIfPresent(String.self, forKey: .id)) ?? ""
-            week = try values.decodeIfPresent(Int.self, forKey: .week).flatMap { $0 > 0 ? $0 : nil }
-        }
-
-        private enum CodingKeys: String, CodingKey { case id, week }
-    }
-
-    struct Day: Decodable {
-        let date: String
-        let week: Int?
-        let source: String
-        let kind: String
-        let adjustmentLabel: String?
-        let courses: [Course]
-
-        init(from decoder: Decoder) throws {
-            let values = try decoder.container(keyedBy: CodingKeys.self)
-            guard let date = safeText(try values.decodeIfPresent(String.self, forKey: .date)) else {
-                throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Invalid day"))
-            }
-            self.date = date
-            week = try values.decodeIfPresent(Int.self, forKey: .week).flatMap { $0 > 0 ? $0 : nil }
-            source = safeText(try values.decodeIfPresent(String.self, forKey: .source)) ?? "unknown"
-            let decodedKind = safeText(try values.decodeIfPresent(String.self, forKey: .kind)) ?? "unknown"
-            kind = ["none", "normal", "holiday", "moved", "makeup", "unknown"].contains(decodedKind)
-                ? decodedKind : "unknown"
-            adjustmentLabel = safeText(try values.decodeIfPresent(String.self, forKey: .adjustmentLabel))
-            courses = try values.decode([Course].self, forKey: .courses).sorted { $0.startAt < $1.startAt }
-        }
-
-        init(date: String, week: Int?, source: String, kind: String, adjustmentLabel: String?, courses: [Course]) {
-            self.date = date
-            self.week = week
-            self.source = source
-            self.kind = kind
-            self.adjustmentLabel = safeText(adjustmentLabel)
-            self.courses = courses.sorted { $0.startAt < $1.startAt }
-        }
-
-        private enum CodingKeys: String, CodingKey { case date, week, source, kind, adjustmentLabel, courses }
-    }
-
-    struct LegacyToday: Decodable {
-        let kind: String
-        let adjustmentLabel: String?
-        let courses: [Course]
-    }
-
-    struct Course: Decodable, Identifiable {
-        var id: String { stableId }
-        let stableId: String
-        let name: String
-        let teacher: String
-        let room: String
-        let campus: String
-        let startAt: Date
-        let endAt: Date
-        let colorSlot: Int
-
-        init(from decoder: Decoder) throws {
-            let values = try decoder.container(keyedBy: CodingKeys.self)
-            guard let stableId = safeText(try values.decodeIfPresent(String.self, forKey: .stableId)),
-                  let name = safeText(try values.decodeIfPresent(String.self, forKey: .name)) else {
-                throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Invalid course"))
-            }
-            self.stableId = stableId
-            self.name = name
-            teacher = safeText(try values.decodeIfPresent(String.self, forKey: .teacher)) ?? ""
-            room = safeText(try values.decodeIfPresent(String.self, forKey: .room)) ?? ""
-            campus = safeText(try values.decodeIfPresent(String.self, forKey: .campus)) ?? ""
-            startAt = try values.decode(Date.self, forKey: .startAt)
-            endAt = try values.decode(Date.self, forKey: .endAt)
-            colorSlot = try values.decode(Int.self, forKey: .colorSlot)
-        }
-
-        private enum CodingKeys: String, CodingKey {
-            case stableId, name, teacher, room, campus, startAt, endAt, colorSlot
-        }
-    }
-
-    let schemaVersion: Int
-    let identity: Identity
-    let generatedAt: Date
-    let schoolDate: String
-    let timezone: String
-    let semester: Semester
-    let days: [Day]
-
-    init(from decoder: Decoder) throws {
-        let values = try decoder.container(keyedBy: CodingKeys.self)
-        schemaVersion = try values.decode(Int.self, forKey: .schemaVersion)
-        identity = try values.decode(Identity.self, forKey: .identity)
-        generatedAt = try values.decode(Date.self, forKey: .generatedAt)
-        schoolDate = safeText(try values.decodeIfPresent(String.self, forKey: .schoolDate)) ?? ""
-        timezone = try values.decode(String.self, forKey: .timezone)
-        semester = try values.decode(Semester.self, forKey: .semester)
-        if schemaVersion == 1 {
-            let today = try values.decode(LegacyToday.self, forKey: .today)
-            days = [Day(
-                date: schoolDate,
-                week: semester.week,
-                source: "server-adjusted",
-                kind: safeText(today.kind) ?? "unknown",
-                adjustmentLabel: today.adjustmentLabel,
-                courses: today.courses
-            )]
-        } else {
-            days = try values.decode([Day].self, forKey: .days)
-        }
-    }
-
-    private enum CodingKeys: String, CodingKey {
-        case schemaVersion, identity, generatedAt, schoolDate, timezone, semester, days, today
-    }
-
-    static func load() -> Projection? {
-        guard let raw = UserDefaults(suiteName: appGroup)?.string(forKey: projectionKey),
-              let data = raw.data(using: .utf8) else { return nil }
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-        guard let value = try? decoder.decode(Projection.self, from: data),
-              (1...2).contains(value.schemaVersion), value.timezone == "Asia/Shanghai",
-              !value.days.isEmpty,
-              value.days.allSatisfy({ Projection.schoolDate.date(from: $0.date) != nil }),
-              value.days.flatMap(\.courses).allSatisfy({
-                  (1...8).contains($0.colorSlot) && $0.endAt > $0.startAt
-              }) else { return nil }
-        return value
-    }
-
-    func day(at date: Date) -> Day? {
-        let key = Self.schoolDate.string(from: date)
-        return days.first { $0.date == key }
-    }
-
-    func state(at date: Date) -> (String, Course?) {
-        if date.timeIntervalSince(generatedAt) > 7 * 86_400 { return ("stale", nil) }
-        guard let day = day(at: date) else { return ("needsRefresh", nil) }
-        if day.kind == "unknown" { return ("needsRefresh", nil) }
-        if day.kind == "holiday" { return ("holiday", nil) }
-        if day.courses.isEmpty { return ("noClasses", nil) }
-        for (index, course) in day.courses.enumerated() {
-            if date >= course.startAt && date < course.endAt { return ("inClass", course) }
-            if date < course.startAt { return (index == 0 ? "upcoming" : "break", course) }
-        }
-        return ("finished", nil)
-    }
-
-    func nextClass(at date: Date) -> (String, Course?, Day?) {
-        if date.timeIntervalSince(generatedAt) > 7 * 86_400 { return ("stale", nil, nil) }
-        guard let today = day(at: date), today.kind != "unknown" else {
-            return ("needsRefresh", nil, nil)
-        }
-        if let current = today.courses.first(where: { date >= $0.startAt && date < $0.endAt }) {
-            return ("inClass", current, today)
-        }
-        let dateKey = Self.schoolDate.string(from: date)
-        let future = days
-            .filter { $0.date >= dateKey }
-            .flatMap { day in day.courses.map { (day, $0) } }
-            .filter { $0.1.startAt > date }
-            .min { $0.1.startAt < $1.1.startAt }
-        if let future { return ("upcoming", future.1, future.0) }
-        if days.count < 8 || days.contains(where: { $0.date >= dateKey && $0.kind == "unknown" }) {
-            return ("needsRefresh", nil, nil)
-        }
-        return ("noneUpcoming", nil, nil)
-    }
-
-    func timelineDates(after now: Date) -> [Date] {
-        let courseDates = days.flatMap(\.courses).flatMap { [$0.startAt, $0.endAt] }
-        let midnights = days.compactMap { Self.schoolDate.date(from: $0.date) }
-        return Set(courseDates + midnights + [generatedAt.addingTimeInterval(7 * 86_400)])
-            .filter { $0 > now }.sorted()
-    }
-
-    static let schoolDate: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.calendar = Calendar(identifier: .gregorian)
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone(identifier: "Asia/Shanghai")
-        formatter.dateFormat = "yyyy-MM-dd"
-        return formatter
-    }()
-
-    static let clock: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "zh_CN")
-        formatter.timeZone = TimeZone(identifier: "Asia/Shanghai")
-        formatter.dateFormat = "HH:mm"
-        return formatter
-    }()
 }
 
 private struct ScheduleEntry: TimelineEntry {
@@ -289,15 +60,15 @@ private func normalizedEmptyState(_ value: String?) -> String {
     value == "needsData" ? "needsRefresh" : value ?? "needsRefresh"
 }
 
-private func title(_ state: String) -> String {
+private func title(_ state: String, isTomorrow: Bool = false) -> String {
     let zh = Locale.current.languageCode == "zh"
     if zh {
         switch state {
         case "inClass": return "正在上课"
         case "upcoming", "break": return "下一节"
         case "finished": return "今日课程已结束"
-        case "noClasses": return "今天暂无课程安排"
-        case "holiday": return "今天放假"
+        case "noClasses": return isTomorrow ? "明天暂无课程安排" : "今天暂无课程安排"
+        case "holiday": return isTomorrow ? "明天放假" : "今天放假"
         case "noneUpcoming": return "近期暂无课程安排"
         case "stale": return "课表可能已更新"
         case "unbound": return "绑定同济账号后显示课表"
@@ -310,8 +81,7 @@ private func title(_ state: String) -> String {
     case "inClass": return "In class"
     case "upcoming", "break": return "Up next"
     case "finished": return "Classes finished for today"
-    case "noClasses": return "No classes today"
-    case "holiday": return "No classes today"
+    case "noClasses", "holiday": return isTomorrow ? "No classes tomorrow" : "No classes today"
     case "noneUpcoming": return "No classes in the next 8 days"
     case "stale": return "Schedule may have changed"
     case "unbound": return "Bind your Tongji account to show classes"
@@ -358,12 +128,12 @@ private func scheduleAccessibilityText(
     let zh = Locale.current.languageCode == "zh"
     return [
         title(state),
-        today.map { dayAccessibilityText(zh ? "今天" : "Today", day: $0) },
-        tomorrow.map { dayAccessibilityText(zh ? "明天" : "Tomorrow", day: $0) },
+        today.map { dayAccessibilityText(zh ? "今天" : "Today", day: $0, emptyState: state) },
+        tomorrow.map { dayAccessibilityText(zh ? "明天" : "Tomorrow", day: $0, isTomorrow: true) },
     ].compactMap { $0 }.joined(separator: "，")
 }
 
-private func dayAccessibilityText(_ heading: String, day: Projection.Day) -> String {
+private func dayAccessibilityText(_ heading: String, day: Projection.Day, emptyState: String? = nil, isTomorrow: Bool = false) -> String {
     let courses = day.courses.map {
         [$0.name, courseTime($0), $0.campus, $0.room, $0.teacher]
             .filter { !$0.isEmpty }.joined(separator: "，")
@@ -371,9 +141,9 @@ private func dayAccessibilityText(_ heading: String, day: Projection.Day) -> Str
     let empty: String?
     if courses.isEmpty {
         switch day.kind {
-        case "holiday": empty = day.adjustmentLabel ?? title("holiday")
+        case "holiday": empty = day.adjustmentLabel ?? title("holiday", isTomorrow: isTomorrow)
         case "unknown": empty = title("needsRefresh")
-        default: empty = title("noClasses")
+        default: empty = title(emptyState ?? "noClasses", isTomorrow: isTomorrow)
         }
     } else {
         empty = nil
@@ -493,13 +263,7 @@ private struct NextClassView: View {
     var body: some View {
         let state = entry.projection?.nextClass(at: entry.date) ?? (entry.emptyState, nil, nil)
         let day = state.2 ?? entry.projection?.day(at: entry.date)
-        let courses: [Projection.Course] = {
-            guard let day, let first = state.1,
-                  let index = day.courses.firstIndex(where: { $0.id == first.id }) else { return [] }
-            let start = min(index, max(0, day.courses.count - 3))
-            return Array(day.courses.dropFirst(start).prefix(3))
-        }()
-        let previewIndex = courses.count == 3 && courses[2].id == state.1?.id ? 0 : 2
+        let courses = state.1 == nil ? [] : Array((day?.courses ?? []).prefix(3))
         let accessibility = [
             title(state.0), day.map(dayHeaderText),
             courses.map { [$0.name, compactRoom($0.room), $0.teacher, courseTime($0)]
@@ -517,7 +281,7 @@ private struct NextClassView: View {
             }
             if !courses.isEmpty {
                 ForEach(courses.indices, id: \.self) { index in
-                    if index == previewIndex {
+                    if index == 2 {
                         CompactCoursePreview(course: courses[index])
                     } else {
                         CourseRow(course: courses[index],
@@ -580,7 +344,7 @@ private struct TodayScheduleView: View {
                 HStack(alignment: .top, spacing: 12) {
                     LargeDayColumn(title: "今天", day: today, fallbackDate: entry.date,
                                    currentId: state.1?.id, hasProjection: projection != nil,
-                                   showsBrandMark: false)
+                                   showsBrandMark: false, currentState: state.0)
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                     LargeDayColumn(title: "明天", day: next,
                                    fallbackDate: nextDay(after: entry.date),
@@ -715,7 +479,7 @@ private struct MediumDayColumn: View {
                 Text(Locale.current.languageCode == "zh" ? "明天暂无课程安排" : "No classes tomorrow")
                     .font(.system(size: 11, weight: .medium))
             } else {
-                EmptyDay(state: state, day: day, hasProjection: hasProjection)
+                EmptyDay(state: state, day: day, hasProjection: hasProjection, isTomorrow: isTomorrow)
             }
         }
         .frame(maxWidth: .infinity, alignment: .topLeading)
@@ -778,6 +542,7 @@ private struct LargeDayColumn: View {
     let currentId: String?
     let hasProjection: Bool
     let showsBrandMark: Bool
+    var currentState: String? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -794,7 +559,7 @@ private struct LargeDayColumn: View {
             if let day, !day.courses.isEmpty {
                 FittingCourses(courses: day.courses, currentId: currentId, preferredCount: 3)
             } else {
-                EmptyDay(state: emptyState, day: day, hasProjection: hasProjection)
+                EmptyDay(state: emptyState, day: day, hasProjection: hasProjection, isTomorrow: title == "明天")
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -808,10 +573,11 @@ private struct LargeDayColumn: View {
         guard let day else {
             return "\(heading)，\(zh ? "需要更新课表" : "Schedule needs an update")"
         }
-        return dayAccessibilityText(heading, day: day)
+        return dayAccessibilityText(heading, day: day, emptyState: emptyState, isTomorrow: title == "明天")
     }
 
     private var emptyState: String {
+        if let currentState { return currentState }
         switch day?.kind {
         case "holiday": return "holiday"
         case "unknown", nil: return "needsRefresh"
@@ -862,10 +628,11 @@ private struct EmptyDay: View {
     let state: String
     let day: Projection.Day?
     let hasProjection: Bool
+    var isTomorrow = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
-            Text(state == "holiday" ? day?.adjustmentLabel ?? title(state) : title(state))
+            Text(state == "holiday" ? day?.adjustmentLabel ?? title(state, isTomorrow: isTomorrow) : title(state, isTomorrow: isTomorrow))
                 .font(.subheadline.weight(.semibold))
             if let support = support(state, hasProjection: hasProjection) {
                 Text(support).font(.caption2).foregroundColor(.secondary)
@@ -981,7 +748,7 @@ struct NextClassWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: kind, provider: ScheduleProvider()) { NextClassView(entry: $0) }
             .configurationDisplayName("近期课程")
-            .description("离线显示当前课程与相邻课程。")
+            .description("离线显示正在进行和即将开始的课程，已结束课程自动移除。")
             .supportedFamilies([.systemSmall])
     }
 }
@@ -991,7 +758,7 @@ struct TodayScheduleWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: kind, provider: ScheduleProvider()) { TodayScheduleView(entry: $0) }
             .configurationDisplayName("今日课表")
-            .description("离线显示今天与明天的课程及调休状态。")
+            .description("离线显示今天剩余课程与明天课表，随上下课时间更新。")
             .supportedFamilies([.systemMedium, .systemLarge])
     }
 }

@@ -1,6 +1,7 @@
 import hashlib
 import json
 from pathlib import Path
+import sys
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -50,8 +51,57 @@ class LatestDownloadTest(unittest.TestCase):
             with patch.object(publisher, 'gh', side_effect=download):
                 assets = publisher.stage_source(source, directory)
             self.assertEqual([path.name for path, _ in assets],
-                             [f'YourTJ-{abi}.apk' for abi in publisher.ABIS] + ['SHA256SUMS.txt'])
-            self.assertIn('YourTJ-arm64-v8a.apk', (directory / 'SHA256SUMS.txt').read_text())
+                             [f'YourTJ-{abi}.apk' for abi in publisher.ABIS]
+                             + [publisher.PROBE_NAME, 'SHA256SUMS.txt'])
+            staged_probe = directory / publisher.PROBE_NAME
+            self.assertEqual(staged_probe.read_bytes(), publisher.PROBE_SOURCE.read_bytes())
+            self.assertTrue(128 * 1024 <= staged_probe.stat().st_size <= 256 * 1024)
+            self.assertTrue(staged_probe.read_bytes().startswith(publisher.PNG_SIGNATURE))
+            checksums = (directory / 'SHA256SUMS.txt').read_text()
+            self.assertIn('YourTJ-arm64-v8a.apk', checksums)
+            self.assertIn(f'{publisher.file_digest(staged_probe)}  {publisher.PROBE_NAME}', checksums)
+
+    def test_missing_probe_fails_staging(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            with patch.object(publisher, 'source_assets', return_value=[]), \
+                 patch.object(publisher, 'PROBE_SOURCE', root / 'missing.png'), \
+                 self.assertRaisesRegex(ValueError, 'probe'):
+                publisher.stage_source(release(), root / 'stage')
+            self.assertFalse((root / 'stage' / 'SHA256SUMS.txt').exists())
+
+    def test_probe_must_be_a_png_within_the_size_range(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            source = root / 'source.png'
+            stage = root / 'stage'
+            invalid = [publisher.PNG_SIGNATURE, b'not a png' + bytes(128 * 1024)]
+            with patch.object(publisher, 'source_assets', return_value=[]), \
+                 patch.object(publisher, 'PROBE_SOURCE', source):
+                for data in invalid:
+                    with self.subTest(size=len(data), signature=data[:8]):
+                        source.write_bytes(data)
+                        with self.assertRaisesRegex(ValueError, 'probe'):
+                            publisher.stage_source(release(), stage)
+
+    def test_failed_staging_never_publishes_alias(self):
+        with patch.object(publisher, 'gh', return_value=json.dumps([release()])), \
+             patch.object(publisher, 'stage_source', side_effect=ValueError('probe staging failed')), \
+             patch.object(publisher, 'publish_alias') as publish, \
+             patch.object(sys, 'argv', ['publish_android_latest.py']):
+            with self.assertRaisesRegex(ValueError, 'staging failed'):
+                publisher.main()
+        publish.assert_not_called()
+
+    def test_verify_only_stages_assets_without_publishing_alias(self):
+        source = release()
+        with patch.object(publisher, 'gh', return_value=json.dumps([source])), \
+             patch.object(publisher, 'stage_source') as stage, \
+             patch.object(publisher, 'publish_alias') as publish, \
+             patch.object(sys, 'argv', ['publish_android_latest.py', '--verify-only']):
+            publisher.main()
+        stage.assert_called_once()
+        publish.assert_not_called()
 
     def test_corrupt_download_never_mutates_the_alias(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -117,8 +167,23 @@ class LatestDownloadTest(unittest.TestCase):
              patch.object(publisher, 'gh', return_value='{"assets":[]}') as gh, \
              patch.object(publisher.time, 'sleep'):
             with self.assertRaises(ValueError):
-                publisher.publish_alias(source, [(Path(temp) / 'YourTJ-arm64-v8a.apk', 'a' * 64)], Path(temp))
+                publisher.publish_alias(source, [(Path(temp) / publisher.PROBE_NAME, 'a' * 64)], Path(temp))
         self.assertFalse(any(call.args[:2] == ('release', 'edit') for call in gh.call_args_list))
+
+    def test_matching_probe_digest_is_not_uploaded_again(self):
+        source = release()
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / publisher.PROBE_NAME
+            path.write_bytes(b'fixed probe')
+            digest = hashlib.sha256(path.read_bytes()).hexdigest()
+            existing = [{'name': publisher.PROBE_NAME, 'digest': f'sha256:{digest}'}]
+            alias = {'id': 77, 'tag_name': 'mobile-latest', 'prerelease': True,
+                     'assets': existing, 'body': publisher.source_marker(source)}
+            with patch.object(publisher, 'find_release', return_value=alias), \
+                 patch.object(publisher, 'gh', return_value=json.dumps({'assets': existing})) as gh:
+                publisher.publish_alias(source, [(path, digest)], Path(temp))
+            uploads = [call for call in gh.call_args_list if call.args[:2] == ('release', 'upload')]
+            self.assertEqual(uploads, [])
 
     def test_unknown_alias_owner_marker_is_rejected(self):
         alias = {'tag_name': 'mobile-latest', 'prerelease': True, 'assets': [], 'body': 'unrelated'}

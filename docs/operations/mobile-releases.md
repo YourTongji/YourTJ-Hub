@@ -143,14 +143,25 @@ The release is published with `latest=false`, so server downloads keep their sep
 | ARM64, most current Android phones | [YourTJ-arm64-v8a.apk](https://github.com/YourTongji/YourTJ-Hub/releases/download/mobile-latest/YourTJ-arm64-v8a.apk) |
 | ARM 32-bit | [YourTJ-armeabi-v7a.apk](https://github.com/YourTongji/YourTJ-Hub/releases/download/mobile-latest/YourTJ-armeabi-v7a.apk) |
 | x86 64-bit | [YourTJ-x86_64.apk](https://github.com/YourTongji/YourTJ-Hub/releases/download/mobile-latest/YourTJ-x86_64.apk) |
+| Website download probe | [YourTJ-download-probe.png](https://github.com/YourTongji/YourTJ-Hub/releases/download/mobile-latest/YourTJ-download-probe.png) |
 
 The publisher selects the highest stable mobile version among the most recent 100 releases, downloads
 all three source APKs and verifies their GitHub digests, sizes and matching ABI build numbers before
-changing the aliases. It uploads identical bytes under fixed names and verifies GitHub's resulting
-digests. `SHA256SUMS.txt` covers the alias filenames. The channel is marked pre-release only to keep it
+changing the aliases. It uploads the APKs unchanged under fixed names, stages the checked-in probe and
+verifies GitHub's resulting digests. `SHA256SUMS.txt` records the APK aliases and probe. The channel
+is marked pre-release only to keep it
 out of the repository-wide Latest and the in-app updater; its APKs are stable release copies.
 The source marker prevents older recovery from replacing a newer channel, and matching files are
 skipped on retry. Canonical `mobile-vX.Y.Z` assets are never overwritten.
+
+The channel also publishes a fixed 128–256 KiB PNG probe at
+`https://github.com/YourTongji/YourTJ-Hub/releases/download/mobile-latest/YourTJ-download-probe.png`.
+The website may load this same asset from GitHub and from a static allowlist of public mirrors using
+`new Image()` requests in parallel, with a 3.5–4.5 second timeout per route. Keep the download link
+pointing to GitHub until probing finishes; if every route fails, or results are close, use GitHub.
+Do not resolve a mobile version through the GitHub API or download an APK for this measurement. The
+probe measures only a short network transfer; it is not version metadata or an APK integrity signal.
+The Android app's separate release-update mirror probing continues to use its existing APK flow.
 
 Alias updates replace files individually. A URL can briefly return 404, and checksums may lag while
 publication is running; use the original version linked in the channel notes for a consistent set.
@@ -419,6 +430,10 @@ used to encrypt existing grants; rotating it without re-encryption prevents revo
 
 A new server containing block enforcement, private-message reporting and optional
 `clientMessageId` support must be deployed before releasing the matching mobile binary.
+`Current`: automatic chat image loading trusts the configured API origin. Deployments returning
+image URLs on a separate CDN must also supply `--dart-define=YOURTJ_CHAT_IMAGE_ORIGINS=https://cdn.example.com`
+(comma-separated exact origins, including scheme and port; no paths or wildcards). Redirects must
+remain within these origins. Unlisted image URLs display as links instead of loading automatically.
 Signed APK upgrade, external-browser OAuth return, APNs/JPush/OEM delivery and Widget behavior
 require recorded physical-device evidence for the actual candidate version/build.
 

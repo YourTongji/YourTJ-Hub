@@ -525,6 +525,12 @@ class AppLocalizationsJa extends AppLocalizations {
   String get messagesEmptyDetail => 'まだメッセージはありません。挨拶してみましょう！';
 
   @override
+  String get messagesImage => '画像';
+
+  @override
+  String get messagesAttachments => '添付';
+
+  @override
   String get messagesInputHint => 'メッセージを入力…';
 
   @override
@@ -2854,7 +2860,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String get messagesJumpToQuotedMessage => '引用元のメッセージへ移動';
 
   @override
-  String get messagesReturnToReplySource => '引用元に戻る';
+  String get messagesReturnToReplySource => '元の位置に戻る';
 
   @override
   String get messageReplyCancel => '返信をキャンセル';

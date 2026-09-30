@@ -523,6 +523,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get messagesEmptyDetail => '暂无消息,说点什么吧';
 
   @override
+  String get messagesImage => '图片';
+
+  @override
+  String get messagesAttachments => '附件';
+
+  @override
   String get messagesInputHint => '输入消息…';
 
   @override
@@ -2827,7 +2833,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get messagesJumpToQuotedMessage => '跳转到引用消息';
 
   @override
-  String get messagesReturnToReplySource => '返回引用来源';
+  String get messagesReturnToReplySource => '返回刚才位置';
 
   @override
   String get messageReplyCancel => '取消回复';

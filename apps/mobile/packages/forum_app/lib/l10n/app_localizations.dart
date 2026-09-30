@@ -1062,6 +1062,18 @@ abstract class AppLocalizations {
   /// **'No messages yet, say hi!'**
   String get messagesEmptyDetail;
 
+  /// No description provided for @messagesImage.
+  ///
+  /// In en, this message translates to:
+  /// **'Image'**
+  String get messagesImage;
+
+  /// No description provided for @messagesAttachments.
+  ///
+  /// In en, this message translates to:
+  /// **'Attachments'**
+  String get messagesAttachments;
+
   /// No description provided for @messagesInputHint.
   ///
   /// In en, this message translates to:
@@ -5403,7 +5415,7 @@ abstract class AppLocalizations {
   /// No description provided for @messagesReturnToReplySource.
   ///
   /// In en, this message translates to:
-  /// **'Return to source message'**
+  /// **'Back to where you were'**
   String get messagesReturnToReplySource;
 
   /// No description provided for @messageReplyCancel.

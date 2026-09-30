@@ -55,7 +55,11 @@ class ForwardedMessageCard extends ConsumerWidget {
                 Padding(
                   padding: const EdgeInsets.only(bottom: 4),
                   child: Text(
-                    '${item.senderName}: ${item.forwarded != null ? l10n.messageForwardHistory : chatReplyExcerpt(item.content, maxLength: 80)}',
+                    '${item.senderName}: ${item.forwarded != null
+                        ? l10n.messageForwardHistory
+                        : item.msgType == 2
+                        ? '[${l10n.messagesImage}]'
+                        : chatReplyExcerpt(item.content, maxLength: 80)}',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(fontSize: 13),
@@ -194,6 +198,7 @@ class _ForwardedMessagesPageState extends ConsumerState<ForwardedMessagesPage> {
                   child: ChatMessageBubble(
                     bubbleKey: key,
                     text: entry.content,
+                    msgType: entry.msgType,
                     mine: false,
                     time: formatDateTime(entry.createdAt),
                     maxWidthFactor: 0.74,

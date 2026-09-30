@@ -16,6 +16,9 @@ import time
 from publish_android import ABIS, REPOSITORY, find_release, gh
 
 ALIAS_TAG = 'mobile-latest'
+PROBE_NAME = 'YourTJ-download-probe.png'
+PROBE_SOURCE = Path(__file__).with_name(PROBE_NAME)
+PNG_SIGNATURE = b'\x89PNG\r\n\x1a\n'
 
 
 def mobile_version(tag):
@@ -77,6 +80,17 @@ def stage_source(source, directory):
         destination = directory / f'YourTJ-{abi}.apk'
         downloaded.rename(destination)
         assets.append((destination, digest))
+    try:
+        probe = PROBE_SOURCE.read_bytes()
+    except OSError as error:
+        raise ValueError('Android download probe is missing or unreadable; aliases are unchanged') from error
+    if not 128 * 1024 <= len(probe) <= 256 * 1024:
+        raise ValueError('Android download probe must be 128–256 KiB; aliases are unchanged')
+    if not probe.startswith(PNG_SIGNATURE):
+        raise ValueError('Android download probe is not a PNG; aliases are unchanged')
+    probe_path = directory / PROBE_NAME
+    probe_path.write_bytes(probe)
+    assets.append((probe_path, file_digest(probe_path)))
     checksums = directory / 'SHA256SUMS.txt'
     checksums.write_text(''.join(f'{digest}  {path.name}\n' for path, digest in assets))
     assets.append((checksums, file_digest(checksums)))
