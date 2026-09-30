@@ -10,12 +10,17 @@ import 'sticker_preview.dart';
 /// Shared expression renderer. Taps preview this sticker alone; holding exposes
 /// collection unless the surrounding message owns the long-press menu.
 class StickerImage extends StatefulWidget {
+  /// Reading surfaces need enough room for captions in animated stickers.
+  /// Pickers and bounded draft previews retain the smaller thumbnail size.
+  static const double readingSize = 128;
+  static const double thumbnailSize = 56;
+
   const StickerImage({
     super.key,
     required this.name,
     required this.url,
     this.label,
-    this.size = 56,
+    this.size = thumbnailSize,
     this.collectible = true,
     this.deferLongPress = false,
     this.excludeSemantics = false,
