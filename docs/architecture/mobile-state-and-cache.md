@@ -137,6 +137,10 @@ files. User work is never rebuilt on either corruption or key failure. The publi
 the OS cache directory.
 The explicit campus offline document shares the encrypted cache database in application support so
 it retains its existing managed lifetime. Cache deletion cannot address `user_work.sqlite`.
+On iOS, backup exclusion applies to the app-owned private directory and the widget App Group's
+`Library/Preferences` directory, including future UserDefaults rewrites. The system-owned App Group
+container root is never modified: physical devices reject its extended-attribute writes even when
+the simulator permits them. Genuine backup-configuration failures still propagate to startup recovery.
 
 `Current`: [0035](../decisions/0035-campus-device-snapshot-and-schedule-widgets.md) accepts the
 allowlisted device snapshot and supersedes [0033](../decisions/0033-campus-foreground-memory-cache.md).

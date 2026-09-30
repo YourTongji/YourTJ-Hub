@@ -188,3 +188,12 @@ jobs:
         if: matrix.platform == 'ios'
         working-directory: apps/mobile/packages/forum_app
         run: flutter build ios --simulator --debug --no-codesign --no-pub
+      - name: Test iOS native storage policy
+        if: matrix.platform == 'ios'
+        working-directory: apps/mobile/packages/forum_app
+        run: |
+          simulator_id=$(xcrun simctl list devices available --json | python3 -c 'import json,sys; runtimes=json.load(sys.stdin)["devices"]; print(next(d["udid"] for runtime,devices in sorted(runtimes.items(), reverse=True) if ".iOS-" in runtime for d in devices if d["isAvailable"] and d["name"].startswith("iPhone")))')
+          xcodebuild -workspace ios/Runner.xcworkspace -scheme Runner -configuration Debug \
+            -destination "platform=iOS Simulator,id=$simulator_id" \
+            -parallel-testing-enabled NO -only-testing:RunnerTests \
+            BUILD_DIR="$PWD/build/ios" test
