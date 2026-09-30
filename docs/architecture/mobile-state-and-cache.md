@@ -164,6 +164,13 @@ partial failures; it does not report success until the requested deletion comple
 offline use leads to an honest empty state. Retention limits apply by age and size without evicting
 user work.
 
+Session cache views receive the cleanup coordinator as an application-layer dependency; the database
+provider only owns the database lifetime and never reads back into its coordinator. Captured views
+retain that cleanup capability across a session-epoch change. Shared topic/chat views perform one
+coordinated sweep before publishing the signed-out widget state; a failed deletion still prevents
+new credentials from being committed. Regression coverage must exercise the production provider graph
+and encrypted file-backed database, in addition to isolated owner tests.
+
 A destructive local reset first flushes and verifies a content-free `reset.intent` marker in the
 backup-excluded private directory. This marker is outside cache databases, encryption keys and
 preferences, so rebuilding a corrupt or keyless cache cannot lose the pending reset. Startup checks it

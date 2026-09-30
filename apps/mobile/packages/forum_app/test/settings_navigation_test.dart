@@ -254,6 +254,39 @@ Future<_Harness> _mount(
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
+  for (final brightness in Brightness.values) {
+    testWidgets('data and storage row uses a bundled icon in $brightness', (
+      tester,
+    ) async {
+      tester.platformDispatcher.platformBrightnessTestValue = brightness;
+      addTearDown(tester.platformDispatcher.clearPlatformBrightnessTestValue);
+      await _mount(tester);
+      final row = find.byKey(const ValueKey('settings-category-privacy'));
+      await tester.scrollUntilVisible(
+        row,
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      final symbols = find.descendant(of: row, matching: find.byType(GfSymbol));
+      expect(symbols, findsWidgets);
+      // Exercise the actual package bundle: a named GfSymbol can reserve space
+      // while its missing SVG silently leaves the settings glyph invisible.
+      for (final symbol in tester.widgetList<GfSymbol>(symbols)) {
+        final asset = 'packages/ui_kit/assets/icons/${symbol.name}.svg';
+        final svg = await rootBundle.loadString(asset, cache: false);
+        expect(svg, contains('<svg'), reason: asset);
+        expect(
+          svg,
+          contains(
+            RegExp(r'<(?:path|polyline|polygon|rect|circle|ellipse|line)\b'),
+          ),
+          reason: asset,
+        );
+      }
+      expect(tester.takeException(), isNull);
+    });
+  }
+
   Finder input(String label) => find.byWidgetPredicate(
     (w) => w is TextField && w.decoration?.labelText == label,
   );

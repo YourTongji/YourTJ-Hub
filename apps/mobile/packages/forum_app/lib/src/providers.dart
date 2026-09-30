@@ -110,12 +110,6 @@ final Provider<AppDatabase> offlineDatabaseProvider = Provider<AppDatabase>((
   ref,
 ) {
   final db = openDatabase();
-  db.clearAllCaches = () async {
-    final result = await ref
-        .read(cacheCoordinatorProvider)
-        .clear(CacheCategory.values.toSet());
-    if (!result.succeeded) throw StateError('Session cache cleanup incomplete');
-  };
   ref.onDispose(db.close);
   return db;
 });
@@ -131,6 +125,10 @@ final offlineChatCacheProvider = Provider<OfflineChatCache>((ref) {
 });
 
 DriftOfflineCache _scopedOfflineCache(Ref ref) {
+  // Session cleanup belongs to these views, above the coordinator and database.
+  // A callback on the database provider itself creates a Riverpod back-edge
+  // when it reads the coordinator (which depends on that same database).
+  final coordinator = ref.watch(cacheCoordinatorProvider);
   final epoch = ref.watch(offlineCacheEpochProvider);
   final session = ref.read(offlineCacheEpochProvider.notifier);
   final user = ref.watch(currentUserProvider.future);
@@ -154,6 +152,12 @@ DriftOfflineCache _scopedOfflineCache(Ref ref) {
   unawaited(scope.then<void>((_) {}, onError: (Object _, StackTrace _) {}));
   return DriftOfflineCache(
     ref.watch(offlineDatabaseProvider),
+    clearAllCaches: () async {
+      final result = await coordinator.clear(CacheCategory.values.toSet());
+      if (!result.succeeded) {
+        throw StateError('Session cache cleanup incomplete');
+      }
+    },
     resolveScope: () => scope,
     sessionCurrent: () => session.isCurrent(epoch),
   );

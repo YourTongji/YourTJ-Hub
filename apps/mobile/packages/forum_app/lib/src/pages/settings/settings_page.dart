@@ -1058,7 +1058,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             const GfDivider(),
             _categoryRow(
               key: const ValueKey('settings-category-privacy'),
-              symbol: 'hard-drive',
+              symbol: 'archive',
               title: l10n.settingsDataStorage,
               onTap: () => _openSection(_SettingsTab.privacy),
             ),
