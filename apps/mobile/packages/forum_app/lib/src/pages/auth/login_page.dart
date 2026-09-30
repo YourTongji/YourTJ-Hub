@@ -153,7 +153,7 @@ class _LoginPageState extends ConsumerState<LoginPage>
           tokenStorage: _authTokenStorage,
           registrationErrorMessage: (error) => mounted
               ? resolveErrorMessage(AppLocalizations.of(context), error)
-              : 'Registration failed',
+              : null,
         );
     _authIme = AuthImeStabilizer<FocusNode>(
       enabled: !kIsWeb && defaultTargetPlatform == TargetPlatform.android,
@@ -656,7 +656,6 @@ class _LoginPageState extends ConsumerState<LoginPage>
             messageCode: malformed || parts.last.isEmpty
                 ? 'auth.emailDomain.invalid'
                 : 'auth.emailDomain.notAllowed',
-            params: {'domain': parts.last},
           ),
         );
       });

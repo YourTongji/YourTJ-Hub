@@ -52,7 +52,8 @@ class AuthController extends ChangeNotifier {
   /// Presentation-layer localization of registration failures. The controller
   /// still owns captcha/failed phase transitions; the resolver receives the
   /// server code and parameters without exposing account occupancy details.
-  final String Function(ApiException)? registrationErrorMessage;
+  /// Returning null falls back to [_mapAuthError]'s built-in mapping.
+  final String? Function(ApiException)? registrationErrorMessage;
 
   LoginPhase _phase = LoginPhase.idle;
   String _error = '';
