@@ -3,5 +3,5 @@
   "keywords": "同济,选课,课程评价,排课,校园,社区,课表,Wiki",
   "marketingUrl": "https://f.yourtj.de",
   "supportUrl": "https://github.com/YourTongji/YourTJ-Hub/issues",
-  "whatsNew": "新增通过 Apple 登录，完善原生排课与课表组件，增加用户屏蔽和私信举报，修复私信时间显示及连续贴纸发送失败。"
+  "whatsNew": "优化本机缓存管理，修复账号登录和设置图标问题；支持删除草稿和个人表情，放大帖子、私信贴纸及 GIF 预览，改善列表密度与页面导航。Android 登录后可请求通知权限。\n\n访问统计调整为自动开启，移除设置开关；新安装及升级（包括旧版曾关闭统计的安装）均适用。仅统计正式站公开页面类别，可在“关于社区 → App 访问统计说明”查看内置说明。"
 }

@@ -1,5 +1,6 @@
 import 'package:core/core.dart';
 import 'package:dio/dio.dart';
+import 'package:go_router/go_router.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -98,6 +99,72 @@ void main() {
     expect(find.text('No public content yet'), findsOneWidget);
     expect(find.text('Not published'), findsNothing);
   });
+
+  for (final language in ['en', 'zh', 'ja', 'de']) {
+    for (final offline in [false, true]) {
+      testWidgets(
+        'analytics disclosure is available in $language when policy is ${offline ? 'offline' : 'disabled'}',
+        (tester) async {
+          tester.view.physicalSize = const Size(320, 640);
+          tester.view.devicePixelRatio = 1;
+          tester.platformDispatcher.textScaleFactorTestValue = 2;
+          addTearDown(tester.view.reset);
+          addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+          final api = client();
+          final pages = _Pages(api, SiteInfoKind.privacy, {
+            'enabled': false,
+            'contentHtml': '<p>Stale policy</p>',
+          })..fail = offline;
+          final router = GoRouter(
+            initialLocation: '/privacy',
+            routes: [
+              GoRoute(
+                path: '/about',
+                builder: (_, _) => const SiteInfoIndexPage(),
+              ),
+              GoRoute(
+                path: '/privacy',
+                builder: (_, _) =>
+                    const SiteInfoPage(kind: SiteInfoKind.privacy),
+              ),
+            ],
+          );
+          addTearDown(router.dispose);
+          await tester.pumpWidget(
+            ProviderScope(
+              overrides: [
+                pageRepositoryProvider.overrideWithValue(pages),
+                apiClientProvider.overrideWithValue(api),
+              ],
+              child: MaterialApp.router(
+                routerConfig: router,
+                theme: gfThemeData(Brightness.light),
+                locale: Locale(language),
+                localizationsDelegates: AppLocalizations.localizationsDelegates,
+                supportedLocales: AppLocalizations.supportedLocales,
+              ),
+            ),
+          );
+          await tester.pumpAndSettle();
+          expect(pages.paths, ['/privacy']);
+          expect(find.text('Stale policy'), findsNothing);
+          router.go('/about');
+          await tester.pumpAndSettle();
+          final disclosure = find.byKey(
+            const ValueKey('visitor-analytics-disclosure'),
+          );
+          await tester.scrollUntilVisible(disclosure, 200);
+          await tester.tap(disclosure);
+          await tester.pumpAndSettle();
+          expect(find.textContaining('umi.yourtj.de'), findsOneWidget);
+          expect(find.textContaining('f.yourtj.de'), findsOneWidget);
+          expect(find.byType(Switch), findsNothing);
+          expect(pages.paths, ['/privacy']);
+          expect(tester.takeException(), isNull);
+        },
+      );
+    }
+  }
 
   testWidgets('links recover from an error and preserve group descriptions', (
     tester,

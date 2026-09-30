@@ -35,7 +35,9 @@ Keep the public-route allowlist, sanitized fixed categories, independent credent
 transport, memory-only queue/token, bounded timeouts, cancellation and no retries. This
 does not add account identifiers, content, private screens or advertising tracking.
 The product specification owns the full data boundary. The embedded privacy supplement
-discloses automatic collection and no switch; release notes disclose the changed default.
+discloses automatic collection and no switch. About also contains a bundled, localized disclosure
+that remains accessible offline or with site policies disabled; it is independent of the server
+policy toggle. Release notes disclose the changed default.
 App Store privacy metadata and production reporting still require release-time verification.
 
 ## Pros and Cons of the Options

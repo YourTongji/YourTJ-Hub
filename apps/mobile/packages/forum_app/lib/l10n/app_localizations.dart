@@ -2886,6 +2886,18 @@ abstract class AppLocalizations {
   /// **'About the community'**
   String get siteInfoTitle;
 
+  /// No description provided for @siteInfoAnalytics.
+  ///
+  /// In en, this message translates to:
+  /// **'App visit statistics'**
+  String get siteInfoAnalytics;
+
+  /// No description provided for @siteInfoAnalyticsDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Official Android and iOS releases connected to https://f.yourtj.de automatically collect public-page visits for guests and signed-in users. There is no statistics switch. New installations and upgrades use this policy, including when statistics were disabled in an older version. Debug builds, other servers, Web and desktop builds do not use this native collection channel.\n\nWhile the App is in the foreground, it sends fixed public-page categories, the YourTJ App marker, OS family and phone/tablet type to YourTJ’s own Umami service at umi.yourtj.de for visit statistics and the status page. It does not send accounts, credentials, device or advertising identifiers, post/course IDs, search terms or content. Campus, schedules, messages, notifications, profiles, login, settings, writing and administration pages are excluded.\n\nThe service receives your network IP and general client headers and may derive an approximate country, region or city. No GPS location is collected. Visitor estimates are not linked to accounts.\n\nBackgrounding stops sends and discards pending visits. Requests are not retried, and the App stores no visit queue or visitor identifier on disk. The analytics cache token exists only in memory. Delivered records follow the service’s retention settings and are not removed when you leave the App. The status page shows only coarse device, OS and client categories and aggregate counts.'**
+  String get siteInfoAnalyticsDescription;
+
   /// No description provided for @siteInfoLinks.
   ///
   /// In en, this message translates to:

@@ -25,6 +25,7 @@ YourTJ 移动端论坛客户端(Flutter)。`apps/mobile` melos 工作区的入�
 已登录用户均适用，设置页无开关，旧版统计偏好不再参与判断。`lib/src/analytics/` 以独立
 无凭据 Dio 向 Umami 上报公开页面的固定类别和 `yourtj-app` 客户端标记。调试、其他站点和
 其他平台不发送；自动启用、前后台、去重、队列上限和网络失败由 `test/visitor_analytics_test.dart` 覆盖。
+“关于社区 → App 访问统计说明”内置四语说明，离线或站点隐私政策关闭时仍可查看。
 数据边界见[移动端体验](../../../../docs/product/mobile-experience.md#profile-and-privacy)，
 上线核验见[移动发布](../../../../docs/operations/mobile-releases.md#native-visitor-statistics)。
 

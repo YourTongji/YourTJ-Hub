@@ -1545,6 +1545,13 @@ class AppLocalizationsDe extends AppLocalizations {
   String get siteInfoTitle => 'Über die Community';
 
   @override
+  String get siteInfoAnalytics => 'App-Besuchsstatistik';
+
+  @override
+  String get siteInfoAnalyticsDescription =>
+      'Offizielle Android- und iOS-Versionen mit Verbindung zu https://f.yourtj.de erfassen Besuche öffentlicher Seiten automatisch, auch für Gäste. Es gibt keinen Statistikschalter. Das gilt für neue Installationen und nach Updates, auch wenn die Statistik in einer älteren Version deaktiviert wurde. Debug-, Web- und Desktop-Versionen sowie andere Server nutzen diesen nativen Statistikkanal nicht.\n\nIm Vordergrund sendet die App feste Kategorien öffentlicher Seiten, die YourTJ-App-Kennung, die Betriebssystemfamilie und den Gerätetyp (Telefon/Tablet) an YourTJs eigenen Umami-Dienst unter umi.yourtj.de für Besuchsstatistiken und die Statusseite. Konten, Zugangsdaten, Geräte- oder Werbekennungen, Beitrags-/Kurs-IDs, Suchbegriffe und Inhalte werden nicht gesendet. Campus, Stundenpläne, Nachrichten, Benachrichtigungen, Profile, Anmeldung, Einstellungen, Beitragserstellung und Verwaltung sind ausgeschlossen.\n\nDer Dienst empfängt die Netzwerk-IP und allgemeine Client-Header und kann daraus ein ungefähres Land, eine Region oder Stadt ableiten. GPS-Daten werden nicht erfasst. Geschätzte Besucherzahlen werden nicht mit Konten verknüpft.\n\nIm Hintergrund endet die Übertragung; ausstehende Einträge werden verworfen. Fehlgeschlagene Anfragen werden nicht wiederholt. Warteschlangen und Besucherkennungen werden nicht auf dem Gerät gespeichert; das Statistik-Cache-Token bleibt nur im Arbeitsspeicher. Bereits übermittelte Daten unterliegen den Aufbewahrungseinstellungen des Dienstes und werden beim Verlassen der App nicht zurückgezogen. Die Statusseite zeigt nur grobe Geräte-, Betriebssystem- und Client-Kategorien sowie Gesamtzahlen.';
+
+  @override
   String get siteInfoLinks => 'Community-Links';
 
   @override

@@ -52,7 +52,40 @@ class SiteInfoIndexPage extends StatelessWidget {
               trailing: const GfSymbol('chevron-right'),
               onTap: () => context.push('/${kind.name}'),
             ),
+          ListTile(
+            key: const ValueKey('visitor-analytics-disclosure'),
+            leading: const GfSymbol('monitor'),
+            title: Text(l10n.siteInfoAnalytics),
+            trailing: const GfSymbol('chevron-right'),
+            onTap: () => Navigator.of(context).push<void>(
+              MaterialPageRoute(
+                builder: (_) => const _VisitorAnalyticsDisclosurePage(),
+              ),
+            ),
+          ),
         ],
+      ),
+    );
+  }
+}
+
+/// Bundled disclosure stays readable when site policies are disabled or offline.
+class _VisitorAnalyticsDisclosurePage extends StatelessWidget {
+  const _VisitorAnalyticsDisclosurePage();
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return Scaffold(
+      appBar: GfAppBar(title: Text(l10n.siteInfoAnalytics)),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 40),
+          child: Text(
+            l10n.siteInfoAnalyticsDescription,
+            style: GfTheme.typographyOf(context).body,
+          ),
+        ),
       ),
     );
   }

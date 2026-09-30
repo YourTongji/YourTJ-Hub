@@ -779,6 +779,8 @@
   "settingsProfileLanguage": "资料语言",
   "settingsInvalidLink": "请输入有效的 http 或 https 链接",
   "siteInfoTitle": "关于社区",
+  "siteInfoAnalytics": "App 访问统计说明",
+  "siteInfoAnalyticsDescription": "正式 Android/iOS 版本连接 https://f.yourtj.de 时会自动统计公开页面访问，访客和已登录用户均适用。App 内没有统计开关；新安装及升级后均按此方式运行，包括旧版曾关闭统计的安装。调试版本、其他站点、Web 和桌面端构建不会通过此原生统计通道发送数据。\n\nApp 在前台时向 YourTJ 自托管的 Umami 服务（umi.yourtj.de）发送公开页面的固定类别、YourTJ App 标记、系统家族和手机／平板类型，用于访问统计及状态页。不发送账号、登录凭据、设备或广告标识、帖子／课程标识、搜索词及内容；校园、课表、私信、通知、个人资料、登录、设置、创作及管理页面不参与统计。\n\n服务会接收到网络 IP 和通用客户端请求头，并可能推算大致国家、地区或城市；不获取 GPS 定位。访客数通过统计规则估算，不与账号关联。\n\nApp 进入后台即停止发送并丢弃待发送项，不重试失败的请求，不在磁盘保存访问队列或访客标识；统计缓存标记仅保留在内存中。已送达的数据按服务端保留设置管理，不会随退出 App 而撤回。状态页仅公开粗粒度设备、系统、客户端类别及汇总数量。",
   "siteInfoLinks": "友情链接",
   "siteInfoSponsors": "支持与赞助",
   "siteInfoTerms": "服务条款",

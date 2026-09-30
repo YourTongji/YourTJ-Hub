@@ -839,6 +839,9 @@ identity survive this layout change. The header keeps a small outer margin for i
   Backgrounding cancels transport and drops pending events; disposing the collector also clears its
   memory-only Umami cache token. Normal browsing never waits for analytics or preference storage.
   Already delivered events remain subject to the server retention policy.
+  About → App visit statistics provides a bundled, localized disclosure without login or network
+  access, including when the administrator disables the site privacy policy. This read-only page
+  explains automatic collection, upgrade behavior, data scope and retention; it has no switch.
   The automatic collection decision is recorded in
   [0051](../decisions/0051-mobile-automatic-visitor-statistics.md).
 - `Partial`: Umami receives network IP/UA and may derive country/region/city. Its salted visitor
