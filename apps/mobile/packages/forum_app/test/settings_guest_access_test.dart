@@ -130,6 +130,7 @@ void main() {
           tester.element(find.byType(SettingsPage)),
         );
         expect(calls, isEmpty);
+        expect(find.byType(GfSwitchRow), findsNothing);
         expect(find.text(l10n.settingsAppearance), findsOneWidget);
         expect(find.text(l10n.settingsAppLanguage), findsOneWidget);
         await tester.scrollUntilVisible(

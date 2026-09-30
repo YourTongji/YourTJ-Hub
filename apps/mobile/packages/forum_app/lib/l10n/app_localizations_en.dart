@@ -3066,17 +3066,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get messageForwardChooseTargets => 'Choose recipients';
 
   @override
-  String get settingsVisitorAnalytics => 'Share visit statistics';
-
-  @override
-  String get settingsVisitorAnalyticsDescription =>
-      'Off by default. Sends public screen categories, App marker, OS and phone/tablet type to YourTJ’s self-hosted analytics for the status page; the service also receives your network IP and derives an approximate location. No account, content, search terms, device identifiers, campus, messages or settings pages are sent. Turn off at any time.';
-
-  @override
-  String get settingsVisitorAnalyticsSaveFailed =>
-      'Could not save the analytics preference. Disabling still applies now; retry to save your choice for the next launch.';
-
-  @override
   String get draftDeleteCloud => 'Delete cloud draft';
 
   @override

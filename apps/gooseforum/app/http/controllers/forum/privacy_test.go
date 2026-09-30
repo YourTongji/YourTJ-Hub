@@ -112,10 +112,17 @@ func TestBuildPrivacyPagePropsIncludesAppDataDisclosure(t *testing.T) {
 
 func TestBuildPrivacyPagePropsRefreshesPersistedAppSupplement(t *testing.T) {
 	for _, ending := range []string{"", "\n## 联系\n保留联系方式", "\n# 后续政策\n保留联系方式"} {
-		config := pageConfig.PrivacyPolicyConfig{Enabled: true, Content: "# 自定义政策\n保留前文\n\n" + appPrivacyDisclosureMarker + "\n旧版说明\n### 子项\n旧子项" + ending}
+		config := pageConfig.PrivacyPolicyConfig{Enabled: true, Content: "# 自定义政策\n保留前文\n\n" + appPrivacyDisclosureMarker + "\n旧版说明\n### 可选访问统计\n参与访问统计默认关闭\n### 子项\n旧子项" + ending}
 		html := buildPrivacyPageProps(config).ContentHTML
-		if !strings.Contains(html, "可选访问统计") || strings.Contains(html, "旧版说明") || strings.Contains(html, "旧子项") || !strings.Contains(html, "保留前文") {
-			t.Fatal("persisted supplement was not refreshed independently of custom policy")
+		for _, text := range []string{"自动开启", "不提供访问统计开关", "保留前文"} {
+			if !strings.Contains(html, text) {
+				t.Fatalf("refreshed policy missing %q", text)
+			}
+		}
+		for _, text := range []string{"默认关闭", "可选访问统计", "旧版说明", "旧子项"} {
+			if strings.Contains(html, text) {
+				t.Fatalf("stale policy text remained: %q", text)
+			}
 		}
 		if ending != "" && !strings.Contains(html, "保留联系方式") {
 			t.Fatal("custom following section was removed")

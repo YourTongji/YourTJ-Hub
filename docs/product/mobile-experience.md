@@ -824,9 +824,10 @@ identity survive this layout change. The header keeps a small outer margin for i
 
 ## Profile and privacy
 
-- `Current`: Settings → Device includes an optional visit-statistics switch for guests and signed-in
-  users, off until explicitly enabled on that device. Only official Android/iOS release builds against
-  `https://f.yourtj.de` send page views to the existing first-party Umami website. Debug/profile,
+- `Current`: visit statistics run automatically for guests and signed-in users in official Android/iOS
+  release builds against `https://f.yourtj.de`, with no settings switch or consent preference. Fresh
+  installations and upgrades use the same policy, regardless of any legacy saved analytics choice.
+  Page views go to the existing first-party Umami website. Debug/profile,
   Web, desktop and alternate-server builds do not send. Public home/search/topic/category/course/Wiki
   navigation uses fixed `/app/*` categories; original IDs, slugs, search terms and fragments never leave
   the app. Campus, schedule, chat, notifications, profiles, login, settings, writing and administration
@@ -835,14 +836,15 @@ identity survive this layout change. The header keeps a small outer margin for i
 - `Current`: analytics uses its own unauthenticated transport, three-second network timeouts, no
   redirects, at most three pending views, no disk queue and no retry. Rebuilds and brief foreground
   resumes do not repeat the same view; reopening after thirty minutes can start another view.
-  Backgrounding cancels transport and drops pending events. Disabling immediately stops reporting,
-  clears the memory-only Umami cache token and drops pending views; an already delivered event cannot
-  be withdrawn by this local switch. Storage failures are visible, and enabling starts only after a
-  successful preference save. Normal browsing never waits for analytics. Failed revocation keeps
-  collection off for the session and offers Retry to persist that choice before restarting.
+  Backgrounding cancels transport and drops pending events; disposing the collector also clears its
+  memory-only Umami cache token. Normal browsing never waits for analytics or preference storage.
+  Already delivered events remain subject to the server retention policy.
+  The automatic collection decision is recorded in
+  [0051](../decisions/0051-mobile-automatic-visitor-statistics.md).
 - `Partial`: Umami receives network IP/UA and may derive country/region/city. Its salted visitor
   calculation is approximate: installations sharing IP, OS and device family can collapse, and Web/App
-  visits are not joined to an account. Aggregates represent opted-in installations, not all App users.
+  visits are not joined to an account. Aggregates cover reporting production installations, not a
+  count of App accounts; offline clients, older builds and failed requests can be absent.
   Existing server retention and network-log policies still apply; no historical App identity is inferred
   or backfilled. The public status page exposes only coarse device/OS/client aggregates.
 

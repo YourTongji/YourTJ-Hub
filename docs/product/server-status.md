@@ -89,4 +89,6 @@ UI 脚本必须启用才能读取指标；无脚本入口提供独立 Uptime 页
 
 ## 原生客户端识别
 
-`Partial`：状态页识别已实现；实际 App 数据仍需发布包含可选原生统计的移动版本（[#927](https://github.com/YourTongji/YourTJ-Hub/pull/927)），并由用户主动开启。客户端列仅将明确携带 `browser: yourtj-app` 的上报显示为 **YourTJ App**，即使占比很小也保留单独节点。普通 WebView 仍显示“内嵌浏览器”，不猜测来源。历史数据无法补回 App 身份。App 数据只覆盖已启用统计的安装；Umami 访客不是账号人数，Web 与 App 不做身份合并。接口保留 `browser` 字段名，枚举增加 `yourtj-app`。
+`Current`：客户端列仅将明确携带 `browser: yourtj-app` 的上报显示为 **YourTJ App**，即使占比很小也保留单独节点。正式 Android/iOS App 连接正式站时自动统计公开页面，无需设置开关；范围见[移动端隐私说明](mobile-experience.md#profile-and-privacy)。普通 WebView 仍显示“内嵌浏览器”，不猜测来源。历史数据无法补回 App 身份。Umami 访客不是账号人数，Web 与 App 不做身份合并。接口保留 `browser` 字段名，枚举包含 `yourtj-app`。
+
+`Partial`：统计覆盖取决于客户端版本和成功上报，离线或请求失败的访问可能缺失。自动统计版本扩大覆盖面后，App 占比与访问量不能直接与旧版自愿启用的样本比较；实际线上分布仍需随发布核验。

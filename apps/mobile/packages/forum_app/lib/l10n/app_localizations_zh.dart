@@ -2942,17 +2942,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get messageForwardChooseTargets => '选择接收者';
 
   @override
-  String get settingsVisitorAnalytics => '参与访问统计';
-
-  @override
-  String get settingsVisitorAnalyticsDescription =>
-      '默认关闭。开启后向 YourTJ 自托管统计服务发送公开页面类别、App 标记、系统和手机／平板类型，用于状态页访客统计；服务也会接收到网络 IP 并推算大致地区。不发送账号、内容、搜索词或设备标识，不记录校园、私信及设置页面。可随时关闭。';
-
-  @override
-  String get settingsVisitorAnalyticsSaveFailed =>
-      '未能保存统计设置。本次关闭仍有效，请稍后重试以保存下次启动的选择。';
-
-  @override
   String get draftDeleteCloud => '删除云端草稿';
 
   @override

@@ -137,3 +137,4 @@ A decision starts `Proposed`. Once implemented, its status becomes `Accepted` an
 
 - [0049](0049-android-first-login-notification-permission.md) — Android 登录后一次性请求系统通知权限，并在授权后开启 JPush。
 - [0050](0050-android-stable-download-links.md) — Android 使用独立 mobile-latest 固定下载入口，保留版本化安装包和服务端 Latest。
+- [0051](0051-mobile-automatic-visitor-statistics.md) — 正式移动端自动统计公开页面，移除统计开关与偏好门控，同步升级语义和隐私披露。
