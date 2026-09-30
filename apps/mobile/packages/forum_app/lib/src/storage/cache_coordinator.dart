@@ -39,6 +39,7 @@ class CacheCoordinator {
   final Future<int> Function() databaseBytes;
   final void Function(Set<CacheCategory>) onInvalidated;
   Future<CacheClearResult>? _running;
+  Set<CacheCategory> _runningCategories = {};
   // Includes database-only categories so an unsuccessful initial journal write
   // can still be retried in this process. An owner receives one balanced hold,
   // regardless of how many deletion attempts fail.
@@ -72,22 +73,39 @@ class CacheCoordinator {
   }
 
   Future<CacheClearResult> clear(Set<CacheCategory> categories) {
-    if (_running != null) {
-      return Future.error(StateError('Storage cleanup already running'));
-    }
     if (categories.isEmpty) return Future.value(const CacheClearResult({}, 0));
+    final running = _running;
+    if (running != null) {
+      return _runningCategories.containsAll(categories)
+          ? running
+          : _clearAfter(running, categories);
+    }
     final selected = Set<CacheCategory>.unmodifiable(categories);
     // Fence every owner synchronously, including downloads already in flight.
     _hold(selected);
     final operation = _clear(selected);
-    _running = operation;
-    operation.then<void>(
-      (_) => _running = null,
-      onError: (Object _, StackTrace _) {
+    _runningCategories = selected;
+    late final Future<CacheClearResult> tracked;
+    tracked = operation.whenComplete(() {
+      if (identical(_running, tracked)) {
         _running = null;
-      },
-    );
-    return operation;
+        _runningCategories = {};
+      }
+    });
+    _running = tracked;
+    return tracked;
+  }
+
+  Future<CacheClearResult> _clearAfter(
+    Future<CacheClearResult> running,
+    Set<CacheCategory> categories,
+  ) async {
+    try {
+      await running;
+    } catch (_) {
+      // A later cleanup is also the retry path for failed in-flight work.
+    }
+    return clear(categories);
   }
 
   void _hold(Set<CacheCategory> categories) {

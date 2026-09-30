@@ -1048,16 +1048,26 @@ local widget tests do not imply those gates passed.
 
 ## System notifications
 
+`Current`: session cleanup preserves an absent push preference when a guest completes their first
+login, so it cannot manufacture an opt-out before the one-time Android permission request. Existing
+consent is cleared at account boundaries; an explicit Settings opt-out remains effective even while
+native cleanup is pending.
+
 - `Partial`: iOS uses direct APNs; Android uses JPush with selected OEM offline adapters and does not
   require Google Play services. Provider credentials, signing profiles and physical-device delivery
   remain deployment requirements; app-local notification lists are independent of system delivery.
 - `Current`: Settings retains the push entry with a provider-processing disclosure and shows missing
   build configuration, unavailable server channels, permission denial and registration failure.
   On iOS the first launch after login requests the system permission once; granting it counts as
-  push consent and enables delivery without visiting Settings. Android keeps explicit opt-in —
-  the JPush SDK is never initialized before the user enables push. Explicit enable requests system
-  permission. Resume checks existing authorization without repeatedly prompting; a non-empty token
-  and successful API registration are required to display enabled.
+  push consent and enables delivery without visiting Settings. Android requests system permission
+  once after a valid login reaches the main screen and its first frame is stable; an upgraded install
+  without the one-shot marker receives the same request unless the user had explicitly turned push
+  off in Settings. A grant counts as push consent. A denial
+  keeps the app preference enabled and shows `permissionDenied` without initializing JPush or
+  registering a device. Below Android 13, the bridge only reads system notification authorization.
+  Settings retains explicit retry and disable actions. Resume checks existing authorization without
+  repeatedly prompting; a non-empty token and successful API registration are required to display
+  enabled.
   Enable taps during startup/resume or stop are queued; a later disable or account change cancels
   queued consent. Failed unbinding is retained and retried on resume while push stays disabled,
   using the owning account; signing in to a different account does not acknowledge that cleanup.

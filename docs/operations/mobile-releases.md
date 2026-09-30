@@ -313,7 +313,8 @@ show push as unavailable. Local dev APKs can use the same `prepare_push.py` inpu
 
 FCM is an optional transport inside JPush; it does not bypass a disabled server JPush channel.
 Keep Firebase Messaging auto initialization and Analytics collection disabled in the Android manifest:
-JPush requests the FCM token only after the existing push opt-in flow initializes the SDK.
+JPush requests the FCM token only after OS notification permission is granted and the existing
+consent-aware registration flow initializes the SDK.
 The settings screen continues to report a disabled server channel accurately on both Android and iOS.
 See [Firebase startup controls](https://firebase.google.com/docs/cloud-messaging/android/get-started#prevent-auto-initialization).
 
@@ -331,8 +332,16 @@ to the processor policy. Do not include account passwords or forum session token
 Validate on a physical iPhone using the exact TestFlight build and on each enabled manufacturer's
 Android phone without Google services:
 
-1. Sign in and enable push in Settings. The OS permission prompt appears; declining shows a settings
-   recovery action. Allowing adds the app to system notification settings.
+1. On Android, install fresh or upgrade from a build without the one-shot permission marker. For an
+   upgraded install, verify a previously explicit push opt-out stays off and does not trigger a
+   prompt; with no saved preference, sign in and verify the OS prompt appears only after the main
+   screen is stable, never on the login route or
+   during OAuth return. Allowing reaches the existing registration path; declining shows
+   `permissionDenied`, does not register a device, and does not prompt again on restart/resume. Settings
+   retains system-settings recovery and explicit retry. If the app process exits while the OS prompt
+   is open, verify that the next launch repeats the permission check/request. On iOS, verify the
+   existing one-time request and that an interrupted request leaves the shared marker unset until
+   the native permission call returns.
 2. Confirm authenticated `GET /api/forum/push/config` enables the matching provider, and
    `POST /api/forum/push/device/register` succeeds with `provider=apns` or `jpush`. An empty token or
    failed API call must not display enabled. Never paste tokens into public logs.
