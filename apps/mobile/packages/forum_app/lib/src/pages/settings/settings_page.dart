@@ -1104,7 +1104,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 if (section == _SettingsTab.account) ...[
                   const GfDivider(),
                   GfSettingRow(
-                    symbol: 'ban',
+                    symbol: 'eye-off',
                     title: l10n.userBlocks,
                     onTap: () => showBlockedUsers(context),
                   ),
