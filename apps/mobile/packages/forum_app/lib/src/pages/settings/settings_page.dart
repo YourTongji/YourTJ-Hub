@@ -1062,7 +1062,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               onTap: () => _openSection(_SettingsTab.privacy),
             ),
             const GfDivider(),
-            const GfDivider(),
             _categoryRow(
               symbol: 'info',
               title: l10n.settingsAbout,
