@@ -135,6 +135,39 @@ local files before it becomes public. The publisher resolves drafts through `gh 
 queries their database ID, since the REST tag lookup may return 404 for a draft. Existing asset names with different bytes are never overwritten.
 The release is published with `latest=false`, so server downloads keep their separate latest marker.
 
+`Current`: after publishing the original APKs, the Android job refreshes an independent
+[`mobile-latest` download channel](https://github.com/YourTongji/YourTJ-Hub/releases/tag/mobile-latest):
+
+| Device architecture | Fixed APK download |
+|---|---|
+| ARM64, most current Android phones | [YourTJ-arm64-v8a.apk](https://github.com/YourTongji/YourTJ-Hub/releases/download/mobile-latest/YourTJ-arm64-v8a.apk) |
+| ARM 32-bit | [YourTJ-armeabi-v7a.apk](https://github.com/YourTongji/YourTJ-Hub/releases/download/mobile-latest/YourTJ-armeabi-v7a.apk) |
+| x86 64-bit | [YourTJ-x86_64.apk](https://github.com/YourTongji/YourTJ-Hub/releases/download/mobile-latest/YourTJ-x86_64.apk) |
+
+The publisher selects the highest stable mobile version among the most recent 100 releases, downloads
+all three source APKs and verifies their GitHub digests, sizes and matching ABI build numbers before
+changing the aliases. It uploads identical bytes under fixed names and verifies GitHub's resulting
+digests. `SHA256SUMS.txt` covers the alias filenames. The channel is marked pre-release only to keep it
+out of the repository-wide Latest and the in-app updater; its APKs are stable release copies.
+The source marker prevents older recovery from replacing a newer channel, and matching files are
+skipped on retry. Canonical `mobile-vX.Y.Z` assets are never overwritten.
+
+Alias updates replace files individually. A URL can briefly return 404, and checksums may lag while
+publication is running; use the original version linked in the channel notes for a consistent set.
+The alias tag is not moved, so use the versioned source tag from those notes rather than the channel's
+automatically generated source archives. These trade-offs are recorded in
+[the fixed-download decision](../decisions/0050-android-stable-download-links.md).
+
+To verify or repair only this download channel, with authenticated `gh` and no mobile release running:
+
+```bash
+python3 scripts/mobile-release/publish_android_latest.py --verify-only
+python3 scripts/mobile-release/publish_android_latest.py
+```
+
+This needs no signing inputs and never rebuilds or publishes a new application version. An immutable
+or unrecognized release at `mobile-latest` fails safely instead of changing its protections.
+
 On Android, startup/resume checks at most once every six hours; About exposes a manual check. The
 user can defer, ignore a version or cancel a download. Only stable `mobile-vX.Y.Z` releases with a
 newer compatible APK and a GitHub digest are considered (the most recent 100 repository releases).

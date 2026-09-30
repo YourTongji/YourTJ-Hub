@@ -135,3 +135,5 @@ A decision starts `Proposed`. Once implemented, its status becomes `Accepted` an
 - [0047](0047-mobile-visual-acceptance.md) — 移除移动端截图基线，保留行为与布局断言和模拟器/设备视觉验收。
 
 - [0048](0048-mobile-storage-lifecycle.md) — 按身份、保留期和字节预算管理缓存；加密事务库分离本机作品，清理可恢复并拒绝旧请求回填。
+
+- [0050](0050-android-stable-download-links.md) — Android 使用独立 mobile-latest 固定下载入口，保留版本化安装包和服务端 Latest。

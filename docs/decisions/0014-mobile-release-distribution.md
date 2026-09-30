@@ -32,7 +32,7 @@ review credentials must remain outside public source and release metadata.
 Choose option 1. A patch/minor/major action reserves an annotated `mobile-vX.Y.Z` tag on a reviewed
 main commit. The tag records the immutable version and increasing build number passed to Flutter;
 pubspec supplies only the bootstrap/development floor. Recovery reuses the recorded identity. A protected environment supplies Android/iOS signing inputs and Apple review credentials.
-Android assets are validated before publishing, retain GitHub's computed SHA-256, and never replace
+Android versioned-release assets are validated before publishing, retain GitHub's computed SHA-256, and never replace
 same-name files. Only GitHub's HTTPS API supplies update metadata; public mirrors transport APK
 bytes. The client checks the digest before Android verifies package/version/signing identity and
 opens the system installer. iOS uses a checksum-pinned ASC CLI to upload once and submit the same
