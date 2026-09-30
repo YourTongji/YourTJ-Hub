@@ -164,7 +164,7 @@ void main() {
       await controller.submitTotp('222222');
 
       expect(controller.phase, LoginPhase.needsTotp);
-      // 与 _mapAuthError 策略一致:不泄露 `server.<code>` 字面量。
+      // 与 _resolveAuthError 策略一致:不泄露 `server.<code>` 字面量。
       expect(
         controller.error,
         'Two-factor verification failed, please try again',
