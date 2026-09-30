@@ -144,6 +144,24 @@ void main() {
           expect(find.text('Retry'), findsNothing);
         }
       }
+      // Once the school page starts navigating, the handoff window is closed:
+      // a URL-less cancellation is then a real school failure with retry.
+      expect(
+        await platform.delegate.request!(
+          NavigationRequest(url: uri.toString(), isMainFrame: true),
+        ),
+        NavigationDecision.navigate,
+      );
+      platform.delegate.resourceError!(
+        const WebResourceError(
+          errorCode: -999,
+          description: 'School page cancelled without URL',
+          isForMainFrame: true,
+        ),
+      );
+      await tester.pump();
+      await retry();
+      await handOffToSchool();
       // Only the replaced handoff is exempt: school cancellations, offline and
       // certificate failures still offer retry, without claiming state expiry.
       for (final code in [-999, 102, -1009, -1202]) {
