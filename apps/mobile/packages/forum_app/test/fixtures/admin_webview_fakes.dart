@@ -46,6 +46,8 @@ class TestWebController extends PlatformWebViewController {
 class TestWebDelegate extends PlatformNavigationDelegate {
   TestWebDelegate(super.params) : super.implementation();
   NavigationRequestCallback? request;
+  WebResourceErrorCallback? resourceError;
+  HttpResponseErrorCallback? httpError;
   @override
   Future<void> setOnNavigationRequest(
     NavigationRequestCallback callback,
@@ -56,9 +58,14 @@ class TestWebDelegate extends PlatformNavigationDelegate {
   @override
   Future<void> setOnProgress(ProgressCallback callback) async {}
   @override
-  Future<void> setOnWebResourceError(WebResourceErrorCallback callback) async {}
+  Future<void> setOnWebResourceError(WebResourceErrorCallback callback) async {
+    resourceError = callback;
+  }
+
   @override
-  Future<void> setOnHttpError(HttpResponseErrorCallback callback) async {}
+  Future<void> setOnHttpError(HttpResponseErrorCallback callback) async {
+    httpError = callback;
+  }
 }
 
 class TestWebCookies extends PlatformWebViewCookieManager {

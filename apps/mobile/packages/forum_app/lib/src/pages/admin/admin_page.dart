@@ -111,7 +111,10 @@ class _AdminPageState extends ConsumerState<AdminPage> {
           },
           onNavigationRequest: _navigate,
           onWebResourceError: (error) {
-            if (error.isForMainFrame == true) _fail();
+            if (error.isForMainFrame == true &&
+                !_isSchoolHandoffCancellation(error)) {
+              _fail();
+            }
           },
           onHttpError: (error) {
             // Subresource failures must not blank a working console.
@@ -171,6 +174,29 @@ class _AdminPageState extends ConsumerState<AdminPage> {
     } finally {
       _starting = false;
     }
+  }
+
+  bool _isSchoolHandoffCancellation(WebResourceError error) {
+    // Replacing the first-party redirect with the school URL intentionally
+    // cancels the old load. WebKit reports NSURLErrorCancelled (-999) or
+    // WebKitErrorFrameLoadInterruptedByPolicyChange (102) for that navigation.
+    // Neither invalidates the authorization attempt or the new school page.
+    if (!_schoolStarted ||
+        widget.campusAuthorizationUrl == null ||
+        !const [
+          TargetPlatform.iOS,
+          TargetPlatform.macOS,
+        ].contains(defaultTargetPlatform) ||
+        !const [-999, 102].contains(error.errorCode)) {
+      return false;
+    }
+    // WebKit can omit the failing URL for a policy cancellation. When present,
+    // it must identify our replaced handoff, never a failing school request.
+    if (error.url == null) return true;
+    final uri = Uri.tryParse(error.url!);
+    return uri != null &&
+        _navigation.isSameOrigin(uri) &&
+        const ['/api/auth/mobile-web-session', '/campus'].contains(uri.path);
   }
 
   Future<NavigationDecision> _navigate(NavigationRequest request) async {
@@ -450,7 +476,7 @@ class _AdminPageState extends ConsumerState<AdminPage> {
                               Text(
                                 widget.campusAuthorizationUrl == null
                                     ? l10n.adminUnavailable
-                                    : l10n.campusAuthExpired,
+                                    : l10n.commonLoadFailed,
                                 textAlign: TextAlign.center,
                               ),
                               const SizedBox(height: 16),
