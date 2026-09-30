@@ -1,0 +1,25 @@
+{
+  "code": 0,
+  "result": {
+    "range": "24h",
+    "serverRange": "1h",
+    "deviceRange": "7d",
+    "refreshAfter": 60,
+    "server": {
+      "state": "unavailable",
+      "data": {
+        "name": "",
+        "region": "",
+        "cpuCores": null,
+        "current": null,
+        "history": [{ "time": "2026-09-14T12:00:00Z", "cpu": 12.4, "memoryPercent": 53.75 }],
+        "historyAvailable": true,
+        "historyFetchedAt": "2026-09-14T12:00:00Z",
+        "historyStale": true
+      }
+    },
+    "traffic": { "state": "unconfigured", "data": null },
+    "uptime": { "state": "unconfigured", "data": null },
+    "devices": { "state": "unconfigured", "data": null }
+  }
+}

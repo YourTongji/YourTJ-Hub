@@ -47,7 +47,8 @@ async function refresh(kind) {
 }
 void refresh('current')
 void refresh('history')
-const timers = [setInterval(() => void refresh('current'), 60_000), setInterval(() => void refresh('history'), 300_000)]
+void refresh('devices')
+const timers = [setInterval(() => void refresh('current'), 60_000), setInterval(() => void refresh('history'), 900_000), setInterval(() => void refresh('devices'), 3_600_000)]
 for (const signal of ['SIGINT', 'SIGTERM']) process.once(signal, async () => {
   timers.forEach(clearInterval)
   await server.close()

@@ -79,7 +79,7 @@ export default {
     probeNote: "可用性由独立监控检测；资源数据来自服务器探针。",
     refresh: "刷新",
     refreshing: "刷新中",
-    autoRefresh: "每 30 秒读取快照",
+    autoRefresh: "每 60 秒读取快照",
     updated: "更新于 {time}",
     sampleTime: "探针采样于 {time}",
     loadFailed: "刷新失败，以下为上次获取的数据。",

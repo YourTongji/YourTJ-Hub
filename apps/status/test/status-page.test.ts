@@ -101,6 +101,30 @@ it('shows resource chart tooltips to keyboard users', async () => {
   expect(wrapper.find('.resource-tooltip').exists()).toBe(false)
 })
 
+it('keeps resource history after current readings expire during an API outage, then expires it independently', async () => {
+  const wrapper = await open()
+  vi.mocked(getStatus).mockRejectedValue(new Error('offline'))
+  await vi.advanceTimersByTimeAsync(16 * 60_000)
+  expect(wrapper.get('#status-signal').text()).toBe('暂无法确认状态')
+  expect(wrapper.get('.status-resource strong').text()).toBe('—')
+  expect(wrapper.find('.resource-history').exists()).toBe(true)
+  await vi.advanceTimersByTimeAsync(5 * 60_000)
+  expect(wrapper.find('.resource-history').exists()).toBe(true)
+  expect(wrapper.get('.status-infra').text()).toContain('历史数据暂未更新')
+  await vi.advanceTimersByTimeAsync(40 * 60_000)
+  expect(wrapper.find('.resource-history').exists()).toBe(false)
+})
+
+it('renders a history-only response without treating the probe as healthy', async () => {
+  const data = JSON.parse(readFileSync('test/fixtures/status-history-only.json', 'utf8')).result as StatusSnapshot
+  vi.mocked(getStatus).mockResolvedValue(data)
+  const wrapper = await open()
+  expect(wrapper.get('#status-signal').text()).toBe('暂无法确认状态')
+  expect(wrapper.get('.status-resource strong').text()).toBe('—')
+  expect(wrapper.get('.status-resource p').text()).toBe('—')
+  expect(wrapper.find('.resource-history').exists()).toBe(true)
+})
+
 it('switches resource history independently and hides the previous scope while loading', async () => {
   const wrapper = await open()
   let resolveDay!: (value: StatusSnapshot) => void
@@ -212,4 +236,26 @@ it('keeps the other panels usable when the device report is unavailable or parti
   vi.mocked(getStatus).mockResolvedValueOnce(partial)
   await wrapper.get('.status-refresh').trigger('click'); await flushPromises()
   expect(wrapper.get('.status-devices').text()).toContain('1,000 / 1,200')
+})
+
+it('polls once a minute and ages analytics independently of live health', async () => {
+  const data = connected()
+  data.traffic.fetchedAt = new Date(Date.now() - 14 * 60_000).toISOString()
+  data.devices.fetchedAt = new Date(Date.now() - 65 * 60_000).toISOString()
+  vi.mocked(getStatus).mockResolvedValue(data)
+  const wrapper = await open()
+  expect(wrapper.get('.status-traffic .source-badge').classes()).toContain('connected')
+  expect(wrapper.get('.status-devices .source-badge').classes()).toContain('connected')
+  await vi.advanceTimersByTimeAsync(30_000)
+  expect(getStatus).toHaveBeenCalledTimes(1)
+  await vi.advanceTimersByTimeAsync(30_000)
+  expect(getStatus).toHaveBeenCalledTimes(2)
+  await vi.advanceTimersByTimeAsync(6 * 60_000)
+  expect(wrapper.get('.status-traffic .source-badge').classes()).not.toContain('connected')
+  expect(wrapper.get('.status-devices .source-badge').classes()).not.toContain('connected')
+  expect(wrapper.get('#status-signal').text()).toBe('暂无法确认状态')
+  vi.mocked(getStatus).mockRejectedValue(new Error('offline'))
+  await vi.advanceTimersByTimeAsync(120 * 60_000)
+  expect(wrapper.find('.device-sankey').exists()).toBe(false)
+  expect(wrapper.get('.metric-active strong').text()).toBe('—')
 })

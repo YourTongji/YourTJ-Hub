@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-09-28
+> Last verified: 2026-09-30
 
 ## 应用边界
 
@@ -40,11 +40,17 @@ Uptime Kuma 在独立于论坛的主机部署。产品口径见[运行状态](..
 独立构建状态站。PR 使用 Deploy Preview。首次导入时，生产分支必须已经包含
 `apps/status`；未发布的功能可通过预览验收，避免将缺少应用目录的分支作为首次生产构建输入。
 
-**Current**：配置通过 `scripts/ignore-build.mjs` 显式决定是否构建。Production 每次触发
-都构建，不因目录内容相同而跳过；Deploy Preview 与 branch deploy 仅在两个不同且可读取的
-提交之间确认 `apps/status` 无变化时跳过。没有缓存、缓存与当前提交相同、Git 比较失败或
-上下文未知时继续构建。脚本不依赖已安装的 npm 包，并记录上下文、比较提交及决定原因。
-这会增加生产构建次数，但预览构建成功不能替代正式发布。
+**Current**：配置通过 `scripts/ignore-build.mjs` 显式决定是否构建。Production 使用 Netlify
+内置 `URL` 指向的正式域名读取 `/status-build.json`，仅在记录为 production 且
+`apps/status` 的 Git tree 与当前提交完全一致时跳过。该记录随站点产物发布，失败构建和
+Deploy Preview 不能推进正式版本。请求超时、记录缺失/无效、无法读取 Git tree 时继续构建。
+记录不含配置或凭据，并设置 `Cache-Control: no-store`。
+
+Deploy Preview 与 branch deploy 仍仅在两个不同且可读取的缓存提交之间确认
+`apps/status` 无变化时跳过。未知上下文、无缓存和缓存指向当前提交时继续构建。
+**仅修改环境变量或需要强制重发**时，使用 Retry with cleared cache，或为构建临时设置
+`STATUS_FORCE_BUILD=true`；重发完成后移除该覆盖。生产比较不以预览构建缓存作为上线证明。
+脚本只依赖 Node 内置模块，记录比较提交及决定原因。
 
 ## 2. 配置 Functions 环境变量
 
@@ -74,18 +80,19 @@ Uptime Kuma 在独立于论坛的主机部署。产品口径见[运行状态](..
 函数获得新配置。通用 `.env.example` 默认关闭且来源为空；不要把这些变量改成 `VITE_*`。
 
 部署预览如需真实数据，可给 Deploy Previews 上下文设置同样的公开来源变量，然后手动
-运行两项采集函数。它使用按部署 ID 隔离的 Blobs store，不读取或覆盖正式快照。
+运行三项采集函数。它使用按部署 ID 隔离的 Blobs store，不读取或覆盖正式快照。
 只给 Production 配置变量时，预览显示「尚未连接」属于正常行为。
 
 ## 3. 首次采集与检查
 
-发布完成后，在 Functions 页面确认三项函数：
+发布完成后，在 Functions 页面确认四项函数：
 
 - `collect-current`：每分钟采集 Uptime 可用性与 Komari 当前资源。
-- `collect-history`：每五分钟采集四个资源范围、三个访问统计范围和三个设备分布范围。
+- `collect-history`：每十五分钟采集四个资源范围和三个访问统计范围。
+- `collect-devices`：每小时第七分钟采集三个设备分布范围，与整点历史任务错开。
 - `status`：`GET /api/status`，只读取快照，不触发上游采集。
 
-对两个采集函数分别点击 **Run now**，然后打开已分配的 Netlify 站点域名查看页面。
+对三个采集函数分别点击 **Run now**，然后打开已分配的 Netlify 站点域名查看页面。
 首次采集之前显示「暂时不可用」；history 采集之前可以显示当前资源但缺少曲线。
 定时函数仅对 published deploy 自动运行；Deploy Preview 和本地环境要手动触发。
 
@@ -109,19 +116,24 @@ Uptime Kuma 在独立于论坛的主机部署。产品口径见[运行状态](..
 
 ## 5. 故障与发布验收
 
-- GitHub Release 成功后，单独确认 Netlify 的 Production 部署为 **Published**，且提交
-  与本次 `main` 发布一致；Deploy Preview 的 Completed 不代表正式域名已更新。
+- GitHub Release 成功后，确认正式 `/status-build.json` 的 tree 与当前 `main` 的
+  `git rev-parse main:apps/status` 一致；状态站无变化时允许跳过新的生产部署。
+  有变化时确认新 Production 部署为 **Published**；Deploy Preview 的 Completed 不代表上线。
 - 若构建在 `checking build content for changes` 阶段取消，确认加载的是
-  `apps/status/netlify.toml`，日志执行了 `node ./scripts/ignore-build.mjs`，并显示生产构建
-  继续的原因。配置修复进入 `main` 后，可从 Deploys → Trigger deploy 重新触发生产部署。
-- 确认两个函数按计划继续产生新快照，而非仅 Run now 成功。
+  `apps/status/netlify.toml`，日志执行了 `node ./scripts/ignore-build.mjs`。出现
+  `Skip: status source tree already published in production` 表示正常跳过；其他取消原因
+  需排查。仅更新环境变量或需要强制部署时，使用前述强制重建方式。
+- 确认三个采集函数按计划继续产生新快照，而非仅 Run now 成功。
 - 若采集日志正常但 API 全部返回 `unavailable`，检查 Blobs 的 `status-v1` 下是否有
-  新快照；生产采集不应写入当前部署 ID 对应的 preview store。修复部署后运行两项采集
+  新快照；生产采集不应写入当前部署 ID 对应的 preview store。修复部署后运行三项采集
   函数即可重新获取当前数据及上游历史，无需搬移旧 preview store 的短期快照。
 - 模拟论坛连接不可用时，状态站静态页面及 API 仍正常提供服务。
 - 单个来源超时，其余面板仍可读取。刷新旧快照不能把原始采样时间更新为当前时间。
-- 当前资源／可用性获取时间超过 150 秒、统计／历史超过十分钟即过期；全部来源最长
-  展示十五分钟前的成功数据，超过后显示不可用。最新检测与主机采样时间也独立判断。
+- 当前资源／可用性获取时间超过 150 秒、统计／历史超过二十分钟、设备超过七十分钟
+  即过期；保留上限分别为十五分钟、一小时、三小时。超过后显示不可用，失败采集不能
+  更新成功时间。最新检测与主机采样时间也独立判断，不能用低频报表判断服务健康。
+- 实时采集失败超过十五分钟时，当前资源卡显示不可用，仍在一小时保留期内的历史
+  曲线继续展示。历史没有可用实时采样时也可独立返回；不能因此把当前服务标为正常。
 - 切换 `1h/6h/24h/7d` 与 `24h/7d/30d`，确认曲线所属范围和时间正确。
 - 设备分布默认 `7d`，切换范围不改变访问趋势或服务器范围；人数应与相同时间窗口的
   联合报表对齐。报表超过 500 行或人数不全时显示覆盖提示。停用／更换账号会隔离旧
@@ -132,9 +144,11 @@ Functions 日志只用于诊断执行失败，不应记录上游原始响应、�
 采集器失败应结合页面的 `fetchedAt` 与 Functions 日志排查。关闭 `STATUS_ENABLED` 并
 重新部署可停止外部采集与公开旧快照读取；保留的旧 Blobs 数据可在控制台清除。
 
-Netlify 的 compute、带宽、请求和正式部署使用套餐额度。按当前额度规则，团队额度耗尽
-会暂停其站点；正式运行应核对套餐并配置额度通知，按需选择付费额度或自动充值。
-本应用不更改账户计费设置。
+Netlify 的 compute、带宽、请求和正式部署使用套餐额度。额度不足可能先暂停生产部署，
+剩余 operational credits 仅支持站点继续运行，以账户账单页为准。本应用不改变计费设置。
+所有来源启用且不含重试时，每天历史采集 96 轮、设备采集 24 轮、实时采集 1,440 轮，
+共写入约 3,624 个快照；实际 credits 取决于函数内存、耗时和访问量，不能按调用次数
+直接换算。浏览器轮询间隔为一分钟，API 的 CDN 缓存上限为三十秒。
 
 ## 官方参考
 

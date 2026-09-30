@@ -79,7 +79,7 @@ export default {
     probeNote: "サービス状態は独立したアクセス監視、ホスト稼働時間とリソース使用量はサーバープローブに基づきます。",
     refresh: "更新",
     refreshing: "更新中",
-    autoRefresh: "30秒ごとにデータを確認",
+    autoRefresh: "60秒ごとにデータを確認",
     updated: "更新：{time}",
     sampleTime: "プローブ計測：{time}",
     loadFailed: "更新に失敗しました。前回取得したデータを表示しています。",

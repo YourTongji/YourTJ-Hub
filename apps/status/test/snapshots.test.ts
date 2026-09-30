@@ -35,7 +35,7 @@ it('a slow older run cannot overwrite the newer successful snapshot', async () =
 })
 it('separates live metrics from history freshness and never invokes upstreams on reads', async () => {
   const {store}=memoryStore()
-  for (const [provider,part,data,age] of [ ['komari','current',fixture.server.data,0],['komari','history-24h',{history:fixture.server.data!.history,historyAvailable:true},660000],['umami','7d',fixture.traffic.data,240000],['uptime','current',fixture.uptime.data,0] ] as const) {
+  for (const [provider,part,data,age] of [ ['komari','current',fixture.server.data,0],['komari','history-24h',{history:fixture.server.data!.history,historyAvailable:true},1260000],['umami','7d',fixture.traffic.data,240000],['uptime','current',fixture.uptime.data,0] ] as const) {
     await store.write(cacheKey(config,provider,part),{attemptedAt:now-age,fetchedAt:new Date(now-age).toISOString(),data,failed:false})
   }
   const fetcher=vi.spyOn(globalThis,'fetch').mockRejectedValue(new Error('must not fetch'))
@@ -45,9 +45,22 @@ it('separates live metrics from history freshness and never invokes upstreams on
     expect(result.server.state).toBe('ok');expect(result.server.data!.historyStale).toBe(true)
     expect(result.traffic.state).toBe('ok');expect(result.uptime.state).toBe('ok')
     expect(fetcher).not.toHaveBeenCalled()
-    expect(response.headers.get('Netlify-CDN-Cache-Control')).toContain('max-age=15')
+    expect(response.headers.get('Netlify-CDN-Cache-Control')).toContain('max-age=30')
     expect(response.headers.get('Netlify-Vary')).toBe('query=range|serverRange|deviceRange')
   } finally { fetcher.mockRestore() }
+})
+it.each([false, true])('serves retained resource history without current readings (previous current: %s)', async hasCurrent => {
+  const { store } = memoryStore()
+  if (hasCurrent) await store.write(cacheKey(config, 'komari', 'current'), { attemptedAt: now, fetchedAt: new Date(now).toISOString(), data: fixture.server.data, failed: false })
+  const history = { history: fixture.server.data!.history, historyAvailable: true }
+  await store.write(cacheKey(config, 'komari', 'history-1h'), { attemptedAt: now, fetchedAt: new Date(now).toISOString(), data: history, failed: false })
+  const read = async (age: number) => (await (await serveSnapshot(new Request('https://status.example.com/api/status'), store, config, now + age)).json()).result as StatusSnapshot
+  for (const age of [16 * 60_000, 21 * 60_000, 60 * 60_000]) {
+    const result = await read(age)
+    expect(result.server).toMatchObject({ state: 'unavailable', data: { current: null, cpuCores: null, ...history, historyFetchedAt: new Date(now).toISOString(), historyStale: age > 20 * 60_000 } })
+    expect(result.server.fetchedAt).toBeUndefined()
+  }
+  expect((await read(60 * 60_000 + 1)).server).toEqual({ state: 'unavailable', data: null })
 })
 it('does not read previous source data when configuration is changed or disabled', async () => {
   const {store}=memoryStore()

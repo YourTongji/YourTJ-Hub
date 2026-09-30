@@ -25,6 +25,11 @@
   status = 301
 
 [[headers]]
+  for = "/status-build.json"
+  [headers.values]
+    Cache-Control = "no-store"
+
+[[headers]]
   for = "/*"
   [headers.values]
     X-Content-Type-Options = "nosniff"

@@ -82,15 +82,15 @@ it('isolates device freshness, credentials, and range from other snapshots', asy
   const request = (query = '') => new Request(`https://status.example.com/api/status${query}`)
   const read = async (cfg = config, time = now, query = '') => (await (await serveSnapshot(request(query), store, cfg, time)).json()).result
   expect((await read()).devices.state).toBe('ok')
-  expect((await read(config, now + 660000)).devices.state).toBe('stale')
-  expect((await read(config, now + 900001)).devices.data).toBeNull()
+  expect((await read(config, now + 4_200_001)).devices.state).toBe('stale')
+  expect((await read(config, now + 10_800_001)).devices.data).toBeNull()
   expect((await read(config, now, '?deviceRange=30d')).devices.state).toBe('unavailable')
   const revoked = { ...config, umami: { ...config.umami, username: undefined, password: undefined } }
   expect((await read(revoked)).devices.state).toBe('unconfigured')
   expect(cacheKey(revoked, 'umami', '7d')).toBe(cacheKey(config, 'umami', '7d'))
   expect((await read({ ...config, umami: { ...config.umami, password: 'changed' } })).devices.state).toBe('unavailable')
   const offline = vi.fn(async () => { throw new Error('private upstream failure') })
-  await collect('history', store, config, offline, () => now + 1000)
+  await collect('devices', store, config, offline, () => now + 1000)
   const stale = (await read(config, now + 1000)).devices
   expect(stale).toMatchObject({ state: 'stale', fetchedAt: new Date(now).toISOString() })
   expect(stale.data).not.toBeNull()
@@ -122,7 +122,7 @@ it.each([
   const keys: string[] = []
   const store: SnapshotStore = { read: async () => null, write: async key => { keys.push(key); return true } }
   const fetcher = vi.fn<typeof fetch>(async () => { throw new Error('offline') })
-  await collect('history', store, incomplete, fetcher, () => now)
+  await collect('devices', store, incomplete, fetcher, () => now)
   expect(fetcher.mock.calls.some(([url]) => String(url).includes('/api/auth/'))).toBe(false)
   expect(keys.some(key => key.includes('devices-'))).toBe(false)
   const response = await serveSnapshot(new Request('https://status.example.com/api/status'), store, incomplete, now)
