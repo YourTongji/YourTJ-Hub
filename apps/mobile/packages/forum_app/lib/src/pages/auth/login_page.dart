@@ -242,7 +242,11 @@ class _LoginPageState extends ConsumerState<LoginPage>
     try {
       await clear();
       return true;
-    } catch (_) {
+    } catch (error, stack) {
+      // Keep the login failure diagnosable without printing storage payloads,
+      // credentials or exception messages that may embed private values.
+      debugPrint('Session cache cleanup failed: ${error.runtimeType}');
+      debugPrintStack(stackTrace: stack);
       return false;
     }
   }

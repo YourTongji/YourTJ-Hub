@@ -170,6 +170,8 @@ retain that cleanup capability across a session-epoch change. Shared topic/chat 
 coordinated sweep before publishing the signed-out widget state; a failed deletion still prevents
 new credentials from being committed. Regression coverage must exercise the production provider graph
 and encrypted file-backed database, in addition to isolated owner tests.
+Failed cleanup records its stage, exception type and code stack in local diagnostics; exception
+messages and storage payloads are excluded so credentials and private content are not logged.
 
 A destructive local reset first flushes and verifies a content-free `reset.intent` marker in the
 backup-excluded private directory. This marker is outside cache databases, encryption keys and

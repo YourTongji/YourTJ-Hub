@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:core/core.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -107,6 +108,10 @@ void main() {
   test(
     'real provider cleanup retains failed media intent and recovers on retry',
     () => withStorage((container) async {
+      final diagnostics = <String>[];
+      final previousPrint = debugPrint;
+      debugPrint = (message, {wrapWidth}) => diagnostics.add(message ?? '');
+      addTearDown(() => debugPrint = previousPrint);
       final cachePath = await PathProviderPlatform.instance
           .getApplicationCachePath();
       final obstruction = File('$cachePath/yourtj_media_v1');
@@ -121,6 +126,11 @@ void main() {
       );
 
       await expectLater(clear(), throwsStateError);
+      expect(
+        diagnostics.join('\n'),
+        contains('Cache cleanup failed [media]: FileSystemException'),
+      );
+      expect(diagnostics.join('\n'), isNot(contains('directory unavailable')));
       expect(await coordinator.pending(), {CacheCategory.media});
       expect(db.available(CacheCategory.media), isFalse);
       expect(container.read(mediaRepositoryProvider).isSuspended, isTrue);

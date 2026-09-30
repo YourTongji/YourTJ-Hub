@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
+
 import '../offline/drift_cache.dart';
 
 /// A storage owner exposes lifecycle operations, not its business data.
@@ -125,19 +127,22 @@ class CacheCoordinator {
     final failed = <CacheCategory>{};
     try {
       await database.clearCategories(all);
-    } catch (_) {
+    } catch (error, stack) {
+      _reportFailure('database', error, stack);
       failed.addAll(all);
     }
     for (final category in all) {
       try {
         await owners[category]?.clear();
-      } catch (_) {
+      } catch (error, stack) {
+        _reportFailure(category.name, error, stack);
         failed.add(category);
       }
     }
     try {
       await database.compact();
-    } catch (_) {
+    } catch (error, stack) {
+      _reportFailure('compaction', error, stack);
       failed.addAll(all.difference({CacheCategory.media}));
     }
     if (failed.isEmpty) {
@@ -160,5 +165,12 @@ class CacheCoordinator {
       Set.unmodifiable(failed),
       (before - after).clamp(0, before),
     );
+  }
+
+  void _reportFailure(String stage, Object error, StackTrace stack) {
+    // Exception messages can contain SQL values or local user data. Log only
+    // the owner, exception class and code locations for on-device diagnosis.
+    debugPrint('Cache cleanup failed [$stage]: ${error.runtimeType}');
+    debugPrintStack(stackTrace: stack);
   }
 }
