@@ -109,6 +109,7 @@ func setupDirectUploadRouteTest(t *testing.T) (*gorm.DB, *gin.Engine, *routeFake
 		t.Fatalf("migrate filedata contract table: %v", err)
 	}
 	fileAPI := router.Group("/file")
+	fileAPI.POST("/img-upload", middleware.JWTAuthCheck, middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitUpload), api.SaveImgByGinContext)
 	fileAPI.POST("/img-upload/init", middleware.JWTAuthCheck, middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitUpload), api.InitDirectImageUpload)
 	fileAPI.POST("/img-upload/complete", middleware.JWTAuthCheck, middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitUpload), api.CompleteDirectImageUpload)
 	fileAPI.POST("/img-upload/abort", middleware.JWTAuthCheck, middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitUpload), api.AbortDirectImageUpload)
@@ -267,6 +268,54 @@ func TestDirectImageUploadCompleteRejectsForgedMIME(t *testing.T) {
 	if _, ok := provider.objects[name]; ok {
 		t.Fatal("invalid object still present after rejected complete")
 	}
+}
+
+// routeHEICHeader 是 ISO-BMFF ftyp 主品牌为 heic 的 16 字节头，供「已知但
+// 不支持格式」的稳定码断言使用。
+var routeHEICHeader = []byte{
+	0x00, 0x00, 0x00, 0x18, 'f', 't', 'y', 'p', 'h', 'e', 'i', 'c', 0x00, 0x00, 0x00, 0x00,
+}
+
+// TestDirectImageUploadCompleteContentFailureCodes 验证直传 complete 路径把
+// 内容校验失败分成可区分的稳定码（issue 966 建议项）：空对象 → upload.image.empty；
+// HEIC/AVIF 字节 → upload.image.unsupported；伪造/不匹配仍是
+// upload.image.invalidContent（既有断言见 TestDirectImageUploadCompleteRejectsForgedMIME）。
+func TestDirectImageUploadCompleteContentFailureCodes(t *testing.T) {
+	t.Run("empty object reports upload.image.empty", func(t *testing.T) {
+		conn, router, provider := setupDirectUploadRouteTest(t)
+		user := createHTTPContractUser(t, conn, contractTestID())
+		token := contractSessionToken(t, user)
+		// 通过 init 不可能声明 0 字节（init 自身就回 empty），这里直接建 pending
+		// 元数据行模拟浏览器上传了 0 字节对象。
+		name := storageservice.NewUploadName("empty.png", "2026/10/01")
+		if _, err := filedata.CreateFileMetadata(context.Background(), user.Id, name, "image/png", 0); err != nil {
+			t.Fatalf("create pending metadata: %v", err)
+		}
+		provider.objects[name] = routeFakeObject{data: []byte{}, contentType: "image/png"}
+
+		recorder := serveDirectUploadJSON(router, http.MethodPost, "/file/img-upload/complete",
+			mustMarshalJSON(t, map[string]string{"name": name}), token)
+		if got := decodeContractEnvelope(t, recorder).MessageCode; got != "upload.image.empty" {
+			t.Fatalf("complete messageCode = %q, want upload.image.empty", got)
+		}
+	})
+
+	t.Run("heic bytes under an allowed png name report unsupported", func(t *testing.T) {
+		conn, router, provider := setupDirectUploadRouteTest(t)
+		user := createHTTPContractUser(t, conn, contractTestID())
+		token := contractSessionToken(t, user)
+		_, name := directUploadInit(t, router, token, "photo.png", int64(len(routeHEICHeader)))
+		if name == "" {
+			t.Fatal("init returned empty name")
+		}
+		provider.objects[name] = routeFakeObject{data: routeHEICHeader, contentType: "image/png"}
+
+		recorder := serveDirectUploadJSON(router, http.MethodPost, "/file/img-upload/complete",
+			mustMarshalJSON(t, map[string]string{"name": name}), token)
+		if got := decodeContractEnvelope(t, recorder).MessageCode; got != "upload.image.unsupported" {
+			t.Fatalf("complete messageCode = %q, want upload.image.unsupported", got)
+		}
+	})
 }
 
 func TestDirectImageUploadCompleteOwnerMismatch(t *testing.T) {

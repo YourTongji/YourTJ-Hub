@@ -2597,8 +2597,9 @@ export default {
         unsupported: '未対応のファイル形式です。利用可能な形式: {extensions}',
       },
       image: {
+        empty: '画像データが空です。ファイルを選択し直してください',
         unsupported: '未対応の画像形式です。JPG、PNG、GIF、WebP、BMP に対応しています',
-        invalidContent: 'ファイル内容が有効な画像ではありません',
+        invalidContent: '画像の内容が拡張子と一致しないか、破損しています',
       },
       readFailed: 'ファイルの読み込みに失敗しました。再試行してください',
       openFailed: 'ファイルを開けませんでした',

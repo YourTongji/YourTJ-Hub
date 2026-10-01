@@ -2597,8 +2597,9 @@ export default {
         unsupported: 'Nicht unterstütztes Dateiformat. Zulässige Formate: {extensions}',
       },
       image: {
+        empty: 'Bildinhalt ist leer. Bitte wähle die Datei erneut',
         unsupported: 'Nicht unterstütztes Bildformat. Zulässig sind JPG, PNG, GIF, WebP und BMP',
-        invalidContent: 'Der Dateiinhalt ist kein gültiges Bild',
+        invalidContent: 'Bildinhalt passt nicht zur Dateiendung oder ist beschädigt',
       },
       readFailed: 'Lesen der Datei fehlgeschlagen. Versuche es erneut',
       openFailed: 'Öffnen der Datei fehlgeschlagen',

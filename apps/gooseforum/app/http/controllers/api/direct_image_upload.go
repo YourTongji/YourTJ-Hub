@@ -82,7 +82,8 @@ func CompleteDirectImageUpload(c *gin.Context) {
 		Name: request.Name, UserId: userId,
 		Validator: func(reader io.Reader, contentType string) error {
 			err := validateUploadedImage(reader, contentType)
-			if errors.Is(err, errInvalidImageContent) {
+			if imageContentViolation(err) {
+				// 保留原始 sentinel，让 writeDirectUploadError 能映射到具体稳定码。
 				return errors.Join(storageservice.ErrDirectUploadInvalidObject, err)
 			}
 			return err
@@ -138,7 +139,8 @@ func AbortDirectImageUpload(c *gin.Context) {
 
 func writeDirectUploadError(c *gin.Context, err error) {
 	// 业务失败统一走 200 信封（仓库约定）：未知/越权 name 返回 page.notFound，
-	// 伪造对象返回 upload.image.invalidContent，存储失败返回 upload.saveFailed。
+	// 伪造/无效对象按内容校验 sentinel 返回具体稳定码（empty/unsupported/
+	// invalidContent），存储失败返回 upload.saveFailed。
 	// 400 仅保留给请求解析失败（ShouldBindJSON）。
 	switch {
 	case errors.Is(err, storageservice.ErrDirectUploadMetadataNotFound):
@@ -146,7 +148,7 @@ func writeDirectUploadError(c *gin.Context, err error) {
 	case errors.Is(err, storageservice.ErrDirectUploadOwnerMismatch):
 		c.JSON(http.StatusOK, component.FailDataCode(component.MessagePageNotFound, nil))
 	case errors.Is(err, storageservice.ErrDirectUploadInvalidObject):
-		c.JSON(http.StatusOK, component.FailDataCode(component.MessageUploadInvalidImage, nil))
+		c.JSON(http.StatusOK, component.FailDataCode(imageContentFailureCode(err), nil))
 	case errors.Is(err, storageservice.ErrDirectUploadUnsupported):
 		c.JSON(http.StatusOK, component.FailDataCode(component.MessageUploadSaveFailed, component.MessageParams{"error": err.Error()}))
 	default:

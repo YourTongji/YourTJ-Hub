@@ -2600,8 +2600,9 @@ export default {
         unsupported: '不支持的文件格式，允许的格式为: {extensions}',
       },
       image: {
+        empty: '没有收到图片内容，请重新选择文件',
         unsupported: '不支持的图片格式，仅支持 JPG、PNG、GIF、WebP、BMP 格式',
-        invalidContent: '文件内容不是有效的图片格式',
+        invalidContent: '图片内容与扩展名不符或已损坏',
       },
       readFailed: '文件读取失败，请重试',
       openFailed: '打开文件失败',
