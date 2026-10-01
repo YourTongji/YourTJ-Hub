@@ -60,8 +60,12 @@ func runRebuildSQLiteIndexes(cmd *cobra.Command, _ []string) error {
 	}
 	// VACUUM reclaims the pages freed by the dropped indexes; it cannot run
 	// inside a transaction, so it executes after the rebuild has committed.
-	if err = db.Exec("VACUUM").Error; err != nil {
-		return fmt.Errorf("vacuum default sqlite db: %w", err)
+	// Skip it when nothing was rebuilt to avoid rewriting the whole file under
+	// an exclusive lock for no benefit.
+	if len(rebuilt) > 0 {
+		if err = db.Exec("VACUUM").Error; err != nil {
+			return fmt.Errorf("vacuum default sqlite db: %w", err)
+		}
 	}
 	fmt.Printf("total duration: %s\n", time.Since(totalStart).Round(time.Millisecond))
 	return nil
