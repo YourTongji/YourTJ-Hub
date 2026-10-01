@@ -27,7 +27,7 @@ def render(manifest, folder, response, model_input, replace=False):
         filename = FILES.get(channel, "operators.zh-CN.md")
         path = folder / filename
         require(not path.is_symlink(), 'Cannot render through a symlink')
-        if path.exists() and "[DRAFT:" not in path.read_text() and not replace:
+        if path.exists() and "[DRAFT:" not in path.read_text(encoding='utf-8') and not replace:
             raise ReleaseError(f"Preserving human edits in {filename}; explicit regeneration requires new review")
         lines = entries[channel]
         for disclosure in manifest["requiredDisclosures"]:
@@ -38,14 +38,14 @@ def render(manifest, folder, response, model_input, replace=False):
     # Validate the complete proposed set before changing any existing human/draft file.
     with tempfile.TemporaryDirectory() as temporary:
         for filename, text in rendered.items():
-            (Path(temporary) / filename).write_text(text)
+            (Path(temporary) / filename).write_text(text, encoding='utf-8')
         validate_candidate(manifest, temporary, draft=True)
     for filename, text in rendered.items():
-        (folder / filename).write_text(text)
+        (folder / filename).write_text(text, encoding='utf-8')
     evidence_path = folder / "evidence.json"
-    record = json.loads(evidence_path.read_text())
+    record = json.loads(evidence_path.read_text(encoding='utf-8'))
     record["draft"] = {"model": response["model"], "promptVersion": 1,
                        "inputSha256": response["inputSha256"], "entries": result["entries"],
                        "uncertainties": result["uncertainties"]}
-    evidence_path.write_text(json.dumps(record, ensure_ascii=False, indent=2) + "\n")
+    evidence_path.write_text(json.dumps(record, ensure_ascii=False, indent=2) + "\n", encoding='utf-8')
     validate_candidate(manifest, folder, draft=True)

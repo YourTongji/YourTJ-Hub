@@ -10,7 +10,7 @@ import subprocess
 
 
 def stage(dist, destination, source_sha, version):
-    artifacts = json.loads((dist / 'artifacts.json').read_text())
+    artifacts = json.loads((dist / 'artifacts.json').read_text(encoding='utf-8'))
     matches = [a for a in artifacts if a['type'] == 'Binary' and a.get('goos') == 'linux' and a.get('goarch') == 'amd64']
     if len(matches) != 1:
         raise ValueError('Expected exactly one GoReleaser linux/amd64 binary')
@@ -31,7 +31,7 @@ def stage(dist, destination, source_sha, version):
     shutil.copyfile(binary, destination / 'yourtj-hub')
     (destination / 'yourtj-hub').chmod(0o755)
     receipt = {'sourceSha': source_sha, 'version': version, 'binarySha256': hashlib.sha256(binary.read_bytes()).hexdigest()}
-    (destination / 'binary.json').write_text(json.dumps(receipt, indent=2) + '\n')
+    (destination / 'binary.json').write_text(json.dumps(receipt, indent=2) + '\n', encoding='utf-8')
     return receipt
 
 

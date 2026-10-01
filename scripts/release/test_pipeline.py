@@ -50,8 +50,8 @@ class PipelineTest(unittest.TestCase):
                 return {'number': 12, 'head': {'sha': 'a' * 40, 'repo': {'full_name': self.repository}}}
         def materialize(candidate_id, sha, folder, draft):
             folder = Path(folder)
-            (folder / 'manifest.json').write_text(json.dumps(manifest))
-            for name in manifest['notes'].values(): (folder / name).write_text('[DRAFT: human review required]')
+            (folder / 'manifest.json').write_text(json.dumps(manifest), encoding='utf-8')
+            for name in manifest['notes'].values(): (folder / name).write_text('[DRAFT: human review required]', encoding='utf-8')
         args = parser().parse_args(['status', '--candidate', manifest['candidateId'], '--json'])
         with patch('cli.git') as git, patch('cli.load_candidate', side_effect=materialize):
             result = execute(args, Remote())
@@ -74,7 +74,7 @@ class PipelineTest(unittest.TestCase):
         manifest = candidate()
         request = {'evidence': [{'id': 'android-fix', 'channels': ['android']}, {'id': 'ios-fix', 'channels': ['ios-testflight']}]}
         raw = json.dumps(request).encode()
-        (self.root / 'evidence.json').write_text(json.dumps({'schemaVersion': 1, 'sourceSha': manifest['sourceSha']}))
+        (self.root / 'evidence.json').write_text(json.dumps({'schemaVersion': 1, 'sourceSha': manifest['sourceSha']}), encoding='utf-8')
         response = {'schemaVersion': 1, 'promptVersion': 1, 'model': 'oryn/test', 'inputSha256': hashlib.sha256(raw).hexdigest(),
                     'output': {'schemaVersion': 1, 'entries': [{'channel': 'android', 'text': '修复 Android 相机返回。', 'evidenceIds': ['android-fix']},
                                 {'channel': 'ios-testflight', 'text': 'Test iOS widgets.', 'evidenceIds': ['ios-fix']}], 'uncertainties': []}}
@@ -85,9 +85,9 @@ class PipelineTest(unittest.TestCase):
         render(manifest, self.root, response, raw)
         validate_candidate(manifest, self.root)
         note = self.root / 'android.zh-CN.md'
-        note.write_text('人工修改后的 Android 说明。')
+        note.write_text('人工修改后的 Android 说明。', encoding='utf-8')
         with self.assertRaises(ReleaseError): render(manifest, self.root, response, raw)
-        self.assertEqual(note.read_text(), '人工修改后的 Android 说明。')
+        self.assertEqual(note.read_text(encoding='utf-8'), '人工修改后的 Android 说明。')
         response['inputSha256'] = '0' * 64
         with self.assertRaises(ReleaseError): render(manifest, self.root, response, raw, replace=True)
 
@@ -103,12 +103,12 @@ class PipelineTest(unittest.TestCase):
             return git('rev-parse', 'HEAD')
         path = self.root / 'apps/mobile/packages/forum_app/ios/Widget.swift'
         path.parent.mkdir(parents=True)
-        path.write_text('old widget\n')
+        path.write_text('old widget\n', encoding='utf-8')
         base = commit('initial')
         shared = self.root / 'apps/mobile/packages/forum_app/lib/shared.dart'
-        shared.parent.mkdir(); shared.write_text('temporary feature\n'); commit('temporary')
+        shared.parent.mkdir(); shared.write_text('temporary feature\n', encoding='utf-8'); commit('temporary')
         shared.unlink(); commit('revert temporary')
-        path.write_text('new widget\n'); source = commit('widget behavior')
+        path.write_text('new widget\n', encoding='utf-8'); source = commit('widget behavior')
         manifest = candidate() | {'sourceSha': source, 'baselines': {'android': {'tag': 'mobile-v1.0.14', 'sourceSha': base},
                                                                            'ios-testflight': {'tag': 'mobile-v1.0.13', 'sourceSha': base}}}
         with patch('collect.git', side_effect=git):

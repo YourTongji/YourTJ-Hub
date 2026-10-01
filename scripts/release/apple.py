@@ -45,4 +45,4 @@ def discover():
 
 
 if __name__ == '__main__':
-    Path(sys.argv[1]).write_text(json.dumps(discover(), indent=2) + '\n')
+    Path(sys.argv[1]).write_text(json.dumps(discover(), indent=2) + '\n', encoding='utf-8')

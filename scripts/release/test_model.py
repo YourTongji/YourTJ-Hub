@@ -27,13 +27,13 @@ class CandidateTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.path = Path(self.temp.name)
-        (self.path / "android.zh-CN.md").write_text("改善 Android 聊天图片显示。\n")
-        (self.path / "testflight.en-US.txt").write_text("Test iOS widgets after changing courses.\n")
+        (self.path / "android.zh-CN.md").write_text("改善 Android 聊天图片显示。\n", encoding='utf-8')
+        (self.path / "testflight.en-US.txt").write_text("Test iOS widgets after changing courses.\n", encoding='utf-8')
 
     def test_platform_files_and_identity_are_bound(self):
         manifest = candidate()
         original = validate_candidate(manifest, self.path)
-        (self.path / "android.zh-CN.md").write_text("改善 Android 搜索。\n")
+        (self.path / "android.zh-CN.md").write_text("改善 Android 搜索。\n", encoding='utf-8')
         self.assertNotEqual(original, validate_candidate(manifest, self.path))
 
     def test_rejects_self_approval_unknown_channels_and_cross_platform_file(self):
@@ -45,11 +45,14 @@ class CandidateTests(unittest.TestCase):
 
     def test_symlink_and_empty_draft_cannot_publish(self):
         note = self.path / "android.zh-CN.md"
-        note.write_text("[DRAFT: human review required]\n")
+        note.write_text("[DRAFT: human review required]\n", encoding='utf-8')
         with self.assertRaises(ReleaseError):
             validate_candidate(candidate(), self.path)
         note.unlink()
-        note.symlink_to(self.path / "testflight.en-US.txt")
+        try:
+            note.symlink_to(self.path / "testflight.en-US.txt")
+        except OSError:
+            self.skipTest("Symlink creation is unavailable on this host")
         with self.assertRaises(ReleaseError):
             validate_candidate(candidate(), self.path)
 
@@ -58,14 +61,14 @@ class CandidateTests(unittest.TestCase):
                                   "baselines": {"ios-app-store": {"tag": None, "sourceSha": None}}}
         note = self.path / "ios.zh-Hans.txt"
         for text in ["x" * 4001, "[click](https://example.org)", "# Heading"]:
-            note.write_text(text)
+            note.write_text(text, encoding='utf-8')
             with self.assertRaises(ReleaseError):
                 validate_candidate(manifest, self.path)
-        note.write_text("改进 iOS 小组件。")
+        note.write_text("改进 iOS 小组件。", encoding='utf-8')
         manifest["requiredDisclosures"] = [{"id": "analytics", "channels": ["ios-app-store"], "text": "自动统计"}]
         with self.assertRaises(ReleaseError):
             validate_candidate(manifest, self.path)
-        note.write_text("改进 iOS 小组件。自动统计")
+        note.write_text("改进 iOS 小组件。自动统计", encoding='utf-8')
         validate_candidate(manifest, self.path)
 
     def test_explicit_scope(self):

@@ -18,17 +18,17 @@ class AndroidPublishTest(unittest.TestCase):
             sdk = root / 'sdk/build-tools/37.0.0'; sdk.mkdir(parents=True)
             source = root / 'apps/mobile/packages/forum_app/build/app/outputs/flutter-apk'; source.mkdir(parents=True)
             certificate = 'a' * 64
-            (root / 'apps/mobile/release-config.json').write_text(json.dumps({'androidCertificateSha256': certificate}))
+            (root / 'apps/mobile/release-config.json').write_text(json.dumps({'androidCertificateSha256': certificate}), encoding='utf-8')
             for abi in publisher.ABIS:
                 (source / f'app-{abi}-release.apk').write_bytes(('original signed fixture ' + abi).encode())
-            note = root / 'android.zh-CN.md'; note.write_text('修复 Android 图片选择后显示异常。')
+            note = root / 'android.zh-CN.md'; note.write_text('修复 Android 图片选择后显示异常。', encoding='utf-8')
             release, writes, interrupt = None, [], True
             def gh(*args, **kwargs):
                 nonlocal release, interrupt
                 if args[:2] == ('release','view'):
                     return json.dumps({'databaseId': 1}) if release else None
                 if args[:2] == ('release','create'):
-                    release = {'id': 1, 'draft': True, 'body': Path(args[args.index('--notes-file')+1]).read_text(), 'assets': []}
+                    release = {'id': 1, 'draft': True, 'body': Path(args[args.index('--notes-file')+1]).read_text(encoding='utf-8'), 'assets': []}
                     writes.append('create'); return ''
                 if args[0] == 'api': return json.dumps(release)
                 if args[:2] == ('release','upload'):
@@ -48,18 +48,21 @@ class AndroidPublishTest(unittest.TestCase):
                 code = publisher.android_version_code('16', abi)
                 return f"package: name='tj.yourtj.forum_app' versionCode='{code}' versionName='1.0.15'\nnative-code: '{abi}'"
             env = {'MOBILE_VERSION':'1.0.15','MOBILE_BUILD_NUMBER':'16','RELEASE_TAG':'mobile-v1.0.15',
-                   'ANDROID_HOME':str(root/'sdk'),'ANDROID_NOTES_PATH':str(note)}
+                   'ANDROID_HOME':str(root/'sdk'),'ANDROID_NOTES_PATH':str(note),
+                   'RELEASE_NOTES_DIGESTS':json.dumps({'android.zh-CN.md': hashlib.sha256(note.read_bytes()).hexdigest()})}
             with patch.object(publisher, 'ROOT', root), patch.object(publisher, 'gh', side_effect=gh), patch.object(publisher.subprocess, 'check_output', side_effect=apk_tool), patch.dict(os.environ, env), patch.object(sys, 'argv', ['publish_android.py']):
                 with self.assertRaisesRegex(RuntimeError, 'interrupted'): publisher.main()
                 self.assertTrue(release['draft'])
                 publisher.main()
                 self.assertFalse(release['draft'])
                 self.assertEqual(len(release['assets']), 4)
-                self.assertEqual(release['body'].strip(), note.read_text())
+                self.assertEqual(release['body'].strip(), note.read_text(encoding='utf-8'))
                 previous = list(writes); publisher.main(); self.assertEqual(writes, previous)
                 (source / 'app-arm64-v8a-release.apk').write_bytes(b'different signed bytes')
                 with self.assertRaisesRegex(ValueError, 'different bytes'): publisher.main()
                 self.assertEqual(writes, previous)
+                release['body'] = None
+                with self.assertRaisesRegex(ValueError, 'notes differ'): publisher.main()
 
 
 if __name__ == '__main__': unittest.main()

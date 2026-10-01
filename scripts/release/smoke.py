@@ -15,8 +15,8 @@ def main():
     args = parser.parse_args()
     folder = Path('.release-smoke')
     if args.render:
-        manifest = json.loads((folder / 'candidate/manifest.json').read_text())
-        response = json.loads((folder / 'output.json').read_text())
+        manifest = json.loads((folder / 'candidate/manifest.json').read_text(encoding='utf-8'))
+        response = json.loads((folder / 'output.json').read_text(encoding='utf-8'))
         render(manifest, folder / 'candidate', response, (folder / 'input.json').read_bytes())
         print('Live Oryn replay rendered independent drafts. Human review and all publishing remain disabled.')
         return

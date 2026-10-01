@@ -68,6 +68,11 @@ def read_note(folder, name, channel, draft=False):
     path = Path(folder) / name
     require(path.is_file() and not path.is_symlink(), f"Missing or symlinked note: {name}")
     text = path.read_text(encoding="utf-8").strip()
+    return validate_note_text(text, name, channel, draft)
+
+
+def validate_note_text(text, name, channel, draft=False):
+    """Shared shape rules for candidate validation and the bytes read by publishers."""
     require(text and "\x00" not in text and len(text) <= (4000 if channel.startswith("ios-") else 16000),
             f"Empty or oversized note: {name}")
     require(draft or "[DRAFT:" not in text, f"Unfinished draft: {name}")

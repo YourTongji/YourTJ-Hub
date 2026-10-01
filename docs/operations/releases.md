@@ -46,8 +46,9 @@ release workflow discovery requires the implementation on dev and execution requ
 
 Prepare resolves a full main-history `sourceSha`, determines actual per-channel baselines, and reserves
 the preparation slot while collecting evidence and opening `codex/release/<candidate-id>` against main.
-Only one undecided request per product (web/mobile) is admitted. Human and Apple review do not hold a
-runner lock. Server tags remain `vX.Y.Z`; mobile tags remain `mobile-vX.Y.Z`, with a shared increasing
+Only same-repository PR heads can own a slot or reserve an identity; fork and deleted-repository
+heads are ignored. Only one undecided request per product (web/mobile) is admitted. Human and Apple
+review do not hold a runner lock. Server tags remain `vX.Y.Z`; mobile tags remain `mobile-vX.Y.Z`, with a shared increasing
 base build number. Native platform version codes retain their existing rules. Tags are created only
 after approval/source verification, and consumed build numbers are never recycled.
 
@@ -108,8 +109,9 @@ frontend/browser/i18n, contract and current govulncheck; mobile analysis/package
 platform signing/build validation. Green metadata-only PR CI is not application verification.
 
 Platform publishers are reusable workflows with main-only guards. They cannot be launched with arbitrary
-public workflow-dispatch inputs. Each rechecks approval before side effects. Concurrent execution is
-serialized per platform; deploy/config transactions share `instance-mutate-main` or `instance-mutate-dev`
+public workflow-dispatch inputs. Each rechecks approval before side effects. Publishers also require
+per-file SHA-256 digests from the trusted authorize step and verify the exact bytes they read against
+those outputs. Concurrent execution is serialized per platform; deploy/config transactions share `instance-mutate-main` or `instance-mutate-dev`
 and are not automatically cancelled. Queued concurrency uses GitHub's `queue: max` policy.
 
 - Web: GoReleaser builds archives once with explicit source/version metadata and approved notes. The
@@ -144,9 +146,14 @@ Store submission and availability are separate: submitted/in_review is not live.
 recorded Apple results explicitly as observations, not an always-current store status. Query ASC for
 current external state. No permanent monitor is installed by this pipeline.
 
-A notes-only store correction requires another reviewed existing-build promotion request; a binary
-change requires a new release. Production rollback requires an explicitly chosen compatible image and
-configuration and database compatibility assessment. It is not an arbitrary-image option on Recover,
+A notes-only store correction requires another reviewed existing-build promotion request. For an
+already submitted version, the publisher compares the current zh-Hans What’s New against the
+approved text before recording success. A mismatch blocks with the current Apple state; an operator
+must resolve metadata editability in App Store Connect before Recover. The pipeline never withdraws
+an existing review queue. A live version may require a new version under Apple’s
+[metadata editability rules](https://developer.apple.com/help/app-store-connect/reference/app-information/required-localizable-and-editable-properties).
+A binary change requires a new release. Production rollback requires an explicitly chosen compatible
+image and configuration and database compatibility assessment. It is not an arbitrary-image option on Recover,
 and never automatically restores production data.
 
 ## GitHub configuration
@@ -156,6 +163,11 @@ PR CI triggers normally. The model child receives no installation token. `RELEAS
 the trusted main tag-reservation step; its identity must satisfy the existing mobile-tag ruleset. Keep
 protected tag updates/deletion forbidden. Signing/Apple keys stay in `mobile-release`; SSH/config keys
 stay in production/dev environments. PR checks never receive those secrets.
+
+Ordinary PR CI executes the proposed workflow/classifier code. `ci-required` checks job results,
+but cannot independently prove that a PR has not weakened CI itself. Maintainers must review
+workflow, classifier and publisher changes before merge; the trusted-main release authorization
+is a separate boundary that a release-data PR cannot edit.
 
 The publisher's human gate is mandatory regardless of UI protection. Configure main to require PRs,
 `ci-required` and `release-authorized`, and dev to require `ci-required`. The compatibility checks

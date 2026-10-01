@@ -1,4 +1,5 @@
 """Exercise the real Git approval boundary, including byte-preserving recovery."""
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -6,7 +7,7 @@ import subprocess
 import tempfile
 import unittest
 from unittest.mock import patch
-from controller import authorize, load_candidate, verify_reservation
+from controller import authorize, load_candidate, verify_reservation, emit_outputs
 from model import ReleaseError
 from test_model import candidate
 
@@ -21,7 +22,7 @@ class ControllerTests(unittest.TestCase):
         self.git('init', '-q')
         self.git('config', 'user.name', 'Fixture')
         self.git('config', 'user.email', 'fixture@example.org')
-        (self.repo / 'README').write_text('source\n')
+        (self.repo / 'README').write_text('source\n', encoding='utf-8')
         self.git('add', '.')
         self.git('commit', '-qm', 'source')
         self.source = self.git('rev-parse', 'HEAD')
@@ -30,10 +31,10 @@ class ControllerTests(unittest.TestCase):
         folder = self.repo / self.prefix
         folder.mkdir(parents=True)
         self.bytes = b'  Human reviewed Android note.  \n\n'
-        (folder / 'manifest.json').write_text(json.dumps(self.manifest))
-        (folder / 'evidence.json').write_text(json.dumps({'schemaVersion': 1, 'sourceSha': self.source}))
+        (folder / 'manifest.json').write_text(json.dumps(self.manifest), encoding='utf-8')
+        (folder / 'evidence.json').write_text(json.dumps({'schemaVersion': 1, 'sourceSha': self.source}), encoding='utf-8')
         (folder / 'android.zh-CN.md').write_bytes(self.bytes)
-        (folder / 'testflight.en-US.txt').write_text('Test only the iOS widget.\n')
+        (folder / 'testflight.en-US.txt').write_text('Test only the iOS widget.\n', encoding='utf-8')
         self.git('add', '.')
         self.git('commit', '-qm', 'release data')
         self.head = self.git('rev-parse', 'HEAD')
@@ -64,7 +65,7 @@ class ControllerTests(unittest.TestCase):
             os.chdir(self.repo)
             load_candidate(self.manifest['candidateId'], self.head, destination)
             self.assertEqual((destination / 'android.zh-CN.md').read_bytes(), self.bytes)
-            (destination / 'unexpected.txt').write_text('not reviewed')
+            (destination / 'unexpected.txt').write_text('not reviewed', encoding='utf-8')
             with self.assertRaises(ReleaseError):
                 load_candidate(self.manifest['candidateId'], self.head, destination)
         finally:
@@ -98,10 +99,14 @@ class ControllerTests(unittest.TestCase):
                 _, first = authorize(self.manifest['candidateId'], remote, self.root / 'approved')
                 _, second = authorize(self.manifest['candidateId'], remote, self.root / 'approved')
                 self.assertEqual(first['contentDigest'], second['contentDigest'])
+                self.assertEqual(first['notesDigests']['android.zh-CN.md'], hashlib.sha256(self.bytes).hexdigest())
+                with patch.dict(os.environ, GITHUB_OUTPUT=''):
+                    outputs = emit_outputs(self.manifest, first)
+                self.assertEqual(json.loads(outputs['notes_digests']), first['notesDigests'])
                 remote.conclusion = 'failure'
                 with self.assertRaises(ReleaseError): authorize(self.manifest['candidateId'], remote, self.root / 'approved')
                 remote.conclusion = 'success'
-                (self.repo / self.prefix / 'android.zh-CN.md').write_text('Unreviewed merge edit')
+                (self.repo / self.prefix / 'android.zh-CN.md').write_text('Unreviewed merge edit', encoding='utf-8')
                 self.git('commit', '-qam', 'altered merge')
                 self.git('update-ref', 'refs/remotes/origin/main', self.git('rev-parse', 'HEAD'))
                 with self.assertRaises(ReleaseError): authorize(self.manifest['candidateId'], remote, self.root / 'approved')

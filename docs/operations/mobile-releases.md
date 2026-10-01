@@ -36,9 +36,9 @@ Apple agreements, reviews and physical-device/system-installer checks remain ind
 GitHub Settings → Environments → **mobile-release** allows branch `main` and tag `mobile-v*`.
 The `mobile-release-tags` ruleset restricts creation, updates and deletion of those tags to repository
 administrators. Keep those policies together: environment tag matching alone does not prove a tag
-contains a reviewed workflow. The repository `RELEASE_TOKEN` is used for annotated tag/ref creation; its account needs repository administration rights to create protected
-mobile tags, plus Actions write and pull-request write permissions. Pull-request CI uses no
-distribution secrets.
+contains a reviewed workflow. The repository `RELEASE_TOKEN` is used only for annotated tag/ref creation. Grant Contents write;
+its identity must be allowed to create protected mobile tags by the tag ruleset. It needs neither
+Actions write nor Pull requests write. Pull-request CI uses no distribution secrets.
 
 Release request PRs use a scoped GitHub App installation token so normal CI is triggered. The model
 child receives no GitHub token. The protected main controller uses `RELEASE_TOKEN` only for immutable

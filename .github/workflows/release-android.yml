@@ -38,6 +38,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - name: Recheck human approval and load frozen notes
+        id: identity
         env:
           GH_TOKEN: ${{ github.token }}
         run: python3 scripts/release/workflow.py authorize
@@ -125,6 +126,7 @@ jobs:
         if: ${{ !inputs.alias_only }}
         env:
           GH_TOKEN: ${{ github.token }}
+          RELEASE_NOTES_DIGESTS: ${{ steps.identity.outputs.notes_digests }}
         run: |
           python3 scripts/release/workflow.py verify-publication
           python3 scripts/mobile-release/publish_android.py

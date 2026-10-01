@@ -112,6 +112,9 @@ jobs:
         run: |
           test "$INPUTS" = success
           if [ "$SELECTED" = true ]; then test "$RESULT" = success; else test "$RESULT" = skipped; fi
+  # This validates proposed PR code, including CI scripts. Maintainers must review changes to
+  # this gate/classifier; it is not an authorization boundary independent of code review.
+  # Publication additionally uses the trusted-main release-authorized controller.
   ci-required:
     needs: [inputs, docs, govulncheck, backend, frontend, contract, mobile, android, ios, status, automation, release, ci-backend, ci-frontend, ci-contract]
     if: always()

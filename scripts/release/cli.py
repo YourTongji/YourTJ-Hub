@@ -7,7 +7,7 @@ import sys
 import tempfile
 from model import ReleaseError, channels_for, validate_candidate, require
 from github import GitHub, git, run
-from controller import plan, candidate_path, load_candidate
+from controller import plan, candidate_path, load_candidate, trusted_request
 from state import latest_receipt
 
 
@@ -47,7 +47,7 @@ def execute(args, github):
                 "appleStatus": "queried only by authenticated Actions discovery" if args.scope in {"ios", "mobile"} else "not_applicable",
                 "nextActions": ["plan", "prepare --apply"]}
     if args.command == "plan":
-        apple = json.loads(args.apple_state.read_text()) if args.apple_state else None
+        apple = json.loads(args.apple_state.read_text(encoding='utf-8')) if args.apple_state else None
         return {"state": "draft", "manifest": plan(args.scope, args.bump, args.source, args.ios_destination, github, apple), "nextActions": ["prepare --apply"]}
     if args.command == "prepare":
         channels_for(args.scope, args.ios_destination)
@@ -59,7 +59,7 @@ def execute(args, github):
         return github.dispatch("release-prepare.yml", inputs) if args.apply else {"dryRun": True, "inputs": inputs, "requiresFreshHumanReview": True}
     if args.command == "status" and not args.candidate:
         prs = github.pages("pulls?state=open&base=main")
-        return {"requests": [{"candidateId": p["head"]["ref"].split("/")[-1], "url": p["html_url"]} for p in prs if p["head"]["ref"].startswith("codex/release/")],
+        return {"requests": [{"candidateId": p["head"]["ref"].split("/")[-1], "url": p["html_url"]} for p in prs if trusted_request(p, github) and p["head"]["ref"].startswith("codex/release/")],
                 "nextActions": ["status --candidate <id>", "prepare --apply"]}
     folder = Path(candidate_path(args.candidate))
     if not folder.exists():
@@ -77,7 +77,7 @@ def execute(args, github):
 
 
 def inspect_candidate(args, github, folder):
-    manifest = json.loads((folder / "manifest.json").read_text())
+    manifest = json.loads((folder / "manifest.json").read_text(encoding='utf-8'))
     require(manifest['candidateId'] == args.candidate, 'Candidate directory and manifest identity differ')
     content_digest = validate_candidate(manifest, folder, draft=args.command == "status")
     if args.command == "validate":

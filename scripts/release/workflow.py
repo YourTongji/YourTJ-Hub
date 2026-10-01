@@ -23,7 +23,7 @@ def main():
     args = parser.parse_args()
     github = GitHub()
     if args.command == "prepare":
-        apple = json.loads(args.apple_state.read_text()) if args.apple_state else None
+        apple = json.loads(args.apple_state.read_text(encoding='utf-8')) if args.apple_state else None
         existing_id = os.environ.get("EXISTING_RELEASE")
         if existing_id:
             original, _ = authorize(existing_id, github, args.folder / "original")
@@ -47,18 +47,18 @@ def main():
         return
     if args.command == "render":
         folder = args.folder / "candidate"
-        render(json.loads((folder / "manifest.json").read_text()), folder,
-               json.loads((args.folder / "oryn-output.json").read_text()), (args.folder / "oryn-input.json").read_bytes())
+        render(json.loads((folder / "manifest.json").read_text(encoding='utf-8')), folder,
+               json.loads((args.folder / "oryn-output.json").read_text(encoding='utf-8')), (args.folder / "oryn-input.json").read_bytes())
         return
     if args.command == "create-pr":
         folder = args.folder / "candidate"
-        result = create_pr(json.loads((folder / "manifest.json").read_text()), folder, github)
+        result = create_pr(json.loads((folder / "manifest.json").read_text(encoding='utf-8')), folder, github)
         print(json.dumps(result))
         with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as out:
             out.write(f"Release request: {result.get('html_url', result.get('url'))}\n\nHuman review is required before publishing.\n")
         return
     if args.command == "discover":
-        event = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text())
+        event = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text(encoding='utf-8'))
         head = os.environ["GITHUB_SHA"]
         paths = git("diff", "--name-only", "--no-renames", event["before"], head, "--", "releases/requests/").splitlines()
         ids = sorted({p.split("/")[2] for p in paths})
@@ -67,7 +67,7 @@ def main():
             out.write("candidate=" + (ids[0] if ids else "") + "\n")
         return
     if args.command in {"review-check", "validate-pr"}:
-        event = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text())
+        event = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text(encoding='utf-8'))
         pr_number = args.pr or event.get("pull_request", {}).get("number")
         if args.command == "validate-pr":
             # Read-only PR CI; actual authorization comes from the trusted target controller.
@@ -75,7 +75,7 @@ def main():
             ids = {p.split("/")[2] for p in paths if p.startswith("releases/requests/") and len(p.split("/")) > 3}
             for candidate_id in ids:
                 folder = Path(candidate_path(candidate_id))
-                validate_candidate(json.loads((folder / "manifest.json").read_text()), folder)
+                validate_candidate(json.loads((folder / "manifest.json").read_text(encoding='utf-8')), folder)
             if pr_number and event["pull_request"]["head"]["ref"].startswith("codex/release/"):
                 require(len(ids) == 1 and all(p.startswith(candidate_path(next(iter(ids))) + "/") for p in paths), "Release PR includes unrelated changes")
             return
@@ -116,7 +116,7 @@ def main():
                     'Deployment inputs differ from the approved image/binary identity')
     elif args.command == 'verify-apple':
         require(args.apple_state, 'Authenticated current Apple state is required')
-        apple = json.loads(args.apple_state.read_text())
+        apple = json.loads(args.apple_state.read_text(encoding='utf-8'))
         for channel in json.loads(os.environ['APPLE_CHANNELS']):
             require(channel in manifest['channels'], 'Unapproved Apple channel')
             live = baselines(github, [channel], reservations(), apple)[channel]
@@ -149,7 +149,8 @@ def main():
             require(recover, "Execution already started; use Recover to reuse its original artifacts")
             previous = prior["deployment"]["payload"]
             require(previous["binding"]["contentDigest"] == binding["contentDigest"], "Recovery approval/content changed")
-            build_run = previous["details"]["buildRunId"]
+            build_run = previous.get('details', {}).get('buildRunId')
+            require(build_run, 'Original build receipt is missing buildRunId; reconcile before recovery')
         else:
             require(not recover or manifest["operation"] == "promote-ios", "No original build receipt for recovery")
             build_run = os.environ["GITHUB_RUN_ID"]
@@ -163,10 +164,12 @@ def main():
     elif args.command == "receipt":
         channel = os.environ["CHANNEL"]
         details_file = Path(os.environ.get("RECEIPT_DETAILS", ".release-result.json"))
-        details = json.loads(details_file.read_text()) if details_file.exists() else {}
+        details = json.loads(details_file.read_text(encoding='utf-8')) if details_file.exists() else {}
         details = details.get(channel, {}) if set(details).intersection(FILES) else details
         previous = latest_receipt(github, args.candidate, channel)
         require(previous, "Cannot finish an execution that never started")
+        require(previous['deployment']['payload'].get('binding', {}).get('contentDigest') == binding['contentDigest'],
+                'Receipt approval/content changed')
         details = previous["deployment"]["payload"]["details"] | {k: v for k, v in details.items() if v != ""}
         details.update({"runId": os.environ["GITHUB_RUN_ID"], "attempt": os.environ["GITHUB_RUN_ATTEMPT"]})
         record(github, manifest, binding, channel, os.environ["RELEASE_STATE"], details)

@@ -82,7 +82,7 @@ status. Do not use PR-relative "shipped this / later" labels as long-term status
 
 ### Operations
 
-- [Reviewed release requests and recovery](operations/releases.md)
+- [Reviewed releases](operations/releases.md)
 - [Deployment & release](operations/deployment.md)
 - [Campus connection operations](operations/campus.md)
 - [Independent status site on Netlify](operations/status-netlify.md)

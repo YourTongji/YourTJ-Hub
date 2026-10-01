@@ -24,7 +24,7 @@ class RecoveryTests(unittest.TestCase):
                  patch('workflow.baselines', return_value={'android': live}), \
                  patch('workflow.record') as record:
                 workflow.main()
-                return output.read_text(), record.call_args.args[-1]
+                return output.read_text(encoding='utf-8'), record.call_args.args[-1]
 
     def test_recovery_reuses_first_build_run(self):
         prior = {'deployment': {'payload': {'binding': {'contentDigest': 'reviewed'},

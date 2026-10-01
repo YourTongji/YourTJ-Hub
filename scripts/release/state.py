@@ -27,9 +27,11 @@ def reservations():
 
 
 def latest_receipt(github, candidate_id, channel):
+    # GitHub returns deployments and their statuses newest first; pagination preserves order.
     deployments = github.pages(f"deployments?environment=release-{channel}")
     for deployment in deployments:
         payload = deployment.get("payload") or {}
+        require(isinstance(payload, dict), 'Malformed release receipt payload; reconcile deployments')
         if payload.get("candidateId") != candidate_id:
             continue
         statuses = github.pages(f"deployments/{deployment['id']}/statuses")
@@ -38,10 +40,15 @@ def latest_receipt(github, candidate_id, channel):
 
 
 def successful_baseline(github, channel):
+    # First successful receipt in GitHub's reverse chronological deployment order.
     for deployment in github.pages(f"deployments?environment=release-{channel}"):
         statuses = github.pages(f"deployments/{deployment['id']}/statuses")
         if statuses and statuses[0]["state"] == "success":
-            payload = deployment["payload"]
+            payload = deployment.get('payload')
+            require(isinstance(payload, dict) and isinstance(payload.get('tag'), str)
+                    and re.fullmatch(r'(?:mobile-)?v\d+\.\d+\.\d+', payload['tag'])
+                    and isinstance(deployment.get('sha'), str) and SHA.fullmatch(deployment['sha']),
+                    'Malformed successful release receipt; reconcile deployments before preparing')
             return {"tag": payload["tag"], "sourceSha": deployment["sha"], "deploymentId": deployment["id"]}
     return None
 

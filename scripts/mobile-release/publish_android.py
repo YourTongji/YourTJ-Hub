@@ -68,7 +68,7 @@ def main():
     tag = os.environ["RELEASE_TAG"]
     if not re.fullmatch(r"\d+\.\d+\.\d+", version) or not re.fullmatch(r"[1-9]\d*", number) or tag != f"mobile-v{version}":
         raise ValueError("Invalid mobile release identity")
-    config = json.loads((ROOT / "apps/mobile/release-config.json").read_text())
+    config = json.loads((ROOT / "apps/mobile/release-config.json").read_text(encoding='utf-8'))
     tools = Path(os.environ.get("ANDROID_HOME") or os.environ["ANDROID_SDK_ROOT"]) / "build-tools"
     versions = [p for p in tools.iterdir() if re.fullmatch(r"\d+(\.\d+)*", p.name)]
     toolchain = max(versions, key=lambda p: tuple(map(int, p.name.split('.'))))
@@ -88,7 +88,7 @@ def main():
         shutil.copyfile(apk, destination)
         assets.append((destination, hashlib.sha256(destination.read_bytes()).hexdigest()))
     checksums = output / "SHA256SUMS.txt"
-    checksums.write_text(''.join(f"{digest}  {path.name}\n" for path, digest in assets))
+    checksums.write_text(''.join(f"{digest}  {path.name}\n" for path, digest in assets), encoding='utf-8')
     assets.append((checksums, hashlib.sha256(checksums.read_bytes()).hexdigest()))
 
     if args.verify_only:
@@ -99,13 +99,13 @@ def main():
     release = find_release(tag)
     if release is None:
         notes = output / "notes.md"
-        notes.write_text(approved_notes + "\n")
+        notes.write_text(approved_notes + "\n", encoding='utf-8')
         gh("release", "create", tag, "--repo", REPOSITORY, "--verify-tag", "--draft", "--latest=false",
            "--title", f"YourTJ {version}", "--notes-file", str(notes))
         release = find_release(tag)
         if release is None:
             raise RuntimeError("Created release is not discoverable yet; retry to resume its draft")
-    if release.get("body", "").strip() != approved_notes:
+    if (release.get("body") or "").strip() != approved_notes:
         raise ValueError("Existing release notes differ from reviewed Android notes; do not overwrite a published identity")
     endpoint = f"repos/{REPOSITORY}/releases/{release['id']}"
     existing = {asset["name"]: asset for asset in release["assets"]}
@@ -126,7 +126,7 @@ def main():
         time.sleep(5)
     gh("release", "edit", tag, "--repo", REPOSITORY, "--draft=false", "--latest=false")
     if os.environ.get("RELEASE_RESULT_PATH"):
-        Path(os.environ["RELEASE_RESULT_PATH"]).write_text(json.dumps({"android": {"availability": "available", "assets": {p.name: d for p, d in assets}}}))
+        Path(os.environ["RELEASE_RESULT_PATH"]).write_text(json.dumps({"android": {"availability": "available", "assets": {p.name: d for p, d in assets}}}), encoding='utf-8')
     print(f"Verified APK release: https://github.com/{REPOSITORY}/releases/tag/{tag}")
 
 

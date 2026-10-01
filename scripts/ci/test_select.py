@@ -37,5 +37,31 @@ class SelectTests(unittest.TestCase):
         self.assertFalse(plan["deploy"]["run"] or plan["mobile"]["run"])
 
 
+class ComparisonFallbackTests(unittest.TestCase):
+    def test_missing_zero_and_unresolvable_bases_run_all_domains(self):
+        import contextlib
+        import io
+        import json
+        import os
+        from pathlib import Path
+        import subprocess
+        import tempfile
+        from unittest.mock import patch
+        import select_inputs
+        with tempfile.TemporaryDirectory() as temporary:
+            event_file = Path(temporary) / 'event.json'; output = Path(temporary) / 'plan.json'
+            for event, merge_error, diff_error in (({}, False, False), ({'before': '0' * 40}, False, False),
+                    ({'pull_request': {'base': {'sha': 'a' * 40}}}, True, False), ({'before': 'a' * 40}, False, True)):
+                event_file.write_text(json.dumps(event))
+                with self.subTest(event=event), patch.dict(os.environ, GITHUB_EVENT_PATH=str(event_file), GITHUB_OUTPUT=''), \
+                     patch('sys.argv', ['select_inputs.py', '--output', str(output)]), contextlib.redirect_stdout(io.StringIO()), \
+                     patch('select_inputs.subprocess.check_output', side_effect=subprocess.CalledProcessError(1, 'git') if merge_error else None), \
+                     patch('select_inputs.changed_paths', side_effect=ValueError('unavailable') if diff_error else AssertionError('unexpected diff')):
+                    select_inputs.main()
+                plan = json.loads(output.read_text())
+                self.assertEqual(set(plan), set(select_inputs.DOMAINS))
+                self.assertTrue(all(v['run'] and 'unavailable' in v['reason'] for v in plan.values()))
+
+
 if __name__ == "__main__":
     unittest.main()
