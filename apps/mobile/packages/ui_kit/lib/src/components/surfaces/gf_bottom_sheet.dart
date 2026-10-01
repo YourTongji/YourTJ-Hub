@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../gf_motion.dart';
+import 'gf_liquid_surface.dart';
 
 /// Shows a themed bottom sheet and returns the value passed to `Navigator.pop`.
 ///
@@ -52,15 +53,12 @@ Future<T?> showGfBottomSheet<T>(
         child: Builder(
           builder: (surfaceContext) {
             final theme = Theme.of(surfaceContext);
-            final sheetTheme = theme.bottomSheetTheme;
             // Paint inside the keyboard padding, including the home indicator.
             // The route consumes top/side insets; nested builders see no
             // remaining bottom inset and must not add keyboard padding again.
-            return Material(
-              color: sheetTheme.backgroundColor ?? theme.colorScheme.surface,
-              elevation: sheetTheme.elevation ?? 0,
-              shape: sheetTheme.shape,
-              clipBehavior: Clip.antiAlias,
+            return GfLiquidSurface(
+              radius: 32,
+              weight: GfGlassWeight.strong,
               child: SafeArea(
                 top: false,
                 child: SizedBox(

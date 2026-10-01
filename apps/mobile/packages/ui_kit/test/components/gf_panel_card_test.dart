@@ -48,7 +48,7 @@ void main() {
       );
       final RoundedRectangleBorder shape =
           material.shape as RoundedRectangleBorder;
-      expect(shape.borderRadius, BorderRadius.circular(8));
+      expect(shape.borderRadius, BorderRadius.circular(24));
       expect(shape.side, isA<BorderSide>());
     });
   });

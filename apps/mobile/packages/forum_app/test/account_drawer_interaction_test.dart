@@ -518,48 +518,43 @@ void main() {
     await tester.pumpAndSettle();
   });
 
-  testWidgets('drawer theme choices stay open and repaint with the app', (
-    tester,
-  ) async {
-    final container = await _mount(tester, scale: 2);
-    _openDrawer();
-    await tester.pumpAndSettle();
-    final l10n = AppLocalizations.of(tester.element(find.byType(GfShell)));
-    final appearance = find.text(l10n.settingsAppearance);
-    await tester.ensureVisible(appearance);
-    await tester.tap(appearance);
-    await tester.pumpAndSettle();
-    for (final mode in [ThemeMode.dark, ThemeMode.light, ThemeMode.system]) {
-      final label = switch (mode) {
-        ThemeMode.dark => l10n.settingsThemeDark,
-        ThemeMode.light => l10n.settingsThemeLight,
-        ThemeMode.system => l10n.settingsLanguageSystem,
-      };
-      final choice = find.descendant(
-        of: find.byType(BottomSheet),
-        matching: find.text(label),
-      );
-      await tester.ensureVisible(choice);
-      await tester.tap(choice);
+  testWidgets(
+    'drawer theme menu applies each choice and preserves the drawer',
+    (tester) async {
+      final container = await _mount(tester, scale: 2);
+      _openDrawer();
       await tester.pumpAndSettle();
-      expect(container.read(themeModeProvider), mode);
-      expect(find.byType(BottomSheet), findsOneWidget);
-      final expected = mode == ThemeMode.dark
-          ? Brightness.dark
-          : Brightness.light;
-      expect(Theme.of(tester.element(choice)).brightness, expected);
-      final material = tester.widget<Material>(
-        find.ancestor(of: choice, matching: find.byType(Material)).first,
-      );
-      expect(material.color, GfColors.forBrightness(expected).base100);
-      expect(_isDrawerOpen(), isTrue);
-      expect(tester.takeException(), isNull);
-    }
-    Navigator.of(tester.element(find.byType(BottomSheet))).pop();
-    await tester.pumpAndSettle();
-    _closeDrawer();
-    await tester.pumpAndSettle();
-    await tester.pumpWidget(const SizedBox());
-    await tester.pumpAndSettle();
-  });
+      final l10n = AppLocalizations.of(tester.element(find.byType(GfShell)));
+      final appearance = find.text(l10n.settingsAppearance);
+      await tester.ensureVisible(appearance);
+      for (final mode in [ThemeMode.dark, ThemeMode.light, ThemeMode.system]) {
+        await tester.tap(appearance);
+        await tester.pumpAndSettle();
+        final label = switch (mode) {
+          ThemeMode.dark => l10n.settingsThemeDark,
+          ThemeMode.light => l10n.settingsThemeLight,
+          ThemeMode.system => l10n.settingsLanguageSystem,
+        };
+        final choice = find.descendant(
+          of: find.byKey(const Key('gf-context-menu')),
+          matching: find.text(label),
+        );
+        await tester.ensureVisible(choice);
+        await tester.tap(choice);
+        await tester.pumpAndSettle();
+        expect(container.read(themeModeProvider), mode);
+        expect(find.byKey(const Key('gf-context-menu')), findsNothing);
+        final expected = mode == ThemeMode.dark
+            ? Brightness.dark
+            : Brightness.light;
+        expect(Theme.of(tester.element(appearance)).brightness, expected);
+        expect(_isDrawerOpen(), isTrue);
+        expect(tester.takeException(), isNull);
+      }
+      _closeDrawer();
+      await tester.pumpAndSettle();
+      await tester.pumpWidget(const SizedBox());
+      await tester.pumpAndSettle();
+    },
+  );
 }

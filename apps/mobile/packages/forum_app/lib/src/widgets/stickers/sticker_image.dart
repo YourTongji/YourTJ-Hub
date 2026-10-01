@@ -57,25 +57,22 @@ class _StickerImageState extends State<StickerImage> {
             listen: false,
           ).read(stickerCollectionProvider)
         : null;
-    final action = await showGfBottomSheet<String>(
+    final action = await showGfActionMenu<String>(
       context,
-      builder: (context) => Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (widget.collectible)
-            ListTile(
-              leading: const GfSymbol('bookmark', size: 22),
-              title: Text(strings.collect),
-              onTap: () => Navigator.pop(context, 'save'),
-            ),
-          if (_failed)
-            ListTile(
-              leading: const GfSymbol('refresh-cw', size: 22),
-              title: Text(strings.retry),
-              onTap: () => Navigator.pop(context, 'retry'),
-            ),
-        ],
-      ),
+      actions: [
+        if (widget.collectible)
+          GfContextAction(
+            value: 'save',
+            label: strings.collect,
+            symbol: 'bookmark',
+          ),
+        if (_failed)
+          GfContextAction(
+            value: 'retry',
+            label: strings.retry,
+            symbol: 'refresh-cw',
+          ),
+      ],
     );
     if (!mounted) return;
     if (action == 'retry') {

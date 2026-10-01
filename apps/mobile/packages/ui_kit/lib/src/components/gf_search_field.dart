@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../theme/gf_theme.dart';
 import 'gf_symbol.dart';
+import 'surfaces/gf_liquid_surface.dart';
 
 /// Quiet, filled search surface shared by discovery, messages and courses.
 /// Search is distinct from account/editor form fields. The clear action keeps
@@ -54,62 +55,66 @@ class _GfSearchFieldState extends State<GfSearchField> {
     );
     return ValueListenableBuilder<TextEditingValue>(
       valueListenable: _controller,
-      builder: (context, value, _) => TextField(
-        controller: _controller,
-        maxLength: widget.maxLength,
-        focusNode: _focus,
-        autofocus: widget.autofocus,
-        autocorrect: false,
-        textInputAction: TextInputAction.search,
-        textAlignVertical: TextAlignVertical.center,
-        onChanged: widget.onChanged,
-        onSubmitted: widget.onSubmitted,
-        style: TextStyle(fontSize: 16, color: colors.baseContent),
-        cursorColor: colors.primary,
-        decoration: InputDecoration(
-          hintText: widget.hintText,
-          counterText: '',
-          hintStyle: TextStyle(fontSize: 16, color: colors.iconMuted),
-          filled: true,
-          fillColor: colors.base300,
-          isDense: true,
-          constraints: const BoxConstraints(minHeight: 48),
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 16,
-            vertical: 12,
+      builder: (context, value, _) => GfLiquidSurface(
+        radius: 26,
+        elevated: false,
+        child: TextField(
+          controller: _controller,
+          maxLength: widget.maxLength,
+          focusNode: _focus,
+          autofocus: widget.autofocus,
+          autocorrect: false,
+          textInputAction: TextInputAction.search,
+          textAlignVertical: TextAlignVertical.center,
+          onChanged: widget.onChanged,
+          onSubmitted: widget.onSubmitted,
+          style: TextStyle(fontSize: 16, color: colors.baseContent),
+          cursorColor: colors.primary,
+          decoration: InputDecoration(
+            hintText: widget.hintText,
+            counterText: '',
+            hintStyle: TextStyle(fontSize: 16, color: colors.iconMuted),
+            filled: true,
+            fillColor: Colors.transparent,
+            isDense: true,
+            constraints: const BoxConstraints(minHeight: 48),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 12,
+            ),
+            border: border,
+            enabledBorder: border,
+            focusedBorder: border.copyWith(
+              borderSide: BorderSide(color: colors.primary),
+            ),
+            prefixIcon: Padding(
+              padding: const EdgeInsets.only(left: 16, right: 10),
+              child: GfSymbol('search', size: 20, color: colors.iconMuted),
+            ),
+            prefixIconConstraints: const BoxConstraints(
+              minWidth: 46,
+              minHeight: 48,
+            ),
+            suffixIconConstraints: const BoxConstraints(
+              minWidth: 44,
+              minHeight: 44,
+            ),
+            suffixIcon: value.text.isEmpty
+                ? null
+                : IconButton(
+                    tooltip: widget.clearLabel,
+                    icon: GfSymbol('x', size: 18, color: colors.iconMuted),
+                    onPressed: () {
+                      _controller.clear();
+                      _focus.requestFocus();
+                      if (widget.onClear != null) {
+                        widget.onClear!();
+                      } else {
+                        widget.onChanged?.call('');
+                      }
+                    },
+                  ),
           ),
-          border: border,
-          enabledBorder: border,
-          focusedBorder: border.copyWith(
-            borderSide: BorderSide(color: colors.primary),
-          ),
-          prefixIcon: Padding(
-            padding: const EdgeInsets.only(left: 16, right: 10),
-            child: GfSymbol('search', size: 20, color: colors.iconMuted),
-          ),
-          prefixIconConstraints: const BoxConstraints(
-            minWidth: 46,
-            minHeight: 48,
-          ),
-          suffixIconConstraints: const BoxConstraints(
-            minWidth: 44,
-            minHeight: 44,
-          ),
-          suffixIcon: value.text.isEmpty
-              ? null
-              : IconButton(
-                  tooltip: widget.clearLabel,
-                  icon: GfSymbol('x', size: 18, color: colors.iconMuted),
-                  onPressed: () {
-                    _controller.clear();
-                    _focus.requestFocus();
-                    if (widget.onClear != null) {
-                      widget.onClear!();
-                    } else {
-                      widget.onChanged?.call('');
-                    }
-                  },
-                ),
         ),
       ),
     );

@@ -51,6 +51,27 @@ iOS 继续使用 Cupertino 原生转场与返回手势。
 页面通过这些共享入口组合动效，避免散落时长/曲线；网络 debounce、草稿保存和品牌启动
 序列有独立语义。具体用户行为见[移动端动效](../../../../docs/product/mobile-experience.md#motion-and-continuity)。
 
+`Current`: `gfImageViewerRoute` 提供透明图片路由；`GfImageViewer.onPageChanged` 让来源轮播跟随
+当前图片。来源组件拥有 occurrence/revision 身份，账号隔离与来源许可由调用方持有。
+`canReturnToSource` 在反向路由动画中重新判断；`gfImageSourceIsVisible` 检查挂载、视口与祖先裁切，
+失效时只淡出。首页只返回实际可见的三个缩略图。图片保存复用 `showGfActionMenu`，以长按位置为锚点。
+
+`Current`: `showGfContextMenu` 用原生 `PopupRoute` 保留模态焦点、键盘遍历、返回与遮罩取消，
+遮罩在内容下方施加跟随进度的 sigma 12 全屏背景模糊和 .16 scrim，预览与菜单文字不参与模糊；
+减少透明度、高对比度、辅助导航或减少动态效果时禁用模糊。
+只读来源预览保持原宽度，玻璃动作面板按最长文案单行固有宽度加图标/内边距收窄，并受可用视口约束。
+动作之间不绘制分隔线；面板与预览相隔 8 点，没有共同玻璃背景。
+只有动作列表滚动，预览随进入/退出从来源位置移动；调用方保留原消息占位并在 `onClosed` 恢复显示。
+调用方拥有动作权限和 `sourceValid`；失效时关闭具体路由。
+动作结果立即返回，`onClosed` 在退出帧结束后释放预览相关资源。界面消耗安全区和键盘一次，
+窄屏与大字可滚动；预览内关闭 Hero、交互、焦点与 ticker，避免形成第二个可操作对象。
+
+`Current`: `showGfActionMenu` / `GfActionMenuButton` 复用相同玻璃菜单，无分隔线，按文案和可选选中标记收窄。
+操作菜单位于触发控件下方 8 点，空间不足则上翻，受安全区与键盘边缘 12 点约束；长菜单可滚动。
+选中项带 check，禁用项不可执行，危险动作使用错误色。按钮来源卸载后取消菜单；选择时重新核验动作仍启用。
+`routeWrapper` 让宿主在菜单内部保留账号有效性边界，动作执行仍由调用方负责。
+底部弹层用于编辑、内容预览及复杂数据选择，不用于离散动作列表。
+
 ## 验证
 
 `Current`: 移动端按钮和分类标签分别约束可见背景与触控区域，并允许文字增大时增高；
@@ -64,7 +85,7 @@ iOS 继续使用 Cupertino 原生转场与返回手势。
 未指定高度时按内容收缩；`height` 是受可用视口约束的内容高度，长内容由调用方提供滚动容器。
 安全区由入口消费一次，底部背景覆盖手势区；`keyboardAware: true` 负责键盘避让，
 调用方不再叠加 `viewInsets`。`enableDrag: false` 可保护未保存的编辑。
-`showGfAlertDialog` / `showGfModal` 用原生 `Dialog` 约束键盘上方的可用区域，使用24px圆角、原生焦点和单层滚动内容。
+`showGfAlertDialog` / `showGfModal` 用原生 `Dialog` 约束键盘上方的可用区域，使用28px圆角、原生焦点和单层滚动内容。
 回归测试包含刘海、底部手势区、长列表和键盘；应用层补充小屏双倍字号表单测试。
 
 ```bash
@@ -95,4 +116,19 @@ standalone stickers while retaining content bounds, alignment and time. Menus an
 icons use `GfSymbol` and retain at least 44px independent targets. Component-specific geometry
 is owned here and does not change the Web/mobile token mirror.
 
-`GfGlassSurface` / `GfGlassIconButton` 为封面上的操作提供局部毛玻璃圆形底板、细描边和至少 44px 点击区域，沿用原有按钮语义。`GfUserCardHeader` 将封面、重叠头像和操作带放在同一绘制层，可用于折叠导航；`GfUserCard(showHeader: false)` 只展示后续资料。公开页与编辑页使用同一封面尺寸计算。
+`GfGlassSurface` / `GfGlassIconButton` 使用共享光学材质，为封面操作提供暗色透光底板、细描边和至少 44px 点击区域，沿用原有按钮语义。`GfUserCardHeader` 将封面、重叠头像和操作带放在同一绘制层，可用于折叠导航；`GfUserCard(showHeader: false)` 只展示后续资料。公开页与编辑页使用同一封面尺寸计算。
+
+## 光学材质
+
+`Current`: `GfLiquidSurface` 为导航、搜索、输入操作区和浮层提供 regular / strong / clear
+三种材质重量。Impeller 用 Gaussian blur + `shaders/liquid_glass.frag` 折射真实背景；
+其他渲染器或 shader 加载失败时退回磨砂。程序缓存一次，各表面独立创建/释放 shader，
+paint 阶段更新位置，不以截图模拟背景。文字、焦点、选择和按钮语义始终留在未过滤的子树。
+`GfGlassSettings` 接受宿主的减少透明度设置；高对比度、减少动态和辅助导航同样使用实色回退。
+材质变更保持子树身份，菜单和键盘切换不销毁编辑器。照片上的白图标使用暗色 clear veil；
+正文、课表和个人页标签下划线不使用玻璃。菜单采用独立 menu 角色（浅/深 alpha .42/.46、sigma 6），
+输入区与大弹层继续采用 strong 角色。移动端参数与事实源见[材质规格](../../../../docs/product/mobile-design-system.md#optical-control-material)
+和 [0054](../../../../docs/decisions/0054-mobile-optical-glass.md)。
+
+验证覆盖回退时的编辑选择与焦点、10%/30%/70%/100% 按压取消，以及原生 Impeller 集成：
+`forum_app/integration_test/liquid_glass_test.dart`。视觉截图存入忽略的 `research/`，不维护 Golden。

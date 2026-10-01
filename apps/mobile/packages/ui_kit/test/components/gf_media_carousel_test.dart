@@ -143,4 +143,126 @@ void main() {
     expect(viewer.initialIndex, 1);
     expect(viewer.heroTag, isNotNull);
   });
+  testWidgets(
+    'viewer returns to its focused occurrence even with duplicate URLs',
+    (tester) async {
+      await tester.pumpWidget(
+        gfApp(
+          const SizedBox(
+            width: 300,
+            child: GfMediaCarousel(
+              images: [
+                'https://example.test/same.png',
+                'https://example.test/same.png',
+              ],
+            ),
+          ),
+        ),
+      );
+      await tester.tapAt(tester.getCenter(find.byType(PageView)));
+      await tester.pumpAndSettle();
+      await tester.drag(
+        find.byKey(const Key('gf-image-viewer-page-swipe-area')),
+        const Offset(-700, 0),
+      );
+      await tester.pumpAndSettle();
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      expect(find.text('2 / 2'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'replacing a source cannot return an old viewer to a reused cell',
+    (tester) async {
+      var images = ['https://example.test/old.png'];
+      late StateSetter update;
+      await tester.pumpWidget(
+        gfApp(
+          StatefulBuilder(
+            builder: (context, setState) {
+              update = setState;
+              return SizedBox(
+                width: 300,
+                child: GfMediaCarousel(images: images),
+              );
+            },
+          ),
+        ),
+      );
+      await tester.tapAt(tester.getCenter(find.byType(PageView)));
+      await tester.pumpAndSettle();
+      final viewer = tester.widget<GfImageViewer>(find.byType(GfImageViewer));
+      final original = viewer.heroTag;
+      update(() => images = ['https://example.test/new.png']);
+      await tester.pump();
+      final source = tester.widget<Hero>(
+        find.descendant(
+          of: find.byType(GfMediaCarousel, skipOffstage: false),
+          matching: find.byType(Hero, skipOffstage: false),
+        ),
+      );
+      expect(source.tag, isNot((original, 0)));
+      expect(viewer.images, ['https://example.test/old.png']);
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      expect(find.byType(GfImageViewer), findsNothing);
+    },
+  );
+  for (final fraction in [.1, .3, .7, 1.0]) {
+    testWidgets('back interrupts media entry at $fraction', (tester) async {
+      await tester.pumpWidget(
+        gfApp(
+          const SizedBox(
+            width: 300,
+            child: GfMediaCarousel(images: ['https://example.test/photo.png']),
+          ),
+        ),
+      );
+      await tester.tapAt(tester.getCenter(find.byType(PageView)));
+      await tester.pump();
+      await tester.pump(Duration(microseconds: (280000 * fraction).round()));
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      expect(find.byType(GfImageViewer), findsNothing);
+      expect(find.byType(GfMediaCarousel), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  testWidgets(
+    'removing a source keeps the viewer usable and returns with no Hero',
+    (tester) async {
+      var present = true;
+      late StateSetter update;
+      await tester.pumpWidget(
+        gfApp(
+          StatefulBuilder(
+            builder: (context, setState) {
+              update = setState;
+              return present
+                  ? const SizedBox(
+                      width: 300,
+                      child: GfMediaCarousel(
+                        images: ['https://example.test/photo.png'],
+                      ),
+                    )
+                  : const Text('Source removed');
+            },
+          ),
+        ),
+      );
+      await tester.tapAt(tester.getCenter(find.byType(PageView)));
+      await tester.pumpAndSettle();
+      update(() => present = false);
+      await tester.pumpAndSettle();
+      expect(find.byType(GfImageViewer), findsOneWidget);
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      expect(find.text('Source removed'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
 }

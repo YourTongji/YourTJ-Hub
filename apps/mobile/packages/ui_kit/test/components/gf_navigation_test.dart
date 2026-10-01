@@ -2,7 +2,7 @@ import 'dart:ui' show Tristate;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart'
-    show RenderDecoratedBox, RenderParagraph;
+    show BackdropFilterLayer, RenderDecoratedBox, RenderParagraph;
 import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ui_kit/ui_kit.dart';
@@ -264,7 +264,7 @@ void main() {
 
     final Color target = GfTheme.colorsOf(
       tester.element(find.text('校园')),
-    ).primary.withValues(alpha: 0.09);
+    ).primary.withValues(alpha: 0.12);
     const Color unselected = Colors.transparent;
 
     await tester.tap(find.text('校园'));
@@ -349,7 +349,7 @@ void main() {
 
     final Color target = GfTheme.colorsOf(
       tester.element(find.text('首页')),
-    ).primary.withValues(alpha: 0.09);
+    ).primary.withValues(alpha: 0.12);
     const Color unselected = Colors.transparent;
 
     await tester.tap(find.text('校园'));
@@ -478,7 +478,7 @@ void main() {
       ),
     );
 
-    expect(find.byType(BackdropFilter), findsNothing);
+    expect(tester.layers.whereType<BackdropFilterLayer>(), isEmpty);
     expect(tester.getSize(find.text('首页')), isNotNull);
   });
 
@@ -521,7 +521,7 @@ void main() {
       ),
     );
 
-    expect(find.byType(BackdropFilter), findsOneWidget);
+    expect(tester.layers.whereType<BackdropFilterLayer>(), isNotEmpty);
   });
 
   testWidgets('reduced motion navigation keeps the solid material path', (
@@ -566,7 +566,7 @@ void main() {
       ),
     );
 
-    expect(find.byType(BackdropFilter), findsNothing);
+    expect(tester.layers.whereType<BackdropFilterLayer>(), isEmpty);
   });
 
   testWidgets(

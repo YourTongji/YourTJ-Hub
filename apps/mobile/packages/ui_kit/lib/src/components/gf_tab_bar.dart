@@ -57,7 +57,7 @@ class GfTabSwipeProgressScope extends InheritedWidget {
 /// Scrollable tab bar mirroring web `.gf-tab` semantics.
 ///
 /// On mobile the bar scrolls horizontally when tabs overflow; the active tab
-/// renders with a short brand underline; idle tabs use muted text.
+/// renders as a soft selection lens; idle tabs use muted text.
 class GfTabBar extends StatefulWidget {
   /// Use this for overlay toolbars so their content inset grows with text.
   static double heightFor(BuildContext context) =>
@@ -326,14 +326,14 @@ class _GfTabBarState extends State<GfTabBar> with TickerProviderStateMixin {
         isScrollable: true,
         tabAlignment: TabAlignment.start,
         indicatorAnimation: TabIndicatorAnimation.elastic,
-        indicatorSize: TabBarIndicatorSize.label,
-        indicator: _FixedWidthTabIndicator(
+        indicatorSize: TabBarIndicatorSize.tab,
+        indicator: _SelectionLensIndicator(
           color: colors.primary,
           width: 28 + (dragExtension > 0 ? dragExtension : settleExtension),
         ),
         dividerColor: Colors.transparent,
         dividerHeight: 0,
-        labelColor: colors.baseContent,
+        labelColor: colors.primary,
         labelStyle: measureStyle.copyWith(fontWeight: FontWeight.w600),
         labelPadding: const EdgeInsets.symmetric(horizontal: 16),
         unselectedLabelColor: colors.iconMuted,
@@ -365,18 +365,17 @@ class _GfTabBarState extends State<GfTabBar> with TickerProviderStateMixin {
   }
 }
 
-class _FixedWidthTabIndicator extends Decoration {
-  const _FixedWidthTabIndicator({required this.color, required this.width});
+class _SelectionLensIndicator extends Decoration {
+  const _SelectionLensIndicator({required this.color, required this.width});
 
-  static const double _height = 4;
-  static const double _radius = 2;
+  static const double _radius = 24;
 
   final Color color;
   final double width;
 
   @override
   BoxPainter createBoxPainter([VoidCallback? onChanged]) =>
-      _FixedWidthTabIndicatorPainter(this, onChanged);
+      _SelectionLensIndicatorPainter(this, onChanged);
 
   @override
   void debugFillProperties(DiagnosticPropertiesBuilder properties) {
@@ -385,33 +384,45 @@ class _FixedWidthTabIndicator extends Decoration {
   }
 }
 
-class _FixedWidthTabIndicatorPainter extends BoxPainter {
-  _FixedWidthTabIndicatorPainter(this.decoration, super.onChanged);
+class _SelectionLensIndicatorPainter extends BoxPainter {
+  _SelectionLensIndicatorPainter(this.decoration, super.onChanged);
 
-  final _FixedWidthTabIndicator decoration;
+  final _SelectionLensIndicator decoration;
 
   @override
   void paint(Canvas canvas, Offset offset, ImageConfiguration configuration) {
     final Size? size = configuration.size;
     if (size == null) return;
 
+    final extension = math.min((decoration.width - 28) * .15, 8.0);
     final Rect rect = Rect.fromLTWH(
-      offset.dx + (size.width - decoration.width) / 2,
-      offset.dy + size.height - _FixedWidthTabIndicator._height,
-      decoration.width,
-      _FixedWidthTabIndicator._height,
+      offset.dx + 4 - extension,
+      offset.dy + 6,
+      math.max(0, size.width - 8 + extension * 2),
+      math.max(0, size.height - 12),
     );
     final RRect rounded = RRect.fromRectAndRadius(
       rect,
-      const Radius.circular(_FixedWidthTabIndicator._radius),
+      const Radius.circular(_SelectionLensIndicator._radius),
     );
     canvas.drawRRect(
       rounded,
-      Paint()
-        ..color = decoration.color.withValues(alpha: .18)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3),
+      Paint()..color = decoration.color.withValues(alpha: .10),
     );
-    canvas.drawRRect(rounded, Paint()..color = decoration.color);
+    canvas.drawRRect(
+      rounded.deflate(.5),
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1
+        ..shader = LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Colors.white.withValues(alpha: .65),
+            decoration.color.withValues(alpha: .08),
+          ],
+        ).createShader(rect),
+    );
   }
 }
 

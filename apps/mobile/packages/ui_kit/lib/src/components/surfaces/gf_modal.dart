@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../theme/gf_theme.dart';
+import 'gf_liquid_surface.dart';
 import '../gf_motion.dart';
 
 /// Bounded, softly rounded modal content. [showGfModal] owns the single native
@@ -19,10 +19,9 @@ class GfModal extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: GfTheme.colorsOf(context).base100,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-      clipBehavior: Clip.antiAlias,
+    return GfLiquidSurface(
+      radius: 28,
+      weight: GfGlassWeight.strong,
       child: ConstrainedBox(
         constraints: BoxConstraints(maxWidth: width ?? 560),
         child: SingleChildScrollView(padding: padding, child: child),

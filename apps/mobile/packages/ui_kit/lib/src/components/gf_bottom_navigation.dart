@@ -1,11 +1,11 @@
 import 'dart:math' as math;
-import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
 
 import '../theme/gf_theme.dart';
 import 'gf_motion.dart';
 import 'gf_symbol.dart';
+import 'surfaces/gf_liquid_surface.dart';
 
 class GfBottomNavigationItem {
   const GfBottomNavigationItem({
@@ -84,14 +84,14 @@ class GfBottomNavigation extends StatelessWidget {
     bool showLabels = true,
     bool hasAction = false,
   }) {
-    if (!showLabels) return 56;
+    if (!showLabels) return 68;
     final TextStyle style = _navigationLabelStyle(
       context,
       color: GfTheme.colorsOf(context).baseContent,
       fontWeight: FontWeight.w600,
     );
     final TextScaler scaler = MediaQuery.textScalerOf(context);
-    final double itemWidth = math.max(1, availableWidth / slots - 8);
+    final double itemWidth = math.max(1, (availableWidth - 32) / slots - 8);
     double maxLabelHeight = 0;
     for (final String label in labels) {
       final TextPainter painter = TextPainter(
@@ -102,9 +102,8 @@ class GfBottomNavigation extends StatelessWidget {
       maxLabelHeight = math.max(maxLabelHeight, painter.height);
       painter.dispose();
     }
-    // The top divider contributes one layout pixel before the destination
-    // padding and label.
-    return math.max(72, (hasAction ? 56 : 53) + maxLabelHeight);
+    // Include the floating shell's 4px top and 8px bottom breathing room.
+    return math.max(72, (hasAction ? 56 : 53) + maxLabelHeight) + 12;
   }
 
   @override
@@ -116,12 +115,6 @@ class GfBottomNavigation extends StatelessWidget {
       );
     }
     final GfColors colors = GfTheme.colorsOf(context);
-    final bool highContrast = MediaQuery.highContrastOf(context);
-    final bool useGlass =
-        !highContrast &&
-        !MediaQuery.disableAnimationsOf(context) &&
-        !MediaQuery.accessibleNavigationOf(context) &&
-        Theme.of(context).platform == TargetPlatform.iOS;
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
         final double barHeight = heightFor(
@@ -138,70 +131,58 @@ class GfBottomNavigation extends StatelessWidget {
           showLabels: showLabels,
           hasAction: onAction != null && showLabels,
         );
-        return _buildBar(context, colors, useGlass, barHeight);
+        return _buildBar(context, colors, barHeight);
       },
     );
   }
 
-  Widget _buildBar(
-    BuildContext context,
-    GfColors colors,
-    bool useGlass,
-    double barHeight,
-  ) {
-    final Widget bar = Material(
-      color: useGlass ? colors.base100.withValues(alpha: 0.94) : colors.base100,
-      child: SafeArea(
-        top: false,
-        child: Container(
-          height: barHeight,
-          decoration: BoxDecoration(
-            border: Border(top: BorderSide(color: colors.line)),
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: <Widget>[
-              _Destination(
-                showLabel: showLabels,
-                item: items[0],
-                selected: currentIndex == 0,
-                onTap: () => onSelected(0),
-              ),
-              _Destination(
-                showLabel: showLabels,
-                item: items[1],
-                selected: currentIndex == 1,
-                onTap: () => onSelected(1),
-              ),
-              if (onAction != null)
-                _ComposeAction(
-                  symbol: actionSymbol,
-                  label: actionLabel,
-                  onTap: onAction,
+  Widget _buildBar(BuildContext context, GfColors colors, double barHeight) {
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+        child: GfLiquidSurface(
+          radius: 40,
+          child: SizedBox(
+            height: barHeight - 12,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                _Destination(
                   showLabel: showLabels,
+                  item: items[0],
+                  selected: currentIndex == 0,
+                  onTap: () => onSelected(0),
                 ),
-              _Destination(
-                showLabel: showLabels,
-                item: items[2],
-                selected: currentIndex == 2,
-                onTap: () => onSelected(2),
-              ),
-              _Destination(
-                showLabel: showLabels,
-                item: items[3],
-                selected: currentIndex == 3,
-                onTap: () => onSelected(3),
-              ),
-            ],
+                _Destination(
+                  showLabel: showLabels,
+                  item: items[1],
+                  selected: currentIndex == 1,
+                  onTap: () => onSelected(1),
+                ),
+                if (onAction != null)
+                  _ComposeAction(
+                    symbol: actionSymbol,
+                    label: actionLabel,
+                    onTap: onAction,
+                    showLabel: showLabels,
+                  ),
+                _Destination(
+                  showLabel: showLabels,
+                  item: items[2],
+                  selected: currentIndex == 2,
+                  onTap: () => onSelected(2),
+                ),
+                _Destination(
+                  showLabel: showLabels,
+                  item: items[3],
+                  selected: currentIndex == 3,
+                  onTap: () => onSelected(3),
+                ),
+              ],
+            ),
           ),
         ),
-      ),
-    );
-    if (!useGlass) return bar;
-    return ClipRect(
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-        child: bar,
       ),
     );
   }
@@ -258,13 +239,13 @@ class _Destination extends StatelessWidget {
                       ),
                       duration: GfMotion.duration(context, GfMotion.selection),
                       curve: GfMotion.layoutCurve,
-                      width: 48,
+                      width: 56,
                       height: 36,
                       decoration: BoxDecoration(
                         color: selected
-                            ? colors.primary.withValues(alpha: 0.09)
+                            ? colors.primary.withValues(alpha: 0.12)
                             : Colors.transparent,
-                        borderRadius: BorderRadius.circular(14),
+                        borderRadius: BorderRadius.circular(20),
                       ),
                       child: Stack(
                         clipBehavior: Clip.none,

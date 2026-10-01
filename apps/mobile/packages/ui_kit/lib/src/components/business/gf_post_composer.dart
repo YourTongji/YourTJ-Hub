@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../surfaces/gf_liquid_surface.dart';
 
 import '../../theme/gf_theme.dart';
 import '../atoms/gf_loading_indicator.dart';
@@ -133,13 +134,12 @@ class _GfPostComposerState extends State<GfPostComposer> {
   Widget build(BuildContext context) {
     final colors = GfTheme.colorsOf(context);
     return LayoutBuilder(
-      builder: (context, constraints) => Material(
+      builder: (context, constraints) => GfLiquidSurface(
         key: const Key('reply-composer-surface'),
-        color: colors.base100,
+        radius: 28,
+        weight: GfGlassWeight.strong,
         child: DecoratedBox(
-          decoration: BoxDecoration(
-            border: Border(top: BorderSide(color: colors.line)),
-          ),
+          decoration: const BoxDecoration(),
           child: Padding(
             padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
             child: Column(
@@ -219,7 +219,9 @@ class _GfPostComposerState extends State<GfPostComposer> {
                                     errorBuilder: (_, _, _) => Container(
                                       width: 112,
                                       height: 88,
-                                      color: colors.base200,
+                                      color: colors.baseContent.withValues(
+                                        alpha: .045,
+                                      ),
                                       alignment: Alignment.center,
                                       child: GfSymbol(
                                         'image-off',
@@ -264,7 +266,7 @@ class _GfPostComposerState extends State<GfPostComposer> {
                           duration: GfMotion.duration(context, GfMotion.press),
                           curve: GfMotion.enterCurve,
                           decoration: BoxDecoration(
-                            color: colors.base200,
+                            color: colors.baseContent.withValues(alpha: .045),
                             borderRadius: BorderRadius.circular(24),
                             border: Border.all(
                               color: _focus.hasFocus

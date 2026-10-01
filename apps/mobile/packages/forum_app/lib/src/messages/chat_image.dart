@@ -67,12 +67,22 @@ bool isChatImagePreviewUrl(String value) {
       ).hasMatch(Uri.parse(url).path);
 }
 
-class ChatImage extends ConsumerWidget {
+class ChatImage extends ConsumerStatefulWidget {
   const ChatImage({super.key, required this.url});
   final String url;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ChatImage> createState() => _ChatImageState();
+}
+
+class _ChatImageState extends ConsumerState<ChatImage> {
+  // An occurrence, not a URL: two messages may contain the same photo.
+  final Object _sourceIdentity = Object();
+  final GlobalKey _sourceKey = GlobalKey();
+
+  @override
+  Widget build(BuildContext context) {
+    final url = widget.url;
     final l10n = AppLocalizations.of(context);
     final baseUrl = ref.watch(apiClientProvider).baseUrl;
     // Guard here too so future callers cannot bypass the shared bubble policy.
@@ -84,6 +94,8 @@ class ChatImage extends ConsumerWidget {
       return Text(l10n.commonLoadFailed);
     }
     final resolved = Uri.parse(baseUrl).resolve(url).toString();
+    final epoch = ref.watch(offlineCacheEpochProvider);
+    final heroTag = (_sourceIdentity, resolved, epoch);
     final pixelRatio = MediaQuery.devicePixelRatioOf(context);
     final origins = {
       Uri.parse(baseUrl).origin,
@@ -100,10 +112,11 @@ class ChatImage extends ConsumerWidget {
       button: true,
       label: l10n.imageViewPosition(1, 1),
       child: GestureDetector(
+        key: _sourceKey,
         onTap: () {
-          final epoch = ref.read(offlineCacheEpochProvider);
           Navigator.of(context, rootNavigator: true).push(
-            MaterialPageRoute<void>(
+            gfImageViewerRoute(
+              context,
               builder: (context) => Consumer(
                 builder: (context, ref, _) {
                   if (ref.watch(offlineCacheEpochProvider) != epoch) {
@@ -112,15 +125,16 @@ class ChatImage extends ConsumerWidget {
                   }
                   return GfMediaOriginPolicy(
                     origins: origins,
-                    child: Scaffold(
-                      backgroundColor: Colors.black,
-                      body: SafeArea(
-                        child: GfImageViewer(
-                          images: [resolved],
-                          onSaveImage: (url) => saveImageFromUrl(context, url),
-                          saveImageLabel: l10n.imageSave,
-                        ),
-                      ),
+                    child: GfImageViewer(
+                      images: [resolved],
+                      heroTag: heroTag,
+                      canReturnToSource: (_) =>
+                          mounted &&
+                          widget.url == url &&
+                          ref.read(offlineCacheEpochProvider) == epoch &&
+                          gfImageSourceIsVisible(_sourceKey),
+                      onSaveImage: (url) => saveImageFromUrl(context, url),
+                      saveImageLabel: l10n.imageSave,
                     ),
                   );
                 },
@@ -128,21 +142,27 @@ class ChatImage extends ConsumerWidget {
             ),
           );
         },
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(8),
-          child: GfNetworkImage(
-            resolved,
-            width: 240,
-            height: 180,
-            cacheWidth: (240 * pixelRatio).ceil(),
-            cacheHeight: (180 * pixelRatio).ceil(),
-            cacheResizePolicy: ResizeImagePolicy.fit,
-            fit: BoxFit.contain,
-            excludeFromSemantics: true,
-            errorBuilder: (context, _, _) => SizedBox(
-              width: 240,
-              height: 100,
-              child: Center(child: Text(l10n.commonLoadFailed)),
+        child: HeroMode(
+          enabled: !GfMotion.reducedOf(context),
+          child: Hero(
+            tag: (heroTag, 0),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: GfNetworkImage(
+                resolved,
+                width: 240,
+                height: 180,
+                cacheWidth: (240 * pixelRatio).ceil(),
+                cacheHeight: (180 * pixelRatio).ceil(),
+                cacheResizePolicy: ResizeImagePolicy.fit,
+                fit: BoxFit.contain,
+                excludeFromSemantics: true,
+                errorBuilder: (context, _, _) => SizedBox(
+                  width: 240,
+                  height: 100,
+                  child: Center(child: Text(l10n.commonLoadFailed)),
+                ),
+              ),
             ),
           ),
         ),

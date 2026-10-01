@@ -100,7 +100,9 @@ class _CaptureUploadsAdapter implements HttpClientAdapter {
     return ResponseBody.fromString(
       jsonEncode({'code': 0, 'result': '/file/img/photo.jpg'}),
       200,
-      headers: {Headers.contentTypeHeader: ['application/json']},
+      headers: {
+        Headers.contentTypeHeader: ['application/json'],
+      },
     );
   }
 
@@ -609,6 +611,42 @@ void main() {
       await tester.tap(find.byType(ChatImage));
       await tester.pumpAndSettle();
       expect(find.byType(GfImageViewer), findsOneWidget);
+      await dispose(tester);
+    },
+  );
+  testWidgets(
+    'identical image messages retain distinct origins and expire with the account',
+    (tester) async {
+      final container = await pump(
+        tester,
+        messages: [
+          makeChatMessage(
+            1,
+          ).copyWith(content: '/file/img/photo.png', msgType: 2),
+          makeChatMessage(
+            2,
+          ).copyWith(content: '/file/img/photo.png', msgType: 2),
+        ],
+      );
+      final sources = find.byType(ChatImage);
+      final first = tester
+          .widget<Hero>(
+            find.descendant(of: sources.first, matching: find.byType(Hero)),
+          )
+          .tag;
+      final last = tester
+          .widget<Hero>(
+            find.descendant(of: sources.last, matching: find.byType(Hero)),
+          )
+          .tag;
+      expect(first, isNot(last));
+      await tester.tap(sources.last);
+      await tester.pumpAndSettle();
+      final viewer = tester.widget<GfImageViewer>(find.byType(GfImageViewer));
+      expect((viewer.heroTag, 0), last);
+      container.read(offlineCacheEpochProvider.notifier).invalidate();
+      await tester.pumpAndSettle();
+      expect(find.byType(GfImageViewer), findsNothing);
       await dispose(tester);
     },
   );

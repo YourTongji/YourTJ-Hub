@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-09-29
+> Last verified: 2026-10-01
 
 This standard applies the native reading direction in [0037](../decisions/0037-adaptive-mobile-reading-window.md)
 to the Flutter app. [Mobile experience](mobile-experience.md) records implemented behavior. Rules marked
@@ -55,6 +55,25 @@ Pressed, selected, pending, failed and disabled states are distinguishable witho
 image, and the body opens the discussion. Child actions consume their own gestures. A guest/offline
 identity uses the brand mark or a deliberate person glyph, never a broken-image placeholder.
 
+`Current`: topic detail leads with author identity, then categories, title and full-width prose.
+Replies keep the timestamp below the body and the floor beside the author. Main-post/reply side
+insets are 16px/12px. The inline row keeps like/count, bookmark, icon-only reply and more; reports,
+history, sharing and permission-gated management use a scrollable glass menu anchored to the
+invoking button, with content identity in its route semantics. Opening or cancelling a menu does not replace the reply window or
+its reading position. Exact geometry lives in [mobile experience](mobile-experience.md#navigation-and-reading).
+
+`Current`: sent-message context menus lift the original-width bubble as its own opaque/content
+surface. A separate glass action panel fits its longest label plus icon/insets, capped at the
+available viewport width. It sits 8px below, with no rules between actions; no shared glass encloses the
+message. A full-viewport modal backdrop blurs the rest of the app at sigma 12 with a .16 scrim;
+its blur follows the route's entry/exit progress, below both sharp foreground parts. Reduced
+effects/contrast/accessibility settings disable the blur. Only actions scroll. The source stays
+mounted but hidden until the closing transition ends.
+Both parts retain bounded previews, keyboard-aware placement and native modal focus. Chat, Markdown, feed thumbnails and carousel transitions use
+occurrence identity; return follows the focused image only while its thumbnail remains current and
+fully visible inside its ancestor clips. Chat and Markdown viewers close on account epoch changes. Exact interaction and geometry rules live in the [mobile experience](mobile-experience.md).
+`Partial`: source transitions for the separate HTML/Wiki renderer remain uncovered.
+
 ## Navigation and windows
 
 Navigation uses the same destinations, icons and unread meaning at every window width. A wide
@@ -71,13 +90,60 @@ normal pushed route. System safe areas and keyboard insets are consumed exactly 
 
 `Current`: public profile tabs form a continuous row. The active item expands its icon and localized
 label; other items retain accessible icon controls. During a held swipe, the outgoing and incoming
-icons and labels move together with the segment widths, using a slight scale and fade. The selected
-underline moves with the changing cell widths, with reduced-motion support. Loading affects only the content stream; the identity and
+icons and labels move together with the segment widths, using a slight scale and fade. A solid 3px underline, 40–64px wide, moves with the changing cell widths, with reduced-motion support. Loading affects only the content stream; the identity and
 tab row remain stable. Direct selection by tap animates the same icon, label and underline transition
 with the 180 ms content motion. Loaded pages and scroll positions are independent per stream, while obsolete
 requests are cancelled or ignored. Following/follower statistics open the matching lists.
 Device preferences are separate from account editing, binding and security. Appearance offers System,
-Light and Dark, and an already open choice sheet updates with the selected theme.
+Light and Dark through the shared action menu; selecting a theme closes the menu and preserves the drawer.
+
+## Optical control material
+
+`Current`: `GfLiquidSurface` unifies root header materials, AppBar button islands, compact floating
+navigation and the wide rail, cover-image controls, floating actions, search, chat/reply input,
+publishing tools, context menus, bottom sheets, dialogs and feedback banners. Home, Campus and
+notification tabs use a rounded selection lens. Profile tabs use a solid underline without glass,
+retaining their width-following identity transition. Topic sorting reuses the shared 48px segmented control. The retained navigators and state owners remain unchanged. Ordinary post bodies and
+schedule cells remain opaque reading surfaces.
+
+`Current`: supported Impeller renderers refract the real backdrop through a rounded convex rim after
+Gaussian diffusion. The lens has a 16px edge region and up to 9px inward displacement; these are
+mobile material parameters, not claimed Telegram measurements. Shader bounds update at paint time
+for translated/scaled controls. Regular glass uses the base-300 tint, 3px diffusion and light/dark fill alpha .62/.70;
+strong glass uses 14px and .88 for composers and sheets. Menus use their own base-100 material:
+6px diffusion, light/dark fill alpha .42/.46, top highlight .12/.08 and bottom .04/.02. Menu text
+uses base-content at .92 opacity; text itself is never translucent glass. Photo controls use a dark .58 veil with a
+caller-selected diffusion (default 12px). A white top-left highlight overlays the fill at .24 in
+light regular glass and .08 in dark/photo glass, fading through transparent to .10/.02. The 1px rim
+and two external shadows (24px blur, y=8; 3px blur, y=1) establish separation. Flat root header
+materials have no surrounding rim or elevation. Text and icons are never part of the filter.
+
+| Component | Implemented geometry in logical pixels |
+| --- | --- |
+| Bottom dock | 16 side margin, 4 top / 8 bottom breathing room, 40 radius; 72px inner minimum with labels, 84px shell before bottom safe area; grows with text |
+| AppBar | 56 toolbar, 18/26 semibold title, 8 title spacing, 24-radius action islands; native back/focus semantics |
+| Root controls | 56 header, 26-radius identity/action islands; content scrolls underneath |
+| Search | 48 minimum height, 26 radius, 16 text, 20 search symbol, 44 clear target |
+| Chat/reply/publish tools | 28 outer radius; existing 16/1.4 editing scale and selection/IME owner retained |
+| Menu / dialog / banner | 28 radius; menu rows minimum 48; dialogs keep bounded native routes and keyboard avoidance |
+| Bottom sheet | 32 radius, max width 640, 28 handle area; one safe-area boundary |
+| Content panel / emphasized card | 24 radius; continuous feed rows retain their compact separators |
+| Conversation row | 52 circular avatar, 12 identity gap, 17/600 name, 15 preview, 4 name/preview gap; large-text identity wraps fully |
+| Page header | 28/1.2 bold, −.6 letter spacing; body and metadata keep the shared hierarchy |
+
+`Current`: pressable glass scales to .97 using the 120ms press cadence and returns on pointer-up or
+pointer-cancel; it never owns the child action. Selection retains 160ms destination transitions and
+the existing interruptible tab controller. No decorative ticker runs while idle. Shader load failure
+and renderers without shader filters use bounded Gaussian frost. Reduce Transparency, high contrast,
+reduced motion and accessible navigation use opaque fills with no backdrop filter; this change does
+not replace editors, focus, selection or drafts. iOS Reduce Transparency is observed above the root
+navigator through a narrow native preference bridge, including live changes and foreground refresh.
+
+`Partial`: this is custom Flutter optical glass, not Apple's native Liquid Glass API. Device
+profile/release performance and the full VoiceOver/IME matrix remain separate acceptance work.
+The implementation choice and fallbacks are recorded in [0054](../decisions/0054-mobile-optical-glass.md).
+Semantic Web/mobile palette tokens are unchanged; the values above are native component geometry
+and optical parameters.
 
 ## Transient surfaces and input
 
@@ -93,9 +159,14 @@ Focusing an editor is not an edit. Keyboard layouts prioritize the active writin
 introductory guidance, retain focus, and keep the primary action reachable. Implemented behavior
 lives in [mobile experience](mobile-experience.md#publishing).
 
-`Current`: profile and password editing use pages and preserve input on failed saves. Shared short
-choice sheets use a drag handle, 24-pixel top corners, one safe-area boundary and a 640-pixel width
-limit. `Partial`: legacy forms still use bounded scrollable sheets; profile, password and course
+`Current`: profile and password editing use pages and preserve input on failed saves. Discrete action
+lists and short choices use `showGfActionMenu` / `GfActionMenuButton`: content-width glass, no dividers,
+48px minimum rows, optional selected checkmarks, disabled and destructive states. They anchor 8px below
+the invoking control or above it when needed, with 12px safe/keyboard margins and bounded scrolling.
+This includes forum overflow, profile/account tools, course management, schedule export/plan actions,
+image saving, sticker actions/upload sources, message attachments, avatar sources, heading levels,
+language and appearance. Rich previews, editors, confirmation dialogs, searchable/filterable data
+selectors, and sign-in methods with policy notices retain their dedicated surfaces. `Partial`: legacy forms still use bounded scrollable sheets; profile, password and course
 review editing confirm discarding changed input.
 Transient feedback uses the existing shared banner; field-specific errors stay beside the field.
 Retry belongs beside the failed operation. A success banner must not precede server acknowledgement
@@ -185,10 +256,8 @@ ratings and image controls use ReIcon SVGs on a 24-pixel grid. Compact inline ma
 at 16 pixels, actions at 20–24 pixels, and navigation at 24 pixels inside independent touch targets.
 The bottom bar and wide rail switch each active destination from Outline to the matching Filled
 ReIcon glyph. The compact bottom bar also shows each destination's short localized label; at large
-text it grows vertically and lets labels wrap while preserving 44-pixel targets. Its iOS surface
-may use a restrained Flutter blur/translucency, while Android, high-contrast mode, reduced motion
-and accessible-navigation mode use the opaque theme surface. This does not claim adoption of a
-native iOS Liquid Glass API. Selecting a destination uses one interruptible 160 ms transition for its indicator,
+text it grows vertically and lets labels wrap while preserving 44-pixel targets. The floating surface uses shared optical glass, with renderer and accessibility fallbacks described
+below. Selecting a destination uses one interruptible 160 ms transition for its indicator,
 icon color and label style; reduced motion settles that state immediately. Selected ratings use a filled counterpart. Brand marks and functional radio and
 strikethrough glyphs retain their source artwork, as recorded in the
 [UI Kit asset inventory](../../apps/mobile/packages/ui_kit/assets/README.md).

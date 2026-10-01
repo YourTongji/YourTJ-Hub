@@ -39,6 +39,7 @@ class _StickerLibraryPageState extends ConsumerState<_StickerLibrarySession> {
   final Set<String> _selected = {};
   bool _selecting = false;
   bool _uploading = false;
+  final _uploadKey = GlobalKey();
   XFile? _retryFile;
   String? _retryUploadUrl;
   String? _uploadError;
@@ -69,26 +70,21 @@ class _StickerLibraryPageState extends ConsumerState<_StickerLibrarySession> {
 
   Future<XFile?> _pickUpload(StickerCollection collection) async {
     final strings = StickerStrings(context);
-    final source = await showGfBottomSheet<_StickerUploadSource>(
+    final source = await showGfActionMenu<_StickerUploadSource>(
       context,
-      builder: (context) => SafeArea(
-        child: ListView(
-          shrinkWrap: true,
-          padding: EdgeInsets.zero,
-          children: [
-            ListTile(
-              leading: const GfSymbol('image', size: 23),
-              title: Text(strings.fromPhotos),
-              onTap: () => Navigator.pop(context, _StickerUploadSource.photos),
-            ),
-            ListTile(
-              leading: const GfSymbol('folder', size: 23),
-              title: Text(strings.fromFiles),
-              onTap: () => Navigator.pop(context, _StickerUploadSource.files),
-            ),
-          ],
+      sourceRect: gfMenuSourceRectOf(_uploadKey.currentContext!),
+      actions: [
+        GfContextAction(
+          value: _StickerUploadSource.photos,
+          label: strings.fromPhotos,
+          symbol: 'image',
         ),
-      ),
+        GfContextAction(
+          value: _StickerUploadSource.files,
+          label: strings.fromFiles,
+          symbol: 'folder',
+        ),
+      ],
     );
     if (source == null || !mounted || !collection.active) return null;
     if (source == _StickerUploadSource.photos) {
@@ -199,46 +195,33 @@ class _StickerLibraryPageState extends ConsumerState<_StickerLibrarySession> {
     }
   }
 
-  Future<void> _actions(StickerItemPayload item) async {
+  Future<void> _actions(BuildContext anchor, StickerItemPayload item) async {
     final collection = ref.read(stickerCollectionProvider);
     final strings = StickerStrings(context);
-    final action = await showGfBottomSheet<String>(
-      context,
-      builder: (context) => StickerSessionSurface(
-        collection: collection,
-        child: SafeArea(
-          child: ListView(
-            shrinkWrap: true,
-            padding: EdgeInsets.zero,
-            children: [
-              if (item.isEnabled) ...[
-                ListTile(
-                  leading: const GfSymbol('maximize', size: 22),
-                  title: Text(strings.viewLarger),
-                  onTap: () => Navigator.pop(context, 'preview'),
-                ),
-                ListTile(
-                  leading: const GfSymbol('pen-line', size: 22),
-                  title: Text(strings.rename),
-                  onTap: () => Navigator.pop(context, 'rename'),
-                ),
-              ],
-              ListTile(
-                leading: GfSymbol(
-                  'trash-2',
-                  size: 22,
-                  color: Theme.of(context).colorScheme.error,
-                ),
-                title: Text(
-                  strings.remove,
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
-                ),
-                onTap: () => Navigator.pop(context, 'remove'),
-              ),
-            ],
+    final action = await showGfActionMenu<String>(
+      anchor,
+      routeWrapper: (child) =>
+          StickerSessionSurface(collection: collection, child: child),
+      actions: [
+        if (item.isEnabled) ...[
+          GfContextAction(
+            value: 'preview',
+            label: strings.viewLarger,
+            symbol: 'maximize',
           ),
+          GfContextAction(
+            value: 'rename',
+            label: strings.rename,
+            symbol: 'pen-line',
+          ),
+        ],
+        GfContextAction(
+          value: 'remove',
+          label: strings.remove,
+          symbol: 'trash-2',
+          destructive: true,
         ),
-      ),
+      ],
     );
     if (!mounted || !collection.active) return;
     switch (action) {
@@ -292,6 +275,7 @@ class _StickerLibraryPageState extends ConsumerState<_StickerLibrarySession> {
           ),
           const SizedBox(height: 12),
           OutlinedButton.icon(
+            key: _uploadKey,
             onPressed: busy || stickerApiUnsupported(collection.mineError)
                 ? null
                 : _upload,
@@ -427,16 +411,20 @@ class _StickerLibraryPageState extends ConsumerState<_StickerLibrarySession> {
                           : Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                IconButton(
-                                  constraints: const BoxConstraints.tightFor(
-                                    width: 48,
-                                    height: 48,
+                                Builder(
+                                  builder: (anchor) => IconButton(
+                                    constraints: const BoxConstraints.tightFor(
+                                      width: 48,
+                                      height: 48,
+                                    ),
+                                    tooltip: strings.actions(
+                                      strings.displayLabel(item),
+                                    ),
+                                    icon: const GfSymbol('ellipsis', size: 22),
+                                    onPressed: busy
+                                        ? null
+                                        : () => _actions(anchor, item),
                                   ),
-                                  tooltip: strings.actions(
-                                    strings.displayLabel(item),
-                                  ),
-                                  icon: const GfSymbol('ellipsis', size: 22),
-                                  onPressed: busy ? null : () => _actions(item),
                                 ),
                                 ReorderableDragStartListener(
                                   index: index,

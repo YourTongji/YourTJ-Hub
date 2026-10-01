@@ -34,12 +34,11 @@ class GfCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final GfColors colors = GfTheme.colorsOf(context);
-    final GfRadii radii = GfTheme.radiiOf(context);
     final GfBorders borders = GfTheme.bordersOf(context);
     final GfShadows shadows = GfTheme.shadowsOf(context);
 
     final BorderRadius radius = emphasized
-        ? BorderRadius.circular(radii.box)
+        ? BorderRadius.circular(24)
         : BorderRadius.zero;
     final Color dividerColor = colors.line.withValues(alpha: 0.7);
 

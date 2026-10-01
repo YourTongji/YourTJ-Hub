@@ -20,6 +20,7 @@ import 'updates/update_host.dart';
 import 'providers.dart';
 import 'apple/apple_sign_in.dart';
 import 'widgets/app_system_ui_overlay.dart';
+import 'widgets/glass_accessibility_host.dart';
 import 'widgets/media_image_failure.dart';
 import 'app_config.dart';
 import 'current_user.dart';
@@ -65,11 +66,13 @@ class GfApp extends ConsumerWidget {
       themeAnimationDuration: GfMotion.duration(context, GfMotion.layout),
       themeAnimationCurve: GfMotion.layoutCurve,
       routerConfig: appRouter,
-      builder: (context, child) => AppSystemUiOverlay(
-        child: StorageGate(
-          child: _AppBusinessHosts(
-            locale: locale,
-            child: child ?? const SizedBox.shrink(),
+      builder: (context, child) => GlassAccessibilityHost(
+        child: AppSystemUiOverlay(
+          child: StorageGate(
+            child: _AppBusinessHosts(
+              locale: locale,
+              child: child ?? const SizedBox.shrink(),
+            ),
           ),
         ),
       ),

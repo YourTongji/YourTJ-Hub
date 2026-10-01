@@ -58,37 +58,27 @@ class _StickerPickerState extends ConsumerState<StickerPicker> {
     });
   }
 
-  Future<void> _actions(StickerItemPayload item) async {
+  Future<void> _actions(BuildContext anchor, StickerItemPayload item) async {
     final collection = ref.read(stickerCollectionProvider);
     final strings = StickerStrings(context);
     final saved = collection.mine.any((value) => value.name == item.name);
-    final action = await showGfBottomSheet<String>(
-      context,
-      builder: (context) => StickerSessionSurface(
-        collection: collection,
-        child: SafeArea(
-          child: ListView(
-            shrinkWrap: true,
-            padding: EdgeInsets.zero,
-            children: [
-              ListTile(
-                leading: const GfSymbol('maximize', size: 22),
-                title: Text(strings.viewLarger),
-                onTap: () => Navigator.pop(context, 'preview'),
-              ),
-              ListTile(
-                leading: GfSymbol(
-                  saved ? 'bookmark-filled' : 'bookmark',
-                  size: 22,
-                ),
-                title: Text(saved ? strings.saved : strings.collect),
-                enabled: !saved && !collection.busy,
-                onTap: () => Navigator.pop(context, 'save'),
-              ),
-            ],
-          ),
+    final action = await showGfActionMenu<String>(
+      anchor,
+      routeWrapper: (child) =>
+          StickerSessionSurface(collection: collection, child: child),
+      actions: [
+        GfContextAction(
+          value: 'preview',
+          label: strings.viewLarger,
+          symbol: 'maximize',
         ),
-      ),
+        GfContextAction(
+          value: 'save',
+          label: saved ? strings.saved : strings.collect,
+          symbol: saved ? 'bookmark-filled' : 'bookmark',
+          enabled: !saved && !collection.busy,
+        ),
+      ],
     );
     if (!mounted || !collection.active) return;
     if (action == 'preview') {
@@ -293,35 +283,37 @@ class _StickerPickerState extends ConsumerState<StickerPicker> {
                     itemCount: items.length,
                     itemBuilder: (context, index) {
                       final item = items[index];
-                      return Semantics(
-                        button: true,
-                        label: strings.displayLabel(item),
-                        hint: strings.pickerHint,
-                        child: InkWell(
-                          borderRadius: BorderRadius.circular(12),
-                          onLongPress: () => _actions(item),
-                          onTap: () {
-                            widget.onInsert(item.token);
-                            state.used(item);
-                          },
-                          child: Column(
-                            children: [
-                              IgnorePointer(
-                                child: StickerImage(
-                                  name: item.name,
-                                  url: item.url,
-                                  label: strings.displayLabel(item),
-                                  collectible: false,
-                                  excludeSemantics: true,
+                      return Builder(
+                        builder: (anchor) => Semantics(
+                          button: true,
+                          label: strings.displayLabel(item),
+                          hint: strings.pickerHint,
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(12),
+                            onLongPress: () => _actions(anchor, item),
+                            onTap: () {
+                              widget.onInsert(item.token);
+                              state.used(item);
+                            },
+                            child: Column(
+                              children: [
+                                IgnorePointer(
+                                  child: StickerImage(
+                                    name: item.name,
+                                    url: item.url,
+                                    label: strings.displayLabel(item),
+                                    collectible: false,
+                                    excludeSemantics: true,
+                                  ),
                                 ),
-                              ),
-                              Text(
-                                strings.displayLabel(item),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context).textTheme.labelSmall,
-                              ),
-                            ],
+                                Text(
+                                  strings.displayLabel(item),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: Theme.of(context).textTheme.labelSmall,
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       );

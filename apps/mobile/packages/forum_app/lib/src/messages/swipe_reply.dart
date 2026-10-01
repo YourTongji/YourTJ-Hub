@@ -35,6 +35,31 @@ class _SwipeReplyState extends State<SwipeReply>
   }
 
   bool _crossed = false;
+  final Set<int> _pointers = {};
+  bool _cancelled = false;
+
+  void _pointerDown(PointerDownEvent event) {
+    if (event.kind != PointerDeviceKind.touch &&
+        event.kind != PointerDeviceKind.stylus) {
+      return;
+    }
+    if (_pointers.isEmpty) _cancelled = false;
+    _pointers.add(event.pointer);
+    if (_pointers.length > 1) {
+      _cancelled = true;
+      _reset();
+    }
+  }
+
+  void _pointerCancel(PointerCancelEvent event) {
+    if (!_pointers.remove(event.pointer)) return;
+    // An accepted Flutter drag ends on PointerCancel as well as PointerUp.
+    // The raw listener runs before the recognizer's onEnd; cancellation must
+    // fence that callback, not rely on onHorizontalDragCancel alone.
+    _cancelled = true;
+    _reset();
+  }
+
   void _reset() {
     if (GfMotion.reducedOf(context)) {
       _offset.value = 0;
@@ -50,7 +75,17 @@ class _SwipeReplyState extends State<SwipeReply>
   @override
   void didUpdateWidget(SwipeReply oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.onReply == null) _offset.value = 0;
+    if (widget.onReply == null) {
+      _cancelled = true;
+      _pointers.clear();
+      _offset.value = 0;
+    }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (GfMotion.reducedOf(context) && _offset.isAnimating) _offset.value = 0;
   }
 
   @override
@@ -68,56 +103,63 @@ class _SwipeReplyState extends State<SwipeReply>
         if (widget.onActions != null && widget.actionsLabel != null)
           CustomSemanticsAction(label: widget.actionsLabel!): widget.onActions!,
       },
-      child: GestureDetector(
-        // Include the first accepted move: a fast iOS swipe may arrive as one
-        // coalesced event, with no later delta before pointer-up.
-        dragStartBehavior: DragStartBehavior.down,
-        supportedDevices: const {
-          PointerDeviceKind.touch,
-          PointerDeviceKind.stylus,
-        },
-        onHorizontalDragStart: (_) {
-          _offset.stop();
-          _crossed = false;
-        },
-        onHorizontalDragUpdate: (details) {
-          _offset.value = (_offset.value - details.delta.dx).clamp(0, 88);
-          if (_offset.value >= threshold && !_crossed) {
-            _crossed = true;
-            HapticFeedback.selectionClick();
-          }
-        },
-        onHorizontalDragEnd: (_) {
-          final reply = _offset.value >= threshold;
-          _reset();
-          if (reply) widget.onReply?.call();
-        },
-        onHorizontalDragCancel: _reset,
-        child: AnimatedBuilder(
-          animation: _offset,
-          child: widget.child,
-          builder: (context, child) => Stack(
-            alignment: Alignment.centerRight,
-            children: [
-              ExcludeSemantics(
-                child: Opacity(
-                  opacity: (_offset.value / threshold).clamp(0, 1),
-                  child: Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: IconTheme(
-                      data: IconThemeData(
-                        color: GfTheme.colorsOf(context).primary,
+      child: Listener(
+        onPointerDown: _pointerDown,
+        onPointerUp: (event) => _pointers.remove(event.pointer),
+        onPointerCancel: _pointerCancel,
+        child: GestureDetector(
+          // Include the first accepted move: a fast iOS swipe may arrive as one
+          // coalesced event, with no later delta before pointer-up.
+          dragStartBehavior: DragStartBehavior.down,
+          supportedDevices: const {
+            PointerDeviceKind.touch,
+            PointerDeviceKind.stylus,
+          },
+          onHorizontalDragStart: (_) {
+            if (_cancelled) return;
+            _offset.stop();
+            _crossed = false;
+          },
+          onHorizontalDragUpdate: (details) {
+            if (_cancelled) return;
+            _offset.value = (_offset.value - details.delta.dx).clamp(0, 88);
+            if (_offset.value >= threshold && !_crossed) {
+              _crossed = true;
+              HapticFeedback.selectionClick();
+            }
+          },
+          onHorizontalDragEnd: (_) {
+            final reply = !_cancelled && _offset.value >= threshold;
+            _reset();
+            if (reply) widget.onReply?.call();
+          },
+          onHorizontalDragCancel: _reset,
+          child: AnimatedBuilder(
+            animation: _offset,
+            child: widget.child,
+            builder: (context, child) => Stack(
+              alignment: Alignment.centerRight,
+              children: [
+                ExcludeSemantics(
+                  child: Opacity(
+                    opacity: (_offset.value / threshold).clamp(0, 1),
+                    child: Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: IconTheme(
+                        data: IconThemeData(
+                          color: GfTheme.colorsOf(context).primary,
+                        ),
+                        child: const GfSymbol('quote', size: 24),
                       ),
-                      child: const GfSymbol('quote', size: 24),
                     ),
                   ),
                 ),
-              ),
-              Transform.translate(
-                offset: Offset(-_offset.value, 0),
-                child: child,
-              ),
-            ],
+                Transform.translate(
+                  offset: Offset(-_offset.value, 0),
+                  child: child,
+                ),
+              ],
+            ),
           ),
         ),
       ),

@@ -76,6 +76,41 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  testWidgets(
+    'server acknowledgement preserves outgoing bubble width and alignment',
+    (tester) async {
+      final h = await pumpSendChat(tester);
+      final content = List.filled(
+        6,
+        'A longer message keeps its wrapping.',
+      ).join(' ');
+      await send(tester, content);
+      await tester.pumpAndSettle();
+      Finder bubble() => find.descendant(
+        of: find.byWidgetPredicate(
+          (w) => w is GfMessageBubble && w.text == content,
+        ),
+        matching: find.byWidgetPredicate(
+          (w) =>
+              w is Container &&
+              w.padding ==
+                  const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        ),
+      );
+      final pending = tester.getRect(bubble());
+      h.repo.messages.add(
+        makeChatMessage(2).copyWith(content: content, isSelf: true),
+      );
+      h.repo.pending.single.complete(1);
+      await tester.pumpAndSettle();
+      expect(h.container.read(chatOutboxProvider(2)).items, isEmpty);
+      final acknowledged = tester.getRect(bubble());
+      expect(acknowledged.right, closeTo(pending.right, .01));
+      expect(acknowledged.size, pending.size);
+      await tester.pumpWidget(const SizedBox.shrink());
+    },
+  );
+
   const drafts = <String, String>{
     'plain text': '先写到一半',
     'sticker': '[:sticker:smile:]',

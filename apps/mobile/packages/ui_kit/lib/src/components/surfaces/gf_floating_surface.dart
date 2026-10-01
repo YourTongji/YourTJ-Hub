@@ -1,14 +1,9 @@
-import 'dart:ui';
-
 import 'package:flutter/material.dart';
 
 import '../../theme/gf_theme.dart';
+import 'gf_liquid_surface.dart';
 
-/// Floating surface, mirroring web `.gf-floating-surface` (components.css):
-/// 1px line border, radius box, base-100 background, the two-layer
-/// `gf-shadows.floating` shadow and an 8px backdrop blur (web
-/// `backdrop-blur`). Used by the topic floating controls, floating reply
-/// composer and bottom sheets.
+/// Shared optical surface for floating controls and reply composers.
 class GfFloatingSurface extends StatelessWidget {
   const GfFloatingSurface({
     super.key,
@@ -21,43 +16,20 @@ class GfFloatingSurface extends StatelessWidget {
   final Widget child;
   final EdgeInsetsGeometry padding;
 
-  /// Corner radius; defaults to `gf-radius-box` (8), callers may override
-  /// for pill shapes (e.g. rounded-full floating bars).
+  /// Native floating controls use 28px corners; callers may request capsules.
   final double? radius;
 
-  /// Whether to apply the 8px backdrop blur (web `backdrop-blur`).
+  /// False requests a solid surface, including on optical-capable renderers.
   final bool blur;
 
   @override
   Widget build(BuildContext context) {
-    final GfColors colors = GfTheme.colorsOf(context);
-    final GfRadii radii = GfTheme.radiiOf(context);
-    final GfBorders borders = GfTheme.bordersOf(context);
-    final GfShadows shadows = GfTheme.shadowsOf(context);
-
-    final double corner = radius ?? radii.box;
-
-    Widget surface = Container(
+    return GfLiquidSurface(
+      radius: radius ?? 28,
       padding: padding,
-      decoration: BoxDecoration(
-        color: colors.base100,
-        borderRadius: BorderRadius.circular(corner),
-        border: Border.all(color: colors.line, width: borders.width),
-        boxShadow: shadows.floating,
-      ),
+      forceOpaque: !blur,
       child: child,
     );
-
-    if (blur) {
-      surface = ClipRRect(
-        borderRadius: BorderRadius.circular(corner),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-          child: surface,
-        ),
-      );
-    }
-    return surface;
   }
 }
 

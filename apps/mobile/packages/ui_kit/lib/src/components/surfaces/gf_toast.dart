@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../theme/gf_theme.dart';
 import '../gf_motion.dart';
+import 'gf_liquid_surface.dart';
 import '../gf_symbol.dart';
 
 final _activeToasts = Expando<_ToastEntry>();
@@ -168,15 +169,10 @@ class _FeedbackBannerState extends State<_FeedbackBanner>
                       ?current,
                     ],
                   ),
-                  child: Material(
+                  child: GfLiquidSurface(
                     key: ObjectKey(widget.message),
-                    color: colors.base100,
-                    elevation: 4,
-                    shadowColor: Colors.black.withValues(alpha: .14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                      side: BorderSide(color: accent.withValues(alpha: .25)),
-                    ),
+                    radius: 28,
+                    weight: GfGlassWeight.strong,
                     child: Semantics(
                       liveRegion: true,
                       child: Padding(

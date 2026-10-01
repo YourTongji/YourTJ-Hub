@@ -1486,6 +1486,10 @@ class _TopicPageState extends ConsumerState<TopicPage>
             TopicActions(
               props: _page.valueOrNull!,
               firstPostId: _mainPost(_posts)?.id,
+              onReport:
+                  _topicAvailable && !_page.valueOrNull!.permissions.isOwnTopic
+                  ? () => _reportTopic(_page.valueOrNull!.topic)
+                  : null,
               onChanged: () => _load(silent: true, postNo: _currentFloor),
             ),
         ],
@@ -1538,10 +1542,6 @@ class _TopicPageState extends ConsumerState<TopicPage>
                                 titleKey: _titleKey,
                                 topic: props.topic,
                                 mainPost: mainPost,
-                                canReportTopic:
-                                    _topicAvailable &&
-                                    !props.permissions.isOwnTopic,
-                                onReportTopic: () => _reportTopic(props.topic),
                               ),
                             ),
                             const SliverToBoxAdapter(child: GfDivider()),
@@ -1950,15 +1950,11 @@ class _TopicHeader extends StatelessWidget {
     required this.titleKey,
     required this.topic,
     required this.mainPost,
-    required this.canReportTopic,
-    required this.onReportTopic,
   });
 
   final Key titleKey;
   final TopicDetailPayload topic;
   final PostPayload? mainPost;
-  final bool canReportTopic;
-  final VoidCallback onReportTopic;
 
   @override
   Widget build(BuildContext context) {
@@ -2024,16 +2020,6 @@ class _TopicHeader extends StatelessWidget {
                   ],
                 ),
               ),
-              if (canReportTopic) ...<Widget>[
-                const SizedBox(width: 4),
-                GfIconButton(
-                  symbol: 'flag',
-                  size: 44,
-                  iconSize: 20,
-                  tooltip: l10n.topicReport,
-                  onPressed: onReportTopic,
-                ),
-              ],
             ],
           ),
           if (topic.categories.isNotEmpty) ...<Widget>[
@@ -2142,9 +2128,8 @@ class _ReplySectionHeader extends StatelessWidget {
   }
 }
 
-/// 评论排序胶囊(正序/倒序/只看楼主):镜像 GfSegmented 的视觉规格
-/// (base-200 轨道 + field 圆角 + 32px 项 + 选中态 base100/primary),
-/// 但按内容自适应宽度,可与标题同排展示。
+/// Content-width sorting uses the same selection surface and accessible touch
+/// targets as settings and other segmented controls.
 class _CommentSortCapsule extends StatelessWidget {
   const _CommentSortCapsule({required this.sort, required this.onChanged});
 
@@ -2153,50 +2138,18 @@ class _CommentSortCapsule extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final AppLocalizations l10n = AppLocalizations.of(context);
-    final GfColors colors = GfTheme.colorsOf(context);
-    final GfRadii radii = GfTheme.radiiOf(context);
-
-    Widget item(CommentSort value, String label) {
-      final bool selected = value == sort;
-      return Semantics(
-        selected: selected,
-        button: true,
-        child: InkWell(
-          onTap: selected ? null : () => onChanged(value),
-          borderRadius: BorderRadius.circular(radii.field - 2),
-          child: Container(
-            constraints: const BoxConstraints(minHeight: 32),
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            child: Text(
-              label,
-              style: TextStyle(
-                color: selected
-                    ? colors.primary
-                    : colors.baseContent.withValues(alpha: 0.55),
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ),
-      );
-    }
-
-    return Container(
-      padding: const EdgeInsets.all(2),
-      decoration: BoxDecoration(
-        color: colors.base200,
-        borderRadius: BorderRadius.circular(radii.field),
-        border: Border.all(color: colors.line),
-      ),
-      child: Wrap(
-        children: <Widget>[
-          item(CommentSort.asc, l10n.commentSortAsc),
-          item(CommentSort.desc, l10n.commentSortDesc),
-          item(CommentSort.onlyOp, l10n.commentSortOnlyOp),
-        ],
-      ),
+    final l10n = AppLocalizations.of(context);
+    return GfSegmented<CommentSort>(
+      expanded: false,
+      selected: sort,
+      onSelected: (value) {
+        if (value != sort) onChanged(value);
+      },
+      segments: [
+        (l10n.commentSortAsc, CommentSort.asc),
+        (l10n.commentSortDesc, CommentSort.desc),
+        (l10n.commentSortOnlyOp, CommentSort.onlyOp),
+      ],
     );
   }
 }

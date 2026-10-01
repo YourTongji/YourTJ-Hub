@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../theme/gf_theme.dart';
 import '../gf_symbol.dart';
+import 'gf_liquid_surface.dart';
 
 /// Bounded native menu surface with soft corners and a subtle outline.
 class GfMenuSurface extends StatelessWidget {
@@ -16,25 +17,18 @@ class GfMenuSurface extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final GfColors colors = GfTheme.colorsOf(context);
-    final GfBorders borders = GfTheme.bordersOf(context);
-
-    return Material(
-      color: colors.base100,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: colors.line, width: borders.width),
-      ),
-      clipBehavior: Clip.antiAlias,
-      elevation: 0,
-      child: Padding(padding: padding, child: child),
+    return GfLiquidSurface(
+      radius: 28,
+      weight: GfGlassWeight.menu,
+      padding: padding,
+      child: child,
     );
   }
 }
 
 /// Menu actions have a 48-pixel minimum target and grow with their labels.
 enum GfMenuItemVariant {
-  /// `gf-menu-item`: base-content/75, hover base-200.
+  /// `gf-menu-item`: base-content/92, hover base-200.
   normal,
 
   /// `gf-menu-item-primary`: primary text, hover info/10.
@@ -55,6 +49,7 @@ class GfMenuItem extends StatelessWidget {
     this.iconSize = 18,
     this.onTap,
     this.variant = GfMenuItemVariant.normal,
+    this.selected = false,
   });
 
   final String label;
@@ -62,13 +57,14 @@ class GfMenuItem extends StatelessWidget {
   final double iconSize;
   final VoidCallback? onTap;
   final GfMenuItemVariant variant;
+  final bool selected;
 
   @override
   Widget build(BuildContext context) {
     final GfColors colors = GfTheme.colorsOf(context);
 
     final Color variantColor = switch (variant) {
-      GfMenuItemVariant.normal => colors.baseContent.withValues(alpha: 0.75),
+      GfMenuItemVariant.normal => colors.baseContent.withValues(alpha: 0.92),
       GfMenuItemVariant.primary => colors.primary,
       GfMenuItemVariant.warning => colors.warning,
       GfMenuItemVariant.danger => colors.error,
@@ -82,40 +78,47 @@ class GfMenuItem extends StatelessWidget {
         ? null
         : GfSymbol(symbol!, size: iconSize, color: color);
 
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        hoverColor: switch (variant) {
-          GfMenuItemVariant.normal => colors.base200,
-          GfMenuItemVariant.primary => colors.info.withValues(alpha: 0.10),
-          GfMenuItemVariant.warning => colors.warning.withValues(alpha: 0.10),
-          GfMenuItemVariant.danger => colors.error.withValues(alpha: 0.10),
-        },
-        child: Container(
-          constraints: const BoxConstraints(minHeight: 48),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          alignment: Alignment.centerLeft,
-          child: Row(
-            children: <Widget>[
-              if (leadingIcon != null) ...<Widget>[
-                leadingIcon,
-                const SizedBox(width: 10),
-              ],
-              Expanded(
-                child: Text(
-                  label,
-                  style: TextStyle(
-                    color: color,
-                    fontSize: 15,
-                    fontWeight: variant == GfMenuItemVariant.primary
-                        ? FontWeight.w600
-                        : FontWeight.w500,
+    return Semantics(
+      selected: selected,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(12),
+          hoverColor: switch (variant) {
+            GfMenuItemVariant.normal => colors.base200,
+            GfMenuItemVariant.primary => colors.info.withValues(alpha: 0.10),
+            GfMenuItemVariant.warning => colors.warning.withValues(alpha: 0.10),
+            GfMenuItemVariant.danger => colors.error.withValues(alpha: 0.10),
+          },
+          child: Container(
+            constraints: const BoxConstraints(minHeight: 48),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            alignment: Alignment.centerLeft,
+            child: Row(
+              children: <Widget>[
+                if (leadingIcon != null) ...<Widget>[
+                  leadingIcon,
+                  const SizedBox(width: 10),
+                ],
+                Expanded(
+                  child: Text(
+                    label,
+                    style: TextStyle(
+                      color: color,
+                      fontSize: 15,
+                      fontWeight: variant == GfMenuItemVariant.primary
+                          ? FontWeight.w600
+                          : FontWeight.w500,
+                    ),
                   ),
                 ),
-              ),
-            ],
+                if (selected) ...[
+                  const SizedBox(width: 10),
+                  GfSymbol('check', size: 18, color: color),
+                ],
+              ],
+            ),
           ),
         ),
       ),

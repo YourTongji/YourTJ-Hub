@@ -7,6 +7,59 @@ import 'package:ui_kit/ui_kit.dart';
 import '../helpers.dart';
 
 void main() {
+  testWidgets(
+    'feed duplicate photos keep occurrence and reject hidden or replaced return targets',
+    (tester) async {
+      final images = ValueNotifier([
+        'https://example.test/repeat.png',
+        'https://example.test/repeat.png',
+        'https://example.test/three.png',
+        'https://example.test/four.png',
+      ]);
+      addTearDown(images.dispose);
+      await tester.pumpWidget(
+        gfApp(
+          ValueListenableBuilder<List<String>>(
+            valueListenable: images,
+            builder: (_, urls, _) => GfTopicCard(
+              title: 'Photos',
+              description: '',
+              authorName: 'Student',
+              authorAvatarUrl: '',
+              activityText: 'Today',
+              categories: const [],
+              imageUrls: urls,
+              imageAspectRatio: .7,
+              replyCount: 0,
+              viewCount: 0,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.byWidgetPredicate(
+          (w) => w is Semantics && w.properties.label == 'View image 2 of 4',
+        ),
+      );
+      await tester.pumpAndSettle();
+      final viewer = tester.widget<GfImageViewer>(find.byType(GfImageViewer));
+      expect(viewer.initialIndex, 1);
+      expect(viewer.heroTag, isNotNull);
+      expect(viewer.canReturnToSource!(1), isTrue);
+      expect(
+        viewer.canReturnToSource!(3),
+        isFalse,
+        reason: 'Fourth photo has no feed thumbnail',
+      );
+      images.value = ['https://example.test/replaced.png'];
+      await tester.pump();
+      expect(viewer.canReturnToSource!(1), isFalse);
+      tester.state<NavigatorState>(find.byType(Navigator)).pop();
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+    },
+  );
   for (final (width, scale) in [(390.0, 1.0), (320.0, 2.0)]) {
     testWidgets('author and category share compact metadata at $width/$scale', (
       tester,

@@ -1,6 +1,7 @@
 import 'dart:ui' show SemanticsAction, Tristate;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ui_kit/ui_kit.dart';
 
@@ -29,29 +30,20 @@ void main() {
         );
         final surface = find.byType(GfGlassSurface);
         expect(tester.getSize(surface), const Size(44, 44));
-        final clip = find.descendant(
-          of: surface,
-          matching: find.byType(ClipOval),
-        );
-        final blur = find.descendant(
-          of: surface,
-          matching: find.byType(BackdropFilter),
-        );
+        final clip = find
+            .descendant(of: surface, matching: find.byType(ClipRRect))
+            .first;
         expect(tester.getRect(clip), tester.getRect(surface));
-        expect(tester.getRect(blur), tester.getRect(surface));
-        final decoration =
-            tester
-                    .widget<DecoratedBox>(
-                      find.descendant(
-                        of: surface,
-                        matching: find.byType(DecoratedBox),
-                      ),
-                    )
-                    .decoration
-                as BoxDecoration;
-        expect(decoration.shape, BoxShape.circle);
-        expect(decoration.border, isNotNull);
-        final effectiveFill = Color.alphaBlend(decoration.color!, cover);
+        expect(tester.layers.whereType<BackdropFilterLayer>(), isNotEmpty);
+        final decoration = tester
+            .widgetList<DecoratedBox>(
+              find.descendant(of: surface, matching: find.byType(DecoratedBox)),
+            )
+            .map((box) => box.decoration)
+            .whereType<BoxDecoration>()
+            .firstWhere((decoration) => decoration.gradient != null);
+        final fill = (decoration.gradient! as LinearGradient).colors.first;
+        final effectiveFill = Color.alphaBlend(fill, cover);
         final contrast = 1.05 / (effectiveFill.computeLuminance() + .05);
         expect(contrast, greaterThanOrEqualTo(3));
         expect(

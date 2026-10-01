@@ -329,6 +329,7 @@ class CourseReviewFormSheetState extends State<CourseReviewFormSheet> {
                             placeholder: copy.contentPlaceholder,
                             enabled: !_submitting,
                             onHeading: () => _chooseHeading(l10n),
+                            headingKey: _headingMenuKey,
                             onInsertLink: _insertLink,
                           ),
                           const SizedBox(height: 4),
@@ -482,6 +483,8 @@ class CourseReviewFormSheetState extends State<CourseReviewFormSheet> {
     _ => l10n.courseReviewTemplateBlankDescription,
   };
 
+  final _headingMenuKey = GlobalKey();
+
   Future<void> _chooseHeading(AppLocalizations l10n) async {
     final level =
         _editorController
@@ -489,28 +492,22 @@ class CourseReviewFormSheetState extends State<CourseReviewFormSheet> {
                 .attributes[Attribute.header.key]
                 ?.value
             as int?;
-    final selected = await showGfBottomSheet<Attribute>(
+    final selected = await showGfActionMenu<Attribute>(
       context,
-      keyboardAware: true,
-      builder: (sheetContext) => SafeArea(
-        child: ListView(
-          shrinkWrap: true,
-          children: <Widget>[
-            for (final (attribute, label, value) in <(Attribute, String, int)>[
-              (Attribute.h1, l10n.publishHeadingLevel1, 1),
-              (Attribute.h2, l10n.publishHeadingLevel2, 2),
-              (Attribute.h3, l10n.publishHeadingLevel3, 3),
-            ])
-              ListTile(
-                title: Text(label),
-                trailing: level == value
-                    ? const GfSymbol('check', size: 20)
-                    : null,
-                onTap: () => Navigator.pop(sheetContext, attribute),
-              ),
-          ],
-        ),
-      ),
+      sourceRect: gfMenuSourceRectOf(_headingMenuKey.currentContext!),
+      actions: [
+        for (final (attribute, label, value) in <(Attribute, String, int)>[
+          (Attribute.h1, l10n.publishHeadingLevel1, 1),
+          (Attribute.h2, l10n.publishHeadingLevel2, 2),
+          (Attribute.h3, l10n.publishHeadingLevel3, 3),
+        ])
+          GfContextAction(
+            value: attribute,
+            label: label,
+            symbol: 'heading',
+            selected: level == value,
+          ),
+      ],
     );
     if (selected != null && mounted) {
       _editorController.formatSelection(selected);

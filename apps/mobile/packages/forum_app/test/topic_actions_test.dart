@@ -143,6 +143,18 @@ void main() {
     expect(h.repo.deleted, isEmpty);
     expect(h.router.state.uri.path, '/topic');
   });
+  testWidgets('session change invalidates an already open topic menu', (
+    tester,
+  ) async {
+    final h = await pump(tester);
+    await tester.tap(find.byTooltip('More options'));
+    await tester.pumpAndSettle();
+    h.container.read(offlineCacheEpochProvider.notifier).state++;
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
+    expect(h.router.state.uri.path, '/topic');
+    expect(find.text('Editor 100'), findsNothing);
+  });
   testWidgets('readers cannot edit or moderate somebody else’s topic', (
     tester,
   ) async {

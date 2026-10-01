@@ -126,11 +126,14 @@ ordered after the active route in the accessibility tree so iOS does not hide it
   bottom bar on compact windows, with the selected icon, short localized label and unread state kept
   together. At enlarged text, the bar measures the available label space and grows as needed while
   labels wrap without changing the destination order; icon-only callers retain the compact geometry.
-  The iOS bottom bar uses a restrained Flutter blur and translucent surface over
-  the existing theme; Android, high-contrast mode, reduced motion and accessible-navigation mode
-  use the opaque theme surface. This is a Flutter material treatment and does not adopt a native
-  iOS Liquid Glass API. Search is a pushed
-  page, reachable from Home. Campus links to the native course catalog, scheduler and Wiki;
+  The bottom bar floats with 16px side margins, a 40px radius and optical backdrop material.
+  The shared `GfLiquidSurface` also covers wide-rail controls, header actions, search, composers,
+  publishing tools, menus, sheets, dialogs and banners. Impeller provides refraction plus Gaussian
+  diffusion; other renderers use frost. High contrast, reduced motion/accessibility navigation and
+  iOS Reduce Transparency use solid surfaces without replacing input state. This is a custom Flutter
+  implementation; exact material, typography and geometry values are in the
+  [design specification](mobile-design-system.md#optical-control-material).
+  Search is a pushed page, reachable from Home. Campus links to the native course catalog, scheduler and Wiki;
   returning preserves the selected destination.
   About links to native friend links, sponsors, terms and privacy pages using the site’s published
   configuration; disabled policies remain hidden.
@@ -162,6 +165,17 @@ ordered after the active route in the accessibility tree so iOS does not hide it
   Paging and dismiss gestures stay out of the way while an image is zoomed. Changing reduced motion
   while viewing keeps the current image and settles active zoom or return animations. Home feed
   previews use the same viewer and image actions.
+- `Current`: private-message images, Markdown photos, Home thumbnails and inline media carousels open through a transparent media
+  route with a 280 ms entry and 180 ms return. A chat image's source identity includes its widget
+  instance, resolved URL and account epoch; equal URLs in different messages remain distinct.
+  Carousels retain an immutable gallery for the open viewer, synchronize their source page with
+  its focused index, and replace the source identity when the gallery changes. Unmounted or
+  replaced sources use the route fade. Returning also rejects thumbnails clipped by an ancestor,
+  scrolled out of the viewport, or missing from the visible Home preview (only three are shown). Reduced motion disables the
+  Hero and route animation. Existing origin restrictions and account-expiry dismissal remain in
+  force. Markdown galleries follow parsed image occurrences, including references and repeated URLs;
+  fenced code, token stickers and stale caller image hints cannot add or reorder photos. Content
+  replacement invalidates the old return source; an account epoch change closes its viewer.
 - `Current`: Home topic cards expose compact authenticated like and bookmark shortcuts beside the
   reply/view metrics. A single heart action includes the topic's total like count; both actions
   retain a minimum 44-by-44 logical-pixel touch target while their icons animate. Actions switch
@@ -190,7 +204,7 @@ ordered after the active route in the accessibility tree so iOS does not hide it
   Expanding pins neither reloads the stream nor changes its pagination cursor.
 - `Current`: Home sort, Campus section and notification filter rails share a scrollable tab bar.
   The page-swipe recognizer feeds the shared tab controller's live drag offset, so the selected
-  underline follows a held slow swipe and stretches evenly toward the adjacent tab. After release,
+  rounded selection lens follows a held slow swipe and stretches toward the adjacent tab. After release,
   the extended segment contracts with a logarithmic ease-out curve. Home, Campus and Notifications
   move both content panes with the same drag or tap transition while retaining each visited page's
   scroll state. A pending pane uses the transparent animated YourTJ mark until its data is ready.
@@ -269,8 +283,19 @@ ordered after the active route in the accessibility tree so iOS does not hide it
   Server-required reply captchas can be refreshed without losing the draft. Session changes
   invalidate pending edits and destructive confirmations; share failures remain visible in-app.
 
-- `Current`: embedded reply Markdown adds no device safe-area spacing. Dates and reply actions
-  share a compact footer, wrapping on narrow screens or large text. Reply references use Web's
+- `Current`: topic detail presents the author identity before categories and the 24/32 title,
+  followed by the reading body. Main-post avatars use 40px artwork and a 16px author name;
+  the account and 13px timestamp stay below the name. Main-post prose has 16px side insets.
+  Replies use 32px avatars, 16px names and a trailing floor number, with 12px side and 10px
+  vertical insets. The 13px timestamp occupies its own line below the body and above the actions.
+  Embedded Markdown adds no device safe-area spacing. Like/count, bookmark, an icon-only reply
+  and more are the four inline controls, with at least 44px targets and wrapping at enlarged text.
+  Report is available in the overflow menu.
+  Topic and reply overflow menus anchor to their own more button, fit the longest action label,
+  use 48px minimum rows without dividers and identify the content in route semantics. Only available owner/moderator actions are shown;
+  destructive operations still require confirmation. Selection rechecks the current capabilities,
+  content ID and session epoch before execution. Dismissal preserves the reading position.
+  Reply references use Web's
   subtle background and left rule, an author/avatar/floor header, and a four-line preview with
   expand/collapse controls only when the rendered text overflows.
 - `Current`: profiles use a 3:1 cover (112–200 logical pixels tall), an overlapping avatar,
@@ -445,7 +470,7 @@ validation; simulator/debug execution does not establish production frame-rate g
 ## Language and presentation
 
 - `Current`: bottom sheets size to short content and constrain long, scrollable content to the
-  available viewport, with a maximum width of 640 pixels, 24-pixel top corners and a shared drag
+  available viewport, with a maximum width of 640 pixels, 32-pixel corners and a shared drag
   handle when dragging is enabled. Device safe areas are consumed once: the title starts at the panel's own
   padding, and the panel background extends behind the bottom home indicator. Scheduler pickers,
   course filters, account pickers, Wiki contents, language selection and publishing tools share
@@ -989,8 +1014,8 @@ identity survive this layout change. The header keeps a small outer margin for i
   course reviews, settings, community information and permission-gated workspaces remain available.
   A hairline separator aligned with the entry icons groups the account entries above the settings,
   community information and appearance entries, in both guest and signed-in states.
-  The appearance shortcut opens System/Light/Dark choices; the open sheet follows theme changes
-  immediately. The profile overflow retains its infrequent entries.
+  The appearance shortcut opens System/Light/Dark choices in the shared glass menu; selecting a
+  theme closes that menu, applies the theme and preserves the drawer. The profile overflow retains its infrequent entries.
   Account controls are outside the public profile.
 - `Current`: initial public-profile loading shares the resolved cover and avatar geometry, keeps
   the overlaid navigation available, and uses inline statistics plus the five-item content rail.
@@ -1037,7 +1062,8 @@ identity survive this layout change. The header keeps a small outer margin for i
 - `Current`: profile content tabs form a continuous pinned rail. The selected item expands its icon
   and localized label; during a held horizontal swipe, the old and incoming icons move with their
   labels as the segment widths interpolate, using a subtle scale and fade. Inactive items show icons
-  with accessible names. The underline animates with the tab widths, respecting reduced motion.
+  with accessible names. A solid 3px underline, 40–64px wide, animates with the tab widths,
+  respecting reduced motion; the profile tab selection has no glass layer.
   Activity, content, likes, own bookmarks and badges fetch
   their corresponding streams. The header and tabs stay visible while an unloaded stream displays
   skeleton rows. Each stream retains loaded pages and scroll position; leaving a stream cancels
@@ -1205,7 +1231,7 @@ servers that omit interaction fields retain read-only content previews.
   Upload guidance and library rows scroll together so large text does not crowd out the controls.
   Both single and selected removals require confirmation and preserve already-sent stickers. Failed
   removals keep the remaining entries available for retry. Account changes close pending library
-  action sheets, library-launched previews and removal confirmations. It holds up to 200 stickers; images are limited to
+  action menus, library-launched previews and removal confirmations. It holds up to 200 stickers; images are limited to
   4 MiB and an account can create up to 1000 retained personal assets. Uploads use the authenticated
   file service. Failed requests retain the current input and expose retry. Concurrent collection
   writes are rejected explicitly so a skipped operation cannot report success.
@@ -1369,7 +1395,24 @@ acceptance; simulator compilation does not establish those results.
 接收气泡与转发详情沿用中性表面，移动端纯贴纸与单张图片消息不带气泡底色。
 
 `Current`: 消息气泡与纯贴纸支持向左滑动回复；短滑、右滑和垂直滚动不触发回复。
-长按浮动菜单提供回复、复制、转发、多选，以及适用的收藏表情和举报入口。回复选定后聚焦输入框，
+左滑达到 64 个逻辑像素后正常松手才回复，最大跟手位移为 88；指针取消或第二指加入均取消本次手势，
+即使已经越过阈值也不提交。180 ms 回弹途中可从当前位移接管；开启减少动态效果会立即结束回弹。
+长按已发送消息将原样气泡与操作菜单分为两个独立表面：气泡保留来源宽度、颜色和圆角，
+下方间隔 8 点放置按最长操作文案自适应宽度的玻璃菜单，提供回复、复制、转发、多选，以及适用的收藏表情和举报入口。
+菜单自然宽度为最长文案的单行固有宽度，加 18 点图标、10 点图文间距、左右各 12 点行内边距与各 4 点表面内边距；
+最大宽度受安全区/键盘后的可用视口约束，大字号或长译文可换行。动作之间不绘制分隔线。
+模态遮罩对其下方整页内容（包括导航和输入区）施加 sigma 12 的背景模糊与 .16 scrim；
+选中气泡与菜单绘制在模糊层上方，内容文字保持清晰。模糊随 220/180ms 进入/退出进度变化，
+减少透明度、高对比度、辅助导航和减少动态效果时禁用背景模糊。
+两者各自按来源左右边缘对齐，并受安全区、键盘和四边 12 点间距约束；空间不足时整体上移。
+气泡预览最多 160 高且不超过屏高的 24%，极短可用区域优先保留动作；长文裁切。只有操作列表滚动，
+消息预览保持独立固定位置，外面没有玻璃容器或与操作列表之间的分隔线。
+菜单使用独立轻玻璃：浅/深色底色 alpha .42/.46、扩散 sigma 6、圆角 28；文字 alpha .92。
+动作行最小 48 高，15 号文字、18 号图标；文字放大时增高。进出时长为 220/180 ms，减少动态效果省略过渡。
+进入时气泡从来源位置移动，退出时返回，菜单独立淡入/淡出。原气泡在菜单生命周期内透明隐藏但保留挂载和布局，
+退出完成后恢复，避免双份消息与列表跳动。选定动作立即执行；预览不接收点击或焦点，表情加载动画在预览内暂停。返回键、Escape 和遮罩均取消菜单，
+账号过期或来源消息移除会关闭菜单。取消、复制或收藏后，若打开菜单前正在输入，恢复原输入焦点；
+原先未输入时不主动弹出键盘，转发、多选和举报保留各自的焦点归属。回复选定后聚焦输入框，
 保留未发送草稿；多选模式暂停输入，返回键先退出多选，草稿与原引用保留。
 回复正文仍保存为现有纯文本引用行；客户端把引用行呈现为有界引用块，旧消息也可直接显示。
 图片引用保存稳定的 `[Image]` 标记，Flutter 在输入预览与引用块中按阅读者语言显示图片占位，避免把发送者语言固化进消息。
@@ -1385,6 +1428,8 @@ acceptance; simulator compilation does not establish those results.
 开启系统“减少动态效果”时省略选择栏过渡。头像统一使用圆形裁切，
 包括会话列表、会话标题、收发气泡和转发收件人列表；加载失败使用同形占位。
 收发消息行的头像均不带描边，图片完整占用 32 个逻辑像素，保持双方视觉尺寸一致。
+待发送、失败重试与已确认的发送气泡共用 32 点头像、8 点间距、5 点垂直行距和 .74 最大宽度比例，
+服务端确认不会改变气泡横向位置或文本换行；确认后的时间分组与整条消息身份变形仍非完整连续转场。
 会话右上角的三点菜单提供屏蔽/解除屏蔽入口，选择后仍需确认；加载失败时可在菜单内重试。
 
 `Current`: 一次最多选择 50 条已发送消息、10 个收件人，收件人来自现有会话与建议联系人。

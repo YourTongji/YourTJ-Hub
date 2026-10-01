@@ -724,8 +724,16 @@ void main() {
       find.byKey(const ValueKey('settings-category-profile')),
       findsNothing,
     );
-    await tester.tap(find.byKey(const ValueKey('settings-category-language')));
+    final languageRow = find.byKey(
+      const ValueKey('settings-category-language'),
+    );
+    final source = tester.getRect(languageRow);
+    await tester.tap(languageRow);
     await tester.pumpAndSettle();
+    expect(
+      tester.getTopLeft(find.byType(GfMenuSurface)).dy,
+      closeTo(source.bottom + 8, 1),
+    );
     for (final label in ['简体中文', 'English', '日本語', 'Deutsch']) {
       expect(find.text(label), findsOneWidget);
     }

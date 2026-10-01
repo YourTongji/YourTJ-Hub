@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:extended_image/extended_image.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 
 import '../theme/gf_theme.dart';
 import 'atoms/gf_loading_indicator.dart';
@@ -10,42 +11,75 @@ import 'gf_glass_icon_button.dart';
 import 'gf_motion.dart';
 import 'gf_media_image.dart';
 import 'gf_symbol.dart';
+import 'surfaces/gf_context_menu.dart';
 
 /// Shows the shared image action surface used by inline images and the
 /// full-screen viewer. The host decides what saving means on each platform.
-Future<bool> showGfImageSaveSheet(
+Future<bool> showGfImageSaveMenu(
   BuildContext context, {
   required String saveImageLabel,
+  Offset? globalPosition,
 }) async {
-  final GfColors colors = GfTheme.colorsOf(context);
-  final GfBorders borders = GfTheme.bordersOf(context);
-  return await showModalBottomSheet<bool>(
-        context: context,
-        // Keep the action sheet above the persistent mobile shell and viewer route.
-        useRootNavigator: true,
-        sheetAnimationStyle: GfMotion.sheetStyle(context),
-        showDragHandle: true,
-        backgroundColor: colors.base100,
-        shape: RoundedRectangleBorder(
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-          side: BorderSide(color: colors.line, width: borders.width),
-        ),
-        builder: (BuildContext sheetContext) => SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-            child: ListTile(
-              minVerticalPadding: 14,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              leading: GfSymbol('download', color: colors.primary),
-              title: Text(saveImageLabel),
-              onTap: () => Navigator.of(sheetContext).pop(true),
-            ),
+  return await showGfActionMenu<bool>(
+        context,
+        sourceRect: gfMenuSourceRectOf(context, globalPosition: globalPosition),
+        actions: [
+          GfContextAction(
+            value: true,
+            label: saveImageLabel,
+            symbol: 'download',
           ),
-        ),
+        ],
       ) ??
       false;
+}
+
+/// A transparent media route keeps the source visible during drag-to-dismiss.
+/// Callers retain ownership of account guards and origin policies in [builder].
+PageRoute<void> gfImageViewerRoute(
+  BuildContext context, {
+  required WidgetBuilder builder,
+}) => PageRouteBuilder<void>(
+  opaque: false,
+  transitionDuration: GfMotion.duration(context, GfMotion.overlay),
+  reverseTransitionDuration: GfMotion.duration(context, GfMotion.content),
+  pageBuilder: (context, _, _) =>
+      HeroMode(enabled: !GfMotion.reducedOf(context), child: builder(context)),
+  transitionsBuilder: (_, animation, _, child) =>
+      GfFadeTransition(animation: animation, offset: Offset.zero, child: child),
+);
+
+/// Only fly back to a mounted thumbnail fully inside the viewport and its
+/// ancestor clips. Cached, scrolled-out sources instead use the route fade.
+bool gfImageSourceIsVisible(GlobalKey key) {
+  final context = key.currentContext;
+  if (context == null || !context.mounted) return false;
+  final source = context.findRenderObject();
+  if (source is! RenderBox || !source.attached || !source.hasSize) return false;
+  final bounds = MatrixUtils.transformRect(
+    source.getTransformTo(null),
+    Offset.zero & source.size,
+  );
+  if (bounds.isEmpty || !bounds.isFinite) return false;
+  final view = View.of(context);
+  var visible = Offset.zero & (view.physicalSize / view.devicePixelRatio);
+  RenderObject child = source;
+  for (
+    var ancestor = source.parent;
+    ancestor != null;
+    ancestor = ancestor.parent
+  ) {
+    if (ancestor is RenderOffstage && ancestor.offstage) return false;
+    final clip = ancestor.describeApproximatePaintClip(child);
+    if (clip != null) {
+      visible = visible.intersect(
+        MatrixUtils.transformRect(ancestor.getTransformTo(null), clip),
+      );
+    }
+    child = ancestor;
+  }
+  return visible.contains(bounds.topLeft) &&
+      visible.contains(bounds.bottomRight - const Offset(.01, .01));
 }
 
 /// Full-screen mobile image viewer with swipe, pinch, double-tap zoom,
@@ -56,6 +90,8 @@ class GfImageViewer extends StatefulWidget {
     required this.images,
     this.initialIndex = 0,
     this.heroTag,
+    this.canReturnToSource,
+    this.onPageChanged,
     this.enableActualSize = true,
     this.onSaveImage,
     this.saveImageLabel = 'Save image',
@@ -69,6 +105,12 @@ class GfImageViewer extends StatefulWidget {
 
   /// Optional gallery identity; per-image Hero tags are derived from it.
   final Object? heroTag;
+
+  /// Re-evaluated when closing, after a source may scroll, disappear or change.
+  final bool Function(int index)? canReturnToSource;
+
+  /// Keeps a still-current source gallery aligned with the focused image.
+  final ValueChanged<int>? onPageChanged;
 
   /// Retained for the existing original-size viewing requirement.
   final bool enableActualSize;
@@ -489,14 +531,18 @@ class _GfImageViewerState extends State<GfImageViewer>
     return target.clamp(1.5, config.maxScale).toDouble();
   }
 
-  Future<void> _showImageActions(BuildContext context) async {
+  Future<void> _showImageActions(
+    BuildContext context,
+    Offset globalPosition,
+  ) async {
     final Future<void> Function(String imageUrl)? onSaveImage =
         widget.onSaveImage;
     if (onSaveImage == null) return;
 
-    final bool save = await showGfImageSaveSheet(
+    final bool save = await showGfImageSaveMenu(
       context,
       saveImageLabel: widget.saveImageLabel,
+      globalPosition: globalPosition,
     );
 
     if (!save || !mounted) return;
@@ -804,12 +850,16 @@ class _GfImageViewerState extends State<GfImageViewer>
                       _actualSize = false;
                     });
                     _centerThumbnail(index, animate: true);
+                    widget.onPageChanged?.call(index);
                   },
                   itemBuilder: (BuildContext context, int index) {
                     Widget image = GestureDetector(
-                      onLongPress: widget.onSaveImage == null
+                      onLongPressStart: widget.onSaveImage == null
                           ? null
-                          : () => _showImageActions(context),
+                          : (details) => _showImageActions(
+                              context,
+                              details.globalPosition,
+                            ),
                       child: ExtendedImage(
                         image: GfMediaScope.imageProvider(
                           context,
@@ -858,7 +908,23 @@ class _GfImageViewerState extends State<GfImageViewer>
                       ),
                     );
                     if (widget.heroTag != null) {
-                      image = Hero(tag: (widget.heroTag!, index), child: image);
+                      final hero = Hero(
+                        tag: (widget.heroTag!, index),
+                        child: image,
+                      );
+                      final animation = ModalRoute.of(context)!.animation!;
+                      image = AnimatedBuilder(
+                        animation: animation,
+                        child: hero,
+                        builder: (context, child) => HeroMode(
+                          enabled:
+                              !GfMotion.reducedOf(context) &&
+                              (animation.status != AnimationStatus.reverse ||
+                                  (widget.canReturnToSource?.call(index) ??
+                                      true)),
+                          child: child!,
+                        ),
+                      );
                     }
                     return image;
                   },

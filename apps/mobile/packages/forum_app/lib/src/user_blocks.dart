@@ -75,10 +75,9 @@ class _UserBlockButtonState extends ConsumerState<UserBlockButton> {
         ? l10n.userUnblock
         : l10n.userBlock;
     if (widget.moreMenu) {
-      return PopupMenuButton<String>(
+      return GfActionMenuButton<String>(
         tooltip: l10n.profileMore,
         icon: const GfSymbol('ellipsis'),
-        useRootNavigator: true,
         enabled: !_busy,
         onSelected: (_) {
           if (epoch != ref.read(offlineCacheEpochProvider)) return;
@@ -89,24 +88,11 @@ class _UserBlockButtonState extends ConsumerState<UserBlockButton> {
           }
         },
         itemBuilder: (_) => [
-          PopupMenuItem<String>(
+          GfContextAction(
             value: 'block',
+            label: label,
+            symbol: list.hasError ? 'refresh-cw' : 'user-round',
             enabled: !list.isLoading,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  list.hasError
-                      ? Icons.refresh
-                      : blocked
-                      ? Icons.person_off
-                      : Icons.block,
-                  size: 20,
-                ),
-                const SizedBox(width: 12),
-                Text(label),
-              ],
-            ),
           ),
         ],
       );

@@ -32,12 +32,64 @@ class GfMediaCarousel extends StatefulWidget {
 
 class _GfMediaCarouselState extends State<GfMediaCarousel> {
   int _index = 0;
-  final Object _heroTag = Object();
+  Object _heroTag = Object();
+  final Map<int, GlobalKey> _sources = {};
+  PageController _pageController = PageController();
 
   @override
   void didUpdateWidget(GfMediaCarousel oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (!listEquals(oldWidget.images, widget.images)) _index = 0;
+    if (!listEquals(oldWidget.images, widget.images)) {
+      _index = 0;
+      _heroTag = Object();
+      _sources.clear();
+      // Retire the old controller after its PageView has detached.
+      final previous = _pageController;
+      _pageController = PageController();
+      WidgetsBinding.instance.addPostFrameCallback((_) => previous.dispose());
+    }
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  void _openViewer(BuildContext context, int index) {
+    final identity = _heroTag;
+    final images = List<String>.unmodifiable(widget.images);
+    final onSaveImage = widget.onSaveImage;
+    final saveImageLabel = widget.saveImageLabel;
+    final onShareImage = widget.onShareImage;
+    final shareImageLabel = widget.shareImageLabel;
+    Navigator.of(context, rootNavigator: true).push(
+      gfImageViewerRoute(
+        context,
+        builder: (_) => GfImageViewer(
+          images: images,
+          initialIndex: index,
+          heroTag: identity,
+          canReturnToSource: (index) =>
+              mounted &&
+              identical(identity, _heroTag) &&
+              index == _index &&
+              _sources[index] != null &&
+              gfImageSourceIsVisible(_sources[index]!),
+          onPageChanged: (index) {
+            if (mounted &&
+                identical(identity, _heroTag) &&
+                _pageController.hasClients) {
+              _pageController.jumpToPage(index);
+            }
+          },
+          onSaveImage: onSaveImage,
+          saveImageLabel: saveImageLabel,
+          onShareImage: onShareImage,
+          shareImageLabel: shareImageLabel,
+        ),
+      ),
+    );
   }
 
   @override
@@ -60,7 +112,8 @@ class _GfMediaCarouselState extends State<GfMediaCarousel> {
               fit: StackFit.expand,
               children: <Widget>[
                 PageView.builder(
-                  key: ValueKey(Object.hashAll(widget.images)),
+                  key: ObjectKey(_heroTag),
+                  controller: _pageController,
                   itemCount: widget.images.length,
                   onPageChanged: (index) => setState(() => _index = index),
                   itemBuilder: (context, index) {
@@ -91,61 +144,37 @@ class _GfMediaCarouselState extends State<GfMediaCarousel> {
                           label: '${index + 1} / ${widget.images.length}',
                           child: GestureDetector(
                             behavior: HitTestBehavior.opaque,
-                            onTap: () =>
-                                Navigator.of(
-                                  context,
-                                  rootNavigator: true,
-                                ).push<void>(
-                                  PageRouteBuilder<void>(
-                                    opaque: false,
-                                    barrierColor: Colors.transparent,
-                                    transitionDuration: reduceMotion
-                                        ? Duration.zero
-                                        : GfMotion.overlay,
-                                    reverseTransitionDuration: reduceMotion
-                                        ? Duration.zero
-                                        : GfMotion.overlay,
-                                    pageBuilder: (_, _, _) => GfImageViewer(
-                                      images: widget.images,
-                                      initialIndex: index,
-                                      heroTag: _heroTag,
-                                      onSaveImage: widget.onSaveImage,
-                                      saveImageLabel: widget.saveImageLabel,
-                                      onShareImage: widget.onShareImage,
-                                      shareImageLabel: widget.shareImageLabel,
-                                    ),
-                                    transitionsBuilder:
-                                        (_, animation, _, child) =>
-                                            GfFadeTransition(
-                                              animation: animation,
-                                              offset: Offset.zero,
-                                              child: child,
-                                            ),
-                                  ),
-                                ),
-                            onLongPress: widget.onSaveImage == null
+                            onTap: () => _openViewer(context, index),
+                            onLongPressStart: widget.onSaveImage == null
                                 ? null
-                                : () async {
-                                    final bool save =
-                                        await showGfImageSaveSheet(
-                                          context,
-                                          saveImageLabel: widget.saveImageLabel,
-                                        );
+                                : (details) async {
+                                    final bool save = await showGfImageSaveMenu(
+                                      context,
+                                      saveImageLabel: widget.saveImageLabel,
+                                      globalPosition: details.globalPosition,
+                                    );
                                     if (save && context.mounted) {
                                       await widget.onSaveImage!(
                                         widget.images[index],
                                       );
                                     }
                                   },
-                            child: Hero(
-                              tag: (_heroTag, index),
-                              child: Image(
-                                image: preview,
-                                fit: BoxFit.contain,
-                                gaplessPlayback: false,
-                                errorBuilder: (_, _, _) => GfSymbol(
-                                  'image-off',
-                                  color: colors.iconMuted,
+                            child: HeroMode(
+                              key: _sources.putIfAbsent(
+                                index,
+                                () => GlobalKey(),
+                              ),
+                              enabled: !reduceMotion && index == _index,
+                              child: Hero(
+                                tag: (_heroTag, index),
+                                child: Image(
+                                  image: preview,
+                                  fit: BoxFit.contain,
+                                  gaplessPlayback: false,
+                                  errorBuilder: (_, _, _) => GfSymbol(
+                                    'image-off',
+                                    color: colors.iconMuted,
+                                  ),
                                 ),
                               ),
                             ),

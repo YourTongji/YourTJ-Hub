@@ -31,8 +31,8 @@ class GfSegmented<T> extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: colors.base300,
-        borderRadius: BorderRadius.circular(18),
+        color: colors.baseContent.withValues(alpha: .045),
+        borderRadius: BorderRadius.circular(28),
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
@@ -80,12 +80,14 @@ class _SegmentedItem<T> extends StatelessWidget {
           animationDuration: GfMotion.duration(context, GfMotion.selection),
           animateColor: true,
           color: selected ? colors.base100 : Colors.transparent,
+          elevation: selected ? 2 : 0,
+          shadowColor: Colors.black.withValues(alpha: .10),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(24),
           ),
           child: InkWell(
             onTap: onTap,
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(24),
             child: Container(
               constraints: const BoxConstraints(minHeight: 48),
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),

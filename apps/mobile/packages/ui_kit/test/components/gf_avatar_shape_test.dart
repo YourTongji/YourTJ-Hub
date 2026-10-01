@@ -257,7 +257,7 @@ void main() {
     }
   });
 
-  testWidgets('conversation list row keeps the circular 40px ring avatar', (
+  testWidgets('conversation list row keeps the circular 52px ring avatar', (
     tester,
   ) async {
     await tester.pumpWidget(
@@ -281,7 +281,7 @@ void main() {
       matching: find.byType(GfAvatar),
     );
     expect(avatarFinder, findsOneWidget);
-    expectCircularAvatar(tester, avatarFinder, size: 40, ring: true);
+    expectCircularAvatar(tester, avatarFinder, size: 52, ring: true);
   });
 
   testWidgets('topic feed list keeps circular participant avatars', (

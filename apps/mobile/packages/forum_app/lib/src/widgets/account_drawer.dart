@@ -393,19 +393,23 @@ class AccountDrawer extends ConsumerWidget {
       String title,
       String? path, {
       Widget? trailing,
-      VoidCallback? onTap,
-    }) => ListTile(
-      contentPadding: const EdgeInsets.symmetric(horizontal: 24),
-      minTileHeight: 56,
-      minLeadingWidth: 24,
-      horizontalTitleGap: 16,
-      leading: GfSymbol(icon, size: 24, color: colors.baseContent),
-      title: Text(
-        title,
-        style: type.bodyStrong.copyWith(fontSize: 18, height: 1.3),
+      ValueChanged<BuildContext>? onTap,
+    }) => Builder(
+      builder: (anchor) => ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 24),
+        minTileHeight: 56,
+        minLeadingWidth: 24,
+        horizontalTitleGap: 16,
+        leading: GfSymbol(icon, size: 24, color: colors.baseContent),
+        title: Text(
+          title,
+          style: type.bodyStrong.copyWith(fontSize: 18, height: 1.3),
+        ),
+        trailing: trailing,
+        onTap: onTap != null
+            ? () => onTap(anchor)
+            : (path == null ? null : () => open(path)),
       ),
-      trailing: trailing,
-      onTap: onTap ?? (path == null ? null : () => open(path)),
     );
     return Drawer(
       width: (MediaQuery.sizeOf(context).width * .84).clamp(0.0, 400.0),
@@ -521,7 +525,7 @@ class AccountDrawer extends ConsumerWidget {
                 size: 18,
                 color: colors.iconMuted,
               ),
-              onTap: () => _showThemeModeSheet(context),
+              onTap: _showThemeModeMenu,
             ),
           ],
         ),
@@ -530,56 +534,32 @@ class AccountDrawer extends ConsumerWidget {
   }
 }
 
-Future<void> _showThemeModeSheet(BuildContext context) =>
-    showGfBottomSheet<void>(
-      context,
-      builder: (_) => Consumer(
-        builder: (context, ref, _) {
-          final l10n = AppLocalizations.of(context);
-          final mode = ref.watch(themeModeProvider);
-          final type = GfTheme.typographyOf(context);
-          const choices = <ThemeMode>[
-            ThemeMode.light,
-            ThemeMode.dark,
-            ThemeMode.system,
-          ];
-          return SingleChildScrollView(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 20, 16, 12),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(l10n.settingsAppearance, style: type.title2),
-                  const SizedBox(height: 12),
-                  RadioGroup<ThemeMode>(
-                    groupValue: mode,
-                    onChanged: (value) {
-                      if (value != null) {
-                        ref.read(themeModeProvider.notifier).setMode(value);
-                      }
-                    },
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        for (final choice in choices)
-                          RadioListTile<ThemeMode>(
-                            value: choice,
-                            controlAffinity: ListTileControlAffinity.trailing,
-                            contentPadding: EdgeInsets.zero,
-                            title: Text(switch (choice) {
-                              ThemeMode.system => l10n.settingsLanguageSystem,
-                              ThemeMode.light => l10n.settingsThemeLight,
-                              ThemeMode.dark => l10n.settingsThemeDark,
-                            }, style: type.body),
-                          ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
-        },
-      ),
-    );
+Future<void> _showThemeModeMenu(BuildContext context) async {
+  final container = ProviderScope.containerOf(context, listen: false);
+  final l10n = AppLocalizations.of(context);
+  final current = container.read(themeModeProvider);
+  final value = await showGfActionMenu<ThemeMode>(
+    context,
+    semanticLabel: l10n.settingsAppearance,
+    actions: [
+      for (final mode in ThemeMode.values)
+        GfContextAction(
+          value: mode,
+          label: switch (mode) {
+            ThemeMode.system => l10n.settingsLanguageSystem,
+            ThemeMode.light => l10n.settingsThemeLight,
+            ThemeMode.dark => l10n.settingsThemeDark,
+          },
+          symbol: switch (mode) {
+            ThemeMode.system => 'monitor',
+            ThemeMode.light => 'sun',
+            ThemeMode.dark => 'moon',
+          },
+          selected: current == mode,
+        ),
+    ],
+  );
+  if (context.mounted && value != null) {
+    container.read(themeModeProvider.notifier).setMode(value);
+  }
+}

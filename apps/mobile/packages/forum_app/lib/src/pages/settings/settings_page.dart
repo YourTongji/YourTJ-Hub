@@ -480,25 +480,22 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     }
   }
 
-  Future<void> _chooseAvatar() async {
+  Future<void> _chooseAvatar(BuildContext anchor) async {
     final l10n = AppLocalizations.of(context);
-    final preset = await showGfBottomSheet<bool>(
-      context,
-      builder: (context) => Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          ListTile(
-            leading: const GfSymbol('image'),
-            title: Text(l10n.settingsAvatarUpload),
-            onTap: () => Navigator.pop(context, false),
-          ),
-          ListTile(
-            leading: const GfSymbol('user-round'),
-            title: Text(l10n.settingsPresetAvatar),
-            onTap: () => Navigator.pop(context, true),
-          ),
-        ],
-      ),
+    final preset = await showGfActionMenu<bool>(
+      anchor,
+      actions: [
+        GfContextAction(
+          value: false,
+          label: l10n.settingsAvatarUpload,
+          symbol: 'image',
+        ),
+        GfContextAction(
+          value: true,
+          label: l10n.settingsPresetAvatar,
+          symbol: 'user-round',
+        ),
+      ],
     );
     if (!mounted || preset == null) return;
     if (preset) {
@@ -1044,16 +1041,18 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               onTap: () => _openSection(_SettingsTab.appearance),
             ),
             const GfDivider(),
-            _categoryRow(
-              key: const ValueKey('settings-category-language'),
-              symbol: 'languages',
-              title: l10n.settingsAppLanguage,
-              description:
-                  appLanguageNames[ref
-                      .watch(appLocaleProvider)
-                      ?.languageCode] ??
-                  l10n.settingsLanguageSystem,
-              onTap: () => showAppLanguagePicker(context),
+            Builder(
+              builder: (anchor) => _categoryRow(
+                key: const ValueKey('settings-category-language'),
+                symbol: 'languages',
+                title: l10n.settingsAppLanguage,
+                description:
+                    appLanguageNames[ref
+                        .watch(appLocaleProvider)
+                        ?.languageCode] ??
+                    l10n.settingsLanguageSystem,
+                onTap: () => showAppLanguagePicker(anchor),
+              ),
             ),
             const GfDivider(),
             _categoryRow(
@@ -1241,9 +1240,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     Expanded(
                       child: Text(
                         l10n.settingsReadingTextSize,
-                        style: type.body.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
+                        style: type.body.copyWith(fontWeight: FontWeight.w600),
                       ),
                     ),
                     Text(
@@ -1352,19 +1349,21 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 onTap: user == null ? null : () => _editProfile(user),
               ),
               const GfDivider(),
-              GfSettingRow(
-                symbol: 'camera',
-                title: l10n.settingsAvatar,
-                description: _uploadingAvatar
-                    ? l10n.settingsAvatarUploading
-                    : null,
-                leading: user == null
-                    ? null
-                    : GfAvatar(
-                        src: resolveApiAssetUrl(user.avatarUrl),
-                        size: 32,
-                      ),
-                onTap: _uploadingAvatar ? null : _chooseAvatar,
+              Builder(
+                builder: (anchor) => GfSettingRow(
+                  symbol: 'camera',
+                  title: l10n.settingsAvatar,
+                  description: _uploadingAvatar
+                      ? l10n.settingsAvatarUploading
+                      : null,
+                  leading: user == null
+                      ? null
+                      : GfAvatar(
+                          src: resolveApiAssetUrl(user.avatarUrl),
+                          size: 32,
+                        ),
+                  onTap: _uploadingAvatar ? null : () => _chooseAvatar(anchor),
+                ),
               ),
               const GfDivider(),
               GfSettingRow(

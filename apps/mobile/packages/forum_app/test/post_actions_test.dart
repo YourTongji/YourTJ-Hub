@@ -125,6 +125,58 @@ void main() {
       baseUrl: 'https://example.test',
     ),
   );
+  testWidgets('report lives in the reply overflow and cancellation is inert', (
+    tester,
+  ) async {
+    var reports = 0;
+    await pump(
+      tester,
+      repo(),
+      PostActions(
+        post: post().copyWith(isOwnPost: false),
+        onChanged: () async {},
+        onReply: () {},
+        onReport: () => reports++,
+      ),
+    );
+    expect(find.byTooltip('Report post'), findsNothing);
+    await tester.tap(find.byTooltip('More options'));
+    await tester.pumpAndSettle();
+    expect(find.text('Report post'), findsOneWidget);
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(reports, 0);
+    await tester.tap(find.byTooltip('More options'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Report post'));
+    await tester.pumpAndSettle();
+    expect(reports, 1);
+  });
+
+  testWidgets('an open reply menu cannot act after the account changes', (
+    tester,
+  ) async {
+    var reports = 0;
+    await pump(
+      tester,
+      repo(),
+      PostActions(
+        post: post().copyWith(isOwnPost: false),
+        onChanged: () async {},
+        onReply: () {},
+        onReport: () => reports++,
+      ),
+    );
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(PostActions)),
+    );
+    await tester.tap(find.byTooltip('More options'));
+    await tester.pumpAndSettle();
+    container.read(offlineCacheEpochProvider.notifier).state++;
+    await tester.tap(find.text('Report post'));
+    await tester.pumpAndSettle();
+    expect(reports, 0);
+  });
   testWidgets('like semantics include its action and visible count', (
     tester,
   ) async {
@@ -191,7 +243,7 @@ void main() {
         onReport: () {},
       ),
     );
-    await tester.tap(find.byType(PopupMenuButton<String>));
+    await tester.tap(find.byTooltip('More options'));
     await tester.pumpAndSettle();
     expect(find.text('Share'), findsOneWidget);
     expect(find.text('Generate share image'), findsOneWidget);
@@ -219,32 +271,33 @@ void main() {
           onReport: () {},
         ),
       );
-      await tester.tap(find.byType(PopupMenuButton<String>));
+      await tester.tap(find.byTooltip('More options'));
       await tester.pumpAndSettle();
       expect(find.text('Share'), findsNothing);
       expect(find.text('Generate share image'), findsNothing);
     });
   }
 
-  testWidgets('share actions are absent when the containing topic is unavailable', (
-    tester,
-  ) async {
-    await pump(
-      tester,
-      repo(),
-      PostActions(
-        post: post().copyWith(isOwnPost: false),
-        topicAvailable: false,
-        onChanged: () async {},
-        onReply: null,
-        onReport: () {},
-      ),
-    );
-    await tester.tap(find.byType(PopupMenuButton<String>));
-    await tester.pumpAndSettle();
-    expect(find.text('Share'), findsNothing);
-    expect(find.text('Generate share image'), findsNothing);
-  });
+  testWidgets(
+    'share actions are absent when the containing topic is unavailable',
+    (tester) async {
+      await pump(
+        tester,
+        repo(),
+        PostActions(
+          post: post().copyWith(isOwnPost: false),
+          topicAvailable: false,
+          onChanged: () async {},
+          onReply: null,
+          onReport: () {},
+        ),
+      );
+      await tester.tap(find.byTooltip('More options'));
+      await tester.pumpAndSettle();
+      expect(find.text('Share'), findsNothing);
+      expect(find.text('Generate share image'), findsNothing);
+    },
+  );
 
   testWidgets('share card uses public author data, never private notes', (
     tester,
@@ -276,7 +329,7 @@ void main() {
       ),
     );
     await pump(tester, repo(), widget);
-    await tester.tap(find.byType(PopupMenuButton<String>));
+    await tester.tap(find.byTooltip('More options'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Generate share image'));
     await tester.pumpAndSettle();
@@ -316,7 +369,7 @@ void main() {
         onReport: () {},
       ),
     );
-    await tester.tap(find.byType(PopupMenuButton<String>));
+    await tester.tap(find.byTooltip('More options'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Generate share image'));
     await tester.pumpAndSettle();
@@ -369,9 +422,9 @@ void main() {
         of: actions,
         matching: find.byType(GfSymbol),
       );
-      expect(glyphs, findsNWidgets(5));
+      expect(glyphs, findsNWidgets(4));
       final centers = [
-        for (var index = 0; index < 5; index++)
+        for (var index = 0; index < 4; index++)
           tester.getCenter(glyphs.at(index)),
       ];
       expect(centers.first.dx - bounds.left, 22);
@@ -434,17 +487,10 @@ void main() {
       'bookmark',
       'corner-down-left',
       'ellipsis',
-      'flag',
     ]);
     expect(symbols.every((symbol) => symbol.size == 20), isTrue);
     final targets = <String, Rect>{};
-    for (final tooltip in [
-      'Like',
-      'Bookmark',
-      'Reply',
-      'More options',
-      'Report post',
-    ]) {
+    for (final tooltip in ['Like', 'Bookmark', 'Reply', 'More options']) {
       // Material 3 places an IconButton's Tooltip around its 40px surface,
       // inside the padded touch target. Measure the button, not that surface.
       final control = tooltip == 'Like'
@@ -461,17 +507,20 @@ void main() {
       expect(target.right, lessThanOrEqualTo(tester.getRect(actions).right));
     }
     // The outer margin must activate the action, not merely reserve layout.
-    for (final label in ['Like', 'Bookmark', 'Reply', 'Report post']) {
+    for (final label in ['Like', 'Bookmark', 'Reply']) {
       await tester.tapAt(targets[label]!.topLeft + const Offset(2, 2));
       await tester.pumpAndSettle();
     }
     expect(repository.likes, [1]);
     expect(repository.bookmarks, [1]);
     expect(replies, 1);
-    expect(reports, 1);
+    expect(reports, 0);
     await tester.tapAt(targets['More options']!.topLeft + const Offset(2, 2));
     await tester.pumpAndSettle();
     expect(find.text('Revision history'), findsOneWidget);
+    await tester.tap(find.text('Report post'));
+    await tester.pumpAndSettle();
+    expect(reports, 1);
     expect(tester.takeException(), isNull);
   });
   testWidgets(

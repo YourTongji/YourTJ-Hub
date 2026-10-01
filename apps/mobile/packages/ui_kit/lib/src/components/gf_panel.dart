@@ -22,7 +22,6 @@ class GfPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final GfColors colors = GfTheme.colorsOf(context);
-    final GfRadii radii = GfTheme.radiiOf(context);
     final GfBorders borders = GfTheme.bordersOf(context);
 
     // 用 Material(而非 DecoratedBox)承载背景,保证内部 ListTile 等
@@ -31,7 +30,7 @@ class GfPanel extends StatelessWidget {
       color: colors.base100,
       shape: RoundedRectangleBorder(
         borderRadius: emphasized
-            ? BorderRadius.circular(radii.box)
+            ? BorderRadius.circular(24)
             : BorderRadius.zero,
         side: emphasized
             ? BorderSide(color: colors.line, width: borders.width)

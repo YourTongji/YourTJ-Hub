@@ -103,6 +103,90 @@ TapGestureRecognizer? _linkRecognizer(InlineSpan span) {
 }
 
 void main() {
+  testWidgets('duplicate Markdown photos open their own occurrence', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          theme: gfThemeData(Brightness.light),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: const Scaffold(
+            body: GfMarkdownView(
+              data:
+                  '![first](/file/img/repeat.png)\n\n![second](/file/img/repeat.png)',
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final photos = find.byWidgetPredicate(
+      (w) => w is Image && w.image is ResizeImage,
+    );
+    expect(photos, findsNWidgets(2));
+    await tester.tap(photos.last);
+    await tester.pumpAndSettle();
+    final viewer = tester.widget<GfImageViewer>(find.byType(GfImageViewer));
+    expect(viewer.initialIndex, 1);
+    expect(viewer.images, hasLength(2));
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
+  });
+  testWidgets('gallery follows parsed photos and invalidates replaced content', (
+    tester,
+  ) async {
+    final content = ValueNotifier(
+      '```text\n![not a photo](/file/img/code.png)\n```\n\n![reference][photo]\n\n[photo]: /file/img/real.png "Photo title"',
+    );
+    addTearDown(content.dispose);
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          theme: gfThemeData(Brightness.light),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: ValueListenableBuilder<String>(
+              valueListenable: content,
+              builder: (_, data, _) => GfMarkdownView(
+                data: data,
+                images: const ['/file/img/stale.png'],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final photo = find.byWidgetPredicate(
+      (w) => w is Image && w.image is ResizeImage,
+    );
+    expect(photo, findsOneWidget);
+    await tester.tap(photo);
+    await tester.pumpAndSettle();
+    final viewer = tester.widget<GfImageViewer>(find.byType(GfImageViewer));
+    expect(viewer.images, hasLength(1));
+    expect(viewer.images.single, endsWith('/file/img/real.png'));
+    expect(viewer.heroTag, isNotNull);
+    content.value = 'The photo was removed';
+    await tester.pump();
+    expect(viewer.canReturnToSource!(0), isFalse);
+    container.read(offlineCacheEpochProvider.notifier).state++;
+    await tester.pumpAndSettle();
+    expect(
+      find.byType(GfImageViewer),
+      findsNothing,
+      reason: 'An account change closes the old media route',
+    );
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
+  });
+
   for (final markdown in [false, true]) {
     testWidgets('draft stickers remain compact markdown=$markdown', (
       tester,
@@ -826,10 +910,9 @@ void main() {
             widget.text.toPlainText().contains('final int answer'),
       ),
     );
-    final tokenColors = _textSpans(rendered.text)
-        .map((span) => span.style?.color)
-        .whereType<Color>()
-        .toSet();
+    final tokenColors = _textSpans(
+      rendered.text,
+    ).map((span) => span.style?.color).whereType<Color>().toSet();
     expect(tokenColors.length, greaterThan(1));
     expect(find.text('DART'), findsOneWidget);
 

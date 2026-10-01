@@ -342,21 +342,24 @@ class _ContentPageState extends ConsumerState<ContentPage> {
                                   !item.canRestore &&
                                   !item.canPermanent
                               ? null
-                              : PopupMenuButton<String>(
+                              : GfActionMenuButton<String>(
                                   icon: const GfSymbol('ellipsis', size: 20),
-                                  useRootNavigator: true,
+
                                   enabled: !_busy,
                                   onSelected: (action) => _act(item, action),
                                   itemBuilder: (_) => [
                                     if (item.canRestore)
-                                      PopupMenuItem(
+                                      GfContextAction(
                                         value: 'restore',
-                                        child: Text(l10n.contentRestore),
+                                        label: l10n.contentRestore,
+                                        symbol: 'undo-2',
                                       ),
                                     if (item.canPermanent)
-                                      PopupMenuItem(
+                                      GfContextAction(
                                         value: 'purge',
-                                        child: Text(l10n.contentPurge),
+                                        label: l10n.contentPurge,
+                                        symbol: 'trash-2',
+                                        destructive: true,
                                       ),
                                   ],
                                 ),

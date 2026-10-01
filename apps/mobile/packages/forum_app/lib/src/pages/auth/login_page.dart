@@ -963,10 +963,12 @@ class _LoginPageState extends ConsumerState<LoginPage>
                     Positioned(
                       top: 4,
                       right: 56,
-                      child: IconButton(
-                        icon: const GfSymbol('languages'),
-                        tooltip: l10n.settingsAppLanguage,
-                        onPressed: () => showAppLanguagePicker(context),
+                      child: Builder(
+                        builder: (anchor) => IconButton(
+                          icon: const GfSymbol('languages'),
+                          tooltip: l10n.settingsAppLanguage,
+                          onPressed: () => showAppLanguagePicker(anchor),
+                        ),
                       ),
                     ),
                     Positioned(

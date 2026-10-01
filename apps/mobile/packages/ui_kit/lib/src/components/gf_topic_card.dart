@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 
 import '../theme/gf_theme.dart';
 import 'atoms/gf_avatar.dart';
@@ -12,6 +13,7 @@ import 'gf_chip.dart';
 import 'gf_image_viewer.dart';
 import 'gf_symbol.dart';
 import 'gf_media_image.dart';
+import 'gf_motion.dart';
 import 'gf_topic_row.dart';
 
 class GfTopicImageVariant {
@@ -117,6 +119,19 @@ class GfTopicCard extends StatefulWidget {
 
 class _GfTopicCardState extends State<GfTopicCard> {
   static bool _firstMediaFrameRecorded = false;
+  Object _galleryIdentity = Object();
+  final Map<int, GlobalKey> _imageSources = {};
+
+  @override
+  void didUpdateWidget(GfTopicCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!listEquals(oldWidget.imageUrls, widget.imageUrls) ||
+        oldWidget.imageAspectRatio != widget.imageAspectRatio ||
+        !listEquals(oldWidget.imageMetadata, widget.imageMetadata)) {
+      _galleryIdentity = Object();
+      _imageSources.clear();
+    }
+  }
 
   bool get _liked => widget.liked;
   bool get _bookmarked => widget.bookmarked;
@@ -155,21 +170,29 @@ class _GfTopicCardState extends State<GfTopicCard> {
     }
   }
 
-  void _openImage(List<String> images, int index) {
+  void _openImage(List<String> images, int index, {required bool stacked}) {
+    final identity = _galleryIdentity;
+    final onSave = widget.onSaveImage;
+    final saveLabel = widget.saveImageLabel;
+    final onShare = widget.onShareImage;
+    final shareLabel = widget.shareImageLabel;
     Navigator.of(context, rootNavigator: true).push(
-      MaterialPageRoute<void>(
-        // The viewer owns its Scaffold and SafeArea; back its translucent
-        // surface with black, matching the Markdown lightbox route.
-        builder: (_) => ColoredBox(
-          color: Colors.black,
-          child: GfImageViewer(
-            images: images,
-            initialIndex: index,
-            onSaveImage: widget.onSaveImage,
-            saveImageLabel: widget.saveImageLabel,
-            onShareImage: widget.onShareImage,
-            shareImageLabel: widget.shareImageLabel,
-          ),
+      gfImageViewerRoute(
+        context,
+        builder: (_) => GfImageViewer(
+          images: List.unmodifiable(images),
+          initialIndex: index,
+          heroTag: identity,
+          canReturnToSource: (index) =>
+              mounted &&
+              (!stacked || index == 0) &&
+              identical(identity, _galleryIdentity) &&
+              _imageSources[index] != null &&
+              gfImageSourceIsVisible(_imageSources[index]!),
+          onSaveImage: onSave,
+          saveImageLabel: saveLabel,
+          onShareImage: onShare,
+          shareImageLabel: shareLabel,
         ),
       ),
     );
@@ -202,14 +225,25 @@ class _GfTopicCardState extends State<GfTopicCard> {
           widget.imageSemanticLabelBuilder?.call(index + 1, allImages.length) ??
           'View image ${index + 1} of ${allImages.length}',
       child: InkWell(
-        onTap: () => _openImage(allImages, index),
-        child: _TopicImage(
-          url: images[index],
-          metadata: imageMetadata[images[index]],
-          onFirstMediaFrame: widget.onFirstMediaFrame,
-          width: width,
-          height: height,
-          fit: portrait ? BoxFit.cover : BoxFit.contain,
+        key: _imageSources.putIfAbsent(index, () => GlobalKey()),
+        onTap: () => _openImage(
+          allImages,
+          index,
+          stacked: !portrait && images.length > 2,
+        ),
+        child: HeroMode(
+          enabled: !GfMotion.reducedOf(context),
+          child: Hero(
+            tag: (_galleryIdentity, index),
+            child: _TopicImage(
+              url: images[index],
+              metadata: imageMetadata[images[index]],
+              onFirstMediaFrame: widget.onFirstMediaFrame,
+              width: width,
+              height: height,
+              fit: portrait ? BoxFit.cover : BoxFit.contain,
+            ),
+          ),
         ),
       ),
     );

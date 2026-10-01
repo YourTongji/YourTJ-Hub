@@ -125,17 +125,14 @@ class _ForwardedMessagesPageState extends ConsumerState<ForwardedMessagesPage> {
     ).overlay?.context.findRenderObject();
     if (box is! RenderBox || overlay is! RenderBox) return;
     final origin = box.localToGlobal(Offset.zero, ancestor: overlay);
-    final action = await showMenu<String>(
-      context: context,
-      useRootNavigator: true,
-      position: RelativeRect.fromRect(
-        origin & box.size,
-        Offset.zero & overlay.size,
-      ),
-      items: [
-        PopupMenuItem(
+    final action = await showGfActionMenu<String>(
+      context,
+      sourceRect: origin & box.size,
+      actions: [
+        GfContextAction(
           value: 'collect',
-          child: Text(StickerStrings(context).collect),
+          label: StickerStrings(context).collect,
+          symbol: 'bookmark',
         ),
       ],
     );

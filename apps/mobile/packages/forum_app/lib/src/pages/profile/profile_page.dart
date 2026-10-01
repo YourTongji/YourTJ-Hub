@@ -705,66 +705,80 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
           (item) => item.targetUserId == profileUserId,
         ) ??
         false;
-    final menu = PopupMenuButton<String>(
+    final menu = GfActionMenuButton<String>(
       tooltip: l10n.profileMore,
       icon: GfSymbol(
         'ellipsis',
         color: glass ? Colors.white : GfTheme.colorsOf(context).baseContent,
       ),
-      useRootNavigator: true,
+
       onSelected: (value) => _onProfileMenuSelected(value, profileUser),
       itemBuilder: (_) => profileUser != null
           ? [
-              PopupMenuItem(
+              GfContextAction(
                 value: _profileBlockAction,
-                child: Text(
-                  blocks?.hasError == true
-                      ? l10n.commonRetry
-                      : isBlocked
-                      ? l10n.userUnblock
-                      : l10n.userBlock,
-                ),
+                label: blocks?.hasError == true
+                    ? l10n.commonRetry
+                    : isBlocked
+                    ? l10n.userUnblock
+                    : l10n.userBlock,
+                symbol: 'user-round',
               ),
             ]
           : [
-              PopupMenuItem(value: '/drafts', child: Text(l10n.draftsTitle)),
-              PopupMenuItem(
+              GfContextAction(
+                value: '/drafts',
+                label: l10n.draftsTitle,
+                symbol: 'pen-line',
+              ),
+              GfContextAction(
                 value: '/my-course-reviews',
-                child: Text(l10n.myCourseReviewsTitle),
+                label: l10n.myCourseReviewsTitle,
+                symbol: 'star',
               ),
-              PopupMenuItem(
+              GfContextAction(
                 value: '/my-content',
-                child: Text(l10n.profileContent),
+                label: l10n.profileContent,
+                symbol: 'file-text',
               ),
-              PopupMenuItem(
+              GfContextAction(
                 value: '/recycle-bin',
-                child: Text(l10n.profileTrash),
+                label: l10n.profileTrash,
+                symbol: 'trash-2',
               ),
               if (_canModerate)
-                PopupMenuItem(
+                GfContextAction(
                   value: '/moderation',
-                  child: Text(l10n.profileModeration),
+                  label: l10n.profileModeration,
+                  symbol: 'shield-check',
                 ),
               if (_canAccessAdmin)
-                PopupMenuItem(value: '/admin', child: Text(l10n.profileAdmin)),
-              if (_canManageCourses) ...[
-                PopupMenuItem(
-                  value: '/moderation/courses',
-                  child: Text(l10n.coursesManagement),
+                GfContextAction(
+                  value: '/admin',
+                  label: l10n.profileAdmin,
+                  symbol: 'settings',
                 ),
-                PopupMenuItem(
+              if (_canManageCourses) ...[
+                GfContextAction(
+                  value: '/moderation/courses',
+                  label: l10n.coursesManagement,
+                  symbol: 'book-open',
+                ),
+                GfContextAction(
                   value: '/moderation/course-reviews',
-                  child: Text(l10n.coursesReviewModeration),
+                  label: l10n.coursesReviewModeration,
+                  symbol: 'message-circle',
                 ),
               ],
-              const PopupMenuDivider(),
-              PopupMenuItem(
+              GfContextAction(
                 value: '/settings/account',
-                child: Text(l10n.profileSecurity),
+                label: l10n.profileSecurity,
+                symbol: 'shield-check',
               ),
-              PopupMenuItem(
+              GfContextAction(
                 value: '/settings',
-                child: Text(l10n.settingsTitle),
+                label: l10n.settingsTitle,
+                symbol: 'settings',
               ),
             ],
     );

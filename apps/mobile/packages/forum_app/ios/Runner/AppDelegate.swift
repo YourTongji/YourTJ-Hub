@@ -13,6 +13,7 @@ import Darwin
   private var registrationGeneration = 0
   private var startupLaunchKind = "cold"
   private var hasBecomeActiveOnce = false
+  private var accessibilityObserver: NSObjectProtocol?
 
   override func application(
     _ application: UIApplication,
@@ -24,6 +25,23 @@ import Darwin
 
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
+    if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "YourTJAccessibility") {
+      let channel = FlutterMethodChannel(name: "yourtj/accessibility", binaryMessenger: registrar.messenger())
+      channel.setMethodCallHandler { call, result in
+        if call.method == "reduceTransparency" {
+          result(UIAccessibility.isReduceTransparencyEnabled)
+        } else {
+          result(FlutterMethodNotImplemented)
+        }
+      }
+      if let observer = accessibilityObserver { NotificationCenter.default.removeObserver(observer) }
+      accessibilityObserver = NotificationCenter.default.addObserver(
+        forName: UIAccessibility.reduceTransparencyStatusDidChangeNotification,
+        object: nil, queue: .main
+      ) { _ in
+        channel.invokeMethod("reduceTransparencyChanged", arguments: UIAccessibility.isReduceTransparencyEnabled)
+      }
+    }
     if let appleRegistrar = engineBridge.pluginRegistry.registrar(forPlugin: "YourTJAppleAuth") {
       appleAuth = YourTJAppleAuth(registrar: appleRegistrar)
     }

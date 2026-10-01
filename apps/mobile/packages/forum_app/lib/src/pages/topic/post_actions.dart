@@ -37,6 +37,8 @@ class PostActions extends ConsumerStatefulWidget {
 
 class _PostActionsState extends ConsumerState<PostActions> {
   bool _busy = false;
+  bool _menuOpen = false;
+  final _moreKey = GlobalKey();
   int? _actionEpoch;
   bool get _removed =>
       widget.post.isAuthorDeleted || widget.post.isModeratorRemoved;
@@ -91,12 +93,95 @@ class _PostActionsState extends ConsumerState<PostActions> {
     }
   }
 
+  List<GfContextAction<String>> _menuActions(AppLocalizations l10n) {
+    final post = widget.post;
+    return [
+      if (post.isOwnPost && _available) ...[
+        GfContextAction(
+          value: 'edit',
+          label: l10n.commonEdit,
+          symbol: 'pen-line',
+        ),
+        GfContextAction(
+          value: 'delete',
+          label: l10n.contentDelete,
+          symbol: 'trash-2',
+          destructive: true,
+        ),
+      ],
+      if (_available) ...[
+        GfContextAction(
+          value: 'share',
+          label: l10n.topicShare,
+          symbol: 'share-2',
+        ),
+        GfContextAction(
+          value: 'shareImage',
+          label: l10n.topicShareImage,
+          symbol: 'image',
+        ),
+      ],
+      GfContextAction(
+        value: 'history',
+        label: l10n.topicHistory,
+        symbol: 'clock',
+      ),
+      if (!post.isOwnPost && _available)
+        GfContextAction(
+          value: 'report',
+          label: l10n.topicReport,
+          symbol: 'flag',
+        ),
+      if (post.canModerate && post.processStatus == 0)
+        GfContextAction(
+          value: 'ban',
+          label: l10n.topicModerateBan,
+          symbol: 'eye-off',
+          destructive: true,
+        ),
+      if (post.canModerate && post.processStatus == 1)
+        GfContextAction(
+          value: 'unban',
+          label: l10n.topicModerateUnban,
+          symbol: 'eye',
+        ),
+    ];
+  }
+
+  Future<void> _showMore() async {
+    if (_busy || _menuOpen) return;
+    final epoch = ref.read(offlineCacheEpochProvider);
+    final post = widget.post;
+    final l10n = AppLocalizations.of(context);
+    setState(() => _menuOpen = true);
+    final action = await showGfActionMenu<String>(
+      context,
+      sourceRect: gfMenuSourceRectOf(_moreKey.currentContext!),
+      semanticLabel:
+          '${post.isAnonymous ? l10n.courseCopyAuthorAnonymousLabel : post.author.nickname ?? post.author.username} · #${post.postNo}',
+      actions: _menuActions(l10n),
+    );
+    if (!mounted) return;
+    setState(() => _menuOpen = false);
+    if (action == null ||
+        epoch != ref.read(offlineCacheEpochProvider) ||
+        post.id != widget.post.id ||
+        !_menuActions(l10n).any((item) => item.value == action)) {
+      return;
+    }
+    await _action(action);
+  }
+
   Future<void> _action(String action) async {
     if (_busy) return;
     final l10n = AppLocalizations.of(context);
     final post = widget.post;
     final epoch = ref.read(offlineCacheEpochProvider);
     if ((action == 'share' || action == 'shareImage') && !_available) return;
+    if (action == 'report') {
+      if (_available && !post.isOwnPost) widget.onReport();
+      return;
+    }
     if (action == 'history') {
       await showGfBottomSheet<void>(
         context,
@@ -391,41 +476,16 @@ class _PostActionsState extends ConsumerState<PostActions> {
             icon: const GfSymbol('corner-down-left', size: _postActionIconSize),
           ),
       ],
-      PopupMenuButton<String>(
+      IconButton(
+        key: _moreKey,
         icon: GfSymbol(
           'ellipsis',
           size: _postActionIconSize,
           color: colors.iconMuted.withValues(alpha: _busy ? .38 : 1),
         ),
         tooltip: l10n.profileMore,
-        useRootNavigator: true,
-        enabled: !_busy,
-        onSelected: _action,
-        itemBuilder: (_) => [
-          if (post.isOwnPost && available)
-            PopupMenuItem(value: 'edit', child: Text(l10n.commonEdit)),
-          if (post.isOwnPost && available)
-            PopupMenuItem(value: 'delete', child: Text(l10n.contentDelete)),
-          PopupMenuItem(value: 'history', child: Text(l10n.topicHistory)),
-          if (available) ...[
-            PopupMenuItem(value: 'share', child: Text(l10n.topicShare)),
-            PopupMenuItem(
-              value: 'shareImage',
-              child: Text(l10n.topicShareImage),
-            ),
-          ],
-          if (post.canModerate && post.processStatus == 0)
-            PopupMenuItem(value: 'ban', child: Text(l10n.topicModerateBan)),
-          if (post.canModerate && post.processStatus == 1)
-            PopupMenuItem(value: 'unban', child: Text(l10n.topicModerateUnban)),
-        ],
+        onPressed: _busy || _menuOpen ? null : _showMore,
       ),
-      if (!post.isOwnPost && available)
-        IconButton(
-          tooltip: l10n.topicReport,
-          onPressed: _busy ? null : widget.onReport,
-          icon: const GfSymbol('flag', size: _postActionIconSize),
-        ),
     ];
     return IconButtonTheme(
       data: IconButtonThemeData(

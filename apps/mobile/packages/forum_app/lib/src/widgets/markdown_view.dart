@@ -59,7 +59,8 @@ class GfMarkdownView extends ConsumerStatefulWidget {
   final String data;
   final List<PostMention> mentions;
 
-  /// 已知图片列表(取自 markdown 的图片引用);为 null 时从内容提取。
+  /// Legacy image hint. The rendered Markdown determines gallery order and
+  /// occurrences so stale hints cannot open a different image or a sticker.
   final List<String>? images;
 
   final bool selectable;
@@ -80,6 +81,7 @@ class GfMarkdownView extends ConsumerStatefulWidget {
 
 class _GfMarkdownViewState extends ConsumerState<GfMarkdownView> {
   late Widget _markdownBody;
+  Object _galleryIdentity = Object();
   Future<List<LinkPreviewPayload>>? _linkPreviews;
 
   Map<String, String> _stickerUrls = const {};
@@ -112,28 +114,59 @@ class _GfMarkdownViewState extends ConsumerState<GfMarkdownView> {
     }
   }
 
-  List<String> _extractImages(String data) {
-    // Local storage uploads intentionally return `/file/img/...`; keep both
-    // relative and absolute destinations so the viewer mirrors the renderer.
-    final RegExp re = RegExp(r'!\[([^\]]*)\]\(([^)\s]+)\)');
-    return re.allMatches(data).map((m) => m.group(2)!).toList(growable: false);
+  List<String> _extractImages(String data, Set<String> stickers) {
+    // Use the renderer's parser: fenced code is not a photo; reference images,
+    // escaped destinations and repeated URLs are real, separate occurrences.
+    final images = <String>[];
+    MarkdownGenerator(
+      onNodeAccepted: (node, _) {
+        if (node is ImageNode) {
+          final url = node.attributes['src'] ?? '';
+          if (!stickers.contains(url)) images.add(url);
+        }
+      },
+      spanNodeBuilder: (_) => const TextSpan(),
+    ).buildWidgets(data);
+    return images;
   }
 
-  void _openViewer(BuildContext context, List<String> urls, int index) {
+  void _openViewer(
+    BuildContext context,
+    List<String> urls,
+    int index,
+    Object identity,
+    List<GlobalKey> sources,
+  ) {
+    final epoch = ref.read(offlineCacheEpochProvider);
+    final l10n = AppLocalizations.of(context);
     Navigator.of(context, rootNavigator: true).push(
-      MaterialPageRoute<void>(
-        builder: (_) => Scaffold(
-          backgroundColor: const Color(0xFF000000),
-          body: SafeArea(
-            child: GfImageViewer(
+      gfImageViewerRoute(
+        context,
+        builder: (_) => Consumer(
+          builder: (context, ref, _) {
+            if (ref.watch(offlineCacheEpochProvider) != epoch) {
+              final route = ModalRoute.of(context);
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (route?.isActive == true) {
+                  route!.navigator?.removeRoute(route);
+                }
+              });
+              return const SizedBox.shrink();
+            }
+            return GfImageViewer(
               images: urls,
               initialIndex: index,
+              heroTag: identity,
+              canReturnToSource: (index) =>
+                  mounted &&
+                  identical(identity, _galleryIdentity) &&
+                  gfImageSourceIsVisible(sources[index]),
               onSaveImage: (String url) => saveImageFromUrl(context, url),
-              saveImageLabel: AppLocalizations.of(context).imageSave,
+              saveImageLabel: l10n.imageSave,
               onShareImage: (String url) => shareImageFromUrl(context, url),
-              shareImageLabel: AppLocalizations.of(context).topicShare,
-            ),
-          ),
+              shareImageLabel: l10n.topicShare,
+            );
+          },
         ),
       ),
     );
@@ -181,16 +214,24 @@ class _GfMarkdownViewState extends ConsumerState<GfMarkdownView> {
       expandPostMentions(screenshotSource, widget.mentions),
       stickerSources,
     );
-    // Expressions never belong to a photo gallery, including supplied lists.
-    final ordinary = _extractImages(
-      data,
-    ).where((source) => !stickerImages.containsKey(source)).toList();
-    final List<String> sourceUrls = widget.images == null
-        ? ordinary
-        : widget.images!.where(ordinary.contains).toList();
+    final blocks = splitLinkPreviewMarkdown(data);
+    final previewUrls = blocks
+        .where((block) => block.isPreview)
+        .map((block) => block.url!)
+        .toList(growable: false);
+    final split = previewUrls.isNotEmpty && !widget.screenshot;
+    // Parse exactly the same blocks as the renderer, excluding token stickers.
+    final imageGroups = [
+      for (final source
+          in split ? blocks.map((block) => block.markdown) : [data])
+        _extractImages(source, stickerImages.keys.toSet()),
+    ];
+    final sourceUrls = imageGroups.expand((group) => group).toList();
     final List<String> resolvedUrls = sourceUrls
         .map(resolveApiAssetUrl)
         .toList(growable: false);
+    final identity = _galleryIdentity = Object();
+    final sources = List.generate(sourceUrls.length, (_) => GlobalKey());
     final MediaQueryData media = MediaQuery.of(context);
 
     // web prose.css 图片高度上限:min(360px, 70vh)。
@@ -228,7 +269,7 @@ class _GfMarkdownViewState extends ConsumerState<GfMarkdownView> {
         H3Config(style: profile.h3),
         H4Config(style: profile.h4),
         H5Config(style: profile.h5),
-        H6Config(style: profile.h6),        // 图片:contain + 高度约束 + 圆角边框(prose.css img)。
+        H6Config(style: profile.h6), // 图片:contain + 高度约束 + 圆角边框(prose.css img)。
         ImgConfig(
           builder: (String url, Map<String, String> attributes) {
             final sticker = stickerImages[url];
@@ -240,66 +281,76 @@ class _GfMarkdownViewState extends ConsumerState<GfMarkdownView> {
               );
             }
             final String resolvedUrl = resolveApiAssetUrl(url);
+            final index = int.parse(attributes['_gfImageIndex']!);
             readiness?.begin(resolvedUrl);
             var hasFrame = false;
             return GestureDetector(
+              key: sources[index],
               onTap: widget.screenshot
                   ? null
                   : () {
-                      final int index = sourceUrls.indexOf(url);
                       _openViewer(
                         context,
-                        resolvedUrls.isEmpty ? [resolvedUrl] : resolvedUrls,
-                        index < 0 ? 0 : index,
+                        resolvedUrls,
+                        index,
+                        identity,
+                        sources,
                       );
                     },
-              onLongPress: widget.screenshot
+              onLongPressStart: widget.screenshot
                   ? null
-                  : () async {
-                      final bool save = await showGfImageSaveSheet(
+                  : (details) async {
+                      final bool save = await showGfImageSaveMenu(
                         context,
                         saveImageLabel: AppLocalizations.of(context).imageSave,
+                        globalPosition: details.globalPosition,
                       );
                       if (!mounted || !save) return;
                       await saveImageFromUrl(context, resolvedUrl);
                     },
-              child: ConstrainedBox(
-                constraints: BoxConstraints(maxHeight: maxImageHeight),
-                child: Container(
-                  decoration: BoxDecoration(
-                    border: Border.all(
-                      color: colors.line,
-                      width: borders.width,
+              child: HeroMode(
+                enabled: !widget.screenshot && !GfMotion.reducedOf(context),
+                child: Hero(
+                  tag: (identity, index),
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(maxHeight: maxImageHeight),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        border: Border.all(
+                          color: colors.line,
+                          width: borders.width,
+                        ),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      clipBehavior: Clip.antiAlias,
+                      child: GfNetworkImage(
+                        resolvedUrl,
+                        fit: BoxFit.contain,
+                        cacheWidth: imageCacheWidth,
+                        frameBuilder: (_, child, frame, _) {
+                          hasFrame = frame != null;
+                          if (frame != null) readiness?.finish(resolvedUrl);
+                          return child;
+                        },
+                        loadingBuilder: (_, child, progress) {
+                          if (readiness?.isFrozen(resolvedUrl) == true ||
+                              (widget.screenshot && !hasFrame)) {
+                            return SizedBox(
+                              height: 80,
+                              child: Center(
+                                child: GfSymbol(
+                                  'image-off',
+                                  color: colors.iconMuted,
+                                ),
+                              ),
+                            );
+                          }
+                          return child;
+                        },
+                        // 失败时交给宿主兜底（可重试/在浏览器打开），readiness 仍按原语义收口。
+                        onImageError: (_) => readiness?.finish(resolvedUrl),
+                      ),
                     ),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  clipBehavior: Clip.antiAlias,
-                  child: GfNetworkImage(
-                    resolvedUrl,
-                    fit: BoxFit.contain,
-                    cacheWidth: imageCacheWidth,
-                    frameBuilder: (_, child, frame, _) {
-                      hasFrame = frame != null;
-                      if (frame != null) readiness?.finish(resolvedUrl);
-                      return child;
-                    },
-                    loadingBuilder: (_, child, progress) {
-                      if (readiness?.isFrozen(resolvedUrl) == true ||
-                          (widget.screenshot && !hasFrame)) {
-                        return SizedBox(
-                          height: 80,
-                          child: Center(
-                            child: GfSymbol(
-                              'image-off',
-                              color: colors.iconMuted,
-                            ),
-                          ),
-                        );
-                      }
-                      return child;
-                    },
-                    // 失败时交给宿主兜底（可重试/在浏览器打开），readiness 仍按原语义收口。
-                    onImageError: (_) => readiness?.finish(resolvedUrl),
                   ),
                 ),
               ),
@@ -338,27 +389,28 @@ class _GfMarkdownViewState extends ConsumerState<GfMarkdownView> {
       ],
     );
 
-    Widget buildMarkdown(String source) => MarkdownWidget(
-      data: source,
-      selectable: widget.selectable && !widget.screenshot,
-      shrinkWrap: true,
-      markdownGenerator: MarkdownGenerator(
-        linesMargin: EdgeInsets.symmetric(vertical: profile.paragraphSpacing),
-      ),
-      // Embedded in the page scroll view: never repeat its safe-area insets.
-      padding: EdgeInsets.zero,
-      physics: const NeverScrollableScrollPhysics(),
-      config: config,
-    );
+    var imageOffset = 0;
+    var blockIndex = 0;
+    Widget buildMarkdown(String source) {
+      final offset = imageOffset;
+      imageOffset += imageGroups[blockIndex++].length;
+      return MarkdownWidget(
+        data: source,
+        selectable: widget.selectable && !widget.screenshot,
+        shrinkWrap: true,
+        markdownGenerator: _GalleryMarkdownGenerator(
+          imageOffset: offset,
+          stickers: stickerImages.keys.toSet(),
+          linesMargin: EdgeInsets.symmetric(vertical: profile.paragraphSpacing),
+        ),
+        // Embedded in the page scroll view: never repeat its safe-area insets.
+        padding: EdgeInsets.zero,
+        physics: const NeverScrollableScrollPhysics(),
+        config: config,
+      );
+    }
 
-    final List<LinkPreviewMarkdownBlock> blocks = splitLinkPreviewMarkdown(
-      data,
-    );
-    final List<String> previewUrls = blocks
-        .where((LinkPreviewMarkdownBlock block) => block.isPreview)
-        .map((LinkPreviewMarkdownBlock block) => block.url!)
-        .toList(growable: false);
-    if (previewUrls.isEmpty || widget.screenshot) return buildMarkdown(data);
+    if (!split) return buildMarkdown(data);
 
     Future<List<LinkPreviewPayload>> loadPreviews() => _linkPreviews ??= ref
         .read(linkPreviewRepositoryProvider)
@@ -395,6 +447,35 @@ class _GfMarkdownViewState extends ConsumerState<GfMarkdownView> {
       return _markdownBody;
     },
   );
+}
+
+/// Reset occurrence numbering each time MarkdownWidget reparses a block.
+/// Assigning it in ImgConfig.builder would drift when the same node rebuilds.
+class _GalleryMarkdownGenerator extends MarkdownGenerator {
+  _GalleryMarkdownGenerator({
+    required this.imageOffset,
+    required this.stickers,
+    required super.linesMargin,
+  });
+  final int imageOffset;
+  final Set<String> stickers;
+
+  @override
+  List<Widget> buildWidgets(
+    String data, {
+    ValueCallback<List<Toc>>? onTocList,
+    MarkdownConfig? config,
+  }) {
+    var index = imageOffset;
+    return MarkdownGenerator(
+      linesMargin: linesMargin,
+      onNodeAccepted: (node, _) {
+        if (node is ImageNode && !stickers.contains(node.attributes['src'])) {
+          node.attributes['_gfImageIndex'] = '${index++}';
+        }
+      },
+    ).buildWidgets(data, onTocList: onTocList, config: config);
+  }
 }
 
 class _DeferredLinkPreview extends StatefulWidget {

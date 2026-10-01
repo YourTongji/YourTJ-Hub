@@ -1077,10 +1077,8 @@ class _HomeToolbar extends ConsumerWidget {
       }
     }
     final AppLocalizations l10n = AppLocalizations.of(context);
-    final GfColors colors = GfTheme.colorsOf(context);
-
     return ColoredBox(
-      color: colors.base100,
+      color: Colors.transparent,
       child: Column(
         children: [
           Row(
@@ -1098,7 +1096,7 @@ class _HomeToolbar extends ConsumerWidget {
                   onSelected: (value) => onSelected(value as String),
                 ),
               ),
-              IconButton(
+              GfActionMenuButton<GfTopicFeedMode>(
                 tooltip: l10n.homeFeedOptions,
                 icon: GfSymbol(
                   feedMode == GfTopicFeedMode.card
@@ -1106,7 +1104,20 @@ class _HomeToolbar extends ConsumerWidget {
                       : 'list-square',
                   size: 20,
                 ),
-                onPressed: () => _showOptions(context),
+                onSelected: onFeedModeSelected,
+                itemBuilder: (_) => [
+                  for (final mode in GfTopicFeedMode.values)
+                    GfContextAction(
+                      value: mode,
+                      label: mode == GfTopicFeedMode.card
+                          ? l10n.topicFeedModeCard
+                          : l10n.topicFeedModeList,
+                      symbol: mode == GfTopicFeedMode.card
+                          ? 'layout-grid'
+                          : 'list-square',
+                      selected: feedMode == mode,
+                    ),
+                ],
               ),
               const SizedBox(width: 4),
             ],
@@ -1120,50 +1131,6 @@ class _HomeToolbar extends ConsumerWidget {
         ],
       ),
     );
-  }
-
-  Future<void> _showOptions(BuildContext context) async {
-    final l10n = AppLocalizations.of(context);
-    final selected = await showGfBottomSheet<GfTopicFeedMode>(
-      context,
-      builder: (sheetContext) => SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(8, 4, 8, 12),
-              child: Text(
-                l10n.homeFeedOptions,
-                style: GfTheme.typographyOf(context).title2,
-              ),
-            ),
-            for (final mode in GfTopicFeedMode.values)
-              ListTile(
-                leading: GfSymbol(
-                  mode == GfTopicFeedMode.card ? 'layout-grid' : 'list-square',
-                ),
-                title: Text(
-                  mode == GfTopicFeedMode.card
-                      ? l10n.topicFeedModeCard
-                      : l10n.topicFeedModeList,
-                ),
-                trailing: feedMode == mode
-                    ? const GfSymbol('check', size: 20)
-                    : null,
-                selected: feedMode == mode,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                onTap: () => Navigator.pop(sheetContext, mode),
-              ),
-          ],
-        ),
-      ),
-    );
-    if (!context.mounted) return;
-    if (selected != null) onFeedModeSelected(selected);
   }
 
   /// Known feed labels follow the app locale; custom server tabs retain their label.
@@ -1314,7 +1281,7 @@ class _CategoryPill extends StatelessWidget {
         color: Colors.transparent,
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(22),
           child: Center(
             child: AnimatedContainer(
               duration: duration,
@@ -1324,8 +1291,8 @@ class _CategoryPill extends StatelessWidget {
               decoration: BoxDecoration(
                 color: selected
                     ? colors.primary.withValues(alpha: .10)
-                    : colors.base200,
-                borderRadius: BorderRadius.circular(12),
+                    : colors.baseContent.withValues(alpha: .04),
+                borderRadius: BorderRadius.circular(22),
                 border: Border.all(
                   color: selected
                       ? colors.primary.withValues(alpha: .35)

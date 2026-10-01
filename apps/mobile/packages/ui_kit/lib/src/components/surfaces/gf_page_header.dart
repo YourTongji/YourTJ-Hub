@@ -5,7 +5,7 @@ import '../gf_symbol.dart';
 
 /// Page header, mirroring web `PageHeader.vue` / `.gf-page-header`
 /// (components.css): mobile form is a stacked column with an 8px gap, a
-/// `line/70` bottom border and `px-4 py-3` padding; the title is 20px w700
+/// `line/70` bottom border and `px-4 py-3` padding; the title is 28px w700
 /// (web `text-xl font-bold`), the description 14px `base-content/55`.
 class GfPageHeader extends StatelessWidget {
   const GfPageHeader({
@@ -51,7 +51,9 @@ class GfPageHeader extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    fontSize: 20,
+                    fontSize: 28,
+                    height: 1.2,
+                    letterSpacing: -.6,
                     fontWeight: FontWeight.w700,
                     color: colors.baseContent,
                   ),

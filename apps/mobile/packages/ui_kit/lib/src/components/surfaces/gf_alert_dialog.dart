@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../theme/gf_theme.dart';
 import '../gf_motion.dart';
+import 'gf_liquid_surface.dart';
 
 Future<T?> showGfAlertDialog<T>(
   BuildContext context, {
@@ -14,15 +15,19 @@ Future<T?> showGfAlertDialog<T>(
     useRootNavigator: true,
     barrierColor: Theme.of(context).colorScheme.scrim,
     builder: (context) => Dialog(
-      backgroundColor: GfTheme.colorsOf(context).base100,
+      backgroundColor: Colors.transparent,
       surfaceTintColor: Colors.transparent,
       elevation: 0,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+      clipBehavior: Clip.none,
       insetPadding: const EdgeInsets.all(16),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 560),
-        child: Builder(builder: builder),
+      child: GfLiquidSurface(
+        radius: 28,
+        weight: GfGlassWeight.strong,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 560),
+          child: Builder(builder: builder),
+        ),
       ),
     ),
     barrierDismissible: barrierDismissible,

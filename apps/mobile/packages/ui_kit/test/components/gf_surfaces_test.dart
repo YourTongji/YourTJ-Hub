@@ -38,18 +38,27 @@ void main() {
         of: content,
         matching: find.byType(Material),
       );
-      expect(
-        tester.widget<Material>(surface.first).color,
-        GfColors.light.base100,
-      );
+      Color fill() =>
+          (tester
+                      .widgetList<DecoratedBox>(
+                        find.descendant(
+                          of: find.byType(GfLiquidSurface),
+                          matching: find.byType(DecoratedBox),
+                        ),
+                      )
+                      .map((box) => box.decoration)
+                      .whereType<BoxDecoration>()
+                      .firstWhere((decoration) => decoration.gradient != null)
+                      .gradient!
+                  as LinearGradient)
+              .colors
+              .first;
+      final lightFill = fill();
       final bounds = tester.getRect(surface.first);
       expect(tester.getTopLeft(content).dy - bounds.top, 28);
       brightness.value = Brightness.dark;
       await tester.pumpAndSettle();
-      expect(
-        tester.widget<Material>(surface.first).color,
-        GfColors.dark.base100,
-      );
+      expect(fill().computeLuminance(), lessThan(lightFill.computeLuminance()));
       expect(Theme.of(tester.element(content)).brightness, Brightness.dark);
       expect(tester.getRect(surface.first), bounds);
       expect(tester.takeException(), isNull);

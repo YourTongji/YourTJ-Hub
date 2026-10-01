@@ -45,6 +45,7 @@ Future<void> showUserProfilePreview(
   return showGeneralDialog<void>(
     context: context,
     useRootNavigator: true,
+
     barrierDismissible: true,
     barrierLabel: l10n.commonClose,
     barrierColor: Colors.transparent,
@@ -531,9 +532,9 @@ class _UserProfilePreviewState extends ConsumerState<UserProfilePreview> {
                                               if (viewer != null &&
                                                   viewer.id != user.userId) ...[
                                                 const SizedBox(width: 6),
-                                                PopupMenuButton<String>(
+                                                GfActionMenuButton<String>(
                                                   tooltip: l10n.profileMore,
-                                                  useRootNavigator: true,
+
                                                   icon: const GfSymbol(
                                                     'ellipsis',
                                                     size: 20,
@@ -577,25 +578,11 @@ class _UserProfilePreviewState extends ConsumerState<UserProfilePreview> {
                                                     if (userBlocks?.hasError ==
                                                         true) {
                                                       return [
-                                                        PopupMenuItem(
+                                                        GfContextAction(
                                                           value: 'retry',
-                                                          child: Row(
-                                                            mainAxisSize:
-                                                                MainAxisSize
-                                                                    .min,
-                                                            children: [
-                                                              const GfSymbol(
-                                                                'refresh-cw',
-                                                                size: 18,
-                                                              ),
-                                                              const SizedBox(
-                                                                width: 10,
-                                                              ),
-                                                              Text(
-                                                                l10n.commonRetry,
-                                                              ),
-                                                            ],
-                                                          ),
+                                                          label:
+                                                              l10n.commonRetry,
+                                                          symbol: 'refresh-cw',
                                                         ),
                                                       ];
                                                     }
@@ -603,11 +590,11 @@ class _UserProfilePreviewState extends ConsumerState<UserProfilePreview> {
                                                         userBlocks?.valueOrNull;
                                                     if (blockPayload == null) {
                                                       return [
-                                                        PopupMenuItem(
+                                                        GfContextAction(
+                                                          value: 'loading',
                                                           enabled: false,
-                                                          child: Text(
-                                                            l10n.commonLoading,
-                                                          ),
+                                                          label: l10n
+                                                              .commonLoading,
                                                         ),
                                                       ];
                                                     }
@@ -618,15 +605,14 @@ class _UserProfilePreviewState extends ConsumerState<UserProfilePreview> {
                                                               user.userId,
                                                         );
                                                     return [
-                                                      PopupMenuItem(
+                                                      GfContextAction(
                                                         value: isBlocked
                                                             ? 'unblock'
                                                             : 'block',
-                                                        child: Text(
-                                                          isBlocked
-                                                              ? l10n.userUnblock
-                                                              : l10n.userBlock,
-                                                        ),
+                                                        label: isBlocked
+                                                            ? l10n.userUnblock
+                                                            : l10n.userBlock,
+                                                        symbol: 'user-round',
                                                       ),
                                                     ];
                                                   },

@@ -615,7 +615,13 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
   bool _loadDirty = false;
   CancelToken? _loadCancel;
   final _viewportKey = GlobalKey();
+  final _attachmentKey = GlobalKey();
   final Map<int, GlobalKey> _bubbleKeys = {};
+  ChatMessagePayload? _actionMessage;
+  ValueNotifier<bool>? _actionSourceValid;
+  // SelectionArea can take focus before its long-press recognizer loses.
+  // Remember the composer's state at pointer-down, before that arbitration.
+  bool _messagePointerHadComposerFocus = false;
   late final VisibleChatReads _visibleReads;
   late final int _sessionEpoch;
   bool _foreground = true;
@@ -846,6 +852,12 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
 
   @override
   void dispose() {
+    final validity = _actionSourceValid;
+    if (validity != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (identical(validity, _actionSourceValid)) validity.value = false;
+      });
+    }
     WidgetsBinding.instance.removeObserver(this);
     _input.removeListener(_draftChanged);
     _drafts.removeListener(_restoreDraft);
@@ -1495,26 +1507,24 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
   Future<void> _showAttachments() async {
     if (!_sessionCurrent || _attachingImage) return;
     final l10n = AppLocalizations.of(context);
-    final action = await showGfBottomSheet<String>(
+    final action = await showGfActionMenu<String>(
       context,
-      builder: (context) => Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          ListTile(
-            leading: const GfSymbol('image'),
-            title: Text(l10n.publishToolImage),
-            enabled:
-                _historyReady &&
-                !ref.read(chatOutboxProvider(widget.conv.peerId)).sending,
-            onTap: () => Navigator.pop(context, 'image'),
-          ),
-          ListTile(
-            leading: const GfSymbol('smile'),
-            title: Text(StickerStrings(context).add),
-            onTap: () => Navigator.pop(context, 'stickers'),
-          ),
-        ],
-      ),
+      sourceRect: gfMenuSourceRectOf(_attachmentKey.currentContext!),
+      actions: [
+        GfContextAction(
+          value: 'image',
+          label: l10n.publishToolImage,
+          symbol: 'image',
+          enabled:
+              _historyReady &&
+              !ref.read(chatOutboxProvider(widget.conv.peerId)).sending,
+        ),
+        GfContextAction(
+          value: 'stickers',
+          label: StickerStrings(context).add,
+          symbol: 'smile',
+        ),
+      ],
     );
     if (!mounted || !_sessionCurrent) return;
     if (action == 'image') {
@@ -1666,31 +1676,100 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
       context,
       rootNavigator: true,
     ).overlay?.context.findRenderObject();
-    if (box is! RenderBox || overlay is! RenderBox || !_sessionCurrent) return;
+    if (box is! RenderBox ||
+        !box.attached ||
+        !box.hasSize ||
+        overlay is! RenderBox ||
+        !_sessionCurrent) {
+      return;
+    }
     final origin = box.localToGlobal(Offset.zero, ancestor: overlay);
-    final action = await showMenu<String>(
-      context: context,
-      useRootNavigator: true,
-      position: RelativeRect.fromRect(
-        origin & box.size,
-        Offset.zero & overlay.size,
+    if (_actionSourceValid != null) return;
+    final validity = ValueNotifier(true);
+    setState(() {
+      _actionMessage = message;
+      _actionSourceValid = validity;
+    });
+    final restoreComposer =
+        _composerFocus.hasFocus || _messagePointerHadComposerFocus;
+    String? action;
+    action = await showGfContextMenu<String>(
+      context,
+      sourceRect: origin & box.size,
+      semanticLabel: l10n.messageActions,
+      sourceValid: validity,
+      onClosed: () {
+        final restore =
+            validity.value &&
+            restoreComposer &&
+            (action == null || action == 'copy' || action == 'collect');
+        void clearSource() {
+          _actionMessage = null;
+          _actionSourceValid = null;
+        }
+
+        if (identical(validity, _actionSourceValid)) {
+          if (mounted) {
+            setState(clearSource);
+          } else {
+            clearSource();
+          }
+        }
+        validity.dispose();
+        if (restore &&
+            _sessionCurrent &&
+            !_selecting &&
+            routeIsUncovered(context)) {
+          _composerFocus.requestFocus();
+        }
+      },
+      preview: ChatMessageBubble(
+        text: message.content,
+        msgType: message.msgType,
+        mine: message.isSelf,
+        maxWidthFactor: 1,
+        selectable: false,
+        content: message.forwarded == null
+            ? null
+            : ForwardedMessageCard(bundle: message.forwarded!),
       ),
-      items: [
+      actions: [
         if (_historyReady)
-          PopupMenuItem(value: 'reply', child: Text(l10n.messageReply)),
+          GfContextAction(
+            value: 'reply',
+            label: l10n.messageReply,
+            symbol: 'quote',
+          ),
         if (!isForwardedHistory)
-          PopupMenuItem(value: 'copy', child: Text(l10n.messagesCopyAll)),
+          GfContextAction(
+            value: 'copy',
+            label: l10n.messagesCopyAll,
+            symbol: 'copy',
+          ),
         if (_historyReady)
-          PopupMenuItem(value: 'forward', child: Text(l10n.messageForward)),
+          GfContextAction(
+            value: 'forward',
+            label: l10n.messageForward,
+            symbol: 'share-2',
+          ),
         if (_historyReady)
-          PopupMenuItem(value: 'select', child: Text(l10n.messageSelect)),
+          GfContextAction(
+            value: 'select',
+            label: l10n.messageSelect,
+            symbol: 'circle-check',
+          ),
         if (_historyReady && !isForwardedHistory && canCollect)
-          PopupMenuItem(
+          GfContextAction(
             value: 'collect',
-            child: Text(StickerStrings(context).collect),
+            label: StickerStrings(context).collect,
+            symbol: 'bookmark',
           ),
         if (_historyReady && !message.isSelf)
-          PopupMenuItem(value: 'report', child: Text(l10n.messageReport)),
+          GfContextAction(
+            value: 'report',
+            label: l10n.messageReport,
+            symbol: 'flag',
+          ),
       ],
     );
     if (!mounted || !_sessionCurrent || action == null) return;
@@ -1937,6 +2016,20 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
       });
       _replyHighlightTimer?.cancel();
     });
+    final actionMessage = _actionMessage;
+    if (actionMessage != null &&
+        (!_sessionCurrent ||
+            !_messages.any(
+              (item) =>
+                  item.id == actionMessage.id &&
+                  item.content == actionMessage.content &&
+                  item.msgType == actionMessage.msgType,
+            ))) {
+      final validity = _actionSourceValid;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (identical(validity, _actionSourceValid)) validity?.value = false;
+      });
+    }
     if (!_drafts.current) return const SizedBox.shrink();
     _visibleReads.changed();
     final List<ChatTimelineItem> timeline = buildChatTimeline(_messages);
@@ -2094,10 +2187,14 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
                                             reason == l10n.commonLoadFailed
                                         ? l10n.messagesFailed
                                         : '${l10n.messagesFailed} · $reason';
-                                    return Padding(
+                                    return ChatMessageRow(
                                       key: ValueKey('pending-${pending.id}'),
-                                      padding: const EdgeInsets.symmetric(
-                                        vertical: 8,
+                                      mine: true,
+                                      avatar: GfAvatar(
+                                        src: resolveApiAssetUrl(
+                                          widget.viewerAvatar,
+                                        ),
+                                        size: 32,
                                       ),
                                       child: Column(
                                         crossAxisAlignment:
@@ -2107,6 +2204,7 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
                                             text: pending.content,
                                             msgType: pending.msgType,
                                             mine: true,
+                                            maxWidthFactor: 0.74,
                                           ),
                                           if (pending.state ==
                                               DeliveryState.failed) ...[
@@ -2234,6 +2332,10 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
                                                               GlobalKey.new,
                                                             ),
                                                         message: message,
+                                                        hidden:
+                                                            _actionMessage
+                                                                ?.id ==
+                                                            message.id,
                                                         peerId:
                                                             widget.conv.peerId,
                                                         peerProfileLabel: l10n
@@ -2264,6 +2366,13 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
                                                                     .replyToMessageId!,
                                                                 message.id,
                                                               ),
+                                                        onPointerDown: () =>
+                                                            _messagePointerHadComposerFocus =
+                                                                _composerFocus
+                                                                    .hasFocus,
+                                                        onPointerEnd: () =>
+                                                            _messagePointerHadComposerFocus =
+                                                                false,
                                                         onLongPress: () =>
                                                             unawaited(
                                                               _showMessageActions(
@@ -2443,6 +2552,7 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
                       accessoryBuilder: (insert) =>
                           StickerPicker(onInsert: insert),
                       onAttach: _showAttachments,
+                      attachmentKey: _attachmentKey,
                       attachLabel: l10n.messagesAttachments,
                       clearOnSend: false,
                       enabled: _drafts.current,
@@ -3068,12 +3178,15 @@ class _MessageSelectionControl extends StatelessWidget {
 class _MessageRow extends ConsumerWidget {
   const _MessageRow({
     this.bubbleKey,
+    this.hidden = false,
     required this.message,
     required this.peerId,
     required this.peerProfileLabel,
     required this.peerAvatar,
     required this.viewerAvatar,
     this.onLongPress,
+    this.onPointerDown,
+    this.onPointerEnd,
     this.onSwipeReply,
     this.replyToMessageId,
     this.onQuoteTap,
@@ -3081,12 +3194,15 @@ class _MessageRow extends ConsumerWidget {
   });
 
   final GlobalKey? bubbleKey;
+  final bool hidden;
   final ChatMessagePayload message;
   final int peerId;
   final String peerProfileLabel;
   final String peerAvatar;
   final String viewerAvatar;
   final VoidCallback? onLongPress;
+  final VoidCallback? onPointerDown;
+  final VoidCallback? onPointerEnd;
   final VoidCallback? onSwipeReply;
   final int? replyToMessageId;
   final VoidCallback? onQuoteTap;
@@ -3096,33 +3212,44 @@ class _MessageRow extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return ChatMessageRow(
-      mine: message.isSelf,
-      avatar: message.isSelf
-          ? GfAvatar(src: resolveApiAssetUrl(viewerAvatar), size: 32)
-          : _PeerAvatarButton(
-              key: Key('chat-peer-avatar-${message.id}'),
-              peerId: peerId,
-              label: peerProfileLabel,
-              src: resolveApiAssetUrl(peerAvatar),
-              size: 32,
-              alignment: Alignment.topLeft,
-            ),
-      child: ChatMessageBubble(
-        bubbleKey: bubbleKey,
-        text: message.content,
-        msgType: message.msgType,
+    return Listener(
+      onPointerDown: (_) => onPointerDown?.call(),
+      onPointerUp: (_) => onPointerEnd?.call(),
+      onPointerCancel: (_) => onPointerEnd?.call(),
+      child: ChatMessageRow(
         mine: message.isSelf,
-        time: showTime ? formatChatClock(message.createdAt) : null,
-        maxWidthFactor: 0.74,
-        selectable: message.msgType != 4 && message.forwarded == null,
-        onLongPress: onLongPress,
-        onSwipeReply: onSwipeReply,
-        replyToMessageId: replyToMessageId,
-        onQuoteTap: onQuoteTap,
-        content: message.forwarded == null
-            ? null
-            : ForwardedMessageCard(bundle: message.forwarded!),
+        avatar: message.isSelf
+            ? GfAvatar(src: resolveApiAssetUrl(viewerAvatar), size: 32)
+            : _PeerAvatarButton(
+                key: Key('chat-peer-avatar-${message.id}'),
+                peerId: peerId,
+                label: peerProfileLabel,
+                src: resolveApiAssetUrl(peerAvatar),
+                size: 32,
+                alignment: Alignment.topLeft,
+              ),
+        child: IgnorePointer(
+          ignoring: hidden,
+          child: Opacity(
+            opacity: hidden ? 0 : 1,
+            child: ChatMessageBubble(
+              bubbleKey: bubbleKey,
+              text: message.content,
+              msgType: message.msgType,
+              mine: message.isSelf,
+              time: showTime ? formatChatClock(message.createdAt) : null,
+              maxWidthFactor: 0.74,
+              selectable: message.msgType != 4 && message.forwarded == null,
+              onLongPress: onLongPress,
+              onSwipeReply: onSwipeReply,
+              replyToMessageId: replyToMessageId,
+              onQuoteTap: onQuoteTap,
+              content: message.forwarded == null
+                  ? null
+                  : ForwardedMessageCard(bundle: message.forwarded!),
+            ),
+          ),
+        ),
       ),
     );
   }

@@ -15,9 +15,11 @@ class TopicActions extends ConsumerStatefulWidget {
     required this.props,
     required this.onChanged,
     this.firstPostId,
+    this.onReport,
   });
   final TopicDetailProps props;
   final int? firstPostId;
+  final VoidCallback? onReport;
   final Future<void> Function() onChanged;
   @override
   ConsumerState<TopicActions> createState() => _TopicActionsState();
@@ -25,11 +27,17 @@ class TopicActions extends ConsumerStatefulWidget {
 
 class _TopicActionsState extends ConsumerState<TopicActions> {
   bool _busy = false;
+  bool _menuOpen = false;
+  final _moreKey = GlobalKey();
   Future<void> _action(String action) async {
     if (_busy) return;
     final l10n = AppLocalizations.of(context);
     final epoch = ref.read(offlineCacheEpochProvider);
     final topic = widget.props.topic;
+    if (action == 'report') {
+      widget.onReport?.call();
+      return;
+    }
     if (action == 'edit') {
       await context.push('/publish?id=${topic.id}');
       if (mounted && epoch == ref.read(offlineCacheEpochProvider)) {
@@ -124,33 +132,86 @@ class _TopicActionsState extends ConsumerState<TopicActions> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
+  List<GfContextAction<String>> _menuActions(AppLocalizations l10n) {
     final props = widget.props;
     final available =
         !props.topic.authorDeleted && !props.topic.moderatorRemoved;
-    return PopupMenuButton<String>(
-      tooltip: l10n.profileMore,
-      icon: const GfSymbol('ellipsis', size: 20),
-      useRootNavigator: true,
-      enabled: !_busy,
-      onSelected: _action,
-      itemBuilder: (_) => [
-        if (props.permissions.isOwnTopic && available)
-          PopupMenuItem(value: 'edit', child: Text(l10n.commonEdit)),
-        if (props.permissions.isOwnTopic && available)
-          PopupMenuItem(value: 'delete', child: Text(l10n.contentDelete)),
-        if (widget.firstPostId != null)
-          PopupMenuItem(value: 'history', child: Text(l10n.topicHistory)),
-        PopupMenuItem(value: 'share', child: Text(l10n.topicShare)),
-        if (props.permissions.canModerateTopic &&
-            props.topic.processStatus == 0)
-          PopupMenuItem(value: 'ban', child: Text(l10n.topicModerateBan)),
-        if (props.permissions.canModerateTopic &&
-            props.topic.processStatus == 1)
-          PopupMenuItem(value: 'unban', child: Text(l10n.topicModerateUnban)),
+    return [
+      if (props.permissions.isOwnTopic && available) ...[
+        GfContextAction(
+          value: 'edit',
+          label: l10n.commonEdit,
+          symbol: 'pen-line',
+        ),
+        GfContextAction(
+          value: 'delete',
+          label: l10n.contentDelete,
+          symbol: 'trash-2',
+          destructive: true,
+        ),
       ],
-    );
+      GfContextAction(
+        value: 'share',
+        label: l10n.topicShare,
+        symbol: 'share-2',
+      ),
+      if (widget.firstPostId != null)
+        GfContextAction(
+          value: 'history',
+          label: l10n.topicHistory,
+          symbol: 'clock',
+        ),
+      if (widget.onReport != null && available && !props.permissions.isOwnTopic)
+        GfContextAction(
+          value: 'report',
+          label: l10n.topicReport,
+          symbol: 'flag',
+        ),
+      if (props.permissions.canModerateTopic && props.topic.processStatus == 0)
+        GfContextAction(
+          value: 'ban',
+          label: l10n.topicModerateBan,
+          symbol: 'eye-off',
+          destructive: true,
+        ),
+      if (props.permissions.canModerateTopic && props.topic.processStatus == 1)
+        GfContextAction(
+          value: 'unban',
+          label: l10n.topicModerateUnban,
+          symbol: 'eye',
+        ),
+    ];
   }
+
+  Future<void> _showMore() async {
+    if (_busy || _menuOpen) return;
+    final epoch = ref.read(offlineCacheEpochProvider);
+    final id = widget.props.topic.id;
+    final l10n = AppLocalizations.of(context);
+    setState(() => _menuOpen = true);
+    final title = widget.props.topic.title.trim();
+    final action = await showGfActionMenu<String>(
+      context,
+      sourceRect: gfMenuSourceRectOf(_moreKey.currentContext!),
+      semanticLabel: title.isEmpty ? l10n.topicTitle : title,
+      actions: _menuActions(l10n),
+    );
+    if (!mounted) return;
+    setState(() => _menuOpen = false);
+    if (action == null ||
+        epoch != ref.read(offlineCacheEpochProvider) ||
+        id != widget.props.topic.id ||
+        !_menuActions(l10n).any((item) => item.value == action)) {
+      return;
+    }
+    await _action(action);
+  }
+
+  @override
+  Widget build(BuildContext context) => IconButton(
+    key: _moreKey,
+    tooltip: AppLocalizations.of(context).profileMore,
+    icon: const GfSymbol('ellipsis', size: 20),
+    onPressed: _busy || _menuOpen ? null : _showMore,
+  );
 }

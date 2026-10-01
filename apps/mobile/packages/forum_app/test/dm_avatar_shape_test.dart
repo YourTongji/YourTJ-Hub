@@ -156,7 +156,7 @@ void main() {
     FlutterSecureStorage.setMockInitialValues({});
   });
 
-  testWidgets('conversation list rows keep circular 40px avatars', (
+  testWidgets('conversation list rows keep circular 52px avatars', (
     tester,
   ) async {
     await pumpChat(tester, targetUserId: null);
@@ -169,7 +169,7 @@ void main() {
         matching: find.byType(GfAvatar),
       );
       expect(avatarFinder, findsOneWidget);
-      expectCircularAvatar(tester, avatarFinder, size: 40, ring: true);
+      expectCircularAvatar(tester, avatarFinder, size: 52, ring: true);
     }
   });
 

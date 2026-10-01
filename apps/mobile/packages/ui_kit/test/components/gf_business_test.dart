@@ -726,9 +726,11 @@ void main() {
         );
         expect(
           tester
-              .widget<Material>(find.byKey(const Key('reply-composer-surface')))
-              .elevation,
-          0,
+              .widget<GfLiquidSurface>(
+                find.byKey(const Key('reply-composer-surface')),
+              )
+              .weight,
+          GfGlassWeight.strong,
         );
         expect(tester.getSize(imageButton), const Size(44, 44));
         expect(

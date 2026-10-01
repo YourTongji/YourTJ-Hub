@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../surfaces/gf_liquid_surface.dart';
 import 'package:flutter/services.dart';
 
 import '../../theme/gf_theme.dart';
@@ -25,6 +26,7 @@ class GfChatInput extends StatefulWidget {
     this.accessoryBuilder,
     this.previewBuilder,
     this.onAttach,
+    this.attachmentKey,
     this.attachLabel,
   });
 
@@ -50,6 +52,7 @@ class GfChatInput extends StatefulWidget {
   /// Optional app-owned rendering of the current draft above the input.
   final Widget Function(String text)? previewBuilder;
   final VoidCallback? onAttach;
+  final Key? attachmentKey;
   final String? attachLabel;
 
   @override
@@ -247,14 +250,12 @@ class _GfChatInputState extends State<GfChatInput> with WidgetsBindingObserver {
             child: Focus(
               focusNode: _accessoryFocus,
               skipTraversal: true,
-              child: Container(
+              child: GfLiquidSurface(
+                radius: 28,
+                weight: GfGlassWeight.strong,
                 padding: const EdgeInsets.symmetric(
                   horizontal: 12,
                   vertical: 8,
-                ),
-                decoration: BoxDecoration(
-                  color: colors.base100,
-                  border: Border(top: BorderSide(color: colors.line)),
                 ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -269,20 +270,27 @@ class _GfChatInputState extends State<GfChatInput> with WidgetsBindingObserver {
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
                         if (widget.onAttach != null) ...[
-                          IconButton(
-                            key: const Key('chat-attach'),
-                            tooltip: widget.attachLabel,
-                            icon: const GfSymbol('plus', size: 24),
-                            onPressed: widget.enabled ? widget.onAttach : null,
-                            style: IconButton.styleFrom(
-                              fixedSize: const Size.square(44),
-                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                              backgroundColor: colors.base200,
-                              foregroundColor: colors.baseContent,
-                              disabledForegroundColor: colors.iconMuted
-                                  .withValues(alpha: .45),
-                              shape: const CircleBorder(),
-                              padding: EdgeInsets.zero,
+                          KeyedSubtree(
+                            key: widget.attachmentKey,
+                            child: IconButton(
+                              key: const Key('chat-attach'),
+                              tooltip: widget.attachLabel,
+                              icon: const GfSymbol('plus', size: 24),
+                              onPressed: widget.enabled
+                                  ? widget.onAttach
+                                  : null,
+                              style: IconButton.styleFrom(
+                                fixedSize: const Size.square(44),
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                backgroundColor: colors.baseContent.withValues(
+                                  alpha: .05,
+                                ),
+                                foregroundColor: colors.baseContent,
+                                disabledForegroundColor: colors.iconMuted
+                                    .withValues(alpha: .45),
+                                shape: const CircleBorder(),
+                                padding: EdgeInsets.zero,
+                              ),
                             ),
                           ),
                           const SizedBox(width: 8),
@@ -296,7 +304,7 @@ class _GfChatInputState extends State<GfChatInput> with WidgetsBindingObserver {
                             ),
                             curve: GfMotion.enterCurve,
                             decoration: BoxDecoration(
-                              color: colors.base200,
+                              color: colors.baseContent.withValues(alpha: .045),
                               borderRadius: BorderRadius.circular(24),
                               border: Border.all(
                                 color: _inputFocus.hasFocus

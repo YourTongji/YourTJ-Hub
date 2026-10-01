@@ -230,10 +230,9 @@ class _SchedulePageState extends ConsumerState<SchedulePage>
             tooltip: l10n.scheduleAddCustomEvent,
             onPressed: _openCustomEventSheet,
           ),
-          PopupMenuButton<_ExportAction>(
+          GfActionMenuButton<_ExportAction>(
             tooltip: l10n.scheduleExportPng,
             icon: GfSymbol('share-2', size: 20, color: colors.iconMuted),
-            color: colors.base100,
             onSelected: (_ExportAction action) {
               if (action == _ExportAction.png) {
                 _exportPng();
@@ -242,14 +241,16 @@ class _SchedulePageState extends ConsumerState<SchedulePage>
               }
             },
             itemBuilder: (BuildContext menuContext) =>
-                <PopupMenuEntry<_ExportAction>>[
-                  PopupMenuItem<_ExportAction>(
+                <GfContextAction<_ExportAction>>[
+                  GfContextAction<_ExportAction>(
                     value: _ExportAction.png,
-                    child: Text(l10n.scheduleExportPng),
+                    label: l10n.scheduleExportPng,
+                    symbol: 'image',
                   ),
-                  PopupMenuItem<_ExportAction>(
+                  GfContextAction<_ExportAction>(
                     value: _ExportAction.csv,
-                    child: Text(l10n.scheduleExportCsv),
+                    label: l10n.scheduleExportCsv,
+                    symbol: 'file-text',
                   ),
                 ],
           ),
@@ -521,12 +522,14 @@ class _PlanBar extends ConsumerWidget {
                 for (final PkPlan plan in state.plans)
                   Padding(
                     padding: const EdgeInsets.only(right: 6),
-                    child: _PlanChip(
-                      label: plan.name,
-                      active: plan.id == state.activePlanId,
-                      onTap: () => notifier.switchPlan(plan.id),
-                      onLongPress: () =>
-                          _showPlanMenu(context, notifier, state, plan),
+                    child: Builder(
+                      builder: (anchor) => _PlanChip(
+                        label: plan.name,
+                        active: plan.id == state.activePlanId,
+                        onTap: () => notifier.switchPlan(plan.id),
+                        onLongPress: () =>
+                            _showPlanMenu(anchor, notifier, state, plan),
+                      ),
                     ),
                   ),
               ],
@@ -597,50 +600,37 @@ Future<void> _showPlanMenu(
   PkPlan plan,
 ) async {
   final AppLocalizations l10n = AppLocalizations.of(context);
-  await showGfBottomSheet<void>(
+  final action = await showGfActionMenu<String>(
     context,
-    builder: (BuildContext sheetContext) => SingleChildScrollView(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
-            child: Text(
-              plan.name,
-              style: GfTheme.typographyOf(sheetContext).title3,
-            ),
-          ),
-          GfMenuItem(
-            label: l10n.schedulePlanRename,
-            symbol: 'square-pen',
-            onTap: () {
-              Navigator.of(sheetContext).pop();
-              _promptRename(context, notifier, plan);
-            },
-          ),
-          GfMenuItem(
-            label: l10n.schedulePlanClear,
-            symbol: 'trash-2',
-            onTap: () {
-              Navigator.of(sheetContext).pop();
-              notifier.clearActivePlan();
-            },
-          ),
-          GfMenuItem(
-            label: l10n.schedulePlanDelete,
-            symbol: 'trash-2',
-            variant: GfMenuItemVariant.danger,
-            onTap: () {
-              Navigator.of(sheetContext).pop();
-              _confirmDelete(context, notifier, plan);
-            },
-          ),
-          const SizedBox(height: 4),
-        ],
+    semanticLabel: plan.name,
+    actions: [
+      GfContextAction(
+        value: 'rename',
+        label: l10n.schedulePlanRename,
+        symbol: 'pen-line',
       ),
-    ),
+      GfContextAction(
+        value: 'clear',
+        label: l10n.schedulePlanClear,
+        symbol: 'trash-2',
+      ),
+      GfContextAction(
+        value: 'delete',
+        label: l10n.schedulePlanDelete,
+        symbol: 'trash-2',
+        destructive: true,
+      ),
+    ],
   );
+  if (!context.mounted) return;
+  switch (action) {
+    case 'rename':
+      await _promptRename(context, notifier, plan);
+    case 'clear':
+      notifier.clearActivePlan();
+    case 'delete':
+      await _confirmDelete(context, notifier, plan);
+  }
 }
 
 Future<void> _promptRename(

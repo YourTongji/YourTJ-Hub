@@ -608,7 +608,11 @@ void main() {
           tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
         );
         await pumpActions(tester);
-        final message = find.text('消息 1');
+        // The context menu also paints a read-only copy of the selected body.
+        final message = find.descendant(
+          of: find.byType(ListView),
+          matching: find.text('消息 1'),
+        );
         final originalLeft = tester.getTopLeft(message).dx;
         await openActions(tester, message);
         await tester.tap(find.text('Select messages'));
@@ -1164,6 +1168,11 @@ void main() {
       isTrue,
       reason: 'dismissing the menu leaves the page with focus',
     );
+    expect(
+      tester.widget<TextField>(composer).focusNode!.hasFocus,
+      isTrue,
+      reason: 'dismissal restores the original composer focus',
+    );
     await tester.enterText(composer, '草稿 2');
     await tester.pumpAndSettle();
     expect(tester.widget<TextField>(composer).controller!.text, '草稿 2');
@@ -1324,4 +1333,76 @@ void main() {
     expect(tester.takeException(), isNull);
     await dispose(tester);
   });
+  testWidgets(
+    'lifted message stays mounted and returns after menu cancellation',
+    (tester) async {
+      await pumpChat(tester, messages: [makeChatMessage(1)]);
+      final source = find.byWidgetPredicate(
+        (w) =>
+            w is GfMessageBubble && w.text == '消息 1' && w.maxWidthFactor == .74,
+      );
+      final element = source.evaluate().single;
+      final before = tester.getRect(source);
+      await openActions(tester, find.text('消息 1'));
+      expect(source.evaluate().single, same(element));
+      expect(tester.getRect(source), before);
+      expect(
+        tester
+            .widgetList<Opacity>(
+              find.ancestor(of: source, matching: find.byType(Opacity)),
+            )
+            .any((w) => w.opacity == 0),
+        isTrue,
+      );
+      final preview = find.byKey(const Key('gf-context-preview'));
+      expect(
+        find.descendant(of: preview, matching: find.text('消息 1')),
+        findsOneWidget,
+      );
+      expect(
+        find.ancestor(of: preview, matching: find.byType(GfLiquidSurface)),
+        findsNothing,
+      );
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      expect(source.evaluate().single, same(element));
+      expect(tester.getRect(source), before);
+      expect(
+        tester
+            .widgetList<Opacity>(
+              find.ancestor(of: source, matching: find.byType(Opacity)),
+            )
+            .any((w) => w.opacity == 0),
+        isFalse,
+      );
+      await dispose(tester);
+    },
+  );
+
+  testWidgets(
+    'context preview identifies the message and account reset removes it',
+    (tester) async {
+      final handle = await pumpChat(
+        tester,
+        repository: (client) => RecordingSendsChatRepository(
+          client,
+          messages: [makeChatMessage(1)],
+        ),
+      );
+      await openActions(tester, find.text('消息 1'));
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('gf-context-preview')),
+          matching: find.text('消息 1'),
+        ),
+        findsOneWidget,
+      );
+      handle.container.read(offlineCacheEpochProvider.notifier).invalidate();
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('gf-context-menu')), findsNothing);
+      expect(find.text('消息 1'), findsNothing);
+      expect(_preview, findsNothing);
+      await dispose(tester);
+    },
+  );
 }

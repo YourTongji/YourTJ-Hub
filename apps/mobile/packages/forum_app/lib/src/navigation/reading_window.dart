@@ -17,52 +17,58 @@ class ReadingNavigationRail extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = GfTheme.colorsOf(context);
-    return ListView(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
-      children: [
-        for (var i = 0; i < items.length; i++)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: MergeSemantics(
-              key: ValueKey('rail-destination-$i'),
-              child: Semantics(
-                label: items[i].semanticsLabel,
-                button: true,
-                enabled: true,
-                selected: currentIndex == i,
-                child: Tooltip(
-                  message: items[i].label,
-                  excludeFromSemantics: true,
-                  child: IconButton(
-                    onPressed: () => onSelected(i),
-                    style: IconButton.styleFrom(
-                      minimumSize: const Size(48, 48),
-                      foregroundColor: currentIndex == i
-                          ? colors.primary
-                          : colors.iconMuted,
-                      backgroundColor: currentIndex == i
-                          ? colors.primary.withValues(alpha: .08)
-                          : Colors.transparent,
-                    ),
-                    icon: Badge(
-                      isLabelVisible: items[i].badge,
-                      backgroundColor: colors.primary,
-                      child: GfSymbol(
-                        currentIndex == i
-                            ? items[i].selectedSymbol
-                            : items[i].symbol,
-                        size: 24,
-                        color: currentIndex == i
-                            ? colors.primary
-                            : colors.iconMuted,
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 16),
+      child: GfLiquidSurface(
+        radius: 30,
+        padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 8),
+        child: Column(
+          children: [
+            for (var i = 0; i < items.length; i++)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: MergeSemantics(
+                  key: ValueKey('rail-destination-$i'),
+                  child: Semantics(
+                    label: items[i].semanticsLabel,
+                    button: true,
+                    enabled: true,
+                    selected: currentIndex == i,
+                    child: Tooltip(
+                      message: items[i].label,
+                      excludeFromSemantics: true,
+                      child: IconButton(
+                        onPressed: () => onSelected(i),
+                        style: IconButton.styleFrom(
+                          minimumSize: const Size(48, 48),
+                          foregroundColor: currentIndex == i
+                              ? colors.primary
+                              : colors.iconMuted,
+                          backgroundColor: currentIndex == i
+                              ? colors.primary.withValues(alpha: .08)
+                              : Colors.transparent,
+                        ),
+                        icon: Badge(
+                          isLabelVisible: items[i].badge,
+                          backgroundColor: colors.primary,
+                          child: GfSymbol(
+                            currentIndex == i
+                                ? items[i].selectedSymbol
+                                : items[i].symbol,
+                            size: 24,
+                            color: currentIndex == i
+                                ? colors.primary
+                                : colors.iconMuted,
+                          ),
+                        ),
                       ),
                     ),
                   ),
                 ),
               ),
-            ),
-          ),
-      ],
+          ],
+        ),
+      ),
     );
   }
 }

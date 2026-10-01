@@ -748,33 +748,28 @@ class _PublishPageState extends ConsumerState<PublishPage>
   }
 
   /// 长按标题按钮弹出级别菜单;选中当前级别再次确认可取消标题。
+  final _headingMenuKey = GlobalKey();
+
   Future<void> _showHeadingLevelMenu(AppLocalizations l10n) async {
     final int? currentHeader =
         _quill.getSelectionStyle().attributes[Attribute.header.key]?.value
             as int?;
-    final Attribute? selected = await showGfBottomSheet<Attribute>(
+    final Attribute? selected = await showGfActionMenu<Attribute>(
       context,
-      keyboardAware: true,
-      builder: (sheetContext) => SafeArea(
-        child: ListView(
-          shrinkWrap: true,
-          padding: EdgeInsets.zero,
-          children: <Widget>[
-            for (final (attribute, label, level) in <(Attribute, String, int)>[
-              (Attribute.h1, l10n.publishHeadingLevel1, 1),
-              (Attribute.h2, l10n.publishHeadingLevel2, 2),
-              (Attribute.h3, l10n.publishHeadingLevel3, 3),
-            ])
-              ListTile(
-                title: Text(label),
-                trailing: currentHeader == level
-                    ? const GfSymbol('check', size: 22)
-                    : null,
-                onTap: () => Navigator.pop(sheetContext, attribute),
-              ),
-          ],
-        ),
-      ),
+      sourceRect: gfMenuSourceRectOf(_headingMenuKey.currentContext!),
+      actions: [
+        for (final (attribute, label, value) in <(Attribute, String, int)>[
+          (Attribute.h1, l10n.publishHeadingLevel1, 1),
+          (Attribute.h2, l10n.publishHeadingLevel2, 2),
+          (Attribute.h3, l10n.publishHeadingLevel3, 3),
+        ])
+          GfContextAction(
+            value: attribute,
+            label: label,
+            symbol: 'heading',
+            selected: currentHeader == value,
+          ),
+      ],
     );
     if (selected == null || !mounted) return;
     _toggleFormat(selected);
@@ -797,6 +792,8 @@ class _PublishPageState extends ConsumerState<PublishPage>
     });
   }
 
+  final _imageMenuKey = GlobalKey();
+
   Future<void> _pickAndInsertImage() async {
     if (_uploading || _submitting || !_sessionCurrent || _finished) return;
     final l10n = AppLocalizations.of(context);
@@ -810,27 +807,21 @@ class _PublishPageState extends ConsumerState<PublishPage>
         : null;
     setState(() => _pickingImage = true);
     try {
-      final source = await showGfBottomSheet<ImageSource>(
+      final source = await showGfActionMenu<ImageSource>(
         context,
-        keyboardAware: true,
-        builder: (context) => SafeArea(
-          child: ListView(
-            shrinkWrap: true,
-            padding: EdgeInsets.zero,
-            children: [
-              ListTile(
-                leading: const GfSymbol('image', size: 23),
-                title: Text(l10n.publishPhotoLibrary),
-                onTap: () => Navigator.pop(context, ImageSource.gallery),
-              ),
-              ListTile(
-                leading: const GfSymbol('camera', size: 23),
-                title: Text(l10n.publishCamera),
-                onTap: () => Navigator.pop(context, ImageSource.camera),
-              ),
-            ],
+        sourceRect: gfMenuSourceRectOf(_imageMenuKey.currentContext!),
+        actions: [
+          GfContextAction(
+            value: ImageSource.gallery,
+            label: l10n.publishPhotoLibrary,
+            symbol: 'image',
           ),
-        ),
+          GfContextAction(
+            value: ImageSource.camera,
+            label: l10n.publishCamera,
+            symbol: 'camera',
+          ),
+        ],
       );
       if (source == null || !mounted || !_sessionCurrent || _finished) return;
       final picker = ref.read(imagePickerProvider);
@@ -1777,6 +1768,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
       placeholder: l10n.publishBodyPlaceholder,
       onHeading: () => _toggleFormat(Attribute.h2),
       onHeadingLongPress: () => _showHeadingLevelMenu(l10n),
+      headingKey: _headingMenuKey,
       onInsertLink: _insertLink,
       showToolbar: false,
       editorBuilder: (context) => DragTarget<ComposerImageDragPayload>(
@@ -1831,12 +1823,10 @@ class _PublishPageState extends ConsumerState<PublishPage>
   Widget _buildWritingToolbar(AppLocalizations l10n) {
     final colors = GfTheme.colorsOf(context);
     return LayoutBuilder(
-      builder: (context, constraints) => DecoratedBox(
+      builder: (context, constraints) => GfLiquidSurface(
         key: const Key('publish-writing-tools'),
-        decoration: BoxDecoration(
-          color: colors.base100,
-          border: Border(top: BorderSide(color: colors.line)),
-        ),
+        radius: 28,
+        weight: GfGlassWeight.strong,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -1903,6 +1893,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
                   if (_contentType == 3 ||
                       MediaQuery.viewInsetsOf(context).bottom > 0)
                     _toolButton(
+                      key: _imageMenuKey,
                       symbol: _activelyUploading ? 'clock' : 'gallery',
                       tooltip: l10n.publishToolImage,
                       onPressed: _uploading ? null : _pickAndInsertImage,
@@ -2014,10 +2005,12 @@ class _PublishPageState extends ConsumerState<PublishPage>
     controller: _quill,
     onHeading: () => _toggleFormat(Attribute.h2),
     onHeadingLongPress: () => _showHeadingLevelMenu(l10n),
+    headingKey: _headingMenuKey,
     onInsertLink: _insertLink,
   );
 
   Widget _toolButton({
+    Key? key,
     required String symbol,
     required String tooltip,
     required VoidCallback? onPressed,
@@ -2026,6 +2019,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
   }) {
     final colors = GfTheme.colorsOf(context);
     return MergeSemantics(
+      key: key,
       child: Semantics(
         toggled: selected,
         child: DecoratedBox(
@@ -2124,6 +2118,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
         color: colors.base200,
         borderRadius: BorderRadius.circular(16),
         child: InkWell(
+          key: _imageMenuKey,
           onTap: _uploading ? null : _pickAndInsertImage,
           borderRadius: BorderRadius.circular(16),
           child: Padding(
@@ -2253,6 +2248,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
           ),
         if (editing)
           GfButton(
+            key: _imageMenuKey,
             label: l10n.publishToolImage,
             icon: const GfSymbol('gallery', size: 22),
             variant: GfButtonVariant.outline,

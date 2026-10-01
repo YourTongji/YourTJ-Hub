@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../theme/gf_theme.dart';
 import 'gf_symbol.dart';
+import 'surfaces/gf_liquid_surface.dart';
 
 /// Floating primary action: a circular compose glyph or a labelled capsule.
 /// Native button behavior retains keyboard focus and activation.
@@ -27,11 +28,11 @@ class GfFloatingAction extends StatelessWidget {
     final pill = label != null;
     final active = enabled && onPressed != null;
     final glyph = GfSymbol(symbol, size: pill ? 20 : 24);
-    final action = DecoratedBox(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(999),
-        boxShadow: active ? GfTheme.shadowsOf(context).floating : null,
-      ),
+    final action = GfLiquidSurface(
+      radius: 32,
+      tint: active ? colors.primary : colors.base300,
+      weight: GfGlassWeight.strong,
+      pressable: active,
       child: FilledButton(
         onPressed: active ? onPressed : null,
         style: ButtonStyle(
@@ -46,9 +47,7 @@ class GfFloatingAction extends StatelessWidget {
           ),
           tapTargetSize: MaterialTapTargetSize.padded,
           visualDensity: VisualDensity.standard,
-          backgroundColor: WidgetStatePropertyAll(
-            active ? colors.primary : colors.base300,
-          ),
+          backgroundColor: const WidgetStatePropertyAll(Colors.transparent),
           foregroundColor: WidgetStatePropertyAll(
             active ? colors.primaryContent : colors.iconMuted,
           ),

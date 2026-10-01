@@ -4,7 +4,7 @@ import '../../theme/gf_theme.dart';
 import '../atoms/gf_avatar.dart';
 
 /// Conversation list row mirroring web MessagesPage.vue mobile layout:
-/// `px-4 py-3` with a 40px avatar, unread red dot, nickname, time and the
+/// `px-4 py-3` with a 52px avatar, unread red dot, nickname, time and the
 /// last message preview. The active (selected) row gets `bg-info/10` with a
 /// 3px primary inset bar on the left.
 class GfConversationRow extends StatelessWidget {
@@ -48,7 +48,7 @@ class GfConversationRow extends StatelessWidget {
             Stack(
               clipBehavior: Clip.none,
               children: <Widget>[
-                GfAvatar(src: avatarUrl, size: 40, ring: true),
+                GfAvatar(src: avatarUrl, size: 52, ring: true),
                 if (unreadCount > 0)
                   Positioned(
                     right: -1,
@@ -103,10 +103,12 @@ class GfConversationRow extends StatelessWidget {
                           Expanded(
                             child: Text(
                               name,
-                              maxLines: largeText ? 2 : 1,
-                              overflow: TextOverflow.ellipsis,
+                              maxLines: largeText ? null : 1,
+                              overflow: largeText
+                                  ? TextOverflow.visible
+                                  : TextOverflow.ellipsis,
                               style: TextStyle(
-                                fontSize: 16,
+                                fontSize: 17,
                                 fontWeight: FontWeight.w600,
                                 color: colors.baseContent,
                               ),
@@ -118,7 +120,7 @@ class GfConversationRow extends StatelessWidget {
                           ],
                         ],
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 4),
                       Text(
                         lastMessage,
                         maxLines: largeText ? 2 : 1,

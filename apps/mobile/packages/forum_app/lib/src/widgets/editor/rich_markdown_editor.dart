@@ -17,6 +17,7 @@ class RichMarkdownEditor extends StatelessWidget {
     this.editorBuilder,
     this.onHeading,
     this.onHeadingLongPress,
+    this.headingKey,
     this.onInsertLink,
     this.showToolbar = true,
     this.enabled = true,
@@ -28,6 +29,7 @@ class RichMarkdownEditor extends StatelessWidget {
   final Widget Function(BuildContext context)? editorBuilder;
   final VoidCallback? onHeading;
   final VoidCallback? onHeadingLongPress;
+  final Key? headingKey;
   final VoidCallback? onInsertLink;
   final bool showToolbar;
   final bool enabled;
@@ -42,6 +44,7 @@ class RichMarkdownEditor extends StatelessWidget {
           controller: controller,
           onHeading: onHeading,
           onHeadingLongPress: onHeadingLongPress,
+          headingKey: headingKey,
           onInsertLink: onInsertLink,
           enabled: enabled,
         ),
@@ -67,6 +70,7 @@ class RichMarkdownToolbar extends StatelessWidget {
     required this.controller,
     this.onHeading,
     this.onHeadingLongPress,
+    this.headingKey,
     this.onInsertLink,
     this.enabled = true,
   });
@@ -74,6 +78,7 @@ class RichMarkdownToolbar extends StatelessWidget {
   final QuillController controller;
   final VoidCallback? onHeading;
   final VoidCallback? onHeadingLongPress;
+  final Key? headingKey;
   final VoidCallback? onInsertLink;
   final bool enabled;
 
@@ -119,6 +124,7 @@ class RichMarkdownToolbar extends StatelessWidget {
                       : null,
                 ),
                 _ToolButton(
+                  key: headingKey,
                   symbol: 'heading',
                   tooltip: l10n.publishHeading,
                   selected: attributes[Attribute.header.key]?.value != null,
@@ -278,6 +284,7 @@ class _MarkdownTableBuilder extends EmbedBuilder {
 
 class _ToolButton extends StatelessWidget {
   const _ToolButton({
+    super.key,
     required this.symbol,
     required this.tooltip,
     required this.onPressed,

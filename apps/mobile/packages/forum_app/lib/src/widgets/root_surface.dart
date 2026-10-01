@@ -122,8 +122,10 @@ class RootSurface extends ConsumerWidget {
                     ignoring: hidden,
                     child: ExcludeSemantics(
                       excluding: hidden,
-                      child: ColoredBox(
-                        color: colors.base100,
+                      child: GfLiquidSurface(
+                        radius: 0,
+                        weight: GfGlassWeight.strong,
+                        elevated: false,
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
@@ -132,14 +134,18 @@ class RootSurface extends ConsumerWidget {
                               child: Row(
                                 children: [
                                   const SizedBox(width: 8),
-                                  IconButton(
-                                    tooltip: AppLocalizations.of(
-                                      context,
-                                    ).navProfile,
-                                    onPressed: () => accountDrawerLayerKey
-                                        .currentState
-                                        ?.open(),
-                                    icon: const AccountAvatar(),
+                                  GfLiquidSurface(
+                                    radius: 26,
+                                    elevated: false,
+                                    child: IconButton(
+                                      tooltip: AppLocalizations.of(
+                                        context,
+                                      ).navProfile,
+                                      onPressed: () => accountDrawerLayerKey
+                                          .currentState
+                                          ?.open(),
+                                      icon: const AccountAvatar(),
+                                    ),
                                   ),
                                   Expanded(
                                     child: Center(
@@ -161,14 +167,21 @@ class RootSurface extends ConsumerWidget {
                                   if (actions.isEmpty)
                                     const SizedBox(width: 48)
                                   else
-                                    ...actions,
+                                    GfLiquidSurface(
+                                      radius: 26,
+                                      elevated: false,
+                                      pressable: true,
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: actions,
+                                      ),
+                                    ),
                                   const SizedBox(width: 8),
                                 ],
                               ),
                             ),
                             if (toolbar != null)
                               SizedBox(height: toolbarHeight, child: toolbar),
-                            const Divider(height: 1),
                           ],
                         ),
                       ),
@@ -184,22 +197,32 @@ class RootSurface extends ConsumerWidget {
                   bottom:
                       (hidden || hasRail ? 16 : navMetrics.actionBottomInset) +
                       bottom,
-                  child: FloatingActionButton(
-                    heroTag: null,
-                    tooltip:
-                        actionLabel ?? AppLocalizations.of(context).navPublish,
-                    onPressed:
-                        onAction ??
-                        () => showComposeMenu(
-                          context,
-                          bottom: hidden || hasRail
-                              ? 16
-                              : navMetrics.actionBottomInset,
-                        ),
-                    child: GfSymbol(
-                      actionSymbol,
-                      color: colors.primaryContent,
-                      size: 28,
+                  child: GfLiquidSurface(
+                    radius: 30,
+                    tint: colors.primary,
+                    weight: GfGlassWeight.strong,
+                    pressable: true,
+                    child: FloatingActionButton(
+                      backgroundColor: Colors.transparent,
+                      elevation: 0,
+                      highlightElevation: 0,
+                      heroTag: null,
+                      tooltip:
+                          actionLabel ??
+                          AppLocalizations.of(context).navPublish,
+                      onPressed:
+                          onAction ??
+                          () => showComposeMenu(
+                            context,
+                            bottom: hidden || hasRail
+                                ? 16
+                                : navMetrics.actionBottomInset,
+                          ),
+                      child: GfSymbol(
+                        actionSymbol,
+                        color: colors.primaryContent,
+                        size: 28,
+                      ),
                     ),
                   ),
                 ),
