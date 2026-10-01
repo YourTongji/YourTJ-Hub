@@ -138,7 +138,8 @@ tests (`go test ./app/migration/ -run 'PostgreSQL|Postgres' -v`, see [testing.md
 
 The `rebuild-sqlite-indexes --yes` maintenance command requires `db.migration = "on"`. It rebuilds
 only indexes declared by migration models in one transaction; manually maintained SQLite indexes
-are retained.
+are retained. After the rebuild commits it runs `VACUUM` to reclaim the disk space freed by the
+dropped indexes.
 
 > config.toml contains signingKey — sensitive; it is gitignored, never commit it.
 

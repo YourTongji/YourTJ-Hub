@@ -76,7 +76,7 @@ func TestRebuildSQLiteIndexes(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, _, err := rebuildSQLiteIndexes(db, []any{&rebuildIndexFixture{}}); err != nil {
+	if _, _, _, err := rebuildSQLiteIndexes(db, []any{&rebuildIndexFixture{}}); err != nil {
 		t.Fatal(err)
 	}
 	after, err := indexNames(db)
@@ -99,7 +99,7 @@ func TestRebuildSQLiteIndexesRollsBackOnCreateFailure(t *testing.T) {
 	if err = db.Raw("SELECT sql FROM sqlite_master WHERE name='idx_rebuild_fixture_name'").Scan(&before).Error; err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err = rebuildSQLiteIndexes(db, []any{&rebuildIndexChangedFixture{}}); err == nil {
+	if _, _, _, err = rebuildSQLiteIndexes(db, []any{&rebuildIndexChangedFixture{}}); err == nil {
 		t.Fatal("expected create failure for stale schema")
 	}
 	var after string
@@ -133,7 +133,7 @@ func TestRebuildSQLiteIndexesRollsBackOnDropFailure(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	_, _, err = rebuildSQLiteIndexes(db, []any{&rebuildIndexFixture{}})
+	_, _, _, err = rebuildSQLiteIndexes(db, []any{&rebuildIndexFixture{}})
 	if removeErr := db.Callback().Raw().Remove(callback); removeErr != nil {
 		t.Fatal(removeErr)
 	}
@@ -154,7 +154,7 @@ func TestRebuildSQLiteIndexesUsesCurrentModelDefinition(t *testing.T) {
 	if err := db.AutoMigrate(&rebuildIndexLegacyFixture{}); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := rebuildSQLiteIndexes(db, []any{&rebuildIndexChangedFixture{}}); err != nil {
+	if _, _, _, err := rebuildSQLiteIndexes(db, []any{&rebuildIndexChangedFixture{}}); err != nil {
 		t.Fatal(err)
 	}
 	var sql string
@@ -174,7 +174,7 @@ func TestRebuildSQLiteIndexesKeepsSameNamedIndexOnOtherTable(t *testing.T) {
 	if err := db.Exec("CREATE INDEX idx_rebuild_fixture_name ON manual_index_table (value)").Error; err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := rebuildSQLiteIndexes(db, []any{&rebuildIndexChangedFixture{}}); err != nil {
+	if _, _, _, err := rebuildSQLiteIndexes(db, []any{&rebuildIndexChangedFixture{}}); err != nil {
 		t.Fatal(err)
 	}
 	var table string
@@ -183,6 +183,26 @@ func TestRebuildSQLiteIndexesKeepsSameNamedIndexOnOtherTable(t *testing.T) {
 	}
 	if table != "manual_index_table" {
 		t.Fatalf("same-named index table = %q, want manual_index_table", table)
+	}
+}
+
+func TestRebuildSQLiteIndexesReportsDeclaredButMissing(t *testing.T) {
+	db := openRebuildIndexTestDB(t)
+	if err := db.AutoMigrate(&rebuildIndexLegacyFixture{}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Exec("DROP INDEX idx_rebuild_fixture_name").Error; err != nil {
+		t.Fatal(err)
+	}
+	_, rebuilt, missing, err := rebuildSQLiteIndexes(db, []any{&rebuildIndexLegacyFixture{}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rebuilt) != 0 {
+		t.Fatalf("rebuilt indexes = %d, want 0 when the only declared index is missing", len(rebuilt))
+	}
+	if len(missing) != 1 || missing[0] != "rebuild_index_fixture.idx_rebuild_fixture_name" {
+		t.Fatalf("missing indexes = %v, want [rebuild_index_fixture.idx_rebuild_fixture_name]", missing)
 	}
 }
 

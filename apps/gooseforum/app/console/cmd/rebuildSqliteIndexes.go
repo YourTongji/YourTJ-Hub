@@ -12,6 +12,7 @@ import (
 	"github.com/spf13/cobra"
 	"gorm.io/gorm"
 	"gorm.io/gorm/schema"
+	"slices"
 )
 
 type sqliteIndex struct {
@@ -48,25 +49,35 @@ func runRebuildSQLiteIndexes(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 	sqlDB.SetMaxOpenConns(1)
-	beforeCount, rebuilt, err := rebuildSQLiteIndexes(db, migration.SchemaModels())
+	beforeCount, rebuilt, missing, err := rebuildSQLiteIndexes(db, migration.SchemaModels())
 	if err != nil {
 		return err
 	}
 	fmt.Printf("default sqlite indexes before rebuild: %d\n", beforeCount)
-	fmt.Printf("rebuilt default sqlite indexes, rebuilt %d model-managed indexes\n", len(rebuilt))
+	fmt.Printf("rebuild complete: %d model-managed indexes recreated\n", len(rebuilt))
+	for _, name := range missing {
+		fmt.Printf("declared but missing index skipped: %s\n", name)
+	}
+	// VACUUM reclaims the pages freed by the dropped indexes; it cannot run
+	// inside a transaction, so it executes after the rebuild has committed.
+	if err = db.Exec("VACUUM").Error; err != nil {
+		return fmt.Errorf("vacuum default sqlite db: %w", err)
+	}
 	fmt.Printf("total duration: %s\n", time.Since(totalStart).Round(time.Millisecond))
 	return nil
 }
 
 // rebuildSQLiteIndexes recreates only indexes declared by SchemaModels in one
-// SQLite transaction, leaving manually maintained indexes untouched.
-func rebuildSQLiteIndexes(db *gorm.DB, models []any) (int, []sqliteIndex, error) {
+// SQLite transaction, leaving manually maintained indexes untouched. It also
+// reports declared indexes that are missing from the database so operators
+// are not left assuming a full rebuild happened.
+func rebuildSQLiteIndexes(db *gorm.DB, models []any) (int, []sqliteIndex, []string, error) {
 	managed := make(map[string]any)
 	var cache sync.Map
 	for _, model := range models {
 		s, err := schema.Parse(model, &cache, db.NamingStrategy)
 		if err != nil {
-			return 0, nil, err
+			return 0, nil, nil, err
 		}
 		for _, index := range s.ParseIndexes() {
 			managed[s.Table+"\x00"+index.Name] = model
@@ -75,16 +86,26 @@ func rebuildSQLiteIndexes(db *gorm.DB, models []any) (int, []sqliteIndex, error)
 
 	var found []sqliteIndex
 	var indexes []sqliteIndex
+	var missing []string
 	err := db.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Raw(`SELECT name, tbl_name FROM sqlite_master WHERE type = 'index' AND name NOT LIKE 'sqlite_autoindex%'`).Scan(&found).Error; err != nil {
 			return err
 		}
+		foundKeys := make(map[string]bool, len(found))
 		for _, index := range found {
+			foundKeys[index.TblName+"\x00"+index.Name] = true
 			if model, ok := managed[index.TblName+"\x00"+index.Name]; ok {
 				index.Model = model
 				indexes = append(indexes, index)
 			}
 		}
+		for key := range managed {
+			if !foundKeys[key] {
+				table, name, _ := strings.Cut(key, "\x00")
+				missing = append(missing, table+"."+name)
+			}
+		}
+		slices.Sort(missing)
 		for _, index := range indexes {
 			if err := tx.Exec("DROP INDEX " + sqliteQuoteIdent(index.Name)).Error; err != nil {
 				return fmt.Errorf("drop index %s: %w", index.Name, err)
@@ -104,7 +125,7 @@ func rebuildSQLiteIndexes(db *gorm.DB, models []any) (int, []sqliteIndex, error)
 		}
 		return nil
 	})
-	return len(found), indexes, err
+	return len(found), indexes, missing, err
 }
 
 func sqliteQuoteIdent(name string) string {
