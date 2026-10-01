@@ -1,13 +1,14 @@
 <script setup lang="ts">
 import { userDisplayName } from '@/runtime/private-notes'
 import { ref, watch } from 'vue'
-import { Ban, CircleAlert, Flag, History, Loader2, RotateCcw, Scale, X, XCircle } from '@lucide/vue'
+import { Ban, CircleAlert, Flag, History, Loader2, RotateCcw, Scale, ShieldCheck, X, XCircle } from '@lucide/vue'
 import { useI18n } from 'vue-i18n'
 import { fetchModerationLogs, fetchModerationReports, updateModerationTopicStatus, updateModerationPostStatus, updateModerationReportStatus, viewDeletedContent } from '@/runtime/api'
 import { formatDateTime } from '@/runtime/format'
 import { fetchPage } from '@/runtime/router'
 import { showUserCard } from '@/runtime/user-card-events'
 import EmptyState from '@/site/components/EmptyState.vue'
+import ModerationReviewQueue from '@/site/components/ModerationReviewQueue.vue'
 import PageHeader from '@/site/components/PageHeader.vue'
 import TopicList from '@/site/components/TopicList.vue'
 import UserAvatar from '@/site/components/UserAvatar.vue'
@@ -24,7 +25,7 @@ const topics = ref<TopicPayload[]>([...page.props.topics])
 const busyIds = ref<number[]>([])
 const actionError = ref('')
 const loadingList = ref(false)
-const activeConsoleTab = ref<'reports' | 'ban' | 'logs' | 'guidance'>('reports')
+const activeConsoleTab = ref<'review' | 'reports' | 'ban' | 'logs' | 'guidance'>('review')
 const reportItems = ref<ModerationReportItem[]>([])
 const reportStatus = ref<'open' | 'closed'>('open')
 const reportNextCursor = ref(0)
@@ -41,6 +42,7 @@ const logLoaded = ref(false)
 const logError = ref('')
 
 const managementTabs = [
+  { key: 'review', icon: ShieldCheck },
   { key: 'reports', icon: Flag },
   { key: 'ban', icon: Ban },
   { key: 'logs', icon: History },
@@ -67,6 +69,14 @@ watch(activeConsoleTab, (tab) => {
     void loadModerationLogs(true)
   }
 }, { immediate: true })
+
+// 审核操作会写审核日志：切回“操作记录”时重新加载。
+function resetModerationLogs() {
+  logLoaded.value = false
+  logItems.value = []
+  logNextCursor.value = 0
+  logHasNext.value = true
+}
 
 function isBusy(id: number) {
   return busyIds.value.includes(id)
@@ -277,14 +287,16 @@ async function submitEvidenceView() {
         type="button"
         class="-mb-px inline-flex h-10 items-center gap-2 border-b-2 px-1 text-sm font-semibold transition"
         :class="activeConsoleTab === tab.key ? 'border-primary text-primary' : 'border-transparent text-base-content/55 hover:text-base-content'"
-        @click="activeConsoleTab = tab.key as 'reports' | 'ban' | 'logs' | 'guidance'"
+        @click="activeConsoleTab = tab.key as 'review' | 'reports' | 'ban' | 'logs' | 'guidance'"
       >
         <component :is="tab.icon" class="h-4 w-4" />
         {{ t(`moderation.managementTabs.${tab.key}`) }}
       </button>
     </div>
 
-    <section v-if="activeConsoleTab === 'reports'" class="space-y-3">
+    <ModerationReviewQueue v-if="activeConsoleTab === 'review'" @changed="resetModerationLogs" />
+
+    <section v-else-if="activeConsoleTab === 'reports'" class="space-y-3">
       <p v-if="reportError" class="rounded border border-error/25 bg-error/10 px-3 py-2 text-sm text-error">
         {{ reportError }}
       </p>

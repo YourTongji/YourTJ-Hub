@@ -19,6 +19,14 @@ createPost:
       `comment.content.tooLong` (params minLength/maxLength); bounds count rendered
       visible text and the raw Markdown source is capped relative to `maxPostLength`.
       Request bodies over 2 MiB are rejected with HTTP 400 `common.request.parseFailed`.
+      Content moderation (issue #975): the existing sensitive-word gate runs first; when the
+      admin-configured AI image/text moderation is enabled in `enforce` mode the request
+      waits for a synchronous decision. A block fails with `content.aiModeration.blocked`
+      (or `content.aiModeration.externalImageBlocked` when non-site images are disallowed)
+      and nothing is written; a review result (or any model failure) stores the content as
+      pending review and the success envelope carries `messageCode`
+      `content.moderation.pendingReview` (also used for sensitive-word review). Images
+      referenced by pending content are not publicly readable until approval.
     security:
       - bearerAuth: []
       - accessTokenCookie: []
@@ -102,6 +110,14 @@ updatePost:
       bounds count rendered visible text and the raw Markdown source is capped relative
       to `maxPostLength`. Request bodies over 2 MiB are rejected with HTTP 400
       `common.request.parseFailed`.
+      Content moderation (issue #975): the existing sensitive-word gate runs first; when the
+      admin-configured AI image/text moderation is enabled in `enforce` mode the request
+      waits for a synchronous decision. A block fails with `content.aiModeration.blocked`
+      (or `content.aiModeration.externalImageBlocked` when non-site images are disallowed)
+      and nothing is written; a review result (or any model failure) stores the content as
+      pending review and the success envelope carries `messageCode`
+      `content.moderation.pendingReview` (also used for sensitive-word review). Images
+      referenced by pending content are not publicly readable until approval.
     security:
       - bearerAuth: []
       - accessTokenCookie: []

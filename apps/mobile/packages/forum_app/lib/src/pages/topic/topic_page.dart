@@ -26,6 +26,7 @@ import '../../providers.dart';
 import '../../images/image_upload.dart';
 import '../../images/image_save.dart';
 import '../../server_messages.dart';
+import '../../widgets/moderation_blocked_dialog.dart';
 import '../../widgets/markdown_view.dart';
 import '../../widgets/status_views.dart';
 import '../../widgets/skeletons.dart';
@@ -1092,7 +1093,13 @@ class _TopicPageState extends ConsumerState<TopicPage>
         _replyCaptcha = null;
         _replyCaptchaCode.clear();
       });
-      showGfToast(context, AppLocalizations.of(context).topicReplySuccess);
+      final AppLocalizations l10n = AppLocalizations.of(context);
+      // 待审回复(issue #975)尚未公开:提示“已提交审核”,不定位到新楼层。
+      if (result.pendingReview) {
+        showGfToast(context, pendingReviewMessage(l10n));
+        return;
+      }
+      showGfToast(context, l10n.topicReplySuccess);
       await _showCreatedReply(result);
     } catch (error) {
       if (!mounted ||
@@ -1105,6 +1112,8 @@ class _TopicPageState extends ConsumerState<TopicPage>
               error.messageCode == 'auth.captcha.invalid')) {
         await _loadReplyCaptcha();
       }
+      // AI 图文审查拦截(issue #975):弹出友好提示,回复草稿保持不变。
+      if (mounted && await showModerationBlockedDialog(context, error)) return;
       if (mounted) {
         showGfToast(
           context,

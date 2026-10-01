@@ -1,0 +1,307 @@
+# AI 图文审查管理端（issue #975）：SiteManager 权限组（与审核队列同权）。
+adminGetAiModerationSettings:
+  get:
+    tags: [Admin]
+    summary: Read the AI image/text moderation settings
+    operationId: adminGetAiModerationSettings
+    description: |
+      Admin console operation gated by the `SiteManager` role permission;
+      callers without it fail with HTTP 403 and `permission.denied`. Returns the
+      normalized stored settings, or the built-in defaults (disabled, `shadow`
+      mode, draft site policies whose action is `review`) when nothing has been
+      saved. Exposure boundary: the Jev and vision API keys are reported only as
+      `jevApiKeyConfigured` / `visionApiKeyConfigured`; plaintext or ciphertext
+      never appears on the wire (issue #324 security pattern).
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    responses:
+      '200':
+        description: Normalized AI moderation settings without key material.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminAiModerationSettingsResponse
+            examples:
+              success:
+                externalValue: ../fixtures/admin-ai-moderation-settings-success.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Frozen account, or caller lacks the SiteManager permission.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
+
+adminSaveAiModerationSettings:
+  post:
+    tags: [Admin]
+    summary: Replace the AI image/text moderation settings
+    operationId: adminSaveAiModerationSettings
+    description: |
+      Admin console operation gated by the `SiteManager` role permission.
+      Options are normalized before storage (unknown enums fall back to defaults,
+      thresholds and limits are clamped, policies are merged by their fixed keys).
+      API keys are plaintext only inside this request: a non-empty value is
+      encrypted with a purpose-scoped key, an empty value keeps the stored
+      ciphertext, and `clearJevApiKey` / `clearVisionApiKey` explicitly remove it.
+      Endpoints must be absolute http(s) URLs, otherwise the request fails with
+      `admin.aiModeration.saveFailed` (params.error). Saving clears the runtime
+      cache so the change takes effect immediately.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/AdminSaveAiModerationSettingsRequest
+    responses:
+      '200':
+        description: Configuration saved (`result` is the string `success`) or a validation failure.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminPageConfigSaveResponse
+            examples:
+              success:
+                externalValue: ../fixtures/admin-agent-disable-success.json
+              invalidUrl:
+                externalValue: ../fixtures/admin-ai-moderation-save-invalid-url.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Frozen account, missing SiteManager permission, or rejected CSRF origin.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
+
+adminListAiModerationDecisions:
+  post:
+    tags: [Admin]
+    summary: List recorded AI moderation decisions
+    operationId: adminListAiModerationDecisions
+    description: |
+      SiteManager permission required. Pages through structured AI decisions,
+      newest first. Each item carries the policy revision, models, raw rule
+      probabilities, severity, review_needed, evidence status, final/applied
+      action and the human outcome; the truncated image evidence summary is kept
+      only for decisions that sent content to human review. No prompts, provider
+      responses or keys are stored or returned.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/AdminAiModerationDecisionListRequest
+    responses:
+      '200':
+        description: One page of decisions.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminAiModerationDecisionListResponse
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Frozen account, missing SiteManager permission, or rejected CSRF origin.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              permissionDenied:
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
+
+adminLabelAiModerationDecision:
+  post:
+    tags: [Admin]
+    summary: Record a human label on an AI moderation decision
+    operationId: adminLabelAiModerationDecision
+    description: |
+      SiteManager permission required. Stores `approved` (content is acceptable)
+      or `rejected` (content violates site rules) as the human outcome, building
+      the labeled sample set used by offline threshold replay. Only the human
+      fields change; recorded AI signals are immutable. Unknown ids fail with
+      `admin.aiModeration.decisionNotFound`. Review-queue approve/reject writes the
+      same field automatically.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/AdminAiModerationLabelRequest
+    responses:
+      '200':
+        description: Label stored, or a not-found failure.
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: ../components/schemas.yaml#/ApiSuccess
+                - $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              notFound:
+                externalValue: ../fixtures/admin-ai-moderation-label-not-found.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Frozen account, missing SiteManager permission, or rejected CSRF origin.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              permissionDenied:
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
+
+adminReplayAiModerationDecisions:
+  post:
+    tags: [Admin]
+    summary: Replay thresholds against labeled AI decisions
+    operationId: adminReplayAiModerationDecisions
+    description: |
+      SiteManager permission required. Re-runs the deterministic resolver over up
+      to 2000 most recent labeled decisions using either the saved settings or the
+      candidate `options` in the request (not saved), and returns a confusion
+      matrix (human outcome × predicted action), false blocks, missed violations,
+      the review rate and how many samples changed. Only stored probabilities are
+      read — no model is called. Samples with incomplete evidence keep their
+      recorded action.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/AdminAiModerationReplayRequest
+    responses:
+      '200':
+        description: Replay report.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminAiModerationReplayResponse
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Frozen account, missing SiteManager permission, or rejected CSRF origin.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              permissionDenied:
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
+
+adminTestAiModerationConnection:
+  post:
+    tags: [Admin]
+    summary: Test the Jev or vision provider connection with unsaved form values
+    operationId: adminTestAiModerationConnection
+    description: |
+      SiteManager permission required. Calls the selected provider once with the
+      submitted (unsaved) settings; empty API keys fall back to the stored keys and
+      `clear*ApiKey` tests without a key. Vision is tested with a built-in synthetic
+      image through the real evidence-extraction path (a model without image input,
+      e.g. an OpenRouter text model, reports `http_404`); Jev is asked one `noul`
+      question. The result carries only a category, the provider HTTP status, the
+      model and latency — never the provider response body or key material. Nothing
+      is saved. Invalid endpoint URLs fail with `admin.aiModeration.saveFailed`.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/AdminAiModerationTestRequest
+    responses:
+      '200':
+        description: Connection check result or an invalid-URL failure.
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: ../components/schemas.yaml#/AdminAiModerationTestResponse
+                - $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              notConfigured:
+                externalValue: ../fixtures/admin-ai-moderation-test-not-configured.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Frozen account, missing SiteManager permission, or rejected CSRF origin.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              permissionDenied:
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json

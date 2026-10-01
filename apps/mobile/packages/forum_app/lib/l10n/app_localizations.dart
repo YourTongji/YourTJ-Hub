@@ -5957,6 +5957,48 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Couldn’t share the image. Try again later.'**
   String get shareImageFailed;
+
+  /// No description provided for @moderationBlockedTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Not published'**
+  String get moderationBlockedTitle;
+
+  /// No description provided for @moderationBlockedPolicyHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Check that your images and text follow the community guidelines. Remove or replace anything that may be inappropriate, then publish again. If you think this is a mistake, contact an administrator.'**
+  String get moderationBlockedPolicyHint;
+
+  /// No description provided for @moderationBlockedExternalHint.
+  ///
+  /// In en, this message translates to:
+  /// **'This site doesn’t show external images. Save the image, upload it through the editor, then publish again.'**
+  String get moderationBlockedExternalHint;
+
+  /// No description provided for @moderationBlockedDraftKept.
+  ///
+  /// In en, this message translates to:
+  /// **'Your text and images are still in the editor.'**
+  String get moderationBlockedDraftKept;
+
+  /// No description provided for @moderationBlockedBack.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit post'**
+  String get moderationBlockedBack;
+
+  /// No description provided for @notificationReviewApproved.
+  ///
+  /// In en, this message translates to:
+  /// **'Your post was approved and is now visible to everyone'**
+  String get notificationReviewApproved;
+
+  /// No description provided for @notificationReviewRejected.
+  ///
+  /// In en, this message translates to:
+  /// **'Your post wasn’t approved and won’t be shown publicly'**
+  String get notificationReviewRejected;
 }
 
 class _AppLocalizationsDelegate

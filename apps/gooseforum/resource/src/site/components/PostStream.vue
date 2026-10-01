@@ -27,7 +27,8 @@ import { userDisplayName } from '@/runtime/private-notes'
 import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, ref, Teleport, useSlots, watch } from 'vue'
 import { AlertTriangle, Ban, Bell, BookOpen, Bookmark, ChevronsUp, Clock, CornerDownLeft, Flag, Heart, HelpCircle, History, Loader2, MoreHorizontal, PencilLine, RotateCcw, Share2, Sparkles, Trash2, X } from '@lucide/vue'
 import { PopoverContent, PopoverPortal, PopoverRoot, PopoverTrigger } from 'reka-ui'
-import { bookmarkTopic, deletePost, deleteTopic, getPostRevisions, getPostWindow, likeTopic, createPost, sensitiveWordsFromError, submitReport, updateModerationTopicStatus, updateModerationPostStatus, updatePost, watchTopic, likePost, bookmarkPost, reportContentEvent, type PostRevisionResult } from '@/runtime/api'
+import { showModerationBlocked } from '@/runtime/moderation-blocked'
+import { bookmarkTopic, deletePost, deleteTopic, getPostRevisions, getPostWindow, likeTopic, createPost, sensitiveWordsFromError, submitReport, updateModerationTopicStatus, updateModerationPostStatus, updatePost, watchTopic, likePost, bookmarkPost, reportContentEvent, type PostRevisionResult, pendingReviewMessage } from '@/runtime/api'
 import { formatDateTime, formatNumber } from '@/runtime/format'
 import { useFlashMessages } from '@/runtime/flash-message'
 import { fetchPage } from '@/runtime/router'
@@ -1539,10 +1540,11 @@ async function savePostEdit() {
     postDraftBeforeEdit.value = ''
     targetPostBeforeEdit.value = 0
     composerOpen.value = false
-    pushFlash(t('topic.replyUpdated'), 'success')
+    pushFlash(updated.pendingReview ? pendingReviewMessage() : t('topic.replyUpdated'), updated.pendingReview ? 'info' : 'success')
   } catch (error) {
     sensitiveWords.value = sensitiveWordsFromError(error)
     errorMessage.value = error instanceof Error ? error.message : t('api.replyUpdateFailed')
+    showModerationBlocked(error)
   } finally {
     savingEditPostId.value = 0
   }
@@ -1579,7 +1581,10 @@ async function submitPost() {
     anonymous.value = false
     targetPostId.value = 0
     composerOpen.value = false
-    pushFlash(t('topic.replyPosted'), 'success')
+    const pendingReview = typeof createdPost === 'object' && createdPost !== null && createdPost.pendingReview === true
+    // 待审回复（issue #975）尚未公开：提示“已提交审核”，不跳转定位到新楼层。
+    pushFlash(pendingReview ? pendingReviewMessage() : t('topic.replyPosted'), pendingReview ? 'info' : 'success')
+    if (pendingReview) return
     const createdPostId = typeof createdPost === 'object' && createdPost !== null ? createdPost.id : createdPost
     try {
       if (typeof createdPostId === 'number') {
@@ -1597,6 +1602,7 @@ async function submitPost() {
     } else {
       sensitiveWords.value = sensitiveWordsFromError(error)
       errorMessage.value = error instanceof Error ? error.message : t('api.replyFailed')
+      showModerationBlocked(error)
     }
   } finally {
     submitting.value = false

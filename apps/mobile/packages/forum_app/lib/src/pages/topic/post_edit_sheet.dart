@@ -6,6 +6,7 @@ import '../../../l10n/app_localizations.dart';
 import '../../images/image_upload.dart';
 import '../../providers.dart';
 import '../../server_messages.dart';
+import '../../widgets/moderation_blocked_dialog.dart';
 
 class PostEditSheet extends ConsumerStatefulWidget {
   const PostEditSheet({super.key, required this.post});
@@ -70,10 +71,14 @@ class _PostEditSheetState extends ConsumerState<PostEditSheet> {
       _error = null;
     });
     try {
-      await ref
+      final UpdatePostResult updated = await ref
           .read(postRepositoryProvider)
           .updatePost(postId: widget.post.id, content: _text.text.trim());
       if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) return;
+      if (updated.pendingReview) {
+        final AppLocalizations l10n = AppLocalizations.of(context);
+        showGfToast(context, pendingReviewMessage(l10n));
+      }
       _pop(true);
     } catch (error) {
       if (mounted && epoch == ref.read(offlineCacheEpochProvider)) {
@@ -81,6 +86,8 @@ class _PostEditSheetState extends ConsumerState<PostEditSheet> {
           () =>
               _error = resolveErrorMessage(AppLocalizations.of(context), error),
         );
+        // AI 图文审查拦截(issue #975):弹出友好提示,编辑内容保持不变。
+        await showModerationBlockedDialog(context, error);
       }
     } finally {
       if (mounted) setState(() => _busy = false);

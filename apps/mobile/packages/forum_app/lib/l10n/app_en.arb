@@ -1572,5 +1572,12 @@
   "courseReviewContentLimitError": "Reviews can contain up to 2,000 characters.",
   "courseReviewCharacterCount": "{count}/2000",
   "shareImageTooLong": "This post is too long to turn into one image.",
-  "shareImageFailed": "Couldn’t share the image. Try again later."
+  "shareImageFailed": "Couldn’t share the image. Try again later.",
+  "moderationBlockedTitle": "Not published",
+  "moderationBlockedPolicyHint": "Check that your images and text follow the community guidelines. Remove or replace anything that may be inappropriate, then publish again. If you think this is a mistake, contact an administrator.",
+  "moderationBlockedExternalHint": "This site doesn’t show external images. Save the image, upload it through the editor, then publish again.",
+  "moderationBlockedDraftKept": "Your text and images are still in the editor.",
+  "moderationBlockedBack": "Edit post",
+  "notificationReviewApproved": "Your post was approved and is now visible to everyone",
+  "notificationReviewRejected": "Your post wasn’t approved and won’t be shown publicly"
 }

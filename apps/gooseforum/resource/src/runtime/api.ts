@@ -3,6 +3,7 @@
 // 这里导入的是课程卡片（id/name/ratingAvg/...），故别名为 CourseCatalogItem 避免混淆。
 import type { CourseSummaryPayload as CourseCatalogItem, LinkPreview, ModerationDeletedContentView, ModerationLogListResponse, ModerationReportListResponse, NotificationFilter, NotificationListResponse, PostPayload, PostWindowPayload, StickerItem, UserCardPayload, UserSearchPayload } from '@gooseforum/client'
 import { i18n } from './i18n'
+import type { ReviewQueueItem } from '@/admin/types'
 import { resolveApiMessage } from './api-message'
 import { LINK_PREVIEW_REQUEST_LIMIT } from './link-preview'
 
@@ -81,7 +82,20 @@ function t(key: string) {
   return i18n.global.t(key)
 }
 
+// 待审成功信封（issue #975）：敏感词转审与 AI 审查转审共用，不暴露触因。
+export const PENDING_REVIEW_MESSAGE_CODE = 'content.moderation.pendingReview'
+
+/** 内容已提交审核的本地化提示（无翻译时回退通用文案）。 */
+export function pendingReviewMessage() {
+  return resolveApiMessage({ messageCode: PENDING_REVIEW_MESSAGE_CODE }, t('api.pendingReview'))
+}
+
 async function readApiResponse<T>(response: Response, fallback: string): Promise<T> {
+  return (await readApiEnvelope<T>(response, fallback)).result
+}
+
+// readApiEnvelope 与 readApiResponse 同语义，额外返回成功信封的 messageCode。
+async function readApiEnvelope<T>(response: Response, fallback: string): Promise<{ result: T, messageCode?: string }> {
   const data = await response.json().catch(() => undefined) as ApiResponse<T> | undefined
   if (response.status === 429) {
     const retryHeader = Number(response.headers.get('Retry-After'))
@@ -104,7 +118,7 @@ async function readApiResponse<T>(response: Response, fallback: string): Promise
   if (!data) {
     throw new Error(fallback)
   }
-  return (data.result ?? data.data) as T
+  return { result: (data.result ?? data.data) as T, messageCode: data.messageCode }
 }
 
 async function readApiSuccessMessage(response: Response, successFallback: string, errorFallback: string): Promise<string> {
@@ -122,6 +136,8 @@ export interface CreatePostResult {
   id: number
   postNo?: number
   renderedContent: string
+  /** 内容已转入人工审核（敏感词或 AI 图文审查），通过前不公开。 */
+  pendingReview?: boolean
 }
 
 export interface UpdatePostResult {
@@ -133,6 +149,8 @@ export interface UpdatePostResult {
   lastEditorId: number
   lastEditedAt: string
   revisionCount: number
+  /** 编辑后的内容已转入人工审核，通过前不公开。 */
+  pendingReview?: boolean
 }
 
 export interface PostRevisionResult {
@@ -175,7 +193,8 @@ export async function updatePost(postId: number, content: string): Promise<Updat
       content,
     }),
   })
-  return readApiResponse<UpdatePostResult>(response, t('api.replyUpdateFailed'))
+  const { result, messageCode } = await readApiEnvelope<UpdatePostResult>(response, t('api.replyUpdateFailed'))
+  return { ...result, pendingReview: messageCode === PENDING_REVIEW_MESSAGE_CODE }
 }
 
 export interface DeletePostResult {
@@ -567,6 +586,32 @@ export async function fetchModerationReports(cursor = 0, pageSize = 20, status =
   return readApiResponse<ModerationReportListResponse>(response, t('api.moderationReportsFailed'))
 }
 
+// 前台版主工作台待审队列（issue #975）：与后台审核队列同形，按版主管辖分类收窄。
+export interface ModerationReviewQueueResult {
+  items: ReviewQueueItem[]
+  total: number
+  page: number
+  pageSize: number
+}
+
+export async function fetchModerationReviewQueue(kind: 'topic' | 'post', page = 1, pageSize = 20): Promise<ModerationReviewQueueResult> {
+  const response = await fetch('/api/forum/moderation/review-queue', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ kind, page, pageSize }),
+  })
+  return readApiResponse<ModerationReviewQueueResult>(response, t('moderation.review.loadFailed'))
+}
+
+export async function moderationReviewAction(kind: 'topic' | 'post', id: number, approve: boolean): Promise<unknown> {
+  const response = await fetch('/api/forum/moderation/review-action', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ kind, id, approve }),
+  })
+  return readApiResponse<unknown>(response, t('moderation.review.actionFailed'))
+}
+
 export async function updateModerationReportStatus(id: number, action: 'ban' | 'resolve' | 'reject'): Promise<boolean> {
   const response = await fetch('/api/forum/moderation/report-status', {
     method: 'POST',
@@ -693,6 +738,16 @@ export interface SubmitTopicInput {
 }
 
 export async function submitTopic(topic: SubmitTopicInput): Promise<number> {
+  return (await submitTopicResult(topic)).id
+}
+
+export interface SubmitTopicResult {
+  id: number
+  /** 话题已转入人工审核（敏感词或 AI 图文审查），通过前不公开。 */
+  pendingReview: boolean
+}
+
+export async function submitTopicResult(topic: SubmitTopicInput): Promise<SubmitTopicResult> {
   let response: Response
   try {
     response = await fetch('/api/forum/topics/write', {
@@ -706,7 +761,7 @@ export async function submitTopic(topic: SubmitTopicInput): Promise<number> {
     throw new Error(t('api.topicSaveFailed'))
   }
   if (response.status === 429) {
-    return readApiResponse<number>(response, t('api.topicSaveFailed'))
+    return { id: await readApiResponse<number>(response, t('api.topicSaveFailed')), pendingReview: false }
   }
   await assertHttpOk(response, t('api.topicSaveFailed'))
 
@@ -714,7 +769,7 @@ export async function submitTopic(topic: SubmitTopicInput): Promise<number> {
   if (data.code !== undefined && data.code !== 0) {
     throw new ApiResponseError(responseMessage(data, t('api.topicSaveFailed')), data.messageCode, undefined, data.params)
   }
-  return data.result ?? data.data ?? topic.topicId
+  return { id: data.result ?? data.data ?? topic.topicId, pendingReview: data.messageCode === PENDING_REVIEW_MESSAGE_CODE }
 }
 
 export async function createPost(topicId: number, content: string, replyToPostId = 0, extra?: { captchaId?: string, captchaCode?: string, website?: string, isAnonymous?: boolean }): Promise<CreatePostResult | number | boolean> {
@@ -730,7 +785,11 @@ export async function createPost(topicId: number, content: string, replyToPostId
       ...(extra ?? {}),
     }),
   })
-  return readApiResponse<CreatePostResult | number | boolean>(response, t('api.replyFailed'))
+  const { result, messageCode } = await readApiEnvelope<CreatePostResult | number | boolean>(response, t('api.replyFailed'))
+  if (messageCode === PENDING_REVIEW_MESSAGE_CODE && typeof result === 'object' && result !== null) {
+    return { ...result, pendingReview: true }
+  }
+  return result
 }
 
 export async function uploadImage(file: File): Promise<string> {

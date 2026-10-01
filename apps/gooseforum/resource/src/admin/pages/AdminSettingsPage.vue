@@ -109,7 +109,7 @@ const props = defineProps<{
   kind: Kind
 }>()
 
-const { locale } = useI18n()
+const { locale, t } = useI18n()
 const loading = ref(false)
 const saving = ref(false)
 const testing = ref(false)
@@ -1465,6 +1465,13 @@ onUnmounted(stopSyncPolling)
             </button>
           </div>
         </div>
+        <RouterLink to="/admin/settings/ai-moderation" class="flex items-center justify-between gap-3 rounded-lg border bg-muted/10 p-4 transition-colors hover:bg-muted/30">
+          <span>
+            <span class="flex items-center gap-2 text-base font-medium"><Sparkles class="size-4" />{{ t('aiModerationAdmin.title') }}</span>
+            <span class="mt-1 block text-sm text-muted-foreground">{{ t('aiModerationAdmin.securityEntryHint') }}</span>
+          </span>
+          <span class="shrink-0 text-sm text-primary">{{ t('aiModerationAdmin.securityEntryAction') }}</span>
+        </RouterLink>
       </form>
 
       <form v-else-if="kind === 'rate-limit'" class="max-w-4xl space-y-8" @submit.prevent="save">

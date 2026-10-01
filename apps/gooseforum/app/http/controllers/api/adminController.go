@@ -30,6 +30,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/badges"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/category"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/dailyStats"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/moderationDecision"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/moderators"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/optRecord"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
@@ -49,9 +50,11 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/dataservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/eventhandlers"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/filemigrateservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/fileusageservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/llmsservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/mailservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/moderationservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/notificationservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/oauthservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/optlogger"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/permission"
@@ -593,6 +596,9 @@ func EditTopic(req component.BetterRequest[EditTopicReq]) component.Response {
 		return component.FailResponseCode(component.MessageOperationFailed, nil)
 	}
 	topic.ProcessStatus = req.Params.ProcessStatus
+	if topic.ProcessStatus == topics.ProcessStatusNormal {
+		fileusageservice.PromotePendingTopicFiles(topic.Id, topic.FirstPostId)
+	}
 
 	// 记录操作日志
 	statusCode := "unblocked"
@@ -2190,10 +2196,61 @@ type ReviewQueueItem struct {
 	CreatedAt     string `json:"createdAt"`
 	TopicId       uint64 `json:"topicId,omitempty"`
 	PostNo        uint64 `json:"postNo,omitempty"`
+	// Images 待审内容引用的图片（≤9）；PENDING 图片经 /file/img 授权预览读取。
+	Images []string `json:"images"`
+	// AiReview 仅当本条因 AI 图文审查转入待审时返回（issue #975）：触发规则、
+	// 原始概率与截断的图片证据摘要，供审核员理解触因。
+	AiReview *AiModerationDecisionItem `json:"aiReview,omitempty"`
+}
+
+// notifyReviewResult 审核完成后通知作者结论（issue #975）；通知失败只记日志，
+// 不影响审核动作本身。
+func notifyReviewResult(authorID uint64, approved bool, topicID uint64, title string, postID, postNo uint64) {
+	if authorID == 0 {
+		return
+	}
+	if err := notificationservice.SendReviewResultNotification(authorID, approved, topicID, title, postID, postNo); err != nil {
+		slog.Error("send review result notification failed", "userId", authorID, "topicId", topicID, "postId", postID, "err", err)
+	}
+}
+
+// reviewSubjectTitle 通知里的内容标题：无标题瞬间回落摘要（截断）。
+func reviewSubjectTitle(title, excerpt string) string {
+	if strings.TrimSpace(title) != "" {
+		return title
+	}
+	runes := []rune(strings.TrimSpace(excerpt))
+	if len(runes) > 40 {
+		return string(runes[:40]) + "…"
+	}
+	return string(runes)
+}
+
+// attachAiReview 为审核队列条目附加触发本次待审的 AI 决策。
+func attachAiReview(items []ReviewQueueItem, subjectType string) {
+	ids := make([]uint64, 0, len(items))
+	for _, item := range items {
+		ids = append(ids, item.Id)
+	}
+	decisions := moderationDecision.LatestForSubjects(subjectType, ids)
+	for i := range items {
+		decision, ok := decisions[items[i].Id]
+		if !ok || decision.AppliedAction != moderationDecision.ActionReview {
+			continue
+		}
+		view := aiDecisionItem(decision)
+		items[i].AiReview = &view
+	}
 }
 
 // ReviewQueue 列出待审的主题或回复。
 func ReviewQueue(req component.BetterRequest[ReviewQueueReq]) component.Response {
+	return reviewQueue(req, nil)
+}
+
+// reviewQueue 审核队列共享实现：categoryIDs 非空时只列出这些分类内的内容
+// （前台版主工作台按管辖分类审核，issue #975）。
+func reviewQueue(req component.BetterRequest[ReviewQueueReq], categoryIDs []uint64) component.Response {
 	page := req.Params.Page
 	if page < 1 {
 		page = 1
@@ -2205,7 +2262,7 @@ func ReviewQueue(req component.BetterRequest[ReviewQueueReq]) component.Response
 	items := make([]ReviewQueueItem, 0, pageSize)
 	var total int64
 	if req.Params.Kind == "topic" {
-		result := topics.PagePendingReview(page, pageSize)
+		result := topics.PagePendingReviewInCategories(page, pageSize, categoryIDs)
 		total = result.Total
 		userIDs := make([]uint64, 0, len(result.Data))
 		for _, t := range result.Data {
@@ -2228,10 +2285,12 @@ func ReviewQueue(req component.BetterRequest[ReviewQueueReq]) component.Response
 				UserId: t.UserId, Username: username, Nickname: nickname,
 				ProcessStatus: t.ProcessStatus,
 				CreatedAt:     t.CreatedAt.Format(time.RFC3339),
+				Images:        reviewQueueImages(t.ImageUrls),
 			})
 		}
+		attachAiReview(items, moderationDecision.SubjectTopic)
 	} else {
-		result := posts.PagePendingReview(page, pageSize)
+		result := posts.PagePendingReviewInCategories(page, pageSize, categoryIDs)
 		total = result.Total
 		userIDs := make([]uint64, 0, len(result.Data))
 		for _, p := range result.Data {
@@ -2269,8 +2328,10 @@ func ReviewQueue(req component.BetterRequest[ReviewQueueReq]) component.Response
 				ProcessStatus: p.ProcessStatus,
 				CreatedAt:     p.CreatedAt.Format(time.RFC3339),
 				TopicId:       p.TopicId, PostNo: p.PostNo,
+				Images: reviewQueuePostImages(p.Content),
 			})
 		}
+		attachAiReview(items, moderationDecision.SubjectPost)
 	}
 	return component.SuccessResponse(map[string]any{
 		"items": items, "total": total, "page": page, "pageSize": pageSize,
@@ -2318,6 +2379,12 @@ func ReviewAction(req component.BetterRequest[ReviewActionReq]) component.Respon
 				component.MessageParams{"error": err.Error()})
 		}
 		topic.ProcessStatus = targetStatus
+		if req.Params.Approve {
+			// 待审期间登记为 PENDING 的图片随内容一起公开（issue #975）。
+			fileusageservice.PromotePendingTopicFiles(topic.Id, topic.FirstPostId)
+		}
+		moderationservice.RecordAIHumanOutcome(moderationDecision.SubjectTopic, topic.Id, req.Params.Approve, req.UserId)
+		notifyReviewResult(topic.UserId, req.Params.Approve, topic.Id, reviewSubjectTitle(topic.Title, topic.Excerpt), 0, 0)
 		hotdataserve.InvalidateTopicListCacheForCategories(topic.CategoryIds...)
 		// 审核后无条件重建搜索索引（issue #132）：拒绝（ProcessStatus→blocked）
 		// 时 BuildSingleTopicSearchDocument 会把文档从索引删除，避免被拒话题
@@ -2358,6 +2425,11 @@ func ReviewAction(req component.BetterRequest[ReviewActionReq]) component.Respon
 			return component.FailResponseCode(component.MessageAdminReviewFailed,
 				component.MessageParams{"error": err.Error()})
 		}
+		if req.Params.Approve {
+			fileusageservice.PromotePendingPostFiles(post.Id)
+		}
+		moderationservice.RecordAIHumanOutcome(moderationDecision.SubjectPost, post.Id, req.Params.Approve, req.UserId)
+		notifyReviewResult(post.UserId, req.Params.Approve, topicEntity.Id, reviewSubjectTitle(topicEntity.Title, ""), post.Id, post.PostNo)
 		hotdataserve.InvalidateTopicListCacheForCategories(topicEntity.CategoryIds...)
 		// 批准后补发事件：仅对新建待审回复补发（编辑场景创建时已发布过事件）。
 		if req.Params.Approve && !userActivities.HasRecord(userActivities.ActionComment, userActivities.SubjectPost, post.Id) {

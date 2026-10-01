@@ -70,12 +70,22 @@ func MarkTargetActive(targetType string, targetId uint64) error {
 		}).Error
 }
 
+// MarkTargetPendingActive 待审内容获批后把其 PENDING 引用转为 ACTIVE（issue #975）。
+// 幂等：只迁移 PENDING 行，重复调用无副作用。
+func MarkTargetPendingActive(targetType string, targetId uint64) error {
+	return builder().
+		Where(queryopt.Eq("target_type", targetType)).
+		Where(queryopt.Eq("target_id", targetId)).
+		Where(queryopt.Eq("status", UsageStatusPending)).
+		Updates(map[string]any{"status": UsageStatusActive}).Error
+}
+
 // MarkTargetPurged 将某内容的附件引用置为已清理（永久删除）。
 func MarkTargetPurged(targetType string, targetId uint64) error {
 	return builder().
 		Where(queryopt.Eq("target_type", targetType)).
 		Where(queryopt.Eq("target_id", targetId)).
-		Where(queryopt.In("status", []string{UsageStatusActive, UsageStatusRecovering})).
+		Where(queryopt.In("status", []string{UsageStatusActive, UsageStatusRecovering, UsageStatusPending})).
 		Updates(map[string]any{
 			"status": UsageStatusPurged,
 		}).Error
@@ -114,6 +124,19 @@ func HasActiveReferences(fileName string) bool {
 	builder().
 		Where(queryopt.Eq("file_name", fileName)).
 		Where(queryopt.Eq("status", UsageStatusActive)).
+		Where(queryopt.Ne("usage_type", UsageUploadOwner)).
+		Count(&count)
+	return count > 0
+}
+
+// HasPendingReferences reports whether the file is referenced by content that
+// is awaiting moderation (issue #975). Such files are hidden from anonymous
+// readers; only the uploader and reviewers may preview them.
+func HasPendingReferences(fileName string) bool {
+	var count int64
+	builder().
+		Where(queryopt.Eq("file_name", fileName)).
+		Where(queryopt.Eq("status", UsageStatusPending)).
 		Where(queryopt.Ne("usage_type", UsageUploadOwner)).
 		Count(&count)
 	return count > 0

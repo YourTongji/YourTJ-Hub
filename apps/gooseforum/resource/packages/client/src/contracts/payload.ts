@@ -817,6 +817,8 @@ export type NotificationTemplateKey =
   | 'notifications.templates.follow'
   | 'notifications.templates.badge'
   | 'notifications.templates.wikiUpdated'
+  | 'notifications.templates.reviewApproved'
+  | 'notifications.templates.reviewRejected'
 
 export interface DraftsPageProps {
   total: number

@@ -7,6 +7,7 @@ import QuickPublishModal from '../src/site/components/QuickPublishModal.vue'
 import { i18n } from '../src/runtime/i18n'
 import { useQuickPublish } from '../src/site/composables/useQuickPublish'
 import { readQuickPublishDraft, writeQuickPublishDraft } from '../src/site/utils/quick-publish-draft'
+import { closeModerationBlocked, moderationBlockedState } from '../src/runtime/moderation-blocked'
 import * as api from '../src/runtime/api'
 import type { LayoutPayload } from '@gooseforum/client'
 
@@ -236,7 +237,7 @@ describe('QuickPublishModal 草稿与离开保护（issue #583）', () => {
   })
 
   test('发布成功清除本地暂存', async () => {
-    const submit = vi.spyOn(api, 'submitTopic').mockResolvedValue(55)
+    const submit = vi.spyOn(api, 'submitTopicResult').mockResolvedValue({ id: 55, pendingReview: false })
     writeQuickPublishDraft(1, 2, { title: '旧标题', content: '旧正文', categoryIds: [101], images: [] })
     const { wrapper, vm, quickPublishOpen } = await mountModal(2)
     try {
@@ -251,6 +252,32 @@ describe('QuickPublishModal 草稿与离开保护（issue #583）', () => {
       expect(quickPublishOpen.value).toBe(false)
       expect(readQuickPublishDraft(1, 2)).toBeNull()
     } finally {
+      wrapper.unmount()
+    }
+  })
+
+  test('AI 图文审查拦截：弹层不关闭、暂存与正文保留，并显示稳定提示（issue #975）', async () => {
+    const blocked = new api.ApiResponseError('内容未通过站点发布规则，请调整后重试。', 'content.aiModeration.blocked')
+    const submit = vi.spyOn(api, 'submitTopicResult').mockRejectedValue(blocked)
+    const { wrapper, vm, quickPublishOpen } = await mountModal(2)
+    try {
+      vm.title = '被拦截的标题'
+      vm.content = '带图正文'
+      vm.categoryIds = [101]
+      await nextTick()
+      await vm.handleSubmit()
+      await flushPromises()
+
+      expect(submit).toHaveBeenCalled()
+      expect(quickPublishOpen.value).toBe(true)
+      expect(vm.content).toBe('带图正文')
+      expect(vm.errorMessage).toBe('内容未通过站点发布规则，请调整后重试。')
+      expect(vm.sensitiveWords).toEqual([])
+      expect(moderationBlockedState.open).toBe(true)
+      expect(moderationBlockedState.kind).toBe('policy')
+    } finally {
+      closeModerationBlocked()
+      submit.mockRestore()
       wrapper.unmount()
     }
   })

@@ -273,14 +273,19 @@ const (
 
 const (
 	// 审核策略（保留/禁用用户名、敏感词）
-	MessageAuthUsernameReserved        MessageCode = "auth.username.reserved"          // 用户名被保留，不可使用。
-	MessageAuthUsernameBanned          MessageCode = "auth.username.banned"            // 用户名被禁用，不可使用。
-	MessageAuthNicknameReserved        MessageCode = "auth.nickname.reserved"          // 昵称被保留，不可使用。
-	MessageAuthNicknameBanned          MessageCode = "auth.nickname.banned"            // 昵称被禁用，不可使用。
-	MessageContentSensitiveBlocked     MessageCode = "content.sensitive.blocked"       // 内容包含敏感词，已被拦截。
-	MessageContentSensitiveReview      MessageCode = "content.sensitive.pendingReview" // 内容包含敏感词，已转入人工审核。
-	MessageChatSensitiveBlocked        MessageCode = "chat.sensitive.blocked"          // 私信内容包含敏感词，已被拦截。
-	MessageCourseReviewSensitiveBanned MessageCode = "course.review.sensitiveBlocked"  // 课评包含敏感词，已被拦截。
+	MessageAuthUsernameReserved    MessageCode = "auth.username.reserved"          // 用户名被保留，不可使用。
+	MessageAuthUsernameBanned      MessageCode = "auth.username.banned"            // 用户名被禁用，不可使用。
+	MessageAuthNicknameReserved    MessageCode = "auth.nickname.reserved"          // 昵称被保留，不可使用。
+	MessageAuthNicknameBanned      MessageCode = "auth.nickname.banned"            // 昵称被禁用，不可使用。
+	MessageContentSensitiveBlocked MessageCode = "content.sensitive.blocked"       // 内容包含敏感词，已被拦截。
+	MessageContentSensitiveReview  MessageCode = "content.sensitive.pendingReview" // 内容包含敏感词，已转入人工审核。
+	// AI 图文审查（issue #975）。pendingReview 作为成功信封的 messageCode 返回（敏感词转审与
+	// AI 转审共用，不暴露触因）；blocked 不携带模型类别/概率/证据，避免帮助绕过。
+	MessageContentModerationPendingReview MessageCode = "content.moderation.pendingReview"          // 内容已提交审核，通过后公开可见。
+	MessageContentAIBlocked               MessageCode = "content.aiModeration.blocked"              // 内容未通过站点发布规则，请调整后重试。
+	MessageContentAIExternalImageBlocked  MessageCode = "content.aiModeration.externalImageBlocked" // 不允许引用站外图片，请上传到本站后重试。
+	MessageChatSensitiveBlocked           MessageCode = "chat.sensitive.blocked"                    // 私信内容包含敏感词，已被拦截。
+	MessageCourseReviewSensitiveBanned    MessageCode = "course.review.sensitiveBlocked"            // 课评包含敏感词，已被拦截。
 
 	// 存储设置
 	MessageAdminStorageSaveFailed             MessageCode = "admin.storage.saveFailed"             // 存储设置保存失败，params.error 可带原始错误。
@@ -303,9 +308,11 @@ const (
 	MessageAdminReviewProcessed     MessageCode = "admin.review.processed"     // 审核对象已处理。
 	MessageAdminReviewFailed        MessageCode = "admin.review.failed"        // 审核操作失败，params.error 可带原始错误。
 	// AI 课程总结（issue #181）：models 列表自动获取
-	MessageAdminAiSummaryModelsFailed      MessageCode = "admin.aiSummary.modelsFailed"      // 拉取模型列表失败，params.error 为固定文案（不携带提供方响应原文，防泄漏）。
-	MessageAdminAiSummaryModelsUnsupported MessageCode = "admin.aiSummary.modelsUnsupported" // 提供方未实现 /models 端点，需手动输入模型。
-	MessageAdminAiSummarySaveFailed        MessageCode = "admin.aiSummary.saveFailed"        // 保存 AI 总结配置失败，params.error 可带原始错误。
+	MessageAdminAiSummaryModelsFailed        MessageCode = "admin.aiSummary.modelsFailed"        // 拉取模型列表失败，params.error 为固定文案（不携带提供方响应原文，防泄漏）。
+	MessageAdminAiSummaryModelsUnsupported   MessageCode = "admin.aiSummary.modelsUnsupported"   // 提供方未实现 /models 端点，需手动输入模型。
+	MessageAdminAiSummarySaveFailed          MessageCode = "admin.aiSummary.saveFailed"          // 保存 AI 总结配置失败，params.error 可带原始错误。
+	MessageAdminAiModerationSaveFailed       MessageCode = "admin.aiModeration.saveFailed"       // 保存 AI 图文审查配置失败，params.error 为固定文案。
+	MessageAdminAiModerationDecisionNotFound MessageCode = "admin.aiModeration.decisionNotFound" // AI 审查决策记录不存在。
 	// Agent（机器人账号）管理
 	MessageAdminAgentUsernameInvalid MessageCode = "admin.agent.usernameInvalid" // 用户名格式不符合规则。
 	MessageAdminAgentUsernameExists  MessageCode = "admin.agent.usernameExists"  // 用户名已存在。

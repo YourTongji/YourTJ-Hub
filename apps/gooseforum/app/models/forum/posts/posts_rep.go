@@ -661,6 +661,17 @@ func PagePendingReview(page, pageSize int) struct {
 	Total    int64
 	Data     []Entity
 } {
+	return PagePendingReviewInCategories(page, pageSize, nil)
+}
+
+// PagePendingReviewInCategories 同 PagePendingReview，categoryIDs 非空时只列出
+// 所属话题在这些分类内的待审回复（前台版主按管辖分类审核，issue #975）。
+func PagePendingReviewInCategories(page, pageSize int, categoryIDs []uint64) struct {
+	Page     int
+	PageSize int
+	Total    int64
+	Data     []Entity
+} {
 	var list []Entity
 	page = max(page-1, 0)
 	pageSize = pageutil.BoundPageSize(pageSize)
@@ -670,8 +681,11 @@ func PagePendingReview(page, pageSize int) struct {
 		// 避免绕过 wiki 修订流程直接审核/拒绝）；wiki 分站评论（post_no>1）仍走论坛审核队列。
 		// 字面量 0 == topics.TopicTypeForum（论坛话题）。不能 import topics：
 		// topics 的测试包已 import posts，反向导入会构成测试编译环。
-		Where("(topic_id IN (SELECT id FROM topics WHERE topic_type = ?) OR post_no > ?)", 0, 1).
-		Order(queryopt.Desc("id"))
+		Where("(topic_id IN (SELECT id FROM topics WHERE topic_type = ?) OR post_no > ?)", 0, 1)
+	if len(categoryIDs) > 0 {
+		b = b.Where("topic_id IN (SELECT topic_id FROM topic_category_index WHERE category_id IN ? AND effective = ?)", categoryIDs, 1)
+	}
+	b = b.Order(queryopt.Desc("id"))
 	var total int64
 	b.Session(&gorm.Session{}).Count(&total)
 	b.Limit(pageSize).Offset(pageSize * page).Find(&list)

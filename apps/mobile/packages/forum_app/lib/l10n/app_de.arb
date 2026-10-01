@@ -1155,5 +1155,12 @@
   "courseReviewContentLimitError": "Bewertungen dürfen höchstens 2.000 Zeichen enthalten.",
   "courseReviewCharacterCount": "{count}/2000",
   "shareImageTooLong": "Der Beitrag ist zu lang, um ein einzelnes Bild zu erstellen.",
-  "shareImageFailed": "Das Bild konnte nicht geteilt werden. Bitte später erneut versuchen."
+  "shareImageFailed": "Das Bild konnte nicht geteilt werden. Bitte später erneut versuchen.",
+  "moderationBlockedTitle": "Nicht veröffentlicht",
+  "moderationBlockedPolicyHint": "Prüfe, ob Bilder und Text den Community-Richtlinien entsprechen. Entferne oder ersetze möglicherweise Unpassendes und veröffentliche erneut. Hältst du das für einen Fehler, wende dich an die Administration.",
+  "moderationBlockedExternalHint": "Diese Website zeigt keine externen Bilder an. Speichere das Bild, lade es über den Editor hoch und veröffentliche erneut.",
+  "moderationBlockedDraftKept": "Text und Bilder sind weiterhin im Editor.",
+  "moderationBlockedBack": "Beitrag bearbeiten",
+  "notificationReviewApproved": "Dein Beitrag wurde freigegeben und ist jetzt für alle sichtbar",
+  "notificationReviewRejected": "Dein Beitrag wurde nicht freigegeben und wird nicht öffentlich angezeigt"
 }

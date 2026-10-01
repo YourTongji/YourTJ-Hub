@@ -4,6 +4,16 @@ import '../l10n/app_localizations.dart';
 
 import 'server_message_catalog.dart';
 
+/// 内容已提交审核的本地化提示(issue #975):取服务端消息目录中的
+/// `content.moderation.pendingReview`,缺失时回退通用成功文案。
+String pendingReviewMessage(AppLocalizations l10n) {
+  final Map<String, String> catalog =
+      serverMessageCatalog[l10n.localeName] ??
+      serverMessageCatalog['en'] ??
+      const <String, String>{};
+  return catalog[pendingReviewMessageCode] ?? l10n.publishSuccess;
+}
+
 /// 把 [error] 解析为用户可读的本地化文案。
 ///
 /// - [ApiException] 且 messageCode 命中本地化目录:返回目录文案;

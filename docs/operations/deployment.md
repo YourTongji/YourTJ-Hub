@@ -603,6 +603,40 @@ instance:
 - 升级到包含 v25 数据迁移的版本后，存量明文密钥会在下次启动时自动加密迁移
   （幂等；迁移失败不推进版本，下次启动重试）。
 
+## AI 图文审查（issue #975）
+
+- 管理端「设置 → AI 图文审查」（SiteManager）配置 Jev Decisions API（OpenRouter
+  `https://openrouter.ai/api/alpha/decisions` + `typesafe/jev-1.13`，或 TypeSafe
+  `https://api.typesafe.ai/v1/systemone`）与 OpenAI 兼容视觉模型（如
+  `inclusionai/ling-3.0-flash-vl`）。两个 API key 分别以 securestore 密文落库，GET 只回显是否已配置，
+  可显式清除。配置保存后 5 秒内热生效。各区「测试连接」用当前表单值（无需保存）真实调用一次：视觉用内置
+  合成测试图走完整证据提取，Jev 问一个 Noul；结果只含分类、HTTP 状态码与耗时。视觉模型必须支持图片
+  输入——OpenRouter 上纯文本模型（如 `inclusionai/ling-3.0-flash`）返回 404，导致所有图片转人工。
+- 视觉提示词要求证件、银行卡、票据、聊天截图等不转录姓名/号码/日期，只标注“personal data visible”；
+  OCR 另有 800 字服务端截断。推理型视觉模型的 reasoning 计入输出上限（当前 4096 token）。
+- 分数线：低于人工审核线发布；达到人工审核线进入人工审核；规则设为“直接拦截”时达到拦截线才拦截，
+  介于两线之间仍进入人工审核（严重程度达到提级线时例外）。每条决策记录保存结论原因（如
+  `between_thresholds`），管理端决策记录与审核队列直接显示“为什么是这个结果”。
+- 默认关闭、影子模式。影子模式在写库后异步判定，只写 `moderation_ai_decisions`，不影响发布；在
+  「决策记录」中对样本人工标注（审核队列的通过/拒绝会自动回写），用「离线阈值回放」看误杀/漏检后
+  再切执行模式。不得直接套用任何示例阈值。
+- 执行模式下含图发布会同步等待模型（视觉超时 × 轮次 + Jev 超时 × (重试+1)，上限 50 秒）；仅这些
+  请求放宽 10 秒 HTTP 写超时。反向代理读超时须大于该预算（openresty 默认 60 秒满足）。
+- 任何模型故障、拒答、无效 JSON、未配置、超出每分钟护栏或图片数超限都转人工审核，审核队列负担会
+  随之上升；服务器从不抓取站外图片，含站外图片按配置转审或拦截。
+- 隐私：待发布图片与正文会在推理期间发给所配置的 provider。生产须在 OpenRouter 工作区开启 Zero Data
+  Retention、关闭 prompt/completion 日志并限定 provider 白名单；没有合规 provider 时保持关闭。
+- 拦截时 Web 与 App 弹出“内容暂未发布”提示：说明原因（站外图片单独说明）、正文与图片仍保留在编辑器、
+  如何修改后重发，不展示模型类别、概率或证据。
+- 观测：失败另输出 `ai_moderation_vision_failed` / `ai_moderation_jev_failed`（只含分类与状态码，如
+  `http_404`、`jev_config_401`）；每次判定输出结构化日志 `ai_moderation_decision`（动作、证据状态、错误类型、触发政策、
+  延迟、provider 返回的 cost），不含正文、OCR 或 key；待审决策只在库内保留截断的证据摘要供审核员查看。
+- 审核入口：前台「版主管理 → 待审核」（`/api/forum/moderation/review-queue|review-action`，按版主
+  管辖分类收窄，越权按不存在处理）与管理后台审核队列等价。审核完成后作者收到 `review_approved` /
+  `review_rejected` 站内通知、Web Push 与原生推送；被拒内容对作者也不可见，因此通知不带跳转。
+- 待审内容（敏感词或 AI）的图片登记为 `PENDING` 引用：`/file/img` 对匿名和他人返回 404，作者与站点
+  管理员以 `private, no-store` 预览；审核通过或解封后转 `ACTIVE`。
+
 ## 一系统排课同步（course-pk-sync，issue #186）
 
 将同济一系统（1.tongji.edu.cn）排课数据分页同步到 PK 域，并重建 `teacher_timeslots`。

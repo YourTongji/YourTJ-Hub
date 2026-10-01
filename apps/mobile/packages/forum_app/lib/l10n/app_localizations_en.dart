@@ -1,5 +1,6 @@
 // ignore: unused_import
 import 'package:intl/intl.dart' as intl;
+
 import 'app_localizations.dart';
 
 // ignore_for_file: type=lint
@@ -3260,4 +3261,30 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get shareImageFailed => 'Couldn’t share the image. Try again later.';
+
+  @override
+  String get moderationBlockedTitle => 'Not published';
+
+  @override
+  String get moderationBlockedPolicyHint =>
+      'Check that your images and text follow the community guidelines. Remove or replace anything that may be inappropriate, then publish again. If you think this is a mistake, contact an administrator.';
+
+  @override
+  String get moderationBlockedExternalHint =>
+      'This site doesn’t show external images. Save the image, upload it through the editor, then publish again.';
+
+  @override
+  String get moderationBlockedDraftKept =>
+      'Your text and images are still in the editor.';
+
+  @override
+  String get moderationBlockedBack => 'Edit post';
+
+  @override
+  String get notificationReviewApproved =>
+      'Your post was approved and is now visible to everyone';
+
+  @override
+  String get notificationReviewRejected =>
+      'Your post wasn’t approved and won’t be shown publicly';
 }

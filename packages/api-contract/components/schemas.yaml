@@ -4970,7 +4970,7 @@ NotificationPayload:
       minimum: 1
     eventType:
       type: string
-      description: Notification event type (comment/post_reply/topic_post/mention/follow/badge/like/wiki_updated/system); the payload shape varies with it.
+      description: Notification event type (comment/post_reply/topic_post/mention/follow/badge/like/wiki_updated/system/review_approved/review_rejected); the payload shape varies with it. `review_approved` links to the approved topic/post; `review_rejected` carries only `payload.topicTitle` because rejected content is not visible to its author (issue #975).
     isRead:
       type: boolean
     createdAt:
@@ -8866,6 +8866,15 @@ AdminReviewQueueItem:
       type: integer
       format: uint64
       description: Posts only; omitted for topics.
+    images:
+      type: array
+      maxItems: 9
+      items:
+        type: string
+      description: Image URLs referenced by the pending content (topic gallery/inline images or post Markdown images). Pending images are readable by reviewers through the authorized `/file/img` preview; anonymous readers receive 404.
+    aiReview:
+      $ref: '#/AiModerationDecisionItem'
+      description: Present only when AI moderation sent this item to review (issue #975); carries triggered policies, raw probabilities and the truncated evidence summary.
   additionalProperties: false
 
 AdminReviewQueueResult:
@@ -10693,4 +10702,400 @@ UserBlockRequest:
       minimum: 1
     blocked:
       type: boolean
+  additionalProperties: false
+
+
+# ================= AI image/text moderation（issue #975）=================
+
+AiModerationPolicyRule:
+  type: object
+  required: [key, label, definition, enabled, action]
+  properties:
+    key:
+      type: string
+      enum: [adult, political_sensitive, violence, illegal_or_dangerous, other]
+      description: Fixed rule key, also used as the Jev question name.
+    label:
+      type: string
+      maxLength: 40
+    definition:
+      type: string
+      maxLength: 1000
+      description: Site rule text maintained by administrators and placed in the Jev state; the model only applies it.
+    enabled:
+      type: boolean
+    action:
+      type: string
+      enum: [review, block]
+      description: Highest action this rule may trigger; `review` rules never block automatically.
+    reviewThreshold:
+      type: number
+      minimum: 0
+      maximum: 1
+      description: Optional override of `defaultReviewThreshold`.
+    blockThreshold:
+      type: number
+      minimum: 0
+      maximum: 1
+      description: Optional override of `defaultBlockThreshold` (never below the review threshold).
+  additionalProperties: false
+
+AiModerationOptions:
+  type: object
+  properties:
+    enabled:
+      type: boolean
+    mode:
+      type: string
+      enum: [shadow, enforce]
+      description: "`shadow` records decisions asynchronously without affecting publishing; `enforce` decides synchronously inside the publish request."
+    textModeration:
+      type: boolean
+      description: Also call Jev for content without images; when false, image-free content triggers no model call.
+    jevEndpoint:
+      type: string
+      description: Full Decisions API URL (TypeSafe `/v1/systemone` or OpenRouter `/api/alpha/decisions`).
+    jevModel:
+      type: string
+    jevTimeoutMs:
+      type: integer
+      minimum: 1000
+      maximum: 60000
+    jevRetries:
+      type: integer
+      minimum: 0
+      maximum: 1
+      description: Retries only on 402/429/5xx/timeouts.
+    visionBaseUrl:
+      type: string
+      description: OpenAI-compatible multimodal base URL used for neutral evidence extraction.
+    visionModel:
+      type: string
+    visionTimeoutMs:
+      type: integer
+      minimum: 1000
+      maximum: 60000
+    policyRevision:
+      type: string
+    policies:
+      type: array
+      items:
+        $ref: '#/AiModerationPolicyRule'
+    defaultReviewThreshold:
+      type: number
+      minimum: 0
+      maximum: 1
+    defaultBlockThreshold:
+      type: number
+      minimum: 0
+      maximum: 1
+    reviewNeededThreshold:
+      type: number
+      minimum: 0
+      maximum: 1
+    severityBlockThreshold:
+      type: number
+      minimum: 0
+      maximum: 3
+      description: Escalates an already-triggered block rule; severity alone never blocks.
+    externalImageAction:
+      type: string
+      enum: [review, block]
+      description: Handling of non-site images, which are never fetched server-side.
+    maxImagesPerDecision:
+      type: integer
+      minimum: 1
+      maximum: 20
+    globalRequestsPerMinute:
+      type: integer
+      minimum: 1
+    perUserRequestsPerMinute:
+      type: integer
+      minimum: 1
+
+AdminAiModerationSettingsView:
+  allOf:
+    - $ref: '#/AiModerationOptions'
+    - type: object
+      required: [jevApiKeyConfigured, visionApiKeyConfigured]
+      properties:
+        jevApiKeyConfigured:
+          type: boolean
+        visionApiKeyConfigured:
+          type: boolean
+
+AdminAiModerationSettingsResponse:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          $ref: '#/AdminAiModerationSettingsView'
+
+AdminSaveAiModerationSettingsRequest:
+  type: object
+  required: [settings]
+  properties:
+    settings:
+      allOf:
+        - $ref: '#/AiModerationOptions'
+        - type: object
+          properties:
+            jevApiKey:
+              type: string
+              description: Plaintext only in this request; empty keeps the stored key.
+            visionApiKey:
+              type: string
+            clearJevApiKey:
+              type: boolean
+            clearVisionApiKey:
+              type: boolean
+  additionalProperties: false
+
+AiModerationImageRecord:
+  type: object
+  required: [status]
+  properties:
+    fileName:
+      type: string
+    url:
+      type: string
+    sha256:
+      type: string
+    status:
+      type: string
+      description: ok | cache | refused | invalid | uncertain | error | timeout | auth | too_large | unsupported | missing | external | skipped
+    evidence:
+      type: string
+      description: Truncated neutral evidence summary, kept only for decisions that went to human review.
+  additionalProperties: false
+
+AiModerationDecisionItem:
+  type: object
+  required: [id, subjectType, subjectId, authorId, mode, policyRevision, visionModel, jevModel, images, signals, triggeredPolicies, reasons, evidenceStatus, finalAction, appliedAction, errorKind, humanAction, latencyMs, cost, createdAt]
+  properties:
+    id:
+      type: integer
+      format: uint64
+    subjectType:
+      type: string
+      enum: [topic, post]
+    subjectId:
+      type: integer
+      format: uint64
+      description: 0 for blocked new content that was never written.
+    authorId:
+      type: integer
+      format: uint64
+    mode:
+      type: string
+      enum: [shadow, enforce]
+    policyRevision:
+      type: string
+    visionModel:
+      type: string
+    jevModel:
+      type: string
+    images:
+      type: array
+      items:
+        $ref: '#/AiModerationImageRecord'
+    signals:
+      type: object
+      properties:
+        ruleProbabilities:
+          type: object
+          additionalProperties:
+            type: number
+        severity:
+          type: number
+        reviewNeeded:
+          type: number
+      additionalProperties: false
+    triggeredPolicies:
+      type: array
+      items:
+        type: string
+    reasons:
+      type: array
+      description: Why the decision has this action; empty for clean content. Older records may have none.
+      items:
+        $ref: '#/AiModerationReason'
+    evidenceStatus:
+      type: string
+      enum: [complete, unavailable, external, too_many, jev_failed, not_configured, rate_limited]
+    finalAction:
+      type: string
+      enum: [allow, review, block]
+    appliedAction:
+      type: string
+      description: Action applied to the content; always `allow` in shadow mode.
+    errorKind:
+      type: string
+    humanAction:
+      type: string
+      enum: ['', approved, rejected]
+    latencyMs:
+      type: integer
+      format: int64
+    cost:
+      type: number
+      description: Provider-reported cost when available (OpenRouter `usage.cost`), otherwise 0.
+    createdAt:
+      type: string
+      format: date-time
+  additionalProperties: false
+
+AdminAiModerationDecisionListRequest:
+  type: object
+  properties:
+    page:
+      type: integer
+      minimum: 1
+    pageSize:
+      type: integer
+      description: Values below 1 or above 50 fall back to 20.
+    finalAction:
+      type: string
+      enum: [allow, review, block]
+    humanAction:
+      type: string
+      enum: [none, approved, rejected]
+      description: "`none` lists unlabeled decisions."
+    mode:
+      type: string
+      enum: [shadow, enforce]
+  additionalProperties: false
+
+AdminAiModerationDecisionListResponse:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          type: object
+          required: [items, total, page, pageSize]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/AiModerationDecisionItem'
+            total:
+              type: integer
+              format: int64
+            page:
+              type: integer
+            pageSize:
+              type: integer
+
+AdminAiModerationLabelRequest:
+  type: object
+  required: [id, label]
+  properties:
+    id:
+      type: integer
+      format: uint64
+      minimum: 1
+    label:
+      type: string
+      enum: [approved, rejected]
+  additionalProperties: false
+
+AdminAiModerationReplayRequest:
+  type: object
+  properties:
+    options:
+      $ref: '#/AiModerationOptions'
+      description: Candidate settings to evaluate; omitted uses the saved settings. Never persisted.
+  additionalProperties: false
+
+AdminAiModerationReplayResponse:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          type: object
+          required: [samples, matrix, falseBlock, missedViolation, reviewRate, changed]
+          properties:
+            samples:
+              type: integer
+            matrix:
+              type: object
+              description: Counts keyed by human outcome (approved/rejected) then predicted action (allow/review/block).
+              additionalProperties:
+                type: object
+                additionalProperties:
+                  type: integer
+            falseBlock:
+              type: integer
+            missedViolation:
+              type: integer
+            reviewRate:
+              type: number
+            changed:
+              type: integer
+
+AdminAiModerationTestRequest:
+  type: object
+  required: [target]
+  properties:
+    target:
+      type: string
+      enum: [jev, vision]
+    settings:
+      $ref: '#/AdminSaveAiModerationSettingsRequest/properties/settings'
+  additionalProperties: false
+
+AdminAiModerationTestResponse:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          type: object
+          required: [ok, kind, latencyMs]
+          properties:
+            ok:
+              type: boolean
+            kind:
+              type: string
+              description: ok | uncertain | not_configured | refused | invalid | timeout | auth | http_<status> | jev_<kind> | error
+            httpStatus:
+              type: integer
+            model:
+              type: string
+            latencyMs:
+              type: integer
+              format: int64
+          additionalProperties: false
+
+AiModerationReason:
+  type: object
+  required: [code]
+  properties:
+    code:
+      type: string
+      enum: [block_threshold, severity_escalation, between_thresholds, review_only_rule, review_needed, evidence_incomplete, external_image_blocked]
+      description: "`between_thresholds`: the rule may block, but the score is between its review line and block line, so it goes to human review."
+    policy:
+      type: string
+    score:
+      type: number
+      description: Rule score, or the review_needed probability.
+    threshold:
+      type: number
+      description: The line that was reached (review line, block line or review_needed line).
+    limit:
+      type: number
+      description: Block line for `between_thresholds`; severity line for `severity_escalation`.
+    severity:
+      type: number
+    detail:
+      type: string
+      description: Evidence status for `evidence_incomplete`.
   additionalProperties: false

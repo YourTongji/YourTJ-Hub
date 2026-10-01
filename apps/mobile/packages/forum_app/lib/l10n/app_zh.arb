@@ -1502,5 +1502,12 @@
   "courseReviewContentLimitError": "评价内容最多 2000 个字符。",
   "courseReviewCharacterCount": "{count}/2000",
   "shareImageTooLong": "帖子内容过长，无法生成分享图片。",
-  "shareImageFailed": "分享图片失败，请稍后重试。"
+  "shareImageFailed": "分享图片失败，请稍后重试。",
+  "moderationBlockedTitle": "内容未发布",
+  "moderationBlockedPolicyHint": "请检查图片和文字是否符合社区规范，删除或替换可能不合适的部分后再发布。如果你认为判断有误，可以联系管理员。",
+  "moderationBlockedExternalHint": "本站不显示站外图片。请先保存图片，再通过编辑器上传到本站，然后重新发布。",
+  "moderationBlockedDraftKept": "你的文字和图片仍保留在编辑器中。",
+  "moderationBlockedBack": "返回修改",
+  "notificationReviewApproved": "你的内容已通过审核，现在所有人都能看到它",
+  "notificationReviewRejected": "你的内容未通过审核，不会公开显示"
 }

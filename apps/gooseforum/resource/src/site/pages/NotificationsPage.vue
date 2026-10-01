@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { userDisplayName } from '@/runtime/private-notes'
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
-import { Award, Bell, Check, CheckCheck, Info, MessageCircle, UserPlus } from '@lucide/vue'
+import { Award, Bell, Check, CheckCheck, CheckCircle2, Info, MessageCircle, ShieldAlert, UserPlus } from '@lucide/vue'
 import { useI18n } from 'vue-i18n'
 import { fetchNotifications, markAllNotificationsRead, markNotificationRead } from '@/runtime/api'
 import { formatDateTime } from '@/runtime/format'
@@ -175,7 +175,14 @@ function setActiveFilter(filter: NotificationFilter) {
   activeFilter.value = filter
 }
 
+// 人工审核结果（issue #975）：无触发者，标题即结论，副行说明后续。
+function isReviewResult(item: NotificationPayload) {
+  return item.eventType === 'review_approved' || item.eventType === 'review_rejected'
+}
+
 function notificationIcon(item: NotificationPayload) {
+  if (item.eventType === 'review_approved') return CheckCircle2
+  if (item.eventType === 'review_rejected') return ShieldAlert
   if (item.eventType === 'follow') return UserPlus
   if (item.eventType === 'badge') return Award
   if (item.eventType === 'system') return Info
@@ -201,6 +208,7 @@ function notificationText(item: NotificationPayload) {
 }
 
 function notificationTitleText(item: NotificationPayload) {
+  if (isReviewResult(item)) return notificationTemplateText(item) || t('notifications.fallback')
   return item.title || t('notifications.fallback')
 }
 
@@ -225,6 +233,10 @@ function notificationTemplateText(item: NotificationPayload) {
     }
     case 'notifications.templates.wikiUpdated':
       return t('notifications.templates.wikiUpdated')
+    case 'notifications.templates.reviewApproved':
+      return t('notifications.templates.reviewApproved')
+    case 'notifications.templates.reviewRejected':
+      return t('notifications.templates.reviewRejected')
     default:
       return ''
   }
@@ -242,6 +254,8 @@ function notificationVerb(item: NotificationPayload) {
 }
 
 function notificationTone(item: NotificationPayload) {
+  if (item.eventType === 'review_approved') return item.isRead ? 'text-base-content/55' : 'text-success'
+  if (item.eventType === 'review_rejected') return item.isRead ? 'text-base-content/55' : 'text-error'
   if (item.eventType === 'follow') return item.isRead ? 'text-base-content/55' : 'text-success'
   if (item.eventType === 'badge') return item.isRead ? 'text-base-content/55' : 'text-warning'
   if (item.eventType === 'system') return item.isRead ? 'text-base-content/55' : 'text-warning'
@@ -422,9 +436,13 @@ function markItemReadAndNavigate(item: NotificationPayload) {
                 {{ t('notifications.viewProfile') }}
               </a>
               <span v-else-if="item.actor.id || item.eventType === 'follow'" class="font-medium text-base-content/75">{{ notificationText(item) }}</span>
+              <span v-else-if="isReviewResult(item) && item.payload.topicTitle" class="min-w-0 truncate font-medium text-base-content/75">{{ item.payload.topicTitle }}</span>
               <span v-if="!item.isRead" class="h-1.5 w-1.5 rounded-full bg-primary" />
             </div>
-            <p v-if="item.content && item.content !== notificationText(item)" class="mt-0.5 line-clamp-1 text-xs text-base-content/55">{{ item.content }}</p>
+            <p v-if="isReviewResult(item)" class="mt-0.5 line-clamp-2 text-xs text-base-content/55">
+              {{ item.eventType === 'review_approved' ? t('notifications.reviewApprovedDetail') : t('notifications.reviewRejectedDetail') }}
+            </p>
+            <p v-else-if="item.content && item.content !== notificationText(item)" class="mt-0.5 line-clamp-1 text-xs text-base-content/55">{{ item.content }}</p>
             <time class="mt-1 block text-xs text-base-content/55 md:hidden">{{ formatDateTime(item.createdAt) }}</time>
           </div>
           <time class="hidden text-right text-xs font-medium tabular-nums text-base-content/55 md:block">{{ formatDateTime(item.createdAt) }}</time>

@@ -734,6 +734,50 @@ void main() {
       expect(capturedBody['categoryId'], [1]);
     });
 
+    test('待审成功信封映射为 pendingReview(issue #975)', () async {
+      final storage = _MemoryTokenStorage();
+      final dio = Dio(BaseOptions(baseUrl: 'http://test'));
+      final client = GfApiClient(dio: dio, tokenStorage: storage);
+      dio.httpClientAdapter = MockAdapter((request) async {
+        final Map<String, dynamic> envelope = {
+          'code': 0,
+          'messageCode': pendingReviewMessageCode,
+        };
+        switch (request.path) {
+          case '/api/forum/topics/write':
+            envelope['result'] = 975;
+          case '/api/forum/posts/create':
+            envelope['result'] = {'id': 9, 'postNo': 2, 'renderedContent': ''};
+          default:
+            envelope['result'] = {
+              'id': 9,
+              'content': 'x',
+              'renderedContent': '',
+              'updatedAt': '',
+            };
+        }
+        return ResponseData(200, envelope);
+      });
+
+      final written = await TopicRepository(client).writeTopicResult(
+        topicId: 0,
+        title: '标题',
+        content: '内容',
+        categoryIds: [1],
+        topicStatus: 1,
+      );
+      expect(written.id, 975);
+      expect(written.pendingReview, isTrue);
+      final created = await PostRepository(
+        client,
+      ).createPost(topicId: 1, content: '回复');
+      expect(created.pendingReview, isTrue);
+      final updated = await PostRepository(
+        client,
+      ).updatePost(postId: 9, content: 'x');
+      expect(updated.pendingReview, isTrue);
+    });
+
     test('NotificationRepository.fetchNotifications 游标参数', () async {
       final storage = _MemoryTokenStorage();
       final dio = Dio(BaseOptions(baseUrl: 'http://test'));

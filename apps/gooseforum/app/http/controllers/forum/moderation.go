@@ -25,6 +25,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/chatservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/eventhandlers"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/fileusageservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/llmsservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/moderationservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/optlogger"
@@ -219,6 +220,10 @@ func UpdateModerationTopicStatus(req component.BetterRequest[ModerationTopicStat
 		return component.FailResponseCode(component.MessageOperationFailed, nil)
 	}
 	topic.ProcessStatus = nextStatus
+	if nextStatus == topics.ProcessStatusNormal {
+		// 解封待审内容时其 PENDING 图片随之公开（issue #975）。
+		fileusageservice.PromotePendingTopicFiles(topic.Id, topic.FirstPostId)
+	}
 	hotdataserve.InvalidateTopicListCacheForCategories(topic.CategoryIds...)
 	// 审核封禁/解封不发布事件，同步清理 LLMS 投影缓存，避免封禁内容在 10s 窗口内继续导出。
 	llmsservice.ClearCache()
@@ -338,6 +343,9 @@ func UpdateModerationPostStatus(req component.BetterRequest[ModerationPostStatus
 		return searchservice.EnqueueTopicSearchTask(tx, post.TopicId)
 	}); err != nil {
 		return component.FailResponseCode(component.MessageOperationFailed, nil)
+	}
+	if nextStatus == posts.ProcessStatusNormal {
+		fileusageservice.PromotePendingPostFiles(post.Id)
 	}
 	// 审核封禁/解封回复不发布事件，同步清理 LLMS 投影缓存。
 	llmsservice.ClearCache()

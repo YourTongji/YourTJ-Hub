@@ -6,6 +6,7 @@ import { computed, onMounted, ref } from 'vue'
 import { Check, ChevronLeft, ChevronRight, RefreshCw, X } from '@lucide/vue'
 import AdminConfirmDialog from '@/admin/components/AdminConfirmDialog.vue'
 import AdminSection from '@/admin/components/AdminSection.vue'
+import ReviewQueueAiDetails from '@/admin/components/ReviewQueueAiDetails.vue'
 import { BasicPage } from '@/admin/components/global-layout'
 import { Badge } from '@/admin/components/ui/badge'
 import { Button } from '@/admin/components/ui/button'
@@ -195,6 +196,7 @@ onMounted(loadQueue)
               </TableCell>
               <TableCell class="max-w-0 py-2">
                 <p class="line-clamp-2 text-xs leading-4 text-muted-foreground">{{ item.excerpt || '-' }}</p>
+                <ReviewQueueAiDetails :item="item" />
               </TableCell>
               <TableCell class="py-2 text-sm">{{ userDisplayName(item.userId, item.username || `#${item.userId}`, item.nickname) }}</TableCell>
               <TableCell class="py-2 text-xs text-muted-foreground">{{ formatTime(item.createdAt) }}</TableCell>
@@ -229,6 +231,7 @@ onMounted(loadQueue)
                   <Badge v-if="item.postNo" variant="secondary" class="h-5 shrink-0 rounded-full px-1.5 text-[10px]">#{{ item.postNo }}</Badge>
                 </div>
                 <p class="line-clamp-2 break-words text-[12px] leading-5 text-muted-foreground">{{ item.excerpt || '-' }}</p>
+                <ReviewQueueAiDetails :item="item" />
               </div>
             </div>
             <div class="flex items-center justify-between gap-3 text-xs text-muted-foreground">

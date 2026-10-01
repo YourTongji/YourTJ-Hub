@@ -213,6 +213,36 @@ func SendSystemAlert(userID uint64, title string, content string) error {
 	return err
 }
 
+// SendReviewResultNotification 通知作者人工审核结果（issue #975）。待审期间作者只看到
+// “已提交审核”，审核完成后必须得到结论：通过时通知链接到内容（回复带楼层号）；
+// 拒绝时内容对作者同样不可见，只保留标题快照、不生成链接，避免跳到 404。
+// TopicID 冗余列始终写入，话题删除联动时随之清理。
+func SendReviewResultNotification(userID uint64, approved bool, topicID uint64, topicTitle string, postID uint64, postNo uint64) error {
+	payload := eventNotification.NotificationPayload{
+		TemplateKey: eventNotification.TemplateReviewRejected,
+		TopicTitle:  topicTitle,
+	}
+	eventType := eventNotification.EventTypeReviewRejected
+	if approved {
+		payload.TemplateKey = eventNotification.TemplateReviewApproved
+		payload.TopicId, payload.PostId, payload.PostNo = topicID, postID, postNo
+		eventType = eventNotification.EventTypeReviewApproved
+	}
+	notification := &eventNotification.Entity{
+		UserId:    userID,
+		EventType: eventType,
+		TopicID:   topicID,
+		Payload:   payload,
+	}
+	err := eventNotification.Create(notification)
+	if err == nil {
+		notificationCommitted(userID)
+		webpushservice.EnqueueNotification(userID, notification.Id)
+		nativepushservice.EnqueueNotification(userID, notification.Id)
+	}
+	return err
+}
+
 // SendLikeNotification 发送楼层点赞通知
 func SendLikeNotification(userId uint64, topicId uint64, topicTitle string, postId uint64, postNo uint64, likerId uint64) error {
 	payload := eventNotification.NotificationPayload{

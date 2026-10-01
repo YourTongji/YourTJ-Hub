@@ -22,6 +22,8 @@ func TestCopyTableComplete(t *testing.T) {
 		eventNotification.EventTypeLike,
 		eventNotification.EventTypeWikiUpdated,
 		eventNotification.EventTypeSystem,
+		eventNotification.EventTypeReviewApproved,
+		eventNotification.EventTypeReviewRejected,
 	}
 	for _, lang := range langs {
 		if genericTitle(lang) == "" {
@@ -258,5 +260,22 @@ func TestBuildPushContentMention(t *testing.T) {
 				t.Fatalf("mention %s/%d: %#v", lang, postNo, content)
 			}
 		}
+	}
+}
+
+// 人工审核结果推送（issue #975）：通过深链到楼层；被拒内容对作者不可见，
+// 深链落通知中心、标题取写入时的快照。
+func TestBuildPushContentReviewResult(t *testing.T) {
+	approved := eventNotification.Entity{Id: 7, EventType: eventNotification.EventTypeReviewApproved,
+		Payload: eventNotification.NotificationPayload{TopicId: 42, PostNo: 3, TopicTitle: "期末复习资料"}}
+	content := buildPushContent(approved, "zh")
+	if content == nil || content.URL != "/p/post/42/3" || content.Title != "期末复习资料" || content.Body != "你的内容已通过审核，现在所有人可见" {
+		t.Fatalf("approved push = %+v", content)
+	}
+	rejected := eventNotification.Entity{Id: 8, EventType: eventNotification.EventTypeReviewRejected,
+		Payload: eventNotification.NotificationPayload{TopicTitle: "被拒的话题"}}
+	content = buildPushContent(rejected, "en")
+	if content == nil || content.URL != "/notifications" || content.Title != "被拒的话题" || !strings.Contains(content.Body, "wasn’t approved") {
+		t.Fatalf("rejected push = %+v", content)
 	}
 }

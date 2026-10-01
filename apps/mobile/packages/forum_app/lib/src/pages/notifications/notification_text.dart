@@ -34,6 +34,9 @@ import '../../../l10n/app_localizations.dart';
           'follow' => l10n.notificationFollow(actor),
           'like' => l10n.notificationLike(actor),
           'wiki_updated' => l10n.notificationWikiUpdated(actor),
+          // 人工审核结果(issue #975):无触发者,标题即结论,副标题为内容标题。
+          'review_approved' => l10n.notificationReviewApproved,
+          'review_rejected' => l10n.notificationReviewRejected,
           'badge' =>
             badge.isEmpty
                 ? l10n.notificationBadgeUnnamed
@@ -69,6 +72,8 @@ String notificationEvent(NotificationPayload item) =>
       'notifications.templates.badge' => 'badge',
       'notifications.templates.like' => 'like',
       'notifications.templates.wikiUpdated' => 'wiki_updated',
+      'notifications.templates.reviewApproved' => 'review_approved',
+      'notifications.templates.reviewRejected' => 'review_rejected',
       _ => item.eventType,
     };
 

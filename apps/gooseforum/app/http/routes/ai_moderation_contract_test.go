@@ -1,0 +1,511 @@
+package routes
+
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"image"
+	"image/color"
+	"image/png"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/db4fileconnect"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/securestore"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/api"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/middleware"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/filemodel/filedata"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/eventNotification"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/fileUsage"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/moderationDecision"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/moderators"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/rolePermissionRs"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/moderationservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/permission"
+	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
+)
+
+// aiContractStub Jev 替身：probabilities 决定本次判定；视觉替身恒返回合法证据。
+type aiContractStub struct {
+	probabilities map[string]float64
+	severity      float64
+}
+
+func setupAIModerationContractTest(t *testing.T, mutate func(*pageConfig.AiModerationOptions)) (*gorm.DB, *gin.Engine, *aiContractStub) {
+	t.Helper()
+	conn, router := setupForumInteractionContractTest(t)
+	if err := conn.AutoMigrate(&moderationDecision.Entity{}, &rolePermissionRs.Entity{}, &eventNotification.Entity{}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db4fileconnect.Connect().AutoMigrate(&filedata.Entity{}); err != nil {
+		t.Fatal(err)
+	}
+	router.GET("/file/img/*filename", api.GetFileByFileName)
+	adminAPI := router.Group("/api/admin", middleware.JWTAuthCheck, middleware.CheckWritableAccount, middleware.CheckPermission(permission.SiteManager))
+	adminAPI.POST("/review-queue", UpButterReq(api.ReviewQueue))
+	adminAPI.POST("/review-action", UpButterReq(api.ReviewAction))
+	adminAPI.GET("/ai-moderation-settings", UpButterReq(api.GetAiModerationSettings))
+	adminAPI.POST("/save-ai-moderation-settings", UpButterReq(api.SaveAiModerationSettings))
+	adminAPI.POST("/ai-moderation/decisions", UpButterReq(api.ListAiModerationDecisions))
+	adminAPI.POST("/ai-moderation/decisions/label", UpButterReq(api.LabelAiModerationDecision))
+	adminAPI.POST("/ai-moderation/replay", UpButterReq(api.ReplayAiModerationDecisions))
+	adminAPI.POST("/ai-moderation/test", UpButterReq(api.TestAiModerationConnection))
+
+	stub := &aiContractStub{}
+	vision := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		content := `{"ocr_text":"","scene":"a photo","visible_symbols":[],"adult_evidence":[],"violence_evidence":[],"other_risk_evidence":[],"uncertain":false,"refused":false}`
+		_ = json.NewEncoder(w).Encode(map[string]any{"choices": []any{map[string]any{"finish_reason": "stop", "message": map[string]any{"content": content}}}})
+	}))
+	jev := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		answers := map[string]any{
+			"severity":      map[string]any{"type": "score", "score": stub.severity},
+			"review_needed": map[string]any{"type": "noul", "noul": 0.05},
+		}
+		for _, key := range pageConfig.AiModerationPolicyKeys {
+			answers[key] = map[string]any{"type": "noul", "noul": stub.probabilities[key]}
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"model": "jev-test", "answers": answers, "usage": map[string]any{"input_tokens": 1, "output_tokens": 1}})
+	}))
+	opts := pageConfig.AiModerationOptions{
+		Enabled: true, Mode: pageConfig.AiModerationModeEnforce,
+		JevEndpoint: jev.URL + "/v1/systemone", JevModel: "jev-latest",
+		VisionBaseURL: vision.URL, VisionModel: "vl-test",
+		Policies: pageConfig.DefaultAiModerationPolicies(),
+	}
+	opts.Policies[0].Action = pageConfig.AiModerationActionBlock // adult → block
+	if mutate != nil {
+		mutate(&opts)
+	}
+	persistHTTPContractConfig(t, conn, pageConfig.AiModerationPage, pageConfig.AiModerationSettingsStorage{AiModerationOptions: opts})
+	hotdataserve.ClearAiModerationConfigCache()
+	t.Cleanup(func() {
+		vision.Close()
+		jev.Close()
+		conn.Where("page_type = ?", pageConfig.AiModerationPage).Delete(&pageConfig.Entity{})
+		hotdataserve.ClearAiModerationConfigCache()
+	})
+	return conn, router, stub
+}
+
+// saveContractImage 写入一张就绪 PNG（每次内容不同），返回 /file/img 地址与对象名。
+func saveContractImage(t *testing.T, ownerID uint64) (string, string) {
+	t.Helper()
+	img := image.NewRGBA(image.Rect(0, 0, 3, 3))
+	shade := uint8(time.Now().UnixNano())
+	img.Set(1, 1, color.RGBA{R: shade, G: shade / 2, B: 99, A: 255})
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, img); err != nil {
+		t.Fatal(err)
+	}
+	name := fmt.Sprintf("2026/10/01/ai-contract-%d.png", time.Now().UnixNano())
+	if _, err := filedata.SaveFile(ownerID, name, "image/png", buf.Bytes()); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = filedata.DeleteByName(name) })
+	return "/file/img/" + name, name
+}
+
+func writeTopicBody(title, content string) string {
+	body, _ := json.Marshal(map[string]any{"title": title, "content": content, "categoryId": []uint64{1}, "topicStatus": 1, "contentType": 3})
+	return string(body)
+}
+
+func getImage(router http.Handler, url, token string) *httptest.ResponseRecorder {
+	return serveAuthSecurityJSON(router, http.MethodGet, url, "", token)
+}
+
+func usageStatuses(t *testing.T, conn *gorm.DB, fileName string) []string {
+	t.Helper()
+	var rows []fileUsage.Entity
+	conn.Where("file_name = ? AND usage_type <> ?", fileName, fileUsage.UsageUploadOwner).Find(&rows)
+	statuses := make([]string, 0, len(rows))
+	for _, row := range rows {
+		statuses = append(statuses, row.Status)
+	}
+	return statuses
+}
+
+func TestAIModerationTopicWriteBlocksWithoutCreatingContent(t *testing.T) {
+	conn, router, stub := setupAIModerationContractTest(t, nil)
+	stub.probabilities = map[string]float64{pageConfig.AiPolicyAdult: 0.98}
+	stub.severity = 2.9
+	author := createHTTPContractUser(t, conn, contractTestID())
+	url, name := saveContractImage(t, author.Id)
+
+	recorder := serveJSON(router, "/api/forum/topics/write", writeTopicBody("AI block contract", "正常文字配图 ![]("+url+")"), contractSessionToken(t, author))
+	assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "topic-write-ai-blocked.json"))
+	var count int64
+	conn.Model(&topics.Entity{}).Where("user_id = ?", author.Id).Count(&count)
+	if count != 0 {
+		t.Fatalf("blocked publish created %d topics", count)
+	}
+	if statuses := usageStatuses(t, conn, name); len(statuses) != 0 {
+		t.Fatalf("blocked publish registered usages %v", statuses)
+	}
+	if decision := moderationDecision.LatestForSubjects(moderationDecision.SubjectTopic, []uint64{0})[0]; decision.FinalAction != moderationDecision.ActionBlock {
+		t.Fatalf("block decision not recorded: %+v", decision)
+	}
+}
+
+func TestAIModerationExternalImageBlockedHTTPContract(t *testing.T) {
+	conn, router, _ := setupAIModerationContractTest(t, func(o *pageConfig.AiModerationOptions) {
+		o.ExternalImageAction = pageConfig.AiModerationActionBlock
+	})
+	author := createHTTPContractUser(t, conn, contractTestID())
+	recorder := serveJSON(router, "/api/forum/topics/write", writeTopicBody("AI external contract", "这里引用了一张外链图片 ![](https://img.example.com/x.png)"), contractSessionToken(t, author))
+	assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "topic-write-ai-external-image-blocked.json"))
+}
+
+// 待审内容（AI review）的图片对匿名/他人不可读，作者与站点管理员可授权预览；
+// 人工批准后图片随内容公开，并回写人工结论。
+func TestAIModerationPendingTopicImagesStayPrivateUntilApproved(t *testing.T) {
+	conn, router, stub := setupAIModerationContractTest(t, nil)
+	stub.probabilities = map[string]float64{pageConfig.AiPolicyViolence: 0.8}
+	stub.severity = 2
+	author := createHTTPContractUser(t, conn, contractTestID())
+	stranger := createHTTPContractUser(t, conn, contractTestID())
+	manager := createContractSiteManager(t, conn)
+	url, name := saveContractImage(t, author.Id)
+
+	recorder := serveJSON(router, "/api/forum/topics/write", writeTopicBody("AI review contract", "这是一段带配图的正文 ![]("+url+")"), contractSessionToken(t, author))
+	envelope := decodeContractEnvelope(t, recorder)
+	assertFixtureEnvelope(t, envelope, contractFixture(t, "topic-write-pending-review.json"))
+	var topicID uint64
+	if err := json.Unmarshal(envelope.Result, &topicID); err != nil || topicID == 0 {
+		t.Fatalf("topic id = %s", envelope.Result)
+	}
+	topic := topics.Get(topicID)
+	if topic.ProcessStatus != topics.ProcessStatusPending {
+		t.Fatalf("topic process status = %d, want pending", topic.ProcessStatus)
+	}
+	if statuses := usageStatuses(t, conn, name); len(statuses) != 1 || statuses[0] != fileUsage.UsageStatusPending {
+		t.Fatalf("usage statuses = %v, want [PENDING]", statuses)
+	}
+
+	if got := getImage(router, url, ""); got.Code != http.StatusNotFound {
+		t.Fatalf("anonymous pending image status = %d, want 404", got.Code)
+	}
+	if got := getImage(router, url, contractSessionToken(t, stranger)); got.Code != http.StatusNotFound {
+		t.Fatalf("stranger pending image status = %d, want 404", got.Code)
+	}
+	ownerView := getImage(router, url, contractSessionToken(t, author))
+	if ownerView.Code != http.StatusOK || ownerView.Header().Get("Cache-Control") != "private, no-store" {
+		t.Fatalf("owner preview status=%d cache=%q", ownerView.Code, ownerView.Header().Get("Cache-Control"))
+	}
+	managerToken := contractSessionToken(t, manager)
+	if got := getImage(router, url, managerToken); got.Code != http.StatusOK {
+		t.Fatalf("site manager preview status = %d, want 200", got.Code)
+	}
+
+	queue := serveAuthSecurityJSON(router, http.MethodPost, "/api/admin/review-queue", `{"kind":"topic","pageSize":50}`, managerToken)
+	var queueResult struct {
+		Items []api.ReviewQueueItem `json:"items"`
+	}
+	if err := json.Unmarshal(decodeContractEnvelope(t, queue).Result, &queueResult); err != nil {
+		t.Fatal(err)
+	}
+	var item *api.ReviewQueueItem
+	for i := range queueResult.Items {
+		if queueResult.Items[i].Id == topicID {
+			item = &queueResult.Items[i]
+		}
+	}
+	if item == nil || item.AiReview == nil || len(item.Images) != 1 || item.AiReview.TriggeredPolicies[0] != pageConfig.AiPolicyViolence {
+		t.Fatalf("review queue item = %+v", item)
+	}
+	if item.AiReview.Images[0].Evidence == "" {
+		t.Fatal("review queue must expose the truncated evidence summary to moderators")
+	}
+
+	action := serveAuthSecurityJSON(router, http.MethodPost, "/api/admin/review-action", fmt.Sprintf(`{"kind":"topic","id":%d,"approve":true}`, topicID), managerToken)
+	if envelope := decodeContractEnvelope(t, action); envelope.Code != 0 {
+		t.Fatalf("approve failed: %s", action.Body.String())
+	}
+	if statuses := usageStatuses(t, conn, name); len(statuses) != 1 || statuses[0] != fileUsage.UsageStatusActive {
+		t.Fatalf("usage statuses after approve = %v, want [ACTIVE]", statuses)
+	}
+	if got := getImage(router, url, ""); got.Code != http.StatusOK || !strings.Contains(got.Header().Get("Cache-Control"), "public") {
+		t.Fatalf("approved image status=%d cache=%q", got.Code, got.Header().Get("Cache-Control"))
+	}
+	if decision := moderationDecision.LatestForSubjects(moderationDecision.SubjectTopic, []uint64{topicID})[topicID]; decision.HumanAction != moderationDecision.HumanApproved {
+		t.Fatalf("human outcome = %q, want approved", decision.HumanAction)
+	}
+	// 作者收到“已通过”通知，链接到话题。
+	notice := latestNotification(t, conn, author.Id)
+	if notice.EventType != eventNotification.EventTypeReviewApproved || notice.Payload.TopicId != topicID ||
+		notice.Payload.TemplateKey != eventNotification.TemplateReviewApproved || notice.Payload.TopicTitle != "AI review contract" {
+		t.Fatalf("approval notification = %+v", notice)
+	}
+}
+
+func latestNotification(t *testing.T, conn *gorm.DB, userID uint64) eventNotification.Entity {
+	t.Helper()
+	var notice eventNotification.Entity
+	if err := conn.Where("user_id = ?", userID).Order("id DESC").First(&notice).Error; err != nil {
+		t.Fatalf("load notification for user %d: %v", userID, err)
+	}
+	return notice
+}
+
+func TestAIModerationRejectedReplyImagesNeverBecomePublic(t *testing.T) {
+	conn, router, stub := setupAIModerationContractTest(t, nil)
+	stub.probabilities = map[string]float64{pageConfig.AiPolicyIllegalOrDangerous: 0.9}
+	author := createHTTPContractUser(t, conn, contractTestID())
+	manager := createContractSiteManager(t, conn)
+	topicID, firstPostID := contractTestID(), contractTestID()
+	createContractPublishedTopic(t, conn, topicID, firstPostID, author.Id)
+	url, name := saveContractImage(t, author.Id)
+
+	body, _ := json.Marshal(map[string]any{"topicId": topicID, "content": "这是一条带配图的回复 ![](" + url + ")"})
+	envelope := decodeContractEnvelope(t, serveJSON(router, "/api/forum/posts/create", string(body), contractSessionToken(t, author)))
+	if envelope.Code != 0 || envelope.MessageCode != "content.moderation.pendingReview" {
+		t.Fatalf("reply envelope = %+v", envelope)
+	}
+	var created struct {
+		Id uint64 `json:"id"`
+	}
+	_ = json.Unmarshal(envelope.Result, &created)
+	if post := posts.Get(created.Id); post.ProcessStatus != posts.ProcessStatusPending {
+		t.Fatalf("reply process status = %d", post.ProcessStatus)
+	}
+	reject := serveAuthSecurityJSON(router, http.MethodPost, "/api/admin/review-action", fmt.Sprintf(`{"kind":"post","id":%d,"approve":false}`, created.Id), contractSessionToken(t, manager))
+	if decodeContractEnvelope(t, reject).Code != 0 {
+		t.Fatalf("reject failed: %s", reject.Body.String())
+	}
+	if statuses := usageStatuses(t, conn, name); len(statuses) != 1 || statuses[0] != fileUsage.UsageStatusPending {
+		t.Fatalf("rejected reply usages = %v, want [PENDING]", statuses)
+	}
+	if got := getImage(router, url, ""); got.Code != http.StatusNotFound {
+		t.Fatalf("rejected image status = %d, want 404", got.Code)
+	}
+	if decision := moderationDecision.LatestForSubjects(moderationDecision.SubjectPost, []uint64{created.Id})[created.Id]; decision.HumanAction != moderationDecision.HumanRejected {
+		t.Fatalf("human outcome = %q, want rejected", decision.HumanAction)
+	}
+	// 作者收到“未通过”通知：只带标题快照，不带可跳转的话题/楼层。
+	notice := latestNotification(t, conn, author.Id)
+	if notice.EventType != eventNotification.EventTypeReviewRejected || notice.Payload.TopicId != 0 || notice.Payload.PostNo != 0 ||
+		notice.TopicID != topicID || notice.Payload.TopicTitle == "" {
+		t.Fatalf("rejection notification = %+v", notice)
+	}
+}
+
+func TestAIModerationAllowAndEditPaths(t *testing.T) {
+	conn, router, stub := setupAIModerationContractTest(t, nil)
+	author := createHTTPContractUser(t, conn, contractTestID())
+	token := contractSessionToken(t, author)
+	url, name := saveContractImage(t, author.Id)
+	envelope := decodeContractEnvelope(t, serveJSON(router, "/api/forum/topics/write", writeTopicBody("AI allow contract", "今天拍到的校园风景 ![]("+url+")"), token))
+	if envelope.Code != 0 || envelope.MessageCode != "" {
+		t.Fatalf("allowed publish envelope = %+v", envelope)
+	}
+	if statuses := usageStatuses(t, conn, name); len(statuses) != 1 || statuses[0] != fileUsage.UsageStatusActive {
+		t.Fatalf("allowed usages = %v", statuses)
+	}
+	var topicID uint64
+	_ = json.Unmarshal(envelope.Result, &topicID)
+	topic := topics.Get(topicID)
+
+	// 编辑首楼后命中 AI block：拒绝编辑，原内容与公开状态保持不变。
+	stub.probabilities = map[string]float64{pageConfig.AiPolicyAdult: 0.99}
+	editURL, _ := saveContractImage(t, author.Id)
+	body, _ := json.Marshal(map[string]any{"postId": topic.FirstPostId, "content": "编辑后替换了一张配图 ![](" + editURL + ")"})
+	edit := decodeContractEnvelope(t, serveJSON(router, "/api/forum/posts/update", string(body), token))
+	if edit.Code != 1 || edit.MessageCode != "content.aiModeration.blocked" {
+		t.Fatalf("blocked edit envelope = %+v", edit)
+	}
+	if post := posts.Get(topic.FirstPostId); strings.Contains(post.Content, editURL) || topics.Get(topicID).ProcessStatus != topics.ProcessStatusNormal {
+		t.Fatal("blocked edit must not change the stored content or status")
+	}
+}
+
+// 回归：现有敏感词转审路径同样不得让待审内容的图片提前公开（issue #975 收口）。
+func TestSensitiveReviewRegistersPendingImages(t *testing.T) {
+	conn, router, _ := setupAIModerationContractTest(t, func(o *pageConfig.AiModerationOptions) { o.Enabled = false })
+	security := hotdataserve.GetSecuritySettingsConfigCache()
+	security.SensitiveWords = []string{"违禁词九七五"}
+	security.SensitiveAction = "review"
+	persistHTTPContractConfig(t, conn, pageConfig.SecuritySettings, security)
+	hotdataserve.ClearSecuritySettingsConfigCache()
+	author := createHTTPContractUser(t, conn, contractTestID())
+	url, name := saveContractImage(t, author.Id)
+	envelope := decodeContractEnvelope(t, serveJSON(router, "/api/forum/topics/write", writeTopicBody("敏感词转审", "违禁词九七五 ![]("+url+")"), contractSessionToken(t, author)))
+	if envelope.Code != 0 || envelope.MessageCode != "content.moderation.pendingReview" {
+		t.Fatalf("sensitive review envelope = %+v", envelope)
+	}
+	if statuses := usageStatuses(t, conn, name); len(statuses) != 1 || statuses[0] != fileUsage.UsageStatusPending {
+		t.Fatalf("sensitive review usages = %v, want [PENDING]", statuses)
+	}
+	if got := getImage(router, url, ""); got.Code != http.StatusNotFound {
+		t.Fatalf("anonymous image status = %d, want 404", got.Code)
+	}
+}
+
+func TestAdminAiModerationSettingsHTTPContract(t *testing.T) {
+	conn, router, _ := setupAIModerationContractTest(t, nil)
+	conn.Where("page_type = ?", pageConfig.AiModerationPage).Delete(&pageConfig.Entity{})
+	hotdataserve.ClearAiModerationConfigCache()
+	serveAdminSiteOK(t, conn, router, http.MethodGet, "/api/admin/ai-moderation-settings", "", "admin-ai-moderation-settings-success.json")
+
+	save := `{"settings":{"enabled":true,"mode":"enforce","jevEndpoint":"https://openrouter.ai/api/alpha/decisions","jevModel":"typesafe/jev-1.13","jevApiKey":"sk-jev-secret-975","visionBaseUrl":"https://openrouter.ai/api/v1","visionModel":"inclusionai/ling-3.0-flash-vl","visionApiKey":"sk-vision-secret-975"}}`
+	serveAdminSiteRaw(t, conn, router, http.MethodPost, "/api/admin/save-ai-moderation-settings", save)
+	stored := hotdataserve.GetAiModerationSettingsStorage()
+	if plain, err := securestore.DecryptPurpose(stored.JevAPIKeyEncrypted, securestore.ModerationJevAPIKeyPurpose); err != nil || plain != "sk-jev-secret-975" {
+		t.Fatalf("jev key decrypt = %q err=%v", plain, err)
+	}
+	if strings.Contains(storedAsJSON(t, conn, pageConfig.AiModerationPage), "secret-975") {
+		t.Fatal("plaintext key persisted")
+	}
+	view := serveAdminSiteRaw(t, conn, router, http.MethodGet, "/api/admin/ai-moderation-settings", "")
+	if strings.Contains(view.Body.String(), "secret-975") || strings.Contains(view.Body.String(), stored.JevAPIKeyEncrypted) {
+		t.Fatal("settings view leaked key material")
+	}
+	var result pageConfig.AiModerationSettingsView
+	_ = json.Unmarshal(decodeContractEnvelope(t, view).Result, &result)
+	if !result.JevAPIKeyConfigured || !result.VisionAPIKeyConfigured || result.Mode != pageConfig.AiModerationModeEnforce {
+		t.Fatalf("view = %+v", result)
+	}
+
+	// 空 key 保留旧密文；clearVisionApiKey 显式清除。
+	serveAdminSiteRaw(t, conn, router, http.MethodPost, "/api/admin/save-ai-moderation-settings",
+		`{"settings":{"enabled":true,"mode":"shadow","clearVisionApiKey":true}}`)
+	after := hotdataserve.GetAiModerationSettingsStorage()
+	if after.JevAPIKeyEncrypted != stored.JevAPIKeyEncrypted || after.VisionAPIKeyEncrypted != "" {
+		t.Fatalf("keep/clear semantics broken: jevKept=%v visionCleared=%v", after.JevAPIKeyEncrypted == stored.JevAPIKeyEncrypted, after.VisionAPIKeyEncrypted == "")
+	}
+
+	invalid := serveAdminSiteRaw(t, conn, router, http.MethodPost, "/api/admin/save-ai-moderation-settings", `{"settings":{"jevEndpoint":"javascript:alert(1)"}}`)
+	assertFixtureEnvelope(t, decodeContractEnvelope(t, invalid), contractFixture(t, "admin-ai-moderation-save-invalid-url.json"))
+}
+
+func TestAdminAiModerationDecisionsLabelAndReplayHTTPContract(t *testing.T) {
+	conn, router, _ := setupAIModerationContractTest(t, nil)
+	severity, reviewNeeded := 0.4, 0.1
+	decision := moderationDecision.Entity{SubjectType: moderationDecision.SubjectPost, SubjectId: contractTestID(), Mode: pageConfig.AiModerationModeShadow,
+		EvidenceStatus: moderationDecision.EvidenceComplete, FinalAction: moderationDecision.ActionAllow, AppliedAction: moderationDecision.ActionAllow,
+		Signals: moderationDecision.Signals{RuleProbabilities: map[string]float64{pageConfig.AiPolicyViolence: 0.45}, Severity: &severity, ReviewNeeded: &reviewNeeded}}
+	if err := moderationDecision.Create(&decision); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { conn.Delete(&moderationDecision.Entity{}, decision.Id) })
+
+	list := serveAdminSiteRaw(t, conn, router, http.MethodPost, "/api/admin/ai-moderation/decisions", `{"humanAction":"none","mode":"shadow","pageSize":50}`)
+	if !strings.Contains(list.Body.String(), fmt.Sprintf(`"id":%d`, decision.Id)) {
+		t.Fatalf("decision list missing id %d: %s", decision.Id, list.Body.String())
+	}
+	missing := serveAdminSiteRaw(t, conn, router, http.MethodPost, "/api/admin/ai-moderation/decisions/label", `{"id":987654321,"label":"rejected"}`)
+	assertFixtureEnvelope(t, decodeContractEnvelope(t, missing), contractFixture(t, "admin-ai-moderation-label-not-found.json"))
+	labeled := serveAdminSiteRaw(t, conn, router, http.MethodPost, "/api/admin/ai-moderation/decisions/label", fmt.Sprintf(`{"id":%d,"label":"rejected"}`, decision.Id))
+	if decodeContractEnvelope(t, labeled).Code != 0 || moderationDecision.Get(decision.Id).HumanAction != moderationDecision.HumanRejected {
+		t.Fatalf("label failed: %s", labeled.Body.String())
+	}
+
+	replay := serveAdminSiteRaw(t, conn, router, http.MethodPost, "/api/admin/ai-moderation/replay", `{"options":{"defaultReviewThreshold":0.4}}`)
+	var report struct {
+		Samples         int `json:"samples"`
+		MissedViolation int `json:"missedViolation"`
+		Changed         int `json:"changed"`
+	}
+	if err := json.Unmarshal(decodeContractEnvelope(t, replay).Result, &report); err != nil || report.Samples == 0 || report.Changed == 0 {
+		t.Fatalf("replay report = %+v err=%v body=%s", report, err, replay.Body.String())
+	}
+}
+
+func TestAdminAiModerationConnectionTestHTTPContract(t *testing.T) {
+	conn, router, _ := setupAIModerationContractTest(t, nil)
+	serveAdminSiteOK(t, conn, router, http.MethodPost, "/api/admin/ai-moderation/test",
+		`{"target":"vision","settings":{"visionBaseUrl":"","visionModel":""}}`, "admin-ai-moderation-test-not-configured.json")
+	// 表单值未保存也可测试：使用替身端点，key 留空回落已存 key。
+	stored := hotdataserve.GetAiModerationConfigCache()
+	body := fmt.Sprintf(`{"target":"vision","settings":{"visionBaseUrl":%q,"visionModel":"vl-test"}}`, stored.VisionBaseURL)
+	recorder := serveAdminSiteRaw(t, conn, router, http.MethodPost, "/api/admin/ai-moderation/test", body)
+	var result struct {
+		OK   bool   `json:"ok"`
+		Kind string `json:"kind"`
+	}
+	if err := json.Unmarshal(decodeContractEnvelope(t, recorder).Result, &result); err != nil || !result.OK {
+		t.Fatalf("vision test = %+v err=%v body=%s", result, err, recorder.Body.String())
+	}
+	invalid := serveAdminSiteRaw(t, conn, router, http.MethodPost, "/api/admin/ai-moderation/test", `{"target":"jev","settings":{"jevEndpoint":"ftp://x"}}`)
+	if envelope := decodeContractEnvelope(t, invalid); envelope.Code != 1 || envelope.MessageCode != "admin.aiModeration.saveFailed" {
+		t.Fatalf("invalid endpoint envelope = %+v", envelope)
+	}
+}
+
+// 前台版主工作台审核（issue #975）：分类版主只看到并只能审核管辖分类内的待审
+// 内容；普通用户无权访问；通过后作者收到通知、图片公开。
+func TestModerationWorkbenchReviewQueueIsScopedToModeratorCategories(t *testing.T) {
+	conn, router, stub := setupAIModerationContractTest(t, nil)
+	router.POST("/api/forum/moderation/review-queue", middleware.JWTAuthCheck, UpButterReq(api.ModerationReviewQueue))
+	router.POST("/api/forum/moderation/review-action", middleware.JWTAuthCheck, middleware.CheckWritableAccount, UpButterReq(api.ModerationReviewAction))
+	stub.probabilities = map[string]float64{pageConfig.AiPolicyViolence: 0.8}
+	stub.severity = 2
+	const ownCategory, otherCategory = uint64(9751), uint64(9752)
+	author := createHTTPContractUser(t, conn, contractTestID())
+	authorToken := contractSessionToken(t, author)
+	write := func(title string, category uint64) uint64 {
+		url, _ := saveContractImage(t, author.Id)
+		body, _ := json.Marshal(map[string]any{"title": title, "content": "这是一段带配图的正文 ![](" + url + ")", "categoryId": []uint64{category}, "topicStatus": 1, "contentType": 3})
+		envelope := decodeContractEnvelope(t, serveJSON(router, "/api/forum/topics/write", string(body), authorToken))
+		var id uint64
+		if err := json.Unmarshal(envelope.Result, &id); err != nil || envelope.MessageCode != "content.moderation.pendingReview" {
+			t.Fatalf("pending write = %+v", envelope)
+		}
+		return id
+	}
+	ownTopic, otherTopic := write("版主可审核的话题", ownCategory), write("其他分类的话题", otherCategory)
+
+	moderator := createHTTPContractUser(t, conn, contractTestID())
+	if err := conn.Create(&moderators.Entity{UserId: moderator.Id, ScopeType: moderators.ScopeCategory, ScopeId: ownCategory, Status: moderators.StatusEnabled, CreatedBy: moderator.Id}).Error; err != nil {
+		t.Fatal(err)
+	}
+	moderationservice.Invalidate()
+	t.Cleanup(func() {
+		conn.Where("user_id = ?", moderator.Id).Delete(&moderators.Entity{})
+		moderationservice.Invalidate()
+	})
+	token := contractSessionToken(t, moderator)
+
+	queue := decodeContractEnvelope(t, serveJSON(router, "/api/forum/moderation/review-queue", `{"kind":"topic","pageSize":50}`, token))
+	var result struct {
+		Items []api.ReviewQueueItem `json:"items"`
+		Total int64                 `json:"total"`
+	}
+	if err := json.Unmarshal(queue.Result, &result); err != nil {
+		t.Fatalf("queue = %+v", queue)
+	}
+	seen := map[uint64]bool{}
+	for _, item := range result.Items {
+		seen[item.Id] = true
+	}
+	if !seen[ownTopic] || seen[otherTopic] || result.Total != int64(len(result.Items)) {
+		t.Fatalf("scoped queue ids=%v total=%d, want own %d only", seen, result.Total, ownTopic)
+	}
+	// 待审图片：版主可预览。
+	if item := result.Items[0]; len(item.Images) == 0 || getImage(router, item.Images[0], token).Code != http.StatusOK {
+		t.Fatalf("moderator cannot preview pending image: %+v", item)
+	}
+
+	other := decodeContractEnvelope(t, serveJSON(router, "/api/forum/moderation/review-action", fmt.Sprintf(`{"kind":"topic","id":%d,"approve":true}`, otherTopic), token))
+	if other.Code != 1 || other.MessageCode != "admin.review.notFound" || topics.Get(otherTopic).ProcessStatus != topics.ProcessStatusPending {
+		t.Fatalf("out-of-scope review = %+v", other)
+	}
+	own := decodeContractEnvelope(t, serveJSON(router, "/api/forum/moderation/review-action", fmt.Sprintf(`{"kind":"topic","id":%d,"approve":true}`, ownTopic), token))
+	if own.Code != 0 || topics.Get(ownTopic).ProcessStatus != topics.ProcessStatusNormal {
+		t.Fatalf("in-scope review = %+v", own)
+	}
+	if notice := latestNotification(t, conn, author.Id); notice.EventType != eventNotification.EventTypeReviewApproved || notice.Payload.TopicId != ownTopic {
+		t.Fatalf("author notification = %+v", notice)
+	}
+
+	stranger := createHTTPContractUser(t, conn, contractTestID())
+	denied := serveJSON(router, "/api/forum/moderation/review-queue", `{"kind":"topic"}`, contractSessionToken(t, stranger))
+	assertFixtureEnvelope(t, decodeContractEnvelope(t, denied), contractFixture(t, "permission-denied.json"))
+}
