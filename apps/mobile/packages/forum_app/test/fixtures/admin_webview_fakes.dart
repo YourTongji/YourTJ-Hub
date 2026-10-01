@@ -57,6 +57,12 @@ class TestWebDelegate extends PlatformNavigationDelegate {
 
   @override
   Future<void> setOnProgress(ProgressCallback callback) async {}
+  PageEventCallback? pageStarted;
+  @override
+  Future<void> setOnPageStarted(PageEventCallback callback) async {
+    pageStarted = callback;
+  }
+
   @override
   Future<void> setOnWebResourceError(WebResourceErrorCallback callback) async {
     resourceError = callback;

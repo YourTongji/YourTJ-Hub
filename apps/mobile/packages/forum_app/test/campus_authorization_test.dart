@@ -177,6 +177,57 @@ void main() {
         await retry();
         await handOffToSchool();
       }
+      // WebKit omits the request entirely: the tracked school main frame
+      // attributes the status to the page itself (#970).
+      expect(
+        await platform.delegate.request!(
+          NavigationRequest(url: uri.toString(), isMainFrame: true),
+        ),
+        NavigationDecision.navigate,
+      );
+      platform.delegate.httpError!(
+        const HttpResponseError(
+          response: WebResourceResponse(uri: null, statusCode: 500),
+        ),
+      );
+      await tester.pump();
+      await retry();
+      await handOffToSchool();
+      // Android reports the failing request: only the main frame's own URL
+      // may blank the school page; any other school URL stays a subresource.
+      expect(
+        await platform.delegate.request!(
+          NavigationRequest(url: uri.toString(), isMainFrame: true),
+        ),
+        NavigationDecision.navigate,
+      );
+      platform.delegate.httpError!(
+        HttpResponseError(
+          request: WebResourceRequest(uri: uri),
+          response: const WebResourceResponse(uri: null, statusCode: 502),
+        ),
+      );
+      await tester.pump();
+      await retry();
+      await handOffToSchool();
+      expect(
+        await platform.delegate.request!(
+          NavigationRequest(url: uri.toString(), isMainFrame: true),
+        ),
+        NavigationDecision.navigate,
+      );
+      platform.delegate.httpError!(
+        HttpResponseError(
+          request: WebResourceRequest(
+            uri: Uri.parse('https://api.tongji.edu.cn/static/captcha.png'),
+          ),
+          response: const WebResourceResponse(uri: null, statusCode: 404),
+        ),
+      );
+      await tester.pump();
+      expect(find.byType(WebViewWidget), findsOneWidget);
+      expect(find.text('Retry'), findsNothing);
+      await handOffToSchool();
       platform.delegate.resourceError!(
         const WebResourceError(
           errorCode: -1009,
