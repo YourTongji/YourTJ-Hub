@@ -22,9 +22,6 @@ import 'stickers/resolved_sticker_content.dart';
 import 'stickers/sticker_strings.dart';
 import 'share/share_image_readiness.dart';
 
-
-TextStyle readingBodyStyle(BuildContext context, [double userScale = 1]) =>
-///
 /// Body text comes from [GfRichContentTypography] so post bodies, publish
 /// previews and the desktop-style fallbacks cannot drift apart. [userScale] is
 /// the reader preference and stays at its 100% default for chrome that is not
