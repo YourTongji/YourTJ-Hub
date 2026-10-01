@@ -3,26 +3,30 @@ package cmd
 import (
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/setting"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/migration"
 	"github.com/spf13/cobra"
+	"gorm.io/gorm"
+	"gorm.io/gorm/schema"
 )
 
 type sqliteIndex struct {
 	Name    string
 	TblName string
-	SQL     string
+	Model   any `gorm:"-"`
 }
 
 func init() {
 	cmd := &cobra.Command{
 		Use:   "rebuild-sqlite-indexes",
-		Short: "Drop default SQLite indexes and rerun default DB migration",
+		Short: "Rebuild model-managed SQLite indexes",
 		RunE:  runRebuildSQLiteIndexes,
 	}
-	cmd.Flags().Bool("yes", false, "Confirm dropping all non-auto SQLite indexes")
+	cmd.Flags().Bool("yes", false, "Confirm rebuilding model-managed SQLite indexes")
 	appendCommand(cmd)
 }
 
@@ -30,74 +34,79 @@ func runRebuildSQLiteIndexes(cmd *cobra.Command, _ []string) error {
 	totalStart := time.Now()
 	yes, _ := cmd.Flags().GetBool("yes")
 	if !yes {
-		return fmt.Errorf("refusing to drop indexes without --yes")
+		return fmt.Errorf("refusing to rebuild indexes without --yes")
 	}
 	if !dbconnect.IsSqlite() {
 		return fmt.Errorf("default database is not sqlite")
 	}
-
+	if !setting.UseMigration() {
+		return fmt.Errorf("refusing to rebuild SQLite indexes while db.migration is off")
+	}
 	db := dbconnect.Connect()
 	sqlDB, err := db.DB()
 	if err != nil {
 		return err
 	}
 	sqlDB.SetMaxOpenConns(1)
-
-	var indexes []sqliteIndex
-	stepStart := time.Now()
-	if err = db.Raw(`
-SELECT name, tbl_name, sql FROM sqlite_master
-WHERE type = 'index'
-AND name NOT LIKE 'sqlite_autoindex%'
-`).Scan(&indexes).Error; err != nil {
+	beforeCount, rebuilt, err := rebuildSQLiteIndexes(db, migration.SchemaModels())
+	if err != nil {
 		return err
 	}
-	beforeCount := len(indexes)
 	fmt.Printf("default sqlite indexes before rebuild: %d\n", beforeCount)
-	printStepDuration("list indexes", stepStart)
-
-	stepStart = time.Now()
-	for _, index := range indexes {
-		fmt.Printf("drop index %s on %s\n", index.Name, index.TblName)
-		if err := db.Exec("DROP INDEX IF EXISTS " + sqliteQuoteIdent(index.Name)).Error; err != nil {
-			return fmt.Errorf("drop index %s: %w", index.Name, err)
-		}
-	}
-	printStepDuration("drop indexes", stepStart)
-
-	stepStart = time.Now()
-	if err := migration.M(); err != nil {
-		return fmt.Errorf("rerun migrations after index drop: %w", err)
-	}
-	printStepDuration("rerun migrations", stepStart)
-
-	var afterCount int64
-	stepStart = time.Now()
-	if err = db.Raw(`
-SELECT COUNT(*) FROM sqlite_master
-WHERE type = 'index'
-AND name NOT LIKE 'sqlite_autoindex%'
-`).Scan(&afterCount).Error; err != nil {
-		return err
-	}
-	printStepDuration("count rebuilt indexes", stepStart)
-
-	stepStart = time.Now()
-	if err = db.Exec("VACUUM").Error; err != nil {
-		return fmt.Errorf("vacuum default sqlite db: %w", err)
-	}
-	printStepDuration("vacuum", stepStart)
-
-	fmt.Printf("default sqlite indexes after rebuild: %d\n", afterCount)
-	fmt.Printf("rebuilt default sqlite indexes, dropped %d indexes\n", beforeCount)
+	fmt.Printf("rebuilt default sqlite indexes, rebuilt %d model-managed indexes\n", len(rebuilt))
 	fmt.Printf("total duration: %s\n", time.Since(totalStart).Round(time.Millisecond))
 	return nil
 }
 
-func sqliteQuoteIdent(name string) string {
-	return `"` + strings.ReplaceAll(name, `"`, `""`) + `"`
+// rebuildSQLiteIndexes recreates only indexes declared by SchemaModels in one
+// SQLite transaction, leaving manually maintained indexes untouched.
+func rebuildSQLiteIndexes(db *gorm.DB, models []any) (int, []sqliteIndex, error) {
+	managed := make(map[string]any)
+	var cache sync.Map
+	for _, model := range models {
+		s, err := schema.Parse(model, &cache, db.NamingStrategy)
+		if err != nil {
+			return 0, nil, err
+		}
+		for _, index := range s.ParseIndexes() {
+			managed[s.Table+"\x00"+index.Name] = model
+		}
+	}
+
+	var found []sqliteIndex
+	var indexes []sqliteIndex
+	err := db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Raw(`SELECT name, tbl_name FROM sqlite_master WHERE type = 'index' AND name NOT LIKE 'sqlite_autoindex%'`).Scan(&found).Error; err != nil {
+			return err
+		}
+		for _, index := range found {
+			if model, ok := managed[index.TblName+"\x00"+index.Name]; ok {
+				index.Model = model
+				indexes = append(indexes, index)
+			}
+		}
+		for _, index := range indexes {
+			if err := tx.Exec("DROP INDEX " + sqliteQuoteIdent(index.Name)).Error; err != nil {
+				return fmt.Errorf("drop index %s: %w", index.Name, err)
+			}
+		}
+		for _, index := range indexes {
+			if err := tx.Migrator().CreateIndex(index.Model, index.Name); err != nil {
+				return fmt.Errorf("rebuild index %s: %w", index.Name, err)
+			}
+			var exists int
+			if err := tx.Raw("SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' AND name = ?", index.Name).Scan(&exists).Error; err != nil {
+				return err
+			}
+			if exists != 1 {
+				return fmt.Errorf("rebuild index %s: verification failed", index.Name)
+			}
+		}
+		return nil
+	})
+	return len(found), indexes, err
 }
 
-func printStepDuration(name string, start time.Time) {
-	fmt.Printf("%s duration: %s\n", name, time.Since(start).Round(time.Millisecond))
+func sqliteQuoteIdent(name string) string {
+	return `"` + strings.ReplaceAll(name, `"`, `""`) + `"`
 }

@@ -136,6 +136,10 @@ The binary AutoMigrates all main-db models and runs the versioned data migration
 (`go test ./app/bundles/connect/sqlconnect/...`); `YOURTJ_TEST_PG_URL` gates the migration schema
 tests (`go test ./app/migration/ -run 'PostgreSQL|Postgres' -v`, see [testing.md](testing.md)).
 
+The `rebuild-sqlite-indexes --yes` maintenance command requires `db.migration = "on"`. It rebuilds
+only indexes declared by migration models in one transaction; manually maintained SQLite indexes
+are retained.
+
 > config.toml contains signingKey — sensitive; it is gitignored, never commit it.
 
 ## Known issues
