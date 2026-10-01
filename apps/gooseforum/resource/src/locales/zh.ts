@@ -720,6 +720,7 @@ export default {
     backToLogin: '返回登录',
     continueWith: '或继续使用',
     oauthNoAccount: '该第三方账号还没有对应的本站账号。请先完成注册，注册后可在「设置 → 账号绑定」中绑定。',
+    oauthOtherLogin: '使用其他方式登录',
     googleUnavailable: 'Google 暂未开放',
     panelTagline: '未济非终，皆有可能',
     panelTaglineSource: '化用《周易》未济卦 · 六十四卦之终',

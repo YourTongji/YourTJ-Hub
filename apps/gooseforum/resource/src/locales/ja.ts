@@ -719,6 +719,7 @@ export default {
     backToLogin: 'ログインへ戻る',
     continueWith: 'または次で続行',
     oauthNoAccount: 'この外部アカウントに対応する本サイトのアカウントはまだありません。先に登録し、登録後に「設定 → アカウント連携」から連携してください。',
+    oauthOtherLogin: '別の方法でログイン',
     googleUnavailable: 'Google はまだ利用できません',
     panelTagline: '未済は終わりにあらず、可能性は無限',
     panelTaglineSource: '『易経』未済卦より着想 · 六十四卦の最終',

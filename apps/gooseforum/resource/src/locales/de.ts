@@ -719,6 +719,7 @@ export default {
     backToLogin: 'Zurück zur Anmeldung',
     continueWith: 'Oder weiter mit',
     oauthNoAccount: 'Dieses Drittanbieter-Konto hat noch kein Konto auf dieser Seite. Bitte registriere dich zuerst und verknüpfe es danach unter Einstellungen → Kontoverknüpfung.',
+    oauthOtherLogin: 'Mit einer anderen Methode anmelden',
     googleUnavailable: 'Google ist noch nicht verfügbar',
     panelTagline: 'Weiji: Das Unvollendete eröffnet jede Möglichkeit',
     panelTaglineSource: 'Inspiriert vom I Ging — Weiji, dem 64. und letzten Hexagramm',
