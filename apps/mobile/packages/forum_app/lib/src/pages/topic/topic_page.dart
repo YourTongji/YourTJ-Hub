@@ -1018,7 +1018,9 @@ class _TopicPageState extends ConsumerState<TopicPage>
       if (mounted) {
         showGfToast(
           context,
-          AppLocalizations.of(context).publishImageFailed('$e'),
+          AppLocalizations.of(context).publishImageFailed(
+            resolveErrorMessage(AppLocalizations.of(context), e),
+          ),
           error: true,
         );
       }
