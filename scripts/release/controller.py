@@ -103,16 +103,8 @@ def prepare(manifest, github, folder):
     folder = Path(folder)
     folder.mkdir(parents=True, exist_ok=False)
     request, evidence = collect(manifest, github)
-    # The analytics policy is explicit in the first source introducing it. A path alone is not proof
-    # that it was already distributed: inspect each platform's actual baseline content.
-    analytics = "apps/mobile/packages/forum_app/lib/src/analytics/visitor_analytics.dart"
-    for channel in manifest["channels"]:
-        if not channel.startswith(("android", "ios-")):
-            continue
-        relevant = [e for e in request["evidence"] if analytics in e["paths"]]
-        if relevant and any("opt_in" in e["detail"] or "enabled" in e["detail"] for e in relevant):
-            text = "公开页面访问统计会自动启用，无需手动开启。" if channel != "ios-testflight" else "Public-page analytics starts automatically without an opt-in setting."
-            manifest["requiredDisclosures"].append({"id": "automatic-analytics-" + channel, "channels": [channel], "text": text})
+    # Mandatory disclosures are explicit reviewed policy, never inferred from keyword matches
+    # in patches. A change mentioning "enabled" cannot establish collection behavior.
     request["requiredDisclosures"] = manifest["requiredDisclosures"]
     write_json(folder / "manifest.json", manifest)
     write_json(folder / "evidence.json", evidence)

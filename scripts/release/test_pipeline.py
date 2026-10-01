@@ -59,6 +59,17 @@ class PipelineTest(unittest.TestCase):
         self.assertEqual(result['sourceSha'], manifest['sourceSha'])
         self.assertEqual(result['channels'], {'android': None, 'ios-testflight': None})
 
+    def test_prepare_preserves_explicit_disclosures_without_guessing_from_keywords(self):
+        manifest = candidate()
+        disclosure = {'id': 'privacy', 'channels': ['android'], 'text': 'Explicit reviewed disclosure'}
+        manifest['requiredDisclosures'] = [disclosure]
+        request = {'evidence': [{'paths': ['apps/mobile/packages/forum_app/lib/src/analytics/visitor_analytics.dart'],
+                                 'channels': ['ios-testflight'], 'detail': '- enabled\n+ disabled'}]}
+        with patch('controller.collect', return_value=(request, {'schemaVersion': 1})):
+            result = prepare(manifest, FakeGitHub(), self.root / 'prepared')
+        self.assertEqual(result['requiredDisclosures'], [disclosure])
+        self.assertEqual(manifest['requiredDisclosures'], [disclosure])
+
     def test_model_output_cannot_change_a_channel_or_overwrite_a_human_edit(self):
         manifest = candidate()
         request = {'evidence': [{'id': 'android-fix', 'channels': ['android']}, {'id': 'ios-fix', 'channels': ['ios-testflight']}]}
