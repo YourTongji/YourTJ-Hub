@@ -298,15 +298,8 @@ class _GfMarkdownViewState extends ConsumerState<GfMarkdownView> {
                       }
                       return child;
                     },
-                    errorBuilder: (_, _, _) {
-                      readiness?.finish(resolvedUrl);
-                      return SizedBox(
-                        height: 60,
-                        child: Center(
-                          child: GfSymbol('image-off', color: colors.iconMuted),
-                        ),
-                      );
-                    },
+                    // 失败时交给宿主兜底（可重试/在浏览器打开），readiness 仍按原语义收口。
+                    onImageError: (_) => readiness?.finish(resolvedUrl),
                   ),
                 ),
               ),

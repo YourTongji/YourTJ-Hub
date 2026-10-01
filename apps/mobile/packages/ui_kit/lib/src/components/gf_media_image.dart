@@ -1,9 +1,11 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 /// The host owns HTTP policy and bytes. Null [cacheIdentity] means that decoded
 /// frames may be displayed by the current listener but must not enter ImageCache.
@@ -21,6 +23,18 @@ typedef GfMediaProviderFactory =
       ResizeImagePolicy policy,
       Set<String>? allowedOrigins,
     });
+
+/// Host-provided actionable failure state for shared media components.
+///
+/// [retry] drops the failed decoded entry and rebuilds the image. The host owns
+/// the copy and actions, so ui_kit keeps no API or localization dependency.
+typedef GfImageErrorBuilder =
+    Widget Function(
+      BuildContext context,
+      Object error,
+      VoidCallback retry,
+      String url,
+    );
 
 /// Optional request policy for untrusted user-supplied media, including redirects.
 class GfMediaOriginPolicy extends InheritedWidget {
@@ -42,10 +56,20 @@ class GfMediaScope extends InheritedWidget {
     super.key,
     required this.identity,
     required this.factory,
+    this.imageErrorBuilder,
     required super.child,
   });
   final Object identity;
   final GfMediaProviderFactory factory;
+
+  /// Optional host fallback for failed images. A caller's own `errorBuilder`
+  /// still wins; without this hook the previous silent failure is kept.
+  final GfImageErrorBuilder? imageErrorBuilder;
+
+  static GfImageErrorBuilder? imageErrorBuilderOf(BuildContext? context) =>
+      context
+          ?.dependOnInheritedWidgetOfExactType<GfMediaScope>()
+          ?.imageErrorBuilder;
 
   static ImageProvider<Object> imageProvider(
     BuildContext? context,
@@ -171,6 +195,7 @@ class GfBytesImage extends ImageProvider<GfMediaImageKey> {
 
   Future<ui.Codec> _decode(Uint8List bytes, ImageDecoderCallback decode) async {
     _guard();
+    if (isSvgDocument(bytes)) return _decodeVectorImage(bytes, decode);
     final buffer = await ui.ImmutableBuffer.fromUint8List(bytes);
     if (!isCurrent()) {
       buffer.dispose();
@@ -200,6 +225,86 @@ class GfBytesImage extends ImageProvider<GfMediaImageKey> {
       _guard();
     }
     return codec;
+  }
+
+  /// Rasterizes vector bytes through the bitmap codec contract so `Image`,
+  /// loading/error builders and generation fencing stay unchanged.
+  ///
+  /// ponytail: rasterized once here, so a full-screen 4x zoom softens; switch to
+  /// `SvgPicture` or pass per-surface sizes if lossless zoom is required.
+  Future<ui.Codec> _decodeVectorImage(
+    Uint8List bytes,
+    ImageDecoderCallback decode,
+  ) async {
+    final PictureInfo info = await vg.loadPicture(GfLiveSvgLoader(bytes), null);
+    try {
+      _guard();
+      final ui.Size target = _vectorRasterSize(info.size);
+      final ui.Image image = await info.picture.toImage(
+        target.width.toInt(),
+        target.height.toInt(),
+      );
+      try {
+        _guard();
+        // Encode the rasterized pixels and hand them to the host decoder: the
+        // descriptor/buffer ownership then stays exactly like every bitmap here
+        // (a raw descriptor disposed after instantiateCodec yields a codec whose
+        // first frame fails, so this path deliberately skips that API).
+        final ByteData? encoded = await image.toByteData(
+          format: ui.ImageByteFormat.png,
+        );
+        if (encoded == null) {
+          throw StateError('Vector image produced no pixels');
+        }
+        final ui.ImmutableBuffer buffer = await ui.ImmutableBuffer.fromUint8List(
+          encoded.buffer.asUint8List(encoded.offsetInBytes, encoded.lengthInBytes),
+        );
+        return await decode(buffer);
+      } finally {
+        image.dispose();
+      }
+    } finally {
+      info.picture.dispose();
+    }
+  }
+
+  /// Caller cache size when given, otherwise 2x the intrinsic size, uniformly
+  /// scaled within [0.05, 4.0] and never above 2048x2048.
+  ui.Size _vectorRasterSize(ui.Size intrinsic) {
+    final double intrinsicWidth =
+        intrinsic.width.isFinite && intrinsic.width > 0
+        ? intrinsic.width
+        : 256.0;
+    final double intrinsicHeight =
+        intrinsic.height.isFinite && intrinsic.height > 0
+        ? intrinsic.height
+        : 256.0;
+    double scale = 2.0;
+    final int? requestedWidth = width;
+    final int? requestedHeight = height;
+    if (requestedWidth != null || requestedHeight != null) {
+      final double scaleX = requestedWidth == null
+          ? double.infinity
+          : requestedWidth / intrinsicWidth;
+      final double scaleY = requestedHeight == null
+          ? double.infinity
+          : requestedHeight / intrinsicHeight;
+      scale = math.min(scaleX, scaleY);
+    }
+    if (!scale.isFinite || scale <= 0) scale = 2.0;
+    scale = scale.clamp(0.05, 4.0).toDouble();
+    double rasterWidth = intrinsicWidth * scale;
+    double rasterHeight = intrinsicHeight * scale;
+    final double longest = math.max(rasterWidth, rasterHeight);
+    if (longest > 2048) {
+      final double limit = 2048 / longest;
+      rasterWidth *= limit;
+      rasterHeight *= limit;
+    }
+    return ui.Size(
+      math.max(1, rasterWidth.roundToDouble()),
+      math.max(1, rasterHeight.roundToDouble()),
+    );
   }
 
   @override
@@ -259,7 +364,7 @@ class GfMediaImageKey {
 }
 
 /// Image.network's visual API, routed through the host's one media repository.
-class GfNetworkImage extends StatelessWidget {
+class GfNetworkImage extends StatefulWidget {
   const GfNetworkImage(
     this.url, {
     super.key,
@@ -272,6 +377,7 @@ class GfNetworkImage extends StatelessWidget {
     this.semanticLabel,
     this.excludeFromSemantics = false,
     this.errorBuilder,
+    this.onImageError,
     this.loadingBuilder,
     this.frameBuilder,
     this.filterQuality = FilterQuality.medium,
@@ -286,29 +392,106 @@ class GfNetworkImage extends StatelessWidget {
   final String? semanticLabel;
   final bool excludeFromSemantics;
   final ImageErrorWidgetBuilder? errorBuilder;
+
+  /// Called when loading fails, before the host fallback is built: a caller
+  /// keeps its own bookkeeping (e.g. screenshot readiness) without owning the
+  /// error UI. Ignored when [errorBuilder] is supplied.
+  final void Function(Object error)? onImageError;
   final ImageLoadingBuilder? loadingBuilder;
   final ImageFrameBuilder? frameBuilder;
   final FilterQuality filterQuality;
 
   @override
-  Widget build(BuildContext context) => Image(
-    image: GfMediaScope.imageProvider(
+  State<GfNetworkImage> createState() => _GfNetworkImageState();
+}
+
+class _GfNetworkImageState extends State<GfNetworkImage> {
+  int _attempt = 0;
+  ImageProvider<Object>? _provider;
+
+  void _retry() {
+    final provider = _provider;
+    if (provider != null) {
+      // Drop the failed decoded entry, then rebuild under a fresh key: Image
+      // resolves again only when its provider instance changes.
+      unawaited(provider.evict().catchError((Object _) => false));
+    }
+    setState(() => _attempt++);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final GfImageErrorBuilder? host = GfMediaScope.imageErrorBuilderOf(context);
+    final provider = GfMediaScope.imageProvider(
       context,
-      url,
-      width: cacheWidth,
-      height: cacheHeight,
-      policy: cacheResizePolicy,
-    ),
-    width: width,
-    height: height,
-    fit: fit,
-    semanticLabel: semanticLabel,
-    excludeFromSemantics: excludeFromSemantics,
-    errorBuilder: errorBuilder,
-    loadingBuilder: loadingBuilder,
-    frameBuilder: frameBuilder,
-    filterQuality: filterQuality,
-    // No stale frames across account, language or clear-generation boundaries.
-    gaplessPlayback: false,
-  );
+      widget.url,
+      width: widget.cacheWidth,
+      height: widget.cacheHeight,
+      policy: widget.cacheResizePolicy,
+    );
+    _provider = provider;
+    return Image(
+      key: ValueKey<int>(_attempt),
+      image: provider,
+      width: widget.width,
+      height: widget.height,
+      fit: widget.fit,
+      semanticLabel: widget.semanticLabel,
+      excludeFromSemantics: widget.excludeFromSemantics,
+      errorBuilder:
+          widget.errorBuilder ??
+          (host == null
+              ? (widget.onImageError == null
+                    ? null
+                    : (_, error, _) {
+                        widget.onImageError!(error);
+                        return const SizedBox.shrink();
+                      })
+              : (errorContext, error, _) {
+                  widget.onImageError?.call(error);
+                  return host(errorContext, error, _retry, widget.url);
+                }),
+      loadingBuilder: widget.loadingBuilder,
+      frameBuilder: widget.frameBuilder,
+      filterQuality: widget.filterQuality,
+      // No stale frames across account, language or clear-generation boundaries.
+      gaplessPlayback: false,
+    );
+  }
+}
+
+/// True when the bytes begin with an SVG document (case-insensitive, after an
+/// optional UTF-8 BOM and leading whitespace). Bitmap bytes never qualify.
+bool isSvgDocument(Uint8List bytes) {
+  var start = 0;
+  if (bytes.length >= 3 &&
+      bytes[0] == 0xEF &&
+      bytes[1] == 0xBB &&
+      bytes[2] == 0xBF) {
+    start = 3;
+  }
+  while (start < bytes.length && bytes[start] <= 0x20) {
+    start++;
+  }
+  final int end = math.min(bytes.length, start + 1024);
+  final String head = latin1
+      .decode(bytes.sublist(start, end))
+      .toLowerCase();
+  return head.startsWith('<svg') ||
+      (head.startsWith('<?xml') && head.contains('<svg'));
+}
+
+/// Parses SVG bytes without leaving the parsed result in flutter_svg's global
+/// cache: private/no-store media must not outlive the scope that fetched it.
+class GfLiveSvgLoader extends SvgBytesLoader {
+  const GfLiveSvgLoader(super.bytes);
+  @override
+  Future<ByteData> loadBytes(BuildContext? context) async {
+    final SvgCacheKey key = cacheKey(context);
+    try {
+      return await super.loadBytes(context);
+    } finally {
+      svg.cache.evict(key);
+    }
+  }
 }

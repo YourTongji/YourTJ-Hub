@@ -74,6 +74,21 @@ class AppLocalizationsZh extends AppLocalizations {
   String get imageSaveFailed => '图片保存失败，请稍后重试';
 
   @override
+  String get imageUnavailable => '无法显示此图片';
+
+  @override
+  String get imageUnavailableNetwork => '网络受限，暂时无法加载图片';
+
+  @override
+  String get imageUnavailableFormat => '不支持的图片格式';
+
+  @override
+  String get imageRetry => '重试';
+
+  @override
+  String get imageOpenInBrowser => '在浏览器打开';
+
+  @override
   String get imagePermissionDenied => '相册权限已拒绝，请前往系统设置开启权限。';
 
   @override

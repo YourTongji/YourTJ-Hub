@@ -411,10 +411,6 @@ class _WikiProse extends StatelessWidget {
                               MediaQuery.devicePixelRatioOf(context))
                           .round(),
                   semanticLabel: alt,
-                  errorBuilder: (_, _, _) => Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: GfSymbol('image-off', color: faint),
-                  ),
                 ),
               ),
             ),

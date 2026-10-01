@@ -80,6 +80,22 @@ class AppLocalizationsDe extends AppLocalizations {
       'Bild konnte nicht gespeichert werden. Bitte später erneut versuchen.';
 
   @override
+  String get imageUnavailable => 'Dieses Bild kann nicht angezeigt werden';
+
+  @override
+  String get imageUnavailableNetwork =>
+      'Das Netzwerk hat das Bild blockiert. Bitte später erneut versuchen.';
+
+  @override
+  String get imageUnavailableFormat => 'Nicht unterstütztes Bildformat';
+
+  @override
+  String get imageRetry => 'Erneut versuchen';
+
+  @override
+  String get imageOpenInBrowser => 'Im Browser öffnen';
+
+  @override
   String get imagePermissionDenied =>
       'Der Fotozugriff wurde abgelehnt. Erlaube ihn in den Systemeinstellungen.';
 

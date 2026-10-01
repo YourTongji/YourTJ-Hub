@@ -48,6 +48,19 @@ class MediaRepository extends ChangeNotifier {
   final DateTime Function() _now;
   final int budgetBytes;
   final int maxDownloadBytes;
+  /// Remote image hosts routinely gate on the request looking like a browser
+  /// fetch; Dart's default `Dart/x.y (dart:io)` user agent is rejected by some
+  /// hosts that serve the same URL fine in a web view. Deliberately no Referer:
+  /// an empty one is usually the permissive branch, a wrong one trips hotlink
+  /// protection.
+  //
+  // ponytail: headers only; add a cookie jar or per-host rules when a reported
+  // URL proves it needs them.
+  static const String _browserLikeUserAgent =
+      'Mozilla/5.0 (Linux; Android 14; YourTJ-Hub/1.0) AppleWebKit/537.36 '
+      '(KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36';
+  static const String _mediaAcceptHeader = 'image/*,*/*;q=0.8';
+
   final Map<String, Map<String, dynamic>> _entries = {};
   final Map<String, Future<Uint8List>> _pending = {};
   final Set<CancelToken> _tokens = {};
@@ -433,6 +446,8 @@ class MediaRepository extends ChangeNotifier {
             followRedirects: false,
             validateStatus: (_) => true,
             headers: {
+              'User-Agent': _browserLikeUserAgent,
+              'Accept': _mediaAcceptHeader,
               if (redirect == 0 &&
                   local != null &&
                   previous != null &&
