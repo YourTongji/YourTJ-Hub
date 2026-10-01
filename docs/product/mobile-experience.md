@@ -779,12 +779,9 @@ identity survive this layout change. The header keeps a small outer margin for i
   wrapping. Edit and delete live in the card’s top-right overflow menu, which also carries reporting
   for other authors’ reviews; a guest sees no report entry, and reactions send guests to sign-in.
   Reports require an explicit reason and limit supplemental notes to 300 characters; a failed
-  submission keeps the entered values visible. A reaction switch deletes the old reaction before
-  adding the new one, updates counts after success, and attempts cleanup plus a list reload when the
-  second request fails.
-- `Partial`: the review API stores helpful and dislike records independently, so cross-device
-  concurrent changes are not atomically mutually exclusive. Flutter serializes changes per review
-  and reconciles failures from the server, but the API contract has no atomic switch operation.
+  submission keeps the entered values visible. A reaction switch removes the opposite state and writes
+  the selected state in one server transaction, serializing concurrent changes per review. Flutter
+  updates counts after success and reconciles failures.
 - `Current`: course reviews and forum posts/replies can open a shared image preview with themes,
   fixed-width Markdown cards, save and system-share actions. Cards render at 375 logical pixels,
   2× capture scale, and a fixed text scale; compact Markdown styles keep long posts within bounds.
