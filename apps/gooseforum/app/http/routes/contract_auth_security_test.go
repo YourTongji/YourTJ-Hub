@@ -260,6 +260,46 @@ func TestLoginWithEnabledTotpIssuesChallengeOnly(t *testing.T) {
 	}
 }
 
+func TestTotpVerifyFailsClosedWhenTotpStateCannotBeRead(t *testing.T) {
+	conn, router := setupAuthSecurityContractTest(t)
+	var logs bytes.Buffer
+	previousLogger := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&logs, nil)))
+	t.Cleanup(func() { slog.SetDefault(previousLogger) })
+	user := createHTTPContractUser(t, conn, contractTestID())
+	code, _ := enableContractTotp(t, user.Id)
+	challenge := contractTotpChallenge(t, user)
+	t.Cleanup(func() {
+		if err := conn.AutoMigrate(&userTotp.Entity{}); err != nil {
+			t.Errorf("restore TOTP table after verify read-failure test: %v", err)
+		}
+	})
+	if err := conn.Migrator().DropTable(&userTotp.Entity{}); err != nil {
+		t.Fatalf("drop TOTP table to simulate read failure: %v", err)
+	}
+
+	body, err := json.Marshal(map[string]string{"code": code})
+	if err != nil {
+		t.Fatalf("marshal TOTP verification request: %v", err)
+	}
+	recorder := serveAuthSecurityJSON(router, http.MethodPost, "/api/auth/totp/verify", string(body), challenge)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("TOTP verification status = %d, want 200: %s", recorder.Code, recorder.Body.String())
+	}
+	if got := decodeContractEnvelope(t, recorder).MessageCode; got != "common.operation.failed" {
+		t.Fatalf("TOTP verification messageCode = %q, want common.operation.failed", got)
+	}
+	if !strings.Contains(logs.String(), "TOTP verify failed") {
+		t.Fatalf("TOTP verify failure was not logged: %q", logs.String())
+	}
+	if recorder.Header().Get("New-Token") != "" || recorder.Header().Get("Set-Cookie") != "" {
+		t.Fatalf("TOTP verification failure returned credentials: New-Token=%q Set-Cookie=%q", recorder.Header().Get("New-Token"), recorder.Header().Get("Set-Cookie"))
+	}
+	if count := contractSessionCount(t, conn, user.Id); count != 0 {
+		t.Fatalf("sessions after TOTP read failure = %d, want 0", count)
+	}
+}
+
 func TestTotpVerifyHTTPContract(t *testing.T) {
 	t.Run("success consumes the challenge and creates one session", func(t *testing.T) {
 		conn, router := setupAuthSecurityContractTest(t)
