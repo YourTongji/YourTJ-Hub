@@ -159,8 +159,11 @@ class _PostActionsState extends ConsumerState<PostActions> {
                 fragment: null,
               )
               .toString();
-          // Share cards are exported publicly, so use only the public author
-          // DTO and never the viewer's local private-note display name.
+          // Share cards mirror the reading view's author identity
+          // (anonymous label / nickname / username) so a post looks the same
+          // exported as it does in the app. They deliberately stay clear of
+          // privateDisplayName(): it bakes the viewer's local private notes
+          // into the label, which must never leak into an exported PNG.
           final author = post.isAnonymous
               ? l10n.courseCopyAuthorAnonymousLabel
               : (post.author.nickname?.trim().isNotEmpty == true

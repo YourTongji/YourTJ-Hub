@@ -2294,7 +2294,7 @@ class _PostCard extends StatelessWidget {
               const SizedBox(width: 8),
               Expanded(
                 child: InkWell(
-                  onTap: post.author.id > 0
+                  onTap: post.author.id > 0 && !post.isAnonymous
                       ? () => context.push('/u/${post.author.id}')
                       : null,
                   child: Text(
