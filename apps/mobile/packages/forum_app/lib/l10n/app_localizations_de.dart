@@ -263,12 +263,12 @@ class AppLocalizationsDe extends AppLocalizations {
   String get authOidcLogin => 'Mit YourTJ anmelden';
 
   @override
-  String get authRegisterSuccess =>
-      'Registrierung erfolgreich. Bitte anmelden.';
-
-  @override
   String get authRegisterEmailVerify =>
       'Registrierung erfolgreich. Eine Bestätigungs-E-Mail wurde gesendet. Bitte prüfe dein Postfach.';
+
+  @override
+  String get authRegisterSuccess =>
+      'Registrierung erfolgreich. Bitte anmelden.';
 
   @override
   String get authResetEmailSent =>

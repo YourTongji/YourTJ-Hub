@@ -255,10 +255,10 @@ class AppLocalizationsJa extends AppLocalizations {
   String get authOidcLogin => 'YourTJでログイン';
 
   @override
-  String get authRegisterSuccess => '登録しました。ログインしてください';
+  String get authRegisterEmailVerify => '登録が完了しました。確認メールを送信しました。受信箱を確認してください。';
 
   @override
-  String get authRegisterEmailVerify => '登録が完了しました。確認メールを送信しました。受信箱を確認してください。';
+  String get authRegisterSuccess => '登録しました。ログインしてください';
 
   @override
   String get authResetEmailSent => '再設定メールを送信しました。受信箱をご確認ください';

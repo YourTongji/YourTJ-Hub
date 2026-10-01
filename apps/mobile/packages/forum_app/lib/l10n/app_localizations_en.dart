@@ -262,11 +262,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get authOidcLogin => 'Sign in with yourtj';
 
   @override
-  String get authRegisterSuccess => 'Registered successfully, please sign in';
-
-  @override
   String get authRegisterEmailVerify =>
       'Registration successful. A verification email was sent; check your inbox.';
+
+  @override
+  String get authRegisterSuccess => 'Registered successfully, please sign in';
 
   @override
   String get authResetEmailSent => 'Reset email sent, please check your inbox';

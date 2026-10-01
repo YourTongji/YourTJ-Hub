@@ -558,17 +558,17 @@ abstract class AppLocalizations {
   /// **'Sign in with yourtj'**
   String get authOidcLogin;
 
-  /// No description provided for @authRegisterSuccess.
-  ///
-  /// In en, this message translates to:
-  /// **'Registered successfully, please sign in'**
-  String get authRegisterSuccess;
-
   /// No description provided for @authRegisterEmailVerify.
   ///
   /// In en, this message translates to:
   /// **'Registration successful. A verification email was sent; check your inbox.'**
   String get authRegisterEmailVerify;
+
+  /// No description provided for @authRegisterSuccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Registered successfully, please sign in'**
+  String get authRegisterSuccess;
 
   /// No description provided for @authResetEmailSent.
   ///
