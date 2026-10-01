@@ -15,7 +15,7 @@ class GfConversationRow extends StatelessWidget {
     required this.lastMessage,
     required this.time,
     required this.unreadCount,
-    this.unreadLabel = 'Unread',
+    required this.unreadLabel,
     this.active = false,
     this.onTap,
   });

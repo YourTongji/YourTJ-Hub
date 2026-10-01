@@ -7,6 +7,7 @@ import 'package:ui_kit/ui_kit.dart';
 import '../../l10n/app_localizations.dart';
 import '../navigation/reading_chrome.dart';
 import '../navigation/reading_window.dart';
+import '../navigation/tab_scroll_registry.dart';
 import '../navigation/tab_swipe_surface.dart';
 import '../navigation/tab_page_transition.dart';
 import 'account_drawer.dart';
@@ -59,14 +60,13 @@ class RootSurface extends ConsumerWidget {
     final bottom = MediaQuery.paddingOf(context).bottom;
     final hasRail = ReadingWindowScope.hasRailOf(context);
     final l10n = AppLocalizations.of(context);
+    // Mirror the labels of the shell's own bottom bar so the precomputed
+    // content insets stay in lockstep with the measured bar height.
     final navigationHeight = GfBottomNavigation.heightFor(
       context,
-      labels: [
-        l10n.navHome,
-        l10n.navCampus,
-        l10n.notificationsTitle,
-        l10n.navMessages,
-      ],
+      labels: GfShellDestination.values.map(
+        (destination) => destination.label(l10n),
+      ),
       availableWidth: math.max(
         1,
         ReadingWindowScope.navigationWidthOf(context) -

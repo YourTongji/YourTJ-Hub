@@ -334,6 +334,7 @@ void main() {
                 lastMessage: 'See you on campus',
                 time: '15. September 2026, 10:30',
                 unreadCount: 1,
+                unreadLabel: 'Unread',
               ),
             ),
           ),
@@ -356,6 +357,7 @@ void main() {
             lastMessage: '你好',
             time: '10:30',
             unreadCount: 3,
+            unreadLabel: 'Unread',
           ),
         ),
       );

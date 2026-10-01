@@ -1374,6 +1374,9 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
         final offset = position.pixels;
         await WidgetsBinding.instance.endOfFrame;
         if (!_scrollController.hasClients) return null;
+        // No tags means no mounted row reports progress by itself, so detect
+        // growth through the scroll position: if nothing moved after a frame,
+        // lazy pagination is exhausted and the target cannot be reached.
         if (_scrollController.tagMap.isEmpty &&
             (_scrollController.position.pixels - offset).abs() < 0.5) {
           return null;
