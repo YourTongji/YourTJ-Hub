@@ -63,6 +63,13 @@ void main() {
       );
     });
 
+    test('keeps an already-matching .jpeg name', () {
+      expect(
+        alignImageFileNameWithBytes('photo.jpeg', [0xFF, 0xD8, 0xFF]),
+        'photo.jpeg',
+      );
+    });
+
     test('keeps unknown bytes and empty bytes unchanged', () {
       expect(alignImageFileNameWithBytes('photo.png', [0x00, 0x01]), 'photo.png');
       expect(alignImageFileNameWithBytes('scaled_IMG.PNG', <int>[]), 'scaled_IMG.PNG');

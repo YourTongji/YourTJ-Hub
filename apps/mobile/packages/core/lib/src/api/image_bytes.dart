@@ -30,14 +30,29 @@ String? imageExtensionForBytes(List<int> bytes) {
 ///
 /// 只替换最后一个扩展名段并保留 basename（表情包显示名依赖 basename）；
 /// 目录分隔符（`/`、`\`）之前的部分原样保留；无扩展名时追加。
+/// 扩展名已是同一格式族（如 `.jpeg` 对 JPEG 字节）时保留原名，不做无谓重命名。
 String alignImageFileNameWithBytes(String filename, List<int> bytes) {
   final extension = imageExtensionForBytes(bytes);
   if (extension == null) return filename;
   final lastSeparator = filename.lastIndexOf(RegExp(r'[/\\]'));
   final lastDot = filename.lastIndexOf('.');
+  if (lastDot > lastSeparator) {
+    final family = _extensionFamily[filename.substring(lastDot).toLowerCase()];
+    if (family == extension) return filename;
+  }
   final baseEnd = lastDot > lastSeparator ? lastDot : filename.length;
   return '${filename.substring(0, baseEnd)}$extension';
 }
+
+/// 已知图片扩展名 → 其格式族（与 [imageExtensionForBytes] 的返回值对应）。
+const _extensionFamily = {
+  '.jpg': '.jpg',
+  '.jpeg': '.jpg',
+  '.png': '.png',
+  '.gif': '.gif',
+  '.webp': '.webp',
+  '.bmp': '.bmp',
+};
 
 bool _startsWith(List<int> bytes, List<int> prefix) {
   if (bytes.length < prefix.length) return false;
