@@ -8,6 +8,9 @@ inputs:
   github-token:
     description: GITHUB_TOKEN for GHCR login (composite actions cannot read the secrets context directly)
     required: true
+  immutable:
+    description: Refuse a release-tag push unless the registry proves the tag is absent
+    default: 'false'
 
 outputs:
   digest:
@@ -36,6 +39,12 @@ runs:
         password: ${{ inputs.github-token }}
     # GHCR 包首次创建默认 private: 首次运行后需手动把包设为 public,
     # 否则服务器匿名 pull 401(见 docs/operations/deployment.md 迁移 runbook)
+    - name: Reject uncertain or existing immutable image
+      if: inputs.immutable == 'true'
+      shell: bash
+      env:
+        IMAGE_TAG: ${{ inputs.tag }}
+      run: python3 scripts/release/image_guard.py "ghcr.io/yourtongji/yourtj-hub:$IMAGE_TAG"
     - name: Build and push image
       id: image
       uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8

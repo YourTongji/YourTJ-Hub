@@ -137,6 +137,8 @@ original approval, restores the original build artifact, and cannot add targets.
 refreshes stable download links. iOS queries Apple before restoring an IPA; an existing Apple build can
 resume even when the temporary archive has expired. If required original artifacts are unavailable,
 stop and prepare a newly reviewed identity rather than rebuilding the same version silently.
+An existing production image without its original digest receipt also blocks another push; reconcile
+the original identity/receipt or prepare a new release. Registry errors are not absence proofs.
 
 Store submission and availability are separate: submitted/in_review is not live. `status` reports
 recorded Apple results explicitly as observations, not an always-current store status. Query ASC for

@@ -12,6 +12,7 @@
 | Apple rejected text | Prepare a reviewed existing-build store request with corrected iOS prose |
 | Apple rejected binary | New binary identity and release request |
 | Production health/identity check failed | Inspect image/config rollback receipt and migration compatibility before retrying |
+| Image tag exists but its digest receipt is missing | Reconcile the original image identity/receipt or prepare a new release; never overwrite the existing tag |
 | API permission/network error | Report unknown and repair access; no synthetic “not found” fallback |
 
 A retry is one bounded workflow run. If the same failure remains, surface the evidence and corrective

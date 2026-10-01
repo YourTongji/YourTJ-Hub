@@ -124,6 +124,7 @@ jobs:
         uses: ./.github/actions/push-image
         with:
           tag: main-${{ inputs.tag }}
+          immutable: 'true'
           github-token: ${{ github.token }}
       - id: image
         env:
