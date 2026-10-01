@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../providers.dart';
+import 'image_sniff.dart';
 
 final imagePickerProvider = Provider<ImagePicker>((ref) => ImagePicker());
 
@@ -27,5 +28,5 @@ Future<String?> pickAndUploadImage({
   final List<int> bytes = await picked.readAsBytes();
   return ref
       .read(fileRepositoryProvider)
-      .uploadImage(bytes: bytes, filename: picked.name);
+      .uploadImage(bytes: bytes, filename: normalizeImageFilename(picked.name, bytes));
 }

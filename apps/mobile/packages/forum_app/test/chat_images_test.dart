@@ -26,6 +26,12 @@ final Uint8List _png = base64Decode(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAACklEQVR4nGMAAQAABQABDQottAAAAABJRU5ErkJggg==',
 );
 
+/// A real 4x4 JPEG: the chat preview decodes the picked bytes, so the test
+/// payload must be a valid image, not just a magic-number header.
+final Uint8List _jpeg = base64Decode(
+  '/9j/2wCEAAUDBAQEAwUEBAQFBQUGBwwIBwcHBw8LCwkMEQ8SEhEPERETFhwXExQaFRERGCEYGh0dHx8fExciJCIeJBweHx4BBQUFBwYHDggIDh4UERQeHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHv/AABEIAAQABAMBIgACEQEDEQH/xAGiAAABBQEBAQEBAQAAAAAAAAAAAQIDBAUGBwgJCgsQAAIBAwMCBAMFBQQEAAABfQECAwAEEQUSITFBBhNRYQcicRQygZGhCCNCscEVUtHwJDNicoIJChYXGBkaJSYnKCkqNDU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6g4SFhoeIiYqSk5SVlpeYmZqio6Slpqeoqaqys7S1tre4ubrCw8TFxsfIycrS09TV1tfY2drh4uPk5ebn6Onq8fLz9PX29/j5+gEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoLEQACAQIEBAMEBwUEBAABAncAAQIDEQQFITEGEkFRB2FxEyIygQgUQpGhscEJIzNS8BVictEKFiQ04SXxFxgZGiYnKCkqNTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqCg4SFhoeIiYqSk5SVlpeYmZqio6Slpqeoqaqys7S1tre4ubrCw8TFxsfIycrS09TV1tfY2dri4+Tl5ufo6ery8/T19vf4+fr/2gAMAwEAAhEDEQA/APMaKKK+UPuD/9k=',
+);
+
 class _ImagePreviewPageRepository extends PageRepository {
   _ImagePreviewPageRepository(this.preview)
     : super(GfApiClient(dio: Dio(), tokenStorage: MemTokenStorage()));
@@ -65,14 +71,14 @@ class _Files extends FileRepository {
   int calls = 0;
   bool fail = false;
   Completer<String>? gate;
+  final filenames = <String>[];
   @override
   Future<String> uploadImage({
     required List<int> bytes,
     required String filename,
   }) async {
     calls++;
-    expect(bytes, _png);
-    expect(filename, 'photo.png');
+    filenames.add(filename);
     if (fail) throw StateError('upload unavailable');
     return gate == null ? '/file/img/photo.png' : gate!.future;
   }
@@ -326,6 +332,23 @@ void main() {
       await dispose(tester);
     });
   }
+
+  testWidgets('re-encoded picker output uploads under the sniffed jpg name', (
+    tester,
+  ) async {
+    photos.file = XFile.fromData(
+      _jpeg,
+      name: 'scaled_photo.png',
+      path: 'scaled_photo.png',
+    );
+    await pump(tester);
+    await choose(tester);
+    await tester.tap(find.widgetWithText(FilledButton, 'Send'));
+    await tester.pumpAndSettle();
+    expect(files.calls, 1);
+    expect(files.filenames.single, 'scaled_photo.jpg');
+    await dispose(tester);
+  });
 
   testWidgets(
     'image selection previews before upload and cancel preserves draft',

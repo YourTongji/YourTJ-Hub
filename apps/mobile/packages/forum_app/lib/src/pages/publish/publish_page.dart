@@ -19,6 +19,7 @@ import '../../local/writing_store.dart';
 import '../../asset_url.dart';
 import '../../images/image_upload.dart';
 import '../../images/composer_upload_queue.dart';
+import '../../images/image_sniff.dart';
 import '../../server_messages.dart';
 import '../../widgets/markdown_view.dart';
 import '../../widgets/editor/rich_markdown_editor.dart';
@@ -170,7 +171,10 @@ class _PublishPageState extends ConsumerState<PublishPage>
         if (!mounted || !_sessionCurrent || _finished) {
           throw StateError('Image upload session changed');
         }
-        return files.uploadImage(bytes: bytes, filename: file.name);
+        return files.uploadImage(
+          bytes: bytes,
+          filename: normalizeImageFilename(file.name, bytes),
+        );
       },
       onUploaded: _insertUploadedImage,
     )..addListener(_uploadsChanged);

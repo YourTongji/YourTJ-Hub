@@ -3,6 +3,7 @@ import '../../widgets/cache_snapshot_hint.dart';
 import '../../messages/chat_message_bubble.dart';
 import '../../messages/chat_image.dart';
 import '../../images/image_upload.dart';
+import '../../images/image_sniff.dart';
 import '../../messages/chat_message_row.dart';
 import '../../messages/chat_forwarding.dart';
 import '../../messages/forward_messages_page.dart';
@@ -1486,7 +1487,7 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
             await outbox.prepareImageUpload();
             uploadedUrl ??= await files.uploadImage(
               bytes: bytes,
-              filename: file.name,
+              filename: normalizeImageFilename(file.name, bytes),
             );
             pending = await outbox.enqueueImage(
               uploadedUrl!,

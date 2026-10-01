@@ -234,6 +234,27 @@ void main() {
     await tester.pump(const Duration(milliseconds: 600));
   });
 
+  testWidgets('re-encoded png bytes upload under the sniffed jpg name', (
+    tester,
+  ) async {
+    await pumpPage(tester);
+    picker.files
+      ..clear()
+      ..add(
+        XFile.fromData(
+          Uint8List.fromList([0xFF, 0xD8, 0xFF, 0xE0]),
+          name: 'photo.png',
+          path: 'photo.png',
+        ),
+      );
+    await selectImages(tester);
+    expect(files.names, ['photo.jpg']);
+    files.results.first.complete('https://example.com/photo.jpg');
+    await tester.pumpAndSettle();
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
+  });
+
   testWidgets(
     'retry keeps photo order and gallery edits survive draft recovery',
     (tester) async {
