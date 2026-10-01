@@ -122,9 +122,16 @@ ordered after the active route in the accessibility tree so iOS does not hide it
   left edge. Android keeps the shared mobile fade/rise transition. Horizontal
   scroll rails keep working; the back gesture only claims the narrow left-edge
   band.
-- `Current`: four persistent destinations — Home, Campus, Notifications and Messages — use icon-only
-  navigation with accessible labels. Search is a pushed page, reachable from Home. Campus links to
-  the native course catalog, scheduler and Wiki; returning preserves the selected destination.
+- `Current`: four persistent destinations — Home, Campus, Notifications and Messages — use a labeled
+  bottom bar on compact windows, with the selected icon, short localized label and unread state kept
+  together. At enlarged text, the bar measures the available label space and grows as needed while
+  labels wrap without changing the destination order; icon-only callers retain the compact geometry.
+  The iOS bottom bar uses a restrained Flutter blur and translucent surface over
+  the existing theme; Android, high-contrast mode, reduced motion and accessible-navigation mode
+  use the opaque theme surface. This is a Flutter material treatment and does not adopt a native
+  iOS Liquid Glass API. Search is a pushed
+  page, reachable from Home. Campus links to the native course catalog, scheduler and Wiki;
+  returning preserves the selected destination.
   About links to native friend links, sponsors, terms and privacy pages using the site’s published
   configuration; disabled policies remain hidden.
 - `Current`: Home cards retain both images for two-image topics. A portrait single image sits beside
@@ -360,7 +367,9 @@ ordered after the active route in the accessibility tree so iOS does not hide it
   (`@username`, or a localized self label when the page payload carries no viewer username); a
   failed send re-attaches the quote only while its draft and reply selection are unchanged, so
   sending again retries the same entry instead of posting an unquoted duplicate. A successful
-  bubble retry clears that draft's quote without discarding a newer reply selection.
+  bubble retry clears that draft's quote without discarding a newer reply selection. Activating a
+  quote reference reveals the lazy-loaded target with the normal short easing; reduced motion jumps
+  directly after the target is mounted and settles the highlight through the shared motion policy.
   The emoji accessory replaces the current
   selection and leaves the caret after insertion. Replacing the draft with text that has no valid
   selection resets insertion to the end. Opening it dismisses the software keyboard and keeps focus
@@ -752,6 +761,11 @@ identity survive this layout change. The header keeps a small outer margin for i
   with a persistent Done action. Session/site invalidation clears the old catalog, permissions and filters, then loads the new
   session’s catalog; queued searches and late results cannot cross identities. These interactions use the existing
   course API and SSR filter options; search service failures remain errors rather than empty results.
+- `Current`: each catalog row shows the most recent term first. When more terms exist, the row starts
+  with a `+N` control; expansion shows each term once and a localized collapse action. Term chips
+  keep at least a 44dp target and only change the row's local disclosure state.
+- `Current`: course filter chips keep at least a 44dp target, update the query immediately, and use
+  a short selected-state color transition that settles immediately when reduced motion is enabled.
 - `Current`: course details retain offering-specific five-star reviews and existing review fields;
   bookmark and write-review actions stay in a bottom dock. Scores share a baseline with their
   five-point denominator. The signed-in user’s own reviews (including anonymous reviews) appear

@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ui_kit/ui_kit.dart';
@@ -5,6 +7,7 @@ import 'package:ui_kit/ui_kit.dart';
 import '../../l10n/app_localizations.dart';
 import '../navigation/reading_chrome.dart';
 import '../navigation/reading_window.dart';
+import '../navigation/tab_scroll_registry.dart';
 import '../navigation/tab_swipe_surface.dart';
 import '../navigation/tab_page_transition.dart';
 import 'account_drawer.dart';
@@ -56,6 +59,24 @@ class RootSurface extends ConsumerWidget {
     final duration = GfMotion.duration(context, GfMotion.layout);
     final bottom = MediaQuery.paddingOf(context).bottom;
     final hasRail = ReadingWindowScope.hasRailOf(context);
+    final l10n = AppLocalizations.of(context);
+    // Mirror the labels of the shell's own bottom bar so the precomputed
+    // content insets stay in lockstep with the measured bar height.
+    final navigationHeight = GfBottomNavigation.heightFor(
+      context,
+      labels: GfShellDestination.values.map(
+        (destination) => destination.label(l10n),
+      ),
+      availableWidth: math.max(
+        1,
+        ReadingWindowScope.navigationWidthOf(context) -
+            MediaQuery.paddingOf(context).horizontal,
+      ),
+    );
+    final navMetrics = GfBottomNavigation.metrics(
+      safeAreaBottom: bottom,
+      barHeight: navigationHeight,
+    );
     final surface = Scaffold(
       body: SafeArea(
         bottom: false,
@@ -74,19 +95,20 @@ class RootSurface extends ConsumerWidget {
                         pageKey: swipePageKey,
                         pageBuilder: (index, chromeHidden) {
                           final top = chromeHidden ? 0.0 : 56 + toolbarHeight;
-                          final pageBottom =
-                              (hasRail
-                                  ? 24
-                                  : chromeHidden
-                                  ? 0
-                                  : 80) +
-                              bottom;
+                          final pageBottom = hasRail
+                              ? 24.0 + bottom
+                              : chromeHidden
+                              ? bottom
+                              : navMetrics.contentBottomInset;
                           return index == swipeTabIndex
                               ? body(top, pageBottom)
                               : swipePageBuilder!(index, top, pageBottom);
                         },
                       )
-                    : body(56 + toolbarHeight, (hasRail ? 24 : 80) + bottom),
+                    : body(
+                        56 + toolbarHeight,
+                        hasRail ? 24.0 + bottom : navMetrics.contentBottomInset,
+                      ),
               ),
               Positioned(
                 top: 0,
@@ -159,7 +181,9 @@ class RootSurface extends ConsumerWidget {
                   duration: duration,
                   curve: GfMotion.layoutCurve,
                   right: 16,
-                  bottom: (hidden || hasRail ? 16 : 72) + bottom,
+                  bottom:
+                      (hidden || hasRail ? 16 : navMetrics.actionBottomInset) +
+                      bottom,
                   child: FloatingActionButton(
                     heroTag: null,
                     tooltip:
@@ -168,7 +192,9 @@ class RootSurface extends ConsumerWidget {
                         onAction ??
                         () => showComposeMenu(
                           context,
-                          bottom: hidden || hasRail ? 16 : 72,
+                          bottom: hidden || hasRail
+                              ? 16
+                              : navMetrics.actionBottomInset,
                         ),
                     child: GfSymbol(
                       actionSymbol,
