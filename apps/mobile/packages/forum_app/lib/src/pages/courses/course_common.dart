@@ -1,4 +1,7 @@
 import 'package:core/core.dart';
+import 'package:flutter/material.dart';
+import 'package:ui_kit/ui_kit.dart';
+
 import '../../server_messages.dart';
 import '../../../l10n/app_localizations.dart';
 
@@ -189,4 +192,38 @@ String courseReviewError(AppLocalizations l10n, Object error) {
     if (reason != l10n.commonLoadFailed) return reason;
   }
   return l10n.courseReviewUnknownError;
+}
+
+/// 课评头像：member 用服务端回填的真实头像，其余（匿名 / 历史）用与 Web 同 seed
+/// 的生成头像。
+///
+/// seed 与 Web `reviewAvatarSrc` 完全一致（`'<label>-<reviewId>'`），因此同一条
+/// 评价在两端得到同一个笑脸；匿名/历史评价的 `avatarUrl` 由服务端 omitempty，
+/// 客户端不做任何身份推断。
+///
+/// 用 [GfNetworkImage] 而不是 `GfAvatar`：`td.TAvatar` 的 errorBuilder 固定为
+/// `SizedBox.shrink()`，无法回落到生成头像。
+Widget reviewAvatar(ReviewPayload review, {double size = 40}) {
+  final ReviewAuthorPayload author = review.author;
+  final String url = author.kind == 'member'
+      ? (author.avatarUrl?.trim() ?? '')
+      : '';
+  final Widget fallback = GfBeamAvatar(
+    seed: '${author.label}-${review.id}',
+    size: size,
+  );
+  if (url.isEmpty) return fallback;
+  return SizedBox.square(
+    dimension: size,
+    child: ClipOval(
+      child: GfNetworkImage(
+        url,
+        width: size,
+        height: size,
+        fit: BoxFit.cover,
+        semanticLabel: author.label,
+        errorBuilder: (_, _, _) => fallback,
+      ),
+    ),
+  );
 }

@@ -85,7 +85,8 @@ class FakeCourseRepository extends CourseRepository {
   final List<ReviewPayload> reviewPayloads;
   late final Map<int, ReviewPayload> _serverReviews;
   ReviewPayload serverReview(int id) => _serverReviews[id]!;
-  void setServerReview(ReviewPayload review) => _serverReviews[review.id] = review;
+  void setServerReview(ReviewPayload review) =>
+      _serverReviews[review.id] = review;
 
   /// page → (courses, hasNext)。
   final Map<int, (List<CourseSummaryPayload>, bool)> listPages;
@@ -265,8 +266,12 @@ class FakeCourseRepository extends CourseRepository {
         isHelpful: helpful ? on : review.viewer.isHelpful,
         isDisliked: helpful ? review.viewer.isDisliked : on,
       ),
-      helpfulCount: helpful ? (nextCount < 0 ? 0 : nextCount) : review.helpfulCount,
-      dislikeCount: helpful ? review.dislikeCount : (nextCount < 0 ? 0 : nextCount),
+      helpfulCount: helpful
+          ? (nextCount < 0 ? 0 : nextCount)
+          : review.helpfulCount,
+      dislikeCount: helpful
+          ? review.dislikeCount
+          : (nextCount < 0 ? 0 : nextCount),
     );
   }
 
@@ -421,7 +426,21 @@ CourseRelatedResult _relatedPayload() {
 
 /// Review bodies are rendered from server HTML, so assertions look at rich
 /// text instead of a plain [Text] widget.
-Finder _reviewHtml(String text) => find.textContaining(text, findRichText: true);
+Finder _reviewHtml(String text) =>
+    find.textContaining(text, findRichText: true);
+
+/// 卡片功能区的单行动作（有用/无用/分享）；标签只保留计数。
+Finder _reviewAction(int reviewId, String action) =>
+    find.byKey(ValueKey<String>('review-$action-$reviewId'));
+
+/// 卡片右上溢出菜单按钮。
+Finder _reviewMenu(int reviewId) =>
+    find.byKey(ValueKey<String>('review-menu-$reviewId'));
+
+Future<void> _openReviewMenu(WidgetTester tester, int reviewId) async {
+  await tester.tap(_reviewMenu(reviewId));
+  await tester.pumpAndSettle();
+}
 
 List<ReviewPayload> _reviewPayloads() {
   return <ReviewPayload>[
@@ -502,11 +521,14 @@ Widget _app(
 ProviderContainer _container({
   required FakeCourseRepository courseRepo,
   PageRepository? pageRepo,
+  TokenStorage? tokenStorage,
 }) {
   final ProviderContainer container = ProviderContainer(
     overrides: <Override>[
       courseRepositoryProvider.overrideWithValue(courseRepo),
-      tokenStorageProvider.overrideWithValue(_MemoryTokenStorage()),
+      tokenStorageProvider.overrideWithValue(
+        tokenStorage ?? _MemoryTokenStorage(),
+      ),
       if (pageRepo != null) pageRepositoryProvider.overrideWithValue(pageRepo),
     ],
   );
@@ -761,9 +783,112 @@ void main() {
       await tester.pumpAndSettle();
     }
 
-    testWidgets('review actions have one label and 44 pixel touch targets', (
-      tester,
-    ) async {
+    testWidgets(
+      'review action bar stays on one row with 44 pixel targets at 200% text',
+      (tester) async {
+        // 与「German large text」布局测试同样只渲染课评卡（开课班级区块
+        // 有自己的窄屏布局问题，不属于本任务范围）。
+        tester.view.physicalSize = const Size(320, 3000);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+        final course = FakeCourseRepository(
+          _client(),
+          reviewPayloads: [_reviewPayloads().last],
+        );
+        await tester.pumpWidget(
+          _app(
+            _container(courseRepo: course),
+            const CourseDetailPage(courseId: 42),
+            textScale: 2,
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+
+        final helpful = _reviewAction(4, 'helpful');
+        final dislike = _reviewAction(4, 'dislike');
+        final share = _reviewAction(4, 'share');
+        expect(helpful, findsOneWidget);
+        expect(dislike, findsOneWidget);
+        expect(share, findsOneWidget);
+        // 同一行：三个动作的水平中线一致（折行会出现第二行，中线不同）。
+        final centers = <double>{
+          for (final chip in <Finder>[helpful, dislike, share])
+            tester.getRect(chip).center.dy,
+        };
+        expect(centers, hasLength(1));
+        for (final chip in <Finder>[helpful, dislike, share]) {
+          expect(tester.getSize(chip).width, greaterThanOrEqualTo(44));
+          expect(tester.getSize(chip).height, greaterThanOrEqualTo(44));
+        }
+        // 单行 = 横向滚动，而不是 Wrap。
+        expect(
+          find.ancestor(of: helpful, matching: find.byType(Wrap)),
+          findsNothing,
+        );
+        expect(
+          find.ancestor(
+            of: helpful,
+            matching: find.byWidgetPredicate(
+              (widget) =>
+                  widget is SingleChildScrollView &&
+                  widget.scrollDirection == Axis.horizontal,
+            ),
+          ),
+          findsWidgets,
+        );
+        // 标签只剩计数，可读名由 Semantics 提供。
+        expect(
+          find.descendant(of: helpful, matching: find.text('2')),
+          findsOneWidget,
+        );
+        expect(tester.getSemantics(helpful).label, contains('有用 2'));
+        expect(tester.getSemantics(dislike).label, contains('无用 0'));
+
+        // 自己的评价：编辑/删除只出现在右上溢出菜单里。
+        expect(find.text('编辑'), findsNothing);
+        expect(find.text('删除'), findsNothing);
+        await _openReviewMenu(tester, 4);
+        expect(find.text('编辑'), findsOneWidget);
+        expect(find.text('删除'), findsOneWidget);
+        expect(find.text('举报内容'), findsNothing);
+        await tester.tap(find.text('编辑'));
+        await tester.pumpAndSettle();
+        expect(find.byType(CourseReviewFormSheet), findsOneWidget);
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pump(const Duration(milliseconds: 500));
+      },
+    );
+
+    testWidgets('report entry follows the signed-in state', (tester) async {
+      final other = _reviewPayloads().first; // id=1，他人评价（canEdit=false）
+      final course = FakeCourseRepository(_client(), reviewPayloads: [other]);
+      await pumpDetail(tester, course, size: const Size(500, 1200));
+      await _openReviewMenu(tester, other.id);
+      expect(find.text('举报内容'), findsOneWidget);
+      expect(find.text('编辑'), findsNothing);
+      await tester.tapAt(const Offset(4, 4));
+      await tester.pumpAndSettle();
+
+      // 未登录：不显示举报入口。
+      final guest = FakeCourseRepository(_client(), reviewPayloads: [other]);
+      await tester.pumpWidget(
+        _app(
+          _container(
+            courseRepo: guest,
+            tokenStorage: _MemoryTokenStorage()..token = null,
+          ),
+          const CourseDetailPage(courseId: 42),
+        ),
+      );
+      await tester.pumpAndSettle();
+      // 未登录且无可编辑/可删除项：连溢出菜单都不渲染（没有举报入口）。
+      expect(_reviewMenu(other.id), findsNothing);
+      expect(find.text('举报内容'), findsNothing);
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+
+    testWidgets('review action bar taps still toggle helpful', (tester) async {
       tester.view.physicalSize = const Size(390, 2000);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
@@ -779,19 +904,123 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      expect(find.text('编辑'), findsOneWidget);
-      expect(find.text('删除'), findsOneWidget);
-      for (final label in ['编辑', '删除', '2 有用']) {
-        final action = find
-            .ancestor(of: find.text(label), matching: find.byType(TextButton))
-            .first;
-        expect(tester.getSize(action).height, greaterThanOrEqualTo(44));
-      }
-      await tester.tap(find.text('2 有用'));
+      await tester.tap(_reviewAction(4, 'helpful'));
       await tester.pumpAndSettle();
       expect(course.helpfulCalls, [(4, true)]);
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pump(const Duration(milliseconds: 500));
+    });
+
+    testWidgets('anonymous reviews get the shared beam avatar', (tester) async {
+      final course = FakeCourseRepository(
+        _client(),
+        reviewPayloads: [_reviewPayloads()[1]],
+      );
+      await pumpDetail(tester, course, size: const Size(390, 1200));
+
+      expect(find.byType(GfNetworkImage), findsNothing);
+      final beams = tester
+          .widgetList<GfBeamAvatar>(find.byType(GfBeamAvatar))
+          .toList();
+      // seed 与 Web `reviewAvatarSrc` 完全一致：<label>-<reviewId>
+      expect(beams.map((avatar) => avatar.seed), contains('历史匿名评价-2'));
+    });
+
+    testWidgets('member reviews render the server avatar with a 40px slot', (
+      tester,
+    ) async {
+      final member = _reviewPayloads().last.copyWith(
+        author: const ReviewAuthorPayload(
+          kind: 'member',
+          label: 'alice',
+          avatarUrl: 'https://cdn.example.com/avatars/alice.png',
+        ),
+      );
+      final course = FakeCourseRepository(_client(), reviewPayloads: [member]);
+      await pumpDetail(tester, course, size: const Size(390, 1200));
+
+      final network = find.byWidgetPredicate(
+        (widget) =>
+            widget is GfNetworkImage &&
+            widget.semanticLabel == 'alice' &&
+            widget.url == 'https://cdn.example.com/avatars/alice.png',
+      );
+      expect(network, findsOneWidget);
+      expect(tester.getSize(network), const Size(40, 40));
+      // 头像槽位是圆形裁切，不会出现方形空洞。
+      expect(
+        find.ancestor(of: network, matching: find.byType(ClipOval)),
+        findsWidgets,
+      );
+    });
+
+    testWidgets('failed member avatar falls back to the beam avatar', (
+      tester,
+    ) async {
+      // 测试环境的 HTTP client 对所有请求返回 400，等价于头像 404：
+      // 失败时必须立刻回落生成头像，不能留下圆形空洞。
+      final member = _reviewPayloads().last.copyWith(
+        author: const ReviewAuthorPayload(
+          kind: 'member',
+          label: 'alice',
+          avatarUrl: 'https://unreachable.invalid/alice.png',
+        ),
+      );
+      final course = FakeCourseRepository(_client(), reviewPayloads: [member]);
+      await pumpDetail(tester, course, size: const Size(390, 1200));
+      await tester.pumpAndSettle();
+
+      final beams = tester
+          .widgetList<GfBeamAvatar>(find.byType(GfBeamAvatar))
+          .toList();
+      expect(beams.map((avatar) => avatar.seed), contains('alice-4'));
+      expect(
+        tester.getSize(find.byType(GfBeamAvatar).first),
+        const Size(40, 40),
+      );
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('review action bar keeps one row at 375 and 430 px', (
+      tester,
+    ) async {
+      for (final width in <double>[375, 430]) {
+        tester.view.physicalSize = Size(width, 2000);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+        final course = FakeCourseRepository(
+          _client(),
+          reviewPayloads: [_reviewPayloads().last],
+        );
+        await tester.pumpWidget(
+          _app(
+            _container(courseRepo: course),
+            const CourseDetailPage(courseId: 42),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final centers = <double>{
+          for (final chip in <Finder>[
+            _reviewAction(4, 'helpful'),
+            _reviewAction(4, 'dislike'),
+            _reviewAction(4, 'share'),
+          ])
+            tester.getRect(chip).center.dy,
+        };
+        expect(
+          centers,
+          hasLength(1),
+          reason: 'width $width must stay on one row',
+        );
+        expect(
+          tester.getRect(_reviewAction(4, 'share')).right,
+          lessThanOrEqualTo(width),
+        );
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pumpAndSettle();
+      }
     });
 
     testWidgets('switching review reactions deletes the opposite first', (
@@ -808,19 +1037,30 @@ void main() {
       );
       await pumpDetail(tester, course, size: const Size(800, 1800));
 
-      await tester.tap(find.text('0 有用'));
+      await tester.tap(_reviewAction(disliked.id, 'helpful'));
       await tester.pumpAndSettle();
 
       expect(course.reactionCalls, [
         ('dislike', disliked.id, false),
         ('helpful', disliked.id, true),
       ]);
-      expect(find.text('1 有用'), findsOneWidget);
-      expect(find.text('0 无用'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: _reviewAction(disliked.id, 'helpful'),
+          matching: find.text('1'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: _reviewAction(disliked.id, 'dislike'),
+          matching: find.text('0'),
+        ),
+        findsOneWidget,
+      );
       expect(
         find.byWidgetPredicate(
-          (widget) =>
-              widget is Semantics && widget.properties.toggled == true,
+          (widget) => widget is Semantics && widget.properties.toggled == true,
         ),
         findsOneWidget,
       );
@@ -839,7 +1079,7 @@ void main() {
         )..failHelpful = const ApiException(fallbackMessage: 'write failed');
         await pumpDetail(tester, course, size: const Size(800, 1800));
 
-        await tester.tap(find.text('0 有用'));
+        await tester.tap(_reviewAction(disliked.id, 'helpful'));
         await tester.pumpAndSettle();
 
         expect(course.reactionCalls, [
@@ -850,8 +1090,20 @@ void main() {
         ]);
         expect(course.reviewCalls, hasLength(2));
         expect(course.serverReview(disliked.id).viewer.isDisliked, isTrue);
-        expect(find.text('0 有用'), findsOneWidget);
-        expect(find.text('1 无用'), findsOneWidget);
+        expect(
+          find.descendant(
+            of: _reviewAction(disliked.id, 'helpful'),
+            matching: find.text('0'),
+          ),
+          findsOneWidget,
+        );
+        expect(
+          find.descendant(
+            of: _reviewAction(disliked.id, 'dislike'),
+            matching: find.text('1'),
+          ),
+          findsOneWidget,
+        );
       },
     );
 
@@ -862,13 +1114,11 @@ void main() {
         viewer: _reviewPayloads().first.viewer.copyWith(isDisliked: true),
         dislikeCount: 1,
       );
-      final course = FakeCourseRepository(
-        _client(),
-        reviewPayloads: [disliked],
-      )..loseHelpfulOnResponse = true;
+      final course = FakeCourseRepository(_client(), reviewPayloads: [disliked])
+        ..loseHelpfulOnResponse = true;
       await pumpDetail(tester, course, size: const Size(800, 1800));
 
-      await tester.tap(find.text('0 有用'));
+      await tester.tap(_reviewAction(disliked.id, 'helpful'));
       await tester.pumpAndSettle();
 
       expect(course.reactionCalls, [
@@ -880,42 +1130,61 @@ void main() {
       expect(course.reviewCalls, hasLength(2));
       expect(course.serverReview(disliked.id).viewer.isDisliked, isTrue);
       expect(course.serverReview(disliked.id).viewer.isHelpful, isFalse);
-      expect(find.text('0 有用'), findsOneWidget);
-      expect(find.text('1 无用'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: _reviewAction(disliked.id, 'helpful'),
+          matching: find.text('0'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: _reviewAction(disliked.id, 'dislike'),
+          matching: find.text('1'),
+        ),
+        findsOneWidget,
+      );
     });
 
     testWidgets('reaction refresh uses server counts changed during write', (
       tester,
     ) async {
       final initial = _reviewPayloads().first;
-      final course = FakeCourseRepository(
-        _client(),
-        reviewPayloads: [initial],
-      )..waitHelpful = Completer<void>();
+      final course = FakeCourseRepository(_client(), reviewPayloads: [initial])
+        ..waitHelpful = Completer<void>();
       await pumpDetail(tester, course, size: const Size(800, 1800));
 
-      await tester.tap(find.text('0 有用'));
+      await tester.tap(_reviewAction(initial.id, 'helpful'));
       await tester.pump();
       course.setServerReview(initial.copyWith(helpfulCount: 10));
       course.waitHelpful!.complete();
       await tester.pumpAndSettle();
 
       expect(course.reviewCalls, hasLength(2));
-      expect(find.text('11 有用'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: _reviewAction(initial.id, 'helpful'),
+          matching: find.text('11'),
+        ),
+        findsOneWidget,
+      );
     });
 
     testWidgets(
       'report requires an explicit reason and preserves a failed draft',
       (tester) async {
-        final course = FakeCourseRepository(
-          _client(),
-          reviewPayloads: [_reviewPayloads().first],
-        )..reportError = const ApiException(
-          fallbackMessage: 'report failed',
-          messageCode: 'review.report.failed',
-        );
+        final course =
+            FakeCourseRepository(
+                _client(),
+                reviewPayloads: [_reviewPayloads().first],
+              )
+              ..reportError = const ApiException(
+                fallbackMessage: 'report failed',
+                messageCode: 'review.report.failed',
+              );
         await pumpDetail(tester, course, size: const Size(500, 1200));
 
+        await _openReviewMenu(tester, 1);
         await tester.tap(find.text('举报内容'));
         await tester.pumpAndSettle();
         final l10n = AppLocalizations.of(
@@ -955,6 +1224,7 @@ void main() {
         reviewPayloads: [_reviewPayloads().first],
       );
       await pumpDetail(tester, course, size: const Size(500, 1200));
+      await _openReviewMenu(tester, 1);
       await tester.tap(find.text('举报内容'));
       await tester.pumpAndSettle();
       await tester.tap(find.byType(DropdownButtonFormField<String>));
@@ -991,11 +1261,7 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
 
       final emptyRepo = FakeCourseRepository(_client());
-      await _pumpStandaloneReviewForm(
-        tester,
-        emptyRepo,
-        offerings: offerings,
-      );
+      await _pumpStandaloneReviewForm(tester, emptyRepo, offerings: offerings);
       await tester.tap(find.byKey(const ValueKey('review-rating-5')));
       await tester.tap(find.text(l10n.reviewSubmit));
       await tester.pumpAndSettle();
@@ -1124,6 +1390,69 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
     });
 
+    testWidgets('review template inserts in place and stays undoable', (
+      tester,
+    ) async {
+      final course = FakeCourseRepository(
+        _client(),
+        detailPayload: _detailPayload(),
+      );
+      await pumpDetail(tester, course);
+      await tester.tap(find.text('写课评'));
+      await tester.pumpAndSettle();
+      final l10n = AppLocalizations.of(
+        tester.element(find.byType(CourseReviewFormSheet)),
+      );
+
+      final editor = tester.widget<QuillEditor>(find.byType(QuillEditor));
+      final controller = editor.controller;
+      controller.replaceText(
+        0,
+        controller.document.length - 1,
+        '原文',
+        const TextSelection.collapsed(offset: 2),
+      );
+      await tester.pumpAndSettle();
+      // Quill 用真实时间（400ms）合并连续改动；让合并窗口过去，
+      // 插入模板才会记为独立的一步撤销。
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 450)),
+      );
+
+      await tester.tap(find.byKey(const Key('course-review-templates')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(l10n.courseReviewTemplateComprehensiveName));
+      await tester.pumpAndSettle();
+      // 非空正文仍需二次确认。
+      expect(find.text(l10n.courseReviewTemplateReplaceTitle), findsOneWidget);
+      await tester.tap(find.text(l10n.courseReviewTemplateApply));
+      await tester.pumpAndSettle();
+
+      // 不换 controller（实例、撤销栈、焦点都保留）。
+      final after = tester.widget<QuillEditor>(find.byType(QuillEditor));
+      expect(identical(controller, after.controller), isTrue);
+      expect(after.focusNode.hasFocus, isTrue);
+      expect(after.controller.document.toPlainText(), contains('课程内容'));
+      expect(after.controller.document.toPlainText(), isNot(contains('原文')));
+      // 光标落在首行标题之后。
+      expect(after.controller.selection.baseOffset, greaterThanOrEqualTo(4));
+
+      // 撤销回到插入前的内容。
+      after.controller.undo();
+      await tester.pumpAndSettle();
+      expect(after.controller.document.toPlainText(), contains('原文'));
+
+      // `_content` 由文档监听回填：提交时带上模板正文。
+      await tester.tap(find.byKey(const ValueKey('review-rating-5')));
+      await tester.pump();
+      await tester.tap(find.text(l10n.reviewSubmit));
+      await tester.pumpAndSettle();
+      expect(course.createInputs, hasLength(1));
+      expect(course.createInputs.single.content, contains('原文'));
+
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+
     testWidgets(
       'editing review keeps its controller through keyboard resize and selection is clean',
       (tester) async {
@@ -1133,7 +1462,8 @@ void main() {
           reviewPayloads: _reviewPayloads(),
         );
         await pumpDetail(tester, course);
-        await tester.tap(find.text('编辑').first);
+        await _openReviewMenu(tester, 4);
+        await tester.tap(find.text('编辑'));
         await tester.pumpAndSettle();
         final l10n = AppLocalizations.of(
           tester.element(find.byType(CourseReviewFormSheet)),
@@ -1197,37 +1527,45 @@ void main() {
       },
     );
 
-    testWidgets(
-      'review actions wrap on a narrow phone with German large text',
-      (tester) async {
-        tester.view.physicalSize = const Size(320, 3000);
-        tester.view.devicePixelRatio = 1;
-        addTearDown(tester.view.reset);
-        final course = FakeCourseRepository(
-          _client(),
-          reviewPayloads: [_reviewPayloads().last],
-        );
-        await tester.pumpWidget(
-          _app(
-            _container(courseRepo: course),
-            const CourseDetailPage(courseId: 42),
-            locale: const Locale('de'),
-            textScale: 2,
-          ),
-        );
-        await tester.pumpAndSettle();
-        final l = AppLocalizations.of(
-          tester.element(find.byType(CourseDetailPage)),
-        );
-        expect(find.text(l.commonEdit), findsOneWidget);
-        final actions = find
-            .ancestor(of: find.text(l.commonEdit), matching: find.byType(Wrap))
-            .first;
-        expect(actions, findsOneWidget);
-        expect(tester.getRect(actions).right, lessThanOrEqualTo(320));
-        expect(tester.takeException(), isNull);
-      },
-    );
+    testWidgets('review action bar stays on one row with German large text', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(320, 3000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final course = FakeCourseRepository(
+        _client(),
+        reviewPayloads: [_reviewPayloads().last],
+      );
+      await tester.pumpWidget(
+        _app(
+          _container(courseRepo: course),
+          const CourseDetailPage(courseId: 42),
+          locale: const Locale('de'),
+          textScale: 2,
+        ),
+      );
+      await tester.pumpAndSettle();
+      final l = AppLocalizations.of(
+        tester.element(find.byType(CourseDetailPage)),
+      );
+      // 动作只在溢出菜单里（功能区不再折行出现编辑/删除）。
+      expect(find.text(l.commonEdit), findsNothing);
+      await _openReviewMenu(tester, 4);
+      expect(find.text(l.commonEdit), findsOneWidget);
+      await tester.tapAt(const Offset(4, 4));
+      await tester.pumpAndSettle();
+      final helpful = _reviewAction(4, 'helpful');
+      final dislike = _reviewAction(4, 'dislike');
+      final share = _reviewAction(4, 'share');
+      final centers = <double>{
+        for (final chip in <Finder>[helpful, dislike, share])
+          tester.getRect(chip).center.dy,
+      };
+      expect(centers, hasLength(1));
+      expect(tester.getRect(helpful).right, lessThanOrEqualTo(320));
+      expect(tester.takeException(), isNull);
+    });
 
     testWidgets('bottom safe area does not cover the last related course', (
       tester,
@@ -1284,6 +1622,7 @@ void main() {
       )..waitReport = Completer<void>();
       await pumpDetail(tester, course, size: const Size(500, 1200));
 
+      await _openReviewMenu(tester, 1);
       await tester.tap(find.text('举报内容'));
       await tester.pumpAndSettle();
       final l10n = AppLocalizations.of(
@@ -1475,6 +1814,38 @@ void main() {
       );
     });
 
+    testWidgets('anonymous switch still toggles in the single-line meta row', (
+      tester,
+    ) async {
+      final course = FakeCourseRepository(
+        _client(),
+        detailPayload: _detailPayload(),
+      );
+      await pumpDetail(tester, course);
+      await tester.tap(find.text('写课评'));
+      await tester.pumpAndSettle();
+      expect(tester.widget<Switch>(find.byType(Switch)).value, isTrue);
+
+      // 单行元信息在手机宽度下横向滚动：先滑到匿名开关再切换。
+      await tester.dragUntilVisible(
+        find.byType(Switch),
+        find.byKey(const Key('course-review-offering')),
+        const Offset(-120, 0),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byType(Switch));
+      await tester.pumpAndSettle();
+      expect(tester.widget<Switch>(find.byType(Switch)).value, isFalse);
+
+      await tester.tap(find.byKey(const ValueKey('review-rating-5')));
+      _replaceReviewEditorText(tester, '公开评价');
+      await tester.pump();
+      await tester.tap(find.text('发布评价'));
+      await tester.pumpAndSettle();
+      expect(course.createInputs.single.isAnonymous, isFalse);
+      await tester.pump(const Duration(seconds: 5));
+    });
+
     testWidgets('review cancellation confirms unsaved content', (tester) async {
       final course = FakeCourseRepository(
         _client(),
@@ -1620,16 +1991,9 @@ void main() {
       await pumpDetail(tester, course);
 
       // 本人评价现在为首行（id=4，helpfulCount=2）。
-      final Finder firstHelpfulChip = find.ancestor(
-        of: find
-            .byWidgetPredicate(
-              (widget) => widget is GfSymbol && widget.name == 'thumbs-up',
-            )
-            .first,
-        matching: find.byType(TextButton),
-      );
+      final Finder firstHelpfulChip = _reviewAction(4, 'helpful');
       expect(
-        find.descendant(of: firstHelpfulChip, matching: find.text('2 有用')),
+        find.descendant(of: firstHelpfulChip, matching: find.text('2')),
         findsOneWidget,
       );
       await tester.tap(firstHelpfulChip);
@@ -1637,7 +2001,7 @@ void main() {
 
       expect(course.helpfulCalls, <(int, bool)>[(4, true)]);
       expect(
-        find.descendant(of: firstHelpfulChip, matching: find.text('3 有用')),
+        find.descendant(of: firstHelpfulChip, matching: find.text('3')),
         findsOneWidget,
       );
     });

@@ -38,6 +38,14 @@ class CourseReviewFormSheet extends StatefulWidget {
 }
 
 class CourseReviewFormSheetState extends State<CourseReviewFormSheet> {
+  /// 正文区域至少要有这么高才放得下常驻工具栏 + 一行正文（工具栏 48 + 正文 48）。
+  static const double _editorRegionWithToolbar = 96;
+
+  /// 元信息两行（班次+匿名、星级）需要的最小面板高度：标题 48 + 两行 96 +
+  /// 间距 20 + 动作 60 + 正文下限 96 ≈ 320；低于它退回单行横向滚动，
+  /// 否则正文会被挤到负空间（320×568 + 200% 字号 + 键盘只剩 216px）。
+  static const double _metaTwoRowMinHeight = 300;
+
   final FocusNode _editorFocusNode = FocusNode(
     debugLabel: 'course-review-body',
   );
@@ -190,210 +198,395 @@ class CourseReviewFormSheetState extends State<CourseReviewFormSheet> {
     final CourseCopy copy = CourseCopy(l10n);
     final GfColors colors = GfTheme.colorsOf(context);
     final GfTypography type = GfTheme.typographyOf(context);
-    final bool editing = widget.editing != null;
 
+    // 编辑器优先布局：标题 / 紧凑元信息（班次+匿名、星级）/ 常驻工具栏 +
+    // 正文内部滚动 / 常驻动作。
+    // 面板高度由 showGfBottomSheet 收敛到键盘之上，正文在 Expanded 里滚动，
+    // 因此工具栏和底部动作不会随行数漂移。
     return PopScope(
       canPop: _allowPop || (!_submitting && !_dirty),
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) _close();
       },
       child: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) => SingleChildScrollView(
-            child: SizedBox(
-              // Keep a usable editing area when keyboard and large text leave
-              // too little room for the fixed heading/actions. The outer scroll
-              // makes every control reachable without reparenting the editor.
-              height:
-                  constraints.maxHeight <
-                      MediaQuery.textScalerOf(context).scale(280)
-                  ? MediaQuery.textScalerOf(context).scale(280)
-                  : constraints.maxHeight,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: <Widget>[
-                    Text(
-                      editing ? copy.editReviewTitle : copy.writeReviewTitle,
-                      style: type.heading.copyWith(fontWeight: FontWeight.w700),
-                    ),
-                    const SizedBox(height: 10),
-                    // 开课实例选择（编辑模式只读展示）。
-                    Expanded(
-                      child: ListView(
-                        shrinkWrap: true,
-                        children: <Widget>[
-                          Text(
-                            copy.selectOffering,
-                            style: type.caption.copyWith(
-                              color: colors.baseContent.withValues(alpha: 0.7),
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          for (final CourseOfferingPayload offering
-                              in widget.offerings)
-                            _offeringOption(offering, copy, colors, type),
-                          const SizedBox(height: 12),
-                          Text(
-                            copy.ratingLabel,
-                            style: type.caption.copyWith(
-                              color: colors.baseContent.withValues(alpha: 0.7),
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Wrap(
-                            crossAxisAlignment: WrapCrossAlignment.center,
-                            children: <Widget>[
-                              for (int star = 1; star <= 5; star++)
-                                Semantics(
-                                  key: ValueKey('review-rating-$star'),
-                                  label: '${copy.ratingLabel}: $star / 5',
-                                  button: true,
-                                  selected: _rating == star,
-                                  enabled: !_submitting,
-                                  onTap: _submitting
-                                      ? null
-                                      : () => setState(() => _rating = star),
-                                  child: InkWell(
-                                    excludeFromSemantics: true,
-                                    borderRadius: BorderRadius.circular(24),
-                                    onTap: _submitting
-                                        ? null
-                                        : () => setState(() => _rating = star),
-                                    child: SizedBox(
-                                      width: 48,
-                                      height: 48,
-                                      child: Center(
-                                        child: GfSymbol(
-                                          star <= _rating
-                                              ? 'star-filled'
-                                              : 'star',
-                                          size: 28,
-                                          color: star <= _rating
-                                              ? colors.warning
-                                              : colors.iconMuted,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              if (_rating > 0)
-                                Padding(
-                                  padding: const EdgeInsets.only(left: 8),
-                                  child: Text(
-                                    '$_rating.0',
-                                    style: type.small.copyWith(
-                                      color: colors.iconMuted,
-                                    ),
-                                  ),
-                                ),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-                          Row(
-                            children: <Widget>[
-                              Expanded(
-                                child: Text(
-                                  copy.contentLabel,
-                                  style: type.caption.copyWith(
-                                    color: colors.baseContent.withValues(
-                                      alpha: 0.7,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              Text(
-                                '${_content.runes.length}/2000',
-                                style: type.meta.copyWith(
-                                  color: _content.runes.length > 2000
-                                      ? colors.error
-                                      : colors.iconMuted,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 6),
-                          Align(
-                            alignment: Alignment.centerLeft,
-                            child: TextButton.icon(
-                              key: const Key('course-review-templates'),
-                              onPressed: _submitting ? null : _chooseTemplate,
-                              icon: const GfSymbol('file-text', size: 18),
-                              label: Text(l10n.courseReviewTemplates),
-                            ),
-                          ),
-                          RichMarkdownEditor(
-                            controller: _editorController,
-                            focusNode: _editorFocusNode,
-                            placeholder: copy.contentPlaceholder,
-                            enabled: !_submitting,
-                            onHeading: () => _chooseHeading(l10n),
-                            onInsertLink: _insertLink,
-                          ),
-                          const SizedBox(height: 4),
-                          Row(
-                            children: <Widget>[
-                              GfSymbol(
-                                _anonymous ? 'eye-off' : 'eye',
-                                size: 16,
-                                color: colors.baseContent.withValues(
-                                  alpha: 0.5,
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  copy.anonymousLabel,
-                                  style: type.small.copyWith(
-                                    color: colors.baseContent.withValues(
-                                      alpha: 0.7,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              Switch(
-                                value: _anonymous,
-                                onChanged: _submitting
-                                    ? null
-                                    : (bool value) =>
-                                          setState(() => _anonymous = value),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: <Widget>[
-                        Expanded(
-                          child: GfButton(
-                            label: l10n.commonCancel,
-                            variant: GfButtonVariant.ghost,
-                            onPressed: _submitting ? null : _close,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: GfButton(
-                            label: editing
-                                ? l10n.commonSave
-                                : l10n.reviewSubmit,
-                            loading: _submitting,
-                            onPressed: _submit,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+          child: LayoutBuilder(
+            builder: (context, sheetConstraints) => Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                _titleRow(l10n, copy, type),
+                const SizedBox(height: 8),
+                // 面板够高时元信息两行全可见；被键盘 + 大字压到 300px 以下
+                // 时退回单行横向滚动（必填星级与匿名开关排在最前）。
+                _metaRow(
+                  copy,
+                  colors,
+                  type,
+                  twoRows: sheetConstraints.maxHeight >= _metaTwoRowMinHeight,
                 ),
-              ),
+                const SizedBox(height: 6),
+                Expanded(
+                  child: LayoutBuilder(
+                    builder: (context, constraints) => RichMarkdownEditor(
+                      controller: _editorController,
+                      focusNode: _editorFocusNode,
+                      placeholder: copy.contentPlaceholder,
+                      enabled: !_submitting,
+                      // 编辑器自身的块级样式走阅读态同一档位。
+                      fill: true,
+                      profile: GfRichContentTypography.of(
+                        context,
+                        compact: true,
+                      ),
+                      // 200% 字号 + 键盘在 320px 宽屏上只留几十像素时，工具栏
+                      // 会和正文抢同一点高度并溢出；此时收起工具栏，让正文与
+                      // 固定动作行都可用（正常字号下工具栏常驻）。
+                      showToolbar:
+                          constraints.maxHeight >= _editorRegionWithToolbar,
+                      onHeading: () => _chooseHeading(l10n),
+                      onInsertLink: _insertLink,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                _actionRow(l10n, colors),
+              ],
             ),
           ),
         ),
       ),
     );
+  }
+
+  /// 标题行：标题 + 模板入口 +（键盘弹起时）收起键盘。
+  Widget _titleRow(AppLocalizations l10n, CourseCopy copy, GfTypography type) {
+    final bool editing = widget.editing != null;
+    return Row(
+      children: <Widget>[
+        Expanded(
+          child: Text(
+            editing ? copy.editReviewTitle : copy.writeReviewTitle,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: type.heading.copyWith(fontWeight: FontWeight.w700),
+          ),
+        ),
+        ConstrainedBox(
+          // 德/日文案在 200% 字号下比整行还宽；限定最多半行并单行省略，
+          // 标题行永远不会横向溢出。
+          constraints: BoxConstraints(
+            maxWidth: MediaQuery.sizeOf(context).width * 0.45,
+          ),
+          child: TextButton.icon(
+            key: const Key('course-review-templates'),
+            onPressed: _submitting ? null : _chooseTemplate,
+            icon: const GfSymbol('file-text', size: 18),
+            label: Text(
+              l10n.courseReviewTemplates,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ),
+        if (MediaQuery.viewInsetsOf(context).bottom > 0)
+          GfIconButton(
+            symbol: 'keyboard-hide',
+            tooltip: l10n.commonHideKeyboard,
+            size: 44,
+            onPressed: () => FocusManager.instance.primaryFocus?.unfocus(),
+          ),
+      ],
+    );
+  }
+
+  /// 元信息：面板够高（≥300px）时两行——上行「班次 chip + 匿名开关」、下行
+  /// 「星级」，全部直接可见，不做横向滚动：评分是必填项、匿名开关是隐私项，
+  /// 藏进看不见的滚动会让用户以为只有 3 颗星或找不到匿名开关。
+  ///
+  /// 被键盘 + 大字压到 300px 以下时退回单行横向滚动，并把必填的星级与匿名
+  /// 开关排在前面、班次 chip（有默认值）排在最后：极端字号下宁可让 chip 需要
+  /// 横滑，也不让必填项与隐私开关消失。
+  Widget _metaRow(
+    CourseCopy copy,
+    GfColors colors,
+    GfTypography type, {
+    required bool twoRows,
+  }) {
+    if (!twoRows) {
+      return SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: <Widget>[
+            ..._starTargets(copy, colors, type),
+            const SizedBox(width: 8),
+            _anonymousGroup(copy, colors, type),
+            const SizedBox(width: 8),
+            _offeringChip(copy, colors, type),
+          ],
+        ),
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Row(
+          children: <Widget>[
+            Flexible(child: _offeringChip(copy, colors, type)),
+            const SizedBox(width: 8),
+            Flexible(child: _anonymousGroup(copy, colors, type)),
+          ],
+        ),
+        Row(children: _starTargets(copy, colors, type)),
+      ],
+    );
+  }
+
+  /// 五颗星的 48px 命名命中区（含已选分值）。
+  List<Widget> _starTargets(
+    CourseCopy copy,
+    GfColors colors,
+    GfTypography type,
+  ) {
+    return <Widget>[
+      for (int star = 1; star <= 5; star++)
+        Semantics(
+          key: ValueKey<String>('review-rating-$star'),
+          label: '${copy.ratingLabel}: $star / 5',
+          button: true,
+          selected: _rating == star,
+          enabled: !_submitting,
+          onTap: _submitting ? null : () => setState(() => _rating = star),
+          child: InkWell(
+            excludeFromSemantics: true,
+            borderRadius: BorderRadius.circular(24),
+            onTap: _submitting ? null : () => setState(() => _rating = star),
+            child: SizedBox(
+              width: 48,
+              height: 48,
+              child: Center(
+                child: GfSymbol(
+                  star <= _rating ? 'star-filled' : 'star',
+                  size: 28,
+                  color: star <= _rating ? colors.warning : colors.iconMuted,
+                ),
+              ),
+            ),
+          ),
+        ),
+      if (_rating > 0)
+        Flexible(
+          child: Padding(
+            padding: const EdgeInsets.only(left: 4),
+            child: Text(
+              '$_rating.0',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: type.small.copyWith(color: colors.iconMuted),
+            ),
+          ),
+        ),
+    ];
+  }
+
+  /// 匿名开关（眼形图标 + 文案 + Switch），文案可省略号收缩。
+  Widget _anonymousGroup(CourseCopy copy, GfColors colors, GfTypography type) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        GfSymbol(
+          _anonymous ? 'eye-off' : 'eye',
+          size: 16,
+          color: colors.baseContent.withValues(alpha: 0.5),
+        ),
+        const SizedBox(width: 6),
+        Flexible(
+          child: Text(
+            copy.anonymousLabel,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: type.small.copyWith(
+              color: colors.baseContent.withValues(alpha: 0.7),
+            ),
+          ),
+        ),
+        Switch(
+          value: _anonymous,
+          onChanged: _submitting
+              ? null
+              : (bool value) => setState(() => _anonymous = value),
+        ),
+      ],
+    );
+  }
+
+  /// 班次选择 chip：写评态点击打开既有班次列表（复用 `_offeringOption`），
+  /// 编辑态只读展示（服务端不允许换班）。
+  Widget _offeringChip(CourseCopy copy, GfColors colors, GfTypography type) {
+    final bool readOnly = widget.editing != null;
+    final CourseOfferingPayload? offering = _offeringById(_offeringId);
+    final String label = offering == null
+        ? copy.selectOffering
+        : _offeringSummary(offering);
+    return InkWell(
+      key: const Key('course-review-offering'),
+      borderRadius: BorderRadius.circular(16),
+      onTap: readOnly || _submitting ? null : _pickOffering,
+      child: Container(
+        // 紧凑内边距：200% 字号下 chip 不应把元信息行抬高于 48px 星级行。
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: colors.base200,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: colors.line.withValues(alpha: 0.6)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            const GfSymbol('graduation-cap', size: 16),
+            const SizedBox(width: 6),
+            Flexible(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: MediaQuery.sizeOf(context).width * 0.55,
+                ),
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: type.small.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: colors.baseContent,
+                  ),
+                ),
+              ),
+            ),
+            if (!readOnly) ...<Widget>[
+              const SizedBox(width: 4),
+              GfSymbol('chevron-down', size: 16, color: colors.iconMuted),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 常驻动作行：字数计数 + 取消 + 发布/保存。
+  Widget _actionRow(AppLocalizations l10n, GfColors colors) {
+    final int length = _content.runes.length;
+    final bool editing = widget.editing != null;
+    // 计数只在常规字号下与按钮同排：≥150% 字号时德/日按钮
+    //（Abbrechen / Bewertung senden）单行就要 300px 以上，再挤进计数器只会
+    // 把按钮压成 4-5 行、把面板顶出屏幕。此时计数让位（长度上限仍在提交时
+    // 校验），只保留两个动作。
+    final bool showCounter = MediaQuery.textScalerOf(context).scale(1) < 1.5;
+    // 按钮保持单行（不换行、不横向溢出），整行按需横向滚动：动作行高度稳定
+    // 在 48/56px，键盘弹出后取消/提交一定落在键盘上方。常规字号下宽度足够，
+    // 计数贴左、取消/提交贴右，与设计稿同排。
+    return LayoutBuilder(
+      builder: (context, constraints) => SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minWidth: constraints.maxWidth),
+          child: Row(
+            mainAxisAlignment: showCounter
+                ? MainAxisAlignment.spaceBetween
+                : MainAxisAlignment.end,
+            children: <Widget>[
+              if (showCounter)
+                Text(
+                  '$length/2000',
+                  maxLines: 1,
+                  style: GfTheme.typographyOf(context).meta.copyWith(
+                    color: length > 2000 ? colors.error : colors.iconMuted,
+                  ),
+                ),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  GfButton(
+                    label: l10n.commonCancel,
+                    variant: GfButtonVariant.ghost,
+                    onPressed: _submitting ? null : _close,
+                  ),
+                  const SizedBox(width: 8),
+                  GfButton(
+                    label: editing ? l10n.commonSave : l10n.reviewSubmit,
+                    loading: _submitting,
+                    onPressed: _submit,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  CourseOfferingPayload? _offeringById(int? id) {
+    if (id == null) return null;
+    for (final CourseOfferingPayload offering in widget.offerings) {
+      if (offering.id == id) return offering;
+    }
+    return null;
+  }
+
+  /// 班次 chip 的单行摘要：短学期码 + 班级名（完整学期名与班级代码留在
+  /// 班次列表里）。紧凑形式让单行元信息尽量少横向滚动。
+  String _offeringSummary(CourseOfferingPayload offering) {
+    final String term = shortTerm(
+      offering.termCode,
+      locale: AppLocalizations.of(context).localeName,
+    );
+    final String classLabel =
+        <String>[
+          offering.className?.trim() ?? '',
+          offering.classCode?.trim() ?? '',
+        ].where((String part) => part.isNotEmpty).firstOrNull ??
+        '';
+    return <String>[
+      term,
+      classLabel,
+    ].where((String part) => part.isNotEmpty).join(' · ');
+  }
+
+  /// 打开班次列表（复用既有 `_offeringOption` 渲染）。
+  Future<void> _pickOffering() async {
+    if (widget.editing != null) return;
+    final AppLocalizations l10n = AppLocalizations.of(context);
+    final CourseCopy copy = CourseCopy(l10n);
+    final GfColors colors = GfTheme.colorsOf(context);
+    final GfTypography type = GfTheme.typographyOf(context);
+    final CourseOfferingPayload? selected =
+        await showGfBottomSheet<CourseOfferingPayload>(
+          context,
+          keyboardAware: true,
+          builder: (sheetContext) => SafeArea(
+            child: ListView(
+              shrinkWrap: true,
+              children: <Widget>[
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                  child: Text(
+                    copy.selectOffering,
+                    style: GfTheme.typographyOf(context).heading,
+                  ),
+                ),
+                for (final CourseOfferingPayload offering in widget.offerings)
+                  _offeringOption(
+                    offering,
+                    copy,
+                    colors,
+                    type,
+                    onTap: () => Navigator.pop(sheetContext, offering),
+                  ),
+              ],
+            ),
+          ),
+        );
+    if (selected == null || !mounted) return;
+    setState(() => _offeringId = selected.id);
   }
 
   Future<void> _chooseTemplate() async {
@@ -444,15 +637,41 @@ class CourseReviewFormSheetState extends State<CourseReviewFormSheet> {
       );
       if (replace != true || !mounted) return;
     }
-    final cancellation = _editorChanges.cancel();
-    if (!mounted) return;
-    final previous = _editorController;
-    setState(() {
-      _content = selected.content.trim();
-      _editorController = _createEditor(selected.content);
-    });
-    await cancellation;
-    WidgetsBinding.instance.addPostFrameCallback((_) => previous.dispose());
+    // 原地替换：controller 实例、撤销栈、焦点与正文滚动位置都保持不变。
+    // 传 Delta 而不是 Document：flutter_quill 11.5.1 的
+    // `replaceText`/`Document.replace` 断言只接受 String/Embeddable/Delta。
+    // 替换整篇（`document.length`）与旧的 `mdToDocument(content)` 结果完全一致；
+    // 用 `length - 1` 会留下一个多余的空段落。`_content` 由 `_editorChanged`
+    // 监听文档变化回填，不再手动赋值。
+    final Document document = _converter.mdToDocument(selected.content);
+    _editorController.replaceText(
+      0,
+      _editorController.document.length,
+      document.toDelta(),
+      TextSelection.collapsed(offset: _templateCaretOffset(document)),
+    );
+    _editorFocusNode.requestFocus();
+  }
+
+  /// 模板插入后的光标位置。
+  ///
+  /// 模板首行是标题时落在标题之后的第一个可填写行；转换器会把 Markdown 的空行
+  /// 收进块级间距（`MarkdownToDelta` 不为空行产出独立段落，publish 编辑器同理），
+  /// 所以「模板全是标题」时退化为首行标题末尾——用户从这里回车即可开始写正文。
+  /// 首行不是标题时落在文档开头。
+  int _templateCaretOffset(Document document) {
+    final List<Line> lines = <Line>[
+      for (final Node node in document.root.children) node as Line,
+    ];
+    if (lines.isEmpty || !lines.first.style.containsKey(Attribute.header.key)) {
+      return 0;
+    }
+    int offset = 0;
+    for (final Line line in lines) {
+      if (!line.style.containsKey(Attribute.header.key)) return offset;
+      offset += line.length;
+    }
+    return document.length - 1;
   }
 
   String _templateIcon(String id) => switch (id) {
@@ -568,8 +787,9 @@ class CourseReviewFormSheetState extends State<CourseReviewFormSheet> {
     CourseOfferingPayload offering,
     CourseCopy copy,
     GfColors colors,
-    GfTypography type,
-  ) {
+    GfTypography type, {
+    required VoidCallback onTap,
+  }) {
     final classParts = <String>[
       offering.className?.trim() ?? '',
       offering.classCode?.trim() ?? '',
@@ -582,9 +802,7 @@ class CourseReviewFormSheetState extends State<CourseReviewFormSheet> {
     ].where((part) => part.isNotEmpty).toSet().join(' · ');
     final bool selected = _offeringId == offering.id;
     return InkWell(
-      onTap: _submitting || widget.editing != null
-          ? null
-          : () => setState(() => _offeringId = offering.id),
+      onTap: onTap,
       child: Container(
         margin: const EdgeInsets.only(bottom: 6),
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),

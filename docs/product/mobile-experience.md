@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-09-30
+> Last verified: 2026-10-01
 
 The Flutter app combines the forum, course catalog, scheduler and Wiki. Ordinary browsing and
 writing use native pages. Management uses the same first-party workspaces and permission checks as
@@ -755,13 +755,19 @@ identity survive this layout change. The header keeps a small outer margin for i
 - `Current`: course details retain offering-specific five-star reviews and existing review fields;
   bookmark and write-review actions stay in a bottom dock. Scores share a baseline with their
   five-point denominator. The signed-in user’s own reviews (including anonymous reviews) appear
-  first across pagination; edit/delete controls remain on those rows. Review bodies use the shared
-  Markdown renderer, and the editor uses the app’s rich Markdown surface with six Web-matched templates.
-- `Current`: review rows offer helpful/dislike, image sharing and reporting for other authors’ reviews.
-  Guests are sent to sign-in for reactions and reports. Reports require an explicit reason and limit
-  supplemental notes to 300 characters; a failed submission keeps the entered values visible. A
-  reaction switch deletes the old reaction before adding the new one, updates counts after success,
-  and attempts cleanup plus a list reload when the second request fails.
+  first across pagination. Every review card shows a 40-pixel avatar: member reviews use the server
+  `avatarUrl`, anonymous and legacy reviews (and a member avatar that fails to load) use the shared
+  generated face seeded from the public author label plus the review id, so one review keeps the same
+  face as the Web card. Review bodies use the shared Markdown renderer, and the editor uses the app’s
+  rich Markdown surface with six Web-matched templates rendered at the compact reading profile.
+- `Current`: the review action bar is one row of at least 44-pixel targets — helpful count, dislike
+  count and image sharing — that scrolls horizontally on narrow screens or at large text instead of
+  wrapping. Edit and delete live in the card’s top-right overflow menu, which also carries reporting
+  for other authors’ reviews; a guest sees no report entry, and reactions send guests to sign-in.
+  Reports require an explicit reason and limit supplemental notes to 300 characters; a failed
+  submission keeps the entered values visible. A reaction switch deletes the old reaction before
+  adding the new one, updates counts after success, and attempts cleanup plus a list reload when the
+  second request fails.
 - `Partial`: the review API stores helpful and dislike records independently, so cross-device
   concurrent changes are not atomically mutually exclusive. Flutter serializes changes per review
   and reconciles failures from the server, but the API contract has no atomic switch operation.
@@ -776,10 +782,11 @@ identity survive this layout change. The header keeps a small outer margin for i
 - `Partial`: automated tests cover PNG capture and tiled stitching; native save/share behavior and
   visual layout still need simulator and device acceptance.
 - `Current`: Profile includes a private My course reviews entry for paginated management across
-  courses, including anonymous reviews. Each visible review can be edited, deleted or opened at
-  its offering and review position. Hidden reviews remain listed for deletion, with no edit or
-  public-detail action; deleted reviews are omitted. Course detail and management share the same
-  editor and a rounded delete confirmation with the target review excerpt and explicit cancel.
+  courses, including anonymous reviews. Management rows reuse the detail card’s avatar and top-right
+  overflow menu (open course / edit / delete) instead of a wrapping action row. Hidden reviews remain
+  listed for deletion, with no edit or public-detail action; deleted reviews are omitted. Course
+  detail and management share the same editor and a rounded delete confirmation with the target
+  review excerpt and explicit cancel.
 - `Current`: shared transient feedback appears in dismissible top banners above sheets, below
   the system safe area. Course review failures show localized server reasons and preserve the
   draft; success and error messages use the same surface with distinct semantic icons.
@@ -1254,7 +1261,16 @@ move actions. Saved edits retain their input until the server succeeds.
 
 `Current`: course reviews keep changed input behind an explicit discard confirmation, block dismissal
 while saving and retain the form on failure. Rating stars expose selected semantics and 48-pixel touch
-targets. Cached AI summaries start collapsed, with refresh available inside the expanded section.
+targets. The write/edit sheet is editor-first: the title, a compact meta block (offering chip and
+anonymous switch, then the rating stars), a pinned formatting toolbar and a pinned action row
+(counter plus cancel and submit) surround a body that scrolls inside its own bounded region, so long
+reviews never push the toolbar or the actions out of reach. The meta block shows every control without
+a hidden horizontal scroll while the panel has room, and falls back to one scrollable row — stars and
+anonymous switch first — only when the keyboard plus a large text scale squeeze the panel below 300
+pixels. The sheet keeps the panel above the keyboard at every supported
+text scale. Applying a template inserts into the existing controller in place — focus, selection and
+undo history survive, the caret lands after a leading heading, and a non-empty body still asks before
+being replaced. Cached AI summaries start collapsed, with refresh available inside the expanded section.
 Settings show current device preferences, readable device/browser session names and platform-specific
 push disclosure; account closure remains inside account settings rather than the main index.
 

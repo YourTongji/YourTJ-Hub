@@ -18,6 +18,7 @@ import 'package:ui_kit/ui_kit.dart';
 import 'package:forum_app/l10n/app_localizations.dart';
 import 'package:forum_app/src/pages/publish/embed_image_move.dart';
 import 'package:forum_app/src/pages/publish/publish_page.dart';
+import 'package:forum_app/src/widgets/editor/rich_markdown_editor.dart';
 import 'package:forum_app/src/widgets/markdown_view.dart';
 import 'package:forum_app/src/router.dart';
 import 'package:forum_app/src/providers.dart';
@@ -358,6 +359,56 @@ void main() {
       topicRepository: topicRepository,
     );
   }
+
+  testWidgets(
+    'publish body editor keeps the toolbar-free custom builder path',
+    (tester) async {
+      // 发布页用 `showToolbar: false` + `editorBuilder`（DragTarget 包一层）：
+      // RichMarkdownEditor 的默认行为必须保持不变。
+      final controller = QuillController.basic();
+      final focusNode = FocusNode();
+      addTearDown(controller.dispose);
+      addTearDown(focusNode.dispose);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          child: MaterialApp(
+            theme: gfThemeData(Brightness.light),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: Scaffold(
+              body: RichMarkdownEditor(
+                controller: controller,
+                focusNode: focusNode,
+                placeholder: 'publish body',
+                showToolbar: false,
+                editorBuilder: (_) => const SizedBox(
+                  key: Key('publish-custom-body'),
+                  height: 200,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      expect(find.byKey(const Key('rich-markdown-toolbar')), findsNothing);
+      expect(find.byKey(const Key('publish-custom-body')), findsOneWidget);
+      expect(find.byType(QuillEditor), findsNothing);
+      // 旧行为：非 fill 模式最小高度 220，内容自撑。
+      final box = tester.widget<ConstrainedBox>(
+        find
+            .ancestor(
+              of: find.byKey(const Key('publish-custom-body')),
+              matching: find.byType(ConstrainedBox),
+            )
+            .first,
+      );
+      expect(box.constraints.minHeight, 220);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+    },
+  );
 
   for (final compact in [false, true]) {
     for (final type in [2, 3]) {

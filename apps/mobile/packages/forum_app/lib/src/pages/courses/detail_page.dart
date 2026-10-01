@@ -78,6 +78,9 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
 
   CourseRepository get _repository => ref.read(courseRepositoryProvider);
 
+  /// 已登录（token 可解析出用户）。未登录时课评卡片不提供举报入口。
+  bool get _signedIn => ref.watch(currentUserProvider).valueOrNull != null;
+
   @override
   void initState() {
     super.initState();
@@ -835,7 +838,7 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
                   _toggleReviewReaction(review, CourseReviewReaction.helpful),
               onDislike: () =>
                   _toggleReviewReaction(review, CourseReviewReaction.dislike),
-              onReport: review.viewer.canEdit
+              onReport: review.viewer.canEdit || !_signedIn
                   ? null
                   : () => _reportReview(review),
               onShare: () => _shareReview(detail, review),
@@ -1851,8 +1854,8 @@ class _ReviewRow extends StatelessWidget {
     final GfColors colors = GfTheme.colorsOf(context);
     final GfTypography type = GfTheme.typographyOf(context);
     final int? rating = review.rating;
-    final bool helpful = review.viewer.isHelpful;
-    final bool disliked = review.viewer.isDisliked;
+    // 自己的评价把编辑/删除收进右上溢出菜单；他人评价（已登录）只留举报。
+    final bool hasMenu = onEdit != null || onDelete != null || onReport != null;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
@@ -1862,6 +1865,8 @@ class _ReviewRow extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
+              reviewAvatar(review, size: 40),
+              const SizedBox(width: 10),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -1876,32 +1881,38 @@ class _ReviewRow extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 2),
-                    Text(
-                      '$offeringLabel · ${formatDateTime(review.createdAt)}',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: type.meta.copyWith(
-                        color: colors.baseContent.withValues(alpha: 0.45),
-                      ),
+                    Row(
+                      children: <Widget>[
+                        Flexible(
+                          child: Text(
+                            '$offeringLabel · ${formatDateTime(review.createdAt)}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: type.meta.copyWith(
+                              color: colors.baseContent.withValues(alpha: 0.45),
+                            ),
+                          ),
+                        ),
+                        if (rating != null && rating > 0) ...<Widget>[
+                          const SizedBox(width: 8),
+                          for (int star = 1; star <= 5; star++)
+                            GfSymbol(
+                              star <= rating ? 'star-filled' : 'star',
+                              size: 15,
+                              color: star <= rating
+                                  ? colors.warning
+                                  : colors.baseContent.withValues(alpha: 0.2),
+                            ),
+                        ],
+                      ],
                     ),
                   ],
                 ),
               ),
-              const SizedBox(width: 8),
-              if (rating != null && rating > 0)
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: <Widget>[
-                    for (int star = 1; star <= 5; star++)
-                      GfSymbol(
-                        star <= rating ? 'star-filled' : 'star',
-                        size: 15,
-                        color: star <= rating
-                            ? colors.warning
-                            : colors.baseContent.withValues(alpha: 0.2),
-                      ),
-                  ],
-                ),
+              if (hasMenu) ...<Widget>[
+                const SizedBox(width: 4),
+                _overflowMenu(context, l10n, copy, colors),
+              ],
             ],
           ),
           const SizedBox(height: 8),
@@ -1909,62 +1920,121 @@ class _ReviewRow extends StatelessWidget {
           // 不再渲染原始 Markdown 文本。
           GfHtmlContent(html: review.contentHtml, profile: profile),
           const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            runSpacing: 4,
-            children: <Widget>[
-              _actionChip(
-                context,
-                label: '${review.helpfulCount} ${l10n.reviewHelpful}',
-                symbol: 'thumbs-up',
-                active: helpful,
-                selectedSemantics: true,
-                activeColor: colors.warning,
-                onTap: reactionBusy ? null : onHelpful,
-              ),
-              _actionChip(
-                context,
-                label: '${review.dislikeCount} ${l10n.reviewDislike}',
-                symbol: 'thumbs-down',
-                active: disliked,
-                selectedSemantics: true,
-                activeColor: colors.error,
-                onTap: reactionBusy ? null : onDislike,
-              ),
-              _actionChip(
-                context,
-                label: l10n.courseReviewShare,
-                symbol: 'share-2',
-                active: false,
-                onTap: onShare,
-              ),
-              if (onReport != null)
-                _actionChip(
-                  context,
-                  label: l10n.contentReport,
-                  symbol: 'flag',
-                  active: false,
-                  onTap: reportBusy ? null : onReport,
-                ),
-              if (onEdit != null) ...<Widget>[
-                _actionChip(
-                  context,
-                  label: l10n.commonEdit,
-                  symbol: 'square-pen',
-                  active: false,
-                  onTap: onEdit,
-                ),
-              ],
-              if (onDelete != null) ...<Widget>[
-                _actionChip(
-                  context,
-                  label: copy.delete,
-                  symbol: 'trash-2',
-                  active: false,
-                  onTap: onDelete,
-                ),
-              ],
-            ],
+          _ReviewActionBar(
+            review: review,
+            reactionBusy: reactionBusy,
+            onHelpful: onHelpful,
+            onDislike: onDislike,
+            onShare: onShare,
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 卡片右上溢出菜单（与帖子/话题同一范式）：自己的评价是编辑/删除，
+  /// 他人评价（已登录）是举报；一个都没有时调用方不渲染按钮。
+  Widget _overflowMenu(
+    BuildContext context,
+    AppLocalizations l10n,
+    CourseCopy copy,
+    GfColors colors,
+  ) {
+    return PopupMenuButton<String>(
+      key: ValueKey<String>('review-menu-${review.id}'),
+      tooltip: l10n.profileMore,
+      icon: const GfSymbol('ellipsis', size: 20),
+      useRootNavigator: true,
+      onSelected: (String value) {
+        switch (value) {
+          case 'edit':
+            onEdit?.call();
+          case 'delete':
+            onDelete?.call();
+          case 'report':
+            onReport?.call();
+        }
+      },
+      itemBuilder: (_) => <PopupMenuEntry<String>>[
+        if (onEdit != null)
+          PopupMenuItem<String>(value: 'edit', child: Text(l10n.commonEdit)),
+        if (onDelete != null)
+          PopupMenuItem<String>(
+            value: 'delete',
+            child: Text(copy.delete, style: TextStyle(color: colors.error)),
+          ),
+        if (onReport != null)
+          PopupMenuItem<String>(
+            value: 'report',
+            enabled: !reportBusy,
+            child: Text(l10n.contentReport),
+          ),
+      ],
+    );
+  }
+}
+
+/// 课评卡片底部功能区：**单行**（横向可滚）三项——有用计数 / 无用计数 / 分享。
+///
+/// 命中区固定 44×44，标签只保留计数与短文案，不再把「有用 / 无用」长文案
+/// 重复一遍（320px + 200% 字号下也不会折行或出现按钮孤行）。
+class _ReviewActionBar extends StatelessWidget {
+  const _ReviewActionBar({
+    required this.review,
+    required this.reactionBusy,
+    required this.onHelpful,
+    required this.onDislike,
+    required this.onShare,
+  });
+
+  final ReviewPayload review;
+  final bool reactionBusy;
+  final VoidCallback onHelpful;
+  final VoidCallback onDislike;
+  final VoidCallback onShare;
+
+  @override
+  Widget build(BuildContext context) {
+    final AppLocalizations l10n = AppLocalizations.of(context);
+    final GfColors colors = GfTheme.colorsOf(context);
+    final int helpfulCount = review.helpfulCount;
+    final int dislikeCount = review.dislikeCount;
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: <Widget>[
+          _actionChip(
+            context,
+            key: ValueKey<String>('review-helpful-${review.id}'),
+            label: '$helpfulCount',
+            semanticsLabel: '${l10n.reviewHelpful} $helpfulCount',
+            symbol: 'thumbs-up',
+            active: review.viewer.isHelpful,
+            selectedSemantics: true,
+            activeColor: colors.warning,
+            onTap: reactionBusy ? null : onHelpful,
+          ),
+          const SizedBox(width: 8),
+          _actionChip(
+            context,
+            key: ValueKey<String>('review-dislike-${review.id}'),
+            label: '$dislikeCount',
+            semanticsLabel: '${l10n.reviewDislike} $dislikeCount',
+            symbol: 'thumbs-down',
+            active: review.viewer.isDisliked,
+            selectedSemantics: true,
+            activeColor: colors.error,
+            onTap: reactionBusy ? null : onDislike,
+          ),
+          const SizedBox(width: 8),
+          _actionChip(
+            context,
+            key: ValueKey<String>('review-share-${review.id}'),
+            label: l10n.courseReviewShare,
+            symbol: 'share-2',
+            active: false,
+            onTap: onShare,
           ),
         ],
       ),
@@ -1973,17 +2043,22 @@ class _ReviewRow extends StatelessWidget {
 
   Widget _actionChip(
     BuildContext context, {
+    required Key key,
     required String label,
     required String symbol,
     required bool active,
     VoidCallback? onTap,
     Color? activeColor,
+    String? semanticsLabel,
     bool selectedSemantics = false,
   }) {
     final GfColors colors = GfTheme.colorsOf(context);
     final Color? tint = active ? (activeColor ?? colors.primary) : null;
     return Semantics(
+      key: key,
       toggled: selectedSemantics ? active : null,
+      button: true,
+      label: semanticsLabel,
       child: TextButton(
         onPressed: onTap,
         style: TextButton.styleFrom(
