@@ -3,6 +3,7 @@
 import hashlib
 import json
 from pathlib import Path
+import re
 import shutil
 import sys
 import subprocess
@@ -24,7 +25,7 @@ def stage(dist, destination, source_sha, version):
     binary = dist / relative
     build_info = subprocess.check_output(['go', 'version', '-m', str(binary)], text=True)
     for field, value in [('Version', version), ('Commit', source_sha)]:
-        if 'buildinfo.' + field + '=' + value not in build_info:
+        if re.findall(r'buildinfo\.' + field + r'=([^\s"\\]+)', build_info) != [value]:
             raise ValueError('Binary build metadata does not match approved ' + field)
     destination.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(binary, destination / 'yourtj-hub')

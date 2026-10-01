@@ -181,15 +181,27 @@ def authorize(candidate_id, github, folder, require_merged=True):
     return manifest, binding
 
 
+def verify_reservation(manifest, binding, github, existing=None):
+    tag = manifest['tag']
+    existing = existing or github.api(f'git/ref/tags/{tag}', missing=True)
+    require(existing and existing['object']['type'] == 'tag', 'An approved annotated reservation is required')
+    require(git('rev-parse', f'refs/tags/{tag}^{{commit}}') == manifest['sourceSha'], 'Existing tag has different source')
+    annotation = github.api(f"git/tags/{existing['object']['sha']}")
+    metadata = json.loads(annotation['message'])
+    require(metadata.get('version') == manifest['version'] and metadata.get('buildNumber') == manifest['buildNumber'],
+            'Tag version/build identity differs from approved request')
+    if manifest['operation'] != 'promote-ios':
+        require(metadata.get('candidateId') == manifest['candidateId'] and metadata.get('contentDigest') == binding['contentDigest'],
+                'Existing tag belongs to another approval identity')
+    else:
+        require(metadata.get('candidateId') == manifest['existingRelease']['candidateId'], 'Promotion tag does not belong to original request')
+
+
 def reserve(manifest, binding, github):
     tag = manifest["tag"]
     existing = github.api(f"git/ref/tags/{tag}", missing=True)
     if existing:
-        require(git("rev-parse", f"refs/tags/{tag}^{{commit}}") == manifest["sourceSha"], "Existing tag has different source")
-        if manifest["operation"] != "promote-ios":
-            annotation = github.api(f"git/tags/{existing['object']['sha']}")
-            metadata = json.loads(annotation["message"])
-            require(metadata.get("candidateId") == manifest["candidateId"] and metadata.get("contentDigest") == binding["contentDigest"], "Existing tag belongs to another approval identity")
+        verify_reservation(manifest, binding, github, existing)
         return
     require(manifest["operation"] == "release", "Promotion requires its original immutable tag")
     metadata = {"schema": 1, "version": manifest["version"], "buildNumber": manifest["buildNumber"],

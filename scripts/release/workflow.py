@@ -8,14 +8,14 @@ import tempfile
 from model import ID, FILES, require, validate_candidate, validate_approval, digest
 from github import GitHub, git
 from controller import (plan, prepare, create_pr, authorize, reserve, emit_outputs, write_json,
-                        candidate_path, load_candidate)
+                        candidate_path, load_candidate, verify_reservation)
 from state import reservations, baselines, latest_receipt, record
 from notes import render
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("command", choices=["prepare", "create-pr", "render", "authorize", "reserve", "receipt", "validate-pr", "review-check", "discover", "start", "verify-apple"])
+    parser.add_argument("command", choices=["prepare", "create-pr", "render", "authorize", "reserve", "receipt", "validate-pr", "review-check", "discover", "start", "verify-apple", "verify-publication", "verify-deploy"])
     parser.add_argument("--candidate", default=os.environ.get("CANDIDATE"))
     parser.add_argument("--folder", type=Path, default=Path(".release-approved"))
     parser.add_argument("--pr", type=int)
@@ -101,6 +101,19 @@ def main():
         require(not selected or (selected.removesuffix('-alias') if selected == 'android-alias' else selected)
                 in manifest['channels'], 'Requested channel is outside the approved request')
         emit_outputs(manifest, binding)
+    elif args.command in {'verify-publication', 'verify-deploy'}:
+        # Run again after a potentially long native build: revoked reviews, changed notes or
+        # a moved reservation must stop the next external publication operation.
+        verify_reservation(manifest, binding, github)
+        if args.command == 'verify-deploy':
+            receipt = latest_receipt(github, args.candidate, 'web')
+            require(receipt and manifest['channels'] == ['web'], 'No approved web image receipt')
+            payload = receipt['deployment']['payload']
+            require(payload['binding']['contentDigest'] == binding['contentDigest'], 'Image belongs to different approved content')
+            details = payload['details']
+            require(os.environ['IMAGE_REF'] == details['image'] and os.environ['BINARY_SHA'] == details['binarySha256']
+                    and os.environ['SOURCE_SHA'] == manifest['sourceSha'] and os.environ['VERSION'] == manifest['version'],
+                    'Deployment inputs differ from the approved image/binary identity')
     elif args.command == 'verify-apple':
         require(args.apple_state, 'Authenticated current Apple state is required')
         apple = json.loads(args.apple_state.read_text())

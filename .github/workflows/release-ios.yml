@@ -165,11 +165,14 @@ jobs:
       - name: Upload and submit TestFlight and App Store
         id: publish
         env:
+          GH_TOKEN: ${{ github.token }}
           IOS_EXPECTED_BUILD_ID: ${{ steps.start.outputs.existing_build_id }}
           IOS_EXISTING_BUILD_ONLY: ${{ inputs.promotion || (inputs.recover && steps.apple.outputs.needs_ipa != 'true') }}
           IOS_REVIEW_JSON: ${{ secrets.IOS_REVIEW_JSON }}
           IOS_IPA_PATH: .source/apps/mobile/build/release/ios/forum_app.ipa
-        run: python3 scripts/mobile-release/publish_ios.py
+        run: |
+          python3 scripts/release/workflow.py verify-publication
+          python3 scripts/mobile-release/publish_ios.py
       - name: Record each Apple result (submitted does not mean live)
         if: always() && steps.start.outcome == 'success'
         env:

@@ -6,7 +6,7 @@ import subprocess
 import tempfile
 import unittest
 from unittest.mock import patch
-from controller import authorize, load_candidate
+from controller import authorize, load_candidate, verify_reservation
 from model import ReleaseError
 from test_model import candidate
 
@@ -43,6 +43,18 @@ class ControllerTests(unittest.TestCase):
         if args[0] == 'fetch':
             return ''
         return subprocess.check_output(['git', '-C', str(self.repo), *args], text=True).strip()
+
+    def test_publication_rechecks_reserved_content_and_build_number(self):
+        metadata = {'version': self.manifest['version'], 'buildNumber': self.manifest['buildNumber'],
+                    'candidateId': self.manifest['candidateId'], 'contentDigest': 'reviewed'}
+        class Remote:
+            def api(self, endpoint, **kwargs):
+                return {'message': json.dumps(metadata)} if endpoint.startswith('git/tags/') else {'object': {'type': 'tag', 'sha': 'tag-id'}}
+        with patch('controller.git', return_value=self.source):
+            verify_reservation(self.manifest, {'contentDigest': 'reviewed'}, Remote())
+            for field, value in [('contentDigest', 'changed'), ('buildNumber', 123), ('version', '1.0.16')]:
+                with patch.dict(metadata, {field: value}), self.assertRaises(ReleaseError):
+                    verify_reservation(self.manifest, {'contentDigest': 'reviewed'}, Remote())
 
     def test_materialization_preserves_exact_reviewed_bytes_and_rejects_stale_files(self):
         destination = self.root / 'candidate'

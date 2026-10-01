@@ -32,8 +32,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           CANDIDATE: ${{ inputs.candidate }}
           IMAGE_REF: ${{ inputs.image }}
+          BINARY_SHA: ${{ inputs.binary }}
+          SOURCE_SHA: ${{ inputs.source }}
+          VERSION: ${{ inputs.version }}
         run: |
-          python3 scripts/release/workflow.py authorize
+          python3 scripts/release/workflow.py verify-deploy
           python3 - <<'PY'
           import os,re
           if not re.fullmatch(r'main-v[0-9]+\.[0-9]+\.[0-9]+@sha256:[a-f0-9]{64}',os.environ['IMAGE_REF']): raise SystemExit('An immutable release image is required')
