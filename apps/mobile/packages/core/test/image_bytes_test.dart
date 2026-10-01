@@ -21,7 +21,23 @@ void main() {
       'gif87a': ('GIF87a'.codeUnits, '.gif'),
       'gif89a': ('GIF89a'.codeUnits, '.gif'),
       'webp': (_webpBytes(), '.webp'),
-      'bmp': ([0x42, 0x4D, 0x00, 0x00], '.bmp'),
+      'bmp': ([
+        0x42,
+        0x4D,
+        0x3A,
+        0x00,
+        0x00,
+        0x00, // file size
+        0x00,
+        0x00,
+        0x00,
+        0x00, // reserved1/2 (spec-fixed zero)
+        0x36,
+        0x00,
+        0x00,
+        0x00, // pixel data offset
+      ], '.bmp'),
+      'bm-prefixed plain text': ('BM ${'x' * 20}'.codeUnits, null),
       'unknown': ([0x00, 0x01, 0x02, 0x03], null),
       'empty': (<int>[], null),
       'plain text': ('hello world'.codeUnits, null),
@@ -88,7 +104,22 @@ void main() {
         'dir/sub/photo.jpg',
       );
       expect(
-        alignImageFileNameWithBytes(r'C:\tmp\photo', [0x42, 0x4D, 0x00]),
+        alignImageFileNameWithBytes(r'C:\tmp\photo', [
+          0x42,
+          0x4D,
+          0x3A,
+          0x00,
+          0x00,
+          0x00,
+          0x00,
+          0x00,
+          0x00,
+          0x00,
+          0x36,
+          0x00,
+          0x00,
+          0x00,
+        ]),
         r'C:\tmp\photo.bmp',
       );
     });

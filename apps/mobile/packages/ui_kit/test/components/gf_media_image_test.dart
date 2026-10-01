@@ -199,6 +199,14 @@ void main() {
       ),
       isTrue,
     );
+    expect(
+      isSvgDocument(
+        Uint8List.fromList(
+          utf8.encode('<?xml version="1.0"?>\n<!-- ${'x' * 1500} -->\n$svg'),
+        ),
+      ),
+      isTrue,
+    );
     // Bearers that must never be mistaken for vectors.
     expect(isSvgDocument(_gif), isFalse);
     expect(isSvgDocument(Uint8List(0)), isFalse);

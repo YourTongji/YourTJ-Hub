@@ -473,7 +473,7 @@ bool isSvgDocument(Uint8List bytes) {
   while (start < bytes.length && bytes[start] <= 0x20) {
     start++;
   }
-  final int end = math.min(bytes.length, start + 1024);
+  final int end = math.min(bytes.length, start + 8192);
   final String head = latin1
       .decode(bytes.sublist(start, end))
       .toLowerCase();

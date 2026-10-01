@@ -12,7 +12,6 @@ library;
 
 const List<int> _jpegMagic = [0xFF, 0xD8, 0xFF];
 const List<int> _pngMagic = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
-const List<int> _bmpMagic = [0x42, 0x4D];
 
 /// 与字节内容匹配的扩展名（含点、小写）；无法识别时返回 null。
 String? imageExtensionForBytes(List<int> bytes) {
@@ -22,7 +21,7 @@ String? imageExtensionForBytes(List<int> bytes) {
     return '.gif';
   }
   if (_isWebP(bytes)) return '.webp';
-  if (_startsWith(bytes, _bmpMagic)) return '.bmp';
+  if (_isBmp(bytes)) return '.bmp';
   return null;
 }
 
@@ -63,6 +62,13 @@ bool _startsWith(List<int> bytes, List<int> prefix) {
 }
 
 bool _startsWithAscii(List<int> bytes, String ascii) => _startsWith(bytes, ascii.codeUnits);
+
+/// `BM` 两字节签名太弱（纯文本也会命中），连带校验 BITMAPFILEHEADER：
+/// 至少 14 字节头，且 reserved1/reserved2（offset 6..10）按规范恒为 0。
+bool _isBmp(List<int> bytes) {
+  if (bytes.length < 14 || bytes[0] != 0x42 || bytes[1] != 0x4D) return false;
+  return bytes[6] == 0 && bytes[7] == 0 && bytes[8] == 0 && bytes[9] == 0;
+}
 
 /// `RIFF....WEBP`：第 0..4 字节为 RIFF、第 8..12 字节为 WEBP。
 bool _isWebP(List<int> bytes) {
