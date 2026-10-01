@@ -364,7 +364,46 @@ void main() {
       expect(
         find.byWidgetPredicate(
           (Widget widget) =>
-              widget is Semantics && widget.properties.label == '3 unread',
+              widget is Semantics && widget.properties.label == 'Unread: 3',
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('keeps long identity and preview readable at 2x text', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        gfApp(
+          MediaQuery(
+            data: const MediaQueryData(textScaler: TextScaler.linear(2)),
+            child: const SizedBox(
+              width: 320,
+              child: GfConversationRow(
+                avatarUrl: '',
+                name: '校园事务与课程讨论小组管理员',
+                lastMessage: '请查看本周课程调整与校园通知的完整说明',
+                time: '今天 10:30',
+                unreadCount: 2,
+                unreadLabel: '未读',
+              ),
+            ),
+          ),
+        ),
+      );
+      expect(tester.takeException(), isNull);
+      final name = find.text('校园事务与课程讨论小组管理员');
+      final preview = find.text('请查看本周课程调整与校园通知的完整说明');
+      final nameParagraph = tester.renderObject<RenderParagraph>(name);
+      expect(tester.getRect(name).width, lessThanOrEqualTo(320));
+      expect(tester.getRect(preview).width, lessThanOrEqualTo(320));
+      expect(nameParagraph.didExceedMaxLines, isFalse);
+      expect(tester.getRect(name).height, greaterThan(32));
+      expect(tester.getRect(preview).height, greaterThan(30));
+      expect(
+        find.byWidgetPredicate(
+          (Widget widget) =>
+              widget is Semantics && widget.properties.label == '未读: 2',
         ),
         findsOneWidget,
       );

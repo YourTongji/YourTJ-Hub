@@ -15,6 +15,7 @@ class GfConversationRow extends StatelessWidget {
     required this.lastMessage,
     required this.time,
     required this.unreadCount,
+    this.unreadLabel = 'Unread',
     this.active = false,
     this.onTap,
   });
@@ -24,6 +25,7 @@ class GfConversationRow extends StatelessWidget {
   final String lastMessage;
   final String time;
   final int unreadCount;
+  final String unreadLabel;
   final bool active;
   final VoidCallback? onTap;
 
@@ -52,7 +54,7 @@ class GfConversationRow extends StatelessWidget {
                     right: -1,
                     top: -1,
                     child: Semantics(
-                      label: '$unreadCount unread',
+                      label: '$unreadLabel: $unreadCount',
                       child: Container(
                         width: 10,
                         height: 10,
@@ -90,6 +92,8 @@ class GfConversationRow extends StatelessWidget {
                   final inlineTime =
                       constraints.maxWidth - timePainter.width >= 120 &&
                       MediaQuery.textScalerOf(context).scale(16) <= 24;
+                  final bool largeText =
+                      MediaQuery.textScalerOf(context).scale(16) > 24;
                   timePainter.dispose();
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -99,7 +103,7 @@ class GfConversationRow extends StatelessWidget {
                           Expanded(
                             child: Text(
                               name,
-                              maxLines: 1,
+                              maxLines: largeText ? 2 : 1,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
                                 fontSize: 16,
@@ -117,7 +121,7 @@ class GfConversationRow extends StatelessWidget {
                       const SizedBox(height: 8),
                       Text(
                         lastMessage,
-                        maxLines: 1,
+                        maxLines: largeText ? 2 : 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           fontSize: 15,

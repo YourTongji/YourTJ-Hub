@@ -339,6 +339,13 @@ class _GfShellState extends ConsumerState<GfShell> with WidgetsBindingObserver {
           badge: destination == GfShellDestination.notifications
               ? _unreadNotifications
               : destination == GfShellDestination.messages && _unreadMessages,
+          badgeSemanticLabel:
+              (destination == GfShellDestination.notifications &&
+                      _unreadNotifications) ||
+                  (destination == GfShellDestination.messages &&
+                      _unreadMessages)
+              ? l10n.notificationsUnread
+              : null,
         ),
     ];
 
@@ -391,7 +398,7 @@ class _GfShellState extends ConsumerState<GfShell> with WidgetsBindingObserver {
                   child: GfBottomNavigation(
                     currentIndex: widget.navigationShell.currentIndex,
                     onSelected: _selectDestination,
-                    showLabels: false,
+                    showLabels: true,
                     items: destinations,
                   ),
                 ),

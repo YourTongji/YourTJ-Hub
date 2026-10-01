@@ -1073,20 +1073,15 @@ class _LoginPageState extends ConsumerState<LoginPage>
             ),
             const SizedBox(height: 16),
           ],
-          Text(
-            _title(l10n),
-            style: GfTheme.typographyOf(
-              context,
-            ).display.copyWith(fontSize: 27, height: 1.15),
-          ),
+          Text(_title(l10n), style: GfTheme.typographyOf(context).display),
           if (!compactHeader) ...[
-            SizedBox(height: registrationHeader ? 8 : 4),
+            SizedBox(height: registrationHeader ? 8 : 6),
             Text(
               _mode == _AuthMode.login && _returnTo != null && _returnTo != '/'
                   ? l10n.authContinueAfterLogin
                   : _subtitle(l10n),
               style: GfTheme.typographyOf(context).small.copyWith(
-                color: colors.baseContent.withValues(alpha: 0.55),
+                color: colors.baseContent.withValues(alpha: 0.64),
               ),
             ),
           ],
