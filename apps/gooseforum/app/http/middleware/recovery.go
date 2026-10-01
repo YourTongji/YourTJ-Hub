@@ -21,7 +21,9 @@ func Recovery() gin.HandlerFunc {
 					"user_agent", c.Request.UserAgent(),
 				}
 				if referer := c.Request.Referer(); referer != "" {
-					attrs = append(attrs, "referer", logReferer(referer))
+					if redacted := logReferer(referer); redacted != "" {
+						attrs = append(attrs, "referer", redacted)
+					}
 				}
 				paniclog.LogPanic("http_request", err, attrs...)
 				c.AbortWithStatus(http.StatusInternalServerError)

@@ -108,6 +108,8 @@ func TestCallbackQueryRedaction(t *testing.T) {
 		"/api/oauth/authorize/callback?id=fake",
 		"/api/oauth/authorize/callback/?id=fake",
 		"/login?redirect=%2Fapi%2Foauth%2Fauthorize%2Fcallback%3Fid%3Dfake",
+		// Malformed redirect still embeds an opaque continuation: fail closed.
+		"/login?redirect=%2Fapi%2Foauth%2Fauthorize%2Fcallback%3Fid%3Dfake%zz",
 	} {
 		r := httptest.NewRequest(http.MethodGet, raw, nil)
 		if got := logQuery(r.URL); got != "" {
@@ -117,6 +119,15 @@ func TestCallbackQueryRedaction(t *testing.T) {
 	r := httptest.NewRequest(http.MethodGet, "/search?q=hello", nil)
 	if logQuery(r.URL) != "q=hello" {
 		t.Fatal("ordinary query removed")
+	}
+	for _, raw := range []string{
+		"/login?redirect=%2Fsettings",
+		"/login?redirect=https%3A%2F%2Fevil.example%2Fcallback",
+	} {
+		r := httptest.NewRequest(http.MethodGet, raw, nil)
+		if got := logQuery(r.URL); got == "" {
+			t.Errorf("logQuery(%q) blank, want ordinary redirect query preserved", raw)
+		}
 	}
 	callbackReferer := "https://forum.test/api/oauth/authorize/callback?id=fake"
 	if got := logReferer(callbackReferer); got != "https://forum.test/api/oauth/authorize/callback" {

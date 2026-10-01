@@ -80,8 +80,20 @@ func ShouldRedactQuery(u *url.URL) bool {
 		return true
 	}
 	if u.Path == "/login" {
-		redirect, err := url.Parse(u.Query().Get("redirect"))
-		return err == nil && redirect != nil && isAuthenticationCallback(redirect.Path)
+		values, err := url.ParseQuery(u.RawQuery)
+		if err != nil {
+			// A malformed query may embed an opaque continuation URL, and
+			// ParseQuery drops unparseable pairs: fail closed.
+			return true
+		}
+		raw := values.Get("redirect")
+		if raw == "" {
+			return false
+		}
+		// Fail closed: an unparseable redirect still embeds an opaque
+		// continuation URL, so it must not enter logs either.
+		redirect, err := url.Parse(raw)
+		return err != nil || isAuthenticationCallback(redirect.Path)
 	}
 	return false
 }

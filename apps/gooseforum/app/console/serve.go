@@ -439,6 +439,10 @@ func newGinEngine() *gin.Engine {
 func installGinDebugLogSanitizer() {
 	ginDebugLogSanitizer.Do(func() {
 		previous := gin.DebugPrintFunc
+		// The format literal below mirrors gin's internal redirect log
+		// (redirectRequest in gin's engine, pinned at v1.12.0); re-check it
+		// when upgrading gin. TestDebugGinLoggerSkipsAuthenticationCallbackQueries
+		// fails if the upstream format drifts and redaction stops applying.
 		gin.DebugPrintFunc = func(format string, values ...any) {
 			if format == "redirecting request %d: %s --> %s" && len(values) == 3 {
 				target := fmt.Sprint(values[2])
