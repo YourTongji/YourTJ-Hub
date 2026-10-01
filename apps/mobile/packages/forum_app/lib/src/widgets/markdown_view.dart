@@ -149,6 +149,9 @@ class _GfMarkdownViewState extends ConsumerState<GfMarkdownView> {
     final GfRichContentTypography profile = GfRichContentTypography.of(
       context,
       userScale: userScale,
+      // Compact callers (table embeds) and screenshot exports share the
+      // course-review baseline so exports stay within capture bounds.
+      compact: widget.compact || widget.screenshot,
     );
     // Only token expansion receives these private image sources. Image alt,
     // titles and even a matching public asset URL remain ordinary user input.
