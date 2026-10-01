@@ -1,83 +1,28 @@
 name: CI / backend
 
 on:
-  push:
-    branches: [dev, main]
-    paths:
-      - "apps/gooseforum/app/**"
-      - "apps/gooseforum/main.go"
-      - "apps/gooseforum/go.mod"
-      - "apps/gooseforum/go.sum"
-      - "apps/gooseforum/resource/embed.go"
-      - "apps/gooseforum/resource/embed_test.go"
-      - "apps/gooseforum/resource/templates/**"
-      - "apps/gooseforum/testdata/markdown-compat/**"
-      - "packages/api-contract/**"
-      - "deploy/scripts/**"
-      - "deploy/*.py"
-      - "deploy/instances/**"
-      - "deploy/config.toml.tmpl"
-      - "deploy/config.toml.example"
-      - ".github/actions/render-config/**"
-      - ".github/workflows/ci-backend.yml"
-  # PR 无条件触发, 保证 required status check 稳定存在(不会被 paths 跳过卡死)
-  pull_request:
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  workflow_call:
+    inputs:
+      source:
+        type: string
+        default: ''
+      postgres:
+        type: boolean
+        default: true
 
 permissions:
   contents: read
-  pull-requests: read
 
 jobs:
   ci-backend:
     runs-on: ubuntu-latest
-    outputs:
-      backend: ${{ steps.filter.outputs.backend }}
-      backend_pg: ${{ steps.filter.outputs.backend_pg }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
+          ref: ${{ inputs.source || github.sha }}
+          persist-credentials: false
           fetch-depth: 0
-      - uses: dorny/paths-filter@v4
-        id: filter
-        with:
-          # On dev/main pushes, compare with the commit before this push.
-          # This input is ignored for pull_request, which uses its base branch.
-          base: ${{ github.event_name == 'push' && github.ref_name || '' }}
-          filters: |
-            backend:
-              - 'apps/gooseforum/app/**'
-              - 'apps/gooseforum/main.go'
-              - 'apps/gooseforum/go.mod'
-              - 'apps/gooseforum/go.sum'
-              - 'apps/gooseforum/resource/embed.go'
-              - 'apps/gooseforum/resource/embed_test.go'
-              - 'apps/gooseforum/resource/templates/**'
-              - 'apps/gooseforum/testdata/markdown-compat/**'
-              - 'packages/api-contract/**'
-              - '.github/workflows/ci-backend.yml'
-            backend_pg:
-              - 'apps/gooseforum/app/service/**'
-              - 'apps/gooseforum/app/bundles/connect/sqlconnect/**'
-              - 'apps/gooseforum/app/migration/**'
-              - 'apps/gooseforum/app/models/**'
-              - 'apps/gooseforum/go.mod'
-              - 'apps/gooseforum/go.sum'
-              - '.github/workflows/ci-backend.yml'
-            deploy_scripts:
-              - 'deploy/scripts/**'
-              - 'deploy/*.py'
-              - 'deploy/instances/**'
-              - 'deploy/config.toml.tmpl'
-              - 'deploy/config.toml.example'
-              - '.github/workflows/ci-backend.yml'
-              - '.github/actions/render-config/**'
-
-      - uses: actions/setup-go@v5
-        if: steps.filter.outputs.backend == 'true'
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
         with:
           go-version: "1.26"
       # Go 工具链下限门禁(issue #447): go.mod 声明 go 1.26.6 + toolchain go1.26.8,
@@ -85,7 +30,6 @@ jobs:
       # 显式断言解析到的实际工具链 >= 1.26.6, 防止缓存/回退导致旧 patch
       # (go1.26.5 及更早的 7 个 stdlib CVE, 修复于 go1.26.6) 静默编译产物。
       - name: Assert Go toolchain >= 1.26.6 (issue #447)
-        if: steps.filter.outputs.backend == 'true'
         working-directory: apps/gooseforum
         run: |
           set -euo pipefail
@@ -97,15 +41,12 @@ jobs:
           fi
           echo "Go toolchain ${cur} >= ${min}: OK"
       - name: Vet
-        if: steps.filter.outputs.backend == 'true'
         working-directory: apps/gooseforum
         run: go vet ./...
       - name: Test
-        if: steps.filter.outputs.backend == 'true'
         working-directory: apps/gooseforum
         run: go test ./...
       - name: Build
-        if: steps.filter.outputs.backend == 'true'
         working-directory: apps/gooseforum
         run: go build .
 
@@ -113,7 +54,6 @@ jobs:
       # 非法 DSN 在调用侧于任何 DB 操作前报错; 渲染器 fail-closed(配置治理);
       # 仅 deploy 脚本/模板/渲染器变更时运行。
       - name: Deploy scripts (bash syntax + DSN parser + render config tests)
-        if: steps.filter.outputs.deploy_scripts == 'true'
         run: |
           # bash -n 只语法检查第一个文件参数, 多文件写法会静默跳过其余文件, 必须逐个检查
           for f in deploy/scripts/pgdsn.sh deploy/scripts/pgdsn_test.sh deploy/scripts/backup-db.sh deploy/scripts/sync-db-from-main.sh deploy/scripts/init-server.sh deploy/scripts/deploy.sh deploy/scripts/apply-config.sh deploy/scripts/verify-instance.sh; do
@@ -127,11 +67,14 @@ jobs:
   # ci-backend-pg 相同的 paths-filter 门控模式（backend 变更时运行）。
   ci-backend-race:
     needs: ci-backend
-    if: needs.ci-backend.outputs.backend == 'true'
+    if: success()
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ inputs.source || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
         with:
           go-version: "1.26"
       - name: Test (race detector, wiki sync concurrency)
@@ -143,7 +86,7 @@ jobs:
   # 服务带残缺 schema 启动, 登录/注册运行期才报错。此 job 用真实 PG 验证。
   ci-backend-pg:
     needs: ci-backend
-    if: needs.ci-backend.outputs.backend_pg == 'true'
+    if: inputs.postgres
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -160,8 +103,11 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ inputs.source || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
         with:
           go-version: "1.26"
       - name: Test (PostgreSQL migration + PG-gated models)

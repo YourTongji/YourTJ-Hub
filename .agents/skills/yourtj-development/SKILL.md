@@ -8,6 +8,11 @@ description: Develop, fix, refactor, review, test, document, or publish changes 
 Use this workflow for repository work from initial scope through verified handoff. Keep product behavior,
 wire contracts, database shape, implementation, tests, and documentation synchronized.
 
+Release preparation/status uses [yourtj-release](../yourtj-release/SKILL.md); platform prose uses
+[yourtj-release-notes](../yourtj-release-notes/SKILL.md), and distribution failures use
+[yourtj-release-recovery](../yourtj-release-recovery/SKILL.md). These share the repository CLI and do
+not grant an agent authority to replace the required human release review.
+
 ## 1. Establish authority and workspace
 
 Classify the request before changing state:

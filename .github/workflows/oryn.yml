@@ -2,6 +2,10 @@ name: Oryn
 on:
   workflow_dispatch:
     inputs:
+      release_notes_smoke:
+        description: Read-only release-note replay with live Oryn; no release publication
+        type: boolean
+        default: false
       preflight:
         description: Check App access and planning without model calls or publication
         type: boolean
@@ -43,7 +47,7 @@ concurrency:
   queue: max
 jobs:
   plan:
-    if: (github.event_name != 'issue_comment' || github.event.comment.user.type != 'Bot') && (github.event_name == 'workflow_dispatch' || (github.event_name == 'schedule' && vars.ORYN_ENABLED == 'true') || (github.event_name != 'schedule' && vars.ORYN_EVENT_ENABLED == 'true'))
+    if: inputs.release_notes_smoke != true && (github.event_name != 'issue_comment' || github.event.comment.user.type != 'Bot') && (github.event_name == 'workflow_dispatch' || (github.event_name == 'schedule' && vars.ORYN_ENABLED == 'true') || (github.event_name != 'schedule' && vars.ORYN_EVENT_ENABLED == 'true'))
     runs-on: ubuntu-22.04
     timeout-minutes: 15
     outputs:
@@ -122,3 +126,41 @@ jobs:
     secrets:
       ORYN_APP_PRIVATE_KEY: ${{ secrets.ORYN_APP_PRIVATE_KEY }}
       ORYN_OPENCODE_GO_API_KEY: ${{ secrets.ORYN_OPENCODE_GO_API_KEY }}
+
+  release-notes-smoke:
+    if: github.event_name == 'workflow_dispatch' && inputs.release_notes_smoke == true
+    runs-on: ubuntu-22.04
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Collect read-only historical source replay
+        working-directory: .
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/release/smoke.py
+      - uses: ./.github/actions/setup-oryn
+        with:
+          client-id: ${{ vars.ORYN_APP_CLIENT_ID }}
+          private-key: ${{ secrets.ORYN_APP_PRIVATE_KEY }}
+      - run: bun run core:install
+      - name: Live Oryn release draft (no target token in model process)
+        env:
+          ORYN_API_KEY: ${{ secrets.ORYN_OPENCODE_GO_API_KEY }}
+          ORYN_MODEL: ${{ vars.ORYN_MODEL || 'opencode-go/deepseek-v4.1-flash' }}
+          ORYN_BASE_URL: ${{ vars.ORYN_BASE_URL || 'https://opencode.ai/zen/go/v1' }}
+          ORYN_TASK_TIMEOUT_SECONDS: ${{ vars.ORYN_TASK_TIMEOUT_SECONDS || '1800' }}
+          ORYN_VARIANT: max
+        run: bun script/release-notes.ts ../.release-smoke/input.json ../.release-smoke/output.json
+      - name: Validate and render platform output
+        working-directory: .
+        run: python3 scripts/release/smoke.py --render
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: release-notes-smoke
+          include-hidden-files: true
+          path: .release-smoke
+          retention-days: 7

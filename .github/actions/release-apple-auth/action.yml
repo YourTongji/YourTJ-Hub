@@ -1,0 +1,35 @@
+name: Authenticate release Apple account
+description: Install pinned ASC and ephemeral authentication without logging credentials.
+inputs:
+  private-key:
+    required: true
+    description: Base64 p8 key
+  key-id:
+    required: true
+    description: ASC key ID
+  issuer-id:
+    required: true
+    description: ASC issuer ID
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: |
+        python3 scripts/mobile-release/install_asc.py "$RUNNER_TEMP/asc"
+        echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+    - shell: bash
+      env:
+        PRIVATE_KEY: ${{ inputs.private-key }}
+        KEY_ID: ${{ inputs.key-id }}
+        ISSUER_ID: ${{ inputs.issuer-id }}
+        ASC_TELEMETRY_DISABLED: '1'
+      run: |
+        python3 - <<'PY'
+        import os, base64
+        from pathlib import Path
+        os.umask(0o077)
+        folder = Path(os.environ['RUNNER_TEMP']) / 'release-asc'
+        folder.mkdir(exist_ok=True)
+        (folder / 'AuthKey.p8').write_bytes(base64.b64decode(os.environ['PRIVATE_KEY'], validate=True))
+        PY
+        asc auth login --bypass-keychain --local --name release --key-id "$KEY_ID" --issuer-id "$ISSUER_ID" --private-key "$RUNNER_TEMP/release-asc/AuthKey.p8" --network

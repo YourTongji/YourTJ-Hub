@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Superseded by [0054](0054-reviewed-release-pipeline.md)
 Class: process
 
 ## Context and Problem Statement

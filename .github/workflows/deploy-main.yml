@@ -1,50 +1,43 @@
 name: Deploy / main
-
 on:
-  # release-to-main dispatches the published server tag; manual recovery also
-  # selects a server tag. Merging main alone does not deploy production.
-  workflow_dispatch:
-
+  workflow_call:
+    inputs:
+      candidate: {type: string, required: true}
+      image: {type: string, required: true}
+      source: {type: string, required: true}
+      version: {type: string, required: true}
+      binary: {type: string, required: true}
+permissions:
+  contents: read
+  pull-requests: read
+  checks: read
+  deployments: read
 concurrency:
-  group: deploy-main
+  group: instance-mutate-main
   cancel-in-progress: false
-
+  queue: max
 jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Require a server release tag on main
-        run: |
-          if [[ ! "$GITHUB_REF" =~ ^refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "::error::Select a server vX.Y.Z tag to deploy production"
-            exit 1
-          fi
-          git merge-base --is-ancestor "$GITHUB_SHA" origin/main
-      - uses: ./.github/actions/build-binary
-
-  build-image:
-    needs: build
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-    steps:
-      - uses: actions/checkout@v4
-      - uses: ./.github/actions/push-image
-        with:
-          tag: main-${{ github.sha }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-
   deploy:
-    needs: [build, build-image]
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment: production
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Recheck approved identity and immutable image reference
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANDIDATE: ${{ inputs.candidate }}
+          IMAGE_REF: ${{ inputs.image }}
+        run: |
+          python3 scripts/release/workflow.py authorize
+          python3 - <<'PY'
+          import os,re
+          if not re.fullmatch(r'main-v[0-9]+\.[0-9]+\.[0-9]+@sha256:[a-f0-9]{64}',os.environ['IMAGE_REF']): raise SystemExit('An immutable release image is required')
+          PY
       # 渲染实例 config（production 环境 secrets; GitHub 凭据生产必填）
       - name: Render main config
         uses: ./.github/actions/render-config
@@ -78,7 +71,7 @@ jobs:
       # 上传到 run-specific 路径, 避免与 deploy-dev 并发部署时
       # 互相覆盖 /tmp 下的同名文件(见 PR review #1)
       - name: Upload deploy scripts to prod host
-        uses: appleboy/scp-action@v0.1.7
+        uses: appleboy/scp-action@917f8b81dfc1ccd331fef9e2d61bdc6c8be94634
         with:
           host: ${{ secrets.VM_HOST }}
           username: ${{ secrets.VM_USER }}
@@ -88,7 +81,7 @@ jobs:
           target: "/tmp/yourtj-deploy-${{ github.run_id }}"
           strip_components: 2
       - name: Upload rendered main config to prod host
-        uses: appleboy/scp-action@v0.1.7
+        uses: appleboy/scp-action@917f8b81dfc1ccd331fef9e2d61bdc6c8be94634
         with:
           host: ${{ secrets.VM_HOST }}
           username: ${{ secrets.VM_USER }}
@@ -100,7 +93,7 @@ jobs:
       # docker-compose.yaml 只有两层路径, strip_components: 2 会把它剥没
       # (scp-action 丢弃空路径), 必须单独上传不 strip
       - name: Upload compose file to prod host
-        uses: appleboy/scp-action@v0.1.7
+        uses: appleboy/scp-action@917f8b81dfc1ccd331fef9e2d61bdc6c8be94634
         with:
           host: ${{ secrets.VM_HOST }}
           username: ${{ secrets.VM_USER }}
@@ -110,7 +103,7 @@ jobs:
           target: "/tmp/yourtj-deploy-${{ github.run_id }}"
           strip_components: 1
       - name: Deploy to main (backup db + pull image + restart + smoke + rollback)
-        uses: appleboy/ssh-action@v1.2.0
+        uses: appleboy/ssh-action@7eaf76671a0d7eec5d98ee897acda4f968735a17
         with:
           host: ${{ secrets.VM_HOST }}
           username: ${{ secrets.VM_USER }}
@@ -138,8 +131,8 @@ jobs:
             # 2. 拉取 GHCR 镜像 + 部署 + 健康检查(失败自动回滚), main 对外端口 5234
             #    生产保留更多回滚候选, 镜像保留最近 5 个(含当前) + prev
             #    CONFIG_FILE 携带渲染 config: 与镜像同一回滚事务原子替换
-            IMAGE_KEEP_N=5 CONFIG_FILE="$RUN_DIR/config-main.toml" \
-              /opt/yourtj/scripts/deploy.sh main main-${{ github.sha }} 5234
+            EXPECTED_BINARY_SHA256="${{ inputs.binary }}" IMAGE_KEEP_N=5 CONFIG_FILE="$RUN_DIR/config-main.toml" \
+              /opt/yourtj/scripts/deploy.sh main ${{ inputs.image }} 5234
             # 3. 部署成功后清理备份(失败时 deploy.sh 已恢复 compose)
             rm -f /opt/yourtj/docker-compose.yaml.prev
             # 4. 清理本 run 上传的临时文件(含明文渲染 config)

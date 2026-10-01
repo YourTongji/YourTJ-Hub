@@ -83,6 +83,7 @@ jobs:
         run: |
           sudo mkdir -p /opt/oryn-validation /opt/oryn-tools
           sudo cp ../.github/oryn/validate.mjs /opt/oryn-validation/validate.mjs
+          sudo cp ../scripts/ci/select_inputs.py /opt/oryn-validation/select_inputs.py
           bun -e 'const j = await Bun.file(".artifacts/result/job.json").json(); await Bun.write("/tmp/oryn-base-sha", j.item.baseSha);'
           sudo cp /tmp/oryn-base-sha /opt/oryn-validation/base-sha
           sudo npm install --prefix /opt/oryn-tools --global pnpm@11.10.0

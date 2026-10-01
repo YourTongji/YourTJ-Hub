@@ -1,0 +1,115 @@
+name: Release / Prepare
+on:
+  workflow_dispatch:
+    inputs:
+      scope:
+        description: 'Release targets (select main branch)'
+        type: choice
+        options: [web, android, ios, mobile]
+        default: web
+      bump:
+        description: Version increment
+        type: choice
+        options: [patch, minor, major]
+        default: patch
+      source:
+        description: main or a full SHA already in main history
+        type: string
+        default: main
+      ios_destination:
+        description: iOS destination; TestFlight does not authorize App Store submission
+        type: choice
+        options: [testflight, app-store]
+        default: testflight
+      existing_release:
+        description: Optional existing candidate ID to promote its exact Apple build to App Store
+        type: string
+permissions:
+  contents: read
+  pull-requests: read
+  checks: read
+  deployments: read
+  actions: read
+# This short lock ends after PR preparation, never across human/Apple review.
+concurrency:
+  group: release-prepare-${{ inputs.scope == 'web' && 'web' || 'mobile' }}
+  cancel-in-progress: false
+  queue: max
+jobs:
+  prepare:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: mobile-release
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Discover actual Apple distribution baselines
+        if: inputs.scope == 'ios' || inputs.scope == 'mobile'
+        uses: ./.github/actions/release-apple-auth
+        with:
+          private-key: ${{ secrets.ASC_PRIVATE_KEY_BASE64 }}
+          key-id: ${{ secrets.ASC_KEY_ID }}
+          issuer-id: ${{ secrets.ASC_ISSUER_ID }}
+      - name: Read Apple state
+        if: inputs.scope == 'ios' || inputs.scope == 'mobile'
+        run: python3 scripts/release/apple.py "$RUNNER_TEMP/apple-state.json"
+      - name: Freeze candidate and collect platform evidence
+        id: candidate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SCOPE: ${{ inputs.scope }}
+          BUMP: ${{ inputs.bump }}
+          SOURCE: ${{ inputs.source }}
+          IOS_DESTINATION: ${{ inputs.ios_destination }}
+          EXISTING_RELEASE: ${{ inputs.existing_release }}
+        run: |
+          args=()
+          if [ -f "$RUNNER_TEMP/apple-state.json" ]; then args+=(--apple-state "$RUNNER_TEMP/apple-state.json"); fi
+          python3 scripts/release/workflow.py prepare "${args[@]}"
+      - name: Set up Oryn
+        id: runtime
+        continue-on-error: true
+        uses: ./.github/actions/setup-oryn
+        with:
+          client-id: ${{ vars.ORYN_APP_CLIENT_ID }}
+          private-key: ${{ secrets.ORYN_APP_PRIVATE_KEY }}
+      - name: Install pinned public Core
+        id: core
+        if: steps.runtime.outcome == 'success'
+        continue-on-error: true
+        working-directory: .oryn-runtime
+        run: bun run core:install
+      - name: Oryn drafts only (failure leaves a human-editable request)
+        id: notes
+        if: steps.core.outcome == 'success'
+        continue-on-error: true
+        working-directory: .oryn-runtime
+        env:
+          ORYN_API_KEY: ${{ secrets.ORYN_OPENCODE_GO_API_KEY }}
+          ORYN_MODEL: ${{ vars.ORYN_MODEL || 'opencode-go/deepseek-v4.1-flash' }}
+          ORYN_BASE_URL: ${{ vars.ORYN_BASE_URL || 'https://opencode.ai/zen/go/v1' }}
+          ORYN_TASK_TIMEOUT_SECONDS: ${{ vars.ORYN_TASK_TIMEOUT_SECONDS || '1800' }}
+          ORYN_VARIANT: max
+        run: bun script/release-notes.ts ../.release-approved/oryn-input.json ../.release-approved/oryn-output.json
+      - name: Validate and render separate platform drafts
+        if: steps.notes.outcome == 'success'
+        continue-on-error: true
+        run: python3 scripts/release/workflow.py render
+      - name: Mint PR preparation identity
+        id: author
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1
+        with:
+          client-id: ${{ vars.ORYN_APP_CLIENT_ID }}
+          private-key: ${{ secrets.ORYN_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+      - name: Open Release PR for human review
+        env:
+          GH_TOKEN: ${{ steps.author.outputs.token }}
+        run: python3 scripts/release/workflow.py create-pr
+      - name: Remove Apple authentication
+        if: always()
+        run: rm -rf .asc "$RUNNER_TEMP/release-asc"

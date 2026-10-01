@@ -1,27 +1,16 @@
 import { spawnSync } from 'node:child_process';
 import { readFileSync, existsSync } from 'node:fs';
-import { pathToFileURL } from 'node:url';
+import { pathToFileURL, fileURLToPath } from 'node:url';
 
 const domains = ['governance', 'backend', 'postgres', 'frontend', 'contract', 'mobile'];
 export function selectedScopes(paths) {
-  const selected = new Set(['governance']);
-  for (const path of paths) {
-    if (/^(docs\/|README|LICENSE)|\.md$/.test(path)) continue;
-    if (path.startsWith('apps/gooseforum/')) {
-      if (path.startsWith('apps/gooseforum/resource/')) selected.add('frontend');
-      else selected.add('backend');
-      if (/^apps\/gooseforum\/app\/(models|migration)\//.test(path)) selected.add('postgres');
-      if (/^apps\/gooseforum\/app\/http\//.test(path)) selected.add('contract');
-      if (path.endsWith('go.mod') || path.endsWith('go.sum')) selected.add('postgres');
-      if (path.startsWith('apps/gooseforum/testdata/')) selected.add('frontend');
-    } else if (path.startsWith('packages/api-contract/')) {
-      for (const scope of ['contract', 'frontend', 'mobile']) selected.add(scope);
-    } else if (path.startsWith('apps/mobile/')) {
-      selected.add('mobile');
-      if (path.includes('server_message')) selected.add('frontend');
-    } else return domains;
-  }
-  return domains.filter(scope => selected.has(scope));
+  const installed = new URL('./select_inputs.py', import.meta.url);
+  const selector = existsSync(installed) ? installed : new URL('../../scripts/ci/select_inputs.py', import.meta.url);
+  const result = spawnSync('python3', [fileURLToPath(selector), '--paths-json'], {input: JSON.stringify(paths), encoding: 'utf8'});
+  if (result.error || result.status !== 0) throw new Error('Cannot establish shared validation scope');
+  const plan = JSON.parse(result.stdout);
+  return domains.filter(scope => scope === 'governance' || plan[scope]?.run);
+
 }
 function run(command, args, cwd = process.cwd(), extraEnv = {}) {
   const result = spawnSync(command, args, { cwd, env: { ...process.env, ...extraEnv }, stdio: 'inherit' });
@@ -59,8 +48,8 @@ function main() {
   }
   if (scope === 'postgres') {
     const env = { YOURTJ_TEST_PG_URL: 'host=127.0.0.1 port=5432 user=postgres password=postgres dbname=postgres sslmode=disable' };
-    run('go', ['test', './app/migration/', '-run', 'TestSchema', '-v'], backend, env);
-    run('go', ['test', './app/models/...', '-run', 'PostgreSQL$', '-v'], backend, env);
+    env.TEST_PG_DSN = env.YOURTJ_TEST_PG_URL;
+    run('go', ['test', '-p', '1', '-parallel', '1', './app/...', '-run', 'PostgreSQL|Postgres', '-v'], backend, env);
   }
   if (scope === 'frontend') {
     install(frontend);

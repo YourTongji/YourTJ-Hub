@@ -9,8 +9,9 @@ import re
 import shutil
 import subprocess
 import time
+from approved_notes import read_notes
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(os.environ.get("RELEASE_SOURCE_ROOT", Path(__file__).resolve().parents[2]))
 REPOSITORY = "YourTongji/YourTJ-Hub"
 ABIS = ("arm64-v8a", "armeabi-v7a", "x86_64")
 
@@ -94,17 +95,18 @@ def main():
         print("Verified three signed APKs and wrote SHA256SUMS.txt")
         return
 
+    approved_notes = read_notes("ANDROID_NOTES_PATH")
     release = find_release(tag)
     if release is None:
         notes = output / "notes.md"
-        notes.write_text((ROOT / "apps/mobile/store/zh-Hans/metadata.json").read_text())
-        metadata = json.loads(notes.read_text())
-        notes.write_text(metadata["whatsNew"] + "\n\nAndroid：按设备架构下载安装 APK。iOS：通过 TestFlight 或 App Store 分发，审核状态以 Apple 为准。\n")
+        notes.write_text(approved_notes + "\n")
         gh("release", "create", tag, "--repo", REPOSITORY, "--verify-tag", "--draft", "--latest=false",
            "--title", f"YourTJ {version}", "--notes-file", str(notes))
         release = find_release(tag)
         if release is None:
             raise RuntimeError("Created release is not discoverable yet; retry to resume its draft")
+    if release.get("body", "").strip() != approved_notes:
+        raise ValueError("Existing release notes differ from reviewed Android notes; do not overwrite a published identity")
     endpoint = f"repos/{REPOSITORY}/releases/{release['id']}"
     existing = {asset["name"]: asset for asset in release["assets"]}
     for path, digest in assets:
@@ -123,6 +125,8 @@ def main():
             raise ValueError("GitHub asset digest verification failed; release remains a draft")
         time.sleep(5)
     gh("release", "edit", tag, "--repo", REPOSITORY, "--draft=false", "--latest=false")
+    if os.environ.get("RELEASE_RESULT_PATH"):
+        Path(os.environ["RELEASE_RESULT_PATH"]).write_text(json.dumps({"android": {"availability": "available", "assets": {p.name: d for p, d in assets}}}))
     print(f"Verified APK release: https://github.com/{REPOSITORY}/releases/tag/{tag}")
 
 
