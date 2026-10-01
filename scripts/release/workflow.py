@@ -123,6 +123,13 @@ def main():
     elif args.command == "start":
         channel = os.environ["CHANNEL"]
         require(channel in manifest["channels"], "Channel is outside the approved request")
+        if not channel.startswith('ios-'):
+            # Reserve can precede the platform queue. Recheck inside the publisher lock as well,
+            # including recovery, so an older candidate cannot overwrite a newer distribution.
+            live = baselines(github, [channel], reservations())[channel]
+            same = live.get('tag') == manifest['tag'] and live.get('sourceSha') == manifest['sourceSha']
+            require(same or all(live.get(k) == manifest['baselines'][channel].get(k) for k in ('tag', 'sourceSha')),
+                    'Distribution advanced while queued; prepare a refreshed request')
         prior = latest_receipt(github, args.candidate, channel)
         recover = os.environ.get("RECOVER") == "true"
         if prior:

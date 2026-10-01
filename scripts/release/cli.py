@@ -4,9 +4,10 @@ import argparse
 import json
 from pathlib import Path
 import sys
+import tempfile
 from model import ReleaseError, channels_for, validate_candidate, require
 from github import GitHub, git, run
-from controller import plan, candidate_path
+from controller import plan, candidate_path, load_candidate
 from state import latest_receipt
 
 
@@ -62,8 +63,22 @@ def execute(args, github):
                 "nextActions": ["status --candidate <id>", "prepare --apply"]}
     folder = Path(candidate_path(args.candidate))
     if not folder.exists():
-        raise ReleaseError("Candidate files are not in this checkout; fetch its Release PR or main before inspecting it")
+        # Agents normally work on dev, while release data belongs to main/its Release PR.
+        # Inspect an isolated copy of the remote request without switching their checkout.
+        prs = github.pages(f"pulls?state=all&base=main&head={github.repository.split('/')[0]}:codex/release/{args.candidate}")
+        require(len(prs) == 1, 'Expected exactly one remote Release PR for this candidate')
+        pr = github.api(f"pulls/{prs[0]['number']}")
+        require(pr['head']['repo']['full_name'].lower() == github.repository.lower(), 'Candidate belongs to another repository')
+        git('fetch', 'origin', f"refs/pull/{pr['number']}/head")
+        with tempfile.TemporaryDirectory() as temporary:
+            load_candidate(args.candidate, pr['head']['sha'], temporary, draft=args.command == 'status')
+            return inspect_candidate(args, github, Path(temporary))
+    return inspect_candidate(args, github, folder)
+
+
+def inspect_candidate(args, github, folder):
     manifest = json.loads((folder / "manifest.json").read_text())
+    require(manifest['candidateId'] == args.candidate, 'Candidate directory and manifest identity differ')
     content_digest = validate_candidate(manifest, folder, draft=args.command == "status")
     if args.command == "validate":
         return {"candidateId": args.candidate, "valid": True, "contentDigest": content_digest, "approval": "must be checked against live GitHub reviews"}

@@ -31,7 +31,9 @@ python3 scripts/release/cli.py promote-ios --release mobile-1.0.15-15 --to app-s
 IDs above are examples, not a command to publish that version. Query commands are read-only. Mutating
 commands default to a dry-run; `--apply` dispatches the corresponding workflow explicitly on main.
 JSON output carries `schemaVersion`, `ok`, result fields, and actionable errors. API errors remain
-unknown/blocked. A local Apple plan needs `--apple-state` from the authenticated read-only ASC discovery;
+unknown/blocked. Status/validate/retry can read a remote Release PR into a temporary directory when
+its candidate is absent locally, without switching the agent's checkout. A local Apple plan needs
+`--apple-state` from the authenticated read-only ASC discovery;
 Prepare performs that discovery on Actions without requiring keys on the caller's computer.
 
 `scope` is web, android, ios or mobile. Mobile selects Android and iOS. TestFlight is the iOS default;

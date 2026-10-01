@@ -41,6 +41,24 @@ class PipelineTest(unittest.TestCase):
         with self.assertRaises(ReleaseError):
             execute(args, FakeGitHub())
 
+    def test_agent_can_inspect_remote_candidate_without_changing_checkout(self):
+        manifest = candidate()
+        class Remote(FakeGitHub):
+            def pages(self, endpoint):
+                return [] if endpoint.startswith('deployments?') else [{'number': 12}]
+            def api(self, endpoint, **kwargs):
+                return {'number': 12, 'head': {'sha': 'a' * 40, 'repo': {'full_name': self.repository}}}
+        def materialize(candidate_id, sha, folder, draft):
+            folder = Path(folder)
+            (folder / 'manifest.json').write_text(json.dumps(manifest))
+            for name in manifest['notes'].values(): (folder / name).write_text('[DRAFT: human review required]')
+        args = parser().parse_args(['status', '--candidate', manifest['candidateId'], '--json'])
+        with patch('cli.git') as git, patch('cli.load_candidate', side_effect=materialize):
+            result = execute(args, Remote())
+        git.assert_called_once_with('fetch', 'origin', 'refs/pull/12/head')
+        self.assertEqual(result['sourceSha'], manifest['sourceSha'])
+        self.assertEqual(result['channels'], {'android': None, 'ios-testflight': None})
+
     def test_model_output_cannot_change_a_channel_or_overwrite_a_human_edit(self):
         manifest = candidate()
         request = {'evidence': [{'id': 'android-fix', 'channels': ['android']}, {'id': 'ios-fix', 'channels': ['ios-testflight']}]}
