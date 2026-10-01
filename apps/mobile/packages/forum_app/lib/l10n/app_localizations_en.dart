@@ -265,6 +265,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get authRegisterSuccess => 'Registered successfully, please sign in';
 
   @override
+  String get authRegisterEmailVerify =>
+      'Registration successful. A verification email was sent; check your inbox.';
+
+  @override
   String get authResetEmailSent => 'Reset email sent, please check your inbox';
 
   @override
@@ -2289,7 +2293,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsAvatarSources => 'Choose a preset or upload a photo';
 
   @override
-  String get settingsEmailChangeStaged => 'Email change request submitted.';
+  String get settingsEmailChangeStaged =>
+      'An activation email was sent to your new address. Check your inbox to activate it.';
 
   @override
   String settingsEmailPending(String email) {

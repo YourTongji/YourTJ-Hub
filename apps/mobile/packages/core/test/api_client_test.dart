@@ -93,6 +93,56 @@ void main() {
       expect(adapter.requests, hasLength(1));
     });
 
+    test(
+      'postEnvelope preserves success metadata while resolving the result',
+      () async {
+        setupClient();
+        dio.httpClientAdapter = MockAdapter((request) async {
+          return ResponseData(
+            200,
+            {
+              'code': 0,
+              'result': 'registered',
+              'messageCode': 'auth.register.emailVerify',
+              'params': {'email': 'student@example.test'},
+            },
+            headers: {'New-Token': 'renewed'},
+          );
+        });
+
+        final response = await client.postEnvelope<String>(
+          '/api/register',
+          parser: (json) => json as String,
+        );
+        expect(response.result, 'registered');
+        expect(response.messageCode, 'auth.register.emailVerify');
+        expect(response.params, {'email': 'student@example.test'});
+        expect(renewedTokens, ['renewed']);
+      },
+    );
+
+    test('postEnvelope keeps the existing API error path', () async {
+      setupClient();
+      dio.httpClientAdapter = MockAdapter((request) async {
+        return ResponseData(200, {
+          'code': 1,
+          'result': null,
+          'messageCode': 'auth.register.failed',
+        });
+      });
+
+      await expectLater(
+        client.postEnvelope<String>('/api/register'),
+        throwsA(
+          isA<ApiException>().having(
+            (error) => error.messageCode,
+            'messageCode',
+            'auth.register.failed',
+          ),
+        ),
+      );
+    });
+
     test('New-Token 响应头触发 onTokenRenewed 回调', () async {
       setupClient(initialToken: 'old-token');
       final adapter = MockAdapter((request) async {

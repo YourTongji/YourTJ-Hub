@@ -833,6 +833,9 @@ identity survive this layout change. The header keeps a small outer margin for i
   error. Registration API failures use the shared server-message catalog, including daily quotas
   and retry-login instructions. Occupied usernames/emails and creation failures retain the same
   generic registration error, preserving the server's account-enumeration boundary.
+- `Current`: when email verification is enabled, successful registration tells the user to check
+  their inbox; when it is disabled, the ordinary registration confirmation remains. Email changes
+  tell the user to check the new address for its activation link in both immediate and staged modes.
 
 ## Profile and privacy
 

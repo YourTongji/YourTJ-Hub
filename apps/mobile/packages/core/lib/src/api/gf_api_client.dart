@@ -94,6 +94,37 @@ class GfApiClient {
     return _resolve(response, parser);
   }
 
+  /// POST variant for callers that need stable success metadata such as
+  /// `messageCode`; ordinary callers should keep using [post].
+  Future<GfResponse<T>> postEnvelope<T>(
+    String path, {
+    CancelToken? cancelToken,
+    Object? body,
+    Map<String, dynamic>? headers,
+    JsonParser<T>? parser,
+  }) async {
+    final response = await _request(
+      () => dio.post(
+        path,
+        cancelToken: cancelToken,
+        data: body,
+        options: Options(headers: headers),
+      ),
+    );
+    final result = await _resolve<T>(response, parser);
+    final data = response.data;
+    if (data is! Map<String, dynamic> || !data.containsKey('code')) {
+      return GfResponse<T>(code: 0, result: result);
+    }
+    final envelope = GfResponse<Object?>.fromJson(data, (json) => json);
+    return GfResponse<T>(
+      code: envelope.code,
+      messageCode: envelope.messageCode,
+      params: envelope.params,
+      result: result,
+    );
+  }
+
   Future<T> postMultipart<T>(
     String path, {
     required FormData formData,

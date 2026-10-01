@@ -84,6 +84,7 @@
   "authCaptchaRequired": "Bitte Captcha eingeben",
   "authOidcLogin": "Mit YourTJ anmelden",
   "authRegisterSuccess": "Registrierung erfolgreich. Bitte anmelden.",
+  "authRegisterEmailVerify": "Registrierung erfolgreich. Eine Bestätigungs-E-Mail wurde gesendet. Bitte prüfe dein Postfach.",
   "authResetEmailSent": "E-Mail zum Zurücksetzen gesendet. Bitte prüfe deinen Posteingang.",
   "authLoading": "Wird verarbeitet …",
   "authCacheClearFailed": "Die Offline-Daten des vorherigen Kontos konnten nicht gelöscht werden. Bitte erneut versuchen.",
@@ -753,7 +754,7 @@
   "scheduleOpenWebShort": "Webversion",
   "settingsProfileLinks": "Website und soziale Links",
   "settingsAvatarSources": "Vorlage wählen oder Foto hochladen",
-  "settingsEmailChangeStaged": "Die Anfrage zur Änderung der E-Mail-Adresse wurde gesendet.",
+  "settingsEmailChangeStaged": "Eine Aktivierungs-E-Mail wurde an deine neue Adresse gesendet. Bitte prüfe dein Postfach.",
   "settingsEmailPending": "Bestätigung ausstehend: {email}",
   "@settingsEmailPending": {
     "placeholders": {

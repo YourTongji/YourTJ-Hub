@@ -84,6 +84,7 @@
   "authCaptchaRequired": "認証コードを入力してください",
   "authOidcLogin": "YourTJでログイン",
   "authRegisterSuccess": "登録しました。ログインしてください",
+  "authRegisterEmailVerify": "登録が完了しました。確認メールを送信しました。受信箱を確認してください。",
   "authResetEmailSent": "再設定メールを送信しました。受信箱をご確認ください",
   "authLoading": "処理中…",
   "authCacheClearFailed": "前のアカウントのオフラインデータを削除できませんでした。再試行してください。",
@@ -753,7 +754,7 @@
   "scheduleOpenWebShort": "Web 版",
   "settingsProfileLinks": "ウェブサイトとSNS",
   "settingsAvatarSources": "プリセットを選択、または写真をアップロード",
-  "settingsEmailChangeStaged": "メールアドレスの変更リクエストを送信しました。",
+  "settingsEmailChangeStaged": "新しいメールアドレスに有効化メールを送りました。メールを確認してください。",
   "settingsEmailPending": "確認待ち：{email}",
   "@settingsEmailPending": {
     "placeholders": {

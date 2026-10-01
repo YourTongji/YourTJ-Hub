@@ -126,6 +126,7 @@
   "authCaptchaRequired": "请输入验证码",
   "authOidcLogin": "使用 yourtj 统一登录",
   "authRegisterSuccess": "注册成功,请登录",
+  "authRegisterEmailVerify": "注册成功，验证邮件已发送，请前往邮箱完成验证。",
   "authResetEmailSent": "重置邮件已发送,请查收",
   "authLoading": "处理中…",
   "authCacheClearFailed": "清除上一账号离线数据失败,请重试",
@@ -1106,7 +1107,7 @@
   "scheduleOpenWebShort": "网页版",
   "settingsProfileLinks": "网站与社交链接",
   "settingsAvatarSources": "选择预设头像或上传图片",
-  "settingsEmailChangeStaged": "邮箱变更请求已提交。",
+  "settingsEmailChangeStaged": "激活邮件已发送到新邮箱，请查收并完成验证。",
   "settingsEmailPending": "待确认：{email}",
   "@settingsEmailPending": {
     "placeholders": {

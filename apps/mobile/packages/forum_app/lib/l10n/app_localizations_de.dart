@@ -267,6 +267,10 @@ class AppLocalizationsDe extends AppLocalizations {
       'Registrierung erfolgreich. Bitte anmelden.';
 
   @override
+  String get authRegisterEmailVerify =>
+      'Registrierung erfolgreich. Eine Bestätigungs-E-Mail wurde gesendet. Bitte prüfe dein Postfach.';
+
+  @override
   String get authResetEmailSent =>
       'E-Mail zum Zurücksetzen gesendet. Bitte prüfe deinen Posteingang.';
 
@@ -2317,7 +2321,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get settingsEmailChangeStaged =>
-      'Die Anfrage zur Änderung der E-Mail-Adresse wurde gesendet.';
+      'Eine Aktivierungs-E-Mail wurde an deine neue Adresse gesendet. Bitte prüfe dein Postfach.';
 
   @override
   String settingsEmailPending(String email) {

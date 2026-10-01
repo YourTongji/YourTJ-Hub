@@ -137,6 +137,7 @@
   "authCaptchaRequired": "Please enter the captcha",
   "authOidcLogin": "Sign in with yourtj",
   "authRegisterSuccess": "Registered successfully, please sign in",
+  "authRegisterEmailVerify": "Registration successful. A verification email was sent; check your inbox.",
   "authResetEmailSent": "Reset email sent, please check your inbox",
   "authLoading": "Processing…",
   "authCacheClearFailed": "Failed to clear the previous account's offline data. Please retry.",
@@ -1149,7 +1150,7 @@
   "scheduleOpenWebShort": "Web version",
   "settingsProfileLinks": "Website and social links",
   "settingsAvatarSources": "Choose a preset or upload a photo",
-  "settingsEmailChangeStaged": "Email change request submitted.",
+  "settingsEmailChangeStaged": "An activation email was sent to your new address. Check your inbox to activate it.",
   "settingsEmailPending": "Awaiting confirmation: {email}",
   "@settingsEmailPending": {
     "placeholders": {

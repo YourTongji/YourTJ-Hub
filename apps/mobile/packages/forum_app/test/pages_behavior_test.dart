@@ -1510,6 +1510,18 @@ class EmptySessionsUserRepository extends UserRepository {
   }
 }
 
+class EmailChangeUserRepository extends EmptySessionsUserRepository {
+  EmailChangeUserRepository(super.client, {this.fail = false});
+
+  final bool fail;
+
+  @override
+  Future<bool> setUserEmail(String email, String password) async {
+    if (fail) throw Exception('email change failed');
+    return true;
+  }
+}
+
 /// 可编程 revoke-all 的 UserRepository:记录调用并可注入失败。
 class RevokingUserRepository extends UserRepository {
   RevokingUserRepository(super.client, {this.revokeAllFails = false});
@@ -1729,13 +1741,17 @@ void main() {
     return container;
   }
 
-  Widget app(ProviderContainer container, Widget home) {
+  Widget app(
+    ProviderContainer container,
+    Widget home, {
+    Locale locale = const Locale('zh'),
+  }) {
     return UncontrolledProviderScope(
       container: container,
       child: MaterialApp(
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
-        locale: const Locale('zh'),
+        locale: locale,
         home: home,
       ),
     );
@@ -4720,6 +4736,74 @@ void main() {
   });
 
   group('设置页加载与导航', () {
+    for (final language in ['zh', 'en', 'ja', 'de']) {
+      testWidgets(
+        'email change success shows localized inbox guidance ($language)',
+        (tester) async {
+          final client = GfApiClient(
+            dio: Dio(),
+            tokenStorage: MemTokenStorage(),
+            baseUrl: 'http://fake.local',
+          );
+          final container = await makeContainer(
+            pageRepo: CountingPageRepository(client),
+            userRepo: EmailChangeUserRepository(client),
+          );
+          await tester.pumpWidget(
+            app(
+              container,
+              const SettingsPage(initialSection: 'account'),
+              locale: Locale(language),
+            ),
+          );
+          await tester.pumpAndSettle();
+          final l10n = AppLocalizations.of(
+            tester.element(find.byType(SettingsPage)),
+          );
+          await tester.tap(find.text('alice@example.com'));
+          await tester.pumpAndSettle();
+          await tester.enterText(
+            find.byType(TextField).at(0),
+            'new@example.com',
+          );
+          await tester.enterText(find.byType(TextField).at(1), 'password');
+          await tester.tap(find.text(l10n.commonSave));
+          await tester.pumpAndSettle();
+          expect(find.text(l10n.settingsEmailChangeStaged), findsOneWidget);
+          expect(tester.takeException(), isNull);
+        },
+      );
+    }
+
+    testWidgets('failed email change does not show a success notice', (
+      tester,
+    ) async {
+      final client = GfApiClient(
+        dio: Dio(),
+        tokenStorage: MemTokenStorage(),
+        baseUrl: 'http://fake.local',
+      );
+      final container = await makeContainer(
+        pageRepo: CountingPageRepository(client),
+        userRepo: EmailChangeUserRepository(client, fail: true),
+      );
+      await tester.pumpWidget(
+        app(container, const SettingsPage(initialSection: 'account')),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('alice@example.com'));
+      await tester.pumpAndSettle();
+      final l10n = AppLocalizations.of(
+        tester.element(find.byType(SettingsPage)),
+      );
+      await tester.enterText(find.byType(TextField).at(0), 'new@example.com');
+      await tester.enterText(find.byType(TextField).at(1), 'password');
+      await tester.tap(find.text(l10n.commonSave));
+      await tester.pumpAndSettle();
+      expect(find.text(l10n.settingsEmailChangeStaged), findsNothing);
+      expect(find.byType(TextField), findsNWidgets(2));
+    });
+
     testWidgets(
       'username edits use the account endpoint and retain a rejected value for retry',
       (tester) async {
