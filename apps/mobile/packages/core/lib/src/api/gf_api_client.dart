@@ -83,13 +83,11 @@ class GfApiClient {
     Map<String, dynamic>? headers,
     JsonParser<T>? parser,
   }) async {
-    final response = await _request(
-      () => dio.post(
-        path,
-        cancelToken: cancelToken,
-        data: body,
-        options: Options(headers: headers),
-      ),
+    final response = await _post(
+      path,
+      cancelToken: cancelToken,
+      body: body,
+      headers: headers,
     );
     return _resolve(response, parser);
   }
@@ -103,25 +101,42 @@ class GfApiClient {
     Map<String, dynamic>? headers,
     JsonParser<T>? parser,
   }) async {
-    final response = await _request(
+    final response = await _post(
+      path,
+      cancelToken: cancelToken,
+      body: body,
+      headers: headers,
+    );
+    final result = await _resolve<T>(response, parser);
+    final data = response.data;
+    // _resolve 已拒绝非 Map 的 2xx 负载，这里只需区分 forum 信封与
+    // page-channel 裸负载；后者没有成功元数据，按普通成功返回。
+    if (data is Map<String, dynamic> && data.containsKey('code')) {
+      final envelope = GfResponse<Object?>.fromJson(data, (json) => json);
+      return GfResponse<T>(
+        code: envelope.code,
+        messageCode: envelope.messageCode,
+        params: envelope.params,
+        result: result,
+      );
+    }
+    return GfResponse<T>(code: 0, result: result);
+  }
+
+  /// [post]/[postEnvelope] 共享的 POST 传输层。
+  Future<Response<dynamic>> _post(
+    String path, {
+    CancelToken? cancelToken,
+    Object? body,
+    Map<String, dynamic>? headers,
+  }) {
+    return _request(
       () => dio.post(
         path,
         cancelToken: cancelToken,
         data: body,
         options: Options(headers: headers),
       ),
-    );
-    final result = await _resolve<T>(response, parser);
-    final data = response.data;
-    if (data is! Map<String, dynamic> || !data.containsKey('code')) {
-      return GfResponse<T>(code: 0, result: result);
-    }
-    final envelope = GfResponse<Object?>.fromJson(data, (json) => json);
-    return GfResponse<T>(
-      code: envelope.code,
-      messageCode: envelope.messageCode,
-      params: envelope.params,
-      result: result,
     );
   }
 
