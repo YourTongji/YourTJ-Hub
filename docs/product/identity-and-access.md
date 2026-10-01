@@ -35,8 +35,9 @@
   binding only when the Google userinfo response contains `verified_email=true`. GitHub/Google OAuth callbacks
   never create accounts (issue #531): an identity without an existing provider binding or a
   bindable same-email account is redirected to the register page with an explanatory notice
-  (`/login?register=true&oauthNotice=1`), and account creation happens only through password
-  registration, where the `allowedDomains` allowlist is enforced. Provider credential changes
+  (`/login?register=true&oauthNotice=1`). The notice includes a link to ordinary login that clears
+  the registration mode and preserves the validated local continuation. Account creation happens
+  only through password registration, where the `allowedDomains` allowlist is enforced. Provider credential changes
   require a process restart; saving a new site callback URL in the admin console refreshes the
   providers immediately.
 

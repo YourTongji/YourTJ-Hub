@@ -225,7 +225,7 @@ class AuthController extends ChangeNotifier {
   }
 
   /// 注册。
-  Future<void> register({
+  Future<String?> register({
     required String username,
     required String email,
     required String password,
@@ -235,14 +235,15 @@ class AuthController extends ChangeNotifier {
     _busy = true;
     _error = '';
     notifyListeners();
+    String? messageCode;
     try {
-      await _auth.register(
+      messageCode = (await _auth.register(
         username: username,
         email: email,
         password: password,
         captchaId: captchaId,
         captchaCode: captchaCode,
-      );
+      )).messageCode;
       _phase = LoginPhase.idle;
     } on ApiException catch (e) {
       final resolved = _resolveAuthError(
@@ -258,6 +259,7 @@ class AuthController extends ChangeNotifier {
       _busy = false;
       notifyListeners();
     }
+    return messageCode;
   }
 
   /// 找回密码:提交邮箱,服务端发送重置邮件。

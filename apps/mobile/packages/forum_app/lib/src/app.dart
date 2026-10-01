@@ -20,6 +20,7 @@ import 'updates/update_host.dart';
 import 'providers.dart';
 import 'apple/apple_sign_in.dart';
 import 'widgets/app_system_ui_overlay.dart';
+import 'widgets/media_image_failure.dart';
 import 'app_config.dart';
 import 'current_user.dart';
 import 'storage/media_host.dart';
@@ -126,6 +127,7 @@ class _AppBusinessHosts extends ConsumerWidget {
       repository: mediaRepository,
       scopeKey: mediaScope,
       apiOrigin: origin,
+      imageErrorBuilder: mediaImageFailure,
       child: StartupExperience(
         child: MobileUpdateHost(
           key: appUpdateHostKey,

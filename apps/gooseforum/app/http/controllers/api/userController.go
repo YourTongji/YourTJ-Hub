@@ -600,9 +600,9 @@ func readAvatarUploadFile(file *multipart.FileHeader, maxSize int64, allowedExts
 		)
 	}
 	// 头像与普通图片上传同口径做解码级内容校验（issue #408）：扩展名推出的类型
-	// 必须与 sniff/解码格式一致，伪造内容只回稳定 messageCode。
+	// 必须与 sniff/解码格式一致，伪造/空/不支持的内容只回稳定 messageCode。
 	if err := validateUploadedImage(bytes.NewReader(fileData), contentType); err != nil {
-		return nil, component.NewMessageError(component.MessageUploadInvalidImage, "文件内容不是有效的图片格式", nil)
+		return nil, component.NewMessageError(imageContentFailureCode(err), "文件内容不是有效的图片格式", nil)
 	}
 	return fileData, nil
 }

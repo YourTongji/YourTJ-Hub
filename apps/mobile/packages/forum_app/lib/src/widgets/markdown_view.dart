@@ -19,9 +19,9 @@ import 'rich_content/gf_code_block.dart';
 import 'rich_content/gf_table.dart';
 import 'stickers/sticker_image.dart';
 import 'stickers/resolved_sticker_content.dart';
+import 'stickers/sticker_strings.dart';
+import 'share/share_image_readiness.dart';
 
-/// Shared prose scale for reading, writing and preview.
-///
 /// Body text comes from [GfRichContentTypography] so post bodies, publish
 /// previews and the desktop-style fallbacks cannot drift apart. [userScale] is
 /// the reader preference and stays at its 100% default for chrome that is not
@@ -51,6 +51,9 @@ class GfMarkdownView extends ConsumerStatefulWidget {
     this.mentions = const <PostMention>[],
     this.selectable = false,
     this.stickerSize = StickerImage.readingSize,
+    this.screenshot = false,
+    this.colors,
+    this.compact = false,
   });
 
   final String data;
@@ -63,6 +66,13 @@ class GfMarkdownView extends ConsumerStatefulWidget {
 
   /// Draft previews opt into thumbnails; posts and replies use reading size.
   final double stickerSize;
+
+  /// Uses stable raw Markdown links rather than deferred network link cards.
+  final bool screenshot;
+
+  /// Palette override for share cards; ordinary reading uses the app theme.
+  final GfColors? colors;
+  final bool compact;
 
   @override
   ConsumerState<GfMarkdownView> createState() => _GfMarkdownViewState();
@@ -91,6 +101,9 @@ class _GfMarkdownViewState extends ConsumerState<GfMarkdownView> {
     if (oldWidget.data != widget.data ||
         oldWidget.selectable != widget.selectable ||
         oldWidget.stickerSize != widget.stickerSize ||
+        oldWidget.screenshot != widget.screenshot ||
+        oldWidget.colors != widget.colors ||
+        oldWidget.compact != widget.compact ||
         !listEquals(oldWidget.images, widget.images) ||
         !listEquals(oldWidget.mentions, widget.mentions)) {
       if (oldWidget.data != widget.data) _linkPreviews = null;
@@ -127,12 +140,18 @@ class _GfMarkdownViewState extends ConsumerState<GfMarkdownView> {
   }
 
   Widget _buildMarkdownBody(double userScale) {
-    final GfColors colors = GfTheme.colorsOf(context);
+    final GfColors colors = widget.colors ?? GfTheme.colorsOf(context);
+    final readiness = widget.screenshot
+        ? ShareImageReadiness.maybeOf(context)
+        : null;
     final GfBorders borders = GfTheme.bordersOf(context);
     // One profile drives every rich-content branch, including link previews.
     final GfRichContentTypography profile = GfRichContentTypography.of(
       context,
       userScale: userScale,
+      // Compact callers (table embeds) and screenshot exports share the
+      // course-review baseline so exports stay within capture bounds.
+      compact: widget.compact || widget.screenshot,
     );
     // Only token expansion receives these private image sources. Image alt,
     // titles and even a matching public asset URL remain ordinary user input.
@@ -150,8 +169,16 @@ class _GfMarkdownViewState extends ConsumerState<GfMarkdownView> {
         stickerSources[entry.key] = source;
       }
     }
+    final String screenshotSource = widget.screenshot
+        ? widget.data.replaceAllMapped(stickerTokenPattern, (match) {
+            final name = match.group(1)!;
+            return _stickerUrls.containsKey(name)
+                ? match[0]!
+                : '[${StickerStrings(context).unavailable}]';
+          })
+        : widget.data;
     final String data = expandStickerTokens(
-      expandPostMentions(widget.data, widget.mentions),
+      expandPostMentions(screenshotSource, widget.mentions),
       stickerSources,
     );
     // Expressions never belong to a photo gallery, including supplied lists.
@@ -201,8 +228,7 @@ class _GfMarkdownViewState extends ConsumerState<GfMarkdownView> {
         H3Config(style: profile.h3),
         H4Config(style: profile.h4),
         H5Config(style: profile.h5),
-        H6Config(style: profile.h6),
-        // 图片:contain + 高度约束 + 圆角边框(prose.css img)。
+        H6Config(style: profile.h6),        // 图片:contain + 高度约束 + 圆角边框(prose.css img)。
         ImgConfig(
           builder: (String url, Map<String, String> attributes) {
             final sticker = stickerImages[url];
@@ -214,23 +240,29 @@ class _GfMarkdownViewState extends ConsumerState<GfMarkdownView> {
               );
             }
             final String resolvedUrl = resolveApiAssetUrl(url);
+            readiness?.begin(resolvedUrl);
+            var hasFrame = false;
             return GestureDetector(
-              onTap: () {
-                final int index = sourceUrls.indexOf(url);
-                _openViewer(
-                  context,
-                  resolvedUrls.isEmpty ? [resolvedUrl] : resolvedUrls,
-                  index < 0 ? 0 : index,
-                );
-              },
-              onLongPress: () async {
-                final bool save = await showGfImageSaveSheet(
-                  context,
-                  saveImageLabel: AppLocalizations.of(context).imageSave,
-                );
-                if (!mounted || !save) return;
-                await saveImageFromUrl(context, resolvedUrl);
-              },
+              onTap: widget.screenshot
+                  ? null
+                  : () {
+                      final int index = sourceUrls.indexOf(url);
+                      _openViewer(
+                        context,
+                        resolvedUrls.isEmpty ? [resolvedUrl] : resolvedUrls,
+                        index < 0 ? 0 : index,
+                      );
+                    },
+              onLongPress: widget.screenshot
+                  ? null
+                  : () async {
+                      final bool save = await showGfImageSaveSheet(
+                        context,
+                        saveImageLabel: AppLocalizations.of(context).imageSave,
+                      );
+                      if (!mounted || !save) return;
+                      await saveImageFromUrl(context, resolvedUrl);
+                    },
               child: ConstrainedBox(
                 constraints: BoxConstraints(maxHeight: maxImageHeight),
                 child: Container(
@@ -246,12 +278,28 @@ class _GfMarkdownViewState extends ConsumerState<GfMarkdownView> {
                     resolvedUrl,
                     fit: BoxFit.contain,
                     cacheWidth: imageCacheWidth,
-                    errorBuilder: (_, _, _) => SizedBox(
-                      height: 60,
-                      child: Center(
-                        child: GfSymbol('image-off', color: colors.iconMuted),
-                      ),
-                    ),
+                    frameBuilder: (_, child, frame, _) {
+                      hasFrame = frame != null;
+                      if (frame != null) readiness?.finish(resolvedUrl);
+                      return child;
+                    },
+                    loadingBuilder: (_, child, progress) {
+                      if (readiness?.isFrozen(resolvedUrl) == true ||
+                          (widget.screenshot && !hasFrame)) {
+                        return SizedBox(
+                          height: 80,
+                          child: Center(
+                            child: GfSymbol(
+                              'image-off',
+                              color: colors.iconMuted,
+                            ),
+                          ),
+                        );
+                      }
+                      return child;
+                    },
+                    // 失败时交给宿主兜底（可重试/在浏览器打开），readiness 仍按原语义收口。
+                    onImageError: (_) => readiness?.finish(resolvedUrl),
                   ),
                 ),
               ),
@@ -292,7 +340,7 @@ class _GfMarkdownViewState extends ConsumerState<GfMarkdownView> {
 
     Widget buildMarkdown(String source) => MarkdownWidget(
       data: source,
-      selectable: widget.selectable,
+      selectable: widget.selectable && !widget.screenshot,
       shrinkWrap: true,
       markdownGenerator: MarkdownGenerator(
         linesMargin: EdgeInsets.symmetric(vertical: profile.paragraphSpacing),
@@ -310,7 +358,7 @@ class _GfMarkdownViewState extends ConsumerState<GfMarkdownView> {
         .where((LinkPreviewMarkdownBlock block) => block.isPreview)
         .map((LinkPreviewMarkdownBlock block) => block.url!)
         .toList(growable: false);
-    if (previewUrls.isEmpty) return buildMarkdown(data);
+    if (previewUrls.isEmpty || widget.screenshot) return buildMarkdown(data);
 
     Future<List<LinkPreviewPayload>> loadPreviews() => _linkPreviews ??= ref
         .read(linkPreviewRepositoryProvider)
@@ -336,6 +384,7 @@ class _GfMarkdownViewState extends ConsumerState<GfMarkdownView> {
   @override
   Widget build(BuildContext context) => ResolvedStickerContent(
     content: widget.data,
+    resolve: !widget.screenshot,
     builder: (urls) {
       final double contentScale = ref.watch(contentFontScaleProvider);
       if (!mapEquals(_stickerUrls, urls) || contentScale != _contentScale) {

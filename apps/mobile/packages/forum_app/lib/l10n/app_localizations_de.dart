@@ -80,6 +80,26 @@ class AppLocalizationsDe extends AppLocalizations {
       'Bild konnte nicht gespeichert werden. Bitte später erneut versuchen.';
 
   @override
+  String get imageUnavailable => 'Dieses Bild kann nicht angezeigt werden';
+
+  @override
+  String get imageUnavailableNetwork =>
+      'Das Netzwerk hat das Bild blockiert. Bitte später erneut versuchen.';
+
+  @override
+  String get imageUnavailableFormat => 'Nicht unterstütztes Bildformat';
+
+  @override
+  String get imageRetry => 'Erneut versuchen';
+
+  @override
+  String get imageOpenInBrowser => 'Im Browser öffnen';
+
+  @override
+  String get imagePermissionDenied =>
+      'Der Fotozugriff wurde abgelehnt. Erlaube ihn in den Systemeinstellungen.';
+
+  @override
   String get announcementLabel => 'Ankündigung';
 
   @override
@@ -261,6 +281,10 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get authOidcLogin => 'Mit YourTJ anmelden';
+
+  @override
+  String get authRegisterEmailVerify =>
+      'Registrierung erfolgreich. Eine Bestätigungs-E-Mail wurde gesendet. Bitte prüfe dein Postfach.';
 
   @override
   String get authRegisterSuccess =>
@@ -2333,7 +2357,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get settingsEmailChangeStaged =>
-      'Die Anfrage zur Änderung der E-Mail-Adresse wurde gesendet.';
+      'Eine Aktivierungs-E-Mail wurde an deine neue Adresse gesendet. Bitte prüfe dein Postfach.';
 
   @override
   String settingsEmailPending(String email) {
@@ -3151,4 +3175,121 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get draftCloudLimit =>
       'Diese Seite lädt die 100 zuletzt bearbeiteten Cloud-Entwürfe. Nach dem Löschen wird die Liste aktualisiert und der nächste Entwurf angezeigt.';
+
+  @override
+  String get topicShareImage => 'Bild zum Teilen erstellen';
+
+  @override
+  String get shareImageTitle => 'Bild teilen';
+
+  @override
+  String get shareImageTheme => 'Design';
+
+  @override
+  String get shareImageThemePaper => 'Papier';
+
+  @override
+  String get shareImageThemeSand => 'Sand';
+
+  @override
+  String get shareImageThemeBlue => 'Blau';
+
+  @override
+  String get shareImageThemeMint => 'Mint';
+
+  @override
+  String get shareImageThemeDark => 'Dunkel';
+
+  @override
+  String get shareImageGenerating => 'Bild wird erstellt…';
+
+  @override
+  String get reviewDislike => 'Nicht hilfreich';
+
+  @override
+  String get courseReviewShare => 'Teilen';
+
+  @override
+  String get courseReviewShareImage => 'Bild zum Teilen erstellen';
+
+  @override
+  String get courseReviewReportReasonHint => 'Bitte einen Meldegrund auswählen';
+
+  @override
+  String get courseReviewReportNoteLabel => 'Zusätzliche Angaben';
+
+  @override
+  String get courseReviewTemplates => 'Bewertungsvorlagen';
+
+  @override
+  String get courseReviewTemplateApply => 'Anwenden';
+
+  @override
+  String get courseReviewTemplateReplaceTitle => 'Vorhandenen Inhalt ersetzen?';
+
+  @override
+  String get courseReviewTemplateReplaceBody =>
+      'Der aktuelle Bewertungstext wird durch die Vorlage ersetzt.';
+
+  @override
+  String get courseReviewTemplateKeepEditing => 'Weiter bearbeiten';
+
+  @override
+  String get courseReviewTemplateComprehensiveName => 'Umfassend';
+
+  @override
+  String get courseReviewTemplateComprehensiveDescription =>
+      'Behandelt Kurs, Lehrperson, Aufwand, Bewertung und Tipps.';
+
+  @override
+  String get courseReviewTemplateQuickName => 'Kurze Bewertung';
+
+  @override
+  String get courseReviewTemplateQuickDescription =>
+      'Fasst den Gesamteindruck kurz zusammen.';
+
+  @override
+  String get courseReviewTemplateTeacherFocusedName => 'Lehrperson';
+
+  @override
+  String get courseReviewTemplateTeacherFocusedDescription =>
+      'Behandelt Lehrstil, Tempo und Kommunikation.';
+
+  @override
+  String get courseReviewTemplateExamFocusedName => 'Prüfungen und Bewertung';
+
+  @override
+  String get courseReviewTemplateExamFocusedDescription =>
+      'Beschreibt Prüfungen, Aufgaben und Benotung.';
+
+  @override
+  String get courseReviewTemplateWorkloadName => 'Arbeitsaufwand';
+
+  @override
+  String get courseReviewTemplateWorkloadDescription =>
+      'Beschreibt den wöchentlichen Aufwand und Zeitbedarf.';
+
+  @override
+  String get courseReviewTemplateBlankName => 'Leer';
+
+  @override
+  String get courseReviewTemplateBlankDescription =>
+      'Mit einer leeren Bewertung beginnen.';
+
+  @override
+  String get courseReviewContentLimitError =>
+      'Bewertungen dürfen höchstens 2.000 Zeichen enthalten.';
+
+  @override
+  String courseReviewCharacterCount(Object count) {
+    return '$count/2000';
+  }
+
+  @override
+  String get shareImageTooLong =>
+      'Der Beitrag ist zu lang, um ein einzelnes Bild zu erstellen.';
+
+  @override
+  String get shareImageFailed =>
+      'Das Bild konnte nicht geteilt werden. Bitte später erneut versuchen.';
 }

@@ -236,13 +236,17 @@ class _PendingAuth extends AuthController {
   }
 
   @override
-  Future<void> register({
+  Future<String?> register({
     required String username,
     required String email,
     required String password,
     String? captchaId,
     String? captchaCode,
-  }) => _request();
+  }) async {
+    await _request();
+    return null;
+  }
+
   @override
   Future<void> forgotPassword({
     required String email,

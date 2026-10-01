@@ -11,11 +11,16 @@ _$ReviewAuthorPayloadImpl _$$ReviewAuthorPayloadImplFromJson(
 ) => _$ReviewAuthorPayloadImpl(
   kind: json['kind'] as String,
   label: json['label'] as String,
+  avatarUrl: json['avatarUrl'] as String?,
 );
 
 Map<String, dynamic> _$$ReviewAuthorPayloadImplToJson(
   _$ReviewAuthorPayloadImpl instance,
-) => <String, dynamic>{'kind': instance.kind, 'label': instance.label};
+) => <String, dynamic>{
+  'kind': instance.kind,
+  'label': instance.label,
+  'avatarUrl': instance.avatarUrl,
+};
 
 _$ReviewViewerPayloadImpl _$$ReviewViewerPayloadImplFromJson(
   Map<String, dynamic> json,
@@ -23,6 +28,7 @@ _$ReviewViewerPayloadImpl _$$ReviewViewerPayloadImplFromJson(
   canEdit: json['canEdit'] as bool,
   canDelete: json['canDelete'] as bool,
   isHelpful: json['isHelpful'] as bool,
+  isDisliked: json['isDisliked'] as bool? ?? false,
 );
 
 Map<String, dynamic> _$$ReviewViewerPayloadImplToJson(
@@ -31,6 +37,7 @@ Map<String, dynamic> _$$ReviewViewerPayloadImplToJson(
   'canEdit': instance.canEdit,
   'canDelete': instance.canDelete,
   'isHelpful': instance.isHelpful,
+  'isDisliked': instance.isDisliked,
 };
 
 _$ReviewPayloadImpl _$$ReviewPayloadImplFromJson(
@@ -44,6 +51,7 @@ _$ReviewPayloadImpl _$$ReviewPayloadImplFromJson(
   author: ReviewAuthorPayload.fromJson(json['author'] as Map<String, dynamic>),
   viewer: ReviewViewerPayload.fromJson(json['viewer'] as Map<String, dynamic>),
   helpfulCount: (json['helpfulCount'] as num).toInt(),
+  dislikeCount: (json['dislikeCount'] as num?)?.toInt() ?? 0,
   createdAt: json['createdAt'] as String,
   updatedAt: json['updatedAt'] as String,
   offeringRatingAvg: (json['offeringRatingAvg'] as num?)?.toDouble(),
@@ -60,6 +68,7 @@ Map<String, dynamic> _$$ReviewPayloadImplToJson(_$ReviewPayloadImpl instance) =>
       'author': instance.author,
       'viewer': instance.viewer,
       'helpfulCount': instance.helpfulCount,
+      'dislikeCount': instance.dislikeCount,
       'createdAt': instance.createdAt,
       'updatedAt': instance.updatedAt,
       'offeringRatingAvg': instance.offeringRatingAvg,

@@ -719,6 +719,7 @@ export default {
     backToLogin: 'Zurück zur Anmeldung',
     continueWith: 'Oder weiter mit',
     oauthNoAccount: 'Dieses Drittanbieter-Konto hat noch kein Konto auf dieser Seite. Bitte registriere dich zuerst und verknüpfe es danach unter Einstellungen → Kontoverknüpfung.',
+    oauthOtherLogin: 'Mit einer anderen Methode anmelden',
     googleUnavailable: 'Google ist noch nicht verfügbar',
     panelTagline: 'Weiji: Das Unvollendete eröffnet jede Möglichkeit',
     panelTaglineSource: 'Inspiriert vom I Ging — Weiji, dem 64. und letzten Hexagramm',
@@ -2596,8 +2597,9 @@ export default {
         unsupported: 'Nicht unterstütztes Dateiformat. Zulässige Formate: {extensions}',
       },
       image: {
+        empty: 'Bildinhalt ist leer. Bitte wähle die Datei erneut',
         unsupported: 'Nicht unterstütztes Bildformat. Zulässig sind JPG, PNG, GIF, WebP und BMP',
-        invalidContent: 'Der Dateiinhalt ist kein gültiges Bild',
+        invalidContent: 'Bildinhalt passt nicht zur Dateiendung oder ist beschädigt',
       },
       readFailed: 'Lesen der Datei fehlgeschlagen. Versuche es erneut',
       openFailed: 'Öffnen der Datei fehlgeschlagen',

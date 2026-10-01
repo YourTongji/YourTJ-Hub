@@ -157,6 +157,23 @@ class CourseRepository {
   Future<bool> markDislike(int reviewId, {required bool on}) =>
       _reviewAction('dislike', reviewId, on);
 
+  /// 举报课评（说明按服务端口径 trim，空说明省略；移动端限制 300 rune）。
+  Future<bool> reportReview({
+    required int reviewId,
+    required String reason,
+    String note = '',
+  }) async {
+    final trimmedNote = note.trim();
+    await _client.post<Object?>(
+      '$_base/course-reviews/$reviewId/reports',
+      body: {
+        'reason': reason,
+        if (trimmedNote.isNotEmpty) 'note': trimmedNote,
+      },
+    );
+    return true;
+  }
+
   Future<bool> _reviewAction(String kind, int reviewId, bool on) async {
     if (on) {
       await _client.put<Object?>('$_base/course-reviews/$reviewId/$kind');

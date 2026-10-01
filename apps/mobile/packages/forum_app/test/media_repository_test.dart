@@ -481,6 +481,17 @@ void main() {
     },
   );
   test(
+    'media requests look like a browser fetch and send no Referer',
+    () async {
+      await load();
+      final headers = http.requests.single.headers;
+      expect(headers['User-Agent'], contains('Mozilla/5.0'));
+      expect(headers['User-Agent'], contains('YourTJ-Hub/1.0'));
+      expect(headers['Accept'], 'image/*,*/*;q=0.8');
+      expect(headers.containsKey('Referer'), isFalse);
+    },
+  );
+  test(
     'invalid decoded bytes can be discarded without touching a newer generation',
     () async {
       await load();

@@ -114,10 +114,11 @@ const (
 	MessageUploadFilenameRequired   MessageCode = "upload.filename.required"     // 文件名为空。
 	MessageUploadFileTooLarge       MessageCode = "upload.file.tooLarge"         // 文件超过大小限制，params.maxSizeKb。
 	MessageUploadUnsupportedExt     MessageCode = "upload.extension.unsupported" // 文件扩展名不允许，params.extensions。
-	MessageUploadUnsupportedImage   MessageCode = "upload.image.unsupported"     // 图片格式不支持。
+	MessageUploadUnsupportedImage   MessageCode = "upload.image.unsupported"     // 已知但当前不支持的图片格式（HEIC/HEIF/AVIF/TIFF 等）。
 	MessageUploadReadFailed         MessageCode = "upload.readFailed"            // 文件读取失败。
 	MessageUploadOpenFailed         MessageCode = "upload.openFailed"            // 文件打开失败。
-	MessageUploadInvalidImage       MessageCode = "upload.image.invalidContent"  // 文件内容不是有效图片。
+	MessageUploadEmptyImage         MessageCode = "upload.image.empty"           // 上传内容为空（0 字节）。
+	MessageUploadInvalidImage       MessageCode = "upload.image.invalidContent"  // 图片内容与扩展名不符或已损坏。
 	MessageUploadContentReadFailed  MessageCode = "upload.contentReadFailed"     // 文件内容读取失败。
 	MessageUploadSaveFailed         MessageCode = "upload.saveFailed"            // 文件保存失败，params.error 可带原始错误。
 	MessageUploadSuccess            MessageCode = "upload.success"               // 上传成功。

@@ -2,6 +2,7 @@ import 'package:core/core.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_quill/flutter_quill.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:forum_app/l10n/app_localizations.dart';
 import 'package:forum_app/src/pages/courses/review_form_sheet.dart';
@@ -76,28 +77,51 @@ void main() {
       expect(tester.takeException(), isNull);
       if (kind != 'language') {
         if (kind == 'review') {
+          final editor = find.byType(QuillEditor);
           await tester.scrollUntilVisible(
-            find.byType(TextField),
+            editor,
             150,
             scrollable: find
                 .descendant(
                   of: find.byType(ListView),
-                  matching: find.byType(Scrollable),
+                  matching: find.byWidgetPredicate(
+                    (widget) =>
+                        widget is Scrollable &&
+                        widget.axisDirection == AxisDirection.down,
+                  ),
                 )
                 .first,
           );
+          final quill = tester.widget<QuillEditor>(editor).controller;
+          quill.replaceText(
+            0,
+            quill.document.length - 1,
+            'Draft survives keyboard',
+            const TextSelection.collapsed(offset: 23),
+          );
         } else {
           await tester.ensureVisible(find.byType(TextField));
+          await tester.enterText(
+            find.byType(TextField),
+            'Draft survives keyboard',
+          );
         }
-        await tester.enterText(
-          find.byType(TextField),
-          'Draft survives keyboard',
-        );
         tester.view.viewInsets = const FakeViewPadding(bottom: 300);
         tester.view.padding = const FakeViewPadding(top: 24);
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);
-        expect(find.text('Draft survives keyboard'), findsOneWidget);
+        if (kind == 'review') {
+          expect(
+            tester
+                .widget<QuillEditor>(find.byType(QuillEditor))
+                .controller
+                .document
+                .toPlainText(),
+            contains('Draft survives keyboard'),
+          );
+        } else {
+          expect(find.text('Draft survives keyboard'), findsOneWidget);
+        }
       }
       final l10n = AppLocalizations.of(page);
       final action = find.text(

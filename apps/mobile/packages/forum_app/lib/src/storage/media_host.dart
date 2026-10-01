@@ -13,11 +13,16 @@ class MediaHost extends StatefulWidget {
     required this.repository,
     required this.scopeKey,
     required this.apiOrigin,
+    this.imageErrorBuilder,
     required this.child,
   });
   final MediaRepository repository;
   final String scopeKey;
   final String apiOrigin;
+
+  /// Optional host-owned failure state for shared media components; the app
+  /// injects the localized, actionable fallback here.
+  final GfImageErrorBuilder? imageErrorBuilder;
   final Widget child;
 
   @override
@@ -149,6 +154,7 @@ class _MediaHostState extends State<MediaHost> with WidgetsBindingObserver {
               },
             );
           },
+      imageErrorBuilder: widget.imageErrorBuilder,
       child: widget.child,
     );
   }

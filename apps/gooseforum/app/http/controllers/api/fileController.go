@@ -121,7 +121,7 @@ func saveImgByGinContext(c *gin.Context, adminUpload bool) {
 	// 内容校验与直传完成同口径：sniff 类型 + 解码格式都必须与扩展名推出的类型一致，
 	// 伪造 MIME/扩展与字节不符在此拒绝，错误只回稳定 messageCode，不回解析细节。
 	if err := validateUploadedImage(bytes.NewReader(fileData), contentType); err != nil {
-		c.JSON(http.StatusBadRequest, component.FailDataCode(component.MessageUploadInvalidImage, nil))
+		c.JSON(http.StatusBadRequest, component.FailDataCode(imageContentFailureCode(err), nil))
 		return
 	}
 

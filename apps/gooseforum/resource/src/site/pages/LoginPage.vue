@@ -101,6 +101,7 @@ const homeUrl = computed(() => {
   if (target.length > 1 && target[1] === '/') return '/'
   return target
 })
+const otherLoginUrl = computed(() => `/login?redirect=${encodeURIComponent(homeUrl.value)}`)
 // 与 AppShell 同一契约：仅 brandType === 'image' 且 URL 通过 safeUrl 消毒时采用
 // 管理端自定义品牌图；默认字标按主题切换（浅色 Light 黑字 / 深色 Dark 白字）。
 // 历史脏配置（brandType=default 但 brandImage 残留旧浅色 PNG）不再短路主题切换。
@@ -357,7 +358,10 @@ function onToggleTheme() {
           <p v-if="tongjiNotice" class="gf-status-message gf-status-message-error mb-4">{{ tongjiNotice }}</p>
           <p v-if="error" class="gf-status-message gf-status-message-error mb-4">{{ error }}</p>
           <p v-if="notice" class="gf-status-message gf-status-message-success mb-4">{{ notice }}</p>
-          <p v-if="page.props.oauthNotice && mode === 'register'" class="gf-status-message gf-status-message-info mb-4">{{ t('auth.oauthNoAccount') }}</p>
+          <div v-if="page.props.oauthNotice && mode === 'register'" class="gf-status-message gf-status-message-info mb-4">
+            <p>{{ t('auth.oauthNoAccount') }}</p>
+            <a data-oauth-other-login :href="otherLoginUrl" class="mt-2 inline-block font-semibold underline">{{ t('auth.oauthOtherLogin') }}</a>
+          </div>
 
           <form v-if="mode === 'login' && twoFactorPending" class="space-y-3" @submit.prevent="handleTotpVerify">
             <div class="flex items-center gap-2 text-sm font-semibold text-base-content">

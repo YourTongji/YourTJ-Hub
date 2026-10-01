@@ -614,7 +614,7 @@ class _LoginPageState extends ConsumerState<LoginPage>
     if (email == null) return;
     final String? captchaId = _authController.captcha?.captchaId;
     final String captchaCode = _captcha.text.trim();
-    await _authController.register(
+    final messageCode = await _authController.register(
       username: _username.text.trim(),
       email: email,
       password: _password.text,
@@ -625,7 +625,13 @@ class _LoginPageState extends ConsumerState<LoginPage>
       await _authController.loadCaptcha();
     }
     if (mounted && _authController.error.isEmpty) {
-      showGfToast(context, AppLocalizations.of(context).authRegisterSuccess);
+      final l10n = AppLocalizations.of(context);
+      showGfToast(
+        context,
+        messageCode == 'auth.register.emailVerify'
+            ? l10n.authRegisterEmailVerify
+            : l10n.authRegisterSuccess,
+      );
       setState(() => _mode = _AuthMode.login);
     }
   }

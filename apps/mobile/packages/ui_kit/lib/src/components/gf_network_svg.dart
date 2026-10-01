@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
@@ -48,7 +47,7 @@ class _GfNetworkSvgState extends State<GfNetworkSvg> {
           return widget.fallback;
         }
         return SvgPicture(
-          _LiveSvgLoader(snapshot.data!.bytes),
+          GfLiveSvgLoader(snapshot.data!.bytes),
           key: ValueKey(provider),
           fit: BoxFit.contain,
           placeholderBuilder: (_) => widget.fallback,
@@ -60,20 +59,5 @@ class _GfNetworkSvgState extends State<GfNetworkSvg> {
         );
       },
     );
-  }
-}
-
-class _LiveSvgLoader extends SvgBytesLoader {
-  const _LiveSvgLoader(super.bytes);
-  @override
-  Future<ByteData> loadBytes(BuildContext? context) async {
-    final key = cacheKey(context);
-    try {
-      return await super.loadBytes(context);
-    } finally {
-      // Never leave a private/no-store parsed response in flutter_svg's global
-      // cache, nor let a late parse refill that cache after clear/account switch.
-      svg.cache.evict(key);
-    }
   }
 }

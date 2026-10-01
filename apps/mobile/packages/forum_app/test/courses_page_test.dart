@@ -1,10 +1,15 @@
+import 'dart:async';
 import 'dart:ui' show Tristate;
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_quill/flutter_quill.dart';
 import 'package:flutter_test/flutter_test.dart';
+// The app uses this transitive dependency; disable its batching timer in widget tests.
+// ignore: depend_on_referenced_packages
+import 'package:visibility_detector/visibility_detector.dart';
 
 import 'package:core/core.dart';
 import 'package:forum_app/l10n/app_localizations.dart';
@@ -12,6 +17,7 @@ import 'package:forum_app/src/pages/courses/catalog_page.dart';
 import 'package:forum_app/src/pages/courses/detail_page.dart';
 import 'package:forum_app/src/pages/courses/review_form_sheet.dart';
 import 'package:forum_app/src/pages/courses/course_common.dart';
+import 'package:forum_app/src/pages/courses/review_reaction.dart';
 import 'package:forum_app/l10n/app_localizations_zh.dart';
 import 'package:forum_app/src/providers.dart';
 import 'package:ui_kit/ui_kit.dart';
@@ -30,16 +36,18 @@ Finder _chipFill(Finder chip) {
 /// （列表 hasNext 翻页、多值筛选、cursor、offeringId 聚焦、写评/有用/收藏）。
 
 class _MemoryTokenStorage implements TokenStorage {
-  String? _token;
+  _MemoryTokenStorage() : token = 'header.eyJVc2VySWQiOjEyM30.signature';
+
+  String? token;
 
   @override
-  Future<String?> read() async => _token;
+  Future<String?> read() async => token;
 
   @override
-  Future<void> write(String token) async => _token = token;
+  Future<void> write(String value) async => token = value;
 
   @override
-  Future<void> clear() async => _token = null;
+  Future<void> clear() async => token = null;
 }
 
 class CourseRepoCall {
@@ -77,11 +85,16 @@ class FakeCourseRepository extends CourseRepository {
     this.summaryStatus = 'none',
     this.summaryPayload,
     this.failBookmark = false,
-  });
+  }) {
+    _serverReviews = {for (final review in reviewPayloads) review.id: review};
+  }
 
   final CourseDetailPayload? detailPayload;
   final CourseRelatedResult? relatedPayload;
   final List<ReviewPayload> reviewPayloads;
+  late final Map<int, ReviewPayload> _serverReviews;
+  ReviewPayload serverReview(int id) => _serverReviews[id]!;
+  void setServerReview(ReviewPayload review) => _serverReviews[review.id] = review;
 
   /// page → (courses, hasNext)。
   final Map<int, (List<CourseSummaryPayload>, bool)> listPages;
@@ -96,6 +109,14 @@ class FakeCourseRepository extends CourseRepository {
   final List<CreateCourseReviewInput> createInputs =
       <CreateCourseReviewInput>[];
   final List<(int, bool)> helpfulCalls = <(int, bool)>[];
+  final List<(String, int, bool)> reactionCalls = <(String, int, bool)>[];
+  final List<(int, String, String)> reportCalls = <(int, String, String)>[];
+  Object? failHelpful;
+  Object? failDislike;
+  bool loseHelpfulOnResponse = false;
+  Object? reportError;
+  Completer<void>? waitHelpful;
+  Completer<void>? waitReport;
 
   @override
   Future<CourseListResultPayload> list({
@@ -187,7 +208,10 @@ class FakeCourseRepository extends CourseRepository {
     if (cursor != null) {
       return const ReviewListResult(list: <ReviewPayload>[], total: 0);
     }
-    return ReviewListResult(list: reviewPayloads, total: reviewPayloads.length);
+    return ReviewListResult(
+      list: _serverReviews.values.toList(growable: false),
+      total: _serverReviews.length,
+    );
   }
 
   @override
@@ -215,6 +239,55 @@ class FakeCourseRepository extends CourseRepository {
   @override
   Future<bool> markHelpful(int reviewId, {required bool on}) async {
     helpfulCalls.add((reviewId, on));
+    reactionCalls.add(('helpful', reviewId, on));
+    await waitHelpful?.future;
+    if (failHelpful != null) throw failHelpful!;
+    _setServerReaction(reviewId, CourseReviewReaction.helpful, on);
+    if (on && loseHelpfulOnResponse) {
+      loseHelpfulOnResponse = false;
+      throw const ApiException(fallbackMessage: 'response lost');
+    }
+    return true;
+  }
+
+  @override
+  Future<bool> markDislike(int reviewId, {required bool on}) async {
+    reactionCalls.add(('dislike', reviewId, on));
+    if (failDislike != null) throw failDislike!;
+    _setServerReaction(reviewId, CourseReviewReaction.dislike, on);
+    return true;
+  }
+
+  void _setServerReaction(
+    int reviewId,
+    CourseReviewReaction reaction,
+    bool on,
+  ) {
+    final review = _serverReviews[reviewId];
+    if (review == null) return;
+    final helpful = reaction == CourseReviewReaction.helpful;
+    final wasOn = helpful ? review.viewer.isHelpful : review.viewer.isDisliked;
+    final count = helpful ? review.helpfulCount : review.dislikeCount;
+    final nextCount = count + (on ? (wasOn ? 0 : 1) : (wasOn ? -1 : 0));
+    _serverReviews[reviewId] = review.copyWith(
+      viewer: review.viewer.copyWith(
+        isHelpful: helpful ? on : review.viewer.isHelpful,
+        isDisliked: helpful ? review.viewer.isDisliked : on,
+      ),
+      helpfulCount: helpful ? (nextCount < 0 ? 0 : nextCount) : review.helpfulCount,
+      dislikeCount: helpful ? review.dislikeCount : (nextCount < 0 ? 0 : nextCount),
+    );
+  }
+
+  @override
+  Future<bool> reportReview({
+    required int reviewId,
+    required String reason,
+    String note = '',
+  }) async {
+    reportCalls.add((reviewId, reason, note));
+    await waitReport?.future;
+    if (reportError != null) throw reportError!;
     return true;
   }
 }
@@ -443,6 +516,7 @@ ProviderContainer _container({
   final ProviderContainer container = ProviderContainer(
     overrides: <Override>[
       courseRepositoryProvider.overrideWithValue(courseRepo),
+      tokenStorageProvider.overrideWithValue(_MemoryTokenStorage()),
       if (pageRepo != null) pageRepositoryProvider.overrideWithValue(pageRepo),
     ],
   );
@@ -456,8 +530,55 @@ GfApiClient _client() => GfApiClient(
   baseUrl: 'http://fake.local',
 );
 
+void _replaceReviewEditorText(WidgetTester tester, String text) {
+  final controller = tester
+      .widget<QuillEditor>(find.byType(QuillEditor))
+      .controller;
+  controller.replaceText(
+    0,
+    controller.document.length - 1,
+    text,
+    TextSelection.collapsed(offset: text.length),
+  );
+}
+
+Future<void> _pumpStandaloneReviewForm(
+  WidgetTester tester,
+  FakeCourseRepository repository, {
+  List<CourseOfferingPayload> offerings = const <CourseOfferingPayload>[],
+}) async {
+  await tester.pumpWidget(
+    _app(
+      _container(courseRepo: repository),
+      Scaffold(
+        body: Builder(
+          builder: (context) => TextButton(
+            onPressed: () => showGfBottomSheet<void>(
+              context,
+              height: 600,
+              keyboardAware: true,
+              barrierDismissible: false,
+              enableDrag: false,
+              builder: (_) => CourseReviewFormSheet(
+                pageContext: context,
+                repository: repository,
+                offerings: offerings,
+                initialOfferingId: offerings.firstOrNull?.id,
+              ),
+            ),
+            child: const Text('Open review form'),
+          ),
+        ),
+      ),
+    ),
+  );
+  await tester.tap(find.text('Open review form'));
+  await tester.pumpAndSettle();
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  VisibilityDetectorController.instance.updateInterval = Duration.zero;
 
   testWidgets('course catalog starts with the forwarded global query', (
     tester,
@@ -820,6 +941,36 @@ void main() {
   });
 
   group('课程详情', () {
+    Future<void> pumpDetail(
+      WidgetTester tester,
+      FakeCourseRepository course, {
+      int? focusOfferingId,
+      int? focusReviewId,
+      Size size = const Size(800, 3000),
+    }) async {
+      // 加高画布让整页一次构建，避免 ListView 懒加载影响断言。
+      tester.view.physicalSize = size;
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(() async {
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pump(const Duration(milliseconds: 500));
+      });
+      final ProviderContainer container = _container(courseRepo: course);
+      await tester.pumpWidget(
+        _app(
+          container,
+          CourseDetailPage(
+            courseId: 42,
+            focusOfferingId: focusOfferingId,
+            focusReviewId: focusReviewId,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
     testWidgets('review actions have one label and 44 pixel touch targets', (
       tester,
     ) async {
@@ -849,7 +1000,412 @@ void main() {
       await tester.tap(find.text('2 有用'));
       await tester.pumpAndSettle();
       expect(course.helpfulCalls, [(4, true)]);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(const Duration(milliseconds: 500));
     });
+
+    testWidgets('switching review reactions deletes the opposite first', (
+      tester,
+    ) async {
+      final ReviewPayload disliked = _reviewPayloads().first.copyWith(
+        viewer: _reviewPayloads().first.viewer.copyWith(isDisliked: true),
+        dislikeCount: 1,
+      );
+      final course = FakeCourseRepository(
+        _client(),
+        detailPayload: _detailPayload(),
+        reviewPayloads: [disliked],
+      );
+      await pumpDetail(tester, course, size: const Size(800, 1800));
+
+      await tester.tap(find.text('0 有用'));
+      await tester.pumpAndSettle();
+
+      expect(course.reactionCalls, [
+        ('dislike', disliked.id, false),
+        ('helpful', disliked.id, true),
+      ]);
+      expect(find.text('1 有用'), findsOneWidget);
+      expect(find.text('0 无用'), findsOneWidget);
+      expect(
+        find.byWidgetPredicate(
+          (widget) =>
+              widget is Semantics && widget.properties.toggled == true,
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets(
+      'failed reaction switch restores server and keeps local state',
+      (tester) async {
+        final ReviewPayload disliked = _reviewPayloads().first.copyWith(
+          viewer: _reviewPayloads().first.viewer.copyWith(isDisliked: true),
+          dislikeCount: 1,
+        );
+        final course = FakeCourseRepository(
+          _client(),
+          reviewPayloads: [disliked],
+        )..failHelpful = const ApiException(fallbackMessage: 'write failed');
+        await pumpDetail(tester, course, size: const Size(800, 1800));
+
+        await tester.tap(find.text('0 有用'));
+        await tester.pumpAndSettle();
+
+        expect(course.reactionCalls, [
+          ('dislike', disliked.id, false),
+          ('helpful', disliked.id, true),
+          ('helpful', disliked.id, false),
+          ('dislike', disliked.id, true),
+        ]);
+        expect(course.reviewCalls, hasLength(2));
+        expect(course.serverReview(disliked.id).viewer.isDisliked, isTrue);
+        expect(find.text('0 有用'), findsOneWidget);
+        expect(find.text('1 无用'), findsOneWidget);
+      },
+    );
+
+    testWidgets('lost reaction response is cleaned up and reconciled', (
+      tester,
+    ) async {
+      final ReviewPayload disliked = _reviewPayloads().first.copyWith(
+        viewer: _reviewPayloads().first.viewer.copyWith(isDisliked: true),
+        dislikeCount: 1,
+      );
+      final course = FakeCourseRepository(
+        _client(),
+        reviewPayloads: [disliked],
+      )..loseHelpfulOnResponse = true;
+      await pumpDetail(tester, course, size: const Size(800, 1800));
+
+      await tester.tap(find.text('0 有用'));
+      await tester.pumpAndSettle();
+
+      expect(course.reactionCalls, [
+        ('dislike', disliked.id, false),
+        ('helpful', disliked.id, true),
+        ('helpful', disliked.id, false),
+        ('dislike', disliked.id, true),
+      ]);
+      expect(course.reviewCalls, hasLength(2));
+      expect(course.serverReview(disliked.id).viewer.isDisliked, isTrue);
+      expect(course.serverReview(disliked.id).viewer.isHelpful, isFalse);
+      expect(find.text('0 有用'), findsOneWidget);
+      expect(find.text('1 无用'), findsOneWidget);
+    });
+
+    testWidgets('reaction refresh uses server counts changed during write', (
+      tester,
+    ) async {
+      final initial = _reviewPayloads().first;
+      final course = FakeCourseRepository(
+        _client(),
+        reviewPayloads: [initial],
+      )..waitHelpful = Completer<void>();
+      await pumpDetail(tester, course, size: const Size(800, 1800));
+
+      await tester.tap(find.text('0 有用'));
+      await tester.pump();
+      course.setServerReview(initial.copyWith(helpfulCount: 10));
+      course.waitHelpful!.complete();
+      await tester.pumpAndSettle();
+
+      expect(course.reviewCalls, hasLength(2));
+      expect(find.text('11 有用'), findsOneWidget);
+    });
+
+    testWidgets(
+      'report requires an explicit reason and preserves a failed draft',
+      (tester) async {
+        final course = FakeCourseRepository(
+          _client(),
+          reviewPayloads: [_reviewPayloads().first],
+        )..reportError = const ApiException(
+          fallbackMessage: 'report failed',
+          messageCode: 'review.report.failed',
+        );
+        await pumpDetail(tester, course, size: const Size(500, 1200));
+
+        await tester.tap(find.text('举报内容'));
+        await tester.pumpAndSettle();
+        final l10n = AppLocalizations.of(
+          tester.element(find.byType(DropdownButtonFormField<String>)),
+        );
+        final submit = find.widgetWithText(
+          FilledButton,
+          l10n.topicReportSubmit,
+        );
+        expect(tester.widget<FilledButton>(submit).onPressed, isNull);
+        await tester.tap(find.byType(DropdownButtonFormField<String>));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('垃圾信息').last);
+        await tester.pumpAndSettle();
+        await tester.enterText(find.byType(TextField).last, '  same link  ');
+        await tester.ensureVisible(submit);
+        await tester.tap(submit);
+        await tester.pumpAndSettle();
+
+        expect(course.reportCalls, [(1, 'spam', 'same link')]);
+        expect(find.text('举报评价失败，请稍后重试。'), findsOneWidget);
+        expect(
+          tester
+              .widget<TextField>(find.byType(TextField).last)
+              .controller
+              ?.text,
+          '  same link  ',
+        );
+      },
+    );
+
+    testWidgets('report note limit counts Unicode scalar values', (
+      tester,
+    ) async {
+      final course = FakeCourseRepository(
+        _client(),
+        reviewPayloads: [_reviewPayloads().first],
+      );
+      await pumpDetail(tester, course, size: const Size(500, 1200));
+      await tester.tap(find.text('举报内容'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byType(DropdownButtonFormField<String>));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('垃圾信息').last);
+      await tester.pumpAndSettle();
+      final input = find.byType(TextField).last;
+      await tester.enterText(input, '🙂' * 301);
+      await tester.pump();
+      final note = tester.widget<TextField>(input).controller!.text;
+      expect(note.runes.length, 300);
+      expect(note, '🙂' * 300);
+    });
+
+    testWidgets('review form validates each required field before writing', (
+      tester,
+    ) async {
+      final offerings = _detailPayload().offerings!;
+      final noRatingRepo = FakeCourseRepository(_client());
+      await _pumpStandaloneReviewForm(
+        tester,
+        noRatingRepo,
+        offerings: offerings,
+      );
+      final form = find.byType(CourseReviewFormSheet);
+      final l10n = AppLocalizations.of(tester.element(form));
+      final copy = CourseCopy(l10n);
+
+      _replaceReviewEditorText(tester, 'A useful review');
+      await tester.tap(find.text(l10n.reviewSubmit));
+      await tester.pumpAndSettle();
+      expect(find.text(copy.ratingRequired), findsOneWidget);
+      expect(noRatingRepo.createInputs, isEmpty);
+      await tester.pumpWidget(const SizedBox.shrink());
+
+      final emptyRepo = FakeCourseRepository(_client());
+      await _pumpStandaloneReviewForm(
+        tester,
+        emptyRepo,
+        offerings: offerings,
+      );
+      await tester.tap(find.byKey(const ValueKey('review-rating-5')));
+      await tester.tap(find.text(l10n.reviewSubmit));
+      await tester.pumpAndSettle();
+      expect(find.text(copy.contentRequired), findsOneWidget);
+      expect(emptyRepo.createInputs, isEmpty);
+      await tester.pumpWidget(const SizedBox.shrink());
+
+      final tooLongRepo = FakeCourseRepository(_client());
+      await _pumpStandaloneReviewForm(
+        tester,
+        tooLongRepo,
+        offerings: offerings,
+      );
+      await tester.tap(find.byKey(const ValueKey('review-rating-5')));
+      _replaceReviewEditorText(tester, 'x' * 2001);
+      await tester.pump();
+      await tester.tap(find.text(l10n.reviewSubmit));
+      await tester.pumpAndSettle();
+      expect(find.text(l10n.courseReviewContentLimitError), findsOneWidget);
+      expect(tooLongRepo.createInputs, isEmpty);
+      await tester.pumpWidget(const SizedBox.shrink());
+
+      final noOfferingRepo = FakeCourseRepository(_client());
+      await _pumpStandaloneReviewForm(tester, noOfferingRepo);
+      await tester.tap(find.byKey(const ValueKey('review-rating-5')));
+      _replaceReviewEditorText(tester, 'Valid body');
+      await tester.pump();
+      await tester.tap(find.text(l10n.reviewSubmit));
+      await tester.pumpAndSettle();
+      expect(find.text(copy.operationFailed), findsOneWidget);
+      expect(noOfferingRepo.createInputs, isEmpty);
+    });
+
+    testWidgets('review length follows Unicode scalar count', (tester) async {
+      final repo = FakeCourseRepository(_client());
+      await _pumpStandaloneReviewForm(
+        tester,
+        repo,
+        offerings: _detailPayload().offerings!,
+      );
+      final l10n = AppLocalizations.of(
+        tester.element(find.byType(CourseReviewFormSheet)),
+      );
+      await tester.tap(find.byKey(const ValueKey('review-rating-5')));
+      final content = '🙂' * 1100;
+      _replaceReviewEditorText(tester, content);
+      await tester.pump();
+      await tester.tap(find.text(l10n.reviewSubmit));
+      await tester.pumpAndSettle();
+
+      expect(repo.createInputs.single.content, content);
+    });
+
+    testWidgets(
+      'empty review applies a template without a replacement prompt',
+      (tester) async {
+        final course = FakeCourseRepository(
+          _client(),
+          detailPayload: _detailPayload(),
+        );
+        await pumpDetail(tester, course);
+        await tester.tap(find.text('写课评'));
+        await tester.pumpAndSettle();
+        final l10n = AppLocalizations.of(
+          tester.element(find.byType(CourseReviewFormSheet)),
+        );
+
+        await tester.tap(find.byKey(const Key('course-review-templates')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text(l10n.courseReviewTemplateComprehensiveName));
+        await tester.pumpAndSettle();
+
+        expect(find.text(l10n.courseReviewTemplateReplaceTitle), findsNothing);
+        final editor = tester.widget<QuillEditor>(find.byType(QuillEditor));
+        expect(editor.controller.document.toPlainText(), contains('课程内容'));
+        await tester.pumpWidget(const SizedBox.shrink());
+      },
+    );
+
+    testWidgets('populated review template asks before replacing content', (
+      tester,
+    ) async {
+      final course = FakeCourseRepository(
+        _client(),
+        detailPayload: _detailPayload(),
+      );
+      await pumpDetail(tester, course);
+      await tester.tap(find.text('写课评'));
+      await tester.pumpAndSettle();
+      final l10n = AppLocalizations.of(
+        tester.element(find.byType(CourseReviewFormSheet)),
+      );
+      _replaceReviewEditorText(tester, 'Existing review');
+      await tester.pump();
+
+      Future<void> chooseComprehensive() async {
+        await tester.tap(find.byKey(const Key('course-review-templates')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text(l10n.courseReviewTemplateComprehensiveName));
+        await tester.pumpAndSettle();
+      }
+
+      await chooseComprehensive();
+      expect(find.text(l10n.courseReviewTemplateReplaceTitle), findsOneWidget);
+      await tester.tap(find.text(l10n.courseReviewTemplateKeepEditing));
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<QuillEditor>(find.byType(QuillEditor))
+            .controller
+            .document
+            .toPlainText(),
+        contains('Existing review'),
+      );
+
+      await chooseComprehensive();
+      await tester.tap(find.text(l10n.courseReviewTemplateApply));
+      await tester.pumpAndSettle();
+      final content = tester
+          .widget<QuillEditor>(find.byType(QuillEditor))
+          .controller
+          .document
+          .toPlainText();
+      expect(content, contains('课程内容'));
+      expect(content, isNot(contains('Existing review')));
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+
+    testWidgets(
+      'editing review keeps its controller through keyboard resize and selection is clean',
+      (tester) async {
+        final course = FakeCourseRepository(
+          _client(),
+          detailPayload: _detailPayload(),
+          reviewPayloads: _reviewPayloads(),
+        );
+        await pumpDetail(tester, course);
+        await tester.tap(find.text('编辑').first);
+        await tester.pumpAndSettle();
+        final l10n = AppLocalizations.of(
+          tester.element(find.byType(CourseReviewFormSheet)),
+        );
+        expect(find.text(l10n.courseReviewTemplateQuickName), findsNothing);
+        final before = tester
+            .widget<QuillEditor>(find.byType(QuillEditor))
+            .controller;
+        before.updateSelection(
+          const TextSelection.collapsed(offset: 2),
+          ChangeSource.local,
+        );
+        tester.view.viewInsets = const FakeViewPadding(bottom: 280);
+        await tester.pumpAndSettle();
+        final after = tester
+            .widget<QuillEditor>(find.byType(QuillEditor))
+            .controller;
+        expect(identical(before, after), isTrue);
+        expect(after.document.toPlainText(), contains('很不错'));
+        await tester.tap(find.text(l10n.commonCancel));
+        await tester.pumpAndSettle();
+        expect(find.text(l10n.settingsUnsavedTitle), findsNothing);
+        expect(find.byType(CourseReviewFormSheet), findsNothing);
+        await tester.pumpWidget(const SizedBox.shrink());
+      },
+    );
+
+    testWidgets(
+      'review editor and actions fit a 320 pixel viewport at large text',
+      (tester) async {
+        tester.view.physicalSize = const Size(320, 844);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+        final course = FakeCourseRepository(
+          _client(),
+          detailPayload: _detailPayload(),
+        );
+        await tester.pumpWidget(
+          _app(
+            _container(courseRepo: course),
+            const CourseDetailPage(courseId: 42),
+            textScale: 2,
+          ),
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('写课评'));
+        await tester.pumpAndSettle();
+        final l10n = AppLocalizations.of(
+          tester.element(find.byType(CourseReviewFormSheet)),
+        );
+        tester.view.viewInsets = const FakeViewPadding(bottom: 260);
+        await tester.pumpAndSettle();
+        for (final label in [l10n.commonCancel, l10n.reviewSubmit]) {
+          final action = find.text(label).last;
+          await tester.ensureVisible(action);
+          await tester.pumpAndSettle();
+          expect(tester.getRect(action).bottom, lessThanOrEqualTo(844));
+        }
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox.shrink());
+      },
+    );
 
     testWidgets(
       'review actions wrap on a narrow phone with German large text',
@@ -882,32 +1438,6 @@ void main() {
         expect(tester.takeException(), isNull);
       },
     );
-
-    Future<void> pumpDetail(
-      WidgetTester tester,
-      FakeCourseRepository course, {
-      int? focusOfferingId,
-      int? focusReviewId,
-      Size size = const Size(800, 3000),
-    }) async {
-      // 加高画布让整页一次构建，避免 ListView 懒加载影响断言。
-      tester.view.physicalSize = size;
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
-      final ProviderContainer container = _container(courseRepo: course);
-      await tester.pumpWidget(
-        _app(
-          container,
-          CourseDetailPage(
-            courseId: 42,
-            focusOfferingId: focusOfferingId,
-            focusReviewId: focusReviewId,
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-    }
 
     testWidgets('bottom safe area does not cover the last related course', (
       tester,
@@ -955,6 +1485,35 @@ void main() {
         tester.getBottomLeft(lastRow).dy,
         lessThanOrEqualTo(tester.getTopLeft(dock).dy),
       );
+    });
+
+    testWidgets('report sheet disables duplicate submissions', (tester) async {
+      final course = FakeCourseRepository(
+        _client(),
+        reviewPayloads: [_reviewPayloads().first],
+      )..waitReport = Completer<void>();
+      await pumpDetail(tester, course, size: const Size(500, 1200));
+
+      await tester.tap(find.text('举报内容'));
+      await tester.pumpAndSettle();
+      final l10n = AppLocalizations.of(
+        tester.element(find.byType(DropdownButtonFormField<String>)),
+      );
+      await tester.tap(find.byType(DropdownButtonFormField<String>));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('垃圾信息').last);
+      await tester.pumpAndSettle();
+      final submit = find.widgetWithText(FilledButton, l10n.topicReportSubmit);
+      await tester.tap(submit);
+      await tester.pump();
+      expect(tester.widget<FilledButton>(submit).onPressed, isNull);
+      await tester.tap(submit);
+      await tester.pump();
+      expect(course.reportCalls, [(1, 'spam', '')]);
+
+      course.waitReport!.complete();
+      await tester.pumpAndSettle();
+      expect(find.byType(DropdownButtonFormField<String>), findsNothing);
     });
 
     testWidgets('展示评分分布、开课班级、相关课程与沿革', (tester) async {
@@ -1134,7 +1693,8 @@ void main() {
       await pumpDetail(tester, course);
       await tester.tap(find.text('写课评'));
       await tester.pumpAndSettle();
-      await tester.enterText(find.byType(TextField).last, '未保存的课评');
+      _replaceReviewEditorText(tester, '未保存的课评');
+      await tester.pump();
       await tester.tap(find.text('取消'));
       await tester.pumpAndSettle();
       final l = AppLocalizations.of(
@@ -1143,7 +1703,14 @@ void main() {
       expect(find.text(l.settingsUnsavedTitle), findsOneWidget);
       await tester.tap(find.text(l.settingsKeepEditing));
       await tester.pumpAndSettle();
-      expect(find.text('未保存的课评'), findsOneWidget);
+      expect(
+        tester
+            .widget<QuillEditor>(find.byType(QuillEditor))
+            .controller
+            .document
+            .toPlainText(),
+        contains('未保存的课评'),
+      );
       await tester.tap(find.text('取消'));
       await tester.pumpAndSettle();
       await tester.tap(find.text(l.settingsDiscardChanges));
@@ -1208,12 +1775,20 @@ void main() {
       await tester.tap(find.text('写课评'));
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const ValueKey('review-rating-5')));
-      await tester.enterText(find.byType(TextField).last, '保留这段评价');
+      _replaceReviewEditorText(tester, '保留这段评价');
+      await tester.pump();
       await tester.tap(find.text('发布评价'));
       await tester.pumpAndSettle();
       expect(find.text('你已评价过该开课实例。'), findsOneWidget);
       expect(tester.getTopLeft(find.text('你已评价过该开课实例。')).dy, lessThan(160));
-      expect(find.text('保留这段评价'), findsOneWidget);
+      expect(
+        tester
+            .widget<QuillEditor>(find.byType(QuillEditor))
+            .controller
+            .document
+            .toPlainText(),
+        contains('保留这段评价'),
+      );
       await tester.pump(const Duration(seconds: 8));
     });
 
@@ -1228,10 +1803,11 @@ void main() {
       await tester.tap(find.text('写课评'));
       await tester.pumpAndSettle();
 
-      // 选 5 星 + 输入内容（textarea 是页面唯一输入框）。
+      // 选星并输入 Markdown 正文。
       await tester.tap(find.byKey(const ValueKey('review-rating-5')));
       await tester.pump();
-      await tester.enterText(find.byType(TextField).last, '老师讲得清楚');
+      _replaceReviewEditorText(tester, '老师讲得清楚');
+      await tester.pump();
       await tester.tap(find.text('发布评价'));
       await tester.pumpAndSettle();
 

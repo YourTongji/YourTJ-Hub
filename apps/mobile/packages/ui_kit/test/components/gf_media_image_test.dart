@@ -104,6 +104,119 @@ void main() {
     expect(await frames.future, 2);
     completer.removeListener(listener);
   });
+  testWidgets('SVG bytes render even when the URL extension lies', (
+    tester,
+  ) async {
+    var loads = 0;
+    final svg = Uint8List.fromList(
+      utf8.encode(
+        '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10">'
+        '<rect width="10" height="10" fill="#336699"/></svg>',
+      ),
+    );
+    // Rendering is read back from the widget tree: a raster decode of SVG bytes
+    // fails, so a painted frame with the vector's size proves the vector path.
+    Future<ui.Image> render(GfBytesImage provider) async {
+      await tester.pumpWidget(
+        Directionality(
+          textDirection: TextDirection.ltr,
+          child: Image(image: provider),
+        ),
+      );
+      ui.Image? image;
+      // Real rasterization is asynchronous in a widget test: poll the painted
+      // frame instead of betting on one fixed delay.
+      for (var attempt = 0; attempt < 40 && image == null; attempt++) {
+        await tester.runAsync(() async {
+          await Future<void>.delayed(const Duration(milliseconds: 50));
+        });
+        await tester.pump();
+        final Finder painted = find.byType(RawImage);
+        if (painted.evaluate().isNotEmpty) {
+          image = tester.widget<RawImage>(painted).image;
+        }
+      }
+      expect(tester.takeException(), isNull);
+      expect(image, isNotNull);
+      return image!;
+    }
+
+    // A .png name with SVG bytes must still take the vector path.
+    final image = await render(
+      GfBytesImage(
+        identity: 'vector',
+        url: 'https://example.test/vector.png',
+        isCurrent: () => true,
+        load: () async {
+          loads++;
+          return GfMediaData(svg);
+        },
+      ),
+    );
+    expect(loads, 1);
+    expect(image.width, 20);
+    expect(image.height, 20);
+
+    // Explicit cache targets are honoured and clamped to 4x.
+    final clampedImage = await render(
+      GfBytesImage(
+        identity: 'vector-clamped',
+        url: 'https://example.test/vector.png',
+        width: 10000,
+        height: 10000,
+        isCurrent: () => true,
+        load: () async {
+          loads++;
+          return GfMediaData(svg);
+        },
+      ),
+    );
+    expect(clampedImage.width, 40);
+    expect(clampedImage.height, 40);
+    expect(loads, 2);
+  });
+
+  test('isSvgDocument only accepts document-like vector heads', () {
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg"></svg>';
+    expect(isSvgDocument(Uint8List.fromList(utf8.encode(svg))), isTrue);
+    expect(
+      isSvgDocument(Uint8List.fromList(utf8.encode('  \n\t$svg'))),
+      isTrue,
+    );
+    expect(
+      isSvgDocument(
+        Uint8List.fromList(utf8.encode('<?xml version="1.0"?>$svg')),
+      ),
+      isTrue,
+    );
+    expect(
+      isSvgDocument(Uint8List.fromList(utf8.encode('<SVG viewBox="0 0 1 1"/>'))),
+      isTrue,
+    );
+    expect(
+      isSvgDocument(
+        Uint8List.fromList(<int>[0xEF, 0xBB, 0xBF, ...utf8.encode(svg)]),
+      ),
+      isTrue,
+    );
+    expect(
+      isSvgDocument(
+        Uint8List.fromList(
+          utf8.encode('<?xml version="1.0"?>\n<!-- ${'x' * 1500} -->\n$svg'),
+        ),
+      ),
+      isTrue,
+    );
+    // Bearers that must never be mistaken for vectors.
+    expect(isSvgDocument(_gif), isFalse);
+    expect(isSvgDocument(Uint8List(0)), isFalse);
+    expect(
+      isSvgDocument(
+        Uint8List.fromList(utf8.encode('<!DOCTYPE html><html></html>')),
+      ),
+      isFalse,
+    );
+  });
   testWidgets(
     'network SVG uses the same byte loader without a second parsed cache',
     (tester) async {

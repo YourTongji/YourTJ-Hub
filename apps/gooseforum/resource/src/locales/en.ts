@@ -720,6 +720,7 @@ export default {
     backToLogin: 'Back to login',
     continueWith: 'Or continue with',
     oauthNoAccount: 'This third-party account has no matching site account yet. Please register first, then bind it under Settings → Account binding.',
+    oauthOtherLogin: 'Sign in another way',
     googleUnavailable: 'Google is not available yet',
     panelTagline: 'Weiji: unfinished, yet full of possibility',
     panelTaglineSource: 'Inspired by the I Ching — Weiji, the 64th and final hexagram',
@@ -2597,8 +2598,9 @@ export default {
         unsupported: 'Unsupported file format. Allowed formats: {extensions}',
       },
       image: {
+        empty: 'No image content received. Please choose the file again',
         unsupported: 'Unsupported image format. JPG, PNG, GIF, WebP, and BMP are allowed',
-        invalidContent: 'File content is not a valid image',
+        invalidContent: 'Image content does not match its extension or is corrupted',
       },
       readFailed: 'Failed to read file. Please try again',
       openFailed: 'Failed to open file',

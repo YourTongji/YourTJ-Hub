@@ -719,6 +719,7 @@ export default {
     backToLogin: 'ログインへ戻る',
     continueWith: 'または次で続行',
     oauthNoAccount: 'この外部アカウントに対応する本サイトのアカウントはまだありません。先に登録し、登録後に「設定 → アカウント連携」から連携してください。',
+    oauthOtherLogin: '別の方法でログイン',
     googleUnavailable: 'Google はまだ利用できません',
     panelTagline: '未済は終わりにあらず、可能性は無限',
     panelTaglineSource: '『易経』未済卦より着想 · 六十四卦の最終',
@@ -2596,8 +2597,9 @@ export default {
         unsupported: '未対応のファイル形式です。利用可能な形式: {extensions}',
       },
       image: {
+        empty: '画像データが空です。ファイルを選択し直してください',
         unsupported: '未対応の画像形式です。JPG、PNG、GIF、WebP、BMP に対応しています',
-        invalidContent: 'ファイル内容が有効な画像ではありません',
+        invalidContent: '画像の内容が拡張子と一致しないか、破損しています',
       },
       readFailed: 'ファイルの読み込みに失敗しました。再試行してください',
       openFailed: 'ファイルを開けませんでした',

@@ -312,6 +312,47 @@ func TestAdminImgUploadContentGate(t *testing.T) {
 	})
 }
 
+// TestMultipartImageUploadContentFailureCodes 验证 `/file/img-upload` multipart
+// 路径的稳定码区分（issue 966/969）：空文件 → upload.image.empty；扩展名合法但
+// 字节是已知不支持格式 → upload.image.unsupported；伪造/不匹配仍是
+// upload.image.invalidContent（既有断言见 TestAdminImgUploadContentGate）。
+func TestMultipartImageUploadContentFailureCodes(t *testing.T) {
+	path := "/file/img-upload"
+	t.Run("empty file reports upload.image.empty", func(t *testing.T) {
+		conn, router, _ := setupDirectUploadRouteTest(t)
+		user := createHTTPContractUser(t, conn, contractTestID())
+		recorder := serveMultipartNamed(router, path, map[string]routeNamedFile{
+			"file": {name: "empty.png", data: nil},
+		}, contractSessionToken(t, user))
+		envelope := decodeContractEnvelope(t, recorder)
+		if envelope.Code == 0 || envelope.MessageCode != "upload.image.empty" {
+			t.Fatalf("empty upload envelope = %#v, want upload.image.empty", envelope)
+		}
+	})
+	t.Run("heic bytes under an allowed name report unsupported", func(t *testing.T) {
+		conn, router, _ := setupDirectUploadRouteTest(t)
+		user := createHTTPContractUser(t, conn, contractTestID())
+		recorder := serveMultipartNamed(router, path, map[string]routeNamedFile{
+			"file": {name: "photo.png", data: routeHEICHeader},
+		}, contractSessionToken(t, user))
+		envelope := decodeContractEnvelope(t, recorder)
+		if envelope.Code == 0 || envelope.MessageCode != "upload.image.unsupported" {
+			t.Fatalf("heic upload envelope = %#v, want upload.image.unsupported", envelope)
+		}
+	})
+	t.Run("forged text bytes still report upload.image.invalidContent", func(t *testing.T) {
+		conn, router, _ := setupDirectUploadRouteTest(t)
+		user := createHTTPContractUser(t, conn, contractTestID())
+		recorder := serveMultipartNamed(router, path, map[string]routeNamedFile{
+			"file": {name: "fake.png", data: []byte("this is definitely not an image")},
+		}, contractSessionToken(t, user))
+		envelope := decodeContractEnvelope(t, recorder)
+		if envelope.Code == 0 || envelope.MessageCode != "upload.image.invalidContent" {
+			t.Fatalf("forged upload envelope = %#v, want upload.image.invalidContent", envelope)
+		}
+	})
+}
+
 // serveAdminDataMultipartNamed 以 SiteManager 身份提交带显式文件名的 multipart 表单。
 func serveAdminDataMultipartNamed(t *testing.T, conn *gorm.DB, router *gin.Engine, path, filename string, data []byte) *httptest.ResponseRecorder {
 	t.Helper()
@@ -391,6 +432,28 @@ func TestAvatarUploadContentGate(t *testing.T) {
 		envelope := decodeContractEnvelope(t, recorder)
 		if envelope.Code == 0 || envelope.MessageCode != "upload.image.invalidContent" {
 			t.Fatalf("forged avatar envelope = %#v, want upload.image.invalidContent", envelope)
+		}
+	})
+	t.Run("empty avatar is rejected as empty content", func(t *testing.T) {
+		conn, router := setupAccountContractTest(t)
+		user := createHTTPContractUser(t, conn, contractTestID())
+		recorder := serveMultipartNamed(router, path, map[string]routeNamedFile{
+			"avatar": {name: "avatar.png", data: nil},
+		}, contractSessionToken(t, user))
+		envelope := decodeContractEnvelope(t, recorder)
+		if envelope.Code == 0 || envelope.MessageCode != "upload.image.empty" {
+			t.Fatalf("empty avatar envelope = %#v, want upload.image.empty", envelope)
+		}
+	})
+	t.Run("heic avatar bytes report unsupported format", func(t *testing.T) {
+		conn, router := setupAccountContractTest(t)
+		user := createHTTPContractUser(t, conn, contractTestID())
+		recorder := serveMultipartNamed(router, path, map[string]routeNamedFile{
+			"avatar": {name: "avatar.png", data: routeHEICHeader},
+		}, contractSessionToken(t, user))
+		envelope := decodeContractEnvelope(t, recorder)
+		if envelope.Code == 0 || envelope.MessageCode != "upload.image.unsupported" {
+			t.Fatalf("heic avatar envelope = %#v, want upload.image.unsupported", envelope)
 		}
 	})
 	t.Run("bmp avatar succeeds and keeps a canonical stored path", func(t *testing.T) {

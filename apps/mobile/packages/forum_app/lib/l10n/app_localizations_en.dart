@@ -79,6 +79,26 @@ class AppLocalizationsEn extends AppLocalizations {
   String get imageSaveFailed => 'Couldn’t save the image. Try again later.';
 
   @override
+  String get imageUnavailable => 'Can’t display this image';
+
+  @override
+  String get imageUnavailableNetwork =>
+      'The network blocked this image. Try again later.';
+
+  @override
+  String get imageUnavailableFormat => 'Unsupported image format';
+
+  @override
+  String get imageRetry => 'Retry';
+
+  @override
+  String get imageOpenInBrowser => 'Open in browser';
+
+  @override
+  String get imagePermissionDenied =>
+      'Photo access was denied. Enable it in system settings.';
+
+  @override
   String get announcementLabel => 'Announcement';
 
   @override
@@ -260,6 +280,10 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get authOidcLogin => 'Sign in with yourtj';
+
+  @override
+  String get authRegisterEmailVerify =>
+      'Registration successful. A verification email was sent; check your inbox.';
 
   @override
   String get authRegisterSuccess => 'Registered successfully, please sign in';
@@ -2305,7 +2329,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsAvatarSources => 'Choose a preset or upload a photo';
 
   @override
-  String get settingsEmailChangeStaged => 'Email change request submitted.';
+  String get settingsEmailChangeStaged =>
+      'An activation email was sent to your new address. Check your inbox to activate it.';
 
   @override
   String settingsEmailPending(String email) {
@@ -3119,4 +3144,120 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get draftCloudLimit =>
       'This page loads the 100 most recently updated cloud drafts. Deleting a draft refreshes the list to show the next one.';
+
+  @override
+  String get topicShareImage => 'Generate share image';
+
+  @override
+  String get shareImageTitle => 'Share image';
+
+  @override
+  String get shareImageTheme => 'Theme';
+
+  @override
+  String get shareImageThemePaper => 'Paper';
+
+  @override
+  String get shareImageThemeSand => 'Sand';
+
+  @override
+  String get shareImageThemeBlue => 'Blue';
+
+  @override
+  String get shareImageThemeMint => 'Mint';
+
+  @override
+  String get shareImageThemeDark => 'Dark';
+
+  @override
+  String get shareImageGenerating => 'Preparing image…';
+
+  @override
+  String get reviewDislike => 'Not useful';
+
+  @override
+  String get courseReviewShare => 'Share';
+
+  @override
+  String get courseReviewShareImage => 'Generate share image';
+
+  @override
+  String get courseReviewReportReasonHint => 'Select a reason';
+
+  @override
+  String get courseReviewReportNoteLabel => 'Additional details';
+
+  @override
+  String get courseReviewTemplates => 'Review templates';
+
+  @override
+  String get courseReviewTemplateApply => 'Apply';
+
+  @override
+  String get courseReviewTemplateReplaceTitle => 'Replace existing content?';
+
+  @override
+  String get courseReviewTemplateReplaceBody =>
+      'The current review content will be replaced by the template.';
+
+  @override
+  String get courseReviewTemplateKeepEditing => 'Keep editing';
+
+  @override
+  String get courseReviewTemplateComprehensiveName => 'Comprehensive';
+
+  @override
+  String get courseReviewTemplateComprehensiveDescription =>
+      'Cover the course, instructor, workload, assessment and advice.';
+
+  @override
+  String get courseReviewTemplateQuickName => 'Quick review';
+
+  @override
+  String get courseReviewTemplateQuickDescription =>
+      'A short summary of your overall experience.';
+
+  @override
+  String get courseReviewTemplateTeacherFocusedName => 'Instructor focused';
+
+  @override
+  String get courseReviewTemplateTeacherFocusedDescription =>
+      'Focus on teaching style, pace and communication.';
+
+  @override
+  String get courseReviewTemplateExamFocusedName => 'Assessment focused';
+
+  @override
+  String get courseReviewTemplateExamFocusedDescription =>
+      'Describe exams, assignments and grading.';
+
+  @override
+  String get courseReviewTemplateWorkloadName => 'Workload focused';
+
+  @override
+  String get courseReviewTemplateWorkloadDescription =>
+      'Describe weekly workload and time commitment.';
+
+  @override
+  String get courseReviewTemplateBlankName => 'Blank';
+
+  @override
+  String get courseReviewTemplateBlankDescription =>
+      'Start with an empty review.';
+
+  @override
+  String get courseReviewContentLimitError =>
+      'Reviews can contain up to 2,000 characters.';
+
+  @override
+  String courseReviewCharacterCount(Object count) {
+    return '$count/2000';
+  }
+
+  @override
+  String get shareImageTooLong =>
+      'This post is too long to turn into one image.';
+
+  @override
+  String get shareImageFailed => 'Couldn’t share the image. Try again later.';
 }

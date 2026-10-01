@@ -1,6 +1,7 @@
 import 'package:core/core.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_quill/flutter_quill.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -136,7 +137,14 @@ void main() {
     await _pump(tester, repo);
     await tester.tap(find.text('编辑').first);
     await tester.pumpAndSettle();
-    await tester.enterText(find.byType(TextField).last, '修改后的评价');
+    final editor = tester.widget<QuillEditor>(find.byType(QuillEditor));
+    editor.controller.replaceText(
+      0,
+      editor.controller.document.length - 1,
+      '修改后的评价',
+      const TextSelection.collapsed(offset: 6),
+    );
+    await tester.pumpAndSettle();
     await tester.tap(find.text('保存'));
     await tester.pumpAndSettle();
     expect(find.text('修改后的评价'), findsOneWidget);
