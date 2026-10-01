@@ -15,6 +15,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/pquerna/otp"
 	"github.com/pquerna/otp/totp"
+	"gorm.io/gorm"
 )
 
 func setupTotpTestDB(t *testing.T) {
@@ -86,11 +87,14 @@ func TestSetupReturnsSecretAndOtpauthURL(t *testing.T) {
 		!strings.Contains(result.OtpauthURL, "algorithm=SHA1&digits=6&period=30") {
 		t.Fatalf("otpauth URL malformed: %s", result.OtpauthURL)
 	}
-	if IsEnabled(userID) {
+	if enabled, err := IsEnabled(userID); err != nil || enabled {
 		t.Fatal("IsEnabled() = true before enable")
 	}
 
-	entity := userTotp.GetByUserID(userID)
+	entity, err := userTotp.GetByUserID(userID)
+	if err != nil {
+		t.Fatalf("GetByUserID() error = %v", err)
+	}
 	if entity == nil || entity.SecretEncrypted == "" || entity.SecretEncrypted == result.Secret {
 		t.Fatalf("stored secret not encrypted: %#v", entity)
 	}
@@ -122,7 +126,7 @@ func TestEnablePersistsAndReturnsRecoveryCodes(t *testing.T) {
 		}
 		seen[code] = true
 	}
-	if !IsEnabled(userID) {
+	if enabled, err := IsEnabled(userID); err != nil || !enabled {
 		t.Fatal("IsEnabled() = false after enable")
 	}
 }
@@ -138,7 +142,7 @@ func TestEnableRejectsWrongCodeAndAlreadyEnabled(t *testing.T) {
 	if _, err = Enable(userID, "000000"); !errors.Is(err, ErrInvalidCode) {
 		t.Fatalf("Enable(wrong code) error = %v, want ErrInvalidCode", err)
 	}
-	if IsEnabled(userID) {
+	if enabled, err := IsEnabled(userID); err != nil || enabled {
 		t.Fatal("IsEnabled() = true after failed enable")
 	}
 	if _, err = Enable(userID, currentCode(t, result.Secret)); err != nil {
@@ -218,6 +222,58 @@ func TestVerifyFailsWhenNotEnabled(t *testing.T) {
 	}
 }
 
+func TestTotpReadErrorsPropagateThroughService(t *testing.T) {
+	setupTotpTestDB(t)
+	conn := db.Connect()
+	readErr := errors.New("injected TOTP read failure")
+	callbackName := "test:totp-read-error-propagation"
+	if err := conn.Callback().Query().Before("gorm:query").Register(callbackName, func(tx *gorm.DB) {
+		if tx.Statement.Table == "user_totp" {
+			_ = tx.AddError(readErr)
+		}
+	}); err != nil {
+		t.Fatalf("register TOTP read-error callback: %v", err)
+	}
+	callbackInstalled := true
+	t.Cleanup(func() {
+		if callbackInstalled {
+			if err := conn.Callback().Query().Remove(callbackName); err != nil {
+				t.Errorf("remove TOTP read-error callback: %v", err)
+			}
+		}
+	})
+
+	userID := uint64(7110)
+	checks := []struct {
+		name string
+		call func() error
+	}{
+		{"Setup", func() error { _, err := Setup(userID); return err }},
+		{"Enable", func() error { _, err := Enable(userID, "123456"); return err }},
+		{"Disable", func() error { return Disable(userID, "password") }},
+		{"Verify", func() error { _, err := Verify(userID, "123456"); return err }},
+	}
+	for _, check := range checks {
+		t.Run(check.name, func(t *testing.T) {
+			if err := check.call(); !errors.Is(err, readErr) {
+				t.Fatalf("%s error = %v, want injected TOTP read error", check.name, err)
+			}
+		})
+	}
+
+	if err := conn.Callback().Query().Remove(callbackName); err != nil {
+		t.Fatalf("remove TOTP read-error callback before state assertion: %v", err)
+	}
+	callbackInstalled = false
+	var count int64
+	if err := conn.Model(&userTotp.Entity{}).Where("user_id = ?", userID).Count(&count).Error; err != nil {
+		t.Fatalf("count TOTP rows after failed operations: %v", err)
+	}
+	if count != 0 {
+		t.Fatalf("TOTP rows after failed operations = %d, want 0", count)
+	}
+}
+
 func TestDisableWithTotpCode(t *testing.T) {
 	setupTotpTestDB(t)
 	userID := uint64(7006)
@@ -235,7 +291,7 @@ func TestDisableWithTotpCode(t *testing.T) {
 	if err = Disable(userID, currentCode(t, result.Secret)); err != nil {
 		t.Fatalf("Disable() error = %v", err)
 	}
-	if IsEnabled(userID) {
+	if enabled, err := IsEnabled(userID); err != nil || enabled {
 		t.Fatal("IsEnabled() = true after disable")
 	}
 	if err = Disable(userID, currentCode(t, result.Secret)); !errors.Is(err, ErrNotEnabled) {
@@ -263,7 +319,7 @@ func TestDisableWithPassword(t *testing.T) {
 	if err = Disable(userID, password); err != nil {
 		t.Fatalf("Disable(password) error = %v", err)
 	}
-	if IsEnabled(userID) {
+	if enabled, err := IsEnabled(userID); err != nil || enabled {
 		t.Fatal("IsEnabled() = true after disable with password")
 	}
 }
