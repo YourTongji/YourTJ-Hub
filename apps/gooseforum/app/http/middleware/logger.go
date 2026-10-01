@@ -3,6 +3,7 @@ package middleware
 import (
 	"log/slog"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/preferences"
@@ -63,8 +64,53 @@ func AccessLog(c *gin.Context) {
 
 // OAuth credentials and state must never enter application or network-access logs.
 func logQuery(u *url.URL) string {
-	if u.Path == "/api/campus/tongji/callback" {
+	if ShouldRedactQuery(u) {
 		return ""
 	}
 	return u.RawQuery
+}
+
+// ShouldRedactQuery reports whether a URL's query contains authentication
+// callback state and must be omitted from request logs.
+func ShouldRedactQuery(u *url.URL) bool {
+	if u == nil {
+		return false
+	}
+	if isAuthenticationCallback(u.Path) {
+		return true
+	}
+	if u.Path == "/login" {
+		redirect, err := url.Parse(u.Query().Get("redirect"))
+		return err == nil && redirect != nil && isAuthenticationCallback(redirect.Path)
+	}
+	return false
+}
+
+func logReferer(raw string) string {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return ""
+	}
+	if _, err := url.ParseQuery(u.RawQuery); err != nil {
+		return ""
+	}
+	if !ShouldRedactQuery(u) {
+		return raw
+	}
+	u.RawQuery = ""
+	u.ForceQuery = false
+	return u.String()
+}
+
+func isAuthenticationCallback(path string) bool {
+	path = strings.TrimSuffix(path, "/")
+	if path == "/api/campus/tongji/callback" || path == "/api/oauth/authorize/callback" {
+		return true
+	}
+	rest := strings.TrimPrefix(path, "/api/auth/")
+	if rest == path || !strings.HasSuffix(rest, "/callback") {
+		return false
+	}
+	provider := strings.TrimSuffix(rest, "/callback")
+	return provider != "" && !strings.Contains(provider, "/")
 }
