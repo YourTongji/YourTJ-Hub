@@ -31,9 +31,10 @@ Choose option 1 as a download convenience channel extending
 the alias publisher after the original release is public and verified, within the existing
 `mobile-release` concurrency group. It selects the highest stable `mobile-vX.Y.Z` among the most
 recent 100 releases, downloads all three APKs, verifies their sizes and GitHub SHA-256 digests and
-consistent ABI build numbers, then updates only `mobile-latest` assets. Aliases are named
-`YourTJ-ABI.apk`; a checksum file and release notes identify the original version. Retries skip
-matching bytes, and a recorded newer source prevents older recovery from replacing the channel.
+consistent ABI build numbers, then updates only `mobile-latest` assets. The channel has fixed
+`YourTJ-ABI.apk` names and a `YourTJ-download-probe.png`; its checksum file covers the APKs and probe,
+and release notes identify the original version. Retries skip matching bytes, and a recorded newer
+source prevents older recovery from replacing the channel.
 
 The channel is a pre-release with `latest=false` so repository latest and in-app update discovery
 ignore it. Its APK bytes come from the stable release; the pre-release flag classifies the channel,

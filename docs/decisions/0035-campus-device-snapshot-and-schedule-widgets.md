@@ -1,7 +1,7 @@
 # 校园白名单设备快照与原生桌面课表
 
 ## Status
-Accepted
+Superseded by [0052](0052-campus-daily-entry-refresh.md)
 Class: architecture
 
 ## Context and Problem Statement
@@ -43,6 +43,7 @@ Flutter 与原生桥使用 `home_widget`。Android 使用与当前 minSdk 24、A
 
 ## Links
 
+- [继任决策：校园跨日进入刷新](0052-campus-daily-entry-refresh.md)
 - [被取代的前台内存缓存决策](0033-campus-foreground-memory-cache.md)
 - [校园产品与保留规则](../product/campus.md)
 - [移动端体验](../product/mobile-experience.md)

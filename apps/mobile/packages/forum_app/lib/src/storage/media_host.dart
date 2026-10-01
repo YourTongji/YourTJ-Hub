@@ -96,43 +96,59 @@ class _MediaHostState extends State<MediaHost> with WidgetsBindingObserver {
     }
     return GfMediaScope(
       identity: (repository, scope, origin, generation),
-      factory: (url, {width, height, policy = ResizeImagePolicy.exact}) {
-        // Capture this per provider, not per inherited scope: mounted images
-        // clear to a placeholder, while a later navigation/retry can load anew.
-        final blocked = _blockAutomaticRefresh;
-        return GfBytesImage(
-          identity: (repository, scope, origin, generation),
-          url: url,
-          width: width,
-          height: height,
-          policy: policy,
-          isCurrent: () => repository.isCurrent(generation),
-          onDecodeError: () => repository.discard(
-            url,
-            scopeKey: scope,
-            apiOrigin: origin,
-            generation: generation,
-          ),
-          load: () async {
-            if (blocked || repository.isSuspended) {
-              throw StateError('Media loading suspended during clear');
-            }
-            final bytes = await repository.load(
-              url,
-              scopeKey: scope,
-              apiOrigin: origin,
-            );
-            return GfMediaData(
-              bytes,
-              cacheIdentity: repository.decodedIdentity(
+      factory:
+          (
+            url, {
+            width,
+            height,
+            policy = ResizeImagePolicy.exact,
+            allowedOrigins,
+          }) {
+            // Capture this per provider, not per inherited scope: mounted images
+            // clear to a placeholder, while a later navigation/retry can load anew.
+            final blocked = _blockAutomaticRefresh;
+            return GfBytesImage(
+              identity: (
+                repository,
+                scope,
+                origin,
+                generation,
+                allowedOrigins == null
+                    ? null
+                    : (allowedOrigins.toList()..sort()).join(','),
+              ),
+              url: url,
+              width: width,
+              height: height,
+              policy: policy,
+              isCurrent: () => repository.isCurrent(generation),
+              onDecodeError: () => repository.discard(
                 url,
                 scopeKey: scope,
                 apiOrigin: origin,
+                generation: generation,
               ),
+              load: () async {
+                if (blocked || repository.isSuspended) {
+                  throw StateError('Media loading suspended during clear');
+                }
+                final bytes = await repository.load(
+                  url,
+                  scopeKey: scope,
+                  apiOrigin: origin,
+                  allowedOrigins: allowedOrigins,
+                );
+                return GfMediaData(
+                  bytes,
+                  cacheIdentity: repository.decodedIdentity(
+                    url,
+                    scopeKey: scope,
+                    apiOrigin: origin,
+                  ),
+                );
+              },
             );
           },
-        );
-      },
       child: widget.child,
     );
   }

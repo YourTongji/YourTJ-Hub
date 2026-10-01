@@ -1,20 +1,18 @@
 import type { Source, StatusSnapshot, StatusRange, StatusServerRange, StatusServer, StatusTraffic, StatusUptime, StatusDevices } from '../src/types'
 import { cacheKey, configured, devicesConfigured, type Config, type Provider } from './config'
 import type { ServerHistory } from './komari'
-export const RETENTION = 900_000
-export const CURRENT_FRESHNESS = 150_000
-export const HISTORY_FRESHNESS = 600_000
+import { CURRENT_POLICY, HISTORY_POLICY, DEVICE_POLICY, POLL_SECONDS } from '../src/runtime/status-policy'
 export type Stored<T> = { attemptedAt: number; fetchedAt?: string; failed: boolean; data: T | null }
 export interface SnapshotStore {
   read<T>(key: string): Promise<{ value: Stored<T>; etag: string } | null>
   write<T>(key: string, value: Stored<T>, etag?: string): Promise<boolean>
 }
-export function source<T>(value: Stored<T> | undefined, now: number, freshFor: number): Source<T> {
+export function source<T>(value: Stored<T> | undefined, now: number, freshFor: number, retainFor: number = CURRENT_POLICY.retainFor): Source<T> {
   const age = now - Date.parse(value?.fetchedAt ?? '')
-  if ((!value || value.data === null) || !Number.isFinite(age) || age < -60_000 || age > RETENTION) return { state: 'unavailable', data: null }
+  if ((!value || value.data === null) || !Number.isFinite(age) || age < -60_000 || age > retainFor) return { state: 'unavailable', data: null }
   return { state: value.failed || age > freshFor ? 'stale' : 'ok', fetchedAt: value.fetchedAt, data: value.data }
 }
-export async function collectOne<T>(store: SnapshotStore, key: string, fetchValue: () => Promise<T>, now: () => number = Date.now) {
+export async function collectOne<T>(store: SnapshotStore, key: string, fetchValue: () => Promise<T>, now: () => number = Date.now, retainFor: number = CURRENT_POLICY.retainFor) {
   const started = now()
   let data: T | null = null, fetchedAt: string | undefined, failed = false
   try { data = await fetchValue(); fetchedAt = new Date(now()).toISOString() } catch { failed = true }
@@ -22,24 +20,30 @@ export async function collectOne<T>(store: SnapshotStore, key: string, fetchValu
   for (let retry = 0; retry < 3; retry++) {
     const old = await store.read<T>(key)
     if (old && old.value.attemptedAt >= started) return
-    const previous = source(old?.value, now(), RETENTION)
+    const previous = source(old?.value, now(), retainFor, retainFor)
     const value: Stored<T> = { attemptedAt: started, failed, data: failed ? previous.data : data, fetchedAt: failed ? previous.fetchedAt : fetchedAt }
     if (await store.write(key, value, old?.etag)) return
   }
   throw new Error('Snapshot changed concurrently')
 }
 export async function readSnapshot(store: SnapshotStore, config: Config, range: StatusRange, serverRange: StatusServerRange, now: number, deviceRange: StatusRange = '7d'): Promise<StatusSnapshot> {
-  async function read<T>(provider: Provider, part: string, freshness: number): Promise<Source<T>> {
+  async function read<T>(provider: Provider, part: string, policy: { freshFor: number; retainFor: number }): Promise<Source<T>> {
     if (!configured(config, provider)) return { state: 'unconfigured', data: null }
-    return source((await store.read<T>(cacheKey(config, provider, part)))?.value, now, freshness)
+    return source((await store.read<T>(cacheKey(config, provider, part)))?.value, now, policy.freshFor, policy.retainFor)
   }
   const [server, history, traffic, uptime, devices] = await Promise.all([
-    read<StatusServer>('komari', 'current', CURRENT_FRESHNESS), read<ServerHistory>('komari', `history-${serverRange}`, HISTORY_FRESHNESS),
-    read<StatusTraffic>('umami', range, HISTORY_FRESHNESS), read<StatusUptime>('uptime', 'current', CURRENT_FRESHNESS),
-    devicesConfigured(config) ? read<StatusDevices>('umami', `devices-${deviceRange}`, HISTORY_FRESHNESS) : Promise.resolve<Source<StatusDevices>>({ state: 'unconfigured', data: null }),
+    read<StatusServer>('komari', 'current', CURRENT_POLICY), read<ServerHistory>('komari', `history-${serverRange}`, HISTORY_POLICY),
+    read<StatusTraffic>('umami', range, HISTORY_POLICY), read<StatusUptime>('uptime', 'current', CURRENT_POLICY),
+    devicesConfigured(config) ? read<StatusDevices>('umami', `devices-${deviceRange}`, DEVICE_POLICY) : Promise.resolve<Source<StatusDevices>>({ state: 'unconfigured', data: null }),
   ])
-  if (server.data) server.data = { ...server.data, history: history.data?.history ?? [], historyAvailable: history.data?.historyAvailable ?? false, ...(history.fetchedAt ? { historyFetchedAt: history.fetchedAt } : {}), historyStale: history.state === 'stale' }
-  return { range, serverRange, deviceRange, refreshAfter: 30, server, traffic, uptime, devices }
+  // Keep the history envelope even when current readings are absent or expired.
+  // The source state/timestamp still describe current readings, never history.
+  if (server.data || history.data) server.data = {
+    ...(server.data ?? { name: '', region: '', cpuCores: null, current: null }),
+    history: history.data?.history ?? [], historyAvailable: history.data?.historyAvailable ?? false,
+    historyFetchedAt: history.fetchedAt, historyStale: history.state === 'stale',
+  }
+  return { range, serverRange, deviceRange, refreshAfter: POLL_SECONDS, server, traffic, uptime, devices }
 }
 export async function serveSnapshot(request: Request, store: SnapshotStore, config: Config, now = Date.now()): Promise<Response> {
   const headers = { 'Cache-Control': 'no-store', 'Content-Type': 'application/json', 'X-Content-Type-Options': 'nosniff' }
@@ -50,6 +54,6 @@ export async function serveSnapshot(request: Request, store: SnapshotStore, conf
   try {
     const result = await readSnapshot(store, config, range as StatusRange, serverRange as StatusServerRange, now, deviceRange as StatusRange)
     // Every independently selectable range participates in CDN cache variation.
-    return new Response(request.method === 'HEAD' ? null : JSON.stringify({ code: 0, result }), { headers: { ...headers, 'Netlify-CDN-Cache-Control': 'public, durable, max-age=15', 'Netlify-Vary': 'query=range|serverRange|deviceRange' } })
+    return new Response(request.method === 'HEAD' ? null : JSON.stringify({ code: 0, result }), { headers: { ...headers, 'Netlify-CDN-Cache-Control': 'public, durable, max-age=30', 'Netlify-Vary': 'query=range|serverRange|deviceRange' } })
   } catch { return Response.json({ error: 'Snapshot storage unavailable' }, { status: 503, headers }) }
 }

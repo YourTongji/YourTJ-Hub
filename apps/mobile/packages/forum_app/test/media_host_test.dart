@@ -13,14 +13,17 @@ final _gif = base64Decode(
 
 class _Media extends MediaRepository {
   final scopes = <String>[];
+  final originPolicies = <Set<String>?>[];
   final delayed = Completer<Uint8List>();
   @override
   Future<Uint8List> load(
     String url, {
     required String scopeKey,
     required String apiOrigin,
+    Set<String>? allowedOrigins,
   }) {
     scopes.add(scopeKey);
+    originPolicies.add(allowedOrigins);
     return scopeKey == 'account-a:zh' ? delayed.future : Future.value(_gif);
   }
 
@@ -40,6 +43,44 @@ class _Media extends MediaRepository {
 }
 
 void main() {
+  testWidgets(
+    'image origin policy reaches the media transport and partitions providers',
+    (tester) async {
+      final repo = _Media();
+      addTearDown(repo.dispose);
+      Widget app(Set<String> origins) => MaterialApp(
+        home: MediaHost(
+          repository: repo,
+          scopeKey: 'guest:zh',
+          apiOrigin: 'https://example.test',
+          child: GfMediaOriginPolicy(
+            origins: origins,
+            child: const GfNetworkImage(
+              'https://example.test/image.gif',
+              errorBuilder: _error,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpWidget(app({'https://example.test'}));
+      final first = tester.widget<Image>(find.byType(Image)).image;
+      expect(repo.originPolicies.last, {'https://example.test'});
+      await tester.pumpWidget(
+        app({'https://example.test', 'https://cdn.example.test'}),
+      );
+      expect(repo.originPolicies.last, {
+        'https://example.test',
+        'https://cdn.example.test',
+      });
+      expect(tester.widget<Image>(find.byType(Image)).image, isNot(first));
+      await tester.runAsync(() async {
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+      });
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
   testWidgets(
     'identity and clear changes fence old frames and clamp decoded memory',
     (tester) async {

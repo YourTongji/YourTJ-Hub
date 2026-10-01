@@ -178,6 +178,9 @@ Production-context deployments share `status-v1` across releases, regardless of 
 `published` flag. Deploy-preview and branch-deploy contexts use stores isolated by deployment ID;
 conditional writes prevent older collectors overwriting newer data. Current metrics, history and traffic have separate
 freshness, and the browser also evaluates their original timestamps. The forum remains a single binary.
+Collection runs every minute for current health, every fifteen minutes for history/traffic, and hourly
+for devices. Source-specific retention and published-content build skipping bound routine costs; see
+[the collection cost decision](../decisions/0053-status-collection-cost.md).
 See the [status specification](../product/server-status.md),
 [Netlify runbook](../operations/status-netlify.md) and
 [decision](../decisions/0027-independent-status-netlify.md).

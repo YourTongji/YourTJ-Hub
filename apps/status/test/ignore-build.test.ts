@@ -38,26 +38,39 @@ beforeAll(() => {
   writeFileSync(join(base, 'page.txt'), 'new status')
   statusChange = commit()
   if (existsSync('scripts')) cpSync('scripts', join(base, 'scripts'), { recursive: true })
+  writeFileSync(join(repo, 'mock-fetch.mjs'), 'globalThis.fetch = async () => Response.json(JSON.parse(process.env.STATUS_TEST_MANIFEST || "{}"))')
 })
 
 afterAll(() => rmSync(repo, { recursive: true, force: true }))
 
-function decision(context: string, cached: string, current: string) {
+function decision(context: string, cached: string, current: string, manifest?: object, force = '') {
   expect(command, 'Netlify must use the explicit build policy').toBeTruthy()
   const result = spawnSync('bash', ['-c', command!], {
     cwd: base,
     encoding: 'utf8',
-    env: { ...process.env, CONTEXT: context, CACHED_COMMIT_REF: cached, COMMIT_REF: current },
+    env: { ...process.env, URL: 'https://status.example.com', STATUS_FORCE_BUILD: force, CONTEXT: context, CACHED_COMMIT_REF: cached, COMMIT_REF: current,
+      NODE_OPTIONS: `--import=${join(repo, 'mock-fetch.mjs')}`, STATUS_TEST_MANIFEST: JSON.stringify(manifest ?? {}) },
   })
   expect(result.error).toBeUndefined()
   expect(result.stderr).toBe('')
   return result.status
 }
 
-it('builds production even when status content is unchanged or the cache points to this commit', () => {
+it('builds production when the published version is unknown or the cache points to this commit', () => {
   expect(decision('production', initial, forumOnly)).toBe(1)
   expect(decision('production', statusChange, statusChange)).toBe(1)
   expect(decision('production', '', statusChange)).toBe(1)
+})
+
+it('skips production only against content already published, independently of a preview cache', () => {
+  const manifest = { schema: 1, context: 'production', tree: git('rev-parse', `${initial}:apps/status`) }
+  expect(decision('production', initial, forumOnly, manifest)).toBe(0)
+  expect(decision('production', forumOnly, statusChange, manifest)).toBe(1)
+  const preview = { ...manifest, context: 'deploy-preview', tree: git('rev-parse', `${statusChange}:apps/status`) }
+  expect(decision('production', initial, statusChange, preview)).toBe(1)
+  expect(decision('production', initial, forumOnly, manifest, 'true')).toBe(1)
+  expect(decision('production', forumOnly, forumOnly, manifest)).toBe(1)
+  expect(decision('production', '', forumOnly, manifest)).toBe(1)
 })
 
 it.each(['deploy-preview', 'branch-deploy'])('only skips unrelated changes for %s', context => {

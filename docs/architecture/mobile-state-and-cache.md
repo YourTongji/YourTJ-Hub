@@ -6,11 +6,11 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-09-29
+> Last verified: 2026-09-30
 
 This specification defines `Planned` contracts and explicitly provisional `Decision needed` policies for the
 [mobile interaction standard](../product/mobile-design-system.md). Existing behavior is recorded in
-[mobile experience](../product/mobile-experience.md) and [campus](../product/campus.md). The campus snapshot policy is `Current` under accepted decision 0035, foreground SSE under 0036,
+[mobile experience](../product/mobile-experience.md) and [campus](../product/campus.md). The campus snapshot policy is `Current` under [0052](../decisions/0052-campus-daily-entry-refresh.md), foreground SSE under 0036,
 and the implemented storage lifecycle under 0048. Contracts marked `Planned` remain outside those implementations.
 
 ## State ownership
@@ -110,11 +110,17 @@ migration. Migrations use versioned SQL independently of the Freezed generation 
 | Conversation list and synchronized messages | `Current`: 30-day retention, complete empty list replaces old membership, removed conversations lose their messages; empty message deltas do not erase history. At most 50 conversations per snapshot and 200 messages per conversation, with a device-wide byte limit. Cached reads never acknowledge messages. |
 | Public images, GIFs and avatars | `Current`: one media owner, explicit HTTP eligibility, full URL and account/origin/language key; credentials are never attached. Private/no-store/no-cache and uncertain signed resources remain memory-only. |
 | Notifications, course metadata/reviews and Wiki | `Partial`: existing visible-page memory behavior; no new generic disk projection is authorized. |
-| Campus name, calendar, official timetable | `Current`: private allowlisted device snapshot, additionally binding-scoped; complete successful refreshes replace it atomically; existing snapshots refresh by user action. |
+| Campus name, calendar, official timetable | `Current`: private allowlisted device snapshot, additionally binding-scoped; complete successful refreshes replace it atomically; previous-day snapshots refresh on Campus entry after binding verification, with manual refresh retained. |
 | Campus grades, academic summaries, school notice bodies | Page-local by default; broader durable retention needs an explicit product/privacy decision. |
 | Credentials | Existing secure session storage only; never generic cache or draft storage. A persisted local-revocation marker prevents an unsuccessfully deleted token from restoring a session. |
 | Drafts, unsent chat and unsynchronized plans | `Current`: recoverable user work, excluded from eviction and clear-cache controls. Ordinary writing/plans use a separate transaction database; private-message drafts retain secure storage. |
 | Picker/upload work in progress | `Partial`: existing attachment queue behavior; this cache lifecycle does not claim durable restoration of every picker URI or an offline upload outbox. |
+
+`Current`: uploaded private-message image URLs and their idempotent send identifiers share the
+device-bound private draft store, scoped by API origin, numeric account and peer. They are written
+before chat/send and restored only for manual retry, then removed after acknowledgement. Clear-user-data
+and account deletion also erase them and fence late upload callbacks; ordinary cache eviction does not.
+Picker bytes and uploads whose URL has not yet returned remain outside this recovery guarantee.
 
 The managed cache target is 256 MiB: media 192 MiB, forum projections 32 MiB, chat 16 MiB,
 campus documents up to 4 MiB and 12 MiB of accounting headroom. These are cache limits, not the
@@ -142,8 +148,9 @@ On iOS, backup exclusion applies to the app-owned private directory and the widg
 container root is never modified: physical devices reject its extended-attribute writes even when
 the simulator permits them. Genuine backup-configuration failures still propagate to startup recovery.
 
-`Current`: [0035](../decisions/0035-campus-device-snapshot-and-schedule-widgets.md) accepts the
-allowlisted device snapshot and supersedes [0033](../decisions/0033-campus-foreground-memory-cache.md).
+`Current`: [0052](../decisions/0052-campus-daily-entry-refresh.md) supersedes
+[0035](../decisions/0035-campus-device-snapshot-and-schedule-widgets.md) with daily entry refresh,
+retaining its allowlisted device snapshot and Widget projection contract.
 This is an explicit application storage policy. Campus API responses retain `private, no-store`;
 generic HTTP caches must not persist them. School tokens remain server-side, and Web's private-data
 lifecycle remains separate. Only `profile`, `calendar`, `timetable` and `today` enter the snapshot;
@@ -155,8 +162,15 @@ they do not repeatedly call school APIs. Missing/expired term coverage or rules 
 refresh need rather than a fabricated empty day. The forum binding-status endpoint reads the local
 forum database; it must not be confused with expensive school-data fetching.
 
-A refresh coordinator deduplicates requests by site/account/binding/dataset, prevents overlapping
-manual refreshes and avoids requesting the same school calendar/timetable through both overview and
+A refresh coordinator uses the complete snapshot's `committedAt` Shanghai date as the durable daily
+refresh marker. On entry, a previous-day snapshot triggers the four allowlisted reads and the selected
+section's datasets after binding verification. Same-day success survives process restart; failures keep
+the old marker so a later entry or manual refresh can retry. Batches crossing Shanghai midnight cannot
+commit yesterday's reads as today's successful update. The existing forced fresh reads after background
+resume remain independent of this daily trigger.
+
+The coordinator deduplicates requests by site/account/binding/dataset, prevents overlapping
+automatic/manual refreshes and avoids requesting the same school calendar/timetable through both overview and
 today endpoints. Temporary school/network failures retain the same identity's previous snapshot.
 Confirmed logout, binding removal/replacement or account erasure removes private campus snapshots
 and their projections. Binding uncertainty must not expose a different account's data. Offline

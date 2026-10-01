@@ -24,7 +24,7 @@ ReviewPayload _review(int id, String content, {bool hidden = false}) =>
       offeringId: id + 900,
       rating: 5,
       content: content,
-      contentHtml: '',
+      contentHtml: '<p>$content</p>',
       author: const ReviewAuthorPayload(kind: 'anonymous', label: '匿名同学'),
       viewer: ReviewViewerPayload(
         canEdit: !hidden,

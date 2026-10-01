@@ -18,6 +18,7 @@ import '../../local/writing_store.dart';
 import '../../messages/chat_drafts.dart';
 import '../../asset_url.dart';
 import '../../server_messages.dart';
+import '../../reading_preferences.dart';
 import '../../theme_mode.dart';
 import '../../app_locale.dart';
 import '../../widgets/language_picker.dart';
@@ -1195,6 +1196,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   Widget _buildAppearance(AppLocalizations l10n, ScrollController controller) {
     final mode = ref.watch(themeModeProvider);
     final siteTheme = ref.watch(siteThemeProvider);
+    final double readingScale = ref.watch(contentFontScaleProvider);
+    final GfColors colors = GfTheme.colorsOf(context);
+    final GfTypography type = GfTheme.typographyOf(context);
     return ListView(
       controller: controller,
       padding: const EdgeInsets.all(16),
@@ -1220,6 +1224,79 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     }),
                     value: choice,
                   ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        _settingsSection(
+          context,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: Text(
+                        l10n.settingsReadingTextSize,
+                        style: type.body.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      '${(readingScale * 100).round()}%',
+                      key: const ValueKey('settings-reading-scale-label'),
+                      style: type.body.copyWith(
+                        color: colors.iconMuted,
+                        fontFeatures: const <FontFeature>[
+                          FontFeature.tabularFigures(),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                Slider(
+                  key: const ValueKey('settings-reading-scale'),
+                  value: readingScale,
+                  min: GfRichContentTypography.minUserScale,
+                  max: GfRichContentTypography.maxUserScale,
+                  divisions: 12,
+                  label: '${(readingScale * 100).round()}%',
+                  // 拖动只更新会话内状态(notifier 内部防抖),松手立即落盘;
+                  // 若页面在拖动中途被销毁,onChangeEnd 不会触发,由防抖计时器
+                  // 兜底写入。
+                  onChanged: (double value) => ref
+                      .read(contentFontScaleProvider.notifier)
+                      .setScale(value),
+                  onChangeEnd: (double _) => ref
+                      .read(contentFontScaleProvider.notifier)
+                      .persistScale(),
+                ),
+                // Wrap so the description and the reset action reflow onto
+                // separate lines under large system text instead of squeezing.
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 4,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: <Widget>[
+                    Text(
+                      l10n.settingsReadingTextSizeDesc,
+                      style: type.caption.copyWith(color: colors.iconMuted),
+                    ),
+                    TextButton(
+                      key: const ValueKey('settings-reading-scale-reset'),
+                      onPressed: readingScale == 1
+                          ? null
+                          : () => ref
+                                .read(contentFontScaleProvider.notifier)
+                                .resetToDefault(),
+                      child: Text(l10n.settingsReadingTextSizeReset),
+                    ),
+                  ],
+                ),
               ],
             ),
           ),

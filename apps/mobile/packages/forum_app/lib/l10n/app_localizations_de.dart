@@ -544,6 +544,12 @@ class AppLocalizationsDe extends AppLocalizations {
   String get messagesEmptyDetail => 'Noch keine Nachrichten. Sag Hallo!';
 
   @override
+  String get messagesImage => 'Bild';
+
+  @override
+  String get messagesAttachments => 'Anhänge';
+
+  @override
   String get messagesInputHint => 'Nachricht eingeben …';
 
   @override
@@ -1328,6 +1334,22 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get settingsFollowSiteThemeDesc => 'Farben der Website verwenden';
+
+  @override
+  String get richContentCopyCode => 'Code kopieren';
+
+  @override
+  String get richContentCodeCopied => 'Code kopiert';
+
+  @override
+  String get settingsReadingTextSize => 'Lesegröße';
+
+  @override
+  String get settingsReadingTextSizeDesc =>
+      'Gilt für Beiträge, Wiki und Kursbewertungen. Die Systemschriftgröße bleibt wirksam.';
+
+  @override
+  String get settingsReadingTextSizeReset => 'Auf 100 % zurücksetzen';
 
   @override
   String get entryCourses => 'Kurse';
@@ -2982,8 +3004,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get messagesJumpToQuotedMessage => 'Zur zitierten Nachricht springen';
 
   @override
-  String get messagesReturnToReplySource =>
-      'Zur Ausgangsnachricht zurückkehren';
+  String get messagesReturnToReplySource => 'Zur letzten Position';
 
   @override
   String get messageReplyCancel => 'Antwort abbrechen';

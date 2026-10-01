@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:forum_app/src/widgets/stickers/sticker_image.dart';
 import 'package:forum_app/src/widgets/stickers/sticker_draft_preview.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -12,6 +13,9 @@ import 'package:ui_kit/ui_kit.dart';
 import 'package:core/core.dart';
 import 'package:forum_app/l10n/app_localizations.dart';
 import 'package:forum_app/src/providers.dart';
+import 'package:forum_app/src/reading_preferences.dart';
+import 'package:forum_app/src/widgets/rich_content/gf_code_block.dart';
+import 'package:forum_app/src/widgets/rich_content/gf_table.dart';
 import 'package:forum_app/src/widgets/markdown_view.dart';
 
 /// 内存版 TokenStorage(贴纸库 fake 的离线 client 用)。
@@ -69,6 +73,22 @@ Widget _wrap(Widget child) => MaterialApp(
   theme: gfThemeData(Brightness.light),
   home: Scaffold(body: Column(children: [child])),
 );
+
+/// Flattens every [TextSpan] of a rendered rich text so style assertions can
+/// look at the actual token spans instead of the outer wrapper.
+List<TextSpan> _textSpans(InlineSpan span) {
+  final spans = <TextSpan>[];
+  void walk(InlineSpan node) {
+    if (node is! TextSpan) return;
+    spans.add(node);
+    for (final child in node.children ?? const <InlineSpan>[]) {
+      walk(child);
+    }
+  }
+
+  walk(span);
+  return spans;
+}
 
 TapGestureRecognizer? _linkRecognizer(InlineSpan span) {
   if (span is TextSpan && span.recognizer is TapGestureRecognizer) {
@@ -507,8 +527,22 @@ void main() {
     final config = tester
         .widget<MarkdownWidget>(find.byType(MarkdownWidget))
         .config!;
-    expect(config.p.textStyle.fontSize, 18);
+    // Reading text comes from the shared rich-content profile: the body is the
+    // design baseline (17), headings are relative ratios, code is one step
+    // smaller. The reader preference multiplies these values at 100% by default.
+    final profile = GfRichContentTypography.standard(
+      typography: GfTypography.standard(GfColors.light.baseContent),
+      colors: GfColors.light,
+    );
+    expect(config.p.textStyle.fontSize, profile.body.fontSize);
+    expect(config.p.textStyle.fontSize, 17);
+    expect(config.code.style.fontSize, profile.inlineCode.fontSize);
     expect(config.code.style.fontSize, 16);
+    expect(config.h1.style.fontSize, profile.h1.fontSize);
+    expect(config.h2.style.fontSize, profile.h2.fontSize);
+    expect(config.h3.style.fontSize, profile.h3.fontSize);
+    expect(config.h4.style.fontSize, profile.h4.fontSize);
+    expect(config.table.bodyStyle!.fontSize, profile.tableBody.fontSize);
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 600));
   });
@@ -751,4 +785,162 @@ void main() {
       await tester.pump(const Duration(milliseconds: 600));
     },
   );
+
+  testWidgets('fenced code is highlighted, scrolls on its own and copies', (
+    tester,
+  ) async {
+    const code = 'final int answer = 42;\nfinal int doubled = answer * 2;';
+    final clipboard = <MethodCall>[];
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (MethodCall call) async {
+        clipboard.add(call);
+        return null;
+      },
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      ),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        child: _wrap(const GfMarkdownView(data: '```dart\n$code\n```')),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final block = find.byType(GfCodeBlock);
+    expect(block, findsOneWidget);
+    expect(
+      find.descendant(of: block, matching: find.byType(GfHorizontalScrollView)),
+      findsOneWidget,
+    );
+    // Token colors come from the highlight theme, not from one flat body color.
+    final rendered = tester.widget<RichText>(
+      find.byWidgetPredicate(
+        (Widget widget) =>
+            widget is RichText &&
+            widget.text.toPlainText().contains('final int answer'),
+      ),
+    );
+    final tokenColors = _textSpans(rendered.text)
+        .map((span) => span.style?.color)
+        .whereType<Color>()
+        .toSet();
+    expect(tokenColors.length, greaterThan(1));
+    expect(find.text('DART'), findsOneWidget);
+
+    await tester.tap(
+      find.descendant(of: block, matching: find.byType(IconButton)),
+    );
+    await tester.pumpAndSettle();
+    final copied = clipboard.where(
+      (call) => call.method == 'Clipboard.setData',
+    );
+    expect(copied, hasLength(1));
+    expect((copied.single.arguments as Map<Object?, Object?>)['text'], code);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
+  });
+
+  testWidgets('an unknown fenced language still renders as plain code', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        child: _wrap(const GfMarkdownView(data: '```klingon\nplain body\n```')),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(find.byType(GfCodeBlock), findsOneWidget);
+    expect(find.text('KLINGON'), findsOneWidget);
+    expect(
+      find.byWidgetPredicate(
+        (Widget widget) =>
+            widget is RichText &&
+            widget.text.toPlainText().contains('plain body'),
+      ),
+      findsOneWidget,
+    );
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
+  });
+
+  testWidgets('wide tables scroll inside their own viewport', (tester) async {
+    const table =
+        '| a | b | c | d | e | f | g | h |\n'
+        '| --- | --- | --- | --- | --- | --- | --- | --- |\n'
+        '| 1111111111 | 2222222222 | 3333333333 | 4444444444 '
+        '| 5555555555 | 6666666666 | 7777777777 | 8888888888 |';
+    await tester.pumpWidget(
+      ProviderScope(
+        child: _wrap(
+          const SizedBox(width: 320, child: GfMarkdownView(data: table)),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    final viewport = find.byType(GfTableViewport);
+    expect(viewport, findsOneWidget);
+    expect(
+      find.descendant(
+        of: viewport,
+        matching: find.byType(GfHorizontalScrollView),
+      ),
+      findsOneWidget,
+    );
+    // The table scrolls in place: the viewport itself never exceeds the width
+    // the page gave it.
+    expect(tester.getSize(viewport).width, lessThanOrEqualTo(320));
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
+  });
+
+  testWidgets('reader preference scales rich content on top of the baseline', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          theme: gfThemeData(Brightness.light),
+          home: Consumer(
+            builder: (context, ref, _) => Scaffold(
+              body: Column(
+                children: <Widget>[
+                  GfMarkdownView(
+                    data: 'Body',
+                    key: ValueKey(ref.watch(contentFontScaleProvider)),
+                  ),
+                  TextButton(
+                    onPressed: () => ref
+                        .read(contentFontScaleProvider.notifier)
+                        .setScale(1.4),
+                    child: const Text('scale'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('scale'));
+    await tester.pumpAndSettle();
+
+    final config = tester
+        .widget<MarkdownWidget>(find.byType(MarkdownWidget))
+        .config!;
+    expect(config.p.textStyle.fontSize, closeTo(17 * 1.4, .001));
+    expect(config.h1.style.fontSize, closeTo(17 * 1.45 * 1.4, .001));
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
+  });
 }

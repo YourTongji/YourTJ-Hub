@@ -56,8 +56,13 @@ class RecordingSendsChatRepository extends VisibleChatRepository {
   RecordingSendsChatRepository(super.client, {required super.messages});
 
   final sent = <(int, String)>[];
+  final sentTypes = <int>[];
+  final clientKeys = <String?>[];
   final replyTargets = <int?>[];
   int? requestedAroundId;
+  List<ChatMessagePayload>? aroundMessages;
+  bool aroundHasMoreAfter = false;
+  Completer<ChatMessagesResponse>? newerResponse;
   int failures = 0;
 
   @override
@@ -73,14 +78,15 @@ class RecordingSendsChatRepository extends VisibleChatRepository {
       requestedAroundId = aroundId;
       return Future.value(
         ChatMessagesResponse(
-          list: [makeChatMessage(aroundId)],
+          list: aroundMessages ?? [makeChatMessage(aroundId)],
           hasMoreBefore: false,
-          hasMoreAfter: false,
+          hasMoreAfter: aroundHasMoreAfter,
           nextBeforeId: aroundId,
-          latestId: aroundId,
+          latestId: aroundMessages?.last.id ?? aroundId,
         ),
       );
     }
+    if (afterId > 0 && newerResponse != null) return newerResponse!.future;
     return super.getMessages(
       convId: convId,
       beforeId: beforeId,
@@ -100,6 +106,8 @@ class RecordingSendsChatRepository extends VisibleChatRepository {
     int? replyToMessageId,
   }) async {
     sent.add((peerId, content));
+    sentTypes.add(msgType);
+    clientKeys.add(clientMessageId);
     if (failures > 0) {
       failures--;
       throw StateError('offline');
@@ -517,6 +525,79 @@ void main() {
     },
   );
 
+  testWidgets(
+    'quote return disappears after manually scrolling to the bottom',
+    (tester) async {
+      await pumpActions(
+        tester,
+        messages: [
+          for (var id = 1; id < 40; id++) makeChatMessage(id),
+          makeChatMessage(40).copyWith(
+            content: '> @bob: first message\n\nsource',
+            replyToMessageId: 1,
+          ),
+        ],
+      );
+      await tester.tap(find.text('first message'));
+      await tester.pumpAndSettle();
+      final returnButton = find.byKey(const Key('chat-reply-return'));
+      expect(returnButton, findsOneWidget);
+      final list = find.byType(ListView).last;
+      await tester.drag(list, const Offset(0, -250));
+      await tester.pumpAndSettle();
+      expect(returnButton, findsOneWidget);
+
+      await tester.drag(list, const Offset(0, -3000));
+      await tester.pumpAndSettle();
+      expect(find.text('source').hitTestable(), findsOneWidget);
+      expect(tester.widget<ListView>(list).controller!.position.extentAfter, 0);
+      expect(returnButton, findsNothing);
+      await tester.drag(list, const Offset(0, 200));
+      await tester.pumpAndSettle();
+      expect(returnButton, findsNothing);
+      await dispose(tester);
+    },
+  );
+
+  testWidgets('quote return remains at a page boundary until the real bottom', (
+    tester,
+  ) async {
+    final source = makeChatMessage(
+      60,
+    ).copyWith(content: '> @bob: old target\n\nsource', replyToMessageId: 15);
+    final repository = await pumpActions(tester, messages: [source]);
+    repository.aroundMessages = [
+      for (var id = 1; id <= 30; id++) makeChatMessage(id),
+    ];
+    repository.aroundHasMoreAfter = true;
+    repository.newerResponse = Completer<ChatMessagesResponse>();
+    await tester.tap(find.text('old target'));
+    await tester.pumpAndSettle();
+    final list = find.byType(ListView).last;
+    final returnButton = find.byKey(const Key('chat-reply-return'));
+    await tester.drag(list, const Offset(0, -3000));
+    await tester.pumpAndSettle();
+    expect(tester.widget<ListView>(list).controller!.position.extentAfter, 0);
+    expect(returnButton, findsOneWidget);
+
+    repository.newerResponse!.complete(
+      ChatMessagesResponse(
+        list: [for (var id = 31; id < 60; id++) makeChatMessage(id), source],
+        hasMoreBefore: false,
+        hasMoreAfter: false,
+        nextBeforeId: 0,
+        latestId: 60,
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(returnButton, findsOneWidget);
+    await tester.drag(list, const Offset(0, -3000));
+    await tester.pumpAndSettle();
+    expect(find.text('source').hitTestable(), findsOneWidget);
+    expect(returnButton, findsNothing);
+    await dispose(tester);
+  });
+
   for (final reducedMotion in [false, true]) {
     testWidgets(
       'selection rail can exit during reveal (reduced motion: $reducedMotion)',
@@ -657,6 +738,126 @@ void main() {
       await dispose(tester);
     },
   );
+
+  testWidgets(
+    'quote reveals an unbuilt target inside a full variable-height window',
+    (tester) async {
+      final repository = await pumpActions(
+        tester,
+        messages: [
+          for (var id = 100; id < 130; id++) makeChatMessage(id),
+          makeChatMessage(130).copyWith(
+            content: '> @bob: old target\n\nsource answer',
+            replyToMessageId: 15,
+          ),
+        ],
+      );
+      repository.aroundMessages = [
+        for (var id = 1; id <= 30; id++)
+          makeChatMessage(id).copyWith(
+            content: id == 15
+                ? 'target body'
+                : 'row $id\n${'long line\n' * (id % 5 + 1)}',
+          ),
+      ];
+      final sourceY = tester.getCenter(find.text('source answer')).dy;
+      await tester.tap(find.text('old target'));
+      await tester.pumpAndSettle();
+      expect(repository.requestedAroundId, 15);
+      expect(find.text('target body').hitTestable(), findsOneWidget);
+      await tester.tap(find.byKey(const Key('chat-reply-return')));
+      await tester.pumpAndSettle();
+      expect(find.text('source answer').hitTestable(), findsOneWidget);
+      expect(
+        tester.getCenter(find.text('source answer')).dy,
+        closeTo(sourceY, 2),
+      );
+      await dispose(tester);
+    },
+  );
+
+  testWidgets(
+    'quote reveals a loaded offscreen target without another request',
+    (tester) async {
+      final repository = await pumpActions(
+        tester,
+        messages: [
+          for (var id = 1; id < 40; id++) makeChatMessage(id),
+          makeChatMessage(40).copyWith(
+            content: '> @bob: first message\n\nsource',
+            replyToMessageId: 1,
+          ),
+        ],
+      );
+      expect(find.text('消息 1'), findsNothing);
+      repository.batches.clear();
+      await tester.tap(find.text('first message'));
+      await tester.pumpAndSettle();
+      expect(repository.requestedAroundId, isNull);
+      expect(find.text('消息 1').hitTestable(), findsOneWidget);
+      expect(
+        repository.batches
+            .expand((ids) => ids)
+            .any((id) => id >= 15 && id <= 25),
+        isFalse,
+        reason: 'rows traversed while seeking are not marked read',
+      );
+      await dispose(tester);
+    },
+  );
+
+  for (final reducedMotion in [false, true]) {
+    testWidgets(
+      'quote return restores the reading position with reduced motion $reducedMotion',
+      (tester) async {
+        final repository = await pumpActions(
+          tester,
+          messages: [
+            for (var id = 1; id < 40; id++) makeChatMessage(id),
+            makeChatMessage(40).copyWith(
+              content: '> @bob: first message\n\nsource',
+              replyToMessageId: 1,
+            ),
+          ],
+        );
+        final controller = tester
+            .widget<ListView>(find.byType(ListView).last)
+            .controller!;
+        final sourceOffset = controller.offset;
+        final sourceY = tester.getCenter(find.text('source')).dy;
+        await tester.tap(find.text('first message'));
+        await tester.pumpAndSettle();
+        final quotedOffset = controller.offset;
+        expect(quotedOffset, lessThan(sourceOffset));
+        if (reducedMotion) {
+          tester.platformDispatcher.accessibilityFeaturesTestValue =
+              FakeAccessibilityFeatures(disableAnimations: true);
+          addTearDown(
+            tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
+          );
+          await tester.pump();
+        }
+        repository.batches.clear();
+
+        await tester.tap(find.byKey(const Key('chat-reply-return')));
+        await tester.pump();
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 100));
+        if (reducedMotion) {
+          expect(controller.offset, closeTo(sourceOffset, 2));
+        } else {
+          expect(controller.offset, greaterThan(quotedOffset));
+          expect(controller.offset, lessThan(sourceOffset - 2));
+          expect(repository.batches, isEmpty);
+        }
+        await tester.pumpAndSettle();
+        expect(find.text('source').hitTestable(), findsOneWidget);
+        expect(tester.getCenter(find.text('source')).dy, closeTo(sourceY, 2));
+        expect(find.byKey(const Key('chat-reply-return')), findsNothing);
+        await dispose(tester);
+      },
+    );
+  }
 
   testWidgets('quoting own message labels the quote with the viewer username', (
     tester,

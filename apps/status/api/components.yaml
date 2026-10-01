@@ -28,7 +28,7 @@ StatusSnapshot:
         sample.
     refreshAfter:
       type: integer
-      const: 30
+      const: 60
     server:
       $ref: '#/StatusServerSource'
     traffic:
@@ -103,6 +103,10 @@ StatusDeviceRow:
   additionalProperties: false
 StatusServerSource:
   type: object
+  description: >-
+    state and fetchedAt describe current metrics only. When current metrics expire or are absent,
+    data may still contain independently retained history; current and cpuCores are null and
+    name/region are empty. History uses historyFetchedAt and historyStale, never fetchedAt.
   required:
     - state
     - data
@@ -158,8 +162,9 @@ StatusServer:
     region:
       type: string
     cpuCores:
-      type: integer
+      type: [integer, 'null']
       minimum: 0
+      description: Null when current host metadata is unavailable; never inferred from retained history.
     current:
       anyOf:
         - $ref: '#/StatusSample'

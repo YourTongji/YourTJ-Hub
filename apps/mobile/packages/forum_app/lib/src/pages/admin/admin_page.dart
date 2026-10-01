@@ -50,6 +50,10 @@ class _AdminPageState extends ConsumerState<AdminPage> {
   bool _allowPop = false;
   bool _starting = false;
   bool _schoolStarted = false;
+  // True only between the handoff to the school URL and the first approved
+  // school navigation. A URL-less cancellation is exempt solely in this
+  // window; afterwards the school flow owns its errors and must fail loudly.
+  bool _handoffCancellationPending = false;
 
   @override
   void initState() {
@@ -80,6 +84,7 @@ class _AdminPageState extends ConsumerState<AdminPage> {
         throw StateError('Invalid school authorization destination');
       }
       _schoolStarted = false;
+      _handoffCancellationPending = false;
       // A failed previous cleanup is retried before another credential is used.
       await _cleanup.catchError((Object _) {});
       await WebViewCookieManager().clearCookies();
@@ -111,7 +116,10 @@ class _AdminPageState extends ConsumerState<AdminPage> {
           },
           onNavigationRequest: _navigate,
           onWebResourceError: (error) {
-            if (error.isForMainFrame == true) _fail();
+            if (error.isForMainFrame == true &&
+                !_isSchoolHandoffCancellation(error)) {
+              _fail();
+            }
           },
           onHttpError: (error) {
             // Subresource failures must not blank a working console.
@@ -173,6 +181,31 @@ class _AdminPageState extends ConsumerState<AdminPage> {
     }
   }
 
+  bool _isSchoolHandoffCancellation(WebResourceError error) {
+    // Replacing the first-party redirect with the school URL intentionally
+    // cancels the old load. WebKit reports NSURLErrorCancelled (-999) or
+    // WebKitErrorFrameLoadInterruptedByPolicyChange (102) for that navigation.
+    // Neither invalidates the authorization attempt or the new school page.
+    if (!_schoolStarted ||
+        widget.campusAuthorizationUrl == null ||
+        !const [
+          TargetPlatform.iOS,
+          TargetPlatform.macOS,
+        ].contains(defaultTargetPlatform) ||
+        !const [-999, 102].contains(error.errorCode)) {
+      return false;
+    }
+    // WebKit can omit the failing URL for a policy cancellation. When present,
+    // it must identify our replaced handoff, never a failing school request.
+    // Without a URL the cancellation is exempt only inside the handoff window;
+    // later school cancellations must surface the retry state instead.
+    if (error.url == null) return _handoffCancellationPending;
+    final uri = Uri.tryParse(error.url!);
+    return uri != null &&
+        _navigation.isSameOrigin(uri) &&
+        const ['/api/auth/mobile-web-session', '/campus'].contains(uri.path);
+  }
+
   Future<NavigationDecision> _navigate(NavigationRequest request) async {
     final uri = Uri.tryParse(request.url);
     if (uri == null || !mounted) return NavigationDecision.prevent;
@@ -185,6 +218,7 @@ class _AdminPageState extends ConsumerState<AdminPage> {
       if (schoolUrl != null && request.isMainFrame && uri.path == '/campus') {
         if (!_schoolStarted && uri.query.isEmpty) {
           _schoolStarted = true;
+          _handoffCancellationPending = true;
           // Do not carry the native Bearer header to the school origin.
           unawaited(_controller!.loadRequest(schoolUrl));
         } else if (_schoolStarted &&
@@ -220,6 +254,10 @@ class _AdminPageState extends ConsumerState<AdminPage> {
     // original first-party session. The native Bearer is sent only at handoff.
     if (widget.target == MobileWebTarget.campus &&
         _navigation.isSchoolOrigin(uri)) {
+      // The school page has taken over: the handoff window is closed, so any
+      // later cancellation — even one without a failing URL — is a real
+      // school failure and must offer retry.
+      _handoffCancellationPending = false;
       return NavigationDecision.navigate;
     }
     if (widget.campusAuthorizationUrl == null &&
@@ -450,7 +488,7 @@ class _AdminPageState extends ConsumerState<AdminPage> {
                               Text(
                                 widget.campusAuthorizationUrl == null
                                     ? l10n.adminUnavailable
-                                    : l10n.campusAuthExpired,
+                                    : l10n.commonLoadFailed,
                                 textAlign: TextAlign.center,
                               ),
                               const SizedBox(height: 16),

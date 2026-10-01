@@ -9,6 +9,8 @@ import 'package:ui_kit/ui_kit.dart';
 
 import '../../widgets/app_refresh_indicator.dart';
 import '../../../l10n/app_localizations.dart';
+import '../../reading_preferences.dart';
+import '../../widgets/rich_content/gf_html_content.dart';
 import '../../format.dart';
 import '../../current_user.dart';
 import '../../providers.dart';
@@ -818,6 +820,13 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
               key: review.id == widget.focusReviewId
                   ? _targetReviewKey
                   : ValueKey(review.id),
+              // Course reviews share the rich-content profile, one step more
+              // compact than posts and Wiki.
+              profile: GfRichContentTypography.of(
+                context,
+                userScale: ref.watch(contentFontScaleProvider),
+                compact: true,
+              ),
               review: review,
               offeringLabel: _offeringLabel(detail, review.offeringId),
               reactionBusy: _reviewReactionBusy.contains(review.id),
@@ -1810,6 +1819,7 @@ String _reviewAuthorLabel(ReviewPayload review, CourseCopy copy) {
 class _ReviewRow extends StatelessWidget {
   const _ReviewRow({
     super.key,
+    required this.profile,
     required this.review,
     required this.offeringLabel,
     required this.reactionBusy,
@@ -1822,6 +1832,7 @@ class _ReviewRow extends StatelessWidget {
     this.onDelete,
   });
 
+  final GfRichContentTypography profile;
   final ReviewPayload review;
   final String offeringLabel;
   final bool reactionBusy;
@@ -1894,7 +1905,9 @@ class _ReviewRow extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 8),
-          GfMarkdownView(data: review.content, compact: true),
+          // 服务端 `contentHtml` 已归一化历史课评标题,移动端直接消费,
+          // 不再渲染原始 Markdown 文本。
+          GfHtmlContent(html: review.contentHtml, profile: profile),
           const SizedBox(height: 8),
           Wrap(
             spacing: 8,

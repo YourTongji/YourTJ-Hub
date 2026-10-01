@@ -3,6 +3,14 @@ import 'package:core/core.dart';
 /// Upper bound for the quoted excerpt embedded in a reply.
 const int chatReplyExcerptMaxLength = 120;
 
+/// Stable wire excerpt, independent of the sender's display language.
+const String chatImageReplyMarker = '[Image]';
+
+String localizedChatReplyExcerpt(
+  String excerpt, {
+  required String imageLabel,
+}) => excerpt == chatImageReplyMarker ? '[$imageLabel]' : excerpt;
+
 class ChatReplyQuote {
   const ChatReplyQuote({
     required this.sender,

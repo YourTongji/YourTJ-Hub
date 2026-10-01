@@ -1,6 +1,8 @@
 import '../../offline/drift_cache.dart';
 import '../../widgets/cache_snapshot_hint.dart';
 import '../../messages/chat_message_bubble.dart';
+import '../../messages/chat_image.dart';
+import '../../images/image_upload.dart';
 import '../../messages/chat_message_row.dart';
 import '../../messages/chat_forwarding.dart';
 import '../../messages/forward_messages_page.dart';
@@ -30,6 +32,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:scroll_to_index/scroll_to_index.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:ui_kit/ui_kit.dart';
 import 'package:dio/dio.dart';
 
@@ -582,8 +586,9 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
   final TextEditingController _input = TextEditingController();
   final FocusNode _composerFocus = FocusNode();
   bool _selecting = false;
+  bool _attachingImage = false;
   final Set<int> _selectedMessages = {};
-  final ScrollController _scrollController = ScrollController();
+  final AutoScrollController _scrollController = AutoScrollController();
   bool _loading = true;
   bool _loadingOlder = false;
   bool _historyReady = false;
@@ -859,6 +864,7 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
 
   void _onScroll() {
     _visibleReads.changed(restartDwell: true);
+    _dismissReplyReturnAtBottom();
     if (_unseenNewMessages &&
         _scrollController.hasClients &&
         _scrollController.position.extentAfter < 24) {
@@ -872,6 +878,27 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
         _scrollController.position.extentAfter < 80) {
       _loadNewer();
     }
+  }
+
+  void _dismissReplyReturnAtBottom() {
+    if (!_sessionCurrent ||
+        _replyReturnToMessageId == null ||
+        _replyJumpInProgress ||
+        _adjustingScroll ||
+        _loadingNewer ||
+        _hasMoreAfter ||
+        !_scrollController.hasClients ||
+        _scrollController.position.extentAfter >= 24) {
+      return;
+    }
+    // A paginated history window's edge is not the end of the conversation.
+    // Reaching the latest messages completes the detour without restoring the
+    // saved snapshot or moving the user's viewport again.
+    setState(() {
+      _replyReturnToMessageId = null;
+      _replyReturnMessages = null;
+    });
+    unawaited(_load(silent: true));
   }
 
   bool _onUserScroll(ScrollStartNotification notification) {
@@ -1061,6 +1088,7 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
 
   Future<void> _loadOlder() async {
     if (!_sessionCurrent ||
+        _replyJumpInProgress ||
         !_historyReady ||
         _cacheCleared ||
         _loadingOlder ||
@@ -1157,6 +1185,9 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
       // Retry on a later bottom-edge scroll; keep the currently loaded window.
     } finally {
       _loadingNewer = false;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _dismissReplyReturnAtBottom();
+      });
     }
   }
 
@@ -1180,6 +1211,8 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
     if (!_sessionCurrent ||
         _selecting ||
         _loadingOlder ||
+        _loadingNewer ||
+        _loadingRequest ||
         _replyJumpInProgress ||
         messageId <= 0 ||
         sourceMessageId <= 0) {
@@ -1188,9 +1221,11 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
     final epoch = _sessionEpoch;
     setState(() => _replyJumpInProgress = true);
     try {
-      final bool targetIsBuilt = _bubbleKeys[messageId]?.currentContext != null;
+      final targetIsLoaded = _messages.any(
+        (message) => message.id == messageId,
+      );
       ChatMessagesResponse? around;
-      if (!targetIsBuilt) {
+      if (!targetIsLoaded) {
         around = await ref
             .read(chatRepositoryProvider)
             .getMessages(convId: _convId, aroundId: messageId, limit: 30);
@@ -1248,11 +1283,19 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
     _adjustingScroll = true;
     _visibleReads.suspend();
     try {
-      BuildContext? targetContext;
-      for (var frame = 0; frame < 4 && targetContext == null; frame++) {
-        await WidgetsBinding.instance.endOfFrame;
-        targetContext = _bubbleKeys[messageId]?.currentContext;
-      }
+      await WidgetsBinding.instance.endOfFrame;
+      if (!_sessionCurrent || !_scrollController.hasClients) return;
+      final index = _messages.indexWhere((message) => message.id == messageId);
+      if (index < 0) return;
+      // An around-ID response still contains lazy, variable-height rows. Seek
+      // by index first so the target exists before measuring its exact position.
+      await _scrollController.scrollToIndex(
+        index,
+        preferPosition: AutoScrollPosition.begin,
+        duration: const Duration(milliseconds: 260),
+      );
+      if (!_sessionCurrent || generation != _scrollAdjustmentGeneration) return;
+      final targetContext = _bubbleKeys[messageId]?.currentContext;
       if (!mounted ||
           !_sessionCurrent ||
           targetContext == null ||
@@ -1284,8 +1327,15 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
   Future<void> _returnToReplySource() async {
     final sourceId = _replyReturnToMessageId;
     final savedMessages = _replyReturnMessages;
-    if (!_sessionCurrent || sourceId == null || savedMessages == null) return;
+    if (!_sessionCurrent ||
+        _replyJumpInProgress ||
+        sourceId == null ||
+        savedMessages == null) {
+      return;
+    }
     final epoch = _sessionEpoch;
+    _adjustingScroll = true;
+    _visibleReads.suspend();
     setState(() {
       _replyJumpInProgress = true;
       _messages
@@ -1303,15 +1353,21 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
     try {
       await WidgetsBinding.instance.endOfFrame;
       if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) return;
-      _adjustingScroll = true;
-      _visibleReads.suspend();
       if (_scrollController.hasClients) {
-        _scrollController.jumpTo(
-          _replyReturnOffset
-              .clamp(0.0, _scrollController.position.maxScrollExtent)
-              .toDouble(),
-        );
+        final target = _replyReturnOffset
+            .clamp(0.0, _scrollController.position.maxScrollExtent)
+            .toDouble();
+        if (GfMotion.reducedOf(context)) {
+          _scrollController.jumpTo(target);
+        } else {
+          await _scrollController.animateTo(
+            target,
+            duration: GfMotion.overlay,
+            curve: GfMotion.layoutCurve,
+          );
+        }
       }
+      if (!_sessionCurrent) return;
       _replyHighlightTimer?.cancel();
       setState(() => _highlightedMessageId = sourceId);
       _replyHighlightTimer = Timer(const Duration(milliseconds: 1400), () {
@@ -1362,13 +1418,107 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
     settle(8);
   }
 
+  Future<void> _showAttachments() async {
+    if (!_sessionCurrent || _attachingImage) return;
+    final l10n = AppLocalizations.of(context);
+    final action = await showGfBottomSheet<String>(
+      context,
+      builder: (context) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ListTile(
+            leading: const GfSymbol('image'),
+            title: Text(l10n.publishToolImage),
+            enabled:
+                _historyReady &&
+                !ref.read(chatOutboxProvider(widget.conv.peerId)).sending,
+            onTap: () => Navigator.pop(context, 'image'),
+          ),
+          ListTile(
+            leading: const GfSymbol('smile'),
+            title: Text(StickerStrings(context).add),
+            onTap: () => Navigator.pop(context, 'stickers'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted || !_sessionCurrent) return;
+    if (action == 'image') {
+      await _attachImage();
+    } else if (action == 'stickers') {
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(builder: (_) => const StickerLibraryPage()),
+      );
+    }
+  }
+
+  Future<void> _attachImage() async {
+    if (!_sessionCurrent ||
+        !_historyReady ||
+        _attachingImage ||
+        ref.read(chatOutboxProvider(widget.conv.peerId)).sending) {
+      return;
+    }
+    final picker = ref.read(imagePickerProvider);
+    final files = ref.read(fileRepositoryProvider);
+    final outbox = ref.read(chatOutboxProvider(widget.conv.peerId));
+    final imageKey = newChatMessageId();
+    String? uploadedUrl;
+    PendingMessage? pending;
+    setState(() => _attachingImage = true);
+    try {
+      final file = await picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 2048,
+        imageQuality: 85,
+        requestFullMetadata: false,
+      );
+      if (!_sessionCurrent || file == null) return;
+      final bytes = await file.readAsBytes();
+      if (!mounted || !_sessionCurrent) return;
+      final url = await showDialog<String>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => ChatImagePreview(
+          bytes: bytes,
+          ownerEpoch: _sessionEpoch,
+          upload: () async {
+            await outbox.prepareImageUpload();
+            uploadedUrl ??= await files.uploadImage(
+              bytes: bytes,
+              filename: file.name,
+            );
+            pending = await outbox.enqueueImage(
+              uploadedUrl!,
+              _latestId,
+              clientMessageId: imageKey,
+            );
+            return uploadedUrl!;
+          },
+        ),
+      );
+      if (!_sessionCurrent || !_historyReady || url == null) return;
+      _scrollToBottom();
+      await _sendPending(pending!, fromImageUpload: true);
+    } catch (error) {
+      if (mounted && _sessionCurrent) {
+        showGfToast(
+          context,
+          resolveErrorMessage(AppLocalizations.of(context), error),
+          error: true,
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _attachingImage = false);
+    }
+  }
+
   Future<void> _send(String value) async {
-    if (!_historyReady) return;
+    if (!_historyReady || _attachingImage) return;
     final text = value.trim();
     if (text.isEmpty) return;
     final outbox = ref.read(chatOutboxProvider(widget.conv.peerId));
-    if (!_drafts.current ||
-        outbox.items.any((item) => item.state == DeliveryState.sending)) {
+    if (!_drafts.current || outbox.sending) {
       return;
     }
     _draftChanged();
@@ -1519,6 +1669,8 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
         sender: _replySender(message),
         content: isForwardedHistory
             ? '[${AppLocalizations.of(context).messageForwardHistory}]'
+            : message.msgType == 2
+            ? chatImageReplyMarker
             : message.content,
       );
     });
@@ -1566,8 +1718,11 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
   Future<void> _sendPending(
     PendingMessage message, {
     ChatReplyTarget? reply,
+    bool fromImageUpload = false,
   }) async {
-    if (!_historyReady) return;
+    if (!_historyReady || (_attachingImage && !fromImageUpload)) return;
+    final outbox = ref.read(chatOutboxProvider(widget.conv.peerId));
+    if (outbox.sending) return;
     final epoch = ref.read(offlineCacheEpochProvider);
     final peerId = widget.conv.peerId;
     final drafts = _drafts;
@@ -1575,9 +1730,7 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
     final selectedReply = _replyTarget;
     var restoredDraft = false;
     var acknowledgedDraft = false;
-    final convId = await ref
-        .read(chatOutboxProvider(widget.conv.peerId))
-        .send(message);
+    final convId = await outbox.send(message);
     if (convId != null) {
       acknowledgedDraft =
           message.draftRevision != null &&
@@ -1789,6 +1942,10 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
                   if (notification is ScrollStartNotification) {
                     return _onUserScroll(notification);
                   }
+                  if (notification is ScrollEndNotification &&
+                      notification.depth == 0) {
+                    _dismissReplyReturnAtBottom();
+                  }
                   if (notification is ScrollMetricsNotification &&
                       notification.depth == 0 &&
                       notification.metrics.viewportDimension !=
@@ -1874,6 +2031,7 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
                                         children: [
                                           ChatMessageBubble(
                                             text: pending.content,
+                                            msgType: pending.msgType,
                                             mine: true,
                                           ),
                                           if (pending.state ==
@@ -1926,115 +2084,126 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
                                   final ChatMessagePayload message =
                                       item.message;
                                   final DateTime? day = item.day;
-                                  return AnimatedContainer(
-                                    duration: const Duration(milliseconds: 180),
-                                    decoration: BoxDecoration(
-                                      color: _highlightedMessageId == message.id
-                                          ? colors.primary.withValues(
-                                              alpha: 0.08,
-                                            )
-                                          : Colors.transparent,
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
-                                    child: Column(
-                                      children: <Widget>[
-                                        if (item.showDaySeparator &&
-                                            day != null)
-                                          _DatePill(
-                                            key: ValueKey<String>(
-                                              'chat-date-separator-${message.id}',
-                                            ),
-                                            label: formatChatDayLabel(
-                                              day,
-                                              l10n: l10n,
-                                            ),
-                                          ),
-                                        Semantics(
-                                          container: _selecting,
-                                          excludeSemantics: _selecting,
-                                          enabled: _selecting ? true : null,
-                                          checked: _selecting
-                                              ? _selectedMessages.contains(
-                                                  message.id,
-                                                )
-                                              : null,
-                                          label: _selecting
-                                              ? '${_replySender(message)}: ${chatReplyExcerpt(message.content)}'
-                                              : null,
-                                          onTap: _selecting
-                                              ? () => _toggleMessage(message.id)
-                                              : null,
-                                          child: Row(
-                                            children: [
-                                              _MessageSelectionControl(
-                                                visible: _selecting,
-                                                selected: _selectedMessages
-                                                    .contains(message.id),
-                                                onChanged: () =>
-                                                    _toggleMessage(message.id),
+                                  return AutoScrollTag(
+                                    key: ValueKey(message.id),
+                                    controller: _scrollController,
+                                    index: messageIndex,
+                                    child: AnimatedContainer(
+                                      duration: const Duration(
+                                        milliseconds: 180,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color:
+                                            _highlightedMessageId == message.id
+                                            ? colors.primary.withValues(
+                                                alpha: 0.08,
+                                              )
+                                            : Colors.transparent,
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                      child: Column(
+                                        children: <Widget>[
+                                          if (item.showDaySeparator &&
+                                              day != null)
+                                            _DatePill(
+                                              key: ValueKey<String>(
+                                                'chat-date-separator-${message.id}',
                                               ),
-                                              Expanded(
-                                                child: GestureDetector(
-                                                  behavior:
-                                                      HitTestBehavior.opaque,
-                                                  onTap: _selecting
-                                                      ? () => _toggleMessage(
-                                                          message.id,
-                                                        )
-                                                      : null,
-                                                  child: IgnorePointer(
-                                                    ignoring: _selecting,
-                                                    child: _MessageRow(
-                                                      bubbleKey: _bubbleKeys
-                                                          .putIfAbsent(
+                                              label: formatChatDayLabel(
+                                                day,
+                                                l10n: l10n,
+                                              ),
+                                            ),
+                                          Semantics(
+                                            container: _selecting,
+                                            excludeSemantics: _selecting,
+                                            enabled: _selecting ? true : null,
+                                            checked: _selecting
+                                                ? _selectedMessages.contains(
+                                                    message.id,
+                                                  )
+                                                : null,
+                                            label: _selecting
+                                                ? '${_replySender(message)}: ${chatReplyExcerpt(message.content)}'
+                                                : null,
+                                            onTap: _selecting
+                                                ? () =>
+                                                      _toggleMessage(message.id)
+                                                : null,
+                                            child: Row(
+                                              children: [
+                                                _MessageSelectionControl(
+                                                  visible: _selecting,
+                                                  selected: _selectedMessages
+                                                      .contains(message.id),
+                                                  onChanged: () =>
+                                                      _toggleMessage(
+                                                        message.id,
+                                                      ),
+                                                ),
+                                                Expanded(
+                                                  child: GestureDetector(
+                                                    behavior:
+                                                        HitTestBehavior.opaque,
+                                                    onTap: _selecting
+                                                        ? () => _toggleMessage(
                                                             message.id,
-                                                            GlobalKey.new,
-                                                          ),
-                                                      message: message,
-                                                      peerId:
-                                                          widget.conv.peerId,
-                                                      peerProfileLabel: l10n
-                                                          .messagesViewProfile(
-                                                            peerName,
-                                                          ),
-                                                      peerAvatar: widget
-                                                          .conv
-                                                          .peerAvatar,
-                                                      viewerAvatar:
-                                                          widget.viewerAvatar,
-                                                      showTime:
-                                                          item.showTimestamp,
-                                                      onSwipeReply: _selecting
-                                                          ? null
-                                                          : () => _replyTo(
-                                                              message,
-                                                            ),
-                                                      replyToMessageId: message
-                                                          .replyToMessageId,
-                                                      onQuoteTap:
-                                                          _selecting ||
-                                                              message.replyToMessageId ==
-                                                                  null
-                                                          ? null
-                                                          : () => _jumpToQuotedMessage(
-                                                              message
-                                                                  .replyToMessageId!,
+                                                          )
+                                                        : null,
+                                                    child: IgnorePointer(
+                                                      ignoring: _selecting,
+                                                      child: _MessageRow(
+                                                        bubbleKey: _bubbleKeys
+                                                            .putIfAbsent(
                                                               message.id,
+                                                              GlobalKey.new,
                                                             ),
-                                                      onLongPress: () =>
-                                                          unawaited(
-                                                            _showMessageActions(
-                                                              message,
+                                                        message: message,
+                                                        peerId:
+                                                            widget.conv.peerId,
+                                                        peerProfileLabel: l10n
+                                                            .messagesViewProfile(
+                                                              peerName,
                                                             ),
-                                                          ),
+                                                        peerAvatar: widget
+                                                            .conv
+                                                            .peerAvatar,
+                                                        viewerAvatar:
+                                                            widget.viewerAvatar,
+                                                        showTime:
+                                                            item.showTimestamp,
+                                                        onSwipeReply: _selecting
+                                                            ? null
+                                                            : () => _replyTo(
+                                                                message,
+                                                              ),
+                                                        replyToMessageId: message
+                                                            .replyToMessageId,
+                                                        onQuoteTap:
+                                                            _selecting ||
+                                                                message.replyToMessageId ==
+                                                                    null
+                                                            ? null
+                                                            : () => _jumpToQuotedMessage(
+                                                                message
+                                                                    .replyToMessageId!,
+                                                                message.id,
+                                                              ),
+                                                        onLongPress: () =>
+                                                            unawaited(
+                                                              _showMessageActions(
+                                                                message,
+                                                              ),
+                                                            ),
+                                                      ),
                                                     ),
                                                   ),
                                                 ),
-                                              ),
-                                            ],
+                                              ],
+                                            ),
                                           ),
-                                        ),
-                                      ],
+                                        ],
+                                      ),
                                     ),
                                   );
                                 },
@@ -2043,15 +2212,43 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
                     ),
                     if (_replyReturnToMessageId != null)
                       Positioned(
-                        top: 12,
-                        right: 12,
-                        child: IconButton.filledTonal(
-                          key: const Key('chat-reply-return'),
-                          tooltip: l10n.messagesReturnToReplySource,
-                          onPressed: _replyJumpInProgress
-                              ? null
-                              : _returnToReplySource,
-                          icon: const Icon(Icons.reply),
+                        top: 16,
+                        left: 24,
+                        right: 0,
+                        child: Align(
+                          alignment: Alignment.centerRight,
+                          child: ElevatedButton.icon(
+                            key: const Key('chat-reply-return'),
+                            onPressed: _replyJumpInProgress
+                                ? null
+                                : _returnToReplySource,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: colors.base100,
+                              foregroundColor: colors.primary,
+                              surfaceTintColor: Colors.transparent,
+                              shadowColor: colors.baseContent.withValues(
+                                alpha: 0.08,
+                              ),
+                              elevation: 1,
+                              minimumSize: const Size(0, 44),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 10,
+                              ),
+                              textStyle: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                              ),
+                              side: BorderSide(color: colors.line),
+                              shape: const RoundedRectangleBorder(
+                                borderRadius: BorderRadius.horizontal(
+                                  left: Radius.circular(24),
+                                ),
+                              ),
+                            ),
+                            icon: const GfSymbol('arrow-down', size: 18),
+                            label: Text(l10n.messagesReturnToReplySource),
+                          ),
                         ),
                       ),
                     if (_unseenNewMessages)
@@ -2146,6 +2343,14 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
                       drafts: _drafts,
                       peerId: widget.conv.peerId,
                     ),
+                    if (outbox.imageRecoveryError != null)
+                      ListTile(
+                        title: Text(l10n.commonLoadFailed),
+                        trailing: TextButton(
+                          onPressed: outbox.restoreImages,
+                          child: Text(l10n.commonRetry),
+                        ),
+                      ),
                     if (_replyTarget != null)
                       _ReplyPreview(
                         target: _replyTarget!,
@@ -2162,12 +2367,8 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
                           StickerDraftPreview(content: text),
                       accessoryBuilder: (insert) =>
                           StickerPicker(onInsert: insert),
-                      onAttach: () => Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                          builder: (_) => const StickerLibraryPage(),
-                        ),
-                      ),
-                      attachLabel: StickerStrings(context).add,
+                      onAttach: _showAttachments,
+                      attachLabel: l10n.messagesAttachments,
                       clearOnSend: false,
                       enabled: _drafts.current,
                       hintText: l10n.messagesInputHint,
@@ -2175,10 +2376,7 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
                       emojiLabel: l10n.messagesEmoji,
                       keyboardLabel: l10n.messagesKeyboard,
                       canSend:
-                          _historyReady &&
-                          !outbox.items.any(
-                            (item) => item.state == DeliveryState.sending,
-                          ),
+                          _historyReady && !_attachingImage && !outbox.sending,
                       onSend: _send,
                     ),
                   ],
@@ -2245,9 +2443,11 @@ class _ConversationList extends StatelessWidget {
       itemBuilder: (BuildContext context, int index) {
         final ChatItemPayload conversation = filtered[index];
         final draft = drafts[conversation.peerId];
-        final messagePreview = stickerPreviewLabel(
-          conversation.lastMsg,
-        ).replaceAll(RegExp(r'\s+'), ' ').trim();
+        final messagePreview = isChatImagePreviewUrl(conversation.lastMsg)
+            ? '[${l10n.messagesImage}]'
+            : stickerPreviewLabel(
+                conversation.lastMsg,
+              ).replaceAll(RegExp(r'\s+'), ' ').trim();
         return GfConversationRow(
           avatarUrl: resolveApiAssetUrl(conversation.peerAvatar),
           name: privateDisplayName(
@@ -2360,7 +2560,10 @@ class _ReplyPreview extends StatelessWidget {
                       ),
                     ),
                   Text(
-                    target.excerpt,
+                    localizedChatReplyExcerpt(
+                      target.excerpt,
+                      imageLabel: AppLocalizations.of(context).messagesImage,
+                    ),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
@@ -2832,6 +3035,7 @@ class _MessageRow extends ConsumerWidget {
       child: ChatMessageBubble(
         bubbleKey: bubbleKey,
         text: message.content,
+        msgType: message.msgType,
         mine: message.isSelf,
         time: showTime ? formatChatClock(message.createdAt) : null,
         maxWidthFactor: 0.74,

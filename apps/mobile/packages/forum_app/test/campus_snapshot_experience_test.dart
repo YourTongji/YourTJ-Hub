@@ -470,7 +470,7 @@ void main() {
   );
 
   testWidgets(
-    'old teaching date shows manual refresh instead of a spinner at large text',
+    'entering with an old teaching date refreshes automatically at large text',
     (tester) async {
       store = CampusSnapshotStore(db);
       tester.view.physicalSize = const Size(320, 640);
@@ -488,9 +488,15 @@ void main() {
         testApp(db, store, repo, RecordingWidgetBridge(), scale: 2),
       );
       await tester.pumpAndSettle();
-      expect(find.text('快照可能已过期，请刷新获取最新数据。'), findsOneWidget);
+      expect(find.text('快照可能已过期，请刷新获取最新数据。'), findsNothing);
       expect(find.byType(GfLoading), findsNothing);
-      expect(repo.requested, isEmpty);
+      expect(repo.requested, containsAll(campusPersistentKeys));
+      final committed = (await store.read(appScope))!;
+      expect(committed.committedAt.isAfter(old), isTrue);
+      expect(
+        committed.data['today']!.teachingDay!.date,
+        CampusMemoryCache.schoolDate(DateTime.now()),
+      );
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox());
       await tester.pumpAndSettle();

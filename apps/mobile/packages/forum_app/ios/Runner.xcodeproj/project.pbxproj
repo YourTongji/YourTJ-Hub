@@ -24,6 +24,9 @@
 		890000000000000000000001 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 890000000000000000000002 /* Assets.xcassets */; };
 		920000000000000000000001 /* Runner PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 910000000000000000000001 /* PrivacyInfo.xcprivacy */; };
 		920000000000000000000002 /* ScheduleWidgets PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 910000000000000000000002 /* PrivacyInfo.xcprivacy */; };
+		960000000000000000000001 /* ScheduleProjection.swift in Widget Sources */ = {isa = PBXBuildFile; fileRef = 960000000000000000000004 /* ScheduleProjection.swift */; };
+		960000000000000000000002 /* ScheduleProjection.swift in Test Sources */ = {isa = PBXBuildFile; fileRef = 960000000000000000000004 /* ScheduleProjection.swift */; };
+		960000000000000000000003 /* ScheduleProjectionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 960000000000000000000005 /* ScheduleProjectionTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -103,6 +106,8 @@
 		890000000000000000000002 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		910000000000000000000001 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		910000000000000000000002 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		960000000000000000000004 /* ScheduleProjection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduleProjection.swift; sourceTree = "<group>"; };
+		960000000000000000000005 /* ScheduleProjectionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduleProjectionTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -136,6 +141,7 @@
 			isa = PBXGroup;
 			children = (
 				331C807B294A618700263BE5 /* RunnerTests.swift */,
+				960000000000000000000005 /* ScheduleProjectionTests.swift */,
 			);
 			path = RunnerTests;
 			sourceTree = "<group>";
@@ -200,6 +206,7 @@
 			children = (
 				910000000000000000000002 /* PrivacyInfo.xcprivacy */,
 				760000000000000000000002 /* ScheduleWidgets.swift */,
+				960000000000000000000004 /* ScheduleProjection.swift */,
 				760000000000000000000003 /* Info.plist */,
 				760000000000000000000004 /* ScheduleWidgets.entitlements */,
 				890000000000000000000002 /* Assets.xcassets */,
@@ -472,6 +479,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				331C808B294A63AB00263BE5 /* RunnerTests.swift in Sources */,
+				960000000000000000000002 /* ScheduleProjection.swift in Test Sources */,
+				960000000000000000000003 /* ScheduleProjectionTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -491,6 +500,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				760000000000000000000006 /* ScheduleWidgets.swift in Sources */,
+				960000000000000000000001 /* ScheduleProjection.swift in Widget Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

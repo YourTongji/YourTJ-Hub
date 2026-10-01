@@ -30,6 +30,16 @@ Type labels distinguish question, moment and article. Narrow widths and enlarged
 row height as needed; Home list pins use an expandable summary with a minimum 48-pixel target.
 
 The implemented reading scale is defined in [mobile experience](mobile-experience.md#navigation-and-reading).
+`Current`: long-form rich content (post Markdown, server-rendered Wiki HTML, course-review HTML) uses a
+single `GfRichContentTypography` profile in the UI kit instead of per-surface font sizes. The profile
+derives everything from `GfTypography.body`: body text at the design baseline, `bodyStrong` for
+emphasis, headings as relative ratios, inline code and code blocks one step smaller, and table and
+quote text at the body size, together with the paragraph rhythm, list indentation, quote rule and
+code/table cell padding. Course reviews use the same profile with a compact baseline. The reader
+preference (80%–140%) multiplies that baseline; the system `TextScaler` is never replaced, so large
+system fonts keep reflowing instead of being clamped away. Code blocks own their highlighting, copy
+action and horizontal scrolling, and tables keep natural column widths while scrolling inside their
+own viewport — a page or card must never scroll sideways.
 `Planned`: all surfaces use that shared type hierarchy instead of shrinking text to fit controls.
 Names and action labels remain legible; timestamps and secondary metadata are subordinate. A post
 uses one author line, one body/media region and one action row, with subtle separators rather than
@@ -203,7 +213,13 @@ shipped. Avoid fixed-height text containers, substring-based truncation and conc
 
 Acceptance includes widths 320, 390, 600, 768 and 1024; portrait/landscape and window resizing; both
 themes and system theme changes; text scale 1.0 and 2.0; four locales; screen-reader/keyboard traversal;
-keyboard open, slow/offline network, stale responses and account changes. Widget tests validate state
+keyboard open, slow/offline network, stale responses and account changes.
+The rich-content renderers are covered by a fixture matrix of 320/360/390/600/840 logical pixels ×
+system text scale 1.0/1.3/2.0 × light/dark across post Markdown, Wiki-style server HTML and
+course-review HTML, plus a nonlinear `TextScaler` case. The matrix asserts there is no `RenderFlex`
+overflow, that the page never becomes horizontally scrollable, and that horizontal scrolling only
+exists inside code blocks and wide tables; list indentation shrinks with the system font scale so
+nested items keep a readable width instead of being squeezed into a single character column. Widget tests validate state
 and layout; platform screenshots, gestures, IME behavior and frame timing need runtime evidence.
 
 ## References

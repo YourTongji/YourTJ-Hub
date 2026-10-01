@@ -11,6 +11,7 @@ import 'package:forum_app/l10n/app_localizations.dart';
 import 'package:forum_app/src/pages/settings/settings_page.dart';
 import 'package:forum_app/src/providers.dart';
 import 'package:forum_app/src/push/push_service.dart';
+import 'package:forum_app/src/reading_preferences.dart';
 import 'package:forum_app/src/site_theme.dart';
 import 'package:forum_app/src/theme_mode.dart';
 import 'package:forum_app/src/widgets/app_refresh_indicator.dart';
@@ -664,6 +665,53 @@ void main() {
     expect(harness.page.requests, 0);
     expect(harness.user.requests, 0);
     expect(find.text('跟随系统'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('appearance exposes the rich-content reading scale', (
+    tester,
+  ) async {
+    final harness = await _mount(tester, section: 'appearance', language: 'en');
+    final slider = find.byKey(const ValueKey('settings-reading-scale'));
+    await tester.scrollUntilVisible(
+      slider,
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(find.text('Reading text size'), findsOneWidget);
+    expect(find.text('100%'), findsOneWidget);
+    expect(harness.container.read(contentFontScaleProvider), 1);
+
+    final resetButton = find.byKey(
+      const ValueKey('settings-reading-scale-reset'),
+    );
+    // At the 100% default there is nothing to reset.
+    expect(tester.widget<TextButton>(resetButton).onPressed, isNull);
+
+    await tester.drag(slider, const Offset(400, 0));
+    await tester.pumpAndSettle();
+
+    expect(harness.container.read(contentFontScaleProvider), 1.4);
+    expect(find.text('140%'), findsOneWidget);
+    expect(tester.widget<TextButton>(resetButton).onPressed, isNotNull);
+    expect(
+      (await SharedPreferences.getInstance()).getDouble(
+        ContentFontScaleNotifier.prefsKey,
+      ),
+      1.4,
+    );
+
+    await tester.tap(resetButton);
+    await tester.pumpAndSettle();
+    expect(harness.container.read(contentFontScaleProvider), 1);
+    expect(find.text('100%'), findsOneWidget);
+    expect(tester.widget<TextButton>(resetButton).onPressed, isNull);
+    expect(
+      (await SharedPreferences.getInstance()).getDouble(
+        ContentFontScaleNotifier.prefsKey,
+      ),
+      1,
+    );
     expect(tester.takeException(), isNull);
   });
 

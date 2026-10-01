@@ -97,6 +97,11 @@ class ChatDraftStore {
   });
   final FlutterSecureStorage secureStorage;
   Future<void> _tail = Future.value();
+  int _imageGeneration = 0;
+
+  /// Uploads capture this before starting. Account switches preserve recovery,
+  /// while an explicit erase revokes late callbacks' ability to recreate it.
+  int get imageGeneration => _imageGeneration;
   String _prefix(String scope) => 'yourtj:writing:v1:$scope:chat:';
   bool _isChatKey(String key) =>
       key.startsWith('yourtj:writing:v1:') && key.contains(':chat:');
@@ -113,6 +118,39 @@ class ChatDraftStore {
       throw StateError('Chat draft storage failed');
     }
   }
+
+  Future<List<Map<String, dynamic>>> readImages(String scope, int peerId) =>
+      _serial(() async {
+        final prefix = '${_prefix(scope)}image:$peerId:';
+        return [
+          for (final entry in (await secureStorage.readAll()).entries)
+            if (entry.key.startsWith(prefix) && entry.value.isNotEmpty)
+              jsonDecode(entry.value) as Map<String, dynamic>,
+        ];
+      });
+
+  Future<void> writeImage(
+    String scope,
+    int peerId,
+    String clientMessageId,
+    Map<String, Object> data, {
+    required int generation,
+  }) => _serial(() async {
+    if (scope.endsWith(':0') || generation != _imageGeneration) {
+      throw StateError('Image recovery storage invalidated');
+    }
+    await _put(
+      '${_prefix(scope)}image:$peerId:$clientMessageId',
+      jsonEncode(data),
+    );
+  });
+
+  Future<void> removeImage(String scope, int peerId, String clientMessageId) =>
+      _serial(
+        () => secureStorage.delete(
+          key: '${_prefix(scope)}image:$peerId:$clientMessageId',
+        ),
+      );
 
   Future<void> _removeLegacy(SharedPreferences prefs, String key) async {
     if (prefs.containsKey(key) && !await prefs.remove(key)) {
@@ -139,7 +177,9 @@ class ChatDraftStore {
     }
     final result = <ChatDraft>[];
     for (final entry in secured.entries.where(
-      (entry) => entry.key.startsWith(_prefix(scope)),
+      (entry) =>
+          entry.key.startsWith(_prefix(scope)) &&
+          !entry.key.startsWith('${_prefix(scope)}image:'),
     )) {
       if (entry.value.isEmpty) {
         await secureStorage.delete(key: entry.key);
@@ -196,33 +236,39 @@ class ChatDraftStore {
   });
 
   /// The caller advances the session epoch before entering this ordered erase.
-  Future<void> clearAll() => _serial(() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.reload();
-    final keys = {
-      ...(await secureStorage.readAll()).keys,
-      ...prefs.getKeys(),
-    }.where(_isChatKey).toList();
-    for (final key in keys) {
-      await _put(key, '');
-      await _removeLegacy(prefs, key);
-      await secureStorage.delete(key: key);
-    }
-  });
+  Future<void> clearAll() {
+    _imageGeneration++;
+    return _serial(() async {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.reload();
+      final keys = {
+        ...(await secureStorage.readAll()).keys,
+        ...prefs.getKeys(),
+      }.where(_isChatKey).toList();
+      for (final key in keys) {
+        await _put(key, '');
+        await _removeLegacy(prefs, key);
+        await secureStorage.delete(key: key);
+      }
+    });
+  }
 
-  Future<void> clearAccount(String scope) => _serial(() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.reload();
-    final keys = {
-      ...(await secureStorage.readAll()).keys,
-      ...prefs.getKeys(),
-    }.where((key) => key.startsWith(_prefix(scope)));
-    for (final key in keys) {
-      await _put(key, '');
-      await _removeLegacy(prefs, key);
-      await secureStorage.delete(key: key);
-    }
-  });
+  Future<void> clearAccount(String scope) {
+    _imageGeneration++;
+    return _serial(() async {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.reload();
+      final keys = {
+        ...(await secureStorage.readAll()).keys,
+        ...prefs.getKeys(),
+      }.where((key) => key.startsWith(_prefix(scope)));
+      for (final key in keys) {
+        await _put(key, '');
+        await _removeLegacy(prefs, key);
+        await secureStorage.delete(key: key);
+      }
+    });
+  }
 }
 
 /// Session-owned memory survives route disposal; disk writes debounce and flush

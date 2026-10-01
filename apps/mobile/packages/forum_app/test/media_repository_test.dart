@@ -85,6 +85,52 @@ void main() {
   Future<Uint8List> load({String url = _url, String scope = 'site:42:zh'}) =>
       cache.load(url, scopeKey: scope, apiOrigin: _origin);
   test(
+    'chat origin policy rejects tracking redirects before requesting them',
+    () async {
+      http.handle = (_) async => response(
+        status: 302,
+        extra: {
+          'location': ['https://tracker.example/pixel.gif'],
+        },
+      );
+      await expectLater(
+        cache.load(
+          _url,
+          scopeKey: 'site:42:zh',
+          apiOrigin: _origin,
+          allowedOrigins: {_origin},
+        ),
+        throwsFormatException,
+      );
+      expect(http.requests.map((r) => r.uri.toString()), [_url]);
+    },
+  );
+
+  test('chat origin policy permits explicitly trusted CDN redirects', () async {
+    const cdn = 'https://cdn.example.test';
+    http.handle = (request) async => request.uri.toString() == _url
+        ? response(
+            status: 302,
+            extra: {
+              'location': ['$cdn/image.gif'],
+            },
+          )
+        : response();
+    expect(
+      await cache.load(
+        _url,
+        scopeKey: 'site:42:zh',
+        apiOrigin: _origin,
+        allowedOrigins: {_origin, cdn},
+      ),
+      [1, 2, 3],
+    );
+    expect(http.requests.map((r) => r.uri.toString()), [
+      _url,
+      '$cdn/image.gif',
+    ]);
+  });
+  test(
     'public fresh image survives repository restart and scopes stay separate',
     () async {
       expect(await load(), [1, 2, 3]);

@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-09-29
+> Last verified: 2026-09-30
 
 The Flutter app combines the forum, course catalog, scheduler and Wiki. Ordinary browsing and
 writing use native pages. Management uses the same first-party workspaces and permission checks as
@@ -84,10 +84,24 @@ ordered after the active route in the accessibility tree so iOS does not hide it
   next controls when expanded. The banner starts as an expandable single-line ticker; its state
   is shared across the latest, popular and trending tabs. Assistive navigation and reduced motion
   disable automatic rotation. Refresh replaces the active announcement safely.
-- `Current`: feed body text uses 17 logical pixels; Markdown reading and publishing body text use
-  18 pixels with a 1.55 line height and system text scaling. Code uses 16 pixels and tables use
-  17 pixels; headings keep a distinct hierarchy and follow the active theme. The first post supports
-  text selection. Feed cards use
+- `Current`: feed body text uses 17 logical pixels. Post Markdown, server-rendered Wiki HTML and
+  course-review HTML all derive their reading typography from one shared rich-content profile rather
+  than from per-surface hard-coded sizes: body text keeps the 17-pixel design baseline, headings are
+  relative ratios (H1–H4 ≈ 1.45/1.30/1.18/1.08 × body), inline code and code blocks are one step
+  smaller, tables inherit the body size, and course reviews use the same profile at a compact
+  ~15.5-pixel baseline. The first post supports text selection.
+- `Current`: reading text size is a user preference (Settings → Appearance, 80%–140%, default 100%)
+  that only affects rich content — posts, Wiki and course reviews — and is applied before the system
+  font scale, which still applies on top instead of being replaced or clamped. Repository code never
+  pins `TextScaler.noScaling` or a fixed text scale factor.
+- `Current`: fenced code and server-rendered `<pre>` blocks render through one shared code block with
+  syntax highlighting (light and dark themes), a language label, a copy action, and horizontal
+  scrolling inside the block itself; unknown languages or a failed highlight fall back to plain
+  monospace text. Wide Markdown and server-HTML tables keep natural column widths and scroll inside
+  their own region, so the page itself never scrolls sideways and an outer card cannot swallow the
+  gesture. Wiki bodies keep consuming the server `rendered_html` (heading ids, table of contents
+  anchors and relative URLs unchanged), and course reviews render the API's `contentHtml`, so the
+  server stays the only place that normalizes legacy review headings. Feed cards use
   compact vertical padding and one timestamp. Author, time and category labels share one metadata
   row. Long author names ellipsize, and the category group scrolls horizontally when space is tight,
   retaining separate touch targets.
@@ -645,7 +659,8 @@ identity survive this layout change. The header keeps a small outer margin for i
   greeting, today's courses and then recent notices. Weekly timetable, academic records and charts,
   calendars, notice bodies and identity management use the existing campus API. Today’s timetable
   uses the server-resolved Shanghai teaching date, including holidays,
-  makeup source weeks and explanatory notices; it refreshes across school-local midnight.
+  makeup source weeks and explanatory notices; the first Campus entry after school-local midnight
+  automatically refreshes a previous-day snapshot.
   The export-only adjustment switch does not disable this display. GPA is loaded only
   on the academic tab. The timetable shares the planner renderer without its editing or storage.
   The Campus bottom destination opens this page directly. Course reviews, the scheduler and Wiki
@@ -677,9 +692,14 @@ identity survive this layout change. The header keeps a small outer margin for i
   account and binding revision. Grades, exams, campus messages/bodies and credentials are excluded.
   The private campus workspace places a compact refresh icon to the right of the snapshot time,
   preserving a 44-pixel touch target; stale/offline notices remain below the same-row metadata.
-  Repeated refreshes coalesce; restored snapshot tabs do not refetch the four persisted datasets when
-  the foreground cache expires. Ordinary block failures keep usable same-day content visible; invalid
-  teaching rules suppress old course results. Missing or expired-day data requests an explicit refresh.
+  Automatic and manual refreshes coalesce. On entry, a snapshot from an earlier Shanghai date triggers
+  a complete four-dataset refresh after binding verification, alongside the selected section's reads.
+  A successful snapshot's commit date prevents repeated daily refreshes, including after app restart;
+  failures retain the previous snapshot and can retry on a later entry or manual refresh. Same-day
+  restored snapshot tabs do not refetch the four persisted datasets when the foreground cache expires.
+  Ordinary block failures keep usable same-day content visible; invalid teaching rules suppress old
+  course results. Missing data retains an explicit refresh action. The existing fresh-read flow after
+  backgrounding remains independent of daily snapshot reuse.
   Settings can clear only campus memory, device snapshots and desktop data, preserve drafts/plans and
   school binding, report partial failure and retry. Pending refreshes cannot refill a cleared cache.
   Snapshot storage is bounded to 1 MiB per document and four scopes; reads discard data older than 30 days.
@@ -839,6 +859,12 @@ identity survive this layout change. The header keeps a small outer margin for i
   email domains use a prefix field and domain selector; unrestricted sites accept the full address.
   Password confirmation is checked locally. Only published terms/privacy policies are linked and
   require explicit agreement. Configuration failures preserve the form and offer retry.
+- `Current`: the restricted email field accepts either a prefix or a full address at a published
+  domain, matching domains without case sensitivity. A full address selects its own domain instead
+  of appending another suffix; malformed or unlisted addresses stay on the form with a localized
+  error. Registration API failures use the shared server-message catalog, including daily quotas
+  and retry-login instructions. Occupied usernames/emails and creation failures retain the same
+  generic registration error, preserving the server's account-enumeration boundary.
 
 ## Profile and privacy
 
@@ -1239,9 +1265,9 @@ remain available. Pending activation does not prevent managing a block.
 
 `Current`: the message action menu exposes a report action for received messages, with explicit
 disclosure of the selected message to administrators; the report entry is no longer rendered under
-every received bubble. One message can be replied to from the same menu. The send contract has no
-reply field, so the reply is composed client-side as a plain-text `> @sender: excerpt` quote line
-above the reply body; the excerpt is bounded to 120 characters and sticker tokens expand to their
+every received bubble. One message can be replied to from the same menu. Replies retain a
+plain-text `> @sender: excerpt` quote line above the body, with a separate target message ID for
+navigation; the excerpt is bounded to 120 characters and sticker tokens expand to their
 readable preview label. Conversation previews drop that leading quote before the 255-character
 preview bound, so the inbox shows the reply body rather than the quoted excerpt. Topic/post and message forms submit a fixed reason enum plus a separate
 explanation. Only administrators can review or handle private-message evidence in the embedded
@@ -1305,17 +1331,38 @@ acceptance; simulator compilation does not establish those results.
 
 ### 私信回复、多选与转发
 
+`Current`: Flutter 私信输入框的「＋」提供图片与表情库入口。单张图片先在本地预览，
+确认发送后通过现有文件服务上传，以图片消息发送；上传失败保留预览供重试，发送失败保留
+会话级待发送气泡，重试沿用同一消息标识和已上传 URL。文字、图片与失败重试共用单次发送限制，
+选图/上传期间也不启动另一条消息写入。图片独立发送，保留未发送的文字与
+引用草稿；选择器取消或账号切换后的异步结果不会发送。历史消息、待发送气泡与转发记录
+均直接显示可信来源的图片，不包裹气泡底色或内边距，并可点开全屏查看和保存。
+自动加载仅允许当前论坛源与构建时明确配置的资源源，逐次重定向也受同一限制；其他地址保留为文字链接。
+缩略图按 240×180 逻辑像素与设备像素比限制解码尺寸，保持原比例，全屏查看仍使用原图。
+图片使用现有公共素材 URL 规则，不提供会话成员专属的文件访问控制。
+上传返回的 URL、收件人及幂等消息标识先写入与私信草稿相同的设备安全存储，再尝试发送；
+失败、离开页面或重启后，原账号重新打开会话可手动重试，成功后删除恢复记录，不自动补发。
+账号切换时晚到的上传结果仅保留在原账号；显式清除用户数据会撤销晚到结果的恢复写入权限。
+本地选图预览仍只在当前进程保留；应用在上传接口返回 URL 之前终止时，通用文件服务仍无法保证孤立文件回收。
+会话列表中，完整的图片文件地址摘要显示为本地化的「[图片]」；普通网页链接和带说明的文字保持原文，草稿预览仍优先显示。
+
 `Current`: Web 与移动端的发送气泡使用独立色对：深蓝底（`#2563EB`）与白字（`#FFFFFF`），
 浅色和深色模式均保持约 5.17:1 的文字对比度。正文和合并转发卡片继承气泡文字色；
 移动端正文中的可点击链接也继承该色，Web 私信中的 URL 仍按普通文本显示。
-接收气泡与转发详情沿用中性表面，移动端纯贴纸消息不带气泡底色。
+接收气泡与转发详情沿用中性表面，移动端纯贴纸与单张图片消息不带气泡底色。
 
 `Current`: 消息气泡与纯贴纸支持向左滑动回复；短滑、右滑和垂直滚动不触发回复。
 长按浮动菜单提供回复、复制、转发、多选，以及适用的收藏表情和举报入口。回复选定后聚焦输入框，
 保留未发送草稿；多选模式暂停输入，返回键先退出多选，草稿与原引用保留。
 回复正文仍保存为现有纯文本引用行；客户端把引用行呈现为有界引用块，旧消息也可直接显示。
-新回复另外持久化可空的目标消息 ID。点击有目标 ID 的引用块会按 ID 加载并定位原消息、短暂高亮，
-并提供返回来源消息的入口；旧记录与旧客户端发送的引用仍显示原文本，不做不确定的内容匹配。
+图片引用保存稳定的 `[Image]` 标记，Flutter 在输入预览与引用块中按阅读者语言显示图片占位，避免把发送者语言固化进消息。
+新回复另外持久化可空的目标消息 ID。点击有目标 ID 的引用块会定位原消息、短暂高亮；
+已加载但在视口外的目标先滚动到对应列表位置，未加载目标按 ID 读取附近记录后再定位。
+定位过程暂停分页和途经消息的已读确认，聊天区右上方贴边显示带箭头与文字的圆角
+「返回刚才位置」按钮，点击以 280 ms 缓入缓出的滚动恢复跳转前的阅读位置，开启系统减少动态效果时直接定位；
+返回动画途中暂停分页与已读确认，到达后高亮来源消息。按钮颜色适配浅色、深色主题，长文案可换行。
+手动滚回会话底部时自动收起返回按钮；尚有后续消息待加载的历史分页边界不算会话底部，引用定位的自动滚动也不会收起按钮。
+旧记录与旧客户端发送的引用仍显示原文本，不做不确定的内容匹配。
 合并聊天记录只以本地化的“[聊天记录]”占位参与引用；外层记录气泡隐藏复制整条和收藏入口，详情条目长按可复制单条或收藏其中的贴纸。
 消息与转发收件人均使用圆形多选控件；消息选择栏平滑展开/收起并淡入/淡出，勾选状态使用原生填色与勾号动画，
 开启系统“减少动态效果”时省略选择栏过渡。头像统一使用圆形裁切，

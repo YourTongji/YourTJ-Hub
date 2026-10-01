@@ -1,4 +1,5 @@
 import { spawnSync } from 'node:child_process'
+import { statusTree, publishedTreeMatches } from './production-build.mjs'
 
 // Netlify runs this from apps/status before installing dependencies.
 // Its ignore convention is 0 = skip, 1 = build (including uncertain comparisons).
@@ -10,8 +11,15 @@ function build(reason) {
   process.exit(1)
 }
 
-// A previously built preview is not evidence that production has been published.
-if (context === 'production') build('production releases always build')
+if (process.env.STATUS_FORCE_BUILD === 'true') build('explicit rebuild requested')
+if (context === 'production') {
+  // Clearing the cache / rebuilding the same commit must apply environment-only
+  // changes as well. The cache is never used as proof of a published version.
+  if (!cached || !current || cached === current) build('fresh cache or same-commit rebuild')
+  if (!await publishedTreeMatches(process.env.URL, statusTree(current))) build('production content changed or published version unavailable')
+  console.log('[status-build] Skip: status source tree already published in production')
+  process.exit(0)
+}
 if (!['deploy-preview', 'branch-deploy'].includes(context)) build('unknown deployment context')
 
 // Without a cache Netlify can report the current commit as the cached commit.

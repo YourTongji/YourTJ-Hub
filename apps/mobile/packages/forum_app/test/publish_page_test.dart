@@ -18,6 +18,7 @@ import 'package:ui_kit/ui_kit.dart';
 import 'package:forum_app/l10n/app_localizations.dart';
 import 'package:forum_app/src/pages/publish/embed_image_move.dart';
 import 'package:forum_app/src/pages/publish/publish_page.dart';
+import 'package:forum_app/src/widgets/markdown_view.dart';
 import 'package:forum_app/src/router.dart';
 import 'package:forum_app/src/providers.dart';
 import 'fixtures/page_fixtures.dart' show topicDetailPayloadJson;
@@ -697,7 +698,17 @@ void main() {
     final editor = tester.getRect(find.byKey(const Key('publish-editor')));
     final viewport = tester.getRect(find.byType(SingleChildScrollView).first);
     expect(editor.top - viewport.top, lessThan(140));
-    expect(viewport.bottom - editor.top, greaterThan(200));
+    // The editor keeps a useful writing viewport above the keyboard: at least
+    // its six minimum lines of body text stay visible, and the field itself
+    // still fits inside the viewport.
+    final TextStyle body = readingBodyStyle(
+      tester.element(find.byKey(const Key('publish-editor'))),
+    );
+    expect(
+      viewport.bottom - editor.top,
+      greaterThan(body.fontSize! * body.height! * 6),
+    );
+    expect(viewport.bottom, greaterThanOrEqualTo(editor.bottom));
     expect(find.byTooltip('收起键盘'), findsOneWidget);
     expect(find.byTooltip('添加图片'), findsOneWidget);
     expect(tester.takeException(), isNull);

@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 import 'package:core/core.dart';
 import 'package:ui_kit/ui_kit.dart';
 import '../../../l10n/app_localizations.dart';
+import '../../reading_preferences.dart';
+import '../../widgets/rich_content/gf_html_content.dart';
 import '../../providers.dart';
 import '../../server_messages.dart';
 import '../../widgets/app_refresh_indicator.dart';
@@ -249,11 +251,17 @@ class _MyCourseReviewsPageState extends ConsumerState<MyCourseReviewsPage> {
                         ],
                       ),
                       const SizedBox(height: 12),
+                      // 预览同样来自服务端 contentHtml,只是先摊平成纯文本
+                      // 再截断:不再把 `##` / `**` 这类原始标记暴露给用户。
                       Text(
-                        item.review.content,
+                        gfPlainTextFromHtml(item.review.contentHtml),
                         maxLines: 5,
                         overflow: TextOverflow.ellipsis,
-                        style: type.body,
+                        style: GfRichContentTypography.of(
+                          context,
+                          userScale: ref.watch(contentFontScaleProvider),
+                          compact: true,
+                        ).body,
                       ),
                       if (!item.canOpenCourse)
                         Padding(

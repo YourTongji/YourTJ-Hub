@@ -13,7 +13,9 @@ import '../../format.dart';
 import '../../images/image_save.dart';
 import '../../link_navigation.dart';
 import '../../providers.dart';
+import '../../reading_preferences.dart';
 import '../../server_messages.dart';
+import '../../widgets/rich_content/gf_html_content.dart';
 import '../../widgets/status_views.dart';
 
 /// 对 wiki 路径逐段做 URL 编码(与 web wiki-path.ts wikiHref 一致):
@@ -311,6 +313,11 @@ class _WikiPageState extends ConsumerState<WikiPage> {
             GfErrorRetry(message: resolveErrorMessage(l10n, e), onRetry: _load),
         data: (WikiPageDetail loaded) => _WikiProse(
           page: loaded,
+          // Wiki bodies honour the same reader preference as posts.
+          profile: GfRichContentTypography.of(
+            context,
+            userScale: ref.watch(contentFontScaleProvider),
+          ),
           baseUrl: Uri.parse(
             ref.read(apiClientProvider).baseUrl,
           ).resolve('/wiki/${encodeWikiPath(widget.wikiPath)}'),
@@ -329,6 +336,7 @@ class _WikiPageState extends ConsumerState<WikiPage> {
 class _WikiProse extends StatelessWidget {
   const _WikiProse({
     required this.page,
+    required this.profile,
     required this.baseUrl,
     required this.scrollController,
     required this.htmlKey,
@@ -337,6 +345,7 @@ class _WikiProse extends StatelessWidget {
   });
 
   final WikiPageDetail page;
+  final GfRichContentTypography profile;
   final Uri baseUrl;
   final ScrollController scrollController;
   final GlobalKey<HtmlWidgetState> htmlKey;
@@ -349,9 +358,6 @@ class _WikiProse extends StatelessWidget {
     final GfColors colors = GfTheme.colorsOf(context);
     final GfTypography typography = GfTheme.typographyOf(context);
     final GfRadii radii = GfTheme.radiiOf(context);
-    final String baseContent = _hex(colors.baseContent);
-    final String line = _hex(colors.line);
-    final String base200 = _hex(colors.base200);
     final Color faint = colors.baseContent.withValues(alpha: 0.45);
 
     final Widget body;
@@ -368,38 +374,15 @@ class _WikiProse extends StatelessWidget {
         ),
       );
     } else {
-      body = HtmlWidget(
-        page.content,
+      // 服务端 rendered HTML 仍是唯一数据源(保留 heading id/TOC/相对 URL),
+      // 排版、代码块与表格策略来自共享 rich content profile。
+      body = GfHtmlContent(
+        html: page.content,
+        profile: profile,
+        htmlKey: htmlKey,
         baseUrl: baseUrl,
         factoryBuilder: () => _WikiHtmlFactory(baseUrl),
-        key: htmlKey,
-        buildAsync: false,
-        textStyle: typography.body.copyWith(color: colors.baseContent),
-        customStylesBuilder: (element) {
-          switch (element.localName) {
-            case 'pre':
-              return <String, String>{
-                'background-color': base200,
-                'color': baseContent,
-                'padding': '12px',
-                'border-radius': '${radii.box}px',
-                'border': '1px solid $line',
-                'margin': '10px 0',
-                'font-size': '13px',
-                'line-height': '1.55',
-              };
-            case 'blockquote':
-              return <String, String>{
-                'border-left': '3px solid $line',
-                'background-color': _hex(colors.base200.withValues(alpha: 0.7)),
-                'color': _hex(colors.baseContent.withValues(alpha: 0.75)),
-                'padding': '6px 12px',
-                'margin': '10px 0',
-              };
-            default:
-              return null;
-          }
-        },
+        onTapUrl: onLinkTap,
         customWidgetBuilder: (element) {
           if (element.localName != 'img') return null;
           final String? src = element.attributes['src'];
@@ -437,7 +420,6 @@ class _WikiProse extends StatelessWidget {
             ),
           );
         },
-        onTapUrl: onLinkTap,
       );
     }
 
@@ -486,8 +468,6 @@ class _WikiProse extends StatelessWidget {
     );
   }
 
-  static String _hex(Color color) =>
-      '#${color.toARGB32().toRadixString(16).padLeft(8, '0')}';
 }
 
 class _MetaItem extends StatelessWidget {
@@ -558,7 +538,7 @@ class _WikiPageSkeleton extends StatelessWidget {
 
 /// With a base URL, HTML links arrive as absolute URLs, but scrollToAnchor
 /// still dispatches a bare fragment. Both forms must resolve the decoded ID.
-class _WikiHtmlFactory extends WidgetFactory {
+class _WikiHtmlFactory extends GfHtmlWidgetFactory {
   _WikiHtmlFactory(this.pageUri);
   final Uri pageUri;
 

@@ -302,12 +302,16 @@ class MediaRepository extends ChangeNotifier {
     String url, {
     required String scopeKey,
     required String apiOrigin,
+    Set<String>? allowedOrigins,
   }) {
     final generation = _generation;
     final key = sha256
         .convert(utf8.encode(jsonEncode([apiOrigin, scopeKey, url])))
         .toString();
-    final flightKey = '$generation:$key';
+    final policyKey = allowedOrigins == null
+        ? ''
+        : (allowedOrigins.toList()..sort()).join(',');
+    final flightKey = '$generation:$key:$policyKey';
     return _pending.putIfAbsent(flightKey, () {
       final result = _load(
         url,
@@ -315,6 +319,7 @@ class MediaRepository extends ChangeNotifier {
         key,
         generation,
         !scopeKey.startsWith('pending:'),
+        allowedOrigins,
       );
       result.then<void>(
         (_) {
@@ -351,6 +356,7 @@ class MediaRepository extends ChangeNotifier {
     String key,
     int generation,
     bool resolvedScope,
+    Set<String>? allowedOrigins,
   ) async {
     _guard(generation);
     var uri = Uri.parse(url);
@@ -358,6 +364,14 @@ class MediaRepository extends ChangeNotifier {
     if (!['https', 'http'].contains(uri.scheme)) {
       throw const FormatException('Unsupported image URL');
     }
+    void checkOrigin() {
+      if (allowedOrigins != null &&
+          (uri.userInfo.isNotEmpty || !allowedOrigins.contains(uri.origin))) {
+        throw const FormatException('Untrusted image origin');
+      }
+    }
+
+    checkOrigin();
     var publicAddress = resolvedScope && _publicAddress(uri, origin);
     // Userinfo must never become implicit HTTP Basic authentication.
     uri = uri.replace(userInfo: '');
@@ -410,6 +424,7 @@ class MediaRepository extends ChangeNotifier {
       _guard(generation);
       Response<ResponseBody>? response;
       for (var redirect = 0; redirect <= 5; redirect++) {
+        checkOrigin();
         response = await _dio.getUri<ResponseBody>(
           uri,
           cancelToken: token,

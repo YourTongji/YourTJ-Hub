@@ -79,7 +79,7 @@ export default {
     probeNote: "Availability comes from independent checks; resource data comes from the server probe.",
     refresh: "Refresh",
     refreshing: "Refreshing",
-    autoRefresh: "Snapshots checked every 30s",
+    autoRefresh: "Snapshots checked every 60s",
     updated: "Updated {time}",
     sampleTime: "Probe sampled {time}",
     loadFailed: "Refresh failed. Showing the last retrieved data.",

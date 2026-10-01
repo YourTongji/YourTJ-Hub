@@ -79,7 +79,7 @@ export default {
     probeNote: "Der Dienststatus stammt aus unabhängigen Zugriffsprüfungen; Host-Laufzeit und Ressourcennutzung stammen vom Server-Probe.",
     refresh: "Aktualisieren",
     refreshing: "Wird aktualisiert",
-    autoRefresh: "Datenabruf alle 30 Sekunden",
+    autoRefresh: "Datenabruf alle 60 Sekunden",
     updated: "Aktualisiert: {time}",
     sampleTime: "Sondenmessung: {time}",
     loadFailed: "Aktualisierung fehlgeschlagen. Letzte Daten werden angezeigt.",

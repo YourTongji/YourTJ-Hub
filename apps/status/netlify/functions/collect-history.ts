@@ -5,4 +5,4 @@ import { collect } from '../../server/collect'
 export default async (_request: Request, context: Context) => {
   await collect('history', snapshotStore(context), loadConfig())
 }
-export const config: Config = { schedule: '*/5 * * * *' }
+export const config: Config = { schedule: '*/15 * * * *' }

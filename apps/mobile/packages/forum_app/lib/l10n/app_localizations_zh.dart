@@ -526,6 +526,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get messagesEmptyDetail => '暂无消息,说点什么吧';
 
   @override
+  String get messagesImage => '图片';
+
+  @override
+  String get messagesAttachments => '附件';
+
+  @override
   String get messagesInputHint => '输入消息…';
 
   @override
@@ -1297,6 +1303,21 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get settingsFollowSiteThemeDesc => '使用服务器下发的站点配色';
+
+  @override
+  String get richContentCopyCode => '复制代码';
+
+  @override
+  String get richContentCodeCopied => '已复制代码';
+
+  @override
+  String get settingsReadingTextSize => '阅读字号';
+
+  @override
+  String get settingsReadingTextSizeDesc => '仅作用于帖子、Wiki 与课程评价正文；系统字体缩放仍然生效。';
+
+  @override
+  String get settingsReadingTextSizeReset => '恢复默认';
 
   @override
   String get entryCourses => '课程';
@@ -2830,7 +2851,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get messagesJumpToQuotedMessage => '跳转到引用消息';
 
   @override
-  String get messagesReturnToReplySource => '返回引用来源';
+  String get messagesReturnToReplySource => '返回刚才位置';
 
   @override
   String get messageReplyCancel => '取消回复';

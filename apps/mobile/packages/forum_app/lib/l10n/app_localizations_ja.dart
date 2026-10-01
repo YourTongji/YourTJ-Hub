@@ -528,6 +528,12 @@ class AppLocalizationsJa extends AppLocalizations {
   String get messagesEmptyDetail => 'まだメッセージはありません。挨拶してみましょう！';
 
   @override
+  String get messagesImage => '画像';
+
+  @override
+  String get messagesAttachments => '添付';
+
+  @override
   String get messagesInputHint => 'メッセージを入力…';
 
   @override
@@ -1299,6 +1305,22 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get settingsFollowSiteThemeDesc => 'サイトで設定された配色を使用';
+
+  @override
+  String get richContentCopyCode => 'コードをコピー';
+
+  @override
+  String get richContentCodeCopied => 'コードをコピーしました';
+
+  @override
+  String get settingsReadingTextSize => '本文の文字サイズ';
+
+  @override
+  String get settingsReadingTextSizeDesc =>
+      '投稿・Wiki・授業レビューの本文に適用されます。端末の文字サイズ設定も引き続き反映されます。';
+
+  @override
+  String get settingsReadingTextSizeReset => '100% に戻す';
 
   @override
   String get entryCourses => 'コース';
@@ -2857,7 +2879,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String get messagesJumpToQuotedMessage => '引用元のメッセージへ移動';
 
   @override
-  String get messagesReturnToReplySource => '引用元に戻る';
+  String get messagesReturnToReplySource => '元の位置に戻る';
 
   @override
   String get messageReplyCancel => '返信をキャンセル';

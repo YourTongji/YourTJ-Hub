@@ -540,6 +540,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get messagesEmptyDetail => 'No messages yet, say hi!';
 
   @override
+  String get messagesImage => 'Image';
+
+  @override
+  String get messagesAttachments => 'Attachments';
+
+  @override
   String get messagesInputHint => 'Type a message…';
 
   @override
@@ -1315,6 +1321,22 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get settingsFollowSiteThemeDesc => 'Use server-issued site colors';
+
+  @override
+  String get richContentCopyCode => 'Copy code';
+
+  @override
+  String get richContentCodeCopied => 'Code copied';
+
+  @override
+  String get settingsReadingTextSize => 'Reading text size';
+
+  @override
+  String get settingsReadingTextSizeDesc =>
+      'Applies to posts, Wiki and course reviews. System font scaling still applies.';
+
+  @override
+  String get settingsReadingTextSizeReset => 'Reset to 100%';
 
   @override
   String get entryCourses => 'Courses';
@@ -2951,7 +2973,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get messagesJumpToQuotedMessage => 'Jump to quoted message';
 
   @override
-  String get messagesReturnToReplySource => 'Return to source message';
+  String get messagesReturnToReplySource => 'Back to where you were';
 
   @override
   String get messageReplyCancel => 'Cancel reply';

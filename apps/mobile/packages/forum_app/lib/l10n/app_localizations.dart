@@ -1068,6 +1068,18 @@ abstract class AppLocalizations {
   /// **'No messages yet, say hi!'**
   String get messagesEmptyDetail;
 
+  /// No description provided for @messagesImage.
+  ///
+  /// In en, this message translates to:
+  /// **'Image'**
+  String get messagesImage;
+
+  /// No description provided for @messagesAttachments.
+  ///
+  /// In en, this message translates to:
+  /// **'Attachments'**
+  String get messagesAttachments;
+
   /// No description provided for @messagesInputHint.
   ///
   /// In en, this message translates to:
@@ -2483,6 +2495,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Use server-issued site colors'**
   String get settingsFollowSiteThemeDesc;
+
+  /// No description provided for @richContentCopyCode.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy code'**
+  String get richContentCopyCode;
+
+  /// No description provided for @richContentCodeCopied.
+  ///
+  /// In en, this message translates to:
+  /// **'Code copied'**
+  String get richContentCodeCopied;
+
+  /// No description provided for @settingsReadingTextSize.
+  ///
+  /// In en, this message translates to:
+  /// **'Reading text size'**
+  String get settingsReadingTextSize;
+
+  /// No description provided for @settingsReadingTextSizeDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Applies to posts, Wiki and course reviews. System font scaling still applies.'**
+  String get settingsReadingTextSizeDesc;
+
+  /// No description provided for @settingsReadingTextSizeReset.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset to 100%'**
+  String get settingsReadingTextSizeReset;
 
   /// No description provided for @entryCourses.
   ///
@@ -5409,7 +5451,7 @@ abstract class AppLocalizations {
   /// No description provided for @messagesReturnToReplySource.
   ///
   /// In en, this message translates to:
-  /// **'Return to source message'**
+  /// **'Back to where you were'**
   String get messagesReturnToReplySource;
 
   /// No description provided for @messageReplyCancel.

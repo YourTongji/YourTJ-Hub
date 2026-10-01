@@ -13,7 +13,7 @@ export interface paths {
         };
         /**
          * Read status snapshots
-         * @description Reads persisted snapshots only; visitors cannot trigger upstream collection. Current resource and uptime sources refresh every minute, history and traffic every five minutes. Data older than 150 seconds (current) or ten minutes (history/traffic) is stale; all data expires after fifteen minutes. fetchedAt is never advanced on failure. The browser rechecks freshness independently of the CDN cache.
+         * @description Reads persisted snapshots only; visitors cannot trigger upstream collection. Current resource and uptime sources refresh every minute, history and traffic every fifteen minutes, and device reports hourly. Data is stale after 150 seconds (current), twenty minutes (history/traffic) or seventy minutes (devices). Retention is fifteen minutes, one hour and three hours respectively. fetchedAt is never advanced on failure. Resource history remains available independently when current metrics expire; the server envelope then has current/cpuCores null and preserves history's own timestamp. Browsers poll every sixty seconds; the CDN caches responses for at most thirty seconds. The browser rechecks freshness independently of the CDN cache.
          */
         get: operations["getStatus"];
         put?: never;
@@ -66,7 +66,7 @@ export interface components {
              */
             serverRange: "1h" | "6h" | "24h" | "7d";
             /** @constant */
-            refreshAfter: 30;
+            refreshAfter: 60;
             server: components["schemas"]["StatusServerSource"];
             traffic: components["schemas"]["StatusTrafficSource"];
             uptime: components["schemas"]["StatusUptimeSource"];
@@ -77,6 +77,7 @@ export interface components {
             deviceRange: "24h" | "7d" | "30d";
             devices: components["schemas"]["StatusDevicesSource"];
         };
+        /** @description state and fetchedAt describe current metrics only. When current metrics expire or are absent, data may still contain independently retained history; current and cpuCores are null and name/region are empty. History uses historyFetchedAt and historyStale, never fetchedAt. */
         StatusServerSource: {
             /** @enum {string} */
             state: "ok" | "stale" | "unavailable" | "unconfigured";
@@ -94,7 +95,8 @@ export interface components {
         StatusServer: {
             name: string;
             region: string;
-            cpuCores: number;
+            /** @description Null when current host metadata is unavailable; never inferred from retained history. */
+            cpuCores: number | null;
             current: components["schemas"]["StatusSample"] | null;
             history: components["schemas"]["StatusLoadPoint"][];
             historyAvailable: boolean;

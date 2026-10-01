@@ -3,8 +3,8 @@ import { readFileSync } from 'node:fs'
 import { parse } from 'yaml'
 import Ajv2020 from 'ajv/dist/2020.js'
 import addFormats from 'ajv-formats'
-import { serveSnapshot, type SnapshotStore } from '../server/snapshots'
-import { loadConfig } from '../server/config'
+import { serveSnapshot, type SnapshotStore, type Stored } from '../server/snapshots'
+import { cacheKey, loadConfig } from '../server/config'
 const components = JSON.parse(JSON.stringify(parse(readFileSync('api/components.yaml','utf8'))).replaceAll('"#/','"#/$defs/'))
 const ajv = new Ajv2020({ strict:false,allErrors:true }); addFormats(ajv)
 const validate = ajv.compile({ $defs:components,$ref:'#/$defs/StatusResponse' })
@@ -22,4 +22,20 @@ it('validates actual unconfigured and unavailable handler responses for every sc
     expect(response.status).toBe(200)
     expect(validate(await response.json()),JSON.stringify(validate.errors)).toBe(true)
   }
+})
+it('validates the history-only fixture against an actual handler response', async () => {
+  const fixture = JSON.parse(readFileSync('test/fixtures/status-history-only.json', 'utf8'))
+  const config = loadConfig({ STATUS_ENABLED: 'true', KOMARI_URL: 'https://probe.example.com', KOMARI_NODE_ID: 'e643a364-0372-43b2-a341-b05d858866ad' })
+  const { history, historyAvailable, historyFetchedAt } = fixture.result.server.data
+  const store: SnapshotStore = {
+    async read<T>(key: string) {
+      return key === cacheKey(config, 'komari', 'history-1h')
+        ? { value: { attemptedAt: Date.parse(historyFetchedAt), fetchedAt: historyFetchedAt, failed: false, data: { history, historyAvailable } } as Stored<T>, etag: '1' } : null
+    },
+    async write() { return false },
+  }
+  const response = await serveSnapshot(new Request('https://status.example.com/api/status'), store, config, Date.parse('2026-09-14T12:21:00Z'))
+  const body = await response.json()
+  expect(body).toEqual(fixture)
+  expect(validate(body), JSON.stringify(validate.errors)).toBe(true)
 })

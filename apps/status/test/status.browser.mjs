@@ -27,6 +27,7 @@ for (const [width, lang, theme] of [[320, 'zh', 'gf-light'], [390, 'de', 'gf-dar
         response.result.serverRange = new URL(route.request().url()).searchParams.get('serverRange')
         response.result.deviceRange = new URL(route.request().url()).searchParams.get('deviceRange')
         response.result.devices.fetchedAt = new Date().toISOString()
+        response.result.server.data.historyFetchedAt = new Date().toISOString()
         response.result.server.fetchedAt = response.result.traffic.fetchedAt = response.result.server.data.current.observedAt = new Date().toISOString()
         response.result.uptime.fetchedAt = response.result.uptime.data.monitors[0].current.time = new Date().toISOString()
         response.result.uptime.data.monitors[0].history = Array.from({ length: 100 }, (_, index) => ({ time: new Date(Date.now() - (99 - index) * 60_000).toISOString(), status: index % 20 === 0 ? 'down' : 'up', ping: 628 }))

@@ -114,6 +114,7 @@ void main() {
         int? width,
         int? height,
         ResizeImagePolicy policy = ResizeImagePolicy.exact,
+        Set<String>? allowedOrigins,
       }) => GfBytesImage(
         identity: 'svg',
         url: url,
@@ -163,6 +164,7 @@ void main() {
         int? width,
         int? height,
         ResizeImagePolicy policy = ResizeImagePolicy.exact,
+        Set<String>? allowedOrigins,
       }) {
         final provider = GfBytesImage(
           identity: 'host',

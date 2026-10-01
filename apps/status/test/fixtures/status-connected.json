@@ -2,7 +2,7 @@
   "code": 0,
   "result": {
     "range": "24h",
-    "refreshAfter": 30,
+    "refreshAfter": 60,
     "server": {
       "state": "ok",
       "fetchedAt": "2026-09-14T12:00:00Z",
@@ -28,6 +28,7 @@
             "memoryPercent": 53.75
           }
         ],
+        "historyFetchedAt": "2026-09-14T12:00:00Z",
         "historyAvailable": true
       }
     },

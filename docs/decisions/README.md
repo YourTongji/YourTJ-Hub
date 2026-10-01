@@ -111,7 +111,7 @@ A decision starts `Proposed`. Once implemented, its status becomes `Accepted` an
 
 - [0034](0034-tongji-registration-completion.md) — 同济认证后选择用户名和密码，再原子完成注册。
 
-- [0035](0035-campus-device-snapshot-and-schedule-widgets.md) — 校园白名单 Drift 快照派生最小投影，供 Android Glance 与 iOS WidgetKit 离线显示。
+- [0035](0035-campus-device-snapshot-and-schedule-widgets.md) — 校园白名单 Drift 快照派生最小投影，供 Android Glance 与 iOS WidgetKit 离线显示（刷新触发由 0052 取代）。
 
 - [0036](0036-foreground-realtime-invalidation.md) — 前台更新采用进程内 SSE 失效提示与 REST 对账。
 
@@ -138,3 +138,5 @@ A decision starts `Proposed`. Once implemented, its status becomes `Accepted` an
 - [0049](0049-android-first-login-notification-permission.md) — Android 登录后一次性请求系统通知权限，并在授权后开启 JPush。
 - [0050](0050-android-stable-download-links.md) — Android 使用独立 mobile-latest 固定下载入口，保留版本化安装包和服务端 Latest。
 - [0051](0051-mobile-automatic-visitor-statistics.md) — 正式移动端自动统计公开页面，移除统计开关与偏好门控，同步升级语义和隐私披露。
+- [0052](0052-campus-daily-entry-refresh.md) — 跨上海日期后首次进入校园页刷新完整快照，以成功提交日期去重，失败保留旧快照并允许重试。
+- [0053](0053-status-collection-cost.md) — Netlify 状态站分级采集、保留期限与正式发布内容比较。

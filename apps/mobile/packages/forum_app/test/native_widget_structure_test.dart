@@ -417,7 +417,9 @@ void main() {
 
   test('iOS WidgetKit target, App Group and timeline are fully configured', () {
     final project = read('ios/Runner.xcodeproj/project.pbxproj');
-    final source = read('ios/ScheduleWidgets/ScheduleWidgets.swift');
+    final source =
+        read('ios/ScheduleWidgets/ScheduleWidgets.swift') +
+        read('ios/ScheduleWidgets/ScheduleProjection.swift');
     final runnerEntitlements = read('ios/Runner/Runner.entitlements');
     final widgetEntitlements = read(
       'ios/ScheduleWidgets/ScheduleWidgets.entitlements',

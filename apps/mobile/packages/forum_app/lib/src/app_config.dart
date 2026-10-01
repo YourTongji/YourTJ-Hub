@@ -32,6 +32,12 @@ abstract final class AppConfig {
   /// API baseUrl;为空时由 GfApiClient 使用平台默认(Android 模拟器 10.0.2.2)。
   static String get apiBaseUrl => _apiBaseUrl;
 
+  /// Comma-separated, exact asset origins trusted for automatic chat images.
+  /// The API origin is always trusted; never infer trust from received messages.
+  static const String chatImageOrigins = String.fromEnvironment(
+    'YOURTJ_CHAT_IMAGE_ORIGINS',
+  );
+
   /// 是否为调试模式(允许非 HTTPS OIDC 端点)。
   static bool get allowInsecureOidc => kDebugMode;
 }

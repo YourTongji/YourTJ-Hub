@@ -38,6 +38,7 @@ class AuthController extends ChangeNotifier {
     required GfApiClient apiClient,
     required TokenStorage tokenStorage,
     RsaEncryptor? rsaEncryptor,
+    this.registrationErrorMessage,
   }) : _auth = authRepository,
        _client = apiClient,
        _tokenStorage = tokenStorage,
@@ -47,6 +48,12 @@ class AuthController extends ChangeNotifier {
   final GfApiClient _client;
   final TokenStorage _tokenStorage;
   final RsaEncryptor _rsa;
+
+  /// Presentation-layer localization of registration failures. The controller
+  /// still owns captcha/failed phase transitions; the resolver receives the
+  /// server code and parameters without exposing account occupancy details.
+  /// Returning null falls back to [_resolveAuthError]'s built-in mapping.
+  final String? Function(ApiException)? registrationErrorMessage;
 
   LoginPhase _phase = LoginPhase.idle;
   String _error = '';
@@ -146,8 +153,12 @@ class AuthController extends ChangeNotifier {
       _phase = LoginPhase.failed;
       _error = 'Invalid username or password';
     } on ApiException catch (e) {
-      // _mapAuthError 内部可能把阶段切换为 needsCaptcha。
-      _error = _mapAuthError(e, fallback: 'Unable to sign in, please retry');
+      final resolved = _resolveAuthError(
+        e,
+        fallback: 'Unable to sign in, please retry',
+      );
+      _phase = resolved.phase;
+      _error = resolved.message;
     } catch (e) {
       _phase = LoginPhase.failed;
       _error = 'Login failed: $e';
@@ -234,7 +245,12 @@ class AuthController extends ChangeNotifier {
       );
       _phase = LoginPhase.idle;
     } on ApiException catch (e) {
-      _error = _mapAuthError(e, fallback: 'Unable to register, please retry');
+      final resolved = _resolveAuthError(
+        e,
+        fallback: 'Unable to register, please retry',
+      );
+      _phase = resolved.phase;
+      _error = registrationErrorMessage?.call(e) ?? resolved.message;
     } catch (e) {
       _phase = LoginPhase.failed;
       _error = 'Registration failed: $e';
@@ -261,10 +277,12 @@ class AuthController extends ChangeNotifier {
       );
       _phase = LoginPhase.idle;
     } on ApiException catch (e) {
-      _error = _mapAuthError(
+      final resolved = _resolveAuthError(
         e,
         fallback: 'Unable to request a password reset, please retry',
       );
+      _phase = resolved.phase;
+      _error = resolved.message;
     } catch (e) {
       _phase = LoginPhase.failed;
       _error = 'Password reset failed: $e';
@@ -325,70 +343,90 @@ class AuthController extends ChangeNotifier {
       case 'totp.rateLimited':
         return 'Too many attempts, please try again later';
       default:
-        // 未知业务错误:与 _mapAuthError 一致的策略——认证页尚无
+        // 未知业务错误:与 _resolveAuthError 一致的策略——认证页尚无
         // server.* l10n 表,返回面向用户的操作级 fallback,不泄露
         // messageKey(如 `server.auth.login.failed`)字面量。
         return 'Two-factor verification failed, please try again';
     }
   }
 
-  String _mapAuthError(ApiException e, {required String fallback}) {
-    // 用后端原始 messageCode 匹配(见 message_code.go),而非带
-    // `server.` 前缀的 messageKey；认证页尚无 server.* l10n 表，
-    // 所以未知错误也返回面向用户的操作级 fallback，不泄露 raw key。
+  /// 纯函数:只做 messageCode → (phase, message) 解析,不迁移状态,
+  /// phase 由调用点显式赋值,与 [_mapTotpError] 一致;单一 switch,
+  /// 避免文案表与 phase 表漂移。
+  ///
+  /// 按后端原始 messageCode 匹配(见 message_code.go),不用 `server.`
+  /// 前缀的 messageKey;认证页尚无 server.* l10n 表,未知错误返回
+  /// 面向用户的操作级 fallback,不泄露 raw key。
+  ({LoginPhase phase, String message}) _resolveAuthError(
+    ApiException e, {
+    required String fallback,
+  }) {
     switch (e.messageCode) {
       case 'common.captchaRequired':
-        _phase = LoginPhase.needsCaptcha;
-        return 'Captcha required';
+        return (phase: LoginPhase.needsCaptcha, message: 'Captcha required');
       case 'auth.captcha.invalid':
-        _phase = LoginPhase.needsCaptcha;
-        return 'Invalid or expired captcha';
+        return (
+          phase: LoginPhase.needsCaptcha,
+          message: 'Invalid or expired captcha',
+        );
       case 'auth.login.invalidRequest':
-        _phase = LoginPhase.failed;
-        return 'Invalid login request, please retry';
+        return (
+          phase: LoginPhase.failed,
+          message: 'Invalid login request, please retry',
+        );
       case 'auth.password.invalidFormat':
       case 'auth.credentials.invalid':
-        _phase = LoginPhase.failed;
-        return 'Invalid username or password';
+        return (
+          phase: LoginPhase.failed,
+          message: 'Invalid username or password',
+        );
       case 'auth.account.frozen':
-        _phase = LoginPhase.failed;
-        return 'Account is frozen';
+        return (phase: LoginPhase.failed, message: 'Account is frozen');
       case 'auth.email.unverified':
-        _phase = LoginPhase.failed;
-        return 'Please verify your email before signing in';
+        return (
+          phase: LoginPhase.failed,
+          message: 'Please verify your email before signing in',
+        );
       case 'auth.signupDisabled':
-        _phase = LoginPhase.failed;
-        return 'Registration is currently disabled';
+        return (
+          phase: LoginPhase.failed,
+          message: 'Registration is currently disabled',
+        );
       case 'auth.username.invalid':
-        _phase = LoginPhase.failed;
-        return 'Username format is invalid';
+        return (
+          phase: LoginPhase.failed,
+          message: 'Username format is invalid',
+        );
       case 'auth.username.exists':
-        _phase = LoginPhase.failed;
-        return 'Username is already in use';
+        return (
+          phase: LoginPhase.failed,
+          message: 'Username is already in use',
+        );
       case 'auth.email.exists':
-        _phase = LoginPhase.failed;
-        return 'Email is already in use';
+        return (phase: LoginPhase.failed, message: 'Email is already in use');
       case 'auth.emailDomain.invalid':
-        _phase = LoginPhase.failed;
-        return 'Email address is invalid';
+        return (phase: LoginPhase.failed, message: 'Email address is invalid');
       case 'auth.emailDomain.notAllowed':
-        _phase = LoginPhase.failed;
-        return 'This email domain is not allowed';
+        return (
+          phase: LoginPhase.failed,
+          message: 'This email domain is not allowed',
+        );
       case 'auth.password.tooShort':
-        _phase = LoginPhase.failed;
-        return 'Password is too short';
+        return (phase: LoginPhase.failed, message: 'Password is too short');
       case 'auth.password.tooLong':
-        _phase = LoginPhase.failed;
-        return 'Password is too long';
+        return (phase: LoginPhase.failed, message: 'Password is too long');
       case 'auth.password.needsLetterNumber':
-        _phase = LoginPhase.failed;
-        return 'Password must contain both letters and numbers';
+        return (
+          phase: LoginPhase.failed,
+          message: 'Password must contain both letters and numbers',
+        );
       case 'auth.passwordReset.mailFailed':
-        _phase = LoginPhase.failed;
-        return 'Unable to send the password reset email';
+        return (
+          phase: LoginPhase.failed,
+          message: 'Unable to send the password reset email',
+        );
       default:
-        _phase = LoginPhase.failed;
-        return fallback;
+        return (phase: LoginPhase.failed, message: fallback);
     }
   }
 }
