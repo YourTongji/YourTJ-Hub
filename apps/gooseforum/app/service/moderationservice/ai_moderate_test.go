@@ -410,7 +410,13 @@ func TestAIModerationShadowModeNeverAffectsPublishing(t *testing.T) {
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
-	RecordAIHumanOutcome(moderationDecision.SubjectTopic, 4242, false, 1)
+	// 决策之后正文又被编辑（例如编辑因敏感词转审、未再跑 AI）：人工结论不得回写到旧决策。
+	RecordAIHumanOutcome(moderationDecision.SubjectTopic, 4242, time.Now().Add(time.Second), false, 1)
+	if stored := moderationDecision.LatestForSubjects(moderationDecision.SubjectTopic, []uint64{4242})[4242]; stored.HumanAction != "" {
+		t.Fatalf("stale decision was labeled %q", stored.HumanAction)
+	}
+	stored := moderationDecision.LatestForSubjects(moderationDecision.SubjectTopic, []uint64{4242})[4242]
+	RecordAIHumanOutcome(moderationDecision.SubjectTopic, 4242, stored.CreatedAt.Add(-time.Second), false, 1)
 	if stored := moderationDecision.LatestForSubjects(moderationDecision.SubjectTopic, []uint64{4242})[4242]; stored.HumanAction != moderationDecision.HumanRejected {
 		t.Fatalf("human outcome = %q", stored.HumanAction)
 	}

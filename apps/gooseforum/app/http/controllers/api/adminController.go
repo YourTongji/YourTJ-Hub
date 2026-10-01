@@ -2383,13 +2383,13 @@ func ReviewAction(req component.BetterRequest[ReviewActionReq]) component.Respon
 			// 待审期间登记为 PENDING 的图片随内容一起公开（issue #975）。
 			fileusageservice.PromotePendingTopicFiles(topic.Id, topic.FirstPostId)
 		}
-		moderationservice.RecordAIHumanOutcome(moderationDecision.SubjectTopic, topic.Id, req.Params.Approve, req.UserId)
-		notifyReviewResult(topic.UserId, req.Params.Approve, topic.Id, reviewSubjectTitle(topic.Title, topic.Excerpt), 0, 0)
-		hotdataserve.InvalidateTopicListCacheForCategories(topic.CategoryIds...)
 		// 审核后无条件重建搜索索引（issue #132）：拒绝（ProcessStatus→blocked）
 		// 时 BuildSingleTopicSearchDocument 会把文档从索引删除，避免被拒话题
 		// 残留在公共搜索；批准时 upsert 恢复（下方事件也会重建，幂等）。
 		firstPost := posts.Get(topic.FirstPostId)
+		moderationservice.RecordAIHumanOutcome(moderationDecision.SubjectTopic, topic.Id, postContentWrittenAt(firstPost), req.Params.Approve, req.UserId)
+		notifyReviewResult(topic.UserId, req.Params.Approve, topic.Id, reviewSubjectTitle(topic.Title, topic.Excerpt), 0, 0)
+		hotdataserve.InvalidateTopicListCacheForCategories(topic.CategoryIds...)
 		// 批准后补发事件：新建主题发完整发布事件（搜索索引/统计/积分/活动/通知），
 		// 编辑主题仅重建索引与通知，避免重复积分。
 		if req.Params.Approve && topic.Status == 1 {
@@ -2428,7 +2428,7 @@ func ReviewAction(req component.BetterRequest[ReviewActionReq]) component.Respon
 		if req.Params.Approve {
 			fileusageservice.PromotePendingPostFiles(post.Id)
 		}
-		moderationservice.RecordAIHumanOutcome(moderationDecision.SubjectPost, post.Id, req.Params.Approve, req.UserId)
+		moderationservice.RecordAIHumanOutcome(moderationDecision.SubjectPost, post.Id, postContentWrittenAt(post), req.Params.Approve, req.UserId)
 		notifyReviewResult(post.UserId, req.Params.Approve, topicEntity.Id, reviewSubjectTitle(topicEntity.Title, ""), post.Id, post.PostNo)
 		hotdataserve.InvalidateTopicListCacheForCategories(topicEntity.CategoryIds...)
 		// 批准后补发事件：仅对新建待审回复补发（编辑场景创建时已发布过事件）。

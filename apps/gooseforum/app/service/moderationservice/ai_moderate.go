@@ -501,9 +501,18 @@ func signalsFromJev(opts pageConfig.AiModerationOptions, response jevResponse) (
 
 // RecordAIHumanOutcome 把人工审核结论回写到该主体最近一次 AI 决策（若有），
 // 形成离线阈值回放与误杀/漏检评估的标注样本；不触发任何在线自学习。
-func RecordAIHumanOutcome(subjectType string, subjectID uint64, approved bool, actorID uint64) {
+// contentAt 为主体当前正文的最后写入时间（首楼/回复的 last_edited_at，未编辑
+// 过取 created_at）。决策总在正文提交后落库，早于 contentAt 说明它评估的是
+// 旧版本（例如之后的编辑因敏感词转审而跳过了 AI），此时不回写，避免把对新
+// 版本的人工结论记到旧版本的模型信号上、污染回放样本。
+func RecordAIHumanOutcome(subjectType string, subjectID uint64, contentAt time.Time, approved bool, actorID uint64) {
 	latest, ok := moderationDecision.LatestForSubjects(subjectType, []uint64{subjectID})[subjectID]
 	if !ok {
+		return
+	}
+	if latest.CreatedAt.Before(contentAt) {
+		slog.Info("ai moderation human outcome skipped: decision predates current content",
+			"decisionId", latest.Id, "subjectType", subjectType, "subjectId", subjectID)
 		return
 	}
 	action := moderationDecision.HumanRejected

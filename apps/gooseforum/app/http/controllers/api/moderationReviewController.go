@@ -1,6 +1,8 @@
 package api
 
 import (
+	"time"
+
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
@@ -54,4 +56,13 @@ func canReviewTarget(userID uint64, kind string, id uint64) bool {
 	}
 	topic := topics.GetSimple(topicID)
 	return topic.Id != 0 && moderationservice.CanModerateAnyCategory(userID, topic.CategoryIds)
+}
+
+// postContentWrittenAt 帖子当前正文的最后写入时间：编辑过取 last_edited_at，
+// 否则取 created_at（AI 决策回写人工结论时据此排除旧版本决策）。
+func postContentWrittenAt(post posts.Entity) time.Time {
+	if post.LastEditedAt != nil {
+		return *post.LastEditedAt
+	}
+	return post.CreatedAt
 }

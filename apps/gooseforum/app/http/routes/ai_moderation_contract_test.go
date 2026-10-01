@@ -326,6 +326,48 @@ func TestAIModerationAllowAndEditPaths(t *testing.T) {
 	}
 }
 
+// 人工结论只回写到评估过当前正文的 AI 决策：AI 放行后作者再编辑、编辑因
+// 敏感词转审（跳过 AI），版主拒绝的是新版本，不能记到旧版本的放行决策上。
+func TestAIModerationHumanOutcomeSkipsStaleDecision(t *testing.T) {
+	conn, router, _ := setupAIModerationContractTest(t, nil)
+	security := hotdataserve.GetSecuritySettingsConfigCache()
+	security.SensitiveWords = []string{"违禁词九七五"}
+	security.SensitiveAction = "review"
+	persistHTTPContractConfig(t, conn, pageConfig.SecuritySettings, security)
+	hotdataserve.ClearSecuritySettingsConfigCache()
+	author := createHTTPContractUser(t, conn, contractTestID())
+	token := contractSessionToken(t, author)
+	url, _ := saveContractImage(t, author.Id)
+	envelope := decodeContractEnvelope(t, serveJSON(router, "/api/forum/topics/write", writeTopicBody("AI stale label", "今天拍到的校园一角 ![]("+url+")"), token))
+	var topicID uint64
+	if err := json.Unmarshal(envelope.Result, &topicID); err != nil || envelope.Code != 0 || envelope.MessageCode != "" {
+		t.Fatalf("allowed publish envelope = %+v", envelope)
+	}
+	before := moderationDecision.LatestForSubjects(moderationDecision.SubjectTopic, []uint64{topicID})[topicID]
+	if before.Id == 0 || before.FinalAction != moderationDecision.ActionAllow {
+		t.Fatalf("initial decision = %+v", before)
+	}
+
+	topic := topics.Get(topicID)
+	body, _ := json.Marshal(map[string]any{"postId": topic.FirstPostId, "content": "编辑后加入了违禁词九七五 ![](" + url + ")"})
+	if edit := decodeContractEnvelope(t, serveJSON(router, "/api/forum/posts/update", string(body), token)); edit.Code != 0 || edit.MessageCode != "content.moderation.pendingReview" {
+		t.Fatalf("sensitive edit envelope = %+v", edit)
+	}
+	if topics.Get(topicID).ProcessStatus != topics.ProcessStatusPending {
+		t.Fatal("sensitive edit must send the topic to review")
+	}
+
+	manager := createContractSiteManager(t, conn)
+	action := serveAuthSecurityJSON(router, http.MethodPost, "/api/admin/review-action", fmt.Sprintf(`{"kind":"topic","id":%d,"approve":false}`, topicID), contractSessionToken(t, manager))
+	if decodeContractEnvelope(t, action).Code != 0 {
+		t.Fatalf("reject failed: %s", action.Body.String())
+	}
+	after := moderationDecision.LatestForSubjects(moderationDecision.SubjectTopic, []uint64{topicID})[topicID]
+	if after.Id != before.Id || after.HumanAction != "" {
+		t.Fatalf("stale decision labeled: %+v", after)
+	}
+}
+
 // 回归：现有敏感词转审路径同样不得让待审内容的图片提前公开（issue #975 收口）。
 func TestSensitiveReviewRegistersPendingImages(t *testing.T) {
 	conn, router, _ := setupAIModerationContractTest(t, func(o *pageConfig.AiModerationOptions) { o.Enabled = false })
