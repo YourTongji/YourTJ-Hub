@@ -23,7 +23,13 @@ class ShareImageTheme {
   /// Pastels are mobile-only GF-token variations; no Web theme parity is implied.
   /// This is called once per sheet so labels follow the active locale.
   static List<ShareImageTheme> all(AppLocalizations l10n) => [
-    ShareImageTheme('paper', l10n.shareImageThemePaper, GfColors.light),
+    // 纸白的标志色取石板灰（像牛皮纸胶带），与晴蓝的蓝色分得开。
+    ShareImageTheme(
+      'paper',
+      l10n.shareImageThemePaper,
+      GfColors.light,
+      accentColor: GfColors.light.iconMuted,
+    ),
     ShareImageTheme(
       'sand',
       l10n.shareImageThemeSand,

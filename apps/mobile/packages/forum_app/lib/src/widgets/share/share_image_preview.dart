@@ -623,7 +623,12 @@ class _ThemeSwatch extends StatelessWidget {
                   child: DecoratedBox(
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      border: Border.all(color: colors.line),
+                      // 深色色卡的暗半与弹层同色，描边提亮到可辨。
+                      border: Border.all(
+                        color: theme.brightness == Brightness.dark
+                            ? theme.colors.baseContent.withValues(alpha: .3)
+                            : colors.line,
+                      ),
                       gradient: LinearGradient(
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,

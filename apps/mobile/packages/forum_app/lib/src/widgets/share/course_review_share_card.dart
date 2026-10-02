@@ -113,37 +113,38 @@ class CourseReviewShareCard extends StatelessWidget {
           ),
         ),
         Positioned(
-          left: -16,
-          bottom: -14,
+          left: -20,
+          bottom: -16,
           child: _decor(
-            const Size(44, 44),
-            _RingPainter(accent.withValues(alpha: 0.35)),
+            const Size(52, 52),
+            _RingPainter(accent.withValues(alpha: 0.30)),
           ),
         ),
         card,
         // 卡片前方：左上角斜贴的纸胶带，右上角两颗四角闪光。
         Positioned(
           top: -10,
-          left: 26,
+          left: 18,
           child: Transform.rotate(
-            angle: -0.07,
+            angle: -0.12,
             child: _decor(
-              const Size(64, 20),
-              _TapePainter(accent.withValues(alpha: 0.28)),
+              const Size(72, 22),
+              // 深色底上低透明度会像污渍，提高一档。
+              _TapePainter(accent.withValues(alpha: dark ? 0.36 : 0.28)),
             ),
           ),
         ),
         Positioned(
-          top: -20,
-          right: 34,
-          child: _decor(const Size(16, 16), _SparklePainter(colors.warning)),
+          top: -18,
+          right: 28,
+          child: _decor(const Size(13, 13), _SparklePainter(colors.warning)),
         ),
         Positioned(
-          top: -9,
-          right: 22,
+          top: -8,
+          right: 18,
           child: _decor(
-            const Size(9, 9),
-            _SparklePainter(colors.warning.withValues(alpha: 0.7)),
+            const Size(7, 7),
+            _SparklePainter(colors.warning.withValues(alpha: 0.55)),
           ),
         ),
       ],
@@ -500,11 +501,11 @@ class _RingPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     canvas.drawCircle(
       size.center(Offset.zero),
-      size.shortestSide / 2 - 1.5,
+      size.shortestSide / 2 - 1,
       Paint()
         ..color = color
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 2,
+        ..strokeWidth = 1.5,
     );
   }
 

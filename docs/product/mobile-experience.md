@@ -847,7 +847,8 @@ identity survive this layout change. The header keeps a small outer margin for i
   there are no gradients, glows or colour bars. Unlit stars are outlined so all five slots stay
   visible; dark palettes use a black shadow and a lighter stat-bar fill. Body images use the reading
   card's centred, bordered shell. The theme picker shows each palette as a 32dp swatch split
-  diagonally into the card colour and the palette accent (pastel surfaces alone are almost white),
+  diagonally into the card colour and the palette accent (pastel surfaces alone are almost white;
+  Paper uses a slate accent so it stays distinct from Blue),
   with a primary ring and label emphasis on the selected one. Secondary text and the stat bar are contrast-checked across all
   five palettes; the preview is the exact exported card.
 - `Partial`: automated tests cover PNG capture and tiled stitching; native save/share behavior and
