@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_quill/flutter_quill.dart';
+import 'package:flutter_quill/quill_delta.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:core/core.dart';
 import 'package:ui_kit/ui_kit.dart';
@@ -829,17 +830,48 @@ class CourseReviewFormSheetState extends ConsumerState<CourseReviewFormSheet> {
     // 原地替换：controller 实例、撤销栈、焦点与正文滚动位置都保持不变。
     // 传 Delta 而不是 Document：flutter_quill 11.5.1 的
     // `replaceText`/`Document.replace` 断言只接受 String/Embeddable/Delta。
-    // 替换整篇（`document.length`）与旧的 `mdToDocument(content)` 结果完全一致；
-    // 用 `length - 1` 会留下一个多余的空段落。`_content` 由 `_editorChanged`
-    // 监听文档变化回填，不再手动赋值。
-    final Document document = _converter.mdToDocument(selected.content);
+    // 替换整篇（`document.length`）；用 `length - 1` 会留下一个多余的空段落。
+    // `_content` 由 `_editorChanged` 监听文档变化回填，不再手动赋值。
+    final Document document = Document.fromDelta(
+      _templateDelta(selected.content),
+    );
     _editorController.replaceText(
       0,
       _editorController.document.length,
       document.toDelta(),
-      TextSelection.collapsed(offset: _templateCaretOffset(document)),
+      null,
     );
+    // 传给 `replaceText` 的选区会按这次改动再平移一遍（落到文末），这里单独设置。
+    _editorController.updateSelection(
+      TextSelection.collapsed(offset: _templateCaretOffset(document)),
+      ChangeSource.local,
+    );
+    // 光标贴在加粗标签之后时，续写的正文不继承粗体。
+    _editorController.formatSelection(Attribute.clone(Attribute.bold, null));
     _editorFocusNode.requestFocus();
+  }
+
+  /// 模板 Markdown 与 Web 同源（Web 的 Vditor 按源码插入），富文本这边逐行转换。
+  ///
+  /// 「快速评价」用单独一行的 `-` 留出待填的列表项：整篇解析时它会把上一行
+  /// 吞成 setext 标题，dart markdown 还会连带丢掉那一行（「优点/缺点」消失），
+  /// 空列表项本身也会被转换器丢弃。所以逐行转换，并把 `-` 直接落成空的无序列表行。
+  /// 模板每行都是独立块，空行本就不产出段落，标题模板的结果与整篇转换一致。
+  Delta _templateDelta(String markdown) {
+    final Delta delta = Delta();
+    for (final String line in markdown.split('\n')) {
+      final String trimmed = line.trim();
+      if (trimmed.isEmpty) continue;
+      if (trimmed == '-') {
+        delta.insert('\n', Attribute.ul.toJson());
+        continue;
+      }
+      for (final Operation op in _converter.mdToDelta(line).toList()) {
+        delta.push(op);
+      }
+    }
+    if (delta.isEmpty) delta.insert('\n');
+    return delta;
   }
 
   /// 模板插入后的光标位置。
@@ -847,20 +879,20 @@ class CourseReviewFormSheetState extends ConsumerState<CourseReviewFormSheet> {
   /// 模板首行是标题时落在标题之后的第一个可填写行；转换器会把 Markdown 的空行
   /// 收进块级间距（`MarkdownToDelta` 不为空行产出独立段落，publish 编辑器同理），
   /// 所以「模板全是标题」时退化为首行标题末尾——用户从这里回车即可开始写正文。
-  /// 首行不是标题时落在文档开头。
+  /// 首行是「**总体评价：**」这类标签时落在标签之后，直接续写。
+  /// 列表行在根节点里被分组成 Block，同样视作正文行。
   int _templateCaretOffset(Document document) {
-    final List<Line> lines = <Line>[
-      for (final Node node in document.root.children) node as Line,
-    ];
-    if (lines.isEmpty || !lines.first.style.containsKey(Attribute.header.key)) {
-      return 0;
-    }
+    final Node? first = document.root.children.firstOrNull;
+    if (first is! Line) return 0;
+    if (!first.style.containsKey(Attribute.header.key)) return first.length - 1;
     int offset = 0;
-    for (final Line line in lines) {
-      if (!line.style.containsKey(Attribute.header.key)) return offset;
-      offset += line.length;
+    for (final Node node in document.root.children) {
+      if (node is! Line || !node.style.containsKey(Attribute.header.key)) {
+        return offset;
+      }
+      offset += node.length;
     }
-    return document.length - 1;
+    return first.length - 1;
   }
 
   String _templateIcon(String id) => switch (id) {

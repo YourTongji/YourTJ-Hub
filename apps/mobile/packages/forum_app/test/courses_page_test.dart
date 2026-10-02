@@ -2151,6 +2151,61 @@ void main() {
       },
     );
 
+    // 「快速评价」含空列表项（`-`），转换后根节点里会出现 Block 而非 Line。
+    testWidgets('list template applies without assuming every node is a line', (
+      tester,
+    ) async {
+      final course = FakeCourseRepository(
+        _client(),
+        detailPayload: _detailPayload(),
+      );
+      await pumpDetail(tester, course);
+      await tester.tap(find.text('写课评'));
+      await tester.pumpAndSettle();
+      final l10n = AppLocalizations.of(
+        tester.element(find.byType(CourseReviewFormSheet)),
+      );
+
+      await tester.tap(find.byKey(const Key('course-review-templates')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(l10n.courseReviewTemplateQuickName));
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      final controller = tester
+          .widget<QuillEditor>(find.byType(QuillEditor))
+          .controller;
+      final document = controller.document;
+      expect(
+        document.toPlainText(),
+        allOf(contains('总体评价'), contains('优点'), contains('缺点'), contains('建议')),
+      );
+      // 每个 `-` 落成一条空的无序列表行，供用户接着填写。
+      final bullets = document.root.children
+          .whereType<Block>()
+          .expand((block) => block.children)
+          .whereType<Line>()
+          .where((line) => line.style.attributes['list'] == Attribute.ul)
+          .toList();
+      expect(bullets, hasLength(2));
+      // 光标落在首行标签「总体评价：」之后，续写的文字不继承粗体。
+      expect(controller.selection.baseOffset, '总体评价：'.length);
+      controller.replaceText(
+        controller.selection.baseOffset,
+        0,
+        '好课',
+        const TextSelection.collapsed(offset: 7),
+      );
+      await tester.pump();
+      expect(document.toPlainText(), startsWith('总体评价：好课\n'));
+      final firstOps = document.toDelta().toList();
+      expect(firstOps[0].data, '总体评价：');
+      expect(firstOps[0].attributes, {'bold': true});
+      expect(firstOps[1].data, startsWith('好课'));
+      expect(firstOps[1].attributes?['bold'], isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+
     testWidgets('populated review template asks before replacing content', (
       tester,
     ) async {
@@ -2244,8 +2299,8 @@ void main() {
       expect(after.focusNode.hasFocus, isTrue);
       expect(after.controller.document.toPlainText(), contains('课程内容'));
       expect(after.controller.document.toPlainText(), isNot(contains('原文')));
-      // 光标落在首行标题之后。
-      expect(after.controller.selection.baseOffset, greaterThanOrEqualTo(4));
+      // 全是标题的模板：光标落在首行标题「课程内容」末尾。
+      expect(after.controller.selection.baseOffset, 4);
 
       // 撤销回到插入前的内容。
       after.controller.undo();

@@ -1341,8 +1341,9 @@ a hidden horizontal scroll while the panel has room, and falls back to one scrol
 anonymous switch first — only when the keyboard plus a large text scale squeeze the panel below 300
 pixels. The sheet keeps the panel above the keyboard at every supported
 text scale. Applying a template inserts into the existing controller in place — focus, selection and
-undo history survive, the caret lands after a leading heading, and a non-empty body still asks before
-being replaced. Cached AI summaries start collapsed, with refresh available inside the expanded section.
+undo history survive, the caret lands after a leading heading or label (typed text does not inherit the label's bold), and a non-empty body still asks before
+being replaced. Templates convert line by line so the Quick template's bare `-` placeholders become
+empty bullet items instead of swallowing the Pros/Cons labels above them. Cached AI summaries start collapsed, with refresh available inside the expanded section.
 Settings show current device preferences, readable device/browser session names and platform-specific
 push disclosure; account closure remains inside account settings rather than the main index.
 
