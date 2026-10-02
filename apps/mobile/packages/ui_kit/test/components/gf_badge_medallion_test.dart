@@ -8,6 +8,29 @@ import '../helpers.dart';
 
 void main() {
   for (final brightness in Brightness.values) {
+    testWidgets(
+      'default medallion size is shared by achievement cards in $brightness',
+      (tester) async {
+        await tester.pumpWidget(
+          gfApp(
+            GfAchievementCard(
+              title: 'First post',
+              description: '',
+              icon: const GfSymbol('award', size: 32),
+              color: const Color(0xFF2563EB),
+            ),
+            brightness: brightness,
+          ),
+        );
+        expect(GfBadgeMedallion.defaultSize, 56);
+        expect(GfAchievementCard.medallionSize, GfBadgeMedallion.defaultSize);
+        expect(
+          tester.getSize(find.byType(GfBadgeMedallion)),
+          Size.square(GfAchievementCard.medallionSize),
+        );
+      },
+    );
+
     testWidgets('medallion keeps its layered circular size in $brightness', (
       tester,
     ) async {

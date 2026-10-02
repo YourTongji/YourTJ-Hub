@@ -29,15 +29,22 @@ void main() {
   // matches web isSystemBadgeArtwork: only relative /static/badges/ URLs
   // count, and an empty URL falls back to the built-in contributor artwork.
   test('built-in badge artwork fills the medallion centre box', () {
-    for (final url in [
-      '/static/badges/robot.svg?v=2',
-      '/static/badges/robot.svg',
-      '',
+    for (final size in [
+      GfUserCard.badgeMedallionSize,
+      GfAchievementCard.medallionSize,
+      40.0,
+      80.0,
     ]) {
-      expect(
-        UserBadgeArtwork.medallion(badge(url), 80).size,
-        GfBadgeMedallion.artworkSize(80),
-      );
+      for (final url in [
+        '/static/badges/robot.svg?v=2',
+        '/static/badges/robot.svg',
+        '',
+      ]) {
+        expect(
+          UserBadgeArtwork.medallion(badge(url), size).size,
+          GfBadgeMedallion.artworkSize(size),
+        );
+      }
     }
   });
 
@@ -48,7 +55,9 @@ void main() {
       'https://thesvg.org/icons/deepseek/default.svg',
       '/file/img/2026/10/badge.png',
     ]) {
-      expect(UserBadgeArtwork.medallion(badge(url), 80).size, 80 * .60);
+      for (final size in [40.0, 80.0]) {
+        expect(UserBadgeArtwork.medallion(badge(url), size).size, size * .60);
+      }
     }
   });
 }

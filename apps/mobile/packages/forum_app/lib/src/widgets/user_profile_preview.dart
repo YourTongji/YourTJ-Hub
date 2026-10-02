@@ -813,7 +813,10 @@ class _UserProfilePreviewState extends ConsumerState<UserProfilePreview> {
           return GfUserBadge(
             label: badge.name,
             color: userBadgeColor(badge),
-            icon: UserBadgeArtwork.medallion(badge, 34),
+            icon: UserBadgeArtwork.medallion(
+              badge,
+              GfUserCard.badgeMedallionSize,
+            ),
             description: badge.description,
             onTap: () => showUserBadgeDetails(context, badge),
           );
