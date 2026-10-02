@@ -12,7 +12,7 @@ test('HTTP changes also verify the controlled API contract', () => {
   assert.deepEqual(selectedScopes(['apps/gooseforum/app/http/controllers/api/post.go']), ['governance', 'backend', 'contract']);
 });
 test('web and shared contract changes include their consumers', () => {
-  assert.deepEqual(selectedScopes(['packages/api-contract/openapi.yaml']), ['governance', 'frontend', 'contract', 'mobile']);
+  assert.deepEqual(selectedScopes(['packages/api-contract/openapi.yaml']), ['governance', 'backend', 'frontend', 'contract', 'mobile']);
 });
 test('unknown executable surfaces fail closed by checking every application domain', () => {
   assert.deepEqual(selectedScopes(['scripts/new-build.sh']), ['governance', 'backend', 'postgres', 'frontend', 'contract', 'mobile']);

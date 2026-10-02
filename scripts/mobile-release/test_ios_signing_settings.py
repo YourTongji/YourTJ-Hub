@@ -7,7 +7,7 @@ import sys
 import unittest
 
 
-APP = Path.cwd() / 'apps/mobile/packages/forum_app'
+APP = Path(os.environ.get('RELEASE_SOURCE_ROOT', Path.cwd())) / 'apps/mobile/packages/forum_app'
 
 
 @unittest.skipUnless(sys.platform == 'darwin' and os.environ.get('IOS_EXISTING_BUILD_ONLY') != 'true',

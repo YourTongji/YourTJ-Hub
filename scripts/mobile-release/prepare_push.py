@@ -9,7 +9,7 @@ import os
 import re
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(os.environ.get("RELEASE_SOURCE_ROOT", Path(__file__).resolve().parents[2]))
 VENDORS = {
     'xiaomi': ['XIAOMI_APPID', 'XIAOMI_APPKEY'],
     'oppo': ['OPPO_APPID', 'OPPO_APPKEY', 'OPPO_APPSECRET'],
