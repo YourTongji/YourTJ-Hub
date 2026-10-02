@@ -1271,6 +1271,22 @@ class WindowTopicRepository extends TopicRepository {
     int? afterPostNo,
     int? limit,
   }) async {
+    if (beforePostNo != null && beforePostNo > 1 << 62) {
+      beforeCursors.add(beforePostNo);
+      return PostWindowPayload(
+        posts: <PostPayload>[
+          makePostPayload(9002, 2, '独立回复'),
+          makePostPayload(9003, 3, '嵌套回复'),
+        ],
+        replyTargets: const <ReplyTargetPayload>[],
+        beforePostNo: 2,
+        afterPostNo: 3,
+        hasBefore: false,
+        hasAfter: false,
+        total: 5,
+        maxPostNo: 5,
+      );
+    }
     if (beforePostNo != null) {
       beforeCursors.add(beforePostNo);
       return PostWindowPayload(
@@ -3451,7 +3467,7 @@ void main() {
       },
     );
 
-    testWidgets('倒序胶囊本地翻转楼层顺序且不重新请求', (tester) async {
+    testWidgets('倒序胶囊读取尾窗并按楼层倒序', (tester) async {
       tester.view.physicalSize = const Size(1080, 2400);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
@@ -3465,7 +3481,11 @@ void main() {
         client,
         topicPayload: topicDetailPayloadJson(),
       );
-      final ProviderContainer container = await makeContainer(pageRepo: repo);
+      final WindowTopicRepository windowRepo = WindowTopicRepository(client);
+      final ProviderContainer container = await makeContainer(
+        pageRepo: repo,
+        topicRepo: windowRepo,
+      );
       await tester.pumpWidget(app(container, const TopicPage(topicId: 100)));
       await tester.pumpAndSettle();
 
@@ -3479,12 +3499,13 @@ void main() {
       await tester.tap(find.text('倒序'));
       await tester.pumpAndSettle();
 
-      // 倒序:三楼翻到二楼之上,且没有发起新的 page 请求。
+      // 倒序:三楼位于二楼之上,并请求了尾窗。
       expect(
         tester.getTopLeft(find.text('嵌套回复')).dy,
         lessThan(tester.getTopLeft(find.text('独立回复')).dy),
       );
       expect(repo.paths.length, fetchesBefore);
+      expect(windowRepo.beforeCursors.last, 0x7fffffffffffffff);
 
       await tester.tap(find.text('正序'));
       await tester.pumpAndSettle();

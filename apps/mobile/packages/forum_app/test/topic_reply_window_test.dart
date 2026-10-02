@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:core/core.dart';
@@ -110,6 +111,9 @@ class TopicWindowServer extends TopicRepository {
   /// before 窗口是否包含游标楼层本身(真实服务端严格早于游标,这里用于
   /// 构造重叠窗口,验证客户端仍按 id 去重)。
   bool overlapBeforeCursor = false;
+  bool delayNextTail = false;
+  Completer<PostWindowPayload>? delayedTail;
+  int failTailRequests = 0;
   final List<String> calls = <String>[];
 
   PostWindowPayload _payload(
@@ -145,10 +149,22 @@ class TopicWindowServer extends TopicRepository {
     int? limit,
   }) async {
     calls.add(
-      'anchor=${anchorPostId ?? 0} before=${beforePostNo ?? 0} '
+      'anchor=${anchorPostId ?? 0}${anchorPostNo == null ? '' : ' anchorNo=$anchorPostNo'} '
+      'before=${beforePostNo ?? 0} '
       'after=${afterPostNo ?? 0} limit=${limit ?? 0}',
     );
     final int size = limit ?? 20;
+    if (beforePostNo != null && beforePostNo > 1 << 62) {
+      if (failTailRequests > 0) {
+        failTailRequests--;
+        throw StateError('temporary window failure');
+      }
+      if (delayNextTail) {
+        delayNextTail = false;
+        delayedTail = Completer<PostWindowPayload>();
+        return delayedTail!.future;
+      }
+    }
     if (anchorPostId != null) {
       final int index = posts.indexWhere((post) => post.id == anchorPostId);
       if (index < 0) {
@@ -385,6 +401,117 @@ void main() {
     expect(server.calls.last, 'anchor=0 before=8 after=0 limit=0');
     expect(find.text('7楼内容'), findsOneWidget);
     expect(find.text('8楼内容'), findsOneWidget);
+    await disposePage(tester);
+  });
+
+  testWidgets('深链中间楼层切换倒序时直接读取最新尾窗', (tester) async {
+    tester.view.physicalSize = const Size(1080, 2400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    final Map<String, dynamic> page = anchoredPageJson(
+      posts: <PostPayload>[
+        for (int floor = 8; floor <= 15; floor++) floorPost(floor),
+      ],
+      hasBefore: true,
+      hasAfter: true,
+    );
+    await pumpTopic(tester, page: page, floors: 40, postNo: 8);
+
+    await tester.tap(find.text('倒序'));
+    await tester.pumpAndSettle();
+
+    expect(server.calls.last, contains('before=9223372036854775807'));
+    expect(find.text('40楼内容'), findsOneWidget);
+    expect(find.text('15楼内容'), findsNothing);
+    await disposePage(tester);
+  });
+
+  testWidgets('普通首屏切换倒序时直接读取最新尾窗', (tester) async {
+    tester.view.physicalSize = const Size(1080, 2400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final Map<String, dynamic> page = anchoredPageJson(
+      posts: <PostPayload>[
+        for (int floor = 1; floor <= 20; floor++) floorPost(floor),
+      ],
+      hasBefore: false,
+      hasAfter: true,
+    );
+    await pumpTopic(tester, page: page, floors: 40);
+
+    await tester.tap(find.text('倒序'));
+    await tester.pumpAndSettle();
+
+    expect(server.calls.last, contains('before=9223372036854775807'));
+    expect(find.text('40楼内容'), findsOneWidget);
+    expect(find.text('20楼内容'), findsNothing);
+    await disposePage(tester);
+  });
+
+  testWidgets('倒序加载失败保留原窗口,切换后可重试', (tester) async {
+    tester.view.physicalSize = const Size(1080, 2400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final Map<String, dynamic> page = anchoredPageJson(
+      posts: <PostPayload>[
+        for (int floor = 8; floor <= 15; floor++) floorPost(floor),
+      ],
+      hasBefore: true,
+      hasAfter: false,
+    );
+    await pumpTopic(tester, page: page, floors: 40, postNo: 8);
+    server.failTailRequests = 1;
+
+    await tester.tap(find.text('倒序'));
+    await tester.pumpAndSettle();
+    expect(find.text('8楼内容'), findsOneWidget);
+    expect(find.text('40楼内容'), findsNothing);
+
+    await tester.tap(find.text('加载更新回复'));
+    await tester.pumpAndSettle();
+    expect(find.text('40楼内容'), findsOneWidget);
+    await disposePage(tester);
+  });
+
+  testWidgets('快速切换排序会丢弃过期的倒序窗口响应', (tester) async {
+    tester.view.physicalSize = const Size(1080, 2400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final Map<String, dynamic> page = anchoredPageJson(
+      posts: <PostPayload>[
+        for (int floor = 8; floor <= 15; floor++) floorPost(floor),
+      ],
+      hasBefore: true,
+      hasAfter: true,
+    );
+    await pumpTopic(tester, page: page, floors: 40, postNo: 8);
+    server.delayNextTail = true;
+
+    await tester.tap(find.text('倒序'));
+    await tester.pump();
+    expect(server.delayedTail, isNotNull);
+    await tester.tap(find.text('正序'));
+    await tester.pump();
+    await tester.tap(find.text('倒序'));
+    await tester.pumpAndSettle();
+    expect(find.text('40楼内容'), findsOneWidget);
+
+    server.delayedTail!.complete(
+      PostWindowPayload(
+        posts: <PostPayload>[floorPost(20)],
+        replyTargets: const <ReplyTargetPayload>[],
+        beforePostNo: 20,
+        afterPostNo: 20,
+        hasBefore: true,
+        hasAfter: false,
+        total: 40,
+        maxPostNo: 40,
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('40楼内容'), findsOneWidget);
+    expect(find.text('20楼内容'), findsNothing);
     await disposePage(tester);
   });
 

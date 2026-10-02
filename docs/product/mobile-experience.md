@@ -227,8 +227,10 @@ ordered after the active route in the accessibility tree so iOS does not hide it
   clearing them; the reply appears once approved. Deep-link windows — such as a notification
   pointing at one reply — keep both continuation controls on the anchored floors.
 - `Current`: replies offer a compact sort capsule beside the reply count — oldest first, newest
-  first, author only. Oldest and newest flip the loaded window locally without refetching; in
-  newest-first order the list footer loads earlier floors and the top control loads newer ones.
+  first, author only. Entering newest-first and refreshing its default window fetch one bounded tail
+  window through the existing post-window endpoint, so deep links and the first page jump directly
+  to the latest floor; the list footer loads earlier floors and the top control retries a failed
+  tail request or loads newer floors. Oldest-first keeps the loaded window locally.
   Author-only filters the loaded window to the topic author and automatically scans the remaining
   stream — later windows first, then earlier ones — for at most five windows per automatic scan.
   Loading more continues the search. While windows remain, an empty filtered view invites further
