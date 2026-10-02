@@ -6,16 +6,23 @@ import '../../theme/gf_theme.dart';
 /// inset keeps the supplied icon legible in either theme. Interaction and
 /// accessible naming belong to the enclosing badge control.
 class GfBadgeMedallion extends StatelessWidget {
+  static const double defaultSize = 56;
+
   const GfBadgeMedallion({
     super.key,
     required this.icon,
     required this.color,
-    this.size = 56,
+    this.size = defaultSize,
   }) : assert(size > 0 && size < double.infinity);
 
   final Widget icon;
   final Color color;
   final double size;
+
+  /// Edge of the centre box that holds the artwork. Server badge SVGs keep
+  /// their own optical margin (docs/decisions/0054), so artwork sized to fill
+  /// this box still sits well inside the enamel face.
+  static double artworkSize(double size) => size * .70;
 
   @override
   Widget build(BuildContext context) {
@@ -89,7 +96,7 @@ class GfBadgeMedallion extends StatelessWidget {
               child: IconTheme.merge(
                 data: IconThemeData(size: size * .5, color: color),
                 child: SizedBox.square(
-                  dimension: size * .60,
+                  dimension: artworkSize(size),
                   child: Center(child: icon),
                 ),
               ),

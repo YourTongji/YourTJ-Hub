@@ -51,7 +51,7 @@ jobs:
         with:
           client-id: ${{ vars.ORYN_APP_CLIENT_ID }}
           private-key: ${{ secrets.ORYN_APP_PRIVATE_KEY }}
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           name: plan
           path: .oryn-runtime/.artifacts/plan
@@ -83,6 +83,7 @@ jobs:
         run: |
           sudo mkdir -p /opt/oryn-validation /opt/oryn-tools
           sudo cp ../.github/oryn/validate.mjs /opt/oryn-validation/validate.mjs
+          sudo cp ../scripts/ci/select_inputs.py /opt/oryn-validation/select_inputs.py
           bun -e 'const j = await Bun.file(".artifacts/result/job.json").json(); await Bun.write("/tmp/oryn-base-sha", j.item.baseSha);'
           sudo cp /tmp/oryn-base-sha /opt/oryn-validation/base-sha
           sudo npm install --prefix /opt/oryn-tools --global pnpm@11.10.0
@@ -146,7 +147,7 @@ jobs:
         run: |
           echo "::error::The producing execution has no result artifact ID."
           exit 1
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           artifact-ids: ${{ needs.run.outputs.result-artifact }}
           merge-multiple: true

@@ -46,6 +46,7 @@ requirements and product semantics
 - [Testing strategy & commands](testing.md)
 - [Mobile performance](mobile-performance.md)
 - [Branches, commits & pull requests](pull-requests.md)
+- [Release workflow and agent entrypoints](../operations/releases.md)
 - [Project board workflow](project-board.md)
 - [Documentation governance](documentation.md)
 - [Contracts, data & derived projections](../architecture/contracts-and-data.md)

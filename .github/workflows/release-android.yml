@@ -1,0 +1,149 @@
+name: Release / Android publisher
+on:
+  workflow_call:
+    inputs:
+      candidate: {type: string, required: true}
+      source: {type: string, required: true}
+      tag: {type: string, required: true}
+      version: {type: string, required: true}
+      number: {type: string, required: true}
+      recover: {type: boolean, default: false}
+      alias_only: {type: boolean, default: false}
+permissions:
+  contents: write
+  deployments: write
+  actions: read
+  pull-requests: read
+  checks: read
+concurrency:
+  group: release-android
+  cancel-in-progress: false
+  queue: max
+jobs:
+  publish:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: mobile-release
+    env:
+      CANDIDATE: ${{ inputs.candidate }}
+      RELEASE_SOURCE_ROOT: ${{ github.workspace }}/.source
+      MOBILE_VERSION: ${{ inputs.version }}
+      MOBILE_BUILD_NUMBER: ${{ inputs.number }}
+      RELEASE_TAG: ${{ inputs.tag }}
+      ANDROID_NOTES_PATH: ${{ github.workspace }}/.release-approved/android.zh-CN.md
+      RELEASE_RESULT_PATH: ${{ github.workspace }}/.release-result.json
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Recheck human approval and load frozen notes
+        id: identity
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/release/workflow.py authorize
+      - name: Start or reconcile execution
+        id: start
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CHANNEL: android
+          RECOVER: ${{ inputs.recover }}
+        run: python3 scripts/release/workflow.py start
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ inputs.source }}
+          path: .source
+          persist-credentials: false
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6
+        if: ${{ !inputs.recover }}
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        if: ${{ !inputs.recover }}
+        with:
+          flutter-version: "3.44.9"
+          channel: stable
+          cache: true
+      - name: Prepare Android OEM push configuration
+        if: ${{ !inputs.recover }}
+        env:
+          ANDROID_PUSH_JSON: ${{ secrets.ANDROID_PUSH_JSON }}
+          HUAWEI_AGCONNECT_JSON: ${{ secrets.HUAWEI_AGCONNECT_JSON }}
+          FCM_GOOGLE_SERVICES_JSON: ${{ secrets.FCM_GOOGLE_SERVICES_JSON }}
+        run: python3 scripts/mobile-release/prepare_push.py
+      - name: Bootstrap
+        if: ${{ !inputs.recover }}
+        working-directory: .source/apps/mobile
+        run: dart pub get
+      - name: Install private Android signing inputs
+        if: ${{ !inputs.recover }}
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          python3 - <<'PY'
+          import os, base64
+          from pathlib import Path
+          os.umask(0o077)
+          values = {key: os.environ[key] for key in ['ANDROID_KEYSTORE_BASE64', 'ANDROID_KEYSTORE_PASSWORD', 'ANDROID_KEY_PASSWORD', 'ANDROID_KEY_ALIAS']}
+          if not all(values.values()): raise SystemExit('Missing Android release secrets')
+          key = Path(os.environ['RUNNER_TEMP']) / 'yourtj-release.jks'
+          key.write_bytes(base64.b64decode(values['ANDROID_KEYSTORE_BASE64'], validate=True))
+          def prop(value):
+              return value.replace('\\', '\\\\').replace('\n', '\\n').replace('\r', '\\r').replace('=', '\\=').replace(':', '\\:').replace(' ', '\\ ')
+          fields = {'storeFile': str(key), 'storePassword': values['ANDROID_KEYSTORE_PASSWORD'], 'keyPassword': values['ANDROID_KEY_PASSWORD'], 'keyAlias': values['ANDROID_KEY_ALIAS']}
+          Path('.source/apps/mobile/packages/forum_app/android/key.properties').write_text(''.join(k + '=' + prop(v) + '\n' for k, v in fields.items()))
+          PY
+      - name: Build signed APKs
+        if: ${{ !inputs.recover }}
+        working-directory: .source/apps/mobile/packages/forum_app
+        run: |
+          flutter build apk --release --split-per-abi \
+            --build-name="$MOBILE_VERSION" --build-number="$MOBILE_BUILD_NUMBER" \
+            --dart-define=YOURTJ_API_BASE_URL=https://f.yourtj.de \
+            --dart-define=YOURTJ_OIDC_ISSUER=https://f.yourtj.de/api/oauth \
+            --dart-define=YOURTJ_OIDC_CLIENT_ID=yourtj-mobile
+      - name: Preserve signed APKs for recovery
+        if: ${{ !inputs.recover }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: android-${{ inputs.version }}-${{ inputs.number }}
+          path: .source/apps/mobile/packages/forum_app/build/app/outputs/flutter-apk/*-release.apk
+          retention-days: 30
+          if-no-files-found: error
+      - name: Restore original signed APKs (never rebuild a recovery)
+        if: inputs.recover && !inputs.alias_only
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          name: android-${{ inputs.version }}-${{ inputs.number }}
+          run-id: ${{ steps.start.outputs.build_run_id }}
+          github-token: ${{ github.token }}
+          path: .source/apps/mobile/packages/forum_app/build/app/outputs/flutter-apk
+      - name: Verify and publish APK assets
+        if: ${{ !inputs.alias_only }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_NOTES_DIGESTS: ${{ steps.identity.outputs.notes_digests }}
+        run: |
+          python3 scripts/release/workflow.py verify-publication
+          python3 scripts/mobile-release/publish_android.py
+      - name: Refresh stable Android download links
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/mobile-release/publish_android_latest.py
+      - name: Remove private signing inputs
+        if: always()
+        run: |
+          rm -f "$RUNNER_TEMP/yourtj-release.jks" .source/apps/mobile/packages/forum_app/android/key.properties \
+            .source/apps/mobile/packages/forum_app/android/push.properties .source/apps/mobile/packages/forum_app/android/app/agconnect-services.json \
+            .source/apps/mobile/packages/forum_app/android/app/google-services.json
+      - name: Record Android result, including alias failures
+        if: always() && steps.start.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CHANNEL: android
+          RELEASE_STATE: ${{ job.status == 'success' && 'success' || 'failure' }}
+        run: python3 scripts/release/workflow.py receipt

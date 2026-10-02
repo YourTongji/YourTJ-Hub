@@ -227,8 +227,11 @@ ordered after the active route in the accessibility tree so iOS does not hide it
   clearing them; the reply appears once approved. Deep-link windows — such as a notification
   pointing at one reply — keep both continuation controls on the anchored floors.
 - `Current`: replies offer a compact sort capsule beside the reply count — oldest first, newest
-  first, author only. Oldest and newest flip the loaded window locally without refetching; in
-  newest-first order the list footer loads earlier floors and the top control loads newer ones.
+  first, author only. Entering newest-first fetches one bounded tail window through the existing
+  post-window endpoint — including on deep-linked topics — and refreshing the default window does
+  the same, so both the first page and deep links reach the latest floor once newest-first is
+  chosen; the list footer loads earlier floors and the top control retries a failed tail request or
+  loads newer floors. Oldest-first keeps the loaded window locally.
   Author-only filters the loaded window to the topic author and automatically scans the remaining
   stream — later windows first, then earlier ones — for at most five windows per automatic scan.
   Loading more continues the search. While windows remain, an empty filtered view invites further
@@ -610,6 +613,9 @@ identity survive this layout change. The header keeps a small outer margin for i
   server's title, body and classification requirements. Moments can derive their title from the first text line.
 - `Current`: publishing limits, captcha requests and other API failures use the Web error catalog
   in the selected language, including server-provided parameters.
+- `Current`: server-required captcha challenges on publishing and replies explain that newer accounts
+  may be asked to complete a captcha after frequent posting, and that the requirement lifts as
+  activity subsides or the account meets the site age condition.
 - `Current`: changed editors debounce local recovery saves by 700 ms and flush when leaving or
   the app becomes inactive. Title, Markdown/simple text, type, category IDs and uploaded image URLs
   survive reopening, including when the page metadata request fails. Save progress, success and
@@ -815,12 +821,12 @@ identity survive this layout change. The header keeps a small outer margin for i
   screens or at large text instead of wrapping. Edit and delete live in the card’s top-right overflow menu, which also carries reporting
   for other authors’ reviews; a guest sees no report entry, and reactions send guests to sign-in.
   Reports require an explicit reason and limit supplemental notes to 300 characters; a failed
-  submission keeps the entered values visible. A reaction toggle keeps the list mounted with no
-  loading state or re-read and applies the mutual-exclusion rule locally in the same frame: it
-  clears an already-selected opposite side first and then writes the target state, which is
-  idempotent on the current server and still yields exclusion on older builds that only clear the
-  opposite side when asked. If either step fails, Flutter restores the previous counts and shows a
-  localized error.
+  submission keeps the entered values visible. The server switches a reaction in one transaction
+  (removing the opposite state and writing the selected one) and serializes concurrent changes per
+  review. A reaction toggle keeps the list mounted with no loading state or re-read and applies the
+  mutual-exclusion rule locally in the same frame: it clears an already-selected opposite side
+  first (idempotent) and then writes the target state, so older server builds still yield
+  exclusion. If either step fails, Flutter restores the previous counts and shows a localized error.
 - `Current`: course reviews and forum posts/replies can open a shared image preview with themes,
   fixed-width Markdown cards, save and system-share actions. Cards render at 375 logical pixels,
   3× capture scale, and a fixed text scale; compact Markdown styles keep long posts within bounds.

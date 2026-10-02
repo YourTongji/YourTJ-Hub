@@ -9,8 +9,9 @@ import os
 from pathlib import Path
 import subprocess
 import time
+from approved_notes import read_notes
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(os.environ.get("RELEASE_SOURCE_ROOT", Path(__file__).resolve().parents[2]))
 APP_ID = "6809457637"
 GROUP_ID = "25249074-709f-45d7-a2f6-950136ecf636"
 REVIEW_NOTES = (
@@ -89,8 +90,10 @@ def main():
     version = os.environ["MOBILE_VERSION"]
     number = os.environ["MOBILE_BUILD_NUMBER"]
     target = os.environ.get("IOS_PUBLISH_TARGET", "both")
-    if target not in {"both", "testflight"}:
-        raise ValueError("Invalid iOS publish target; choose both or testflight")
+    if target not in {"both", "testflight", "app-store"}:
+        raise ValueError("Invalid iOS publish target; choose both, testflight or app-store")
+    test_notes = read_notes("IOS_TESTFLIGHT_NOTES_PATH") if target != "app-store" else None
+    store_notes = read_notes("IOS_STORE_NOTES_PATH") if target != "testflight" else None
     if find_build(version, number) is None:
         if os.environ.get("IOS_EXISTING_BUILD_ONLY") == "true":
             raise ValueError("iOS recovery requires an existing uploaded build with the exact version/build number")
@@ -105,31 +108,43 @@ def main():
         elif not any(u["attributes"].get("uploadedDate") for u in matching):
             raise ValueError("An incomplete upload reservation exists; inspect ASC build uploads before retrying")
     build_id = wait_for_build(version, number)
+    expected_build = os.environ.get("IOS_EXPECTED_BUILD_ID")
+    if expected_build and build_id != expected_build:
+        raise ValueError("Apple build differs from the approved existing build")
+    results = {}
+    def receipt(channel, availability, **extra):
+        results[channel] = {"buildId": build_id, "version": version, "buildNumber": number, "availability": availability, **extra}
+        if os.environ.get("RELEASE_RESULT_PATH"):
+            Path(os.environ["RELEASE_RESULT_PATH"]).write_text(json.dumps(results), encoding='utf-8')
     asc("builds", "update", "--build-id", build_id, "--uses-non-exempt-encryption=false")
 
-    beta = resource(asc("builds", "beta-app-review-submission", "view", "--build-id", build_id, allow_missing=True))
-    if beta.get("attributes", {}).get("betaReviewState") not in {"WAITING_FOR_REVIEW", "IN_REVIEW", "APPROVED"}:
-        contact = json.loads(os.environ["IOS_REVIEW_JSON"])
-        beta_details = resource(asc("testflight", "review", "view", "--app", APP_ID))
-        args = ["testflight", "review", "edit", "--id", beta_details["id"]]
-        for field, flag in REVIEW_FIELDS.items():
-            args.extend([f"--{flag}", contact[field]])
-        asc(*args, "--demo-account-required=true", "--notes", REVIEW_NOTES)
-        asc("publish", "testflight", "--app", APP_ID, "--build-id", build_id, "--group", GROUP_ID,
-            "--test-notes", "Test course search and reviews, scheduler, Wiki, community and account features.",
-            "--locale", "en-US", "--submit", "--confirm")
-    print(f"TestFlight build: {build_id}", flush=True)
-    summary = os.environ.get("GITHUB_STEP_SUMMARY")
-    if summary:
-        with open(summary, "a") as output:
-            output.write(f"TestFlight: {version} ({number}), build `{build_id}`.\n\n")
-    if target == "testflight":
-        message = "App Store submission skipped by request; the existing review queue is unchanged."
-        print(message)
+    if target != "app-store":
+        beta = resource(asc("builds", "beta-app-review-submission", "view", "--build-id", build_id, allow_missing=True))
+        beta_state = beta.get('attributes', {}).get('betaReviewState')
+        if beta_state not in {"WAITING_FOR_REVIEW", "IN_REVIEW", "APPROVED"}:
+            contact = json.loads(os.environ["IOS_REVIEW_JSON"])
+            beta_details = resource(asc("testflight", "review", "view", "--app", APP_ID))
+            args = ["testflight", "review", "edit", "--id", beta_details["id"]]
+            for field, flag in REVIEW_FIELDS.items():
+                args.extend([f"--{flag}", contact[field]])
+            asc(*args, "--demo-account-required=true", "--notes", REVIEW_NOTES)
+            asc("publish", "testflight", "--app", APP_ID, "--build-id", build_id, "--group", GROUP_ID,
+                "--test-notes", test_notes,
+                "--locale", "en-US", "--submit", "--confirm")
+            beta_state = 'submitted'
+        print(f"TestFlight build: {build_id}", flush=True)
+        summary = os.environ.get("GITHUB_STEP_SUMMARY")
         if summary:
             with open(summary, "a") as output:
-                output.write(message + "\n")
-        return
+                output.write(f"TestFlight: {version} ({number}), build `{build_id}`.\n\n")
+        receipt("ios-testflight", beta_state)
+        if target == "testflight":
+            message = "App Store submission skipped by request; the existing review queue is unchanged."
+            print(message)
+            if summary:
+                with open(summary, "a") as output:
+                    output.write(message + "\n")
+            return
 
     versions = asc("versions", "list", "--app", APP_ID, "--platform", "IOS", "--include", "build", "--paginate")["data"]
     matching = [v for v in versions if v["attributes"]["versionString"] == version]
@@ -142,6 +157,15 @@ def main():
         if state in ACCEPTED_STATES:
             if attached.get("id") != build_id:
                 raise ValueError("This App Store version already uses a different build")
+            locales = asc('localizations', 'list', '--version', current['id'], '--paginate')['data']
+            reviewed = [l for l in locales if l['attributes']['locale'] == 'zh-Hans']
+            if len(reviewed) != 1 or (reviewed[0]['attributes'].get('whatsNew') or '').strip() != store_notes:
+                raise ValueError(
+                    f"App Store approved notes differ while version is {state}; no success recorded. "
+                    "Resolve metadata editability in App Store Connect, then Recover this reviewed promotion. "
+                    "The pipeline will not withdraw a submission; a live version may require a new release."
+                )
+            receipt("ios-app-store", state, versionId=current["id"])
             print(f"App Store version already submitted: {version} ({state})")
             return
         version_id = current["id"]
@@ -170,7 +194,10 @@ def main():
         if not folder.is_dir() or not (folder / "metadata.json").exists():
             continue
         locale = folder.name
-        values = json.loads((folder / "metadata.json").read_text())
+        values = json.loads((folder / "metadata.json").read_text(encoding='utf-8'))
+        if locale != "zh-Hans":
+            raise ValueError("Each added App Store locale requires an independently reviewed notes file")
+        values["whatsNew"] = store_notes
         if locale not in localizations:
             created = resource(asc("localizations", "create", "--version", version_id, "--locale", locale))
             localizations[locale] = created["id"]
@@ -194,6 +221,7 @@ def main():
     asc("validate", "--app", APP_ID, "--version", version, "--strict")
     submitted = asc("review", "submit", "--app", APP_ID, "--version-id", version_id,
                     "--build-id", build_id, "--confirm")
+    receipt("ios-app-store", "submitted", versionId=version_id, submissionId=submitted.get("submissionId"))
     print(json.dumps({"version": version, "buildId": build_id, "submissionId": submitted.get("submissionId")}))
 
 

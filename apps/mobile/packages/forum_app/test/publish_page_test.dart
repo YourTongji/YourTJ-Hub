@@ -99,8 +99,10 @@ class _RecordingTopicRepository extends TopicRepository {
     super.client, {
     this.resultId = 99,
     this.requireCaptcha = false,
+    this.captchaAction = 'topic.write',
   });
   final bool requireCaptcha;
+  final String captchaAction;
 
   final int resultId;
   final List<
@@ -135,10 +137,20 @@ class _RecordingTopicRepository extends TopicRepository {
     String? captchaId,
     String? captchaCode,
   }) async {
-    if (requireCaptcha && (captchaId != 'challenge' || captchaCode != 'ABCD')) {
-      throw const ApiException(
+    if (requireCaptcha &&
+        (captchaId != 'challenge' ||
+            captchaCode == null ||
+            captchaCode.isEmpty)) {
+      throw ApiException(
         fallbackMessage: 'Captcha required',
         messageCode: 'common.captchaRequired',
+        params: <String, dynamic>{'action': captchaAction},
+      );
+    }
+    if (requireCaptcha && captchaCode != 'ABCD') {
+      throw const ApiException(
+        fallbackMessage: 'Captcha invalid',
+        messageCode: 'auth.captcha.invalid',
       );
     }
     writes.add((
@@ -253,6 +265,7 @@ void main() {
     int resultId = 99,
     MarkdownConverter? markdownConverter,
     bool requireCaptcha = false,
+    String captchaAction = 'topic.write',
     bool offline = false,
     bool readableGallery = false,
     int userId = 1,
@@ -287,6 +300,7 @@ void main() {
       client,
       resultId: resultId,
       requireCaptcha: requireCaptcha,
+      captchaAction: captchaAction,
     );
     final GoRouter router = GoRouter(
       initialLocation: editing ? '/publish?$editQueryKey=42' : '/publish',
@@ -1533,7 +1547,36 @@ void main() {
       );
       expect(captcha, findsOneWidget);
       expect(find.byType(GfCaptchaImage), findsOneWidget);
+      expect(
+        find.text(
+          AppLocalizations.of(
+            tester.element(captcha),
+          ).publishCaptchaExplanation,
+        ),
+        findsOneWidget,
+      );
       expect(find.text('原始标题'), findsOneWidget);
+      await tester.tap(find.byType(GfCaptchaImage));
+      await tester.pumpAndSettle();
+      expect(
+        find.text(
+          AppLocalizations.of(
+            tester.element(captcha),
+          ).publishCaptchaExplanation,
+        ),
+        findsOneWidget,
+      );
+      await tester.enterText(captcha, 'WXYZ');
+      await tester.tap(find.byKey(const Key('publish-appbar-submit')));
+      await tester.pumpAndSettle();
+      expect(
+        find.text(
+          AppLocalizations.of(
+            tester.element(captcha),
+          ).publishCaptchaExplanation,
+        ),
+        findsOneWidget,
+      );
       await tester.enterText(captcha, 'ABCD');
       await tester.tap(find.byKey(const Key('publish-appbar-submit')));
       await tester.pumpAndSettle();
@@ -1543,6 +1586,34 @@ void main() {
       await tester.pump(const Duration(milliseconds: 600));
     },
   );
+
+  testWidgets('publishing captcha without a publishing action stays generic', (
+    tester,
+  ) async {
+    final result = await pumpPublishPage(
+      tester,
+      editing: true,
+      requireCaptcha: true,
+      captchaAction: 'login',
+    );
+    await tester.tap(find.byKey(const Key('publish-appbar-submit')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('publish-appbar-submit')));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(GfCaptchaImage), findsOneWidget);
+    expect(
+      find.text(
+        AppLocalizations.of(
+          tester.element(find.byType(GfCaptchaImage)),
+        ).publishCaptchaExplanation,
+      ),
+      findsNothing,
+    );
+    expect(result.topicRepository.writes, isEmpty);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
+  });
 
   testWidgets('服务端草稿 editUrl 的 id 参数进入编辑模式', (tester) async {
     final result = await pumpPublishPage(

@@ -2,7 +2,7 @@
 """Refresh fixed APK download aliases from verified, public mobile releases.
 
 Only the mobile-latest channel is mutable; versioned releases remain untouched.
-Run under release-mobile's concurrency group (or while no release is running).
+Run under release-android's concurrency group (or while no release is running).
 See docs/decisions/0050-android-stable-download-links.md.
 """
 import argparse

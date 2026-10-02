@@ -8,6 +8,29 @@ import '../helpers.dart';
 
 void main() {
   for (final brightness in Brightness.values) {
+    testWidgets(
+      'default medallion size is shared by achievement cards in $brightness',
+      (tester) async {
+        await tester.pumpWidget(
+          gfApp(
+            GfAchievementCard(
+              title: 'First post',
+              description: '',
+              icon: const GfSymbol('award', size: 32),
+              color: const Color(0xFF2563EB),
+            ),
+            brightness: brightness,
+          ),
+        );
+        expect(GfBadgeMedallion.defaultSize, 56);
+        expect(GfAchievementCard.medallionSize, GfBadgeMedallion.defaultSize);
+        expect(
+          tester.getSize(find.byType(GfBadgeMedallion)),
+          Size.square(GfAchievementCard.medallionSize),
+        );
+      },
+    );
+
     testWidgets('medallion keeps its layered circular size in $brightness', (
       tester,
     ) async {
@@ -149,4 +172,27 @@ void main() {
       },
     );
   }
+
+  // Server badge SVGs carry their own optical margin, so artwork sized with
+  // artworkSize fills a centre box that is 70% of the medallion.
+  testWidgets('artwork fills the centre box given by artworkSize', (
+    tester,
+  ) async {
+    for (final size in [34.0, 40.0, 56.0, 80.0]) {
+      await tester.pumpWidget(
+        gfApp(
+          GfBadgeMedallion(
+            icon: const SizedBox.expand(key: ValueKey('artwork')),
+            color: const Color(0xFF2563EB),
+            size: size,
+          ),
+        ),
+      );
+      expect(GfBadgeMedallion.artworkSize(size), closeTo(size * .70, 1e-9));
+      expect(
+        tester.getSize(find.byKey(const ValueKey('artwork'))),
+        Size.square(GfBadgeMedallion.artworkSize(size)),
+      );
+    }
+  });
 }

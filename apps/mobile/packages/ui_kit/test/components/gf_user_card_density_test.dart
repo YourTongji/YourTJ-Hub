@@ -62,7 +62,11 @@ void main() {
     final medallions = tester
         .widgetList<GfBadgeMedallion>(find.byType(GfBadgeMedallion))
         .toList();
-    expect(medallions.map((badge) => badge.size), everyElement(34));
+    expect(GfUserCard.badgeMedallionSize, 34);
+    expect(
+      medallions.map((badge) => badge.size),
+      everyElement(GfUserCard.badgeMedallionSize),
+    );
     final badgeRects = List.generate(
       medallions.length,
       (index) => tester.getRect(find.byType(GfBadgeMedallion).at(index)),
