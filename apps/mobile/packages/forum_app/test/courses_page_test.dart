@@ -1869,7 +1869,7 @@ void main() {
       );
     });
 
-    testWidgets('failed reaction restores both sides without reloading', (
+    testWidgets('failed target write rolls back to the committed cleanup', (
       tester,
     ) async {
       final ReviewPayload disliked = _reviewPayloads().first.copyWith(
@@ -1883,14 +1883,16 @@ void main() {
       await tester.tap(_reviewAction(disliked.id, 'helpful'));
       await tester.pumpAndSettle();
 
-      // 第一步（清相反侧）成功、第二步（写目标）失败：本地按原值回滚。
+      // 第一步（清相反侧）成功、第二步（写目标）失败：清相反侧已落库，
+      // 本地回滚到「两侧都未选」，与服务端一致且不重读整表。
       expect(course.reactionCalls, [
         ('dislike', disliked.id, false),
         ('helpful', disliked.id, true),
       ]);
       expect(course.reviewCalls, hasLength(1));
-      // 旧服务端上清相反侧已落库；下一次列表加载会与服务端对齐。
-      expect(course.serverReview(disliked.id).viewer.isDisliked, isFalse);
+      final server = course.serverReview(disliked.id);
+      expect(server.viewer.isDisliked, isFalse);
+      expect(server.viewer.isHelpful, isFalse);
       expect(
         find.descendant(
           of: _reviewAction(disliked.id, 'helpful'),
@@ -1901,7 +1903,7 @@ void main() {
       expect(
         find.descendant(
           of: _reviewAction(disliked.id, 'dislike'),
-          matching: find.text('1'),
+          matching: find.text('0'),
         ),
         findsOneWidget,
       );
@@ -1961,8 +1963,8 @@ void main() {
           ('helpful', disliked.id, true),
         ]);
         expect(course.reviewCalls, hasLength(1));
-        // 响应丢失时按本地原值回滚；服务端可能已提交，以服务端为准的收敛
-        // 交给下一次列表加载，不再在失败路径触发整表重读。
+        // 清相反侧已确认提交，按两侧都未选回滚；目标写入是否落库未知，
+        // 以服务端为准的收敛交给下一次列表加载，不在失败路径整表重读。
         expect(
           find.descendant(
             of: _reviewAction(disliked.id, 'helpful'),
@@ -1973,7 +1975,7 @@ void main() {
         expect(
           find.descendant(
             of: _reviewAction(disliked.id, 'dislike'),
-            matching: find.text('1'),
+            matching: find.text('0'),
           ),
           findsOneWidget,
         );

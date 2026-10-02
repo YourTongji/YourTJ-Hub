@@ -826,7 +826,9 @@ identity survive this layout change. The header keeps a small outer margin for i
   review. A reaction toggle keeps the list mounted with no loading state or re-read and applies the
   mutual-exclusion rule locally in the same frame: it clears an already-selected opposite side
   first (idempotent) and then writes the target state, so older server builds still yield
-  exclusion. If either step fails, Flutter restores the previous counts and shows a localized error.
+  exclusion. On failure Flutter shows a localized error; if the opposite side was already cleared
+  but the target write failed it rolls back to neither side selected (matching the server),
+  otherwise it restores the previous counts.
 - `Current`: course reviews and forum posts/replies can open a shared image preview with themes,
   fixed-width Markdown cards, save and system-share actions. Cards render at 375 logical pixels,
   3× capture scale, and a fixed text scale; compact Markdown styles keep long posts within bounds.

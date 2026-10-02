@@ -503,16 +503,23 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
       final bool oppositeSelected = opposite == CourseReviewReaction.helpful
           ? current.viewer.isHelpful
           : current.viewer.isDisliked;
+      bool oppositeCleared = false;
       try {
         if (on && oppositeSelected) {
           await _writeReviewReaction(current.id, opposite, false);
+          oppositeCleared = true;
         }
         await _writeReviewReaction(current.id, reaction, on);
       } catch (e) {
         if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) return;
+        // 相反侧已在服务端清掉时回滚到「两侧都未选」，与服务端一致；
+        // 否则什么都没提交，恢复原状态。
+        final ReviewPayload restored = oppositeCleared
+            ? applyCourseReviewReaction(current, opposite, on: false)
+            : current;
         setState(() {
           final int i = _reviews.indexWhere((r) => r.id == review.id);
-          if (i >= 0) _reviews[i] = current;
+          if (i >= 0) _reviews[i] = restored;
         });
         if (!_isUnauthorized(e)) {
           _toast(_copy().operationFailed, error: true);
