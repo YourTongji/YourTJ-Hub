@@ -143,6 +143,51 @@ void main() {
     expect(viewer.initialIndex, 1);
     expect(viewer.heroTag, isNotNull);
   });
+
+  testWidgets('save menu retains the pressed image if the gallery changes', (
+    tester,
+  ) async {
+    final images = <String>[
+      'https://example.test/one.png',
+      'https://example.test/two.png',
+    ];
+    late StateSetter update;
+    final saved = <String>[];
+    await tester.pumpWidget(
+      gfApp(
+        StatefulBuilder(
+          builder: (context, setState) {
+            update = setState;
+            return SizedBox(
+              width: 300,
+              child: GfMediaCarousel(
+                images: images,
+                onSaveImage: (url) async => saved.add(url),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+    await tester.drag(find.byType(PageView).first, const Offset(-700, 0));
+    await tester.pumpAndSettle();
+    await tester.longPress(
+      find.byWidgetPredicate(
+        (widget) => widget is Image && widget.fit == BoxFit.contain,
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('Save image'), findsOneWidget);
+
+    update(() => images[1] = 'https://example.test/replacement-two.png');
+    await tester.pump();
+    await tester.tap(find.text('Save image'));
+    await tester.pumpAndSettle();
+
+    expect(saved, ['https://example.test/two.png']);
+  });
+
   testWidgets(
     'viewer returns to its focused occurrence even with duplicate URLs',
     (tester) async {

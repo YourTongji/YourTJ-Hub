@@ -279,7 +279,9 @@ void main() {
     pageRepository.offline = offline;
     if (readableGallery) {
       final detail = topicDetailPayloadJson();
-      (detail['props'] as Map)['topic']['id'] = 42;
+      final topic = (detail['props'] as Map)['topic'] as Map<String, dynamic>;
+      topic['id'] = 42;
+      topic['images'] = ['https://example.test/existing.png'];
       pageRepository.existingTopic = PagePayload.fromJson(detail);
     }
     final _RecordingTopicRepository topicRepository = _RecordingTopicRepository(
@@ -1024,6 +1026,25 @@ void main() {
       await tester.pump(const Duration(milliseconds: 600));
     },
   );
+  testWidgets('non-article keyboard toolbar keeps a unique image anchor', (
+    tester,
+  ) async {
+    usePhoneViewport(tester);
+    await pumpPublishPage(
+      tester,
+      editing: true,
+      contentType: 2,
+      readableGallery: true,
+    );
+    final editor = find.byKey(const Key('publish-editor'));
+    expect(editor, findsOneWidget);
+    await tester.tap(editor);
+    tester.view.viewInsets = const FakeViewPadding(bottom: 250);
+    addTearDown(tester.view.resetViewInsets);
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('article input nodes survive toolbar and autosave rebuilds', (
     tester,
   ) async {

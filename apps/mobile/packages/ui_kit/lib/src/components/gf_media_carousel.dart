@@ -148,15 +148,17 @@ class _GfMediaCarouselState extends State<GfMediaCarousel> {
                             onLongPressStart: widget.onSaveImage == null
                                 ? null
                                 : (details) async {
+                                    final imageUrl = widget.images[index];
+                                    final onSaveImage = widget.onSaveImage!;
+                                    final saveImageLabel =
+                                        widget.saveImageLabel;
                                     final bool save = await showGfImageSaveMenu(
                                       context,
-                                      saveImageLabel: widget.saveImageLabel,
+                                      saveImageLabel: saveImageLabel,
                                       globalPosition: details.globalPosition,
                                     );
                                     if (save && context.mounted) {
-                                      await widget.onSaveImage!(
-                                        widget.images[index],
-                                      );
+                                      await onSaveImage(imageUrl);
                                     }
                                   },
                             child: HeroMode(

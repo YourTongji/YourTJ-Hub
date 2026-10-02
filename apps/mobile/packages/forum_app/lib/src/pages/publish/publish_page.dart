@@ -792,9 +792,10 @@ class _PublishPageState extends ConsumerState<PublishPage>
     });
   }
 
-  final _imageMenuKey = GlobalKey();
+  final _galleryImageMenuKey = GlobalKey();
+  final _toolbarImageMenuKey = GlobalKey();
 
-  Future<void> _pickAndInsertImage() async {
+  Future<void> _pickAndInsertImage(GlobalKey menuAnchor) async {
     if (_uploading || _submitting || !_sessionCurrent || _finished) return;
     final l10n = AppLocalizations.of(context);
     final remaining = _contentType == 3 ? 9 : 9 - _images.length;
@@ -809,7 +810,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
     try {
       final source = await showGfActionMenu<ImageSource>(
         context,
-        sourceRect: gfMenuSourceRectOf(_imageMenuKey.currentContext!),
+        sourceRect: gfMenuSourceRectOf(menuAnchor.currentContext!),
         actions: [
           GfContextAction(
             value: ImageSource.gallery,
@@ -1893,10 +1894,12 @@ class _PublishPageState extends ConsumerState<PublishPage>
                   if (_contentType == 3 ||
                       MediaQuery.viewInsetsOf(context).bottom > 0)
                     _toolButton(
-                      key: _imageMenuKey,
+                      key: _toolbarImageMenuKey,
                       symbol: _activelyUploading ? 'clock' : 'gallery',
                       tooltip: l10n.publishToolImage,
-                      onPressed: _uploading ? null : _pickAndInsertImage,
+                      onPressed: _uploading
+                          ? null
+                          : () => _pickAndInsertImage(_toolbarImageMenuKey),
                     ),
                   _toolButton(
                     symbol: _stickerOpen ? 'keyboard' : 'emoji-circle',
@@ -2118,8 +2121,10 @@ class _PublishPageState extends ConsumerState<PublishPage>
         color: colors.base200,
         borderRadius: BorderRadius.circular(16),
         child: InkWell(
-          key: _imageMenuKey,
-          onTap: _uploading ? null : _pickAndInsertImage,
+          key: _galleryImageMenuKey,
+          onTap: _uploading
+              ? null
+              : () => _pickAndInsertImage(_galleryImageMenuKey),
           borderRadius: BorderRadius.circular(16),
           child: Padding(
             padding: const EdgeInsets.all(16),
@@ -2248,14 +2253,14 @@ class _PublishPageState extends ConsumerState<PublishPage>
           ),
         if (editing)
           GfButton(
-            key: _imageMenuKey,
+            key: _galleryImageMenuKey,
             label: l10n.publishToolImage,
             icon: const GfSymbol('gallery', size: 22),
             variant: GfButtonVariant.outline,
             loading: _pickingImage,
             onPressed: _images.length >= 9 || _uploading
                 ? null
-                : _pickAndInsertImage,
+                : () => _pickAndInsertImage(_galleryImageMenuKey),
           ),
       ],
     );

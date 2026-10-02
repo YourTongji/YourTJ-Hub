@@ -473,11 +473,11 @@ validation; simulator/debug execution does not establish production frame-rate g
   available viewport, with a maximum width of 640 pixels, 32-pixel corners and a shared drag
   handle when dragging is enabled. Device safe areas are consumed once: the title starts at the panel's own
   padding, and the panel background extends behind the bottom home indicator. Scheduler pickers,
-  course filters, account pickers, Wiki contents, language selection and publishing tools share
-  this behavior. Input sheets and confirmation dialogs avoid the software keyboard. Review and
-  reply forms allow the whole form to scroll when enlarged text and the keyboard leave too little
-  space for the editor and actions; drafts survive resizing. Reply editing still confirms discard
-  and prevents dismissal by dragging or tapping outside.
+  course filters, account pickers and Wiki contents share this behavior. Language selection and
+  image-source selection use compact contextual menus. Input sheets and confirmation dialogs avoid
+  the software keyboard. Review and reply forms allow the whole form to scroll when enlarged text
+  and the keyboard leave too little space for the editor and actions; drafts survive resizing. Reply
+  editing still confirms discard and prevents dismissal by dragging or tapping outside.
 - `Current`: shared form inputs use 16-pixel text. Button backgrounds use minimum heights of
   32/40/44/48 pixels by size, within touch targets of at least 48 pixels. Both grow for wrapped or
   enlarged labels; disabled actions remain visibly muted. Category chips have a compact 24-pixel
