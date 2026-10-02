@@ -19,9 +19,7 @@
       "allowClose": true,
       "allowMerge": true,
       "requiredChecks": [
-        "ci-backend",
-        "ci-frontend",
-        "ci-contract"
+        "ci-required"
       ],
       "selection": "balanced",
       "maxRepairAttempts": 2,
@@ -37,6 +35,9 @@
         "security",
         "do-not-bot",
         "oryn:hold"
+      ],
+      "protectedMergePaths": [
+        "releases/requests/"
       ]
     }
   ]

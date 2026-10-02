@@ -234,53 +234,24 @@ webhook_secret = ""         # 兼容旧配置的明文密钥；推荐改用管�
 
 ## Branch model & CI/CD
 
-- `dev` is the default branch and the main development line; merges to `dev` trigger
-  `.github/workflows/deploy-dev.yml`:
-  1. Build single binary (frontend + go build) and push GHCR image `dev-<sha>` on GitHub Actions.
-  2. SSH: `sync-db-from-main.sh` (auto-detects mode: SQLite `.backup` snapshot
-     or PG `pg_dump|psql` rebuild of dev db).
-  3. SSH: `deploy.sh dev dev-<sha> 5235` → pull image, compose up, health check, rollback;
-     after a successful deploy the script prunes old images (keeps the newest
-     `IMAGE_KEEP_N` tags of the instance prefix including the current one, plus the `prev`
-     rollback tag).
-     The dev workflow sets `IMAGE_KEEP_N=3` because dev deploys frequently.
-- `main` is the production site. `Release / main` explicitly dispatches
-  `.github/workflows/deploy-main.yml` on the published server tag; merging main alone does not deploy:
-  1. Build single binary and push GHCR image `main-<sha>` on GitHub Actions.
-  2. SSH: `backup-db.sh main` (pre-deploy consistent snapshot, keep 7).
-  3. SSH: `deploy.sh main main-<sha> 5234` → pull image, compose up, health check,
-     auto-rollback to previous image tag on failure; same post-deploy image pruning as dev
-     (`IMAGE_KEEP_N=5`, keeps more rollback candidates for production).
-- **Release gate — Current**: run `.github/workflows/release-to-main.yml` (`Release / main`)
-  once on `dev` or `main` and select `patch`, `minor` or `major`. It captures the dev/main commits,
-  opens or reuses a `dev` → `main` PR when their trees differ, waits for PR CI, merges with a merge
-  commit, tags that exact commit as `vX.Y.Z`, publishes server binaries and dispatches deployment.
-  The dev branch is retained. Content already promoted to main can be released without another PR;
-  an existing server tag on that commit prevents a second version reservation.
-  - The script requires successful PR runs of `ci-backend.yml`, `ci-frontend.yml`, `ci-contract.yml`
-    and `ci-govulncheck.yml`, and waits for every other reported `ci-*.yml` workflow. It waits for
-    entire workflows, including backend race/PG jobs. Missing core workflows remain pending;
-    failure, cancellation or a skipped whole workflow stops release. Dev push checks, checks for
-    another head, and runs older than the PR or main base commit do not satisfy this gate.
-  - CI is checked explicitly even without repository required-check settings. The merge uses the
-    captured head SHA and respects GitHub merge requirements, including required reviews when
-    configured; it does not use an admin bypass. A draft/closed PR, conflict or changed dev/main
-    snapshot stops release. CI and merge requirements have a 60-minute wait limit. Resolve the
-    reported problem, then start a new run for the intended snapshot.
-  - Tagging uses the returned merge SHA and verifies its parents against the captured main/dev
-    commits. Deployment runs on the published tag, so its binary, image, scripts and rendered
-    config all come from the released source even when main advances. Production deployments are
-    serialized; the deploy workflow rejects branch refs, mobile tags and tags outside main history.
-  - If publishing fails after tagging, rerun the failed publish job so it reuses the prepared tag.
-    For deployment recovery or rollback, dispatch the deploy workflow on the desired existing
-    server tag: `gh workflow run deploy-main.yml --ref vX.Y.Z` (replace with the actual tag).
-    Selecting `main` directly is rejected. Production environment deployment policies must permit
-    server tags if branch/tag restrictions are configured.
-  - `RELEASE_TOKEN` creates and merges PRs and creates tags through GitHub APIs; it needs repository
-    Contents and Pull requests write permissions plus Actions read permission for CI polling
-    (classic PATs need equivalent repository/workflow access). The workflow's `GITHUB_TOKEN`
-    publishes assets and dispatches deployment using its existing Contents/Actions write permissions.
-  Mobile tags use a separate namespace and workflow; see [mobile releases](mobile-releases.md).
+- `dev` is the default development branch. [CI / Verify](../../.github/workflows/ci.yml) selects
+  affected domains and requires their complete results. Deploy dev accepts only a successful,
+  current, same-repository dev push run; its CI plan must select forum deployment inputs.
+  Mobile, status and release-note-only changes do not sync the forum database or deploy it.
+  The workflow builds the binary/image, checks staleness again before mutation, syncs a consistent
+  main DB snapshot, and deploys with health checks. It keeps three recent instance image tags.
+- Production release preparation and approval are owned by the [release runbook](releases.md).
+  A source SHA already in main is built once by GoReleaser. The same Linux binary is used in GHCR;
+  production consumes `main-vX.Y.Z@sha256:<digest>`, backs up the DB, applies configuration and
+  waits for health plus exact running binary/image identity. The deployment is a reusable job,
+  not an arbitrary tag-dispatch entry. It keeps five recent instance tags and the previous image.
+- Source merges alone do not deploy production. The reviewed release-data PR authorizes its frozen
+  source, notes and targets; metadata merge SHA and application source SHA are separate.
+- Image/config failures restore the previous image/config transaction. This is not a DB rollback;
+  assess migration compatibility before any explicit production rollback, and never automatically
+  overwrite production data. Release Recover resumes the same approved image.
+- Deploy and config apply use the same `instance-mutate-<instance>` concurrency group, queued without
+  cancelling an active transaction. The server config lock covers the entire deployment as well.
 - Why dev syncs main's db: migrations (`app/migration` AutoMigrate + versioned data migrations) run at
   startup, so each dev deploy rehearses the exact migration the next main deploy will run.
 - Config is rendered in CI from `deploy/config.toml.tmpl` + `deploy/instances/<env>.json`
@@ -320,7 +291,7 @@ Deploy/apply/drift workflows 的 job 声明对应 `environment:`，自动获得�
 | `GH_CLIENT_ID` / `GH_CLIENT_SECRET` | production only | GitHub OAuth（dev 因 DB siteUrl 无环境隔离保持空，渲染 allow-empty） |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | both（可选） | Google OAuth；为空时登录入口保持关闭 |
 | `AI_API_KEY` | both（可空） | `[ai_summary].api_key`（AI 总结默认关闭） |
-| `RELEASE_TOKEN` | repo-level | release-to-main 创建/合并 dev→main PR、读取 CI 和发布 tag 用 PAT |
+| `RELEASE_TOKEN` | repo-level | 仅可信 main 发布控制器预留受保护 tag；PR 起草使用权限收窄的 GitHub App |
 
 > 命名注意：GitHub 保留 `GITHUB_` 前缀 secret 名，故 GitHub OAuth 凭据用 `GH_CLIENT_ID/SECRET`。
 

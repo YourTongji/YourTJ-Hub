@@ -118,7 +118,7 @@ func (s AiModerationSettingsStorage) ToView() AiModerationSettingsView {
 }
 
 // DefaultAiModerationPolicies 默认规则草案。文案仅为起点：上线 enforce 前必须由
-// 管理员按社区规则确认（MADR-0054）；默认动作一律 review，不自动拦截。
+// 管理员按社区规则确认（MADR-0056）；默认动作一律 review，不自动拦截。
 func DefaultAiModerationPolicies() []AiModerationPolicyRule {
 	return []AiModerationPolicyRule{
 		{Key: AiPolicyAdult, Label: "成人内容", Enabled: true, Action: AiModerationActionReview,

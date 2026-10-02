@@ -860,6 +860,7 @@ export default {
     hidePassword: 'Passwort ausblenden',
     captcha: 'Captcha',
     captchaAlt: 'Captcha',
+    publishCaptchaExplanation: 'Das Forum kann bei vielen Beiträgen und Antworten von neuen Konten ein Captcha verlangen. Bei nachlassender Aktivität oder sobald das Konto das festgelegte Alter erreicht, entfällt diese Anforderung.',
     forgotPassword: 'Passwort vergessen?',
     agreeTerms: 'Ich habe die Nutzungsbedingungen und die Datenschutzerklärung gelesen und akzeptiere sie',
     agreeTermsOnly: 'Ich habe die Nutzungsbedingungen gelesen und akzeptiere sie',

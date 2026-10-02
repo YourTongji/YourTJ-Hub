@@ -1,83 +1,50 @@
 name: CI / frontend
 
 on:
-  push:
-    branches: [dev, main]
-    paths:
-      - "apps/gooseforum/resource/**"
-      - "apps/gooseforum/app/http/controllers/forum/page_component.go"
-      - "apps/mobile/tools/generate_server_messages.mjs"
-      - "apps/mobile/packages/forum_app/lib/src/server_message_catalog.dart"
-      - "apps/gooseforum/testdata/markdown-compat/**"
-      - ".github/workflows/ci-frontend.yml"
-  # PR 无条件触发, 保证 required status check 稳定存在
-  pull_request:
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  workflow_call:
+    inputs:
+      source:
+        type: string
+        default: ''
 
 permissions:
   contents: read
-  pull-requests: read
 
 jobs:
   ci-frontend:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
+          ref: ${{ inputs.source || github.sha }}
+          persist-credentials: false
           fetch-depth: 0
-      - uses: dorny/paths-filter@v4
-        id: filter
-        with:
-          # On dev/main pushes, compare with the commit before this push.
-          # This input is ignored for pull_request, which uses its base branch.
-          base: ${{ github.event_name == 'push' && github.ref_name || '' }}
-          filters: |
-            frontend:
-              - 'apps/gooseforum/resource/**'
-              - 'apps/gooseforum/app/http/controllers/forum/page_component.go'
-              - 'apps/mobile/tools/generate_server_messages.mjs'
-              - 'apps/mobile/packages/forum_app/lib/src/server_message_catalog.dart'
-              - 'apps/gooseforum/testdata/markdown-compat/**'
-              - '.github/workflows/ci-frontend.yml'
-
-      - uses: pnpm/action-setup@v4
-        if: steps.filter.outputs.frontend == 'true'
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413
         with:
           version: 11
-      - uses: actions/setup-node@v4
-        if: steps.filter.outputs.frontend == 'true'
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: 24
           cache: pnpm
           cache-dependency-path: apps/gooseforum/resource/pnpm-lock.yaml
       - name: Install
-        if: steps.filter.outputs.frontend == 'true'
         working-directory: apps/gooseforum/resource
         run: pnpm install --frozen-lockfile
       - name: Typecheck
-        if: steps.filter.outputs.frontend == 'true'
         working-directory: apps/gooseforum/resource
         run: pnpm typecheck
       - name: Test
-        if: steps.filter.outputs.frontend == 'true'
         working-directory: apps/gooseforum/resource
         run: pnpm test
       - name: Install browser for layout tests
-        if: steps.filter.outputs.frontend == 'true'
         working-directory: apps/gooseforum/resource
         run: pnpm exec playwright install --with-deps chromium
       - name: Browser layout tests
-        if: steps.filter.outputs.frontend == 'true'
         working-directory: apps/gooseforum/resource
         run: pnpm test:browser
       - name: Check i18n keys
-        if: steps.filter.outputs.frontend == 'true'
         working-directory: apps/gooseforum/resource
         run: pnpm check
       - name: Build
-        if: steps.filter.outputs.frontend == 'true'
         working-directory: apps/gooseforum/resource
         run: pnpm build

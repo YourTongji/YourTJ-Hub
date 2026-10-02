@@ -203,7 +203,10 @@ class _BadgeDisplayDialogState extends State<BadgeDisplayDialog> {
                                         onChanged: canToggle ? toggle : null,
                                       ),
                                       GfBadgeMedallion(
-                                        icon: UserBadgeArtwork(badge, size: 24),
+                                        icon: UserBadgeArtwork.medallion(
+                                          badge,
+                                          40,
+                                        ),
                                         color: userBadgeColor(badge),
                                         size: 40,
                                       ),

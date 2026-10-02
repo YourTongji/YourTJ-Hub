@@ -24,6 +24,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/dailyStats"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/eventNotification"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/fileUsage"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/inboxmail"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/migrationMapping"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/moderationDecision"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/moderationLog"
@@ -729,6 +730,16 @@ func SchemaModels() []any {
 		&messages.Entity{},
 		&dailyStats.Entity{},
 		&userActivities.Entity{},
+		// 站内信域（issue #770）：Message → Message Version → Campaign →
+		// Campaign Run → Delivery → Claim，共 7 表。清单与
+		// inboxmail.AllModels() 保持一致（模型测试用后者迁移）。
+		&inboxmail.MessageEntity{},
+		&inboxmail.MessageVersionEntity{},
+		&inboxmail.CampaignEntity{},
+		&inboxmail.CampaignAttachmentEntity{},
+		&inboxmail.CampaignRunEntity{},
+		&inboxmail.DeliveryEntity{},
+		&inboxmail.ClaimEntity{},
 	}
 }
 

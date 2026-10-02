@@ -26,6 +26,7 @@ const page = defineProps<{
 const { t } = useI18n()
 const {
   captchaRequired: captchaRequired,
+  showPublishCaptchaExplanation: showPublishCaptchaExplanation,
   captchaId: captchaId,
   captchaImg: captchaImg,
   captchaCode: captchaCode,
@@ -630,6 +631,7 @@ async function persistDraft(nextUrl?: string, redirect = true): Promise<boolean>
           <p v-if="message" class="gf-status-message gf-status-message-success">{{ message }}</p>
 
           <div v-if="captchaRequired" class="gf-card flex flex-wrap items-center gap-3 p-3">
+            <p v-if="showPublishCaptchaExplanation" class="w-full text-xs text-base-content/65">{{ t('auth.publishCaptchaExplanation') }}</p>
             <button
               type="button"
               class="relative h-10 w-28 shrink-0 overflow-hidden rounded-md border border-line"

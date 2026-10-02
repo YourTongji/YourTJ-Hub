@@ -141,6 +141,7 @@
   "authGetCode": "Get code",
   "authRefreshCaptcha": "Refresh captcha",
   "authCaptchaRequired": "Please enter the captcha",
+  "publishCaptchaExplanation": "The site may require a captcha for frequent posting by newer accounts. This check lifts as recent activity subsides or the account meets the site's age condition.",
   "authOidcLogin": "Sign in with yourtj",
   "authRegisterEmailVerify": "Registration successful. A verification email was sent; check your inbox.",
   "authRegisterSuccess": "Registered successfully, please sign in",

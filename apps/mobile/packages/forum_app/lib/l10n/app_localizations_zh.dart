@@ -269,6 +269,10 @@ class AppLocalizationsZh extends AppLocalizations {
   String get authCaptchaRequired => '请输入验证码';
 
   @override
+  String get publishCaptchaExplanation =>
+      '站点通常会对新账号的高频发布互动要求验证码。近期发布或回复较多时，请先完成验证；近期互动减少或账号注册时间达到站点设定条件后，此要求会自动解除。';
+
+  @override
   String get authOidcLogin => '使用 yourtj 统一登录';
 
   @override

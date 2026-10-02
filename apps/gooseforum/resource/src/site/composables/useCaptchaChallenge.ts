@@ -7,6 +7,7 @@ import { ApiResponseError, getCaptcha } from '@/runtime/api'
  */
 export function useCaptchaChallenge() {
   const captchaRequired = ref(false)
+  const showPublishCaptchaExplanation = ref(false)
   const captchaId = ref('')
   const captchaImg = ref('')
   const captchaCode = ref('')
@@ -27,6 +28,7 @@ export function useCaptchaChallenge() {
 
   function clearCaptcha() {
     captchaRequired.value = false
+    showPublishCaptchaExplanation.value = false
     captchaId.value = ''
     captchaImg.value = ''
     captchaCode.value = ''
@@ -35,6 +37,7 @@ export function useCaptchaChallenge() {
   /** 若错误为「需要验证码」，加载验证码并返回 true（调用方应展示挑战 UI）。 */
   function challengeFromError(err: unknown): boolean {
     if (err instanceof ApiResponseError && err.messageCode === 'common.captchaRequired') {
+      showPublishCaptchaExplanation.value = err.params?.action === 'topic.write' || err.params?.action === 'post.create'
       void loadCaptcha()
       return true
     }
@@ -43,6 +46,7 @@ export function useCaptchaChallenge() {
 
   return {
     captchaRequired,
+    showPublishCaptchaExplanation,
     captchaId,
     captchaImg,
     captchaCode,

@@ -13,8 +13,9 @@ on:
 
 concurrency:
   # 与同实例 code deploy 串行, 防 config.prev 单槽互相覆盖
-  group: apply-config-${{ github.event.inputs.env }}
-  cancel-in-progress: true
+  group: instance-mutate-${{ github.event.inputs.env }}
+  cancel-in-progress: false
+  queue: max
 
 jobs:
   apply:
@@ -24,7 +25,7 @@ jobs:
     environment: ${{ github.event.inputs.env == 'main' && 'production' || 'dev' }}
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
 
       - name: Render ${{ github.event.inputs.env }} config
         uses: ./.github/actions/render-config
@@ -59,7 +60,7 @@ jobs:
           jpush-master-secret: ${{ github.event.inputs.env == 'main' && secrets.JPUSH_MASTER_SECRET || '' }}
 
       - name: Upload rendered config + apply script
-        uses: appleboy/scp-action@v0.1.7
+        uses: appleboy/scp-action@917f8b81dfc1ccd331fef9e2d61bdc6c8be94634
         with:
           host: ${{ secrets.VM_HOST }}
           username: ${{ secrets.VM_USER }}
@@ -70,7 +71,7 @@ jobs:
           strip_components: 2
 
       - name: Apply config on server
-        uses: appleboy/ssh-action@v1.2.0
+        uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2
         with:
           host: ${{ secrets.VM_HOST }}
           username: ${{ secrets.VM_USER }}

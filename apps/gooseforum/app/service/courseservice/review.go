@@ -364,11 +364,14 @@ func SetReviewHelpful(userId, reviewId uint64, helpful bool) error {
 		return ErrReviewNotOwned
 	}
 	return dbconnect.Connect().Transaction(func(tx *gorm.DB) error {
-		entity, err := course.GetReviewTx(tx, reviewId)
+		entity, err := course.GetReviewForUpdateTx(tx, reviewId)
 		if err != nil || entity.Status != course.ReviewStatusVisible {
 			return ErrReviewNotFound
 		}
 		if helpful {
+			if err := course.DeleteDislikeTx(tx, reviewId, userId); err != nil {
+				return err
+			}
 			if err := course.CreateHelpfulTx(tx, &course.HelpfulEntity{ReviewId: reviewId, UserId: userId}); err != nil {
 				// 仅唯一约束冲突视为已标记（幂等）；其余错误如实上报，避免吞掉 DB 故障。
 				if errors.Is(err, gorm.ErrDuplicatedKey) {
@@ -389,11 +392,14 @@ func SetReviewDislike(userId, reviewId uint64, dislike bool) error {
 		return ErrReviewNotOwned
 	}
 	return dbconnect.Connect().Transaction(func(tx *gorm.DB) error {
-		entity, err := course.GetReviewTx(tx, reviewId)
+		entity, err := course.GetReviewForUpdateTx(tx, reviewId)
 		if err != nil || entity.Status != course.ReviewStatusVisible {
 			return ErrReviewNotFound
 		}
 		if dislike {
+			if err := course.DeleteHelpfulTx(tx, reviewId, userId); err != nil {
+				return err
+			}
 			if err := course.CreateDislikeTx(tx, &course.DislikeEntity{ReviewId: reviewId, UserId: userId}); err != nil {
 				// 仅唯一约束冲突视为已标记（幂等）；其余错误如实上报，避免吞掉 DB 故障。
 				if errors.Is(err, gorm.ErrDuplicatedKey) {

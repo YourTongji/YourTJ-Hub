@@ -1,65 +1,39 @@
 name: CI / contract
 
 on:
-  push:
-    branches: [dev, main]
-    paths:
-      - "apps/gooseforum/resource/packages/client/package.json"
-      - "apps/gooseforum/resource/packages/client/src/gen/**"
-      - "packages/api-contract/**"
-      - ".github/workflows/ci-contract.yml"
-  # PR 无条件触发, 保证 required status check 稳定存在
-  pull_request:
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  workflow_call:
+    inputs:
+      source:
+        type: string
+        default: ''
 
 permissions:
   contents: read
-  pull-requests: read
 
 jobs:
   ci-contract:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
+          ref: ${{ inputs.source || github.sha }}
+          persist-credentials: false
           fetch-depth: 0
-      - uses: dorny/paths-filter@v4
-        id: filter
-        with:
-          # On dev/main pushes, compare with the commit before this push.
-          # This input is ignored for pull_request, which uses its base branch.
-          base: ${{ github.event_name == 'push' && github.ref_name || '' }}
-          filters: |
-            contract:
-              - 'apps/gooseforum/resource/packages/client/package.json'
-              - 'apps/gooseforum/resource/packages/client/src/gen/**'
-              - 'packages/api-contract/**'
-              - '.github/workflows/ci-contract.yml'
-
-      - uses: pnpm/action-setup@v4
-        if: steps.filter.outputs.contract == 'true'
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413
         with:
           version: 11.10.0
-      - uses: actions/setup-node@v4
-        if: steps.filter.outputs.contract == 'true'
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: 24
           cache: pnpm
           cache-dependency-path: packages/api-contract/pnpm-lock.yaml
       - name: Install contract tooling
-        if: steps.filter.outputs.contract == 'true'
         working-directory: packages/api-contract
         run: pnpm install --frozen-lockfile
       - name: Validate, bundle, and generate TypeScript types
-        if: steps.filter.outputs.contract == 'true'
         working-directory: packages/api-contract
         run: pnpm run check
       - name: Require generated TypeScript types to be committed
-        if: steps.filter.outputs.contract == 'true'
         run: git diff --exit-code -- apps/gooseforum/resource/packages/client/src/gen
       - name: Require generated route coverage matrix to be committed
-        if: steps.filter.outputs.contract == 'true'
         run: git diff --exit-code -- packages/api-contract/coverage-matrix.md

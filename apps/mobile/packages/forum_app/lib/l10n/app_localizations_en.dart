@@ -280,6 +280,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get authCaptchaRequired => 'Please enter the captcha';
 
   @override
+  String get publishCaptchaExplanation =>
+      'The site may require a captcha for frequent posting by newer accounts. This check lifts as recent activity subsides or the account meets the site\'s age condition.';
+
+  @override
   String get authOidcLogin => 'Sign in with yourtj';
 
   @override

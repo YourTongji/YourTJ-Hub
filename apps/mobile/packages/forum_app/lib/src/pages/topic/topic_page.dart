@@ -89,6 +89,7 @@ class _TopicPageState extends ConsumerState<TopicPage>
   bool _cacheCleared = false;
   DateTime? _snapshotTime;
   bool _loadingMore = false;
+  bool _latestLoadFailed = false;
   bool _jumping = false;
   int _windowGeneration = 0;
   int _currentFloor = 1;
@@ -122,6 +123,7 @@ class _TopicPageState extends ConsumerState<TopicPage>
   CaptchaPayload? _replyCaptcha;
   final _replyCaptchaCode = TextEditingController();
   bool _replyCaptchaLoading = false;
+  bool _showReplyCaptchaExplanation = false;
   bool _uploadingReplyImage = false;
   String? _replyTargetDisplayName(BuildContext context) {
     if (_replyTargetName == null) return null;
@@ -472,8 +474,11 @@ class _TopicPageState extends ConsumerState<TopicPage>
       if (props == null) throw const FormatException('topic props');
       networkShown = true;
       _showPage(payload, props, cached: false, postNo: postNo);
-      _recordReturnState();
       _recordPostReturnStates(props.postStream.posts);
+      if (defaultWindow && _sort == CommentSort.desc && current()) {
+        await _loadLatestReplies(generation, epoch);
+      }
+      _recordReturnState();
       // A deep-linked middle window must never masquerade as the first page.
       if (defaultWindow && current()) {
         try {
@@ -582,13 +587,112 @@ class _TopicPageState extends ConsumerState<TopicPage>
     }
   }
 
-  /// 切换评论排序:正序/倒序复用已加载窗口本地翻转,不重新请求;
-  /// 只看楼主在切到该模式时自动扫描缺失楼层,直到出现楼主回复或双向扫尽。
+  /// 切换倒序时直接请求最新楼层窗口；其余排序沿用已加载窗口。
   void _setCommentSort(CommentSort sort) {
     if (_sort == sort) return;
-    setState(() => _sort = sort);
+    final generation = ++_windowGeneration;
+    final epoch = ref.read(offlineCacheEpochProvider);
+    setState(() {
+      _sort = sort;
+      _latestLoadFailed = false;
+      _loadingMore = sort == CommentSort.desc && !_fromCache && !_cacheCleared;
+    });
+    if (sort == CommentSort.desc && !_fromCache && !_cacheCleared) {
+      unawaited(_loadLatestReplies(generation, epoch));
+      return;
+    }
     if (sort == CommentSort.onlyOp) {
       unawaited(_scanForOpReplies());
+    }
+  }
+
+  void _retryLatestReplies() {
+    final generation = ++_windowGeneration;
+    final epoch = ref.read(offlineCacheEpochProvider);
+    setState(() {
+      _latestLoadFailed = false;
+      _loadingMore = true;
+    });
+    unawaited(_loadLatestReplies(generation, epoch));
+  }
+
+  Future<void> _loadLatestReplies(int generation, int epoch) async {
+    if (mounted && generation == _windowGeneration && !_loadingMore) {
+      setState(() => _loadingMore = true);
+    }
+    try {
+      final window = await ref
+          .read(topicRepositoryProvider)
+          .getPostWindow(
+            topicId: widget.topicId,
+            // An oversized signed-64 cursor reaches the tail in a single
+            // query; use a dedicated latest-window API only if post numbers
+            // exceed it.
+            beforePostNo: 0x7fffffffffffffff,
+          );
+      if (!mounted ||
+          generation != _windowGeneration ||
+          epoch != ref.read(offlineCacheEpochProvider) ||
+          _sort != CommentSort.desc ||
+          _cacheCleared) {
+        return;
+      }
+      _recordPostReturnStates(window.posts);
+      final mainPost = _mainPost(_posts);
+      setState(() {
+        final props = _page.valueOrNull;
+        _posts
+          ..clear()
+          ..addAll(<PostPayload>[
+            if (mainPost != null &&
+                !window.posts.any((post) => post.id == mainPost.id))
+              mainPost,
+            ...window.posts,
+          ]);
+        _replyTargets
+          ..clear()
+          ..addEntries(
+            window.replyTargets.map(
+              (ReplyTargetPayload target) => MapEntry(target.id, target),
+            ),
+          );
+        _beforePostNo = window.beforePostNo;
+        _afterPostNo = window.afterPostNo;
+        _hasEarlierPosts = window.hasBefore;
+        // The API's before-cursor response always advertises an after cursor;
+        // this deliberately oversized cursor already selected the stream tail.
+        _hasMorePosts = false;
+        _currentFloor = window.afterPostNo ?? _currentFloor;
+        _latestLoadFailed = false;
+        if (props != null) {
+          _page = AsyncValue.data(
+            props.copyWith(
+              topic: props.topic.copyWith(
+                maxPostNo: window.maxPostNo,
+                replyCount: window.total > 0
+                    ? window.total - 1
+                    : props.topic.replyCount,
+              ),
+              postStream: window,
+            ),
+          );
+        }
+      });
+    } catch (error) {
+      if (mounted &&
+          generation == _windowGeneration &&
+          epoch == ref.read(offlineCacheEpochProvider)) {
+        setState(() => _latestLoadFailed = true);
+        showGfToast(
+          context,
+          resolveErrorMessage(AppLocalizations.of(context), error),
+          error: true,
+        );
+      }
+    } finally {
+      if (mounted && generation == _windowGeneration) {
+        setState(() => _loadingMore = false);
+      }
     }
   }
 
@@ -634,6 +738,11 @@ class _TopicPageState extends ConsumerState<TopicPage>
       }
     } finally {
       _opScanning = false;
+      if (mounted &&
+          _sort == CommentSort.onlyOp &&
+          generation != _windowGeneration) {
+        unawaited(_scanForOpReplies());
+      }
     }
   }
 
@@ -1092,6 +1201,7 @@ class _TopicPageState extends ConsumerState<TopicPage>
       setState(() {
         _replyCaptcha = null;
         _replyCaptchaCode.clear();
+        _showReplyCaptchaExplanation = false;
       });
       final AppLocalizations l10n = AppLocalizations.of(context);
       // 待审回复(issue #975)尚未公开:提示“已提交审核”,不定位到新楼层。
@@ -1107,10 +1217,16 @@ class _TopicPageState extends ConsumerState<TopicPage>
           epoch != ref.read(offlineCacheEpochProvider)) {
         return;
       }
-      if (error is ApiException &&
-          (error.messageCode == 'common.captchaRequired' ||
-              error.messageCode == 'auth.captcha.invalid')) {
-        await _loadReplyCaptcha();
+      if (error is ApiException) {
+        if (error.messageCode == 'common.captchaRequired') {
+          setState(
+            () => _showReplyCaptchaExplanation =
+                error.params?['action'] == 'post.create',
+          );
+          await _loadReplyCaptcha();
+        } else if (error.messageCode == 'auth.captcha.invalid') {
+          await _loadReplyCaptcha();
+        }
       }
       // AI 图文审查拦截(issue #975):弹出友好提示,回复草稿保持不变。
       if (mounted && await showModerationBlockedDialog(context, error)) return;
@@ -1565,12 +1681,15 @@ class _TopicPageState extends ConsumerState<TopicPage>
                               ),
                             ),
                             if (_sort == CommentSort.desc
-                                ? _hasMorePosts
+                                ? (_hasMorePosts || _latestLoadFailed)
                                 : _hasEarlierPosts)
                               SliverToBoxAdapter(
                                 child: TextButton(
                                   onPressed: _loadingMore
                                       ? null
+                                      : _latestLoadFailed &&
+                                            _sort == CommentSort.desc
+                                      ? _retryLatestReplies
                                       : () => _loadMore(earlier: true),
                                   child: Text(
                                     _sort == CommentSort.desc
@@ -1798,47 +1917,68 @@ class _TopicPageState extends ConsumerState<TopicPage>
                                                   ],
                                                 ),
                                               if (_replyCaptcha != null)
-                                                Row(
+                                                Column(
+                                                  crossAxisAlignment:
+                                                      CrossAxisAlignment.start,
                                                   children: [
-                                                    InkWell(
-                                                      onTap:
-                                                          _replyCaptchaLoading
-                                                          ? null
-                                                          : _loadReplyCaptcha,
-                                                      child: GfCaptchaImage(
-                                                        imageData:
-                                                            _replyCaptcha!
-                                                                .captchaImg,
-                                                        width: 80,
-                                                        height: 42,
-                                                        fit: BoxFit.contain,
-                                                      ),
-                                                    ),
-                                                    const SizedBox(width: 8),
-                                                    Expanded(
-                                                      child: GfInput(
-                                                        key: const Key(
-                                                          'reply-captcha',
+                                                    if (_showReplyCaptchaExplanation)
+                                                      Padding(
+                                                        padding:
+                                                            const EdgeInsets.only(
+                                                              bottom: 8,
+                                                            ),
+                                                        child: Text(
+                                                          l10n.publishCaptchaExplanation,
+                                                          style: Theme.of(
+                                                            context,
+                                                          ).textTheme.bodySmall,
                                                         ),
-                                                        controller:
-                                                            _replyCaptchaCode,
-                                                        labelText:
-                                                            l10n.authCaptcha,
-                                                        textCapitalization:
-                                                            TextCapitalization
-                                                                .characters,
                                                       ),
-                                                    ),
-                                                    IconButton(
-                                                      tooltip:
-                                                          l10n.commonRefresh,
-                                                      onPressed:
-                                                          _replyCaptchaLoading
-                                                          ? null
-                                                          : _loadReplyCaptcha,
-                                                      icon: const GfSymbol(
-                                                        'refresh-cw',
-                                                      ),
+                                                    Row(
+                                                      children: [
+                                                        InkWell(
+                                                          onTap:
+                                                              _replyCaptchaLoading
+                                                              ? null
+                                                              : _loadReplyCaptcha,
+                                                          child: GfCaptchaImage(
+                                                            imageData:
+                                                                _replyCaptcha!
+                                                                    .captchaImg,
+                                                            width: 80,
+                                                            height: 42,
+                                                            fit: BoxFit.contain,
+                                                          ),
+                                                        ),
+                                                        const SizedBox(
+                                                          width: 8,
+                                                        ),
+                                                        Expanded(
+                                                          child: GfInput(
+                                                            key: const Key(
+                                                              'reply-captcha',
+                                                            ),
+                                                            controller:
+                                                                _replyCaptchaCode,
+                                                            labelText: l10n
+                                                                .authCaptcha,
+                                                            textCapitalization:
+                                                                TextCapitalization
+                                                                    .characters,
+                                                          ),
+                                                        ),
+                                                        IconButton(
+                                                          tooltip: l10n
+                                                              .commonRefresh,
+                                                          onPressed:
+                                                              _replyCaptchaLoading
+                                                              ? null
+                                                              : _loadReplyCaptcha,
+                                                          icon: const GfSymbol(
+                                                            'refresh-cw',
+                                                          ),
+                                                        ),
+                                                      ],
                                                     ),
                                                   ],
                                                 ),

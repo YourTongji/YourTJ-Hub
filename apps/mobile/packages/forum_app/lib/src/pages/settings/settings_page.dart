@@ -227,7 +227,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             for (final b in wearable)
               GfSettingRow(
                 leading: GfBadgeMedallion(
-                  icon: UserBadgeArtwork(b, size: 24),
+                  icon: UserBadgeArtwork.medallion(b, 40),
                   color: userBadgeColor(b),
                   size: 40,
                 ),

@@ -281,6 +281,10 @@ class AppLocalizationsDe extends AppLocalizations {
   String get authCaptchaRequired => 'Bitte Captcha eingeben';
 
   @override
+  String get publishCaptchaExplanation =>
+      'Das Forum kann bei vielen Beiträgen und Antworten von neuen Konten ein Captcha verlangen. Bei nachlassender Aktivität oder sobald das Konto das festgelegte Alter erreicht, entfällt diese Anforderung.';
+
+  @override
   String get authOidcLogin => 'Mit YourTJ anmelden';
 
   @override
