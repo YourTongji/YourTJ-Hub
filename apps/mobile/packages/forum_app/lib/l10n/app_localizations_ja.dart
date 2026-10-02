@@ -270,6 +270,10 @@ class AppLocalizationsJa extends AppLocalizations {
   String get authCaptchaRequired => '認証コードを入力してください';
 
   @override
+  String get publishCaptchaExplanation =>
+      '新しいアカウントでは、投稿や返信が多い場合に認証コードが必要になることがあります。最近の利用が落ち着くか、アカウントがサイト所定の期間に達すると解除されます。';
+
+  @override
   String get authOidcLogin => 'YourTJでログイン';
 
   @override

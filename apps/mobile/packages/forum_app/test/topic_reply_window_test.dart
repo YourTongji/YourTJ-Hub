@@ -1,7 +1,9 @@
 import 'dart:math' as math;
+import 'dart:convert';
 
 import 'package:core/core.dart';
 import 'package:dio/dio.dart';
+import 'package:image/image.dart' as img;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -214,10 +216,14 @@ class _CreatedReplyPostRepository extends PostRepository {
   _CreatedReplyPostRepository(
     super.client, {
     required this.onCreated,
+    this.requireCaptcha = false,
+    this.captchaAction = 'post.create',
     this.postNo = 16,
   });
 
   final void Function(String content) onCreated;
+  final bool requireCaptcha;
+  final String captchaAction;
   final int postNo;
 
   int get postId => 9000 + postNo;
@@ -230,9 +236,35 @@ class _CreatedReplyPostRepository extends PostRepository {
     String? captchaId,
     String? captchaCode,
   }) async {
+    if (requireCaptcha &&
+        (captchaId != 'challenge' ||
+            captchaCode == null ||
+            captchaCode.isEmpty)) {
+      throw ApiException(
+        fallbackMessage: 'Captcha required',
+        messageCode: 'common.captchaRequired',
+        params: <String, dynamic>{'action': captchaAction},
+      );
+    }
+    if (requireCaptcha && captchaCode != 'ABCD') {
+      throw const ApiException(
+        fallbackMessage: 'Captcha invalid',
+        messageCode: 'auth.captcha.invalid',
+      );
+    }
     onCreated(content);
     return CreatePostResult(id: postId, postNo: postNo, renderedContent: '');
   }
+}
+
+class _CaptchaAuthRepository extends AuthRepository {
+  _CaptchaAuthRepository(super.client);
+
+  @override
+  Future<CaptchaPayload> getCaptcha() async => CaptchaPayload(
+    captchaId: 'challenge',
+    captchaImg: base64Encode(img.encodePng(img.Image(width: 2, height: 2))),
+  );
 }
 
 void main() {
@@ -247,6 +279,8 @@ void main() {
     int floors = 15,
     int? postNo,
     bool pendingReply = false,
+    bool requireReplyCaptcha = false,
+    String replyCaptchaAction = 'post.create',
     bool trailingReplies = false,
     int createdPostNo = 16,
   }) async {
@@ -269,6 +303,8 @@ void main() {
         postRepositoryProvider.overrideWithValue(
           _CreatedReplyPostRepository(
             client,
+            requireCaptcha: requireReplyCaptcha,
+            captchaAction: replyCaptchaAction,
             postNo: createdPostNo,
             onCreated: (String content) {
               server.posts.add(floorPost(createdPostNo, content: content));
@@ -291,6 +327,9 @@ void main() {
         ),
         currentUserProvider.overrideWith(
           (ref) async => const CurrentUser(id: 1, username: 'alice'),
+        ),
+        authRepositoryProvider.overrideWithValue(
+          _CaptchaAuthRepository(client),
         ),
         writingStoreProvider.overrideWithValue(WritingStore()),
         offlineTopicCacheProvider.overrideWithValue(NoopOfflineCache()),
@@ -542,6 +581,46 @@ void main() {
     expect(server.calls.last, 'anchor=0 before=8 after=0 limit=0');
     expect(find.text('7楼内容'), findsOneWidget);
     expect(find.text('8楼内容'), findsOneWidget);
+    await disposePage(tester);
+  });
+
+  testWidgets('新用户高频回复验证码显示原因说明', (tester) async {
+    final Map<String, dynamic> page = anchoredPageJson(
+      posts: <PostPayload>[
+        for (int floor = 8; floor <= 15; floor++) floorPost(floor),
+      ],
+      hasBefore: true,
+      hasAfter: false,
+    );
+    await pumpTopic(tester, page: page, postNo: 8, requireReplyCaptcha: true);
+
+    await replyToFloor(tester, 8, '需要验证码的回复');
+
+    expect(find.text(l10nOf(tester).publishCaptchaExplanation), findsOneWidget);
+    expect(find.byKey(const Key('reply-captcha')), findsOneWidget);
+    await disposePage(tester);
+  });
+
+  testWidgets('非回复 action 的验证码不显示回复说明', (tester) async {
+    final Map<String, dynamic> page = anchoredPageJson(
+      posts: <PostPayload>[
+        for (int floor = 8; floor <= 15; floor++) floorPost(floor),
+      ],
+      hasBefore: true,
+      hasAfter: false,
+    );
+    await pumpTopic(
+      tester,
+      page: page,
+      postNo: 8,
+      requireReplyCaptcha: true,
+      replyCaptchaAction: 'login',
+    );
+
+    await replyToFloor(tester, 8, '其他验证码 action');
+
+    expect(find.byKey(const Key('reply-captcha')), findsOneWidget);
+    expect(find.text(l10nOf(tester).publishCaptchaExplanation), findsNothing);
     await disposePage(tester);
   });
 }

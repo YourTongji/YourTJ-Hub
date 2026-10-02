@@ -88,6 +88,7 @@
   "authGetCode": "コードを取得",
   "authRefreshCaptcha": "認証コードを更新",
   "authCaptchaRequired": "認証コードを入力してください",
+  "publishCaptchaExplanation": "新しいアカウントでは、投稿や返信が多い場合に認証コードが必要になることがあります。最近の利用が落ち着くか、アカウントがサイト所定の期間に達すると解除されます。",
   "authOidcLogin": "YourTJでログイン",
   "authRegisterEmailVerify": "登録が完了しました。確認メールを送信しました。受信箱を確認してください。",
   "authRegisterSuccess": "登録しました。ログインしてください",

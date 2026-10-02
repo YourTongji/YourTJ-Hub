@@ -104,6 +104,7 @@ const initialPostStream = props.initialPostStream
 const initialPosts = initialPostStream.posts
 const {
   captchaRequired,
+  showPublishCaptchaExplanation,
   captchaId,
   captchaImg,
   captchaCode,
@@ -2704,6 +2705,7 @@ defineExpose({ openFloatingPostComposer, focusPostComposer })
     :captcha-img="captchaImg"
     :captcha-loading="captchaLoading"
     :captcha-required="captchaRequired"
+    :captcha-explanation="showPublishCaptchaExplanation"
     :current-user-id="viewer.id"
     :error-message="errorMessage"
     :mention-users="mentionUsers"

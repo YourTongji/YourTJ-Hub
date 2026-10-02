@@ -588,6 +588,12 @@ abstract class AppLocalizations {
   /// **'Please enter the captcha'**
   String get authCaptchaRequired;
 
+  /// No description provided for @publishCaptchaExplanation.
+  ///
+  /// In en, this message translates to:
+  /// **'The site may require a captcha for frequent posting by newer accounts. This check lifts as recent activity subsides or the account meets the site\'s age condition.'**
+  String get publishCaptchaExplanation;
+
   /// No description provided for @authOidcLogin.
   ///
   /// In en, this message translates to:

@@ -709,6 +709,7 @@ export default {
     hidePassword: 'Hide password',
     captcha: 'Captcha',
     captchaAlt: 'Captcha',
+    publishCaptchaExplanation: 'The site may require a captcha for frequent posting by newer accounts. This check lifts as recent activity subsides or the account meets the site’s age condition.',
     forgotPassword: 'Forgot password?',
     agreeTerms: 'I have read and agree to the terms and privacy policy',
     agreeTermsOnly: 'I have read and agree to the terms',

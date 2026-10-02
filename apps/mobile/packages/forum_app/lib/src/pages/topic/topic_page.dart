@@ -121,6 +121,7 @@ class _TopicPageState extends ConsumerState<TopicPage>
   CaptchaPayload? _replyCaptcha;
   final _replyCaptchaCode = TextEditingController();
   bool _replyCaptchaLoading = false;
+  bool _showReplyCaptchaExplanation = false;
   bool _uploadingReplyImage = false;
   String? _replyTargetDisplayName(BuildContext context) {
     if (_replyTargetName == null) return null;
@@ -1091,6 +1092,7 @@ class _TopicPageState extends ConsumerState<TopicPage>
       setState(() {
         _replyCaptcha = null;
         _replyCaptchaCode.clear();
+        _showReplyCaptchaExplanation = false;
       });
       showGfToast(context, AppLocalizations.of(context).topicReplySuccess);
       await _showCreatedReply(result);
@@ -1100,10 +1102,16 @@ class _TopicPageState extends ConsumerState<TopicPage>
           epoch != ref.read(offlineCacheEpochProvider)) {
         return;
       }
-      if (error is ApiException &&
-          (error.messageCode == 'common.captchaRequired' ||
-              error.messageCode == 'auth.captcha.invalid')) {
-        await _loadReplyCaptcha();
+      if (error is ApiException) {
+        if (error.messageCode == 'common.captchaRequired') {
+          setState(
+            () => _showReplyCaptchaExplanation =
+                error.params?['action'] == 'post.create',
+          );
+          await _loadReplyCaptcha();
+        } else if (error.messageCode == 'auth.captcha.invalid') {
+          await _loadReplyCaptcha();
+        }
       }
       if (mounted) {
         showGfToast(
@@ -1789,47 +1797,68 @@ class _TopicPageState extends ConsumerState<TopicPage>
                                                   ],
                                                 ),
                                               if (_replyCaptcha != null)
-                                                Row(
+                                                Column(
+                                                  crossAxisAlignment:
+                                                      CrossAxisAlignment.start,
                                                   children: [
-                                                    InkWell(
-                                                      onTap:
-                                                          _replyCaptchaLoading
-                                                          ? null
-                                                          : _loadReplyCaptcha,
-                                                      child: GfCaptchaImage(
-                                                        imageData:
-                                                            _replyCaptcha!
-                                                                .captchaImg,
-                                                        width: 80,
-                                                        height: 42,
-                                                        fit: BoxFit.contain,
-                                                      ),
-                                                    ),
-                                                    const SizedBox(width: 8),
-                                                    Expanded(
-                                                      child: GfInput(
-                                                        key: const Key(
-                                                          'reply-captcha',
+                                                    if (_showReplyCaptchaExplanation)
+                                                      Padding(
+                                                        padding:
+                                                            const EdgeInsets.only(
+                                                              bottom: 8,
+                                                            ),
+                                                        child: Text(
+                                                          l10n.publishCaptchaExplanation,
+                                                          style: Theme.of(
+                                                            context,
+                                                          ).textTheme.bodySmall,
                                                         ),
-                                                        controller:
-                                                            _replyCaptchaCode,
-                                                        labelText:
-                                                            l10n.authCaptcha,
-                                                        textCapitalization:
-                                                            TextCapitalization
-                                                                .characters,
                                                       ),
-                                                    ),
-                                                    IconButton(
-                                                      tooltip:
-                                                          l10n.commonRefresh,
-                                                      onPressed:
-                                                          _replyCaptchaLoading
-                                                          ? null
-                                                          : _loadReplyCaptcha,
-                                                      icon: const GfSymbol(
-                                                        'refresh-cw',
-                                                      ),
+                                                    Row(
+                                                      children: [
+                                                        InkWell(
+                                                          onTap:
+                                                              _replyCaptchaLoading
+                                                              ? null
+                                                              : _loadReplyCaptcha,
+                                                          child: GfCaptchaImage(
+                                                            imageData:
+                                                                _replyCaptcha!
+                                                                    .captchaImg,
+                                                            width: 80,
+                                                            height: 42,
+                                                            fit: BoxFit.contain,
+                                                          ),
+                                                        ),
+                                                        const SizedBox(
+                                                          width: 8,
+                                                        ),
+                                                        Expanded(
+                                                          child: GfInput(
+                                                            key: const Key(
+                                                              'reply-captcha',
+                                                            ),
+                                                            controller:
+                                                                _replyCaptchaCode,
+                                                            labelText: l10n
+                                                                .authCaptcha,
+                                                            textCapitalization:
+                                                                TextCapitalization
+                                                                    .characters,
+                                                          ),
+                                                        ),
+                                                        IconButton(
+                                                          tooltip: l10n
+                                                              .commonRefresh,
+                                                          onPressed:
+                                                              _replyCaptchaLoading
+                                                              ? null
+                                                              : _loadReplyCaptcha,
+                                                          icon: const GfSymbol(
+                                                            'refresh-cw',
+                                                          ),
+                                                        ),
+                                                      ],
                                                     ),
                                                   ],
                                                 ),

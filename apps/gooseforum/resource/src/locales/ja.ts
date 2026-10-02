@@ -708,6 +708,7 @@ export default {
     hidePassword: 'パスワードを隠す',
     captcha: '認証コード',
     captchaAlt: '認証コード',
+    publishCaptchaExplanation: '新しいアカウントでは、投稿や返信が多い場合に認証コードが必要になることがあります。最近の利用が落ち着くか、アカウントがサイト所定の期間に達すると解除されます。',
     forgotPassword: 'パスワードを忘れましたか？',
     agreeTerms: '利用規約とプライバシーポリシーに同意します',
     agreeTermsOnly: '利用規約に同意します',
