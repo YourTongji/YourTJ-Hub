@@ -149,4 +149,27 @@ void main() {
       },
     );
   }
+
+  // Server badge SVGs carry their own optical margin, so artwork sized with
+  // artworkSize fills a centre box that is 70% of the medallion.
+  testWidgets('artwork fills the centre box given by artworkSize', (
+    tester,
+  ) async {
+    for (final size in [34.0, 40.0, 56.0, 80.0]) {
+      await tester.pumpWidget(
+        gfApp(
+          GfBadgeMedallion(
+            icon: const SizedBox.expand(key: ValueKey('artwork')),
+            color: const Color(0xFF2563EB),
+            size: size,
+          ),
+        ),
+      );
+      expect(GfBadgeMedallion.artworkSize(size), closeTo(size * .70, 1e-9));
+      expect(
+        tester.getSize(find.byKey(const ValueKey('artwork'))),
+        Size.square(GfBadgeMedallion.artworkSize(size)),
+      );
+    }
+  });
 }

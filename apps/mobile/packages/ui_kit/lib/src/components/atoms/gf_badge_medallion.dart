@@ -17,6 +17,11 @@ class GfBadgeMedallion extends StatelessWidget {
   final Color color;
   final double size;
 
+  /// Edge of the centre box that holds the artwork. Server badge SVGs keep
+  /// their own optical margin (docs/decisions/0054), so artwork sized to fill
+  /// this box still sits well inside the enamel face.
+  static double artworkSize(double size) => size * .70;
+
   @override
   Widget build(BuildContext context) {
     final colors = GfTheme.colorsOf(context);
@@ -89,7 +94,7 @@ class GfBadgeMedallion extends StatelessWidget {
               child: IconTheme.merge(
                 data: IconThemeData(size: size * .5, color: color),
                 child: SizedBox.square(
-                  dimension: size * .60,
+                  dimension: artworkSize(size),
                   child: Center(child: icon),
                 ),
               ),
