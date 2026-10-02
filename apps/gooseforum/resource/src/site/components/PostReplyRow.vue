@@ -63,6 +63,8 @@ const { t } = useI18n()
 
 // 展示型判定，与主流楼层同一规则；回复行不可能是首楼。
 const isRemoved = computed(() => props.post.isAuthorDeleted || props.post.isModeratorRemoved)
+// 作者本人的待审回复照常展示正文（issue #975），由“审核中”标记说明状态。
+const showHiddenPlaceholder = computed(() => props.post.isHidden && !props.post.canModerate && !(props.post.isOwnPost && props.post.processStatus === 2))
 const canEdit = computed(() => props.post.isOwnPost && !props.post.isHidden && !isRemoved.value)
 const canDelete = computed(() => props.post.isOwnPost && !props.post.isHidden && !isRemoved.value)
 const canReply = computed(() => (!props.authenticated || props.canPost) && !props.post.isHidden && !isRemoved.value)
@@ -164,7 +166,7 @@ function lastEditedLabel(post: PostPayload) {
       <div v-else-if="post.isModeratorRemoved" class="mt-2 rounded border border-dashed border-line bg-base-100/60 px-3 py-2 text-sm text-base-content/55">
         {{ t('topic.moderatorRemovedPlaceholder') }}
       </div>
-      <div v-else-if="post.isHidden && !post.canModerate" class="mt-2 rounded border border-line bg-base-100/60 px-3 py-2 text-sm text-base-content/45">
+      <div v-else-if="showHiddenPlaceholder" class="mt-2 rounded border border-line bg-base-100/60 px-3 py-2 text-sm text-base-content/45">
         {{ t('topic.hiddenReplyPlaceholder') }}
       </div>
       <div v-else v-code-copy v-code-highlight v-math-render v-content-enhancements class="gf-prose gf-prose-post mt-1" v-html="post.renderedContent" />

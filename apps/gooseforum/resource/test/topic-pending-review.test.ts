@@ -2,7 +2,10 @@
 import { describe, expect, test } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
+import type { PostPayload, PostWindowPayload } from '@gooseforum/client'
 import TopicPage from '../src/site/pages/TopicPage.vue'
+import PostStream from '../src/site/components/PostStream.vue'
+import PostReplyRow from '../src/site/components/PostReplyRow.vue'
 import zh from '../src/locales/zh'
 
 const i18n = createI18n({ legacy: false, locale: 'zh', messages: { zh } })
@@ -39,5 +42,52 @@ describe('pending topic banner (issue #975)', () => {
     const wrapper = mountTopic(0, true)
     await flushPromises()
     expect(wrapper.find('[data-test="topic-pending-review"]').exists()).toBe(false)
+  })
+})
+
+function pendingPost(isOwnPost: boolean, content: string): PostPayload {
+  return {
+    id: 9751, topicId: 975, postNo: 2, content, renderedContent: content ? `<p>${content}</p>` : '',
+    processStatus: 2, isHidden: true, isAuthorDeleted: false, isModeratorRemoved: false, canModerate: false,
+    author: { id: 1, username: 'author', avatarUrl: '' }, createdAt: '2026-10-02 10:00:00', updatedAt: '2026-10-02 10:00:00',
+    isOwnPost, revisionCount: 0, likeCount: 0, isLiked: false, isBookmarked: false,
+  } as PostPayload
+}
+
+function mountStream(post: PostPayload) {
+  return mount(PostStream, {
+    props: {
+      topicId: 975, topicTitle: '待审话题', contentType: 0,
+      initialPostStream: { posts: [{ ...pendingPost(true, ''), id: 9750, postNo: 1, processStatus: 0, isHidden: false, content: '首楼', renderedContent: '<p>首楼</p>' }, post], hasBefore: false, hasAfter: false } as PostWindowPayload,
+      viewer: { id: 1, username: 'author', email: '', avatarUrl: '', isAuthenticated: true, canAccessAdmin: false, isModerator: false, requiresEmailVerification: false, adminPermissions: [] }, canPost: false,
+    },
+    global: { plugins: [i18n], directives: { 'code-copy': () => {}, 'code-highlight': () => {}, 'math-render': () => {}, 'content-enhancements': () => {} } },
+  })
+}
+
+function mountReplyRow(post: PostPayload) {
+  return mount(PostReplyRow, {
+    props: { post, authenticated: true, canPost: false, actionState: { likeCount: 0, isLiked: false, isBookmarked: false, actingLike: false, actingBookmark: false } },
+    global: { plugins: [i18n], stubs: { UserAvatar: true }, directives: { 'code-copy': () => {}, 'code-highlight': () => {}, 'math-render': () => {}, 'content-enhancements': () => {} } },
+  })
+}
+
+describe('pending post content (issue #975)', () => {
+  test('authors read their own pending post in full, with a review badge', async () => {
+    for (const wrapper of [mountStream(pendingPost(true, '刚写完的回复')), mountReplyRow(pendingPost(true, '刚写完的回复'))]) {
+      await flushPromises()
+      expect(wrapper.text()).toContain('刚写完的回复')
+      expect(wrapper.text()).not.toContain('该回复已被处理')
+      expect(wrapper.find('[data-test="post-pending-review"]').exists()).toBe(true)
+      wrapper.unmount()
+    }
+  })
+
+  test('other readers still see the hidden placeholder', async () => {
+    for (const wrapper of [mountStream(pendingPost(false, '')), mountReplyRow(pendingPost(false, ''))]) {
+      await flushPromises()
+      expect(wrapper.text()).toContain('该回复已被处理')
+      wrapper.unmount()
+    }
   })
 })

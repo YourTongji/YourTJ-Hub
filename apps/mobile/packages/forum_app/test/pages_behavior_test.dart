@@ -2018,7 +2018,13 @@ void main() {
       ..['canPost'] = false;
     final List<dynamic> posts =
         (props['postStream'] as Map<String, dynamic>)['posts'] as List<dynamic>;
-    (posts[1] as Map<String, dynamic>)['processStatus'] = 2;
+    // 与服务端一致：作者本人的待审楼层带正文，但 isHidden 仍为 true。
+    for (final post in posts.take(2)) {
+      (post as Map<String, dynamic>)
+        ..['processStatus'] = 2
+        ..['isHidden'] = true
+        ..['isOwnPost'] = true;
+    }
     final container = await makeContainer(
       pageRepo: RedesignPageRepository(client, topicPayload: payload),
     );
@@ -2030,6 +2036,7 @@ void main() {
     expect(find.text('这篇内容正在审核，目前只有你和审核员能看到。通过后所有人可见。'), findsOneWidget);
     expect(find.byKey(const Key('post-pending-review-9002')), findsOneWidget);
     expect(find.byKey(const Key('post-pending-review-9003')), findsNothing);
+    expect(find.textContaining('独立回复'), findsWidgets);
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 600));
   });

@@ -1443,6 +1443,11 @@ function anonymousAvatarSrc(post: PostPayload, size = 36): string {
   return buildBeamAvatarDataUri(`anonymous-${post.id}`, size)
 }
 
+// 作者本人的待审楼层照常展示正文（issue #975），审核状态由横幅与“审核中”标记说明。
+function isOwnPendingPost(post: PostPayload) {
+  return post.isOwnPost && post.processStatus === 2
+}
+
 function canEditPost(post: PostPayload) {
   return post.isOwnPost && !post.isHidden && !isPostRemoved(post)
 }
@@ -2241,7 +2246,7 @@ defineExpose({ openFloatingPostComposer, focusPostComposer })
               <div class="font-semibold text-base-content/70">{{ t('topic.moderatorRemovedTitle') }}</div>
               <div class="mt-1 leading-6">{{ t('topic.moderatorRemovedPlaceholder') }}</div>
             </div>
-            <div v-else-if="post.isHidden && !post.canModerate" class="rounded border border-line bg-base-200/60 px-3 py-2 text-sm text-base-content/45">
+            <div v-else-if="post.isHidden && !post.canModerate && !isOwnPendingPost(post)" class="rounded border border-line bg-base-200/60 px-3 py-2 text-sm text-base-content/45">
               {{ t('topic.hiddenReplyPlaceholder') }}
             </div>
             <div v-else>
@@ -2262,7 +2267,7 @@ defineExpose({ openFloatingPostComposer, focusPostComposer })
                 v-html="renderedPostContent(post)"
               />
             </div>
-            <div v-if="post.isHidden && !isPostRemoved(post) && post.canModerate" class="mt-2 inline-flex rounded bg-base-200 px-2 py-1 text-xs font-semibold text-base-content/45">
+            <div v-if="post.isHidden && post.processStatus !== 2 && !isPostRemoved(post) && post.canModerate" class="mt-2 inline-flex rounded bg-base-200 px-2 py-1 text-xs font-semibold text-base-content/45">
               {{ t('topic.hiddenReplyBadge') }}
             </div>
             <div v-if="!post.lastEditedAt && post.updatedAt && post.updatedAt !== post.createdAt" class="mt-2 text-xs font-medium text-base-content/55">
