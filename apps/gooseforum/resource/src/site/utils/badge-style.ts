@@ -30,6 +30,16 @@ export function badgeIconURL(badge: BadgeStyleItem) {
   return badge.iconUrl || '/static/badges/contributor.svg'
 }
 
+/**
+ * 内置徽章图形（/static/badges/）已按统一光学尺寸自带边距（docs/decisions/0054），
+ * 可以放大填充容器；自定义徽章的图形（如外链品牌 logo）通常铺满画布，需保持原有内边距。
+ * 判定口径与移动端 _medallionArtworkSize 一致：只认相对路径（任何 host 的绝对 URL
+ * 都算自定义图形）；空 URL 经 badgeIconURL 回退到内置 contributor 图形，按内置取景。
+ */
+export function isSystemBadgeArtwork(badge: BadgeStyleItem) {
+  return badgeIconURL(badge).startsWith('/static/badges/')
+}
+
 export function badgeTooltip(badge: BadgeStyleItem) {
   return badge.description ? `${badge.name}：${badge.description}` : badge.name
 }

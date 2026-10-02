@@ -5,6 +5,7 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"encoding/pem"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -173,6 +174,129 @@ func TestLoginPublicKeyHTTPContract(t *testing.T) {
 	}
 	if result.Algorithm != "RSA-OAEP-256" {
 		t.Fatalf("algorithm = %q, want RSA-OAEP-256", result.Algorithm)
+	}
+}
+
+func TestLoginFailsClosedWhenTotpStateCannotBeRead(t *testing.T) {
+	conn, router := setupAuthSecurityContractTest(t)
+	var logs bytes.Buffer
+	previousLogger := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&logs, nil)))
+	t.Cleanup(func() { slog.SetDefault(previousLogger) })
+	user := createHTTPContractUser(t, conn, contractTestID())
+	enableContractTotp(t, user.Id)
+	t.Cleanup(func() {
+		if err := conn.AutoMigrate(&userTotp.Entity{}); err != nil {
+			t.Errorf("restore TOTP table after read-failure test: %v", err)
+		}
+	})
+	if err := conn.Migrator().DropTable(&userTotp.Entity{}); err != nil {
+		t.Fatalf("drop TOTP table to simulate read failure: %v", err)
+	}
+
+	body, err := json.Marshal(map[string]string{
+		"username":          user.Username,
+		"encryptedPassword": encryptLoginPassword(t, "secret123"),
+	})
+	if err != nil {
+		t.Fatalf("marshal login request: %v", err)
+	}
+	recorder := serveAuthSecurityJSON(router, http.MethodPost, "/api/login", string(body), "")
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("login status = %d, want 200: %s", recorder.Code, recorder.Body.String())
+	}
+	if got := decodeContractEnvelope(t, recorder).MessageCode; got != "auth.login.failed" {
+		t.Fatalf("login messageCode = %q, want auth.login.failed", got)
+	}
+	if !strings.Contains(logs.String(), "读取两步验证状态失败") {
+		t.Fatalf("TOTP read failure was not logged: %q", logs.String())
+	}
+	if recorder.Header().Get("New-Token") != "" || recorder.Header().Get("Set-Cookie") != "" {
+		t.Fatalf("login failure returned credentials: New-Token=%q Set-Cookie=%q", recorder.Header().Get("New-Token"), recorder.Header().Get("Set-Cookie"))
+	}
+	if count := contractSessionCount(t, conn, user.Id); count != 0 {
+		t.Fatalf("sessions after TOTP read failure = %d, want 0", count)
+	}
+	var challenges int64
+	if err := conn.Model(&userTotpChallenges.Entity{}).Where("user_id = ?", user.Id).Count(&challenges).Error; err != nil {
+		t.Fatalf("count challenges: %v", err)
+	}
+	if challenges != 0 {
+		t.Fatalf("challenges after TOTP read failure = %d, want 0", challenges)
+	}
+}
+
+func TestLoginWithEnabledTotpIssuesChallengeOnly(t *testing.T) {
+	conn, router := setupAuthSecurityContractTest(t)
+	user := createHTTPContractUser(t, conn, contractTestID())
+	enableContractTotp(t, user.Id)
+	body, err := json.Marshal(map[string]string{
+		"username":          user.Username,
+		"encryptedPassword": encryptLoginPassword(t, "secret123"),
+	})
+	if err != nil {
+		t.Fatalf("marshal login request: %v", err)
+	}
+	recorder := serveAuthSecurityJSON(router, http.MethodPost, "/api/login", string(body), "")
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("login status = %d, want 200: %s", recorder.Code, recorder.Body.String())
+	}
+	response := decodeContractEnvelope(t, recorder)
+	if response.MessageCode != "auth.totp.required" {
+		t.Fatalf("login messageCode = %q, want auth.totp.required", response.MessageCode)
+	}
+	if recorder.Header().Get("New-Token") == "" || !strings.Contains(recorder.Header().Get("Set-Cookie"), "access_token=") {
+		t.Fatalf("TOTP challenge credentials missing: New-Token=%q Set-Cookie=%q", recorder.Header().Get("New-Token"), recorder.Header().Get("Set-Cookie"))
+	}
+	if count := contractSessionCount(t, conn, user.Id); count != 0 {
+		t.Fatalf("sessions after password step = %d, want 0", count)
+	}
+	var challenges int64
+	if err := conn.Model(&userTotpChallenges.Entity{}).Where("user_id = ?", user.Id).Count(&challenges).Error; err != nil {
+		t.Fatalf("count challenges: %v", err)
+	}
+	if challenges != 1 {
+		t.Fatalf("challenge count after password step = %d, want 1", challenges)
+	}
+}
+
+func TestTotpVerifyFailsClosedWhenTotpStateCannotBeRead(t *testing.T) {
+	conn, router := setupAuthSecurityContractTest(t)
+	var logs bytes.Buffer
+	previousLogger := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&logs, nil)))
+	t.Cleanup(func() { slog.SetDefault(previousLogger) })
+	user := createHTTPContractUser(t, conn, contractTestID())
+	code, _ := enableContractTotp(t, user.Id)
+	challenge := contractTotpChallenge(t, user)
+	t.Cleanup(func() {
+		if err := conn.AutoMigrate(&userTotp.Entity{}); err != nil {
+			t.Errorf("restore TOTP table after verify read-failure test: %v", err)
+		}
+	})
+	if err := conn.Migrator().DropTable(&userTotp.Entity{}); err != nil {
+		t.Fatalf("drop TOTP table to simulate read failure: %v", err)
+	}
+
+	body, err := json.Marshal(map[string]string{"code": code})
+	if err != nil {
+		t.Fatalf("marshal TOTP verification request: %v", err)
+	}
+	recorder := serveAuthSecurityJSON(router, http.MethodPost, "/api/auth/totp/verify", string(body), challenge)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("TOTP verification status = %d, want 200: %s", recorder.Code, recorder.Body.String())
+	}
+	if got := decodeContractEnvelope(t, recorder).MessageCode; got != "common.operation.failed" {
+		t.Fatalf("TOTP verification messageCode = %q, want common.operation.failed", got)
+	}
+	if !strings.Contains(logs.String(), "TOTP verify failed") {
+		t.Fatalf("TOTP verify failure was not logged: %q", logs.String())
+	}
+	if recorder.Header().Get("New-Token") != "" || recorder.Header().Get("Set-Cookie") != "" {
+		t.Fatalf("TOTP verification failure returned credentials: New-Token=%q Set-Cookie=%q", recorder.Header().Get("New-Token"), recorder.Header().Get("Set-Cookie"))
+	}
+	if count := contractSessionCount(t, conn, user.Id); count != 0 {
+		t.Fatalf("sessions after TOTP read failure = %d, want 0", count)
 	}
 }
 

@@ -45,6 +45,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userPoints"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userSessions"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userStatistics"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userTotp"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/sessionservice"
@@ -78,6 +79,7 @@ func setupHTTPContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 		&users.EntityComplete{},
 		&userStatistics.Entity{},
 		&userSessions.Entity{},
+		&userTotp.Entity{},
 		&topics.Entity{},
 		&postRevisions.Entity{},
 		&taskQueue.Entity{},

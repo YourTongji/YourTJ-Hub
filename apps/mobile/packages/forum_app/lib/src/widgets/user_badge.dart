@@ -93,9 +93,29 @@ class UserWornBadge extends StatelessWidget {
   }
 }
 
+// Built-in badge SVGs carry their own optical margin (docs/decisions/0054) and
+// fill the medallion's centre box; custom artwork, often an edge-to-edge logo,
+// keeps the original 60% box. The rule mirrors the web isSystemBadgeArtwork:
+// only relative /static/badges/ URLs count (an absolute URL on any host is
+// custom artwork), and an empty URL falls back to the built-in contributor
+// artwork, same as web badgeIconURL.
+double _medallionArtworkSize(UserBadgePayload badge, double medallion) {
+  final url = badge.iconUrl.isEmpty
+      ? '/static/badges/contributor.svg'
+      : badge.iconUrl;
+  return url.startsWith('/static/badges/')
+      ? GfBadgeMedallion.artworkSize(medallion)
+      : medallion * .60;
+}
+
 /// The parent control supplies the accessible name and the detail interaction.
 class UserBadgeArtwork extends StatelessWidget {
   const UserBadgeArtwork(this.badge, {super.key, this.size = 32});
+
+  /// Artwork sized for a [GfBadgeMedallion] of [medallion].
+  UserBadgeArtwork.medallion(this.badge, double medallion, {super.key})
+    : size = _medallionArtworkSize(badge, medallion);
+
   final UserBadgePayload badge;
   final double size;
 
@@ -124,7 +144,7 @@ Future<void> showUserBadgeDetails(
     title: badge.name,
     description: badge.description,
     color: userBadgeColor(badge),
-    icon: UserBadgeArtwork(badge, size: 40),
+    icon: UserBadgeArtwork.medallion(badge, 80),
     note: badge.reason.trim(),
     earned: date == null
         ? null

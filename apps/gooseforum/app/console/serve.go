@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/taskQueue"
 	"log/slog"
 	"net"
 	"net/http"
@@ -27,6 +26,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/middleware"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/routes"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/migration"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/taskQueue"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/backgroundservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/courseservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/dataservice"
@@ -53,6 +53,8 @@ var CmdServe = &cobra.Command{
 	RunE:  runWeb,
 	Args:  cobra.NoArgs,
 }
+
+var ginDebugLogSanitizer sync.Once
 
 func runWeb(_ *cobra.Command, _ []string) error {
 	var m runtime.MemStats
@@ -413,8 +415,11 @@ func newHTTPServer(address string, handler http.Handler) *http.Server {
 func newGinEngine() *gin.Engine {
 	if setting.IsDebug() {
 		gin.SetMode(gin.DebugMode)
+		installGinDebugLogSanitizer()
 		app := gin.New()
-		app.Use(gin.LoggerWithConfig(gin.LoggerConfig{SkipPaths: []string{"/api/campus/tongji/callback"}}))
+		app.Use(gin.LoggerWithConfig(gin.LoggerConfig{Skip: func(c *gin.Context) bool {
+			return middleware.ShouldRedactQuery(c.Request.URL)
+		}}))
 		return app
 	} else {
 		gin.DisableConsoleColor()
@@ -429,4 +434,34 @@ func newGinEngine() *gin.Engine {
 	}
 	_ = engine.SetTrustedProxies(trustedProxies)
 	return engine
+}
+
+func installGinDebugLogSanitizer() {
+	ginDebugLogSanitizer.Do(func() {
+		previous := gin.DebugPrintFunc
+		// The format literal below mirrors gin's internal redirect log
+		// (redirectRequest in gin's engine, pinned at v1.12.0); re-check it
+		// when upgrading gin. TestDebugGinLoggerSkipsAuthenticationCallbackQueries
+		// fails if the upstream format drifts and redaction stops applying.
+		gin.DebugPrintFunc = func(format string, values ...any) {
+			if format == "redirecting request %d: %s --> %s" && len(values) == 3 {
+				target := fmt.Sprint(values[2])
+				parsed, err := url.Parse(target)
+				if err != nil {
+					parsed = &url.URL{Path: fmt.Sprint(values[1])}
+				}
+				if middleware.ShouldRedactQuery(parsed) {
+					values[2] = parsed.Path
+				}
+			}
+			if previous != nil {
+				previous(format, values...)
+				return
+			}
+			if !strings.HasSuffix(format, "\n") {
+				format += "\n"
+			}
+			_, _ = fmt.Fprintf(gin.DefaultWriter, "[GIN-debug] "+format, values...)
+		}
+	})
 }

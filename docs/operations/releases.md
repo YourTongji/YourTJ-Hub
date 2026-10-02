@@ -12,7 +12,7 @@
 human review is required by the publisher. `Partial`: distribution also requires configured GitHub
 App/tag permissions, environment secrets and successful platform runs. Apple review is external.
 The source of truth is [the CLI](../../scripts/release/cli.py), [protocol validator](../../scripts/release/model.py)
-and [controller](../../scripts/release/controller.py). See [decision 0054](../decisions/0054-reviewed-release-pipeline.md).
+and [controller](../../scripts/release/controller.py). See [decision 0055](../decisions/0055-reviewed-release-pipeline.md).
 
 ## Entrypoints
 

@@ -33,51 +33,55 @@ class CampusShortcuts extends StatelessWidget {
                     : (constraints.maxWidth - 24) / 3,
                 child: Semantics(
                   button: true,
-                  child: Material(
-                    color: colors.base100,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20),
-                      side: BorderSide(
-                        color: colors.line.withValues(alpha: 0.7),
+                  label: label,
+                  onTap: () => context.push(route),
+                  child: ExcludeSemantics(
+                    child: Material(
+                      color: colors.base200,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        side: BorderSide(
+                          color: colors.line.withValues(alpha: 0.55),
+                        ),
                       ),
-                    ),
-                    clipBehavior: Clip.antiAlias,
-                    child: InkWell(
-                      onTap: () => context.push(route),
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: stacked
-                            ? Row(
-                                children: [
-                                  GfIconTile(symbol, color: tone, size: 40),
-                                  const SizedBox(width: 16),
-                                  Expanded(
-                                    child: Text(
+                      clipBehavior: Clip.antiAlias,
+                      child: InkWell(
+                        onTap: () => context.push(route),
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: stacked
+                              ? Row(
+                                  children: [
+                                    GfIconTile(symbol, color: tone, size: 40),
+                                    const SizedBox(width: 16),
+                                    Expanded(
+                                      child: Text(
+                                        label,
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          color: colors.baseContent,
+                                        ),
+                                      ),
+                                    ),
+                                    const GfSymbol('chevron-right', size: 20),
+                                  ],
+                                )
+                              : Column(
+                                  children: [
+                                    GfIconTile(symbol, color: tone, size: 48),
+                                    const SizedBox(height: 16),
+                                    Text(
                                       label,
+                                      textAlign: TextAlign.center,
                                       style: TextStyle(
                                         fontSize: 16,
+                                        fontWeight: FontWeight.w600,
                                         color: colors.baseContent,
                                       ),
                                     ),
-                                  ),
-                                  const GfSymbol('chevron-right', size: 20),
-                                ],
-                              )
-                            : Column(
-                                children: [
-                                  GfIconTile(symbol, color: tone, size: 48),
-                                  const SizedBox(height: 16),
-                                  Text(
-                                    label,
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w600,
-                                      color: colors.baseContent,
-                                    ),
-                                  ),
-                                ],
-                              ),
+                                  ],
+                                ),
+                        ),
                       ),
                     ),
                   ),

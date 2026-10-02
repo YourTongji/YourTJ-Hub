@@ -26,7 +26,7 @@ class ReadingNavigationRail extends StatelessWidget {
             child: MergeSemantics(
               key: ValueKey('rail-destination-$i'),
               child: Semantics(
-                label: items[i].label,
+                label: items[i].semanticsLabel,
                 button: true,
                 enabled: true,
                 selected: currentIndex == i,
@@ -91,6 +91,7 @@ class ReadingWindow extends StatelessWidget {
       final railWidth = wide ? 72 + MediaQuery.paddingOf(context).left : 0.0;
       return ReadingWindowScope(
         hasRail: wide,
+        navigationWidth: constraints.maxWidth,
         child: ColoredBox(
           color: colors.base200,
           // The route comes before persistent controls in paint/semantics
@@ -163,15 +164,23 @@ class ReadingWindowScope extends InheritedWidget {
   const ReadingWindowScope({
     super.key,
     required this.hasRail,
+    required this.navigationWidth,
     required super.child,
   });
   final bool hasRail;
+  final double navigationWidth;
   static bool hasRailOf(BuildContext context) =>
       context
           .dependOnInheritedWidgetOfExactType<ReadingWindowScope>()
           ?.hasRail ??
       false;
+  static double navigationWidthOf(BuildContext context) =>
+      context
+          .dependOnInheritedWidgetOfExactType<ReadingWindowScope>()
+          ?.navigationWidth ??
+      MediaQuery.sizeOf(context).width;
   @override
   bool updateShouldNotify(ReadingWindowScope oldWidget) =>
-      hasRail != oldWidget.hasRail;
+      hasRail != oldWidget.hasRail ||
+      navigationWidth != oldWidget.navigationWidth;
 }
