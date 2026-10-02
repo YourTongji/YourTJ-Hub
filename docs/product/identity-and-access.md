@@ -28,6 +28,8 @@
 - Password login: RSA-OAEP encrypted password → forum `users.Verify` → if the user enabled TOTP 2FA,
   the server issues a 5-minute `totp_challenge` token instead of a session token; the client posts the
   code (or a one-time recovery code) to `/api/auth/totp/verify`, which issues the real session token.
+  A missing or explicitly disabled TOTP record permits ordinary password login; if its state cannot
+  be read, login fails without issuing either a challenge or a session.
   A challenge token can mint at most one session: it is atomically consumed on successful verification
   (`totpservice.ConsumeChallenge`), so replaying it cannot create a second session.
 - GitHub OAuth and Google OAuth (goth): callbacks bind or sign in and issue a session token. Google

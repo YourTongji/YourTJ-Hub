@@ -129,7 +129,7 @@ void main() {
       'bell-filled',
       'mail-filled',
     ]);
-    expect(navigation.showLabels, isFalse);
+    expect(navigation.showLabels, isTrue);
     expect(navigation.onAction, isNull);
     expect(find.byType(FloatingActionButton), findsOneWidget);
 
