@@ -618,6 +618,7 @@ export default {
     openMenu: 'Open menu',
     menu: 'Menu',
     closeMenu: 'Close menu',
+    swipeOpenMenu: 'Swipe right to open the menu',
     collapseSidebar: 'Collapse sidebar',
     expandSidebar: 'Expand sidebar',
     search: 'Search',

@@ -617,6 +617,7 @@ export default {
     openMenu: 'Menü öffnen',
     menu: 'Menü',
     closeMenu: 'Menü schließen',
+    swipeOpenMenu: 'Nach rechts wischen, um das Menü zu öffnen',
     collapseSidebar: 'Seitenleiste einklappen',
     expandSidebar: 'Seitenleiste ausklappen',
     search: 'Suchen',

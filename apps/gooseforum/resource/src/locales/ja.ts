@@ -617,6 +617,7 @@ export default {
     openMenu: 'メニューを開く',
     menu: 'メニュー',
     closeMenu: 'メニューを閉じる',
+    swipeOpenMenu: '右にスワイプしてメニューを開く',
     collapseSidebar: 'サイドバーを折りたたむ',
     expandSidebar: 'サイドバーを展開する',
     search: '検索',
