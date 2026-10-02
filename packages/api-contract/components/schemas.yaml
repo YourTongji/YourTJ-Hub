@@ -8875,6 +8875,9 @@ AdminReviewQueueItem:
     aiReview:
       $ref: '#/AiModerationDecisionItem'
       description: Present only when AI moderation sent this item to review (issue #975); carries triggered policies, raw probabilities and the truncated evidence summary.
+    aiChecking:
+      type: boolean
+      description: True while deferred AI moderation is still checking this item in the background; it is usually published or rejected automatically within moments. Omitted otherwise.
   additionalProperties: false
 
 AdminReviewQueueResult:
@@ -10747,8 +10750,8 @@ AiModerationOptions:
       type: boolean
     mode:
       type: string
-      enum: [shadow, enforce]
-      description: "`shadow` records decisions asynchronously without affecting publishing; `enforce` decides synchronously inside the publish request."
+      enum: [shadow, enforce, deferred]
+      description: "`shadow` records decisions asynchronously without affecting publishing; `enforce` decides synchronously inside the publish request; `deferred` stores the content as pending immediately (visible only to the author and reviewers) and decides in the background: allow publishes it, block rejects it and notifies the author, review leaves it in the review queue."
     textModeration:
       type: boolean
       description: Also call Jev for content without images; when false, image-free content triggers no model call.
@@ -10890,7 +10893,7 @@ AiModerationDecisionItem:
       format: uint64
     mode:
       type: string
-      enum: [shadow, enforce]
+      enum: [shadow, enforce, deferred]
     policyRevision:
       type: string
     visionModel:
@@ -10930,7 +10933,7 @@ AiModerationDecisionItem:
       enum: [allow, review, block]
     appliedAction:
       type: string
-      description: Action applied to the content; always `allow` in shadow mode.
+      description: Action applied to the content; always `allow` in shadow mode. In deferred mode a result superseded by a newer edit is recorded as `review` and not applied.
     errorKind:
       type: string
     humanAction:
@@ -10965,7 +10968,7 @@ AdminAiModerationDecisionListRequest:
       description: "`none` lists unlabeled decisions."
     mode:
       type: string
-      enum: [shadow, enforce]
+      enum: [shadow, enforce, deferred]
   additionalProperties: false
 
 AdminAiModerationDecisionListResponse:

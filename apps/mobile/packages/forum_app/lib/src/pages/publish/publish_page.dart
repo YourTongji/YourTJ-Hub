@@ -1159,7 +1159,10 @@ class _PublishPageState extends ConsumerState<PublishPage>
       if (resolvedId > 0) _currentTopicId = resolvedId;
       // 待审(issue #975):明确提示“已提交审核,通过后公开”,与 Web 同语义。
       if (written.pendingReview) {
-        showGfToast(context, pendingReviewMessage(l10n));
+        showGfToast(
+          context,
+          pendingReviewMessage(l10n, checking: written.checking),
+        );
       }
       if (topicStatus == 1 && resolvedId > 0) {
         context.pushReplacement('/p/$resolvedId');

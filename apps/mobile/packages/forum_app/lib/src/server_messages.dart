@@ -4,14 +4,17 @@ import '../l10n/app_localizations.dart';
 
 import 'server_message_catalog.dart';
 
-/// 内容已提交审核的本地化提示(issue #975):取服务端消息目录中的
-/// `content.moderation.pendingReview`,缺失时回退通用成功文案。
-String pendingReviewMessage(AppLocalizations l10n) {
+/// 内容暂不公开时的本地化提示(issue #975):取服务端消息目录中的
+/// `content.moderation.pendingReview`(已提交人工审核),[checking] 为 true 时
+/// 取 `content.moderation.checking`(发布后检查,正在自动检查);缺失时回退
+/// 通用成功文案。
+String pendingReviewMessage(AppLocalizations l10n, {bool checking = false}) {
   final Map<String, String> catalog =
       serverMessageCatalog[l10n.localeName] ??
       serverMessageCatalog['en'] ??
       const <String, String>{};
-  return catalog[pendingReviewMessageCode] ?? l10n.publishSuccess;
+  return catalog[checking ? checkingMessageCode : pendingReviewMessageCode] ??
+      l10n.publishSuccess;
 }
 
 /// 把 [error] 解析为用户可读的本地化文案。

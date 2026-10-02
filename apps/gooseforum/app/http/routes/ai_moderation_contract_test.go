@@ -7,9 +7,12 @@ import (
 	"image"
 	"image/color"
 	"image/png"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -34,9 +37,23 @@ import (
 )
 
 // aiContractStub Jev 替身：probabilities 决定本次判定；视觉替身恒返回合法证据。
+// blockMarker 非空时，请求正文含该标记的判定返回 adult=0.99（按内容区分新旧版本）；
+// holds[i] 非空时第 i 次 Jev 调用等待该通道关闭（控制先发后审后台判定的完成顺序）。
+// 两者须在发起请求前设置。
 type aiContractStub struct {
 	probabilities map[string]float64
 	severity      float64
+	blockMarker   string
+	holds         []chan struct{}
+	jevCalls      atomic.Int32
+	released      sync.Map
+}
+
+// release 放开一个被拦住的 Jev 调用（可重复调用）。
+func (s *aiContractStub) release(hold chan struct{}) {
+	if _, loaded := s.released.LoadOrStore(hold, true); !loaded {
+		close(hold)
+	}
 }
 
 func setupAIModerationContractTest(t *testing.T, mutate func(*pageConfig.AiModerationOptions)) (*gorm.DB, *gin.Engine, *aiContractStub) {
@@ -64,13 +81,21 @@ func setupAIModerationContractTest(t *testing.T, mutate func(*pageConfig.AiModer
 		content := `{"ocr_text":"","scene":"a photo","visible_symbols":[],"adult_evidence":[],"violence_evidence":[],"other_risk_evidence":[],"uncertain":false,"refused":false}`
 		_ = json.NewEncoder(w).Encode(map[string]any{"choices": []any{map[string]any{"finish_reason": "stop", "message": map[string]any{"content": content}}}})
 	}))
-	jev := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	jev := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		call := int(stub.jevCalls.Add(1)) - 1
+		if call < len(stub.holds) && stub.holds[call] != nil {
+			<-stub.holds[call]
+		}
+		raw, _ := io.ReadAll(r.Body)
 		answers := map[string]any{
 			"severity":      map[string]any{"type": "score", "score": stub.severity},
 			"review_needed": map[string]any{"type": "noul", "noul": 0.05},
 		}
 		for _, key := range pageConfig.AiModerationPolicyKeys {
 			answers[key] = map[string]any{"type": "noul", "noul": stub.probabilities[key]}
+		}
+		if stub.blockMarker != "" && bytes.Contains(raw, []byte(stub.blockMarker)) {
+			answers[pageConfig.AiPolicyAdult] = map[string]any{"type": "noul", "noul": 0.99}
 		}
 		_ = json.NewEncoder(w).Encode(map[string]any{"model": "jev-test", "answers": answers, "usage": map[string]any{"input_tokens": 1, "output_tokens": 1}})
 	}))
@@ -87,6 +112,10 @@ func setupAIModerationContractTest(t *testing.T, mutate func(*pageConfig.AiModer
 	persistHTTPContractConfig(t, conn, pageConfig.AiModerationPage, pageConfig.AiModerationSettingsStorage{AiModerationOptions: opts})
 	hotdataserve.ClearAiModerationConfigCache()
 	t.Cleanup(func() {
+		// 测试中途失败时放开所有仍被拦住的 Jev 调用，避免 Close 永久等待。
+		for _, hold := range stub.holds {
+			stub.release(hold)
+		}
 		vision.Close()
 		jev.Close()
 		conn.Where("page_type = ?", pageConfig.AiModerationPage).Delete(&pageConfig.Entity{})
@@ -550,4 +579,209 @@ func TestModerationWorkbenchReviewQueueIsScopedToModeratorCategories(t *testing.
 	stranger := createHTTPContractUser(t, conn, contractTestID())
 	denied := serveJSON(router, "/api/forum/moderation/review-queue", `{"kind":"topic"}`, contractSessionToken(t, stranger))
 	assertFixtureEnvelope(t, decodeContractEnvelope(t, denied), contractFixture(t, "permission-denied.json"))
+}
+
+// waitFor 轮询等待先发后审的后台判定生效（最长 5 秒）。
+func waitFor(t *testing.T, what string, ok func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for !ok() {
+		if time.Now().After(deadline) {
+			t.Fatalf("timed out waiting for %s", what)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+}
+
+func notificationCount(conn *gorm.DB, userID uint64, eventType string) int64 {
+	var count int64
+	conn.Model(&eventNotification.Entity{}).Where("user_id = ? AND event_type = ?", userID, eventType).Count(&count)
+	return count
+}
+
+func deferredMode(o *pageConfig.AiModerationOptions) { o.Mode = pageConfig.AiModerationModeDeferred }
+
+// 先发后审：发布立即返回且对他人不可见；后台判定 allow 后自动公开、图片转 ACTIVE，
+// 不打扰作者（不发通知），也不记人工标签。
+func TestAIModerationDeferredAllowPublishesSilently(t *testing.T) {
+	conn, router, stub := setupAIModerationContractTest(t, deferredMode)
+	hold := make(chan struct{})
+	stub.holds = []chan struct{}{hold}
+	author := createHTTPContractUser(t, conn, contractTestID())
+	manager := createContractSiteManager(t, conn)
+	url, name := saveContractImage(t, author.Id)
+
+	envelope := decodeContractEnvelope(t, serveJSON(router, "/api/forum/topics/write", writeTopicBody("先发后审的话题", "今天拍到的校园风景 ![]("+url+")"), contractSessionToken(t, author)))
+	assertFixtureEnvelope(t, envelope, contractFixture(t, "topic-write-checking.json"))
+	var topicID uint64
+	if err := json.Unmarshal(envelope.Result, &topicID); err != nil || topicID == 0 {
+		t.Fatalf("topic id = %s", envelope.Result)
+	}
+	if topics.Get(topicID).ProcessStatus != topics.ProcessStatusPending {
+		t.Fatal("deferred publish must store the topic as pending until the check finishes")
+	}
+	if got := getImage(router, url, ""); got.Code != http.StatusNotFound {
+		t.Fatalf("anonymous image during check = %d, want 404", got.Code)
+	}
+
+	// 检查进行中：审核队列标记“自动检查中”。
+	queue := serveAuthSecurityJSON(router, http.MethodPost, "/api/admin/review-queue", `{"kind":"topic","pageSize":50}`, contractSessionToken(t, manager))
+	var queueResult struct {
+		Items []api.ReviewQueueItem `json:"items"`
+	}
+	if err := json.Unmarshal(decodeContractEnvelope(t, queue).Result, &queueResult); err != nil {
+		t.Fatal(err)
+	}
+	checking := false
+	for _, item := range queueResult.Items {
+		if item.Id == topicID {
+			checking = item.AiChecking && item.AiReview == nil
+		}
+	}
+	if !checking {
+		t.Fatalf("queue must flag the topic as being checked: %+v", queueResult.Items)
+	}
+
+	stub.release(hold)
+	waitFor(t, "auto approval", func() bool { return topics.Get(topicID).ProcessStatus == topics.ProcessStatusNormal })
+	if statuses := usageStatuses(t, conn, name); len(statuses) != 1 || statuses[0] != fileUsage.UsageStatusActive {
+		t.Fatalf("usage statuses after auto approval = %v, want [ACTIVE]", statuses)
+	}
+	if got := getImage(router, url, ""); got.Code != http.StatusOK {
+		t.Fatalf("anonymous image after approval = %d, want 200", got.Code)
+	}
+	decision := moderationDecision.LatestForSubjects(moderationDecision.SubjectTopic, []uint64{topicID})[topicID]
+	if decision.Mode != pageConfig.AiModerationModeDeferred || decision.AppliedAction != moderationDecision.ActionAllow || decision.HumanAction != "" {
+		t.Fatalf("deferred decision = %+v", decision)
+	}
+	if n := notificationCount(conn, author.Id, eventNotification.EventTypeReviewApproved); n != 0 {
+		t.Fatalf("auto approval sent %d notifications, want none", n)
+	}
+	if moderationservice.DeferredChecking(moderationDecision.SubjectTopic, []uint64{topicID})[topicID] {
+		t.Fatal("finished check must leave the in-flight set")
+	}
+}
+
+// 先发后审：后台判定 block 时自动拒绝，图片保持不可读，作者收到“未通过”通知。
+func TestAIModerationDeferredBlockRejectsAndNotifies(t *testing.T) {
+	conn, router, stub := setupAIModerationContractTest(t, deferredMode)
+	stub.probabilities = map[string]float64{pageConfig.AiPolicyAdult: 0.99}
+	author := createHTTPContractUser(t, conn, contractTestID())
+	topicID, firstPostID := contractTestID(), contractTestID()
+	createContractPublishedTopic(t, conn, topicID, firstPostID, author.Id)
+	url, name := saveContractImage(t, author.Id)
+
+	body, _ := json.Marshal(map[string]any{"topicId": topicID, "content": "这是一条带配图的回复 ![](" + url + ")"})
+	envelope := decodeContractEnvelope(t, serveJSON(router, "/api/forum/posts/create", string(body), contractSessionToken(t, author)))
+	if envelope.Code != 0 || envelope.MessageCode != "content.moderation.checking" {
+		t.Fatalf("reply envelope = %+v", envelope)
+	}
+	var created struct {
+		Id uint64 `json:"id"`
+	}
+	if err := json.Unmarshal(envelope.Result, &created); err != nil || created.Id == 0 {
+		t.Fatalf("reply result = %s", envelope.Result)
+	}
+	waitFor(t, "auto rejection", func() bool { return posts.Get(created.Id).ProcessStatus == posts.ProcessStatusBlocked })
+	if statuses := usageStatuses(t, conn, name); len(statuses) != 1 || statuses[0] != fileUsage.UsageStatusPending {
+		t.Fatalf("usage statuses after auto rejection = %v, want [PENDING]", statuses)
+	}
+	if notice := latestNotification(t, conn, author.Id); notice.EventType != eventNotification.EventTypeReviewRejected {
+		t.Fatalf("author notification = %q, want review_rejected", notice.EventType)
+	}
+	if decision := moderationDecision.LatestForSubjects(moderationDecision.SubjectPost, []uint64{created.Id})[created.Id]; decision.AppliedAction != moderationDecision.ActionBlock || decision.HumanAction != "" {
+		t.Fatalf("deferred decision = %+v", decision)
+	}
+}
+
+// 先发后审：介于两线（review）时留在审核队列并附带 AI 原因，不自动处理。
+func TestAIModerationDeferredReviewStaysQueued(t *testing.T) {
+	conn, router, stub := setupAIModerationContractTest(t, deferredMode)
+	stub.probabilities = map[string]float64{pageConfig.AiPolicyViolence: 0.8}
+	author := createHTTPContractUser(t, conn, contractTestID())
+	manager := createContractSiteManager(t, conn)
+	url, _ := saveContractImage(t, author.Id)
+	envelope := decodeContractEnvelope(t, serveJSON(router, "/api/forum/topics/write", writeTopicBody("先发后审转人工", "这是一段带配图的正文 ![]("+url+")"), contractSessionToken(t, author)))
+	var topicID uint64
+	_ = json.Unmarshal(envelope.Result, &topicID)
+	waitFor(t, "deferred review decision", func() bool {
+		return moderationDecision.LatestForSubjects(moderationDecision.SubjectTopic, []uint64{topicID})[topicID].Id != 0 &&
+			!moderationservice.DeferredChecking(moderationDecision.SubjectTopic, []uint64{topicID})[topicID]
+	})
+	if topics.Get(topicID).ProcessStatus != topics.ProcessStatusPending {
+		t.Fatal("review result must keep the topic pending for a moderator")
+	}
+	queue := serveAuthSecurityJSON(router, http.MethodPost, "/api/admin/review-queue", `{"kind":"topic","pageSize":50}`, contractSessionToken(t, manager))
+	var queueResult struct {
+		Items []api.ReviewQueueItem `json:"items"`
+	}
+	if err := json.Unmarshal(decodeContractEnvelope(t, queue).Result, &queueResult); err != nil {
+		t.Fatal(err)
+	}
+	for _, item := range queueResult.Items {
+		if item.Id == topicID {
+			if item.AiChecking || item.AiReview == nil || item.AiReview.AppliedAction != moderationDecision.ActionReview {
+				t.Fatalf("queued item = %+v", item)
+			}
+			return
+		}
+	}
+	t.Fatal("topic missing from the review queue")
+}
+
+// 先发后审：站点拦截外链图片时无需模型即可判定，仍在编辑器里同步提示，不写入内容。
+func TestAIModerationDeferredBlocksExternalImagesUpfront(t *testing.T) {
+	conn, router, stub := setupAIModerationContractTest(t, func(o *pageConfig.AiModerationOptions) {
+		o.Mode = pageConfig.AiModerationModeDeferred
+		o.ExternalImageAction = pageConfig.AiModerationActionBlock
+	})
+	author := createHTTPContractUser(t, conn, contractTestID())
+	countTopics := func() (n int64) { conn.Model(&topics.Entity{}).Count(&n); return }
+	before := countTopics()
+	envelope := decodeContractEnvelope(t, serveJSON(router, "/api/forum/topics/write", writeTopicBody("引用站外图片的话题", "引用一张站外图片 ![](https://example.com/a.png)"), contractSessionToken(t, author)))
+	if envelope.Code != 1 || envelope.MessageCode != "content.aiModeration.externalImageBlocked" {
+		t.Fatalf("external image envelope = %+v", envelope)
+	}
+	if countTopics() != before || stub.jevCalls.Load() != 0 {
+		t.Fatal("upfront external-image block must not write content or call models")
+	}
+}
+
+// 先发后审：检查期间作者再次编辑，旧版本的 allow 结论作废，只有新版本的结论生效。
+func TestAIModerationDeferredIgnoresSupersededOutcome(t *testing.T) {
+	conn, router, stub := setupAIModerationContractTest(t, func(o *pageConfig.AiModerationOptions) {
+		o.Mode = pageConfig.AiModerationModeDeferred
+		o.TextModeration = true
+	})
+	first, second := make(chan struct{}), make(chan struct{})
+	stub.holds = []chan struct{}{first, second}
+	stub.blockMarker = "编辑后的违规版本"
+	author := createHTTPContractUser(t, conn, contractTestID())
+	token := contractSessionToken(t, author)
+	envelope := decodeContractEnvelope(t, serveJSON(router, "/api/forum/topics/write", writeTopicBody("检查期间改稿", "最初版本的正文内容足够长"), token))
+	var topicID uint64
+	if err := json.Unmarshal(envelope.Result, &topicID); err != nil || envelope.MessageCode != "content.moderation.checking" {
+		t.Fatalf("publish envelope = %+v", envelope)
+	}
+	waitFor(t, "first check to start", func() bool { return stub.jevCalls.Load() == 1 })
+	body, _ := json.Marshal(map[string]any{"topicId": topicID, "title": "检查期间改稿", "content": "编辑后的违规版本正文内容",
+		"categoryId": []uint64{1}, "topicStatus": 1, "contentType": 3})
+	if edit := decodeContractEnvelope(t, serveJSON(router, "/api/forum/topics/write", string(body), token)); edit.Code != 0 || edit.MessageCode != "content.moderation.checking" {
+		t.Fatalf("edit envelope = %+v", edit)
+	}
+	waitFor(t, "second check to start", func() bool { return stub.jevCalls.Load() == 2 })
+
+	// 旧版本先完成且判定 allow：不得公开改稿后的内容。
+	stub.release(first)
+	waitFor(t, "first decision", func() bool {
+		var count int64
+		conn.Model(&moderationDecision.Entity{}).Where("subject_type = ? AND subject_id = ?", moderationDecision.SubjectTopic, topicID).Count(&count)
+		return count == 1
+	})
+	time.Sleep(100 * time.Millisecond)
+	if status := topics.Get(topicID).ProcessStatus; status != topics.ProcessStatusPending {
+		t.Fatalf("superseded allow changed the topic status to %d", status)
+	}
+	stub.release(second)
+	waitFor(t, "rejection of the edited version", func() bool { return topics.Get(topicID).ProcessStatus == topics.ProcessStatusBlocked })
 }

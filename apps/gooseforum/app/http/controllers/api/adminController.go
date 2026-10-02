@@ -2201,6 +2201,9 @@ type ReviewQueueItem struct {
 	// AiReview 仅当本条因 AI 图文审查转入待审时返回（issue #975）：触发规则、
 	// 原始概率与截断的图片证据摘要，供审核员理解触因。
 	AiReview *AiModerationDecisionItem `json:"aiReview,omitempty"`
+	// AiChecking 先发后审模式下本条正在后台自动检查：通常很快自动公开或拒绝，
+	// 审核员可以等待结果，也可以直接处理。
+	AiChecking bool `json:"aiChecking,omitempty"`
 }
 
 // notifyReviewResult 审核完成后通知作者结论（issue #975）；通知失败只记日志，
@@ -2233,7 +2236,13 @@ func attachAiReview(items []ReviewQueueItem, subjectType string) {
 		ids = append(ids, item.Id)
 	}
 	decisions := moderationDecision.LatestForSubjects(subjectType, ids)
+	checking := moderationservice.DeferredChecking(subjectType, ids)
 	for i := range items {
+		if checking[items[i].Id] {
+			// 检查中的条目不展示上一版本的旧结论。
+			items[i].AiChecking = true
+			continue
+		}
 		decision, ok := decisions[items[i].Id]
 		if !ok || decision.AppliedAction != moderationDecision.ActionReview {
 			continue
@@ -2346,12 +2355,20 @@ type ReviewActionReq struct {
 
 // ReviewAction 审核通过（ProcessStatus=0）或拒绝（ProcessStatus=1）。
 func ReviewAction(req component.BetterRequest[ReviewActionReq]) component.Response {
+	return reviewContent(requestContext(req.GinContext), req.Params, req.UserId, false)
+}
+
+// reviewContent 审核动作的唯一实现：人工审核（后台队列/前台版主工作台）与先发后审
+// 的自动结论（automatic=true，actorID=0）共用，保证状态、附件、搜索索引与补发事件
+// 完全一致。自动结论不回写人工标签、不记操作日志；自动通过不通知作者（发布时
+// 已告知通过后公开），自动拒绝照常通知。
+func reviewContent(ctx context.Context, params ReviewActionReq, actorID uint64, automatic bool) component.Response {
 	targetStatus := int8(0)
-	if !req.Params.Approve {
+	if !params.Approve {
 		targetStatus = 1
 	}
-	if req.Params.Kind == "topic" {
-		topic := topics.Get(req.Params.Id)
+	if params.Kind == "topic" {
+		topic := topics.Get(params.Id)
 		if topic.Id == 0 {
 			return component.FailResponseCode(component.MessageAdminReviewNotFound, nil)
 		}
@@ -2363,7 +2380,7 @@ func ReviewAction(req component.BetterRequest[ReviewActionReq]) component.Respon
 		if topic.ProcessStatus != topics.ProcessStatusPending {
 			return component.FailResponseCode(component.MessageAdminReviewProcessed, nil)
 		}
-		if err := db.ConnectContext(requestContext(req.GinContext)).Transaction(func(tx *gorm.DB) error {
+		if err := db.ConnectContext(ctx).Transaction(func(tx *gorm.DB) error {
 			if err := topics.UpdateProcessStatusTx(tx, topic.Id, targetStatus); err != nil {
 				return err
 			}
@@ -2379,7 +2396,7 @@ func ReviewAction(req component.BetterRequest[ReviewActionReq]) component.Respon
 				component.MessageParams{"error": err.Error()})
 		}
 		topic.ProcessStatus = targetStatus
-		if req.Params.Approve {
+		if params.Approve {
 			// 待审期间登记为 PENDING 的图片随内容一起公开（issue #975）。
 			fileusageservice.PromotePendingTopicFiles(topic.Id, topic.FirstPostId)
 		}
@@ -2387,23 +2404,29 @@ func ReviewAction(req component.BetterRequest[ReviewActionReq]) component.Respon
 		// 时 BuildSingleTopicSearchDocument 会把文档从索引删除，避免被拒话题
 		// 残留在公共搜索；批准时 upsert 恢复（下方事件也会重建，幂等）。
 		firstPost := posts.Get(topic.FirstPostId)
-		moderationservice.RecordAIHumanOutcome(moderationDecision.SubjectTopic, topic.Id, postContentWrittenAt(firstPost), req.Params.Approve, req.UserId)
-		notifyReviewResult(topic.UserId, req.Params.Approve, topic.Id, reviewSubjectTitle(topic.Title, topic.Excerpt), 0, 0)
+		if !automatic {
+			moderationservice.RecordAIHumanOutcome(moderationDecision.SubjectTopic, topic.Id, postContentWrittenAt(firstPost), params.Approve, actorID)
+		}
+		if !automatic || !params.Approve {
+			notifyReviewResult(topic.UserId, params.Approve, topic.Id, reviewSubjectTitle(topic.Title, topic.Excerpt), 0, 0)
+		}
 		hotdataserve.InvalidateTopicListCacheForCategories(topic.CategoryIds...)
 		// 批准后补发事件：新建主题发完整发布事件（搜索索引/统计/积分/活动/通知），
 		// 编辑主题仅重建索引与通知，避免重复积分。
-		if req.Params.Approve && topic.Status == 1 {
+		if params.Approve && topic.Status == 1 {
 			if userActivities.HasRecord(userActivities.ActionPost, userActivities.SubjectTopic, topic.Id) {
-				eventbus.Publish(detachedRequestContext(req.GinContext), &eventhandlers.TopicUpdatedEvent{Topic: &topic, FirstPost: &firstPost})
+				eventbus.Publish(eventbus.DetachedContext(ctx), &eventhandlers.TopicUpdatedEvent{Topic: &topic, FirstPost: &firstPost})
 			} else {
 				userStatistics.WriteTopic(topic.UserId)
-				eventbus.Publish(detachedRequestContext(req.GinContext), &eventhandlers.TopicPublishedEvent{Topic: &topic, FirstPost: &firstPost})
+				eventbus.Publish(eventbus.DetachedContext(ctx), &eventhandlers.TopicPublishedEvent{Topic: &topic, FirstPost: &firstPost})
 			}
 		}
-		optlogger.UserOptCode(req.UserId, optlogger.EditTopic, topic.Id, "admin.opt.review.topic",
-			optlogger.MessageParams{"id": topic.Id, "approve": req.Params.Approve})
+		if !automatic {
+			optlogger.UserOptCode(actorID, optlogger.EditTopic, topic.Id, "admin.opt.review.topic",
+				optlogger.MessageParams{"id": topic.Id, "approve": params.Approve})
+		}
 	} else {
-		post := posts.Get(req.Params.Id)
+		post := posts.Get(params.Id)
 		if post.Id == 0 {
 			return component.FailResponseCode(component.MessageAdminReviewNotFound, nil)
 		}
@@ -2416,7 +2439,7 @@ func ReviewAction(req component.BetterRequest[ReviewActionReq]) component.Respon
 			return component.FailResponseCode(component.MessageAdminReviewProcessed, nil)
 		}
 		topicEntity := topics.GetSimple(post.TopicId)
-		if err := db.ConnectContext(requestContext(req.GinContext)).Transaction(func(tx *gorm.DB) error {
+		if err := db.ConnectContext(ctx).Transaction(func(tx *gorm.DB) error {
 			if err := posts.UpdateProcessStatusTx(tx, post.Id, targetStatus); err != nil {
 				return err
 			}
@@ -2425,14 +2448,18 @@ func ReviewAction(req component.BetterRequest[ReviewActionReq]) component.Respon
 			return component.FailResponseCode(component.MessageAdminReviewFailed,
 				component.MessageParams{"error": err.Error()})
 		}
-		if req.Params.Approve {
+		if params.Approve {
 			fileusageservice.PromotePendingPostFiles(post.Id)
 		}
-		moderationservice.RecordAIHumanOutcome(moderationDecision.SubjectPost, post.Id, postContentWrittenAt(post), req.Params.Approve, req.UserId)
-		notifyReviewResult(post.UserId, req.Params.Approve, topicEntity.Id, reviewSubjectTitle(topicEntity.Title, ""), post.Id, post.PostNo)
+		if !automatic {
+			moderationservice.RecordAIHumanOutcome(moderationDecision.SubjectPost, post.Id, postContentWrittenAt(post), params.Approve, actorID)
+		}
+		if !automatic || !params.Approve {
+			notifyReviewResult(post.UserId, params.Approve, topicEntity.Id, reviewSubjectTitle(topicEntity.Title, ""), post.Id, post.PostNo)
+		}
 		hotdataserve.InvalidateTopicListCacheForCategories(topicEntity.CategoryIds...)
 		// 批准后补发事件：仅对新建待审回复补发（编辑场景创建时已发布过事件）。
-		if req.Params.Approve && !userActivities.HasRecord(userActivities.ActionComment, userActivities.SubjectPost, post.Id) {
+		if params.Approve && !userActivities.HasRecord(userActivities.ActionComment, userActivities.SubjectPost, post.Id) {
 			userStatistics.WriteComment(post.UserId)
 			topicEntity := topics.GetSimple(post.TopicId)
 			replyToAuthorID := uint64(0)
@@ -2441,7 +2468,7 @@ func ReviewAction(req component.BetterRequest[ReviewActionReq]) component.Respon
 					replyToAuthorID = parent.UserId
 				}
 			}
-			eventbus.Publish(detachedRequestContext(req.GinContext), &eventhandlers.CommentCreatedEvent{
+			eventbus.Publish(eventbus.DetachedContext(ctx), &eventhandlers.CommentCreatedEvent{
 				TopicId:             post.TopicId,
 				PostId:              post.Id,
 				PostNo:              post.PostNo,
@@ -2453,8 +2480,10 @@ func ReviewAction(req component.BetterRequest[ReviewActionReq]) component.Respon
 				IsAnonymous:         post.IsAnonymous,
 			})
 		}
-		optlogger.UserOptCode(req.UserId, optlogger.EditTopic, post.TopicId, "admin.opt.review.post",
-			optlogger.MessageParams{"id": post.Id, "topicId": post.TopicId, "approve": req.Params.Approve})
+		if !automatic {
+			optlogger.UserOptCode(actorID, optlogger.EditTopic, post.TopicId, "admin.opt.review.post",
+				optlogger.MessageParams{"id": post.Id, "topicId": post.TopicId, "approve": params.Approve})
+		}
 	}
 	return component.SuccessResponseCode("success", component.MessageOperationSuccess, nil)
 }

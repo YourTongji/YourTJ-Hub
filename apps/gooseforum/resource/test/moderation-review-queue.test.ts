@@ -50,4 +50,14 @@ describe('moderation workbench review queue (issue #975)', () => {
     expect(action).toHaveBeenCalledWith('topic', 3, false)
     expect(wrapper.text()).toContain('没有待审核的内容')
   })
+
+  test('items still being checked show the checking badge instead of old AI reasons', async () => {
+    i18n.global.locale.value = 'zh'
+    vi.spyOn(api, 'fetchModerationReviewQueue').mockResolvedValue({ items: [{ ...item(4), aiReview: undefined, aiChecking: true }], total: 1, page: 1, pageSize: 20 })
+    const wrapper = mount(ModerationReviewQueue, { global: { plugins: [i18n] } })
+    await flushPromises()
+    expect(wrapper.text()).toContain('AI 检查中')
+    expect(wrapper.text()).toContain('通常几秒内会自动公开或拒绝，你也可以现在处理。')
+    expect(wrapper.text()).not.toContain('AI 转人工审核')
+  })
 })

@@ -84,9 +84,18 @@ function t(key: string) {
 
 // 待审成功信封（issue #975）：敏感词转审与 AI 审查转审共用，不暴露触因。
 export const PENDING_REVIEW_MESSAGE_CODE = 'content.moderation.pendingReview'
+// 发布后检查：内容已保存但暂不公开，正在后台自动检查。
+export const CHECKING_MESSAGE_CODE = 'content.moderation.checking'
 
-/** 内容已提交审核的本地化提示（无翻译时回退通用文案）。 */
-export function pendingReviewMessage() {
+/** 成功信封携带的审核状态：两种码都表示暂不公开；checking 只在发布后检查时出现。 */
+function reviewState(messageCode?: string): { pendingReview: boolean, checking?: true } {
+  if (messageCode === CHECKING_MESSAGE_CODE) return { pendingReview: true, checking: true }
+  return { pendingReview: messageCode === PENDING_REVIEW_MESSAGE_CODE }
+}
+
+/** 内容暂不公开时的本地化提示：正在自动检查，或已提交人工审核。 */
+export function pendingReviewMessage(result?: { checking?: boolean }) {
+  if (result?.checking) return resolveApiMessage({ messageCode: CHECKING_MESSAGE_CODE }, t('api.checking'))
   return resolveApiMessage({ messageCode: PENDING_REVIEW_MESSAGE_CODE }, t('api.pendingReview'))
 }
 
@@ -138,6 +147,8 @@ export interface CreatePostResult {
   renderedContent: string
   /** 内容已转入人工审核（敏感词或 AI 图文审查），通过前不公开。 */
   pendingReview?: boolean
+  /** 发布后检查：正在后台自动检查。 */
+  checking?: boolean
 }
 
 export interface UpdatePostResult {
@@ -151,6 +162,8 @@ export interface UpdatePostResult {
   revisionCount: number
   /** 编辑后的内容已转入人工审核，通过前不公开。 */
   pendingReview?: boolean
+  /** 发布后检查：正在后台自动检查。 */
+  checking?: boolean
 }
 
 export interface PostRevisionResult {
@@ -194,7 +207,7 @@ export async function updatePost(postId: number, content: string): Promise<Updat
     }),
   })
   const { result, messageCode } = await readApiEnvelope<UpdatePostResult>(response, t('api.replyUpdateFailed'))
-  return { ...result, pendingReview: messageCode === PENDING_REVIEW_MESSAGE_CODE }
+  return { ...result, ...reviewState(messageCode) }
 }
 
 export interface DeletePostResult {
@@ -745,6 +758,8 @@ export interface SubmitTopicResult {
   id: number
   /** 话题已转入人工审核（敏感词或 AI 图文审查），通过前不公开。 */
   pendingReview: boolean
+  /** 发布后检查：正在后台自动检查。 */
+  checking?: boolean
 }
 
 export async function submitTopicResult(topic: SubmitTopicInput): Promise<SubmitTopicResult> {
@@ -769,7 +784,7 @@ export async function submitTopicResult(topic: SubmitTopicInput): Promise<Submit
   if (data.code !== undefined && data.code !== 0) {
     throw new ApiResponseError(responseMessage(data, t('api.topicSaveFailed')), data.messageCode, undefined, data.params)
   }
-  return { id: data.result ?? data.data ?? topic.topicId, pendingReview: data.messageCode === PENDING_REVIEW_MESSAGE_CODE }
+  return { id: data.result ?? data.data ?? topic.topicId, ...reviewState(data.messageCode) }
 }
 
 export async function createPost(topicId: number, content: string, replyToPostId = 0, extra?: { captchaId?: string, captchaCode?: string, website?: string, isAnonymous?: boolean }): Promise<CreatePostResult | number | boolean> {
@@ -786,8 +801,9 @@ export async function createPost(topicId: number, content: string, replyToPostId
     }),
   })
   const { result, messageCode } = await readApiEnvelope<CreatePostResult | number | boolean>(response, t('api.replyFailed'))
-  if (messageCode === PENDING_REVIEW_MESSAGE_CODE && typeof result === 'object' && result !== null) {
-    return { ...result, pendingReview: true }
+  const review = reviewState(messageCode)
+  if (review.pendingReview && typeof result === 'object' && result !== null) {
+    return { ...result, ...review }
   }
   return result
 }

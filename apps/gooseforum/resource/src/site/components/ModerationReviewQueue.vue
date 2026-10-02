@@ -111,8 +111,12 @@ onMounted(() => { void load(true) })
             <div class="flex min-w-0 items-center gap-1.5 text-[15px] leading-5">
               <span v-if="item.postNo" class="shrink-0 text-base-content/45">#{{ item.postNo }}</span>
               <a :href="targetURL(item)" target="_blank" rel="noopener" class="min-w-0 truncate font-medium text-primary/90 hover:text-primary">{{ item.title || t('moderation.review.untitled') }}</a>
-              <span v-if="item.aiReview" class="shrink-0 rounded bg-warning/15 px-1.5 py-0.5 text-xs font-medium text-warning">{{ t('aiModerationAdmin.queueBadge') }}</span>
+              <span v-if="item.aiChecking" class="inline-flex shrink-0 items-center gap-1 rounded bg-base-200 px-1.5 py-0.5 text-xs font-medium text-base-content/65" :title="t('aiModerationAdmin.queueCheckingHint')">
+                <Loader2 class="h-3 w-3 motion-safe:animate-spin" />{{ t('aiModerationAdmin.queueChecking') }}
+              </span>
+              <span v-else-if="item.aiReview" class="shrink-0 rounded bg-warning/15 px-1.5 py-0.5 text-xs font-medium text-warning">{{ t('aiModerationAdmin.queueBadge') }}</span>
             </div>
+            <p v-if="item.aiChecking" class="text-xs leading-5 text-base-content/55">{{ t('aiModerationAdmin.queueCheckingHint') }}</p>
             <p class="line-clamp-2 text-[13px] leading-5 text-base-content/60">{{ item.excerpt || t('moderation.review.noExcerpt') }}</p>
             <ul v-if="item.aiReview?.reasons?.length" class="space-y-0.5 text-xs leading-5 text-base-content/55">
               <li v-for="(reason, index) in item.aiReview.reasons" :key="index">{{ reasonText(t, reason) }}</li>

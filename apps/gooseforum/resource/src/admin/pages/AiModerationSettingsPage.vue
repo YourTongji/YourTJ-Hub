@@ -330,9 +330,9 @@ onMounted(() => {
           </div>
           <div class="grid gap-2 text-sm font-medium">
             {{ text('mode') }}
-            <div class="inline-flex w-fit rounded-lg border bg-muted/20 p-1">
+            <div class="flex w-fit max-w-full flex-wrap rounded-lg border bg-muted/20 p-1">
               <button
-                v-for="value in ['shadow', 'enforce'] as const"
+                v-for="value in ['shadow', 'enforce', 'deferred'] as const"
                 :key="value"
                 type="button"
                 class="rounded-md px-3 py-1.5 text-sm font-medium transition-colors"
@@ -603,6 +603,7 @@ onMounted(() => {
                 <option value="">{{ text('filterAllModes') }}</option>
                 <option value="shadow">{{ text('modeShadow') }}</option>
                 <option value="enforce">{{ text('modeEnforce') }}</option>
+                <option value="deferred">{{ text('modeDeferred') }}</option>
               </select>
               <select v-model="filters.finalAction" class="h-8 rounded-md border bg-background px-2 text-xs" @change="applyFilters">
                 <option value="">{{ text('filterAllActions') }}</option>

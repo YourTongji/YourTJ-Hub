@@ -6,14 +6,29 @@ import '../../gen/post_revision.dart';
 /// 共用,不暴露触因。内容在人工审核通过前不公开。
 const String pendingReviewMessageCode = 'content.moderation.pendingReview';
 
+/// 发布后检查的成功码:内容已保存但暂不公开,正在后台自动检查。
+const String checkingMessageCode = 'content.moderation.checking';
+
+/// 成功信封的 messageCode 是否表示内容暂不公开(人工审核或自动检查中)。
+bool isPendingReviewCode(String? messageCode) =>
+    messageCode == pendingReviewMessageCode ||
+    messageCode == checkingMessageCode;
+
 /// 创建/编辑话题的成功结果。
 class WriteTopicResult {
-  const WriteTopicResult({required this.id, this.pendingReview = false});
+  const WriteTopicResult({
+    required this.id,
+    this.pendingReview = false,
+    this.checking = false,
+  });
 
   final int id;
 
   /// 话题已转入人工审核,通过前不公开。
   final bool pendingReview;
+
+  /// 发布后检查:正在后台自动检查(此时 [pendingReview] 也为 true)。
+  final bool checking;
 }
 
 class CreatePostResult {
@@ -22,6 +37,7 @@ class CreatePostResult {
     this.postNo,
     required this.renderedContent,
     this.pendingReview = false,
+    this.checking = false,
   });
 
   final int id;
@@ -30,6 +46,9 @@ class CreatePostResult {
 
   /// 回复已转入人工审核,通过前不公开。
   final bool pendingReview;
+
+  /// 发布后检查:正在后台自动检查(此时 [pendingReview] 也为 true)。
+  final bool checking;
 }
 
 /// 更新帖子的成功结果。
@@ -44,6 +63,7 @@ class UpdatePostResult {
     this.lastEditedAt,
     this.revisionCount,
     this.pendingReview = false,
+    this.checking = false,
   });
 
   final int id;
@@ -59,6 +79,9 @@ class UpdatePostResult {
 
   /// 编辑后的内容已转入人工审核,通过前不公开。
   final bool pendingReview;
+
+  /// 发布后检查:正在后台自动检查(此时 [pendingReview] 也为 true)。
+  final bool checking;
 }
 
 /// 帖子相关接口:创建/更新/删除/点赞/收藏/举报。
@@ -97,7 +120,8 @@ class PostRepository {
       id: created.id,
       postNo: created.postNo,
       renderedContent: created.renderedContent,
-      pendingReview: response.messageCode == pendingReviewMessageCode,
+      pendingReview: isPendingReviewCode(response.messageCode),
+      checking: response.messageCode == checkingMessageCode,
     );
   }
 
@@ -129,7 +153,8 @@ class PostRepository {
       lastEditorId: updated.lastEditorId,
       lastEditedAt: updated.lastEditedAt,
       revisionCount: updated.revisionCount,
-      pendingReview: response.messageCode == pendingReviewMessageCode,
+      pendingReview: isPendingReviewCode(response.messageCode),
+      checking: response.messageCode == checkingMessageCode,
     );
   }
 

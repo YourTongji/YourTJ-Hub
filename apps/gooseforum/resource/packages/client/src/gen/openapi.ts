@@ -771,8 +771,12 @@ export interface paths {
          *     (or `content.aiModeration.externalImageBlocked` when non-site images are disallowed)
          *     and nothing is written; a review result (or any model failure) stores the content as
          *     pending review and the success envelope carries `messageCode`
-         *     `content.moderation.pendingReview` (also used for sensitive-word review). Images
-         *     referenced by pending content are not publicly readable until approval.
+         *     `content.moderation.pendingReview` (also used for sensitive-word review). In `deferred`
+         *     mode the request does not wait: the content is stored as pending and the envelope carries
+         *     `content.moderation.checking`; a background decision then publishes it, rejects it (the
+         *     author is notified), or leaves it for a reviewer. Disallowed non-site images are still
+         *     rejected synchronously. Images referenced by pending content are not publicly readable
+         *     until approval.
          */
         post: operations["writeTopic"];
         delete?: never;
@@ -943,8 +947,12 @@ export interface paths {
          *     (or `content.aiModeration.externalImageBlocked` when non-site images are disallowed)
          *     and nothing is written; a review result (or any model failure) stores the content as
          *     pending review and the success envelope carries `messageCode`
-         *     `content.moderation.pendingReview` (also used for sensitive-word review). Images
-         *     referenced by pending content are not publicly readable until approval.
+         *     `content.moderation.pendingReview` (also used for sensitive-word review). In `deferred`
+         *     mode the request does not wait: the content is stored as pending and the envelope carries
+         *     `content.moderation.checking`; a background decision then publishes it, rejects it (the
+         *     author is notified), or leaves it for a reviewer. Disallowed non-site images are still
+         *     rejected synchronously. Images referenced by pending content are not publicly readable
+         *     until approval.
          */
         post: operations["createPost"];
         delete?: never;
@@ -980,8 +988,12 @@ export interface paths {
          *     (or `content.aiModeration.externalImageBlocked` when non-site images are disallowed)
          *     and nothing is written; a review result (or any model failure) stores the content as
          *     pending review and the success envelope carries `messageCode`
-         *     `content.moderation.pendingReview` (also used for sensitive-word review). Images
-         *     referenced by pending content are not publicly readable until approval.
+         *     `content.moderation.pendingReview` (also used for sensitive-word review). In `deferred`
+         *     mode the request does not wait: the content is stored as pending and the envelope carries
+         *     `content.moderation.checking`; a background decision then publishes it, rejects it (the
+         *     author is notified), or leaves it for a reviewer. Disallowed non-site images are still
+         *     rejected synchronously. Images referenced by pending content are not publicly readable
+         *     until approval.
          */
         post: operations["updatePost"];
         delete?: never;
@@ -10795,6 +10807,8 @@ export interface components {
             images?: string[];
             /** @description Present only when AI moderation sent this item to review (issue */
             aiReview?: components["schemas"]["AiModerationDecisionItem"];
+            /** @description True while deferred AI moderation is still checking this item in the background; it is usually published or rejected automatically within moments. Omitted otherwise. */
+            aiChecking?: boolean;
         };
         AdminReviewQueueResult: {
             items: components["schemas"]["AdminReviewQueueItem"][];
@@ -12486,7 +12500,7 @@ export interface components {
             /** Format: uint64 */
             authorId: number;
             /** @enum {string} */
-            mode: "shadow" | "enforce";
+            mode: "shadow" | "enforce" | "deferred";
             policyRevision: string;
             visionModel: string;
             jevModel: string;
@@ -12505,7 +12519,7 @@ export interface components {
             evidenceStatus: "complete" | "unavailable" | "external" | "too_many" | "jev_failed" | "not_configured" | "rate_limited";
             /** @enum {string} */
             finalAction: "allow" | "review" | "block";
-            /** @description Action applied to the content; always `allow` in shadow mode. */
+            /** @description Action applied to the content; always `allow` in shadow mode. In deferred mode a result superseded by a newer edit is recorded as `review` and not applied. */
             appliedAction: string;
             errorKind: string;
             /** @enum {string} */
@@ -12782,10 +12796,10 @@ export interface components {
         AiModerationOptions: {
             enabled?: boolean;
             /**
-             * @description `shadow` records decisions asynchronously without affecting publishing; `enforce` decides synchronously inside the publish request.
+             * @description `shadow` records decisions asynchronously without affecting publishing; `enforce` decides synchronously inside the publish request; `deferred` stores the content as pending immediately (visible only to the author and reviewers) and decides in the background: allow publishes it, block rejects it and notifies the author, review leaves it in the review queue.
              * @enum {string}
              */
-            mode?: "shadow" | "enforce";
+            mode?: "shadow" | "enforce" | "deferred";
             /** @description Also call Jev for content without images; when false, image-free content triggers no model call. */
             textModeration?: boolean;
             /** @description Full Decisions API URL (TypeSafe `/v1/systemone` or OpenRouter `/api/alpha/decisions`). */
@@ -12842,7 +12856,7 @@ export interface components {
              */
             humanAction?: "none" | "approved" | "rejected";
             /** @enum {string} */
-            mode?: "shadow" | "enforce";
+            mode?: "shadow" | "enforce" | "deferred";
         };
         AdminAiModerationDecisionListResponse: components["schemas"]["ApiSuccess"] & {
             result: {

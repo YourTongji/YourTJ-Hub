@@ -1541,7 +1541,7 @@ async function savePostEdit() {
     postDraftBeforeEdit.value = ''
     targetPostBeforeEdit.value = 0
     composerOpen.value = false
-    pushFlash(updated.pendingReview ? pendingReviewMessage() : t('topic.replyUpdated'), updated.pendingReview ? 'info' : 'success')
+    pushFlash(updated.pendingReview ? pendingReviewMessage(updated) : t('topic.replyUpdated'), updated.pendingReview ? 'info' : 'success')
   } catch (error) {
     sensitiveWords.value = sensitiveWordsFromError(error)
     errorMessage.value = error instanceof Error ? error.message : t('api.replyUpdateFailed')
@@ -1583,8 +1583,8 @@ async function submitPost() {
     targetPostId.value = 0
     composerOpen.value = false
     const pendingReview = typeof createdPost === 'object' && createdPost !== null && createdPost.pendingReview === true
-    // 待审回复（issue #975）尚未公开：提示“已提交审核”，不跳转定位到新楼层。
-    pushFlash(pendingReview ? pendingReviewMessage() : t('topic.replyPosted'), pendingReview ? 'info' : 'success')
+    // 待审回复（issue #975）尚未公开：提示“已提交审核”或“正在自动检查”，不跳转定位到新楼层。
+    pushFlash(pendingReview ? pendingReviewMessage(createdPost) : t('topic.replyPosted'), pendingReview ? 'info' : 'success')
     if (pendingReview) return
     const createdPostId = typeof createdPost === 'object' && createdPost !== null ? createdPost.id : createdPost
     try {

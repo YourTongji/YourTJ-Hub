@@ -586,7 +586,7 @@ async function handleSubmit() {
 
   try {
     const targetTopicId = quickPublishEditPayload.value ? quickPublishEditPayload.value.topicId : 0
-    const { id: topicId, pendingReview } = await submitTopicResult({
+    const { id: topicId, pendingReview, checking } = await submitTopicResult({
       topicId: targetTopicId,
       title: finalTitle,
       content: finalContent,
@@ -601,11 +601,11 @@ async function handleSubmit() {
     closeQuickPublish()
     clearQuickPublishDraft(draftUserId.value, quickPublishType.value, quickPublishEditPayload.value?.topicId)
     // 待审（issue #975）：整页刷新时排队到下一页，SPA 跳转时直接展示。
-    if (pendingReview) pushFlash(pendingReviewMessage(), 'info')
+    if (pendingReview) pushFlash(pendingReviewMessage({ checking }), 'info')
     if (targetTopicId > 0) {
       if (typeof window !== 'undefined') {
         if (window.location.pathname.includes(`/p/post/${targetTopicId}`)) {
-          if (pendingReview) queueFlashMessage(pendingReviewMessage(), 'info')
+          if (pendingReview) queueFlashMessage(pendingReviewMessage({ checking }), 'info')
           window.location.reload()
         } else {
           forcedNav.value = true

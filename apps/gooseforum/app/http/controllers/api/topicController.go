@@ -461,7 +461,7 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 		}
 	}
 	recordSuccessfulWrite(req.UserId, "topic.write")
-	return publishSuccess(topic.Id, pendingReview)
+	return publishSuccess(topic.Id, pendingReview, aiCheck.Deferred())
 }
 
 type TopicStatusReq struct {
@@ -720,7 +720,7 @@ func createPost(req component.BetterRequest[CreatePostReq], agent bool) componen
 		"postNo":          postEntity.PostNo,
 		"renderedContent": postEntity.RenderedHTML,
 		"isAnswer":        isAnswer,
-	}, pendingReview)
+	}, pendingReview, aiCheck.Deferred())
 }
 
 type DeletePostReq struct {
@@ -913,7 +913,7 @@ func UpdatePost(req component.BetterRequest[UpdatePostReq]) component.Response {
 		"lastEditorId":    postEntity.LastEditorId,
 		"lastEditedAt":    postEntity.LastEditedAt.Format(time.RFC3339),
 		"revisionCount":   postRevisions.CountByPostIds([]uint64{postEntity.Id})[postEntity.Id],
-	}, pendingReview)
+	}, pendingReview, aiCheck.Deferred())
 }
 
 func DeletePost(req component.BetterRequest[DeletePostReq]) component.Response {

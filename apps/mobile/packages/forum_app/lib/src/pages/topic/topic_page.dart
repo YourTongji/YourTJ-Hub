@@ -1206,7 +1206,10 @@ class _TopicPageState extends ConsumerState<TopicPage>
       final AppLocalizations l10n = AppLocalizations.of(context);
       // 待审回复(issue #975)尚未公开:提示“已提交审核”,不定位到新楼层。
       if (result.pendingReview) {
-        showGfToast(context, pendingReviewMessage(l10n));
+        showGfToast(
+          context,
+          pendingReviewMessage(l10n, checking: result.checking),
+        );
         return;
       }
       showGfToast(context, l10n.topicReplySuccess);

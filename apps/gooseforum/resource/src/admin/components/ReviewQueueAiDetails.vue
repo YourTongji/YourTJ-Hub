@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { Loader2 } from '@lucide/vue'
 import { useI18n } from 'vue-i18n'
 import { Badge } from '@/admin/components/ui/badge'
 import type { ReviewQueueItem } from '@/admin/types'
@@ -11,8 +12,12 @@ const { t } = useI18n()
 </script>
 
 <template>
-  <div v-if="item.aiReview || item.images?.length" class="mt-1.5 space-y-1.5">
-    <div v-if="item.aiReview" class="flex flex-wrap items-center gap-1 text-[11px] text-muted-foreground">
+  <div v-if="item.aiReview || item.aiChecking || item.images?.length" class="mt-1.5 space-y-1.5">
+    <div v-if="item.aiChecking" class="flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
+      <Badge variant="outline" class="gap-1 px-1.5 py-0 text-[10px]"><Loader2 class="size-3 motion-safe:animate-spin" />{{ t('aiModerationAdmin.queueChecking') }}</Badge>
+      <span>{{ t('aiModerationAdmin.queueCheckingHint') }}</span>
+    </div>
+    <div v-else-if="item.aiReview" class="flex flex-wrap items-center gap-1 text-[11px] text-muted-foreground">
       <Badge variant="secondary" class="px-1.5 py-0 text-[10px]">{{ t('aiModerationAdmin.queueBadge') }}</Badge>
     </div>
     <ul v-if="item.aiReview?.reasons?.length" class="space-y-0.5 text-[11px] leading-4 text-muted-foreground">

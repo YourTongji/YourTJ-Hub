@@ -15,8 +15,12 @@ writeTopic:
       (or `content.aiModeration.externalImageBlocked` when non-site images are disallowed)
       and nothing is written; a review result (or any model failure) stores the content as
       pending review and the success envelope carries `messageCode`
-      `content.moderation.pendingReview` (also used for sensitive-word review). Images
-      referenced by pending content are not publicly readable until approval.
+      `content.moderation.pendingReview` (also used for sensitive-word review). In `deferred`
+      mode the request does not wait: the content is stored as pending and the envelope carries
+      `content.moderation.checking`; a background decision then publishes it, rejects it (the
+      author is notified), or leaves it for a reviewer. Disallowed non-site images are still
+      rejected synchronously. Images referenced by pending content are not publicly readable
+      until approval.
     security:
       - bearerAuth: []
       - accessTokenCookie: []
@@ -39,6 +43,9 @@ writeTopic:
               pendingReview:
                 summary: Content stored as pending review (sensitive-word or AI moderation).
                 externalValue: ../fixtures/topic-write-pending-review.json
+              checking:
+                summary: Deferred AI moderation stored the content as pending and is checking it in the background.
+                externalValue: ../fixtures/topic-write-checking.json
               aiBlocked:
                 summary: AI moderation blocked the publish; nothing was written.
                 externalValue: ../fixtures/topic-write-ai-blocked.json

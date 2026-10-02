@@ -6,10 +6,13 @@ import (
 )
 
 // AI 图文审查（issue #975）运行模式：shadow 只记录建议不影响发布（异步执行，
-// 用于积累人工标签与阈值校准）；enforce 在发布请求内同步执行并应用结论。
+// 用于积累人工标签与阈值校准）；enforce 在发布请求内同步执行并应用结论；
+// deferred 先发后审：内容立即写入为待审（仅作者与审核员可见），后台判定后
+// 自动公开（allow）、自动拒绝并通知作者（block），或留在审核队列（review）。
 const (
-	AiModerationModeShadow  = "shadow"
-	AiModerationModeEnforce = "enforce"
+	AiModerationModeShadow   = "shadow"
+	AiModerationModeEnforce  = "enforce"
+	AiModerationModeDeferred = "deferred"
 )
 
 // AI 审查结论动作：政策规则的动作上限与外链图片策略均只取 review | block。
@@ -48,7 +51,7 @@ type AiModerationPolicyRule struct {
 // AiModerationOptions AI 审查的非敏感配置（四种形状共享，避免字段重复）。
 type AiModerationOptions struct {
 	Enabled bool   `json:"enabled"`
-	Mode    string `json:"mode"` // shadow | enforce
+	Mode    string `json:"mode"` // shadow | enforce | deferred
 	// TextModeration 无图内容是否也调用 Jev 做文本语义审查；关闭时无图内容
 	// 不产生任何 AI 调用（敏感词仍照常生效）。
 	TextModeration bool `json:"textModeration"`
@@ -155,7 +158,7 @@ const (
 // Normalize 归一化选项：非法枚举回落默认值、阈值与计数截断到合法区间、规则
 // 按固定键合并默认草案（未知键丢弃）。读写两侧都调用，存量配置缺字段也安全。
 func (o AiModerationOptions) Normalize() AiModerationOptions {
-	if o.Mode != AiModerationModeEnforce {
+	if o.Mode != AiModerationModeEnforce && o.Mode != AiModerationModeDeferred {
 		o.Mode = AiModerationModeShadow
 	}
 	o.JevEndpoint = strings.TrimSpace(o.JevEndpoint)

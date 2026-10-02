@@ -381,7 +381,7 @@ async function save() {
   message.value = ''
   clearSensitiveHighlight()
   try {
-    const { id, pendingReview } = await submitTopicResult({
+    const { id, pendingReview, checking } = await submitTopicResult({
       topicId: currentTopicId.value,
       title: title.value.trim(),
       content: content.value.trim(),
@@ -398,7 +398,7 @@ async function save() {
     forceNextNavigation()
     message.value = page.props.isEditing ? t('publish.topicUpdated') : t('publish.topicPublished')
     // 待审（issue #975）：明确告知“已提交审核，通过后可见”，跨整页跳转保留提示。
-    if (pendingReview) queueFlashMessage(pendingReviewMessage(), 'info')
+    if (pendingReview) queueFlashMessage(pendingReviewMessage({ checking }), 'info')
     window.location.href = `/p/post/${id}`
   } catch (err) {
     if (challengeFromError(err)) {
@@ -426,7 +426,7 @@ async function persistDraft(nextUrl?: string, redirect = true): Promise<boolean>
   message.value = ''
   clearSensitiveHighlight()
   try {
-    const { id, pendingReview } = await submitTopicResult({
+    const { id, pendingReview, checking } = await submitTopicResult({
       topicId: currentTopicId.value,
       title: title.value.trim(),
       content: content.value.trim(),
@@ -441,7 +441,7 @@ async function persistDraft(nextUrl?: string, redirect = true): Promise<boolean>
     currentTopicId.value = id
     syncSavedSnapshot()
     forceNextNavigation()
-    if (pendingReview) queueFlashMessage(pendingReviewMessage(), 'info')
+    if (pendingReview) queueFlashMessage(pendingReviewMessage({ checking }), 'info')
     if (redirect) window.location.href = nextUrl || '/drafts'
     return true
   } catch (err) {

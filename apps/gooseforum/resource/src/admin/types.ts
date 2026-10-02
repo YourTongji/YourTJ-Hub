@@ -425,6 +425,8 @@ export interface ReviewQueueItem {
   images?: string[]
   /** 仅当本条因 AI 图文审查转入待审时返回（issue #975）。 */
   aiReview?: AiModerationDecision
+  /** 发布后检查模式下正在后台自动检查（通常很快自动公开或拒绝）。 */
+  aiChecking?: boolean
 }
 
 export type AiModerationPolicyKey = 'adult' | 'political_sensitive' | 'violence' | 'illegal_or_dangerous' | 'other'
@@ -443,7 +445,7 @@ export interface AiModerationPolicyRule {
 
 export interface AiModerationOptions {
   enabled: boolean
-  mode: 'shadow' | 'enforce'
+  mode: 'shadow' | 'enforce' | 'deferred'
   textModeration: boolean
   jevEndpoint: string
   jevModel: string
@@ -501,7 +503,7 @@ export interface AiModerationDecision {
   subjectType: 'topic' | 'post'
   subjectId: number
   authorId: number
-  mode: 'shadow' | 'enforce'
+  mode: 'shadow' | 'enforce' | 'deferred'
   policyRevision: string
   visionModel: string
   jevModel: string

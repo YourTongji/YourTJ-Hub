@@ -12,7 +12,7 @@ vi.mock('../src/runtime/i18n', () => ({
   },
 }))
 
-import { ApiResponseError, createPost, PENDING_REVIEW_MESSAGE_CODE, sensitiveWordsFromError, submitTopic, submitTopicResult, updatePost } from '../src/runtime/api'
+import { ApiResponseError, CHECKING_MESSAGE_CODE, createPost, PENDING_REVIEW_MESSAGE_CODE, pendingReviewMessage, sensitiveWordsFromError, submitTopic, submitTopicResult, updatePost } from '../src/runtime/api'
 import { replayAiModeration, saveAiModerationSettings } from '../src/admin/runtime/api'
 import type { AiModerationSettingsInput } from '../src/admin/types'
 
@@ -56,6 +56,21 @@ describe('publish pending-review signal (issue #975)', () => {
     const updated = { id: 7, content: 'x', renderedContent: '', updatedAt: '', lastEditorId: 1, lastEditedAt: '', revisionCount: 2 }
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ code: 0, messageCode: PENDING_REVIEW_MESSAGE_CODE, result: updated })))
     await expect(updatePost(7, 'x')).resolves.toMatchObject({ id: 7, pendingReview: true })
+  })
+
+  test('check-after-publishing results are pending and flagged as checking', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ code: 0, result: 978, messageCode: CHECKING_MESSAGE_CODE })))
+    const topic = await submitTopicResult(topicInput)
+    expect(topic).toEqual({ id: 978, pendingReview: true, checking: true })
+    // i18n 被 mock 为透传键：checking 走“正在自动检查”文案，其余走“已提交审核”。
+    expect(pendingReviewMessage(topic)).toBe('api.checking')
+    expect(pendingReviewMessage({})).toBe('api.pendingReview')
+
+    vi.stubGlobal('fetch', vi.fn().mockImplementation(async () => jsonResponse({ code: 0, messageCode: CHECKING_MESSAGE_CODE, result: { id: 8, postNo: 4, renderedContent: '' } })))
+    await expect(createPost(1, 'content')).resolves.toMatchObject({ id: 8, pendingReview: true, checking: true })
+    const updated = { id: 9, content: 'x', renderedContent: '', updatedAt: '', lastEditorId: 1, lastEditedAt: '', revisionCount: 2 }
+    vi.stubGlobal('fetch', vi.fn().mockImplementation(async () => jsonResponse({ code: 0, messageCode: CHECKING_MESSAGE_CODE, result: updated })))
+    await expect(updatePost(9, 'x')).resolves.toMatchObject({ id: 9, pendingReview: true, checking: true })
   })
 })
 

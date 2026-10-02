@@ -77,7 +77,10 @@ class _PostEditSheetState extends ConsumerState<PostEditSheet> {
       if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) return;
       if (updated.pendingReview) {
         final AppLocalizations l10n = AppLocalizations.of(context);
-        showGfToast(context, pendingReviewMessage(l10n));
+        showGfToast(
+          context,
+          pendingReviewMessage(l10n, checking: updated.checking),
+        );
       }
       _pop(true);
     } catch (error) {

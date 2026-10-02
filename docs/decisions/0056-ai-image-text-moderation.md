@@ -50,7 +50,13 @@ and only on 402/429/5xx/timeouts. External (non-site) images are never fetched s
 the configured `review` or `block` policy.
 
 Modes: `shadow` (default) evaluates asynchronously after the write and only records; `enforce` decides
-synchronously and extends the HTTP write deadline only for requests that call models. Every decision is
+synchronously and extends the HTTP write deadline only for requests that call models; `deferred`
+(check after publishing) stores the content as pending without waiting, then decides in the background
+through the same review implementation as the queue: `allow` publishes it silently, `block` rejects it and
+notifies the author, `review` and every failure leave it in the review queue. A per-subject generation
+counter plus a title/body comparison discard a background result once the author has edited again, and
+disallowed external images are still rejected synchronously because no model call is needed. In-flight
+checks are process-local: a restart leaves the content pending for a reviewer (fail-closed). Every decision is
 stored in `moderation_ai_decisions` with policy revision/hash, models, raw probabilities, evidence
 status, final and applied action; review-queue outcomes and manual labels are written back, and the
 admin replay endpoint recomputes a confusion matrix from stored probabilities. Thresholds move to
@@ -71,6 +77,8 @@ providers and enable zero data retention at the provider account level.
 - Good: no new state machine, deterministic resolver, fail-closed behavior, replayable thresholds, and
   the pending-image leak is closed for both AI and sensitive-word review.
 - Bad: `enforce` adds vision + Jev latency to image publishes and failures increase review workload.
+  `deferred` removes the wait but hides every new post from other readers until the check finishes, and
+  a rejection reaches the author as a notification instead of an editor message.
 - Scope: topics, replies and edits (including Agent/MCP writes through the same handlers). Avatars,
   course reviews, private messages and personal stickers keep their current checks; an image uploaded
   but never bound to content is still readable by URL until a later private-until-bound decision.

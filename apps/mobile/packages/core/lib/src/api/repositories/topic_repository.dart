@@ -111,7 +111,8 @@ class TopicRepository {
     );
     return WriteTopicResult(
       id: response.result ?? topicId,
-      pendingReview: response.messageCode == pendingReviewMessageCode,
+      pendingReview: isPendingReviewCode(response.messageCode),
+      checking: response.messageCode == checkingMessageCode,
     );
   }
 

@@ -282,6 +282,7 @@ const (
 	// AI 图文审查（issue #975）。pendingReview 作为成功信封的 messageCode 返回（敏感词转审与
 	// AI 转审共用，不暴露触因）；blocked 不携带模型类别/概率/证据，避免帮助绕过。
 	MessageContentModerationPendingReview MessageCode = "content.moderation.pendingReview"          // 内容已提交审核，通过后公开可见。
+	MessageContentModerationChecking      MessageCode = "content.moderation.checking"               // 先发后审：内容正在自动检查，通过后公开。
 	MessageContentAIBlocked               MessageCode = "content.aiModeration.blocked"              // 内容未通过站点发布规则，请调整后重试。
 	MessageContentAIExternalImageBlocked  MessageCode = "content.aiModeration.externalImageBlocked" // 不允许引用站外图片，请上传到本站后重试。
 	MessageChatSensitiveBlocked           MessageCode = "chat.sensitive.blocked"                    // 私信内容包含敏感词，已被拦截。
