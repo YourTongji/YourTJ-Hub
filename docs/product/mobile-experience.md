@@ -613,6 +613,9 @@ identity survive this layout change. The header keeps a small outer margin for i
   server's title, body and classification requirements. Moments can derive their title from the first text line.
 - `Current`: publishing limits, captcha requests and other API failures use the Web error catalog
   in the selected language, including server-provided parameters.
+- `Current`: server-required captcha challenges on publishing and replies explain that newer accounts
+  may be asked to complete a captcha after frequent posting, and that the requirement lifts as
+  activity subsides or the account meets the site age condition.
 - `Current`: changed editors debounce local recovery saves by 700 ms and flush when leaving or
   the app becomes inactive. Title, Markdown/simple text, type, category IDs and uploaded image URLs
   survive reopening, including when the page metadata request fails. Save progress, success and

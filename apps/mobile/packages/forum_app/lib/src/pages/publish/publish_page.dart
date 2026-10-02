@@ -130,6 +130,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
   CaptchaPayload? _captcha;
   final _captchaCode = TextEditingController();
   bool _captchaLoading = false;
+  bool _showPublishCaptchaExplanation = false;
   String _loadError = '';
   String _error = '';
   String _message = '';
@@ -1168,6 +1169,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
         _message = topicStatus == 1
             ? l10n.publishSuccess
             : l10n.publishSavedDraft;
+        _showPublishCaptchaExplanation = false;
       });
     } on ApiException catch (error) {
       if (!mounted || !_sessionCurrent) return;
@@ -1176,6 +1178,12 @@ class _PublishPageState extends ConsumerState<PublishPage>
       }
       if (error.messageCode == 'common.captchaRequired' ||
           error.messageCode == 'auth.captcha.invalid') {
+        if (error.messageCode == 'common.captchaRequired') {
+          setState(
+            () => _showPublishCaptchaExplanation =
+                error.params?['action'] == 'topic.write',
+          );
+        }
         await _loadCaptcha();
       }
     } catch (error) {
@@ -1512,6 +1520,14 @@ class _PublishPageState extends ConsumerState<PublishPage>
                     ],
                     const SizedBox(height: 16),
                     if (_captcha != null) ...[
+                      if (_showPublishCaptchaExplanation)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: Text(
+                            l10n.publishCaptchaExplanation,
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ),
                       Row(
                         children: [
                           InkWell(

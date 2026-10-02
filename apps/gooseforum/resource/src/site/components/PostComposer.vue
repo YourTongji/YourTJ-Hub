@@ -22,6 +22,7 @@ const props = defineProps<{
   successMessage: string
   target?: PostPayload
   captchaRequired?: boolean
+  captchaExplanation?: boolean
   captchaImg?: string
   captchaLoading?: boolean
   sensitiveWords?: string[]
@@ -373,6 +374,7 @@ function submit() {
             <p v-if="errorMessage" class="mt-2 text-sm text-error">{{ errorMessage }}</p>
             <p v-if="successMessage" class="mt-2 text-sm text-success">{{ successMessage }}</p>
             <div v-if="captchaRequired" class="mt-2 flex flex-wrap items-center gap-2 shrink-0">
+              <p v-if="captchaExplanation" class="w-full text-xs text-base-content/65">{{ t('auth.publishCaptchaExplanation') }}</p>
               <button
                 type="button"
                 class="relative h-9 w-24 shrink-0 overflow-hidden rounded-md border border-line"

@@ -48,6 +48,7 @@ const isEditing = computed(() => Boolean(quickPublishEditPayload.value && quickP
 
 const {
   captchaRequired,
+  showPublishCaptchaExplanation,
   captchaId,
   captchaImg,
   captchaCode,
@@ -922,6 +923,7 @@ async function handleSubmit() {
             v-if="captchaRequired"
             class="shrink-0 gf-card flex flex-wrap items-center gap-2.5 sm:gap-3 p-2.5 sm:p-3 rounded-2xl border border-line bg-base-200/40 animate-in fade-in-0 duration-200"
           >
+            <p v-if="showPublishCaptchaExplanation" class="w-full text-xs text-base-content/65">{{ t('auth.publishCaptchaExplanation') }}</p>
             <button
               type="button"
               class="relative h-9 w-24 shrink-0 overflow-hidden rounded-lg border border-line active:scale-95 transition-transform"
