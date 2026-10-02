@@ -54,7 +54,7 @@ jobs:
         with:
           go-version-file: .source/apps/gooseforum/go.mod
           cache-dependency-path: .source/apps/gooseforum/go.sum
-      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413
         if: ${{ !inputs.recover }}
         with:
           version: 11
