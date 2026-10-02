@@ -6,11 +6,13 @@ import '../../theme/gf_theme.dart';
 /// inset keeps the supplied icon legible in either theme. Interaction and
 /// accessible naming belong to the enclosing badge control.
 class GfBadgeMedallion extends StatelessWidget {
+  static const double defaultSize = 56;
+
   const GfBadgeMedallion({
     super.key,
     required this.icon,
     required this.color,
-    this.size = 56,
+    this.size = defaultSize,
   }) : assert(size > 0 && size < double.infinity);
 
   final Widget icon;

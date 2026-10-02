@@ -1523,7 +1523,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       badges['earned:${badge.code}'] = GfUserBadge(
         label: badge.name,
         color: userBadgeColor(badge),
-        icon: UserBadgeArtwork.medallion(badge, 34),
+        icon: UserBadgeArtwork.medallion(badge, GfUserCard.badgeMedallionSize),
         description: badge.description,
         onTap: () => showUserBadgeDetails(context, badge),
       );
@@ -2219,7 +2219,10 @@ class _ProfileBody extends StatelessWidget {
         title: badge.name,
         description: badge.description,
         color: userBadgeColor(badge),
-        icon: UserBadgeArtwork.medallion(badge, 56),
+        icon: UserBadgeArtwork.medallion(
+          badge,
+          GfAchievementCard.medallionSize,
+        ),
         onTap: () => showUserBadgeDetails(context, badge),
       );
 
