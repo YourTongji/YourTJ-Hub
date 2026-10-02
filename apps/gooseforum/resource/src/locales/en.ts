@@ -1860,6 +1860,10 @@ export default {
   topic: {
     body: 'Body',
     originalPost: 'Original post',
+    pendingReviewBanner: 'This post is under review. Only you and reviewers can see it until it’s approved.',
+    pendingReviewBannerModerator: 'This post is awaiting review. Other readers can’t see it yet.',
+    pendingReviewBadge: 'Under review',
+    pendingReviewReplyHint: 'Only you and reviewers can see this reply until it’s approved.',
     like: 'Like',
     bookmark: 'Bookmark',
     bookmarked: 'Bookmarked',

@@ -3291,4 +3291,16 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get notificationReviewRejected =>
       'Your post wasn’t approved and won’t be shown publicly';
+
+  @override
+  String get topicPendingReviewBanner =>
+      'This post is under review. Only you and reviewers can see it until it’s approved.';
+
+  @override
+  String get topicPendingReviewBannerModerator =>
+      'This post is awaiting review. Other readers can’t see it yet.';
+
+  @override
+  String get topicPendingReviewReply =>
+      'Under review · Only you and reviewers can see this reply until it’s approved.';
 }

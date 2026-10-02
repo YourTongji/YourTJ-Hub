@@ -1859,6 +1859,10 @@ export default {
   topic: {
     body: 'Inhalt',
     originalPost: 'Ursprünglicher Beitrag',
+    pendingReviewBanner: 'Dieser Beitrag wird geprüft. Bis zur Freigabe sehen ihn nur du und die Prüfenden.',
+    pendingReviewBannerModerator: 'Dieser Beitrag wartet auf Prüfung. Andere Lesende sehen ihn noch nicht.',
+    pendingReviewBadge: 'In Prüfung',
+    pendingReviewReplyHint: 'Bis zur Freigabe sehen diese Antwort nur du und die Prüfenden.',
     like: 'Gefällt mir',
     bookmark: 'Speichern',
     bookmarked: 'Gespeichert',

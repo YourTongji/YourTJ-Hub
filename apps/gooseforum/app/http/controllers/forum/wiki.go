@@ -98,7 +98,7 @@ func WikiDetail(c *gin.Context) {
 		renderNotFound(c)
 		return
 	}
-	if !canViewTopic(&topic, component.LoginUserId(c)) {
+	if !CanViewTopicSimple(&topic, component.LoginUserId(c)) {
 		renderNotFound(c)
 		return
 	}

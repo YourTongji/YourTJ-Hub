@@ -184,6 +184,16 @@ function handleTopicState(nextLikeCount: number) {
 <template>
   <div class="min-w-0">
     <header ref="topicHeaderEl" class="relative z-10 border-b border-line/70 px-4 py-4 sm:mb-4 sm:px-0 sm:pb-4 sm:pt-0 xl:w-[calc(100%+292px)]">
+      <!-- 待审话题（issue #975）：只有作者与审核员能打开，说明谁能看到、何时公开 -->
+      <p
+        v-if="page.props.topic.processStatus === 2"
+        role="status"
+        data-test="topic-pending-review"
+        class="mb-3 flex items-start gap-2 rounded-lg border border-warning/20 bg-warning/10 px-3 py-2 text-sm leading-5 text-warning"
+      >
+        <Clock class="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+        <span>{{ page.props.permissions.isOwnTopic ? t('topic.pendingReviewBanner') : t('topic.pendingReviewBannerModerator') }}</span>
+      </p>
       <!-- 无标题瞬间不渲染大标题（未填写标题的瞬间标题恒为空） -->
       <h1 v-if="page.props.topic.title" ref="titleEl" class="break-words text-2xl font-bold leading-tight text-base-content [overflow-wrap:anywhere] sm:text-3xl">
         {{ page.props.topic.title }}

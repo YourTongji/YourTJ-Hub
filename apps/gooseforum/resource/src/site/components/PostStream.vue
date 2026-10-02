@@ -2174,6 +2174,17 @@ defineExpose({ openFloatingPostComposer, focusPostComposer })
                 <!-- 大屏时间展示 -->
                 <time class="hidden w-36 shrink-0 text-right text-xs text-base-content/55 sm:-ml-1 sm:block">{{ formatDateTime(post.createdAt) }}</time>
 
+                <!-- 待审回复（issue #975）：作者与审核员可见，标明尚未公开 -->
+                <span
+                  v-if="post.processStatus === 2 && !isFirstPost(post)"
+                  data-test="post-pending-review"
+                  class="shrink-0 self-center inline-flex items-center gap-1 rounded-full bg-warning/15 px-2 py-0.5 text-[11px] font-semibold text-warning"
+                  :title="t('topic.pendingReviewReplyHint')"
+                >
+                  <Clock class="h-3 w-3" aria-hidden="true" />
+                  {{ t('topic.pendingReviewBadge') }}
+                </span>
+
                 <!-- 首楼内容类型徽章：只显示唯一且明确的类型徽章，未配置时回退为“正文” -->
                 <template v-if="isFirstPost(post)">
                   <span

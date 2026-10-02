@@ -6005,6 +6005,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Your post wasn’t approved and won’t be shown publicly'**
   String get notificationReviewRejected;
+
+  /// No description provided for @topicPendingReviewBanner.
+  ///
+  /// In en, this message translates to:
+  /// **'This post is under review. Only you and reviewers can see it until it’s approved.'**
+  String get topicPendingReviewBanner;
+
+  /// No description provided for @topicPendingReviewBannerModerator.
+  ///
+  /// In en, this message translates to:
+  /// **'This post is awaiting review. Other readers can’t see it yet.'**
+  String get topicPendingReviewBannerModerator;
+
+  /// No description provided for @topicPendingReviewReply.
+  ///
+  /// In en, this message translates to:
+  /// **'Under review · Only you and reviewers can see this reply until it’s approved.'**
+  String get topicPendingReviewReply;
 }
 
 class _AppLocalizationsDelegate

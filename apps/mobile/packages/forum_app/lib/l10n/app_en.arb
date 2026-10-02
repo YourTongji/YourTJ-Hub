@@ -1580,5 +1580,8 @@
   "moderationBlockedDraftKept": "Your text and images are still in the editor.",
   "moderationBlockedBack": "Edit post",
   "notificationReviewApproved": "Your post was approved and is now visible to everyone",
-  "notificationReviewRejected": "Your post wasn’t approved and won’t be shown publicly"
+  "notificationReviewRejected": "Your post wasn’t approved and won’t be shown publicly",
+  "topicPendingReviewBanner": "This post is under review. Only you and reviewers can see it until it’s approved.",
+  "topicPendingReviewBannerModerator": "This post is awaiting review. Other readers can’t see it yet.",
+  "topicPendingReviewReply": "Under review · Only you and reviewers can see this reply until it’s approved."
 }

@@ -614,6 +614,8 @@ instance:
   `review_rejected` 站内通知、Web Push 与原生推送；被拒内容对作者也不可见，因此通知不带跳转。
 - 待审内容（敏感词或 AI）的图片登记为 `PENDING` 引用：`/file/img` 对匿名和他人返回 404，作者与站点
   管理员以 `private, no-store` 预览；审核通过或解封后转 `ACTIVE`。
+- 待审话题与回复：作者可以打开自己审核中的内容（话题详情与楼层窗口走 `topicaccessservice.CanRead`），
+  页面标明“审核中”，审核前不开放回复；被拒内容对作者仍不可见，他人访问仍为 404。
 
 ## 一系统排课同步（course-pk-sync，issue #186）
 

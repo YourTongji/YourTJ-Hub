@@ -30,6 +30,20 @@ func CanView(entity *topics.Entity, viewerID uint64) bool {
 	return true
 }
 
+// CanRead extends CanView for read-only paths (topic detail and its post
+// window): authors may also read their own published topic while it is pending
+// review (sensitive-word review or AI moderation, issue #975), so the page they
+// land on after publishing is not a 404. Rejected topics stay hidden from the
+// author, and write actions keep using CanView.
+func CanRead(entity *topics.Entity, viewerID uint64) bool {
+	if CanView(entity, viewerID) {
+		return true
+	}
+	return entity != nil && entity.Id != 0 && viewerID != 0 && viewerID == entity.UserId &&
+		entity.VisibilityStatus == topics.VisibilityActive && entity.Status == 1 &&
+		entity.ProcessStatus == topics.ProcessStatusPending
+}
+
 func canViewDeleted(entity *topics.Entity, viewerID uint64) bool {
 	if entity.RetentionStatus == topics.RetentionPurged {
 		return false

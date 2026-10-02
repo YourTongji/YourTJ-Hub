@@ -3323,4 +3323,16 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get notificationReviewRejected =>
       'Dein Beitrag wurde nicht freigegeben und wird nicht öffentlich angezeigt';
+
+  @override
+  String get topicPendingReviewBanner =>
+      'Dieser Beitrag wird geprüft. Bis zur Freigabe sehen ihn nur du und die Prüfenden.';
+
+  @override
+  String get topicPendingReviewBannerModerator =>
+      'Dieser Beitrag wartet auf Prüfung. Andere Lesende sehen ihn noch nicht.';
+
+  @override
+  String get topicPendingReviewReply =>
+      'In Prüfung · Bis zur Freigabe sehen diese Antwort nur du und die Prüfenden.';
 }

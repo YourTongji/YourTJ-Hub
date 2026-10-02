@@ -1510,5 +1510,8 @@
   "moderationBlockedDraftKept": "你的文字和图片仍保留在编辑器中。",
   "moderationBlockedBack": "返回修改",
   "notificationReviewApproved": "你的内容已通过审核，现在所有人都能看到它",
-  "notificationReviewRejected": "你的内容未通过审核，不会公开显示"
+  "notificationReviewRejected": "你的内容未通过审核，不会公开显示",
+  "topicPendingReviewBanner": "这篇内容正在审核，目前只有你和审核员能看到。通过后所有人可见。",
+  "topicPendingReviewBannerModerator": "这篇内容正在等待审核，其他读者暂时看不到。",
+  "topicPendingReviewReply": "审核中 · 通过审核前，只有你和审核员能看到这条回复。"
 }

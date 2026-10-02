@@ -1862,6 +1862,10 @@ export default {
   topic: {
     body: '正文',
     originalPost: '正文',
+    pendingReviewBanner: '这篇内容正在审核，目前只有你和审核员能看到。通过后所有人可见。',
+    pendingReviewBannerModerator: '这篇内容正在等待审核，其他读者暂时看不到。',
+    pendingReviewBadge: '审核中',
+    pendingReviewReplyHint: '通过审核前，只有你和审核员能看到这条回复。',
     like: '点赞',
     bookmark: '收藏',
     bookmarked: '已收藏',

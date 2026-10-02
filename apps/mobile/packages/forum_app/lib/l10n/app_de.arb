@@ -1163,5 +1163,8 @@
   "moderationBlockedDraftKept": "Text und Bilder sind weiterhin im Editor.",
   "moderationBlockedBack": "Beitrag bearbeiten",
   "notificationReviewApproved": "Dein Beitrag wurde freigegeben und ist jetzt für alle sichtbar",
-  "notificationReviewRejected": "Dein Beitrag wurde nicht freigegeben und wird nicht öffentlich angezeigt"
+  "notificationReviewRejected": "Dein Beitrag wurde nicht freigegeben und wird nicht öffentlich angezeigt",
+  "topicPendingReviewBanner": "Dieser Beitrag wird geprüft. Bis zur Freigabe sehen ihn nur du und die Prüfenden.",
+  "topicPendingReviewBannerModerator": "Dieser Beitrag wartet auf Prüfung. Andere Lesende sehen ihn noch nicht.",
+  "topicPendingReviewReply": "In Prüfung · Bis zur Freigabe sehen diese Antwort nur du und die Prüfenden."
 }

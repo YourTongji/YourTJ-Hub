@@ -3182,4 +3182,16 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get notificationReviewRejected => '投稿は承認されなかったため、公開されません';
+
+  @override
+  String get topicPendingReviewBanner =>
+      'この投稿は審査中です。承認されるまで、表示されるのはあなたと審査担当者だけです。';
+
+  @override
+  String get topicPendingReviewBannerModerator =>
+      'この投稿は審査待ちです。ほかの読者にはまだ表示されません。';
+
+  @override
+  String get topicPendingReviewReply =>
+      '審査中 · 承認されるまで、この返信はあなたと審査担当者だけに表示されます。';
 }

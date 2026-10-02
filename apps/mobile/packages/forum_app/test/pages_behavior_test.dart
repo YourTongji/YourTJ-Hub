@@ -2002,6 +2002,38 @@ void main() {
     );
   }
 
+  testWidgets('pending topic and reply explain who can see them (issue #975)', (
+    tester,
+  ) async {
+    final client = GfApiClient(
+      dio: Dio(),
+      tokenStorage: MemTokenStorage(),
+      baseUrl: 'http://fake.local',
+    );
+    final Map<String, dynamic> payload = topicDetailPayloadJson();
+    final Map<String, dynamic> props = payload['props'] as Map<String, dynamic>;
+    (props['topic'] as Map<String, dynamic>)['processStatus'] = 2;
+    (props['permissions'] as Map<String, dynamic>)
+      ..['isOwnTopic'] = true
+      ..['canPost'] = false;
+    final List<dynamic> posts =
+        (props['postStream'] as Map<String, dynamic>)['posts'] as List<dynamic>;
+    (posts[1] as Map<String, dynamic>)['processStatus'] = 2;
+    final container = await makeContainer(
+      pageRepo: RedesignPageRepository(client, topicPayload: payload),
+    );
+    addTearDown(container.dispose);
+    await tester.pumpWidget(app(container, const TopicPage(topicId: 100)));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('topic-pending-review')), findsOneWidget);
+    expect(find.text('这篇内容正在审核，目前只有你和审核员能看到。通过后所有人可见。'), findsOneWidget);
+    expect(find.byKey(const Key('post-pending-review-9002')), findsOneWidget);
+    expect(find.byKey(const Key('post-pending-review-9003')), findsNothing);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
+  });
+
   testWidgets('mention panel fits above the keyboard on a short phone', (
     tester,
   ) async {

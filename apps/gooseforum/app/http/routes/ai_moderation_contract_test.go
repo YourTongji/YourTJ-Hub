@@ -19,6 +19,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/db4fileconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/securestore"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/api"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/forum"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/middleware"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/filemodel/filedata"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/eventNotification"
@@ -784,4 +785,86 @@ func TestAIModerationDeferredIgnoresSupersededOutcome(t *testing.T) {
 	}
 	stub.release(second)
 	waitFor(t, "rejection of the edited version", func() bool { return topics.Get(topicID).ProcessStatus == topics.ProcessStatusBlocked })
+}
+
+// getTopicPage 以 SPA 页面请求（X-Goose-Page）读取话题详情 JSON。
+func getTopicPage(router http.Handler, topicID uint64, token string) *httptest.ResponseRecorder {
+	request := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/p/post/%d", topicID), nil)
+	request.Header.Set("X-Goose-Page", "true")
+	if token != "" {
+		request.Header.Set("Authorization", "Bearer "+token)
+	}
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, request)
+	return recorder
+}
+
+// 回归：作者发布后跳转到自己的话题，待审期间（发布后检查或人工审核）作者能看到
+// 正文且不能回复；他人仍是 404。作者在公开话题里的待审回复同样只对作者可见。
+func TestAIModerationAuthorCanReadOwnPendingContent(t *testing.T) {
+	conn, router, stub := setupAIModerationContractTest(t, func(o *pageConfig.AiModerationOptions) {
+		o.Mode = pageConfig.AiModerationModeDeferred
+		o.TextModeration = true
+	})
+	stub.holds = []chan struct{}{make(chan struct{}), make(chan struct{})}
+	router.GET("/p/post/:id", middleware.JWTAuth, forum.TopicDetail)
+	author := createHTTPContractUser(t, conn, contractTestID())
+	stranger := createHTTPContractUser(t, conn, contractTestID())
+	authorToken, strangerToken := contractSessionToken(t, author), contractSessionToken(t, stranger)
+	url, _ := saveContractImage(t, author.Id)
+
+	envelope := decodeContractEnvelope(t, serveJSON(router, "/api/forum/topics/write", writeTopicBody("作者能看到待审话题", "检查期间作者自己能看到这段正文 ![]("+url+")"), authorToken))
+	var topicID uint64
+	if err := json.Unmarshal(envelope.Result, &topicID); err != nil || envelope.MessageCode != "content.moderation.checking" {
+		t.Fatalf("publish envelope = %+v", envelope)
+	}
+
+	page := getTopicPage(router, topicID, authorToken)
+	if page.Code != http.StatusOK || !strings.Contains(page.Body.String(), "检查期间作者自己能看到这段正文") {
+		t.Fatalf("author topic page = %d %.300s", page.Code, page.Body.String())
+	}
+	var payload struct {
+		Props struct {
+			Topic struct {
+				ProcessStatus int8 `json:"processStatus"`
+			} `json:"topic"`
+			Permissions struct {
+				CanPost bool `json:"canPost"`
+			} `json:"permissions"`
+		} `json:"props"`
+	}
+	if err := json.Unmarshal(page.Body.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload.Props.Topic.ProcessStatus != topics.ProcessStatusPending || payload.Props.Permissions.CanPost {
+		t.Fatalf("author pending topic payload: processStatus=%d canPost=%v", payload.Props.Topic.ProcessStatus, payload.Props.Permissions.CanPost)
+	}
+	if got := getTopicPage(router, topicID, strangerToken); got.Code != http.StatusNotFound {
+		t.Fatalf("stranger pending topic page = %d, want 404", got.Code)
+	}
+	if got := getTopicPage(router, topicID, ""); got.Code != http.StatusNotFound {
+		t.Fatalf("anonymous pending topic page = %d, want 404", got.Code)
+	}
+	window := serveAuthSecurityJSON(router, http.MethodGet, fmt.Sprintf("/api/forum/posts/window?topicId=%d", topicID), "", authorToken)
+	if decodeContractEnvelope(t, window).Code != 0 || !strings.Contains(window.Body.String(), "检查期间作者自己能看到这段正文") {
+		t.Fatalf("author post window = %.300s", window.Body.String())
+	}
+	if got := decodeContractEnvelope(t, serveAuthSecurityJSON(router, http.MethodGet, fmt.Sprintf("/api/forum/posts/window?topicId=%d", topicID), "", strangerToken)); got.Code == 0 {
+		t.Fatal("stranger must not read the pending topic window")
+	}
+
+	// 公开话题里的待审回复：作者在楼层窗口里能看到正文，他人看不到这一楼。
+	publicTopicID, firstPostID := contractTestID(), contractTestID()
+	createContractPublishedTopic(t, conn, publicTopicID, firstPostID, stranger.Id)
+	body, _ := json.Marshal(map[string]any{"topicId": publicTopicID, "content": "作者自己审核中的这条回复"})
+	if reply := decodeContractEnvelope(t, serveJSON(router, "/api/forum/posts/create", string(body), authorToken)); reply.MessageCode != "content.moderation.checking" {
+		t.Fatalf("reply envelope = %+v", reply)
+	}
+	path := fmt.Sprintf("/api/forum/posts/window?topicId=%d", publicTopicID)
+	if got := serveAuthSecurityJSON(router, http.MethodGet, path, "", authorToken); !strings.Contains(got.Body.String(), "作者自己审核中的这条回复") {
+		t.Fatalf("author must see own pending reply: %.300s", got.Body.String())
+	}
+	if got := serveAuthSecurityJSON(router, http.MethodGet, path, "", strangerToken); strings.Contains(got.Body.String(), "作者自己审核中的这条回复") {
+		t.Fatal("other readers must not see a pending reply")
+	}
 }

@@ -3147,4 +3147,13 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get notificationReviewRejected => '你的内容未通过审核，不会公开显示';
+
+  @override
+  String get topicPendingReviewBanner => '这篇内容正在审核，目前只有你和审核员能看到。通过后所有人可见。';
+
+  @override
+  String get topicPendingReviewBannerModerator => '这篇内容正在等待审核，其他读者暂时看不到。';
+
+  @override
+  String get topicPendingReviewReply => '审核中 · 通过审核前，只有你和审核员能看到这条回复。';
 }

@@ -1859,6 +1859,10 @@ export default {
   topic: {
     body: '本文',
     originalPost: '本文',
+    pendingReviewBanner: 'この投稿は審査中です。承認されるまで、表示されるのはあなたと審査担当者だけです。',
+    pendingReviewBannerModerator: 'この投稿は審査待ちです。ほかの読者にはまだ表示されません。',
+    pendingReviewBadge: '審査中',
+    pendingReviewReplyHint: '承認されるまで、この返信はあなたと審査担当者だけに表示されます。',
     like: 'いいね',
     bookmark: 'ブックマーク',
     bookmarked: 'ブックマーク済み',

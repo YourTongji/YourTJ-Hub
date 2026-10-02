@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { userDisplayName } from '@/runtime/private-notes'
 import { computed } from 'vue'
-import { Ban, Bookmark, ChevronDown, ChevronUp, CornerDownLeft, Flag, Heart, PencilLine, RotateCcw, Share2, Trash2 } from '@lucide/vue'
+import { Ban, Bookmark, ChevronDown, ChevronUp, Clock, CornerDownLeft, Flag, Heart, PencilLine, RotateCcw, Share2, Trash2 } from '@lucide/vue'
 import type { PostPayload } from '@gooseforum/client'
 import { formatDateTime, formatNumber } from '@/runtime/format'
 import { showUserCard } from '@/runtime/user-card-events'
@@ -104,6 +104,15 @@ function lastEditedLabel(post: PostPayload) {
         <span v-else class="min-w-0 truncate text-sm font-semibold text-base-content/55">{{ t('topic.authorAnonymous') }}</span>
         <span class="shrink-0 text-xs font-semibold tabular-nums text-base-content/55">#{{ formatNumber(post.postNo) }}</span>
         <time class="hidden shrink-0 text-xs text-base-content/55 sm:inline">{{ formatDateTime(post.createdAt) }}</time>
+        <span
+          v-if="post.processStatus === 2"
+          data-test="post-pending-review"
+          class="inline-flex shrink-0 items-center gap-1 rounded-full bg-warning/15 px-1.5 py-0.5 text-[11px] font-semibold text-warning"
+          :title="t('topic.pendingReviewReplyHint')"
+        >
+          <Clock class="h-3 w-3" aria-hidden="true" />
+          {{ t('topic.pendingReviewBadge') }}
+        </span>
           <button v-if="collapsible" type="button" class="inline-flex h-5 shrink-0 items-center gap-0.5 rounded-full bg-base-100 px-1.5 text-[11px] font-medium text-base-content/55 transition hover:text-base-content" :title="collapsed ? t('topic.expandReply') : t('topic.collapseReply')" @click="emit('toggleCollapse')">
             <ChevronDown v-if="collapsed" class="h-3 w-3" />
             <ChevronUp v-else class="h-3 w-3" />
