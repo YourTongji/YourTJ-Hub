@@ -806,6 +806,78 @@ void main() {
     },
   );
 
+  testWidgets(
+    'quote reveal jumps without a driven scroll under reduced motion',
+    (tester) async {
+      tester.platformDispatcher.accessibilityFeaturesTestValue =
+          FakeAccessibilityFeatures(disableAnimations: true);
+      addTearDown(
+        tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
+      );
+      final repository = await pumpActions(
+        tester,
+        messages: [
+          for (var id = 1; id < 40; id++) makeChatMessage(id),
+          makeChatMessage(40).copyWith(
+            content: '> @bob: first message\n\nsource',
+            replyToMessageId: 1,
+          ),
+        ],
+      );
+      final controller = tester
+          .widget<ListView>(find.byType(ListView).last)
+          .controller!;
+
+      await tester.tap(find.text('first message'));
+      await tester.pump();
+      await tester.pump();
+
+      expect(controller.position.isScrollingNotifier.value, isFalse);
+      expect(repository.requestedAroundId, isNull);
+      await tester.pumpAndSettle();
+      expect(find.text('消息 1').hitTestable(), findsOneWidget);
+      await dispose(tester);
+    },
+  );
+
+  testWidgets('reduced-motion quote reveal reaches a variable-height target', (
+    tester,
+  ) async {
+    tester.platformDispatcher.accessibilityFeaturesTestValue =
+        FakeAccessibilityFeatures(disableAnimations: true);
+    addTearDown(tester.platformDispatcher.clearAccessibilityFeaturesTestValue);
+    final repository = await pumpActions(
+      tester,
+      messages: [
+        for (var id = 100; id < 130; id++) makeChatMessage(id),
+        makeChatMessage(130).copyWith(
+          content: '> @bob: old target\n\nsource answer',
+          replyToMessageId: 15,
+        ),
+      ],
+    );
+    repository.aroundMessages = [
+      for (var id = 1; id <= 30; id++)
+        makeChatMessage(id).copyWith(
+          content: id == 15
+              ? 'target body'
+              : 'row $id\n${'long line\n' * (id % 5 + 1)}',
+        ),
+    ];
+    final controller = tester
+        .widget<ListView>(find.byType(ListView).last)
+        .controller!;
+
+    await tester.tap(find.text('old target'));
+    await tester.pump();
+    await tester.pump();
+    expect(controller.position.isScrollingNotifier.value, isFalse);
+    expect(repository.requestedAroundId, 15);
+    await tester.pumpAndSettle();
+    expect(find.text('target body').hitTestable(), findsOneWidget);
+    await dispose(tester);
+  });
+
   for (final reducedMotion in [false, true]) {
     testWidgets(
       'quote return restores the reading position with reduced motion $reducedMotion',

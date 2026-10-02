@@ -28,6 +28,8 @@
 - Password login: RSA-OAEP encrypted password → forum `users.Verify` → if the user enabled TOTP 2FA,
   the server issues a 5-minute `totp_challenge` token instead of a session token; the client posts the
   code (or a one-time recovery code) to `/api/auth/totp/verify`, which issues the real session token.
+  A missing or explicitly disabled TOTP record permits ordinary password login; if its state cannot
+  be read, login fails without issuing either a challenge or a session.
   A challenge token can mint at most one session: it is atomically consumed on successful verification
   (`totpservice.ConsumeChallenge`), so replaying it cannot create a second session.
 - GitHub OAuth and Google OAuth (goth): callbacks bind or sign in and issue a session token. Google
@@ -409,6 +411,14 @@ selection. Web settings show each badge once with its enabled checkbox; selected
 badges can be dragged to change their order. The complete earned-badge collection
 remains available separately.
 Avatar badge chips use each badge's preset background in light and dark themes.
+System badge artwork is normalized to one optical size, and the icon area is a fixed
+share of the chip, so every system icon keeps the same even margin inside the circular
+chip at every avatar size instead of reaching its rim. Custom badges (any icon URL
+outside `/static/badges/`) keep their original framing: a 2px inset in the web chip
+and a 60% artwork box in the mobile medallion, since their artwork often fills its
+canvas edge to edge. Badge responses append an artwork version
+(`?v=<n>`) to built-in `/static/badges/` icon URLs, so redrawn artwork reaches
+users despite the long `/static` browser cache.
 
 
 ### Native Apple sign-in

@@ -155,7 +155,9 @@ age. Accepted decision 0035 defines this retention model. The lifecycle and data
 in the [state and cache model](../architecture/mobile-state-and-cache.md).
 
 Course results support clear query/filter semantics, searchable long option lists, preserved filter
-state and automatic pagination. Applying a filter is atomic. The scheduler and official timetable
+state and automatic pagination. Applying a filter is atomic. Course rows keep the course name and
+teacher/department as the readable identity, while code, rating, credits and terms remain wrapping
+secondary metadata; long names and teacher lines grow naturally at enlarged text. The scheduler and official timetable
 share the web product's time axis, course colors and merged blocks. On phones, course cards prioritize
 course name and location; readable day/period headers and optional horizontal navigation take
 precedence over squeezing a desktop week into tiny text. Selection, week and plan survive tool
@@ -182,7 +184,12 @@ interaction targets do not stretch the artwork. Native page actions, notificatio
 ratings and image controls use ReIcon SVGs on a 24-pixel grid. Compact inline marks commonly render
 at 16 pixels, actions at 20–24 pixels, and navigation at 24 pixels inside independent touch targets.
 The bottom bar and wide rail switch each active destination from Outline to the matching Filled
-ReIcon glyph. Selected ratings use a filled counterpart. Brand marks and functional radio and
+ReIcon glyph. The compact bottom bar also shows each destination's short localized label; at large
+text it grows vertically and lets labels wrap while preserving 44-pixel targets. Its iOS surface
+may use a restrained Flutter blur/translucency, while Android, high-contrast mode, reduced motion
+and accessible-navigation mode use the opaque theme surface. This does not claim adoption of a
+native iOS Liquid Glass API. Selecting a destination uses one interruptible 160 ms transition for its indicator,
+icon color and label style; reduced motion settles that state immediately. Selected ratings use a filled counterpart. Brand marks and functional radio and
 strikethrough glyphs retain their source artwork, as recorded in the
 [UI Kit asset inventory](../../apps/mobile/packages/ui_kit/assets/README.md).
 Pinned topic markers use `thumbtack` Filled in the theme's red at 16 pixels on both list rows

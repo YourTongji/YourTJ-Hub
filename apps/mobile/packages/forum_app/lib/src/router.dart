@@ -47,22 +47,6 @@ import 'current_user.dart';
 import 'realtime/foreground_realtime.dart';
 import 'realtime/realtime_updates.dart';
 
-extension on GfShellDestination {
-  String get symbol => switch (this) {
-    GfShellDestination.home => 'house',
-    GfShellDestination.campus => 'graduation-cap',
-    GfShellDestination.messages => 'mail',
-    GfShellDestination.notifications => 'bell',
-  };
-
-  String label(AppLocalizations l10n) => switch (this) {
-    GfShellDestination.home => l10n.navHome,
-    GfShellDestination.campus => l10n.navCampus,
-    GfShellDestination.messages => l10n.navMessages,
-    GfShellDestination.notifications => l10n.notificationsTitle,
-  };
-}
-
 /// Persistent mobile shell with four navigation destinations and one compose
 /// action. Each branch owns its own navigator and state; compose is pushed as
 /// a global page rather than kept alive as a destination.
@@ -339,6 +323,13 @@ class _GfShellState extends ConsumerState<GfShell> with WidgetsBindingObserver {
           badge: destination == GfShellDestination.notifications
               ? _unreadNotifications
               : destination == GfShellDestination.messages && _unreadMessages,
+          badgeSemanticLabel:
+              (destination == GfShellDestination.notifications &&
+                      _unreadNotifications) ||
+                  (destination == GfShellDestination.messages &&
+                      _unreadMessages)
+              ? l10n.notificationsUnread
+              : null,
         ),
     ];
 
@@ -391,7 +382,7 @@ class _GfShellState extends ConsumerState<GfShell> with WidgetsBindingObserver {
                   child: GfBottomNavigation(
                     currentIndex: widget.navigationShell.currentIndex,
                     onSelected: _selectDestination,
-                    showLabels: false,
+                    showLabels: true,
                     items: destinations,
                   ),
                 ),

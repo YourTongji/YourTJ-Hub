@@ -11,6 +11,7 @@ import (
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/api"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/middleware"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userTotp"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/userservice"
 	"github.com/gin-gonic/gin"
@@ -349,4 +350,26 @@ func TestTotpSettingsHTTPContract(t *testing.T) {
 			t.Fatal("expected user-dimension HTTP 429 rate limit")
 		}
 	})
+}
+
+func TestTotpStatusFailsWhenStateCannotBeRead(t *testing.T) {
+	conn, router := setupTotpSettingsContractTest(t)
+	user := createHTTPContractUser(t, conn, contractTestID())
+	token := contractSessionToken(t, user)
+	t.Cleanup(func() {
+		if err := conn.AutoMigrate(&userTotp.Entity{}); err != nil {
+			t.Errorf("restore TOTP table after status read-failure test: %v", err)
+		}
+	})
+	if err := conn.Migrator().DropTable(&userTotp.Entity{}); err != nil {
+		t.Fatalf("drop TOTP table to simulate read failure: %v", err)
+	}
+
+	recorder := serveAuthSecurityJSON(router, http.MethodGet, "/api/user/totp/status", "", token)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status code = %d, want 200: %s", recorder.Code, recorder.Body.String())
+	}
+	if got := decodeContractEnvelope(t, recorder).MessageCode; got != "common.operation.failed" {
+		t.Fatalf("status messageCode = %q, want common.operation.failed", got)
+	}
 }

@@ -46,3 +46,15 @@ deploy/__pycache__/
 *.swp
 *.tsbuildinfo
 *.iml
+
+# Local/Actions release controller material (requests live under releases/requests instead).
+.release-approved/
+.release-smoke/
+.release-result.json
+.source/
+.ci-plan/
+ci-plan.json
+
+# Python release/CI tooling
+__pycache__/
+*.py[cod]

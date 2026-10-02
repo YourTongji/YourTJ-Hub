@@ -1,87 +1,23 @@
 name: CI / mobile
 
 on:
-  push:
-    branches: [dev, main]
-    paths:
-      - "apps/mobile/**"
-      - "apps/gooseforum/resource/src/site/assets/logo.svg"
-      - ".github/workflows/ci-mobile.yml"
-      - ".github/workflows/release-mobile.yml"
-      - ".github/workflows/release-to-main.yml"
-      - ".github/workflows/deploy-main.yml"
-      - "scripts/mobile-release/**"
-  pull_request:
-    paths:
-      - "apps/mobile/**"
-      - "apps/gooseforum/resource/src/site/assets/logo.svg"
-      - ".github/workflows/ci-mobile.yml"
-      - ".github/workflows/release-mobile.yml"
-      - ".github/workflows/release-to-main.yml"
-      - ".github/workflows/deploy-main.yml"
-      - "scripts/mobile-release/**"
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  workflow_call:
+    inputs:
+      source:
+        type: string
+        default: ''
 
 permissions:
   contents: read
-  pull-requests: read
 
 jobs:
-  changes:
-    runs-on: ubuntu-latest
-    outputs:
-      flutter: ${{ steps.filter.outputs.flutter }}
-      release_tools: ${{ steps.filter.outputs.release_tools }}
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4
-        id: filter
-        with:
-          base: ${{ github.event_name == 'push' && github.ref_name || '' }}
-          filters: |
-            flutter:
-              - 'apps/mobile/**/*.dart'
-              - 'apps/mobile/**/lib/**'
-              - 'apps/mobile/**/test/**'
-              - 'apps/mobile/**/assets/**'
-              - 'apps/mobile/**/pubspec*.yaml'
-              - 'apps/mobile/**/pubspec.lock'
-              - 'apps/mobile/**/analysis_options.yaml'
-              - 'apps/mobile/**/dart_test.yaml'
-              - 'apps/mobile/**/l10n.yaml'
-              - 'apps/mobile/**/build.yaml'
-              - 'apps/mobile/**/hook/**'
-              - 'apps/mobile/**/hooks/**'
-              - 'apps/mobile/**/android/**'
-              - 'apps/mobile/**/ios/**'
-              - 'apps/mobile/tools/**'
-              - 'apps/mobile/scripts/**'
-              - 'apps/gooseforum/resource/src/site/assets/logo.svg'
-              - '.github/workflows/ci-mobile.yml'
-            release_tools:
-              - 'scripts/mobile-release/**'
-              - 'apps/mobile/release-config.json'
-              - 'apps/mobile/**/android/**'
-              - 'apps/mobile/**/ios/**'
-              - '.github/workflows/ci-mobile.yml'
-              - '.github/workflows/release-mobile.yml'
-              - '.github/workflows/release-to-main.yml'
-              - '.github/workflows/deploy-main.yml'
-
   analyze:
-    needs: changes
-    if: needs.changes.outputs.flutter == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          ref: ${{ inputs.source || github.sha }}
           persist-credentials: false
       - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
         with:
@@ -99,8 +35,6 @@ jobs:
 
   test:
     name: Test / ${{ matrix.package }} / ${{ matrix.shard }}
-    needs: changes
-    if: needs.changes.outputs.flutter == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:
@@ -115,6 +49,7 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          ref: ${{ inputs.source || github.sha }}
           persist-credentials: false
       - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
         with:
@@ -130,16 +65,3 @@ jobs:
         working-directory: apps/mobile/packages/${{ matrix.package }}
         # Each runner owns a Flutter SDK, so package jobs do not contend for its startup lock.
         run: flutter test --total-shards=${{ matrix.shards }} --shard-index=${{ matrix.shard }}
-
-  release-tools:
-    needs: changes
-    if: needs.changes.outputs.release_tools == 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          persist-credentials: false
-      # The effective Xcode signing check runs in the iOS native job after Flutter bootstrap.
-      - name: Release script regression tests
-        run: python3 -m unittest discover -s scripts/mobile-release -p 'test_*.py'

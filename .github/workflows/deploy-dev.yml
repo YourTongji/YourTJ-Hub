@@ -1,52 +1,91 @@
 name: Deploy / dev
-
 on:
-  push:
+  workflow_run:
+    workflows: ['CI / Verify']
+    types: [completed]
     branches: [dev]
-    paths-ignore:
-      - "docs/**"
-      - "research/**"
-      - ".playwright-mcp/**"
-      # markdown 文档变更不触发部署; paths-ignore 不支持 "!" 取反,
-      # 故逐目录枚举 md 忽略。
-      - "*.md"
-      - "apps/**/*.md"
-      - "packages/**/*.md"
-      - "services/**/*.md"
-      - "deploy/**/*.md"
-  workflow_dispatch:
-
+permissions:
+  contents: read
+  actions: read
+# Configuration and database mutation must not be cancelled by a newer push.
 concurrency:
-  group: deploy-dev
-  cancel-in-progress: true
-
+  group: instance-mutate-dev
+  cancel-in-progress: false
+  queue: max
 jobs:
+  gate:
+    runs-on: ubuntu-latest
+    outputs:
+      eligible: ${{ steps.eligible.outputs.eligible }}
+      sha: ${{ steps.source.outputs.sha }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: dev
+          persist-credentials: false
+      - id: source
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/ci/deploy_gate.py
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        if: steps.source.outputs.eligible == 'true'
+        with:
+          name: ci-plan
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ github.token }}
+          path: .ci-plan
+      - id: eligible
+        if: steps.source.outputs.eligible == 'true'
+        run: |
+          python3 - <<'PY'
+          import json,os
+          from pathlib import Path
+          plan=json.loads(Path('.ci-plan/ci-plan.json').read_text())
+          with open(os.environ['GITHUB_OUTPUT'],'a') as out:
+              out.write('eligible='+str(plan['deploy']['run'] is True).lower()+'\n')
+          PY
   build:
+    needs: gate
+    if: needs.gate.outputs.eligible == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ needs.gate.outputs.sha }}
+          persist-credentials: false
       - uses: ./.github/actions/build-binary
 
   build-image:
-    needs: build
+    needs: [gate, build]
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ needs.gate.outputs.sha }}
+          persist-credentials: false
       - uses: ./.github/actions/push-image
         with:
-          tag: dev-${{ github.sha }}
+          tag: dev-${{ needs.gate.outputs.sha }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
   deploy:
-    needs: [build, build-image]
+    needs: [gate, build, build-image]
     runs-on: ubuntu-latest
     environment: dev
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ needs.gate.outputs.sha }}
+          persist-credentials: false
+      - name: Reject an obsolete candidate before configuration or database mutation
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_SHA: ${{ needs.gate.outputs.sha }}
+        run: test "$(gh api repos/YourTongji/YourTJ-Hub/git/ref/heads/dev --jq .object.sha)" = "$SOURCE_SHA"
       # 渲染实例 config（dev 环境 secrets; dev GitHub 凭据留空 → 渲染 allow-empty）
       - name: Render dev config
         uses: ./.github/actions/render-config
@@ -75,7 +114,7 @@ jobs:
       # 上传到 run-specific 路径, 避免与 deploy-main 并发部署时
       # 互相覆盖 /tmp 下的同名文件(见 PR review #1)
       - name: Upload deploy scripts to dev host
-        uses: appleboy/scp-action@v0.1.7
+        uses: appleboy/scp-action@917f8b81dfc1ccd331fef9e2d61bdc6c8be94634
         with:
           host: ${{ secrets.VM_HOST }}
           username: ${{ secrets.VM_USER }}
@@ -85,7 +124,7 @@ jobs:
           target: "/tmp/yourtj-deploy-${{ github.run_id }}"
           strip_components: 2
       - name: Upload rendered dev config to dev host
-        uses: appleboy/scp-action@v0.1.7
+        uses: appleboy/scp-action@917f8b81dfc1ccd331fef9e2d61bdc6c8be94634
         with:
           host: ${{ secrets.VM_HOST }}
           username: ${{ secrets.VM_USER }}
@@ -98,7 +137,7 @@ jobs:
       # 避免 dev 分支的 compose 变更影响共享的生产实例(PR review #3)。
       # 部署只需 pull 镜像 + up 已有 compose 中的服务
       - name: Deploy to dev (sync db from main + pull image + restart + smoke)
-        uses: appleboy/ssh-action@v1.2.0
+        uses: appleboy/ssh-action@7eaf76671a0d7eec5d98ee897acda4f968735a17
         with:
           host: ${{ secrets.VM_HOST }}
           username: ${{ secrets.VM_USER }}
@@ -120,6 +159,6 @@ jobs:
             #    dev 部署频繁, 镜像只保留最近 3 个(含当前) + prev
             #    CONFIG_FILE 携带渲染 config: 与镜像同一回滚事务原子替换
             IMAGE_KEEP_N=3 CONFIG_FILE="$RUN_DIR/config-dev.toml" \
-              /opt/yourtj/scripts/deploy.sh dev dev-${{ github.sha }} 5235
+              /opt/yourtj/scripts/deploy.sh dev dev-${{ needs.gate.outputs.sha }} 5235
             # 3. 部署成功/失败后清理本 run 上传的临时文件(含明文渲染 config)
             rm -rf "$RUN_DIR"

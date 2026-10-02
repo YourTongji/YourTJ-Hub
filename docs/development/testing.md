@@ -84,11 +84,14 @@ All CI `push` triggers are limited to `dev` and `main`, so a push to an in-repos
 PR branch is validated once by its `pull_request` run rather than again by a duplicate
 `push` run. CI runs for the same PR or branch supersede older in-progress runs.
 
-The required backend, frontend, and contract workflows start for every PR so their
-required status checks cannot remain pending. Each required job performs its own path
-detection, so a detection failure fails that required check; its heavy Go or pnpm steps
-run only when its owned inputs changed. `ci-mobile` and `ci-mobile-native` are optional workflows
-with path filters; unrelated PRs do not start Flutter runners. Their path-detection jobs gate the heavier jobs.
+[CI / Verify](../../.github/workflows/ci.yml) is the single PR/dev/main entry. The
+[domain selector](../../scripts/ci/select_inputs.py) compares complete Git changes, including both
+sides of renames and deleted files. Unknown executable inputs or unavailable comparisons select
+conservative validation. Domain workflows are reusable and consume an explicit source SHA.
+`ci-required` always runs and rejects missing, skipped, failed or cancelled selected domains;
+unselected domains carry reasons. Backend's reusable result includes PG/race and mobile includes
+all test shards. The old `ci-backend`, `ci-frontend`, `ci-contract` names remain compatibility aliases
+while required-check settings migrate. Docs/governance and current govulncheck run on every change.
 
 - ci-backend.yml: changed backend or contract-fixture paths run go vet + go test + go build
   (apps/gooseforum/app/**, main.go, go.mod, go.sum, embedded resource Go/GoHTML files,
@@ -117,16 +120,16 @@ with path filters; unrelated PRs do not start Flutter runners. Their path-detect
   Each package tests on its own runner; `forum_app` has two disjoint Flutter
   shards. All package suites run for a shared-code change, including dependent packages. The local
   `melos run test` remains serial to avoid sharing one SDK's startup lock across Flutter processes.
-  Release-tool Python tests run in a separate Ubuntu job without installing Flutter. Store metadata
+  Release-tool Python tests run in `ci-automation.yml` on Ubuntu without installing Flutter. Store metadata
   and documentation alone do not run Flutter checks.
 - ci-mobile-native.yml: Android or iOS source/configuration changes build only that platform; shared
   pubspecs/lockfiles, build hooks/scripts, release tooling or the native workflow itself build both.
-  Plain Dart/test/asset changes do not compile either native app. Manual dispatch builds both platforms
-  when compile or Android size evidence is needed for any ref. Android retains R8/all-push-adapter
+  Plain Dart/test/asset changes do not compile either native app. The reusable workflow accepts an explicit platform list
+  from the shared selector. Android retains R8/all-push-adapter
   compilation and the arm64 size artifact, with a Gradle user-home cache. iOS runs the simulator
   build, native `RunnerTests` storage-policy and widget schedule regressions, and effective distribution-signing checks.
-  Clean checkouts use `flutter pub get` before native compilation. Signed releases still perform full
-  verification and both platform builds.
+  Clean checkouts use `flutter pub get` before native compilation. Signed releases separately verify the fixed application source
+  and build only the selected native platforms.
 - Mobile tests assert behavior, layout constraints, accessibility and design tokens without screenshot
   baselines. Screenshot golden tests and their PNG fixtures are not maintained or run locally, in PR CI,
   or during release verification. For visual changes, inspect the affected screens in a simulator or
@@ -137,11 +140,11 @@ The trade-off between fast source checks and native compile coverage is recorded
 
 Both mobile workflows pin external actions to full commit SHAs and disable checkout credential
 persistence before running PR-controlled code. `node --test scripts/test-mobile-ci-*.mjs` checks
-the Flutter input selection and these workflow security settings in documentation CI.
+the Flutter input selection and these workflow security settings in automation CI.
 
 ## Documentation and governance
 
-`ci-docs.yml` runs for every PR and every push to `dev` or `main`, so renaming or deleting a linked
+`ci-docs.yml` is called by the unified entry for every PR and every push to `dev` or `main`, so renaming or deleting a linked
 source file, image or configuration also triggers the gate. It needs only Git and Node, without
 application dependencies:
 

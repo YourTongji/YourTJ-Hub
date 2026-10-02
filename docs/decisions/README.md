@@ -140,3 +140,5 @@ A decision starts `Proposed`. Once implemented, its status becomes `Accepted` an
 - [0051](0051-mobile-automatic-visitor-statistics.md) — 正式移动端自动统计公开页面，移除统计开关与偏好门控，同步升级语义和隐私披露。
 - [0052](0052-campus-daily-entry-refresh.md) — 跨上海日期后首次进入校园页刷新完整快照，以成功提交日期去重，失败保留旧快照并允许重试。
 - [0053](0053-status-collection-cost.md) — Netlify 状态站分级采集、保留期限与正式发布内容比较。
+- [0054](0054-badge-artwork-optical-size.md) — 系统徽章图形按统一光学尺寸归一化并补偿描边，角标图标区改为固定占比。
+- [0055](0055-reviewed-release-pipeline.md) — Reviewed release requests, independent platform notes, Oryn drafting and complete CI aggregation.

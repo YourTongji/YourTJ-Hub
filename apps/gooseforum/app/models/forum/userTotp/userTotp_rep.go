@@ -1,13 +1,22 @@
 package userTotp
 
+import (
+	"errors"
+
+	"gorm.io/gorm"
+)
+
 // GetByUserID 根据用户ID获取TOTP记录
-func GetByUserID(userID uint64) *Entity {
+func GetByUserID(userID uint64) (*Entity, error) {
 	var entity Entity
 	err := builder().Where(fieldUserId, userID).First(&entity).Error
-	if err != nil {
-		return nil
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, nil
 	}
-	return &entity
+	if err != nil {
+		return nil, err
+	}
+	return &entity, nil
 }
 
 // Create 创建TOTP记录

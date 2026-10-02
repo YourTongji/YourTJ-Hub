@@ -579,62 +579,87 @@ class _CourseCatalogPageState extends ConsumerState<_CourseCatalogContent> {
     String? symbol,
   }) {
     final GfColors colors = GfTheme.colorsOf(context);
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(999),
-      child: Container(
-        constraints: const BoxConstraints(minHeight: 44),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: selected
-              ? colors.primary.withValues(alpha: 0.1)
-              : colors.base100,
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(
-            color: selected
-                ? colors.primary.withValues(alpha: 0.5)
-                : colors.line,
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            if (symbol != null) ...<Widget>[
-              GfSymbol(symbol, size: 14, color: colors.primary),
-              const SizedBox(width: 4),
-            ],
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-                color: selected
-                    ? colors.primary
-                    : colors.baseContent.withValues(alpha: 0.75),
+    final BorderRadius radius = BorderRadius.circular(999);
+    final bool reducedMotion = GfMotion.reducedOf(context);
+    final Color unselectedFill = colors.base100;
+    final Color selectedFill = colors.primary.withValues(alpha: 0.1);
+    return Semantics(
+      container: true,
+      button: true,
+      enabled: onTap != null,
+      selected: selected,
+      child: Material(
+        type: MaterialType.transparency,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: radius,
+          child: TweenAnimationBuilder<Color?>(
+            key: ValueKey<bool>(reducedMotion),
+            tween: ColorTween(end: selected ? selectedFill : unselectedFill),
+            duration: GfMotion.duration(context, GfMotion.selection),
+            curve: GfMotion.enterCurve,
+            builder: (context, fill, child) => Ink(
+              decoration: BoxDecoration(
+                color: fill,
+                borderRadius: radius,
+                border: Border.all(
+                  color: selected
+                      ? colors.primary.withValues(alpha: 0.5)
+                      : colors.line,
+                ),
+              ),
+              child: child,
+            ),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 44),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    if (symbol != null) ...<Widget>[
+                      GfSymbol(symbol, size: 14, color: colors.primary),
+                      const SizedBox(width: 4),
+                    ],
+                    Text(
+                      label,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        color: selected
+                            ? colors.primary
+                            : colors.baseContent.withValues(alpha: 0.75),
+                      ),
+                    ),
+                    if ((count ?? 0) > 0) ...<Widget>[
+                      const SizedBox(width: 6),
+                      Container(
+                        constraints: const BoxConstraints(minWidth: 18),
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        height: 18,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: colors.primary,
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          '$count',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: colors.primaryContent,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
               ),
             ),
-            if ((count ?? 0) > 0) ...<Widget>[
-              const SizedBox(width: 6),
-              Container(
-                constraints: const BoxConstraints(minWidth: 18),
-                padding: const EdgeInsets.symmetric(horizontal: 4),
-                height: 18,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: colors.primary,
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: Text(
-                  '$count',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: colors.primaryContent,
-                  ),
-                ),
-              ),
-            ],
-          ],
+          ),
         ),
       ),
     );
@@ -787,41 +812,10 @@ class _CourseRow extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Expanded(
-                  child: Text(
-                    course.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: type.bodyStrong,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 6,
-                    vertical: 2,
-                  ),
-                  decoration: BoxDecoration(
-                    color: colors.base200,
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Text(
-                    course.primaryCode,
-                    style: type.meta.copyWith(
-                      color: colors.baseContent.withValues(alpha: 0.55),
-                    ),
-                  ),
-                ),
-              ],
-            ),
+            Text(course.name, style: type.heading),
             const SizedBox(height: 6),
             Text(
               '$teacher · ${course.department}',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
               style: type.small.copyWith(
                 color: colors.baseContent.withValues(alpha: 0.6),
               ),
@@ -878,6 +872,22 @@ class _CourseRow extends StatelessWidget {
                     ),
                   ),
                 ],
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: colors.base200,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    course.primaryCode,
+                    style: type.meta.copyWith(
+                      color: colors.baseContent.withValues(alpha: 0.55),
+                    ),
+                  ),
+                ),
                 ..._termChips(context, terms),
               ],
             ),
@@ -889,6 +899,7 @@ class _CourseRow extends StatelessWidget {
 
   List<Widget> _termChips(BuildContext context, List<String> terms) {
     if (terms.isEmpty) return const <Widget>[];
+    final AppLocalizations l10n = AppLocalizations.of(context);
     final GfColors colors = GfTheme.colorsOf(context);
     final GfTypography type = GfTheme.typographyOf(context);
 
@@ -920,33 +931,27 @@ class _CourseRow extends StatelessWidget {
     }
 
     if (terms.length == 1) {
+      return <Widget>[chip(shortTerm(terms.first, locale: l10n.localeName))];
+    }
+    final String first = shortTerm(terms.first, locale: l10n.localeName);
+    if (!termsExpanded) {
       return <Widget>[
-        chip(
-          shortTerm(
-            terms.first,
-            locale: AppLocalizations.of(context).localeName,
-          ),
-        ),
+        chip(first, onTap: onToggleTerms),
+        chip('+${terms.length - 1}', onTap: onToggleTerms),
       ];
     }
-    final List<Widget> visible = termsExpanded
-        ? terms
-              .map(
-                (term) => shortTerm(
-                  term,
-                  locale: AppLocalizations.of(context).localeName,
-                ),
-              )
-              .map(chip)
-              .toList()
-        : <Widget>[];
+    final List<Widget> visible = terms
+        .skip(1)
+        .map(
+          (term) =>
+              shortTerm(term, locale: AppLocalizations.of(context).localeName),
+        )
+        .map(chip)
+        .toList();
     return <Widget>[
-      chip(
-        shortTerm(terms.first, locale: AppLocalizations.of(context).localeName),
-        onTap: onToggleTerms,
-      ),
-      if (!termsExpanded) chip('+${terms.length - 1}', onTap: onToggleTerms),
+      chip(first, onTap: onToggleTerms),
       ...visible,
+      chip(l10n.courseCopySummaryCollapse, onTap: onToggleTerms),
     ];
   }
 }

@@ -270,6 +270,7 @@ void main() {
             lastMessage: '你好',
             time: '10:30',
             unreadCount: 0,
+            unreadLabel: 'Unread',
           ),
         ),
       ),

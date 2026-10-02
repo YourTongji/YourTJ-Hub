@@ -1289,26 +1289,46 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
       if (index < 0) return;
       // An around-ID response still contains lazy, variable-height rows. Seek
       // by index first so the target exists before measuring its exact position.
-      await _scrollController.scrollToIndex(
-        index,
-        preferPosition: AutoScrollPosition.begin,
-        duration: const Duration(milliseconds: 260),
-      );
-      if (!_sessionCurrent || generation != _scrollAdjustmentGeneration) return;
-      final targetContext = _bubbleKeys[messageId]?.currentContext;
+      if (!mounted) return;
+      final reducedMotion = GfMotion.reducedOf(context);
+      BuildContext? targetContext;
+      if (reducedMotion) {
+        targetContext = await _jumpToQuotedMessageWithoutAnimation(
+          index,
+          messageId,
+          generation,
+        );
+        if (!_sessionCurrent || generation != _scrollAdjustmentGeneration) {
+          return;
+        }
+      } else {
+        await _scrollController.scrollToIndex(
+          index,
+          preferPosition: AutoScrollPosition.begin,
+          duration: const Duration(milliseconds: 260),
+        );
+        if (!_sessionCurrent || generation != _scrollAdjustmentGeneration) {
+          return;
+        }
+        targetContext =
+            _bubbleKeys[messageId]?.currentContext ??
+            _scrollController.tagMap[index]?.context;
+        if (targetContext != null && targetContext.mounted) {
+          if (!mounted) return;
+          await Scrollable.ensureVisible(
+            targetContext,
+            alignment: 0.12,
+            duration: GfMotion.duration(context, GfMotion.layout),
+            curve: Curves.easeInOut,
+          );
+        }
+      }
       if (!mounted ||
           !_sessionCurrent ||
           targetContext == null ||
           !targetContext.mounted) {
         return;
       }
-      await Scrollable.ensureVisible(
-        targetContext,
-        alignment: 0.12,
-        duration: const Duration(milliseconds: 260),
-        curve: Curves.easeInOut,
-      );
-      if (!_sessionCurrent) return;
       _replyHighlightTimer?.cancel();
       setState(() => _highlightedMessageId = messageId);
       _replyHighlightTimer = Timer(const Duration(milliseconds: 1400), () {
@@ -1322,6 +1342,60 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
         if (_sessionCurrent) _visibleReads.changed(restartDwell: true);
       }
     }
+  }
+
+  /// The scroll_to_index package asserts on a zero duration. Reduced motion
+  /// therefore advances the lazy list in discrete viewport-sized jumps until
+  /// the target tag mounts, then aligns it without an animation.
+  Future<BuildContext?> _jumpToQuotedMessageWithoutAnimation(
+    int index,
+    int messageId,
+    int generation,
+  ) async {
+    while (mounted &&
+        _sessionCurrent &&
+        generation == _scrollAdjustmentGeneration) {
+      final targetContext =
+          _bubbleKeys[messageId]?.currentContext ??
+          _scrollController.tagMap[index]?.context;
+      if (targetContext != null && targetContext.mounted) {
+        await Scrollable.ensureVisible(
+          targetContext,
+          alignment: 0.12,
+          duration: Duration.zero,
+        );
+        return targetContext;
+      }
+      if (!_scrollController.hasClients) return null;
+      final position = _scrollController.position;
+      final tags = _scrollController.tagMap.keys.toList()..sort();
+      if (tags.isEmpty) {
+        if (position.maxScrollExtent <= position.minScrollExtent) return null;
+        final offset = position.pixels;
+        await WidgetsBinding.instance.endOfFrame;
+        if (!_scrollController.hasClients) return null;
+        // No tags means no mounted row reports progress by itself, so detect
+        // growth through the scroll position: if nothing moved after a frame,
+        // lazy pagination is exhausted and the target cannot be reached.
+        if (_scrollController.tagMap.isEmpty &&
+            (_scrollController.position.pixels - offset).abs() < 0.5) {
+          return null;
+        }
+        continue;
+      }
+      final nearest = (index - tags.first).abs() <= (index - tags.last).abs()
+          ? tags.first
+          : tags.last;
+      final direction = index >= nearest ? 1.0 : -1.0;
+      final step = position.viewportDimension * 0.7;
+      final next = (position.pixels + direction * step)
+          .clamp(position.minScrollExtent, position.maxScrollExtent)
+          .toDouble();
+      if ((next - position.pixels).abs() < 0.5) return null;
+      _scrollController.jumpTo(next);
+      await WidgetsBinding.instance.endOfFrame;
+    }
+    return null;
   }
 
   Future<void> _returnToReplySource() async {
@@ -2089,8 +2163,9 @@ class _ConversationPageState extends ConsumerState<_ConversationPage>
                                     controller: _scrollController,
                                     index: messageIndex,
                                     child: AnimatedContainer(
-                                      duration: const Duration(
-                                        milliseconds: 180,
+                                      duration: GfMotion.duration(
+                                        context,
+                                        GfMotion.content,
                                       ),
                                       decoration: BoxDecoration(
                                         color:
@@ -2468,6 +2543,7 @@ class _ConversationList extends StatelessWidget {
               : messagePreview,
           time: formatChatTime(conversation.lastMsgTime, l10n: l10n),
           unreadCount: conversation.unreadCount,
+          unreadLabel: l10n.notificationsUnread,
           onTap: conversation.convId == 0 && !canOpenNewConversation
               ? null
               : () => onOpen(conversation),

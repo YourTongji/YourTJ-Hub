@@ -3,7 +3,7 @@
 #   compose up 带 --remove-orphans: 不在当前 compose 文件中定义的服务容器
 #   (如旧 VitePress wiki 的 yourtj-wiki-main/-dev) 会被停止并移除。
 #   部署成功后自动清理本实例前缀的旧镜像, 防止磁盘无限膨胀。
-# usage: deploy.sh <instance> <image-tag> [health-port]
+# usage: deploy.sh <instance> <image-tag[@sha256:digest]> [health-port]
 #   instance: main 或 dev
 # 环境变量:
 #   IMAGE_REPO   — 镜像仓库(默认 ghcr.io/yourtongji/yourtj-hub, 公开镜像匿名 pull)
@@ -15,6 +15,11 @@ set -euo pipefail
 INSTANCE="${1:?usage: deploy.sh <instance> <image-tag> [health-port]}"
 IMAGE_TAG="${2:?usage: deploy.sh <instance> <image-tag> [health-port]}"
 PORT="${3:-5234}"
+[[ "$INSTANCE" == main || "$INSTANCE" == dev ]] || { echo "Invalid instance"; exit 1; }
+[[ "$IMAGE_TAG" =~ ^(main|dev)-[a-zA-Z0-9._-]+(@sha256:[a-f0-9]{64})?$ ]] || { echo "Invalid image reference"; exit 1; }
+if [ -n "${EXPECTED_BINARY_SHA256:-}" ]; then
+  [[ "$EXPECTED_BINARY_SHA256" =~ ^[a-f0-9]{64}$ && "$IMAGE_TAG" == *@sha256:* ]] || { echo "Release deployment requires immutable image and binary digest"; exit 1; }
+fi
 
 ROOT="${YOURTJ_ROOT:-/opt/yourtj}"
 ENV_FILE="$ROOT/.env"
@@ -116,6 +121,8 @@ rollback_all() {
 [ -f "$ENV_FILE" ] || { log "FATAL: $ENV_FILE missing (run init-server.sh first)"; exit 1; }
 [ -f "$COMPOSE_FILE" ] || { log "FATAL: $COMPOSE_FILE missing (run init-server.sh first)"; exit 1; }
 
+acquire_config_lock
+
 # IMAGE_REPO 优先取 .env(与 compose 一致), 未设置时用默认 GHCR 公开仓库
 IMAGE="$(grep -E '^IMAGE_REPO=' "$ENV_FILE" 2>/dev/null | head -1 | cut -d= -f2- || true)"
 IMAGE="${IMAGE:-ghcr.io/yourtongji/yourtj-hub}"
@@ -155,7 +162,6 @@ if [ -n "${CONFIG_FILE:-}" ]; then
     log "config 与现网一致(sha=$NEW_SHA), 跳过替换并记录 marker"
   else
     # 变更路径: 持锁后备份→原子替换, 失败走 rollback_all 恢复
-    acquire_config_lock
     if [ -e "$PREV" ]; then
       log "FATAL: $PREV 已存在(上次失败残留), 拒绝覆盖回滚点"
       log "       确认无并发后: rm -f $PREV 再重试"
@@ -198,6 +204,16 @@ for ((i = 1; i <= 60; i++)); do
   log "waiting for health ($i/60)..."
   sleep 3
 done
+
+if [ "$health_ok" -eq 1 ] && [ -n "${EXPECTED_BINARY_SHA256:-}" ]; then
+  RUNNING_IMAGE="$(docker inspect --format '{{.Config.Image}}' "yourtj-$INSTANCE")"
+  RUNNING_BINARY="$(docker exec "yourtj-$INSTANCE" sha256sum /app/yourtj-hub | awk '{print $1}')"
+  if [ "$RUNNING_IMAGE" != "$IMAGE:$IMAGE_TAG" ] || [ "$RUNNING_BINARY" != "$EXPECTED_BINARY_SHA256" ]; then
+    log "FATAL: healthy container does not match the approved image/binary identity"
+    rollback_all
+    exit 1
+  fi
+fi
 
 if [ "$health_ok" -eq 1 ]; then
   log "health check passed"

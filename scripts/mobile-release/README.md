@@ -1,45 +1,23 @@
-# Mobile release tooling
+# Platform release tooling
 
-These scripts run from the repository root. The [operations runbook](../../docs/operations/mobile-releases.md)
-owns versioning, GitHub environment secrets, signing backup/rotation and recovery.
+The public entry is [scripts/release/cli.py](../release/cli.py); the
+[release runbook](../../docs/operations/releases.md) owns preparation, final human approval and recovery.
+These helpers are invoked by trusted reusable platform publishers, with source under `RELEASE_SOURCE_ROOT`
+when it differs from the controller checkout. They never select a version or promote dev.
 
-- `install_asc.py <destination>` pins the official CLI binary and verifies its SHA-256.
-- `build_ios.py` validates a distribution profile and signs Runner with an ephemeral keychain.
-- `publish_ios.py` resumes exact version/build uploads and submits both Apple distribution channels.
-- `publish_android.py [--verify-only]` validates split APKs and publishes immutable-name assets.
-- `prepare_mobile.py` prepares the production PR and reserves patch/minor/major version tags,
-  or resumes an existing tag without consuming a build number.
-- `prepare_server.py` opens or reuses the production PR, waits for CI and merge requirements,
-  merges the captured dev snapshot and tags the resulting main commit in one run. It also accepts
-  already promoted main content; mobile tags never influence server version increments. The
-  [server release runbook](../../docs/operations/deployment.md) owns CI gates,
-  timeout/recovery, token permissions and deployment identity.
+- `prepare_push.py`: validate Android client-only push configuration before building.
+- `build_ios.py`: validate signing/entitlements and produce the signed IPA with an ephemeral keychain.
+- `install_asc.py`: install a checksum-verified pinned ASC CLI.
+- `publish_android.py`: verify APK identity/signature/architecture and immutable GitHub assets. Requires
+  `ANDROID_NOTES_PATH`; no iOS/store fallback. `--verify-only` performs local validation only.
+- `publish_android_latest.py`: refresh the mutable download alias without regressing versions.
+- `publish_ios.py`: query before upload, resume exact Apple builds, use explicit independent
+  `IOS_TESTFLIGHT_NOTES_PATH` and `IOS_STORE_NOTES_PATH`; promotion can restrict execution to App Store.
 
-Run release-script regressions without signing credentials or external mutations:
+Run `python3 -m unittest discover -s scripts/mobile-release -p 'test_*.py'` without production keys.
+On macOS the effective-signing test also requires `flutter pub get` in the selected source's forum_app.
+Publisher-only recovery does not run native build verification. The workflow preserves IPA/dSYM/logs
+before upload. Signing secrets and review credentials never enter Git, model input or public artifacts.
 
-```bash
-python3 -m unittest discover -s scripts/mobile-release -p 'test_*.py'
-actionlint .github/workflows/release-mobile.yml .github/workflows/release-to-main.yml .github/workflows/deploy-main.yml .github/workflows/ci-mobile.yml .github/workflows/ci-mobile-native.yml
-```
-
-Run these tests with the release source repository root as the working directory. iOS also runs
-them from a separate sparse `.release-tools` checkout; native manifest checks read the tagged
-source in the working directory, while publisher tests exercise the selected release tools.
-The checkout regression reproduces this layout without signing or uploading.
-
-On macOS after Flutter bootstrap, the suite also asks Xcode to resolve Widget Release/Profile
-settings with a temporary manual signing configuration. The target inherits its signing style
-from `WidgetReleaseSigning.xcconfig`: automatic for local builds, manual while the release
-builder installs its configuration. Target-level overrides would prevent distribution signing.
-The iOS release artifact retains archive/export logs, and failures show their final 100 lines
-in the job output so signing errors remain diagnosable even when no IPA is produced.
-
-The publish commands mutate external services. `--verify-only` on the Android publisher writes local
-checksums only. Build logs and outputs belong under ignored `apps/mobile/build/release/`; private inputs
-must come from an ignored local file or the CI runner's private temporary directory. Tests never print
-real review contacts, passwords or signing material.
-
-Native push activation and client/provider credential separation are documented in
-[mobile release operations](../../docs/operations/mobile-releases.md#native-push-activation-and-verification).
-`prepare_push.py` validates Android client-only identifiers and selected OEM adapters before signing;
-`build_ios.py` requires a production APNs entitlement in the distribution profile.
+See [mobile signing/push operations](../../docs/operations/mobile-releases.md) for credentials and
+physical-device acceptance. Successful script tests do not establish actual Apple review approval.
