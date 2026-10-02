@@ -623,8 +623,9 @@ class _TopicPageState extends ConsumerState<TopicPage>
           .read(topicRepositoryProvider)
           .getPostWindow(
             topicId: widget.topicId,
-            // ponytail: one signed-64 cursor reaches the tail in a single query;
-            // use a dedicated latest-window API only if post numbers exceed it.
+            // An oversized signed-64 cursor reaches the tail in a single
+            // query; use a dedicated latest-window API only if post numbers
+            // exceed it.
             beforePostNo: 0x7fffffffffffffff,
           );
       if (!mounted ||

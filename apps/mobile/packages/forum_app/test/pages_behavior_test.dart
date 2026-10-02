@@ -1271,7 +1271,7 @@ class WindowTopicRepository extends TopicRepository {
     int? afterPostNo,
     int? limit,
   }) async {
-    if (beforePostNo != null && beforePostNo > 1 << 62) {
+    if (beforePostNo != null && beforePostNo >= 0x7fffffffffffffff) {
       beforeCursors.add(beforePostNo);
       return PostWindowPayload(
         posts: <PostPayload>[

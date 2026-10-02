@@ -12,6 +12,7 @@ import 'package:forum_app/src/local/writing_store.dart';
 import 'package:forum_app/src/pages/topic/post_actions.dart';
 import 'package:forum_app/src/pages/topic/topic_page.dart';
 import 'package:forum_app/src/providers.dart';
+import 'package:forum_app/src/widgets/app_refresh_indicator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:ui_kit/ui_kit.dart';
 
@@ -154,7 +155,7 @@ class TopicWindowServer extends TopicRepository {
       'after=${afterPostNo ?? 0} limit=${limit ?? 0}',
     );
     final int size = limit ?? 20;
-    if (beforePostNo != null && beforePostNo > 1 << 62) {
+    if (beforePostNo != null && beforePostNo >= 0x7fffffffffffffff) {
       if (failTailRequests > 0) {
         failTailRequests--;
         throw StateError('temporary window failure');
@@ -446,6 +447,43 @@ void main() {
     expect(server.calls.last, contains('before=9223372036854775807'));
     expect(find.text('40楼内容'), findsOneWidget);
     expect(find.text('20楼内容'), findsNothing);
+    await disposePage(tester);
+  });
+
+  testWidgets('倒序下静默刷新重新读取最新尾窗', (tester) async {
+    tester.view.physicalSize = const Size(1080, 2400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final Map<String, dynamic> page = anchoredPageJson(
+      posts: <PostPayload>[
+        for (int floor = 1; floor <= 20; floor++) floorPost(floor),
+      ],
+      hasBefore: false,
+      hasAfter: true,
+    );
+    await pumpTopic(tester, page: page, floors: 40);
+
+    await tester.tap(find.text('倒序'));
+    await tester.pumpAndSettle();
+    expect(find.text('40楼内容'), findsOneWidget);
+    final int tailRequests = server.calls
+        .where((String call) => call.contains('before=9223372036854775807'))
+        .length;
+    expect(tailRequests, 1);
+
+    await tester
+        .widget<AppRefreshIndicator>(find.byType(AppRefreshIndicator))
+        .onRefresh();
+    await tester.pumpAndSettle();
+
+    expect(find.text('40楼内容'), findsOneWidget);
+    expect(find.text('20楼内容'), findsNothing);
+    expect(
+      server.calls
+          .where((String call) => call.contains('before=9223372036854775807'))
+          .length,
+      tailRequests + 1,
+    );
     await disposePage(tester);
   });
 
