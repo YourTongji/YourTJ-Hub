@@ -50,6 +50,12 @@ func GetReviewTx(tx *gorm.DB, id uint64) (entity ReviewEntity, err error) {
 	return
 }
 
+// GetReviewForUpdateTx 串行化同一评价上的互斥互动变更。
+func GetReviewForUpdateTx(tx *gorm.DB, id uint64) (entity ReviewEntity, err error) {
+	err = tx.Clauses(clause.Locking{Strength: "UPDATE"}).Table(reviewTableName).Where("id = ?", id).First(&entity).Error
+	return
+}
+
 // GetOfferingTx 事务内按 ID 读取开课实例。
 func GetOfferingTx(tx *gorm.DB, id uint64) (entity OfferingEntity, err error) {
 	err = tx.Table(offeringTableName).Where("id = ?", id).First(&entity).Error
