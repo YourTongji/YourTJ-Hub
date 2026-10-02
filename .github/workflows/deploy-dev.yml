@@ -137,7 +137,7 @@ jobs:
       # 避免 dev 分支的 compose 变更影响共享的生产实例(PR review #3)。
       # 部署只需 pull 镜像 + up 已有 compose 中的服务
       - name: Deploy to dev (sync db from main + pull image + restart + smoke)
-        uses: appleboy/ssh-action@7eaf76671a0d7eec5d98ee897acda4f968735a17
+        uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2
         with:
           host: ${{ secrets.VM_HOST }}
           username: ${{ secrets.VM_USER }}
