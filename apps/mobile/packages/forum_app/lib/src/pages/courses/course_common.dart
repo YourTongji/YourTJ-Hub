@@ -2,6 +2,7 @@ import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 import 'package:ui_kit/ui_kit.dart';
 
+import '../../asset_url.dart';
 import '../../server_messages.dart';
 import '../../../l10n/app_localizations.dart';
 
@@ -101,6 +102,12 @@ class CourseCopy {
   String get ratingRequired => l10n.courseCopyRatingRequired;
   String get contentRequired => l10n.courseCopyContentRequired;
   String get anonymousLabel => l10n.courseCopyAnonymousLabel;
+  // 写评身份区：主文案与说明分开，避免 320dp + 大字号下被截断成
+  // 「匿名发布（…」；非匿名时展示当前发布身份。
+  String get anonymousTitle => l10n.courseCopyAnonymousTitle;
+  String get anonymousHint => l10n.courseCopyAnonymousHint;
+  String publishAs(String name) => l10n.courseCopyPublishAs(name);
+  String get publishPublic => l10n.courseCopyPublishPublic;
   String get submitSuccess => l10n.courseCopySubmitSuccess;
   String get updateSuccess => l10n.courseCopyUpdateSuccess;
   String get delete => l10n.courseCopyDelete;
@@ -184,6 +191,19 @@ String formatRating(double? ratingAvg) {
   return ratingAvg.toStringAsFixed(1);
 }
 
+/// 评分环进度渐变，逐像素对齐 web `RatingSummaryCard.vue`：SVG
+/// `linearGradient(x1=0 y1=100% → x2=100% y2=0)` 映射在圆的包围盒上，整个 SVG
+/// 再 `-rotate-90`，视觉上即「右下 [start] → 左上 [end]」的线性渐变。
+/// 线性渐变没有角度回绕，弧起点（正上方）是两色的平滑中间调，不会出现
+/// SweepGradient 首尾相接处黄/蓝硬接缝。
+LinearGradient ratingRingGradient({required Color start, required Color end}) {
+  return LinearGradient(
+    begin: Alignment.bottomRight,
+    end: Alignment.topLeft,
+    colors: <Color>[start, end],
+  );
+}
+
 /// Keep server-provided business reasons localized; never expose transport internals.
 String courseReviewError(AppLocalizations l10n, Object error) {
   if (error is NetworkException) return l10n.courseReviewNetworkError;
@@ -192,6 +212,51 @@ String courseReviewError(AppLocalizations l10n, Object error) {
     if (reason != l10n.commonLoadFailed) return reason;
   }
   return l10n.courseReviewUnknownError;
+}
+
+/// 开课信息收敛（better-layout：只保留读者决策需要且课程页头部未展示的信息）：
+/// - `cardMeta`：课评卡片单行元信息 = 学期 · 班次 · 教师（日期由卡片拼短格式）；
+///   班号/校区/院系属于课程头部或下方开课记录已展示的信息，不在卡片重复。
+/// - `chip`：分享卡用的「学期 · 班级」开课信息 chip。
+({String cardMeta, String chip}) offeringMetaParts(
+  CourseOfferingPayload? offering, {
+  required String locale,
+  required int fallbackId,
+}) {
+  if (offering == null) {
+    final String fallback = '#$fallbackId';
+    return (cardMeta: fallback, chip: fallback);
+  }
+  final String term = shortTerm(offering.termCode, locale: locale);
+  final String className = offering.className?.trim() ?? '';
+  final String classLabel = <String>[
+    className,
+    offering.classCode?.trim() ?? '',
+  ].where((String part) => part.isNotEmpty).toSet().join(' · ');
+  final String teachers = <String>[
+    ...?offering.instructors?.map((String name) => name.trim()),
+  ].where((String part) => part.isNotEmpty).toSet().join('、');
+  final String cardMeta = <String>[
+    term,
+    className,
+    teachers,
+  ].where((String part) => part.isNotEmpty).join(' · ');
+  final String chip = <String>[
+    term,
+    classLabel,
+  ].where((String part) => part.isNotEmpty).join(' · ');
+  return (
+    cardMeta: cardMeta.isEmpty ? '#$fallbackId' : cardMeta,
+    chip: chip.isEmpty ? '#$fallbackId' : chip,
+  );
+}
+
+/// 课评作者展示名：member 用公开 label，匿名/历史用本地化占位；调用方不再
+/// 自行推断身份（服务端 avatarUrl omitempty 语义同理）。
+String reviewAuthorLabel(ReviewPayload review, CourseCopy copy) {
+  if (review.author.kind == 'member') return review.author.label;
+  if (review.author.kind == 'legacy') return copy.authorLegacyLabel;
+  return copy.authorAnonymousLabel;
 }
 
 /// 课评头像：member 用服务端回填的真实头像，其余（匿名 / 历史）用与 Web 同 seed
@@ -203,27 +268,38 @@ String courseReviewError(AppLocalizations l10n, Object error) {
 ///
 /// 用 [GfNetworkImage] 而不是 `GfAvatar`：`td.TAvatar` 的 errorBuilder 固定为
 /// `SizedBox.shrink()`，无法回落到生成头像。
-Widget reviewAvatar(ReviewPayload review, {double size = 40}) {
+///
+/// [imageBuilder] 让分享卡等截图场景换成可登记的 ShareImageNetworkImage，
+/// 同时保持头像选择规则（member 网络头像 / 失败回落 / 匿名 beam seed）单点。
+Widget reviewAvatar(
+  ReviewPayload review, {
+  double size = 40,
+  Widget Function(String url, Widget fallback)? imageBuilder,
+}) {
   final ReviewAuthorPayload author = review.author;
-  final String url = author.kind == 'member'
+  final String rawUrl = author.kind == 'member'
       ? (author.avatarUrl?.trim() ?? '')
       : '';
+  // 服务端 avatarUrl 是相对路径（如 `/static/pic/9.webp`），
+  // Image.network/GfNetworkImage 需要绝对 URL；与 post_actions 等共用同一解析点。
+  final String url = rawUrl.isEmpty ? '' : resolveApiAssetUrl(rawUrl);
   final Widget fallback = GfBeamAvatar(
     seed: '${author.label}-${review.id}',
     size: size,
   );
   if (url.isEmpty) return fallback;
+  final Widget image = imageBuilder != null
+      ? imageBuilder(url, fallback)
+      : GfNetworkImage(
+          url,
+          width: size,
+          height: size,
+          fit: BoxFit.cover,
+          semanticLabel: author.label,
+          errorBuilder: (_, _, _) => fallback,
+        );
   return SizedBox.square(
     dimension: size,
-    child: ClipOval(
-      child: GfNetworkImage(
-        url,
-        width: size,
-        height: size,
-        fit: BoxFit.cover,
-        semanticLabel: author.label,
-        errorBuilder: (_, _, _) => fallback,
-      ),
-    ),
+    child: ClipOval(child: image),
   );
 }

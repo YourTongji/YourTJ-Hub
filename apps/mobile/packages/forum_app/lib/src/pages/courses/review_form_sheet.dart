@@ -2,9 +2,14 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_quill/flutter_quill.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:core/core.dart';
 import 'package:ui_kit/ui_kit.dart';
 import '../../../l10n/app_localizations.dart';
+import '../../asset_url.dart';
+import '../../current_user.dart';
+import '../../images/image_upload.dart';
+import '../../providers.dart';
 import 'course_common.dart';
 import '../../widgets/confirm_discard_edit.dart';
 import '../../widgets/editor/course_review_templates.dart';
@@ -12,7 +17,31 @@ import '../../widgets/editor/rich_markdown_editor.dart';
 
 // ---- 写评 / 编辑表单 sheet ----
 
-class CourseReviewFormSheet extends StatefulWidget {
+/// 写评身份（昵称 + 头像），供 sheet 展示「以谁的身份发布」。
+typedef ReviewPublisher = ({String name, String avatarUrl});
+
+/// 当前发布身份：用户卡接口一次拉取；离线、未登录或失败时返回 null，
+/// sheet 降级为「公开身份」占位，绝不伪造昵称。
+final reviewPublisherProvider = FutureProvider.autoDispose<ReviewPublisher?>((
+  ref,
+) async {
+  try {
+    final CurrentUser? user = await ref.watch(currentUserProvider.future);
+    if (user == null) return null;
+    final UserCardPayload card = await ref
+        .watch(userRepositoryProvider)
+        .getUserCard(user.id);
+    final String nickname = card.nickname.trim();
+    return (
+      name: nickname.isNotEmpty ? nickname : card.username,
+      avatarUrl: card.avatarUrl,
+    );
+  } catch (_) {
+    return null;
+  }
+});
+
+class CourseReviewFormSheet extends ConsumerStatefulWidget {
   const CourseReviewFormSheet({
     super.key,
     required this.pageContext,
@@ -34,17 +63,18 @@ class CourseReviewFormSheet extends StatefulWidget {
   final int? initialOfferingId;
 
   @override
-  State<CourseReviewFormSheet> createState() => CourseReviewFormSheetState();
+  ConsumerState<CourseReviewFormSheet> createState() =>
+      CourseReviewFormSheetState();
 }
 
-class CourseReviewFormSheetState extends State<CourseReviewFormSheet> {
+class CourseReviewFormSheetState extends ConsumerState<CourseReviewFormSheet> {
   /// 正文区域至少要有这么高才放得下常驻工具栏 + 一行正文（工具栏 48 + 正文 48）。
   static const double _editorRegionWithToolbar = 96;
 
-  /// 元信息两行（班次+匿名、星级）需要的最小面板高度：标题 48 + 两行 96 +
-  /// 间距 20 + 动作 60 + 正文下限 96 ≈ 320；低于它退回单行横向滚动，
-  /// 否则正文会被挤到负空间（320×568 + 200% 字号 + 键盘只剩 216px）。
-  static const double _metaTwoRowMinHeight = 300;
+  /// 元信息完整展示需要的最小面板高度：标题 48 + 班次 40 + 身份 48 + 星级 48
+  /// + 间距 14 + 动作 56 + 正文下限 96 ≈ 350；低于它退回单行横向滚动，
+  /// 否则正文会被挤到负空间（320×568 + 200% 字号 + 键盘只剩 268px）。
+  static const double _metaFullMinHeight = 360;
 
   final FocusNode _editorFocusNode = FocusNode(
     debugLabel: 'course-review-body',
@@ -57,6 +87,7 @@ class CourseReviewFormSheetState extends State<CourseReviewFormSheet> {
   late int _rating;
   late bool _anonymous;
   bool _submitting = false;
+  bool _uploadingImage = false;
   bool _allowPop = false, _closing = false;
   late final (int?, int, String, bool) _initial;
 
@@ -192,6 +223,42 @@ class CourseReviewFormSheetState extends State<CourseReviewFormSheet> {
     }
   }
 
+  Future<void> _insertImage() async {
+    if (_submitting || _uploadingImage) return;
+    final int epoch = ref.read(offlineCacheEpochProvider);
+    setState(() => _uploadingImage = true);
+    try {
+      final String? url = await pickAndUploadImage(ref: ref);
+      if (!mounted ||
+          epoch != ref.read(offlineCacheEpochProvider) ||
+          url == null) {
+        return;
+      }
+      // 上传完成后按当前光标插入：选图期间用户若继续编辑，图片落在最新
+      // 光标处。Document.insert 返回 Delta，光标直接取插入点后一位即可。
+      final TextSelection selection = _editorController.selection;
+      final int caret = selection.isValid
+          ? selection.end
+          : _editorController.document.length - 1;
+      final int at = caret.clamp(0, _editorController.document.length - 1);
+      _editorController.document.insert(at, BlockEmbed.image(url));
+      _editorController.updateSelection(
+        TextSelection.collapsed(offset: at + 1),
+        ChangeSource.local,
+      );
+      _editorFocusNode.requestFocus();
+    } catch (error) {
+      if (mounted && epoch == ref.read(offlineCacheEpochProvider)) {
+        _toast(
+          courseReviewError(AppLocalizations.of(context), error),
+          error: true,
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _uploadingImage = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final AppLocalizations l10n = AppLocalizations.of(context);
@@ -223,7 +290,7 @@ class CourseReviewFormSheetState extends State<CourseReviewFormSheet> {
                   copy,
                   colors,
                   type,
-                  twoRows: sheetConstraints.maxHeight >= _metaTwoRowMinHeight,
+                  full: sheetConstraints.maxHeight >= _metaFullMinHeight,
                 ),
                 const SizedBox(height: 6),
                 Expanded(
@@ -244,6 +311,8 @@ class CourseReviewFormSheetState extends State<CourseReviewFormSheet> {
                       // 固定动作行都可用（正常字号下工具栏常驻）。
                       showToolbar:
                           constraints.maxHeight >= _editorRegionWithToolbar,
+                      onInsertImage: _insertImage,
+                      insertingImage: _uploadingImage,
                       onHeading: () => _chooseHeading(l10n),
                       onInsertLink: _insertLink,
                     ),
@@ -300,49 +369,94 @@ class CourseReviewFormSheetState extends State<CourseReviewFormSheet> {
     );
   }
 
-  /// 元信息：面板够高（≥300px）时两行——上行「班次 chip + 匿名开关」、下行
-  /// 「星级」，全部直接可见，不做横向滚动：评分是必填项、匿名开关是隐私项，
-  /// 藏进看不见的滚动会让用户以为只有 3 颗星或找不到匿名开关。
-  ///
-  /// 被键盘 + 大字压到 300px 以下时退回单行横向滚动，并把必填的星级与匿名
-  /// 开关排在前面、班次 chip（有默认值）排在最后：极端字号下宁可让 chip 需要
-  /// 横滑，也不让必填项与隐私开关消失。
+  /// 元信息分层（better-layout：组内 6–8dp、跨组 ≥2×）：
+  /// 班次 chip（可选）→ 发布身份行（头像 + 文案 + 匿名开关）→ 星级。
+  /// 面板够高（≥360px）时全部直接可见；被键盘 + 大字压到 360px 以下时
+  /// 退回单行横向滚动（必填星级优先），身份行只保留主文案避免正文被挤成负空间。
+  /// 编辑态且没有班次数据（如「我的课评」入口）时不渲染只读班次 chip，
+  /// 避免显示一个不可点击的「选择班次」占位。
+  bool get _showOfferingChip =>
+      widget.editing == null || _offeringById(_offeringId) != null;
+
   Widget _metaRow(
     CourseCopy copy,
     GfColors colors,
     GfTypography type, {
-    required bool twoRows,
+    required bool full,
   }) {
-    if (!twoRows) {
+    final Widget identity = _identityRow(copy, colors, type, compact: !full);
+    if (!full) {
       return SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: Row(
+          mainAxisSize: MainAxisSize.min,
           children: <Widget>[
+            // 星级本身就是数值的可视表达，不再重复一行「4.0」数值：
+            // 星级行（240dp）与班次 chip 共行时才有足够宽度（390dp/100%）。
             ..._starTargets(copy, colors, type),
-            const SizedBox(width: 8),
-            _anonymousGroup(copy, colors, type),
-            const SizedBox(width: 8),
-            _offeringChip(copy, colors, type),
+            const SizedBox(width: 12),
+            identity,
+            if (_showOfferingChip) ...<Widget>[
+              const SizedBox(width: 12),
+              _offeringChip(copy, colors, type),
+            ],
           ],
         ),
       );
     }
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
-        Row(
-          children: <Widget>[
-            Flexible(child: _offeringChip(copy, colors, type)),
-            const SizedBox(width: 8),
-            Flexible(child: _anonymousGroup(copy, colors, type)),
-          ],
+        // 班次 chip 与星级共行：chip 贴左、星级贴右（better-layout：同一行内
+        // 的控件对齐到共享边）。不用 Wrap：Wrap 会在「chip 恰好多出几像素」时
+        // 静默折行，出现半空的第二行；这里显式分行——常规宽度（390dp，内容
+        // 358dp）永远同一行，chip 文本按需省略号收窄；只有窄屏（内容 < 336dp：
+        // 240dp 星级 + 可读 chip 放不下）或大字号才降级为上下两行。
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final Widget stars = Row(
+              mainAxisSize: MainAxisSize.min,
+              children: _starTargets(copy, colors, type),
+            );
+            final bool stack =
+                constraints.maxWidth < 336 ||
+                MediaQuery.textScalerOf(context).scale(1) > 1.3;
+            if (stack) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: <Widget>[
+                  if (_showOfferingChip) ...<Widget>[
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: _offeringChip(copy, colors, type),
+                    ),
+                    const SizedBox(height: 8),
+                  ],
+                  Align(alignment: Alignment.centerRight, child: stars),
+                ],
+              );
+            }
+            return Row(
+              // chip 缺席（编辑态无班次数据）时星级仍贴右：与有 chip 时
+              // 的共享边一致，也与下方身份行的左对齐形成对照。
+              mainAxisAlignment: _showOfferingChip
+                  ? MainAxisAlignment.spaceBetween
+                  : MainAxisAlignment.end,
+              children: <Widget>[
+                if (_showOfferingChip)
+                  Flexible(child: _offeringChip(copy, colors, type)),
+                stars,
+              ],
+            );
+          },
         ),
-        Row(children: _starTargets(copy, colors, type)),
+        const SizedBox(height: 8),
+        identity,
       ],
     );
   }
 
-  /// 五颗星的 48px 命名命中区（含已选分值）。
+  /// 五颗星的 48px 命名命中区。
   List<Widget> _starTargets(
     CourseCopy copy,
     GfColors colors,
@@ -374,49 +488,125 @@ class CourseReviewFormSheetState extends State<CourseReviewFormSheet> {
             ),
           ),
         ),
-      if (_rating > 0)
-        Flexible(
-          child: Padding(
-            padding: const EdgeInsets.only(left: 4),
-            child: Text(
-              '$_rating.0',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: type.small.copyWith(color: colors.iconMuted),
-            ),
-          ),
-        ),
     ];
   }
 
-  /// 匿名开关（眼形图标 + 文案 + Switch），文案可省略号收缩。
-  Widget _anonymousGroup(CourseCopy copy, GfColors colors, GfTypography type) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: <Widget>[
-        GfSymbol(
-          _anonymous ? 'eye-off' : 'eye',
-          size: 16,
-          color: colors.baseContent.withValues(alpha: 0.5),
-        ),
-        const SizedBox(width: 6),
-        Flexible(
-          child: Text(
-            copy.anonymousLabel,
+  /// 发布身份行：头像 + 「匿名发布 / 以 xx 发布」主文案（匿名时附次级说明）
+  /// + 匿名开关。文案用 Expanded 换行而不是省略号截断；紧凑模式只保留主文案
+  /// 并让整行横向滚动，避免把正文挤到负空间。
+  Widget _identityRow(
+    CourseCopy copy,
+    GfColors colors,
+    GfTypography type, {
+    required bool compact,
+  }) {
+    final ReviewPublisher? publisher = ref
+        .watch(reviewPublisherProvider)
+        .valueOrNull;
+    final String name = publisher?.name ?? '';
+    final String primary = _anonymous
+        ? copy.anonymousTitle
+        : (name.isEmpty ? copy.publishPublic : copy.publishAs(name));
+    final Widget avatar = _publisherAvatar(
+      anonymous: _anonymous,
+      url: _anonymous ? '' : (publisher?.avatarUrl ?? ''),
+      colors: colors,
+    );
+    final Widget toggle = Switch(
+      value: _anonymous,
+      onChanged: _submitting
+          ? null
+          : (bool value) => setState(() => _anonymous = value),
+    );
+    if (compact) {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          avatar,
+          const SizedBox(width: 8),
+          Text(
+            primary,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: type.small.copyWith(
-              color: colors.baseContent.withValues(alpha: 0.7),
+              color: colors.baseContent.withValues(alpha: 0.8),
+              fontWeight: FontWeight.w600,
             ),
           ),
+          const SizedBox(width: 8),
+          toggle,
+        ],
+      );
+    }
+    return Row(
+      children: <Widget>[
+        avatar,
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(
+                primary,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: type.small.copyWith(
+                  color: colors.baseContent,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              if (_anonymous) ...<Widget>[
+                const SizedBox(height: 2),
+                Text(
+                  copy.anonymousHint,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: type.meta.copyWith(
+                    color: colors.baseContent.withValues(alpha: 0.55),
+                  ),
+                ),
+              ],
+            ],
+          ),
         ),
-        Switch(
-          value: _anonymous,
-          onChanged: _submitting
-              ? null
-              : (bool value) => setState(() => _anonymous = value),
-        ),
+        const SizedBox(width: 8),
+        toggle,
       ],
+    );
+  }
+
+  /// 发布者头像：有服务端头像时解析相对路径加载，失败或匿名时回落身份占位。
+  Widget _publisherAvatar({
+    required bool anonymous,
+    required String url,
+    required GfColors colors,
+    double size = 32,
+  }) {
+    final Widget fallback = DecoratedBox(
+      decoration: BoxDecoration(color: colors.base200, shape: BoxShape.circle),
+      child: SizedBox.square(
+        dimension: size,
+        child: Center(
+          child: GfSymbol(
+            anonymous ? 'eye-off' : 'user-round',
+            size: size * 0.55,
+            color: colors.iconMuted,
+          ),
+        ),
+      ),
+    );
+    final String resolved = url.trim().isEmpty
+        ? ''
+        : resolveApiAssetUrl(url.trim());
+    if (anonymous || resolved.isEmpty) return fallback;
+    return ClipOval(
+      child: GfNetworkImage(
+        resolved,
+        width: size,
+        height: size,
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) => fallback,
+      ),
     );
   }
 
@@ -433,8 +623,8 @@ class CourseReviewFormSheetState extends State<CourseReviewFormSheet> {
       borderRadius: BorderRadius.circular(16),
       onTap: readOnly || _submitting ? null : _pickOffering,
       child: Container(
-        // 紧凑内边距：200% 字号下 chip 不应把元信息行抬高于 48px 星级行。
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        // 紧凑内边距：与星级共行时 chip 必须窄到单行放得下（390dp/100%）。
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
         decoration: BoxDecoration(
           color: colors.base200,
           borderRadius: BorderRadius.circular(16),
@@ -443,12 +633,11 @@ class CourseReviewFormSheetState extends State<CourseReviewFormSheet> {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
-            const GfSymbol('graduation-cap', size: 16),
-            const SizedBox(width: 6),
             Flexible(
               child: ConstrainedBox(
+                // 单独一行时允许用满屏宽；横向滚动分支也能拿到有限上限。
                 constraints: BoxConstraints(
-                  maxWidth: MediaQuery.sizeOf(context).width * 0.55,
+                  maxWidth: MediaQuery.sizeOf(context).width,
                 ),
                 child: Text(
                   label,

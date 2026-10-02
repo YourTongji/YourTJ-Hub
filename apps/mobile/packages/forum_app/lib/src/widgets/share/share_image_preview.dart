@@ -1,4 +1,5 @@
 import 'dart:isolate';
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
@@ -15,7 +16,9 @@ import 'share_image_readiness.dart';
 export 'share_image_theme.dart';
 
 const double shareImageLogicalWidth = 375;
-const double _shareImagePixelRatio = 2;
+// ponytail: captures are 3x for retina clarity; keep the 4096 tile and 48 MiB
+// ceilings — raise them only if a real card is rejected on device.
+const double _shareImagePixelRatio = 3;
 const int _maxTilePixels = 4096;
 const int _maxImageBytes = 48 * 1024 * 1024;
 // Serialize image capture so concurrent previews cannot compete for memory.
@@ -50,10 +53,23 @@ String _safePngFileName(String value) {
 }
 
 class ShareImageCard extends StatelessWidget {
-  const ShareImageCard({super.key, required this.theme, required this.child});
+  const ShareImageCard({
+    super.key,
+    required this.theme,
+    required this.child,
+    this.footerTrailing,
+    this.canvasColor,
+  });
 
   final ShareImageTheme theme;
   final Widget child;
+
+  /// Optional canvas behind [child] (defaults to the theme's `base100`); cards
+  /// that float their own surface use the deeper `base200`.
+  final Color? canvasColor;
+
+  /// Optional right-aligned footer content (site/link) next to the brand mark.
+  final Widget? footerTrailing;
 
   @override
   Widget build(BuildContext context) {
@@ -69,7 +85,9 @@ class ShareImageCard extends StatelessWidget {
         child: SizedBox(
           width: shareImageLogicalWidth,
           child: DecoratedBox(
-            decoration: BoxDecoration(color: theme.colors.base100),
+            decoration: BoxDecoration(
+              color: canvasColor ?? theme.colors.base100,
+            ),
             child: Padding(
               padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
               child: Column(
@@ -95,6 +113,10 @@ class ShareImageCard extends StatelessWidget {
                           fontSize: 13,
                         ),
                       ),
+                      if (footerTrailing != null) ...<Widget>[
+                        const Spacer(),
+                        footerTrailing!,
+                      ],
                     ],
                   ),
                 ],
@@ -275,7 +297,7 @@ class _ShareImagePreviewState extends State<_ShareImagePreview> {
                   child: FittedBox(
                     fit: BoxFit.contain,
                     alignment: Alignment.topCenter,
-              child: ShareImageReadiness(
+                    child: ShareImageReadiness(
                       tracker: _readiness,
                       child: RepaintBoundary(
                         key: _boundaryKey,
@@ -287,47 +309,47 @@ class _ShareImagePreviewState extends State<_ShareImagePreview> {
               ),
             ),
           ),
-          SizedBox(
-            height: 46 + MediaQuery.textScalerOf(context).scale(36),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: Text(
-                    l10n.shareImageTheme,
-                    style: GfTheme.typographyOf(context).caption,
-                  ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
+            child: Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: Text(
+                l10n.shareImageTheme,
+                style: GfTheme.typographyOf(context).caption,
+              ),
+            ),
+          ),
+          // 色卡：圆形对角拼色（卡片底色 | 主题主色），选中时外圈主色描边；
+          // 五个刚好铺满一行，放不下时横向滚动。
+          LayoutBuilder(
+            builder: (context, constraints) => SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.fromLTRB(12, 6, 12, 2),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  minWidth: math.max(0, constraints.maxWidth - 24),
                 ),
-                Expanded(
-                  child: ListView.separated(
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 6,
-                    ),
-                    itemCount: widget.themes.length,
-                    separatorBuilder: (_, _) => const SizedBox(width: 8),
-                    itemBuilder: (context, index) {
-                      final item = widget.themes[index];
-                      return ChoiceChip(
-                        label: Text(item.label),
-                        selected: _selected == index,
-                        avatar: CircleAvatar(
-                          backgroundColor: item.colors.base100,
-                          radius: 8,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    for (int index = 0; index < widget.themes.length; index++)
+                      _ThemeSwatch(
+                        key: ValueKey<String>(
+                          'share-theme-${widget.themes[index].id}',
                         ),
-                        onSelected: _working
+                        theme: widget.themes[index],
+                        selected: _selected == index,
+                        onTap: _working
                             ? null
-                            : (_) {
+                            : () {
+                                if (_selected == index) return;
                                 _readiness.reset();
                                 setState(() => _selected = index);
                               },
-                      );
-                    },
-                  ),
+                      ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
           Padding(
@@ -354,7 +376,7 @@ class _ShareImagePreviewState extends State<_ShareImagePreview> {
                                     strokeWidth: 2,
                                   ),
                                 )
-                              : const GfSymbol('share'),
+                              : const GfSymbol('share-2'),
                           label: Text(
                             _working
                                 ? l10n.shareImageGenerating
@@ -384,7 +406,7 @@ class _ShareImagePreviewState extends State<_ShareImagePreview> {
                                     strokeWidth: 2,
                                   ),
                                 )
-                              : const GfSymbol('share'),
+                              : const GfSymbol('share-2'),
                           label: Text(
                             _working
                                 ? l10n.shareImageGenerating
@@ -417,18 +439,14 @@ Future<Uint8List> _capture(
     }
     final width = (render.size.width * _shareImagePixelRatio).ceil();
     final height = (render.size.height * _shareImagePixelRatio).ceil();
-    if (width <= 0 ||
-        height <= 0 ||
-        width * height * 4 > maxImageBytes) {
+    if (width <= 0 || height <= 0 || width * height * 4 > maxImageBytes) {
       throw _ShareImageTooLongException();
     }
     final tiles = <_ShareImageTileData>[];
     if (height <= maxTilePixels) {
       final image = await render.toImage(pixelRatio: _shareImagePixelRatio);
       try {
-        final data = await image.toByteData(
-          format: ui.ImageByteFormat.rawRgba,
-        );
+        final data = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
         if (data == null) throw StateError('could not encode captured image');
         tiles.add(
           _ShareImageTileData(
@@ -471,7 +489,10 @@ Future<Uint8List> _capture(
         }
       }
     }
-    final stitchedHeight = tiles.fold<int>(0, (height, tile) => height + tile.height);
+    final stitchedHeight = tiles.fold<int>(
+      0,
+      (height, tile) => height + tile.height,
+    );
     if (width * stitchedHeight * 4 > maxImageBytes) {
       throw _ShareImageTooLongException();
     }
@@ -545,11 +566,95 @@ Future<Uint8List> captureShareImageForTesting(
   GlobalKey key, {
   int maxImageBytes = _maxImageBytes,
   int maxTilePixels = _maxTilePixels,
-}) =>
-    _capture(
-      key,
-      maxImageBytes: maxImageBytes,
-      maxTilePixels: maxTilePixels,
-    );
+}) => _capture(key, maxImageBytes: maxImageBytes, maxTilePixels: maxTilePixels);
 
 class _ShareImageTooLongException implements Exception {}
+
+/// 主题色卡：32dp 圆形，左上为卡片底色、右下为主题主色（硬分界，不是渐变），
+/// 选中时 2dp 主色外圈 + 2dp 间隙；标签在下方。命中区 64×64。
+class _ThemeSwatch extends StatelessWidget {
+  const _ThemeSwatch({
+    super.key,
+    required this.theme,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final ShareImageTheme theme;
+  final bool selected;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final GfColors colors = GfTheme.colorsOf(context);
+    final GfTypography type = GfTheme.typographyOf(context);
+    final Duration duration = GfMotion.duration(context, GfMotion.selection);
+    return Semantics(
+      container: true,
+      button: true,
+      selected: selected,
+      enabled: onTap != null,
+      label: theme.label,
+      onTap: onTap,
+      excludeSemantics: true,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(GfTheme.radiiOf(context).box),
+        child: SizedBox(
+          width: 64,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                AnimatedContainer(
+                  duration: duration,
+                  curve: GfMotion.enterCurve,
+                  width: 40,
+                  height: 40,
+                  padding: const EdgeInsets.all(2),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: selected ? colors.primary : Colors.transparent,
+                      width: 2,
+                    ),
+                  ),
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(color: colors.line),
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          theme.colors.base100,
+                          theme.colors.base100,
+                          theme.accent,
+                          theme.accent,
+                        ],
+                        stops: const [0, .5, .5, 1],
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  theme.label,
+                  maxLines: 1,
+                  style: type.meta.copyWith(
+                    fontSize: 11,
+                    fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                    color: selected
+                        ? colors.primary
+                        : colors.baseContent.withValues(alpha: 0.7),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}

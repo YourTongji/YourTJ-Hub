@@ -209,6 +209,24 @@ class GfApiClient {
     return _resolve(response, parser);
   }
 
+  /// [put] 的 PATCH 形态（课评编辑等部分更新契约；后端只注册了 PATCH，
+  /// POST 会落到未定义路由）。
+  Future<T> patch<T>(
+    String path, {
+    Object? body,
+    Map<String, dynamic>? headers,
+    JsonParser<T>? parser,
+  }) async {
+    final response = await _request(
+      () => dio.patch(
+        path,
+        data: body,
+        options: Options(headers: headers),
+      ),
+    );
+    return _resolve(response, parser);
+  }
+
   Future<T> delete<T>(
     String path, {
     Object? body,

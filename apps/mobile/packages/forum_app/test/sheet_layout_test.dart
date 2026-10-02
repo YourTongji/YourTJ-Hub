@@ -237,6 +237,57 @@ void main() {
     await tester.pumpAndSettle();
   });
 
+  testWidgets('review sheet shares one row between offering and rating', (
+    tester,
+  ) async {
+    await _pumpReviewSheet(tester);
+
+    final Finder chip = find.byKey(const Key('course-review-offering'));
+    final Finder star5 = find.byKey(const ValueKey<String>('review-rating-5'));
+    expect(chip, findsOneWidget);
+    expect(star5, findsOneWidget);
+
+    final Rect chipRect = tester.getRect(chip);
+    final Rect starRect = tester.getRect(star5);
+    // 同一行：垂直中线一致（行内居中），chip 在左、星级在右，没有孤行控件。
+    expect(
+      (chipRect.center.dy - starRect.center.dy).abs(),
+      lessThanOrEqualTo(2),
+    );
+    expect(chipRect.left, lessThan(starRect.left));
+    expect(chipRect.right, lessThanOrEqualTo(starRect.left + 1));
+    // 身份行在下一行，完整文案仍在。
+    expect(tester.getRect(find.text('匿名发布')).top, greaterThan(chipRect.bottom));
+    expect(find.text('对公众隐藏身份'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+
+    await tester.pumpWidget(const SizedBox());
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('review sheet stacks offering above stars when narrow', (
+    tester,
+  ) async {
+    // 320dp：放不下「240dp 星级 + 可读 chip」时显式降级两行——chip 在上、
+    // 星级在下一行贴右，不再靠 Wrap 的偶然折行。
+    await _pumpReviewSheet(tester, size: const Size(320, 844));
+
+    final Finder chip = find.byKey(const Key('course-review-offering'));
+    final Finder star5 = find.byKey(const ValueKey<String>('review-rating-5'));
+    expect(chip, findsOneWidget);
+    expect(star5, findsOneWidget);
+    final Rect chipRect = tester.getRect(chip);
+    final Rect starRect = tester.getRect(star5);
+    expect(starRect.center.dy, greaterThan(chipRect.center.dy + 8));
+    // chip 贴左、星级行贴右（星级右缘越过 chip 右缘）。
+    expect(chipRect.left, lessThan(starRect.left));
+    expect(starRect.right, greaterThan(chipRect.right));
+    expect(tester.takeException(), isNull);
+
+    await tester.pumpWidget(const SizedBox());
+    await tester.pumpAndSettle();
+  });
+
   testWidgets('review sheet keeps the rating reachable at 200% text', (
     tester,
   ) async {

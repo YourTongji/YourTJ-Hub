@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -9,10 +10,13 @@ import 'package:ui_kit/ui_kit.dart';
 
 import '../../widgets/app_refresh_indicator.dart';
 import '../../../l10n/app_localizations.dart';
+import '../../asset_url.dart';
 import '../../reading_preferences.dart';
 import '../../widgets/rich_content/gf_html_content.dart';
 import '../../format.dart';
 import '../../current_user.dart';
+import '../../images/image_save.dart';
+import '../../link_navigation.dart';
 import '../../providers.dart';
 import '../../server_messages.dart';
 import '../../widgets/status_views.dart';
@@ -21,7 +25,7 @@ import 'review_form_sheet.dart';
 import 'review_delete_dialog.dart';
 import 'review_reaction.dart';
 import 'review_report_sheet.dart';
-import '../../widgets/markdown_view.dart';
+import '../../widgets/share/course_review_share_card.dart';
 import '../../widgets/share/share_image_preview.dart';
 
 /// 课程详情页（web CourseDetailPage.vue 的移动端形态，路由 `/courses/:courseId`）。
@@ -72,6 +76,9 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
   int _reviewsSeq = 0;
   final Set<int> _reviewReactionBusy = <int>{};
   final Set<int> _reviewReportBusy = <int>{};
+  // 每个评价的反应本地版本号：列表响应合并时用它判断请求在途期间是否发生过
+  // 反应切换（版本变化）或请求发起时写入仍未完成（busy 快照）。
+  final Map<int, int> _reviewReactionVersion = <int, int>{};
 
   /// 聚焦教学班（null = 课程全部课评）。初始值来自路由参数，详情加载后校验。
   int? _activeOfferingId;
@@ -158,6 +165,10 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
   Future<void> _loadReviews() async {
     final int seq = ++_reviewsSeq;
     final int epoch = ref.read(offlineCacheEpochProvider);
+    final Map<int, int> reactionVersions = Map<int, int>.of(
+      _reviewReactionVersion,
+    );
+    final Set<int> reactionBusy = Set<int>.of(_reviewReactionBusy);
     setState(() {
       _reviewsLoading = true;
       _reviewsLoaded = false;
@@ -174,7 +185,15 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
       }
       setState(() {
         // freezed 解析出的 list 可能是不可变包装；后续行内替换/删除依赖可变列表。
-        _reviews = List<ReviewPayload>.of(result.list);
+        _reviews = List<ReviewPayload>.of(
+          mergeCourseReviewReactions(
+            incoming: result.list,
+            local: _reviews,
+            versionsAtStart: reactionVersions,
+            currentVersions: _reviewReactionVersion,
+            busyAtStart: reactionBusy,
+          ),
+        );
         _prioritizeEditableReviews();
         _nextCursor = result.nextCursor ?? '';
         _reviewTotal = result.total;
@@ -243,6 +262,10 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
     }
     final int seq = _reviewsSeq;
     final int epoch = ref.read(offlineCacheEpochProvider);
+    final Map<int, int> reactionVersions = Map<int, int>.of(
+      _reviewReactionVersion,
+    );
+    final Set<int> reactionBusy = Set<int>.of(_reviewReactionBusy);
     setState(() => _loadingMore = true);
     try {
       final ReviewListResult result = await _repository.reviews(
@@ -256,7 +279,16 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
         return;
       }
       setState(() {
-        _reviews = <ReviewPayload>[..._reviews, ...result.list];
+        _reviews = <ReviewPayload>[
+          ..._reviews,
+          ...mergeCourseReviewReactions(
+            incoming: result.list,
+            local: _reviews,
+            versionsAtStart: reactionVersions,
+            currentVersions: _reviewReactionVersion,
+            busyAtStart: reactionBusy,
+          ),
+        ];
         _prioritizeEditableReviews();
         _nextCursor = result.nextCursor ?? '';
         _reviewTotal = result.total;
@@ -454,27 +486,38 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
       final bool on = reaction == CourseReviewReaction.helpful
           ? !current.viewer.isHelpful
           : !current.viewer.isDisliked;
-      // Invalidate any list request as soon as this write can affect its result.
-      _reviewsSeq++;
+      // 版本号在乐观更新前自增：在途列表响应合并时据此判断本地反应是否比
+      // 服务端快照更新，避免慢响应回滚。
+      _reviewReactionVersion[review.id] =
+          (_reviewReactionVersion[review.id] ?? 0) + 1;
+      // 单次本地乐观更新 + 对新旧服务端都正确的请求序列：旧服务端不会在
+      // markTarget(true) 时自动清掉另一侧，所以切换时先删除相反状态再写目标
+      // （新服务端两个操作均幂等）。不重读整表、不触发列表 loading/重排。
       setState(() {
-        _reviewsLoading = false;
-        _loadingMore = false;
+        _reviews[index] = applyCourseReviewReaction(current, reaction, on: on);
       });
-      await _writeReviewReaction(current, reaction, on, epoch);
-      if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) return;
-      setState(() {
-        final int i = _reviews.indexWhere((r) => r.id == review.id);
-        if (i >= 0) {
-          _reviews[i] = applyCourseReviewReaction(
-            _reviews[i],
-            reaction,
-            on: on,
-          );
+      final CourseReviewReaction opposite =
+          reaction == CourseReviewReaction.helpful
+          ? CourseReviewReaction.dislike
+          : CourseReviewReaction.helpful;
+      final bool oppositeSelected = opposite == CourseReviewReaction.helpful
+          ? current.viewer.isHelpful
+          : current.viewer.isDisliked;
+      try {
+        if (on && oppositeSelected) {
+          await _writeReviewReaction(current.id, opposite, false);
         }
-      });
-      // Re-read the authoritative counts after a successful write; another
-      // request may have changed the baseline while this action was in flight.
-      await _loadReviews();
+        await _writeReviewReaction(current.id, reaction, on);
+      } catch (e) {
+        if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) return;
+        setState(() {
+          final int i = _reviews.indexWhere((r) => r.id == review.id);
+          if (i >= 0) _reviews[i] = current;
+        });
+        if (!_isUnauthorized(e)) {
+          _toast(_copy().operationFailed, error: true);
+        }
+      }
     } catch (e) {
       if (mounted &&
           epoch == ref.read(offlineCacheEpochProvider) &&
@@ -487,61 +530,12 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
   }
 
   Future<void> _writeReviewReaction(
-    ReviewPayload current,
+    int reviewId,
     CourseReviewReaction reaction,
     bool on,
-    int epoch,
-  ) async {
-    Future<void> write(CourseReviewReaction target, bool enabled) =>
-        target == CourseReviewReaction.helpful
-        ? _repository.markHelpful(current.id, on: enabled)
-        : _repository.markDislike(current.id, on: enabled);
-    bool currentSession() =>
-        mounted && epoch == ref.read(offlineCacheEpochProvider);
-
-    final CourseReviewReaction opposite =
-        reaction == CourseReviewReaction.helpful
-        ? CourseReviewReaction.dislike
-        : CourseReviewReaction.helpful;
-    final bool oppositeSelected = opposite == CourseReviewReaction.helpful
-        ? current.viewer.isHelpful
-        : current.viewer.isDisliked;
-    if (!on || !oppositeSelected) {
-      try {
-        await write(reaction, on);
-      } catch (_) {
-        if (currentSession()) await _loadReviews();
-        rethrow;
-      }
-      return;
-    }
-
-    try {
-      await write(opposite, false);
-    } catch (_) {
-      if (currentSession()) await _loadReviews();
-      rethrow;
-    }
-    if (!currentSession()) return;
-    try {
-      await write(reaction, true);
-    } catch (_) {
-      if (currentSession()) {
-        try {
-          // A lost response can follow a committed target write. Clear it before
-          // restoring the prior side, then reread the server's actual viewer state.
-          await write(reaction, false);
-        } catch (_) {}
-        if (currentSession()) {
-          try {
-            await write(opposite, true);
-          } catch (_) {}
-        }
-        if (currentSession()) await _loadReviews();
-      }
-      rethrow;
-    }
-  }
+  ) => reaction == CourseReviewReaction.helpful
+      ? _repository.markHelpful(reviewId, on: on)
+      : _repository.markDislike(reviewId, on: on);
 
   Future<void> _reportReview(ReviewPayload review) async {
     if (_reviewReportBusy.contains(review.id)) return;
@@ -559,80 +553,61 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
     }
   }
 
+  /// 正文链接：复用仓库共享的 LinkNavigation（站内路由/外链确认）。
+  Future<bool> _openReviewLink(String url) async {
+    await LinkNavigation.open(
+      context,
+      url,
+      baseUrl: ref.read(apiClientProvider).baseUrl,
+    );
+    return true;
+  }
+
+  /// 正文图片：与 wiki/Markdown 阅读一致的灯箱约定（保存/分享）。
+  void _openReviewImage(String url) {
+    Navigator.of(context, rootNavigator: true).push(
+      MaterialPageRoute<void>(
+        builder: (_) => Scaffold(
+          backgroundColor: const Color(0xFF000000),
+          body: SafeArea(
+            child: GfImageViewer(
+              images: <String>[url],
+              onSaveImage: (String imageUrl) =>
+                  saveImageFromUrl(context, imageUrl),
+              saveImageLabel: AppLocalizations.of(context).imageSave,
+              onShareImage: (String imageUrl) =>
+                  shareImageFromUrl(context, imageUrl),
+              shareImageLabel: AppLocalizations.of(context).topicShare,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Future<void> _shareReview(CourseDetailPayload course, ReviewPayload review) {
-    final rating = review.rating?.clamp(0, 5).toInt() ?? 0;
-    final String reviewUrl = Uri.parse(ref.read(apiClientProvider).baseUrl)
-        .replace(
-          path: '/courses/${course.id}',
-          queryParameters: {
-            'offeringId': '${review.offeringId}',
-            'reviewId': '${review.id}',
-          },
-        )
-        .toString();
     return showShareImagePreview(
       context,
       fileName: 'course-review-${review.id}.png',
+      // 预览与导出共用同一张卡：固定 375 逻辑宽、3× 捕获，主题由预览选择。
       cardBuilder: (theme) => ShareImageCard(
         theme: theme,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              '${course.name} · ${course.primaryCode}',
-              style: GfTheme.typographyOf(context).heading.copyWith(
-                color: theme.colors.baseContent,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              _offeringLabel(course, review.offeringId),
-              style: GfTheme.typographyOf(context).caption.copyWith(
-                color: theme.colors.baseContent.withValues(alpha: 0.65),
-              ),
-            ),
-            const SizedBox(height: 20),
-            if (rating > 0)
-              Text(
-                '${List.filled(rating, '★').join()}${List.filled(5 - rating, '☆').join()}',
-                style: TextStyle(color: theme.colors.warning, fontSize: 18),
-              ),
-            const SizedBox(height: 4),
-            Text(
-              formatDateTime(review.createdAt),
-              style: GfTheme.typographyOf(context).meta.copyWith(
-                color: theme.colors.baseContent.withValues(alpha: 0.55),
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              _reviewAuthorLabel(
-                review,
-                CourseCopy(AppLocalizations.of(context)),
-              ),
-              style: GfTheme.typographyOf(context).small.copyWith(
-                color: theme.colors.baseContent,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 16),
-            GfDivider(color: theme.colors.line),
-            GfMarkdownView(
-              data: review.content,
-              screenshot: true,
-              colors: theme.colors,
-            ),
-            const SizedBox(height: 20),
-            GfDivider(color: theme.colors.line),
-            Text(
-              'YourTJ  ·  $reviewUrl',
-              softWrap: true,
-              style: GfTheme.typographyOf(context).meta.copyWith(
-                color: theme.colors.baseContent.withValues(alpha: 0.55),
-              ),
-            ),
-          ],
+        // 卡片浮在更深一档的底色上：浅色主题取 base300，深色主题取更暗的 base200。
+        canvasColor: theme.brightness == Brightness.dark
+            ? theme.colors.base200
+            : theme.colors.base300,
+        footerTrailing: Text(
+          'yourtj.de',
+          style: GfTheme.typographyOf(context).meta.copyWith(
+            color: theme.colors.iconMuted,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        child: CourseReviewShareCard(
+          theme: theme,
+          course: course,
+          review: review,
+          offeringLabel: _offeringMeta(course, review.offeringId).chip,
         ),
       ),
     );
@@ -668,9 +643,9 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
     final CourseCopy copy = CourseCopy(l10n);
     final bool canWrite = (detail.offerings?.isNotEmpty ?? false);
 
-    return Stack(
+    return Column(
       children: <Widget>[
-        Positioned.fill(
+        Expanded(
           child: AppRefreshIndicator(
             onRefresh: () async {
               await _load();
@@ -711,48 +686,44 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
                 ),
                 SliverToBoxAdapter(
                   child: SizedBox(
-                    height: 96 + MediaQuery.paddingOf(context).bottom,
+                    // dock 现在是真实底栏（不再 overlay），这里只留呼吸间距。
+                    height: 24,
                   ),
                 ),
               ],
             ),
           ),
         ),
-        Positioned(
-          left: 0,
-          right: 0,
-          bottom: 0,
-          child: ColoredBox(
-            color: GfTheme.colorsOf(context).base100,
-            child: SafeArea(
-              top: false,
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(
-                  children: [
-                    IconButton(
-                      tooltip: _bookmarked
-                          ? l10n.courseBookmarked
-                          : l10n.courseBookmark,
-                      icon: GfSymbol(
-                        'bookmark',
-                        color: _bookmarked
-                            ? GfTheme.colorsOf(context).primary
-                            : null,
-                      ),
-                      onPressed: _toggleBookmark,
+        ColoredBox(
+          color: GfTheme.colorsOf(context).base100,
+          child: SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  IconButton(
+                    tooltip: _bookmarked
+                        ? l10n.courseBookmarked
+                        : l10n.courseBookmark,
+                    icon: GfSymbol(
+                      'bookmark',
+                      color: _bookmarked
+                          ? GfTheme.colorsOf(context).primary
+                          : null,
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: GfButton(
-                        size: GfButtonSize.extraLarge,
-                        expanded: true,
-                        onPressed: canWrite ? _openWriteSheet : null,
-                        label: l10n.courseWriteReview,
-                      ),
+                    onPressed: _toggleBookmark,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: GfButton(
+                      size: GfButtonSize.extraLarge,
+                      expanded: true,
+                      onPressed: canWrite ? _openWriteSheet : null,
+                      label: l10n.courseWriteReview,
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           ),
@@ -819,6 +790,7 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
           delegate: SliverChildBuilderDelegate((context, index) {
             if (index.isOdd) return const GfDivider();
             final review = _reviews[index ~/ 2];
+            final offeringMeta = _offeringMeta(detail, review.offeringId);
             return _ReviewRow(
               key: review.id == widget.focusReviewId
                   ? _targetReviewKey
@@ -831,8 +803,10 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
                 compact: true,
               ),
               review: review,
-              offeringLabel: _offeringLabel(detail, review.offeringId),
-              reactionBusy: _reviewReactionBusy.contains(review.id),
+              offeringMeta: offeringMeta.cardMeta,
+              baseUrl: Uri.parse(ref.read(apiClientProvider).baseUrl),
+              onImageTap: _openReviewImage,
+              onLinkTap: _openReviewLink,
               reportBusy: _reviewReportBusy.contains(review.id),
               onHelpful: () =>
                   _toggleReviewReaction(review, CourseReviewReaction.helpful),
@@ -870,25 +844,20 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
     ];
   }
 
-  String _offeringLabel(CourseDetailPayload detail, int offeringId) {
+  /// 课评卡片的开课信息收敛：委托给 [offeringMetaParts]，详情页只负责按
+  /// offeringId 查找当前课程可见的开课实例。
+  ({String cardMeta, String chip}) _offeringMeta(
+    CourseDetailPayload detail,
+    int offeringId,
+  ) {
     final CourseOfferingPayload? offering = detail.offerings
         ?.where((CourseOfferingPayload o) => o.id == offeringId)
         .firstOrNull;
-    if (offering == null) return '#$offeringId';
-    final String classLabel = <String>[
-      offering.className?.trim() ?? '',
-      offering.classCode?.trim() ?? '',
-    ].where((part) => part.isNotEmpty).toSet().join(' · ');
-    return <String>[
-      shortTerm(
-        offering.termCode,
-        locale: AppLocalizations.of(context).localeName,
-      ),
-      classLabel,
-      offering.campus ?? '',
-      offering.faculty?.trim() ?? '',
-      ...?offering.instructors?.map((name) => name.trim()),
-    ].where((String s) => s.isNotEmpty).toSet().join(' · ');
+    return offeringMetaParts(
+      offering,
+      locale: AppLocalizations.of(context).localeName,
+      fallbackId: offeringId,
+    );
   }
 }
 
@@ -1021,7 +990,8 @@ class _CourseHeader extends StatelessWidget {
     if (detail.reviewScope == 'team' && team.isNotEmpty) {
       final String joined = team.join('、');
       return team.length > 1
-          ? '${copy.teamInstructorsPrefix}$joined${copy.teamInstructorsSuffix(team.length)}'
+          ? '${copy.teamInstructorsPrefix}$joined'
+                '${copy.teamInstructorsSuffix(team.length)}'
           : '${copy.teamInstructorsPrefix}$joined';
     }
     if (detail.teacherName != null && detail.teacherName!.isNotEmpty) {
@@ -1198,27 +1168,14 @@ class _RatingSection extends StatelessWidget {
               builder: (context, constraints) {
                 // Keep the score and its distribution readable on narrow phones
                 // and when the user enlarges text.
-                final score = Text.rich(
-                  TextSpan(
-                    children: [
-                      TextSpan(
-                        text: formatRating(avg),
-                        style: type.title1.copyWith(
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      TextSpan(
-                        text: ' ${copy.ratingOutOf}',
-                        style: type.small.copyWith(
-                          color: colors.baseContent.withValues(alpha: .5),
-                        ),
-                      ),
-                    ],
-                  ),
-                  key: const ValueKey('course-rating-score'),
+                final Widget ring = _RatingRing(
+                  avg: avg,
+                  outOf: copy.ratingOutOf,
+                  colors: colors,
+                  type: type,
                 );
                 // 分布条 5★ → 1★。
-                final bars = Column(
+                final Widget bars = Column(
                   children: <Widget>[
                     for (int star = 5; star >= 1; star--)
                       _DistributionRow(
@@ -1234,16 +1191,18 @@ class _RatingSection extends StatelessWidget {
                       ),
                   ],
                 );
-                if (constraints.maxWidth < 360) {
+                // 左环右条（对齐 Web RatingSummaryCard）：极窄宽度下改为纵向堆叠，
+                // 保证条形列仍有可读宽度。
+                if (constraints.maxWidth < 260) {
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [score, const SizedBox(height: 8), bars],
+                    children: [ring, const SizedBox(height: 16), bars],
                   );
                 }
                 return Row(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    score,
+                    ring,
                     const SizedBox(width: 20),
                     Expanded(child: bars),
                   ],
@@ -1254,6 +1213,153 @@ class _RatingSection extends StatelessWidget {
       ),
     );
   }
+}
+
+class _RatingRing extends StatelessWidget {
+  const _RatingRing({
+    required this.avg,
+    required this.outOf,
+    required this.colors,
+    required this.type,
+  });
+
+  static const double diameter = 104;
+
+  final double? avg;
+  final String outOf;
+  final GfColors colors;
+  final GfTypography type;
+
+  @override
+  Widget build(BuildContext context) {
+    final double ratio = avg == null || avg! <= 0
+        ? 0
+        : (avg! / 5).clamp(0.0, 1.0);
+    return Semantics(
+      label: '${formatRating(avg)} $outOf',
+      child: SizedBox.square(
+        dimension: diameter,
+        child: CustomPaint(
+          key: const Key('course-rating-ring'),
+          painter: _RatingRingPainter(
+            ratio: ratio,
+            progressStart: colors.warning,
+            progressEnd: colors.primary,
+            endDotFill: colors.primary,
+            endDotStroke: colors.base100,
+            track: colors.base300.withValues(alpha: 0.45),
+          ),
+          child: Center(
+            // 环心内容随字号增长（200% 下 24px 分数会变 48px），但环直径是固定
+            // 几何：FittedBox(scaleDown) 把自然尺寸的内容等比缩进环内，既不会
+            // RenderFlex 溢出，也不会在 100% 字号下缩小（不放大）。
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  GfSymbol('star-filled', size: 14, color: colors.warning),
+                  const SizedBox(height: 2),
+                  Text(
+                    formatRating(avg),
+                    key: const ValueKey('course-rating-score'),
+                    style: type.title1.copyWith(
+                      fontWeight: FontWeight.w700,
+                      height: 1.1,
+                    ),
+                  ),
+                  Text(
+                    outOf,
+                    style: type.label.copyWith(color: colors.iconMuted),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 均分进度环（对齐 web `RatingSummaryCard.vue`）：底槽圆环 + `warning→primary`
+/// 扫掠渐变弧（圆角端点、起点正上方、顺时针）+ 弧尾光点。
+class _RatingRingPainter extends CustomPainter {
+  const _RatingRingPainter({
+    required this.ratio,
+    required this.progressStart,
+    required this.progressEnd,
+    required this.endDotFill,
+    required this.endDotStroke,
+    required this.track,
+  });
+
+  static const double _strokeWidth = 8;
+  static const double _endDotRadius = 4.5;
+  static const double _endDotStrokeWidth = 2.5;
+
+  final double ratio;
+
+  /// 弧起点色（web `--gf-color-warning`）。
+  final Color progressStart;
+
+  /// 弧终点色（web `--gf-color-primary`）。
+  final Color progressEnd;
+
+  /// 弧尾光点填充/描边色（web：primary 实心 + base-100 描边）。
+  final Color endDotFill;
+  final Color endDotStroke;
+
+  final Color track;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final Offset center = size.center(Offset.zero);
+    final double radius = (size.shortestSide - _strokeWidth) / 2;
+    final Rect arcRect = Rect.fromCircle(center: center, radius: radius);
+    final Paint trackPaint = Paint()
+      ..color = track
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = _strokeWidth;
+    canvas.drawCircle(center, radius, trackPaint);
+    if (ratio <= 0) return;
+
+    final double sweep = 2 * math.pi * ratio;
+    final Paint progressPaint = Paint()
+      ..shader = ratingRingGradient(
+        start: progressStart,
+        end: progressEnd,
+      ).createShader(arcRect)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = _strokeWidth
+      ..strokeCap = StrokeCap.round;
+    canvas.drawArc(arcRect, -math.pi / 2, sweep, false, progressPaint);
+
+    // 弧尾光点：渐变终点色实心 + 卡片底色描边，把弧尾与底槽分开。
+    final double endAngle = sweep - math.pi / 2;
+    final Offset end = Offset(
+      center.dx + radius * math.cos(endAngle),
+      center.dy + radius * math.sin(endAngle),
+    );
+    canvas.drawCircle(end, _endDotRadius, Paint()..color = endDotFill);
+    canvas.drawCircle(
+      end,
+      _endDotRadius,
+      Paint()
+        ..color = endDotStroke
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = _endDotStrokeWidth,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_RatingRingPainter oldDelegate) =>
+      oldDelegate.ratio != ratio ||
+      oldDelegate.progressStart != progressStart ||
+      oldDelegate.progressEnd != progressEnd ||
+      oldDelegate.endDotFill != endDotFill ||
+      oldDelegate.endDotStroke != endDotStroke ||
+      oldDelegate.track != track;
 }
 
 class _DistributionRow extends StatelessWidget {
@@ -1267,13 +1373,17 @@ class _DistributionRow extends StatelessWidget {
   final int count;
   final int max;
 
+  // Web ROW_OPACITY：index 0 = 5★ 满亮，index 4 = 1★ 最暗（高分满亮、低分窄暗）。
   static const List<double> _opacity = <double>[0.95, 0.72, 0.5, 0.34, 0.24];
 
   @override
   Widget build(BuildContext context) {
     final GfColors colors = GfTheme.colorsOf(context);
     final double ratio = max <= 0 ? 0 : count / max;
+    // 数字列宽随字号缩放：大字号下 3 位计数不被截断，且统一右对齐。
+    final double countWidth = MediaQuery.textScalerOf(context).scale(12) * 2.2;
     return Padding(
+      key: ValueKey<String>('rating-distribution-$star'),
       padding: const EdgeInsets.symmetric(vertical: 3),
       child: Row(
         children: <Widget>[
@@ -1289,9 +1399,9 @@ class _DistributionRow extends StatelessWidget {
                 const SizedBox(width: 2),
                 Text(
                   '$star',
-                  style: GfTheme.typographyOf(context).meta.copyWith(
-                    color: colors.baseContent.withValues(alpha: 0.55),
-                  ),
+                  style: GfTheme.typographyOf(
+                    context,
+                  ).meta.copyWith(color: colors.iconMuted),
                 ),
               ],
             ),
@@ -1308,7 +1418,7 @@ class _DistributionRow extends StatelessWidget {
                 widthFactor: ratio,
                 child: Container(
                   decoration: BoxDecoration(
-                    color: colors.warning.withValues(alpha: _opacity[star - 1]),
+                    color: colors.warning.withValues(alpha: _opacity[5 - star]),
                     borderRadius: BorderRadius.circular(999),
                   ),
                 ),
@@ -1317,13 +1427,13 @@ class _DistributionRow extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           SizedBox(
-            width: 24,
+            width: countWidth,
             child: Text(
               '$count',
               textAlign: TextAlign.right,
-              style: GfTheme.typographyOf(context).meta.copyWith(
-                color: colors.baseContent.withValues(alpha: 0.45),
-              ),
+              style: GfTheme.typographyOf(
+                context,
+              ).meta.copyWith(color: colors.iconMuted),
             ),
           ),
         ],
@@ -1479,259 +1589,284 @@ class _AiSummaryCardState extends ConsumerState<_AiSummaryCard> {
     final CourseCopy copy = CourseCopy(l10n);
     final GfColors colors = GfTheme.colorsOf(context);
     final GfTypography type = GfTheme.typographyOf(context);
-    final bool ready = _status == 'ready';
+    final CourseAiSummaryPayload? payload = _summary;
+    final bool ready = _status == 'ready' && payload != null;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
-        InkWell(
-          onTap: _onToggle,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            child: Row(
-              children: <Widget>[
-                GfSymbol('sparkles', size: 16, color: colors.primary),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    l10n.courseDetailAiSummary,
-                    style: type.small.copyWith(
-                      fontWeight: FontWeight.w600,
-                      color: colors.baseContent,
-                    ),
+        Row(
+          children: <Widget>[
+            Expanded(
+              child: InkWell(
+                onTap: _onToggle,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 9, 8, 9),
+                  child: Row(
+                    children: <Widget>[
+                      // 小方标：主色淡底 + sparkles，给 AI 区一个稳定的视觉锚点。
+                      Container(
+                        width: 26,
+                        height: 26,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: colors.primary.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(
+                            GfTheme.radiiOf(context).selector,
+                          ),
+                        ),
+                        child: GfSymbol(
+                          'sparkles',
+                          size: 15,
+                          color: colors.primary,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Flexible(
+                        child: Text(
+                          l10n.courseDetailAiSummary,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: type.small.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: colors.baseContent,
+                          ),
+                        ),
+                      ),
+                      // 结论 pill 跟在标题后：折叠时也能一眼看到「推荐/谨慎」，
+                      // 不再单独占一行。
+                      if (ready) ...<Widget>[
+                        const SizedBox(width: 8),
+                        _ConsensusBadge(
+                          level: _consensusLevel(payload),
+                          copy: copy,
+                        ),
+                      ],
+                    ],
                   ),
                 ),
-                if (ready)
-                  Padding(
-                    padding: const EdgeInsets.only(right: 4),
-                    child: GfBadge(
-                      label: copy.summaryGenerated,
-                      variant: GfBadgeVariant.muted,
-                    ),
-                  ),
-                GfSymbol(
-                  _expanded ? 'chevron-up' : 'chevron-down',
-                  size: 18,
-                  color: colors.baseContent.withValues(alpha: 0.45),
-                ),
-              ],
+              ),
             ),
-          ),
-        ),
-        if (ready && _expanded)
-          Align(
-            alignment: Alignment.centerRight,
-            child: Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: IconButton(
+            // 刷新与展开是一组并排的图标按钮（同宽 40、高 44 命中区），贴右对齐；
+            // 展开 chevron 的图标右缘与正文 16dp 边距对齐。
+            if (ready)
+              IconButton(
+                key: const ValueKey<String>('ai-summary-refresh'),
                 icon: _refreshing
                     ? const SizedBox(
-                        width: 16,
-                        height: 16,
+                        width: 18,
+                        height: 18,
                         child: GfProgressIndicator(strokeWidth: 2),
                       )
                     : const GfSymbol('refresh-cw', size: 18),
                 tooltip: copy.summaryRefresh,
                 onPressed: _refreshing ? null : () => _load(refresh: true),
-                visualDensity: VisualDensity.compact,
+                constraints: const BoxConstraints.tightFor(
+                  width: 40,
+                  height: 44,
+                ),
+                padding: EdgeInsets.zero,
                 color: colors.iconMuted,
               ),
+            IconButton(
+              key: const ValueKey<String>('ai-summary-toggle'),
+              icon: GfSymbol(
+                _expanded ? 'chevron-up' : 'chevron-down',
+                size: 18,
+              ),
+              tooltip: _expanded ? copy.summaryCollapse : copy.summaryExpand,
+              onPressed: _onToggle,
+              constraints: const BoxConstraints.tightFor(width: 40, height: 44),
+              padding: EdgeInsets.zero,
+              color: colors.iconMuted,
             ),
-          ),
+            const SizedBox(width: 5),
+          ],
+        ),
         if (_expanded)
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
-            child: _buildContent(l10n, copy, colors, type),
+            padding: const EdgeInsets.only(bottom: 16),
+            child: _buildContent(copy, colors, type),
           ),
       ],
     );
   }
 
-  Widget _buildContent(
-    AppLocalizations l10n,
-    CourseCopy copy,
-    GfColors colors,
-    GfTypography type,
-  ) {
+  String _consensusLevel(CourseAiSummaryPayload payload) =>
+      _consensusOrder.contains(payload.consensus)
+      ? payload.consensus
+      : 'neutral';
+
+  Widget _buildContent(CourseCopy copy, GfColors colors, GfTypography type) {
+    const EdgeInsets inset = EdgeInsets.symmetric(horizontal: 16);
     if (_status == 'loading') {
-      return const Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          GfSkeleton(width: 220, height: 14, radius: 5),
-          SizedBox(height: 8),
-          GfSkeleton(height: 14, radius: 5),
-          SizedBox(height: 8),
-          GfSkeleton(width: 140, height: 14, radius: 5),
-        ],
+      // 骨架行宽与 Web 对齐（3/4、满行、1/2），组内间距 12。
+      return const Padding(
+        padding: EdgeInsets.fromLTRB(16, 4, 16, 0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            FractionallySizedBox(
+              widthFactor: 0.75,
+              child: GfSkeleton(height: 14, radius: 5),
+            ),
+            SizedBox(height: 12),
+            GfSkeleton(height: 14, radius: 5),
+            SizedBox(height: 12),
+            FractionallySizedBox(
+              widthFactor: 0.5,
+              child: GfSkeleton(height: 14, radius: 5),
+            ),
+          ],
+        ),
       );
     }
     if (_status == 'insufficient') {
-      return Row(
-        children: <Widget>[
-          GfSymbol(
-            'sparkles',
-            size: 14,
-            color: colors.baseContent.withValues(alpha: 0.35),
+      return Padding(
+        padding: inset,
+        child: Text(
+          copy.summaryInsufficient,
+          style: type.caption.copyWith(
+            color: colors.baseContent.withValues(alpha: 0.6),
           ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              copy.summaryInsufficient,
-              style: type.small.copyWith(
-                color: colors.baseContent.withValues(alpha: 0.55),
-              ),
-            ),
-          ),
-        ],
+        ),
       );
     }
     if (_status == 'error') {
-      return Row(
-        children: <Widget>[
-          Expanded(
-            child: Text(
-              copy.summaryLoadFailed,
-              style: type.small.copyWith(
-                color: colors.baseContent.withValues(alpha: 0.55),
+      return Padding(
+        padding: const EdgeInsets.only(left: 16, right: 4),
+        child: Row(
+          children: <Widget>[
+            Expanded(
+              child: Text(
+                copy.summaryLoadFailed,
+                style: type.caption.copyWith(
+                  color: colors.baseContent.withValues(alpha: 0.6),
+                ),
               ),
             ),
-          ),
-          TextButton(
-            onPressed: () => _load(),
-            child: Text(copy.summaryRefresh),
-          ),
-        ],
+            TextButton(
+              onPressed: () => _load(),
+              child: Text(copy.summaryRefresh),
+            ),
+          ],
+        ),
       );
     }
     final CourseAiSummaryPayload? payload = _summary;
     if (payload == null) return const SizedBox.shrink();
-    final String level = _consensusOrder.contains(payload.consensus)
-        ? payload.consensus
-        : 'neutral';
+    final List<String> keywords = payload.keywords.take(6).toList();
+    final List<CourseAiSummaryRepresentativeReview> quotes = payload
+        .representativeReviews
+        .take(3)
+        .toList();
 
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
-        Row(
-          children: <Widget>[_ConsensusBadge(level: level, copy: copy)],
-        ),
-        const SizedBox(height: 8),
-        Text(
-          copy.summaryConsensusText(level),
-          style: type.small.copyWith(
-            color: colors.baseContent.withValues(alpha: 0.85),
+        // 一句话结论做导语，正文字号，不再另起标签行。
+        Padding(
+          padding: inset,
+          child: Text(
+            copy.summaryConsensusText(_consensusLevel(payload)),
+            style: type.bodyStrong.copyWith(color: colors.baseContent),
           ),
         ),
-        if (payload.keywords.isNotEmpty) ...<Widget>[
+        // 关键词：单行横滑 hashtag，宽度不够时不换行、不截断，边缘渐隐提示可滑。
+        if (keywords.isNotEmpty) ...<Widget>[
           const SizedBox(height: 10),
-          Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            children: <Widget>[
-              for (final String keyword in payload.keywords.take(5))
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 3,
-                  ),
-                  decoration: BoxDecoration(
-                    color: colors.base200.withValues(alpha: 0.6),
-                    borderRadius: BorderRadius.circular(999),
-                    border: Border.all(color: colors.line),
-                  ),
-                  child: Text(
-                    keyword,
-                    style: type.caption.copyWith(
-                      color: colors.baseContent.withValues(alpha: 0.7),
-                    ),
-                  ),
-                ),
-            ],
-          ),
-        ],
-        if (payload.pros.isNotEmpty || payload.cons.isNotEmpty) ...<Widget>[
-          const SizedBox(height: 10),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              if (payload.pros.isNotEmpty)
-                Expanded(
-                  child: _ProConList(
-                    title: copy.summaryPros,
-                    items: payload.pros.take(4).toList(),
-                    color: colors.success,
-                    sign: '+',
-                  ),
-                ),
-              if (payload.pros.isNotEmpty && payload.cons.isNotEmpty)
-                const SizedBox(width: 16),
-              if (payload.cons.isNotEmpty)
-                Expanded(
-                  child: _ProConList(
-                    title: copy.summaryCons,
-                    items: payload.cons.take(4).toList(),
-                    color: colors.error,
-                    sign: '−',
-                  ),
-                ),
-            ],
-          ),
-        ],
-        if (payload.representativeReviews.isNotEmpty) ...<Widget>[
-          const SizedBox(height: 12),
-          Text(
-            copy.summaryRepresentativeReviews,
-            style: type.caption.copyWith(
-              color: colors.baseContent.withValues(alpha: 0.7),
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 6),
-          for (final CourseAiSummaryRepresentativeReview item
-              in payload.representativeReviews.take(3)) ...<Widget>[
-            Container(
-              margin: const EdgeInsets.only(bottom: 6),
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: colors.base200.withValues(alpha: 0.4),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: colors.line.withValues(alpha: 0.6)),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+          Semantics(
+            label: copy.summaryKeywords,
+            child: _EdgeFadeScroller(
+              child: Row(
                 children: <Widget>[
-                  GfBadge(
-                    label: copy.summarySentiment(item.sentiment),
-                    variant: item.sentiment == 'positive'
-                        ? GfBadgeVariant.success
-                        : item.sentiment == 'negative'
-                        ? GfBadgeVariant.error
-                        : GfBadgeVariant.muted,
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    item.excerpt,
-                    style: type.small.copyWith(
-                      color: colors.baseContent.withValues(alpha: 0.8),
-                    ),
-                  ),
+                  for (int i = 0; i < keywords.length; i++) ...<Widget>[
+                    if (i > 0) const SizedBox(width: 6),
+                    _KeywordTag(label: keywords[i]),
+                  ],
                 ],
               ),
             ),
-          ],
-        ],
-        if (_refreshNotice != null) ...<Widget>[
-          const SizedBox(height: 8),
-          Text(
-            _refreshNotice!,
-            style: type.caption.copyWith(color: colors.error),
           ),
         ],
-        const SizedBox(height: 8),
-        Text(
-          copy.summaryDisclaimer,
-          style: type.meta.copyWith(
-            color: colors.baseContent.withValues(alpha: 0.4),
+        // 优缺点合成一列：前置 +/− 圆点区分，不再各占标题行、也不分两栏高低不齐。
+        if (payload.pros.isNotEmpty || payload.cons.isNotEmpty) ...<Widget>[
+          const SizedBox(height: 14),
+          Padding(
+            padding: inset,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                for (final String item in payload.pros.take(4))
+                  _SummaryPoint(
+                    text: item,
+                    positive: true,
+                    semanticsPrefix: copy.summaryPros,
+                  ),
+                // 优→缺转折处多留 4dp，扫读时两组自然分开（仍是单列）。
+                if (payload.pros.isNotEmpty && payload.cons.isNotEmpty)
+                  const SizedBox(height: 4),
+                for (final String item in payload.cons.take(4))
+                  _SummaryPoint(
+                    text: item,
+                    positive: false,
+                    semanticsPrefix: copy.summaryCons,
+                  ),
+              ],
+            ),
+          ),
+        ],
+        // 代表性评价：回复引用样式；多条时等高横滑卡片，下一张露边提示可滑。
+        if (quotes.isNotEmpty) ...<Widget>[
+          const SizedBox(height: 6),
+          Semantics(
+            label: copy.summaryRepresentativeReviews,
+            child: quotes.length == 1
+                ? Padding(
+                    padding: inset,
+                    child: _SummaryQuote(item: quotes.single, copy: copy),
+                  )
+                : LayoutBuilder(
+                    builder: (context, constraints) {
+                      final double width = (constraints.maxWidth - 32) * 0.84;
+                      return _EdgeFadeScroller(
+                        child: IntrinsicHeight(
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: <Widget>[
+                              for (
+                                int i = 0;
+                                i < quotes.length;
+                                i++
+                              ) ...<Widget>[
+                                if (i > 0) const SizedBox(width: 8),
+                                SizedBox(
+                                  width: width,
+                                  child: _SummaryQuote(
+                                    item: quotes[i],
+                                    copy: copy,
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+          ),
+        ],
+        const SizedBox(height: 12),
+        Padding(
+          padding: inset,
+          child: Text(
+            _refreshNotice ?? copy.summaryDisclaimer,
+            style: type.meta.copyWith(
+              fontWeight: FontWeight.w400,
+              color: _refreshNotice != null
+                  ? colors.error
+                  : colors.baseContent.withValues(alpha: 0.55),
+            ),
           ),
         ),
       ],
@@ -1758,74 +1893,198 @@ class _ConsensusBadge extends StatelessWidget {
   }
 }
 
-class _ProConList extends StatelessWidget {
-  const _ProConList({
-    required this.title,
-    required this.items,
-    required this.color,
-    required this.sign,
-  });
+/// 横向滚动行：左右 16dp 内边距与正文对齐，边缘渐隐只落在内边距上。
+class _EdgeFadeScroller extends StatelessWidget {
+  const _EdgeFadeScroller({required this.child});
 
-  final String title;
-  final List<String> items;
-  final Color color;
-  final String sign;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => ShaderMask(
+    shaderCallback: (Rect bounds) {
+      final double gutter = (16 / bounds.width).clamp(0.0, .25);
+      return LinearGradient(
+        colors: const <Color>[
+          Colors.transparent,
+          Colors.black,
+          Colors.black,
+          Colors.transparent,
+        ],
+        stops: <double>[0, gutter, 1 - gutter, 1],
+      ).createShader(bounds);
+    },
+    blendMode: BlendMode.dstIn,
+    child: SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: child,
+    ),
+  );
+}
+
+class _KeywordTag extends StatelessWidget {
+  const _KeywordTag({required this.label});
+
+  final String label;
 
   @override
   Widget build(BuildContext context) {
+    final GfColors colors = GfTheme.colorsOf(context);
     final GfTypography type = GfTheme.typographyOf(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: <Widget>[
-        Text(
-          title,
-          style: type.caption.copyWith(
-            color: color,
-            fontWeight: FontWeight.w600,
-          ),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: colors.base200,
+        borderRadius: BorderRadius.circular(GfTheme.radiiOf(context).selector),
+      ),
+      child: Text.rich(
+        TextSpan(
+          children: <InlineSpan>[
+            TextSpan(
+              text: '#',
+              style: TextStyle(color: colors.primary),
+            ),
+            TextSpan(text: label),
+          ],
         ),
-        const SizedBox(height: 4),
-        for (final String item in items)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 2),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Text(sign, style: type.small.copyWith(color: color)),
-                const SizedBox(width: 4),
-                Expanded(
-                  child: Text(
-                    item,
-                    style: type.small.copyWith(
-                      color: GfTheme.colorsOf(
-                        context,
-                      ).baseContent.withValues(alpha: 0.8),
-                    ),
+        maxLines: 1,
+        style: type.caption.copyWith(
+          height: 1.4,
+          fontWeight: FontWeight.w500,
+          color: colors.baseContent.withValues(alpha: 0.8),
+        ),
+      ),
+    );
+  }
+}
+
+class _SummaryPoint extends StatelessWidget {
+  const _SummaryPoint({
+    required this.text,
+    required this.positive,
+    required this.semanticsPrefix,
+  });
+
+  final String text;
+  final bool positive;
+  final String semanticsPrefix;
+
+  @override
+  Widget build(BuildContext context) {
+    final GfColors colors = GfTheme.colorsOf(context);
+    final GfTypography type = GfTheme.typographyOf(context);
+    final Color tone = positive ? colors.success : colors.error;
+    return Semantics(
+      label: '$semanticsPrefix：$text',
+      excludeSemantics: true,
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            // 18dp 圆点与 15/21 正文首行垂直居中（(21-18)/2）。
+            Container(
+              key: ValueKey<String>(positive ? 'summary-pro' : 'summary-con'),
+              margin: const EdgeInsets.only(top: 1.5),
+              width: 18,
+              height: 18,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: tone.withValues(alpha: 0.14),
+                shape: BoxShape.circle,
+              ),
+              child: GfSymbol(
+                positive ? 'plus' : 'minus',
+                size: 12,
+                color: tone,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                text,
+                style: type.small.copyWith(
+                  color: colors.baseContent.withValues(alpha: 0.85),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 代表性评价：与课评卡同族的中性小卡（base200 + box 圆角），
+/// 情感只用一个小圆点 + 弱化标签表达，不用彩条/彩底。
+class _SummaryQuote extends StatelessWidget {
+  const _SummaryQuote({required this.item, required this.copy});
+
+  final CourseAiSummaryRepresentativeReview item;
+  final CourseCopy copy;
+
+  @override
+  Widget build(BuildContext context) {
+    final GfColors colors = GfTheme.colorsOf(context);
+    final GfTypography type = GfTheme.typographyOf(context);
+    final Color tone = switch (item.sentiment) {
+      'positive' => colors.success,
+      'negative' => colors.error,
+      _ => colors.iconMuted,
+    };
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+      decoration: BoxDecoration(
+        color: colors.base200,
+        borderRadius: BorderRadius.circular(GfTheme.radiiOf(context).box),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              Container(
+                width: 6,
+                height: 6,
+                decoration: BoxDecoration(color: tone, shape: BoxShape.circle),
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  copy.summarySentiment(item.sentiment),
+                  style: type.meta.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: colors.baseContent.withValues(alpha: 0.65),
                   ),
                 ),
-              ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            item.excerpt,
+            style: type.caption.copyWith(
+              color: colors.baseContent.withValues(alpha: 0.85),
             ),
           ),
-      ],
+        ],
+      ),
     );
   }
 }
 
 // ---- 课评行 ----
 
-String _reviewAuthorLabel(ReviewPayload review, CourseCopy copy) {
-  if (review.author.kind == 'member') return review.author.label;
-  if (review.author.kind == 'legacy') return copy.authorLegacyLabel;
-  return copy.authorAnonymousLabel;
-}
-
 class _ReviewRow extends StatelessWidget {
   const _ReviewRow({
     super.key,
     required this.profile,
     required this.review,
-    required this.offeringLabel,
-    required this.reactionBusy,
+    required this.offeringMeta,
+    required this.baseUrl,
+    required this.onImageTap,
+    required this.onLinkTap,
     required this.reportBusy,
     required this.onHelpful,
     required this.onDislike,
@@ -1837,8 +2096,14 @@ class _ReviewRow extends StatelessWidget {
 
   final GfRichContentTypography profile;
   final ReviewPayload review;
-  final String offeringLabel;
-  final bool reactionBusy;
+
+  /// 单行元信息（学期 · 班次 · 教师），日期由卡片拼短格式。
+  final String offeringMeta;
+
+  /// 正文相对链接与图片的解析基准（站点/API 同源）。
+  final Uri baseUrl;
+  final ValueChanged<String> onImageTap;
+  final Future<bool> Function(String url) onLinkTap;
   final bool reportBusy;
   final VoidCallback onHelpful;
   final VoidCallback onDislike;
@@ -1858,7 +2123,7 @@ class _ReviewRow extends StatelessWidget {
     final bool hasMenu = onEdit != null || onDelete != null || onReport != null;
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
@@ -1872,7 +2137,7 @@ class _ReviewRow extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
                     Text(
-                      _reviewAuthorLabel(review, copy),
+                      reviewAuthorLabel(review, copy),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: type.small.copyWith(
@@ -1882,15 +2147,23 @@ class _ReviewRow extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: <Widget>[
-                        Flexible(
+                        Expanded(
                           child: Text(
-                            '$offeringLabel · ${formatDateTime(review.createdAt)}',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: type.meta.copyWith(
-                              color: colors.baseContent.withValues(alpha: 0.45),
-                            ),
+                            // 单行元信息：学期 · 班次 · 教师 · 短日期。班号/校区/
+                            // 院系已在课程头部与开课记录里，不在卡片重复；短日期（相对/
+                            // M月D日）让常规字号下能单行放下，过长才换行、不截断。
+                            <String>[
+                                  offeringMeta,
+                                  formatReviewDate(
+                                    review.createdAt,
+                                    l10n: l10n,
+                                  ),
+                                ]
+                                .where((String part) => part.isNotEmpty)
+                                .join(' · '),
+                            style: type.meta.copyWith(color: colors.iconMuted),
                           ),
                         ),
                         if (rating != null && rating > 0) ...<Widget>[
@@ -1917,12 +2190,54 @@ class _ReviewRow extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           // 服务端 `contentHtml` 已归一化历史课评标题,移动端直接消费,
-          // 不再渲染原始 Markdown 文本。
-          GfHtmlContent(html: review.contentHtml, profile: profile),
+          // 不再渲染原始 Markdown 文本。相对图片/链接按站点源解析；图片点击
+          // 走 App 图片查看器，链接走共享的 LinkNavigation。
+          GfHtmlContent(
+            html: review.contentHtml,
+            profile: profile,
+            baseUrl: baseUrl,
+            onTapUrl: onLinkTap,
+            customWidgetBuilder: (element) {
+              if (element.localName != 'img') return null;
+              final String? src = element.attributes['src'];
+              // data: URI 交给 fwfh 内置 data-image 渲染,不当作网络图处理。
+              if (src == null || src.isEmpty || src.startsWith('data:')) {
+                return null;
+              }
+              final String resolved = resolveApiAssetUrl(src);
+              final String? alt = element.attributes['alt'];
+              return Container(
+                margin: const EdgeInsets.symmetric(vertical: 8),
+                alignment: Alignment.center,
+                child: GestureDetector(
+                  onTap: () => onImageTap(resolved),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      border: Border.all(color: colors.line),
+                      borderRadius: BorderRadius.circular(
+                        GfTheme.radiiOf(context).box,
+                      ),
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: GfNetworkImage(
+                      resolved,
+                      fit: BoxFit.contain,
+                      cacheWidth:
+                          (MediaQuery.sizeOf(context).width *
+                                  MediaQuery.devicePixelRatioOf(context))
+                              .round(),
+                      semanticLabel: alt,
+                      errorBuilder: (_, _, _) =>
+                          const GfSymbol('image-off', size: 20),
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
           const SizedBox(height: 8),
           _ReviewActionBar(
             review: review,
-            reactionBusy: reactionBusy,
             onHelpful: onHelpful,
             onDislike: onDislike,
             onShare: onShare,
@@ -1976,19 +2291,20 @@ class _ReviewRow extends StatelessWidget {
 
 /// 课评卡片底部功能区：**单行**（横向可滚）三项——有用计数 / 无用计数 / 分享。
 ///
-/// 命中区固定 44×44，标签只保留计数与短文案，不再把「有用 / 无用」长文案
-/// 重复一遍（320px + 200% 字号下也不会折行或出现按钮孤行）。
+/// 可见 pill 高 32dp（13pt 标签、16pt 图标、左右 12dp 内边距），命中区仍是
+/// 44×44 的透明外扩（better-accessibility：视觉缩小、触控目标不缩水）。标签只保留计数与短文案，不再把「有用 / 无用」长文案
+/// 重复一遍（320px + 200% 字号下也不会折行或出现按钮孤行）。写入期间按钮
+/// 保持 enabled（Material disabled 会改色/透明，造成闪烁）；重复点击由
+/// `_toggleReviewReaction` 的 busy 守卫丢弃。
 class _ReviewActionBar extends StatelessWidget {
   const _ReviewActionBar({
     required this.review,
-    required this.reactionBusy,
     required this.onHelpful,
     required this.onDislike,
     required this.onShare,
   });
 
   final ReviewPayload review;
-  final bool reactionBusy;
   final VoidCallback onHelpful;
   final VoidCallback onDislike;
   final VoidCallback onShare;
@@ -1999,6 +2315,10 @@ class _ReviewActionBar extends StatelessWidget {
     final GfColors colors = GfTheme.colorsOf(context);
     final int helpfulCount = review.helpfulCount;
     final int dislikeCount = review.dislikeCount;
+    // 计数标签固定宽度 + tabular figures：1→10 或点击忙碌都不会改变 chip
+    // 宽度，整行动作不会因为计数进位而横向抽动。
+    final double countLabelWidth =
+        MediaQuery.textScalerOf(context).scale(13) * 1.8;
 
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
@@ -2008,24 +2328,26 @@ class _ReviewActionBar extends StatelessWidget {
             context,
             key: ValueKey<String>('review-helpful-${review.id}'),
             label: '$helpfulCount',
+            labelWidth: countLabelWidth,
             semanticsLabel: '${l10n.reviewHelpful} $helpfulCount',
             symbol: 'thumbs-up',
             active: review.viewer.isHelpful,
             selectedSemantics: true,
             activeColor: colors.warning,
-            onTap: reactionBusy ? null : onHelpful,
+            onTap: onHelpful,
           ),
           const SizedBox(width: 8),
           _actionChip(
             context,
             key: ValueKey<String>('review-dislike-${review.id}'),
             label: '$dislikeCount',
+            labelWidth: countLabelWidth,
             semanticsLabel: '${l10n.reviewDislike} $dislikeCount',
             symbol: 'thumbs-down',
             active: review.viewer.isDisliked,
             selectedSemantics: true,
             activeColor: colors.error,
-            onTap: reactionBusy ? null : onDislike,
+            onTap: onDislike,
           ),
           const SizedBox(width: 8),
           _actionChip(
@@ -2048,47 +2370,82 @@ class _ReviewActionBar extends StatelessWidget {
     required String symbol,
     required bool active,
     VoidCallback? onTap,
+    double? labelWidth,
     Color? activeColor,
     String? semanticsLabel,
     bool selectedSemantics = false,
   }) {
     final GfColors colors = GfTheme.colorsOf(context);
     final Color? tint = active ? (activeColor ?? colors.primary) : null;
-    return Semantics(
-      key: key,
-      toggled: selectedSemantics ? active : null,
-      button: true,
-      label: semanticsLabel,
-      child: TextButton(
-        onPressed: onTap,
-        style: TextButton.styleFrom(
-          minimumSize: const Size(44, 44),
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          foregroundColor: tint ?? colors.baseContent.withValues(alpha: 0.7),
-          backgroundColor: active
-              ? (tint ?? colors.primary).withValues(alpha: 0.1)
-              : colors.base100,
-          shape: const StadiumBorder(),
-          side: BorderSide(
-            color: active
-                ? (tint ?? colors.primary).withValues(alpha: 0.4)
-                : colors.line.withValues(alpha: 0.7),
+    // MergeSemantics 把 label/toggled 与 TextButton 的可点击/按钮/启用语义
+    // 合并成同一个节点：外层 Semantics 单独存在时只有 label 没有 onTap，
+    // uiautomator/读屏会看到一个不可点击的按钮节点。
+    // 命中区保持 44dp，但可见 pill 只有 32dp（better-accessibility/hit-areas：
+    // 视觉尺寸做小、透明外扩命中区），信息密度更接近阅读型列表。
+    return MergeSemantics(
+      child: Semantics(
+        key: key,
+        toggled: selectedSemantics ? active : null,
+        button: true,
+        label: semanticsLabel,
+        child: TextButton(
+          onPressed: onTap,
+          style: TextButton.styleFrom(
+            minimumSize: const Size(44, 44),
+            padding: EdgeInsets.zero,
+            foregroundColor: tint ?? colors.baseContent.withValues(alpha: 0.7),
+            backgroundColor: Colors.transparent,
+            shape: const StadiumBorder(),
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
           ),
-          textStyle: const TextStyle(fontSize: 14, height: 1.25),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            if (symbol == 'thumbs-down')
-              const RotatedBox(
-                quarterTurns: 2,
-                child: GfSymbol('thumbs-up', size: 18),
-              )
-            else
-              GfSymbol(symbol, size: 18),
-            const SizedBox(width: 6),
-            Flexible(child: Text(label, textAlign: TextAlign.center)),
-          ],
+          child: Center(
+            child: Container(
+              height: 32,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: BoxDecoration(
+                color: active
+                    ? (tint ?? colors.primary).withValues(alpha: 0.1)
+                    : colors.base100,
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(
+                  color: active
+                      ? (tint ?? colors.primary).withValues(alpha: 0.4)
+                      : colors.line.withValues(alpha: 0.7),
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  if (symbol == 'thumbs-down')
+                    const RotatedBox(
+                      quarterTurns: 2,
+                      child: GfSymbol('thumbs-up', size: 16),
+                    )
+                  else
+                    GfSymbol(symbol, size: 16),
+                  const SizedBox(width: 6),
+                  SizedBox(
+                    width: labelWidth,
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 13,
+                        height: 1.2,
+                        color:
+                            tint ?? colors.baseContent.withValues(alpha: 0.7),
+                        fontFeatures: labelWidth == null
+                            ? null
+                            : const <FontFeature>[FontFeature.tabularFigures()],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ),
       ),
     );
@@ -2214,11 +2571,13 @@ class _OfferingTermGroup extends StatelessWidget {
                   color: colors.baseContent.withValues(alpha: 0.45),
                 ),
                 const SizedBox(width: 4),
-                Text(
-                  termName,
-                  style: type.small.copyWith(
-                    fontWeight: FontWeight.w600,
-                    color: colors.baseContent.withValues(alpha: 0.75),
+                Flexible(
+                  child: Text(
+                    termName,
+                    style: type.small.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: colors.baseContent.withValues(alpha: 0.75),
+                    ),
                   ),
                 ),
                 const SizedBox(width: 6),

@@ -123,4 +123,84 @@ void main() {
     expect(noHelpful.helpfulCount, 0);
     expect(noDislikes.dislikeCount, 0);
   });
+
+  test('a reaction toggled after the request started survives a stale row', () {
+    final ReviewPayload server = _review();
+    final ReviewPayload local = applyCourseReviewReaction(
+      server,
+      CourseReviewReaction.helpful,
+      on: true,
+    );
+
+    final merged = mergeCourseReviewReactions(
+      incoming: <ReviewPayload>[server],
+      local: <ReviewPayload>[local],
+      // 请求发起时还没有任何本地反应版本，响应到达时已经切换到 v1。
+      versionsAtStart: const <int, int>{},
+      currentVersions: <int, int>{1: 1},
+      busyAtStart: const <int>{},
+    );
+
+    expect(merged.single.viewer.isHelpful, isTrue);
+    expect(merged.single.viewer.isDisliked, isFalse);
+    expect(merged.single.helpfulCount, 1);
+    expect(merged.single.dislikeCount, 0);
+  });
+
+  test('a request started while the write is pending keeps local state', () {
+    final ReviewPayload server = _review(helpful: true);
+    final ReviewPayload local = applyCourseReviewReaction(
+      _review(),
+      CourseReviewReaction.dislike,
+      on: true,
+    );
+
+    final merged = mergeCourseReviewReactions(
+      incoming: <ReviewPayload>[server],
+      local: <ReviewPayload>[local],
+      versionsAtStart: <int, int>{1: 1},
+      currentVersions: <int, int>{1: 1},
+      busyAtStart: const <int>{1},
+    );
+
+    expect(merged.single.viewer.isHelpful, isFalse);
+    expect(merged.single.viewer.isDisliked, isTrue);
+    expect(merged.single.helpfulCount, 0);
+    expect(merged.single.dislikeCount, 1);
+  });
+
+  test('fresh server rows win when no local reaction changed', () {
+    final ReviewPayload server = _review(helpful: true, helpfulCount: 5);
+    final ReviewPayload local = _review(helpful: true, helpfulCount: 1);
+
+    final merged = mergeCourseReviewReactions(
+      incoming: <ReviewPayload>[server],
+      local: <ReviewPayload>[local],
+      versionsAtStart: <int, int>{1: 4},
+      currentVersions: <int, int>{1: 4},
+      busyAtStart: const <int>{},
+    );
+
+    expect(merged.single.helpfulCount, 5);
+  });
+
+  test('server rows win when the local reaction version did not change', () {
+    final ReviewPayload server = _review(helpful: false, helpfulCount: 2);
+    final ReviewPayload local = applyCourseReviewReaction(
+      _review(helpful: true, helpfulCount: 9),
+      CourseReviewReaction.helpful,
+      on: false,
+    );
+
+    final merged = mergeCourseReviewReactions(
+      incoming: <ReviewPayload>[server],
+      local: <ReviewPayload>[local],
+      versionsAtStart: <int, int>{1: 1},
+      currentVersions: <int, int>{1: 1},
+      busyAtStart: const <int>{},
+    );
+
+    expect(merged.single.helpfulCount, 2);
+    expect(merged.single.viewer.isHelpful, isFalse);
+  });
 }

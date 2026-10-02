@@ -2394,6 +2394,12 @@ abstract class AppLocalizations {
   /// **'Reviews'**
   String get courseDetailReviews;
 
+  /// No description provided for @courseShareThisReview.
+  ///
+  /// In en, this message translates to:
+  /// **'This review'**
+  String get courseShareThisReview;
+
   /// No description provided for @courseDetailOfferings.
   ///
   /// In en, this message translates to:
@@ -3845,6 +3851,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Post anonymously (identity hidden from the public)'**
   String get courseCopyAnonymousLabel;
+
+  /// No description provided for @courseCopyAnonymousTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Post anonymously'**
+  String get courseCopyAnonymousTitle;
+
+  /// No description provided for @courseCopyAnonymousHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Your identity stays hidden'**
+  String get courseCopyAnonymousHint;
+
+  /// No description provided for @courseCopyPublishAs.
+  ///
+  /// In en, this message translates to:
+  /// **'Posting as {name}'**
+  String courseCopyPublishAs(String name);
+
+  /// No description provided for @courseCopyPublishPublic.
+  ///
+  /// In en, this message translates to:
+  /// **'Public identity'**
+  String get courseCopyPublishPublic;
 
   /// No description provided for @courseCopySubmitSuccess.
   ///

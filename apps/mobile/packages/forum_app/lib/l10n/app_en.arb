@@ -725,6 +725,7 @@
   },
   "coursesNoRating": "No rating",
   "courseDetailReviews": "Reviews",
+  "courseShareThisReview": "This review",
   "courseDetailOfferings": "Classes",
   "courseDetailLineage": "History",
   "courseDetailRelated": "Related courses",
@@ -1086,6 +1087,17 @@
   "courseCopyRatingRequired": "Please choose a 1–5 star rating.",
   "courseCopyContentRequired": "Review content cannot be empty.",
   "courseCopyAnonymousLabel": "Post anonymously (identity hidden from the public)",
+  "courseCopyAnonymousTitle": "Post anonymously",
+  "courseCopyAnonymousHint": "Your identity stays hidden",
+  "courseCopyPublishAs": "Posting as {name}",
+  "@courseCopyPublishAs": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "courseCopyPublishPublic": "Public identity",
   "courseCopySubmitSuccess": "Submitted",
   "courseCopyUpdateSuccess": "Updated",
   "courseCopyDelete": "Delete",

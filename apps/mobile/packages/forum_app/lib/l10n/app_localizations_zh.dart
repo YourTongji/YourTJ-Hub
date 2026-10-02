@@ -1252,6 +1252,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get courseDetailReviews => '课评';
 
   @override
+  String get courseShareThisReview => '本条评分';
+
+  @override
   String get courseDetailOfferings => '开课班级';
 
   @override
@@ -2012,6 +2015,20 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get courseCopyAnonymousLabel => '匿名发布（对公众隐藏身份）';
+
+  @override
+  String get courseCopyAnonymousTitle => '匿名发布';
+
+  @override
+  String get courseCopyAnonymousHint => '对公众隐藏身份';
+
+  @override
+  String courseCopyPublishAs(String name) {
+    return '以 $name 发布';
+  }
+
+  @override
+  String get courseCopyPublishPublic => '公开身份';
 
   @override
   String get courseCopySubmitSuccess => '已提交';

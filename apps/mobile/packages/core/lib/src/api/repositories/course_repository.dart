@@ -131,11 +131,11 @@ class CourseRepository {
             ReviewPayload.fromJson(Map<String, dynamic>.from(json as Map)),
       );
 
-  /// 改课评。
+  /// 改课评（部分更新语义，后端只注册 PATCH；见 route4api.go）。
   Future<ReviewPayload> updateReview(
     int reviewId,
     UpdateCourseReviewInput input,
-  ) => _client.post<ReviewPayload>(
+  ) => _client.patch<ReviewPayload>(
     '$_base/course-reviews/$reviewId',
     body: input.toJson(),
     parser: (json) =>

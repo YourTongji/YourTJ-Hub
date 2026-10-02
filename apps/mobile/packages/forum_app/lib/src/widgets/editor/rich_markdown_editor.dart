@@ -18,6 +18,8 @@ class RichMarkdownEditor extends StatelessWidget {
     this.onHeading,
     this.onHeadingLongPress,
     this.onInsertLink,
+    this.onInsertImage,
+    this.insertingImage = false,
     this.showToolbar = true,
     this.enabled = true,
     this.fill = false,
@@ -31,6 +33,11 @@ class RichMarkdownEditor extends StatelessWidget {
   final VoidCallback? onHeading;
   final VoidCallback? onHeadingLongPress;
   final VoidCallback? onInsertLink;
+
+  /// Optional image action. Only shown when the caller owns an upload pipeline;
+  /// [insertingImage] keeps the button inert while that upload is in flight.
+  final VoidCallback? onInsertImage;
+  final bool insertingImage;
   final bool showToolbar;
   final bool enabled;
 
@@ -60,6 +67,8 @@ class RichMarkdownEditor extends StatelessWidget {
             onHeading: onHeading,
             onHeadingLongPress: onHeadingLongPress,
             onInsertLink: onInsertLink,
+            onInsertImage: onInsertImage,
+            insertingImage: insertingImage,
             enabled: enabled,
           ),
         if (fill)
@@ -102,6 +111,8 @@ class RichMarkdownToolbar extends StatelessWidget {
     this.onHeading,
     this.onHeadingLongPress,
     this.onInsertLink,
+    this.onInsertImage,
+    this.insertingImage = false,
     this.enabled = true,
   });
 
@@ -109,6 +120,8 @@ class RichMarkdownToolbar extends StatelessWidget {
   final VoidCallback? onHeading;
   final VoidCallback? onHeadingLongPress;
   final VoidCallback? onInsertLink;
+  final VoidCallback? onInsertImage;
+  final bool insertingImage;
   final bool enabled;
 
   void _toggle(Attribute attribute) {
@@ -166,6 +179,14 @@ class RichMarkdownToolbar extends StatelessWidget {
                   tooltip: l10n.publishToolLink,
                   onPressed: enabled ? onInsertLink : null,
                 ),
+                if (onInsertImage != null)
+                  _ToolButton(
+                    symbol: 'image',
+                    tooltip: l10n.publishToolImage,
+                    onPressed: enabled && !insertingImage
+                        ? onInsertImage
+                        : null,
+                  ),
                 _ToolButton(
                   symbol: 'bold',
                   tooltip: l10n.publishToolBold,
