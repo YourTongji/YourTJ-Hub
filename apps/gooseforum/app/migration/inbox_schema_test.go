@@ -119,9 +119,10 @@ func TestInboxSchemaUpgradePreservesExistingDataOnSQLite(t *testing.T) {
 // PostgreSQL 行为门禁：除了建表，还要验证 JSON 列写入、发布不可变、双重幂等
 // 与匿名化 SQL 在真实 PG 方言下成立（CAST/|| 的文本推断）。
 //
-// 函数名必须包含 "TestSchema"：ci-backend.yml 只在设置了 YOURTJ_TEST_PG_URL 的 job
-// 里运行 `go test ./app/migration/ -run 'TestSchema' -v`，而未锚定的子串匹配不会
-// 选中旧名 TestInboxSchemaBehaviorOnPostgreSQL——那等于该测试从未在 CI 执行。
+// 函数名必须匹配 CI 过滤：ci-backend.yml 的 PG job 运行
+// `go test -p 1 -parallel 1 ./app/... -run 'PostgreSQL|Postgres' -count=1 -v`，
+// 名字里不含 "PostgreSQL" 的用例（如旧名 TestInboxSchemaBehavior）不会被选中——
+// 那等于该测试从未在 CI 执行。改名时保持 "PostgreSQL" 子串。
 func TestSchemaInboxBehaviorOnPostgreSQL(t *testing.T) {
 	dsn := os.Getenv("YOURTJ_TEST_PG_URL")
 	if dsn == "" {

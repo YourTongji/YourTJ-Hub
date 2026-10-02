@@ -172,6 +172,9 @@ func canonicalizeContent(content VersionContent) (canonicalVersionContent, error
 			if err := decoder.Decode(&payload); err != nil {
 				return canonicalVersionContent{}, fmt.Errorf("inboxmail: block %q payload is not valid JSON: %w", block.Type, err)
 			}
+			if decoder.More() {
+				return canonicalVersionContent{}, fmt.Errorf("inboxmail: block %q payload has trailing data after the JSON value", block.Type)
+			}
 		}
 		blocks = append(blocks, canonicalBlock{Type: block.Type, Payload: payload})
 	}

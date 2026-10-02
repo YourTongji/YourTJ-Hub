@@ -259,3 +259,27 @@ func TestHashVersionContentIsCanonical(t *testing.T) {
 		t.Fatal("large integer precision lost in content hash")
 	}
 }
+
+// Block payload 在 JSON 值之后带尾随数据时必须拒绝：Decode 只读单个值，
+// 不校验会让 {"a":1}junk 按 {"a":1} 参与哈希，而库存 RawMessage 仍含 junk，
+// 哈希与事实内容不再一致。
+func TestHashVersionContentRejectsTrailingGarbage(t *testing.T) {
+	for _, payload := range []string{
+		`{"a":1}junk`,
+		`{"a":1} {"b":2}`,
+		`{"a":1}"`,
+	} {
+		_, err := HashVersionContent(VersionContent{
+			Blocks: []Block{{Type: "badge", Payload: json.RawMessage(payload)}},
+		})
+		if err == nil {
+			t.Fatalf("payload %q with trailing data was accepted", payload)
+		}
+	}
+	// 值后的空白属于合法 JSON，必须仍然通过。
+	if _, err := HashVersionContent(VersionContent{
+		Blocks: []Block{{Type: "badge", Payload: json.RawMessage("{\"a\":1}\n")}},
+	}); err != nil {
+		t.Fatalf("trailing whitespace rejected: %v", err)
+	}
+}
