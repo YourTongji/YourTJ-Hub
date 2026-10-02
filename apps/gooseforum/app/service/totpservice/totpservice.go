@@ -56,7 +56,11 @@ type SetupResult struct {
 
 // Setup 为用户生成新的 TOTP 密钥（未启用状态），已启用时返回错误。
 func Setup(userID uint64) (SetupResult, error) {
-	if IsEnabled(userID) {
+	entity, err := userTotp.GetByUserID(userID)
+	if err != nil {
+		return SetupResult{}, err
+	}
+	if entity != nil && entity.Enabled == 1 {
 		return SetupResult{}, ErrAlreadyEnabled
 	}
 	secretBytes, err := algorithm.GenerateRandomBytes(20)
@@ -69,7 +73,6 @@ func Setup(userID uint64) (SetupResult, error) {
 	if err != nil {
 		return SetupResult{}, err
 	}
-	entity := userTotp.GetByUserID(userID)
 	if entity == nil {
 		entity = &userTotp.Entity{UserId: userID, SecretEncrypted: encrypted, Enabled: 0}
 		if err = userTotp.Create(entity); err != nil {
@@ -87,10 +90,13 @@ func Setup(userID uint64) (SetupResult, error) {
 
 // Enable 校验 TOTP 码后启用两步验证，并生成恢复码（明文只返回一次）。
 func Enable(userID uint64, code string) ([]string, error) {
-	if IsEnabled(userID) {
+	entity, err := userTotp.GetByUserID(userID)
+	if err != nil {
+		return nil, err
+	}
+	if entity != nil && entity.Enabled == 1 {
 		return nil, ErrAlreadyEnabled
 	}
-	entity := userTotp.GetByUserID(userID)
 	if entity == nil || entity.SecretEncrypted == "" {
 		return nil, ErrNotEnabled
 	}
@@ -132,15 +138,19 @@ func Enable(userID uint64, code string) ([]string, error) {
 
 // Disable 校验当前 TOTP 码或登录密码后关闭两步验证并清空恢复码。
 func Disable(userID uint64, codeOrPassword string) error {
-	if !IsEnabled(userID) {
+	entity, err := userTotp.GetByUserID(userID)
+	if err != nil {
+		return err
+	}
+	if entity == nil || entity.Enabled != 1 {
 		return ErrNotEnabled
 	}
-	if !validateCodeOrPassword(userID, strings.TrimSpace(codeOrPassword)) {
+	valid, err := validateCodeOrPassword(userID, entity, strings.TrimSpace(codeOrPassword))
+	if err != nil {
+		return err
+	}
+	if !valid {
 		return ErrInvalidCode
-	}
-	entity := userTotp.GetByUserID(userID)
-	if entity == nil {
-		return ErrNotEnabled
 	}
 	entity.Enabled = 0
 	if err := userTotp.Save(entity); err != nil {
@@ -156,7 +166,11 @@ func Disable(userID uint64, codeOrPassword string) error {
 // Verify 校验 TOTP 码或恢复码。恢复码一次性：匹配未使用的哈希并标记已用。
 // 失败进入内存滑动窗口限流（每用户 10 次/15 分钟）。
 func Verify(userID uint64, code string) (bool, error) {
-	if !IsEnabled(userID) {
+	entity, err := userTotp.GetByUserID(userID)
+	if err != nil {
+		return false, err
+	}
+	if entity == nil || entity.Enabled != 1 {
 		return false, ErrNotEnabled
 	}
 	if rateLimited(userID) {
@@ -167,7 +181,7 @@ func Verify(userID uint64, code string) (bool, error) {
 		recordFailure(userID)
 		return false, ErrInvalidCode
 	}
-	valid, err := verifyTotp(userID, code)
+	valid, err := verifyTotp(entity, code)
 	if err != nil {
 		recordFailure(userID)
 		return false, err
@@ -185,9 +199,12 @@ func Verify(userID uint64, code string) (bool, error) {
 }
 
 // IsEnabled 报告用户是否已启用两步验证。
-func IsEnabled(userID uint64) bool {
-	entity := userTotp.GetByUserID(userID)
-	return entity != nil && entity.Enabled == 1
+func IsEnabled(userID uint64) (bool, error) {
+	entity, err := userTotp.GetByUserID(userID)
+	if err != nil {
+		return false, err
+	}
+	return entity != nil && entity.Enabled == 1, nil
 }
 
 func validateOpts() totp.ValidateOpts {
@@ -199,8 +216,7 @@ func validateOpts() totp.ValidateOpts {
 	}
 }
 
-func verifyTotp(userID uint64, code string) (bool, error) {
-	entity := userTotp.GetByUserID(userID)
+func verifyTotp(entity *userTotp.Entity, code string) (bool, error) {
 	if entity == nil || entity.SecretEncrypted == "" {
 		return false, nil
 	}
@@ -226,18 +242,20 @@ func verifyRecoveryCode(userID uint64, code string) bool {
 }
 
 // validateCodeOrPassword 优先校验 TOTP 码，失败再尝试登录密码。
-func validateCodeOrPassword(userID uint64, input string) bool {
+func validateCodeOrPassword(userID uint64, entity *userTotp.Entity, input string) (bool, error) {
 	if input == "" {
-		return false
+		return false, nil
 	}
-	if valid, err := verifyTotp(userID, input); err == nil && valid {
-		return true
+	if valid, err := verifyTotp(entity, input); err != nil {
+		return false, err
+	} else if valid {
+		return true, nil
 	}
 	user, err := users.Get(userID)
 	if err != nil {
-		return false
+		return false, ErrInvalidCode
 	}
-	return algorithm.VerifyEncryptPassword(user.Password, input) == nil
+	return algorithm.VerifyEncryptPassword(user.Password, input) == nil, nil
 }
 
 func buildOtpauthURL(userID uint64, secret string) string {

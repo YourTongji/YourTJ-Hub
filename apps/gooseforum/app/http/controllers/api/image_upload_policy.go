@@ -72,7 +72,7 @@ func (policy imageUploadPolicy) Validate(filename string, size int64, reportedCo
 		return "", uploadFailure(http.StatusBadRequest, component.MessageUploadFilenameRequired, nil)
 	}
 	if size <= 0 {
-		return "", uploadFailure(http.StatusBadRequest, component.MessageUploadInvalidImage, nil)
+		return "", uploadFailure(http.StatusBadRequest, component.MessageUploadEmptyImage, nil)
 	}
 	if size > policy.MaxSize {
 		return "", uploadFailure(http.StatusBadRequest, component.MessageUploadFileTooLarge, component.MessageParams{"maxSizeKb": policy.MaxSize / 1024})

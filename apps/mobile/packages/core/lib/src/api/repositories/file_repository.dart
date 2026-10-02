@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 
 import '../api_error.dart';
 import '../gf_api_client.dart';
+import '../image_bytes.dart';
 
 /// 图片上传接口。
 class FileRepository {
@@ -14,10 +15,13 @@ class FileRepository {
     required List<int> bytes,
     required String filename,
   }) {
+    // 上传唯一收敛点：picker 压缩后可能「字节格式 ≠ 原扩展名」（issue #969），
+    // 上送前按魔数校正，服务端扩展名权威模型与校验强度不变。
+    final alignedFilename = alignImageFileNameWithBytes(filename, bytes);
     return _client.postMultipart<String>(
       '/file/img-upload',
       formData: FormData.fromMap({
-        'file': MultipartFile.fromBytes(bytes, filename: filename),
+        'file': MultipartFile.fromBytes(bytes, filename: alignedFilename),
       }),
       parser: (json) {
         if (json is String) return json;

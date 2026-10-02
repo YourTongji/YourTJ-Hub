@@ -79,6 +79,22 @@ class AppLocalizationsEn extends AppLocalizations {
   String get imageSaveFailed => 'Couldn’t save the image. Try again later.';
 
   @override
+  String get imageUnavailable => 'Can’t display this image';
+
+  @override
+  String get imageUnavailableNetwork =>
+      'The network blocked this image. Try again later.';
+
+  @override
+  String get imageUnavailableFormat => 'Unsupported image format';
+
+  @override
+  String get imageRetry => 'Retry';
+
+  @override
+  String get imageOpenInBrowser => 'Open in browser';
+
+  @override
   String get imagePermissionDenied =>
       'Photo access was denied. Enable it in system settings.';
 

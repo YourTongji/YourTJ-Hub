@@ -54,6 +54,10 @@ class _AdminPageState extends ConsumerState<AdminPage> {
   // school navigation. A URL-less cancellation is exempt solely in this
   // window; afterwards the school flow owns its errors and must fail loudly.
   bool _handoffCancellationPending = false;
+  // Most recent main-frame navigation target. Android never marks the frame
+  // on HTTP errors and WebKit omits the request entirely, so this tracked
+  // URL is the only main-frame signal the platform interface exposes.
+  Uri? _mainFrameUri;
 
   @override
   void initState() {
@@ -85,6 +89,7 @@ class _AdminPageState extends ConsumerState<AdminPage> {
       }
       _schoolStarted = false;
       _handoffCancellationPending = false;
+      _mainFrameUri = null;
       // A failed previous cleanup is retried before another credential is used.
       await _cleanup.catchError((Object _) {});
       await WebViewCookieManager().clearCookies();
@@ -114,7 +119,20 @@ class _AdminPageState extends ConsumerState<AdminPage> {
           onProgress: (value) {
             if (mounted) setState(() => _progress = value);
           },
-          onNavigationRequest: _navigate,
+          onPageStarted: (url) {
+            // loadRequest and server redirects never reach
+            // onNavigationRequest on Android; onPageStarted is
+            // main-frame-only on both platforms.
+            final uri = Uri.tryParse(url);
+            if (uri != null) _mainFrameUri = uri;
+          },
+          onNavigationRequest: (request) {
+            final uri = Uri.tryParse(request.url);
+            // Android only reports main-frame navigations here; iOS marks
+            // the frame explicitly.
+            if (uri != null && request.isMainFrame) _mainFrameUri = uri;
+            return _navigate(request);
+          },
           onWebResourceError: (error) {
             if (error.isForMainFrame == true &&
                 !_isSchoolHandoffCancellation(error)) {
@@ -130,6 +148,34 @@ class _AdminPageState extends ConsumerState<AdminPage> {
                         uri.path.startsWith('/moderation')) &&
                     error.response?.statusCode != null &&
                     error.response!.statusCode >= 400)) {
+              _fail();
+              return;
+            }
+            final status = error.response?.statusCode ?? 0;
+            final frame = _mainFrameUri;
+            if (status < 400 || frame == null) return;
+            if (uri != null) {
+              // Android reports every request here and the platform API
+              // carries no frame flag, so only the main frame's own URL may
+              // fail the page; any other school URL stays a subresource.
+              if (widget.campusAuthorizationUrl != null &&
+                  _navigation.isSchoolOrigin(uri) &&
+                  _isMainFrame(uri)) {
+                _fail();
+              }
+              return;
+            }
+            // WebKit omits the request and only surfaces navigation
+            // responses (never images or XHR), so the tracked main frame
+            // attributes the status.
+            final console =
+                _navigation.isSameOrigin(frame) &&
+                (frame.path == '/api/auth/mobile-web-session' ||
+                    frame.path.startsWith('/admin') ||
+                    frame.path.startsWith('/moderation'));
+            if (console ||
+                (widget.campusAuthorizationUrl != null &&
+                    _navigation.isSchoolOrigin(frame))) {
               _fail();
             }
           },
@@ -204,6 +250,16 @@ class _AdminPageState extends ConsumerState<AdminPage> {
     return uri != null &&
         _navigation.isSameOrigin(uri) &&
         const ['/api/auth/mobile-web-session', '/campus'].contains(uri.path);
+  }
+
+  bool _isMainFrame(Uri uri) {
+    final frame = _mainFrameUri;
+    return frame != null &&
+        frame.scheme == uri.scheme &&
+        frame.host == uri.host &&
+        frame.port == uri.port &&
+        frame.path == uri.path &&
+        frame.query == uri.query;
   }
 
   Future<NavigationDecision> _navigate(NavigationRequest request) async {
@@ -406,7 +462,10 @@ class _AdminPageState extends ConsumerState<AdminPage> {
       await preceding.catchError((Object _) {});
       Object? failure;
       for (final clear in <Future<void> Function()>[
-        () => controller.loadHtmlString(''),
+        // loadHtmlString rejects an empty document, so blank with a minimal
+        // non-empty page; failing here would retry the whole cleanup on the
+        // next credential use.
+        () => controller.loadHtmlString('<!doctype html>'),
         controller.clearLocalStorage,
         controller.clearCache,
         () async {

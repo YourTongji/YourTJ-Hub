@@ -529,7 +529,7 @@ uploadAvatar:
       `upload.file.missing`, `upload.filename.required`,
       `upload.dailyLimit.avatar` (params count/fileCount), `upload.file.tooLarge`
       (params maxSizeKb), `upload.extension.unsupported` (params extensions),
-      `upload.image.unsupported`, `upload.image.invalidContent`,
+      `upload.image.empty`, `upload.image.unsupported`, `upload.image.invalidContent`,
       `upload.saveFailed` (params error). Frozen accounts are rejected by the
       route-level CheckWritableAccount middleware with the standard params
       action=写入 / actionCode=write (the controller's own 上传附件 /

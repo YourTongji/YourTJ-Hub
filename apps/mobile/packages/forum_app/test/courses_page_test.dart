@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:ui' show Tristate;
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_quill/flutter_quill.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -21,6 +23,13 @@ import 'package:forum_app/src/providers.dart';
 import 'package:ui_kit/ui_kit.dart';
 
 import 'fixtures/page_fixtures.dart';
+
+Finder _chipFill(Finder chip) {
+  final Finder semantics = find
+      .ancestor(of: chip, matching: find.byType(Semantics))
+      .first;
+  return find.descendant(of: semantics, matching: find.byType(Ink)).first;
+}
 
 /// 课程目录/详情/课评 UI 行为测试：自包含 FakeCourseRepository，
 /// 按方法分发 canned payload（不触网），镜像仓库 wire 语义
@@ -694,6 +703,151 @@ void main() {
       expect(course.listCalls.last.onlyWithReviews, isTrue);
     });
 
+    testWidgets(
+      'selected filter chip updates immediately and paints its state',
+      (tester) async {
+        final FakeCourseRepository course = FakeCourseRepository(
+          _client(),
+          listPages: <int, (List<CourseSummaryPayload>, bool)>{
+            1: (_catalogPageOne(), false),
+          },
+        );
+        final ProviderContainer container = _container(
+          courseRepo: course,
+          pageRepo: FakePageRepository(_client()),
+        );
+        await tester.pumpWidget(_app(container, const CourseCatalogPage()));
+        await tester.pumpAndSettle();
+        final SemanticsHandle semantics = tester.ensureSemantics();
+        try {
+          final Finder chip = find
+              .ancestor(of: find.text('只看有评价'), matching: find.byType(InkWell))
+              .first;
+          final Finder fill = _chipFill(chip);
+          expect(tester.getSize(chip).height, greaterThanOrEqualTo(44));
+          expect(tester.getSize(chip).width, greaterThanOrEqualTo(44));
+          final Color? before =
+              (tester.widget<Ink>(fill).decoration! as BoxDecoration).color;
+          final Color expected = GfTheme.colorsOf(
+            tester.element(chip),
+          ).primary.withValues(alpha: 0.1);
+          final SemanticsData beforeSemantics = tester
+              .getSemantics(chip)
+              .getSemanticsData();
+          expect(beforeSemantics.flagsCollection.isButton, isTrue);
+          expect(beforeSemantics.flagsCollection.isEnabled, Tristate.isTrue);
+          expect(beforeSemantics.flagsCollection.isSelected, Tristate.isFalse);
+
+          final Rect chipRect = tester.getRect(chip);
+          await tester.tapAt(Offset(chipRect.left + 2, chipRect.center.dy));
+          await tester.pump();
+          expect(course.listCalls.last.onlyWithReviews, isTrue);
+          await tester.pump(const Duration(milliseconds: 80));
+          final Color? middle =
+              (tester.widget<Ink>(fill).decoration! as BoxDecoration).color;
+          expect(middle, isNot(before));
+          expect(middle, isNot(expected));
+          await tester.pumpAndSettle();
+          final Color? after =
+              (tester.widget<Ink>(fill).decoration! as BoxDecoration).color;
+          expect(after, expected);
+          final SemanticsData afterSemantics = tester
+              .getSemantics(chip)
+              .getSemanticsData();
+          expect(afterSemantics.flagsCollection.isSelected, Tristate.isTrue);
+        } finally {
+          semantics.dispose();
+        }
+      },
+    );
+
+    testWidgets('selected filter chip honors reduced motion', (tester) async {
+      tester.platformDispatcher.accessibilityFeaturesTestValue =
+          const FakeAccessibilityFeatures(disableAnimations: true);
+      addTearDown(
+        tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
+      );
+      final FakeCourseRepository course = FakeCourseRepository(
+        _client(),
+        listPages: <int, (List<CourseSummaryPayload>, bool)>{
+          1: (_catalogPageOne(), false),
+        },
+      );
+      final ProviderContainer container = _container(
+        courseRepo: course,
+        pageRepo: FakePageRepository(_client()),
+      );
+      await tester.pumpWidget(_app(container, const CourseCatalogPage()));
+      await tester.pumpAndSettle();
+
+      final Finder chip = find
+          .ancestor(of: find.text('只看有评价'), matching: find.byType(InkWell))
+          .first;
+      final Finder fill = _chipFill(chip);
+      final Color? before =
+          (tester.widget<Ink>(fill).decoration! as BoxDecoration).color;
+      await tester.tap(chip);
+      await tester.pump();
+      expect(course.listCalls.last.onlyWithReviews, isTrue);
+      final Color? after =
+          (tester.widget<Ink>(fill).decoration! as BoxDecoration).color;
+      expect(after, isNot(before));
+    });
+
+    testWidgets('filter selection settles when reduced motion turns on', (
+      tester,
+    ) async {
+      final FakeCourseRepository course = FakeCourseRepository(
+        _client(),
+        listPages: <int, (List<CourseSummaryPayload>, bool)>{
+          1: (_catalogPageOne(), false),
+        },
+      );
+      final ProviderContainer container = _container(
+        courseRepo: course,
+        pageRepo: FakePageRepository(_client()),
+      );
+      await tester.pumpWidget(_app(container, const CourseCatalogPage()));
+      await tester.pumpAndSettle();
+
+      final Finder chip = find
+          .ancestor(of: find.text('只看有评价'), matching: find.byType(InkWell))
+          .first;
+      final Finder fill = _chipFill(chip);
+      final Element chipElement = tester.element(chip);
+      final Color expected = GfTheme.colorsOf(
+        tester.element(chip),
+      ).primary.withValues(alpha: 0.1);
+      final Color before =
+          (tester.widget<Ink>(fill).decoration! as BoxDecoration).color!;
+      await tester.tap(chip);
+      await tester.pump();
+      expect(course.listCalls.last.onlyWithReviews, isTrue);
+      await tester.pump(const Duration(milliseconds: 40));
+      final Color middle =
+          (tester.widget<Ink>(fill).decoration! as BoxDecoration).color!;
+      expect(middle, isNot(before));
+      expect(middle, isNot(expected));
+      tester.platformDispatcher.accessibilityFeaturesTestValue =
+          const FakeAccessibilityFeatures(disableAnimations: true);
+      addTearDown(
+        tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
+      );
+      await tester.pump();
+      expect(
+        (tester.widget<Ink>(fill).decoration! as BoxDecoration).color,
+        expected,
+      );
+      expect(identical(chipElement, tester.element(chip)), isTrue);
+      expect(
+        tester
+            .getSemantics(chip)
+            .getSemanticsData()
+            .hasAction(SemanticsAction.tap),
+        isTrue,
+      );
+    });
+
     testWidgets('term controls grow with text and keep a 44 pixel target', (
       tester,
     ) async {
@@ -723,6 +877,61 @@ void main() {
       await tester.tap(expand);
       await tester.pumpAndSettle();
       expect(find.text('+1'), findsNothing);
+      expect(find.text('25春'), findsOneWidget);
+      expect(find.text('25秋'), findsOneWidget);
+      expect(find.text('收起'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+
+      final Finder collapse = find
+          .ancestor(of: find.text('收起'), matching: find.byType(InkWell))
+          .first;
+      await tester.tap(collapse);
+      await tester.pumpAndSettle();
+      expect(find.text('收起'), findsNothing);
+      expect(find.text('+1'), findsOneWidget);
+    });
+
+    testWidgets('course identity leads metadata on a 320px phone at 2x', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(320, 1200);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      const name = '跨学科计算方法与城市系统设计专题研讨课程';
+      final course = FakeCourseRepository(
+        _client(),
+        listPages: {
+          1: ([_course(1, name)], false),
+        },
+      );
+      await tester.pumpWidget(
+        _app(
+          _container(
+            courseRepo: course,
+            pageRepo: FakePageRepository(_client()),
+          ),
+          const CourseCatalogPage(),
+          textScale: 2,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final nameRect = tester.getRect(find.text(name));
+      final teacherRect = tester.getRect(find.text('张三 · 数学科学学院'));
+      final codeRect = tester.getRect(find.text('10001'));
+      expect(nameRect.top, lessThan(teacherRect.top));
+      expect(teacherRect.top, lessThan(codeRect.top));
+      expect(nameRect.right, lessThanOrEqualTo(320));
+      expect(
+        tester.renderObject<RenderParagraph>(find.text(name)).didExceedMaxLines,
+        isFalse,
+      );
+      expect(
+        tester
+            .renderObject<RenderParagraph>(find.text('张三 · 数学科学学院'))
+            .didExceedMaxLines,
+        isFalse,
+      );
       expect(tester.takeException(), isNull);
     });
 

@@ -17,9 +17,9 @@ initDirectImageUpload:
       Business failures (HTTP 200): `upload.attachment.disabled`, `upload.cooldown` (new-account
       upload cooldown, params minutes/availableAt), `upload.dailyLimit` (params count),
       `upload.file.tooLarge` (params maxSizeKb), `upload.extension.unsupported` (params extensions),
-      `upload.image.unsupported`, `upload.image.invalidContent`, `upload.filename.required`,
-      `upload.saveFailed` (params error). Frozen accounts are rejected by the route-level
-      CheckWritableAccount middleware with the standard params action=写入 / actionCode=write.
+      `upload.image.empty`, `upload.image.unsupported`, `upload.image.invalidContent`,
+      `upload.filename.required`, `upload.saveFailed` (params error). Frozen accounts are rejected by the
+      route-level CheckWritableAccount middleware with the standard params action=写入 / actionCode=write.
       The init call is additionally bounded by the `upload` rate limit (429 + Retry-After).
     requestBody:
       required: true
@@ -111,7 +111,9 @@ completeDirectImageUpload:
       Called after the browser uploaded the file to the bucket using the presigned POST policy from
       `/file/img-upload/init`. The server verifies the pending object belongs to the caller and
       re-checks ownership, object size, MIME type and the decoded image header before publishing;
-      a forged or invalid object fails with `upload.image.invalidContent` (HTTP 200). On success the file
+      an empty object fails with `upload.image.empty`, a known-but-unsupported format with
+      `upload.image.unsupported`, and a forged or mismatched object with
+      `upload.image.invalidContent` (HTTP 200). On success the file
       becomes visible and the response carries the final public `url`, the stored object `name` (the
       pending `name` returned by init) and the stored byte `size`. An unknown or foreign `name` fails
       with `page.notFound`; storage failures fail with `upload.saveFailed` (params error). Frozen accounts
@@ -134,6 +136,8 @@ completeDirectImageUpload:
                 externalValue: ../fixtures/direct-img-upload-complete-success.json
               invalidImage:
                 externalValue: ../fixtures/direct-img-upload-complete-invalid-image.json
+              emptyImage:
+                externalValue: ../fixtures/direct-img-upload-complete-empty-image.json
               notFound:
                 externalValue: ../fixtures/direct-img-upload-complete-not-found.json
               saveFailed:

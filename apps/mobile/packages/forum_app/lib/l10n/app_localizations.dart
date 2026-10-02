@@ -228,6 +228,36 @@ abstract class AppLocalizations {
   /// **'Couldn’t save the image. Try again later.'**
   String get imageSaveFailed;
 
+  /// No description provided for @imageUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Can’t display this image'**
+  String get imageUnavailable;
+
+  /// No description provided for @imageUnavailableNetwork.
+  ///
+  /// In en, this message translates to:
+  /// **'The network blocked this image. Try again later.'**
+  String get imageUnavailableNetwork;
+
+  /// No description provided for @imageUnavailableFormat.
+  ///
+  /// In en, this message translates to:
+  /// **'Unsupported image format'**
+  String get imageUnavailableFormat;
+
+  /// No description provided for @imageRetry.
+  ///
+  /// In en, this message translates to:
+  /// **'Retry'**
+  String get imageRetry;
+
+  /// No description provided for @imageOpenInBrowser.
+  ///
+  /// In en, this message translates to:
+  /// **'Open in browser'**
+  String get imageOpenInBrowser;
+
   /// No description provided for @imagePermissionDenied.
   ///
   /// In en, this message translates to:

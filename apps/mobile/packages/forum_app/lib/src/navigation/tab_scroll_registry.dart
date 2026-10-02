@@ -1,8 +1,26 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ui_kit/ui_kit.dart';
 
+import '../../l10n/app_localizations.dart';
+
 /// Stable destinations owned by the persistent mobile shell.
 enum GfShellDestination { home, campus, notifications, messages }
+
+extension GfShellDestinationPresentation on GfShellDestination {
+  String get symbol => switch (this) {
+    GfShellDestination.home => 'house',
+    GfShellDestination.campus => 'graduation-cap',
+    GfShellDestination.messages => 'mail',
+    GfShellDestination.notifications => 'bell',
+  };
+
+  String label(AppLocalizations l10n) => switch (this) {
+    GfShellDestination.home => l10n.navHome,
+    GfShellDestination.campus => l10n.navCampus,
+    GfShellDestination.messages => l10n.navMessages,
+    GfShellDestination.notifications => l10n.notificationsTitle,
+  };
+}
 
 /// Connects persistent shell destinations with their page-owned scroll views.
 ///

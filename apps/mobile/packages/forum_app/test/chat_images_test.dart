@@ -26,6 +26,12 @@ final Uint8List _png = base64Decode(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAACklEQVR4nGMAAQAABQABDQottAAAAABJRU5ErkJggg==',
 );
 
+/// 一张真实可解码的 4x4 JPEG：聊天预览会解码选图字节，测试载荷必须是
+/// 合法图片，不能只有魔数头。
+final Uint8List _jpeg = base64Decode(
+  '/9j/2wCEAAUDBAQEAwUEBAQFBQUGBwwIBwcHBw8LCwkMEQ8SEhEPERETFhwXExQaFRERGCEYGh0dHx8fExciJCIeJBweHx4BBQUFBwYHDggIDh4UERQeHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHv/AABEIAAQABAMBIgACEQEDEQH/xAGiAAABBQEBAQEBAQAAAAAAAAAAAQIDBAUGBwgJCgsQAAIBAwMCBAMFBQQEAAABfQECAwAEEQUSITFBBhNRYQcicRQygZGhCCNCscEVUtHwJDNicoIJChYXGBkaJSYnKCkqNDU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6g4SFhoeIiYqSk5SVlpeYmZqio6Slpqeoqaqys7S1tre4ubrCw8TFxsfIycrS09TV1tfY2drh4uPk5ebn6Onq8fLz9PX29/j5+gEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoLEQACAQIEBAMEBwUEBAABAncAAQIDEQQFITEGEkFRB2FxEyIygQgUQpGhscEJIzNS8BVictEKFiQ04SXxFxgZGiYnKCkqNTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqCg4SFhoeIiYqSk5SVlpeYmZqio6Slpqeoqaqys7S1tre4ubrCw8TFxsfIycrS09TV1tfY2dri4+Tl5ufo6ery8/T19vf4+fr/2gAMAwEAAhEDEQA/APMaKKK+UPuD/9k=',
+);
+
 class _ImagePreviewPageRepository extends PageRepository {
   _ImagePreviewPageRepository(this.preview)
     : super(GfApiClient(dio: Dio(), tokenStorage: MemTokenStorage()));
@@ -78,6 +84,30 @@ class _Files extends FileRepository {
   }
 }
 
+/// 捕获真实 [FileRepository] 上送的 multipart 文件名，让 core 的改名收敛点
+/// （issue #969）在页面真实链路里被断言。
+class _CaptureUploadsAdapter implements HttpClientAdapter {
+  final filenames = <String>[];
+
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
+    final form = options.data as FormData;
+    filenames.add(form.files.single.value.filename!);
+    return ResponseBody.fromString(
+      jsonEncode({'code': 0, 'result': '/file/img/photo.jpg'}),
+      200,
+      headers: {Headers.contentTypeHeader: ['application/json']},
+    );
+  }
+
+  @override
+  void close({bool force = false}) {}
+}
+
 class _ImageStore extends ChatDraftStore {
   bool failWrites = false;
   @override
@@ -118,6 +148,7 @@ void main() {
     WidgetTester tester, {
     List<ChatMessagePayload>? messages,
     Locale locale = const Locale('en'),
+    FileRepository? uploads,
   }) async {
     if (!imageStoreCreated) {
       imageStore = _ImageStore();
@@ -132,7 +163,7 @@ void main() {
       ),
       overrides: [
         imagePickerProvider.overrideWithValue(photos),
-        fileRepositoryProvider.overrideWithValue(files),
+        fileRepositoryProvider.overrideWithValue(uploads ?? files),
         chatDraftStoreProvider.overrideWithValue(imageStore),
       ],
     );
@@ -326,6 +357,30 @@ void main() {
       await dispose(tester);
     });
   }
+
+  testWidgets('re-encoded picker output uploads under the sniffed jpg name', (
+    tester,
+  ) async {
+    final adapter = _CaptureUploadsAdapter();
+    final uploads = FileRepository(
+      GfApiClient(
+        dio: Dio()..httpClientAdapter = adapter,
+        tokenStorage: MemTokenStorage(),
+      ),
+    );
+    photos.file = XFile.fromData(
+      _jpeg,
+      name: 'scaled_photo.png',
+      path: 'scaled_photo.png',
+    );
+    await pump(tester, uploads: uploads);
+    await choose(tester);
+    await tester.tap(find.widgetWithText(FilledButton, 'Send'));
+    await tester.pumpAndSettle();
+    expect(adapter.filenames, ['scaled_photo.jpg']);
+    expect(chat.sent.single.$2, '/file/img/photo.jpg');
+    await dispose(tester);
+  });
 
   testWidgets(
     'image selection previews before upload and cancel preserves draft',

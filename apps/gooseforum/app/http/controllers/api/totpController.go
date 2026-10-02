@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/gin-gonic/gin"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/algorithm"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/jwtopt"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
@@ -15,6 +14,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/sessionservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/totpservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/userservice"
+	"github.com/gin-gonic/gin"
 )
 
 // TotpSetupReq 获取两步验证设置，需登录密码二次确认。
@@ -89,8 +89,13 @@ type TotpStatusReq struct{}
 
 // TotpStatus 返回当前用户是否已启用两步验证。
 func TotpStatus(req component.BetterRequest[TotpStatusReq]) component.Response {
+	enabled, err := totpservice.IsEnabled(req.UserId)
+	if err != nil {
+		slog.Error("TOTP status lookup failed", "userId", req.UserId, "error", err)
+		return component.FailResponseCode(component.MessageOperationFailed, nil)
+	}
 	return component.SuccessResponseCode(
-		component.DataMap{"enabled": totpservice.IsEnabled(req.UserId)},
+		component.DataMap{"enabled": enabled},
 		component.MessageOperationSuccess,
 		nil)
 }
@@ -173,11 +178,18 @@ func TotpVerify(c *gin.Context) {
 		return
 	}
 	ok, err := totpservice.Verify(userId, code)
-	if err != nil || !ok {
+	if err != nil {
 		if errors.Is(err, totpservice.ErrRateLimited) {
 			c.JSON(http.StatusOK, component.FailDataCode(component.MessageTotpRateLimited, nil))
 			return
 		}
+		if !errors.Is(err, totpservice.ErrInvalidCode) && !errors.Is(err, totpservice.ErrNotEnabled) {
+			slog.Error("TOTP verify failed", "userId", userId, "error", err)
+			c.JSON(http.StatusOK, component.FailDataCode(component.MessageOperationFailed, nil))
+			return
+		}
+	}
+	if err != nil || !ok {
 		c.JSON(http.StatusOK, component.FailDataCode(component.MessageTotpCodeInvalid, nil))
 		return
 	}

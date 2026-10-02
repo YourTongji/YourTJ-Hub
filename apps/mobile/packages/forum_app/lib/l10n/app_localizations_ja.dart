@@ -76,6 +76,21 @@ class AppLocalizationsJa extends AppLocalizations {
   String get imageSaveFailed => '画像を保存できませんでした。後でもう一度お試しください。';
 
   @override
+  String get imageUnavailable => 'この画像を表示できません';
+
+  @override
+  String get imageUnavailableNetwork => 'ネットワークの制限で画像を読み込めませんでした。';
+
+  @override
+  String get imageUnavailableFormat => '未対応の画像形式です';
+
+  @override
+  String get imageRetry => '再試行';
+
+  @override
+  String get imageOpenInBrowser => 'ブラウザで開く';
+
+  @override
   String get imagePermissionDenied => '写真へのアクセスが拒否されました。システム設定で許可してください。';
 
   @override
