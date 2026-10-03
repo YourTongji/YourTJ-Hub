@@ -36,7 +36,7 @@ channel's notes. The status site's `/mobile/releases.json` catalog appears only 
 channel receipt is bound to the merged candidate's source SHA and content digest. App Store submission
 or review is not public availability; TestFlight requires `APPROVED`. Catalog coverage is tracked
 per channel, so old unstructured releases do not claim complete note history. See the
-[catalog contract](../../apps/status/api/openapi.yaml) and [release pipeline decision](../decisions/0058-receipt-backed-mobile-release-catalog.md).
+[catalog contract](../../apps/status/api/openapi.yaml) and [release pipeline decision](../decisions/0059-receipt-backed-mobile-release-catalog.md).
 `completeFromBuild` is an inclusive minimum installed-build threshold for claiming a complete
 upgrade range, not a claim that every build from that number has a structured entry. When no older
 unstructured public build is known, it equals the first structured build; installations below that

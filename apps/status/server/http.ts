@@ -15,7 +15,9 @@ export function timestamp(v: unknown): number {
   return n
 }
 export async function json(fetcher: Fetcher, url: string, signal: AbortSignal, init: RequestInit = {}): Promise<unknown> {
-  const response = await fetcher(url, { ...init, signal, redirect: 'error', headers: { Accept: 'application/json', ...(init.body ? { 'Content-Type': 'application/json' } : {}), ...init.headers } })
+  // Workers supports manual redirects, not redirect: 'error'. Reject every
+  // non-200 below so credentials are never forwarded to a redirected origin.
+  const response = await fetcher(url, { ...init, signal, redirect: 'manual', headers: { Accept: 'application/json', ...(init.body ? { 'Content-Type': 'application/json' } : {}), ...init.headers } })
   if (response.status !== 200 || !response.body) throw new Error('Source unavailable')
   const reader = response.body.getReader(), chunks: Uint8Array[] = []
   let size = 0

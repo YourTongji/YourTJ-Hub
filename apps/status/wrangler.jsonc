@@ -1,0 +1,65 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "yourtj-status-preview",
+  "account_id": "fc5e2d06f36d7408ebb70d3c501de6d8",
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-10-03",
+  "workers_dev": true,
+  "preview_urls": false,
+  "assets": {
+    "directory": "./dist",
+    "run_worker_first": [
+      "/api/*",
+      "/mobile/releases.json"
+    ],
+    "not_found_handling": "404-page"
+  },
+  "r2_buckets": [
+    {
+      "binding": "SNAPSHOTS",
+      "bucket_name": "yourtj-status-preview"
+    }
+  ],
+  "vars": {
+    "STATUS_ENABLED": "false"
+  },
+  "triggers": {
+    "crons": []
+  },
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 0.1
+  },
+  "env": {
+    "production": {
+      "name": "yourtj-status",
+      "workers_dev": true,
+      "preview_urls": false,
+      "routes": [
+        {
+          "pattern": "status.yourtj.de",
+          "custom_domain": true
+        }
+      ],
+      "r2_buckets": [
+        {
+          "binding": "SNAPSHOTS",
+          "bucket_name": "yourtj-status"
+        }
+      ],
+      "vars": {
+        "STATUS_ENABLED": "true",
+        "UMAMI_URL": "https://umi.yourtj.de",
+        "UMAMI_SHARE_ID": "ppYkIEzslggfAk81",
+        "KOMARI_URL": "https://km.ryusel.com",
+        "KOMARI_NODE_ID": "e643a364-0372-43b2-a341-b05d858866ad",
+        "UPTIME_URL": "https://uptime.mortis.de5.net",
+        "UPTIME_SLUG": "a",
+        "UMAMI_DEVICE_REVISION": "v1"
+      },
+      "triggers": {
+        "crons": []
+      }
+    }
+  }
+}

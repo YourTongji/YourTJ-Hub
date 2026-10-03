@@ -2,7 +2,7 @@ import { fileURLToPath } from 'node:url'
 import { createServer, loadEnv } from 'vite'
 
 // Worktree-friendly local preview. Uses the real collectors and API with memory-only snapshots;
-// it never connects to Netlify Blobs or writes to production. Secrets stay in this Node process.
+// it never connects to R2 or writes to production. Secrets stay in this Node process.
 const root = fileURLToPath(new URL('../', import.meta.url))
 const data = new Map()
 let version = 0

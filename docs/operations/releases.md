@@ -141,8 +141,9 @@ Release. Android requires all three APK SHA-256 values; TestFlight requires `APP
 submission states do not count as public availability. A matching exact China storefront lookup may
 add a public App Store build, and a prior catalog's covered public builds remain covered after the
 store advances. Missing structured channel history is omitted and expressed in per-channel coverage.
-The status site's `/mobile/releases.json` route proxies this fixed asset with bounded reads, a short
-timeout, conditional ETags and stale-capable CDN caching. It is display-only and contains no evidence.
+The status Worker's `/mobile/releases.json` route proxies this fixed asset with bounded reads, a short
+timeout and conditional ETags; it sets client cache headers but writes no edge cache or snapshot storage.
+It is display-only and contains no evidence.
 Normal release publication refreshes the catalog; operators may run the trusted-main manual refresh
 workflow after reconciling a receipt or catalog failure.
 For multiple successful App Store requests for the same binary, the most recently merged reviewed

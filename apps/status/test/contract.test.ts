@@ -37,7 +37,7 @@ it('validates the history-only fixture against an actual handler response', asyn
   const { history, historyAvailable, historyFetchedAt } = fixture.result.server.data
   const store: SnapshotStore = {
     async read<T>(key: string) {
-      return key === cacheKey(config, 'komari', 'history-1h')
+      return key === await cacheKey(config, 'komari', 'history-1h')
         ? { value: { attemptedAt: Date.parse(historyFetchedAt), fetchedAt: historyFetchedAt, failed: false, data: { history, historyAvailable } } as Stored<T>, etag: '1' } : null
     },
     async write() { return false },

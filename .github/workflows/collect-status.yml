@@ -1,0 +1,67 @@
+name: Collect / status
+
+on:
+  schedule:
+    - cron: '2,17,32,47 * * * *'
+    - cron: '7 * * * *'
+  workflow_dispatch:
+    inputs:
+      kind:
+        type: choice
+        options: [public, devices]
+        default: public
+
+permissions:
+  contents: read
+
+concurrency:
+  group: collect-status-production
+  cancel-in-progress: false
+
+jobs:
+  dispatch:
+    # The default-branch scheduler gets no production environment or credentials.
+    if: github.repository == 'YourTongji/YourTJ-Hub' && vars.STATUS_COLLECTION_ENABLED == 'true' && github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions:
+      actions: write
+    steps:
+      - name: Dispatch reviewed workflow on main
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          COLLECTION_KIND: ${{ github.event.schedule == '7 * * * *' && 'devices' || 'public' }}
+        run: gh workflow run collect-status.yml --repo "$GH_REPO" --ref main -f "kind=$COLLECTION_KIND"
+  collect:
+    # Both this workflow definition and its checked-out source must come from main.
+    # The environment's deployment branch policy must also allow main only.
+    if: github.repository == 'YourTongji/YourTJ-Hub' && vars.STATUS_COLLECTION_ENABLED == 'true' && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: status-collector
+    defaults:
+      run:
+        working-directory: apps/status
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413
+        with:
+          version: 11.11.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: apps/status/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - name: Collect snapshots into private R2
+        env:
+          COLLECTION_KIND: ${{ inputs.kind }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          UMAMI_USERNAME: ${{ secrets.UMAMI_USERNAME }}
+          UMAMI_PASSWORD: ${{ secrets.UMAMI_PASSWORD }}
+        run: pnpm exec tsx scripts/collect-cloud.ts "$COLLECTION_KIND" production

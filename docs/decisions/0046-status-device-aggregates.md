@@ -52,6 +52,6 @@ joint reports need more time than basic counters. Other providers retain their e
 - [Approved risk contract STATUS-ANALYTICS-926-927](https://github.com/YourTongji/YourTJ-Hub/pull/926#issuecomment-5874262017)
 
 - [Status product semantics](../product/server-status.md)
-- [Functions configuration](../operations/status-netlify.md)
+- [Collection configuration](../operations/status-cloudflare.md)
 - [Umami authentication](https://docs.umami.is/docs/api/authentication)
 - [Umami Breakdown report implementation](https://github.com/umami-software/umami/blob/v3.3.0/src/queries/sql/reports/getBreakdown.ts)

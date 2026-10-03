@@ -70,7 +70,7 @@ it('reads the public Umami share with context headers, supports v2/v3 counts and
   expect(result.series[0]!.time).toBe('2026-09-14T11:00:00.000Z')
   for (const call of mock.calls.filter(c => c.url.includes('/websites/'))) {
     expect(call.init!.headers).toMatchObject({ 'X-Umami-Share-Token': 'private-token', 'X-Umami-Share-Context': 'overview' })
-    expect(call.init!.redirect).toBe('error')
+    expect(call.init!.redirect).toBe('manual')
   }
   expect(new URL(mock.calls.find(c => c.url.includes('/stats'))!.url).searchParams.get('unit')).toBe('day')
   expect(JSON.stringify(result)).not.toContain('private-token')

@@ -112,9 +112,9 @@ curl -sS -D - -o /dev/null https://f.yourtj.de/                               # 
 
 ### Status data sources
 
-**Current**：运行状态应用由 Netlify 独立提供，论坛侧栏链接到 `https://status.yourtj.de`。
-来源配置属于 Netlify 项目的 Functions 环境变量，不属于论坛实例 TOML 或部署渲染流程。
-完整设置、发布与故障验收见 [Netlify 状态站部署](status-netlify.md)。
+**Current**：运行状态应用由 Cloudflare 独立提供，论坛侧栏链接到 `https://status.yourtj.de`。
+来源配置属于 Worker 的服务端环境变量，不属于论坛实例 TOML 或部署渲染流程。
+完整设置、发布与故障验收见 [Cloudflare 状态站部署](status-cloudflare.md)。
 
 ### Umami 访问统计与会话回放
 

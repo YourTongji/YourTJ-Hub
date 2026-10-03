@@ -152,7 +152,7 @@ make build
 apps/
   gooseforum/       Go + Vue 论坛，前端最终嵌入后端二进制
   mobile/           Flutter / Melos 移动端工作区
-  status/           独立 Vue 状态站，部署到 Netlify
+  status/           独立 Vue 状态站，部署到 Cloudflare
 packages/
   api-contract/     OpenAPI、fixtures 与生成脚本
 services/           Meilisearch、积分等服务配置

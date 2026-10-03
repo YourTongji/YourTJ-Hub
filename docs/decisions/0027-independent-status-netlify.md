@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Superseded by [0058](0058-status-cloudflare.md)
 Class: architecture
 
 ## Context and Problem Statement
@@ -50,7 +50,6 @@ Supersedes [0026](0026-public-status-projection.md). Forum single-binary deploym
 ## Links
 
 - [Product specification](../product/server-status.md)
-- [Deployment runbook](../operations/status-netlify.md)
 - [Netlify Scheduled Functions](https://docs.netlify.com/build/functions/scheduled-functions/)
 - [Netlify Blobs consistency and conditional writes](https://docs.netlify.com/build/data-and-storage/netlify-blobs/)
 - [Netlify caching](https://docs.netlify.com/build/caching/caching-overview/)
