@@ -147,6 +147,7 @@ class ChromeAlignedPage extends StatefulWidget {
 }
 
 class _ChromeAlignedPageState extends State<ChromeAlignedPage> {
+  ScrollableState? _scrollable;
   ScrollPosition? _position;
   double? _restoreTo;
 
@@ -173,8 +174,26 @@ class _ChromeAlignedPageState extends State<ChromeAlignedPage> {
   double _alignedOffset(ScrollPosition position) =>
       math.min(widget.topInset, position.maxScrollExtent);
 
-  void _align() {
+  /// The tracked position while its Scrollable still owns it. A feed that
+  /// swaps its list for a loader or error disposes the position without
+  /// another notification, so a detached one is forgotten here.
+  ScrollPosition? get _livePosition {
+    final ScrollableState? scrollable = _scrollable;
     final ScrollPosition? position = _position;
+    if (scrollable != null &&
+        position != null &&
+        scrollable.mounted &&
+        identical(scrollable.position, position)) {
+      return position;
+    }
+    _scrollable = null;
+    _position = null;
+    _restoreTo = null;
+    return null;
+  }
+
+  void _align() {
+    final ScrollPosition? position = _livePosition;
     if (position == null || !position.hasContentDimensions) return;
     if (_restoreTo != null) return;
     final double target = _alignedOffset(position);
@@ -184,7 +203,7 @@ class _ChromeAlignedPageState extends State<ChromeAlignedPage> {
   }
 
   void _restore() {
-    final ScrollPosition? position = _position;
+    final ScrollPosition? position = _livePosition;
     final double? from = _restoreTo;
     _restoreTo = null;
     if (position == null || from == null || !position.hasContentDimensions) {
@@ -196,8 +215,10 @@ class _ChromeAlignedPageState extends State<ChromeAlignedPage> {
 
   void _track(BuildContext? context, int depth, Axis axis) {
     if (context == null || depth != 0 || axis != Axis.vertical) return;
-    final ScrollPosition? position = Scrollable.maybeOf(context)?.position;
+    final ScrollableState? scrollable = Scrollable.maybeOf(context);
+    final ScrollPosition? position = scrollable?.position;
     if (position == null || identical(position, _position)) return;
+    _scrollable = scrollable;
     _position = position;
     _restoreTo = null;
     // A freshly laid out page has not been seen yet, so it starts aligned

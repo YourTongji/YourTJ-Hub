@@ -13,6 +13,45 @@ import 'package:forum_app/l10n/app_localizations.dart';
 import 'package:ui_kit/ui_kit.dart';
 import 'fixtures/page_fixtures.dart';
 
+/// One [ChromeAlignedPage] whose scroll view, visibility and chrome state the
+/// test flips directly, like a retained Home feed that swaps to a loader.
+class _DetachingPage extends StatefulWidget {
+  const _DetachingPage();
+
+  @override
+  State<_DetachingPage> createState() => _DetachingPageState();
+}
+
+class _DetachingPageState extends State<_DetachingPage> {
+  bool scrollable = true;
+  bool offstage = false;
+  bool hidden = false;
+
+  void set({bool? scrollable, bool? offstage, bool? hidden}) => setState(() {
+    this.scrollable = scrollable ?? this.scrollable;
+    this.offstage = offstage ?? this.offstage;
+    this.hidden = hidden ?? this.hidden;
+  });
+
+  @override
+  Widget build(BuildContext context) => MaterialApp(
+    home: TickerMode(
+      enabled: !offstage,
+      child: ChromeAlignedPage(
+        topInset: 48,
+        chromeHidden: hidden,
+        current: !offstage,
+        child: scrollable
+            ? ListView(
+                padding: const EdgeInsets.only(top: 48),
+                children: const [SizedBox(height: 2000)],
+              )
+            : const Text('loading'),
+      ),
+    ),
+  );
+}
+
 void main() {
   testWidgets('an empty feed still supports pull to refresh', (tester) async {
     var refreshed = 0;
@@ -160,6 +199,39 @@ void main() {
     expect(fullSchedulerUri.userInfo, isEmpty);
     await tester.tap(find.byType(TextButton));
     expect(opened, isTrue);
+  });
+  testWidgets('a page whose scroll view was replaced is left alone', (
+    tester,
+  ) async {
+    await tester.pumpWidget(const _DetachingPage());
+    await tester.pumpAndSettle();
+    final page = tester.state<_DetachingPageState>(find.byType(_DetachingPage));
+
+    // Align path: the feed swaps to a loader, then goes off screen hidden.
+    page.set(scrollable: false);
+    await tester.pumpAndSettle();
+    page.set(offstage: true, hidden: true);
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+
+    // Restore path: aligned off screen, then replaced before chrome returns.
+    page.set(scrollable: true, offstage: false, hidden: false);
+    await tester.pumpAndSettle();
+    page.set(offstage: true, hidden: true);
+    await tester.pumpAndSettle();
+    page.set(scrollable: false);
+    await tester.pumpAndSettle();
+    page.set(hidden: false);
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+
+    // A new scroll view is picked up and aligned again.
+    page.set(scrollable: true, hidden: true);
+    await tester.pumpAndSettle();
+    expect(
+      tester.state<ScrollableState>(find.byType(Scrollable)).position.pixels,
+      48,
+    );
   });
   test('chrome follows the finger and settles in the last direction', () {
     final chrome = ReadingChrome();
