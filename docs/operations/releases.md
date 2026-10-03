@@ -139,8 +139,18 @@ Android/App Store text is at most 400 characters, TestFlight text at most 500, t
 summaries 1–400, and `required` must be boolean. Web/operators retain their three-field entry format.
 Entries without a linked PR keep a text-hash `oryn-` ID, which the reviewer replaces
 with a concise semantic slug. The reviewer still checks wording, kind and grouping before approval.
-Android notes use the app's sections: required, security, new, improved and fixed. A summary that
-only restates its title is rendered once.
+Android and App Store notes use the app's sections: required, security, new, improved and fixed,
+omitting empty sections. Android uses Markdown headings and bullets; App Store uses plain-text
+headings, blank lines and `•` bullets. A summary that only restates its title is rendered once.
+New mobile changelogs set `notesFormatVersion: 2`; the controller owns this field, not Oryn.
+An absent field or value `1` retains the original flat App Store text byte-for-byte for existing
+candidates and recovery. To upgrade an unapproved candidate, explicitly set the field to `2` and run
+`python3 scripts/release/workflow.py render-structured --candidate <id> --replace-structured`.
+Review the resulting diff and obtain human approval on the new head; this changes the candidate
+digest. Never upgrade an already approved candidate during recovery. Android and TestFlight formats
+are unchanged, and section labels and bullets count towards the App Store's 4000-character limit.
+The public mobile catalog contains structured entries, not this store-copy formatting field; the
+app continues to render those entries with its native update-history and prompt views.
 
 The trusted-main catalog publisher derives `releases.json` from merged reviewed candidates and
 successful channel deployment receipts. It validates each receipt against the candidate source SHA
