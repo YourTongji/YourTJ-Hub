@@ -1,0 +1,478 @@
+{
+  "schemaVersion": 1,
+  "version": "1.0.16",
+  "buildNumber": 17,
+  "highlights": [
+    {
+      "id": "pr-1018",
+      "title": "字号实时预览",
+      "summary": "在外观设置中分别调整全局文字和正文阅读大小，即时预览效果；首页置顶更紧凑，阅读时导航栏随滚动收起与展开。",
+      "platforms": [
+        "android"
+      ],
+      "kind": "feature"
+    },
+    {
+      "id": "pr-959",
+      "title": "课评与图片分享",
+      "summary": "课程评价支持插图、模板、举报和个人管理；课评、帖子及回复可生成多种主题的分享图片。",
+      "platforms": [
+        "android"
+      ],
+      "kind": "feature"
+    },
+    {
+      "id": "pr-974",
+      "title": "正文阅读更统一",
+      "summary": "帖子、Wiki 和课评统一文字层级；代码块支持高亮与复制，宽表格可在区域内横向滚动。",
+      "platforms": [
+        "android"
+      ],
+      "kind": "improvement"
+    },
+    {
+      "id": "pr-999",
+      "title": "发布与审核提示",
+      "summary": "站点开启检查模式后，拦截提示说明修改方式并保留编辑内容；可查看自己审核中的话题、回复与配图。AI 检查默认关闭，仅记录模式不影响发布。",
+      "platforms": [
+        "android"
+      ],
+      "kind": "improvement"
+    },
+    {
+      "id": "pr-1012",
+      "title": "课评操作更连贯",
+      "summary": "有用与不喜欢互斥切换，计数即时更新；修复失败回退、编辑器和小屏布局问题。",
+      "platforms": [
+        "android"
+      ],
+      "kind": "fix"
+    },
+    {
+      "id": "pr-980",
+      "title": "图片上传与显示",
+      "summary": "修复压缩后图片因扩展名不匹配而上传失败，以及部分外链图片无法显示的问题；加载失败可重试或在浏览器打开。",
+      "platforms": [
+        "android"
+      ],
+      "kind": "fix"
+    },
+    {
+      "id": "pr-964",
+      "title": "注册与验证提示",
+      "summary": "修复注册邮箱拼接和错误提示，补齐注册成功后的邮箱验证说明。",
+      "platforms": [
+        "android"
+      ],
+      "kind": "fix"
+    },
+    {
+      "id": "pr-1000",
+      "title": "倒序查看回复",
+      "summary": "修复倒序模式未加载最新回复的问题。",
+      "platforms": [
+        "android"
+      ],
+      "kind": "fix"
+    },
+    {
+      "id": "pr-981",
+      "title": "校园页面失败重试",
+      "summary": "学校授权页面遇到主页面 HTTP 错误时显示可重试提示，避免停留在无法恢复的错误页。",
+      "platforms": [
+        "android"
+      ],
+      "kind": "fix"
+    },
+    {
+      "id": "pr-1002",
+      "title": "验证码说明",
+      "summary": "发布或回复需要验证码时，说明触发原因及自动解除条件。",
+      "platforms": [
+        "android"
+      ],
+      "kind": "improvement"
+    },
+    {
+      "id": "pr-1018-ios",
+      "title": "字号实时预览",
+      "summary": "在外观设置中分别调整全局文字和正文阅读大小，即时预览效果；首页置顶更紧凑，阅读时导航栏随滚动收起与展开。",
+      "platforms": [
+        "ios-app-store"
+      ],
+      "kind": "feature"
+    },
+    {
+      "id": "pr-959-ios",
+      "title": "课评与图片分享",
+      "summary": "课程评价支持插图、模板、举报和个人管理；课评、帖子及回复可生成多种主题的分享图片。",
+      "platforms": [
+        "ios-app-store"
+      ],
+      "kind": "feature"
+    },
+    {
+      "id": "pr-974-ios",
+      "title": "正文阅读更统一",
+      "summary": "帖子、Wiki 和课评统一文字层级；代码块支持高亮与复制，宽表格可在区域内横向滚动。",
+      "platforms": [
+        "ios-app-store"
+      ],
+      "kind": "improvement"
+    },
+    {
+      "id": "pr-999-ios",
+      "title": "发布与审核提示",
+      "summary": "站点开启检查模式后，拦截提示说明修改方式并保留编辑内容；可查看自己审核中的话题、回复与配图。AI 检查默认关闭，仅记录模式不影响发布。",
+      "platforms": [
+        "ios-app-store"
+      ],
+      "kind": "improvement"
+    },
+    {
+      "id": "pr-1012-ios",
+      "title": "课评操作更连贯",
+      "summary": "有用与不喜欢互斥切换，计数即时更新；修复失败回退、编辑器和小屏布局问题。",
+      "platforms": [
+        "ios-app-store"
+      ],
+      "kind": "fix"
+    },
+    {
+      "id": "pr-980-ios",
+      "title": "图片上传与显示",
+      "summary": "修复压缩后图片因扩展名不匹配而上传失败，以及部分外链图片无法显示的问题；加载失败可重试或在浏览器打开。",
+      "platforms": [
+        "ios-app-store"
+      ],
+      "kind": "fix"
+    },
+    {
+      "id": "pr-964-ios",
+      "title": "注册与验证提示",
+      "summary": "修复注册邮箱拼接和错误提示，补齐注册成功后的邮箱验证说明。",
+      "platforms": [
+        "ios-app-store"
+      ],
+      "kind": "fix"
+    },
+    {
+      "id": "pr-1000-ios",
+      "title": "倒序查看回复",
+      "summary": "修复倒序模式未加载最新回复的问题。",
+      "platforms": [
+        "ios-app-store"
+      ],
+      "kind": "fix"
+    },
+    {
+      "id": "pr-981-ios",
+      "title": "校园页面失败重试",
+      "summary": "学校授权页面遇到主页面 HTTP 错误时显示可重试提示，避免停留在无法恢复的错误页。",
+      "platforms": [
+        "ios-app-store"
+      ],
+      "kind": "fix"
+    },
+    {
+      "id": "pr-1002-ios",
+      "title": "验证码说明",
+      "summary": "发布或回复需要验证码时，说明触发原因及自动解除条件。",
+      "platforms": [
+        "ios-app-store"
+      ],
+      "kind": "improvement"
+    },
+    {
+      "id": "pr-1020",
+      "title": "更新摘要与历史",
+      "summary": "发现 Android 更新时展示该渠道的版本变化，并可查看更新记录；保留 APK 校验与系统安装流程。",
+      "platforms": [
+        "android"
+      ],
+      "kind": "feature"
+    },
+    {
+      "id": "pr-1020-ios",
+      "title": "更新摘要与历史",
+      "summary": "关于页支持手动检查 App Store 更新；应用内更新记录按类别展示正式版本变化。",
+      "platforms": [
+        "ios-app-store"
+      ],
+      "kind": "feature"
+    },
+    {
+      "id": "pr-985-ios",
+      "title": "iOS 导航体验",
+      "summary": "二级页面支持从左边缘交互式返回，底部导航更紧凑，并优化内容层级与间距。",
+      "platforms": [
+        "ios-app-store"
+      ],
+      "kind": "improvement"
+    },
+    {
+      "id": "pr-941-ios",
+      "title": "缓存与本机数据管理",
+      "summary": "可查看分类占用、清理缓存或重置本机数据；清理缓存保留登录、草稿、未发送私信和排课方案，重置前提示将删除的本机作品。",
+      "platforms": [
+        "ios-app-store"
+      ],
+      "kind": "feature"
+    },
+    {
+      "id": "pr-955-ios",
+      "title": "私信图片与引用",
+      "summary": "选图预览后可发送图片，失败后可重试；引用消息可跳转定位，并返回刚才的阅读位置。",
+      "platforms": [
+        "ios-app-store"
+      ],
+      "kind": "feature"
+    },
+    {
+      "id": "pr-956-ios",
+      "title": "校园跨日刷新",
+      "summary": "跨上海日期后首次进入我的校园会自动刷新，失败时保留旧快照并可重试。",
+      "platforms": [
+        "ios-app-store"
+      ],
+      "kind": "improvement"
+    },
+    {
+      "id": "pr-957-ios",
+      "title": "课表小组件",
+      "summary": "随本地时间线隐藏已结束的课程，保留正在进行和后续课程；已有有效次日缓存时可切换到第二天。",
+      "platforms": [
+        "ios-app-store"
+      ],
+      "kind": "improvement"
+    },
+    {
+      "id": "pr-947-ios",
+      "title": "表情阅读与预览",
+      "summary": "帖子和私信中的图片表情放大显示，支持点击查看；表情库补齐明确的移除入口与 GIF 预览。",
+      "platforms": [
+        "ios-app-store"
+      ],
+      "kind": "improvement"
+    },
+    {
+      "id": "pr-967-ios",
+      "title": "校园授权误报",
+      "summary": "修复 iOS 正常跳转学校登录页时被误判为授权过期的问题。",
+      "platforms": [
+        "ios-app-store"
+      ],
+      "kind": "fix"
+    }
+  ],
+  "breaking": [],
+  "requiredActions": [
+    {
+      "id": "pr-950-ios",
+      "title": "访问统计政策变更",
+      "summary": "升级后，正式 iOS App 连接正式站时会自动统计公开页面访问，游客和已登录用户均适用；原“参与访问统计”关闭选择不再生效，App 内不再提供关闭开关。关于页可查看统计说明，详情见隐私政策。",
+      "platforms": [
+        "ios-app-store"
+      ],
+      "kind": "improvement"
+    }
+  ],
+  "evidence": {
+    "pr-1018": [
+      "86b46756e27ef1dfe9a0b002",
+      "4eb4d42c78f97e1102e38d74"
+    ],
+    "pr-959": [
+      "27bb9efa99959bb98b645d59",
+      "1ec330d8cbae0c87b4fd4245",
+      "3eedd9e1b5106b0c67b9f156"
+    ],
+    "pr-974": [
+      "8aa1e8bc64686387a797a72f",
+      "4e0024364875fd6a5632dc69",
+      "074f861d8b7e648bbf931498"
+    ],
+    "pr-999": [
+      "e10966936a3b369a025a0d3c",
+      "728cf7bc74197fcd0a504e7b",
+      "8164c3225f5c3cc0373a6512"
+    ],
+    "pr-1012": [
+      "88971cfab75d723f9c54e9af",
+      "27bb9efa99959bb98b645d59"
+    ],
+    "pr-980": [
+      "0312184dad801348d5060ede",
+      "5668eac92b0cc5d855c2ae98"
+    ],
+    "pr-964": [
+      "9eaf1f9faa038e31bcd6a322"
+    ],
+    "pr-1000": [
+      "728cf7bc74197fcd0a504e7b"
+    ],
+    "pr-981": [
+      "244ea952812bb244796f9543"
+    ],
+    "pr-1002": [
+      "728cf7bc74197fcd0a504e7b"
+    ],
+    "pr-1018-ios": [
+      "0c645c061a9212b7b70a6dd7",
+      "32b436970d6d26b0e42b67da"
+    ],
+    "pr-959-ios": [
+      "4c45f492f76929abe733cf75",
+      "035fde75164603967339e500",
+      "a57873aa1546d7b43d45ecb2"
+    ],
+    "pr-974-ios": [
+      "901df8a1889310930f10d527",
+      "0d301f3a2faee63793166a7f",
+      "812b7c71879c8d06d17b5140"
+    ],
+    "pr-999-ios": [
+      "939ce97dd514565492298b44",
+      "c4ab77f9f8a6068342630934",
+      "3af3a3dcd33e9ab9eb80c434"
+    ],
+    "pr-1012-ios": [
+      "13fea9eba2508269916adde3",
+      "4c45f492f76929abe733cf75"
+    ],
+    "pr-980-ios": [
+      "137fa134c262677f704442bc",
+      "53fbb19d9cc9029f4270cbaf"
+    ],
+    "pr-964-ios": [
+      "a53b6b4109ed568093f08b7f"
+    ],
+    "pr-1000-ios": [
+      "c4ab77f9f8a6068342630934"
+    ],
+    "pr-981-ios": [
+      "5bd85a8b43e96563f73b7b1e"
+    ],
+    "pr-1002-ios": [
+      "c4ab77f9f8a6068342630934"
+    ],
+    "pr-1020": [
+      "5287987722b68bc3cb0efd55",
+      "9c8a8d6e8b20ba27695c4565"
+    ],
+    "pr-1020-ios": [
+      "d9eb88211b5f5e31ba3c9ad9",
+      "99fad30354c4bc70de46e802",
+      "ed3433036c1dfea5abca9a47"
+    ],
+    "pr-985-ios": [
+      "6464a0ab0967a4dafaf75b4a",
+      "eebc686aaf4fd8e414a85687"
+    ],
+    "pr-941-ios": [
+      "837b2904e58ca2ef99ea78df",
+      "d95246e802709bfd5a33be2f",
+      "d8dbed59ebfe4ae804baf1fb"
+    ],
+    "pr-955-ios": [
+      "79ffa46abb9ff18a2d701fb2",
+      "702f67bc562cdb39b3a68794",
+      "d95787c27afcaa9aca2ddbe9"
+    ],
+    "pr-956-ios": [
+      "e869af21616636ae10774c06"
+    ],
+    "pr-957-ios": [
+      "2d50db0708072af0bb94423e",
+      "be48ec0e1b021d7d34155662"
+    ],
+    "pr-947-ios": [
+      "067a0ff727ac6e6b3c67a100",
+      "89de86c661b079b8609d39b0",
+      "9ca558ce3bee5a5f40599ad1"
+    ],
+    "pr-967-ios": [
+      "5bd85a8b43e96563f73b7b1e"
+    ],
+    "pr-950-ios": [
+      "a32e03735dbaf941823da326"
+    ],
+    "beta-reading-navigation": [
+      "a209cc2c75411ce478c3465b",
+      "256f5525bf232b351de243e0",
+      "c59d91de2adbc31ecbb36e05"
+    ],
+    "beta-course-reviews": [
+      "85c7dce5bf94fa52afbcedf3",
+      "200aa837a7f26467bc26cd33",
+      "c8e6b1b2778926fb405a3542"
+    ],
+    "beta-moderation": [
+      "f435a8a269f2573c4c7402e7",
+      "f5e15eab87330c0b7d317ad2",
+      "1da85ad31c78a2eb882fef6f"
+    ],
+    "beta-upload-auth-replies": [
+      "7defafba1ebe5b506ac8e4d7",
+      "3b2338c914c7607ca9f90636",
+      "f5e15eab87330c0b7d317ad2",
+      "a2c4d2c5dde1716621df1208",
+      "c4472def71063ff37668aff9"
+    ],
+    "beta-release-history": [
+      "9d1d6f7d1016d612e20db785",
+      "1959c95415882178b4667f66",
+      "b116ff75f5e61a53b17905b9"
+    ]
+  },
+  "testflightNotes": [
+    {
+      "id": "beta-reading-navigation",
+      "text": "On iPhone and iPad, adjust both text-size sliders, check live preview and large-text layouts, scroll to hide/reveal navigation, and test cancelling and completing the left-edge back gesture.",
+      "evidenceIds": [
+        "a209cc2c75411ce478c3465b",
+        "256f5525bf232b351de243e0",
+        "c59d91de2adbc31ecbb36e05"
+      ]
+    },
+    {
+      "id": "beta-course-reviews",
+      "text": "Create and edit a course review with a template and image. Switch helpful/dislike, check failure rollback, and preview/save/share a card in light and dark themes. Verify narrow layouts and large text.",
+      "evidenceIds": [
+        "85c7dce5bf94fa52afbcedf3",
+        "200aa837a7f26467bc26cd33",
+        "c8e6b1b2778926fb405a3542"
+      ]
+    },
+    {
+      "id": "beta-moderation",
+      "text": "With a test site configured for moderation, verify blocked submissions preserve the editor, pending topics/replies and images are visible only to authorized users, and checking mode messages are accurate. Do not enable production moderation for this test.",
+      "evidenceIds": [
+        "f435a8a269f2573c4c7402e7",
+        "f5e15eab87330c0b7d317ad2",
+        "1da85ad31c78a2eb882fef6f"
+      ]
+    },
+    {
+      "id": "beta-upload-auth-replies",
+      "text": "Check compressed-image uploads, external-image retry, latest replies in descending order, registration email/verification notices, and school authorization success plus HTTP-error retry on iOS.",
+      "evidenceIds": [
+        "7defafba1ebe5b506ac8e4d7",
+        "3b2338c914c7607ca9f90636",
+        "f5e15eab87330c0b7d317ad2",
+        "a2c4d2c5dde1716621df1208",
+        "c4472def71063ff37668aff9"
+      ]
+    },
+    {
+      "id": "beta-release-history",
+      "text": "On TestFlight builds, confirm launch/resume shows no in-app beta update prompt and manual Check for updates opens Apple's TestFlight download page. In update history, show only formal App Store entries with no channel picker or Android entries; a beta-only catalog must leave public history empty. Check grouped notes in light/dark themes and large text, and failed external-launch feedback.",
+      "evidenceIds": [
+        "9d1d6f7d1016d612e20db785",
+        "1959c95415882178b4667f66",
+        "b116ff75f5e61a53b17905b9"
+      ]
+    }
+  ],
+  "notesFormatVersion": 2
+}

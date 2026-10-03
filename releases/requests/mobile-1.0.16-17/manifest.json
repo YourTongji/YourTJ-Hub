@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 2,
+  "candidateId": "mobile-1.0.16-17",
+  "sourceSha": "c68e513b876a7ebc10d744be10cf17f27a0778ac",
+  "product": "mobile",
+  "version": "1.0.16",
+  "tag": "mobile-v1.0.16",
+  "buildNumber": 17,
+  "channels": [
+    "android",
+    "ios-testflight",
+    "ios-app-store"
+  ],
+  "operation": "release",
+  "existingRelease": null,
+  "baselines": {
+    "android": {
+      "tag": "mobile-v1.0.14",
+      "sourceSha": "1a4c04c1752dd76f14e4d708fbb150609a2f72de"
+    },
+    "ios-testflight": {
+      "tag": "mobile-v1.0.14",
+      "sourceSha": "1a4c04c1752dd76f14e4d708fbb150609a2f72de",
+      "buildId": "172a6094-f00a-40bc-99db-36e0f4cc0964",
+      "state": "IN_BETA_TESTING"
+    },
+    "ios-app-store": {
+      "tag": "mobile-v1.0.11",
+      "sourceSha": "1ec1eac38c76f7302461e39cf4d3996210cd98b3",
+      "buildId": "887d648d-6f18-4139-b7fa-869e36af3d2d",
+      "state": "READY_FOR_SALE"
+    }
+  },
+  "notes": {
+    "android": "android.zh-CN.md",
+    "ios-testflight": "testflight.en-US.txt",
+    "ios-app-store": "ios.zh-Hans.txt"
+  },
+  "serverRequirement": {
+    "sourceSha": "b4e3bedfc55474f258561f5092e22f1651748fc2",
+    "reason": "先完成 Web 0.0.50 部署，提供待审核内容与图片访问、图片上传错误语义及当前 App 隐私补充说明，再发布对应移动端。"
+  },
+  "requiredDisclosures": [
+    {
+      "id": "automatic-visitor-statistics",
+      "channels": [
+        "ios-app-store"
+      ],
+      "text": "升级后，正式 iOS App 连接正式站时会自动统计公开页面访问，游客和已登录用户均适用；原“参与访问统计”关闭选择不再生效，App 内不再提供关闭开关。关于页可查看统计说明，详情见隐私政策。"
+    }
+  ]
+}
