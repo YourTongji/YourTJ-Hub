@@ -133,66 +133,16 @@ class MobileUpdateHostState extends State<MobileUpdateHost>
     final installedBuild = info['buildNumber'];
     if (installedBuild is! num) return;
     if (channel == 'ios-testflight') {
-      final catalog = await _client.loadHistory();
-      if (catalog == null) {
-        if (force && mounted) {
-          final context = widget.navigatorKey.currentContext;
-          if (context != null && context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(AppLocalizations.of(context).updateFailed),
-              ),
-            );
-          }
+      // Apple owns beta updates and testing instructions. Only an explicit check
+      // leaves the app; startup/resume must not duplicate TestFlight's prompt.
+      if (force && mounted) {
+        if (!await launchUrl(
+          Uri.parse(testFlightAppUrl),
+          mode: LaunchMode.externalApplication,
+        )) {
+          throw StateError('TestFlight is unavailable');
         }
-        return;
       }
-      final target = catalog.releases
-          .where(
-            (release) =>
-                release.channels.contains('ios-testflight') &&
-                release.buildNumber > installedBuild.toInt() &&
-                catalog.channelCoverage['ios-testflight']?.coveredBuilds
-                        .contains(release.buildNumber) ==
-                    true,
-          )
-          .fold<ReleaseNoteVersion?>(
-            null,
-            (latest, release) =>
-                latest == null || release.buildNumber > latest.buildNumber
-                ? release
-                : latest,
-          );
-      if (!mounted) return;
-      final context = widget.navigatorKey.currentContext;
-      if (context == null || !context.mounted) return;
-      if (target == null) {
-        if (force) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(AppLocalizations.of(context).updateLatest)),
-          );
-        }
-        return;
-      }
-      if (!force &&
-          preferences.getInt('update.skippedIosBuild') == target.buildNumber) {
-        return;
-      }
-      await showGfBottomSheet<void>(
-        context,
-        barrierDismissible: false,
-        enableDrag: false,
-        builder: (_) => _IosUpdateDialog(
-          testFlight: true,
-          version: target.version,
-          targetBuild: target.buildNumber,
-          listing: null,
-          installedVersion: info['version'] as String?,
-          installedBuild: installedBuild.toInt(),
-          client: _client,
-          preferences: preferences,
-        ),
-      );
       return;
     }
     if (channel != 'ios-app-store') {
@@ -239,9 +189,7 @@ class MobileUpdateHostState extends State<MobileUpdateHost>
       barrierDismissible: false,
       enableDrag: false,
       builder: (_) => _IosUpdateDialog(
-        testFlight: false,
         version: listing.version,
-        targetBuild: null,
         listing: listing,
         installedVersion: installedVersion,
         installedBuild: installedBuild.toInt(),
@@ -399,19 +347,15 @@ class _UpdateDialogState extends State<_UpdateDialog> {
 
 class _IosUpdateDialog extends StatefulWidget {
   const _IosUpdateDialog({
-    required this.testFlight,
     required this.version,
-    required this.targetBuild,
     required this.listing,
     required this.installedVersion,
     required this.installedBuild,
     required this.client,
     required this.preferences,
   });
-  final bool testFlight;
   final String version;
-  final int? targetBuild;
-  final IosStoreListing? listing;
+  final IosStoreListing listing;
   final String? installedVersion;
   final int installedBuild;
   final AndroidReleaseClient client;
@@ -444,7 +388,7 @@ class _IosUpdateDialogState extends State<_IosUpdateDialog> {
   }
 
   void _apply(ReleaseNoteCatalog catalog) {
-    final channel = widget.testFlight ? 'ios-testflight' : 'ios-app-store';
+    const channel = 'ios-app-store';
     final matches = catalog.releases.where((release) {
       if (!release.channels.contains(channel) ||
           catalog.channelCoverage[channel]?.coveredBuilds.contains(
@@ -453,9 +397,7 @@ class _IosUpdateDialogState extends State<_IosUpdateDialog> {
               true) {
         return false;
       }
-      return widget.testFlight
-          ? release.buildNumber == widget.targetBuild
-          : release.version == widget.version;
+      return release.version == widget.version;
     });
     final target = matches.isEmpty
         ? null
@@ -483,26 +425,19 @@ class _IosUpdateDialogState extends State<_IosUpdateDialog> {
   }
 
   Future<void> _skip() async {
-    if (widget.testFlight) {
-      await widget.preferences.setInt(
-        'update.skippedIosBuild',
-        widget.targetBuild!,
-      );
-    } else {
-      await widget.preferences.setString(
-        'update.skippedIosVersion',
-        widget.version,
-      );
-    }
+    await widget.preferences.setString(
+      'update.skippedIosVersion',
+      widget.version,
+    );
     if (mounted) Navigator.pop(context);
   }
 
   Future<void> _openStore() async {
     try {
-      final destination = widget.testFlight
-          ? Uri.parse(testFlightAppUrl)
-          : widget.listing!.url;
-      if (!await launchUrl(destination, mode: LaunchMode.externalApplication)) {
+      if (!await launchUrl(
+        widget.listing.url,
+        mode: LaunchMode.externalApplication,
+      )) {
         throw StateError('App Store is unavailable');
       }
       if (mounted) Navigator.pop(context);
@@ -520,10 +455,7 @@ class _IosUpdateDialogState extends State<_IosUpdateDialog> {
       notes: _notes,
       historyComplete: _historyComplete,
       failed: _failed,
-      channelNote: widget.testFlight ? l10n.updateTestFlightInstructions : null,
-      primaryLabel: widget.testFlight
-          ? l10n.updateOpenTestFlight
-          : l10n.updateOpenAppStore,
+      primaryLabel: l10n.updateOpenAppStore,
       onPrimary: _openStore,
       onLater: () => Navigator.pop(context),
       onSkip: _skip,

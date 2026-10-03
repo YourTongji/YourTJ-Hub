@@ -8,7 +8,8 @@ import shutil
 import tempfile
 import time
 
-from model import CHANGELOG, FILES, ReleaseError, require, validate_candidate, render_changelog
+from model import (CHANGELOG, FILES, NOTES_FORMAT_VERSION, ReleaseError, require, validate_candidate,
+                   render_changelog, notes_format_version)
 
 
 def render(manifest, folder, response, model_input, replace=False):
@@ -156,8 +157,12 @@ def _draft_changelog(manifest, folder, request, result, response, replace=False)
     record = json.loads(evidence_path.read_text(encoding="utf-8"))
     prs = {pr["number"]: pr for pr in record.get("pullRequests", []) if isinstance(pr, dict)}
     links = record.get("evidencePullRequests", {})
+    format_version = (notes_format_version(json.loads(changelog_path.read_text(encoding="utf-8")))
+                      if changelog_path.exists() else NOTES_FORMAT_VERSION)
     changelog = {"schemaVersion": 1, "version": manifest["version"], "buildNumber": manifest["buildNumber"],
                  "highlights": [], "breaking": [], "requiredActions": [], "evidence": {}, "testflightNotes": []}
+    if format_version != 1:
+        changelog["notesFormatVersion"] = format_version
     used = set()
     for channel, items in entries.items():
         for item in items:
@@ -214,6 +219,12 @@ def _is_initial_changelog_scaffold(path, folder, manifest):
         evidence = json.loads((folder / "evidence.json").read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return False
+    if isinstance(scaffold, dict) and "notesFormatVersion" in scaffold:
+        try:
+            notes_format_version(scaffold)
+        except ReleaseError:
+            return False
+        scaffold = {key: value for key, value in scaffold.items() if key != "notesFormatVersion"}
     return (isinstance(evidence, dict) and "draft" not in evidence
             and scaffold == {"schemaVersion": 1, "version": manifest["version"],
                 "buildNumber": manifest["buildNumber"], "highlights": [], "breaking": [],
