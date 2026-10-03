@@ -15,3 +15,9 @@ Account changes, automatic analytics and other required disclosures cannot be re
 Do not copy the static `apps/mobile/store/zh-Hans/metadata.json` What's New into another channel.
 No unsupported “performance/stability improvements” filler. Reverted work is absent from net changes.
 Oryn uncertainties and truncated evidence need reviewer attention, not confident paraphrases.
+
+Schema-2 mobile entries are read in the app's update prompt. Keep titles to a short phrase of
+about 12 Chinese characters or fewer, and put the detail in one summary sentence that does not
+repeat the title. Check that each drafted kind matches the user-visible change; the PR type it
+was derived from describes the code change, not always what users notice. Keep `pr-<number>`
+IDs, and replace remaining `oryn-` IDs with semantic slugs.

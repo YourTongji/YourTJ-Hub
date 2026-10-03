@@ -1200,13 +1200,27 @@ The approved permission/privacy/failure boundaries for optional analytics are re
   These are the formal distribution channels linked from [yourtj.de](https://yourtj.de/#download).
   Public availability was checked on 2026-10-03; it is separate from candidate-specific device validation.
 - `Partial`: Android checks GitHub mobile releases at startup/resume with a six-hour limit and a
-  manual About action. Update prompts support defer, ignore, progress and cancellation. Public APK
+  manual About action. Update prompts support defer, ignore, progress and cancellation. The prompt is
+  a bottom sheet that tapping outside or dragging does not dismiss: notes are grouped as required,
+  security, new, improved and fixed under labels smaller than the note titles, and no note level
+  exceeds the sheet title. The header shows the installed-to-target version; notes beyond the
+  required items and the first five expand in place. The primary action stays pinned; cancelling a
+  download keeps the prompt open. About history lists versions on a timeline, newest first. Release notes match Android split-ABI version codes by their shared build number. Public APK
   mirrors are ranked with bounded probes; SHA-256, package and signing-certificate checks precede
-  the system installer. Unit tests and signed native builds cover the implemented paths;
-  an installed-to-updated physical-device journey remains separate acceptance evidence.
+  the system installer. Prompts show the installed-to-target release notes, including required actions,
+  and the About page provides channel-filtered release history. Notes are optional cached display data;
+  they do not affect APK verification or installation. Unit tests and signed native builds cover the
+  implemented paths; an installed-to-updated physical-device journey remains separate acceptance evidence.
 - `Current`: released iOS builds are distributed and updated through the App Store; TestFlight is
   the candidate testing channel. Apple processing/review for each new version is independent of CI.
   The app does not offer APK-style updates on iOS.
+- `Partial`: App Store builds check Apple's public listing and offer a link when a newer version is
+  available. TestFlight builds use successful TestFlight release receipts to show a newer build's
+  testing notes and link to the TestFlight App Store product page, where users can open or install
+  the TestFlight app and check for the beta. This fallback does not deep-link into the YourTJ beta.
+  Unknown distribution receipts do not trigger channel-specific update prompts. Prompts and About
+  history show channel-filtered notes only when release receipts establish coverage; incomplete
+  history falls back to the target release summary.
   Signing, metadata, failure recovery and environment secrets are documented in the
   [mobile release runbook](../operations/mobile-releases.md).
 

@@ -24,6 +24,27 @@ Map<String, dynamic> release({int build = 12, String abi = 'arm64-v8a'}) => {
 
 void main() {
   test(
+    'catalog identity subtracts the selected ABI offset at build boundaries',
+    () {
+      for (final abi in {
+        'armeabi-v7a': 1000,
+        'arm64-v8a': 2000,
+        'x86_64': 4000,
+      }.entries) {
+        for (final build in [999, 1000, 1001, 2001, 2099996000]) {
+          final code = build + abi.value;
+          final selected = AndroidRelease.latest(
+            [release(build: code, abi: abi.key)],
+            [abi.key],
+            code - 1,
+          )!;
+          expect(selected.buildNumber, code);
+          expect(selected.catalogBuildNumber, build);
+        }
+      }
+    },
+  );
+  test(
     'selects newest build compatible with device, excluding server releases',
     () {
       final selected = AndroidRelease.latest(

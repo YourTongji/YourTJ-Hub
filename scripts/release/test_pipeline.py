@@ -10,12 +10,14 @@ import tempfile
 import unittest
 from unittest.mock import patch
 from collect import collect
-from controller import prepare, source_sha
+from controller import notes_banner, prepare, source_sha
 from github import GitHub
-from model import ReleaseError, digest, validate_candidate
-from notes import render
+from model import FILES, ReleaseError, digest, validate_candidate
+from notes import draft_notes, render
 from cli import execute, parser
 from test_model import candidate
+import workflow
+import smoke
 
 
 class FakeGitHub:
@@ -90,6 +92,279 @@ class PipelineTest(unittest.TestCase):
         self.assertEqual(note.read_text(encoding='utf-8'), '人工修改后的 Android 说明。')
         response['inputSha256'] = '0' * 64
         with self.assertRaises(ReleaseError): render(manifest, self.root, response, raw, replace=True)
+
+    def test_legacy_mobile_promotions_accept_new_oryn_metadata(self):
+        manifest = candidate() | {'channels': ['ios-app-store'], 'notes': {'ios-app-store': FILES['ios-app-store']},
+                                  'baselines': {'ios-app-store': {'tag': None, 'sourceSha': None}}}
+        raw = json.dumps({'evidence': [{'id': 'ios', 'channels': ['ios-app-store']}]}).encode()
+        (self.root / 'evidence.json').write_text(json.dumps({'schemaVersion': 1, 'sourceSha': manifest['sourceSha']}))
+        response = self.oryn(raw, [{'channel': 'ios-app-store', 'text': '修复课程显示。', 'evidenceIds': ['ios'],
+                                    'kind': 'fix', 'title': '课程修复', 'summary': '课程正确显示。', 'required': False}])
+        render(manifest, self.root, response, raw)
+        validate_candidate(manifest, self.root)
+        self.assertEqual((self.root / FILES['ios-app-store']).read_text().strip(), '修复课程显示。')
+
+    def test_schema_two_oryn_rerender_preserves_all_original_bytes_without_replace(self):
+        manifest = candidate() | {"schemaVersion": 2}
+        evidence_items = [{"id": "android-fix", "channels": ["android"]},
+                          {"id": "ios-fix", "channels": ["ios-testflight"]}]
+        request = {"evidence": evidence_items}
+        evidence = {"schemaVersion": 1, "sourceSha": manifest["sourceSha"], "evidence": evidence_items}
+        folder = self.root / "prepared"
+        with patch("controller.collect", return_value=(request, evidence)):
+            prepared_input = prepare(manifest, FakeGitHub(), folder)
+        raw = json.dumps(prepared_input).encode()
+        response = {"schemaVersion": 1, "promptVersion": 1, "model": "oryn/test",
+                    "inputSha256": hashlib.sha256(raw).hexdigest(),
+                    "output": {"schemaVersion": 1, "entries": [
+                        {"channel": "android", "text": "修复 Android 相机返回。", "evidenceIds": ["android-fix"]},
+                        {"channel": "ios-testflight", "text": "Test iOS widgets.", "evidenceIds": ["ios-fix"]}],
+                        "uncertainties": []}}
+        render(manifest, folder, response, raw)
+        protected = {path.name: path.read_bytes() for path in folder.iterdir()}
+        (folder / "android.zh-CN.md").write_text("Human reviewed Android copy.\n", encoding="utf-8")
+        before_retry = {path.name: path.read_bytes() for path in folder.iterdir()}
+        with self.assertRaises(ReleaseError):
+            render(manifest, folder, response, raw)
+        self.assertEqual({path.name: path.read_bytes() for path in folder.iterdir()}, before_retry)
+        self.assertIn("changelog.json", protected)
+        render(manifest, folder, response, raw, replace=True)
+        self.assertEqual((folder / "android.zh-CN.md").read_text(encoding="utf-8").strip(),
+                         "### 体验改进\n\n- **修复 Android 相机返回。**")
+
+    def test_feature_prs_on_the_merged_side_are_linked_to_their_evidence(self):
+        def git(*args):
+            return subprocess.check_output(['git', '-C', str(self.root), *args], text=True).strip()
+        env = {**os.environ, 'GIT_AUTHOR_NAME': 'Fixture', 'GIT_AUTHOR_EMAIL': 'fixture@example.org',
+               'GIT_COMMITTER_NAME': 'Fixture', 'GIT_COMMITTER_EMAIL': 'fixture@example.org'}
+        def run(*args):
+            subprocess.run(['git', '-C', str(self.root), *args], env=env, check=True, capture_output=True)
+        git('init', '-q', '-b', 'main')
+        app = self.root / 'apps/mobile/packages/forum_app/lib'
+        app.mkdir(parents=True)
+        (app / 'feed.dart').write_text('feed\n', encoding='utf-8'); run('add', '.'); run('commit', '-qm', 'initial')
+        base = git('rev-parse', 'HEAD')
+        run('checkout', '-qb', 'dev')
+        run('checkout', '-qb', 'feat/stickers')
+        (app / 'stickers.dart').write_text('stickers\n', encoding='utf-8'); run('add', '.'); run('commit', '-qm', 'feat: stickers')
+        run('checkout', '-q', 'dev')
+        run('merge', '-q', '--no-ff', 'feat/stickers', '-m', 'Merge pull request #7 from Org/feat/stickers')
+        (app / 'feed.dart').write_text('feed fixed\n', encoding='utf-8'); run('add', '.')
+        run('commit', '-qm', 'fix: feed scrolling (#9)')
+        run('checkout', '-q', 'main')
+        run('merge', '-q', '--no-ff', 'dev', '-m', 'Merge pull request #8 from Org/dev')
+        source = git('rev-parse', 'HEAD')
+        manifest = candidate() | {'sourceSha': source, 'channels': ['android'], 'notes': {'android': 'android.zh-CN.md'},
+                                  'baselines': {'android': {'tag': 'mobile-v1.0.14', 'sourceSha': base}},
+                                  'requiredDisclosures': [{'id': 'Analytics', 'channels': ['android'], 'text': '访问统计默认开启。'}]}
+        class Titles(FakeGitHub):
+            def api(self, endpoint, **kwargs):
+                number = int(endpoint.rsplit('/', 1)[1])
+                return {'title': {7: 'feat: stickers', 9: 'fix: feed scrolling'}[number], 'html_url': f'https://example.org/{number}'}
+        with patch('collect.git', side_effect=git):
+            request, evidence = collect(manifest, Titles())
+        by_path = {item['paths'][0].rsplit('/', 1)[1]: item['id'] for item in request['evidence']}
+        self.assertEqual(evidence['evidencePullRequests'], {by_path['stickers.dart']: [7], by_path['feed.dart']: [9]})
+        self.assertEqual({pr['number']: pr['branch'] for pr in evidence['pullRequests']}, {7: 'Org/feat/stickers', 9: None})
+        # The model request is unchanged: no PR links and no disclosure evidence.
+        self.assertNotIn('evidencePullRequests', request)
+        self.assertEqual(len(request['evidence']), 2)
+        self.assertEqual([item.get('disclosureId') for item in evidence['evidence']][-1], 'Analytics')
+
+    def test_oryn_drafts_become_grouped_stable_user_facing_entries(self):
+        manifest = candidate() | {'schemaVersion': 2, 'channels': ['android'], 'notes': {'android': 'android.zh-CN.md'},
+                                  'baselines': {'android': {'tag': 'mobile-v1.0.14', 'sourceSha': 'b' * 40}},
+                                  'requiredDisclosures': [{'id': 'Visit analytics', 'channels': ['android'],
+                                                           'text': '访问统计默认开启，可在关于页面查看说明。'}]}
+        items = [{'id': f'e{i}', 'channels': ['android']} for i in range(5)]
+        request = {'evidence': items}
+        record = {'schemaVersion': 1, 'sourceSha': manifest['sourceSha'],
+                  'evidence': items + [{'id': 'disclosure-x', 'channels': ['android'], 'disclosureId': 'Visit analytics'}],
+                  'pullRequests': [{'number': 7, 'title': 'feat: stickers', 'branch': 'Org/feat/stickers'},
+                                   {'number': 9, 'title': 'Feed scrolling', 'branch': 'Org/fix/feed'},
+                                   {'number': 11, 'title': 'feat!: new sign-in', 'branch': 'Org/feat/sign-in'},
+                                   {'number': 12, 'title': 'chore: patch image decoder vulnerability', 'branch': None}],
+                  'evidencePullRequests': {'e0': [7], 'e1': [9], 'e2': [11], 'e3': [12]}}
+        folder = self.root / 'structured'
+        folder.mkdir()
+        (folder / 'evidence.json').write_text(json.dumps(record), encoding='utf-8')
+        raw = json.dumps(request).encode()
+        entries = [
+            {'channel': 'android', 'text': '私信贴纸：在聊天里发送和收藏贴纸。', 'evidenceIds': ['e0']},
+            {'channel': 'android', 'text': '修复信息流滚动时偶尔跳回顶部的问题。', 'evidenceIds': ['e1']},
+            {'channel': 'android', 'text': '需要重新登录。登录方式升级，旧的登录状态会失效。', 'evidenceIds': ['e2']},
+            {'channel': 'android', 'text': '图片解码更安全。', 'evidenceIds': ['e3']},
+            {'channel': 'android', 'text': '列表更紧凑。', 'evidenceIds': ['e4'], 'kind': 'improvement',
+             'title': '更紧凑的列表', 'summary': '一屏能看到更多帖子。'},
+        ]
+        response = {'schemaVersion': 1, 'promptVersion': 1, 'model': 'oryn/test',
+                    'inputSha256': hashlib.sha256(raw).hexdigest(),
+                    'output': {'schemaVersion': 1, 'entries': entries, 'uncertainties': []}}
+        render(manifest, folder, response, raw)
+        changelog = json.loads((folder / 'changelog.json').read_text(encoding='utf-8'))
+        rows = {e['id']: e for group in ('highlights', 'breaking', 'requiredActions') for e in changelog[group]}
+        self.assertEqual(rows['pr-7'], {'id': 'pr-7', 'title': '私信贴纸', 'summary': '在聊天里发送和收藏贴纸。',
+                                            'platforms': ['android'], 'kind': 'feature'})
+        self.assertEqual(rows['pr-9']['kind'], 'fix')
+        self.assertEqual([e['id'] for e in changelog['breaking']], ['pr-11'])
+        self.assertEqual(rows['pr-12']['kind'], 'security')
+        self.assertEqual((rows['pr-11']['title'], rows['pr-11']['summary']), ('需要重新登录', '登录方式升级，旧的登录状态会失效。'))
+        self.assertEqual(rows[next(k for k in rows if k.startswith('oryn-'))]['title'], '更紧凑的列表')
+        self.assertEqual([e['id'] for e in changelog['requiredActions']], ['visit-analytics'])
+        note = (folder / 'android.zh-CN.md').read_text(encoding='utf-8')
+        self.assertEqual([line for line in note.splitlines() if line.startswith('###')],
+                         ['### 重要提示', '### 安全更新', '### 新功能', '### 体验改进', '### 问题修复'])
+        self.assertIn('- **图片解码更安全。**', note)
+        # Publishing validation: verbatim disclosure, structured facts and rendered text agree.
+        validate_candidate(manifest, folder)
+
+    def test_testflight_disclosure_stays_a_required_entry(self):
+        manifest = candidate() | {'schemaVersion': 2, 'channels': ['ios-testflight'],
+                                  'notes': {'ios-testflight': 'testflight.en-US.txt'},
+                                  'baselines': {'ios-testflight': {'tag': 'mobile-v1.0.14', 'sourceSha': 'b' * 40}},
+                                  'requiredDisclosures': [{'id': 'Visit analytics', 'channels': ['ios-testflight'],
+                                                           'text': 'Visit analytics are on by default.'}]}
+        items = [{'id': f'e{i}', 'channels': ['ios-testflight']} for i in range(6)]
+        record = {'schemaVersion': 1, 'sourceSha': manifest['sourceSha'],
+                  'evidence': items + [{'id': 'disclosure-x', 'channels': ['ios-testflight'], 'disclosureId': 'Visit analytics'}]}
+        folder = self.root / 'testflight'
+        folder.mkdir()
+        (folder / 'evidence.json').write_text(json.dumps(record), encoding='utf-8')
+        raw = json.dumps({'evidence': items}).encode()
+        entries = [{'channel': 'ios-testflight', 'text': f'Check flow {i}.', 'evidenceIds': [f'e{i}']} for i in range(6)]
+        render(manifest, folder, self.oryn(raw, entries), raw)
+        changelog = json.loads((folder / 'changelog.json').read_text(encoding='utf-8'))
+        self.assertEqual([(e['id'], e['platforms'], e['summary']) for e in changelog['requiredActions']],
+                         [('visit-analytics', ['ios-testflight'], 'Visit analytics are on by default.')])
+        self.assertIn('visit-analytics', [item['id'] for item in changelog['testflightNotes']])
+        validate_candidate(manifest, folder)
+
+    def draft_fixture(self, channels):
+        manifest = candidate() | {'schemaVersion': 2, 'channels': channels, 'notes': {c: FILES[c] for c in channels},
+                                  'baselines': {c: {'tag': 'mobile-v1.0.14', 'sourceSha': 'b' * 40} for c in channels}}
+        folder = self.root / 'approved' / 'candidate'
+        folder.mkdir(parents=True)
+        items = [{'id': f'e-{c}', 'channels': [c]} for c in channels]
+        (folder / 'evidence.json').write_text(json.dumps({'schemaVersion': 1, 'sourceSha': manifest['sourceSha'],
+                                                          'evidence': items}), encoding='utf-8')
+        (folder / 'changelog.json').write_text(json.dumps({
+            'schemaVersion': 1, 'version': manifest['version'], 'buildNumber': manifest['buildNumber'],
+            'highlights': [], 'breaking': [], 'requiredActions': [], 'evidence': {}, 'testflightNotes': []}), encoding='utf-8')
+        for name in manifest['notes'].values():
+            (folder / name).write_text('[DRAFT: human review required — complete from evidence.json]\n', encoding='utf-8')
+        return manifest, folder, json.dumps({'evidence': items}).encode()
+
+    @staticmethod
+    def oryn(raw, entries):
+        return {'schemaVersion': 1, 'promptVersion': 1, 'model': 'oryn/test', 'inputSha256': hashlib.sha256(raw).hexdigest(),
+                'output': {'schemaVersion': 1, 'entries': entries, 'uncertainties': []}}
+
+    def run_draft(self, manifest, folder, raw, outcomes, **options):
+        output = self.root / 'approved' / 'oryn-output.json'
+        pending = list(outcomes)
+        def run_oryn(timeout):
+            outcome = pending.pop(0)
+            if isinstance(outcome, Exception):
+                raise outcome
+            output.write_text(outcome if isinstance(outcome, str) else json.dumps(outcome), encoding='utf-8')
+        waits = []
+        status = draft_notes(manifest, folder, raw, output, run_oryn, sleep=waits.append, **options)
+        return status, waits, pending
+
+    def test_oryn_failures_and_malformed_drafts_are_retried_until_every_channel_has_notes(self):
+        manifest, folder, raw = self.draft_fixture(['android'])
+        good = [{'channel': 'android', 'text': '私信贴纸：在聊天里发送和收藏贴纸。', 'evidenceIds': ['e-android']}]
+        status, waits, _ = self.run_draft(manifest, folder, raw, [
+            subprocess.CalledProcessError(1, ['bun', 'script/release-notes.ts']),
+            '{"truncated": ',
+            self.oryn(raw, [good[0] | {'channel': 'ios-app-store'}]),
+            self.oryn(raw, good)], attempts=4)
+        self.assertEqual(status['status'], 'complete')
+        self.assertEqual(len(status['attempts']), 4)
+        self.assertTrue(all(a['error'] for a in status['attempts'][:3]))
+        self.assertEqual(len(waits), 3)
+        self.assertIn('- **私信贴纸**：在聊天里发送和收藏贴纸。', (folder / 'android.zh-CN.md').read_text(encoding='utf-8'))
+        validate_candidate(manifest, folder)
+
+    def test_exhausted_oryn_retries_leave_an_unpublishable_human_draft(self):
+        manifest, folder, raw = self.draft_fixture(['android'])
+        before = {p.name: p.read_bytes() for p in folder.iterdir()}
+        status, waits, _ = self.run_draft(manifest, folder, raw, [subprocess.TimeoutExpired(['bun'], 60)] * 3)
+        self.assertEqual((status['status'], status['missing'], len(status['attempts']), len(waits)),
+                         ('failed', ['android'], 3, 2))
+        self.assertEqual({p.name: p.read_bytes() for p in folder.iterdir()}, before)
+        with self.assertRaises(ReleaseError):
+            validate_candidate(manifest, folder)
+        # A spent time budget stops before another provider call is started.
+        clock = iter([0, 0, 2000, 2000, 2000])
+        status, _, pending = self.run_draft(manifest, folder, raw, [OSError('provider down')] * 3,
+                                            budget=2030, clock=lambda: next(clock))
+        self.assertEqual((status['status'], len(pending)), ('failed', 2))
+
+    def test_ios_only_testflight_draft_passes_final_channel_validation(self):
+        manifest, folder, raw = self.draft_fixture(['ios-testflight'])
+        response = self.oryn(raw, [{'channel': 'ios-testflight', 'text': 'Verify the iOS widget.',
+                                   'evidenceIds': ['e-ios-testflight']}])
+        status, _, _ = self.run_draft(manifest, folder, raw, [response])
+        self.assertEqual(status['status'], 'complete')
+        validate_candidate(manifest, folder)
+
+    def test_retry_passes_remaining_budget_to_oryn_worker(self):
+        manifest, folder, raw = self.draft_fixture(['android'])
+        (folder / 'manifest.json').write_text(json.dumps(manifest))
+        (folder.parent / 'oryn-input.json').write_bytes(raw)
+        def draft(*args, **kwargs):
+            args[4](125)
+            return {'status': 'complete', 'missing': [], 'attempts': [], 'stopped': None}
+        with patch('sys.argv', ['workflow.py', 'draft-notes', '--folder', str(folder.parent)]), \
+             patch('workflow.draft_notes', side_effect=draft), \
+             patch('workflow.subprocess.run') as run:
+            workflow.main()
+        self.assertEqual(run.call_args.kwargs['env']['ORYN_TASK_TIMEOUT_SECONDS'], '65')
+        self.assertEqual(run.call_args.kwargs['timeout'], 125)
+
+    def test_live_smoke_rejects_a_fixture_with_no_evidence_for_a_requested_channel(self):
+        request = {'channels': ['web', 'operators'], 'evidence': [{'id': 'ops', 'channels': ['operators']}]}
+        with patch('sys.argv', ['smoke.py', '--scope', 'web']), \
+             patch('smoke.git', return_value='a' * 40), \
+             patch('smoke.prepare', return_value=request), patch('smoke.write_json'), \
+             self.assertRaisesRegex(ReleaseError, 'Smoke fixture'):
+            smoke.main()
+
+    def test_invalid_optional_oryn_fields_retry_without_losing_required_markers(self):
+        manifest, folder, raw = self.draft_fixture(['android'])
+        good = {'channel': 'android', 'text': '登录更新：请重新登录。', 'evidenceIds': ['e-android'],
+                'kind': 'security', 'title': '登录更新', 'summary': '请重新登录。', 'required': True}
+        bad = [{'kind': 'unknown'}, {'title': 'x' * 101}, {'title': ''},
+               {'summary': 'x' * 401}, {'required': 'true'}]
+        outcomes = [self.oryn(raw, [good | change]) for change in bad] + [self.oryn(raw, [good])]
+        status, _, _ = self.run_draft(manifest, folder, raw, outcomes, attempts=len(outcomes))
+        self.assertEqual(len(status['attempts']), len(outcomes))
+        self.assertTrue(all(item['error'] for item in status['attempts'][:-1]))
+        changelog = json.loads((folder / 'changelog.json').read_text())
+        self.assertEqual(len(changelog['breaking']), 1)
+        validate_candidate(manifest, folder)
+
+    def test_a_draft_missing_a_channel_is_retried_then_kept_for_human_completion(self):
+        manifest, folder, raw = self.draft_fixture(['android', 'ios-testflight'])
+        partial = self.oryn(raw, [{'channel': 'android', 'text': '列表更紧凑。', 'evidenceIds': ['e-android']}])
+        status, _, _ = self.run_draft(manifest, folder, raw, [partial] * 3)
+        self.assertEqual((status['status'], status['missing'], len(status['attempts'])),
+                         ('partial', ['ios-testflight'], 3))
+        self.assertIn('列表更紧凑', (folder / 'android.zh-CN.md').read_text(encoding='utf-8'))
+        self.assertIn('[DRAFT:', (folder / 'testflight.en-US.txt').read_text(encoding='utf-8'))
+        with self.assertRaises(ReleaseError):
+            validate_candidate(manifest, folder)
+
+    def test_release_request_names_incomplete_oryn_notes(self):
+        manifest = candidate()
+        self.assertIn('Oryn was unavailable. Missing: android, ios-testflight.', notes_banner(manifest, None))
+        failed = {'status': 'failed', 'missing': ['android'], 'stopped': None,
+                  'attempts': [{'attempt': 1, 'error': 'TimeoutExpired: `bun` timed out'}]}
+        self.assertIn("no usable draft after 1 attempt(s) (last error: TimeoutExpired: 'bun' timed out). Missing: android.",
+                      notes_banner(manifest, failed))
+        complete = {'status': 'complete', 'missing': [], 'stopped': None, 'attempts': [{'attempt': 1, 'error': None}]}
+        self.assertNotIn('[!WARNING]', notes_banner(manifest, complete))
 
     def test_net_diff_accounts_for_reverts_renames_and_platform_baselines(self):
         def git(*args):

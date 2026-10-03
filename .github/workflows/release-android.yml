@@ -147,3 +147,24 @@ jobs:
           CHANNEL: android
           RELEASE_STATE: ${{ job.status == 'success' && 'success' || 'failure' }}
         run: python3 scripts/release/workflow.py receipt
+  catalog:
+    if: ${{ always() && needs.publish.result == 'success' }}
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      deployments: read
+    concurrency:
+      group: mobile-release-catalog
+      cancel-in-progress: false
+      queue: max
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Publish receipt-backed mobile release catalog
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/release/workflow.py publish-catalog

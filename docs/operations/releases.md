@@ -63,6 +63,8 @@ The Release PR contains only `releases/requests/<id>/`:
 | android.zh-CN.md | Android changes only |
 | ios.zh-Hans.txt | iOS App Store What's New, plain text, at most 4000 characters |
 | testflight.en-US.txt | iOS testing instructions, independently reviewed |
+| changelog.json | Mobile schema-2 structured facts rendered into each selected platform's notes |
+| evidence.json | Evidence references binding each structured fact and TestFlight instruction to reviewed source |
 
 Only selected platform files are created. Source SHA controls the application build/tag; the reviewed
 PR head controls release metadata. A metadata PR merge is not a new application version. Baselines
@@ -97,9 +99,58 @@ are retained. `ORYN_MODEL`/`ORYN_BASE_URL` override defaults; do not assume the 
 active provider. The currently configured deployment uses `oryn/glm-5.3-flash` through the configured
 YourTJ endpoint. No private provider or review credentials enter the request/evidence files.
 
-Failed generation leaves explicit drafts for human completion. Rendering preserves human-edited files;
-regeneration must be deliberate and reviewed. No model runs after release approval. Static validation
+Prepare runs `workflow.py draft-notes`, which retries Oryn (`ORYN_NOTES_ATTEMPTS`, default 3, with
+backoff inside `ORYN_NOTES_BUDGET_SECONDS`, default 2400). Each attempt is rendered into a scratch copy
+first: a provider error, timeout, malformed JSON, schema violation, foreign channel or unknown evidence
+is retried without touching the request. An attempt is complete when every channel's platform note
+renders from entries. Otherwise the most complete valid draft is kept, still marked `[DRAFT:` for the
+missing channels. The release PR opens with a warning naming the missing channels and the last error.
+Failed generation leaves explicit drafts for human completion; it never blocks the PR from opening.
+A candidate cannot publish while any channel lacks notes: PR validation and every publisher reject a
+`[DRAFT:` note, and a schema-2 mobile channel with no reviewed changelog entry. Rendering preserves
+human-edited files; regeneration must be deliberate and reviewed. No model runs after release approval. Static validation
 checks shape and evidence references; semantic correctness still requires a person.
+
+Mobile candidates use schema 2 and retain the exact reviewed changelog and evidence bytes in the
+candidate digest. Android, App Store, and TestFlight notes are rendered from that structure; a
+publisher rejects drift between the structured facts and platform text. Legacy schema-1 candidates
+remain valid for recovery and existing-build promotion, but new mobile releases require schema 2.
+TestFlight notes have stable IDs and evidence references tied to the iOS TestFlight channel.
+
+The collector links each changed file to the feature pull requests that changed it within that
+channel's range. Feature PRs are read from merged history, since main's first-parent history only
+shows dev promotions; promotions from dev or main are ignored. The links stay in `evidence.json`,
+outside the model request. When Oryn's draft is converted, each entry takes its kind from the linked
+PRs' conventional title type or branch prefix (`feat` new, `fix` fixed, security wording or type
+security, otherwise improved). Its ID is `pr-<number>`, with `-ios` or `-beta` for iOS channels.
+A breaking `type!:` PR places it under required changes. Title and summary are split at a leading
+`标题：` or the first short sentence. Manifest disclosures become required entries with their
+exact text. Optional mobile `kind`, `title`, `summary` and `required` fields from Oryn take precedence;
+invalid supplied fields fail the attempt and trigger retry. Only absent fields use inference.
+Android/App Store text is at most 400 characters, TestFlight text at most 500, titles 1–100,
+summaries 1–400, and `required` must be boolean. Web/operators retain their three-field entry format.
+Entries without a linked PR keep a text-hash `oryn-` ID, which the reviewer replaces
+with a concise semantic slug. The reviewer still checks wording, kind and grouping before approval.
+Android notes use the app's sections: required, security, new, improved and fixed. A summary that
+only restates its title is rendered once.
+
+The trusted-main catalog publisher derives `releases.json` from merged reviewed candidates and
+successful channel deployment receipts. It validates each receipt against the candidate source SHA
+and content digest, keeps platform channels separate, and publishes to the `mobile-notes` GitHub
+Release. Android requires all three APK SHA-256 values; TestFlight requires `APPROVED`; App Store
+submission states do not count as public availability. A matching exact China storefront lookup may
+add a public App Store build, and a prior catalog's covered public builds remain covered after the
+store advances. Missing structured channel history is omitted and expressed in per-channel coverage.
+The status Worker's `/mobile/releases.json` route proxies this fixed asset with bounded reads, a short
+timeout and conditional ETags; it sets client cache headers but writes no edge cache or snapshot storage.
+It is display-only and contains no evidence.
+Normal release publication refreshes the catalog; operators may run the trusted-main manual refresh
+workflow after reconciling a receipt or catalog failure.
+For multiple successful App Store requests for the same binary, the most recently merged reviewed
+request supplies its store copy. Supersession requires the same source/tag/version/build and a promotion
+of the original candidate and Apple build. Publisher retries cannot restore older copy, and another
+platform's notes are preserved. TestFlight-only requests are complete with reviewed TestFlight entries;
+they do not require artificial Android or App Store highlights.
 
 ## Verification and publication
 

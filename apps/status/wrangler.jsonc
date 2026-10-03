@@ -9,7 +9,8 @@
   "assets": {
     "directory": "./dist",
     "run_worker_first": [
-      "/api/*"
+      "/api/*",
+      "/mobile/releases.json"
     ],
     "not_found_handling": "404-page"
   },

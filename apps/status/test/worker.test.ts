@@ -70,5 +70,22 @@ it('keeps the Worker read-only and preview storage isolated', () => {
   expect(config.vars.STATUS_ENABLED).toBe('false')
   expect(config.r2_buckets[0].bucket_name).not.toBe(production.r2_buckets[0].bucket_name)
   expect(production.routes).toEqual([{ pattern: 'status.yourtj.de', custom_domain: true }])
-  expect(config.assets.run_worker_first).toEqual(['/api/*'])
+  expect(config.assets.run_worker_first).toEqual(['/api/*', '/mobile/releases.json'])
+})
+
+it('serves the mobile release catalog proxy without touching snapshot storage', async () => {
+  const h = await harness()
+  const payload = JSON.stringify({ schemaVersion: 1, releases: [], historyCoverage: { byChannel: {} } })
+  const fetcher = vi.fn<typeof fetch>(async () => new Response(payload))
+  vi.stubGlobal('fetch', fetcher)
+  try {
+    const response = await worker.fetch(new Request('https://status.example.com/mobile/releases.json'), h.env)
+    expect(response.status).toBe(200)
+    expect(await response.text()).toBe(payload)
+    expect(String(fetcher.mock.calls[0]![0])).toBe('https://github.com/YourTongji/YourTJ-Hub/releases/download/mobile-notes/releases.json')
+  } finally {
+    vi.unstubAllGlobals()
+  }
+  expect(h.get).not.toHaveBeenCalled()
+  expect(h.put).not.toHaveBeenCalled()
 })

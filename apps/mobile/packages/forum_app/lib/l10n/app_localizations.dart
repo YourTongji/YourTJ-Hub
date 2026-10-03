@@ -4206,6 +4206,138 @@ abstract class AppLocalizations {
   /// **'Retry'**
   String get updateRetry;
 
+  /// No description provided for @updateCancelDownload.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel download'**
+  String get updateCancelDownload;
+
+  /// No description provided for @updateIncomplete.
+  ///
+  /// In en, this message translates to:
+  /// **'The update didn’t finish. Check your connection and try again.'**
+  String get updateIncomplete;
+
+  /// No description provided for @updateOpenAppStore.
+  ///
+  /// In en, this message translates to:
+  /// **'View on App Store'**
+  String get updateOpenAppStore;
+
+  /// No description provided for @updateOpenTestFlight.
+  ///
+  /// In en, this message translates to:
+  /// **'View TestFlight in App Store'**
+  String get updateOpenTestFlight;
+
+  /// No description provided for @updateTestFlightInstructions.
+  ///
+  /// In en, this message translates to:
+  /// **'This opens TestFlight\'s App Store page. If TestFlight is installed, open it and check YourTJ for the beta update.'**
+  String get updateTestFlightInstructions;
+
+  /// No description provided for @updateOpenPermissionSettings.
+  ///
+  /// In en, this message translates to:
+  /// **'Open install permission settings'**
+  String get updateOpenPermissionSettings;
+
+  /// No description provided for @updateChannelUnknown.
+  ///
+  /// In en, this message translates to:
+  /// **'Update channel could not be verified. You can still view release history in About.'**
+  String get updateChannelUnknown;
+
+  /// No description provided for @releaseNotes.
+  ///
+  /// In en, this message translates to:
+  /// **'What’s new'**
+  String get releaseNotes;
+
+  /// No description provided for @releaseNotesHistory.
+  ///
+  /// In en, this message translates to:
+  /// **'Release history'**
+  String get releaseNotesHistory;
+
+  /// No description provided for @releaseNotesEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No release notes are available right now.'**
+  String get releaseNotesEmpty;
+
+  /// No description provided for @releaseNotesEarlier.
+  ///
+  /// In en, this message translates to:
+  /// **'Includes other improvements from earlier versions.'**
+  String get releaseNotesEarlier;
+
+  /// No description provided for @releaseNotesIncomplete.
+  ///
+  /// In en, this message translates to:
+  /// **'Earlier release notes are incomplete. This prompt shows notes for the target release only.'**
+  String get releaseNotesIncomplete;
+
+  /// No description provided for @releaseHistoryIncomplete.
+  ///
+  /// In en, this message translates to:
+  /// **'The available history is incomplete for this release channel.'**
+  String get releaseHistoryIncomplete;
+
+  /// No description provided for @releaseNotesMore.
+  ///
+  /// In en, this message translates to:
+  /// **'Show all updates'**
+  String get releaseNotesMore;
+
+  /// No description provided for @releaseNotesFewer.
+  ///
+  /// In en, this message translates to:
+  /// **'Show fewer'**
+  String get releaseNotesFewer;
+
+  /// No description provided for @releaseNotesShowRemaining.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{Show 1 more update} other{Show {count} more updates}}'**
+  String releaseNotesShowRemaining(int count);
+
+  /// No description provided for @releaseNotesRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Required'**
+  String get releaseNotesRequired;
+
+  /// No description provided for @releaseNotesHistoryError.
+  ///
+  /// In en, this message translates to:
+  /// **'Release history is temporarily unavailable.'**
+  String get releaseNotesHistoryError;
+
+  /// No description provided for @releaseNotesKindFeature.
+  ///
+  /// In en, this message translates to:
+  /// **'New'**
+  String get releaseNotesKindFeature;
+
+  /// No description provided for @releaseNotesKindImprovement.
+  ///
+  /// In en, this message translates to:
+  /// **'Improved'**
+  String get releaseNotesKindImprovement;
+
+  /// No description provided for @releaseNotesKindFix.
+  ///
+  /// In en, this message translates to:
+  /// **'Fixed'**
+  String get releaseNotesKindFix;
+
+  /// No description provided for @releaseNotesKindSecurity.
+  ///
+  /// In en, this message translates to:
+  /// **'Security'**
+  String get releaseNotesKindSecurity;
+
   /// No description provided for @settingsPushConsent.
   ///
   /// In en, this message translates to:

@@ -31,6 +31,25 @@ What's New comes only from `android.zh-CN.md`; iOS store text comes from `ios.zh
 TestFlight uses separate English testing notes. Static store description/screenshots remain under
 `apps/mobile/store/`; `metadata.json` What's New is not a publishing fallback.
 
+New release requests use reviewed structured changelog facts and evidence references to render each
+channel's notes. The status site's `/mobile/releases.json` catalog appears only after a successful
+channel receipt is bound to the merged candidate's source SHA and content digest. App Store submission
+or review is not public availability; TestFlight requires `APPROVED`. Catalog coverage is tracked
+per channel, so old unstructured releases do not claim complete note history. See the
+[catalog contract](../../apps/status/api/openapi.yaml) and [release pipeline decision](../decisions/0059-receipt-backed-mobile-release-catalog.md).
+`completeFromBuild` is an inclusive minimum installed-build threshold for claiming a complete
+upgrade range, not a claim that every build from that number has a structured entry. When no older
+unstructured public build is known, it equals the first structured build; installations below that
+floor have unknown prior history and the client must not claim completeness.
+Release requests allow at most 100 entries per changelog group, the client's per-release limit; a
+build whose merged channel entries exceed it is left out of the catalog. The catalog keeps the newest
+structured builds that fit both the client's 300-release limit and the 1 MiB limit shared by the
+status proxy and the client, measured on the exact published UTF-8 bytes; publishing rechecks the
+size before upload. Coverage lists only retained builds, so the newest dropped public build becomes
+the floor. A required disclosure keeps its
+TestFlight channel as a required entry beside the verbatim testing note; the client shows the required
+copy once, ahead of ordinary notes.
+
 Recovery is channel-specific and uses original signed artifacts or an exact already uploaded Apple
 build. Uncertain uploads are queried before retransmission. A pending other App Store version is
 reported as a blocker, never withdrawn automatically. See the [recovery rules](releases.md#recovery-and-completion).
@@ -93,8 +112,12 @@ regeneration. A store icon update requires a new IPA/build; already submitted bi
 
 Flutter 3.44.9 produces three signed APKs. Their **actual** Android version codes are base build `N`
 plus `1000` (armeabi-v7a), `2000` (arm64-v8a) or `4000` (x86_64). Asset names contain that actual
-code: `YourTJ-X.Y.Z+CODE-ABI.apk`. iOS uses the unmodified base `N`. The publisher verifies package,
-version, ABI and signing certificate before writing `SHA256SUMS.txt` or uploading. Changing Flutter's
+code: `YourTJ-X.Y.Z+CODE-ABI.apk`. iOS uses the unmodified base `N`.
+The Android app exposes that base `N` from its build configuration for catalog matching. The
+download candidate subtracts its selected APK ABI's fixed offset; base builds above 999 retain
+their full identity. APK update/install comparisons still use actual Android version codes.
+The publisher verifies package, version, ABI and signing certificate before writing `SHA256SUMS.txt`
+or uploading. Changing Flutter's
 split-code algorithm requires updating the validator; a mismatch fails the release. Certificate
 validation accepts both numbered signer output and Build Tools 37 scheme labels. Repeated identical
 certificates across schemes represent one identity; conflicting certificates, public-key digests and

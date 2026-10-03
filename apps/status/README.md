@@ -3,7 +3,8 @@
 `Partial`: independent Vue status app on Cloudflare Workers Static Assets, a read-only Worker API,
 and private R2 snapshots. GitHub Actions collects public metrics every fifteen minutes and device
 reports hourly; collection never runs in the Worker or in response to a visitor. The forum retains
-its separate single-binary deployment. The reader is verified in isolated preview; production domain
+its separate single-binary deployment. The Worker also serves `/mobile/releases.json`, a read-only
+proxy of the published mobile release-notes asset. The reader is verified in isolated preview; production domain
 cutover, scheduled collection and real device reports still require operational acceptance.
 
 ## Development

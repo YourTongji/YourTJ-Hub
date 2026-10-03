@@ -40,7 +40,7 @@ jobs:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment: mobile-release
-    timeout-minutes: 55
+    timeout-minutes: 70
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
@@ -82,22 +82,18 @@ jobs:
         continue-on-error: true
         working-directory: .oryn-runtime
         run: bun run core:install
-      - name: Oryn drafts only (failure leaves a human-editable request)
-        id: notes
+      - name: Oryn drafts with retries and format checks (failure leaves a blocked human-editable request)
         if: steps.core.outcome == 'success'
         continue-on-error: true
-        working-directory: .oryn-runtime
         env:
           ORYN_API_KEY: ${{ secrets.ORYN_OPENCODE_GO_API_KEY }}
           ORYN_MODEL: ${{ vars.ORYN_MODEL || 'opencode-go/deepseek-v4.1-flash' }}
           ORYN_BASE_URL: ${{ vars.ORYN_BASE_URL || 'https://opencode.ai/zen/go/v1' }}
           ORYN_TASK_TIMEOUT_SECONDS: ${{ vars.ORYN_TASK_TIMEOUT_SECONDS || '1800' }}
+          ORYN_NOTES_ATTEMPTS: ${{ vars.ORYN_NOTES_ATTEMPTS || '3' }}
+          ORYN_NOTES_BUDGET_SECONDS: ${{ vars.ORYN_NOTES_BUDGET_SECONDS || '2400' }}
           ORYN_VARIANT: max
-        run: bun script/release-notes.ts ../.release-approved/oryn-input.json ../.release-approved/oryn-output.json
-      - name: Validate and render separate platform drafts
-        if: steps.notes.outcome == 'success'
-        continue-on-error: true
-        run: python3 scripts/release/workflow.py render
+        run: python3 scripts/release/workflow.py draft-notes
       - name: Mint PR preparation identity
         id: author
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1

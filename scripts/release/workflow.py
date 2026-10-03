@@ -4,24 +4,40 @@ import argparse
 import json
 import os
 from pathlib import Path
+import subprocess
 import tempfile
 from model import ID, FILES, require, validate_candidate, validate_approval, digest
 from github import GitHub, git
 from controller import (plan, prepare, create_pr, authorize, reserve, emit_outputs, write_json,
-                        candidate_path, load_candidate, verify_reservation)
+                        candidate_path, load_candidate, verify_reservation, notes_banner)
 from state import reservations, baselines, latest_receipt, record
-from notes import render
+from notes import draft_notes, render, render_structured
+from catalog import publish_catalog
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("command", choices=["prepare", "create-pr", "render", "authorize", "reserve", "receipt", "validate-pr", "review-check", "discover", "start", "verify-apple", "verify-publication", "verify-deploy"])
+    parser.add_argument("command", choices=["prepare", "create-pr", "draft-notes", "render", "render-structured", "publish-catalog", "authorize", "reserve", "receipt", "validate-pr", "review-check", "discover", "start", "verify-apple", "verify-publication", "verify-deploy"])
     parser.add_argument("--candidate", default=os.environ.get("CANDIDATE"))
     parser.add_argument("--folder", type=Path, default=Path(".release-approved"))
     parser.add_argument("--pr", type=int)
     parser.add_argument("--apple-state", type=Path)
+    parser.add_argument("--replace-structured", action="store_true")
     args = parser.parse_args()
     github = GitHub()
+    if args.command == "publish-catalog":
+        catalog = publish_catalog(github)
+        print(json.dumps({"schemaVersion": catalog["schemaVersion"], "releaseCount": len(catalog["releases"])}))
+        return
+    if args.command == "render-structured":
+        require(args.candidate, "Structured rendering requires --candidate")
+        folder = Path(candidate_path(args.candidate))
+        manifest = json.loads((folder / "manifest.json").read_text(encoding="utf-8"))
+        require(manifest.get("candidateId") == args.candidate and manifest.get("schemaVersion") == 2
+                and manifest.get("product") == "mobile",
+                "Structured rendering applies to schema-2 mobile candidates")
+        render_structured(manifest, folder, replace=args.replace_structured)
+        return
     if args.command == "prepare":
         apple = json.loads(args.apple_state.read_text(encoding='utf-8')) if args.apple_state else None
         existing_id = os.environ.get("EXISTING_RELEASE")
@@ -45,6 +61,26 @@ def main():
         with open(os.environ["GITHUB_OUTPUT"], "a") as out:
             out.write(f"candidate={manifest['candidateId']}\n")
         return
+    if args.command == "draft-notes":
+        folder = args.folder / "candidate"
+        model_input = (args.folder / "oryn-input.json").resolve()
+        output = (args.folder / "oryn-output.json").resolve()
+
+        def run_oryn(timeout):
+            # Let Oryn terminate its detached worker before the outer retry deadline.
+            # Later attempts may have much less budget than the configured first attempt.
+            env = {**os.environ, "ORYN_TASK_TIMEOUT_SECONDS": str(max(10, int(timeout) - 60))}
+            subprocess.run(["bun", "script/release-notes.ts", str(model_input), str(output)],
+                           cwd=".oryn-runtime", check=True, timeout=timeout, env=env)
+        status = draft_notes(json.loads((folder / "manifest.json").read_text(encoding='utf-8')), folder,
+                             model_input.read_bytes(), output, run_oryn,
+                             attempts=int(os.environ.get("ORYN_NOTES_ATTEMPTS", "3")),
+                             budget=float(os.environ.get("ORYN_NOTES_BUDGET_SECONDS", "2400")),
+                             task_timeout=float(os.environ.get("ORYN_TASK_TIMEOUT_SECONDS", "1800")) + 60)
+        write_json(args.folder / "notes-status.json", status)
+        print(json.dumps(status, ensure_ascii=False))
+        require(status["status"] == "complete", f"Oryn notes {status['status']}; missing: {', '.join(status['missing'])}")
+        return
     if args.command == "render":
         folder = args.folder / "candidate"
         render(json.loads((folder / "manifest.json").read_text(encoding='utf-8')), folder,
@@ -52,10 +88,14 @@ def main():
         return
     if args.command == "create-pr":
         folder = args.folder / "candidate"
-        result = create_pr(json.loads((folder / "manifest.json").read_text(encoding='utf-8')), folder, github)
+        status_path = args.folder / "notes-status.json"
+        status = json.loads(status_path.read_text(encoding='utf-8')) if status_path.is_file() else None
+        manifest = json.loads((folder / "manifest.json").read_text(encoding='utf-8'))
+        result = create_pr(manifest, folder, github, status)
         print(json.dumps(result))
         with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as out:
-            out.write(f"Release request: {result.get('html_url', result.get('url'))}\n\nHuman review is required before publishing.\n")
+            out.write(f"Release request: {result.get('html_url', result.get('url'))}\n\n{notes_banner(manifest, status)}\n\n"
+                      "Human review is required before publishing.\n")
         return
     if args.command == "discover":
         event = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text(encoding='utf-8'))

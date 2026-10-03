@@ -25,6 +25,12 @@ jobs:
     if: github.ref == 'refs/heads/main'
     runs-on: macos-26
     environment: mobile-release
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: read
+      checks: read
+      deployments: write
     timeout-minutes: 90
     env:
       CANDIDATE: ${{ inputs.candidate }}
@@ -195,3 +201,24 @@ jobs:
         run: |
           rm -rf .asc "$RUNNER_TEMP/release-asc" "$RUNNER_TEMP/yourtj-ios-secrets"
           rm -f .source/apps/mobile/packages/forum_app/ios/Flutter/ReleaseSigning.xcconfig
+  catalog:
+    if: ${{ always() && needs.publish.result == 'success' }}
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      deployments: read
+    concurrency:
+      group: mobile-release-catalog
+      cancel-in-progress: false
+      queue: max
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Publish receipt-backed mobile release catalog
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/release/workflow.py publish-catalog

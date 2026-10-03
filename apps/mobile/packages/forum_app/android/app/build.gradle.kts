@@ -56,6 +56,9 @@ android {
         versionCode = flutter.versionCode
         versionName = flutter.versionName
 
+        // Preserve the shared release identity before Flutter adds split-ABI offsets.
+        buildConfigField("int", "RELEASE_BUILD_NUMBER", flutter.versionCode.toString())
+
         buildConfigField("boolean", "JPUSH_CONFIGURED", pushKey.isNotBlank().toString())
         manifestPlaceholders["JPUSH_APPKEY"] = pushKey.ifBlank { "000000000000000000000000" }
         manifestPlaceholders["JPUSH_CHANNEL"] = "github"

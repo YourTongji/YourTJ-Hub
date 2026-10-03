@@ -4,14 +4,17 @@ import json
 import re
 from pathlib import Path
 
-SCHEMA = 1
+SCHEMA = 2
 REPOSITORY = "YourTongji/YourTJ-Hub"
 FILES = {"web": "web.zh-CN.md", "android": "android.zh-CN.md",
          "ios-app-store": "ios.zh-Hans.txt", "ios-testflight": "testflight.en-US.txt"}
+CHANGELOG = "changelog.json"
 SHA = re.compile(r"[0-9a-f]{40}")
 ID = re.compile(r"(?:web|mobile)-[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9]+)?(?:-store-[0-9]+)?")
 VERSION = re.compile(r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)")
 MAX_BUILD = 2099996000
+# ReleaseNoteVersion.parse rejects a release with more entries in any group.
+MAX_CHANGELOG_GROUP = 100
 
 
 class ReleaseError(ValueError):
@@ -86,7 +89,8 @@ def validate_candidate(manifest, folder, draft=False):
     required = {"schemaVersion", "candidateId", "sourceSha", "product", "version", "tag", "buildNumber",
                 "channels", "operation", "existingRelease", "baselines", "notes", "serverRequirement", "requiredDisclosures"}
     require(isinstance(manifest, dict) and set(manifest) == required, "Unexpected or missing manifest fields")
-    require(manifest["schemaVersion"] == SCHEMA, "Unsupported manifest schema")
+    require(manifest["schemaVersion"] in {1, SCHEMA}, "Unsupported manifest schema")
+    legacy_candidate = manifest["schemaVersion"] == 1
     require(isinstance(manifest["candidateId"], str) and ID.fullmatch(manifest["candidateId"]), "Invalid candidate ID")
     require(isinstance(manifest["sourceSha"], str) and SHA.fullmatch(manifest["sourceSha"]), "Source must be a full commit SHA")
     product, version, channels = manifest["product"], manifest["version"], manifest["channels"]
@@ -119,6 +123,63 @@ def validate_candidate(manifest, folder, draft=False):
                 f"Unresolved baseline: {channel}")
     require(manifest["notes"] == {c: FILES[c] for c in channels}, "Each channel requires its own canonical note file")
     contents = {c: read_note(folder, name, c, draft) for c, name in manifest["notes"].items()}
+    changelog_digest = None
+    changelog = None
+    if product == "mobile" and not legacy_candidate:
+        changelog_path = Path(folder) / CHANGELOG
+        require(changelog_path.is_file() and not changelog_path.is_symlink(), "Missing mobile changelog.json")
+        changelog_raw = changelog_path.read_bytes()
+        changelog_digest = hashlib.sha256(changelog_raw).hexdigest()
+        changelog = json.loads(changelog_raw)
+        validate_changelog(changelog, version, number, channels, draft=draft)
+        evidence_path = Path(folder) / "evidence.json"
+        require(evidence_path.is_file() and not evidence_path.is_symlink(), "Missing mobile evidence.json")
+        evidence_raw = evidence_path.read_bytes()
+        evidence_digest = hashlib.sha256(evidence_raw).hexdigest()
+        evidence_record = json.loads(evidence_raw)
+        require(evidence_record.get("schemaVersion") == 1 and evidence_record.get("sourceSha") == manifest["sourceSha"],
+                "Evidence/source mismatch")
+        evidence_items = {item.get("id"): item for item in evidence_record.get("evidence", [])
+                          if isinstance(item, dict) and isinstance(item.get("id"), str)}
+        for entry_id, references in changelog["evidence"].items():
+            entry = next((e for group in ("highlights", "breaking", "requiredActions")
+                          for e in changelog[group] if e["id"] == entry_id), None)
+            testflight_note = next((item for item in changelog["testflightNotes"]
+                                    if item["id"] == entry_id), None)
+            evidence_platforms = set()
+            for reference in references:
+                item = evidence_items.get(reference)
+                require(item is not None, f"Unknown evidence {reference} for changelog entry {entry_id}")
+                evidence_platforms.update(p for c in item.get("channels", [])
+                                          for p in ({"ios", c} if c.startswith("ios-") else {c}))
+            if entry is not None:
+                require(set(entry["platforms"]) <= evidence_platforms,
+                        f"Evidence does not support every changelog platform for {entry_id}")
+            if testflight_note is not None:
+                require("ios-testflight" in evidence_platforms,
+                        f"Evidence does not support TestFlight note {entry_id}")
+        for item in changelog["testflightNotes"]:
+            require(item["id"] in changelog["evidence"]
+                    and set(item["evidenceIds"]) <= set(changelog["evidence"][item["id"]]),
+                    f"TestFlight note {item['id']} must reference the same reviewed changelog evidence")
+        if not draft:
+            for channel in channels:
+                require(render_changelog(changelog, channel).strip(),
+                        f"{channel} has no reviewed changelog entry; users must not receive an update without notes")
+            expected_android = render_changelog(changelog, "android")
+            expected_ios = render_changelog(changelog, "ios-app-store")
+            expected_testflight = render_changelog(changelog, "ios-testflight")
+            if "android" in channels:
+                require(contents["android"].strip() == expected_android.strip(),
+                        "Android notes differ from the reviewed structured changelog; render them again")
+            if "ios-app-store" in channels:
+                require(contents["ios-app-store"].strip() == expected_ios.strip(),
+                        "App Store notes differ from the reviewed structured changelog; render them again")
+            if "ios-testflight" in channels:
+                require(contents["ios-testflight"].strip() == expected_testflight.strip(),
+                        "TestFlight notes differ from the reviewed structured changelog; render them again")
+    else:
+        evidence_digest = None
     if product == "web":
         contents["operators"] = read_note(folder, "operators.zh-CN.md", "operators", draft)
     dependency = manifest["serverRequirement"]
@@ -134,7 +195,93 @@ def validate_candidate(manifest, folder, draft=False):
         if not draft:
             for channel in disclosure["channels"]:
                 require(disclosure["text"] in contents[channel], f"Missing disclosure {disclosure['id']} in {channel}")
-    return digest({"manifest": manifest, "notes": contents})
+    value = {"manifest": manifest, "notes": contents}
+    if product == "mobile" and not legacy_candidate:
+        value.update({"changelogDigest": changelog_digest, "evidenceDigest": evidence_digest})
+    return digest(value)
+
+
+def validate_changelog(value, version, build_number, channels, draft=False):
+    require(isinstance(value, dict) and set(value) == {"schemaVersion", "version", "buildNumber", "highlights", "breaking", "requiredActions", "evidence", "testflightNotes"},
+            "Invalid structured changelog fields")
+    require(value["schemaVersion"] == 1 and value["version"] == version and value["buildNumber"] == build_number,
+            "Structured changelog identity differs from release candidate")
+    allowed_platforms = {"android", "ios", "ios-testflight", "ios-app-store"}
+    supported = {p for channel in channels for p in ({"ios", channel} if channel.startswith("ios-") else {channel})}
+    ids = set()
+    for group in ("highlights", "breaking", "requiredActions"):
+        require(isinstance(value[group], list), f"Invalid changelog {group}")
+        require(len(value[group]) <= MAX_CHANGELOG_GROUP, f"Changelog {group} allows at most {MAX_CHANGELOG_GROUP} entries")
+        for entry in value[group]:
+            require(isinstance(entry, dict) and set(entry) == {"id", "title", "summary", "platforms", "kind"},
+                    "Invalid changelog entry fields")
+            require(isinstance(entry["id"], str) and re.fullmatch(r"[a-z0-9][a-z0-9-]{0,79}", entry["id"])
+                    and entry["id"] not in ids, "Changelog entry IDs must be unique stable slugs")
+            ids.add(entry["id"])
+            require(entry["kind"] in {"feature", "improvement", "fix", "security"}, "Invalid changelog kind")
+            require(isinstance(entry["title"], str) and entry["title"].strip() and len(entry["title"]) <= 100
+                    and isinstance(entry["summary"], str) and entry["summary"].strip() and len(entry["summary"]) <= 400,
+                    "Empty or oversized changelog text")
+            require(draft or ("[DRAFT:" not in entry["title"] and "[DRAFT:" not in entry["summary"]),
+                    "Unfinished structured changelog entry")
+            require(isinstance(entry["platforms"], list) and entry["platforms"]
+                    and len(entry["platforms"]) == len(set(entry["platforms"]))
+                    and set(entry["platforms"]) <= allowed_platforms
+                    and set(entry["platforms"]) <= supported, "Invalid or unpublished changelog platforms")
+    testflight = value["testflightNotes"]
+    require(isinstance(testflight, list) and ("ios-testflight" not in channels or draft or testflight),
+            "TestFlight release requires structured testing notes")
+    require(len(testflight) <= MAX_CHANGELOG_GROUP, f"Changelog testflightNotes allows at most {MAX_CHANGELOG_GROUP} entries")
+    for item in testflight:
+        require(isinstance(item, dict) and set(item) == {"id", "text", "evidenceIds"}
+                and isinstance(item["id"], str) and re.fullmatch(r"[a-z0-9][a-z0-9-]{0,79}", item["id"])
+                and isinstance(item["text"], str) and item["text"].strip() and len(item["text"]) <= 500
+                and isinstance(item["evidenceIds"], list) and item["evidenceIds"]
+                and len(item["evidenceIds"]) == len(set(item["evidenceIds"])), "Invalid TestFlight testing note")
+        require(draft or "[DRAFT:" not in item["text"], "Unfinished TestFlight note")
+    require(len({item["id"] for item in testflight}) == len(testflight), "Duplicate TestFlight note IDs")
+    evidence = value["evidence"]
+    evidence_ids = ids | {item["id"] for item in testflight}
+    require(isinstance(evidence, dict) and set(evidence) == evidence_ids, "Each changelog entry needs evidence references")
+    for entry_id in evidence_ids:
+        references = evidence[entry_id]
+        require(isinstance(references, list) and references and all(isinstance(ref, str) and ref for ref in references),
+                f"Missing source evidence for changelog entry {entry_id}")
+    for item in testflight:
+        require(set(item["evidenceIds"]) <= set(evidence[item["id"]]),
+                f"TestFlight note {item['id']} must use its reviewed evidence references")
+    require(len({item["id"] for item in testflight}) == len(testflight), "Duplicate TestFlight note IDs")
+
+
+# Section order and labels match the app's update prompt and history.
+NOTE_SECTIONS = (("required", "重要提示"), ("security", "安全更新"), ("feature", "新功能"),
+                 ("improvement", "体验改进"), ("fix", "问题修复"))
+
+
+def _note_line(entry):
+    """`title：summary`, or the summary alone when it only restates the title."""
+    summary = entry["summary"].strip()
+    if re.sub(r"[。．.！!？?]+$", "", summary) == entry["title"].strip():
+        return summary, True
+    return f"{entry['title']}：{summary}", False
+
+
+def render_changelog(changelog, platform):
+    if platform == "ios-testflight":
+        return "\n".join(item["text"] for item in changelog["testflightNotes"])
+    def applies(entry):
+        return platform in entry["platforms"] or (platform.startswith("ios-") and "ios" in entry["platforms"])
+    required = [e for group in ("breaking", "requiredActions") for e in changelog[group] if applies(e)]
+    highlights = [e for e in changelog["highlights"] if applies(e)]
+    sections = [(label, required if key == "required" else [e for e in highlights if e["kind"] == key])
+                for key, label in NOTE_SECTIONS]
+    if platform == "android":
+        def bullet(entry):
+            line, restated = _note_line(entry)
+            return f"- **{line}**" if restated else f"- **{entry['title']}**：{entry['summary'].strip()}"
+        return "\n\n".join(f"### {label}\n\n" + "\n".join(bullet(e) for e in rows)
+                            for label, rows in sections if rows)
+    return "\n".join(_note_line(e)[0] for _, rows in sections for e in rows)
 
 
 def validate_approval(pr, reviews, paths, candidate_id, maintainers, require_merged=True):
@@ -143,7 +290,7 @@ def validate_approval(pr, reviews, paths, candidate_id, maintainers, require_mer
     require(pr.get("head", {}).get("ref") == f"codex/release/{candidate_id}", "Unexpected release PR branch")
     require(not require_merged or pr.get("merged") is True, "Release PR has not merged")
     prefix = f"releases/requests/{candidate_id}/"
-    allowed = {"manifest.json", "evidence.json", "operators.zh-CN.md", *FILES.values()}
+    allowed = {"manifest.json", "evidence.json", "operators.zh-CN.md", CHANGELOG, *FILES.values()}
     require(paths and all(p.startswith(prefix) and p[len(prefix):] in allowed for p in paths),
             "Release PR may change only this candidate's release data")
     latest = {}

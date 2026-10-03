@@ -7,7 +7,7 @@ import re
 import subprocess
 import tempfile
 import time
-from model import (FILES, ID, SHA, REPOSITORY, ReleaseError, require, digest, channels_for,
+from model import (CHANGELOG, FILES, ID, SHA, REPOSITORY, ReleaseError, require, digest, channels_for,
                    next_identity, validate_candidate, validate_approval)
 from github import GitHub, git, run
 from collect import collect
@@ -33,7 +33,7 @@ def load_candidate(candidate_id, ref="HEAD", destination=None, draft=False):
     folder = Path(destination) if destination else ROOT / prefix
     # Only approved, regular blob files are materialized; never follow symlinks.
     names = {p.rsplit('/', 1)[1] for p in paths}
-    require(names <= {'manifest.json', 'evidence.json', 'operators.zh-CN.md', *FILES.values()},
+    require(names <= {'manifest.json', 'evidence.json', 'operators.zh-CN.md', CHANGELOG, *FILES.values()},
             'Unknown candidate files')
     require(not folder.is_symlink(), 'Candidate directory must not be a symlink')
     folder.mkdir(parents=True, exist_ok=True)
@@ -48,7 +48,8 @@ def load_candidate(candidate_id, ref="HEAD", destination=None, draft=False):
     require(manifest["candidateId"] == candidate_id, "Directory/manifest identity mismatch")
     validate_candidate(manifest, folder, draft)
     evidence = json.loads((folder / "evidence.json").read_text(encoding='utf-8'))
-    require(evidence.get("schemaVersion") == 1 and evidence.get("sourceSha") == manifest["sourceSha"], "Evidence/source mismatch")
+    require(evidence.get("schemaVersion") == 1 and evidence.get("sourceSha") == manifest["sourceSha"],
+            "Evidence/source mismatch")
     return manifest, folder
 
 
@@ -103,7 +104,7 @@ def plan(scope, bump, source, destination, github, apple=None):
         floor, floor_build = match[1], int(match[2])
     version, number = next_identity(product, bump, tags, floor, floor_build)
     candidate_id = f"{product}-{version}" + (f"-{number}" if number else "")
-    return {"schemaVersion": 1, "candidateId": candidate_id, "sourceSha": sha,
+    return {"schemaVersion": 2, "candidateId": candidate_id, "sourceSha": sha,
             "product": product, "version": version, "tag": ("v" if product == "web" else "mobile-v") + version,
             "buildNumber": number, "channels": channels, "operation": "release", "existingRelease": None,
             "baselines": baselines(github, channels, tags, apple), "notes": {c: FILES[c] for c in channels},
@@ -121,10 +122,34 @@ def prepare(manifest, github, folder):
     write_json(folder / "evidence.json", evidence)
     for filename in [*manifest["notes"].values()] + (["operators.zh-CN.md"] if manifest["product"] == "web" else []):
         (folder / filename).write_text("[DRAFT: human review required — complete from evidence.json]\n", encoding='utf-8')
+    if manifest["product"] == "mobile":
+        write_json(folder / CHANGELOG, {"schemaVersion": 1, "version": manifest["version"],
+                   "buildNumber": manifest["buildNumber"], "highlights": [], "breaking": [],
+                   "requiredActions": [], "evidence": {}, "testflightNotes": []})
     return request
 
 
-def create_pr(manifest, folder, github):
+def notes_banner(manifest, status):
+    """Summarize the automated draft; incomplete notes stay blocked by candidate validation."""
+    if status and status["status"] == "complete":
+        return (f"Release notes: Oryn drafted every channel (attempt {len(status['attempts'])}). "
+                "Review wording, kind and evidence before approval.")
+    if status is None:
+        reason, missing = "Oryn was unavailable", list(manifest["notes"])
+    else:
+        reason = f"Oryn returned no usable draft after {len(status['attempts'])} attempt(s)" \
+            if status["status"] == "failed" else f"Oryn's best draft after {len(status['attempts'])} attempt(s) is partial"
+        missing = status["missing"]
+        errors = [a["error"] for a in status["attempts"] if a.get("error")] + [status.get("stopped")]
+        last = next((e for e in reversed(errors) if e), None)
+        if last:
+            reason += f" (last error: {last.replace('`', chr(39))})"
+    return (f"> [!WARNING]\n> **Release notes incomplete.** {reason}. Missing: {', '.join(missing)}.\n"
+            "> Complete changelog.json from evidence.json, then run `render-structured`. "
+            "CI and every publisher refuse a channel without reviewed notes.")
+
+
+def create_pr(manifest, folder, github, notes_status=None):
     candidate_id = manifest["candidateId"]
     pending = open_request(github, manifest["product"])
     if pending:
@@ -134,7 +159,7 @@ def create_pr(manifest, folder, github):
     # Use Git Data APIs, never push a main branch or execute candidate-supplied scripts.
     tree_entries = []
     for path in sorted(Path(folder).iterdir()):
-        require(path.name in {"manifest.json", "evidence.json", "operators.zh-CN.md", *FILES.values()} and path.is_file() and not path.is_symlink(), "Invalid prepared file")
+        require(path.name in {"manifest.json", "evidence.json", "operators.zh-CN.md", CHANGELOG, *FILES.values()} and path.is_file() and not path.is_symlink(), "Invalid prepared file")
         blob = github.api("git/blobs", method="POST", data={"content": path.read_text(encoding='utf-8'), "encoding": "utf-8"})
         tree_entries.append({"path": candidate_path(candidate_id) + "/" + path.name, "mode": "100644", "type": "blob", "sha": blob["sha"]})
     base_tree = github.api(f"git/commits/{base}")["tree"]["sha"]
@@ -146,9 +171,9 @@ def create_pr(manifest, folder, github):
         raise ReleaseError("Preparation branch already exists; inspect it before retrying (human edits are never overwritten)")
     github.api("git/refs", method="POST", data={"ref": f"refs/heads/{branch}", "sha": commit["sha"]})
     previews = "\n\n".join(f"### {channel}\n\n{(Path(folder) / filename).read_text(encoding='utf-8')}" for channel, filename in manifest["notes"].items())
-    body = (f"Release request `{candidate_id}`\n\nSource: `{manifest['sourceSha']}`\n\n"
+    body = (f"Release request `{candidate_id}`\n\n{notes_banner(manifest, notes_status)}\n\nSource: `{manifest['sourceSha']}`\n\n"
             f"Targets: {', '.join(manifest['channels'])}\n\n"
-            "A release maintainer must review the final head. Edit the files, verify platform scope, disclosures and server prerequisites, then approve and merge. Bots cannot approve. The publisher independently rechecks approval.\n\n"
+            "A release maintainer must review the final head. For schema 2 mobile requests, edit changelog.json, attach evidence refs from evidence.json, then run `python3 scripts/release/workflow.py render-structured --candidate ID` to derive platform files; review TestFlight English separately. Verify platform scope, disclosures and server prerequisites, then approve and merge. Bots cannot approve. The publisher independently rechecks approval.\n\n"
             f"Baselines:\n```json\n{json.dumps(manifest['baselines'], indent=2)}\n```\n\n{previews}\n\n"
             "Evidence and uncertainties: `evidence.json`. Source, targets and note edits require fresh approval.")
     return github.api("pulls", method="POST", data={"title": f"chore: release {candidate_id}", "head": branch, "base": "main", "body": body})
@@ -176,6 +201,10 @@ def authorize(candidate_id, github, folder, require_merged=True):
     require(required and max(required, key=lambda c: c["id"])["conclusion"] == "success", "Release PR needs successful ci-required on its final head")
     binding.update({"pr": pr["number"], "sourceSha": manifest["sourceSha"],
                     "notesDigests": {name: hashlib.sha256((folder / name).read_bytes()).hexdigest() for name in manifest['notes'].values()},
+                    "changelogDigest": hashlib.sha256((folder / CHANGELOG).read_bytes()).hexdigest()
+                    if manifest['product'] == 'mobile' and manifest['schemaVersion'] >= 2 else None,
+                    "evidenceDigest": hashlib.sha256((folder / 'evidence.json').read_bytes()).hexdigest()
+                    if manifest['product'] == 'mobile' and manifest['schemaVersion'] >= 2 else None,
                     "contentDigest": digest({p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(folder.iterdir())}),
                     "controllerSha": git("rev-parse", "HEAD")})
     dependency = manifest["serverRequirement"]
@@ -220,6 +249,8 @@ def emit_outputs(manifest, binding):
                "number": str(manifest["buildNumber"] or ""), "tag": manifest["tag"], "channels": json.dumps(manifest["channels"]),
                "approved_head": binding["approvedHead"], "binding": json.dumps(binding, separators=(",", ":")),
                "notes_digests": json.dumps(binding['notesDigests'], separators=(',', ':')),
+               "changelog_digest": binding.get('changelogDigest') or '',
+               "evidence_digest": binding.get('evidenceDigest') or '',
                "promotion": str(manifest["operation"] == "promote-ios").lower()}
     if os.environ.get("GITHUB_OUTPUT"):
         with open(os.environ["GITHUB_OUTPUT"], "a") as out:

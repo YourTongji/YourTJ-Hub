@@ -1123,7 +1123,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               ]
             else if (_signedIn == false)
               _categoryRow(
-                symbol: 'log-out',
+                symbol: 'login4',
                 title: l10n.authLoginTitle,
                 onTap: () => context.push(
                   authLoginLocation(

@@ -145,3 +145,4 @@ A decision starts `Proposed`. Once implemented, its status becomes `Accepted` an
 - [0056](0056-ai-image-text-moderation.md) — 发布时 AI 图文审查：视觉证据 + Jev 并行政策概率 + Go resolver，故障一律转人工，待审图片以 PENDING 引用收口。
 - [0057](0057-product-and-engineering-review-evidence.md) — Issue/PR 在保留工程交付栏目的基础上补充产品依据、多角色故事与逐项验收证据，按影响控制流程深度。
 - [0058](0058-status-cloudflare.md) — Cloudflare 静态资源、只读 Worker API、GitHub Actions 定时采集与 R2 条件写快照。
+- [0059](0059-receipt-backed-mobile-release-catalog.md) — Build the public mobile notes catalog from reviewed candidates and successful channel receipts.
