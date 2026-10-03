@@ -1,11 +1,13 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
+import { h } from 'vue'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import type { LayoutPayload } from '@gooseforum/client'
 import { i18n } from '../src/runtime/i18n'
 import { mobileDrawerGestureHintKey } from '../src/runtime/mobile-drawer-gesture'
 import AppShell from '../src/site/components/AppShell.vue'
+import TopicImageGallery from '../src/site/components/TopicImageGallery.vue'
 
 function layout(): LayoutPayload {
   return {
@@ -109,6 +111,35 @@ describe('AppShell mobile drawer gesture wiring', () => {
       expect(document.querySelector('.gf-drawer-surface')).toBeNull()
     })
 
+    wrapper.unmount()
+  })
+
+  test('swiping the topic image gallery changes images without opening the drawer', async () => {
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [{ path: '/:pathMatch(.*)*', component: { template: '<div />' } }],
+    })
+    const wrapper = mount(AppShell, {
+      props: { layout: layout() },
+      slots: {
+        default: () => h(TopicImageGallery, { images: ['/first.jpg', '/second.jpg'] }),
+      },
+      global: { plugins: [i18n, router] },
+      attachTo: document.body,
+    })
+    const gallery = wrapper.findComponent(TopicImageGallery)
+    const nextButton = gallery.find(`button[aria-label="${i18n.global.t('common.nextPage')}"]`)
+    expect(nextButton.exists()).toBe(true)
+    await nextButton.trigger('click')
+    expect(gallery.text()).toContain('2/2')
+
+    const carousel = gallery.find('.group.relative')
+    carousel.element.dispatchEvent(touch('touchstart', 100, 160))
+    carousel.element.dispatchEvent(touch('touchend', 185, 160))
+    await flushPromises()
+
+    expect(gallery.text()).toContain('1/2')
+    expect(document.querySelector('.gf-drawer-surface')).toBeNull()
     wrapper.unmount()
   })
 
