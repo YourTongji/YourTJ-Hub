@@ -1,6 +1,5 @@
 // ignore: unused_import
 import 'package:intl/intl.dart' as intl;
-
 import 'app_localizations.dart';
 
 // ignore_for_file: type=lint
@@ -2291,6 +2290,71 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get updateRetry => 'Erneut versuchen';
+
+  @override
+  String get updateOpenAppStore => 'Im App Store ansehen';
+
+  @override
+  String get updateOpenTestFlight => 'TestFlight im App Store ansehen';
+
+  @override
+  String get updateTestFlightInstructions =>
+      'Dieser Link öffnet die App-Store-Seite von TestFlight. Wenn TestFlight installiert ist, öffne die App und prüfe das YourTJ-Beta-Update.';
+
+  @override
+  String get updateOpenPermissionSettings =>
+      'Einstellungen zur Installationsberechtigung öffnen';
+
+  @override
+  String get updateChannelUnknown =>
+      'Der Update-Kanal konnte nicht bestätigt werden. Der Versionsverlauf ist weiterhin unter Info verfügbar.';
+
+  @override
+  String get releaseNotes => 'Neu in dieser Version';
+
+  @override
+  String get releaseNotesHistory => 'Versionsverlauf';
+
+  @override
+  String get releaseNotesEmpty =>
+      'Derzeit sind keine Versionshinweise verfügbar.';
+
+  @override
+  String get releaseNotesEarlier =>
+      'Enthält weitere Verbesserungen aus früheren Versionen.';
+
+  @override
+  String get releaseNotesIncomplete =>
+      'Der frühere Versionsverlauf ist unvollständig. Dieser Hinweis zeigt nur Änderungen der Zielversion.';
+
+  @override
+  String get releaseHistoryIncomplete =>
+      'Der verfügbare Verlauf dieses Release-Kanals ist unvollständig.';
+
+  @override
+  String get releaseNotesMore => 'Alle Änderungen anzeigen';
+
+  @override
+  String get releaseNotesFewer => 'Weniger anzeigen';
+
+  @override
+  String get releaseNotesRequired => 'Wichtig';
+
+  @override
+  String get releaseNotesHistoryError =>
+      'Der Versionsverlauf ist vorübergehend nicht verfügbar.';
+
+  @override
+  String get releaseNotesKindFeature => 'Neu';
+
+  @override
+  String get releaseNotesKindImprovement => 'Verbessert';
+
+  @override
+  String get releaseNotesKindFix => 'Behoben';
+
+  @override
+  String get releaseNotesKindSecurity => 'Sicherheit';
 
   @override
   String get settingsPushConsent =>

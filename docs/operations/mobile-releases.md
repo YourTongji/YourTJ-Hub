@@ -26,6 +26,17 @@ What's New comes only from `android.zh-CN.md`; iOS store text comes from `ios.zh
 TestFlight uses separate English testing notes. Static store description/screenshots remain under
 `apps/mobile/store/`; `metadata.json` What's New is not a publishing fallback.
 
+New release requests use reviewed structured changelog facts and evidence references to render each
+channel's notes. The status site's `/mobile/releases.json` catalog appears only after a successful
+channel receipt is bound to the merged candidate's source SHA and content digest. App Store submission
+or review is not public availability; TestFlight requires `APPROVED`. Catalog coverage is tracked
+per channel, so old unstructured releases do not claim complete note history. See the
+[catalog contract](../../apps/status/api/openapi.yaml) and [release pipeline decision](../decisions/0057-receipt-backed-mobile-release-catalog.md).
+`completeFromBuild` is an inclusive minimum installed-build threshold for claiming a complete
+upgrade range, not a claim that every build from that number has a structured entry. When no older
+unstructured public build is known, it equals the first structured build; installations below that
+floor have unknown prior history and the client must not claim completeness.
+
 Recovery is channel-specific and uses original signed artifacts or an exact already uploaded Apple
 build. Uncertain uploads are queried before retransmission. A pending other App Store version is
 reported as a blocker, never withdrawn automatically. See the [recovery rules](releases.md#recovery-and-completion).

@@ -7,13 +7,21 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../l10n/app_localizations.dart';
 import 'android_release.dart';
+import 'release_notes.dart';
+import 'release_notes_page.dart';
+import 'ios_store_release.dart';
+import 'update_dialog_body.dart';
 
 const updateChannel = MethodChannel('yourtj/app_updates');
+const testFlightAppUrl = 'https://apps.apple.com/app/testflight/id899247664';
 final appUpdateHostKey = GlobalKey<MobileUpdateHostState>();
 bool get supportsApkUpdates => !kIsWeb && Platform.isAndroid;
+bool get supportsMobileReleaseNotes =>
+    !kIsWeb && (Platform.isAndroid || Platform.isIOS);
 
 class MobileUpdateHost extends StatefulWidget {
   const MobileUpdateHost({
@@ -52,10 +60,11 @@ class MobileUpdateHostState extends State<MobileUpdateHost>
   }
 
   Future<void> check({bool force = false}) async {
-    if (!supportsApkUpdates || _busy || !mounted) return;
+    if (!supportsMobileReleaseNotes || _busy || !mounted) return;
     _busy = true;
     try {
       final preferences = await SharedPreferences.getInstance();
+      _client.notesPreferences = preferences;
       final now = DateTime.now().millisecondsSinceEpoch;
       final last = preferences.getInt('update.lastCheck') ?? 0;
       if (!force &&
@@ -68,6 +77,10 @@ class MobileUpdateHostState extends State<MobileUpdateHost>
         'getInfo',
       );
       if (info == null) return;
+      if (Platform.isIOS) {
+        await _checkIos(info, preferences, force);
+        return;
+      }
       final release = await _client.check(
         (info['abis'] as List).cast<String>(),
         (info['buildNumber'] as num).toInt(),
@@ -93,6 +106,7 @@ class MobileUpdateHostState extends State<MobileUpdateHost>
         barrierDismissible: false,
         builder: (_) => _UpdateDialog(
           release: release,
+          installedBuild: (info['buildNumber'] as num).toInt(),
           client: _client,
           preferences: preferences,
         ),
@@ -110,6 +124,131 @@ class MobileUpdateHostState extends State<MobileUpdateHost>
     }
   }
 
+  Future<void> _checkIos(
+    Map<String, dynamic> info,
+    SharedPreferences preferences,
+    bool force,
+  ) async {
+    final channel = info['channel'];
+    final installedBuild = info['buildNumber'];
+    if (installedBuild is! num) return;
+    if (channel == 'ios-testflight') {
+      final catalog = await _client.loadHistory();
+      if (catalog == null) {
+        if (force && mounted) {
+          final context = widget.navigatorKey.currentContext;
+          if (context != null && context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(AppLocalizations.of(context).updateFailed),
+              ),
+            );
+          }
+        }
+        return;
+      }
+      final target = catalog.releases
+          .where(
+            (release) =>
+                release.channels.contains('ios-testflight') &&
+                release.buildNumber > installedBuild.toInt() &&
+                catalog.channelCoverage['ios-testflight']?.coveredBuilds
+                        .contains(release.buildNumber) ==
+                    true,
+          )
+          .fold<ReleaseNoteVersion?>(
+            null,
+            (latest, release) =>
+                latest == null || release.buildNumber > latest.buildNumber
+                ? release
+                : latest,
+          );
+      if (!mounted) return;
+      final context = widget.navigatorKey.currentContext;
+      if (context == null || !context.mounted) return;
+      if (target == null) {
+        if (force) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(AppLocalizations.of(context).updateLatest)),
+          );
+        }
+        return;
+      }
+      if (!force &&
+          preferences.getInt('update.skippedIosBuild') == target.buildNumber) {
+        return;
+      }
+      await showDialog<void>(
+        context: context,
+        animationStyle: GfMotion.dialogStyle(context),
+        barrierDismissible: false,
+        builder: (_) => _IosUpdateDialog(
+          testFlight: true,
+          version: target.version,
+          targetBuild: target.buildNumber,
+          listing: null,
+          installedBuild: installedBuild.toInt(),
+          client: _client,
+          preferences: preferences,
+        ),
+      );
+      return;
+    }
+    if (channel != 'ios-app-store') {
+      if (force && mounted) {
+        final context = widget.navigatorKey.currentContext;
+        if (context != null && context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(AppLocalizations.of(context).updateChannelUnknown),
+            ),
+          );
+        }
+      }
+      return;
+    }
+    final installedVersion = info['version'];
+    if (installedVersion is! String) return;
+    final listing = await IosStoreListing.lookup();
+    if (!mounted) return;
+    final context = widget.navigatorKey.currentContext;
+    if (context == null || !context.mounted) return;
+    if (listing == null) {
+      if (force) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(AppLocalizations.of(context).updateFailed)),
+        );
+      }
+      return;
+    }
+    if (!listing.isNewerThan(installedVersion)) {
+      if (force) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(AppLocalizations.of(context).updateLatest)),
+        );
+      }
+      return;
+    }
+    if (!force &&
+        preferences.getString('update.skippedIosVersion') == listing.version) {
+      return;
+    }
+    await showDialog<void>(
+      context: context,
+      animationStyle: GfMotion.dialogStyle(context),
+      barrierDismissible: false,
+      builder: (_) => _IosUpdateDialog(
+        testFlight: false,
+        version: listing.version,
+        targetBuild: null,
+        listing: listing,
+        installedBuild: installedBuild.toInt(),
+        client: _client,
+        preferences: preferences,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) => widget.child;
 }
@@ -117,10 +256,12 @@ class MobileUpdateHostState extends State<MobileUpdateHost>
 class _UpdateDialog extends StatefulWidget {
   const _UpdateDialog({
     required this.release,
+    required this.installedBuild,
     required this.client,
     required this.preferences,
   });
   final AndroidRelease release;
+  final int installedBuild;
   final AndroidReleaseClient client;
   final SharedPreferences preferences;
 
@@ -129,12 +270,37 @@ class _UpdateDialog extends StatefulWidget {
 }
 
 class _UpdateDialogState extends State<_UpdateDialog> {
+  late AndroidRelease _release = widget.release;
   CancelToken? _cancel;
   bool _working = false;
   bool _failed = false;
   bool _needsPermission = false;
   int _received = 0;
   File? _apk;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadNotes();
+  }
+
+  Future<void> _loadNotes() async {
+    try {
+      final cached = await widget.client.withNotes(
+        widget.release,
+        widget.installedBuild,
+        refresh: false,
+      );
+      if (mounted) setState(() => _release = cached);
+      final refreshed = await widget.client.withNotes(
+        widget.release,
+        widget.installedBuild,
+      );
+      if (mounted) setState(() => _release = refreshed);
+    } catch (_) {
+      // Display-only metadata cannot block or interrupt the update prompt.
+    }
+  }
 
   @override
   void dispose() {
@@ -152,7 +318,7 @@ class _UpdateDialogState extends State<_UpdateDialog> {
     try {
       final temporary = await getTemporaryDirectory();
       final file = await widget.client.download(
-        widget.release,
+        _release,
         Directory('${temporary.path}/updates'),
         cancel: cancel,
         onProgress: (received, _) {
@@ -191,42 +357,43 @@ class _UpdateDialogState extends State<_UpdateDialog> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    Future<void> skip() async {
+      await widget.preferences.setInt(
+        'update.skippedBuild',
+        _release.buildNumber,
+      );
+      if (context.mounted) Navigator.pop(context);
+    }
+
     return AlertDialog(
-      title: Text('${l10n.updateAvailable} ${widget.release.version}'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('${(widget.release.size / 1024 / 1024).toStringAsFixed(1)} MB'),
-          const SizedBox(height: 12),
-          if (_working) ...[
-            Text(
-              _received == 0 ? l10n.updatePreparing : l10n.updateDownloading,
-            ),
-            const SizedBox(height: 12),
-            LinearProgressIndicator(
-              value: _received == 0 ? null : _received / widget.release.size,
-            ),
-          ] else if (_failed)
-            Text(l10n.updateFailed)
-          else if (_needsPermission)
-            Text(l10n.updatePermission)
-          else if (_apk != null)
-            Text(l10n.updateReady),
-        ],
+      title: Text('${l10n.updateAvailable} ${_release.version}'),
+      content: UpdateDialogBody(
+        sizeBytes: _release.size,
+        notes: promptReleaseNotes(_release.notes),
+        historyComplete: _release.hasCompleteHistory,
+        working: _working,
+        failed: _failed,
+        needsPermission: _needsPermission,
+        ready: _apk != null,
+        receivedBytes: _received,
+        footer: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (_release.notes.where((note) => !note.required).length > 5)
+              TextButton(
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const ReleaseNotesPage(),
+                  ),
+                ),
+                child: Text(l10n.releaseNotesMore),
+              ),
+            if (!_working && _apk == null)
+              TextButton(onPressed: skip, child: Text(l10n.updateSkip)),
+          ],
+        ),
       ),
       actions: [
-        if (!_working && _apk == null)
-          TextButton(
-            onPressed: () async {
-              await widget.preferences.setInt(
-                'update.skippedBuild',
-                widget.release.buildNumber,
-              );
-              if (context.mounted) Navigator.pop(context);
-            },
-            child: Text(l10n.updateSkip),
-          ),
         TextButton(
           onPressed: () => Navigator.pop(context),
           child: Text(_working ? l10n.commonCancel : l10n.updateLater),
@@ -235,13 +402,183 @@ class _UpdateDialogState extends State<_UpdateDialog> {
           FilledButton(
             onPressed: _apk == null ? _download : _install,
             child: Text(
-              _apk != null
+              _needsPermission
+                  ? l10n.updateOpenPermissionSettings
+                  : _apk != null
                   ? l10n.updateInstall
                   : _failed
                   ? l10n.updateRetry
                   : l10n.updateDownload,
             ),
           ),
+      ],
+    );
+  }
+}
+
+class _IosUpdateDialog extends StatefulWidget {
+  const _IosUpdateDialog({
+    required this.testFlight,
+    required this.version,
+    required this.targetBuild,
+    required this.listing,
+    required this.installedBuild,
+    required this.client,
+    required this.preferences,
+  });
+  final bool testFlight;
+  final String version;
+  final int? targetBuild;
+  final IosStoreListing? listing;
+  final int installedBuild;
+  final AndroidReleaseClient client;
+  final SharedPreferences preferences;
+
+  @override
+  State<_IosUpdateDialog> createState() => _IosUpdateDialogState();
+}
+
+class _IosUpdateDialogState extends State<_IosUpdateDialog> {
+  List<ReleaseNote> _notes = const [];
+  bool _historyComplete = false;
+  bool _failed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadNotes();
+  }
+
+  Future<void> _loadNotes() async {
+    try {
+      final cached = await widget.client.loadHistory(refresh: false);
+      if (mounted && cached != null) _apply(cached);
+      final refreshed = await widget.client.loadHistory();
+      if (mounted && refreshed != null) _apply(refreshed);
+    } catch (_) {
+      if (mounted) setState(() => _failed = true);
+    }
+  }
+
+  void _apply(ReleaseNoteCatalog catalog) {
+    final channel = widget.testFlight ? 'ios-testflight' : 'ios-app-store';
+    final matches = catalog.releases.where((release) {
+      if (!release.channels.contains(channel) ||
+          catalog.channelCoverage[channel]?.coveredBuilds.contains(
+                release.buildNumber,
+              ) !=
+              true) {
+        return false;
+      }
+      return widget.testFlight
+          ? release.buildNumber == widget.targetBuild
+          : release.version == widget.version;
+    });
+    final target = matches.isEmpty
+        ? null
+        : matches.reduce((a, b) => a.buildNumber > b.buildNumber ? a : b);
+    if (target == null) {
+      setState(() {
+        _notes = const [];
+        _historyComplete = false;
+      });
+      return;
+    }
+    setState(() {
+      _notes = catalog.notesForUpdate(
+        installedBuild: widget.installedBuild,
+        targetBuild: target.buildNumber,
+        platform: channel,
+        channel: channel,
+      );
+      _historyComplete = catalog.hasCompleteRange(
+        installedBuild: widget.installedBuild,
+        targetBuild: target.buildNumber,
+        channel: channel,
+      );
+    });
+  }
+
+  Future<void> _skip() async {
+    if (widget.testFlight) {
+      await widget.preferences.setInt(
+        'update.skippedIosBuild',
+        widget.targetBuild!,
+      );
+    } else {
+      await widget.preferences.setString(
+        'update.skippedIosVersion',
+        widget.version,
+      );
+    }
+    if (mounted) Navigator.pop(context);
+  }
+
+  Future<void> _openStore() async {
+    try {
+      final destination = widget.testFlight
+          ? Uri.parse(testFlightAppUrl)
+          : widget.listing!.url;
+      if (!await launchUrl(destination, mode: LaunchMode.externalApplication)) {
+        throw StateError('App Store is unavailable');
+      }
+      if (mounted) Navigator.pop(context);
+    } catch (_) {
+      if (mounted) setState(() => _failed = true);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return AlertDialog(
+      title: Text('${l10n.updateAvailable} ${widget.version}'),
+      content: UpdateDialogBody(
+        notes: promptReleaseNotes(_notes),
+        historyComplete: _historyComplete,
+        working: false,
+        failed: _failed,
+        needsPermission: false,
+        ready: false,
+        receivedBytes: 0,
+        footer: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (widget.testFlight)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Text(l10n.updateTestFlightInstructions),
+              ),
+            if (_notes.where((note) => !note.required).length > 5)
+              TextButton(
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => ReleaseNotesPage(
+                      initialIosChannel: widget.testFlight
+                          ? 'ios-testflight'
+                          : 'ios-app-store',
+                    ),
+                  ),
+                ),
+                child: Text(l10n.releaseNotesMore),
+              ),
+            TextButton(onPressed: _skip, child: Text(l10n.updateSkip)),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text(l10n.updateLater),
+        ),
+        FilledButton(
+          onPressed: _openStore,
+          child: Text(
+            widget.testFlight
+                ? l10n.updateOpenTestFlight
+                : l10n.updateOpenAppStore,
+          ),
+        ),
       ],
     );
   }

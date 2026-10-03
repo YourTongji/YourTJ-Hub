@@ -173,7 +173,7 @@ jobs:
       promotion: ${{ needs.authorize.outputs.promotion == 'true' }}
     secrets: inherit
     permissions:
-      contents: read
+      contents: write
       deployments: write
       actions: read
       pull-requests: read

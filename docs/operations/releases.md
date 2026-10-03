@@ -63,6 +63,8 @@ The Release PR contains only `releases/requests/<id>/`:
 | android.zh-CN.md | Android changes only |
 | ios.zh-Hans.txt | iOS App Store What's New, plain text, at most 4000 characters |
 | testflight.en-US.txt | iOS testing instructions, independently reviewed |
+| changelog.json | Mobile schema-2 structured facts rendered into each selected platform's notes |
+| evidence.json | Evidence references binding each structured fact and TestFlight instruction to reviewed source |
 
 Only selected platform files are created. Source SHA controls the application build/tag; the reviewed
 PR head controls release metadata. A metadata PR merge is not a new application version. Baselines
@@ -100,6 +102,27 @@ YourTJ endpoint. No private provider or review credentials enter the request/evi
 Failed generation leaves explicit drafts for human completion. Rendering preserves human-edited files;
 regeneration must be deliberate and reviewed. No model runs after release approval. Static validation
 checks shape and evidence references; semantic correctness still requires a person.
+
+Mobile candidates use schema 2 and retain the exact reviewed changelog and evidence bytes in the
+candidate digest. Android, App Store, and TestFlight notes are rendered from that structure; a
+publisher rejects drift between the structured facts and platform text. Legacy schema-1 candidates
+remain valid for recovery and existing-build promotion, but new mobile releases require schema 2.
+TestFlight notes have stable IDs and evidence references tied to the iOS TestFlight channel.
+Oryn's text-hash IDs are draft-only: before approval, the reviewer replaces them with concise
+semantic slugs that remain stable for the same change across releases, and keeps the evidence map
+and TestFlight references aligned with the renamed IDs.
+
+The trusted-main catalog publisher derives `releases.json` from merged reviewed candidates and
+successful channel deployment receipts. It validates each receipt against the candidate source SHA
+and content digest, keeps platform channels separate, and publishes to the `mobile-notes` GitHub
+Release. Android requires all three APK SHA-256 values; TestFlight requires `APPROVED`; App Store
+submission states do not count as public availability. A matching exact China storefront lookup may
+add a public App Store build, and a prior catalog's covered public builds remain covered after the
+store advances. Missing structured channel history is omitted and expressed in per-channel coverage.
+The status site's `/mobile/releases.json` route proxies this fixed asset with bounded reads, a short
+timeout, conditional ETags and stale-capable CDN caching. It is display-only and contains no evidence.
+Normal release publication refreshes the catalog; operators may run the trusted-main manual refresh
+workflow after reconciling a receipt or catalog failure.
 
 ## Verification and publication
 

@@ -143,3 +143,4 @@ A decision starts `Proposed`. Once implemented, its status becomes `Accepted` an
 - [0054](0054-badge-artwork-optical-size.md) — 系统徽章图形按统一光学尺寸归一化并补偿描边，角标图标区改为固定占比。
 - [0055](0055-reviewed-release-pipeline.md) — Reviewed release requests, independent platform notes, Oryn drafting and complete CI aggregation.
 - [0056](0056-ai-image-text-moderation.md) — 发布时 AI 图文审查：视觉证据 + Jev 并行政策概率 + Go resolver，故障一律转人工，待审图片以 PENDING 引用收口。
+- [0057](0057-receipt-backed-mobile-release-catalog.md) — Build the public mobile notes catalog from reviewed candidates and successful channel receipts.

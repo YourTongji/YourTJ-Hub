@@ -1,8 +1,12 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import 'release_notes.dart';
 
 const releaseRepository = 'YourTongji/YourTJ-Hub';
 const releaseMirrors = [
@@ -10,6 +14,12 @@ const releaseMirrors = [
   'https://ghproxy.net/',
   'https://gh-proxy.com/',
 ];
+const mobileReleaseNotesUrl = String.fromEnvironment(
+  'YOURTJ_MOBILE_RELEASES_URL',
+  defaultValue: 'https://status.yourtj.de/mobile/releases.json',
+);
+const githubReleaseNotesUrl =
+    'https://github.com/YourTongji/YourTJ-Hub/releases/download/mobile-notes/releases.json';
 
 class AndroidRelease {
   const AndroidRelease({
@@ -18,6 +28,8 @@ class AndroidRelease {
     required this.url,
     required this.size,
     required this.sha256Digest,
+    this.notes = const [],
+    this.hasCompleteHistory = false,
   });
 
   final String version;
@@ -25,6 +37,8 @@ class AndroidRelease {
   final Uri url;
   final int size;
   final String sha256Digest;
+  final List<ReleaseNote> notes;
+  final bool hasCompleteHistory;
 
   /// Metadata is accepted only from GitHub's HTTPS API, never from APK mirrors.
   /// GitHub computes the digest itself when the signed asset is uploaded.
@@ -106,9 +120,26 @@ class AndroidReleaseClient {
               receiveTimeout: const Duration(seconds: 15),
               headers: {'User-Agent': 'YourTJ-Mobile-Updater'},
             ),
-          );
+          ),
+      _notesDio = Dio(
+        BaseOptions(
+          connectTimeout: const Duration(seconds: 4),
+          receiveTimeout: const Duration(seconds: 8),
+          headers: const {
+            'Accept': 'application/json',
+            'User-Agent': 'YourTJ-Mobile-Updater',
+          },
+        ),
+      ) {
+    if (dio != null) _notesDio.httpClientAdapter = dio.httpClientAdapter;
+  }
   // An isolated client: forum cookies, bearer tokens and user IDs never reach mirrors.
   final Dio _dio;
+  final Dio _notesDio;
+  final Map<String, ReleaseNoteCatalog> _notesByUrl = {};
+  final Map<String, String> _etagsByUrl = {};
+  final Set<String> _notesValidatedThisLoad = {};
+  SharedPreferences? notesPreferences;
 
   Future<AndroidRelease?> check(List<String> abis, int installedBuild) async {
     final response = await _dio.get<dynamic>(
@@ -120,6 +151,209 @@ class AndroidReleaseClient {
       throw const FormatException('Invalid release list');
     }
     return AndroidRelease.latest(response.data as List, abis, installedBuild);
+  }
+
+  Future<AndroidRelease> withNotes(
+    AndroidRelease release,
+    int installedBuild, {
+    bool refresh = true,
+  }) async {
+    try {
+      final catalog = await loadHistory(refresh: refresh);
+      if (catalog == null) return release;
+      final notes = catalog.notesForUpdate(
+        installedBuild: installedBuild,
+        targetBuild: release.buildNumber,
+        platform: 'android',
+        channel: 'android',
+      );
+      return AndroidRelease(
+        version: release.version,
+        buildNumber: release.buildNumber,
+        url: release.url,
+        size: release.size,
+        sha256Digest: release.sha256Digest,
+        notes: notes,
+        hasCompleteHistory: catalog.hasCompleteRange(
+          installedBuild: installedBuild,
+          targetBuild: release.buildNumber,
+          channel: 'android',
+        ),
+      );
+    } catch (_) {
+      // Notes are optional display data and cannot block a verified APK update.
+      return release;
+    }
+  }
+
+  Future<ReleaseNoteCatalog?> loadHistory({bool refresh = true}) async {
+    final urls = [
+      Uri.tryParse(mobileReleaseNotesUrl),
+      Uri.tryParse(githubReleaseNotesUrl),
+    ];
+    for (final uri in urls) {
+      if (uri == null ||
+          uri.scheme != 'https' ||
+          uri.host.isEmpty ||
+          uri.userInfo.isNotEmpty ||
+          uri.hasQuery ||
+          uri.hasFragment ||
+          uri.port != 443) {
+        continue;
+      }
+      final cached = await _readNotesCache(uri);
+      if (cached != null) {
+        return refresh ? await _loadNotes() ?? cached : cached;
+      }
+    }
+    return refresh ? _loadNotes() : null;
+  }
+
+  Future<ReleaseNoteCatalog?> _loadNotes() async {
+    _notesValidatedThisLoad.clear();
+    final configured = Uri.tryParse(mobileReleaseNotesUrl);
+    final urls = [configured, Uri.tryParse(githubReleaseNotesUrl)];
+    ReleaseNoteCatalog? lastCache;
+    for (final uri in urls) {
+      if (uri == null ||
+          uri.scheme != 'https' ||
+          uri.host.isEmpty ||
+          uri.userInfo.isNotEmpty ||
+          uri.hasQuery ||
+          uri.hasFragment ||
+          uri.port != 443) {
+        continue;
+      }
+      final cached = await _loadNotesUrl(uri);
+      if (cached != null && _notesValidatedThisLoad.contains(uri.toString())) {
+        return cached;
+      }
+      lastCache ??= _notesByUrl[uri.toString()];
+    }
+    return lastCache;
+  }
+
+  Future<ReleaseNoteCatalog?> _loadNotesUrl(Uri uri) async {
+    final url = uri.toString();
+    final prefs = notesPreferences;
+    await _readNotesCache(uri);
+    final cacheKey = 'mobile.releaseNotes.${Uri.encodeComponent(url)}';
+    final headers = <String, dynamic>{'Accept': 'application/json'};
+    if (_etagsByUrl[url] case final etag?) headers['If-None-Match'] = etag;
+    try {
+      final cancel = CancelToken();
+      Future<Response<List<int>>> request(
+        String address,
+        Map<String, dynamic> requestHeaders,
+      ) => _notesDio.get<List<int>>(
+        address,
+        cancelToken: cancel,
+        onReceiveProgress: (received, _) {
+          if (received > 1024 * 1024) {
+            cancel.cancel('Release notes exceed 1 MiB');
+          }
+        },
+        options: _notesOptions(requestHeaders),
+      );
+      var response = await request(url, headers);
+      for (
+        var redirects = 0;
+        response.statusCode != 200 &&
+            response.statusCode != 304 &&
+            redirects < 2;
+        redirects++
+      ) {
+        final location = response.headers.value('location');
+        final target = location == null
+            ? null
+            : uri.resolveUri(Uri.tryParse(location) ?? Uri()).normalizePath();
+        if (target == null ||
+            target.scheme != 'https' ||
+            target.port != 443 ||
+            !const {
+              'github.com',
+              'release-assets.githubusercontent.com',
+              'objects.githubusercontent.com',
+            }.contains(target.host) ||
+            target.userInfo.isNotEmpty ||
+            target.fragment.isNotEmpty) {
+          return _notesByUrl[url];
+        }
+        response = await request(target.toString(), {
+          'Accept': 'application/json',
+        });
+      }
+      if (response.statusCode != 200 && response.statusCode != 304) {
+        return _notesByUrl[url];
+      }
+      if (response.statusCode == 304) {
+        if (_notesByUrl[url] != null) _notesValidatedThisLoad.add(url);
+        return _notesByUrl[url];
+      }
+      final bytes = response.data;
+      if (bytes == null || bytes.length > 1024 * 1024) {
+        throw const FormatException('Notes too large');
+      }
+      final decoded = jsonDecode(utf8.decode(bytes));
+      final catalog = ReleaseNoteCatalog.decode(decoded);
+      if (catalog == null) throw const FormatException('Invalid notes');
+      final etag = response.headers.value('etag');
+      if (etag == null) {
+        _etagsByUrl.remove(url);
+      } else {
+        _etagsByUrl[url] = etag;
+      }
+      _notesByUrl[url] = catalog;
+      _notesValidatedThisLoad.add(url);
+      final encoded = jsonEncode(decoded);
+      if (encoded.length <= 1024 * 1024 && prefs != null) {
+        await prefs.setString('$cacheKey.json', encoded);
+        if (etag != null) {
+          await prefs.setString('$cacheKey.etag', etag);
+        } else {
+          await prefs.remove('$cacheKey.etag');
+        }
+      }
+      return catalog;
+    } catch (_) {
+      return _notesByUrl[url];
+    }
+  }
+
+  Options _notesOptions(Map<String, dynamic> headers) => Options(
+    headers: headers,
+    receiveTimeout: const Duration(seconds: 8),
+    responseType: ResponseType.bytes,
+    followRedirects: false,
+    maxRedirects: 0,
+    validateStatus: (status) => status != null && status >= 200 && status < 400,
+  );
+
+  Future<ReleaseNoteCatalog?> _readNotesCache(Uri uri) async {
+    final url = uri.toString();
+    if (_notesByUrl.containsKey(url)) return _notesByUrl[url];
+    final prefs = notesPreferences;
+    if (prefs == null) return null;
+    final cacheKey = 'mobile.releaseNotes.${Uri.encodeComponent(url)}';
+    final encoded = prefs.getString('$cacheKey.json');
+    if (encoded == null) {
+      await prefs.remove('$cacheKey.etag');
+      return null;
+    }
+    try {
+      if (encoded.length > 1024 * 1024) {
+        throw const FormatException('Notes too large');
+      }
+      final catalog = ReleaseNoteCatalog.fromJson(encoded);
+      _notesByUrl[url] = catalog;
+      final etag = prefs.getString('$cacheKey.etag');
+      if (etag != null) _etagsByUrl[url] = etag;
+      return catalog;
+    } catch (_) {
+      await prefs.remove('$cacheKey.json');
+      await prefs.remove('$cacheKey.etag');
+      return null;
+    }
   }
 
   Future<Duration?> _probe(

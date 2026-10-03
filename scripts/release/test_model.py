@@ -1,10 +1,11 @@
 """Release authority is external evidence, never a flag supplied by a candidate."""
 import copy
+import json
 import tempfile
 import unittest
 from pathlib import Path
 
-from model import ReleaseError, validate_candidate, validate_approval, next_identity, channels_for
+from model import ReleaseError, validate_candidate, validate_approval, next_identity, channels_for, render_changelog
 
 
 SHA = "a" * 40
@@ -83,6 +84,38 @@ class CandidateTests(unittest.TestCase):
         self.assertEqual(next_identity("web", "minor", tags), ("9.10.0", None))
         with self.assertRaises(ReleaseError):
             next_identity("mobile", "patch", [{"tag": "mobile-v1.2.3", "buildNumber": None}])
+
+    def test_schema_two_freezes_reviewed_facts_and_derives_each_platform_note(self):
+        manifest = candidate() | {"schemaVersion": 2}
+        android = {"id": "android-search", "title": "搜索更顺手", "summary": "改进搜索结果排序。",
+                   "platforms": ["android"], "kind": "improvement"}
+        ios = {"id": "ios-widget", "title": "课程小组件", "summary": "优化课程小组件显示。",
+               "platforms": ["ios-testflight"], "kind": "improvement"}
+        changelog = {"schemaVersion": 1, "version": manifest["version"], "buildNumber": manifest["buildNumber"],
+                     "highlights": [android, ios], "breaking": [], "requiredActions": [],
+                     "evidence": {"android-search": ["android-proof"], "ios-widget": ["ios-proof"]},
+                     "testflightNotes": [{"id": "ios-widget", "text": "Please verify the course widget.",
+                                          "evidenceIds": ["ios-proof"]}]}
+        (self.path / "evidence.json").write_text(json.dumps({"schemaVersion": 1, "sourceSha": SHA, "evidence": [
+            {"id": "android-proof", "channels": ["android"]},
+            {"id": "ios-proof", "channels": ["ios-testflight"]}]}), encoding="utf-8")
+        (self.path / "changelog.json").write_text(json.dumps(changelog, ensure_ascii=False), encoding="utf-8")
+        (self.path / "android.zh-CN.md").write_text(render_changelog(changelog, "android"), encoding="utf-8")
+        (self.path / "testflight.en-US.txt").write_text(render_changelog(changelog, "ios-testflight"), encoding="utf-8")
+        digest = validate_candidate(manifest, self.path)
+        self.assertTrue(digest)
+        self.assertIn("搜索更顺手", (self.path / "android.zh-CN.md").read_text(encoding="utf-8"))
+        self.assertEqual((self.path / "testflight.en-US.txt").read_text(encoding="utf-8"), "Please verify the course widget.")
+
+        for invalid in [
+            changelog | {"highlights": [android | {"platforms": ["android", "ios"]}]},
+            changelog | {"evidence": {"android-search": ["missing"], "ios-widget": ["ios-proof"]}},
+            changelog | {"testflightNotes": [{"id": "unrelated", "text": "Verify this.", "evidenceIds": ["ios-proof"]}]},
+            changelog | {"highlights": [android, ios | {"platforms": ["android"]}]},
+        ]:
+            (self.path / "changelog.json").write_text(json.dumps(invalid, ensure_ascii=False), encoding="utf-8")
+            with self.subTest(invalid=invalid), self.assertRaises(ReleaseError):
+                validate_candidate(manifest, self.path)
 
 
 class ApprovalTests(unittest.TestCase):

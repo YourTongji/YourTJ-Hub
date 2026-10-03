@@ -1,6 +1,5 @@
 // ignore: unused_import
 import 'package:intl/intl.dart' as intl;
-
 import 'app_localizations.dart';
 
 // ignore_for_file: type=lint
@@ -2267,6 +2266,69 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get updateRetry => 'Retry';
+
+  @override
+  String get updateOpenAppStore => 'View on App Store';
+
+  @override
+  String get updateOpenTestFlight => 'View TestFlight in App Store';
+
+  @override
+  String get updateTestFlightInstructions =>
+      'This opens TestFlight\'s App Store page. If TestFlight is installed, open it and check YourTJ for the beta update.';
+
+  @override
+  String get updateOpenPermissionSettings => 'Open install permission settings';
+
+  @override
+  String get updateChannelUnknown =>
+      'Update channel could not be verified. You can still view release history in About.';
+
+  @override
+  String get releaseNotes => 'What’s new';
+
+  @override
+  String get releaseNotesHistory => 'Release history';
+
+  @override
+  String get releaseNotesEmpty => 'No release notes are available right now.';
+
+  @override
+  String get releaseNotesEarlier =>
+      'Includes other improvements from earlier versions.';
+
+  @override
+  String get releaseNotesIncomplete =>
+      'Earlier release notes are incomplete. This prompt shows notes for the target release only.';
+
+  @override
+  String get releaseHistoryIncomplete =>
+      'The available history is incomplete for this release channel.';
+
+  @override
+  String get releaseNotesMore => 'Show all updates';
+
+  @override
+  String get releaseNotesFewer => 'Show fewer';
+
+  @override
+  String get releaseNotesRequired => 'Required';
+
+  @override
+  String get releaseNotesHistoryError =>
+      'Release history is temporarily unavailable.';
+
+  @override
+  String get releaseNotesKindFeature => 'New';
+
+  @override
+  String get releaseNotesKindImprovement => 'Improved';
+
+  @override
+  String get releaseNotesKindFix => 'Fixed';
+
+  @override
+  String get releaseNotesKindSecurity => 'Security';
 
   @override
   String get settingsPushConsent =>

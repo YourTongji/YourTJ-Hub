@@ -1192,10 +1192,20 @@ The approved permission/privacy/failure boundaries for optional analytics are re
 - `Partial`: Android checks GitHub mobile releases at startup/resume with a six-hour limit and a
   manual About action. Update prompts support defer, ignore, progress and cancellation. Public APK
   mirrors are ranked with bounded probes; SHA-256, package and signing-certificate checks precede
-  the system installer. Unit tests and signed native builds cover the implemented paths; the first
-  GitHub-hosted release and an installed-to-updated device journey remain distribution validation.
+  the system installer. Prompts show the installed-to-target release notes, including required actions,
+  and the About page provides channel-filtered release history. Notes are optional cached display data;
+  they do not affect APK verification or installation. Unit tests and signed native builds cover the
+  implemented paths; the first GitHub-hosted release and an installed-to-updated device journey remain
+  distribution validation.
 - `Partial`: iOS uses TestFlight and App Store distribution through the same versioned release job.
-  Apple processing/review is independent of CI. The app does not offer APK-style updates on iOS.
+  App Store builds check Apple's public listing and offer a link when a newer version is available;
+  TestFlight builds use successful TestFlight release receipts to show a newer build's testing notes
+  and link to the TestFlight App Store product page, where users can open or install the TestFlight
+  app and check for the beta. This fallback does not deep-link into the YourTJ beta. Unknown
+  distribution receipts do not trigger channel-specific update prompts. Prompts and About history
+  show channel-filtered notes only when release receipts establish coverage; incomplete history
+  falls back to the target release summary. Apple
+  processing/review is independent of CI; the app does not offer APK-style updates on iOS.
   Signing, metadata, failure recovery and environment secrets are documented in the
   [mobile release runbook](../operations/mobile-releases.md).
 

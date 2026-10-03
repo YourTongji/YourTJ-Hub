@@ -8,11 +8,19 @@ import { cacheKey, loadConfig } from '../server/config'
 const components = JSON.parse(JSON.stringify(parse(readFileSync('api/components.yaml','utf8'))).replaceAll('"#/','"#/$defs/'))
 const ajv = new Ajv2020({ strict:false,allErrors:true }); addFormats(ajv)
 const validate = ajv.compile({ $defs:components,$ref:'#/$defs/StatusResponse' })
+const openapi = parse(readFileSync('api/openapi.yaml','utf8'))
+const mobileSchemas = JSON.parse(JSON.stringify(openapi.components.schemas)
+  .replaceAll('"#/components/schemas/', '"#/$defs/'))
+const validateMobileCatalog = ajv.compile({ $defs:mobileSchemas,$ref:'#/$defs/MobileReleaseCatalog' })
 it('validates the public fixture and rejects extra private fields', () => {
   const fixture = JSON.parse(readFileSync('test/fixtures/status-connected.json','utf8'))
   expect(validate(fixture),JSON.stringify(validate.errors)).toBe(true)
   fixture.result.server.data.ip='private'
   expect(validate(fixture)).toBe(false)
+})
+it('validates the shared receipt-backed mobile catalog fixture', () => {
+  const fixture = JSON.parse(readFileSync('../mobile/packages/forum_app/test/fixtures/mobile_release_catalog.json','utf8'))
+  expect(validateMobileCatalog(fixture), JSON.stringify(validateMobileCatalog.errors)).toBe(true)
 })
 it('validates actual unconfigured and unavailable handler responses for every scope', async () => {
   const store: SnapshotStore = {read:async()=>null,write:async()=>false}

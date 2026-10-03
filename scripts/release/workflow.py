@@ -10,18 +10,33 @@ from github import GitHub, git
 from controller import (plan, prepare, create_pr, authorize, reserve, emit_outputs, write_json,
                         candidate_path, load_candidate, verify_reservation)
 from state import reservations, baselines, latest_receipt, record
-from notes import render
+from notes import render, render_structured
+from catalog import publish_catalog
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("command", choices=["prepare", "create-pr", "render", "authorize", "reserve", "receipt", "validate-pr", "review-check", "discover", "start", "verify-apple", "verify-publication", "verify-deploy"])
+    parser.add_argument("command", choices=["prepare", "create-pr", "render", "render-structured", "publish-catalog", "authorize", "reserve", "receipt", "validate-pr", "review-check", "discover", "start", "verify-apple", "verify-publication", "verify-deploy"])
     parser.add_argument("--candidate", default=os.environ.get("CANDIDATE"))
     parser.add_argument("--folder", type=Path, default=Path(".release-approved"))
     parser.add_argument("--pr", type=int)
     parser.add_argument("--apple-state", type=Path)
+    parser.add_argument("--replace-structured", action="store_true")
     args = parser.parse_args()
     github = GitHub()
+    if args.command == "publish-catalog":
+        catalog = publish_catalog(github)
+        print(json.dumps({"schemaVersion": catalog["schemaVersion"], "releaseCount": len(catalog["releases"])}))
+        return
+    if args.command == "render-structured":
+        require(args.candidate, "Structured rendering requires --candidate")
+        folder = Path(candidate_path(args.candidate))
+        manifest = json.loads((folder / "manifest.json").read_text(encoding="utf-8"))
+        require(manifest.get("candidateId") == args.candidate and manifest.get("schemaVersion") == 2
+                and manifest.get("product") == "mobile",
+                "Structured rendering applies to schema-2 mobile candidates")
+        render_structured(manifest, folder, replace=args.replace_structured)
+        return
     if args.command == "prepare":
         apple = json.loads(args.apple_state.read_text(encoding='utf-8')) if args.apple_state else None
         existing_id = os.environ.get("EXISTING_RELEASE")

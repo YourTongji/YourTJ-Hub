@@ -1,6 +1,5 @@
 // ignore: unused_import
 import 'package:intl/intl.dart' as intl;
-
 import 'app_localizations.dart';
 
 // ignore_for_file: type=lint
@@ -2201,6 +2200,64 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get updateRetry => '重试';
+
+  @override
+  String get updateOpenAppStore => '前往 App Store';
+
+  @override
+  String get updateOpenTestFlight => '在 App Store 查看 TestFlight';
+
+  @override
+  String get updateTestFlightInstructions =>
+      '此链接会打开 TestFlight 的 App Store 页面。若已安装 TestFlight，请打开它并查看 YourTJ 的测试版更新。';
+
+  @override
+  String get updateOpenPermissionSettings => '前往安装权限设置';
+
+  @override
+  String get updateChannelUnknown => '无法确认当前更新渠道。你仍可在“关于”中查看更新记录。';
+
+  @override
+  String get releaseNotes => '本次更新';
+
+  @override
+  String get releaseNotesHistory => '更新记录';
+
+  @override
+  String get releaseNotesEmpty => '暂时没有可用的更新说明。';
+
+  @override
+  String get releaseNotesEarlier => '还包含此前版本的其他改进。';
+
+  @override
+  String get releaseNotesIncomplete => '此前版本的更新记录不完整，本提示仅显示目标版本的内容。';
+
+  @override
+  String get releaseHistoryIncomplete => '此发布渠道的可用更新记录不完整。';
+
+  @override
+  String get releaseNotesMore => '查看全部更新内容';
+
+  @override
+  String get releaseNotesFewer => '收起';
+
+  @override
+  String get releaseNotesRequired => '重要提示';
+
+  @override
+  String get releaseNotesHistoryError => '暂时无法读取更新记录。';
+
+  @override
+  String get releaseNotesKindFeature => '新功能';
+
+  @override
+  String get releaseNotesKindImprovement => '体验改进';
+
+  @override
+  String get releaseNotesKindFix => '问题修复';
+
+  @override
+  String get releaseNotesKindSecurity => '安全更新';
 
   @override
   String get settingsPushConsent =>

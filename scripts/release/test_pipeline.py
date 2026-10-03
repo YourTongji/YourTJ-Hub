@@ -91,6 +91,34 @@ class PipelineTest(unittest.TestCase):
         response['inputSha256'] = '0' * 64
         with self.assertRaises(ReleaseError): render(manifest, self.root, response, raw, replace=True)
 
+    def test_schema_two_oryn_rerender_preserves_all_original_bytes_without_replace(self):
+        manifest = candidate() | {"schemaVersion": 2}
+        evidence_items = [{"id": "android-fix", "channels": ["android"]},
+                          {"id": "ios-fix", "channels": ["ios-testflight"]}]
+        request = {"evidence": evidence_items}
+        evidence = {"schemaVersion": 1, "sourceSha": manifest["sourceSha"], "evidence": evidence_items}
+        folder = self.root / "prepared"
+        with patch("controller.collect", return_value=(request, evidence)):
+            prepared_input = prepare(manifest, FakeGitHub(), folder)
+        raw = json.dumps(prepared_input).encode()
+        response = {"schemaVersion": 1, "promptVersion": 1, "model": "oryn/test",
+                    "inputSha256": hashlib.sha256(raw).hexdigest(),
+                    "output": {"schemaVersion": 1, "entries": [
+                        {"channel": "android", "text": "修复 Android 相机返回。", "evidenceIds": ["android-fix"]},
+                        {"channel": "ios-testflight", "text": "Test iOS widgets.", "evidenceIds": ["ios-fix"]}],
+                        "uncertainties": []}}
+        render(manifest, folder, response, raw)
+        protected = {path.name: path.read_bytes() for path in folder.iterdir()}
+        (folder / "android.zh-CN.md").write_text("Human reviewed Android copy.\n", encoding="utf-8")
+        before_retry = {path.name: path.read_bytes() for path in folder.iterdir()}
+        with self.assertRaises(ReleaseError):
+            render(manifest, folder, response, raw)
+        self.assertEqual({path.name: path.read_bytes() for path in folder.iterdir()}, before_retry)
+        self.assertIn("changelog.json", protected)
+        render(manifest, folder, response, raw, replace=True)
+        self.assertEqual((folder / "android.zh-CN.md").read_text(encoding="utf-8").strip(),
+                         "### 本次更新\n\n- **修复 Android 相机返回**：修复 Android 相机返回。")
+
     def test_net_diff_accounts_for_reverts_renames_and_platform_baselines(self):
         def git(*args):
             return subprocess.check_output(['git', '-C', str(self.root), *args], text=True).strip()

@@ -1,6 +1,5 @@
 // ignore: unused_import
 import 'package:intl/intl.dart' as intl;
-
 import 'app_localizations.dart';
 
 // ignore_for_file: type=lint
@@ -2213,6 +2212,65 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get updateRetry => '再試行';
+
+  @override
+  String get updateOpenAppStore => 'App Store で表示';
+
+  @override
+  String get updateOpenTestFlight => 'App Store で TestFlight を表示';
+
+  @override
+  String get updateTestFlightInstructions =>
+      'このリンクは TestFlight の App Store ページを開きます。インストール済みの場合は TestFlight を開き、YourTJ のベータ版更新を確認してください。';
+
+  @override
+  String get updateOpenPermissionSettings => 'インストール権限の設定を開く';
+
+  @override
+  String get updateChannelUnknown => '現在の配信経路を確認できません。「アプリ情報」から更新履歴を確認できます。';
+
+  @override
+  String get releaseNotes => '今回の更新';
+
+  @override
+  String get releaseNotesHistory => '更新履歴';
+
+  @override
+  String get releaseNotesEmpty => '現在、更新内容はありません。';
+
+  @override
+  String get releaseNotesEarlier => '以前のバージョンの改善も含まれます。';
+
+  @override
+  String get releaseNotesIncomplete =>
+      '以前の更新履歴は不完全なため、この案内には対象バージョンの内容のみ表示します。';
+
+  @override
+  String get releaseHistoryIncomplete => 'この配信経路で確認できる更新履歴は不完全です。';
+
+  @override
+  String get releaseNotesMore => 'すべての更新内容を表示';
+
+  @override
+  String get releaseNotesFewer => '折りたたむ';
+
+  @override
+  String get releaseNotesRequired => '重要';
+
+  @override
+  String get releaseNotesHistoryError => '更新履歴を読み込めません。';
+
+  @override
+  String get releaseNotesKindFeature => '新機能';
+
+  @override
+  String get releaseNotesKindImprovement => '改善';
+
+  @override
+  String get releaseNotesKindFix => '修正';
+
+  @override
+  String get releaseNotesKindSecurity => 'セキュリティ';
 
   @override
   String get settingsPushConsent =>
