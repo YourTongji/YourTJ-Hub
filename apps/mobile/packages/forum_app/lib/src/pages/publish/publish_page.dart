@@ -23,6 +23,7 @@ import '../../server_messages.dart';
 import '../../widgets/markdown_view.dart';
 import '../../widgets/editor/rich_markdown_editor.dart';
 import '../../widgets/status_views.dart';
+import '../../widgets/moderation_blocked_dialog.dart';
 import 'embed_image_move.dart';
 import 'publish_type.dart';
 
@@ -1122,9 +1123,9 @@ class _PublishPageState extends ConsumerState<PublishPage>
       _message = '';
     });
     try {
-      final int id = await ref
+      final WriteTopicResult written = await ref
           .read(topicRepositoryProvider)
-          .writeTopic(
+          .writeTopicResult(
             captchaId: _captcha?.captchaId,
             captchaCode: _captchaCode.text.trim(),
             topicId: _currentTopicId,
@@ -1135,6 +1136,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
             contentType: _contentType,
             images: _contentType == 3 ? null : List.of(_images),
           );
+      final int id = written.id;
       if (!mounted || !_sessionCurrent) return;
       _autosave?.cancel();
       // The server write succeeded; deletion must follow any in-flight autosave.
@@ -1155,6 +1157,13 @@ class _PublishPageState extends ConsumerState<PublishPage>
       _allowPop = true;
       final int resolvedId = id > 0 ? id : _currentTopicId;
       if (resolvedId > 0) _currentTopicId = resolvedId;
+      // 待审(issue #975):明确提示“已提交审核,通过后公开”,与 Web 同语义。
+      if (written.pendingReview) {
+        showGfToast(
+          context,
+          pendingReviewMessage(l10n, checking: written.checking),
+        );
+      }
       if (topicStatus == 1 && resolvedId > 0) {
         context.pushReplacement('/p/$resolvedId');
         return;
@@ -1176,6 +1185,8 @@ class _PublishPageState extends ConsumerState<PublishPage>
       if (mounted && _sessionCurrent) {
         setState(() => _error = resolveErrorMessage(l10n, error));
       }
+      // AI 图文审查拦截(issue #975):弹出友好提示,草稿与图片保持不变。
+      if (await showModerationBlockedDialog(context, error)) return;
       if (error.messageCode == 'common.captchaRequired' ||
           error.messageCode == 'auth.captcha.invalid') {
         if (error.messageCode == 'common.captchaRequired') {

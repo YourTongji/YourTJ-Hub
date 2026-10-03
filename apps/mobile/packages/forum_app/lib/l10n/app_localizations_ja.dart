@@ -1,5 +1,6 @@
 // ignore: unused_import
 import 'package:intl/intl.dart' as intl;
+
 import 'app_localizations.dart';
 
 // ignore_for_file: type=lint
@@ -3158,4 +3159,39 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get shareImageFailed => '画像を共有できませんでした。後でもう一度お試しください。';
+
+  @override
+  String get moderationBlockedTitle => '公開されませんでした';
+
+  @override
+  String get moderationBlockedPolicyHint =>
+      '画像と文章がコミュニティガイドラインに沿っているか確認し、不適切な可能性がある部分を削除または差し替えてから再度公開してください。判定に誤りがあると思われる場合は管理者にお問い合わせください。';
+
+  @override
+  String get moderationBlockedExternalHint =>
+      'このサイトでは外部画像を表示しません。画像を保存してエディターからアップロードし、再度公開してください。';
+
+  @override
+  String get moderationBlockedDraftKept => '文章と画像はエディターに残っています。';
+
+  @override
+  String get moderationBlockedBack => '投稿を編集';
+
+  @override
+  String get notificationReviewApproved => '投稿が承認され、すべての人に表示されるようになりました';
+
+  @override
+  String get notificationReviewRejected => '投稿は承認されなかったため、公開されません';
+
+  @override
+  String get topicPendingReviewBanner =>
+      'この投稿は審査中です。承認されるまで、表示されるのはあなたと審査担当者だけです。';
+
+  @override
+  String get topicPendingReviewBannerModerator =>
+      'この投稿は審査待ちです。ほかの読者にはまだ表示されません。';
+
+  @override
+  String get topicPendingReviewReply =>
+      '審査中 · 承認されるまで、この返信はあなたと審査担当者だけに表示されます。';
 }

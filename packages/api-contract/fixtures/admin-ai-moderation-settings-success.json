@@ -1,0 +1,63 @@
+{
+  "code": 0,
+  "result": {
+    "enabled": false,
+    "mode": "shadow",
+    "textModeration": false,
+    "jevEndpoint": "",
+    "jevModel": "",
+    "jevTimeoutMs": 10000,
+    "jevRetries": 0,
+    "visionBaseUrl": "",
+    "visionModel": "",
+    "visionTimeoutMs": 20000,
+    "policyRevision": "default-1",
+    "policies": [
+      {
+        "key": "adult",
+        "label": "成人内容",
+        "definition": "露骨的性行为、性器官特写、以性挑逗为目的的裸露或性暗示姿态，以及任何涉及未成年人的性化内容。普通着装、医学/艺术/教育语境中的非性化人体不属于此类。",
+        "enabled": true,
+        "action": "review"
+      },
+      {
+        "key": "political_sensitive",
+        "label": "政治敏感",
+        "definition": "违反本站社区规则的政治敏感内容，以管理员书面规则为准。仅依据内容中明确可见的文字、符号与场景判断，不推断作者或人物的政治立场、身份与动机；正常的时事与学术讨论不属于此类。",
+        "enabled": true,
+        "action": "review"
+      },
+      {
+        "key": "violence",
+        "label": "暴力血腥",
+        "definition": "真实或逼真的严重伤害、血腥、尸体、虐待、自残画面，或宣扬、美化、威胁实施暴力。克制的新闻报道、体育运动与影视道具不属于此类。",
+        "enabled": true,
+        "action": "review"
+      },
+      {
+        "key": "illegal_or_dangerous",
+        "label": "违法危险",
+        "definition": "毒品或管制物品的交易与制作、武器制作、赌博、诈骗、代考代写等学术作弊交易、泄露他人身份证号/手机号等隐私、危险行为教程。",
+        "enabled": true,
+        "action": "review"
+      },
+      {
+        "key": "other",
+        "label": "其他违规",
+        "definition": "其他违反本站社区规则的内容，例如广告引流、垃圾信息、人身攻击与骚扰。",
+        "enabled": false,
+        "action": "review"
+      }
+    ],
+    "defaultReviewThreshold": 0.5,
+    "defaultBlockThreshold": 0.9,
+    "reviewNeededThreshold": 0.7,
+    "severityBlockThreshold": 2.5,
+    "externalImageAction": "review",
+    "maxImagesPerDecision": 6,
+    "globalRequestsPerMinute": 30,
+    "perUserRequestsPerMinute": 5,
+    "jevApiKeyConfigured": false,
+    "visionApiKeyConfigured": false
+  }
+}

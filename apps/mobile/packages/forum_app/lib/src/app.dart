@@ -127,6 +127,7 @@ class _AppBusinessHosts extends ConsumerWidget {
       repository: mediaRepository,
       scopeKey: mediaScope,
       apiOrigin: origin,
+      readAccessToken: ref.read(tokenStorageProvider).read,
       imageErrorBuilder: mediaImageFailure,
       child: StartupExperience(
         child: MobileUpdateHost(

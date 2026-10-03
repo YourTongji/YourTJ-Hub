@@ -50,6 +50,7 @@ import WikiSidebar from './WikiSidebar.vue'
 import WikiSearchPanel from './WikiSearchPanel.vue'
 import PublishMenu from './PublishMenu.vue'
 import { loadQuickPublishModal, useEverOpenedQuickPublish } from '@/site/composables/useQuickPublish'
+import ModerationBlockedDialog from '@/site/components/ModerationBlockedDialog.vue'
 
 import { useShellSidebar } from '@/runtime/shell-sidebar'
 import {
@@ -1169,6 +1170,7 @@ async function loadUserCard() {
     <component :is="UserCard" v-if="UserCard" />
     <WikiSearchPanel v-if="isWikiMode" />
     <QuickPublishModal v-if="layout.viewer.isAuthenticated && everOpenedQuickPublish" :layout="layout" />
+    <ModerationBlockedDialog v-if="layout.viewer.isAuthenticated" />
 
     <!-- 移动端发布 FAB：<sm 显示（navbar 上的发布按钮 sm+ 才渲染）。
          56px 直径（拇指可达），点击向上呼出发布类型菜单，层级低于抽屉 z-[60]。

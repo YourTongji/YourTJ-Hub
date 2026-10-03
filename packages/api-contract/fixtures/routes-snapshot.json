@@ -45,6 +45,10 @@
   },
   {
     "method": "GET",
+    "path": "/api/admin/ai-moderation-settings"
+  },
+  {
+    "method": "GET",
     "path": "/api/admin/ai-summary-settings"
   },
   {
@@ -633,6 +637,22 @@
   },
   {
     "method": "POST",
+    "path": "/api/admin/ai-moderation/decisions"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/ai-moderation/decisions/label"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/ai-moderation/replay"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/ai-moderation/test"
+  },
+  {
+    "method": "POST",
     "path": "/api/admin/ai-summary-models"
   },
   {
@@ -754,6 +774,10 @@
   {
     "method": "POST",
     "path": "/api/admin/role-save"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/save-ai-moderation-settings"
   },
   {
     "method": "POST",
@@ -1094,6 +1118,14 @@
   {
     "method": "POST",
     "path": "/api/forum/moderation/reports"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/moderation/review-action"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/moderation/review-queue"
   },
   {
     "method": "POST",

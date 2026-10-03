@@ -1,4 +1,5 @@
 import { adminText } from '@/admin/runtime/i18n-text'
+import { i18n } from '@/runtime/i18n'
 import { resolveApiMessage } from '@/runtime/api-message'
 import type {
   ApiEnvelope,
@@ -31,6 +32,12 @@ import type {
   MCPSettings,
   AiSummaryModelItem,
   AiSummarySettings,
+  AiModerationConnectionCheck,
+  AiModerationDecision,
+  AiModerationOptions,
+  AiModerationReplayReport,
+  AiModerationSettingsInput,
+  AiModerationSettingsView,
   OnesystemSettings,
   ScheduleSettings,
   PkSyncStatusItem,
@@ -51,6 +58,8 @@ import type {
   WikiNamespace,
   WikiNamespaceTree,
 } from '@/admin/types'
+
+const t = (key: string) => i18n.global.t(key)
 
 function responseMessage(data: ApiEnvelope<unknown>, fallback: string) {
   return resolveApiMessage(data, fallback)
@@ -422,6 +431,31 @@ export function saveAiSummarySettings(settings: AiSummarySettings) {
 
 export function listAiSummaryModels(params: { baseUrl?: string, apiKey?: string }) {
   return postJson<{ models: AiSummaryModelItem[] }>('/api/admin/ai-summary-models', params, adminText('k00p8'))
+}
+
+export function getAiModerationSettings() {
+  return getJson<AiModerationSettingsView>('/api/admin/ai-moderation-settings', t('aiModerationAdmin.loadFailed'))
+}
+
+export function saveAiModerationSettings(settings: AiModerationSettingsInput) {
+  return postJson<unknown>('/api/admin/save-ai-moderation-settings', { settings }, t('aiModerationAdmin.saveFailed'))
+}
+
+export function listAiModerationDecisions(params: { page: number, pageSize: number, finalAction?: string, humanAction?: string, mode?: string }) {
+  return postJson<{ items: AiModerationDecision[], total: number, page: number, pageSize: number }>(
+    '/api/admin/ai-moderation/decisions', params, t('aiModerationAdmin.decisionsFailed'))
+}
+
+export function labelAiModerationDecision(id: number, label: 'approved' | 'rejected') {
+  return postJson<unknown>('/api/admin/ai-moderation/decisions/label', { id, label }, t('aiModerationAdmin.labelFailed'))
+}
+
+export function testAiModerationConnection(target: 'jev' | 'vision', settings: AiModerationSettingsInput) {
+  return postJson<AiModerationConnectionCheck>('/api/admin/ai-moderation/test', { target, settings }, t('aiModerationAdmin.testRequestFailed'))
+}
+
+export function replayAiModeration(options?: AiModerationOptions) {
+  return postJson<AiModerationReplayReport>('/api/admin/ai-moderation/replay', options ? { options } : {}, t('aiModerationAdmin.replayFailed'))
 }
 
 export function getOnesystemSettings() {

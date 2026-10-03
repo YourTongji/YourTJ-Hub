@@ -26,7 +26,7 @@ func ReplaceTopic(topicID uint64, userID uint64, content string) {
 func ReplaceTopicWithImages(topicID uint64, userID uint64, content string, extraImages []string) {
 	urls := markdown2html.ExtractImageURLs(content)
 	urls = append(urls, extraImages...)
-	replace(fileUsage.TargetTopic, topicID, []string{fileUsage.UsageInlineImage}, userID, namesToUsages(urls, fileUsage.UsageInlineImage))
+	replace(fileUsage.TargetTopic, topicID, []string{fileUsage.UsageInlineImage}, userID, namesToUsages(urls, fileUsage.UsageInlineImage), false)
 }
 
 // MaxGalleryImagesPerTopicWrite caps how many explicit gallery images one
@@ -71,16 +71,18 @@ func FilterOwnedImageURLs(userID uint64, urls []string) []string {
 // explicit gallery list, keeping only files owned by userID (see
 // FilterOwnedImageURLs). It is the ownership-checked write path for user
 // content; unowned markdown URLs are skipped instead of being pinned.
-func RegisterTopicInlineImagesOwned(topicID uint64, userID uint64, content string, gallery []string) {
+// pending=true registers PENDING rows for content awaiting moderation so its
+// images are not publicly readable before approval (issue #975).
+func RegisterTopicInlineImagesOwned(topicID uint64, userID uint64, content string, gallery []string, pending bool) {
 	urls := markdown2html.ExtractImageURLs(content)
 	urls = append(urls, gallery...)
-	replace(fileUsage.TargetTopic, topicID, []string{fileUsage.UsageInlineImage}, userID, ownedUsages(userID, urls))
+	replace(fileUsage.TargetTopic, topicID, []string{fileUsage.UsageInlineImage}, userID, ownedUsages(userID, urls), pending)
 }
 
 // RegisterPostInlineImagesOwned is the ownership-checked reply/post variant
 // of RegisterTopicInlineImagesOwned for a single post's markdown content.
-func RegisterPostInlineImagesOwned(postID uint64, userID uint64, content string) {
-	replace(fileUsage.TargetPost, postID, []string{fileUsage.UsageInlineImage}, userID, ownedUsages(userID, markdown2html.ExtractImageURLs(content)))
+func RegisterPostInlineImagesOwned(postID uint64, userID uint64, content string, pending bool) {
+	replace(fileUsage.TargetPost, postID, []string{fileUsage.UsageInlineImage}, userID, ownedUsages(userID, markdown2html.ExtractImageURLs(content)), pending)
 }
 
 // ownedUsages converts owned, ready image URLs into inline_image usage rows,
@@ -101,7 +103,7 @@ func ownedUsages(userID uint64, urls []string) []Usage {
 }
 
 func ReplaceAvatar(userId uint64, fileNames []string) {
-	replace(fileUsage.TargetUser, userId, []string{fileUsage.UsageAvatar}, userId, namesToUsages(fileNames, fileUsage.UsageAvatar))
+	replace(fileUsage.TargetUser, userId, []string{fileUsage.UsageAvatar}, userId, namesToUsages(fileNames, fileUsage.UsageAvatar), false)
 }
 
 func AddAdminUpload(userId uint64, fileName string) {
@@ -172,7 +174,11 @@ func namesToUsages(values []string, usageType string) []Usage {
 	return usages
 }
 
-func replace(targetType string, targetId uint64, usageTypes []string, userId uint64, usages []Usage) {
+func replace(targetType string, targetId uint64, usageTypes []string, userId uint64, usages []Usage, pending bool) {
+	status := fileUsage.UsageStatusActive
+	if pending {
+		status = fileUsage.UsageStatusPending
+	}
 	rows := make([]fileUsage.Entity, 0, len(usages))
 	for _, usage := range usages {
 		if usage.FileName == "" || usage.UsageType == "" {
@@ -184,6 +190,7 @@ func replace(targetType string, targetId uint64, usageTypes []string, userId uin
 			TargetId:   targetId,
 			UsageType:  usage.UsageType,
 			UserId:     userId,
+			Status:     status,
 		})
 	}
 	if err := fileUsage.ReplaceTargetUsages(targetType, targetId, usageTypes, rows); err != nil {

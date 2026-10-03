@@ -371,3 +371,109 @@ viewDeletedContent:
                 externalValue: ../fixtures/account-frozen.json
               csrfRejected:
                 externalValue: ../fixtures/csrf-rejected.json
+
+listModerationReviewQueue:
+  post:
+    tags: [Forum]
+    summary: Page through pending-review content in the moderation workbench
+    operationId: listModerationReviewQueue
+    description: |
+      Front-end moderation workbench view of the pending-review queue (issue #975),
+      sharing the admin review queue's item shape (AI reasons, image previews).
+      Authorization is decided inside the controller (`CanAccessModeration`): callers
+      without moderation access fail with HTTP 200 and `permission.denied`. Admins and
+      global moderators see every pending item; category moderators see only content
+      whose topic belongs to one of their categories, and `total` counts that scope.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/AdminReviewQueueRequest
+    responses:
+      '200':
+        description: Scoped queue page, or `permission.denied` / `common.request.invalidParams`.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminReviewQueueResponse
+            examples:
+              permissionDenied:
+                externalValue: ../fixtures/permission-denied.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Cross-site cookie-authenticated request rejected by the CSRF gate.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
+
+moderationReviewAction:
+  post:
+    tags: [Forum]
+    summary: Approve or reject pending-review content from the moderation workbench
+    operationId: moderationReviewAction
+    description: |
+      Same semantics as the admin review action (approval publishes the content and its
+      pending images, replays deferred business events and notifies the author with
+      `review_approved`; rejection keeps it hidden and notifies `review_rejected`).
+      Callers without moderation access fail with `permission.denied`; targets outside
+      the caller's category scope fail with `admin.review.notFound` so the content's
+      state is not revealed. Requires a writable account.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/AdminReviewActionRequest
+    responses:
+      '200':
+        description: Review applied, or a business failure envelope.
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: ../components/schemas.yaml#/ApiSuccess
+                - $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              notFound:
+                externalValue: ../fixtures/admin-review-action-not-found.json
+              permissionDenied:
+                externalValue: ../fixtures/permission-denied.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Frozen or unactivated account, or a cross-site request rejected by the CSRF gate.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json

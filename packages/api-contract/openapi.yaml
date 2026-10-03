@@ -151,6 +151,10 @@ paths:
     $ref: ./paths/forum-moderation.yaml#/moderationUpdateReportStatus
   /api/forum/moderation/logs:
     $ref: ./paths/forum-moderation.yaml#/listModerationLogs
+  /api/forum/moderation/review-queue:
+    $ref: ./paths/forum-moderation.yaml#/listModerationReviewQueue
+  /api/forum/moderation/review-action:
+    $ref: ./paths/forum-moderation.yaml#/moderationReviewAction
   /api/forum/moderation/view-deleted-content:
     $ref: ./paths/forum-moderation.yaml#/viewDeletedContent
   /api/get-captcha:
@@ -452,6 +456,18 @@ paths:
     $ref: ./paths/admin-site-settings.yaml#/adminSaveAiSummarySettings
   /api/admin/ai-summary-models:
     $ref: ./paths/admin-site-settings.yaml#/adminListAiSummaryModels
+  /api/admin/ai-moderation-settings:
+    $ref: ./paths/admin-ai-moderation.yaml#/adminGetAiModerationSettings
+  /api/admin/save-ai-moderation-settings:
+    $ref: ./paths/admin-ai-moderation.yaml#/adminSaveAiModerationSettings
+  /api/admin/ai-moderation/decisions:
+    $ref: ./paths/admin-ai-moderation.yaml#/adminListAiModerationDecisions
+  /api/admin/ai-moderation/decisions/label:
+    $ref: ./paths/admin-ai-moderation.yaml#/adminLabelAiModerationDecision
+  /api/admin/ai-moderation/replay:
+    $ref: ./paths/admin-ai-moderation.yaml#/adminReplayAiModerationDecisions
+  /api/admin/ai-moderation/test:
+    $ref: ./paths/admin-ai-moderation.yaml#/adminTestAiModerationConnection
   /api/admin/terms-of-service:
     $ref: ./paths/admin-site-settings.yaml#/adminGetTermsOfService
   /api/admin/save-terms-of-service:

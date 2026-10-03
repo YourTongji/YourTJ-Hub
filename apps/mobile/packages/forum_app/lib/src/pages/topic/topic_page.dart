@@ -26,6 +26,7 @@ import '../../providers.dart';
 import '../../images/image_upload.dart';
 import '../../images/image_save.dart';
 import '../../server_messages.dart';
+import '../../widgets/moderation_blocked_dialog.dart';
 import '../../widgets/markdown_view.dart';
 import '../../widgets/status_views.dart';
 import '../../widgets/skeletons.dart';
@@ -1202,7 +1203,16 @@ class _TopicPageState extends ConsumerState<TopicPage>
         _replyCaptchaCode.clear();
         _showReplyCaptchaExplanation = false;
       });
-      showGfToast(context, AppLocalizations.of(context).topicReplySuccess);
+      final AppLocalizations l10n = AppLocalizations.of(context);
+      // 待审回复(issue #975)尚未公开:提示“已提交审核”,不定位到新楼层。
+      if (result.pendingReview) {
+        showGfToast(
+          context,
+          pendingReviewMessage(l10n, checking: result.checking),
+        );
+        return;
+      }
+      showGfToast(context, l10n.topicReplySuccess);
       await _showCreatedReply(result);
     } catch (error) {
       if (!mounted ||
@@ -1221,6 +1231,8 @@ class _TopicPageState extends ConsumerState<TopicPage>
           await _loadReplyCaptcha();
         }
       }
+      // AI 图文审查拦截(issue #975):弹出友好提示,回复草稿保持不变。
+      if (mounted && await showModerationBlockedDialog(context, error)) return;
       if (mounted) {
         showGfToast(
           context,
@@ -1657,6 +1669,7 @@ class _TopicPageState extends ConsumerState<TopicPage>
                                 canReportTopic:
                                     _topicAvailable &&
                                     !props.permissions.isOwnTopic,
+                                isOwnTopic: props.permissions.isOwnTopic,
                                 onReportTopic: () => _reportTopic(props.topic),
                               ),
                             ),
@@ -2091,6 +2104,7 @@ class _TopicHeader extends StatelessWidget {
     required this.topic,
     required this.mainPost,
     required this.canReportTopic,
+    required this.isOwnTopic,
     required this.onReportTopic,
   });
 
@@ -2098,6 +2112,7 @@ class _TopicHeader extends StatelessWidget {
   final TopicDetailPayload topic;
   final PostPayload? mainPost;
   final bool canReportTopic;
+  final bool isOwnTopic;
   final VoidCallback onReportTopic;
 
   @override
@@ -2117,6 +2132,16 @@ class _TopicHeader extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
+          // 待审话题（issue #975）：只有作者与审核员能打开，说明谁能看到、何时公开。
+          if (topic.processStatus == 2) ...<Widget>[
+            _PendingReviewNotice(
+              key: const Key('topic-pending-review'),
+              text: isOwnTopic
+                  ? l10n.topicPendingReviewBanner
+                  : l10n.topicPendingReviewBannerModerator,
+            ),
+            const SizedBox(height: 12),
+          ],
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
@@ -2491,6 +2516,15 @@ class _PostCard extends StatelessWidget {
             Text(l10n.topicRemoved)
           else
             GfMarkdownView(data: post.content, mentions: post.mentions),
+          // 待审回复（issue #975）：作者与审核员可见，标明尚未公开。
+          if (post.processStatus == 2) ...<Widget>[
+            const SizedBox(height: 6),
+            _PendingReviewNotice(
+              key: Key('post-pending-review-${post.id}'),
+              text: l10n.topicPendingReviewReply,
+              compact: true,
+            ),
+          ],
           const SizedBox(height: 4),
           Text(
             timeAgo(post.createdAt, l10n: l10n),
@@ -2662,6 +2696,54 @@ class _ReplyQuoteState extends State<_ReplyQuote> {
             ),
           ],
         ],
+      ),
+    );
+  }
+}
+
+/// 待审内容提示条（issue #975）：话题横幅与回复内的紧凑标签共用。
+class _PendingReviewNotice extends StatelessWidget {
+  const _PendingReviewNotice({
+    super.key,
+    required this.text,
+    this.compact = false,
+  });
+
+  final String text;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    final GfColors colors = GfTheme.colorsOf(context);
+    final TextStyle style = compact
+        ? GfTheme.typographyOf(context).caption
+        : GfTheme.typographyOf(context).body;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: colors.warning.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(compact ? 8 : 12),
+      ),
+      child: Padding(
+        padding: compact
+            ? const EdgeInsets.symmetric(horizontal: 8, vertical: 4)
+            : const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: GfSymbol(
+                'clock',
+                size: compact ? 12 : 16,
+                color: colors.warning,
+              ),
+            ),
+            SizedBox(width: compact ? 4 : 8),
+            Expanded(
+              child: Text(text, style: style.copyWith(color: colors.warning)),
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -13,12 +13,17 @@ class MediaHost extends StatefulWidget {
     required this.repository,
     required this.scopeKey,
     required this.apiOrigin,
+    this.readAccessToken,
     this.imageErrorBuilder,
     required this.child,
   });
   final MediaRepository repository;
   final String scopeKey;
   final String apiOrigin;
+
+  /// Session token for this site's own pending-review uploads only; see
+  /// [MediaRepository.load].
+  final Future<String?> Function()? readAccessToken;
 
   /// Optional host-owned failure state for shared media components; the app
   /// injects the localized, actionable fallback here.
@@ -142,6 +147,7 @@ class _MediaHostState extends State<MediaHost> with WidgetsBindingObserver {
                   scopeKey: scope,
                   apiOrigin: origin,
                   allowedOrigins: allowedOrigins,
+                  readAccessToken: widget.readAccessToken,
                 );
                 return GfMediaData(
                   bytes,

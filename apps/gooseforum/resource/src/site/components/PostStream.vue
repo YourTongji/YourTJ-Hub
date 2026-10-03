@@ -27,7 +27,8 @@ import { userDisplayName } from '@/runtime/private-notes'
 import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, ref, Teleport, useSlots, watch } from 'vue'
 import { AlertTriangle, Ban, Bell, BookOpen, Bookmark, ChevronsUp, Clock, CornerDownLeft, Flag, Heart, HelpCircle, History, Loader2, MoreHorizontal, PencilLine, RotateCcw, Share2, Sparkles, Trash2, X } from '@lucide/vue'
 import { PopoverContent, PopoverPortal, PopoverRoot, PopoverTrigger } from 'reka-ui'
-import { bookmarkTopic, deletePost, deleteTopic, getPostRevisions, getPostWindow, likeTopic, createPost, sensitiveWordsFromError, submitReport, updateModerationTopicStatus, updateModerationPostStatus, updatePost, watchTopic, likePost, bookmarkPost, reportContentEvent, type PostRevisionResult } from '@/runtime/api'
+import { showModerationBlocked } from '@/runtime/moderation-blocked'
+import { bookmarkTopic, deletePost, deleteTopic, getPostRevisions, getPostWindow, likeTopic, createPost, sensitiveWordsFromError, submitReport, updateModerationTopicStatus, updateModerationPostStatus, updatePost, watchTopic, likePost, bookmarkPost, reportContentEvent, type PostRevisionResult, pendingReviewMessage } from '@/runtime/api'
 import { formatDateTime, formatNumber } from '@/runtime/format'
 import { useFlashMessages } from '@/runtime/flash-message'
 import { fetchPage } from '@/runtime/router'
@@ -1442,6 +1443,11 @@ function anonymousAvatarSrc(post: PostPayload, size = 36): string {
   return buildBeamAvatarDataUri(`anonymous-${post.id}`, size)
 }
 
+// 作者本人的待审楼层照常展示正文（issue #975），审核状态由横幅与“审核中”标记说明。
+function isOwnPendingPost(post: PostPayload) {
+  return post.isOwnPost && post.processStatus === 2
+}
+
 function canEditPost(post: PostPayload) {
   return post.isOwnPost && !post.isHidden && !isPostRemoved(post)
 }
@@ -1540,10 +1546,11 @@ async function savePostEdit() {
     postDraftBeforeEdit.value = ''
     targetPostBeforeEdit.value = 0
     composerOpen.value = false
-    pushFlash(t('topic.replyUpdated'), 'success')
+    pushFlash(updated.pendingReview ? pendingReviewMessage(updated) : t('topic.replyUpdated'), updated.pendingReview ? 'info' : 'success')
   } catch (error) {
     sensitiveWords.value = sensitiveWordsFromError(error)
     errorMessage.value = error instanceof Error ? error.message : t('api.replyUpdateFailed')
+    showModerationBlocked(error)
   } finally {
     savingEditPostId.value = 0
   }
@@ -1580,7 +1587,10 @@ async function submitPost() {
     anonymous.value = false
     targetPostId.value = 0
     composerOpen.value = false
-    pushFlash(t('topic.replyPosted'), 'success')
+    const pendingReview = typeof createdPost === 'object' && createdPost !== null && createdPost.pendingReview === true
+    // 待审回复（issue #975）尚未公开：提示“已提交审核”或“正在自动检查”，不跳转定位到新楼层。
+    pushFlash(pendingReview ? pendingReviewMessage(createdPost) : t('topic.replyPosted'), pendingReview ? 'info' : 'success')
+    if (pendingReview) return
     const createdPostId = typeof createdPost === 'object' && createdPost !== null ? createdPost.id : createdPost
     try {
       if (typeof createdPostId === 'number') {
@@ -1598,6 +1608,7 @@ async function submitPost() {
     } else {
       sensitiveWords.value = sensitiveWordsFromError(error)
       errorMessage.value = error instanceof Error ? error.message : t('api.replyFailed')
+      showModerationBlocked(error)
     }
   } finally {
     submitting.value = false
@@ -2168,6 +2179,17 @@ defineExpose({ openFloatingPostComposer, focusPostComposer })
                 <!-- 大屏时间展示 -->
                 <time class="hidden w-36 shrink-0 text-right text-xs text-base-content/55 sm:-ml-1 sm:block">{{ formatDateTime(post.createdAt) }}</time>
 
+                <!-- 待审回复（issue #975）：作者与审核员可见，标明尚未公开 -->
+                <span
+                  v-if="post.processStatus === 2 && !isFirstPost(post)"
+                  data-test="post-pending-review"
+                  class="shrink-0 self-center inline-flex items-center gap-1 rounded-full bg-warning/15 px-2 py-0.5 text-[11px] font-semibold text-warning"
+                  :title="t('topic.pendingReviewReplyHint')"
+                >
+                  <Clock class="h-3 w-3" aria-hidden="true" />
+                  {{ t('topic.pendingReviewBadge') }}
+                </span>
+
                 <!-- 首楼内容类型徽章：只显示唯一且明确的类型徽章，未配置时回退为“正文” -->
                 <template v-if="isFirstPost(post)">
                   <span
@@ -2224,7 +2246,7 @@ defineExpose({ openFloatingPostComposer, focusPostComposer })
               <div class="font-semibold text-base-content/70">{{ t('topic.moderatorRemovedTitle') }}</div>
               <div class="mt-1 leading-6">{{ t('topic.moderatorRemovedPlaceholder') }}</div>
             </div>
-            <div v-else-if="post.isHidden && !post.canModerate" class="rounded border border-line bg-base-200/60 px-3 py-2 text-sm text-base-content/45">
+            <div v-else-if="post.isHidden && !post.canModerate && !isOwnPendingPost(post)" class="rounded border border-line bg-base-200/60 px-3 py-2 text-sm text-base-content/45">
               {{ t('topic.hiddenReplyPlaceholder') }}
             </div>
             <div v-else>
@@ -2245,7 +2267,7 @@ defineExpose({ openFloatingPostComposer, focusPostComposer })
                 v-html="renderedPostContent(post)"
               />
             </div>
-            <div v-if="post.isHidden && !isPostRemoved(post) && post.canModerate" class="mt-2 inline-flex rounded bg-base-200 px-2 py-1 text-xs font-semibold text-base-content/45">
+            <div v-if="post.isHidden && post.processStatus !== 2 && !isPostRemoved(post) && post.canModerate" class="mt-2 inline-flex rounded bg-base-200 px-2 py-1 text-xs font-semibold text-base-content/45">
               {{ t('topic.hiddenReplyBadge') }}
             </div>
             <div v-if="!post.lastEditedAt && post.updatedAt && post.updatedAt !== post.createdAt" class="mt-2 text-xs font-medium text-base-content/55">

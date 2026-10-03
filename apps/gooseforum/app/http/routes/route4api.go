@@ -424,6 +424,8 @@ func apiRoute(ginApp *gin.Engine) {
 	forumLoginApi.POST("moderation/report-status", middleware.CheckWritableAccount, UpButterReq(forum.UpdateModerationReportStatus))
 	forumLoginApi.POST("moderation/logs", middleware.NoUpdateUserActivity, UpButterReq(forum.ModerationLogList))
 	forumLoginApi.POST("moderation/view-deleted-content", middleware.CheckWritableAccount, UpButterReq(forum.ViewDeletedContent))
+	forumLoginApi.POST("moderation/review-queue", middleware.NoUpdateUserActivity, UpButterReq(api.ModerationReviewQueue))
+	forumLoginApi.POST("moderation/review-action", middleware.CheckWritableAccount, UpButterReq(api.ModerationReviewAction))
 
 	chatApi := forumApi.Group("chat", middleware.CSRFProtection, middleware.JWTAuthCheck)
 
@@ -551,6 +553,12 @@ func apiRoute(ginApp *gin.Engine) {
 		GET("ai-summary-settings", UpButterReq(api.GetAiSummarySettings)).
 		POST("save-ai-summary-settings", UpButterReq(api.SaveAiSummarySettings)).
 		POST("ai-summary-models", UpButterReq(api.ListAiSummaryModels)).
+		GET("ai-moderation-settings", UpButterReq(api.GetAiModerationSettings)).
+		POST("save-ai-moderation-settings", UpButterReq(api.SaveAiModerationSettings)).
+		POST("ai-moderation/decisions", UpButterReq(api.ListAiModerationDecisions)).
+		POST("ai-moderation/decisions/label", UpButterReq(api.LabelAiModerationDecision)).
+		POST("ai-moderation/replay", UpButterReq(api.ReplayAiModerationDecisions)).
+		POST("ai-moderation/test", UpButterReq(api.TestAiModerationConnection)).
 		POST("badge-save", UpButterReq(api.SaveBadge)).
 		POST("badge-delete", UpButterReq(api.DeleteBadge)).
 		GET("stickers", UpButterReq(api.StickerList)).

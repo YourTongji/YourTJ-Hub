@@ -765,6 +765,18 @@ export interface paths {
          *     Request bodies over 2 MiB are rejected with HTTP 400 `common.request.parseFailed`
          *     before binding; JSON binding is otherwise lenient, so a malformed body within the
          *     limit binds to zero values and fails as `common.request.invalidParams` (HTTP 200).
+         *     Content moderation (issue #975): the existing sensitive-word gate runs first; when the
+         *     admin-configured AI image/text moderation is enabled in `enforce` mode the request
+         *     waits for a synchronous decision. A block fails with `content.aiModeration.blocked`
+         *     (or `content.aiModeration.externalImageBlocked` when non-site images are disallowed)
+         *     and nothing is written; a review result (or any model failure) stores the content as
+         *     pending review and the success envelope carries `messageCode`
+         *     `content.moderation.pendingReview` (also used for sensitive-word review). In `deferred`
+         *     mode the request does not wait: the content is stored as pending and the envelope carries
+         *     `content.moderation.checking`; a background decision then publishes it, rejects it (the
+         *     author is notified), or leaves it for a reviewer. Disallowed non-site images are still
+         *     rejected synchronously. Images referenced by pending content are not publicly readable
+         *     until approval.
          */
         post: operations["writeTopic"];
         delete?: never;
@@ -929,6 +941,18 @@ export interface paths {
          *     `comment.content.tooLong` (params minLength/maxLength); bounds count rendered
          *     visible text and the raw Markdown source is capped relative to `maxPostLength`.
          *     Request bodies over 2 MiB are rejected with HTTP 400 `common.request.parseFailed`.
+         *     Content moderation (issue #975): the existing sensitive-word gate runs first; when the
+         *     admin-configured AI image/text moderation is enabled in `enforce` mode the request
+         *     waits for a synchronous decision. A block fails with `content.aiModeration.blocked`
+         *     (or `content.aiModeration.externalImageBlocked` when non-site images are disallowed)
+         *     and nothing is written; a review result (or any model failure) stores the content as
+         *     pending review and the success envelope carries `messageCode`
+         *     `content.moderation.pendingReview` (also used for sensitive-word review). In `deferred`
+         *     mode the request does not wait: the content is stored as pending and the envelope carries
+         *     `content.moderation.checking`; a background decision then publishes it, rejects it (the
+         *     author is notified), or leaves it for a reviewer. Disallowed non-site images are still
+         *     rejected synchronously. Images referenced by pending content are not publicly readable
+         *     until approval.
          */
         post: operations["createPost"];
         delete?: never;
@@ -958,6 +982,18 @@ export interface paths {
          *     bounds count rendered visible text and the raw Markdown source is capped relative
          *     to `maxPostLength`. Request bodies over 2 MiB are rejected with HTTP 400
          *     `common.request.parseFailed`.
+         *     Content moderation (issue #975): the existing sensitive-word gate runs first; when the
+         *     admin-configured AI image/text moderation is enabled in `enforce` mode the request
+         *     waits for a synchronous decision. A block fails with `content.aiModeration.blocked`
+         *     (or `content.aiModeration.externalImageBlocked` when non-site images are disallowed)
+         *     and nothing is written; a review result (or any model failure) stores the content as
+         *     pending review and the success envelope carries `messageCode`
+         *     `content.moderation.pendingReview` (also used for sensitive-word review). In `deferred`
+         *     mode the request does not wait: the content is stored as pending and the envelope carries
+         *     `content.moderation.checking`; a background decision then publishes it, rejects it (the
+         *     author is notified), or leaves it for a reviewer. Disallowed non-site images are still
+         *     rejected synchronously. Images referenced by pending content are not publicly readable
+         *     until approval.
          */
         post: operations["updatePost"];
         delete?: never;
@@ -1006,9 +1042,11 @@ export interface paths {
         };
         /**
          * Read a window of posts around an anchor or page boundary
-         * @description Public read endpoint. An optional valid JWT (cookie or Bearer) only personalizes
-         *     viewer flags (isOwnPost/isLiked/isBookmarked/canModerate); anonymous callers
-         *     receive the same posts. Query binding is strict: malformed values fail with HTTP
+         * @description Public read endpoint. An optional valid JWT (cookie or Bearer) personalizes
+         *     viewer flags (isOwnPost/isLiked/isBookmarked/canModerate); posts pending review
+         *     (`processStatus` 2) are omitted except for moderators and the post's own author,
+         *     who also may read their own topic while it is pending review (issue #975); other
+         *     callers receive the same posts. Query binding is strict: malformed values fail with HTTP
          *     400 and `common.request.parseFailed`. A missing/zero topicId, an unknown or
          *     not-viewable topic fails with `topic.notFound` (HTTP 200); an anchor outside the
          *     topic fails with `post.notFound` (HTTP 200). Positioning parameters are mutually
@@ -1293,6 +1331,56 @@ export interface paths {
          *     a malformed body binds to zero values and returns the first page.
          */
         post: operations["listModerationLogs"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/moderation/review-queue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Page through pending-review content in the moderation workbench
+         * @description Front-end moderation workbench view of the pending-review queue (issue #975),
+         *     sharing the admin review queue's item shape (AI reasons, image previews).
+         *     Authorization is decided inside the controller (`CanAccessModeration`): callers
+         *     without moderation access fail with HTTP 200 and `permission.denied`. Admins and
+         *     global moderators see every pending item; category moderators see only content
+         *     whose topic belongs to one of their categories, and `total` counts that scope.
+         */
+        post: operations["listModerationReviewQueue"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/moderation/review-action": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Approve or reject pending-review content from the moderation workbench
+         * @description Same semantics as the admin review action (approval publishes the content and its
+         *     pending images, replays deferred business events and notifies the author with
+         *     `review_approved`; rejection keeps it hidden and notifies `review_rejected`).
+         *     Callers without moderation access fail with `permission.denied`; targets outside
+         *     the caller's category scope fail with `admin.review.notFound` so the content's
+         *     state is not revealed. Requires a writable account.
+         */
+        post: operations["moderationReviewAction"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4988,6 +5076,163 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/ai-moderation-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the AI image/text moderation settings
+         * @description Admin console operation gated by the `SiteManager` role permission;
+         *     callers without it fail with HTTP 403 and `permission.denied`. Returns the
+         *     normalized stored settings, or the built-in defaults (disabled, `shadow`
+         *     mode, draft site policies whose action is `review`) when nothing has been
+         *     saved. Exposure boundary: the Jev and vision API keys are reported only as
+         *     `jevApiKeyConfigured` / `visionApiKeyConfigured`; plaintext or ciphertext
+         *     never appears on the wire (issue #324 security pattern).
+         */
+        get: operations["adminGetAiModerationSettings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/save-ai-moderation-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Replace the AI image/text moderation settings
+         * @description Admin console operation gated by the `SiteManager` role permission.
+         *     Options are normalized before storage (unknown enums fall back to defaults,
+         *     thresholds and limits are clamped, policies are merged by their fixed keys).
+         *     API keys are plaintext only inside this request: a non-empty value is
+         *     encrypted with a purpose-scoped key, an empty value keeps the stored
+         *     ciphertext, and `clearJevApiKey` / `clearVisionApiKey` explicitly remove it.
+         *     Endpoints must be absolute http(s) URLs, otherwise the request fails with
+         *     `admin.aiModeration.saveFailed` (params.error). Saving clears the runtime
+         *     cache so the change takes effect immediately.
+         */
+        post: operations["adminSaveAiModerationSettings"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/ai-moderation/decisions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * List recorded AI moderation decisions
+         * @description SiteManager permission required. Pages through structured AI decisions,
+         *     newest first. Each item carries the policy revision, models, raw rule
+         *     probabilities, severity, review_needed, evidence status, final/applied
+         *     action and the human outcome; the truncated image evidence summary is kept
+         *     only for decisions that sent content to human review. No prompts, provider
+         *     responses or keys are stored or returned.
+         */
+        post: operations["adminListAiModerationDecisions"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/ai-moderation/decisions/label": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Record a human label on an AI moderation decision
+         * @description SiteManager permission required. Stores `approved` (content is acceptable)
+         *     or `rejected` (content violates site rules) as the human outcome, building
+         *     the labeled sample set used by offline threshold replay. Only the human
+         *     fields change; recorded AI signals are immutable. Unknown ids fail with
+         *     `admin.aiModeration.decisionNotFound`. Review-queue approve/reject writes the
+         *     same field automatically.
+         */
+        post: operations["adminLabelAiModerationDecision"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/ai-moderation/replay": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Replay thresholds against labeled AI decisions
+         * @description SiteManager permission required. Re-runs the deterministic resolver over up
+         *     to 2000 most recent labeled decisions using either the saved settings or the
+         *     candidate `options` in the request (not saved), and returns a confusion
+         *     matrix (human outcome × predicted action), false blocks, missed violations,
+         *     the review rate and how many samples changed. Only stored probabilities are
+         *     read — no model is called. Samples with incomplete evidence keep their
+         *     recorded action.
+         */
+        post: operations["adminReplayAiModerationDecisions"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/ai-moderation/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Test the Jev or vision provider connection with unsaved form values
+         * @description SiteManager permission required. Calls the selected provider once with the
+         *     submitted (unsaved) settings; empty API keys fall back to the stored keys and
+         *     `clear*ApiKey` tests without a key. Vision is tested with a built-in synthetic
+         *     image through the real evidence-extraction path (a model without image input,
+         *     e.g. an OpenRouter text model, reports `http_404`); Jev is asked one `noul`
+         *     question. The result carries only a category, the provider HTTP status, the
+         *     model and latency — never the provider response body or key material. Nothing
+         *     is saved. Invalid endpoint URLs fail with `admin.aiModeration.saveFailed`.
+         */
+        post: operations["adminTestAiModerationConnection"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/terms-of-service": {
         parameters: {
             query?: never;
@@ -8146,7 +8391,7 @@ export interface components {
         NotificationPayload: {
             /** Format: uint64 */
             id: number;
-            /** @description Notification event type (comment/post_reply/topic_post/mention/follow/badge/like/wiki_updated/system); the payload shape varies with it. */
+            /** @description Notification event type (comment/post_reply/topic_post/mention/follow/badge/like/wiki_updated/system/review_approved/review_rejected); the payload shape varies with it. `review_approved` links to the approved topic/post; `review_rejected` carries only `payload.topicTitle` because rejected content is not visible to its author (issue */
             eventType: string;
             isRead: boolean;
             /** @description Notification creation time in RFC 3339 format. */
@@ -10560,6 +10805,12 @@ export interface components {
              * @description Posts only; omitted for topics.
              */
             postNo?: number;
+            /** @description Image URLs referenced by the pending content (topic gallery/inline images or post Markdown images). Pending images are readable by reviewers through the authorized `/file/img` preview; anonymous readers receive 404. */
+            images?: string[];
+            /** @description Present only when AI moderation sent this item to review (issue */
+            aiReview?: components["schemas"]["AiModerationDecisionItem"];
+            /** @description True while deferred AI moderation is still checking this item in the background; it is usually published or rejected automatically within moments. Omitted otherwise. */
+            aiChecking?: boolean;
         };
         AdminReviewQueueResult: {
             items: components["schemas"]["AdminReviewQueueItem"][];
@@ -12212,6 +12463,76 @@ export interface components {
             start: number;
             end: number;
         };
+        AiModerationImageRecord: {
+            fileName?: string;
+            url?: string;
+            sha256?: string;
+            /** @description ok | cache | refused | invalid | uncertain | error | timeout | auth | too_large | unsupported | missing | external | skipped */
+            status: string;
+            /** @description Truncated neutral evidence summary, kept only for decisions that went to human review. */
+            evidence?: string;
+        };
+        AiModerationReason: {
+            /**
+             * @description `between_thresholds`: the rule may block, but the score is between its review line and block line, so it goes to human review.
+             * @enum {string}
+             */
+            code: "block_threshold" | "severity_escalation" | "between_thresholds" | "review_only_rule" | "review_needed" | "evidence_incomplete" | "external_image_blocked";
+            policy?: string;
+            /** @description Rule score, or the review_needed probability. */
+            score?: number;
+            /** @description The line that was reached (review line, block line or review_needed line). */
+            threshold?: number;
+            /** @description Block line for `between_thresholds`; severity line for `severity_escalation`. */
+            limit?: number;
+            severity?: number;
+            /** @description Evidence status for `evidence_incomplete`. */
+            detail?: string;
+        };
+        AiModerationDecisionItem: {
+            /** Format: uint64 */
+            id: number;
+            /** @enum {string} */
+            subjectType: "topic" | "post";
+            /**
+             * Format: uint64
+             * @description 0 for blocked new content that was never written.
+             */
+            subjectId: number;
+            /** Format: uint64 */
+            authorId: number;
+            /** @enum {string} */
+            mode: "shadow" | "enforce" | "deferred";
+            policyRevision: string;
+            visionModel: string;
+            jevModel: string;
+            images: components["schemas"]["AiModerationImageRecord"][];
+            signals: {
+                ruleProbabilities?: {
+                    [key: string]: number;
+                };
+                severity?: number;
+                reviewNeeded?: number;
+            };
+            triggeredPolicies: string[];
+            /** @description Why the decision has this action; empty for clean content. Older records may have none. */
+            reasons: components["schemas"]["AiModerationReason"][];
+            /** @enum {string} */
+            evidenceStatus: "complete" | "unavailable" | "external" | "too_many" | "jev_failed" | "not_configured" | "rate_limited" | "text_truncated";
+            /** @enum {string} */
+            finalAction: "allow" | "review" | "block";
+            /** @description Action applied to the content; always `allow` in shadow mode. In deferred mode a result superseded by a newer edit is recorded as `review` and not applied. */
+            appliedAction: string;
+            errorKind: string;
+            /** @enum {string} */
+            humanAction: "" | "approved" | "rejected";
+            /** Format: int64 */
+            latencyMs: number;
+            /** @description Provider-reported cost when available (OpenRouter `usage.cost`), otherwise 0. */
+            cost: number;
+            /** Format: date-time */
+            createdAt: string;
+        };
         UserBlock: {
             /** Format: uint64 */
             targetUserId: number;
@@ -12454,6 +12775,148 @@ export interface components {
                 models: components["schemas"]["AdminAiSummaryModelsItem"][];
             };
         }) | components["schemas"]["ApiFailure"];
+        AiModerationPolicyRule: {
+            /**
+             * @description Fixed rule key, also used as the Jev question name.
+             * @enum {string}
+             */
+            key: "adult" | "political_sensitive" | "violence" | "illegal_or_dangerous" | "other";
+            label: string;
+            /** @description Site rule text maintained by administrators and placed in the Jev state; the model only applies it. */
+            definition: string;
+            enabled: boolean;
+            /**
+             * @description Highest action this rule may trigger; `review` rules never block automatically.
+             * @enum {string}
+             */
+            action: "review" | "block";
+            /** @description Optional override of `defaultReviewThreshold`. */
+            reviewThreshold?: number;
+            /** @description Optional override of `defaultBlockThreshold` (never below the review threshold). */
+            blockThreshold?: number;
+        };
+        AiModerationOptions: {
+            enabled?: boolean;
+            /**
+             * @description `shadow` records decisions asynchronously without affecting publishing; `enforce` decides synchronously inside the publish request; `deferred` stores the content as pending immediately (visible only to the author and reviewers) and decides in the background: allow publishes it, block rejects it and notifies the author, review leaves it in the review queue.
+             * @enum {string}
+             */
+            mode?: "shadow" | "enforce" | "deferred";
+            /** @description Also call Jev for content without images; when false, image-free content triggers no model call. */
+            textModeration?: boolean;
+            /** @description Full Decisions API URL (TypeSafe `/v1/systemone` or OpenRouter `/api/alpha/decisions`). */
+            jevEndpoint?: string;
+            jevModel?: string;
+            jevTimeoutMs?: number;
+            /** @description Retries only on 402/429/5xx/timeouts. */
+            jevRetries?: number;
+            /** @description OpenAI-compatible multimodal base URL used for neutral evidence extraction. */
+            visionBaseUrl?: string;
+            visionModel?: string;
+            visionTimeoutMs?: number;
+            policyRevision?: string;
+            policies?: components["schemas"]["AiModerationPolicyRule"][];
+            defaultReviewThreshold?: number;
+            defaultBlockThreshold?: number;
+            reviewNeededThreshold?: number;
+            /** @description Escalates an already-triggered block rule; severity alone never blocks. */
+            severityBlockThreshold?: number;
+            /**
+             * @description Handling of non-site images, which are never fetched server-side.
+             * @enum {string}
+             */
+            externalImageAction?: "review" | "block";
+            maxImagesPerDecision?: number;
+            globalRequestsPerMinute?: number;
+            perUserRequestsPerMinute?: number;
+        };
+        AdminAiModerationSettingsView: components["schemas"]["AiModerationOptions"] & {
+            jevApiKeyConfigured: boolean;
+            visionApiKeyConfigured: boolean;
+        };
+        AdminAiModerationSettingsResponse: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["AdminAiModerationSettingsView"];
+        };
+        AdminSaveAiModerationSettingsRequest: {
+            settings: components["schemas"]["AiModerationOptions"] & {
+                /** @description Plaintext only in this request; empty keeps the stored key. */
+                jevApiKey?: string;
+                visionApiKey?: string;
+                clearJevApiKey?: boolean;
+                clearVisionApiKey?: boolean;
+            };
+        };
+        AdminAiModerationDecisionListRequest: {
+            page?: number;
+            /** @description Values below 1 or above 50 fall back to 20. */
+            pageSize?: number;
+            /** @enum {string} */
+            finalAction?: "allow" | "review" | "block";
+            /**
+             * @description `none` lists unlabeled decisions.
+             * @enum {string}
+             */
+            humanAction?: "none" | "approved" | "rejected";
+            /** @enum {string} */
+            mode?: "shadow" | "enforce" | "deferred";
+        };
+        AdminAiModerationDecisionListResponse: components["schemas"]["ApiSuccess"] & {
+            result: {
+                items: components["schemas"]["AiModerationDecisionItem"][];
+                /** Format: int64 */
+                total: number;
+                page: number;
+                pageSize: number;
+            };
+        };
+        AdminAiModerationLabelRequest: {
+            /** Format: uint64 */
+            id: number;
+            /** @enum {string} */
+            label: "approved" | "rejected";
+        };
+        AdminAiModerationReplayRequest: {
+            /** @description Candidate settings to evaluate; omitted uses the saved settings. Never persisted. */
+            options?: components["schemas"]["AiModerationOptions"];
+        };
+        AdminAiModerationReplayResponse: components["schemas"]["ApiSuccess"] & {
+            result: {
+                samples: number;
+                /** @description Counts keyed by human outcome (approved/rejected) then predicted action (allow/review/block). */
+                matrix: {
+                    [key: string]: {
+                        [key: string]: number;
+                    };
+                };
+                falseBlock: number;
+                missedViolation: number;
+                reviewRate: number;
+                changed: number;
+            };
+        };
+        settings: components["schemas"]["AiModerationOptions"] & {
+            /** @description Plaintext only in this request; empty keeps the stored key. */
+            jevApiKey?: string;
+            visionApiKey?: string;
+            clearJevApiKey?: boolean;
+            clearVisionApiKey?: boolean;
+        };
+        AdminAiModerationTestRequest: {
+            /** @enum {string} */
+            target: "jev" | "vision";
+            settings?: components["schemas"]["settings"];
+        };
+        AdminAiModerationTestResponse: components["schemas"]["ApiSuccess"] & {
+            result: {
+                ok: boolean;
+                /** @description ok | uncertain | not_configured | refused | invalid | timeout | auth | http_<status> | jev_<kind> | error */
+                kind: string;
+                httpStatus?: number;
+                model?: string;
+                /** Format: int64 */
+                latencyMs: number;
+            };
+        };
         AdminMailSettingsView: {
             enableMail: boolean;
             smtpHost: string;
@@ -15081,6 +15544,90 @@ export interface operations {
                 };
             };
             /** @description Cross-site cookie-authenticated request rejected by the CSRF gate (missing or mismatched Origin/Referer, issue #406). The session cookie is not cleared. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    listModerationReviewQueue: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminReviewQueueRequest"];
+            };
+        };
+        responses: {
+            /** @description Scoped queue page, or `permission.denied` / `common.request.invalidParams`. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminReviewQueueResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Cross-site cookie-authenticated request rejected by the CSRF gate. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    moderationReviewAction: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminReviewActionRequest"];
+            };
+        };
+        responses: {
+            /** @description Review applied, or a business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiSuccess"] | components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen or unactivated account, or a cross-site request rejected by the CSRF gate. */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -21317,6 +21864,254 @@ export interface operations {
                 };
             };
             /** @description Frozen account, or caller lacks the SiteManager permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminGetAiModerationSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Normalized AI moderation settings without key material. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminAiModerationSettingsResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminSaveAiModerationSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminSaveAiModerationSettingsRequest"];
+            };
+        };
+        responses: {
+            /** @description Configuration saved (`result` is the string `success`) or a validation failure. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminPageConfigSaveResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, missing SiteManager permission, or rejected CSRF origin. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminListAiModerationDecisions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminAiModerationDecisionListRequest"];
+            };
+        };
+        responses: {
+            /** @description One page of decisions. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminAiModerationDecisionListResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, missing SiteManager permission, or rejected CSRF origin. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminLabelAiModerationDecision: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminAiModerationLabelRequest"];
+            };
+        };
+        responses: {
+            /** @description Label stored, or a not-found failure. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiSuccess"] | components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, missing SiteManager permission, or rejected CSRF origin. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminReplayAiModerationDecisions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminAiModerationReplayRequest"];
+            };
+        };
+        responses: {
+            /** @description Replay report. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminAiModerationReplayResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, missing SiteManager permission, or rejected CSRF origin. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminTestAiModerationConnection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminAiModerationTestRequest"];
+            };
+        };
+        responses: {
+            /** @description Connection check result or an invalid-URL failure. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminAiModerationTestResponse"] | components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, missing SiteManager permission, or rejected CSRF origin. */
             403: {
                 headers: {
                     [name: string]: unknown;

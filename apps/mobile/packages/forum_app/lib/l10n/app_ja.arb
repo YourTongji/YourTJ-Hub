@@ -1156,5 +1156,15 @@
   "courseReviewContentLimitError": "レビューは2,000文字までです。",
   "courseReviewCharacterCount": "{count}/2000",
   "shareImageTooLong": "投稿が長すぎるため共有画像を作成できません。",
-  "shareImageFailed": "画像を共有できませんでした。後でもう一度お試しください。"
+  "shareImageFailed": "画像を共有できませんでした。後でもう一度お試しください。",
+  "moderationBlockedTitle": "公開されませんでした",
+  "moderationBlockedPolicyHint": "画像と文章がコミュニティガイドラインに沿っているか確認し、不適切な可能性がある部分を削除または差し替えてから再度公開してください。判定に誤りがあると思われる場合は管理者にお問い合わせください。",
+  "moderationBlockedExternalHint": "このサイトでは外部画像を表示しません。画像を保存してエディターからアップロードし、再度公開してください。",
+  "moderationBlockedDraftKept": "文章と画像はエディターに残っています。",
+  "moderationBlockedBack": "投稿を編集",
+  "notificationReviewApproved": "投稿が承認され、すべての人に表示されるようになりました",
+  "notificationReviewRejected": "投稿は承認されなかったため、公開されません",
+  "topicPendingReviewBanner": "この投稿は審査中です。承認されるまで、表示されるのはあなたと審査担当者だけです。",
+  "topicPendingReviewBannerModerator": "この投稿は審査待ちです。ほかの読者にはまだ表示されません。",
+  "topicPendingReviewReply": "審査中 · 承認されるまで、この返信はあなたと審査担当者だけに表示されます。"
 }

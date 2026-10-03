@@ -125,7 +125,7 @@ class _RecordingTopicRepository extends TopicRepository {
       >[];
 
   @override
-  Future<int> writeTopic({
+  Future<WriteTopicResult> writeTopicResult({
     required int topicId,
     required String title,
     required String content,
@@ -159,7 +159,7 @@ class _RecordingTopicRepository extends TopicRepository {
       categoryIds: List<int>.of(categoryIds),
       topicStatus: topicStatus,
     ));
-    return resultId;
+    return WriteTopicResult(id: resultId);
   }
 }
 

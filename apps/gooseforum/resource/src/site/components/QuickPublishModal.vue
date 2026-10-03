@@ -16,7 +16,9 @@ import {
   PopoverTrigger,
 } from 'reka-ui'
 import type { LayoutPayload } from '@gooseforum/client'
-import { sensitiveWordsFromError, submitTopic, uploadImage } from '@/runtime/api'
+import { pendingReviewMessage, sensitiveWordsFromError, submitTopic, submitTopicResult, uploadImage } from '@/runtime/api'
+import { queueFlashMessage, useFlashMessages } from '@/runtime/flash-message'
+import { showModerationBlocked } from '@/runtime/moderation-blocked'
 import { processImageFile, validateImageFile } from '@/runtime/image'
 import { useCaptchaChallenge } from '@/site/composables/useCaptchaChallenge'
 import { useQuickPublish } from '@/site/composables/useQuickPublish'
@@ -34,6 +36,7 @@ interface UploadedImageItem {
   uploading?: boolean
 }
 
+const { push: pushFlash } = useFlashMessages()
 const MAX_IMAGE_COUNT = 9
 const UPLOAD_CONCURRENCY = 3
 
@@ -247,6 +250,7 @@ async function saveDraftAndClose() {
     } else {
       sensitiveWords.value = sensitiveWordsFromError(err)
       errorMessage.value = err instanceof Error ? err.message : t('publish.draftSaveFailed')
+      showModerationBlocked(err)
     }
   } finally {
     savingDraft.value = false
@@ -582,7 +586,7 @@ async function handleSubmit() {
 
   try {
     const targetTopicId = quickPublishEditPayload.value ? quickPublishEditPayload.value.topicId : 0
-    const topicId = await submitTopic({
+    const { id: topicId, pendingReview, checking } = await submitTopicResult({
       topicId: targetTopicId,
       title: finalTitle,
       content: finalContent,
@@ -596,9 +600,12 @@ async function handleSubmit() {
 
     closeQuickPublish()
     clearQuickPublishDraft(draftUserId.value, quickPublishType.value, quickPublishEditPayload.value?.topicId)
+    // 待审（issue #975）：整页刷新时排队到下一页，SPA 跳转时直接展示。
+    if (pendingReview) pushFlash(pendingReviewMessage({ checking }), 'info')
     if (targetTopicId > 0) {
       if (typeof window !== 'undefined') {
         if (window.location.pathname.includes(`/p/post/${targetTopicId}`)) {
+          if (pendingReview) queueFlashMessage(pendingReviewMessage({ checking }), 'info')
           window.location.reload()
         } else {
           forcedNav.value = true
@@ -628,6 +635,7 @@ async function handleSubmit() {
     } else {
       sensitiveWords.value = sensitiveWordsFromError(err)
       errorMessage.value = err instanceof Error ? err.message : t('publish.saveFailed')
+      showModerationBlocked(err)
     }
   } finally {
     submitting.value = false

@@ -19,6 +19,18 @@ createPost:
       `comment.content.tooLong` (params minLength/maxLength); bounds count rendered
       visible text and the raw Markdown source is capped relative to `maxPostLength`.
       Request bodies over 2 MiB are rejected with HTTP 400 `common.request.parseFailed`.
+      Content moderation (issue #975): the existing sensitive-word gate runs first; when the
+      admin-configured AI image/text moderation is enabled in `enforce` mode the request
+      waits for a synchronous decision. A block fails with `content.aiModeration.blocked`
+      (or `content.aiModeration.externalImageBlocked` when non-site images are disallowed)
+      and nothing is written; a review result (or any model failure) stores the content as
+      pending review and the success envelope carries `messageCode`
+      `content.moderation.pendingReview` (also used for sensitive-word review). In `deferred`
+      mode the request does not wait: the content is stored as pending and the envelope carries
+      `content.moderation.checking`; a background decision then publishes it, rejects it (the
+      author is notified), or leaves it for a reviewer. Disallowed non-site images are still
+      rejected synchronously. Images referenced by pending content are not publicly readable
+      until approval.
     security:
       - bearerAuth: []
       - accessTokenCookie: []
@@ -102,6 +114,18 @@ updatePost:
       bounds count rendered visible text and the raw Markdown source is capped relative
       to `maxPostLength`. Request bodies over 2 MiB are rejected with HTTP 400
       `common.request.parseFailed`.
+      Content moderation (issue #975): the existing sensitive-word gate runs first; when the
+      admin-configured AI image/text moderation is enabled in `enforce` mode the request
+      waits for a synchronous decision. A block fails with `content.aiModeration.blocked`
+      (or `content.aiModeration.externalImageBlocked` when non-site images are disallowed)
+      and nothing is written; a review result (or any model failure) stores the content as
+      pending review and the success envelope carries `messageCode`
+      `content.moderation.pendingReview` (also used for sensitive-word review). In `deferred`
+      mode the request does not wait: the content is stored as pending and the envelope carries
+      `content.moderation.checking`; a background decision then publishes it, rejects it (the
+      author is notified), or leaves it for a reviewer. Disallowed non-site images are still
+      rejected synchronously. Images referenced by pending content are not publicly readable
+      until approval.
     security:
       - bearerAuth: []
       - accessTokenCookie: []
@@ -252,9 +276,11 @@ getPostWindow:
     summary: Read a window of posts around an anchor or page boundary
     operationId: getPostWindow
     description: |
-      Public read endpoint. An optional valid JWT (cookie or Bearer) only personalizes
-      viewer flags (isOwnPost/isLiked/isBookmarked/canModerate); anonymous callers
-      receive the same posts. Query binding is strict: malformed values fail with HTTP
+      Public read endpoint. An optional valid JWT (cookie or Bearer) personalizes
+      viewer flags (isOwnPost/isLiked/isBookmarked/canModerate); posts pending review
+      (`processStatus` 2) are omitted except for moderators and the post's own author,
+      who also may read their own topic while it is pending review (issue #975); other
+      callers receive the same posts. Query binding is strict: malformed values fail with HTTP
       400 and `common.request.parseFailed`. A missing/zero topicId, an unknown or
       not-viewable topic fails with `topic.notFound` (HTTP 200); an anchor outside the
       topic fails with `post.notFound` (HTTP 200). Positioning parameters are mutually

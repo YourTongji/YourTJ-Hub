@@ -421,6 +421,123 @@ export interface ReviewQueueItem {
   createdAt: string
   topicId?: number
   postNo?: number
+  /** 待审内容引用的图片（≤9）；待审图片经 /file/img 授权预览读取。 */
+  images?: string[]
+  /** 仅当本条因 AI 图文审查转入待审时返回（issue #975）。 */
+  aiReview?: AiModerationDecision
+  /** 发布后检查模式下正在后台自动检查（通常很快自动公开或拒绝）。 */
+  aiChecking?: boolean
+}
+
+export type AiModerationPolicyKey = 'adult' | 'political_sensitive' | 'violence' | 'illegal_or_dangerous' | 'other'
+
+export interface AiModerationPolicyRule {
+  key: AiModerationPolicyKey
+  label: string
+  /** 站点规则原文（管理员维护，写入 Jev state；模型只执行，不自创规则）。 */
+  definition: string
+  enabled: boolean
+  /** 该规则可触发的最高动作：review 规则永不自动拦截。 */
+  action: 'review' | 'block'
+  reviewThreshold?: number
+  blockThreshold?: number
+}
+
+export interface AiModerationOptions {
+  enabled: boolean
+  mode: 'shadow' | 'enforce' | 'deferred'
+  textModeration: boolean
+  jevEndpoint: string
+  jevModel: string
+  jevTimeoutMs: number
+  jevRetries: number
+  visionBaseUrl: string
+  visionModel: string
+  visionTimeoutMs: number
+  policyRevision: string
+  policies: AiModerationPolicyRule[]
+  defaultReviewThreshold: number
+  defaultBlockThreshold: number
+  reviewNeededThreshold: number
+  severityBlockThreshold: number
+  externalImageAction: 'review' | 'block'
+  maxImagesPerDecision: number
+  globalRequestsPerMinute: number
+  perUserRequestsPerMinute: number
+}
+
+/** GET 回显：密钥只回显是否已配置（issue #324 安全模式）。 */
+export interface AiModerationSettingsView extends AiModerationOptions {
+  jevApiKeyConfigured: boolean
+  visionApiKeyConfigured: boolean
+}
+
+/** 保存负载：密钥明文仅在请求瞬间存在；空串保留已存密钥，clear* 显式清除。 */
+export interface AiModerationSettingsInput extends AiModerationOptions {
+  jevApiKey?: string
+  visionApiKey?: string
+  clearJevApiKey?: boolean
+  clearVisionApiKey?: boolean
+}
+
+export interface AiModerationImageRecord {
+  fileName?: string
+  url?: string
+  sha256?: string
+  status: string
+  evidence?: string
+}
+
+export interface AiModerationReason {
+  code: 'block_threshold' | 'severity_escalation' | 'between_thresholds' | 'review_only_rule' | 'review_needed' | 'evidence_incomplete' | 'external_image_blocked'
+  policy?: string
+  score?: number
+  threshold?: number
+  limit?: number
+  severity?: number
+  detail?: string
+}
+
+export interface AiModerationDecision {
+  id: number
+  subjectType: 'topic' | 'post'
+  subjectId: number
+  authorId: number
+  mode: 'shadow' | 'enforce' | 'deferred'
+  policyRevision: string
+  visionModel: string
+  jevModel: string
+  images: AiModerationImageRecord[]
+  signals: { ruleProbabilities?: Record<string, number>, severity?: number, reviewNeeded?: number }
+  triggeredPolicies: string[]
+  /** 结论原因（旧记录可能为空）。 */
+  reasons?: AiModerationReason[]
+  evidenceStatus: string
+  finalAction: 'allow' | 'review' | 'block'
+  appliedAction: string
+  errorKind: string
+  humanAction: '' | 'approved' | 'rejected'
+  latencyMs: number
+  cost: number
+  createdAt: string
+}
+
+/** 测试连接结果：只含分类/状态码/耗时，不回带 provider 响应原文。 */
+export interface AiModerationConnectionCheck {
+  ok: boolean
+  kind: string
+  httpStatus?: number
+  model?: string
+  latencyMs: number
+}
+
+export interface AiModerationReplayReport {
+  samples: number
+  matrix: Record<'approved' | 'rejected', Record<'allow' | 'review' | 'block', number>>
+  falseBlock: number
+  missedViolation: number
+  reviewRate: number
+  changed: number
 }
 
 export interface ImportReport {

@@ -1,5 +1,6 @@
 // ignore: unused_import
 import 'package:intl/intl.dart' as intl;
+
 import 'app_localizations.dart';
 
 // ignore_for_file: type=lint
@@ -3123,4 +3124,36 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get shareImageFailed => '分享图片失败，请稍后重试。';
+
+  @override
+  String get moderationBlockedTitle => '内容未发布';
+
+  @override
+  String get moderationBlockedPolicyHint =>
+      '请检查图片和文字是否符合社区规范，删除或替换可能不合适的部分后再发布。如果你认为判断有误，可以联系管理员。';
+
+  @override
+  String get moderationBlockedExternalHint =>
+      '本站不显示站外图片。请先保存图片，再通过编辑器上传到本站，然后重新发布。';
+
+  @override
+  String get moderationBlockedDraftKept => '你的文字和图片仍保留在编辑器中。';
+
+  @override
+  String get moderationBlockedBack => '返回修改';
+
+  @override
+  String get notificationReviewApproved => '你的内容已通过审核，现在所有人都能看到它';
+
+  @override
+  String get notificationReviewRejected => '你的内容未通过审核，不会公开显示';
+
+  @override
+  String get topicPendingReviewBanner => '这篇内容正在审核，目前只有你和审核员能看到。通过后所有人可见。';
+
+  @override
+  String get topicPendingReviewBannerModerator => '这篇内容正在等待审核，其他读者暂时看不到。';
+
+  @override
+  String get topicPendingReviewReply => '审核中 · 通过审核前，只有你和审核员能看到这条回复。';
 }

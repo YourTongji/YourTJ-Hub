@@ -482,6 +482,14 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                                   GfNotificationTone.warning,
                                 ),
                                 'system' => ('info', GfNotificationTone.info),
+                                'review_approved' => (
+                                  'circle-check',
+                                  GfNotificationTone.success,
+                                ),
+                                'review_rejected' => (
+                                  'info',
+                                  GfNotificationTone.warning,
+                                ),
                                 _ => (
                                   'message-circle',
                                   GfNotificationTone.primary,

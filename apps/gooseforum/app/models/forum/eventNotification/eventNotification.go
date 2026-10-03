@@ -17,6 +17,10 @@ const (
 	EventTypeLike        = "like"         // 楼层点赞通知
 	EventTypeWikiUpdated = "wiki_updated" // wiki 页面审核通过后的更新通知
 	EventTypeMention     = "mention"      // @mention 通知（issue #563）
+	// 人工审核结果（issue #975）：通过时链接到内容；拒绝时内容对作者也不可见，
+	// payload 不带 TopicId（只带标题快照），客户端不生成跳转。
+	EventTypeReviewApproved = "review_approved"
+	EventTypeReviewRejected = "review_rejected"
 )
 
 const (
@@ -28,6 +32,9 @@ const (
 	TemplateLike        = "notifications.templates.like"
 	TemplateWikiUpdated = "notifications.templates.wikiUpdated"
 	TemplateMention     = "notifications.templates.mention"
+	// 人工审核结果模板（issue #975）。
+	TemplateReviewApproved = "notifications.templates.reviewApproved"
+	TemplateReviewRejected = "notifications.templates.reviewRejected"
 )
 
 // Future unread-scope design:

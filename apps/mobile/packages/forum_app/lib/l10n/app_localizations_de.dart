@@ -1,5 +1,6 @@
 // ignore: unused_import
 import 'package:intl/intl.dart' as intl;
+
 import 'app_localizations.dart';
 
 // ignore_for_file: type=lint
@@ -3296,4 +3297,42 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get shareImageFailed =>
       'Das Bild konnte nicht geteilt werden. Bitte später erneut versuchen.';
+
+  @override
+  String get moderationBlockedTitle => 'Nicht veröffentlicht';
+
+  @override
+  String get moderationBlockedPolicyHint =>
+      'Prüfe, ob Bilder und Text den Community-Richtlinien entsprechen. Entferne oder ersetze möglicherweise Unpassendes und veröffentliche erneut. Hältst du das für einen Fehler, wende dich an die Administration.';
+
+  @override
+  String get moderationBlockedExternalHint =>
+      'Diese Website zeigt keine externen Bilder an. Speichere das Bild, lade es über den Editor hoch und veröffentliche erneut.';
+
+  @override
+  String get moderationBlockedDraftKept =>
+      'Text und Bilder sind weiterhin im Editor.';
+
+  @override
+  String get moderationBlockedBack => 'Beitrag bearbeiten';
+
+  @override
+  String get notificationReviewApproved =>
+      'Dein Beitrag wurde freigegeben und ist jetzt für alle sichtbar';
+
+  @override
+  String get notificationReviewRejected =>
+      'Dein Beitrag wurde nicht freigegeben und wird nicht öffentlich angezeigt';
+
+  @override
+  String get topicPendingReviewBanner =>
+      'Dieser Beitrag wird geprüft. Bis zur Freigabe sehen ihn nur du und die Prüfenden.';
+
+  @override
+  String get topicPendingReviewBannerModerator =>
+      'Dieser Beitrag wartet auf Prüfung. Andere Lesende sehen ihn noch nicht.';
+
+  @override
+  String get topicPendingReviewReply =>
+      'In Prüfung · Bis zur Freigabe sehen diese Antwort nur du und die Prüfenden.';
 }

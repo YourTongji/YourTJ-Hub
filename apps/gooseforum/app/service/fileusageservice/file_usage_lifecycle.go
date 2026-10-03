@@ -27,6 +27,38 @@ func RecoverTargetFiles(ref TargetRef) {
 	}
 }
 
+// PromotePendingTargetFiles 待审内容获批后让其附件引用转为 ACTIVE（公开可读，issue #975）。
+func PromotePendingTargetFiles(ref TargetRef) {
+	if err := fileUsage.MarkTargetPendingActive(ref.TargetType, ref.TargetID); err != nil {
+		slog.Error("promote pending file usages failed", "targetType", ref.TargetType, "targetId", ref.TargetID, "err", err)
+	}
+}
+
+// PromotePendingTopicFiles 话题转为正常可见（审核通过/解封）时，让话题与首楼
+// 的待审附件引用转 ACTIVE。幂等，非 PENDING 行不受影响。
+func PromotePendingTopicFiles(topicID, firstPostID uint64) {
+	PromotePendingTargetFiles(TargetRef{TargetType: fileUsage.TargetTopic, TargetID: topicID})
+	if firstPostID > 0 {
+		PromotePendingPostFiles(firstPostID)
+	}
+}
+
+// PromotePendingPostFiles 回复转为正常可见时让其待审附件引用转 ACTIVE。
+func PromotePendingPostFiles(postID uint64) {
+	PromotePendingTargetFiles(TargetRef{TargetType: fileUsage.TargetPost, TargetID: postID})
+}
+
+// HasPendingReferences reports whether a filename is referenced by content
+// awaiting moderation (issue #975).
+func HasPendingReferences(fileName string) bool {
+	return fileUsage.HasPendingReferences(fileName)
+}
+
+// ListPendingReferences returns the pending content references of a file.
+func ListPendingReferences(fileName string) []fileUsage.Entity {
+	return fileUsage.ListPendingReferences(fileName)
+}
+
 // HasAnyReferences reports whether a filename is tracked by the content
 // attachment lifecycle.
 func HasAnyReferences(fileName string) bool {
