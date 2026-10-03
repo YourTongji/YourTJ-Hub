@@ -17,6 +17,7 @@ from notes import draft_notes, render
 from cli import execute, parser
 from test_model import candidate
 import workflow
+import smoke
 
 
 class FakeGitHub:
@@ -300,6 +301,14 @@ class PipelineTest(unittest.TestCase):
             workflow.main()
         self.assertEqual(run.call_args.kwargs['env']['ORYN_TASK_TIMEOUT_SECONDS'], '65')
         self.assertEqual(run.call_args.kwargs['timeout'], 125)
+
+    def test_live_smoke_rejects_a_fixture_with_no_evidence_for_a_requested_channel(self):
+        request = {'channels': ['web', 'operators'], 'evidence': [{'id': 'ops', 'channels': ['operators']}]}
+        with patch('sys.argv', ['smoke.py', '--scope', 'web']), \
+             patch('smoke.git', return_value='a' * 40), \
+             patch('smoke.prepare', return_value=request), patch('smoke.write_json'), \
+             self.assertRaisesRegex(ReleaseError, 'Smoke fixture'):
+            smoke.main()
 
     def test_invalid_optional_oryn_fields_retry_without_losing_required_markers(self):
         manifest, folder, raw = self.draft_fixture(['android'])

@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 from controller import prepare, write_json
 from github import GitHub, git
-from model import validate_candidate
+from model import require, validate_candidate
 import argparse
 
 
@@ -34,12 +34,15 @@ def main():
         manifest['notes'] = {'ios-testflight': 'testflight.en-US.txt'}
         manifest['baselines'] = {'ios-testflight': manifest['baselines']['ios-testflight']}
     elif args.scope == 'web':
-        manifest.update(candidateId='web-0.0.49', product='web', version='0.0.49', buildNumber=None,
-                        tag='v0.0.49', sourceSha=git('rev-parse', 'v0.0.49^{commit}'), channels=['web'],
+        # This range includes forum UI changes and operator evidence; status-only releases do not.
+        manifest.update(candidateId='web-0.0.46', product='web', version='0.0.46', buildNumber=None,
+                        tag='v0.0.46', sourceSha=git('rev-parse', 'v0.0.46^{commit}'), channels=['web'],
                         notes={'web': 'web.zh-CN.md'}, baselines={'web': {
-                            'tag': 'v0.0.48', 'sourceSha': git('rev-parse', 'v0.0.48^{commit}')}})
+                            'tag': 'v0.0.45', 'sourceSha': git('rev-parse', 'v0.0.45^{commit}')}})
     # This is a replay comparison, not a claim that this was Apple's historical live baseline.
     request = prepare(manifest, GitHub(), folder / 'candidate')
+    require(all(any(channel in entry['channels'] for entry in request['evidence']) for channel in request['channels']),
+            'Smoke fixture must contain evidence for every requested channel')
     write_json(folder / 'oryn-input.json', request)
     print('Read-only historical source replay collected; Apple distribution history is not inferred.')
 
