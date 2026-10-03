@@ -73,6 +73,9 @@ iOS actual TestFlight distribution or live App Store version. Unknown Apple buil
 preparation and require reconciliation; an uploaded or in-review version is not a live-store baseline.
 The pinned ASC CLI queries live iOS versions with `--state READY_FOR_SALE --latest`; its legacy
 `appStoreState` and newer `appVersionState` filter values cannot be mixed in one query.
+That computed result contains `items`, `totalCount`, `hasMore` and optional `included` resources,
+rather than the raw API's `data` envelope. Only a complete, explicitly empty item list establishes
+that there is no live store baseline; missing or incomplete output blocks preparation.
 
 A reviewer edits files, checks evidence/platform attribution, fills server prerequisites where required,
 then approves the final head. `serverRequirement` is null or `{sourceSha, reason}`; the required source

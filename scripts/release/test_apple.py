@@ -16,8 +16,11 @@ class AppleBaselineTests(unittest.TestCase):
                                   'betaGroups': {'data': [{'id': group} for group in groups]}}})
             builds['included'] += [{'id': 'v' + identity, 'attributes': {'version': '1.0.' + identity}},
                                    {'id': 'b' + identity, 'attributes': {'externalBuildState': 'BETA_APPROVED'}}]
-        store = {'data': [{'attributes': {'versionString': '1.0.0', 'appStoreState': 'READY_FOR_SALE'},
+        # Pinned ASC 5 computed-output contract (not the raw API's "data" envelope):
+        # https://github.com/rorkai/App-Store-Connect-CLI/blob/5.0.0/internal/cli/cmdtest/versions_list_latest_test.go
+        store = {'items': [{'attributes': {'versionString': '1.0.0', 'appStoreState': 'READY_FOR_SALE'},
                            'relationships': {'build': {'data': {'id': 'original'}}}}],
+                 'totalCount': 1, 'hasMore': False,
                  'included': [{'id': 'original', 'type': 'builds', 'attributes': {'version': '0'}}]}
         return builds, store
 
@@ -52,3 +55,16 @@ class AppleBaselineTests(unittest.TestCase):
         with patch('apple.asc', side_effect=asc):
             discovered = apple.discover()
         self.assertEqual(discovered['ios-app-store']['buildId'], 'original')
+
+    def test_confirmed_empty_latest_result_is_no_live_store_version(self):
+        builds, _ = self.fixtures()
+        with patch('apple.asc', side_effect=[builds, {'items': [], 'totalCount': 0, 'hasMore': False}]):
+            self.assertIsNone(apple.discover()['ios-app-store'])
+
+    def test_unknown_or_incomplete_latest_response_cannot_be_first_release(self):
+        builds, store = self.fixtures()
+        for result in ({}, {'items': None, 'totalCount': 0, 'hasMore': False},
+                       {'items': [], 'totalCount': 1, 'hasMore': False}, store | {'hasMore': True}):
+            with self.subTest(result=result), patch('apple.asc', side_effect=[builds, result]), \
+                 self.assertRaisesRegex(ReleaseError, 'latest-version response'):
+                apple.discover()
