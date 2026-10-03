@@ -1,0 +1,5 @@
+On iPhone and iPad, adjust both text-size sliders, check live preview and large-text layouts, scroll to hide/reveal navigation, and test cancelling and completing the left-edge back gesture.
+Create and edit a course review with a template and image. Switch helpful/dislike, check failure rollback, and preview/save/share a card in light and dark themes. Verify narrow layouts and large text.
+With a test site configured for moderation, verify blocked submissions preserve the editor, pending topics/replies and images are visible only to authorized users, and checking mode messages are accurate. Do not enable production moderation for this test.
+Check compressed-image uploads, external-image retry, latest replies in descending order, registration email/verification notices, and school authorization success plus HTTP-error retry on iOS.
+Check About > update/history using the actual TestFlight channel. Verify unavailable or incomplete note history has an honest fallback, and that Android-only entries are never shown.
