@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto'
+import { hash } from '../server/hash'
 import type { ExecutionContext, R2Bucket } from '@cloudflare/workers-types'
 import { loadConfig, type Config } from '../server/config'
 import { r2Store } from '../server/r2'
@@ -27,7 +27,7 @@ export async function cachedSnapshot(request: Request, store: SnapshotStore, con
   const key = new URL(request.url)
   key.search = new URLSearchParams(query).toString()
   // A deployment/configuration change must not expose cached data from revoked sources.
-  key.searchParams.set('revision', createHash('sha256').update(JSON.stringify([version, config])).digest('hex'))
+  key.searchParams.set('revision', await hash(JSON.stringify([version, config])))
   const cacheRequest = new Request(key, { method: 'GET' })
   let response: Response | undefined
   try { response = await cache.match(cacheRequest) } catch { /* Cache failure falls back to durable snapshots. */ }

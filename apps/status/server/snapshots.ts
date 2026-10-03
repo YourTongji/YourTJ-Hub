@@ -29,7 +29,7 @@ export async function collectOne<T>(store: SnapshotStore, key: string, fetchValu
 export async function readSnapshot(store: SnapshotStore, config: Config, range: StatusRange, serverRange: StatusServerRange, now: number, deviceRange: StatusRange = '7d'): Promise<StatusSnapshot> {
   async function read<T>(provider: Provider, part: string, policy: { freshFor: number; retainFor: number }): Promise<Source<T>> {
     if (!configured(config, provider)) return { state: 'unconfigured', data: null }
-    return source((await store.read<T>(cacheKey(config, provider, part)))?.value, now, policy.freshFor, policy.retainFor)
+    return source((await store.read<T>(await cacheKey(config, provider, part)))?.value, now, policy.freshFor, policy.retainFor)
   }
   const [server, history, traffic, uptime, devices] = await Promise.all([
     read<StatusServer>('komari', 'current', CURRENT_POLICY), read<ServerHistory>('komari', `history-${serverRange}`, HISTORY_POLICY),

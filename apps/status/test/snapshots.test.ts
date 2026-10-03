@@ -35,7 +35,7 @@ it('a slow older run cannot overwrite the newer successful snapshot', async () =
 it('separates live metrics from history freshness and never invokes upstreams on reads', async () => {
   const {store}=memoryStore()
   for (const [provider,part,data,age] of [ ['komari','current',fixture.server.data,0],['komari','history-24h',{history:fixture.server.data!.history,historyAvailable:true},1260000],['umami','7d',fixture.traffic.data,240000],['uptime','current',fixture.uptime.data,0] ] as const) {
-    await store.write(cacheKey(config,provider,part),{attemptedAt:now-age,fetchedAt:new Date(now-age).toISOString(),data,failed:false})
+    await store.write(await cacheKey(config,provider,part),{attemptedAt:now-age,fetchedAt:new Date(now-age).toISOString(),data,failed:false})
   }
   const fetcher=vi.spyOn(globalThis,'fetch').mockRejectedValue(new Error('must not fetch'))
   try {
@@ -49,9 +49,9 @@ it('separates live metrics from history freshness and never invokes upstreams on
 })
 it.each([false, true])('serves retained resource history without current readings (previous current: %s)', async hasCurrent => {
   const { store } = memoryStore()
-  if (hasCurrent) await store.write(cacheKey(config, 'komari', 'current'), { attemptedAt: now - 45 * 60_000, fetchedAt: new Date(now - 45 * 60_000).toISOString(), data: fixture.server.data, failed: false })
+  if (hasCurrent) await store.write(await cacheKey(config, 'komari', 'current'), { attemptedAt: now - 45 * 60_000, fetchedAt: new Date(now - 45 * 60_000).toISOString(), data: fixture.server.data, failed: false })
   const history = { history: fixture.server.data!.history, historyAvailable: true }
-  await store.write(cacheKey(config, 'komari', 'history-1h'), { attemptedAt: now, fetchedAt: new Date(now).toISOString(), data: history, failed: false })
+  await store.write(await cacheKey(config, 'komari', 'history-1h'), { attemptedAt: now, fetchedAt: new Date(now).toISOString(), data: history, failed: false })
   const read = async (age: number) => (await (await serveSnapshot(new Request('https://status.example.com/api/status'), store, config, now + age)).json()).result as StatusSnapshot
   for (const age of [16 * 60_000, 21 * 60_000, 60 * 60_000]) {
     const result = await read(age)
@@ -62,7 +62,7 @@ it.each([false, true])('serves retained resource history without current reading
 })
 it('does not read previous source data when configuration is changed or disabled', async () => {
   const {store}=memoryStore()
-  await store.write(cacheKey(config,'uptime','current'),{attemptedAt:now,fetchedAt:new Date(now).toISOString(),data:fixture.uptime.data,failed:false})
+  await store.write(await cacheKey(config,'uptime','current'),{attemptedAt:now,fetchedAt:new Date(now).toISOString(),data:fixture.uptime.data,failed:false})
   const changed={...config,uptime:{...config.uptime,id:'new'}}
   const request=()=>new Request('https://status.example.com/api/status')
   expect((await (await serveSnapshot(request(),store,changed,now)).json()).result.uptime.state).toBe('unavailable')

@@ -122,7 +122,8 @@ production Wrangler 配置声明 `status.yourtj.de` Custom Domain；首次部署
   若仓库转私有，必须重新评估 Actions 额度。公开采集每天 96 次、设备 24 次，正常共约
   2,088 次 R2 写入/日、62,640 次/30日，远低于 Standard 的每月 100 万次 Class A 免费额度。
 - Workers Free 每日 10 万请求、每次 10ms CPU 与其他应用共享；静态资源优先返回，不经过
-  Worker。采集不占 Worker CPU。API 和冷启动仍须实测；缓存命中也计 Worker 请求。
+  Worker。采集不占 Worker CPU，读取器使用原生 Web Crypto，不启用 Node 兼容层。
+  API 和冷启动仍须实测；缓存命中也计 Worker 请求。
   R2 每月含 10GB-month、1,000 万次 Class B，超量另计；零月费依赖免费额度，不是无限用量承诺。
 
 ## 官方参考

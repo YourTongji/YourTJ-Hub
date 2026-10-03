@@ -12,14 +12,14 @@ const viewKey = (range: StatusRange, serverRange: StatusServerRange) => `views/v
 // failure flags stay intact; the reader still ages each source independently.
 export async function publishViews(store: SnapshotStore, config: Config, now = Date.now) {
   const started = now()
-  const keys: string[] = []
+  const keys: Promise<string>[] = []
   if (configured(config, 'komari')) keys.push(cacheKey(config, 'komari', 'current'), ...serverRanges.map(r => cacheKey(config, 'komari', `history-${r}`)))
   if (configured(config, 'uptime')) keys.push(cacheKey(config, 'uptime', 'current'))
   if (configured(config, 'umami')) keys.push(...ranges.map(r => cacheKey(config, 'umami', r)))
-  const records = new Map(await Promise.all(keys.map(async key => [key, (await store.read(key))?.value] as const)))
+  const records = new Map(await Promise.all((await Promise.all(keys)).map(async key => [key, (await store.read(key))?.value] as const)))
   const writes = ranges.flatMap(range => serverRanges.map(async serverRange => {
     const selected: Records = {}
-    for (const key of [cacheKey(config, 'komari', 'current'), cacheKey(config, 'komari', `history-${serverRange}`), cacheKey(config, 'uptime', 'current'), cacheKey(config, 'umami', range)]) {
+    for (const key of await Promise.all([cacheKey(config, 'komari', 'current'), cacheKey(config, 'komari', `history-${serverRange}`), cacheKey(config, 'uptime', 'current'), cacheKey(config, 'umami', range)])) {
       const value = records.get(key)
       if (value) selected[key] = value
     }
