@@ -3,6 +3,7 @@ import type { ExecutionContext, R2Bucket } from '@cloudflare/workers-types'
 import { loadConfig, type Config } from '../server/config'
 import { r2Store } from '../server/r2'
 import { serveSnapshot, snapshotQuery, type SnapshotStore } from '../server/snapshots'
+import { viewStore } from '../server/views'
 
 export interface Env {
   SNAPSHOTS: R2Bucket
@@ -50,7 +51,9 @@ export default {
     if (path !== '/api/status') return new Response('Not found', { status: 404, headers: { 'Cache-Control': 'no-store' } })
     try {
       const cache = (caches as CacheStorage & { default: Cache }).default
-      const response = await cachedSnapshot(request, r2Store(env.SNAPSHOTS), loadConfig({ ...env, SNAPSHOTS: undefined, VERSION: undefined }), env.VERSION.id, cache, ctx)
+      const query = snapshotQuery(request)
+      const store = r2Store(env.SNAPSHOTS)
+      const response = await cachedSnapshot(request, query ? viewStore(store, query.range, query.serverRange) : store, loadConfig({ ...env, SNAPSHOTS: undefined, VERSION: undefined }), env.VERSION.id, cache, ctx)
       return request.method === 'HEAD' ? new Response(null, response) : response
     } catch {
       return new Response(request.method === 'HEAD' ? null : JSON.stringify({ error: 'Snapshot storage unavailable' }), {

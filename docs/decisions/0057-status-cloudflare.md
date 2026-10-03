@@ -40,6 +40,8 @@ uses a separate environment with bucket-scoped S3 credentials and private Umami 
 variable enables collection only after production code and credentials are ready. Deployment credentials
 use a main-only environment; status checks precede deployment and a source fingerprint verifies it.
 
+Public collection preassembles twelve range views so each API miss needs at most two R2 reads. Views
+retain source scope fingerprints, failure flags and timestamps; projection time never freshens data.
 R2 strong reads and conditional puts preserve attempted-at ordering. Production snapshots survive
 deployments; preview uses a separate bucket. Thirty-second edge entries vary by validated ranges,
 configuration and deployment version. Cache failure falls back to R2; storage failure returns

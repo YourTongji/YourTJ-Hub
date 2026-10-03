@@ -42,6 +42,9 @@ that environment holds Umami credentials. The Worker has no upstream credentials
 endpoint. Public `UMAMI_DEVICE_REVISION` isolates device snapshots when an account or permission
 changes; clear it to disable the device source, or increment it to invalidate previous snapshots.
 
+Public collection also publishes twelve range views. An API miss reads at most one public view and
+one device object; views retain each source's original timestamp, failure flag and scope fingerprint.
+
 GitHub collection is best effort, so timestamps and stale/unavailable states remain visible. Current,
 history and traffic sources are stale after twenty minutes and hidden after one hour; devices are
 stale after seventy minutes and hidden after three hours. Polling and caching never freshen source

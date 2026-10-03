@@ -3,6 +3,7 @@ import { S3Client } from '@aws-sdk/client-s3'
 import { collect } from '../server/collect'
 import { configured, devicesConfigured, loadConfig } from '../server/config'
 import { s3Store } from '../server/s3'
+import { publishViews } from '../server/views'
 
 const deployment = JSON.parse(readFileSync(new URL('../wrangler.jsonc', import.meta.url), 'utf8'))
 const production = deployment.env.production
@@ -36,6 +37,7 @@ try {
     if (!['uptime', 'komari', 'umami'].some(p => configured(config, p as 'uptime' | 'komari' | 'umami'))) throw new Error('Public sources are disabled')
     await collect('current', store, config)
     await collect('history', store, config)
+    await publishViews(durable, config)
   }
   if (failed) throw new Error('One or more sources failed; retained snapshots keep their original timestamps')
   console.log(`Completed ${kind} snapshot collection (${target})`)
