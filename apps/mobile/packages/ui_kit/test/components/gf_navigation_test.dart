@@ -208,6 +208,52 @@ void main() {
     );
   });
 
+  testWidgets('icon-only destinations stay compact and name themselves', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      gfApp(
+        GfBottomNavigation(
+          currentIndex: 0,
+          onSelected: (_) {},
+          showLabels: false,
+          items: const <GfBottomNavigationItem>[
+            GfBottomNavigationItem(
+              label: '首页',
+              symbol: 'house',
+              selectedSymbol: 'house-filled',
+            ),
+            GfBottomNavigationItem(
+              label: '校园',
+              symbol: 'graduation-cap',
+              selectedSymbol: 'graduation-cap-filled',
+            ),
+            GfBottomNavigationItem(
+              label: '通知',
+              symbol: 'bell',
+              selectedSymbol: 'bell-filled',
+            ),
+            GfBottomNavigationItem(
+              label: '消息',
+              symbol: 'mail',
+              selectedSymbol: 'mail-filled',
+            ),
+          ],
+        ),
+      ),
+    );
+
+    expect(find.text('校园'), findsNothing);
+    expect(find.bySemanticsLabel('校园'), findsOneWidget);
+    expect(
+      tester.getSize(find.byType(GfBottomNavigation)).height,
+      lessThanOrEqualTo(57),
+    );
+    await tester.longPress(find.byType(InkWell).at(1));
+    await tester.pumpAndSettle();
+    expect(find.text('校园'), findsOneWidget);
+  });
+
   testWidgets('selection feedback remains interruptible between destinations', (
     tester,
   ) async {

@@ -87,13 +87,27 @@ ordered after the active route in the accessibility tree so iOS does not hide it
 - `Current`: feed body text uses 17 logical pixels. Post Markdown, server-rendered Wiki HTML and
   course-review HTML all derive their reading typography from one shared rich-content profile rather
   than from per-surface hard-coded sizes: body text keeps the 17-pixel design baseline, headings are
-  relative ratios (H1–H4 ≈ 1.45/1.30/1.18/1.08 × body), inline code and code blocks are one step
+  relative ratios (H1–H4 ≈ 1.45/1.30/1.18/1.08 × body at the design size; as the painted body grows
+  with the system font scale and reading size the levels move closer, down to 40% of the extra size
+  at 2×, and windows under 360 logical pixels tighten them one more step), inline code and code blocks are one step
   smaller, tables inherit the body size, and course reviews use the same profile at a compact
   ~15.5-pixel baseline. The first post supports text selection.
-- `Current`: reading text size is a user preference (Settings → Appearance, 80%–140%, default 100%)
-  that only affects rich content — posts, Wiki and course reviews — and is applied before the system
-  font scale, which still applies on top instead of being replaced or clamped. Repository code never
-  pins `TextScaler.noScaling` or a fixed text scale factor.
+- `Current`: Settings → Appearance → Text size opens a live preview page with two layered sliders
+  in 10% steps. App text (90%–130%) scales every text in the app, rich content included; reading
+  text (80%–140%) then adjusts only rich content bodies — posts, Wiki and course reviews — on top of
+  it. The preview is a small app screen built from the real components: tab bar, feed row, a post
+  with a Markdown body (heading, bold text, list), action row with a button, and bottom navigation.
+  It updates, together with the app behind it, while either thumb is dragged. Dragging app text
+  outlines the whole preview; dragging reading text outlines the post body, dims everything else and
+  scrolls the body into view, and the highlight fades shortly after release. The control panel stays
+  at the default size so the slider never moves away from the finger; Reset to default restores both
+  values and is disabled at the default.
+- `Current`: 100% is a device-adapted default rather than the raw design size. Design sizes are iOS
+  points; Android starts at 16/17 of them, matching its 16sp reading body, and windows whose
+  shortest side is under 360 logical pixels take one more 5% step. Rotation never changes text size.
+  The default, both preferences and the system font scale multiply; the system scaler applies last
+  instead of being replaced or clamped. Repository code never pins `TextScaler.noScaling` or a fixed
+  text scale factor.
 - `Current`: fenced code and server-rendered `<pre>` blocks render through one shared code block with
   syntax highlighting (light and dark themes), a language label, a copy action, and horizontal
   scrolling inside the block itself; unknown languages or a failed highlight fall back to plain
@@ -122,10 +136,10 @@ ordered after the active route in the accessibility tree so iOS does not hide it
   left edge. Android keeps the shared mobile fade/rise transition. Horizontal
   scroll rails keep working; the back gesture only claims the narrow left-edge
   band.
-- `Current`: four persistent destinations — Home, Campus, Notifications and Messages — use a labeled
-  bottom bar on compact windows, with the selected icon, short localized label and unread state kept
-  together. At enlarged text, the bar measures the available label space and grows as needed while
-  labels wrap without changing the destination order; icon-only callers retain the compact geometry.
+- `Current`: four persistent destinations — Home, Campus, Notifications and Messages — use an
+  icon-only bottom bar on compact windows, with the selected Filled icon, indicator and unread state
+  kept together at a fixed compact height, so labels never add height or grow with text size. Each
+  destination keeps its localized name for screen readers and shows it as a long-press tooltip.
   The iOS bottom bar uses a restrained Flutter blur and translucent surface over
   the existing theme; Android, high-contrast mode, reduced motion and accessible-navigation mode
   use the opaque theme surface. This is a Flutter material treatment and does not adopt a native
@@ -185,21 +199,34 @@ ordered after the active route in the accessibility tree so iOS does not hide it
   band. Categories retain separate 44-pixel targets and a horizontal rail; long metadata moves the
   rail onto a new line rather than reducing text size. Dividers do not add a blank footer. Question,
   moment and article labels are localized, and enlarged text allows the title/excerpt to grow.
-  Home's unfiltered list groups pinned topics into a 48-pixel-minimum expandable summary, initially
-  collapsed. Category streams and Following retain the server's ordering; cards keep pins in place.
+  Home's unfiltered stream, in both list and card mode, folds pinned topics into one initially
+  collapsed announcement-style line: pin mark, "Pinned" badge, the first pinned title and, with
+  several pins, their count. A single pin opens directly; several unfold into one-line titles led by
+  a small author avatar (with unread dot and relative time) inside the same strip, each opening its
+  topic. At large text the badge and time yield to the title. Category streams and Following retain
+  the server's ordering.
   Expanding pins neither reloads the stream nor changes its pagination cursor.
 - `Current`: Home sort, Campus section and notification filter rails share a scrollable tab bar.
   The page-swipe recognizer feeds the shared tab controller's live drag offset, so the selected
   underline follows a held slow swipe and stretches evenly toward the adjacent tab. After release,
   the extended segment contracts with a logarithmic ease-out curve. Home, Campus and Notifications
   move both content panes with the same drag or tap transition while retaining each visited page's
-  scroll state. A pending pane uses the transparent animated YourTJ mark until its data is ready.
+  elements and scroll state. A pane drag reports the touch slop it travelled before winning the
+  gesture arena, so the page stays under the finger; release settles with a spring that keeps the
+  swipe's velocity, and a fling back toward the origin cancels the switch. A pending pane uses the
+  transparent animated YourTJ mark until its data is ready.
   Profile stream tabs use the same drag progress; the bar reveals selected tabs outside its viewport
   and honors reduced-motion settings.
-- `Current`: root headers, filter rails and bottom navigation overlay the reading viewport. They
-  hide after 48 logical pixels downward and return after 12 pixels upward, with 220 ms transitions.
-  Hidden headers are clipped at the system safe-area edge; the reading viewport stays stable.
-  Reaching the top, changing destination or opening the account drawer restores the controls.
+- `Current`: root headers, filter rails and bottom navigation overlay the reading viewport and
+  follow the finger: they slide out over 64 logical pixels of downward scroll, any upward scroll
+  pulls them back, and a partial state settles in the last direction within 180 ms once scrolling
+  stops. Near the top they stay attached to the content; edge bounce is ignored. Content insets
+  never change, so the feed does not jump. Hidden headers are clipped at the system safe-area edge;
+  the compose button follows the bottom bar. Header and bottom-bar borders are one physical pixel.
+  While controls are hidden, off-screen tab panes scroll their reserved header band away, so a pane
+  swiped or tapped into shows content rather than a blank band; the pane on screen never moves and
+  returning controls restore those offsets. Reaching the top or changing destination restores the
+  controls; the account drawer overlays the page and leaves their state unchanged.
   Reduced motion removes the transition; keyboard/modal interaction keeps controls visible.
   Editors and scheduler grids are pushed pages outside this behavior.
 - `Current`: Home, Campus and Notifications have a compose button that first expands three smaller

@@ -97,7 +97,15 @@ void main() {
     await tester.pump();
     final position = tester.getTopLeft(find.text('row 4'));
     final viewport = scroll.position.viewportDimension;
-    container.read(readingChromeProvider).update(60, 120);
+    // Mid-gesture the header tracks the finger instead of waiting.
+    final logo = tester.getTopLeft(find.byType(GfLogo)).dy;
+    container.read(readingChromeProvider).update(32, 120);
+    await tester.pump();
+    expect(tester.getTopLeft(find.byType(GfLogo)).dy, closeTo(logo - 28.5, 1));
+    expect(tester.getTopLeft(find.text('row 4')), position);
+    container.read(readingChromeProvider)
+      ..update(40, 120)
+      ..settle(120);
     await tester.pumpAndSettle();
     expect(tester.getTopLeft(find.text('row 4')), position);
     expect(scroll.offset, 120);
@@ -153,32 +161,42 @@ void main() {
     await tester.tap(find.byType(TextButton));
     expect(opened, isTrue);
   });
-  test('48px downward hides, 12px reversal restores without jitter', () {
+  test('chrome follows the finger and settles in the last direction', () {
     final chrome = ReadingChrome();
     addTearDown(chrome.dispose);
-    chrome.update(30, 30);
+    chrome.update(16, 200);
+    expect(chrome.reveal.value.value, .75);
+    expect(chrome.reveal.value.animate, isFalse);
     expect(chrome.hidden, isFalse);
-    chrome.update(18, 48);
+    chrome.update(24, 224);
+    expect(chrome.reveal.value.value, .375);
     expect(chrome.hidden, isTrue);
-    chrome.update(-6, 42);
-    expect(chrome.hidden, isTrue);
-    chrome.update(2, 44);
-    chrome.update(-6, 38);
-    expect(chrome.hidden, isTrue);
-    chrome.update(-6, 32);
+    chrome.settle(224);
+    expect(chrome.reveal.value.value, 0);
+    expect(chrome.reveal.value.animate, isTrue);
+    // Any upward travel pulls chrome back immediately.
+    chrome.update(-16, 208);
+    expect(chrome.reveal.value.value, .25);
+    chrome.settle(208);
+    expect(chrome.reveal.value.value, 1);
     expect(chrome.hidden, isFalse);
   });
-  test('top bounce and locked interaction reset accumulated travel', () {
+  test('the top keeps chrome attached; bounce and locks are ignored', () {
     final chrome = ReadingChrome();
     addTearDown(chrome.dispose);
-    chrome.update(60, 60);
+    chrome.update(32, 32);
+    expect(chrome.reveal.value.value, .5);
+    chrome.settle(32);
+    expect(chrome.reveal.value.value, 1);
+    chrome.update(200, 400);
+    expect(chrome.hidden, isTrue);
+    chrome.update(-30, 1030, maxScrollExtent: 1000);
+    expect(chrome.reveal.value.value, 0);
     chrome.update(-80, -20);
     expect(chrome.hidden, isFalse);
     chrome.update(100, 200, locked: true);
-    expect(chrome.hidden, isFalse);
-    chrome.update(40, 240);
-    expect(chrome.hidden, isFalse);
-    chrome.update(8, 248);
+    expect(chrome.reveal.value.value, 1);
+    chrome.update(64, 264);
     expect(chrome.hidden, isTrue);
     chrome.show();
     expect(chrome.hidden, isFalse);

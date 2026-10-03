@@ -6,6 +6,11 @@ import '../../l10n/app_localizations.dart';
 /// Stable destinations owned by the persistent mobile shell.
 enum GfShellDestination { home, campus, notifications, messages }
 
+/// The compact bottom bar is icon-only: labels added height without helping
+/// recognition of four familiar glyphs. Names stay available to screen
+/// readers and as long-press tooltips. Shared by the bar and the inset math.
+const bool shellNavigationShowsLabels = false;
+
 extension GfShellDestinationPresentation on GfShellDestination {
   String get symbol => switch (this) {
     GfShellDestination.home => 'house',

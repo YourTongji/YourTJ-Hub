@@ -1006,21 +1006,25 @@ class _HomePageState extends ConsumerState<HomePage> {
           loadMoreError: feed.loadMoreError,
           controller: controller,
           padding: EdgeInsets.only(top: top, bottom: bottom),
-          header: Column(
-            children: [
-              if (feed.cached)
-                CacheSnapshotHint(
-                  savedAt: feed.snapshotTime,
-                  refreshing: feed.refreshing,
-                  onRetry: () => _load(silent: true, target: feed),
+          header:
+              !feed.cached &&
+                  AnnouncementBanner.itemsOf(props.announcement).isEmpty
+              ? null
+              : Column(
+                  children: [
+                    if (feed.cached)
+                      CacheSnapshotHint(
+                        savedAt: feed.snapshotTime,
+                        refreshing: feed.refreshing,
+                        onRetry: () => _load(silent: true, target: feed),
+                      ),
+                    AnnouncementBanner(
+                      announcement: props.announcement,
+                      collapsed: _announcementCollapsed,
+                      onCollapsedChanged: _setAnnouncementCollapsed,
+                    ),
+                  ],
                 ),
-              AnnouncementBanner(
-                announcement: props.announcement,
-                collapsed: _announcementCollapsed,
-                onCollapsedChanged: _setAnnouncementCollapsed,
-              ),
-            ],
-          ),
           loading: feed.loadingMore,
           topics: feed.topics,
           hiddenCategoryId: feed.category?.id,

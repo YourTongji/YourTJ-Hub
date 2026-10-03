@@ -456,10 +456,12 @@ void main() {
     list = tester.widget<GfTopicList>(find.byType(GfTopicList));
     expect(list.controller!.offset, 800);
 
+    final double top = list.padding.top;
     container.read(readingChromeProvider).update(48, 48);
     await tester.pumpAndSettle();
     list = tester.widget<GfTopicList>(find.byType(GfTopicList));
-    expect(list.padding.top, 0);
+    // Hiding chrome slides it away without resizing the feed.
+    expect(list.padding.top, top);
     expect(list.controller!.offset, 800);
 
     await tester.drag(find.byType(GfTopicList), const Offset(-300, 0));

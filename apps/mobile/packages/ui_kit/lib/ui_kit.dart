@@ -58,6 +58,7 @@ export 'src/components/gf_topic_row.dart';
 export 'src/components/surfaces/gf_dot_grid_background.dart';
 export 'src/theme/gf_rich_content_typography.dart';
 export 'src/theme/gf_colors.dart';
+export 'src/theme/gf_text_scale.dart';
 export 'src/theme/gf_theme.dart';
 export 'src/theme/gf_theme_data.dart';
 export 'src/theme/gf_shadows.dart';

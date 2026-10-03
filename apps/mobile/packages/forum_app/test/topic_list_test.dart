@@ -216,7 +216,7 @@ void main() {
     );
   });
 
-  testWidgets('pinned summary expands without hiding regular rows or footer', (
+  testWidgets('list mode uses the same pinned line without touching rows', (
     tester,
   ) async {
     final home = parsePageProps<HomeProps>(parsePayload(homePayloadJson()))!;
@@ -250,42 +250,39 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    expect(find.text('Pinned one'), findsNothing);
+    final line = find.byKey(const ValueKey('pinned-strip-line'));
+    expect(tester.getSize(line).height, lessThanOrEqualTo(40));
+    expect(find.text('Pinned one'), findsOneWidget);
     expect(find.text('Pinned two'), findsNothing);
     expect(find.text('Regular topic'), findsOneWidget);
     expect(find.text('Announcement'), findsOneWidget);
-    expect(find.text('置顶话题（2）'), findsOneWidget);
+    expect(find.text('2'), findsOneWidget);
     final collapsedHeight = tester.getTopLeft(find.text('Regular topic')).dy;
-    await tester.tap(find.text('置顶话题（2）'));
+    await tester.tap(line);
     await tester.pumpAndSettle();
     expect(find.text('Pinned one'), findsOneWidget);
     expect(find.text('Pinned two'), findsOneWidget);
+    // Pinned titles stay in the strip; no pinned rows join the list.
+    expect(
+      find.ancestor(of: find.text('Pinned two'), matching: find.byType(GfTopicRow)),
+      findsNothing,
+    );
     expect(
       tester.getTopLeft(find.text('Regular topic')).dy,
       greaterThan(collapsedHeight),
-    );
-    // Regular rows follow the group, so the final pinned row keeps its
-    // divider (a pinned-only group instead ends like a regular last row).
-    expect(
-      hairlines(
-        of: find.ancestor(of: find.text('Pinned two'), matching: find.byType(GfTopicRow)),
-      ),
-      findsOneWidget,
     );
     controller.jumpTo(1500);
     await tester.pumpAndSettle();
     controller.jumpTo(0);
     await tester.pumpAndSettle();
-    expect(find.text('Pinned one'), findsOneWidget);
-    await tester.tap(find.text('置顶话题（2）'));
+    expect(find.text('Pinned two'), findsOneWidget);
+    await tester.tap(line);
     await tester.pumpAndSettle();
-    expect(find.text('Pinned one'), findsNothing);
+    expect(find.text('Pinned two'), findsNothing);
     expect(loads, 0);
   });
 
-  testWidgets('ordered streams and card mode retain pinned rows in place', (
-    tester,
-  ) async {
+  testWidgets('ordered streams retain pinned rows in place', (tester) async {
     final home = parsePageProps<HomeProps>(parsePayload(homePayloadJson()))!;
     final topic = home.topics.first;
     for (final mode in GfTopicFeedMode.values) {
@@ -296,7 +293,6 @@ void main() {
           supportedLocales: AppLocalizations.supportedLocales,
           home: Scaffold(
             body: GfTopicList(
-              collapsePinned: mode == GfTopicFeedMode.card,
               feedMode: mode,
               loading: false,
               topics: [
@@ -319,13 +315,159 @@ void main() {
     }
   });
 
-  testWidgets('pinned-only feeds and all locales keep the summary accessible', (
+  Future<String? Function()> pumpCardFeed(
+    WidgetTester tester,
+    List<TopicPayload> topics,
+  ) async {
+    String? opened;
+    final router = GoRouter(
+      routes: [
+        GoRoute(
+          path: '/',
+          builder: (_, _) => Scaffold(
+            body: GfTopicList(
+              collapsePinned: true,
+              feedMode: GfTopicFeedMode.card,
+              loading: false,
+              topics: topics,
+              hasMore: false,
+              onLoadMore: () {},
+            ),
+          ),
+        ),
+        GoRoute(
+          path: '/p/:id',
+          builder: (_, state) {
+            opened = state.pathParameters['id'];
+            return const Scaffold(body: Text('topic page'));
+          },
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
+    await tester.pumpWidget(
+      MaterialApp.router(
+        routerConfig: router,
+        locale: const Locale('zh'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        theme: gfThemeData(Brightness.light),
+      ),
+    );
+    await tester.pumpAndSettle();
+    return () => opened;
+  }
+
+  testWidgets('card mode folds pins into one announcement-style line', (
+    tester,
+  ) async {
+    final home = parsePageProps<HomeProps>(parsePayload(homePayloadJson()))!;
+    final topic = home.topics.first;
+    final opened = await pumpCardFeed(tester, [
+      for (var i = 1; i <= 4; i++)
+        topic.copyWith(id: i, title: 'Pinned $i', pinWeight: i),
+      topic.copyWith(id: 9, title: 'Regular card', pinWeight: 0),
+    ]);
+
+    // Collapsed: pin, badge, first title and the count on a single line.
+    final line = find.byKey(const ValueKey('pinned-strip-line'));
+    expect(tester.getSize(line).height, lessThanOrEqualTo(40));
+    expect(find.text('置顶'), findsOneWidget);
+    expect(find.text('Pinned 1'), findsOneWidget);
+    expect(find.text('Pinned 2'), findsNothing);
+    expect(find.text('4'), findsOneWidget);
+    expect(find.byType(GfTopicCard), findsOneWidget);
+
+    await tester.tap(line);
+    await tester.pumpAndSettle();
+    for (var i = 1; i <= 4; i++) {
+      expect(find.text('Pinned $i'), findsOneWidget);
+    }
+    expect(find.text('收起'), findsOneWidget);
+    // Each unfolded title is led by its author's avatar under the pin tile.
+    final row = find.byKey(const ValueKey('pinned-strip-2'));
+    expect(
+      find.descendant(of: row, matching: find.byType(GfAvatar)),
+      findsOneWidget,
+    );
+    expect(tester.getSize(row).height, lessThanOrEqualTo(40));
+    expect(find.byType(GfTopicCard), findsOneWidget);
+
+    await tester.tap(find.text('Pinned 2'));
+    await tester.pumpAndSettle();
+    expect(opened(), '2');
+  });
+
+  testWidgets('a single pin opens straight from its line', (tester) async {
+    final home = parsePageProps<HomeProps>(parsePayload(homePayloadJson()))!;
+    final topic = home.topics.first;
+    final opened = await pumpCardFeed(tester, [
+      topic.copyWith(id: 5, title: 'Only pin', pinWeight: 1),
+      topic.copyWith(id: 9, title: 'Regular card', pinWeight: 0),
+    ]);
+    expect(find.text('1'), findsNothing);
+    await tester.tap(find.text('Only pin'));
+    await tester.pumpAndSettle();
+    expect(opened(), '5');
+  });
+
+  testWidgets('pinned line fits narrow windows with large text', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(320, 640);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final home = parsePageProps<HomeProps>(parsePayload(homePayloadJson()))!;
+    final topic = home.topics.first;
+    await tester.pumpWidget(
+      MaterialApp(
+        locale: const Locale('de'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: MediaQuery(
+          data: const MediaQueryData(
+            size: Size(320, 640),
+            textScaler: TextScaler.linear(2),
+          ),
+          child: Scaffold(
+            body: GfTopicList(
+              collapsePinned: true,
+              feedMode: GfTopicFeedMode.card,
+              loading: false,
+              topics: [
+                for (var i = 1; i <= 5; i++)
+                  topic.copyWith(
+                    id: i,
+                    title: 'Ein sehr langer angehefteter Beitragstitel $i',
+                    pinWeight: i,
+                  ),
+              ],
+              hasMore: false,
+              onLoadMore: () {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    // The badge yields its width to the title; the pin glyph remains.
+    expect(find.text('Angeheftet'), findsNothing);
+    final semantics = tester.ensureSemantics();
+    expect(find.bySemanticsLabel(RegExp('^Angeheftet')), findsOneWidget);
+    semantics.dispose();
+    await tester.tap(find.byKey(const ValueKey('pinned-strip-line')));
+    await tester.pumpAndSettle();
+    expect(find.text('Einklappen'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('pinned-only feeds and all locales keep the line accessible', (
     tester,
   ) async {
     final home = parsePageProps<HomeProps>(parsePayload(homePayloadJson()))!;
     final semanticsHandle = tester.ensureSemantics();
 
-    final topic = home.topics.first.copyWith(pinWeight: 1);
+    final topic = home.topics.first;
     tester.view.physicalSize = const Size(320, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -344,7 +486,10 @@ void main() {
               body: GfTopicList(
                 collapsePinned: true,
                 loading: false,
-                topics: [topic],
+                topics: [
+                  topic.copyWith(id: 1, title: 'Pinned one', pinWeight: 1),
+                  topic.copyWith(id: 2, title: 'Pinned two', pinWeight: 2),
+                ],
                 hasMore: false,
                 onLoadMore: () {},
               ),
@@ -353,59 +498,25 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      final label = find.text(l10n.homePinnedTopics(1));
-      final semantics = tester.getSemantics(label).getSemanticsData();
-      expect(semantics.flagsCollection.isExpanded, ui.Tristate.isFalse);
-      final target = find
-          .ancestor(of: label, matching: find.byType(InkWell))
-          .first;
-      expect(tester.getSize(target).height, greaterThanOrEqualTo(48));
-      await tester.tap(label);
+      final line = find.byKey(const ValueKey('pinned-strip-line'));
+      final label = find.bySemanticsLabel(
+        RegExp(RegExp.escape(l10n.homePinnedTopics(2))),
+      );
+      expect(
+        tester.getSemantics(label).getSemanticsData().flagsCollection.isExpanded,
+        ui.Tristate.isFalse,
+      );
+      await tester.tap(line);
       await tester.pumpAndSettle();
       expect(
         tester.getSemantics(label).getSemanticsData().flagsCollection.isExpanded,
         ui.Tristate.isTrue,
       );
-      expect(find.text(topic.title), findsOneWidget);
-      expect(find.text(l10n.publishArticle), findsOneWidget);
+      expect(find.text('Pinned two'), findsOneWidget);
+      expect(find.text(l10n.announcementCollapseAction), findsOneWidget);
       expect(tester.takeException(), isNull);
     }
     semanticsHandle.dispose();
-  });
-
-  testWidgets('expanded pin group omits the divider after its final row', (
-    tester,
-  ) async {
-    final home = parsePageProps<HomeProps>(parsePayload(homePayloadJson()))!;
-    final topic = home.topics.first;
-    await tester.pumpWidget(
-      MaterialApp(
-        locale: const Locale('zh'),
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
-        supportedLocales: AppLocalizations.supportedLocales,
-        home: Scaffold(
-          body: GfTopicList(
-            collapsePinned: true,
-            loading: false,
-            topics: [
-              topic.copyWith(id: 1, title: 'Pinned one', pinWeight: 1),
-              topic.copyWith(id: 2, title: 'Pinned two', pinWeight: 2),
-            ],
-            hasMore: false,
-            onLoadMore: () {},
-          ),
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
-    expect(hairlines(), findsNothing);
-    await tester.tap(find.text('置顶话题（2）'));
-    await tester.pumpAndSettle();
-    expect(find.text('Pinned one'), findsOneWidget);
-    expect(find.text('Pinned two'), findsOneWidget);
-    // Only the hairline between the two pinned rows; the group ends like a
-    // regular last row because no regular rows follow it.
-    expect(hairlines(), findsOneWidget);
   });
 
   // issue #895：无标题瞬间的列表行要与 Web TopicRow/SSR 一致，始终有可识别的行标题。
@@ -484,12 +595,3 @@ void main() {
     },
   );
 }
-
-Finder hairlines({Finder? of}) => find.descendant(
-  of: of ?? find.byType(GfTopicRow),
-  matching: find.byWidgetPredicate(
-    (widget) =>
-        widget is Container &&
-        widget.constraints == BoxConstraints.tightFor(height: 1),
-  ),
-);

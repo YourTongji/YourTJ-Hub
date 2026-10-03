@@ -1333,13 +1333,54 @@ class AppLocalizationsZh extends AppLocalizations {
   String get richContentCodeCopied => '已复制代码';
 
   @override
-  String get settingsReadingTextSize => '阅读字号';
+  String get textSizeTitle => '字体大小';
 
   @override
-  String get settingsReadingTextSizeDesc => '仅作用于帖子、Wiki 与课程评价正文；系统字体缩放仍然生效。';
+  String get textSizeReset => '恢复默认';
 
   @override
-  String get settingsReadingTextSizeReset => '恢复默认';
+  String get textSizeDefault => '默认';
+
+  @override
+  String textSizePercent(int percent) {
+    return '$percent%';
+  }
+
+  @override
+  String textSizeSummary(String appSize, String readingSize) {
+    return '全局 $appSize · 阅读 $readingSize';
+  }
+
+  @override
+  String get textSizeGlobal => '全局字号';
+
+  @override
+  String get textSizeGlobalDesc => '整个 App 的文字，包括正文';
+
+  @override
+  String get textSizeReading => '阅读字号';
+
+  @override
+  String get textSizeReadingDesc => '在全局字号基础上，单独调整帖子、Wiki 和课程评价的正文';
+
+  @override
+  String get textSizePreview => '预览';
+
+  @override
+  String get textSizePreviewTime => '10 分钟前';
+
+  @override
+  String get textSizePreviewTitle => '拖动下方滑块，预览会实时变化';
+
+  @override
+  String get textSizePreviewExcerpt => '全局字号改变整个 App 的文字，阅读字号在此基础上只调整正文。';
+
+  @override
+  String get textSizePreviewCategory => '使用指南';
+
+  @override
+  String get textSizePreviewBody =>
+      '### 正文预览\n阅读字号只改变这段帖子正文，其他文字跟随**全局字号**。\n\n- 默认大小已按系统字体设置和屏幕宽度适配';
 
   @override
   String get entryCourses => '课程';

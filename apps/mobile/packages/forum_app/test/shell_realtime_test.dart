@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:forum_app/l10n/app_localizations.dart';
+import 'package:forum_app/src/navigation/reading_chrome.dart';
 import 'package:forum_app/src/navigation/route_visibility.dart';
 import 'package:forum_app/src/providers.dart';
 import 'package:forum_app/src/realtime/realtime_updates.dart';
@@ -217,12 +218,19 @@ void main() {
     await tester.pumpAndSettle();
     expect(connects, 0);
 
+    // The drawer overlays the page without resetting hidden reading chrome.
+    container.read(readingChromeProvider)
+      ..update(200, 400)
+      ..settle(400);
     accountDrawerLayerKey.currentState!.open();
     await tester.pumpAndSettle();
     expect(shellDrawerOpen.value, isTrue);
+    expect(container.read(readingChromeProvider).hidden, isTrue);
     accountDrawerLayerKey.currentState!.close();
     await tester.pumpAndSettle();
     expect(shellDrawerOpen.value, isFalse);
+    expect(container.read(readingChromeProvider).hidden, isTrue);
+    container.read(readingChromeProvider).show();
 
     router.push('/login');
     await tester.pumpAndSettle();
