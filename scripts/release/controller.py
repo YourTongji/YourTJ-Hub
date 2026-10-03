@@ -129,7 +129,27 @@ def prepare(manifest, github, folder):
     return request
 
 
-def create_pr(manifest, folder, github):
+def notes_banner(manifest, status):
+    """Summarize the automated draft; incomplete notes stay blocked by candidate validation."""
+    if status and status["status"] == "complete":
+        return (f"Release notes: Oryn drafted every channel (attempt {len(status['attempts'])}). "
+                "Review wording, kind and evidence before approval.")
+    if status is None:
+        reason, missing = "Oryn was unavailable", list(manifest["notes"])
+    else:
+        reason = f"Oryn returned no usable draft after {len(status['attempts'])} attempt(s)" \
+            if status["status"] == "failed" else f"Oryn's best draft after {len(status['attempts'])} attempt(s) is partial"
+        missing = status["missing"]
+        errors = [a["error"] for a in status["attempts"] if a.get("error")] + [status.get("stopped")]
+        last = next((e for e in reversed(errors) if e), None)
+        if last:
+            reason += f" (last error: {last.replace('`', chr(39))})"
+    return (f"> [!WARNING]\n> **Release notes incomplete.** {reason}. Missing: {', '.join(missing)}.\n"
+            "> Complete changelog.json from evidence.json, then run `render-structured`. "
+            "CI and every publisher refuse a channel without reviewed notes.")
+
+
+def create_pr(manifest, folder, github, notes_status=None):
     candidate_id = manifest["candidateId"]
     pending = open_request(github, manifest["product"])
     if pending:
@@ -151,7 +171,7 @@ def create_pr(manifest, folder, github):
         raise ReleaseError("Preparation branch already exists; inspect it before retrying (human edits are never overwritten)")
     github.api("git/refs", method="POST", data={"ref": f"refs/heads/{branch}", "sha": commit["sha"]})
     previews = "\n\n".join(f"### {channel}\n\n{(Path(folder) / filename).read_text(encoding='utf-8')}" for channel, filename in manifest["notes"].items())
-    body = (f"Release request `{candidate_id}`\n\nSource: `{manifest['sourceSha']}`\n\n"
+    body = (f"Release request `{candidate_id}`\n\n{notes_banner(manifest, notes_status)}\n\nSource: `{manifest['sourceSha']}`\n\n"
             f"Targets: {', '.join(manifest['channels'])}\n\n"
             "A release maintainer must review the final head. For schema 2 mobile requests, edit changelog.json, attach evidence refs from evidence.json, then run `python3 scripts/release/workflow.py render-structured --candidate ID` to derive platform files; review TestFlight English separately. Verify platform scope, disclosures and server prerequisites, then approve and merge. Bots cannot approve. The publisher independently rechecks approval.\n\n"
             f"Baselines:\n```json\n{json.dumps(manifest['baselines'], indent=2)}\n```\n\n{previews}\n\n"

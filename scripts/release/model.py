@@ -163,6 +163,9 @@ def validate_candidate(manifest, folder, draft=False):
         if not draft:
             require(changelog["highlights"] or changelog["breaking"] or changelog["requiredActions"],
                     "A published mobile candidate needs at least one reviewed changelog entry")
+            for channel in channels:
+                require(render_changelog(changelog, channel).strip(),
+                        f"{channel} has no reviewed changelog entry; users must not receive an update without notes")
             expected_android = render_changelog(changelog, "android")
             expected_ios = render_changelog(changelog, "ios-app-store")
             expected_testflight = render_changelog(changelog, "ios-testflight")
@@ -248,17 +251,35 @@ def validate_changelog(value, version, build_number, channels, draft=False):
     require(len({item["id"] for item in testflight}) == len(testflight), "Duplicate TestFlight note IDs")
 
 
+# Section order and labels match the app's update prompt and history.
+NOTE_SECTIONS = (("required", "重要提示"), ("security", "安全更新"), ("feature", "新功能"),
+                 ("improvement", "体验改进"), ("fix", "问题修复"))
+
+
+def _note_line(entry):
+    """`title：summary`, or the summary alone when it only restates the title."""
+    summary = entry["summary"].strip()
+    if re.sub(r"[。．.！!？?]+$", "", summary) == entry["title"].strip():
+        return summary, True
+    return f"{entry['title']}：{summary}", False
+
+
 def render_changelog(changelog, platform):
     if platform == "ios-testflight":
         return "\n".join(item["text"] for item in changelog["testflightNotes"])
-    entries = [entry for group in ("breaking", "requiredActions", "highlights") for entry in changelog[group]
-               if platform in entry["platforms"] or (platform.startswith("ios-") and "ios" in entry["platforms"])]
+    def applies(entry):
+        return platform in entry["platforms"] or (platform.startswith("ios-") and "ios" in entry["platforms"])
+    required = [e for group in ("breaking", "requiredActions") for e in changelog[group] if applies(e)]
+    highlights = [e for e in changelog["highlights"] if applies(e)]
+    sections = [(label, required if key == "required" else [e for e in highlights if e["kind"] == key])
+                for key, label in NOTE_SECTIONS]
     if platform == "android":
-        groups = [(label, [entry for entry in entries if entry in changelog[group]])
-                  for group, label in (("breaking", "重要变更"), ("requiredActions", "需要注意"), ("highlights", "本次更新"))]
-        return "\n\n".join(f"### {label}\n\n" + "\n".join(f"- **{e['title']}**：{e['summary']}" for e in rows)
-                            for label, rows in groups if rows)
-    return "\n".join(f"{e['title']}：{e['summary']}" for e in entries)
+        def bullet(entry):
+            line, restated = _note_line(entry)
+            return f"- **{line}**" if restated else f"- **{entry['title']}**：{entry['summary'].strip()}"
+        return "\n\n".join(f"### {label}\n\n" + "\n".join(bullet(e) for e in rows)
+                            for label, rows in sections if rows)
+    return "\n".join(_note_line(e)[0] for _, rows in sections for e in rows)
 
 
 def validate_approval(pr, reviews, paths, candidate_id, maintainers, require_merged=True):

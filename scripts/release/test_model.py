@@ -117,6 +117,25 @@ class CandidateTests(unittest.TestCase):
             with self.subTest(invalid=invalid), self.assertRaises(ReleaseError):
                 validate_candidate(manifest, self.path)
 
+    def test_each_user_facing_channel_needs_structured_notes_before_publishing(self):
+        manifest = candidate() | {"schemaVersion": 2, "channels": ["android", "ios-app-store"],
+                                  "notes": {"android": "android.zh-CN.md", "ios-app-store": "ios.zh-Hans.txt"},
+                                  "baselines": {c: {"tag": "mobile-v1.0.14", "sourceSha": "b" * 40}
+                                                for c in ("android", "ios-app-store")}}
+        android = {"id": "android-search", "title": "搜索更顺手", "summary": "改进搜索结果排序。",
+                   "platforms": ["android"], "kind": "improvement"}
+        changelog = {"schemaVersion": 1, "version": manifest["version"], "buildNumber": manifest["buildNumber"],
+                     "highlights": [android], "breaking": [], "requiredActions": [],
+                     "evidence": {"android-search": ["android-proof"]}, "testflightNotes": []}
+        (self.path / "evidence.json").write_text(json.dumps({"schemaVersion": 1, "sourceSha": SHA, "evidence": [
+            {"id": "android-proof", "channels": ["android"]}]}), encoding="utf-8")
+        (self.path / "changelog.json").write_text(json.dumps(changelog, ensure_ascii=False), encoding="utf-8")
+        (self.path / "android.zh-CN.md").write_text(render_changelog(changelog, "android"), encoding="utf-8")
+        (self.path / "ios.zh-Hans.txt").write_text("错误修复和性能改进。", encoding="utf-8")
+        with self.assertRaisesRegex(ReleaseError, "ios-app-store has no reviewed changelog entry"):
+            validate_candidate(manifest, self.path)
+        validate_candidate(manifest, self.path, draft=True)
+
 
 class ApprovalTests(unittest.TestCase):
     def setUp(self):
