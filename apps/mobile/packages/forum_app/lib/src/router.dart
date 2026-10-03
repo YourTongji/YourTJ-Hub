@@ -41,6 +41,7 @@ import 'pages/schedule/schedule_page.dart';
 import 'pages/search/search_page.dart';
 import 'pages/settings/settings_page.dart';
 import 'pages/settings/schedule_widget_settings_page.dart';
+import 'pages/settings/text_size_settings_page.dart';
 import 'pages/topic/topic_page.dart';
 import 'providers.dart';
 import 'current_user.dart';
@@ -334,13 +335,13 @@ class _GfShellState extends ConsumerState<GfShell> with WidgetsBindingObserver {
     ];
 
     final chrome = ref.watch(readingChromeProvider);
-    final duration = GfMotion.duration(context, GfMotion.layout);
     return Scaffold(
       body: AccountDrawerLayer(
         key: accountDrawerLayerKey,
+        // The drawer overlays the page; chrome keeps whatever state the
+        // reader left it in.
         onChanged: (open) {
           shellDrawerOpen.value = open;
-          ref.read(readingChromeProvider).show();
           if (open) ref.invalidate(accountCardProvider);
         },
         child: NotificationListener<ScrollNotification>(
@@ -355,10 +356,15 @@ class _GfShellState extends ConsumerState<GfShell> with WidgetsBindingObserver {
                   .update(
                     notification.scrollDelta ?? 0,
                     notification.metrics.pixels,
+                    maxScrollExtent: notification.metrics.maxScrollExtent,
                     locked:
                         MediaQuery.viewInsetsOf(context).bottom > 0 ||
                         ModalRoute.of(context)?.isCurrent == false,
                   );
+            } else if (notification is ScrollEndNotification) {
+              ref
+                  .read(readingChromeProvider)
+                  .settle(notification.metrics.pixels);
             }
             return false;
           },
@@ -371,10 +377,8 @@ class _GfShellState extends ConsumerState<GfShell> with WidgetsBindingObserver {
               onSelected: _selectDestination,
               items: destinations,
             ),
-            bottomNavigation: AnimatedSlide(
-              offset: chrome.hidden ? const Offset(0, 1) : Offset.zero,
-              duration: duration,
-              curve: GfMotion.layoutCurve,
+            bottomNavigation: ReadingChromeSlide(
+              direction: 1,
               child: IgnorePointer(
                 ignoring: chrome.hidden,
                 child: ExcludeSemantics(
@@ -382,7 +386,7 @@ class _GfShellState extends ConsumerState<GfShell> with WidgetsBindingObserver {
                   child: GfBottomNavigation(
                     currentIndex: widget.navigationShell.currentIndex,
                     onSelected: _selectDestination,
-                    showLabels: true,
+                    showLabels: shellNavigationShowsLabels,
                     items: destinations,
                   ),
                 ),
@@ -526,6 +530,10 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: '/settings/widgets',
       builder: (_, _) => const ScheduleWidgetSettingsPage(),
+    ),
+    GoRoute(
+      path: '/settings/text-size',
+      builder: (_, _) => const TextSizeSettingsPage(),
     ),
     GoRoute(
       path: '/settings/:section',

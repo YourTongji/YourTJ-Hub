@@ -759,9 +759,38 @@
   "settingsFollowSiteThemeDesc": "Use server-issued site colors",
   "richContentCopyCode": "Copy code",
   "richContentCodeCopied": "Code copied",
-  "settingsReadingTextSize": "Reading text size",
-  "settingsReadingTextSizeDesc": "Applies to posts, Wiki and course reviews. System font scaling still applies.",
-  "settingsReadingTextSizeReset": "Reset to 100%",
+  "textSizeTitle": "Text size",
+  "textSizeReset": "Reset to default",
+  "textSizeDefault": "Default",
+  "textSizePercent": "{percent}%",
+  "@textSizePercent": {
+    "placeholders": {
+      "percent": {
+        "type": "int"
+      }
+    }
+  },
+  "textSizeSummary": "App {appSize} · Reading {readingSize}",
+  "@textSizeSummary": {
+    "placeholders": {
+      "appSize": {
+        "type": "String"
+      },
+      "readingSize": {
+        "type": "String"
+      }
+    }
+  },
+  "textSizeGlobal": "App text",
+  "textSizeGlobalDesc": "All text in the app, including body text",
+  "textSizeReading": "Reading text",
+  "textSizeReadingDesc": "Adjusts body text in posts, Wiki pages and course reviews on top of app text",
+  "textSizePreview": "Preview",
+  "textSizePreviewTime": "10m",
+  "textSizePreviewTitle": "Drag a slider below to preview the change",
+  "textSizePreviewExcerpt": "App text changes all text in the app. Reading text adjusts only body text on top of it.",
+  "textSizePreviewCategory": "Guide",
+  "textSizePreviewBody": "### Body text preview\nReading text changes only this post body. Everything else follows **app text**.\n\n- The default size is adapted to your system text size and screen",
   "entryCourses": "Courses",
   "entrySchedule": "Schedule",
   "entryWiki": "Wiki",

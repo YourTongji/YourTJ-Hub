@@ -668,50 +668,28 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('appearance exposes the rich-content reading scale', (
+  testWidgets('appearance links to text size with both current values', (
     tester,
   ) async {
     final harness = await _mount(tester, section: 'appearance', language: 'en');
-    final slider = find.byKey(const ValueKey('settings-reading-scale'));
+    final row = find.byKey(const ValueKey('settings-text-size'));
     await tester.scrollUntilVisible(
-      slider,
+      row,
       200,
       scrollable: find.byType(Scrollable).first,
     );
-    expect(find.text('Reading text size'), findsOneWidget);
-    expect(find.text('100%'), findsOneWidget);
-    expect(harness.container.read(contentFontScaleProvider), 1);
+    expect(find.text('Text size'), findsOneWidget);
+    expect(find.text('App Default · Reading Default'), findsOneWidget);
 
-    final resetButton = find.byKey(
-      const ValueKey('settings-reading-scale-reset'),
-    );
-    // At the 100% default there is nothing to reset.
-    expect(tester.widget<TextButton>(resetButton).onPressed, isNull);
-
-    await tester.drag(slider, const Offset(400, 0));
+    // Persist at once so no debounce timer outlives the test.
+    harness.container.read(contentFontScaleProvider.notifier)
+      ..setScale(1.2)
+      ..persistScale();
+    harness.container.read(appFontScaleProvider.notifier)
+      ..setScale(.9)
+      ..persistScale();
     await tester.pumpAndSettle();
-
-    expect(harness.container.read(contentFontScaleProvider), 1.4);
-    expect(find.text('140%'), findsOneWidget);
-    expect(tester.widget<TextButton>(resetButton).onPressed, isNotNull);
-    expect(
-      (await SharedPreferences.getInstance()).getDouble(
-        ContentFontScaleNotifier.prefsKey,
-      ),
-      1.4,
-    );
-
-    await tester.tap(resetButton);
-    await tester.pumpAndSettle();
-    expect(harness.container.read(contentFontScaleProvider), 1);
-    expect(find.text('100%'), findsOneWidget);
-    expect(tester.widget<TextButton>(resetButton).onPressed, isNull);
-    expect(
-      (await SharedPreferences.getInstance()).getDouble(
-        ContentFontScaleNotifier.prefsKey,
-      ),
-      1,
-    );
+    expect(find.text('App 90% · Reading 120%'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

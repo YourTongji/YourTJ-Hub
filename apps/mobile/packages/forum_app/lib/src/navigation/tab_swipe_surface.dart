@@ -1,8 +1,15 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/physics.dart';
 import 'package:ui_kit/ui_kit.dart';
 
 const drawerSwipeOpeningFraction = .55;
+
+/// Released swipes keep the finger's momentum and settle without overshoot.
+final SpringDescription _swipeSettleSpring = SpringDescription.withDampingRatio(
+  mass: 1,
+  stiffness: 520,
+);
 
 class DrawerGestureGate extends InheritedWidget {
   const DrawerGestureGate({
@@ -106,10 +113,13 @@ class _TabSwipeSurfaceState extends State<TabSwipeSurface>
     required double to,
     Duration? duration,
     Curve? curve,
+    double? velocity,
   }) {
     _settle.stop();
     _settle.duration = duration ?? GfMotion.layout;
-    _settleCurve = curve ?? GfMotion.layoutCurve;
+    _settleCurve = velocity == null
+        ? curve ?? GfMotion.layoutCurve
+        : Curves.linear;
     _settleOrigin = originIndex;
     _settleTarget = targetIndex;
     _settleFrom = from;
@@ -120,7 +130,18 @@ class _TabSwipeSurfaceState extends State<TabSwipeSurface>
       return;
     }
     _publishProgress(originIndex, from, targetIndex: targetIndex);
-    _settle.forward(from: 0);
+    if (velocity == null) {
+      _settle.forward(from: 0);
+      return;
+    }
+    // Velocity is in pages per second; the controller runs from 0 to 1.
+    // Bound it so a degenerate width or timestamp cannot stall the spring.
+    final double pages = velocity.isFinite ? velocity.clamp(-12.0, 12.0) : 0;
+    _settle
+      ..value = 0
+      ..animateWith(
+        SpringSimulation(_swipeSettleSpring, 0, 1, pages / (to - from)),
+      );
   }
 
   void _selectTab(int targetIndex) {
@@ -181,6 +202,9 @@ class _TabSwipeSurfaceState extends State<TabSwipeSurface>
                     ..drawerOpenDirection =
                         Directionality.of(context) == TextDirection.ltr ? 1 : -1
                     ..drawerSwipeEnabled = isFirstTab
+                    // Report the slop travelled before winning the arena so
+                    // the page stays under the finger instead of trailing it.
+                    ..dragStartBehavior = DragStartBehavior.down
                     ..onStart = (_) {
                       _settle.stop();
                       _distance = 0;
@@ -212,14 +236,22 @@ class _TabSwipeSurfaceState extends State<TabSwipeSurface>
                         targetIndex: null,
                         from: _progress.value.offset,
                         to: 0,
+                        velocity: 0,
                       );
                     }
                     ..onEnd = (details) {
                       final velocity = details.velocity.pixelsPerSecond.dx;
-                      final distance = _distance.abs() >= 48
+                      // Page progress runs against the finger's direction.
+                      final pageVelocity =
+                          -velocity *
+                          recognizer.drawerOpenDirection /
+                          recognizer.screenWidth;
+                      // A decisive fling wins over distance, so flicking back
+                      // cancels; otherwise 48 pixels of travel commit.
+                      final distance = velocity.abs() >= 500
+                          ? (velocity.sign == _distance.sign ? velocity : 0.0)
+                          : _distance.abs() >= 48
                           ? _distance
-                          : velocity.abs() >= 500
-                          ? velocity
                           : 0.0;
                       if (distance == 0 ||
                           widget.length < 2 ||
@@ -230,6 +262,7 @@ class _TabSwipeSurfaceState extends State<TabSwipeSurface>
                           targetIndex: null,
                           from: _progress.value.offset,
                           to: 0,
+                          velocity: pageVelocity,
                         );
                         return;
                       }
@@ -244,6 +277,7 @@ class _TabSwipeSurfaceState extends State<TabSwipeSurface>
                           targetIndex: null,
                           from: _progress.value.offset,
                           to: 0,
+                          velocity: pageVelocity,
                         );
                         return;
                       }
@@ -255,6 +289,7 @@ class _TabSwipeSurfaceState extends State<TabSwipeSurface>
                         targetIndex: next,
                         from: offset,
                         to: direction,
+                        velocity: pageVelocity,
                       );
                       widget.onChanged(next);
                     },

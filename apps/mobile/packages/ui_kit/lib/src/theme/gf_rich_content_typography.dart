@@ -10,6 +10,9 @@ import 'gf_theme.dart';
 /// replaced or clamped here; a reader preference multiplies the baseline
 /// before that, so the effective size is `baseline × userScale` and the system
 /// scaler still applies on top of it.
+///
+/// The app text size preference reaches rich content through the ambient
+/// scaler like every other text, so the reading preference is relative to it.
 @immutable
 class GfRichContentTypography {
   const GfRichContentTypography({
@@ -90,7 +93,8 @@ class GfRichContentTypography {
   static const double minUserScale = .8;
   static const double maxUserScale = 1.4;
 
-  /// Heading size ratios (H1..H4) applied to the body baseline.
+  /// Heading size ratios (H1..H4) applied to the body baseline at full
+  /// emphasis; see [headingEmphasisFor].
   static const List<double> headingRatios = <double>[1.45, 1.30, 1.18, 1.08];
 
   /// Monospace family; falls back to platform monospace if unavailable.
@@ -99,6 +103,25 @@ class GfRichContentTypography {
   /// Clamps a persisted reader preference into the supported range.
   static double clampUserScale(double value) =>
       value.clamp(minUserScale, maxUserScale);
+
+  /// How much of each heading's extra size (its ratio above 1) survives.
+  ///
+  /// [renderedScale] is the painted body size over its design baseline, so it
+  /// already includes the device default, the reading preference and the
+  /// system font scale. Headings keep their full ratios up to the design
+  /// size; as body text grows the levels move closer together (down to 40%
+  /// of the gap at 2x and above), so a large system font no longer turns an
+  /// H1 into a banner that fills a phone screen. Windows narrower than 360
+  /// logical px tighten the gap one more step. The body itself is never
+  /// shrunk, only the heading emphasis.
+  static double headingEmphasisFor({
+    required double renderedScale,
+    required double width,
+  }) {
+    double emphasis = 1 - (renderedScale - 1).clamp(0, 1) * .6;
+    if (width > 0 && width < 360) emphasis *= .85;
+    return emphasis.clamp(.4, 1);
+  }
 
   /// Marker box for one list level.
   ///
@@ -115,25 +138,34 @@ class GfRichContentTypography {
     double userScale = 1,
     bool compact = false,
   }) {
-    // Local scale factor of the system text scaler at body size; nonlinear
-    // scalers are supported because this only sizes a marker box.
     final TextScaler scaler = MediaQuery.textScalerOf(context);
+    final double bodySize = compact ? compactBodySize : readingBodySize;
+    // Painted body size over its baseline; nonlinear scalers are supported
+    // because this only tunes heading emphasis and a marker box.
+    final double renderedScale =
+        scaler.scale(bodySize * clampUserScale(userScale)) / bodySize;
     return GfRichContentTypography.standard(
       typography: GfTheme.typographyOf(context),
       colors: GfTheme.colorsOf(context),
-      bodySize: compact ? compactBodySize : readingBodySize,
+      bodySize: bodySize,
       userScale: userScale,
+      headingEmphasis: headingEmphasisFor(
+        renderedScale: renderedScale,
+        width: MediaQuery.sizeOf(context).width,
+      ),
       listIndent: listIndentFor(scaler.scale(readingBodySize) / readingBodySize),
     );
   }
 
   /// Derives the profile from design-system tokens so no surface hand-writes
   /// font sizes. [bodySize] selects the reading or compact baseline.
+  /// [headingEmphasis] comes from [headingEmphasisFor].
   factory GfRichContentTypography.standard({
     required GfTypography typography,
     required GfColors colors,
     double bodySize = readingBodySize,
     double userScale = 1,
+    double headingEmphasis = 1,
     double listIndent = 32,
   }) {
     final double scale = clampUserScale(userScale);
@@ -158,7 +190,8 @@ class GfRichContentTypography {
           : const <String>['monospace', 'Menlo', 'Courier'],
     );
 
-    double heading(int index) => bodySize * headingRatios[index];
+    double heading(int index) =>
+        bodySize * (1 + (headingRatios[index] - 1) * headingEmphasis);
     final double codeSize = bodySize - 1;
 
     return GfRichContentTypography(

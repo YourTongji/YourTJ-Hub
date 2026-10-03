@@ -41,7 +41,8 @@ class GfTopicList extends StatelessWidget {
   final List<TopicPayload> topics;
   final GfTopicFeedMode feedMode;
 
-  /// Home list mode may group pins; ordered streams (Following) keep server order.
+  /// Home may group pins (a summary in list mode, a title digest in card
+  /// mode); ordered streams (Following) keep server order.
   final bool collapsePinned;
   final Future<bool> Function(TopicPayload topic, bool target)? onLikeTopic;
   final Future<bool> Function(TopicPayload topic, bool target)? onBookmarkTopic;
@@ -82,9 +83,23 @@ class GfTopicList extends StatelessWidget {
         ],
       );
     }
-    final pinned = collapsePinned && feedMode == GfTopicFeedMode.list
+    final pinned = collapsePinned
         ? topics.where((topic) => topic.pinWeight > 0).toList()
         : <TopicPayload>[];
+    Widget card(TopicPayload topic) => buildTopicFeedCard(
+      context,
+      topic,
+      hiddenCategoryId: hiddenCategoryId,
+      onCategorySelected: onCategorySelected,
+      onReturn: onReturnFromTopic,
+      onFirstMediaFrame: onFirstMediaFrame,
+      onLike: onLikeTopic == null || topic.liked == null
+          ? null
+          : (target) => onLikeTopic!(topic, target),
+      onBookmark: onBookmarkTopic == null || topic.bookmarked == null
+          ? null
+          : (target) => onBookmarkTopic!(topic, target),
+    );
     final visibleTopics = pinned.isEmpty
         ? topics
         : topics.where((topic) => topic.pinWeight <= 0).toList();
@@ -105,12 +120,11 @@ class GfTopicList extends StatelessWidget {
         }
         if (pinned.isNotEmpty) {
           if (index == 0) {
-            return _PinnedTopicGroup(
-              key: const ValueKey('pinned-topic-group'),
+            return _PinnedTopicStrip(
+              key: const ValueKey('pinned-topic-strip'),
               topics: pinned,
-              showTrailingDivider: visibleTopics.isNotEmpty,
-              onCategorySelected: onCategorySelected,
-              hiddenCategoryId: hiddenCategoryId,
+              // Under a header (the announcement strip) keep one 6-pixel gap.
+              topMargin: header == null ? 6 : 0,
               onReturn: onReturnFromTopic,
             );
           }
@@ -127,20 +141,7 @@ class GfTopicList extends StatelessWidget {
         }
         final TopicPayload topic = visibleTopics[index];
         return feedMode == GfTopicFeedMode.card
-            ? buildTopicFeedCard(
-                context,
-                topic,
-                hiddenCategoryId: hiddenCategoryId,
-                onCategorySelected: onCategorySelected,
-                onReturn: onReturnFromTopic,
-                onFirstMediaFrame: onFirstMediaFrame,
-                onLike: onLikeTopic == null || topic.liked == null
-                    ? null
-                    : (target) => onLikeTopic!(topic, target),
-                onBookmark: onBookmarkTopic == null || topic.bookmarked == null
-                    ? null
-                    : (target) => onBookmarkTopic!(topic, target),
-              )
+            ? card(topic)
             : _topicRow(
                 context,
                 topic,
@@ -154,29 +155,27 @@ class GfTopicList extends StatelessWidget {
   }
 }
 
-class _PinnedTopicGroup extends StatefulWidget {
-  const _PinnedTopicGroup({
+/// Collapsed pins, in card and list feeds alike, fold into one line beside
+/// the announcement bar: pin, "Pinned" badge and the first pinned title. A
+/// single pin opens directly; several unfold into avatar-led title rows
+/// inside the same strip.
+class _PinnedTopicStrip extends StatefulWidget {
+  const _PinnedTopicStrip({
     super.key,
     required this.topics,
-    required this.showTrailingDivider,
-    this.hiddenCategoryId,
-    this.onCategorySelected,
+    required this.topMargin,
     this.onReturn,
   });
-  final List<TopicPayload> topics;
 
-  /// Whether regular rows follow the group; when none do (pinned-only list)
-  /// the group must end like a regular last row, without its own divider.
-  final bool showTrailingDivider;
-  final int? hiddenCategoryId;
-  final ValueChanged<int>? onCategorySelected;
+  final List<TopicPayload> topics;
+  final double topMargin;
   final VoidCallback? onReturn;
 
   @override
-  State<_PinnedTopicGroup> createState() => _PinnedTopicGroupState();
+  State<_PinnedTopicStrip> createState() => _PinnedTopicStripState();
 }
 
-class _PinnedTopicGroupState extends State<_PinnedTopicGroup>
+class _PinnedTopicStripState extends State<_PinnedTopicStrip>
     with AutomaticKeepAliveClientMixin {
   bool _expanded = false;
 
@@ -187,66 +186,224 @@ class _PinnedTopicGroupState extends State<_PinnedTopicGroup>
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    final colors = GfTheme.colorsOf(context);
-    return Column(
+    final AppLocalizations l10n = AppLocalizations.of(context);
+    final GfColors colors = GfTheme.colorsOf(context);
+    final Color muted = colors.baseContent.withValues(alpha: 0.45);
+    final List<TopicPayload> topics = widget.topics;
+    final bool single = topics.length == 1;
+    final bool expanded = _expanded && !single;
+    // Large text keeps the line for the title; the pin glyph still names it.
+    final TextScaler scaler = MediaQuery.textScalerOf(context);
+    final bool showTime = scaler.scale(12) <= 16;
+    final bool showBadge = scaler.scale(10) <= 15;
+
+    final Widget lead = Row(
       mainAxisSize: MainAxisSize.min,
-      children: [
-        Semantics(
-          button: true,
-          expanded: _expanded,
-          child: InkWell(
-            onTap: () => setState(() => _expanded = !_expanded),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(minHeight: 48),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 8,
-                ),
-                child: Row(
-                  children: [
-                    GfSymbol('pin-filled', size: 16, color: colors.error),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        AppLocalizations.of(
-                          context,
-                        ).homePinnedTopics(widget.topics.length),
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: colors.baseContent,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    GfSymbol(
-                      _expanded ? 'chevron-up' : 'chevron-down',
-                      size: 18,
-                      color: colors.baseContent.withValues(alpha: 0.6),
-                    ),
-                  ],
-                ),
+      children: <Widget>[
+        Container(
+          width: 22,
+          height: 22,
+          decoration: BoxDecoration(
+            color: colors.error.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(6),
+          ),
+          alignment: Alignment.center,
+          child: Semantics(
+            label: showBadge ? null : l10n.topicPinned,
+            child: GfSymbol('pin-filled', size: 12, color: colors.error),
+          ),
+        ),
+        if (showBadge) ...<Widget>[
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+            decoration: BoxDecoration(
+              color: colors.error.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Text(
+              l10n.topicPinned,
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+                color: colors.error,
+                letterSpacing: 0.2,
               ),
             ),
           ),
-        ),
-        if (_expanded)
-          for (var i = 0; i < widget.topics.length; i++)
-            _topicRow(
-              context,
-              widget.topics[i],
-              isLast:
-                  !widget.showTrailingDivider &&
-                  i == widget.topics.length - 1,
-              onCategorySelected: widget.onCategorySelected,
-              hiddenCategoryId: widget.hiddenCategoryId,
-              onReturn: widget.onReturn,
-            ),
+        ],
       ],
+    );
+
+    final Widget line = Semantics(
+      button: true,
+      expanded: single ? null : expanded,
+      label: single ? null : l10n.homePinnedTopics(topics.length),
+      child: InkWell(
+        key: const ValueKey('pinned-strip-line'),
+        onTap: single
+            ? () => _openTopic(context, topics.first, widget.onReturn)
+            : () => setState(() => _expanded = !_expanded),
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+          child: Row(
+            children: <Widget>[
+              lead,
+              const SizedBox(width: 8),
+              Expanded(
+                child: expanded
+                    ? ExcludeSemantics(
+                        child: Text(
+                          l10n.announcementCollapseAction,
+                          textAlign: TextAlign.end,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(fontSize: 11, color: muted),
+                        ),
+                      )
+                    : Text(
+                        _topicDisplayTitle(topics.first),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          color: colors.baseContent.withValues(alpha: 0.82),
+                        ),
+                      ),
+              ),
+              if (!single) ...<Widget>[
+                if (!expanded) ...<Widget>[
+                  const SizedBox(width: 6),
+                  ExcludeSemantics(
+                    child: Text(
+                      '${topics.length}',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: muted,
+                      ),
+                    ),
+                  ),
+                ],
+                const SizedBox(width: 2),
+                AnimatedRotation(
+                  turns: expanded ? .5 : 0,
+                  duration: GfMotion.duration(context, GfMotion.selection),
+                  curve: GfMotion.layoutCurve,
+                  child: GfSymbol('chevron-down', size: 13, color: muted),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+
+    Widget titleRow(TopicPayload topic) => Semantics(
+      button: true,
+      child: InkWell(
+        key: ValueKey<String>('pinned-strip-${topic.id}'),
+        onTap: () => _openTopic(context, topic, widget.onReturn),
+        child: Padding(
+          // The author's avatar sits under the pin tile; titles start under
+          // the badge.
+          padding: const EdgeInsetsDirectional.fromSTEB(11, 8, 12, 8),
+          child: Row(
+            children: <Widget>[
+              ExcludeSemantics(
+                child: GfAvatar(
+                  src: resolveApiAssetUrl(topic.author.avatarUrl),
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 9),
+              Expanded(
+                child: Text(
+                  _topicDisplayTitle(topic),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w500,
+                    color: colors.baseContent.withValues(alpha: 0.88),
+                  ),
+                ),
+              ),
+              if (topic.unseen == true) ...<Widget>[
+                const SizedBox(width: 6),
+                Container(
+                  width: 5,
+                  height: 5,
+                  decoration: BoxDecoration(
+                    color: colors.primary,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              ],
+              if (showTime) ...<Widget>[
+                const SizedBox(width: 10),
+                Text(
+                  timeAgo(
+                    topic.activityText.isNotEmpty
+                        ? topic.activityText
+                        : topic.lastUpdateTime,
+                    l10n: l10n,
+                  ),
+                  style: TextStyle(fontSize: 11, color: muted),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+
+    return Container(
+      margin: EdgeInsets.fromLTRB(16, widget.topMargin, 16, 6),
+      decoration: BoxDecoration(
+        color: colors.base200,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: colors.line),
+      ),
+      child: Material(
+        type: MaterialType.transparency,
+        child: AnimatedSize(
+          duration: GfMotion.duration(context, GfMotion.layout),
+          curve: GfMotion.layoutCurve,
+          alignment: Alignment.topCenter,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              line,
+              if (expanded) ...<Widget>[
+                for (final TopicPayload topic in topics) titleRow(topic),
+                const SizedBox(height: 4),
+              ],
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
+
+Future<void> _openTopic(
+  BuildContext context,
+  TopicPayload topic,
+  VoidCallback? onReturn,
+) async {
+  await context.push('/p/${topic.id}');
+  onReturn?.call();
+}
+
+/// 无标题瞬间与 Web TopicRow/SSR 一致：标题为空时摘要在标题位展示（不再重复一行），
+/// 摘要也为空时使用同族颜文字，保证列表行始终有可识别文案。
+String _topicDisplayTitle(TopicPayload topic) => topic.title.isNotEmpty
+    ? topic.title
+    : (topic.description.trim().isNotEmpty ? topic.description : '(｀・ω・´)');
 
 /// 把后端话题 payload 映射为 [GfTopicRow](对齐 web TopicRow.vue 语义)。
 Widget _topicRow(
@@ -275,13 +432,8 @@ Widget _topicRow(
       resolveApiAssetUrl(participant.avatarUrl),
   ];
 
-  // 无标题瞬间与 Web TopicRow/SSR 一致：标题为空时摘要在标题位展示（不再重复一行），
-  // 摘要也为空时使用同族颜文字，保证列表行始终有可识别文案。
-  final String rowTitle = topic.title.isNotEmpty
-      ? topic.title
-      : (topic.description.trim().isNotEmpty ? topic.description : '(｀・ω・´)');
   return GfTopicRow(
-    title: rowTitle,
+    title: _topicDisplayTitle(topic),
     description: topic.title.isEmpty ? '' : topic.description,
     categories: categories,
     participantAvatarUrls: participantAvatarUrls,

@@ -1370,14 +1370,58 @@ class AppLocalizationsDe extends AppLocalizations {
   String get richContentCodeCopied => 'Code kopiert';
 
   @override
-  String get settingsReadingTextSize => 'Lesegröße';
+  String get textSizeTitle => 'Textgröße';
 
   @override
-  String get settingsReadingTextSizeDesc =>
-      'Gilt für Beiträge, Wiki und Kursbewertungen. Die Systemschriftgröße bleibt wirksam.';
+  String get textSizeReset => 'Zurücksetzen';
 
   @override
-  String get settingsReadingTextSizeReset => 'Auf 100 % zurücksetzen';
+  String get textSizeDefault => 'Standard';
+
+  @override
+  String textSizePercent(int percent) {
+    return '$percent %';
+  }
+
+  @override
+  String textSizeSummary(String appSize, String readingSize) {
+    return 'App $appSize · Lesen $readingSize';
+  }
+
+  @override
+  String get textSizeGlobal => 'App-Text';
+
+  @override
+  String get textSizeGlobalDesc =>
+      'Alle Texte der App, einschließlich Fließtext';
+
+  @override
+  String get textSizeReading => 'Lesetext';
+
+  @override
+  String get textSizeReadingDesc =>
+      'Passt darauf aufbauend nur den Fließtext in Beiträgen, Wiki-Seiten und Kursbewertungen an';
+
+  @override
+  String get textSizePreview => 'Vorschau';
+
+  @override
+  String get textSizePreviewTime => 'vor 10 Min.';
+
+  @override
+  String get textSizePreviewTitle =>
+      'Bewege einen Regler unten, um die Änderung hier zu sehen';
+
+  @override
+  String get textSizePreviewExcerpt =>
+      'App-Text ändert alle Texte der App. Lesetext passt darauf aufbauend nur den Fließtext an.';
+
+  @override
+  String get textSizePreviewCategory => 'Anleitung';
+
+  @override
+  String get textSizePreviewBody =>
+      '### Vorschau des Fließtexts\nLesetext ändert nur diesen Beitragstext. Alles andere folgt dem **App-Text**.\n\n- Die Standardgröße ist an die Textgröße deines Systems und deinen Bildschirm angepasst';
 
   @override
   String get entryCourses => 'Kurse';

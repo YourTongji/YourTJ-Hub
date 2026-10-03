@@ -1339,14 +1339,55 @@ class AppLocalizationsJa extends AppLocalizations {
   String get richContentCodeCopied => 'コードをコピーしました';
 
   @override
-  String get settingsReadingTextSize => '本文の文字サイズ';
+  String get textSizeTitle => '文字サイズ';
 
   @override
-  String get settingsReadingTextSizeDesc =>
-      '投稿・Wiki・授業レビューの本文に適用されます。端末の文字サイズ設定も引き続き反映されます。';
+  String get textSizeReset => 'デフォルトに戻す';
 
   @override
-  String get settingsReadingTextSizeReset => '100% に戻す';
+  String get textSizeDefault => '標準';
+
+  @override
+  String textSizePercent(int percent) {
+    return '$percent%';
+  }
+
+  @override
+  String textSizeSummary(String appSize, String readingSize) {
+    return '全体 $appSize・本文 $readingSize';
+  }
+
+  @override
+  String get textSizeGlobal => '全体の文字';
+
+  @override
+  String get textSizeGlobalDesc => 'アプリ内のすべての文字（本文を含む）';
+
+  @override
+  String get textSizeReading => '本文の文字';
+
+  @override
+  String get textSizeReadingDesc => '全体の文字をもとに、投稿・Wiki・授業レビューの本文だけを調整します';
+
+  @override
+  String get textSizePreview => 'プレビュー';
+
+  @override
+  String get textSizePreviewTime => '10分前';
+
+  @override
+  String get textSizePreviewTitle => '下のスライダーを動かすと、ここにすぐ反映されます';
+
+  @override
+  String get textSizePreviewExcerpt =>
+      '全体の文字はアプリ内のすべての文字に、本文の文字はそのうえで本文だけに反映されます。';
+
+  @override
+  String get textSizePreviewCategory => 'ガイド';
+
+  @override
+  String get textSizePreviewBody =>
+      '### 本文のプレビュー\n本文の文字はこの投稿本文だけを変更します。ほかの文字は**全体の文字**に従います。\n\n- 標準サイズは端末の文字サイズ設定と画面幅に合わせて調整済みです';
 
   @override
   String get entryCourses => 'コース';

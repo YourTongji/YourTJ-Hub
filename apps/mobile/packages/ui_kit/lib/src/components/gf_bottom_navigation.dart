@@ -156,7 +156,8 @@ class GfBottomNavigation extends StatelessWidget {
         child: Container(
           height: barHeight,
           decoration: BoxDecoration(
-            border: Border(top: BorderSide(color: colors.line)),
+            // One physical pixel, like X: separation without a heavy rule.
+            border: Border(top: BorderSide(color: colors.line, width: 0)),
           ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -236,92 +237,99 @@ class _Destination extends StatelessWidget {
         label: item.semanticsLabel,
         onTap: onTap,
         child: ExcludeSemantics(
-          child: InkWell(
-            onTap: onTap,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(4, 8, 4, 6),
-              child: KeyedSubtree(
-                // A preference change must discard any in-flight decorative
-                // interpolation so reduced motion takes effect immediately.
-                key: ValueKey<String>(
-                  'gf-bottom-navigation-destination-${item.symbol}-$reducedMotion',
-                ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: <Widget>[
-                    AnimatedContainer(
-                      // Keep the animated element stable when selection moves
-                      // between destinations so the transition can be
-                      // interrupted without jumping to its end state.
-                      key: ValueKey<String>(
-                        'gf-bottom-navigation-indicator-${item.symbol}',
-                      ),
-                      duration: GfMotion.duration(context, GfMotion.selection),
-                      curve: GfMotion.layoutCurve,
-                      width: 48,
-                      height: 36,
-                      decoration: BoxDecoration(
-                        color: selected
-                            ? colors.primary.withValues(alpha: 0.09)
-                            : Colors.transparent,
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: Stack(
-                        clipBehavior: Clip.none,
-                        children: <Widget>[
-                          Center(
-                            child: TweenAnimationBuilder<Color?>(
-                              tween: ColorTween(end: foreground),
-                              duration: GfMotion.duration(
-                                context,
-                                GfMotion.selection,
-                              ),
-                              curve: GfMotion.layoutCurve,
-                              builder: (context, color, child) => GfSymbol(
-                                selected ? item.selectedSymbol : item.symbol,
-                                size: 24,
-                                color: color ?? foreground,
-                              ),
-                            ),
-                          ),
-                          if (item.badge)
-                            Positioned(
-                              top: 3,
-                              right: 8,
-                              child: Container(
-                                width: 7,
-                                height: 7,
-                                decoration: BoxDecoration(
-                                  color: colors.primary,
-                                  shape: BoxShape.circle,
-                                  border: Border.all(
-                                    color: colors.base100,
-                                    width: 1,
-                                  ),
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                    if (showLabel) const SizedBox(height: 2),
-                    if (showLabel)
-                      AnimatedDefaultTextStyle(
+          child: _LabelTooltip(
+            label: item.label,
+            enabled: !showLabel,
+            child: InkWell(
+              onTap: onTap,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(4, 8, 4, 6),
+                child: KeyedSubtree(
+                  // A preference change must discard any in-flight decorative
+                  // interpolation so reduced motion takes effect immediately.
+                  key: ValueKey<String>(
+                    'gf-bottom-navigation-destination-${item.symbol}-$reducedMotion',
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: <Widget>[
+                      AnimatedContainer(
+                        // Keep the animated element stable when selection moves
+                        // between destinations so the transition can be
+                        // interrupted without jumping to its end state.
+                        key: ValueKey<String>(
+                          'gf-bottom-navigation-indicator-${item.symbol}',
+                        ),
                         duration: GfMotion.duration(
                           context,
                           GfMotion.selection,
                         ),
                         curve: GfMotion.layoutCurve,
-                        style: _navigationLabelStyle(
-                          context,
-                          color: labelColor,
-                          fontWeight: selected
-                              ? FontWeight.w600
-                              : FontWeight.w500,
+                        width: 48,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          color: selected
+                              ? colors.primary.withValues(alpha: 0.09)
+                              : Colors.transparent,
+                          borderRadius: BorderRadius.circular(14),
                         ),
-                        child: Text(item.label, textAlign: TextAlign.center),
+                        child: Stack(
+                          clipBehavior: Clip.none,
+                          children: <Widget>[
+                            Center(
+                              child: TweenAnimationBuilder<Color?>(
+                                tween: ColorTween(end: foreground),
+                                duration: GfMotion.duration(
+                                  context,
+                                  GfMotion.selection,
+                                ),
+                                curve: GfMotion.layoutCurve,
+                                builder: (context, color, child) => GfSymbol(
+                                  selected ? item.selectedSymbol : item.symbol,
+                                  size: 24,
+                                  color: color ?? foreground,
+                                ),
+                              ),
+                            ),
+                            if (item.badge)
+                              Positioned(
+                                top: 3,
+                                right: 8,
+                                child: Container(
+                                  width: 7,
+                                  height: 7,
+                                  decoration: BoxDecoration(
+                                    color: colors.primary,
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                      color: colors.base100,
+                                      width: 1,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
                       ),
-                  ],
+                      if (showLabel) const SizedBox(height: 2),
+                      if (showLabel)
+                        AnimatedDefaultTextStyle(
+                          duration: GfMotion.duration(
+                            context,
+                            GfMotion.selection,
+                          ),
+                          curve: GfMotion.layoutCurve,
+                          style: _navigationLabelStyle(
+                            context,
+                            color: labelColor,
+                            fontWeight: selected
+                                ? FontWeight.w600
+                                : FontWeight.w500,
+                          ),
+                          child: Text(item.label, textAlign: TextAlign.center),
+                        ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -330,6 +338,25 @@ class _Destination extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Icon-only destinations reveal their name on long press; the destination
+/// node already carries it for screen readers.
+class _LabelTooltip extends StatelessWidget {
+  const _LabelTooltip({
+    required this.label,
+    required this.enabled,
+    required this.child,
+  });
+
+  final String label;
+  final bool enabled;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => enabled
+      ? Tooltip(message: label, excludeFromSemantics: true, child: child)
+      : child;
 }
 
 class _ComposeAction extends StatelessWidget {

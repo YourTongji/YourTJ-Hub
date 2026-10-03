@@ -28,6 +28,28 @@ class AnnouncementBanner extends ConsumerStatefulWidget {
 
   @override
   ConsumerState<AnnouncementBanner> createState() => _AnnouncementBannerState();
+
+  /// Displayable items; the banner renders nothing when this is empty.
+  static List<AnnouncementItemPayload> itemsOf(
+    AnnouncementPayload announcement,
+  ) {
+    if (!announcement.enabled) return const [];
+    final items = (announcement.items ?? const <AnnouncementItemPayload>[])
+        .where(
+          (item) => item.title.trim().isNotEmpty || item.html.trim().isNotEmpty,
+        )
+        .toList();
+    if (items.isEmpty && announcement.html.trim().isNotEmpty) {
+      items.add(
+        AnnouncementItemPayload(
+          id: 'legacy',
+          title: '',
+          html: announcement.html,
+        ),
+      );
+    }
+    return items;
+  }
 }
 
 class _AnnouncementBannerState extends ConsumerState<AnnouncementBanner>
@@ -49,26 +71,8 @@ class _AnnouncementBannerState extends ConsumerState<AnnouncementBanner>
   @override
   bool get wantKeepAlive => true;
 
-  List<AnnouncementItemPayload> get _items {
-    if (!widget.announcement.enabled) return const [];
-    final items =
-        (widget.announcement.items ?? const <AnnouncementItemPayload>[])
-            .where(
-              (item) =>
-                  item.title.trim().isNotEmpty || item.html.trim().isNotEmpty,
-            )
-            .toList();
-    if (items.isEmpty && widget.announcement.html.trim().isNotEmpty) {
-      items.add(
-        AnnouncementItemPayload(
-          id: 'legacy',
-          title: '',
-          html: widget.announcement.html,
-        ),
-      );
-    }
-    return items;
-  }
+  List<AnnouncementItemPayload> get _items =>
+      AnnouncementBanner.itemsOf(widget.announcement);
 
   @override
   void initState() {

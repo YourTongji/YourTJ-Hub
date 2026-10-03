@@ -2556,23 +2556,95 @@ abstract class AppLocalizations {
   /// **'Code copied'**
   String get richContentCodeCopied;
 
-  /// No description provided for @settingsReadingTextSize.
+  /// No description provided for @textSizeTitle.
   ///
   /// In en, this message translates to:
-  /// **'Reading text size'**
-  String get settingsReadingTextSize;
+  /// **'Text size'**
+  String get textSizeTitle;
 
-  /// No description provided for @settingsReadingTextSizeDesc.
+  /// No description provided for @textSizeReset.
   ///
   /// In en, this message translates to:
-  /// **'Applies to posts, Wiki and course reviews. System font scaling still applies.'**
-  String get settingsReadingTextSizeDesc;
+  /// **'Reset to default'**
+  String get textSizeReset;
 
-  /// No description provided for @settingsReadingTextSizeReset.
+  /// No description provided for @textSizeDefault.
   ///
   /// In en, this message translates to:
-  /// **'Reset to 100%'**
-  String get settingsReadingTextSizeReset;
+  /// **'Default'**
+  String get textSizeDefault;
+
+  /// No description provided for @textSizePercent.
+  ///
+  /// In en, this message translates to:
+  /// **'{percent}%'**
+  String textSizePercent(int percent);
+
+  /// No description provided for @textSizeSummary.
+  ///
+  /// In en, this message translates to:
+  /// **'App {appSize} · Reading {readingSize}'**
+  String textSizeSummary(String appSize, String readingSize);
+
+  /// No description provided for @textSizeGlobal.
+  ///
+  /// In en, this message translates to:
+  /// **'App text'**
+  String get textSizeGlobal;
+
+  /// No description provided for @textSizeGlobalDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'All text in the app, including body text'**
+  String get textSizeGlobalDesc;
+
+  /// No description provided for @textSizeReading.
+  ///
+  /// In en, this message translates to:
+  /// **'Reading text'**
+  String get textSizeReading;
+
+  /// No description provided for @textSizeReadingDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Adjusts body text in posts, Wiki pages and course reviews on top of app text'**
+  String get textSizeReadingDesc;
+
+  /// No description provided for @textSizePreview.
+  ///
+  /// In en, this message translates to:
+  /// **'Preview'**
+  String get textSizePreview;
+
+  /// No description provided for @textSizePreviewTime.
+  ///
+  /// In en, this message translates to:
+  /// **'10m'**
+  String get textSizePreviewTime;
+
+  /// No description provided for @textSizePreviewTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Drag a slider below to preview the change'**
+  String get textSizePreviewTitle;
+
+  /// No description provided for @textSizePreviewExcerpt.
+  ///
+  /// In en, this message translates to:
+  /// **'App text changes all text in the app. Reading text adjusts only body text on top of it.'**
+  String get textSizePreviewExcerpt;
+
+  /// No description provided for @textSizePreviewCategory.
+  ///
+  /// In en, this message translates to:
+  /// **'Guide'**
+  String get textSizePreviewCategory;
+
+  /// No description provided for @textSizePreviewBody.
+  ///
+  /// In en, this message translates to:
+  /// **'### Body text preview\nReading text changes only this post body. Everything else follows **app text**.\n\n- The default size is adapted to your system text size and screen'**
+  String get textSizePreviewBody;
 
   /// No description provided for @entryCourses.
   ///

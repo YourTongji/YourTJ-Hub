@@ -165,4 +165,25 @@ void main() {
       1.3,
     );
   });
+
+  test('app size persists separately with its own bounds', () async {
+    final container = ProviderContainer(
+      overrides: <Override>[
+        appFontScaleProvider.overrideWith(
+          () => AppFontScaleNotifier(persistDelay: Duration.zero),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+    final notifier = container.read(appFontScaleProvider.notifier);
+
+    expect(container.read(appFontScaleProvider), 1);
+    notifier.setScale(.5);
+    expect(container.read(appFontScaleProvider), .9);
+    notifier.setScale(1.2);
+    await pumpEventQueue();
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getDouble(AppFontScaleNotifier.prefsKey), 1.2);
+    expect(prefs.getDouble(ContentFontScaleNotifier.prefsKey), isNull);
+  });
 }

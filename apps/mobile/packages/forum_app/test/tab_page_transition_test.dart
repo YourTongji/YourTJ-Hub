@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:forum_app/src/navigation/reading_chrome.dart';
 import 'package:forum_app/src/navigation/tab_page_transition.dart';
 import 'package:forum_app/src/navigation/tab_swipe_surface.dart';
 import 'package:ui_kit/ui_kit.dart';
@@ -111,6 +112,75 @@ class _HiddenChromePagerState extends State<_HiddenChromePager> {
   );
 }
 
+/// Fixed 48-pixel header insets with [ChromeAlignedPage], as in RootSurface.
+class _AlignedChromePager extends StatefulWidget {
+  const _AlignedChromePager();
+
+  @override
+  State<_AlignedChromePager> createState() => _AlignedChromePagerState();
+}
+
+class _AlignedChromePagerState extends State<_AlignedChromePager> {
+  int _index = 0;
+  bool _hidden = false;
+  int bubbled = 0;
+  final scrollControllers = List.generate(3, (_) => ScrollController());
+
+  @override
+  void dispose() {
+    for (final controller in scrollControllers) {
+      controller.dispose();
+    }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => MaterialApp(
+    home: Scaffold(
+      body: Column(
+        children: [
+          TextButton(
+            onPressed: () => setState(() => _hidden = !_hidden),
+            child: Text(_hidden ? 'Show chrome' : 'Hide chrome'),
+          ),
+          Expanded(
+            child: NotificationListener<ScrollUpdateNotification>(
+              onNotification: (_) {
+                bubbled++;
+                return false;
+              },
+              child: TabSwipeSurface(
+                index: _index,
+                length: scrollControllers.length,
+                onChanged: (index) => setState(() => _index = index),
+                child: TabPageTransition(
+                  index: _index,
+                  length: scrollControllers.length,
+                  chromeHidden: _hidden,
+                  pageKey: (index) => index,
+                  pageBuilder: (index, chromeHidden) => ChromeAlignedPage(
+                    topInset: 48,
+                    chromeHidden: chromeHidden,
+                    current: index == _index,
+                    child: ListView(
+                      controller: scrollControllers[index],
+                      padding: const EdgeInsets.only(top: 48),
+                      children: [
+                        Text('Page $index'),
+                        const SizedBox(height: 1000),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
 void main() {
   testWidgets('tab taps animate the page with the selected tab', (
     tester,
@@ -163,6 +233,85 @@ void main() {
     expect(find.text('Page 0'), findsOneWidget);
     expect(find.text('Page 1'), findsNothing);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('hidden chrome scrolls off-screen pages past the header band', (
+    tester,
+  ) async {
+    await tester.pumpWidget(const _AlignedChromePager());
+    final state = tester.state<_AlignedChromePagerState>(
+      find.byType(_AlignedChromePager),
+    );
+    double offset(int index) => state.scrollControllers[index].offset;
+    final pager = find.byType(TabPageTransition);
+
+    // Visit page 1 so it is retained off screen at the top.
+    await tester.drag(pager, const Offset(-280, 0));
+    await tester.pumpAndSettle();
+    await tester.drag(pager, const Offset(280, 0));
+    await tester.pumpAndSettle();
+    await tester.drag(pager, const Offset(0, -160));
+    await tester.pumpAndSettle();
+    final double reading = offset(0);
+    expect(reading, greaterThan(48));
+
+    state.bubbled = 0;
+    await tester.tap(find.text('Hide chrome'));
+    await tester.pump();
+    expect(offset(1), 48);
+    expect(offset(0), reading);
+    expect(state.bubbled, 0, reason: 'off-screen moves must not drive chrome');
+
+    // Swiping in shows content at the top edge, not a blank header band.
+    await tester.drag(pager, const Offset(-280, 0));
+    await tester.pumpAndSettle();
+    expect(
+      tester.getTopLeft(find.text('Page 1')).dy,
+      closeTo(tester.getTopLeft(pager).dy, 1),
+    );
+    // A page first laid out mid-swipe enters aligned as well.
+    await tester.drag(pager, const Offset(-280, 0));
+    await tester.pumpAndSettle();
+    expect(offset(2), 48);
+
+    await tester.tap(find.text('Show chrome'));
+    await tester.pump();
+    expect(offset(1), 0, reason: 'returning chrome restores off-screen pages');
+    expect(offset(2), 48, reason: 'the page on screen never moves');
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('a swipe tracks the finger from touch down', (tester) async {
+    await tester.pumpWidget(const _Pager());
+    final gesture = await tester.startGesture(
+      tester.getCenter(find.text('Page 0')),
+    );
+    await gesture.moveBy(const Offset(-60, 0));
+    await tester.pump();
+    // The slop travelled before winning the arena is not swallowed.
+    expect(tester.getTopLeft(find.text('Page 0')).dx, closeTo(-60, 1));
+    await gesture.up();
+    await tester.pumpAndSettle();
+    expect(tester.getTopLeft(find.text('Page 1')).dx, closeTo(0, 1));
+  });
+
+  testWidgets('flinging back cancels a dragged switch', (tester) async {
+    await tester.pumpWidget(const _Pager());
+    final gesture = await tester.startGesture(
+      tester.getCenter(find.text('Page 0')),
+    );
+    for (var i = 0; i < 10; i++) {
+      await gesture.moveBy(const Offset(-12, 0));
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    for (var i = 0; i < 3; i++) {
+      await gesture.moveBy(const Offset(30, 0));
+      await tester.pump(const Duration(milliseconds: 8));
+    }
+    await gesture.up();
+    await tester.pumpAndSettle();
+    expect(tester.getTopLeft(find.text('Page 0')).dx, closeTo(0, 1));
+    expect(find.text('Page 1'), findsNothing);
   });
 
   testWidgets('hidden chrome removes cached header insets from visited tabs', (

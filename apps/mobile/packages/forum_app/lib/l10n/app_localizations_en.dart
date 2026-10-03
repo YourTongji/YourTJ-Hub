@@ -1357,14 +1357,57 @@ class AppLocalizationsEn extends AppLocalizations {
   String get richContentCodeCopied => 'Code copied';
 
   @override
-  String get settingsReadingTextSize => 'Reading text size';
+  String get textSizeTitle => 'Text size';
 
   @override
-  String get settingsReadingTextSizeDesc =>
-      'Applies to posts, Wiki and course reviews. System font scaling still applies.';
+  String get textSizeReset => 'Reset to default';
 
   @override
-  String get settingsReadingTextSizeReset => 'Reset to 100%';
+  String get textSizeDefault => 'Default';
+
+  @override
+  String textSizePercent(int percent) {
+    return '$percent%';
+  }
+
+  @override
+  String textSizeSummary(String appSize, String readingSize) {
+    return 'App $appSize · Reading $readingSize';
+  }
+
+  @override
+  String get textSizeGlobal => 'App text';
+
+  @override
+  String get textSizeGlobalDesc => 'All text in the app, including body text';
+
+  @override
+  String get textSizeReading => 'Reading text';
+
+  @override
+  String get textSizeReadingDesc =>
+      'Adjusts body text in posts, Wiki pages and course reviews on top of app text';
+
+  @override
+  String get textSizePreview => 'Preview';
+
+  @override
+  String get textSizePreviewTime => '10m';
+
+  @override
+  String get textSizePreviewTitle =>
+      'Drag a slider below to preview the change';
+
+  @override
+  String get textSizePreviewExcerpt =>
+      'App text changes all text in the app. Reading text adjusts only body text on top of it.';
+
+  @override
+  String get textSizePreviewCategory => 'Guide';
+
+  @override
+  String get textSizePreviewBody =>
+      '### Body text preview\nReading text changes only this post body. Everything else follows **app text**.\n\n- The default size is adapted to your system text size and screen';
 
   @override
   String get entryCourses => 'Courses';
