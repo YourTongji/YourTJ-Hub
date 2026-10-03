@@ -1288,6 +1288,9 @@ class AppLocalizationsDe extends AppLocalizations {
   String get courseDetailReviews => 'Bewertungen';
 
   @override
+  String get courseShareThisReview => 'Diese Bewertung';
+
+  @override
   String get courseDetailOfferings => 'Lehrveranstaltungen';
 
   @override
@@ -2092,6 +2095,20 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get courseCopyAnonymousLabel =>
       'Anonym veröffentlichen (Identität der Öffentlichkeit verborgen)';
+
+  @override
+  String get courseCopyAnonymousTitle => 'Anonym posten';
+
+  @override
+  String get courseCopyAnonymousHint => 'Deine Identität bleibt verborgen';
+
+  @override
+  String courseCopyPublishAs(String name) {
+    return 'Posten als $name';
+  }
+
+  @override
+  String get courseCopyPublishPublic => 'Öffentliche Identität';
 
   @override
   String get courseCopySubmitSuccess => 'Gesendet';

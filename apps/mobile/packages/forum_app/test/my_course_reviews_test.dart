@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import 'package:forum_app/l10n/app_localizations.dart';
 import 'package:forum_app/src/pages/courses/my_reviews_page.dart';
 import 'package:forum_app/src/providers.dart';
+import 'package:ui_kit/ui_kit.dart';
 
 class _Tokens implements TokenStorage {
   @override
@@ -87,6 +88,20 @@ class _Repository extends CourseRepository {
   }
 }
 
+/// 卡片右上溢出菜单（查看课程 / 编辑 / 删除）。
+Finder _ownMenu(int reviewId) =>
+    find.byKey(ValueKey<String>('own-review-menu-$reviewId'));
+
+Future<void> _openOwnMenu(WidgetTester tester, int reviewId) async {
+  await tester.tap(_ownMenu(reviewId));
+  await tester.pumpAndSettle();
+}
+
+Future<void> _closeMenu(WidgetTester tester) async {
+  await tester.tapAt(const Offset(4, 4));
+  await tester.pumpAndSettle();
+}
+
 Future<void> _pump(WidgetTester tester, _Repository repo) async {
   final router = GoRouter(
     routes: [
@@ -122,7 +137,16 @@ void main() {
       // Short first page loads the next cursor automatically.
       expect(repo.cursors, ['', '2']);
       expect(find.text('更早的评价'), findsOneWidget);
-      await tester.tap(find.text('查看详情').first);
+      // 匿名课评走生成头像，动作收进右上溢出菜单。
+      expect(
+        tester
+            .widgetList<GfBeamAvatar>(find.byType(GfBeamAvatar))
+            .map((avatar) => avatar.seed),
+        containsAll(<String>['匿名同学-2', '匿名同学-1']),
+      );
+      expect(find.text('查看详情'), findsNothing);
+      await _openOwnMenu(tester, 2);
+      await tester.tap(find.text('查看详情'));
       await tester.pumpAndSettle();
       expect(
         find.text('/courses/44?offeringId=902&reviewId=2'),
@@ -135,7 +159,8 @@ void main() {
   ) async {
     final repo = _Repository();
     await _pump(tester, repo);
-    await tester.tap(find.text('编辑').first);
+    await _openOwnMenu(tester, 2);
+    await tester.tap(find.text('编辑'));
     await tester.pumpAndSettle();
     final editor = tester.widget<QuillEditor>(find.byType(QuillEditor));
     editor.controller.replaceText(
@@ -155,7 +180,8 @@ void main() {
     (tester) async {
       final repo = _Repository();
       await _pump(tester, repo);
-      await tester.tap(find.text('删除').first);
+      await _openOwnMenu(tester, 2);
+      await tester.tap(find.text('删除'));
       await tester.pumpAndSettle();
       expect(find.byType(AlertDialog), findsOneWidget);
       expect(
@@ -169,7 +195,8 @@ void main() {
       await tester.pumpAndSettle();
       expect(repo.deletes, isEmpty);
       repo.failDelete = true;
-      await tester.tap(find.text('删除').first);
+      await _openOwnMenu(tester, 2);
+      await tester.tap(find.text('删除'));
       await tester.pumpAndSettle();
       await tester.tap(
         find.descendant(
@@ -182,7 +209,8 @@ void main() {
       expect(find.text('第一条匿名评价'), findsOneWidget);
       await tester.pump(const Duration(seconds: 8));
       repo.failDelete = false;
-      await tester.tap(find.text('删除').first);
+      await _openOwnMenu(tester, 2);
+      await tester.tap(find.text('删除'));
       await tester.pumpAndSettle();
       await tester.tap(
         find.descendant(
@@ -199,10 +227,21 @@ void main() {
     'hidden reviews remain deletable without an edit or public link',
     (tester) async {
       await _pump(tester, _Repository()..showHidden = true);
-      expect(find.text('编辑'), findsOneWidget); // Only the visible older review.
-      expect(find.text('查看详情'), findsOneWidget);
-      expect(find.text('删除'), findsNWidgets(2));
       expect(find.textContaining('已被隐藏'), findsOneWidget);
+      // 被隐藏的是较新的那条（id=2）：只能删除，没有公开链接也编辑不了。
+      await _openOwnMenu(tester, 2);
+      expect(find.text('查看详情'), findsNothing);
+      expect(find.text('编辑'), findsNothing);
+      expect(find.text('删除'), findsOneWidget);
+      await _closeMenu(tester);
+      // 可见的旧评价（id=1）：查看课程 / 编辑 / 删除。
+      await _openOwnMenu(tester, 1);
+      expect(find.text('查看详情'), findsOneWidget);
+      expect(find.text('编辑'), findsOneWidget);
+      expect(find.text('删除'), findsOneWidget);
+      await _closeMenu(tester);
+      expect(find.text('编辑'), findsNothing);
+      expect(find.text('删除'), findsNothing);
     },
   );
 }

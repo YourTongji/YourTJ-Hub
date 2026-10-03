@@ -1259,6 +1259,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String get courseDetailReviews => '評価';
 
   @override
+  String get courseShareThisReview => 'このレビュー';
+
+  @override
   String get courseDetailOfferings => 'クラス';
 
   @override
@@ -2024,6 +2027,20 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get courseCopyAnonymousLabel => '匿名で投稿（一般公開では身元を隠す）';
+
+  @override
+  String get courseCopyAnonymousTitle => '匿名で投稿';
+
+  @override
+  String get courseCopyAnonymousHint => '身元は公開されません';
+
+  @override
+  String courseCopyPublishAs(String name) {
+    return '$name として投稿';
+  }
+
+  @override
+  String get courseCopyPublishPublic => '公開プロフィール';
 
   @override
   String get courseCopySubmitSuccess => '送信しました';

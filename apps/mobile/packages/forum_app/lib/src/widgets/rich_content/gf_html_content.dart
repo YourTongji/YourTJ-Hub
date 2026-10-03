@@ -22,6 +22,7 @@ class GfHtmlContent extends StatelessWidget {
     super.key,
     required this.html,
     required this.profile,
+    this.colors,
     this.htmlKey,
     this.baseUrl,
     this.factoryBuilder,
@@ -33,6 +34,10 @@ class GfHtmlContent extends StatelessWidget {
 
   final String html;
   final GfRichContentTypography profile;
+
+  /// Palette override for share cards (same contract as `GfMarkdownView.colors`);
+  /// ordinary reading uses the app theme.
+  final GfColors? colors;
 
   /// Forwarded to the underlying `HtmlWidget` so callers keep anchor scrolling.
   final Key? htmlKey;
@@ -49,7 +54,7 @@ class GfHtmlContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final GfColors colors = GfTheme.colorsOf(context);
+    final GfColors colors = this.colors ?? GfTheme.colorsOf(context);
     final GfBorders borders = GfTheme.bordersOf(context);
     final CustomStylesBuilder shared = gfHtmlContentStyles(
       profile: profile,

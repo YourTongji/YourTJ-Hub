@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../gf_motion.dart';
@@ -6,8 +8,10 @@ import '../gf_motion.dart';
 ///
 /// Short sheets fit their content; long sheets must provide a scrollable body.
 /// [height] includes the optional handle and is constrained to the viewport.
-/// This boundary owns safe areas and, when [keyboardAware], keyboard avoidance.
-/// Builders must not add `viewInsets` again.
+/// This boundary owns safe areas and, when [keyboardAware], keyboard avoidance:
+/// the panel is clamped to the space above the keyboard, so an explicit height
+/// can never lift the sheet's own top off-screen. Builders must not add
+/// `viewInsets` again.
 Future<T?> showGfBottomSheet<T>(
   BuildContext context, {
   required WidgetBuilder builder,
@@ -41,63 +45,75 @@ Future<T?> showGfBottomSheet<T>(
       barrierOnTapHint: localizations.scrimOnTapHint(
         localizations.bottomSheetLabel,
       ),
-      builder: (sheetContext) => AnimatedPadding(
-        duration: GfMotion.duration(sheetContext, GfMotion.content),
-        curve: GfMotion.enterCurve,
-        padding: EdgeInsets.only(
-          bottom: keyboardAware
-              ? MediaQuery.viewInsetsOf(sheetContext).bottom
-              : 0,
-        ),
-        child: Builder(
-          builder: (surfaceContext) {
-            final theme = Theme.of(surfaceContext);
-            final sheetTheme = theme.bottomSheetTheme;
-            // Paint inside the keyboard padding, including the home indicator.
-            // The route consumes top/side insets; nested builders see no
-            // remaining bottom inset and must not add keyboard padding again.
-            return Material(
-              color: sheetTheme.backgroundColor ?? theme.colorScheme.surface,
-              elevation: sheetTheme.elevation ?? 0,
-              shape: sheetTheme.shape,
-              clipBehavior: Clip.antiAlias,
-              child: SafeArea(
-                top: false,
-                child: SizedBox(
-                  width: double.infinity,
-                  height: height,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (showDragHandle ?? enableDrag)
-                        ExcludeSemantics(
-                          child: SizedBox(
-                            height: 28,
-                            child: Center(
-                              child: Container(
-                                width: 32,
-                                height: 4,
-                                decoration: BoxDecoration(
-                                  color: theme.colorScheme.onSurfaceVariant
-                                      .withValues(alpha: 0.3),
-                                  borderRadius: BorderRadius.circular(2),
+      builder: (sheetContext) {
+        // Keyboard avoidance: pad by the keyboard inset and, when the caller
+        // asked for an explicit height, never let the panel be taller than the
+        // space that is left above it. Without the clamp a 600px panel plus a
+        // 300px keyboard asks for more height than the viewport has, and the
+        // top of the sheet (title, first controls) leaves the screen.
+        final double insets = keyboardAware
+            ? MediaQuery.viewInsetsOf(sheetContext).bottom
+            : 0;
+        final double? panelHeight = height == null
+            ? null
+            : math.min(
+                height,
+                math.max(0.0, MediaQuery.sizeOf(sheetContext).height - insets),
+              );
+        return AnimatedPadding(
+          duration: GfMotion.duration(sheetContext, GfMotion.content),
+          curve: GfMotion.enterCurve,
+          padding: EdgeInsets.only(bottom: insets),
+          child: Builder(
+            builder: (surfaceContext) {
+              final theme = Theme.of(surfaceContext);
+              final sheetTheme = theme.bottomSheetTheme;
+              // Paint inside the keyboard padding, including the home indicator.
+              // The route consumes top/side insets; nested builders see no
+              // remaining bottom inset and must not add keyboard padding again.
+              return Material(
+                color: sheetTheme.backgroundColor ?? theme.colorScheme.surface,
+                elevation: sheetTheme.elevation ?? 0,
+                shape: sheetTheme.shape,
+                clipBehavior: Clip.antiAlias,
+                child: SafeArea(
+                  top: false,
+                  child: SizedBox(
+                    width: double.infinity,
+                    height: panelHeight,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (showDragHandle ?? enableDrag)
+                          ExcludeSemantics(
+                            child: SizedBox(
+                              height: 28,
+                              child: Center(
+                                child: Container(
+                                  width: 32,
+                                  height: 4,
+                                  decoration: BoxDecoration(
+                                    color: theme.colorScheme.onSurfaceVariant
+                                        .withValues(alpha: 0.3),
+                                    borderRadius: BorderRadius.circular(2),
+                                  ),
                                 ),
                               ),
                             ),
                           ),
-                        ),
-                      if (height != null)
-                        Expanded(child: Builder(builder: builder))
-                      else
-                        Flexible(child: Builder(builder: builder)),
-                    ],
+                        if (panelHeight != null)
+                          Expanded(child: Builder(builder: builder))
+                        else
+                          Flexible(child: Builder(builder: builder)),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-            );
-          },
-        ),
-      ),
+              );
+            },
+          ),
+        );
+      },
     ),
   );
 }

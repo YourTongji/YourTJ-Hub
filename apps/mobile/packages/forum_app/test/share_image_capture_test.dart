@@ -72,7 +72,11 @@ void main() {
             child: const SizedBox(
               width: 40,
               height: 40,
-              child: ShareImageNetworkImage('pending-image', width: 40, height: 40),
+              child: ShareImageNetworkImage(
+                'pending-image',
+                width: 40,
+                height: 40,
+              ),
             ),
           ),
         ),
@@ -103,7 +107,7 @@ void main() {
     pixel.dispose();
   });
 
-  testWidgets('direct capture returns a 2x PNG', (tester) async {
+  testWidgets('direct capture returns a 3x PNG', (tester) async {
     final key = GlobalKey();
     await tester.pumpWidget(
       MaterialApp(
@@ -124,7 +128,7 @@ void main() {
       () => captureShareImageForTesting(key),
     ))!;
     final decoded = img.decodePng(bytes)!;
-    expect((decoded.width, decoded.height), (240, 160));
+    expect((decoded.width, decoded.height), (360, 240));
     expect(decoded.getPixel(10, 10).r, greaterThan(240));
 
     final rejectedOversize = await tester.runAsync(() async {
@@ -190,9 +194,9 @@ void main() {
       () => captureShareImageForTesting(key),
     ))!;
     final decoded = img.decodePng(bytes)!;
-    expect((decoded.width, decoded.height), (750, 4400));
+    expect((decoded.width, decoded.height), (1125, 6600));
     expect(decoded.getPixel(10, 10).r, greaterThan(240));
-    expect(decoded.getPixel(10, 4390).b, greaterThan(240));
+    expect(decoded.getPixel(10, 6590).b, greaterThan(240));
   });
 
   testWidgets(
@@ -298,7 +302,7 @@ Bold **course notes** with an inline `code` sample.
         ))!;
         final decoded = img.decodePng(bytes)!;
         expect(bytes, isNotEmpty);
-        expect(decoded.width, 750);
+        expect(decoded.width, 1125);
         expect(decoded.height, greaterThan(500));
       }
       await tester.pumpWidget(const SizedBox.shrink());
@@ -319,9 +323,9 @@ Bold **course notes** with an inline `code` sample.
           navigatorKey: navigatorKey,
           theme: gfThemeData(Brightness.light),
           builder: (context, child) => MediaQuery(
-            data: MediaQuery.of(context).copyWith(
-              textScaler: TextScaler.linear(1.5),
-            ),
+            data: MediaQuery.of(
+              context,
+            ).copyWith(textScaler: TextScaler.linear(1.5)),
             child: child!,
           ),
           locale: const Locale('en'),
@@ -359,8 +363,9 @@ Bold **course notes** with an inline `code` sample.
         await tester.pumpAndSettle();
         expect(tester.getSize(find.byKey(cardKey)).width, 375);
         expect(
-          MediaQuery.textScalerOf(tester.element(find.byKey(scaledTextKey)))
-              .scale(100),
+          MediaQuery.textScalerOf(
+            tester.element(find.byKey(scaledTextKey)),
+          ).scale(100),
           100,
         );
         await navigatorKey.currentState!.maybePop();
@@ -368,4 +373,90 @@ Bold **course notes** with an inline `code` sample.
       }
     },
   );
+
+  testWidgets('theme swatches show each palette accent and switch the card', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(390, 900);
+    addTearDown(tester.view.reset);
+    final List<String> built = <String>[];
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: gfThemeData(Brightness.light),
+        locale: const Locale('zh'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: Center(
+              child: ElevatedButton(
+                onPressed: () => showShareImagePreview(
+                  context,
+                  fileName: 'test.png',
+                  cardBuilder: (theme) {
+                    built.add(theme.id);
+                    return ShareImageCard(
+                      theme: theme,
+                      child: const Text('card'),
+                    );
+                  },
+                ),
+                child: const Text('open'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+
+    // 淡彩主题的 base100 只有 3.5% 着色，色卡必须显示主题主色才分得出来。
+    final Finder sand = find.byKey(const ValueKey<String>('share-theme-sand'));
+    final BoxDecoration face = tester
+        .widgetList<DecoratedBox>(
+          find.descendant(of: sand, matching: find.byType(DecoratedBox)),
+        )
+        .map((box) => box.decoration)
+        .whereType<BoxDecoration>()
+        .firstWhere((d) => d.gradient != null);
+    expect(face.gradient!.colors, contains(GfColors.light.warning));
+    // 五个色卡同一行。
+    final double row = tester.getCenter(sand).dy;
+    for (final String id in <String>['paper', 'blue', 'mint', 'dark']) {
+      expect(
+        tester.getCenter(find.byKey(ValueKey<String>('share-theme-$id'))).dy,
+        closeTo(row, .5),
+      );
+    }
+    expect(tester.getSize(sand).height, greaterThanOrEqualTo(44));
+    expect(
+      tester.getSemantics(sand),
+      matchesSemantics(
+        label: '暖砂',
+        isButton: true,
+        hasSelectedState: true,
+        hasEnabledState: true,
+        isEnabled: true,
+        hasTapAction: true,
+      ),
+    );
+    await tester.tap(sand);
+    await tester.pumpAndSettle();
+    expect(built.last, 'sand');
+    expect(
+      tester.getSemantics(sand),
+      matchesSemantics(
+        label: '暖砂',
+        isButton: true,
+        hasSelectedState: true,
+        isSelected: true,
+        hasEnabledState: true,
+        isEnabled: true,
+        hasTapAction: true,
+      ),
+    );
+    expect(tester.takeException(), isNull);
+  });
 }

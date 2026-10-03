@@ -43,6 +43,7 @@ export 'src/components/gf_topic_card.dart';
 export 'src/components/atoms/gf_alert.dart';
 export 'src/components/atoms/gf_avatar.dart';
 export 'src/components/atoms/gf_avatar_stack.dart';
+export 'src/components/atoms/gf_beam_avatar.dart';
 export 'src/components/atoms/gf_badge.dart';
 export 'src/components/atoms/gf_divider.dart';
 export 'src/components/atoms/gf_input.dart';

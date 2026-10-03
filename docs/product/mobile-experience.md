@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-09-30
+> Last verified: 2026-10-01
 
 The Flutter app combines the forum, course catalog, scheduler and Wiki. Ordinary browsing and
 writing use native pages. Management uses the same first-party workspaces and permission checks as
@@ -767,36 +767,101 @@ identity survive this layout change. The header keeps a small outer margin for i
   with a persistent Done action. Session/site invalidation clears the old catalog, permissions and filters, then loads the new
   session’s catalog; queued searches and late results cannot cross identities. These interactions use the existing
   course API and SSR filter options; search service failures remain errors rather than empty results.
-- `Current`: each catalog row shows the most recent term first. When more terms exist, the row starts
-  with a `+N` control; expansion shows each term once and a localized collapse action. Term chips
-  keep at least a 44dp target and only change the row's local disclosure state.
-- `Current`: course filter chips keep at least a 44dp target, update the query immediately, and use
-  a short selected-state color transition that settles immediately when reduced motion is enabled.
+- `Current`: each catalog row shows the most recent term first. When more terms exist, the first term,
+  a `+N` counter and a chevron live in **one** disclosure chip (the term keeps the same muted colour as
+  a single-term row, so colour never implies selection); expanding swaps the counter for the localized
+  collapse action and an up chevron and lays the remaining terms out in an inner 6dp wrap, so wrapping
+  happens per group rather than one stray chip per line. Info chips (course code, terms) share one
+  spec — `type.meta` text with 4dp vertical padding, a 6% `baseContent` fill that stays visible on
+  white and dark surfaces, and the `--gf-radius-selector` (8) radius — while the metric row keeps a
+  12dp group gap against the 6dp intra-term gap (2×). Term chips keep at least a 44dp target and only
+  change the row's local disclosure state. Every metric row is laid out at the 44dp target height
+  (visible chips centred) whether or not it has a disclosure chip, so single-term and multi-term
+  cards are the same height; title and teacher lines trim their outer leading, and on device the
+  visible gaps are even (about 13dp top, title→teacher, teacher→chips and bottom) at 100%, 130% and
+  200% text scale.
+- `Current`: course filter chips are flat 32dp pills (the `--gf-radius-selector` radius, not stadium
+  pills) inside a 44dp target; the visible pill carries the label, an optional selected-count badge, a
+  chevron-down affordance for the multi-select pickers and a check for the reviews-only toggle. The row
+  scrolls horizontally with a 12dp edge fade hinting at more chips; selection updates the query
+  immediately and uses a short color transition that settles immediately when reduced motion is enabled.
+  While any search or filter is active, a 32dp square × chip (same radius, labelled “reset search and
+  filters”) leads the same row instead of a separate text button row, so the list never shifts down.
 - `Current`: course details retain offering-specific five-star reviews and existing review fields;
-  bookmark and write-review actions stay in a bottom dock. Scores share a baseline with their
-  five-point denominator. The signed-in user’s own reviews (including anonymous reviews) appear
-  first across pagination; edit/delete controls remain on those rows. Review bodies use the shared
-  Markdown renderer, and the editor uses the app’s rich Markdown surface with six Web-matched templates.
-- `Current`: review rows offer helpful/dislike, image sharing and reporting for other authors’ reviews.
-  Guests are sent to sign-in for reactions and reports. Reports require an explicit reason and limit
-  supplemental notes to 300 characters; a failed submission keeps the entered values visible. A
-  reaction switch removes the opposite state and writes the selected state in one server transaction,
-  serializing concurrent changes per review. Flutter updates counts after success and reconciles failures.
+  bookmark and write-review actions stay in a bottom bar that reserves its own layout space, so the
+  scrollable review list never renders (or taps) beneath it. Scores share a baseline with their
+  five-point denominator. The rating summary draws the average as a 104dp progress ring whose arc
+  carries the Web ring's linear `warning → primary` gradient (bottom-right to top-left, the same
+  geometry as the rotated SVG), which has no angular seam at the arc start, with a primary end dot
+  ringed in the card background; the
+  5→1 distribution bars use the same warning hue with a brightness ladder that is brightest for 5★
+  (0.95) and dimmest for 1★ (0.24). The signed-in user’s own reviews (including anonymous reviews) appear
+  first across pagination. Every review card shows a 40-pixel avatar: member reviews use the server
+  `avatarUrl`, anonymous and legacy reviews (and a member avatar that fails to load) use the shared
+  generated face seeded from the public author label plus the review id, so one review keeps the same
+  face as the Web card. Server-provided relative avatar paths are resolved against the API origin
+  before loading, for the detail card, My course reviews and the share card alike. Review metadata
+  is one wrapping run per card: term, class, instructors and the short review date (relative inside a
+  week, `M月D日` after, year only across years); class code, campus and faculty stay in the page header
+  and offering list instead of repeating on every card. Review bodies use the shared
+  Markdown renderer, and the editor uses the app’s rich Markdown surface with six Web-matched
+  templates rendered at the compact reading profile.
+  The editor toolbar can pick an image from the gallery, upload it through the shared
+  `/file/img-upload` pipeline and insert the resulting Markdown image at the caret, so a review
+  body can carry the same image content as Web without a second upload implementation; while a
+  pick or upload is pending, Publish/Save stays disabled so the image cannot be dropped. The write
+  sheet pairs the offering selector and the five 48dp rating targets on one row (selector at the
+  start, rating at the end) and keeps the publishing identity on the next full-width row: the
+  current user’s avatar and nickname with “posting as …”, or the anonymous placeholder with a
+  separate “post anonymously” title and “identity stays hidden” hint, next to the anonymity
+  switch; the copy stays complete at 320dp and 200% text scale, wraps the selector/rating pair when
+  they cannot fit, and collapses to a single scrollable row when the keyboard leaves too little height.
+- `Current`: the review action bar is one row of at least 44-pixel hit targets — helpful count,
+  dislike count and image sharing — whose visible pill is only 32dp tall (13pt label, 16pt icon,
+  12dp side padding) so the card stays reading-dense; the row scrolls horizontally on narrow
+  screens or at large text instead of wrapping. Edit and delete live in the card’s top-right overflow menu, which also carries reporting
+  for other authors’ reviews; a guest sees no report entry, and reactions send guests to sign-in.
+  Reports require an explicit reason and limit supplemental notes to 300 characters; a failed
+  submission keeps the entered values visible. The server switches a reaction in one transaction
+  (removing the opposite state and writing the selected one) and serializes concurrent changes per
+  review. A reaction toggle keeps the list mounted with no loading state or re-read and applies the
+  mutual-exclusion rule locally in the same frame: it clears an already-selected opposite side
+  first (idempotent) and then writes the target state, so older server builds still yield
+  exclusion. On failure Flutter shows a localized error; if the opposite side was already cleared
+  but the target write failed it rolls back to neither side selected (matching the server),
+  otherwise it restores the previous counts.
 - `Current`: course reviews and forum posts/replies can open a shared image preview with themes,
   fixed-width Markdown cards, save and system-share actions. Cards render at 375 logical pixels,
-  2× capture scale, and a fixed text scale; compact Markdown styles keep long posts within bounds.
+  3× capture scale, and a fixed text scale; compact Markdown styles keep long posts within bounds.
   The five palettes include paper, dark and three pastel themes; pastels are mobile-only and derive
   their surfaces from GF color tokens. Long captures are tiled at 4096 physical pixels and
   capped at 48 MiB of RGBA output (about 12.6 megapixels at the fixed width); CPU stitching and PNG
   encoding run in an isolate. Network images settle or use a stable placeholder after 20 seconds.
-  Review cards keep the public author label rules for member, anonymous and legacy reviews.
+  Review cards keep the public author label rules for member, anonymous and legacy reviews and are
+  a single white card (20dp radius, hairline border, two soft shadows tinted from the text colour)
+  floating on a deeper canvas (`base300` on light palettes, `base200` on dark): the course name
+  (22pt) with “teacher · faculty · code”, a stat bar that reads in one line (this review's score with
+  its stars | course rating | review count, hairline-divided), the server-normalized `contentHtml`
+  at a 16/1.7 reading profile with a narrow heading scale (19/18/17/16), and after a hairline the
+  signature (avatar, author, “offering · date”). Every text may wrap; nothing is ellipsized. Small
+  journal-style details live only in the outer margin and on the card edge, never over text: a
+  translucent striped washi tape across the top-left corner in the palette accent, two four-point
+  sparkles in the star colour, a halftone dot grid and a thin ring peeking from behind the card;
+  there are no gradients, glows or colour bars. Unlit stars are outlined so all five slots stay
+  visible; dark palettes use a black shadow and a lighter stat-bar fill. Body images use the reading
+  card's centred, bordered shell. The theme picker shows each palette as a 32dp swatch split
+  diagonally into the card colour and the palette accent (pastel surfaces alone are almost white;
+  Paper uses a slate accent so it stays distinct from Blue),
+  with a primary ring and label emphasis on the selected one. Secondary text and the stat bar are contrast-checked across all
+  five palettes; the preview is the exact exported card.
 - `Partial`: automated tests cover PNG capture and tiled stitching; native save/share behavior and
   visual layout still need simulator and device acceptance.
 - `Current`: Profile includes a private My course reviews entry for paginated management across
-  courses, including anonymous reviews. Each visible review can be edited, deleted or opened at
-  its offering and review position. Hidden reviews remain listed for deletion, with no edit or
-  public-detail action; deleted reviews are omitted. Course detail and management share the same
-  editor and a rounded delete confirmation with the target review excerpt and explicit cancel.
+  courses, including anonymous reviews. Management rows reuse the detail card’s avatar and top-right
+  overflow menu (open course / edit / delete) instead of a wrapping action row. Hidden reviews remain
+  listed for deletion, with no edit or public-detail action; deleted reviews are omitted. Course
+  detail and management share the same editor and a rounded delete confirmation with the target
+  review excerpt and explicit cancel.
 - `Current`: shared transient feedback appears in dismissible top banners above sheets, below
   the system safe area. Course review failures show localized server reasons and preserve the
   draft; success and error messages use the same surface with distinct semantic icons.
@@ -1271,7 +1336,17 @@ move actions. Saved edits retain their input until the server succeeds.
 
 `Current`: course reviews keep changed input behind an explicit discard confirmation, block dismissal
 while saving and retain the form on failure. Rating stars expose selected semantics and 48-pixel touch
-targets. Cached AI summaries start collapsed, with refresh available inside the expanded section.
+targets. The write/edit sheet is editor-first: the title, a compact meta block (offering chip and
+anonymous switch, then the rating stars), a pinned formatting toolbar and a pinned action row
+(counter plus cancel and submit) surround a body that scrolls inside its own bounded region, so long
+reviews never push the toolbar or the actions out of reach. The meta block shows every control without
+a hidden horizontal scroll while the panel has room, and falls back to one scrollable row — stars and
+anonymous switch first — only when the keyboard plus a large text scale squeeze the panel below 300
+pixels. The sheet keeps the panel above the keyboard at every supported
+text scale. Applying a template inserts into the existing controller in place — focus, selection and
+undo history survive, the caret lands after a leading heading or label (typed text does not inherit the label's bold), and a non-empty body still asks before
+being replaced. Templates convert line by line so the Quick template's bare `-` placeholders become
+empty bullet items instead of swallowing the Pros/Cons labels above them. Cached AI summaries start collapsed, with refresh available inside the expanded section.
 Settings show current device preferences, readable device/browser session names and platform-specific
 push disclosure; account closure remains inside account settings rather than the main index.
 

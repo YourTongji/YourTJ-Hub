@@ -1276,6 +1276,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get courseDetailReviews => 'Reviews';
 
   @override
+  String get courseShareThisReview => 'This review';
+
+  @override
   String get courseDetailOfferings => 'Classes';
 
   @override
@@ -2068,6 +2071,20 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get courseCopyAnonymousLabel =>
       'Post anonymously (identity hidden from the public)';
+
+  @override
+  String get courseCopyAnonymousTitle => 'Post anonymously';
+
+  @override
+  String get courseCopyAnonymousHint => 'Your identity stays hidden';
+
+  @override
+  String courseCopyPublishAs(String name) {
+    return 'Posting as $name';
+  }
+
+  @override
+  String get courseCopyPublishPublic => 'Public identity';
 
   @override
   String get courseCopySubmitSuccess => 'Submitted';
