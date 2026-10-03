@@ -23,10 +23,15 @@ def stage(dist, destination, source_sha, version):
     if '..' in relative.parts:
         raise ValueError('Unsafe artifact path')
     binary = dist / relative
+    metadata = json.loads((dist / 'metadata.json').read_text(encoding='utf-8'))
+    for field, value in [('version', version), ('commit', source_sha)]:
+        if metadata.get(field) != value:
+            raise ValueError('GoReleaser metadata does not match approved ' + field)
+    # -trimpath omits -ldflags (https://go.dev/issue/52372), including injected version flags.
+    # Bind GoReleaser's version metadata to the executable's independently embedded source revision.
     build_info = subprocess.check_output(['go', 'version', '-m', str(binary)], text=True)
-    for field, value in [('Version', version), ('Commit', source_sha)]:
-        if re.findall(r'buildinfo\.' + field + r'=([^\s"\\]+)', build_info) != [value]:
-            raise ValueError('Binary build metadata does not match approved ' + field)
+    if re.findall(r'^\s*build\s+vcs\.revision=(\S+)$', build_info, re.MULTILINE) != [source_sha]:
+        raise ValueError('Binary VCS metadata does not match approved source')
     destination.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(binary, destination / 'yourtj-hub')
     (destination / 'yourtj-hub').chmod(0o755)

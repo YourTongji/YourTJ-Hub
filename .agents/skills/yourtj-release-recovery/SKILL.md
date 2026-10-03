@@ -17,8 +17,11 @@ withdraw another store version, overwrite APKs, recycle build numbers or choose 
 
 Recover retained original build artifacts or the exact Apple build. If required artifacts expired
 and the external platform has no usable original, stop that recovery and prepare a new reviewed
-version when authorized. Rebuilding the same identity is not a retry. After an uncertain Apple
+version when authorized. Rebuilding a saved binary identity is not a retry. After an uncertain Apple
 upload, query before transferring again. A recorded submission alone never means App Store live.
+Web Recover may repeat a failed attempt before any archives were saved, only with the original
+skipped-upload steps and absence checks required by the runbook. Retained/expired archives and
+published binary identities cannot use this exception.
 
 Production rollback is a separate operational decision. Identify the target image digest,
 configuration and database compatibility; obtain explicit rollback intent if absent. Never restore

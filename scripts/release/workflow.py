@@ -15,6 +15,31 @@ from notes import draft_notes, render, render_structured
 from catalog import publish_catalog
 
 
+def web_recovery_needs_build(github, manifest, details):
+    """Repeat only a failed attempt that never saved or published its build."""
+    build_run = details['buildRunId']
+    artifacts = [item for item in github.pages(f'actions/runs/{build_run}/artifacts', key='artifacts')
+                 if item.get('name') == 'web-' + manifest['tag']]
+    if artifacts:
+        require(len(artifacts) == 1 and artifacts[0].get('expired') is False,
+                'Original web archives expired or are ambiguous; prepare a new release')
+        return False
+    require(not details.get('binarySha256'), 'Original web binary is missing; prepare a new release')
+    original = github.api(f'actions/runs/{build_run}')
+    require(original.get('status') == 'completed' and original.get('conclusion') in {'failure', 'cancelled', 'timed_out'},
+            'Original web build has not failed; refuse another build')
+    jobs = [job for job in github.pages(f'actions/runs/{build_run}/jobs?filter=all', key='jobs')
+            if job.get('name', '').endswith('web / assets')]
+    for job in jobs:
+        uploads = [step for step in job.get('steps', []) if step.get('name') == 'Preserve original distribution archives']
+        require(len(uploads) == 1 and uploads[0].get('conclusion') == 'skipped',
+                'Original web archives were saved or upload is uncertain; prepare a new release')
+    require(jobs, 'Original web build steps are unavailable; refuse another build')
+    require(github.api('releases/tags/' + manifest['tag'], missing=True) is None,
+            'Web release already exists; refuse another build')
+    return True
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("command", choices=["prepare", "create-pr", "draft-notes", "render", "render-structured", "publish-catalog", "authorize", "reserve", "receipt", "validate-pr", "review-check", "discover", "start", "verify-apple", "verify-publication", "verify-deploy"])
@@ -199,8 +224,14 @@ def main():
             require(not recover or manifest["operation"] == "promote-ios", "No original build receipt for recovery")
             build_run = os.environ["GITHUB_RUN_ID"]
         prior_details = prior["deployment"]["payload"]["details"] if prior else {}
+        build_required = not recover
+        if channel == 'web' and recover and not prior_details.get('image'):
+            build_required = web_recovery_needs_build(github, manifest, prior_details)
+            if build_required:
+                build_run = os.environ['GITHUB_RUN_ID']
         record(github, manifest, binding, channel, "in_progress", prior_details | {"buildRunId": build_run, "runId": os.environ["GITHUB_RUN_ID"], "availability": "executing"})
         with open(os.environ["GITHUB_OUTPUT"], "a") as out:
+            out.write('build_required=' + str(build_required).lower() + '\n')
             out.write("binary=" + str(prior_details.get("binarySha256", "")) + "\n")
             out.write("image=" + str(prior_details.get("image", "")) + "\n")
             out.write(f"build_run_id={build_run}\n")

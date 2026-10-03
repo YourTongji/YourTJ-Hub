@@ -201,7 +201,10 @@ those outputs. Concurrent execution is serialized per platform; deploy/config tr
 and are not automatically cancelled. Queued concurrency uses GitHub's `queue: max` policy.
 
 - Web: GoReleaser builds archives once with explicit source/version metadata and approved notes. The
-  exact Linux binary is packaged into GHCR. Production consumes a digest-qualified image reference,
+  archive metadata must match the approved version/source, and the Linux executable's embedded VCS
+  revision must match that source. `-trimpath` removes recorded linker flags, so those flags are not
+  used as binary version evidence. Archives are retained before executable validation. The exact
+  Linux binary is packaged into GHCR. Production consumes a digest-qualified image reference,
   waits for health, and compares the running binary digest. A failed deployment records failure even
   when release archives are already downloadable. Image/config rollback does not restore the database.
 - Android: signed APK package, architecture, version code, certificate and server-side asset digests
@@ -225,6 +228,12 @@ original approval, restores the original build artifact, and cannot add targets.
 refreshes stable download links. iOS queries Apple before restoring an IPA; an existing Apple build can
 resume even when the temporary archive has expired. If required original artifacts are unavailable,
 stop and prepare a newly reviewed identity rather than rebuilding the same version silently.
+For Web only, a failed build attempt can run again from the same approved source/version if no
+archives were ever saved: the original run must have finished unsuccessfully, every archive-upload
+step must be explicitly skipped, no binary digest may have been recorded, and the immutable GitHub
+Release must not exist. Recover checks artifact inventory and all original job attempts before
+assigning the new build run. An expired/deleted archive, uncertain upload or API failure blocks
+another build. This exception does not apply to Android/iOS or an existing production image.
 An existing production image without its original digest receipt also blocks another push; reconcile
 the original identity/receipt or prepare a new release. Registry errors are not absence proofs.
 
