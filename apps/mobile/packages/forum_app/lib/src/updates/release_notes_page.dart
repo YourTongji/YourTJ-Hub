@@ -12,9 +12,7 @@ import 'release_notes.dart';
 import 'release_notes_view.dart';
 
 class ReleaseNotesPage extends StatefulWidget {
-  const ReleaseNotesPage({super.key, this.initialIosChannel = 'ios-app-store'});
-
-  final String initialIosChannel;
+  const ReleaseNotesPage({super.key});
 
   @override
   State<ReleaseNotesPage> createState() => _ReleaseNotesPageState();
@@ -25,8 +23,8 @@ class _ReleaseNotesPageState extends State<ReleaseNotesPage> {
   ReleaseNoteCatalog? _catalog;
   IosStoreListing? _appStore;
   bool _loading = true;
-  late String _iosChannel = widget.initialIosChannel;
-  String get _platform => Platform.isAndroid ? 'android' : _iosChannel;
+  // Public history follows the user's platform; beta instructions belong in TestFlight.
+  String get _platform => Platform.isAndroid ? 'android' : 'ios-app-store';
 
   @override
   void initState() {
@@ -77,7 +75,6 @@ class _ReleaseNotesPageState extends State<ReleaseNotesPage> {
               ...release.highlights,
               ...release.breaking,
               ...release.requiredActions,
-              ...release.testflightNotes,
             ].where((note) => note.includesChannel(_platform)).toList(),
           ),
     ].where((entry) => entry.$2.isNotEmpty).toList();
@@ -89,25 +86,7 @@ class _ReleaseNotesPageState extends State<ReleaseNotesPage> {
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
           children: [
-            if (Platform.isIOS)
-              SegmentedButton<String>(
-                segments: const [
-                  ButtonSegment(
-                    value: 'ios-app-store',
-                    label: Text('App Store'),
-                  ),
-                  ButtonSegment(
-                    value: 'ios-testflight',
-                    label: Text('TestFlight'),
-                  ),
-                ],
-                selected: {_iosChannel},
-                onSelectionChanged: (value) =>
-                    setState(() => _iosChannel = value.first),
-              ),
-            if (Platform.isIOS &&
-                _iosChannel == 'ios-app-store' &&
-                _appStore != null)
+            if (Platform.isIOS && _appStore != null)
               Align(
                 alignment: Alignment.centerLeft,
                 child: TextButton.icon(

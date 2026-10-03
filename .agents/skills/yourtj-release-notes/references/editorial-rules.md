@@ -21,3 +21,17 @@ about 12 Chinese characters or fewer, and put the detail in one summary sentence
 repeat the title. Check that each drafted kind matches the user-visible change; the PR type it
 was derived from describes the code change, not always what users notice. Keep `pr-<number>`
 IDs, and replace remaining `oryn-` IDs with semantic slugs.
+
+Edit the structured changelog and render the selected platform files together. New changelogs use
+`notesFormatVersion: 2`: App Store copy has plain-text section titles, blank lines and `•` bullets,
+with required notices first and empty sections omitted. Android keeps Markdown; TestFlight keeps
+English testing instructions. Keep the entire App Store file within 4000 characters, including
+formatting. Do not hand-format the text file separately: validation rejects divergence from the
+structured facts. Existing candidates without a format field retain their original bytes; follow
+the runbook's explicit upgrade procedure before a fresh human review, never during approved recovery.
+
+Keep the three iOS display surfaces distinct. The app's native update prompt and history render
+structured formal-release facts; iOS history has no channel picker. App Store What's New is the
+plain-text `ios.zh-Hans.txt` rendering. TestFlight receives `testflight.en-US.txt` as plain-text
+testing instructions for Apple's UI, not as a second user-facing history tab or automatic in-app
+beta-notes prompt. Missing formal history must not fall back to TestFlight copy.

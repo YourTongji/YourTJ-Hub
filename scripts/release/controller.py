@@ -7,7 +7,7 @@ import re
 import subprocess
 import tempfile
 import time
-from model import (CHANGELOG, FILES, ID, SHA, REPOSITORY, ReleaseError, require, digest, channels_for,
+from model import (CHANGELOG, FILES, ID, SHA, NOTES_FORMAT_VERSION, REPOSITORY, ReleaseError, require, digest, channels_for,
                    next_identity, validate_candidate, validate_approval)
 from github import GitHub, git, run
 from collect import collect
@@ -123,7 +123,7 @@ def prepare(manifest, github, folder):
     for filename in [*manifest["notes"].values()] + (["operators.zh-CN.md"] if manifest["product"] == "web" else []):
         (folder / filename).write_text("[DRAFT: human review required — complete from evidence.json]\n", encoding='utf-8')
     if manifest["product"] == "mobile":
-        write_json(folder / CHANGELOG, {"schemaVersion": 1, "version": manifest["version"],
+        write_json(folder / CHANGELOG, {"schemaVersion": 1, "notesFormatVersion": NOTES_FORMAT_VERSION, "version": manifest["version"],
                    "buildNumber": manifest["buildNumber"], "highlights": [], "breaking": [],
                    "requiredActions": [], "evidence": {}, "testflightNotes": []})
     return request

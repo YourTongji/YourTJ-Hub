@@ -54,6 +54,7 @@ dependencies:
   flutter_svg: ^2.3.0
   animated_text_effects: ^0.0.7
 dev_dependencies:
+  url_launcher_platform_interface: ^2.3.2
   flutter_secure_storage_platform_interface: ^1.1.2
   shared_preferences_platform_interface: ^2.4.2
   path_provider_platform_interface: ^2.1.2

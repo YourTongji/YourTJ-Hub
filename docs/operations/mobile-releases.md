@@ -31,6 +31,14 @@ What's New comes only from `android.zh-CN.md`; iOS store text comes from `ios.zh
 TestFlight uses separate English testing notes. Static store description/screenshots remain under
 `apps/mobile/store/`; `metadata.json` What's New is not a publishing fallback.
 
+The user-facing app renders structured formal release notes with its own typography and sections;
+it does not display the App Store text file. iOS About history shows only App Store releases, without
+a TestFlight tab. Store-page What's New is a separate plain-text rendering. TestFlight's separate
+plain-text testing instructions are displayed by Apple; see [Apple's test-information guide](https://developer.apple.com/help/app-store-connect/test-a-beta-version/provide-test-information/).
+The app does not show a second automatic beta-notes prompt. Manual update checks from a TestFlight
+build open the existing TestFlight App Store product-page fallback; they do not open a YourTJ beta
+deep link. Missing App Store history is never filled from TestFlight.
+
 New release requests use reviewed structured changelog facts and evidence references to render each
 channel's notes. The status site's `/mobile/releases.json` catalog appears only after a successful
 channel receipt is bound to the merged candidate's source SHA and content digest. App Store submission
