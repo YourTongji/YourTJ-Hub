@@ -3,6 +3,12 @@ on:
   push:
     branches: [main]
     paths: ['releases/requests/**']
+  workflow_dispatch:
+    inputs:
+      candidate:
+        description: Merged approved candidate whose publishers have not started (select main)
+        type: string
+        required: true
   workflow_call:
     inputs:
       candidate:
@@ -59,6 +65,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           CANDIDATE: ${{ needs.discover.outputs.candidate }}
           REQUESTED_CHANNEL: ${{ inputs.channel }}
+          INITIAL_PUBLICATION: ${{ github.event_name == 'workflow_dispatch' && !inputs.recover }}
         run: python3 scripts/release/workflow.py authorize
   backend:
     needs: authorize
@@ -124,7 +131,8 @@ jobs:
         run: python3 scripts/release/workflow.py reserve
   web:
     needs: [authorize, reserve]
-    if: contains(fromJSON(needs.authorize.outputs.channels), 'web') && (inputs.channel == '' || inputs.channel == 'web')
+    # Explicit status function avoids propagating skipped, unselected source checks through reserve.
+    if: ${{ !cancelled() && needs.authorize.result == 'success' && needs.reserve.result == 'success' && contains(fromJSON(needs.authorize.outputs.channels), 'web') && (inputs.channel == '' || inputs.channel == 'web') }}
     uses: ./.github/workflows/release-web.yml
     with:
       candidate: ${{ needs.authorize.outputs.candidate }}
@@ -141,7 +149,7 @@ jobs:
       checks: read
   android:
     needs: [authorize, reserve]
-    if: contains(fromJSON(needs.authorize.outputs.channels), 'android') && (inputs.channel == '' || startsWith(inputs.channel, 'android'))
+    if: ${{ !cancelled() && needs.authorize.result == 'success' && needs.reserve.result == 'success' && contains(fromJSON(needs.authorize.outputs.channels), 'android') && (inputs.channel == '' || startsWith(inputs.channel, 'android')) }}
     uses: ./.github/workflows/release-android.yml
     with:
       candidate: ${{ needs.authorize.outputs.candidate }}
@@ -160,7 +168,7 @@ jobs:
       checks: read
   ios:
     needs: [authorize, reserve]
-    if: (contains(fromJSON(needs.authorize.outputs.channels), 'ios-testflight') || contains(fromJSON(needs.authorize.outputs.channels), 'ios-app-store')) && (inputs.channel == '' || startsWith(inputs.channel, 'ios-'))
+    if: ${{ !cancelled() && needs.authorize.result == 'success' && needs.reserve.result == 'success' && (contains(fromJSON(needs.authorize.outputs.channels), 'ios-testflight') || contains(fromJSON(needs.authorize.outputs.channels), 'ios-app-store')) && (inputs.channel == '' || startsWith(inputs.channel, 'ios-')) }}
     uses: ./.github/workflows/release-ios.yml
     with:
       candidate: ${{ needs.authorize.outputs.candidate }}
@@ -178,3 +186,18 @@ jobs:
       actions: read
       pull-requests: read
       checks: read
+
+  published:
+    needs: [authorize, reserve, web, android, ios]
+    if: ${{ !cancelled() && needs.authorize.result == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Require every selected publisher to succeed
+        env:
+          CHANNELS: ${{ needs.authorize.outputs.channels }}
+          REQUESTED_CHANNEL: ${{ inputs.channel }}
+          RESULTS: ${{ toJSON(needs) }}
+        run: python3 scripts/release/verify_jobs.py

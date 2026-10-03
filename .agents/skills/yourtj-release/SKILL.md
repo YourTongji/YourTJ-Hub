@@ -11,7 +11,7 @@ are authoritative. Git, Python and authenticated `gh` are sufficient. Signing an
 runtime stay in Actions. No Codex-specific tool is required.
 
 - Inspect intent first: a status/analysis request is read-only. `plan`, `doctor`, `status`, `validate`
-  do not publish. `prepare`, `retry` and `promote-ios` default to dry-run; use `--apply` within the
+  do not publish. `prepare`, `publish`, `retry` and `promote-ios` default to dry-run; use `--apply` within the
   user's existing authorization. Preparing a release creates a review request; it does not approve it.
 - Identify platform and destination. `mobile` means Android plus iOS; iOS defaults to TestFlight.
   Don't widen Android to both platforms or TestFlight to App Store. Ask only if those choices are
@@ -26,6 +26,9 @@ runtime stay in Actions. No Codex-specific tool is required.
   One eligible human must APPROVE the final head; an agent's approval, label or manifest flag does
   not satisfy this requirement. Any source, target, evidence or note edit needs fresh review.
 - After an authorized merge, inspect channel receipts with `status --candidate <id> --json`.
+  If publication never started and no channel has an execution receipt, `publish --candidate <id>
+  --apply` resumes initial publication from the current main controller with the same approved source
+  and notes. A reserved tag is not a build. Existing execution receipts require `retry`/Recover.
   App Store submission is not live distribution. For partial outcomes route to
   [yourtj-release-recovery](../yourtj-release-recovery/SKILL.md).
 

@@ -24,6 +24,7 @@ python3 scripts/release/cli.py plan --scope android --source main --bump patch -
 python3 scripts/release/cli.py prepare --scope mobile --source main --bump patch --ios-destination testflight --apply
 python3 scripts/release/cli.py validate --candidate mobile-1.0.15-15 --json
 python3 scripts/release/cli.py status --candidate mobile-1.0.15-15 --json
+python3 scripts/release/cli.py publish --candidate web-0.0.50 --dry-run
 python3 scripts/release/cli.py retry --candidate mobile-1.0.15-15 --channel ios-testflight --dry-run
 python3 scripts/release/cli.py promote-ios --release mobile-1.0.15-15 --to app-store --apply
 ```
@@ -180,6 +181,18 @@ they do not require artificial Android or App Store highlights.
 baselines and any server dependency. It separately verifies the fixed source: web backend/race/PG,
 frontend/browser/i18n, contract and current govulncheck; mobile analysis/package tests and selected
 platform signing/build validation. Green metadata-only PR CI is not application verification.
+
+If a merged request stopped before any platform publisher started, use `publish --candidate <id>
+--apply` (or **Release / Publish** on main with that candidate ID) to start its initial publication.
+A reserved tag alone does not establish a build. This entry accepts only the candidate ID, reloads
+the merged approved files, runs all selected source checks and verifies the immutable reservation.
+It cannot choose another source or add targets. Once any channel has an execution receipt, use
+Recover for that channel's original artifacts; `publish` refuses to treat it as a new build.
+Each selected publisher explicitly requires successful authorization and reservation, even when
+unselected source checks are skipped. The final publication check fails if a selected publisher
+is skipped, failed or cancelled; a green source-check matrix alone cannot complete the release.
+The explicit status function follows [GitHub's status-check expression semantics](https://docs.github.com/en/actions/reference/workflows-and-actions/expressions#status-check-functions):
+conditions without one inherit `success()`, which can skip jobs after an unselected dependency.
 
 Platform publishers are reusable workflows with main-only guards. They cannot be launched with arbitrary
 public workflow-dispatch inputs. Each rechecks approval before side effects. Publishers also require

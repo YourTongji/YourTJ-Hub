@@ -14,7 +14,7 @@ from state import latest_receipt
 def parser():
     root = argparse.ArgumentParser(description=__doc__)
     sub = root.add_subparsers(dest="command", required=True)
-    for name in ["status", "doctor", "plan", "prepare", "validate", "retry", "promote-ios"]:
+    for name in ["status", "doctor", "plan", "prepare", "validate", "publish", "retry", "promote-ios"]:
         cmd = sub.add_parser(name)
         cmd.add_argument("--json", action="store_true", help="stable schemaVersion=1 JSON output")
         if name in {"plan", "prepare", "doctor"}:
@@ -24,14 +24,14 @@ def parser():
             cmd.add_argument("--bump", choices=["patch", "minor", "major"], default="patch")
             cmd.add_argument("--ios-destination", choices=["testflight", "app-store"], default="testflight")
             cmd.add_argument("--apple-state", type=Path, help="read-only ASC discovery JSON for local planning")
-        if name in {"status", "validate", "retry"}:
+        if name in {"status", "validate", "publish", "retry"}:
             cmd.add_argument("--candidate", required=name != "status")
         if name == "retry":
             cmd.add_argument("--channel", choices=["web", "android", "android-alias", "ios-testflight", "ios-app-store"], required=True)
         if name == "promote-ios":
             cmd.add_argument("--release", required=True, help="existing candidate ID")
             cmd.add_argument("--to", choices=["app-store"], default="app-store")
-        if name in {"prepare", "retry", "promote-ios"}:
+        if name in {"prepare", "publish", "retry", "promote-ios"}:
             mode = cmd.add_mutually_exclusive_group()
             mode.add_argument("--apply", action="store_true", help="perform the user-authorized dispatch on main")
             mode.add_argument("--dry-run", action="store_true", help="show request; default, no remote writes")
@@ -82,6 +82,15 @@ def inspect_candidate(args, github, folder):
     content_digest = validate_candidate(manifest, folder, draft=args.command == "status")
     if args.command == "validate":
         return {"candidateId": args.candidate, "valid": True, "contentDigest": content_digest, "approval": "must be checked against live GitHub reviews"}
+    if args.command == "publish":
+        # A reserved tag does not mean a publisher started. Once any channel has a start
+        # receipt, resume original artifacts with Recover rather than rebuilding its identity.
+        for channel in manifest['channels']:
+            require(latest_receipt(github, args.candidate, channel) is None,
+                    'Publication already started; use Recover for the original artifacts')
+        inputs = {'candidate': args.candidate}
+        return github.dispatch('release-publish.yml', inputs) if args.apply else {
+            'dryRun': True, 'workflow': 'release-publish.yml', 'ref': 'main', 'inputs': inputs}
     if args.command == "retry":
         channel = "android" if args.channel == "android-alias" else args.channel
         require(channel in manifest["channels"], "Recovery cannot widen the approved targets")
