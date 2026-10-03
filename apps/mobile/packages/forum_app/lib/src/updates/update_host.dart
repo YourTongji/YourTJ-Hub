@@ -12,9 +12,8 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../l10n/app_localizations.dart';
 import 'android_release.dart';
 import 'release_notes.dart';
-import 'release_notes_page.dart';
 import 'ios_store_release.dart';
-import 'update_dialog_body.dart';
+import 'update_prompt_sheet.dart';
 
 const updateChannel = MethodChannel('yourtj/app_updates');
 const testFlightAppUrl = 'https://apps.apple.com/app/testflight/id899247664';
@@ -100,12 +99,13 @@ class MobileUpdateHostState extends State<MobileUpdateHost>
           preferences.getInt('update.skippedBuild') == release.buildNumber) {
         return;
       }
-      await showDialog<void>(
-        context: context,
-        animationStyle: GfMotion.dialogStyle(context),
+      await showGfBottomSheet<void>(
+        context,
         barrierDismissible: false,
+        enableDrag: false,
         builder: (_) => _UpdateDialog(
           release: release,
+          installedVersion: info['version'] as String?,
           installedBuild: (info['buildNumber'] as num).toInt(),
           client: _client,
           preferences: preferences,
@@ -178,15 +178,16 @@ class MobileUpdateHostState extends State<MobileUpdateHost>
           preferences.getInt('update.skippedIosBuild') == target.buildNumber) {
         return;
       }
-      await showDialog<void>(
-        context: context,
-        animationStyle: GfMotion.dialogStyle(context),
+      await showGfBottomSheet<void>(
+        context,
         barrierDismissible: false,
+        enableDrag: false,
         builder: (_) => _IosUpdateDialog(
           testFlight: true,
           version: target.version,
           targetBuild: target.buildNumber,
           listing: null,
+          installedVersion: info['version'] as String?,
           installedBuild: installedBuild.toInt(),
           client: _client,
           preferences: preferences,
@@ -233,15 +234,16 @@ class MobileUpdateHostState extends State<MobileUpdateHost>
         preferences.getString('update.skippedIosVersion') == listing.version) {
       return;
     }
-    await showDialog<void>(
-      context: context,
-      animationStyle: GfMotion.dialogStyle(context),
+    await showGfBottomSheet<void>(
+      context,
       barrierDismissible: false,
+      enableDrag: false,
       builder: (_) => _IosUpdateDialog(
         testFlight: false,
         version: listing.version,
         targetBuild: null,
         listing: listing,
+        installedVersion: installedVersion,
         installedBuild: installedBuild.toInt(),
         client: _client,
         preferences: preferences,
@@ -256,11 +258,13 @@ class MobileUpdateHostState extends State<MobileUpdateHost>
 class _UpdateDialog extends StatefulWidget {
   const _UpdateDialog({
     required this.release,
+    required this.installedVersion,
     required this.installedBuild,
     required this.client,
     required this.preferences,
   });
   final AndroidRelease release;
+  final String? installedVersion;
   final int installedBuild;
   final AndroidReleaseClient client;
   final SharedPreferences preferences;
@@ -365,53 +369,30 @@ class _UpdateDialogState extends State<_UpdateDialog> {
       if (context.mounted) Navigator.pop(context);
     }
 
-    return AlertDialog(
-      title: Text('${l10n.updateAvailable} ${_release.version}'),
-      content: UpdateDialogBody(
-        sizeBytes: _release.size,
-        notes: promptReleaseNotes(_release.notes),
-        historyComplete: _release.hasCompleteHistory,
-        working: _working,
-        failed: _failed,
-        needsPermission: _needsPermission,
-        ready: _apk != null,
-        receivedBytes: _received,
-        footer: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (_release.notes.where((note) => !note.required).length > 5)
-              TextButton(
-                onPressed: () => Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => const ReleaseNotesPage(),
-                  ),
-                ),
-                child: Text(l10n.releaseNotesMore),
-              ),
-            if (!_working && _apk == null)
-              TextButton(onPressed: skip, child: Text(l10n.updateSkip)),
-          ],
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: Text(_working ? l10n.commonCancel : l10n.updateLater),
-        ),
-        if (!_working)
-          FilledButton(
-            onPressed: _apk == null ? _download : _install,
-            child: Text(
-              _needsPermission
-                  ? l10n.updateOpenPermissionSettings
-                  : _apk != null
-                  ? l10n.updateInstall
-                  : _failed
-                  ? l10n.updateRetry
-                  : l10n.updateDownload,
-            ),
-          ),
-      ],
+    return UpdatePromptSheet(
+      version: _release.version,
+      installedVersion: widget.installedVersion,
+      sizeBytes: _release.size,
+      notes: _release.notes,
+      historyComplete: _release.hasCompleteHistory,
+      working: _working,
+      failed: _failed,
+      needsPermission: _needsPermission,
+      ready: _apk != null,
+      receivedBytes: _received,
+      failureText: l10n.updateIncomplete,
+      primaryLabel: _needsPermission
+          ? l10n.updateOpenPermissionSettings
+          : _apk != null
+          ? l10n.updateInstall
+          : _failed
+          ? l10n.updateRetry
+          : l10n.updateDownload,
+      onPrimary: _apk == null ? _download : _install,
+      // Cancelling keeps the prompt open; the download task ends without error.
+      onCancel: () => _cancel?.cancel(),
+      onLater: () => Navigator.pop(context),
+      onSkip: _apk == null ? skip : null,
     );
   }
 }
@@ -422,6 +403,7 @@ class _IosUpdateDialog extends StatefulWidget {
     required this.version,
     required this.targetBuild,
     required this.listing,
+    required this.installedVersion,
     required this.installedBuild,
     required this.client,
     required this.preferences,
@@ -430,6 +412,7 @@ class _IosUpdateDialog extends StatefulWidget {
   final String version;
   final int? targetBuild;
   final IosStoreListing? listing;
+  final String? installedVersion;
   final int installedBuild;
   final AndroidReleaseClient client;
   final SharedPreferences preferences;
@@ -531,55 +514,19 @@ class _IosUpdateDialogState extends State<_IosUpdateDialog> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return AlertDialog(
-      title: Text('${l10n.updateAvailable} ${widget.version}'),
-      content: UpdateDialogBody(
-        notes: promptReleaseNotes(_notes),
-        historyComplete: _historyComplete,
-        working: false,
-        failed: _failed,
-        needsPermission: false,
-        ready: false,
-        receivedBytes: 0,
-        footer: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (widget.testFlight)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Text(l10n.updateTestFlightInstructions),
-              ),
-            if (_notes.where((note) => !note.required).length > 5)
-              TextButton(
-                onPressed: () => Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => ReleaseNotesPage(
-                      initialIosChannel: widget.testFlight
-                          ? 'ios-testflight'
-                          : 'ios-app-store',
-                    ),
-                  ),
-                ),
-                child: Text(l10n.releaseNotesMore),
-              ),
-            TextButton(onPressed: _skip, child: Text(l10n.updateSkip)),
-          ],
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: Text(l10n.updateLater),
-        ),
-        FilledButton(
-          onPressed: _openStore,
-          child: Text(
-            widget.testFlight
-                ? l10n.updateOpenTestFlight
-                : l10n.updateOpenAppStore,
-          ),
-        ),
-      ],
+    return UpdatePromptSheet(
+      version: widget.version,
+      installedVersion: widget.installedVersion,
+      notes: _notes,
+      historyComplete: _historyComplete,
+      failed: _failed,
+      channelNote: widget.testFlight ? l10n.updateTestFlightInstructions : null,
+      primaryLabel: widget.testFlight
+          ? l10n.updateOpenTestFlight
+          : l10n.updateOpenAppStore,
+      onPrimary: _openStore,
+      onLater: () => Navigator.pop(context),
+      onSkip: _skip,
     );
   }
 }

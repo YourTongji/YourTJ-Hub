@@ -153,6 +153,11 @@ class AndroidReleaseClient {
     return AndroidRelease.latest(response.data as List, abis, installedBuild);
   }
 
+  /// Split APK version codes add an ABI offset (1000/2000/4000, see
+  /// `scripts/mobile-release/publish_android.py`); the release catalog records
+  /// the shared build number.
+  static int catalogBuild(int versionCode) => versionCode % 1000;
+
   Future<AndroidRelease> withNotes(
     AndroidRelease release,
     int installedBuild, {
@@ -162,8 +167,8 @@ class AndroidReleaseClient {
       final catalog = await loadHistory(refresh: refresh);
       if (catalog == null) return release;
       final notes = catalog.notesForUpdate(
-        installedBuild: installedBuild,
-        targetBuild: release.buildNumber,
+        installedBuild: catalogBuild(installedBuild),
+        targetBuild: catalogBuild(release.buildNumber),
         platform: 'android',
         channel: 'android',
       );
@@ -175,8 +180,8 @@ class AndroidReleaseClient {
         sha256Digest: release.sha256Digest,
         notes: notes,
         hasCompleteHistory: catalog.hasCompleteRange(
-          installedBuild: installedBuild,
-          targetBuild: release.buildNumber,
+          installedBuild: catalogBuild(installedBuild),
+          targetBuild: catalogBuild(release.buildNumber),
           channel: 'android',
         ),
       );

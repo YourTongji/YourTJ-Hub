@@ -2214,6 +2214,12 @@ class AppLocalizationsJa extends AppLocalizations {
   String get updateRetry => '再試行';
 
   @override
+  String get updateCancelDownload => 'ダウンロードをキャンセル';
+
+  @override
+  String get updateIncomplete => 'アップデートを完了できませんでした。接続を確認して、もう一度お試しください。';
+
+  @override
   String get updateOpenAppStore => 'App Store で表示';
 
   @override
@@ -2253,6 +2259,11 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get releaseNotesFewer => '折りたたむ';
+
+  @override
+  String releaseNotesShowRemaining(int count) {
+    return '残り $count 件の更新を表示';
+  }
 
   @override
   String get releaseNotesRequired => '重要';

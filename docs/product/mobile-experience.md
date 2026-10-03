@@ -1190,7 +1190,12 @@ The approved permission/privacy/failure boundaries for optional analytics are re
 ## Distribution and updates
 
 - `Partial`: Android checks GitHub mobile releases at startup/resume with a six-hour limit and a
-  manual About action. Update prompts support defer, ignore, progress and cancellation. Public APK
+  manual About action. Update prompts support defer, ignore, progress and cancellation. The prompt is
+  a bottom sheet that tapping outside or dragging does not dismiss: notes are grouped as required,
+  security, new, improved and fixed under labels smaller than the note titles, and no note level
+  exceeds the sheet title. The header shows the installed-to-target version; notes beyond the
+  required items and the first five expand in place. The primary action stays pinned; cancelling a
+  download keeps the prompt open. About history lists versions on a timeline, newest first. Release notes match Android split-ABI version codes by their shared build number. Public APK
   mirrors are ranked with bounded probes; SHA-256, package and signing-certificate checks precede
   the system installer. Prompts show the installed-to-target release notes, including required actions,
   and the About page provides channel-filtered release history. Notes are optional cached display data;

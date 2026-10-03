@@ -2268,6 +2268,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get updateRetry => 'Retry';
 
   @override
+  String get updateCancelDownload => 'Cancel download';
+
+  @override
+  String get updateIncomplete =>
+      'The update didn’t finish. Check your connection and try again.';
+
+  @override
   String get updateOpenAppStore => 'View on App Store';
 
   @override
@@ -2310,6 +2317,17 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get releaseNotesFewer => 'Show fewer';
+
+  @override
+  String releaseNotesShowRemaining(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Show $count more updates',
+      one: 'Show 1 more update',
+    );
+    return '$_temp0';
+  }
 
   @override
   String get releaseNotesRequired => 'Required';

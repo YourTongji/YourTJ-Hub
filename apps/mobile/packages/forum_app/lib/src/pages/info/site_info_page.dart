@@ -42,18 +42,18 @@ class SiteInfoIndexPage extends StatelessWidget {
         children: [
           if (supportsMobileReleaseNotes)
             ListTile(
+              leading: const GfSymbol('download'),
+              title: Text(l10n.updateCheck),
+              onTap: () => appUpdateHostKey.currentState?.check(force: true),
+            ),
+          if (supportsMobileReleaseNotes)
+            ListTile(
               leading: const GfSymbol('history'),
               title: Text(l10n.releaseNotesHistory),
               trailing: const GfSymbol('chevron-right'),
               onTap: () => Navigator.of(context).push<void>(
                 MaterialPageRoute(builder: (_) => const ReleaseNotesPage()),
               ),
-            ),
-          if (supportsMobileReleaseNotes)
-            ListTile(
-              leading: const GfSymbol('download'),
-              title: Text(l10n.updateCheck),
-              onTap: () => appUpdateHostKey.currentState?.check(force: true),
             ),
           for (final kind in SiteInfoKind.values)
             ListTile(

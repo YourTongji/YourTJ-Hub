@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:forum_app/l10n/app_localizations.dart';
 import 'package:forum_app/src/updates/release_notes.dart';
-import 'package:forum_app/src/updates/update_dialog_body.dart';
+import 'package:forum_app/src/updates/release_notes_view.dart';
+import 'package:forum_app/src/updates/update_prompt_sheet.dart';
 import 'package:ui_kit/ui_kit.dart';
 
 void main() {
@@ -54,15 +56,23 @@ void main() {
           expect(find.text('Required action 2'), findsOneWidget);
 
           final moreButton = find.widgetWithText(
-            TextButton,
-            l10n.releaseNotesMore,
+            GfButton,
+            l10n.releaseNotesShowRemaining(3),
           );
           expect(moreButton, findsOneWidget);
           await tester.ensureVisible(moreButton);
           expect(_insideWindow(tester, moreButton), isTrue);
           await tester.tap(moreButton);
-          await tester.pump();
-          expect(key.currentState!.allUpdatesTapped, 1);
+          await tester.pumpAndSettle();
+          expect(find.text('Feature 7'), findsOneWidget);
+          final fewerButton = find.widgetWithText(
+            GfButton,
+            l10n.releaseNotesFewer,
+          );
+          await tester.ensureVisible(fewerButton);
+          await tester.tap(fewerButton);
+          await tester.pumpAndSettle();
+          expect(find.text('Feature 7'), findsNothing);
 
           final finalRequiredAction = find.text('Required action 2');
           await tester.ensureVisible(finalRequiredAction);
@@ -94,6 +104,19 @@ void main() {
           await tester.pumpAndSettle();
           expect(find.text('Feature 0'), findsOneWidget);
           expect(find.text('Required action 2'), findsOneWidget);
+          expect(find.text(l10n.updateDownload), findsNothing);
+          expect(find.text(l10n.updateSkip), findsNothing);
+          final cancelButton = find.widgetWithText(
+            GfButton,
+            l10n.updateCancelDownload,
+          );
+          // At 200% text the pinned action region scrolls on its own.
+          await tester.ensureVisible(cancelButton);
+          await tester.pumpAndSettle();
+          expect(_insideWindow(tester, cancelButton), isTrue);
+          await tester.tap(cancelButton);
+          await tester.pump();
+          expect(key.currentState!.cancelTapped, 1);
 
           key.currentState!.setStatus(failed: true);
           await tester.pumpAndSettle();
@@ -108,6 +131,9 @@ void main() {
             l10n.updateOpenPermissionSettings,
           );
           expect(permissionButton, findsOneWidget);
+          // At 200% text the pinned action region scrolls on its own.
+          await tester.ensureVisible(permissionButton);
+          await tester.pumpAndSettle();
           expect(_insideWindow(tester, permissionButton), isTrue);
           await tester.tap(permissionButton);
           await tester.pump();
@@ -124,6 +150,82 @@ void main() {
       );
     }
   }
+
+  testWidgets('note levels never outsize the prompt title', (tester) async {
+    const locale = Locale('zh');
+    final l10n = await AppLocalizations.delegate.load(locale);
+    await tester.pumpWidget(
+      _testApp(
+        brightness: Brightness.light,
+        locale: locale,
+        child: Scaffold(
+          body: UpdatePromptSheet(
+            version: '1.2.0',
+            notes: const [
+              ReleaseNote(
+                id: 'required',
+                title: 'Required title',
+                summary: 'Required summary',
+                platforms: {'android'},
+                kind: 'security',
+                required: true,
+              ),
+              ReleaseNote(
+                id: 'fix',
+                title: 'Fix title',
+                summary: 'Fix summary',
+                platforms: {'android'},
+                kind: 'fix',
+              ),
+            ],
+            historyComplete: true,
+            primaryLabel: l10n.updateDownload,
+            onPrimary: () {},
+            onLater: () {},
+          ),
+        ),
+      ),
+    );
+    double size(String text) => tester
+        .renderObject<RenderParagraph>(find.text(text))
+        .text
+        .style!
+        .fontSize!;
+    final title = size(l10n.updateAvailable);
+    final group = size(l10n.releaseNotesKindFix);
+    final noteTitle = size('Fix title');
+    final summary = size('Fix summary');
+    expect(find.text(l10n.releaseNotesRequired), findsOneWidget);
+    expect(noteTitle, lessThan(title));
+    expect(summary, lessThanOrEqualTo(noteTitle));
+    expect(group, lessThan(noteTitle));
+  });
+
+  testWidgets('a summary that restates its title is shown once', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _testApp(
+        brightness: Brightness.light,
+        locale: const Locale('zh'),
+        child: const Scaffold(
+          body: ReleaseNotesView(
+            notes: [
+              ReleaseNote(
+                id: 'pr-9',
+                title: '修复信息流跳回顶部',
+                summary: '修复信息流跳回顶部。',
+                platforms: {'android'},
+                kind: 'fix',
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    expect(find.text('修复信息流跳回顶部'), findsOneWidget);
+    expect(find.text('修复信息流跳回顶部。'), findsNothing);
+  });
 
   testWidgets('update status is one stable live-region announcement', (
     tester,
@@ -251,7 +353,8 @@ class _StatusHarnessState extends State<_StatusHarness> {
   Widget build(BuildContext context) => Center(
     child: SizedBox(
       width: 280,
-      child: UpdateDialogBody(
+      child: UpdatePromptSheet(
+        version: '1.2.0',
         notes: const [],
         historyComplete: true,
         working: working,
@@ -259,6 +362,9 @@ class _StatusHarnessState extends State<_StatusHarness> {
         needsPermission: needsPermission,
         ready: ready,
         receivedBytes: receivedBytes,
+        primaryLabel: 'Download',
+        onPrimary: () {},
+        onLater: () {},
       ),
     ),
   );
@@ -278,9 +384,9 @@ class _DialogHarnessState extends State<_DialogHarness> {
   bool needsPermission = false;
   bool ready = false;
   int receivedBytes = 0;
-  int allUpdatesTapped = 0;
   int downloadTapped = 0;
   int permissionTapped = 0;
+  int cancelTapped = 0;
 
   void setStatus({
     bool working = false,
@@ -300,50 +406,37 @@ class _DialogHarnessState extends State<_DialogHarness> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return Scaffold(
-      body: AlertDialog(
-        title: Text('${l10n.updateAvailable} 1.2.0'),
-        content: UpdateDialogBody(
+      body: Align(
+        alignment: Alignment.bottomCenter,
+        child: UpdatePromptSheet(
+          version: '1.2.0',
+          installedVersion: '1.1.0',
           sizeBytes: 5000000,
-          notes: promptReleaseNotes(widget.notes),
+          notes: widget.notes,
           historyComplete: false,
           working: working,
           failed: failed,
           needsPermission: needsPermission,
           ready: ready,
           receivedBytes: receivedBytes,
-          footer: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (widget.notes.where((note) => !note.required).length > 5)
-                TextButton(
-                  onPressed: () => allUpdatesTapped++,
-                  child: Text(l10n.releaseNotesMore),
-                ),
-              TextButton(onPressed: () {}, child: Text(l10n.updateSkip)),
-            ],
-          ),
+          primaryLabel: needsPermission
+              ? l10n.updateOpenPermissionSettings
+              : ready
+              ? l10n.updateInstall
+              : failed
+              ? l10n.updateRetry
+              : l10n.updateDownload,
+          onPrimary: () {
+            if (needsPermission) {
+              permissionTapped++;
+            } else {
+              downloadTapped++;
+            }
+          },
+          onCancel: () => cancelTapped++,
+          onLater: () {},
+          onSkip: () {},
         ),
-        actions: [
-          TextButton(onPressed: () {}, child: Text(l10n.updateLater)),
-          FilledButton(
-            onPressed: () {
-              if (needsPermission) {
-                permissionTapped++;
-              } else {
-                downloadTapped++;
-              }
-            },
-            child: Text(
-              needsPermission
-                  ? l10n.updateOpenPermissionSettings
-                  : ready
-                  ? l10n.updateInstall
-                  : failed
-                  ? l10n.updateRetry
-                  : l10n.updateDownload,
-            ),
-          ),
-        ],
       ),
     );
   }

@@ -4206,6 +4206,18 @@ abstract class AppLocalizations {
   /// **'Retry'**
   String get updateRetry;
 
+  /// No description provided for @updateCancelDownload.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel download'**
+  String get updateCancelDownload;
+
+  /// No description provided for @updateIncomplete.
+  ///
+  /// In en, this message translates to:
+  /// **'The update didn’t finish. Check your connection and try again.'**
+  String get updateIncomplete;
+
   /// No description provided for @updateOpenAppStore.
   ///
   /// In en, this message translates to:
@@ -4283,6 +4295,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Show fewer'**
   String get releaseNotesFewer;
+
+  /// No description provided for @releaseNotesShowRemaining.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{Show 1 more update} other{Show {count} more updates}}'**
+  String releaseNotesShowRemaining(int count);
 
   /// No description provided for @releaseNotesRequired.
   ///

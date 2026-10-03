@@ -2202,6 +2202,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get updateRetry => '重试';
 
   @override
+  String get updateCancelDownload => '取消下载';
+
+  @override
+  String get updateIncomplete => '更新未完成。请检查网络连接后重试。';
+
+  @override
   String get updateOpenAppStore => '前往 App Store';
 
   @override
@@ -2240,6 +2246,11 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get releaseNotesFewer => '收起';
+
+  @override
+  String releaseNotesShowRemaining(int count) {
+    return '展开其余 $count 项更新';
+  }
 
   @override
   String get releaseNotesRequired => '重要提示';

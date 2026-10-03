@@ -67,8 +67,20 @@ class _ReleaseNotesPageState extends State<ReleaseNotesPage> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final releases =
-        _catalog?.releases.reversed.toList() ?? const <ReleaseNoteVersion>[];
+    final entries = [
+      for (final release
+          in _catalog?.releases.reversed ?? const <ReleaseNoteVersion>[])
+        if (release.channels.contains(_platform))
+          (
+            release,
+            [
+              ...release.highlights,
+              ...release.breaking,
+              ...release.requiredActions,
+              ...release.testflightNotes,
+            ].where((note) => note.includesChannel(_platform)).toList(),
+          ),
+    ].where((entry) => entry.$2.isNotEmpty).toList();
     return Scaffold(
       appBar: GfAppBar(title: Text(l10n.releaseNotesHistory)),
       body: RefreshIndicator(
@@ -111,14 +123,19 @@ class _ReleaseNotesPageState extends State<ReleaseNotesPage> {
                   child: CircularProgressIndicator(),
                 ),
               )
-            else if (releases.isEmpty)
+            else if (entries.isEmpty)
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 32),
                 child: Text(l10n.releaseNotesEmpty),
               )
             else
-              for (final release in releases)
-                _ReleaseHistoryCard(release: release, platform: _platform),
+              for (final (index, entry) in entries.indexed)
+                _ReleaseTimelineEntry(
+                  release: entry.$1,
+                  notes: entry.$2,
+                  latest: index == 0,
+                  last: index == entries.length - 1,
+                ),
             if (_catalog != null && _hasIncompleteHistory)
               Padding(
                 padding: const EdgeInsets.only(top: 16),
@@ -163,35 +180,83 @@ class _ReleaseNotesPageState extends State<ReleaseNotesPage> {
   }
 }
 
-class _ReleaseHistoryCard extends StatelessWidget {
-  const _ReleaseHistoryCard({required this.release, required this.platform});
+/// One version on the history timeline: a dot on a continuous hairline rail,
+/// with the newest version marked in the primary color.
+class _ReleaseTimelineEntry extends StatelessWidget {
+  const _ReleaseTimelineEntry({
+    required this.release,
+    required this.notes,
+    required this.latest,
+    required this.last,
+  });
   final ReleaseNoteVersion release;
-  final String platform;
+  final List<ReleaseNote> notes;
+  final bool latest;
+  final bool last;
 
   @override
   Widget build(BuildContext context) {
-    if (!release.channels.contains(platform)) return const SizedBox.shrink();
-    final notes = [
-      ...release.highlights,
-      ...release.breaking,
-      ...release.requiredActions,
-      ...release.testflightNotes,
-    ].where((note) => note.includesChannel(platform)).toList();
-    if (notes.isEmpty) return const SizedBox.shrink();
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              '${release.version} · ${release.buildNumber}',
-              style: Theme.of(context).textTheme.titleMedium,
+    final colors = GfTheme.colorsOf(context);
+    final type = GfTheme.typographyOf(context);
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SizedBox(
+            width: 12,
+            child: Column(
+              children: [
+                // Centers the dot on the version line (16px × 1.5 leading).
+                const SizedBox(height: 7),
+                Container(
+                  width: 10,
+                  height: 10,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: latest ? colors.primary : colors.base100,
+                    border: latest
+                        ? null
+                        : Border.all(color: colors.line, width: 2),
+                  ),
+                ),
+                if (!last)
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 6),
+                      child: Container(width: 1, color: colors.line),
+                    ),
+                  ),
+              ],
             ),
-            const SizedBox(height: 8),
-            ReleaseNotesView(notes: notes),
-          ],
-        ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Padding(
+              padding: EdgeInsets.only(bottom: last ? 0 : 32),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text.rich(
+                    TextSpan(
+                      text: release.version,
+                      style: type.heading,
+                      children: [
+                        TextSpan(
+                          text: ' · ${release.buildNumber}',
+                          style: type.caption.copyWith(
+                            color: colors.baseContent.withValues(alpha: 0.6),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  ReleaseNotesView(notes: notes),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

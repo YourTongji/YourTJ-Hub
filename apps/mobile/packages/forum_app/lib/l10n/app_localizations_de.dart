@@ -2292,6 +2292,13 @@ class AppLocalizationsDe extends AppLocalizations {
   String get updateRetry => 'Erneut versuchen';
 
   @override
+  String get updateCancelDownload => 'Download abbrechen';
+
+  @override
+  String get updateIncomplete =>
+      'Das Update wurde nicht abgeschlossen. Bitte Verbindung prüfen und erneut versuchen.';
+
+  @override
   String get updateOpenAppStore => 'Im App Store ansehen';
 
   @override
@@ -2336,6 +2343,17 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get releaseNotesFewer => 'Weniger anzeigen';
+
+  @override
+  String releaseNotesShowRemaining(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count weitere Updates anzeigen',
+      one: '1 weiteres Update anzeigen',
+    );
+    return '$_temp0';
+  }
 
   @override
   String get releaseNotesRequired => 'Wichtig';

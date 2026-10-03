@@ -410,6 +410,34 @@ void main() {
   );
 
   test(
+    'Android split-ABI version codes resolve to catalog build numbers',
+    () async {
+      SharedPreferences.setMockInitialValues({
+        'mobile.releaseNotes.${Uri.encodeComponent(mobileReleaseNotesUrl)}.json':
+            jsonEncode(catalog()),
+      });
+      final client = AndroidReleaseClient(
+        dio: Dio()
+          ..httpClientAdapter = _Adapter(
+            (request) => ResponseBody.fromString('', 503),
+          ),
+      )..notesPreferences = await SharedPreferences.getInstance();
+      final selected = AndroidRelease.latest(
+        [releaseFixture(versionCode: 2007)],
+        ['arm64-v8a'],
+        2004,
+      )!;
+      final decorated = await client.withNotes(selected, 2004, refresh: false);
+      expect(decorated.buildNumber, 2007);
+      expect(decorated.notes.map((entry) => entry.id), [
+        'important-change',
+        'shared-update',
+      ]);
+      expect(decorated.hasCompleteHistory, isTrue);
+    },
+  );
+
+  test(
     'follows only HTTPS GitHub release asset redirects without credentials',
     () async {
       SharedPreferences.setMockInitialValues({});
@@ -457,18 +485,18 @@ void main() {
   );
 }
 
-Map<String, dynamic> releaseFixture() => {
+Map<String, dynamic> releaseFixture({int versionCode = 12}) => {
   'draft': false,
   'prerelease': false,
   'tag_name': 'mobile-v1.2.0',
   'assets': [
     {
-      'name': 'YourTJ-1.2.0+12-arm64-v8a.apk',
+      'name': 'YourTJ-1.2.0+$versionCode-arm64-v8a.apk',
       'state': 'uploaded',
       'size': 12,
       'digest': 'sha256:${'ab' * 32}',
       'browser_download_url':
-          'https://github.com/YourTongji/YourTJ-Hub/releases/download/mobile-v1.2.0/YourTJ-1.2.0%2B12-arm64-v8a.apk',
+          'https://github.com/YourTongji/YourTJ-Hub/releases/download/mobile-v1.2.0/YourTJ-1.2.0%2B$versionCode-arm64-v8a.apk',
     },
   ],
 };
