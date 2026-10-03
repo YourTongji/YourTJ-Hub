@@ -381,7 +381,7 @@ function drawerGestureHintPageOptedOut() {
 }
 
 watch(
-  () => route.path,
+  () => route?.path,
   async () => {
     clearDrawerGestureHintTimers()
     drawerGestureHintVisible.value = false
