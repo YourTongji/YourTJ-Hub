@@ -35,8 +35,13 @@ const { t } = useI18n()
       />
       <div class="min-w-0 flex-1">
         <div class="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-          <span class="max-w-full truncate text-sm font-semibold leading-5 text-base-content">
-            {{ userDisplayName(topic.author.id, topic.author.username, topic.author.nickname) }}
+          <span class="inline-flex max-w-full min-w-0 items-center gap-1.5 text-sm font-semibold leading-5 text-base-content">
+            <span class="min-w-0 truncate">{{ userDisplayName(topic.author.id, topic.author.username, topic.author.nickname) }}</span>
+            <span
+              v-if="!topic.title && !topic.description && topic.unseen"
+              class="unread-meta-dot inline-block h-2 w-2 shrink-0 rounded-full bg-primary"
+              aria-hidden="true"
+            />
           </span>
           <span class="text-xs leading-5 text-base-content/55">
             {{ timeAgo(topic.lastUpdateTime) }}
@@ -80,13 +85,12 @@ const { t } = useI18n()
       />
     </div>
 
-    <!-- 无标题瞬间不渲染标题文本；未读圆点仍需保留 -->
     <h3
-      v-if="topic.title || topic.unseen"
+      v-if="topic.title"
       class="mt-3 line-clamp-2 font-semibold text-base-content transition-colors group-hover:text-primary"
       :class="compact ? 'text-[15px] leading-6' : 'text-base leading-7'"
     >
-      <template v-if="topic.title">{{ topic.title }}</template>
+      {{ topic.title }}
       <span
         v-if="topic.unseen"
         class="ml-1.5 inline-block h-2 w-2 shrink-0 rounded-full bg-primary align-middle"
@@ -95,9 +99,15 @@ const { t } = useI18n()
     </h3>
     <p
       v-if="topic.description"
-      class="mt-1.5 line-clamp-2 text-sm leading-6 text-base-content/55"
+      :class="!topic.title && topic.unseen
+        ? 'mt-1.5 flex min-w-0 flex-nowrap items-start gap-1.5 text-sm leading-6 text-base-content/55'
+        : 'mt-1.5 line-clamp-2 text-sm leading-6 text-base-content/55'"
     >
-      {{ topic.description }}
+      <template v-if="!topic.title && topic.unseen">
+        <span class="min-w-0 flex-1 line-clamp-2">{{ topic.description }}</span>
+        <span class="mt-2 inline-block h-2 w-2 shrink-0 rounded-full bg-primary" aria-hidden="true" />
+      </template>
+      <template v-else>{{ topic.description }}</template>
     </p>
 
     <slot name="media" />
