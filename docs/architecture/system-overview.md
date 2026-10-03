@@ -6,13 +6,13 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-09-27
+> Last verified: 2026-10-03
 
 ## System shape
 
 ```mermaid
 flowchart TB
-  mobile["apps/mobile<br/>Flutter (Partial)"]
+  mobile["apps/mobile<br/>Flutter · iOS / Android"]
   credit["services/credit<br/>Planned"]
   subgraph forum["apps/gooseforum — single binary"]
     web["Vue + GoHTML"]

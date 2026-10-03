@@ -6,41 +6,73 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thank you for sharing your idea! Please provide as much detail as possible. / 感谢您分享想法！请尽可能提供详细信息。
+        请从要解决的问题和受影响的人出发。可以先提交不完整的建议；未知项请说明，开发前再补齐依据。
+        已有相关 Issue/调研可概括并链接，不必重复全文。涉及隐私的材料请先脱敏。
+        标准：[需求、开发与 PR 规范](https://github.com/YourTongji/YourTJ-Hub/blob/dev/docs/development/pull-requests.md)。
 
   - type: textarea
+    id: background
     attributes:
       label: Background / 背景
-      description: What problem does the current platform have that needs to be solved? / 当前存在什么问题？为什么需要解决？
-      placeholder: Describe the current pain points.
+      description: 当前行为、具体场景、痛点及影响是什么？附代码/文档/反馈/观察依据，区分事实与假设。
+      placeholder: |
+        当前行为与场景：
+        痛点、影响与已有替代办法：
+        证据链接；哪些仍是假设或未知：
     validations:
       required: true
 
   - type: textarea
+    id: research
+    attributes:
+      label: External product research / 外部产品调研
+      description: 相关产品或标准如何处理这个问题？记录来源/日期、具体机制、适用性和采纳取舍。提出建议时可写待补充；实施前补齐或说明不适用原因。
+      placeholder: |
+        产品/标准及官方来源链接；查阅日期、版本/平台（如可得）：
+        观察到的行为（区分文档描述和实际体验）：
+        与本仓库场景的差异、采纳/调整/不采纳及理由：
+        无法验证的内容或不适用原因：
+    validations:
+      required: false
+
+  - type: textarea
+    id: target-users
     attributes:
       label: Target Users / 目标用户
-      description: Which users will use this feature? / 哪些用户会使用该功能？
-      placeholder: e.g., students, teachers, administrators
+      description: 谁直接使用，谁会被间接影响？说明角色、任务、使用端、权限和约束，仅一个角色时说明依据。
+      placeholder: |
+        主要用户及任务：
+        其他受影响者（如读者/被互动者、版主、管理员；按实际选择）：
+        平台、权限及使用条件：
     validations:
       required: true
 
   - type: textarea
+    id: user-stories
     attributes:
-      label: User Story / 用户故事
-      description: As a [type of user], I want [some goal] so that [some reason]. / 作为[某类用户]，我希望[某个目标]，从而[某个原因]。
-      placeholder: As a..., I want..., so that...
+      label: User Stories / 用户故事
+      description: 按实际受影响的不同角色分析需求，使用 US-* 编号；写清情境、目标和价值，以及权限或目标冲突，不只列按钮/API。
+      placeholder: |
+        US-1：作为…，在…时，我希望…，从而…。
+        US-2（如适用）：作为另一受影响角色…。
+        角色差异、冲突及失败后的需要：
     validations:
       required: true
 
   - type: textarea
+    id: goals-scope
     attributes:
-      label: Scope / 范围
-      description: What should be implemented in this feature? / 本次需要实现什么？
-      placeholder: List the key deliverables.
+      label: Goals & scope / 目标与范围
+      description: 期望达成什么结果，本次包含哪些行为和平台？将需求与候选方案分开，指标需有测量依据。
+      placeholder: |
+        目标与可观察的成功结果：
+        包含的行为/平台：
+        候选方案及取舍（如已有）：
     validations:
       required: true
 
   - type: textarea
+    id: out-of-scope
     attributes:
       label: Out of Scope / 不做什么
       description: What is explicitly not included to prevent scope creep. / 明确本次不包含的内容，防止范围扩大。
@@ -49,25 +81,35 @@ body:
       required: false
 
   - type: textarea
+    id: acceptance-criteria
     attributes:
       label: Acceptance Criteria / 验收标准
-      description: Define the conditions that must be met for this feature to be considered complete. / 定义该功能完成的验收条件。
+      description: 使用 AC-* 编号关联 US-*，说明条件、操作和可观察结果。按影响覆盖成功、权限/拒绝、边界及失败恢复，不只写“测试通过”。
       placeholder: |
-        - [ ] Users can...
-        - [ ] When..., the system should...
-        - [ ] Works correctly on both mobile and desktop
+        - [ ] AC-1 → US-1：在…条件下，角色…执行…，应观察到…（适用端：…）。
+        - [ ] AC-2 → US-2：无权限/失败/边界条件下…，应…。
     validations:
       required: true
 
   - type: textarea
+    id: dependencies-questions
+    attributes:
+      label: Dependencies & open questions / 依赖与待决事项
+      description: 相关需求、契约、数据、权限隐私、发布或运维依赖；实施前有哪些需要确定的行为？无则写无。
+    validations:
+      required: false
+
+  - type: textarea
+    id: supplementary-materials
     attributes:
       label: Supplementary Materials / 补充材料
-      description: Prototypes, screenshots, discussion records, or related issues. / 原型、截图、讨论记录或相关 Issue。
+      description: 原型、设计稿、截图/录屏、相关 Issue/PR、产品文档或 MADR。提供可访问链接与简要说明，原始调研文件不入 Git。
       placeholder: Links, designs, or references.
     validations:
       required: false
 
   - type: checkboxes
+    id: conduct
     attributes:
       label: Code of Conduct
       options:

@@ -11,20 +11,33 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/YourTongji/YourTJ-Hub/actions/workflows/ci-backend.yml"><img src="https://img.shields.io/github/actions/workflow/status/YourTongji/YourTJ-Hub/ci-backend.yml?branch=dev&amp;style=flat-square&amp;label=backend" alt="Backend CI"></a>
-  <a href="https://github.com/YourTongji/YourTJ-Hub/actions/workflows/ci-frontend.yml"><img src="https://img.shields.io/github/actions/workflow/status/YourTongji/YourTJ-Hub/ci-frontend.yml?branch=dev&amp;style=flat-square&amp;label=frontend" alt="Frontend CI"></a>
-  <a href="https://github.com/YourTongji/YourTJ-Hub/actions/workflows/ci-mobile.yml"><img src="https://img.shields.io/github/actions/workflow/status/YourTongji/YourTJ-Hub/ci-mobile.yml?branch=dev&amp;style=flat-square&amp;label=mobile" alt="Mobile CI"></a>
-  <a href="https://github.com/YourTongji/YourTJ-Hub/actions/workflows/ci-contract.yml"><img src="https://img.shields.io/github/actions/workflow/status/YourTongji/YourTJ-Hub/ci-contract.yml?branch=dev&amp;style=flat-square&amp;label=contract" alt="Contract CI"></a>
+  <a href="https://github.com/YourTongji/YourTJ-Hub/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/YourTongji/YourTJ-Hub/ci.yml?branch=dev&amp;style=flat-square&amp;label=CI" alt="CI / Verify"></a>
   <a href="https://github.com/YourTongji/YourTJ-Hub/releases"><img src="https://img.shields.io/github/v/release/YourTongji/YourTJ-Hub?display_name=tag&amp;sort=semver&amp;style=flat-square" alt="Latest release"></a>
 </p>
 
 <p align="center">
-  <a href="https://f.yourtj.de">线上站点</a> ·
+  <a href="https://yourtj.de">官网</a> ·
+  <a href="https://f.yourtj.de">网页版</a> ·
+  <a href="https://yourtj.de/#download">下载 App</a> ·
   <a href="./docs/README.md">项目文档</a> ·
   <a href="https://github.com/YourTongji/YourTJ-Hub/issues/new?template=bug-report.yml">报告问题</a> ·
   <a href="https://github.com/YourTongji/YourTJ-Hub/issues/new?template=feature-request.yml">功能建议</a> ·
   <a href="./CONTRIBUTING.md">贡献指南</a>
 </p>
+
+## 下载与使用
+
+YourTJ 移动端 App 已正式发布，支持在手机和平板上浏览社区、查看课程评价、规划课表和阅读校园 Wiki。
+提供简体中文、英语、日语、德语界面及深浅色外观。
+
+| 平台 | 入口 |
+|---|---|
+| iPhone / iPad | [App Store 下载](https://apps.apple.com/cn/app/yourtj/id6809457637) |
+| Android | [下载正式 APK（ARM64）](https://github.com/YourTongji/YourTJ-Hub/releases/download/mobile-latest/YourTJ-arm64-v8a.apk) · [其他架构与发布说明](https://github.com/YourTongji/YourTJ-Hub/releases/tag/mobile-latest) |
+| Web | [打开网页版](https://f.yourtj.de) |
+
+统一下载入口见 [yourtj.de](https://yourtj.de/#download)。具体移动端能力与设备验证边界见
+[移动端体验](./docs/product/mobile-experience.md#distribution-and-updates)。
 
 ## 关于项目
 
@@ -51,7 +64,8 @@ YourTJ Hub 希望让校园经验、问题与观点不再消失在短暂的信息
 | 课程与排课 | `Current` | Web／Flutter 课程目录、课评、收藏与多方案排课；能力边界见[课程规范](./docs/product/courses-and-scheduling.md) |
 | Wiki | `Current` | GitHub 内容同步、只读页面与站内评论，编辑和历史外链至源仓库 |
 | 我的校园 | `Partial` | Web／Flutter 官方身份连接、课表、学业记录与消息；设备快照和桌面小组件已实现，真机认证及部分上游数据仍待验证 |
-| 移动端 | `Partial` | Flutter 原生客户端，中英日德四语言、课程／排课／Wiki、私密校园与桌面小组件；商店分发和部分真机链路仍待验证 |
+| 移动端页面与正式分发 | `Current` | Flutter 原生客户端，中英日德四语言、社区／课程／排课／Wiki；iPhone／iPad 已上架 App Store，Android 提供正式 APK |
+| 原生推送与设备验收 | `Partial` | APNs／JPush／OEM 投递、签名升级与校园小组件的真机矩阵仍需逐版本验证；见[移动端边界](./docs/product/current-state.md) |
 | API 契约 | `Partial` | OpenAPI 校验、TypeScript 生成与契约测试已落地，全部非排除 `/api` 路由已纳管并有 CI 门禁；OIDC 标准端点与自动 Dart 生成尚未覆盖 |
 | 积分 | `Partial` | 论坛内积分账本已落地（发帖/回复奖励幂等入账、删除原子回滚）；跨服务结算（credit）仍未实现 |
 
@@ -60,7 +74,7 @@ YourTJ Hub 希望让校园经验、问题与观点不再消失在短暂的信息
 ```mermaid
 flowchart LR
     Browser["浏览器"] --> Hub["YourTJ Hub 单一二进制<br/>Go · Gin · Vue 3 · GoHTML"]
-    Mobile["Flutter 客户端<br/>Partial"] -->|JSON API| Hub
+    Mobile["Flutter 客户端<br/>iOS / Android"] -->|JSON API| Hub
     Hub -->|标准 OIDC Provider| Clients["移动端与校园服务"]
     Hub --> DB["PostgreSQL / SQLite"]
     Hub --> Search["Meilisearch<br/>可选、可重建"]
@@ -159,7 +173,9 @@ docs/               产品、架构、开发和运维文档
   宿主的安全凭据机制使用，不能写入普通回答；全文导出出现截断时必须标注覆盖不完整。可复制命令见
   `.agents/skills/forum-ai-readable-content/examples.md`；其中的 `scripts/` 仅使用 Python 标准库，默认只读，
   不接受命令行 token，也不实现 Webhook 发送或权限绕过。
-- `$yourtj-development`：处理本仓库代码、文档、测试、发布和 PR 时使用，统一层边界与验证要求。
+- `$yourtj-development`：从现状与调研、用户故事和验收标准出发，统一实现、文档、测试和 PR 交付。
+- `$repo-review` / `$yourtj-code-review`：检查产品依据、验收证据及契约、迁移、安全和测试等工程风险。
+  Issue/PR 的统一要求见[需求与评审规范](./docs/development/pull-requests.md)。
 
 使用 AI 可读内容 Skill 时，匿名请求优先从索引定位主题，再按需读取单篇 Markdown；不要默认抓取全文或扩散无关的
 个人信息。需要 Agent API 时，必须同时核对 Bearer Token、响应 envelope、写入限流和 Webhook 当前未实现边界。
@@ -175,10 +191,12 @@ docs/               产品、架构、开发和运维文档
 - [当前状态与缺口](./docs/product/current-state.md)
 - [论坛体验](./docs/product/forum.md)
 - [课程与排课](./docs/product/courses-and-scheduling.md)
+- [移动端体验与分发状态](./docs/product/mobile-experience.md)
 - [系统架构与领域边界](./docs/architecture/system-overview.md)
 - [本地开发](./docs/development/local-development.md)
 - [测试策略](./docs/development/testing.md)
 - [部署与发布](./docs/operations/deployment.md)
+- [移动端签名与发布](./docs/operations/mobile-releases.md)
 - [Oryn 仓库维护机器人](./docs/operations/oryn.md)（Current：已接入 GitHub App 与仓库 Actions）
 
 ## 参与贡献
