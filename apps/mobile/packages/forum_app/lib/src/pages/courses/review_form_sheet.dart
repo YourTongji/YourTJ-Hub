@@ -162,7 +162,8 @@ class CourseReviewFormSheetState extends ConsumerState<CourseReviewFormSheet> {
   }
 
   Future<void> _submit() async {
-    if (_submitting) return;
+    // 选图/上传期间正文还没有图片：此时提交会丢掉图片（sheet 关闭后上传结果无处插入）。
+    if (_submitting || _uploadingImage) return;
     final AppLocalizations l10n = AppLocalizations.of(context);
     final CourseCopy copy = CourseCopy(l10n);
     if (_rating < 1) {
@@ -703,7 +704,7 @@ class CourseReviewFormSheetState extends ConsumerState<CourseReviewFormSheet> {
                   GfButton(
                     label: editing ? l10n.commonSave : l10n.reviewSubmit,
                     loading: _submitting,
-                    onPressed: _submit,
+                    onPressed: _uploadingImage ? null : _submit,
                   ),
                 ],
               ),

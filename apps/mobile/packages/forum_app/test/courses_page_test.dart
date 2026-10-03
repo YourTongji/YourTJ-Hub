@@ -117,6 +117,7 @@ class FakeCourseRepository extends CourseRepository {
   final List<(int, String, String)> reportCalls = <(int, String, String)>[];
   Object? failHelpful;
   Object? failDislike;
+  Completer<void>? waitDislike;
   bool loseHelpfulOnResponse = false;
   Object? reportError;
   Completer<void>? waitHelpful;
@@ -257,6 +258,7 @@ class FakeCourseRepository extends CourseRepository {
   @override
   Future<bool> markDislike(int reviewId, {required bool on}) async {
     reactionCalls.add(('dislike', reviewId, on));
+    await waitDislike?.future;
     if (failDislike != null) throw failDislike!;
     _setServerReaction(reviewId, CourseReviewReaction.dislike, on);
     return true;
@@ -1907,6 +1909,37 @@ void main() {
         ),
         findsOneWidget,
       );
+    });
+
+    testWidgets('session change between the two reaction writes stops', (
+      tester,
+    ) async {
+      final ReviewPayload disliked = _reviewPayloads().first.copyWith(
+        viewer: _reviewPayloads().first.viewer.copyWith(isDisliked: true),
+        dislikeCount: 1,
+      );
+      final course = FakeCourseRepository(_client(), reviewPayloads: [disliked])
+        ..waitDislike = Completer<void>();
+      tester.view.physicalSize = const Size(800, 1800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+      final ProviderContainer container = _container(courseRepo: course);
+      await tester.pumpWidget(
+        _app(container, const CourseDetailPage(courseId: 42)),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(_reviewAction(disliked.id, 'helpful'));
+      await tester.pump();
+      expect(course.reactionCalls, [('dislike', disliked.id, false)]);
+
+      // 第一步在途时退出/切换账号，再让它完成：不能替新会话写目标状态。
+      container.read(offlineCacheEpochProvider.notifier).invalidate();
+      course.waitDislike!.complete();
+      await tester.pumpAndSettle();
+
+      expect(course.reactionCalls, [('dislike', disliked.id, false)]);
+      await tester.pumpWidget(const SizedBox.shrink());
     });
 
     testWidgets('failed opposite cleanup stops before the target write', (

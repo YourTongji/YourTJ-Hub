@@ -808,7 +808,8 @@ identity survive this layout change. The header keeps a small outer margin for i
   templates rendered at the compact reading profile.
   The editor toolbar can pick an image from the gallery, upload it through the shared
   `/file/img-upload` pipeline and insert the resulting Markdown image at the caret, so a review
-  body can carry the same image content as Web without a second upload implementation. The write
+  body can carry the same image content as Web without a second upload implementation; while a
+  pick or upload is pending, Publish/Save stays disabled so the image cannot be dropped. The write
   sheet pairs the offering selector and the five 48dp rating targets on one row (selector at the
   start, rating at the end) and keeps the publishing identity on the next full-width row: the
   current user’s avatar and nickname with “posting as …”, or the anonymous placeholder with a

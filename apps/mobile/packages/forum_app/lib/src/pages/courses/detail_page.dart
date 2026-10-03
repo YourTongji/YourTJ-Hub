@@ -508,6 +508,9 @@ class _CourseDetailPageState extends ConsumerState<CourseDetailPage> {
         if (on && oppositeSelected) {
           await _writeReviewReaction(current.id, opposite, false);
           oppositeCleared = true;
+          // `_repository` 每次现读 provider：两步之间退出或切换账号时，
+          // 第二步会落到新会话的仓库上，替新账号写入旧操作。
+          if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) return;
         }
         await _writeReviewReaction(current.id, reaction, on);
       } catch (e) {
