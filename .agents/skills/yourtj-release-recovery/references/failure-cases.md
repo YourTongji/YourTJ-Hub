@@ -4,6 +4,7 @@
 | --- | --- |
 | Oryn failed | Fill retained draft files from evidence; validate and obtain human review |
 | No human review / stale approval | Finish review; do not attempt a publisher bypass |
+| Approved and merged, but no platform execution receipts | Use `publish --candidate <id> --dry-run`, then `--apply` under existing authority; runs initial source checks/builds, including when a tag was reserved |
 | Some Android assets uploaded | Restore original signed APK artifact, verify identity/digests, upload only missing matching assets |
 | Android available, alias failed | Retry `android-alias`; preserve immutable version assets |
 | Android succeeded, iOS timed out | Retry only `ios-testflight` or the previously approved `ios-app-store` target |

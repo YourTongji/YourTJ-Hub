@@ -137,6 +137,10 @@ def main():
         return
     manifest, binding = authorize(args.candidate, github, args.folder)
     if args.command == "authorize":
+        if os.environ.get('INITIAL_PUBLICATION') == 'true':
+            for channel in manifest['channels']:
+                require(latest_receipt(github, args.candidate, channel) is None,
+                        'Publication already started; use Recover for the original artifacts')
         selected = os.environ.get('REQUESTED_CHANNEL', '')
         require(not selected or (selected.removesuffix('-alias') if selected == 'android-alias' else selected)
                 in manifest['channels'], 'Requested channel is outside the approved request')
