@@ -76,7 +76,7 @@ apps/
     app/              Go backend (bundles/console/datastruct/http/migration/models/service)
     resource/         Vue 3 frontend + gohtml templates + @gooseforum/client package
     docs/             Fork-owned docs (maintained in this monorepo, not reference-only)
-  status/      Independent Vue status site + Netlify Functions/Blobs (status.yourtj.de)
+  status/      Independent Vue status site + Cloudflare Workers/R2 (status.yourtj.de)
   mobile/      Flutter melos workspace (core/auth/ui_kit/forum_app)
 packages/
   api-contract/  openapi.yaml + gen scripts + fixtures + contract tests (Partial)
@@ -102,8 +102,8 @@ docs/        Docs center (product/architecture/development/operations)
 ## 3. Hard constraints
 
 - Forum deployment shape is a **single binary** (go:embed webdist/static-dist); no nginx/CDN split.
-  The independent public status app (`apps/status`) deploys its Vue assets and Functions to Netlify,
-  with no runtime dependency on the forum. See `docs/operations/status-netlify.md`.
+  The independent public status app (`apps/status`) deploys its Vue assets and Worker to Cloudflare,
+  with no runtime dependency on the forum. See `docs/operations/status-cloudflare.md`.
 - User IDs must be **numeric** (uint64) — credit's `GetID()` only accepts numeric sub; the built-in
   OIDC Provider always issues `sub` = users.id (uint64 decimal string).
 - The forum `users` table is the identity source; the forum JWT is a session credential, not identity

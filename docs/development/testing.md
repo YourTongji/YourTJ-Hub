@@ -163,9 +163,9 @@ establish that documented behavior or external URLs are current. Review prose ag
 `apps/status` has an isolated pnpm workspace. Run `pnpm install --frozen-lockfile`, `pnpm test`,
 `pnpm build`, and `pnpm test:browser` there. `pnpm contract:generate` regenerates its local OpenAPI
 TypeScript; `ci-status.yml` rejects generated drift, runs provider/snapshot/component/contract tests,
-Chromium layout and fault cases, and builds both the frontend and Netlify Functions. It does not need
-the forum, database, live provider credentials or a Netlify account. For real-source local verification
-and production scheduled-function checks, follow the [Netlify runbook](../operations/status-netlify.md).
+Chromium layout and fault cases, and builds both the frontend and Cloudflare Worker. It does not need
+the forum, database, live provider credentials or a Cloudflare account. For real-source local verification
+and production collection checks, follow the [Cloudflare runbook](../operations/status-cloudflare.md).
 
 ## Smoke checklist
 

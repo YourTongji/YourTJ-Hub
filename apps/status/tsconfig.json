@@ -27,8 +27,9 @@
     "src/**/*.ts",
     "src/**/*.vue",
     "server/**/*.ts",
-    "netlify/**/*.ts",
+    "worker/**/*.ts",
     "test/**/*.ts",
-    "vite.config.ts"
+    "vite.config.ts",
+    "scripts/**/*.ts"
   ]
 }

@@ -13,7 +13,7 @@ export interface paths {
         };
         /**
          * Read status snapshots
-         * @description Reads persisted snapshots only; visitors cannot trigger upstream collection. Current resource and uptime sources refresh every minute, history and traffic every fifteen minutes, and device reports hourly. Data is stale after 150 seconds (current), twenty minutes (history/traffic) or seventy minutes (devices). Retention is fifteen minutes, one hour and three hours respectively. fetchedAt is never advanced on failure. Resource history remains available independently when current metrics expire; the server envelope then has current/cpuCores null and preserves history's own timestamp. Browsers poll every sixty seconds; the CDN caches responses for at most thirty seconds. The browser rechecks freshness independently of the CDN cache.
+         * @description Reads persisted snapshots only; visitors cannot trigger upstream collection. GitHub Actions collects current resources, uptime, history and traffic every fifteen minutes, and device reports hourly; scheduled runs can be delayed. Data is stale after twenty minutes (current/history/traffic) or seventy minutes (devices). Retention is one hour and three hours respectively. fetchedAt is never advanced on failure. Resource history remains available independently when current metrics expire; the server envelope then has current/cpuCores null and preserves history's own timestamp. Browsers poll every sixty seconds; the CDN caches responses for at most thirty seconds. The browser rechecks freshness independently of the CDN cache.
          */
         get: operations["getStatus"];
         put?: never;

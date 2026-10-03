@@ -8,7 +8,7 @@
     "node": ">=24"
   },
   "scripts": {
-    "dev": "netlify dev",
+    "dev": "pnpm build && wrangler dev",
     "dev:local": "node scripts/dev-local.mjs",
     "dev:ui": "vite --host 127.0.0.1",
     "build": "pnpm typecheck && vite build && node scripts/write-build-manifest.mjs",
@@ -17,31 +17,35 @@
     "test:browser": "node --test test/*.browser.mjs",
     "contract:generate": "openapi-typescript api/openapi.yaml -o src/generated/openapi.ts",
     "contract:check": "pnpm contract:generate && git diff --exit-code -- src/generated/openapi.ts",
-    "functions:build": "netlify functions:build --src netlify/functions --functions .netlify/functions"
+    "worker:build": "wrangler deploy --env=\"\" --dry-run --outdir .wrangler/build && wrangler deploy --env production --dry-run --outdir .wrangler/build-production",
+    "deploy:preview": "wrangler deploy --env=\"\"",
+    "deploy:production": "wrangler deploy --env production"
   },
   "dependencies": {
-    "vue": "^3.5.25",
-    "vue-i18n": "^11.4.4",
     "@lucide/vue": "^1.16.0",
-    "@netlify/blobs": "11.1.0",
-    "@netlify/functions": "6.0.0",
-    "d3-sankey": "0.12.3"
+    "d3-sankey": "0.12.3",
+    "vue": "^3.5.25",
+    "vue-i18n": "^11.4.4"
   },
   "devDependencies": {
-    "vite": "^8.0.16",
-    "@vitejs/plugin-vue": "^6.0.3",
-    "typescript": "~6.0.3",
-    "vue-tsc": "^3.3.7",
-    "vitest": "^4.1.11",
-    "@vue/test-utils": "^2.4.11",
-    "happy-dom": "^20.11.2",
-    "playwright": "1.62.1",
+    "@aws-sdk/client-s3": "3.1145.0",
+    "@cloudflare/workers-types": "5.20261002.1",
+    "@types/d3-sankey": "0.12.4",
     "@types/node": "^24.0.0",
-    "openapi-typescript": "^7.13.0",
-    "yaml": "^2.8.0",
+    "@vitejs/plugin-vue": "^6.0.3",
+    "@vue/test-utils": "^2.4.11",
     "ajv": "^8.17.1",
     "ajv-formats": "^3.0.1",
-    "netlify-cli": "27.6.0",
-    "@types/d3-sankey": "0.12.4"
+    "happy-dom": "^20.11.2",
+    "miniflare": "5.20261001.0-alpha",
+    "openapi-typescript": "^7.13.0",
+    "playwright": "1.62.1",
+    "tsx": "4.23.15",
+    "typescript": "~6.0.3",
+    "vite": "^8.0.16",
+    "vitest": "^4.1.11",
+    "vue-tsc": "^3.3.7",
+    "wrangler": "4.146.0",
+    "yaml": "^2.8.0"
   }
 }

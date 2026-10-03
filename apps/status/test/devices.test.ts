@@ -33,7 +33,7 @@ it('reads a joint report and only exposes coarse allowlisted visitor aggregates'
   expect(JSON.stringify(data)).not.toMatch(/private|session|token|password|path/)
   const report = fetcher.mock.calls.find(([url]) => String(url).endsWith('/breakdown'))!
   expect(JSON.parse(String(report[1]?.body))).toMatchObject({ filters: {}, parameters: { fields: ['device', 'os', 'browser'], startDate: data.startAt, endDate: data.endAt } })
-  expect(fetcher.mock.calls.every(([, init]) => init?.redirect === 'error')).toBe(true)
+  expect(fetcher.mock.calls.every(([, init]) => init?.redirect === 'manual')).toBe(true)
 })
 
 it('coalesces aliases and preserves unknown types without dropping visitors', async () => {

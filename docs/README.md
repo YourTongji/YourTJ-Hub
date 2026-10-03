@@ -85,7 +85,7 @@ status. Do not use PR-relative "shipped this / later" labels as long-term status
 - [Reviewed releases](operations/releases.md)
 - [Deployment & release](operations/deployment.md)
 - [Campus connection operations](operations/campus.md)
-- [Independent status site on Netlify](operations/status-netlify.md)
+- [Independent status site on Cloudflare](operations/status-cloudflare.md)
 - [Mobile releases and signing](operations/mobile-releases.md)
 - [Object storage](operations/object-storage.md)
 - [Oryn repository maintenance](operations/oryn.md)
