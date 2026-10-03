@@ -71,6 +71,8 @@ PR head controls release metadata. A metadata PR merge is not a new application 
 are distribution-specific: Android public verified APK release; web successful production deployment;
 iOS actual TestFlight distribution or live App Store version. Unknown Apple build/tag mappings block
 preparation and require reconciliation; an uploaded or in-review version is not a live-store baseline.
+The pinned ASC CLI queries live iOS versions with `--state READY_FOR_SALE --latest`; its legacy
+`appStoreState` and newer `appVersionState` filter values cannot be mixed in one query.
 
 A reviewer edits files, checks evidence/platform attribution, fills server prerequisites where required,
 then approves the final head. `serverRequirement` is null or `{sourceSha, reason}`; the required source
@@ -120,7 +122,10 @@ TestFlight notes have stable IDs and evidence references tied to the iOS TestFli
 The collector links each changed file to the feature pull requests that changed it within that
 channel's range. Feature PRs are read from merged history, since main's first-parent history only
 shows dev promotions; promotions from dev or main are ignored. The links stay in `evidence.json`,
-outside the model request. When Oryn's draft is converted, each entry takes its kind from the linked
+outside the model request. Commit references are PR candidates only: an explicit PR-endpoint 404
+omits that reference from PR metadata and entry identity, retains the full source evidence, and records
+an uncertainty. Authentication, rate-limit and other API errors still block preparation.
+When Oryn's draft is converted, each entry takes its kind from the linked
 PRs' conventional title type or branch prefix (`feat` new, `fix` fixed, security wording or type
 security, otherwise improved). Its ID is `pr-<number>`, with `-ios` or `-beta` for iOS channels.
 A breaking `type!:` PR places it under required changes. Title and summary are split at a leading

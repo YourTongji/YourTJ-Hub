@@ -16,7 +16,7 @@ class AppleBaselineTests(unittest.TestCase):
                                   'betaGroups': {'data': [{'id': group} for group in groups]}}})
             builds['included'] += [{'id': 'v' + identity, 'attributes': {'version': '1.0.' + identity}},
                                    {'id': 'b' + identity, 'attributes': {'externalBuildState': 'BETA_APPROVED'}}]
-        store = {'data': [{'attributes': {'versionString': '1.0.0', 'appStoreState': 'READY_FOR_DISTRIBUTION'},
+        store = {'data': [{'attributes': {'versionString': '1.0.0', 'appStoreState': 'READY_FOR_SALE'},
                            'relationships': {'build': {'data': {'id': 'original'}}}}],
                  'included': [{'id': 'original', 'type': 'builds', 'attributes': {'version': '0'}}]}
         return builds, store
@@ -35,3 +35,20 @@ class AppleBaselineTests(unittest.TestCase):
         del builds['data'][0]['relationships']['betaGroups']
         with patch('apple.asc', side_effect=[builds, store]), self.assertRaises(ReleaseError):
             apple.discover()
+
+    def test_live_store_discovery_respects_asc_state_filter_families(self):
+        builds, store = self.fixtures()
+        def asc(*args):
+            if args[:2] == ('builds', 'list'):
+                return builds
+            # ASC 5 rejects mixing appStoreState and appVersionState-only values
+            # before sending a request. READY_FOR_SALE + --latest is its documented
+            # live-version lookup, including historical versions still marked live.
+            states = args[args.index('--state') + 1].split(',')
+            if 'READY_FOR_SALE' in states and 'READY_FOR_DISTRIBUTION' in states:
+                raise RuntimeError('ASC versions list: cannot mix state filter families')
+            self.assertIn('--latest', args)
+            return store
+        with patch('apple.asc', side_effect=asc):
+            discovered = apple.discover()
+        self.assertEqual(discovered['ios-app-store']['buildId'], 'original')
