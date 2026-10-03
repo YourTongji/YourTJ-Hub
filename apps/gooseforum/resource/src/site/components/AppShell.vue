@@ -355,12 +355,19 @@ function scheduleDrawerGestureHint() {
   if (
     !window.matchMedia?.(mobileDrawerViewportQuery).matches ||
     !hasTouchLikePointer() ||
+    drawerGestureHintPageOptedOut() ||
     !shouldOfferDrawerGestureHint()
   ) {
     return
   }
   drawerGestureHintShowTimer = window.setTimeout(() => {
-    if (drawerOpen.value || !window.matchMedia?.(mobileDrawerViewportQuery).matches) return
+    if (
+      drawerOpen.value ||
+      !window.matchMedia?.(mobileDrawerViewportQuery).matches ||
+      drawerGestureHintPageOptedOut()
+    ) {
+      return
+    }
     drawerGestureHintVisible.value = true
     drawerGestureHintHideTimer = window.setTimeout(() => {
       drawerGestureHintVisible.value = false
@@ -369,8 +376,25 @@ function scheduleDrawerGestureHint() {
   }, 800)
 }
 
+function drawerGestureHintPageOptedOut() {
+  return document.querySelector('[data-drawer-swipe-ignore="page"]') !== null
+}
+
+watch(
+  () => route.path,
+  async () => {
+    clearDrawerGestureHintTimers()
+    drawerGestureHintVisible.value = false
+    await nextTick()
+    scheduleDrawerGestureHint()
+  },
+)
+
 function onDrawerGestureTouchStart(event: TouchEvent) {
-  if (event.touches.length !== 1) return
+  if (event.touches.length !== 1) {
+    drawerOpenSwipe = null
+    return
+  }
   const touch = event.touches[0]
   if (
     drawerOpen.value ||
@@ -388,8 +412,16 @@ function onDrawerGestureTouchStart(event: TouchEvent) {
 }
 
 function onDrawerGestureTouchMove(event: TouchEvent) {
-  if (!drawerOpenSwipe || event.touches.length !== 1) return
+  if (!drawerOpenSwipe) return
+  if (event.touches.length !== 1) {
+    drawerOpenSwipe = null
+    return
+  }
   const touch = event.touches[0]
+  if (touch.identifier !== drawerOpenSwipe.pointerId) {
+    drawerOpenSwipe = null
+    return
+  }
   const decision = drawerSwipeDecision(
     drawerOpenSwipe,
     { clientX: touch.clientX, clientY: touch.clientY, timeStamp: event.timeStamp },
@@ -410,7 +442,7 @@ function onDrawerGestureTouchEnd(event: TouchEvent) {
   const swipe = drawerOpenSwipe
   drawerOpenSwipe = null
   const touch = event.changedTouches[0]
-  if (!touch) return
+  if (!touch || touch.identifier !== swipe.pointerId) return
   if (
     drawerSwipeDecision(
       swipe,

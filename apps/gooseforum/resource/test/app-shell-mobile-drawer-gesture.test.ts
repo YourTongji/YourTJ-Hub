@@ -50,6 +50,17 @@ function touch(type: string, x: number, y: number) {
   return event
 }
 
+function touchList(
+  type: string,
+  touches: Array<{ identifier: number; clientX: number; clientY: number }>,
+  changedTouches = touches,
+) {
+  const event = new Event(type, { bubbles: true, cancelable: true }) as TouchEvent
+  Object.defineProperty(event, 'touches', { value: touches })
+  Object.defineProperty(event, 'changedTouches', { value: changedTouches })
+  return event
+}
+
 describe('AppShell mobile drawer gesture wiring', () => {
   beforeEach(() => {
     Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 })
@@ -97,6 +108,51 @@ describe('AppShell mobile drawer gesture wiring', () => {
     await vi.waitFor(() => {
       expect(document.querySelector('.gf-drawer-surface')).toBeNull()
     })
+
+    wrapper.unmount()
+  })
+
+  test('multi-touch and touchcancel clear the tracked finger instead of using another touch to toggle the drawer', async () => {
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [{ path: '/:pathMatch(.*)*', component: { template: '<div />' } }],
+    })
+    const wrapper = mount(AppShell, {
+      props: { layout: layout() },
+      global: { plugins: [i18n, router] },
+      attachTo: document.body,
+    })
+
+    const tracked = { identifier: 7, clientX: 100, clientY: 160 }
+    const second = { identifier: 8, clientX: 190, clientY: 160 }
+    wrapper.element.dispatchEvent(touchList('touchstart', [tracked], [tracked]))
+    wrapper.element.dispatchEvent(touchList('touchstart', [tracked, second], [second]))
+    wrapper.element.dispatchEvent(touchList('touchend', [tracked], [second]))
+    await flushPromises()
+    expect(document.querySelector('.gf-drawer-surface')).toBeNull()
+
+    wrapper.element.dispatchEvent(touch('touchstart', 100, 160))
+    wrapper.element.dispatchEvent(touchList('touchcancel', [], [{ identifier: 7, clientX: 100, clientY: 160 }]))
+    const afterCancel = touch('touchmove', 190, 160)
+    wrapper.element.dispatchEvent(afterCancel)
+    expect(afterCancel.defaultPrevented).toBe(false)
+    expect(document.querySelector('.gf-drawer-surface')).toBeNull()
+
+    wrapper.element.dispatchEvent(touch('touchstart', 100, 160))
+    wrapper.element.dispatchEvent(touch('touchmove', 185, 166))
+    await flushPromises()
+    await vi.waitFor(() => {
+      expect(document.querySelector('.gf-drawer-surface')).not.toBeNull()
+    })
+
+    const drawer = document.querySelector<HTMLElement>('.gf-drawer-surface')!
+    const closeTracked = { identifier: 7, clientX: 250, clientY: 180 }
+    const closeSecond = { identifier: 8, clientX: 155, clientY: 180 }
+    drawer.dispatchEvent(touchList('touchstart', [closeTracked], [closeTracked]))
+    drawer.dispatchEvent(touchList('touchstart', [closeTracked, closeSecond], [closeSecond]))
+    drawer.dispatchEvent(touchList('touchend', [closeTracked], [closeSecond]))
+    await flushPromises()
+    expect(document.querySelector('.gf-drawer-surface')).not.toBeNull()
 
     wrapper.unmount()
   })

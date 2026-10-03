@@ -75,7 +75,10 @@ let desktopChangeHandler: ((event: MediaQueryListEvent) => void) | null = null
 let closeSwipe: DrawerSwipeState | null = null
 
 function onDrawerTouchStart(event: TouchEvent) {
-  if (event.touches.length !== 1) return
+  if (event.touches.length !== 1) {
+    closeSwipe = null
+    return
+  }
   const touch = event.touches[0]
   if (!canStartDrawerSwipe(touch.clientX, event.target, { protectViewportEdges: false })) return
   closeSwipe = {
@@ -87,8 +90,16 @@ function onDrawerTouchStart(event: TouchEvent) {
 }
 
 function onDrawerTouchMove(event: TouchEvent) {
-  if (!closeSwipe || event.touches.length !== 1) return
+  if (!closeSwipe) return
+  if (event.touches.length !== 1) {
+    closeSwipe = null
+    return
+  }
   const touch = event.touches[0]
+  if (touch.identifier !== closeSwipe.pointerId) {
+    closeSwipe = null
+    return
+  }
   const decision = drawerSwipeDecision(
     closeSwipe,
     { clientX: touch.clientX, clientY: touch.clientY, timeStamp: event.timeStamp },
@@ -112,7 +123,7 @@ function onDrawerTouchEnd(event: TouchEvent) {
   const swipe = closeSwipe
   closeSwipe = null
   const touch = event.changedTouches[0]
-  if (!touch) return
+  if (!touch || touch.identifier !== swipe.pointerId) return
   if (
     drawerSwipeDecision(
       swipe,

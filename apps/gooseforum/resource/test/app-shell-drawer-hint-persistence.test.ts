@@ -132,4 +132,35 @@ describe('AppShell drawer gesture hint persistence', () => {
 
     wrapper.unmount()
   })
+
+  test('page-level drawer swipe opt-out suppresses the one-time hint', async () => {
+    const optOut = document.createElement('div')
+    optOut.setAttribute('data-drawer-swipe-ignore', 'page')
+    document.body.append(optOut)
+    const wrapper = await mountFreshShell()
+
+    await vi.advanceTimersByTimeAsync(4800)
+    await flushPromises()
+
+    expect(document.querySelector('.gf-drawer-gesture-hint')).toBeNull()
+    expect(window.localStorage.getItem(hintKey)).toBeNull()
+
+    wrapper.unmount()
+    optOut.remove()
+  })
+
+  test('storage failures fall back to the in-memory seen latch', async () => {
+    vi.resetModules()
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new DOMException('blocked', 'SecurityError')
+    })
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new DOMException('blocked', 'SecurityError')
+    })
+    const { markDrawerGestureHintSeen, shouldOfferDrawerGestureHint } = await import('../src/runtime/mobile-drawer-gesture')
+
+    expect(shouldOfferDrawerGestureHint()).toBe(true)
+    expect(() => markDrawerGestureHintSeen()).not.toThrow()
+    expect(shouldOfferDrawerGestureHint()).toBe(false)
+  })
 })
