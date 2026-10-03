@@ -171,6 +171,40 @@ class PipelineTest(unittest.TestCase):
         self.assertEqual(len(request['evidence']), 2)
         self.assertEqual([item.get('disclosureId') for item in evidence['evidence']][-1], 'Analytics')
 
+    def test_commit_issue_references_do_not_become_pull_request_evidence(self):
+        env = {**os.environ, 'GIT_AUTHOR_NAME': 'Fixture', 'GIT_AUTHOR_EMAIL': 'fixture@example.org',
+               'GIT_COMMITTER_NAME': 'Fixture', 'GIT_COMMITTER_EMAIL': 'fixture@example.org'}
+        def git(*args):
+            return subprocess.check_output(['git', '-C', str(self.root), *args], env=env, text=True).strip()
+        git('init', '-q', '-b', 'main')
+        path = self.root / 'apps/mobile/packages/forum_app/lib/feed.dart'
+        path.parent.mkdir(parents=True)
+        def commit(text, subject):
+            path.write_text(text, encoding='utf-8')
+            git('add', '.'); git('commit', '-qm', subject)
+            return git('rev-parse', 'HEAD')
+        base = commit('original\n', 'initial')
+        commit('reviewed fix\n', 'fix: feed scrolling (#7)')
+        source = commit('issue follow-up\n', 'fix: feed follow-up (#975)')
+        manifest = candidate() | {'sourceSha': source, 'channels': ['android'],
+                                  'notes': {'android': 'android.zh-CN.md'},
+                                  'baselines': {'android': {'tag': 'mobile-v1.0.14', 'sourceSha': base}}}
+        class IssueReference(FakeGitHub):
+            def api(self, endpoint, **kwargs):
+                if endpoint == 'pulls/975':
+                    if kwargs.get('missing'):
+                        return None  # The issue exists; the PR endpoint returns HTTP 404.
+                    raise ReleaseError('GitHub GET pulls/975 failed (HTTP 404)')
+                if endpoint == 'pulls/7':
+                    return {'title': 'fix: feed scrolling', 'html_url': 'https://example.org/7'}
+                return super().api(endpoint, **kwargs)
+        with patch('collect.git', side_effect=git):
+            request, evidence = collect(manifest, IssueReference())
+        self.assertEqual([pr['number'] for pr in evidence['pullRequests']], [7])
+        self.assertEqual(evidence['evidencePullRequests'], {request['evidence'][0]['id']: [7]})
+        self.assertIn('issue follow-up', request['evidence'][0]['detail'])
+        self.assertTrue(any('#975' in uncertainty for uncertainty in evidence['uncertainties']))
+
     def test_oryn_drafts_become_grouped_stable_user_facing_entries(self):
         manifest = candidate() | {'schemaVersion': 2, 'channels': ['android'], 'notes': {'android': 'android.zh-CN.md'},
                                   'baselines': {'android': {'tag': 'mobile-v1.0.14', 'sourceSha': 'b' * 40}},

@@ -104,9 +104,21 @@ def collect(manifest, github):
     numbers.update(linked[:MAX_LINKED_PRS])
     prs = []
     for number in sorted(numbers):
-        pr = github.api(f"pulls/{number}")
+        # A commit's "(#123)" suffix can reference an issue, even when it looks
+        # like GitHub's squash convention. Only an explicit PR response establishes
+        # metadata/entry identity; authentication and other API failures still block.
+        pr = github.api(f"pulls/{number}", missing=True)
+        if pr is None:
+            uncertainties.append(f"#{number}: commit reference has no pull request; "
+                                 "retained source evidence without PR metadata")
+            continue
         prs.append({"number": number, "title": pr["title"], "url": pr["html_url"],
                     "branch": branches.get(number), "body": (pr.get("body") or "")[:8000]})
+    verified_numbers = {pr['number'] for pr in prs}
+    for evidence_id in list(evidence_prs):
+        evidence_prs[evidence_id] = [n for n in evidence_prs[evidence_id] if n in verified_numbers]
+        if not evidence_prs[evidence_id]:
+            del evidence_prs[evidence_id]
     # Reviewed manifest disclosures become citable evidence for required changelog entries.
     # They stay out of the model request, which already carries requiredDisclosures.
     disclosures = [{"id": "disclosure-" + hashlib.sha256(item["id"].encode()).hexdigest()[:16],
