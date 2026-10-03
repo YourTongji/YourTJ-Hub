@@ -202,8 +202,10 @@ and are not automatically cancelled. Queued concurrency uses GitHub's `queue: ma
 
 - Web: GoReleaser builds archives once with explicit source/version metadata and approved notes. The
   original archives are retained before staging validation, so a staging failure can recover them.
-  The Linux executable's `version` command prints the compiled version/commit as JSON without running
-  migrations or background services; the controller verifies these values against the approved request
+  The Linux executable's `version --output <file>` command writes the compiled version/commit as JSON
+  without running migrations or starting application services. The controller runs it in a temporary
+  directory to contain legacy package initialization (default config/log files) and reads the JSON file
+  separately from shutdown logs. It verifies these values against the approved request
   before packaging that exact binary into GHCR. This supports stripped `-trimpath` binaries, which do
   not retain linker flags in `go version -m`. Production consumes a digest-qualified image reference,
   waits for health, and compares the running binary digest. A failed deployment records failure even

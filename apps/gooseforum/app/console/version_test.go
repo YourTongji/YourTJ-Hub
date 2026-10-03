@@ -3,6 +3,8 @@ package console
 import (
 	"bytes"
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/buildinfo"
@@ -25,6 +27,7 @@ func TestVersionReportsCompiledIdentityWithoutStartingRuntime(t *testing.T) {
 		rootCmd.PersistentPreRun = original
 		rootCmd.SetOut(nil)
 		rootCmd.SetArgs(nil)
+		_ = command.Flags().Set("output", "")
 	})
 	if err := rootCmd.Execute(); err != nil {
 		t.Fatal(err)
@@ -35,5 +38,21 @@ func TestVersionReportsCompiledIdentityWithoutStartingRuntime(t *testing.T) {
 	}
 	if expected := buildinfo.Get(); actual != expected {
 		t.Fatalf("got %#v, want %#v", actual, expected)
+	}
+	path := filepath.Join(t.TempDir(), "identity.json")
+	output.Reset()
+	rootCmd.SetArgs([]string{"version", "--output", path})
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(data, &actual); err != nil || actual != buildinfo.Get() {
+		t.Fatalf("file must contain the compiled identity: %s; %v", data, err)
+	}
+	if output.Len() != 0 {
+		t.Fatalf("file output must not duplicate metadata on stdout: %s", output.Bytes())
 	}
 }

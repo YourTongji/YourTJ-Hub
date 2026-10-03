@@ -6,6 +6,7 @@ from pathlib import Path
 import shutil
 import sys
 import subprocess
+import tempfile
 
 
 def stage(dist, destination, source_sha, version):
@@ -25,8 +26,13 @@ def stage(dist, destination, source_sha, version):
     # Actions artifact downloads restore files as 0644, including this executable.
     binary.chmod(0o755)
     # A trimpath binary does not retain -ldflags in go version -m. Read the values
-    # actually compiled into the executable, using its side-effect-free command.
-    build_info = json.loads(subprocess.check_output([str(binary.resolve()), 'version'], text=True, timeout=30))
+    # actually compiled into the executable. An isolated cwd contains legacy package
+    # initialization (default config/log creation); the JSON file excludes shutdown logs.
+    with tempfile.TemporaryDirectory() as temporary:
+        identity = Path(temporary) / 'identity.json'
+        subprocess.run([str(binary.resolve()), 'version', '--output', str(identity)],
+                       cwd=temporary, capture_output=True, text=True, timeout=30, check=True)
+        build_info = json.loads(identity.read_text(encoding='utf-8'))
     for field, value in [('version', version), ('commit', source_sha)]:
         if build_info.get(field) != value:
             raise ValueError('Binary build metadata does not match approved ' + field)

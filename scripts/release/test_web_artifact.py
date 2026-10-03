@@ -23,7 +23,7 @@ class WebArtifactTests(unittest.TestCase):
         (cls.root / 'go.mod').write_text('module example.org/release\n\ngo 1.20\n', encoding='utf-8')
         (cls.root / 'buildinfo').mkdir()
         (cls.root / 'buildinfo/info.go').write_text('package buildinfo\nvar Version, Commit string\n', encoding='utf-8')
-        (cls.root / 'main.go').write_text('package main\nimport ("encoding/json"; "os"; "example.org/release/buildinfo")\nfunc main(){if len(os.Args)!=2 || os.Args[1]!="version" {os.Exit(1)}; json.NewEncoder(os.Stdout).Encode(map[string]string{"version":buildinfo.Version,"commit":buildinfo.Commit})}\n', encoding='utf-8')
+        (cls.root / 'main.go').write_text('package main\nimport ("encoding/json"; "fmt"; "os"; "example.org/release/buildinfo")\nfunc main(){if len(os.Args)!=4 || os.Args[1]!="version" || os.Args[2]!="--output" {os.Exit(1)}; data,_:=json.Marshal(map[string]string{"version":buildinfo.Version,"commit":buildinfo.Commit}); if err:=os.WriteFile(os.Args[3],data,0600); err!=nil {panic(err)}; fmt.Println("shutdown logs") }\n', encoding='utf-8')
         cls.dist = cls.root / 'dist'
         binary = cls.dist / 'unix_linux_amd64_v1/yourtj-hub'
         binary.parent.mkdir(parents=True)
