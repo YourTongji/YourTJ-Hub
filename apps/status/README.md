@@ -1,55 +1,55 @@
-# YourTJ Status
+# YourTJ status
 
-Standalone Vue/Vite app and Netlify Functions for `status.yourtj.de`. No forum process, database,
-login or forum runtime asset is required. Optional visitor-device reports use a server-only Umami
-account with read access to the configured website; basic traffic statistics remain public-share based.
+`Partial`: independent Vue status app on Cloudflare Workers Static Assets, a read-only Worker API,
+and private R2 snapshots. GitHub Actions collects public metrics every fifteen minutes and device
+reports hourly; collection never runs in the Worker or in response to a visitor. The forum retains
+its separate single-binary deployment. The reader is verified in isolated preview; production domain
+cutover, scheduled collection and real device reports still require operational acceptance.
 
-## Local development
+## Development
 
-Use Node 24 and pnpm 11. From this directory:
+Node 24 and pnpm 11:
 
 ```sh
 pnpm install --frozen-lockfile
-cp .env.example .env
-pnpm dev
+pnpm dev:local
 ```
 
-Fill `.env` with the public sources documented in the [Netlify runbook](../../docs/operations/status-netlify.md).
-Add `UMAMI_USERNAME` and `UMAMI_PASSWORD` for visitor-device reports. Use an ignored `.env.local`
-for local secrets; never use `VITE_*` names. `pnpm dev:local` serves both UI and the real snapshot API
-at `http://localhost:5247`, including automatic minute/15-minute/hourly collection. This worktree-friendly
-preview keeps snapshots in memory and never reads or writes production Blobs. Restart it after
-changing server code or environment settings; initial collection can take several seconds.
-
-For Netlify runtime/emulator verification, use `pnpm dev` instead:
-Netlify Dev serves the page and API at `http://localhost:8888`. In another terminal, invoke the
-collectors once (local schedules do not run automatically):
+`dev:local` is a local collector/API with an in-memory store. Configure ignored `.env.local` from
+`.env.example`; without providers the UI shows unconfigured sources. `pnpm dev` builds assets and
+starts Wrangler with local R2. Its default configuration has disabled sources and no scheduled jobs.
 
 ```sh
-pnpm exec netlify functions:invoke collect-current --port 8888
-pnpm exec netlify functions:invoke collect-history --port 8888
-pnpm exec netlify functions:invoke collect-devices --port 8888
-```
-
-Netlify CLI 27.6 currently misidentifies the repository root in Git worktrees (`.git` is a file).
-Use a regular checkout for Netlify CLI commands (Dev and function bundling). A clean checkout containing only this app was verified with
-`netlify build --offline` and the local collectors; Git-based Netlify builds use a regular checkout.
-
-## Verification
-
-```sh
+pnpm contract:check
 pnpm test
 pnpm build
-pnpm exec playwright install chromium
 pnpm test:browser
-pnpm contract:generate
-pnpm exec netlify functions:build --src netlify/functions --functions .netlify/functions
+pnpm worker:build
 ```
 
-Unit and browser tests use explicit fixtures and do not contact real providers. `api/openapi.yaml`
-owns the read API; `src/generated/openapi.ts` is generated. `server/` owns public-field adapters,
-persistence and read semantics; `netlify/functions/` only wires platform handlers.
+The HTTP contract is in `api/openapi.yaml`. Query validation, provider sanitization, freshness and
+conditional writes are shared by the API and external collector. `worker:build` checks both default
+preview and production configuration. Browser tests cover four languages, themes and mobile/desktop
+sizes. A real Workers-runtime test checks upstream fetch and credential-safe redirect rejection.
 
-Product behavior is documented in the [status specification](../../docs/product/server-status.md).
-Deployment settings, environment variables, domain setup and failure checks live in the
-[Netlify runbook](../../docs/operations/status-netlify.md).
+## Deployment
+
+See [the Cloudflare runbook](../../docs/operations/status-cloudflare.md). Production and preview use
+separate private buckets. Only reviewed main is deployed. `Deploy / status` verifies the build tree
+and API; the dev scheduler dispatches `Collect / status` on main without production credentials.
+The collector's workflow definition and checked-out source come from the same main commit, and its
+environment allows only main. Freeze Netlify automatic builds before removing its handlers from main;
+keep the existing deployment until Cloudflare cutover passes acceptance.
+
+The collector uses bucket-scoped S3 credentials in the `status-collector` GitHub environment. Only
+that environment holds Umami credentials. The Worker has no upstream credentials or public collect
+endpoint. Public `UMAMI_DEVICE_REVISION` isolates device snapshots when an account or permission
+changes; clear it to disable the device source, or increment it to invalidate previous snapshots.
+
+Public collection also publishes twelve range views. An API request reads at most one public view and
+one device object; views retain each source's original timestamp, failure flag and scope fingerprint.
+
+GitHub collection is best effort, so timestamps and stale/unavailable states remain visible. Current,
+history and traffic sources are stale after twenty minutes and hidden after one hour; devices are
+stale after seventy minutes and hidden after three hours. Polling and caching never freshen source
+timestamps. The site is not a replacement for the independent uptime monitor.

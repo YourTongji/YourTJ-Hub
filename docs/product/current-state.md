@@ -38,7 +38,7 @@
 | 数据库与文件 | `Current` | 部署默认 PostgreSQL，本地默认 SQLite；SQLite BLOB／S3 文件存储，见[架构](../architecture/system-overview.md)与[对象存储](../operations/object-storage.md)。 |
 | 论坛内积分 | `Partial` | 本地账本幂等入账和删除回滚可用；内存事件丢失后的持久补偿尚缺，见[积分规范](credit-and-escrow.md#current-boundary)。 |
 | 跨服务积分结算 | `Planned` | credit 尚未部署或接入论坛；见[积分规范](credit-and-escrow.md)。 |
-| 独立运行状态站 | `Partial` | Vue／Netlify 采集和快照读取已实现；生产项目、DNS 与定时采集仍需配置验收，见[状态站规范](server-status.md)。 |
+| 独立运行状态站 | `Partial` | Vue／Cloudflare 快照读取与 GitHub Actions 采集已实现；生产项目、DNS 与定时采集仍需配置验收，见[状态站规范](server-status.md)。 |
 
 ## Development and operations
 

@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed
+Superseded by [0058](0058-status-cloudflare.md)
 Class: architecture
 
 ## Context and Problem Statement
@@ -59,6 +59,5 @@ preserving its independent deployment, provider projection and conditional-write
 ## Links
 
 - [Status product semantics](../product/server-status.md)
-- [Deployment and forced rebuilds](../operations/status-netlify.md)
 - [Netlify credit meters](https://docs.netlify.com/manage/accounts-and-billing/billing/billing-for-credit-based-plans/how-credits-work/)
 - [Netlify build environment and cached commit semantics](https://docs.netlify.com/build/configure-builds/environment-variables/)
