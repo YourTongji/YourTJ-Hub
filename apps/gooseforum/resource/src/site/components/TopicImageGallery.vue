@@ -147,6 +147,7 @@ onBeforeUnmount(() => {
     <div
       ref="galleryContainer"
       tabindex="0"
+      data-drawer-swipe-ignore
       class="group relative w-full h-[300px] xs:h-[340px] sm:h-[400px] md:h-[460px] max-h-[60vh] overflow-hidden rounded-2xl sm:rounded-3xl border border-line/70 bg-base-200/30 shadow-xs outline-none focus-visible:ring-2 focus-visible:ring-primary/40 select-none transition-shadow duration-200"
       @touchstart="handleTouchStart"
       @touchend="handleTouchEnd"

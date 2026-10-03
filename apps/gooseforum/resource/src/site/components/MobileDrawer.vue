@@ -5,6 +5,11 @@ import { DialogContent, DialogOverlay, DialogRoot, DialogTitle } from 'reka-ui'
 import type { FooterPayload, WikiTreeNamespace } from '@gooseforum/client'
 import WikiSidebar from './WikiSidebar.vue'
 import { safeUrl } from '@/runtime/safe-url'
+import {
+  canStartDrawerSwipe,
+  drawerSwipeDecision,
+  type DrawerSwipeState,
+} from '@/runtime/mobile-drawer-gesture'
 
 interface SidebarNavItem {
   key: string
@@ -67,6 +72,72 @@ function close() {
 // 页面会变得不可点。监听断点变化，进入 lg 时自动关闭 drawer。
 let desktopQuery: MediaQueryList | null = null
 let desktopChangeHandler: ((event: MediaQueryListEvent) => void) | null = null
+let closeSwipe: DrawerSwipeState | null = null
+
+function onDrawerTouchStart(event: TouchEvent) {
+  if (event.touches.length !== 1) {
+    closeSwipe = null
+    return
+  }
+  const touch = event.touches[0]
+  if (!canStartDrawerSwipe(touch.clientX, event.target, { protectViewportEdges: false })) return
+  closeSwipe = {
+    pointerId: touch.identifier,
+    startX: touch.clientX,
+    startY: touch.clientY,
+    startedAt: event.timeStamp,
+  }
+}
+
+function onDrawerTouchMove(event: TouchEvent) {
+  if (!closeSwipe) return
+  if (event.touches.length !== 1) {
+    closeSwipe = null
+    return
+  }
+  const touch = event.touches[0]
+  if (touch.identifier !== closeSwipe.pointerId) {
+    closeSwipe = null
+    return
+  }
+  const decision = drawerSwipeDecision(
+    closeSwipe,
+    { clientX: touch.clientX, clientY: touch.clientY, timeStamp: event.timeStamp },
+    'left',
+  )
+  if (decision === 'cancel') {
+    closeSwipe = null
+    return
+  }
+  if (decision === 'tracking' || decision === 'trigger') {
+    if (event.cancelable) event.preventDefault()
+  }
+  if (decision === 'trigger') {
+    closeSwipe = null
+    close()
+  }
+}
+
+function onDrawerTouchEnd(event: TouchEvent) {
+  if (!closeSwipe) return
+  const swipe = closeSwipe
+  closeSwipe = null
+  const touch = event.changedTouches[0]
+  if (!touch || touch.identifier !== swipe.pointerId) return
+  if (
+    drawerSwipeDecision(
+      swipe,
+      { clientX: touch.clientX, clientY: touch.clientY, timeStamp: event.timeStamp },
+      'left',
+    ) === 'trigger'
+  ) {
+    close()
+  }
+}
+
+function cancelDrawerSwipe() {
+  closeSwipe = null
+}
 
 onMounted(() => {
   if (typeof window.matchMedia !== 'function') return
@@ -82,6 +153,7 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  closeSwipe = null
   if (desktopQuery && desktopChangeHandler) {
     desktopQuery.removeEventListener('change', desktopChangeHandler)
   }
@@ -96,6 +168,10 @@ onBeforeUnmount(() => {
     <DialogContent
       class="gf-drawer-surface fixed inset-y-0 left-0 z-[60] h-full w-80 max-w-[85vw] overflow-y-auto p-3 outline-none duration-300 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left lg:hidden"
       :aria-describedby="undefined"
+      @touchstart="onDrawerTouchStart"
+      @touchmove="onDrawerTouchMove"
+      @touchend="onDrawerTouchEnd"
+      @touchcancel="cancelDrawerSwipe"
     >
         <div class="mb-3 flex h-10 items-center justify-between">
           <DialogTitle class="text-base font-bold text-base-content">{{ menuLabel }}</DialogTitle>

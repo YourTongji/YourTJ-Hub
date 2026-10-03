@@ -424,6 +424,7 @@ onBeforeUnmount(() => {
 <template>
   <div
     class="campus-atlas"
+    data-drawer-swipe-ignore="page"
     :class="{
       'campus-atlas--selected': selected && panelOpen && !selectedFromTimetable,
       'campus-atlas--collapsed': !panelOpen,
