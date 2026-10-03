@@ -1208,19 +1208,22 @@ The approved permission/privacy/failure boundaries for optional analytics are re
   download keeps the prompt open. About history lists versions on a timeline, newest first. Release notes match Android split-ABI version codes by their shared build number. Public APK
   mirrors are ranked with bounded probes; SHA-256, package and signing-certificate checks precede
   the system installer. Prompts show the installed-to-target release notes, including required actions,
-  and the About page provides channel-filtered release history. Notes are optional cached display data;
+  and the About page provides Android release history. Notes are optional cached display data;
   they do not affect APK verification or installation. Unit tests and signed native builds cover the
   implemented paths; an installed-to-updated physical-device journey remains separate acceptance evidence.
 - `Current`: released iOS builds are distributed and updated through the App Store; TestFlight is
   the candidate testing channel. Apple processing/review for each new version is independent of CI.
   The app does not offer APK-style updates on iOS.
 - `Partial`: App Store builds check Apple's public listing and offer a link when a newer version is
-  available. TestFlight builds use successful TestFlight release receipts to show a newer build's
-  testing notes and link to the TestFlight App Store product page, where users can open or install
-  the TestFlight app and check for the beta. This fallback does not deep-link into the YourTJ beta.
-  Unknown distribution receipts do not trigger channel-specific update prompts. Prompts and About
-  history show channel-filtered notes only when release receipts establish coverage; incomplete
-  history falls back to the target release summary.
+  available. The App Store update prompt and About history render structured formal release notes;
+  iOS history has no channel picker and never substitutes TestFlight testing instructions when
+  public notes are missing. Missing public history keeps its empty or incomplete-history state.
+  TestFlight handles beta update notices and the separate plain-text testing instructions. The app
+  does not duplicate them in an automatic beta prompt; a tester's manual update check opens the
+  TestFlight App Store product page, where they can open or install TestFlight. This fallback does
+  not deep-link into the YourTJ beta. Unknown distribution receipts do not trigger channel-specific
+  update prompts. Formal update prompts use receipt-backed channel coverage; incomplete history
+  falls back to the target release summary.
   Signing, metadata, failure recovery and environment secrets are documented in the
   [mobile release runbook](../operations/mobile-releases.md).
 

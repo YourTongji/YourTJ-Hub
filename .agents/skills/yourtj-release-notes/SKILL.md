@@ -13,7 +13,10 @@ baseline, including the live App Store baseline for a TestFlight-to-store promot
 are hints: verify platform branches and actual client use of API changes. Inspect incomplete diff
 excerpts in the fixed source checkout; do not announce unverified behavior.
 
-Write only the requested channel's canonical file. Android and iOS never share a What’s New file.
+For schema-2 mobile candidates, edit the requested channel's entries in `changelog.json` and use
+`workflow.py render-structured` to derive the canonical files; preserve other channels' facts.
+For Web and legacy candidates, edit only the requested channel's canonical file.
+Android and iOS never share a What’s New file.
 Preserve mandatory disclosures verbatim. Document unsupported claims or uncertain applicability
 for the human reviewer instead of adding plausible filler. Evidence IDs in machine-generated
 entries must exist and match the channel. Human wording edits need not mimic the model's wording.

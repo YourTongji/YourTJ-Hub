@@ -5,6 +5,7 @@ import re
 from pathlib import Path
 
 SCHEMA = 2
+NOTES_FORMAT_VERSION = 2
 REPOSITORY = "YourTongji/YourTJ-Hub"
 FILES = {"web": "web.zh-CN.md", "android": "android.zh-CN.md",
          "ios-app-store": "ios.zh-Hans.txt", "ios-testflight": "testflight.en-US.txt"}
@@ -201,9 +202,18 @@ def validate_candidate(manifest, folder, draft=False):
     return digest(value)
 
 
+def notes_format_version(changelog):
+    # Absent means the original byte format, including during approved recovery.
+    version = changelog.get("notesFormatVersion", 1)
+    require(type(version) is int and version in {1, NOTES_FORMAT_VERSION}, "Unsupported notes format version")
+    return version
+
+
 def validate_changelog(value, version, build_number, channels, draft=False):
-    require(isinstance(value, dict) and set(value) == {"schemaVersion", "version", "buildNumber", "highlights", "breaking", "requiredActions", "evidence", "testflightNotes"},
+    required = {"schemaVersion", "version", "buildNumber", "highlights", "breaking", "requiredActions", "evidence", "testflightNotes"}
+    require(isinstance(value, dict) and required <= set(value) <= required | {"notesFormatVersion"},
             "Invalid structured changelog fields")
+    notes_format_version(value)
     require(value["schemaVersion"] == 1 and value["version"] == version and value["buildNumber"] == build_number,
             "Structured changelog identity differs from release candidate")
     allowed_platforms = {"android", "ios", "ios-testflight", "ios-app-store"}
@@ -267,6 +277,7 @@ def _note_line(entry):
 
 
 def render_changelog(changelog, platform):
+    format_version = notes_format_version(changelog)
     if platform == "ios-testflight":
         return "\n".join(item["text"] for item in changelog["testflightNotes"])
     def applies(entry):
@@ -280,6 +291,9 @@ def render_changelog(changelog, platform):
             line, restated = _note_line(entry)
             return f"- **{line}**" if restated else f"- **{entry['title']}**：{entry['summary'].strip()}"
         return "\n\n".join(f"### {label}\n\n" + "\n".join(bullet(e) for e in rows)
+                            for label, rows in sections if rows)
+    if format_version >= 2:
+        return "\n\n".join(f"{label}\n\n" + "\n".join(f"• {_note_line(e)[0]}" for e in rows)
                             for label, rows in sections if rows)
     return "\n".join(_note_line(e)[0] for _, rows in sections for e in rows)
 

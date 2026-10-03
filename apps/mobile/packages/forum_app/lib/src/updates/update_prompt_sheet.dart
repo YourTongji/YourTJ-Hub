@@ -21,7 +21,6 @@ class UpdatePromptSheet extends StatefulWidget {
     this.ready = false,
     this.receivedBytes = 0,
     this.failureText,
-    this.channelNote,
     required this.primaryLabel,
     required this.onPrimary,
     this.onCancel,
@@ -45,7 +44,6 @@ class UpdatePromptSheet extends StatefulWidget {
   final bool ready;
   final int receivedBytes;
   final String? failureText;
-  final String? channelNote;
   final String primaryLabel;
   final VoidCallback onPrimary;
   final VoidCallback? onCancel;
@@ -219,13 +217,6 @@ class _UpdatePromptSheetState extends State<UpdatePromptSheet> {
                               ),
                             ),
                           ),
-                        if (widget.channelNote != null) ...[
-                          const SizedBox(height: 16),
-                          Text(
-                            widget.channelNote!,
-                            style: type.caption.copyWith(color: secondary),
-                          ),
-                        ],
                       ],
                     ),
                   ),
