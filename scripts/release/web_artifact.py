@@ -3,7 +3,6 @@
 import hashlib
 import json
 from pathlib import Path
-import re
 import shutil
 import sys
 import subprocess
@@ -23,9 +22,13 @@ def stage(dist, destination, source_sha, version):
     if '..' in relative.parts:
         raise ValueError('Unsafe artifact path')
     binary = dist / relative
-    build_info = subprocess.check_output(['go', 'version', '-m', str(binary)], text=True)
-    for field, value in [('Version', version), ('Commit', source_sha)]:
-        if re.findall(r'buildinfo\.' + field + r'=([^\s"\\]+)', build_info) != [value]:
+    # Actions artifact downloads restore files as 0644, including this executable.
+    binary.chmod(0o755)
+    # A trimpath binary does not retain -ldflags in go version -m. Read the values
+    # actually compiled into the executable, using its side-effect-free command.
+    build_info = json.loads(subprocess.check_output([str(binary.resolve()), 'version'], text=True, timeout=30))
+    for field, value in [('version', version), ('commit', source_sha)]:
+        if build_info.get(field) != value:
             raise ValueError('Binary build metadata does not match approved ' + field)
     destination.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(binary, destination / 'yourtj-hub')

@@ -10,6 +10,11 @@ from web_artifact import stage
 
 
 class WebArtifactTests(unittest.TestCase):
+    def test_original_archives_are_preserved_before_staging_can_fail(self):
+        workflow = (Path(__file__).resolve().parents[2] / '.github/workflows/release-web.yml').read_text()
+        self.assertLess(workflow.index('name: Preserve original distribution archives'),
+                        workflow.index('name: Stage the exact production binary and its digest'))
+
     @classmethod
     def setUpClass(cls):
         cls.temp = tempfile.TemporaryDirectory()
@@ -18,18 +23,22 @@ class WebArtifactTests(unittest.TestCase):
         (cls.root / 'go.mod').write_text('module example.org/release\n\ngo 1.20\n', encoding='utf-8')
         (cls.root / 'buildinfo').mkdir()
         (cls.root / 'buildinfo/info.go').write_text('package buildinfo\nvar Version, Commit string\n', encoding='utf-8')
-        (cls.root / 'main.go').write_text('package main\nimport ("fmt"; "example.org/release/buildinfo")\nfunc main(){fmt.Println(buildinfo.Version, buildinfo.Commit)}\n', encoding='utf-8')
+        (cls.root / 'main.go').write_text('package main\nimport ("encoding/json"; "os"; "example.org/release/buildinfo")\nfunc main(){if len(os.Args)!=2 || os.Args[1]!="version" {os.Exit(1)}; json.NewEncoder(os.Stdout).Encode(map[string]string{"version":buildinfo.Version,"commit":buildinfo.Commit})}\n', encoding='utf-8')
         cls.dist = cls.root / 'dist'
         binary = cls.dist / 'unix_linux_amd64_v1/yourtj-hub'
         binary.parent.mkdir(parents=True)
         cls.sha = 'a' * 40
-        subprocess.run(['go', 'build', '-ldflags', '-s -w -X example.org/release/buildinfo.Version=1.0.50 -X example.org/release/buildinfo.Commit=' + cls.sha,
-                        '-o', str(binary), '.'], cwd=cls.root, env={**os.environ, 'GOOS': 'linux', 'GOARCH': 'amd64', 'CGO_ENABLED': '0', 'GOWORK': 'off'}, check=True, capture_output=True)
+        # Use production's trimpath/stripping flags: go version -m omits linker flags.
+        # Execute a native fixture on each test host; production stages Linux on Linux.
+        subprocess.run(['go', 'build', '-trimpath', '-ldflags', '-s -w -X example.org/release/buildinfo.Version=1.0.50 -X example.org/release/buildinfo.Commit=' + cls.sha,
+                        '-o', str(binary), '.'], cwd=cls.root, env={**os.environ, 'CGO_ENABLED': '0', 'GOWORK': 'off'}, check=True, capture_output=True)
         (cls.dist / 'artifacts.json').write_text(json.dumps([{'type': 'Binary', 'goos': 'linux', 'goarch': 'amd64',
             'path': '/previous-runner/project/dist/unix_linux_amd64_v1/yourtj-hub'}]), encoding='utf-8')
         cls.original = binary.read_bytes()
 
     def test_stages_original_bytes_from_goreleaser_inventory(self):
+        # download-artifact restores regular files without their executable bit.
+        (self.dist / 'unix_linux_amd64_v1/yourtj-hub').chmod(0o644)
         result = stage(self.dist, self.root / 'bin', self.sha, '1.0.50')
         self.assertEqual((self.root / 'bin/yourtj-hub').read_bytes(), self.original)
         self.assertEqual(result['binarySha256'], hashlib.sha256(self.original).hexdigest())

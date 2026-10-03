@@ -76,12 +76,6 @@ jobs:
           workdir: .source/apps/gooseforum
         env:
           GORELEASER_CURRENT_TAG: ${{ inputs.tag }}
-      - name: Stage the exact production binary and its digest
-        if: ${{ !inputs.recover }}
-        env:
-          SOURCE_SHA: ${{ inputs.source }}
-          VERSION: ${{ steps.identity.outputs.version }}
-        run: python3 scripts/release/web_artifact.py .source/apps/gooseforum/dist bin "$SOURCE_SHA" "$VERSION"
       - name: Preserve original distribution archives
         if: ${{ !inputs.recover }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -91,6 +85,12 @@ jobs:
           if-no-files-found: error
           retention-days: 30
           include-hidden-files: true
+      - name: Stage the exact production binary and its digest
+        if: ${{ !inputs.recover }}
+        env:
+          SOURCE_SHA: ${{ inputs.source }}
+          VERSION: ${{ steps.identity.outputs.version }}
+        run: python3 scripts/release/web_artifact.py .source/apps/gooseforum/dist bin "$SOURCE_SHA" "$VERSION"
       - name: Restore original distribution archives
         if: inputs.recover && steps.start.outputs.image == ''
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c

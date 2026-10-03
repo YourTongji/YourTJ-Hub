@@ -201,7 +201,11 @@ those outputs. Concurrent execution is serialized per platform; deploy/config tr
 and are not automatically cancelled. Queued concurrency uses GitHub's `queue: max` policy.
 
 - Web: GoReleaser builds archives once with explicit source/version metadata and approved notes. The
-  exact Linux binary is packaged into GHCR. Production consumes a digest-qualified image reference,
+  original archives are retained before staging validation, so a staging failure can recover them.
+  The Linux executable's `version` command prints the compiled version/commit as JSON without running
+  migrations or background services; the controller verifies these values against the approved request
+  before packaging that exact binary into GHCR. This supports stripped `-trimpath` binaries, which do
+  not retain linker flags in `go version -m`. Production consumes a digest-qualified image reference,
   waits for health, and compares the running binary digest. A failed deployment records failure even
   when release archives are already downloadable. Image/config rollback does not restore the database.
 - Android: signed APK package, architecture, version code, certificate and server-side asset digests
