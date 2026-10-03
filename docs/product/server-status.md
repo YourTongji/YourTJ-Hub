@@ -6,14 +6,18 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-09-30
+> Last verified: 2026-10-03
 
 ## 页面与数据范围
 
 **Current**：`apps/status` 提供无需登录的独立状态页面，目标域名 `status.yourtj.de`。
-Vue 静态产物、Cloudflare Worker 与 R2 构成独立部署，论坛侧栏只保留「运行状态」外链。
+论坛侧栏只保留「运行状态」外链。
 页面不依赖论坛 API、Cookie、字体服务器或论坛静态资产。字体、色彩、面板和间距沿用
 YourTJ 视觉语言，支持明暗主题、手机布局与中文／英文／日文／德文。
+
+**Partial**：Cloudflare 静态资源、只读 Worker API、私有 R2 与 GitHub Actions 采集已实现，
+读取器通过隔离预览验证；生产域名仍指向 Netlify，正式采集与设备统计尚待配置和验收。
+下述十五分钟采集及新鲜度规则描述 Cloudflare 实现，不能视作正式站已经启用。
 
 - **服务可用性**：独立 Uptime Kuma 已发布状态页的监控项、最新检查／响应时间、
   来源计算的近 24 小时可用率与最近最多 100 次真实检测。可用率基于已采集数据，可能
@@ -49,7 +53,7 @@ UI 脚本必须启用才能读取指标；无脚本入口提供独立 Uptime 页
 
 GitHub 定时运行可能延迟；页面明确展示采集频率、获取和采样时间，独立监控仍承担告警。
 
-**Current**：当前资源、Uptime、资源历史与访问统计由 GitHub Actions 每十五分钟采集；
+**Partial**：当前资源、Uptime、资源历史与访问统计由 GitHub Actions 每十五分钟采集；
 设备分布每小时采集。浏览器每 60 秒读取同源 `/api/status`，隐藏页面时暂停；手动刷新
 与范围切换立即读取已有快照。范围切换取消旧请求并忽略乱序
 响应，切换资源曲线时不把旧范围曲线标成新范围。公开 API 只读快照，访客请求与取消

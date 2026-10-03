@@ -6,12 +6,16 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-10-01
+> Last verified: 2026-10-03
 
 The Flutter app combines the forum, course catalog, scheduler and Wiki. Ordinary browsing and
 writing use native pages. Management uses the same first-party workspaces and permission checks as
 Web inside an authenticated in-app browser. The navigation and management boundary are recorded in
 [0012](../decisions/0012-unified-mobile-reading-navigation.md).
+
+The released app is available from the [YourTJ download page](https://yourtj.de/#download):
+iPhone/iPad through the App Store and Android through public APK downloads. See
+[distribution and updates](#distribution-and-updates) for channel status and remaining device evidence.
 
 The [interaction and layout standard](mobile-design-system.md) defines the shared visual and
 behavioral acceptance rules. Its `Planned` requirements are tracked separately from the implemented
@@ -1189,13 +1193,20 @@ The approved permission/privacy/failure boundaries for optional analytics are re
 
 ## Distribution and updates
 
+- `Current`: iPhone/iPad distribution is live on the
+  [App Store](https://apps.apple.com/cn/app/yourtj/id6809457637), and Android has a public
+  [ARM64 APK](https://github.com/YourTongji/YourTJ-Hub/releases/download/mobile-latest/YourTJ-arm64-v8a.apk)
+  plus [other architectures](https://github.com/YourTongji/YourTJ-Hub/releases/tag/mobile-latest).
+  These are the formal distribution channels linked from [yourtj.de](https://yourtj.de/#download).
+  Public availability was checked on 2026-10-03; it is separate from candidate-specific device validation.
 - `Partial`: Android checks GitHub mobile releases at startup/resume with a six-hour limit and a
   manual About action. Update prompts support defer, ignore, progress and cancellation. Public APK
   mirrors are ranked with bounded probes; SHA-256, package and signing-certificate checks precede
-  the system installer. Unit tests and signed native builds cover the implemented paths; the first
-  GitHub-hosted release and an installed-to-updated device journey remain distribution validation.
-- `Partial`: iOS uses TestFlight and App Store distribution through the same versioned release job.
-  Apple processing/review is independent of CI. The app does not offer APK-style updates on iOS.
+  the system installer. Unit tests and signed native builds cover the implemented paths;
+  an installed-to-updated physical-device journey remains separate acceptance evidence.
+- `Current`: released iOS builds are distributed and updated through the App Store; TestFlight is
+  the candidate testing channel. Apple processing/review for each new version is independent of CI.
+  The app does not offer APK-style updates on iOS.
   Signing, metadata, failure recovery and environment secrets are documented in the
   [mobile release runbook](../operations/mobile-releases.md).
 

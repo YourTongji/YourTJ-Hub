@@ -6,13 +6,13 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-09-27
+> Last verified: 2026-10-03
 
 ## System shape
 
 ```mermaid
 flowchart TB
-  mobile["apps/mobile<br/>Flutter (Partial)"]
+  mobile["apps/mobile<br/>Flutter · iOS / Android"]
   credit["services/credit<br/>Planned"]
   subgraph forum["apps/gooseforum — single binary"]
     web["Vue + GoHTML"]
@@ -166,9 +166,11 @@ Wiki 内容由公开 GitHub 仓库 `YourTongji/YourTJ-Wiki` 维护（PR 协作�
   `paths/wiki-sync.yaml`），生成 TS 类型 + 手写 Dart mirror
   （`apps/mobile/packages/core/lib/src/gen/wiki.dart`）。
 
-### Independent public status application (Current)
+### Independent public status application (Partial)
 
-`apps/status` is a separate Vue/Vite application on Cloudflare Workers Static Assets. The forum
+`apps/status` implements a separate Vue/Vite application on Cloudflare Workers Static Assets. Its
+reader is verified in isolated preview; production still points to Netlify, with Cloudflare collection
+and domain cutover awaiting operational acceptance. The forum
 only links to `https://status.yourtj.de`; page delivery and collection do not require the forum API,
 database or runtime assets. GitHub Actions collectors read public Umami, one Komari node and the
 independent Uptime Kuma status page. An optional server-only Umami account reads joint device/OS/client
@@ -185,7 +187,7 @@ collection schedules or upstream credentials. Source timestamps, independent fre
 between successful browser polls. Main-branch deployment runs only for status-related input changes and after
 status checks succeed. See the [status specification](../product/server-status.md),
 [Cloudflare runbook](../operations/status-cloudflare.md) and
-[hosting decision](../decisions/0057-status-cloudflare.md).
+[hosting decision](../decisions/0058-status-cloudflare.md).
 
 ### Points
 

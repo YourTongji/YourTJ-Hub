@@ -19,9 +19,24 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  dispatch:
+    # The default-branch scheduler gets no production environment or credentials.
+    if: github.repository == 'YourTongji/YourTJ-Hub' && vars.STATUS_COLLECTION_ENABLED == 'true' && github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions:
+      actions: write
+    steps:
+      - name: Dispatch reviewed workflow on main
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          COLLECTION_KIND: ${{ github.event.schedule == '7 * * * *' && 'devices' || 'public' }}
+        run: gh workflow run collect-status.yml --repo "$GH_REPO" --ref main -f "kind=$COLLECTION_KIND"
   collect:
-    # Schedules live on the default branch (dev); always execute reviewed main.
-    if: github.repository == 'YourTongji/YourTJ-Hub' && vars.STATUS_COLLECTION_ENABLED == 'true' && (github.event_name == 'schedule' || github.ref == 'refs/heads/main')
+    # Both this workflow definition and its checked-out source must come from main.
+    # The environment's deployment branch policy must also allow main only.
+    if: github.repository == 'YourTongji/YourTJ-Hub' && vars.STATUS_COLLECTION_ENABLED == 'true' && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     environment: status-collector
@@ -31,7 +46,7 @@ jobs:
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
-          ref: main
+          ref: ${{ github.sha }}
           persist-credentials: false
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413
         with:
@@ -44,7 +59,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Collect snapshots into private R2
         env:
-          COLLECTION_KIND: ${{ github.event.schedule == '7 * * * *' && 'devices' || inputs.kind || 'public' }}
+          COLLECTION_KIND: ${{ inputs.kind }}
           R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           UMAMI_USERNAME: ${{ secrets.UMAMI_USERNAME }}

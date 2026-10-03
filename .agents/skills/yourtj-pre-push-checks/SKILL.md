@@ -25,18 +25,31 @@ git rev-parse --show-toplevel
 git diff origin/dev...HEAD --stat
 ```
 
-Use the live PR base when it differs from `origin/dev`; never guess or fetch a base. After a base merge or
+Use the verified PR base when it differs from `origin/dev`; if the local ref is stale or missing, fetch
+the specific base before relying on it. Do not silently choose a different base. After a base merge or
 rebase, rerun the diff and reassess which checks the combined scope invalidates.
+For a pre-commit readiness check, also inspect staged, unstaged and relevant untracked files; the
+three-dot committed diff above does not include them.
 
 ## Select relevant evidence
 
-Follow the evidence selection table in `$yourtj-development` §5: backend → focused `go vet`/`go test`
+Follow the evidence selection table in [yourtj-development](../yourtj-development/SKILL.md#5-verify-proportionally): backend → focused `go vet`/`go test`
 (package-level, `-run` filter when practical); model/migration → the mandatory PG migration gate; frontend →
-`pnpm typecheck` + affected component tests; contract → `make contract-check`; docs → `git diff --check` +
-link/status-word check; cross-cutting or CI diagnosis → full `make test` / `make build`.
+`pnpm typecheck` + affected component tests; contract → `make contract-check`; docs/skills/templates →
+governance gates plus applicable semantic, link and format checks; cross-cutting or CI diagnosis →
+full `make test` / `make build`.
 
 There is no universal local baseline beyond the hooks. Add broader checks only for surfaces the diff actually
 reaches; do not manually repeat a passing check merely because a commit or push follows.
+
+## Readiness evidence
+
+Before marking ready, inspect the [Issue/PR standard](../../../docs/development/pull-requests.md):
+retain the five engineering sections and add applicable product context. Each acceptance criterion
+must have evidence or an explicit failed/unverified/not-applicable result. Check that claims match
+the current diff, known gaps remain visible, and docs/contracts/mirrors are synchronized.
+Required acceptance evidence still missing means not ready; filling the template is not verification.
+Do not change a remote PR's state or publish its body unless that action is authorized.
 
 ## Run the hooks
 
@@ -58,7 +71,8 @@ why CI is expected to differ.
 
 ## Push procedure
 
-1. Run the selected relevant checks once.
+1. Confirm explicit authorization for commit/push; this skill supplies no publication authority.
+   Run the selected relevant checks once.
 2. Commit normally; inspect any files changed by the pre-commit fixer before continuing.
 3. Push normally so the pre-push hook runs.
 4. Verify the remote ref matches local `HEAD`:

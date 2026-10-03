@@ -12,19 +12,24 @@ description: Use when writing, moving, reviewing, or auditing documentation in t
 
 - `docs/README.md` — 事实源表、四状态词、文档生命周期（Active/Draft/Deprecated）
 - `docs/development/documentation.md` — 文档治理：同 PR 更新、只描述当前模型、状态词、变更流程
+- [docs/development/pull-requests.md](../../../docs/development/pull-requests.md) — Issue/PR 的需求、调研、
+  用户故事和验收证据标准；PR 原有五个工程栏目继续保留
 - 根 `AGENTS.md` §3 — 「新功能必建文档」硬约束
 
-不建 `docs/AGENTS.md` 或子目录 AGENTS.md：文档标准已由 documentation.md 承担，再建即双源。
+现有 [docs/AGENTS.md](../../../docs/AGENTS.md) 仅补充 repo-seed 结构规则；文档标准仍由
+documentation.md 承担。不要新增重复的治理事实源。
 
 ## Before writing: choose the home
 
 1. 用 docs/README.md 事实源表定位归属：产品行为 → `docs/product/`；安全/隐私 → AGENTS.md（直到
    `docs/security/` 存在）；HTTP 结构 → `apps/gooseforum/app/http/controllers` + `packages/api-contract/openapi.yaml`；
    DB 结构 → `apps/gooseforum/app/migration/`；开发/测试/PR 流程 → `docs/development/`；部署与运维 → `docs/operations/`。
-2. 文档只描述当前支持模型：无时间线、里程碑、PR 交付清单、历史叙事（git history 拥有归档）。
+2. 长期产品/架构/运维文档描述当前支持模型，不放单次任务的计划或验收执行记录。
+   需求调研结论、用户故事、任务范围和验收结果放 Issue/PR；开发文档可以定义可复用流程。
+   原始调研在不入 Git 的 `research/`，持久取舍和必要来源放 MADR。
 3. 状态词只用于可验证的具体行为，不用于整个领域：`Current` / `Partial` / `Planned` / `Decision needed`。
    文档自身生命周期用 `Active` / `Draft` / `Deprecated`，与实现状态分离。
-4. 移动/重命名文档前 grep 入站引用（Markdown 链接与 #fragment、代码注释中的 `docs/*.md` 引用）；
+4. 移动/重命名文档前用 `rg` 查入站引用（Markdown 链接与 #fragment、代码注释中的 `docs/*.md` 引用）；
    移动是原子的：旧家删除、新家添加、所有入站链接同一次改动修复。
 
 ## Keeping docs in sync with code
@@ -36,7 +41,7 @@ description: Use when writing, moving, reviewing, or auditing documentation in t
 
 ## Auditing docs
 
-- 用最便宜的探针开始：grep 独特短语找重复（保留一处，其余改链接）；检查状态词是否被误用于整个领域；
+- 用最便宜的探针开始：`rg` 独特短语找重复（保留一处，其余改链接）；检查状态词是否被误用于整个领域；
   检查是否出现 PR-relative 标签（"shipped this" / "later"）。
 - 找 reasoning-transcript 泄漏：叙述历史、死亡设计会话引用、评审编排、控制流叙述、测试 walkthrough——
   只保留非显然的契约或持久理由；同一理由重复出现时保留一个家。
@@ -45,6 +50,7 @@ description: Use when writing, moving, reviewing, or auditing documentation in t
 
 ## Validation
 
-- `git diff --check`；grep 确认所有新增/移动文档的入站链接指向存在文件（仓库暂无 verify-md-links 门禁时手动核对）。
+- `git diff --check` 和 `node scripts/run-gates.mjs`；现有链接门禁不覆盖的技能/模板引用额外核对。
+  自动检查只证明格式/链接等规则，新增文字仍需与事实、适用范围和用户需求逐项核对。
 - 确认状态词拼写与四词一致；确认 docs 索引（`docs/README.md`、`docs/development/README.md`）覆盖新增文档。
 - 报告：文档变更清单、链接核对结果、状态词更新点。

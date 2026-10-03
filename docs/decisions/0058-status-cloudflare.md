@@ -35,12 +35,14 @@ metrics/history/traffic every fifteen minutes and optional device aggregates hou
 GitHub Actions runners. No HTTP route starts collection, and no Worker Cron or upstream credentials
 are deployed. Worker API requests remain subject to Free CPU/request limits and require cloud testing.
 
-GitHub's default branch is dev; schedules execute there but checkout reviewed main. The collector
-uses a separate environment with bucket-scoped S3 credentials and private Umami credentials. A repository
+GitHub's default branch is dev; its credential-free scheduler dispatches the workflow on main using a
+short-lived GITHUB_TOKEN. Both the secret-bearing workflow definition and its checked-out source come
+from that main commit. The collector uses a main-only environment with bucket-scoped S3 credentials
+and private Umami credentials; dev cannot access it even if its workflow changes. A repository
 variable enables collection only after production code and credentials are ready. Deployment credentials
 use a main-only environment; status checks precede deployment and a source fingerprint verifies it.
 
-Public collection preassembles twelve range views so each API miss needs at most two R2 reads. Views
+Public collection preassembles twelve range views so each API request needs at most two R2 reads. Views
 retain source scope fingerprints, failure flags and timestamps; projection time never freshens data.
 R2 strong reads and conditional puts preserve attempted-at ordering. Production snapshots survive
 deployments; preview uses a separate bucket. Dynamic responses remain no-store and do not use Cache
@@ -80,3 +82,4 @@ single-binary deployment and the existing device aggregate privacy boundary rema
 - [R2 pricing](https://developers.cloudflare.com/r2/pricing/)
 - [GitHub Actions billing](https://docs.github.com/en/billing/concepts/product-billing/github-actions)
 - [GitHub schedule behavior](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule)
+- [GITHUB_TOKEN dispatch behavior](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow)

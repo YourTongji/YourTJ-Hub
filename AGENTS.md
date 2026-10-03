@@ -29,7 +29,9 @@ be changed, but the "Go + Vue in one binary, frontend go:embed into the binary" 
   MySQL is **not supported**.
 - Search: **Meilisearch** (`config.toml [meilisearch]`, optional); aggregate search (topics/users/
   categories, pinyin/initials) landed (issue #22); event-driven index sync, rebuildable projection.
-- Mobile: **Flutter** (`apps/mobile`, melos workspace, Riverpod, **Partial**).
+- Mobile: **Flutter** (`apps/mobile`, melos workspace, Riverpod). App Store distribution for
+  iPhone/iPad and public Android APK downloads are `Current`; native push and device acceptance
+  remain `Partial`. See `docs/product/mobile-experience.md#distribution-and-updates`.
 - Auth: GitHub OAuth (goth) + **built-in OIDC Provider** (`/api/oauth`, authorization code + PKCE S256,
   RS256 id_token, opaque access tokens, numeric `sub` = users.id); TOTP 2FA and session management
   (`jti` + `user_sessions`) in place.
@@ -166,6 +168,9 @@ docs/        Docs center (product/architecture/development/operations)
 
 ## 5. Git & PR discipline
 
+- Issue preparation, product research, target users/stories, acceptance criteria and PR evidence follow
+  [`docs/development/pull-requests.md`](docs/development/pull-requests.md). Product context supplements
+  the existing PR summary, behavior change, verification, docs/contract impact and known gaps.
 - `dev` is the main development line: create `feat/<topic>` / `fix/<topic>` / `docs/<topic>` from
   `origin/dev`, open PRs against `dev`; CI builds and auto-deploys `dev` to the test instance.
 - `main` is the production source line: changes reach it through PR + CI. `Release / Prepare`

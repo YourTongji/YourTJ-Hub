@@ -8,11 +8,11 @@
 >
 > Last verified: 2026-10-03
 
-`Current`：状态站使用 Workers Static Assets、只读 Worker API 和私有 R2 快照。较重的采集
+`Partial`：状态站的 Cloudflare 实现使用 Workers Static Assets、只读 Worker API 和私有 R2 快照。较重的采集
 在公开仓库的 GitHub Actions 标准 Linux runner 执行，独立于论坛进程、数据库和静态资源。
 页面行为由[状态站规范](../product/server-status.md)维护。
 
-`Partial`：实际账户资源、域名、采集及 CI 凭据需按本文配置并验收。
+读取器已通过隔离预览验证；生产域名切换、正式采集与设备统计仍需配置并验收。
 
 ## 1. Cloudflare 资源
 
@@ -35,8 +35,10 @@ Worker 使用 R2 binding，不保存 S3 密钥、Umami 密码或其他采集凭�
 
 [Collect / status](../../.github/workflows/collect-status.yml) 每十五分钟采集资源、可用性、
 历史和流量，每小时采集设备统计。两个任务串行执行，最长五分钟，不上传快照为 Actions
-artifact。GitHub 定时任务只在默认分支 dev 触发，但 checkout 明确使用已审核的 main。
-手动采集仅允许从 main 运行。仓库变量 `STATUS_COLLECTION_ENABLED=true` 才启用任务；
+artifact。GitHub 定时任务只在默认分支 dev 触发；该调度 job 不挂载生产 environment，
+只用短期 `GITHUB_TOKEN` 的 `actions: write` 权限向 main 发起 `workflow_dispatch`。
+生产采集的 workflow 定义和源码都来自该 main 提交；仅 checkout main 不能隔离 dev 的 workflow。
+手动采集也仅允许从 main 运行。仓库变量 `STATUS_COLLECTION_ENABLED=true` 才启用任务；
 资源、main 源码和凭据就绪后再开启。此开关不影响公开站点读取已保存快照。
 
 GitHub `status-collector` environment 配置四个 secrets：
@@ -46,8 +48,9 @@ GitHub `status-collector` environment 配置四个 secrets：
 - `UMAMI_USERNAME`、`UMAMI_PASSWORD`：有目标网站只读权限的 Umami 账号。设备采集复用一次
   登录的短期 token，通过 Breakdown 报表只保留类别与人数，不保存 token 或原始报表。
 
-该环境允许受保护的 dev（定时 workflow 所在分支）和 main（手动运行）；部署凭据使用
-独立的 `status-production` environment，仅允许 main。不要将秘密放入聊天、日志、仓库或
+`status-collector` 和独立的 `status-production` environment 均将 Deployment branches and tags
+限定为分支 main，不允许 dev 或任何 tag。环境策略独立于 workflow 条件，阻止 dev 修改
+workflow 后绕过限制读取生产凭据。不要将秘密放入聊天、日志、仓库或
 `VITE_*`。Netlify 标为 secret 的值不可从其 API 导出；必须从凭据原始来源私密重新配置，
 不能将 API 的遮蔽值当作密码。需要人工二次验证的账号不适合该采集器。
 
@@ -93,6 +96,11 @@ node scripts/verify-deployment.mjs https://status.yourtj.de
 
 ## 4. 域名切换与停用旧平台
 
+删除 Netlify 配置／Functions 的提交进入 main **之前**，必须在旧 Netlify 项目暂停自动构建
+（API `build_settings.stop_builds=true`），确认没有排队或正在执行的部署，且已发布部署 ID
+保持不变。保留旧部署及其 Functions，直到 Cloudflare 验收与 DNS 切换完成；额度暂停不能
+替代这个构建开关。迁移期间不要用不含 Netlify Functions 的源码手动覆盖旧站点。
+
 先验证临时 Worker 域名的页面、安全响应头、`/status` 重定向、API、真实 R2 快照和 CPU。
 production Wrangler 配置声明 `status.yourtj.de` Custom Domain；首次部署前必须完成切换准备。
 同名 CNAME 不能并存：保存旧目标、TTL、代理状态后替换 status 记录；不修改其他子域或 NS。
@@ -103,7 +111,7 @@ production Wrangler 配置声明 `status.yourtj.de` Custom Domain；首次部署
 通过后替换旧 DNS 记录，用正式配置部署绑定 Custom Domain；核对域名与指纹，再开启
 `STATUS_DEPLOYMENT_ENABLED`、`STATUS_COLLECTION_ENABLED`。临时配置不提交，也不承载秘密。
 
-验收后停止 Netlify 自动构建及旧站点运行，确认定时采集不会在下个账期恢复。保留项目用于
+验收后保持 Netlify 自动构建关闭，并停止旧站点运行，确认定时采集不会在下个账期恢复。保留项目用于
 恢复，不删除历史部署。额度耗尽时回指 Netlify 不保证可用，应优先回滚 Cloudflare 已验收版本。
 
 ## 5. 故障与成本
@@ -111,7 +119,7 @@ production Wrangler 配置声明 `status.yourtj.de` Custom Domain；首次部署
 - Worker 没有采集路由，只读取快照；未知／重复查询参数返回 400，存储异常返回不可缓存
   的 503。36 种合法范围组合通过来源作用域指纹选择数据；动态响应 `no-store`，不写入
   Cache API，避免边缘缓存复制的 CPU 峰值。读取不会推进采样时间。
-- 公开采集另写十二种范围组合的只读视图；每次 API 缓存未命中最多读取一个公开视图和
+- 公开采集另写十二种范围组合的只读视图；每次 API 请求最多读取一个公开视图和
   一个设备对象。视图保留各来源的时间、失败标记和作用域指纹，不会延长数据有效期。
 - R2 和 S3 适配器都使用 ETag 条件写，慢任务不能覆盖新快照。单源失败保留原始成功时间并
   标记过期；采集任务报告失败，其他来源已成功写入的结果仍可用。请求拒绝重定向和过大响应。
@@ -136,3 +144,4 @@ production Wrangler 配置声明 `status.yourtj.de` Custom Domain；首次部署
 - [R2 定价](https://developers.cloudflare.com/r2/pricing/)
 - [GitHub Actions 免费用量](https://docs.github.com/en/billing/concepts/product-billing/github-actions)
 - [GitHub schedule 限制](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule)
+- [GitHub token 触发 workflow_dispatch](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow)

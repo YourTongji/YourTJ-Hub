@@ -1,9 +1,10 @@
 # YourTJ status
 
-`Current`: independent Vue status app on Cloudflare Workers Static Assets, a read-only Worker API,
+`Partial`: independent Vue status app on Cloudflare Workers Static Assets, a read-only Worker API,
 and private R2 snapshots. GitHub Actions collects public metrics every fifteen minutes and device
 reports hourly; collection never runs in the Worker or in response to a visitor. The forum retains
-its separate single-binary deployment.
+its separate single-binary deployment. The reader is verified in isolated preview; production domain
+cutover, scheduled collection and real device reports still require operational acceptance.
 
 ## Development
 
@@ -35,14 +36,17 @@ sizes. A real Workers-runtime test checks upstream fetch and credential-safe red
 
 See [the Cloudflare runbook](../../docs/operations/status-cloudflare.md). Production and preview use
 separate private buckets. Only reviewed main is deployed. `Deploy / status` verifies the build tree
-and API; `Collect / status` executes main even though GitHub schedules start on default branch dev.
+and API; the dev scheduler dispatches `Collect / status` on main without production credentials.
+The collector's workflow definition and checked-out source come from the same main commit, and its
+environment allows only main. Freeze Netlify automatic builds before removing its handlers from main;
+keep the existing deployment until Cloudflare cutover passes acceptance.
 
 The collector uses bucket-scoped S3 credentials in the `status-collector` GitHub environment. Only
 that environment holds Umami credentials. The Worker has no upstream credentials or public collect
 endpoint. Public `UMAMI_DEVICE_REVISION` isolates device snapshots when an account or permission
 changes; clear it to disable the device source, or increment it to invalidate previous snapshots.
 
-Public collection also publishes twelve range views. An API miss reads at most one public view and
+Public collection also publishes twelve range views. An API request reads at most one public view and
 one device object; views retain each source's original timestamp, failure flag and scope fingerprint.
 
 GitHub collection is best effort, so timestamps and stale/unavailable states remain visible. Current,
