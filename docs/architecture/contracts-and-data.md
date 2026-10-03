@@ -24,7 +24,7 @@ and CI rejects any route that is neither contracted nor listed. By domain:
 - forum: topic write, post CRUD/window/revisions, topic status/delete, link-preview resolution, like/bookmark/watch on
   topics and posts, follow-user, report, aggregate search, site statistics, notifications/unread,
   chat, and the moderator workbench (`/api/forum/moderation/*`);
-- independent status: `apps/status/api/openapi.yaml` owns the Netlify `/api/status` response;
+- independent status: `apps/status/api/openapi.yaml` owns the Worker `/api/status` response;
   TypeScript is generated into `apps/status/src/generated/`, with fixture and handler validation in
   that application's tests. This API is outside Gin and the forum/mobile client contract.
 - admin console (`/api/admin/*`): user/role/category/moderator management, topic/post moderation,
@@ -595,3 +595,52 @@ OpenAPI、TypeScript 和 Dart 镜像同步维护，路由覆盖包含此操作�
 整个树最多 4 层、50 个条目（含卡片）、编码后 64 KiB，解析与写入均校验；文字回退与审核递归包含子记录。
 逐条转发直接复制原卡片，不额外增加层数；64 KiB 限制适用于单个合并快照，不限制逐条转发批次的正文总量。副本的隐私、生命周期和客户端队列边界见
 [决策 0044](../decisions/0044-nested-private-message-history.md)。
+
+## 站内信领域模型（inboxmail）
+
+`Partial`: 数据模型与迁移已落地（issue #770），服务、Worker、Web/App 表面、管理端与 OpenAPI
+契约尚未交付，因此该域当前只被后端代码引用，对用户和管理员均不可见。
+
+主模型固定为 `Message → Message Version → Campaign → Campaign Run → Delivery → Claim`，共七张表：
+`inbox_message`、`inbox_message_version`、`inbox_campaign`、`inbox_campaign_attachment`、
+`inbox_campaign_run`、`inbox_delivery`、`inbox_claim`（`app/models/forum/inboxmail`，注册于
+`app/migration` 的 `SchemaModels`，PostgreSQL 与 SQLite 双方言建表）。
+
+硬性不变量：
+
+- **已发布 Message Version 不可变**：`status = published` 之后内容、block JSON、内容哈希、
+  schema 版本与版本号不得原地修改或删除；修订必须新建 `version_no + 1` 的行。模型 hook 与
+  仓储函数（`UpdateDraftContentTx` / `PublishVersionTx`）共同拦截，历史 Delivery 固定引用
+  发布时的 `message_version_id`。
+- **投递幂等**：`inbox_delivery.dedupe_key` 为 NOT NULL + 全局唯一 + 非空 CHECK
+  （`chk_inbox_delivery_dedupe_key`）。Campaign 投递使用
+  `campaign:<campaign_id>:<version_no>:user:<uid>`，事件触发使用
+  `trigger:<campaign_id>:<event>:<event_id>:user:<uid>`（`CampaignDedupeKey` /
+  `TriggerDedupeKey`）；trigger 投递同样写入真实 `campaign_id`，供按 Campaign
+  排查收件人与领取率统计。Worker 重试与事件重放不会重复发信；漏传 key 的零值 `''`
+  在第一次写入就被 CHECK 拒绝，而不是到第二次才表现为「重复」并被幂等语义吞掉。
+- **领取双重幂等**：`inbox_claim` 同时受 `UNIQUE (delivery_id, attachment_id)` 与
+  `UNIQUE source_key`（`inbox:<delivery_id>:<attachment_id>`，`ClaimSourceKey`）保护，
+  `source_key` 同样 NOT NULL + 非空 CHECK（`chk_inbox_claim_source_key`）。key 含
+  `attachment_id`，因此同一投递的两个附件即使解析出同一个 handler key（附件唯一性只在
+  `(campaign_id, attachment_key)` 粒度上成立）也能各自领取一行。用户已拥有该奖励时记为
+  `already_owned` 成功终态。
+- **业务键非空**：`inbox_message.code`（`uniq_inbox_message_code`）与
+  `inbox_campaign_attachment.attachment_key`（`uniq_inbox_campaign_attachment_key`）是
+  Trigger Registry 与管理端引用的稳定身份，同样带命名 CHECK
+  （`chk_inbox_message_code` / `chk_inbox_campaign_attachment_key`），空串不是合法身份。
+- **状态分离**：已读（`is_read` / `read_at`）、归档（`is_archived` / `archived_at`）、弹窗
+  （`popup_state` / `popup_snooze_until`）与领取（`claim_state`）各自独立，弹窗关闭、收纳或
+  Snooze 不删除信件，三类指标各有独立分母。`claim_state` 是按 Delivery 物化的展示投影
+  （`none` / `unclaimed` / `partial` / `claimed` / `expired`），逐 claim 的真源是
+  `inbox_claim.status`（`pending` / `granted` / `already_owned` / `failed` / `expired`）；
+  领取流程用 `IsSuccessfulClaimStatus` 跳过成功项，#778 的重试扫描用
+  `IsRetryableClaimStatus`（`pending` / `failed` / `expired`）捞起未完成项。
+
+核心列表查询的索引：`(user_id, id)` 游标分页、`(user_id, is_read, id)` 未读、
+`(user_id, is_archived, id)` 归档、`(user_id, claim_state, id)` 待领取、
+`(user_id, popup_state, id)` 弹窗候选、`(campaign_id, status)` Campaign 维度统计。
+
+用户生命周期：`DeleteUserDataTx`（硬删该用户的投递与领取）与 `AnonymizeUserDataTx`
+（保留事实行、剥离身份并轮换唯一键）是预留的清理边界；接入账号关闭与保留期限策略由 #787 负责。
+该域不扩展 `event_notification` 或私信表，存量通知/私信的行与表结构不因升级改变。

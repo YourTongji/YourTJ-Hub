@@ -50,6 +50,14 @@ class _AdminPageState extends ConsumerState<AdminPage> {
   bool _allowPop = false;
   bool _starting = false;
   bool _schoolStarted = false;
+  // True only between the handoff to the school URL and the first approved
+  // school navigation. A URL-less cancellation is exempt solely in this
+  // window; afterwards the school flow owns its errors and must fail loudly.
+  bool _handoffCancellationPending = false;
+  // Most recent main-frame navigation target. Android never marks the frame
+  // on HTTP errors and WebKit omits the request entirely, so this tracked
+  // URL is the only main-frame signal the platform interface exposes.
+  Uri? _mainFrameUri;
 
   @override
   void initState() {
@@ -80,6 +88,8 @@ class _AdminPageState extends ConsumerState<AdminPage> {
         throw StateError('Invalid school authorization destination');
       }
       _schoolStarted = false;
+      _handoffCancellationPending = false;
+      _mainFrameUri = null;
       // A failed previous cleanup is retried before another credential is used.
       await _cleanup.catchError((Object _) {});
       await WebViewCookieManager().clearCookies();
@@ -109,9 +119,25 @@ class _AdminPageState extends ConsumerState<AdminPage> {
           onProgress: (value) {
             if (mounted) setState(() => _progress = value);
           },
-          onNavigationRequest: _navigate,
+          onPageStarted: (url) {
+            // loadRequest and server redirects never reach
+            // onNavigationRequest on Android; onPageStarted is
+            // main-frame-only on both platforms.
+            final uri = Uri.tryParse(url);
+            if (uri != null) _mainFrameUri = uri;
+          },
+          onNavigationRequest: (request) {
+            final uri = Uri.tryParse(request.url);
+            // Android only reports main-frame navigations here; iOS marks
+            // the frame explicitly.
+            if (uri != null && request.isMainFrame) _mainFrameUri = uri;
+            return _navigate(request);
+          },
           onWebResourceError: (error) {
-            if (error.isForMainFrame == true) _fail();
+            if (error.isForMainFrame == true &&
+                !_isSchoolHandoffCancellation(error)) {
+              _fail();
+            }
           },
           onHttpError: (error) {
             // Subresource failures must not blank a working console.
@@ -122,6 +148,34 @@ class _AdminPageState extends ConsumerState<AdminPage> {
                         uri.path.startsWith('/moderation')) &&
                     error.response?.statusCode != null &&
                     error.response!.statusCode >= 400)) {
+              _fail();
+              return;
+            }
+            final status = error.response?.statusCode ?? 0;
+            final frame = _mainFrameUri;
+            if (status < 400 || frame == null) return;
+            if (uri != null) {
+              // Android reports every request here and the platform API
+              // carries no frame flag, so only the main frame's own URL may
+              // fail the page; any other school URL stays a subresource.
+              if (widget.campusAuthorizationUrl != null &&
+                  _navigation.isSchoolOrigin(uri) &&
+                  _isMainFrame(uri)) {
+                _fail();
+              }
+              return;
+            }
+            // WebKit omits the request and only surfaces navigation
+            // responses (never images or XHR), so the tracked main frame
+            // attributes the status.
+            final console =
+                _navigation.isSameOrigin(frame) &&
+                (frame.path == '/api/auth/mobile-web-session' ||
+                    frame.path.startsWith('/admin') ||
+                    frame.path.startsWith('/moderation'));
+            if (console ||
+                (widget.campusAuthorizationUrl != null &&
+                    _navigation.isSchoolOrigin(frame))) {
               _fail();
             }
           },
@@ -173,6 +227,41 @@ class _AdminPageState extends ConsumerState<AdminPage> {
     }
   }
 
+  bool _isSchoolHandoffCancellation(WebResourceError error) {
+    // Replacing the first-party redirect with the school URL intentionally
+    // cancels the old load. WebKit reports NSURLErrorCancelled (-999) or
+    // WebKitErrorFrameLoadInterruptedByPolicyChange (102) for that navigation.
+    // Neither invalidates the authorization attempt or the new school page.
+    if (!_schoolStarted ||
+        widget.campusAuthorizationUrl == null ||
+        !const [
+          TargetPlatform.iOS,
+          TargetPlatform.macOS,
+        ].contains(defaultTargetPlatform) ||
+        !const [-999, 102].contains(error.errorCode)) {
+      return false;
+    }
+    // WebKit can omit the failing URL for a policy cancellation. When present,
+    // it must identify our replaced handoff, never a failing school request.
+    // Without a URL the cancellation is exempt only inside the handoff window;
+    // later school cancellations must surface the retry state instead.
+    if (error.url == null) return _handoffCancellationPending;
+    final uri = Uri.tryParse(error.url!);
+    return uri != null &&
+        _navigation.isSameOrigin(uri) &&
+        const ['/api/auth/mobile-web-session', '/campus'].contains(uri.path);
+  }
+
+  bool _isMainFrame(Uri uri) {
+    final frame = _mainFrameUri;
+    return frame != null &&
+        frame.scheme == uri.scheme &&
+        frame.host == uri.host &&
+        frame.port == uri.port &&
+        frame.path == uri.path &&
+        frame.query == uri.query;
+  }
+
   Future<NavigationDecision> _navigate(NavigationRequest request) async {
     final uri = Uri.tryParse(request.url);
     if (uri == null || !mounted) return NavigationDecision.prevent;
@@ -185,6 +274,7 @@ class _AdminPageState extends ConsumerState<AdminPage> {
       if (schoolUrl != null && request.isMainFrame && uri.path == '/campus') {
         if (!_schoolStarted && uri.query.isEmpty) {
           _schoolStarted = true;
+          _handoffCancellationPending = true;
           // Do not carry the native Bearer header to the school origin.
           unawaited(_controller!.loadRequest(schoolUrl));
         } else if (_schoolStarted &&
@@ -220,6 +310,10 @@ class _AdminPageState extends ConsumerState<AdminPage> {
     // original first-party session. The native Bearer is sent only at handoff.
     if (widget.target == MobileWebTarget.campus &&
         _navigation.isSchoolOrigin(uri)) {
+      // The school page has taken over: the handoff window is closed, so any
+      // later cancellation — even one without a failing URL — is a real
+      // school failure and must offer retry.
+      _handoffCancellationPending = false;
       return NavigationDecision.navigate;
     }
     if (widget.campusAuthorizationUrl == null &&
@@ -368,7 +462,10 @@ class _AdminPageState extends ConsumerState<AdminPage> {
       await preceding.catchError((Object _) {});
       Object? failure;
       for (final clear in <Future<void> Function()>[
-        () => controller.loadHtmlString(''),
+        // loadHtmlString rejects an empty document, so blank with a minimal
+        // non-empty page; failing here would retry the whole cleanup on the
+        // next credential use.
+        () => controller.loadHtmlString('<!doctype html>'),
         controller.clearLocalStorage,
         controller.clearCache,
         () async {
@@ -450,7 +547,7 @@ class _AdminPageState extends ConsumerState<AdminPage> {
                               Text(
                                 widget.campusAuthorizationUrl == null
                                     ? l10n.adminUnavailable
-                                    : l10n.campusAuthExpired,
+                                    : l10n.commonLoadFailed,
                                 textAlign: TextAlign.center,
                               ),
                               const SizedBox(height: 16),

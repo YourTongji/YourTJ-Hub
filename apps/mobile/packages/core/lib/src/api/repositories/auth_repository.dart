@@ -1,4 +1,5 @@
 import '../../gen/auth.dart';
+import '../../gen/response.dart';
 import '../gf_api_client.dart';
 
 /// 认证相关接口:登录公钥、登录、注册、验证码、找回/重置密码、OIDC 交换、TOTP 校验。
@@ -48,8 +49,8 @@ class AuthRepository {
     );
   }
 
-  /// 注册,成功返回服务端消息文案。
-  Future<String> register({
+  /// 注册,成功返回结果和稳定 messageCode。
+  Future<GfResponse<String>> register({
     required String username,
     required String email,
     required String password,
@@ -57,7 +58,7 @@ class AuthRepository {
     String? captchaCode,
     String? locale,
   }) {
-    return _client.post<String>(
+    return _client.postEnvelope<String>(
       '/api/register',
       body: {
         'userName': username,

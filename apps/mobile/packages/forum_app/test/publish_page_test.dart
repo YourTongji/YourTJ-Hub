@@ -18,6 +18,8 @@ import 'package:ui_kit/ui_kit.dart';
 import 'package:forum_app/l10n/app_localizations.dart';
 import 'package:forum_app/src/pages/publish/embed_image_move.dart';
 import 'package:forum_app/src/pages/publish/publish_page.dart';
+import 'package:forum_app/src/widgets/editor/rich_markdown_editor.dart';
+import 'package:forum_app/src/widgets/markdown_view.dart';
 import 'package:forum_app/src/router.dart';
 import 'package:forum_app/src/providers.dart';
 import 'fixtures/page_fixtures.dart' show topicDetailPayloadJson;
@@ -97,8 +99,10 @@ class _RecordingTopicRepository extends TopicRepository {
     super.client, {
     this.resultId = 99,
     this.requireCaptcha = false,
+    this.captchaAction = 'topic.write',
   });
   final bool requireCaptcha;
+  final String captchaAction;
 
   final int resultId;
   final List<
@@ -122,7 +126,7 @@ class _RecordingTopicRepository extends TopicRepository {
       >[];
 
   @override
-  Future<int> writeTopic({
+  Future<WriteTopicResult> writeTopicResult({
     required int topicId,
     required String title,
     required String content,
@@ -133,10 +137,20 @@ class _RecordingTopicRepository extends TopicRepository {
     String? captchaId,
     String? captchaCode,
   }) async {
-    if (requireCaptcha && (captchaId != 'challenge' || captchaCode != 'ABCD')) {
-      throw const ApiException(
+    if (requireCaptcha &&
+        (captchaId != 'challenge' ||
+            captchaCode == null ||
+            captchaCode.isEmpty)) {
+      throw ApiException(
         fallbackMessage: 'Captcha required',
         messageCode: 'common.captchaRequired',
+        params: <String, dynamic>{'action': captchaAction},
+      );
+    }
+    if (requireCaptcha && captchaCode != 'ABCD') {
+      throw const ApiException(
+        fallbackMessage: 'Captcha invalid',
+        messageCode: 'auth.captcha.invalid',
       );
     }
     writes.add((
@@ -146,7 +160,7 @@ class _RecordingTopicRepository extends TopicRepository {
       categoryIds: List<int>.of(categoryIds),
       topicStatus: topicStatus,
     ));
-    return resultId;
+    return WriteTopicResult(id: resultId);
   }
 }
 
@@ -251,6 +265,7 @@ void main() {
     int resultId = 99,
     MarkdownConverter? markdownConverter,
     bool requireCaptcha = false,
+    String captchaAction = 'topic.write',
     bool offline = false,
     bool readableGallery = false,
     int userId = 1,
@@ -285,6 +300,7 @@ void main() {
       client,
       resultId: resultId,
       requireCaptcha: requireCaptcha,
+      captchaAction: captchaAction,
     );
     final GoRouter router = GoRouter(
       initialLocation: editing ? '/publish?$editQueryKey=42' : '/publish',
@@ -357,6 +373,56 @@ void main() {
       topicRepository: topicRepository,
     );
   }
+
+  testWidgets(
+    'publish body editor keeps the toolbar-free custom builder path',
+    (tester) async {
+      // 发布页用 `showToolbar: false` + `editorBuilder`（DragTarget 包一层）：
+      // RichMarkdownEditor 的默认行为必须保持不变。
+      final controller = QuillController.basic();
+      final focusNode = FocusNode();
+      addTearDown(controller.dispose);
+      addTearDown(focusNode.dispose);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          child: MaterialApp(
+            theme: gfThemeData(Brightness.light),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: Scaffold(
+              body: RichMarkdownEditor(
+                controller: controller,
+                focusNode: focusNode,
+                placeholder: 'publish body',
+                showToolbar: false,
+                editorBuilder: (_) => const SizedBox(
+                  key: Key('publish-custom-body'),
+                  height: 200,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      expect(find.byKey(const Key('rich-markdown-toolbar')), findsNothing);
+      expect(find.byKey(const Key('publish-custom-body')), findsOneWidget);
+      expect(find.byType(QuillEditor), findsNothing);
+      // 旧行为：非 fill 模式最小高度 220，内容自撑。
+      final box = tester.widget<ConstrainedBox>(
+        find
+            .ancestor(
+              of: find.byKey(const Key('publish-custom-body')),
+              matching: find.byType(ConstrainedBox),
+            )
+            .first,
+      );
+      expect(box.constraints.minHeight, 220);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+    },
+  );
 
   for (final compact in [false, true]) {
     for (final type in [2, 3]) {
@@ -697,7 +763,17 @@ void main() {
     final editor = tester.getRect(find.byKey(const Key('publish-editor')));
     final viewport = tester.getRect(find.byType(SingleChildScrollView).first);
     expect(editor.top - viewport.top, lessThan(140));
-    expect(viewport.bottom - editor.top, greaterThan(200));
+    // The editor keeps a useful writing viewport above the keyboard: at least
+    // its six minimum lines of body text stay visible, and the field itself
+    // still fits inside the viewport.
+    final TextStyle body = readingBodyStyle(
+      tester.element(find.byKey(const Key('publish-editor'))),
+    );
+    expect(
+      viewport.bottom - editor.top,
+      greaterThan(body.fontSize! * body.height! * 6),
+    );
+    expect(viewport.bottom, greaterThanOrEqualTo(editor.bottom));
     expect(find.byTooltip('收起键盘'), findsOneWidget);
     expect(find.byTooltip('添加图片'), findsOneWidget);
     expect(tester.takeException(), isNull);
@@ -1471,7 +1547,36 @@ void main() {
       );
       expect(captcha, findsOneWidget);
       expect(find.byType(GfCaptchaImage), findsOneWidget);
+      expect(
+        find.text(
+          AppLocalizations.of(
+            tester.element(captcha),
+          ).publishCaptchaExplanation,
+        ),
+        findsOneWidget,
+      );
       expect(find.text('原始标题'), findsOneWidget);
+      await tester.tap(find.byType(GfCaptchaImage));
+      await tester.pumpAndSettle();
+      expect(
+        find.text(
+          AppLocalizations.of(
+            tester.element(captcha),
+          ).publishCaptchaExplanation,
+        ),
+        findsOneWidget,
+      );
+      await tester.enterText(captcha, 'WXYZ');
+      await tester.tap(find.byKey(const Key('publish-appbar-submit')));
+      await tester.pumpAndSettle();
+      expect(
+        find.text(
+          AppLocalizations.of(
+            tester.element(captcha),
+          ).publishCaptchaExplanation,
+        ),
+        findsOneWidget,
+      );
       await tester.enterText(captcha, 'ABCD');
       await tester.tap(find.byKey(const Key('publish-appbar-submit')));
       await tester.pumpAndSettle();
@@ -1481,6 +1586,34 @@ void main() {
       await tester.pump(const Duration(milliseconds: 600));
     },
   );
+
+  testWidgets('publishing captcha without a publishing action stays generic', (
+    tester,
+  ) async {
+    final result = await pumpPublishPage(
+      tester,
+      editing: true,
+      requireCaptcha: true,
+      captchaAction: 'login',
+    );
+    await tester.tap(find.byKey(const Key('publish-appbar-submit')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('publish-appbar-submit')));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(GfCaptchaImage), findsOneWidget);
+    expect(
+      find.text(
+        AppLocalizations.of(
+          tester.element(find.byType(GfCaptchaImage)),
+        ).publishCaptchaExplanation,
+      ),
+      findsNothing,
+    );
+    expect(result.topicRepository.writes, isEmpty);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
+  });
 
   testWidgets('服务端草稿 editUrl 的 id 参数进入编辑模式', (tester) async {
     final result = await pumpPublishPage(

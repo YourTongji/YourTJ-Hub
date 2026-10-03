@@ -83,7 +83,54 @@ class GfApiClient {
     Map<String, dynamic>? headers,
     JsonParser<T>? parser,
   }) async {
-    final response = await _request(
+    final response = await _post(
+      path,
+      cancelToken: cancelToken,
+      body: body,
+      headers: headers,
+    );
+    return _resolve(response, parser);
+  }
+
+  /// POST variant for callers that need stable success metadata such as
+  /// `messageCode`; ordinary callers should keep using [post].
+  Future<GfResponse<T>> postEnvelope<T>(
+    String path, {
+    CancelToken? cancelToken,
+    Object? body,
+    Map<String, dynamic>? headers,
+    JsonParser<T>? parser,
+  }) async {
+    final response = await _post(
+      path,
+      cancelToken: cancelToken,
+      body: body,
+      headers: headers,
+    );
+    final result = await _resolve<T>(response, parser);
+    final data = response.data;
+    // _resolve 已拒绝非 Map 的 2xx 负载，这里只需区分 forum 信封与
+    // page-channel 裸负载；后者没有成功元数据，按普通成功返回。
+    if (data is Map<String, dynamic> && data.containsKey('code')) {
+      final envelope = GfResponse<Object?>.fromJson(data, (json) => json);
+      return GfResponse<T>(
+        code: envelope.code,
+        messageCode: envelope.messageCode,
+        params: envelope.params,
+        result: result,
+      );
+    }
+    return GfResponse<T>(code: 0, result: result);
+  }
+
+  /// [post]/[postEnvelope] 共享的 POST 传输层。
+  Future<Response<dynamic>> _post(
+    String path, {
+    CancelToken? cancelToken,
+    Object? body,
+    Map<String, dynamic>? headers,
+  }) {
+    return _request(
       () => dio.post(
         path,
         cancelToken: cancelToken,
@@ -91,7 +138,6 @@ class GfApiClient {
         options: Options(headers: headers),
       ),
     );
-    return _resolve(response, parser);
   }
 
   Future<T> postMultipart<T>(
@@ -155,6 +201,24 @@ class GfApiClient {
   }) async {
     final response = await _request(
       () => dio.put(
+        path,
+        data: body,
+        options: Options(headers: headers),
+      ),
+    );
+    return _resolve(response, parser);
+  }
+
+  /// [put] 的 PATCH 形态（课评编辑等部分更新契约；后端只注册了 PATCH，
+  /// POST 会落到未定义路由）。
+  Future<T> patch<T>(
+    String path, {
+    Object? body,
+    Map<String, dynamic>? headers,
+    JsonParser<T>? parser,
+  }) async {
+    final response = await _request(
+      () => dio.patch(
         path,
         data: body,
         options: Options(headers: headers),

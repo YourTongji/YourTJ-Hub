@@ -81,6 +81,98 @@ void main() {
       },
     );
 
+    test(
+      'course review report uses the existing reason and note contract',
+      () async {
+        setupClient(initialToken: 'reviewer-token');
+        dio.httpClientAdapter = MockAdapter((request) async {
+          expect(request.path, '/api/forum/course-reviews/42/reports');
+          expect(request.method, 'POST');
+          expect(request.headers['Authorization'], 'Bearer reviewer-token');
+          expect(request.data, {'reason': 'spam', 'note': 'duplicate'});
+          return ResponseData(200, {'code': 0, 'result': true});
+        });
+
+        expect(
+          await CourseRepository(
+            client,
+          ).reportReview(reviewId: 42, reason: 'spam', note: '  duplicate  '),
+          isTrue,
+        );
+      },
+    );
+
+    test('course review report omits a note that trims to empty', () async {
+      setupClient(initialToken: 'reviewer-token');
+      dio.httpClientAdapter = MockAdapter((request) async {
+        expect(request.path, '/api/forum/course-reviews/42/reports');
+        expect(request.method, 'POST');
+        expect(request.data, {'reason': 'other'});
+        return ResponseData(200, {'code': 0, 'result': true});
+      });
+
+      expect(
+        await CourseRepository(
+          client,
+        ).reportReview(reviewId: 42, reason: 'other', note: ' \t\n '),
+        isTrue,
+      );
+    });
+
+    test(
+      'course review mirror defaults newly added interactions for old payloads',
+      () {
+        final review = ReviewPayload.fromJson({
+          'id': 42,
+          'offeringId': 4,
+          'rating': 5,
+          'content': 'Good',
+          'contentHtml': '<p>Good</p>',
+          'author': {'kind': 'legacy', 'label': 'Legacy'},
+          'viewer': {'canEdit': false, 'canDelete': false, 'isHelpful': false},
+          'helpfulCount': 2,
+          'createdAt': '2026-09-30T00:00:00Z',
+          'updatedAt': '2026-09-30T00:00:00Z',
+        });
+
+        expect(review.viewer.isDisliked, isFalse);
+        expect(review.dislikeCount, 0);
+        expect(review.author.avatarUrl, isNull);
+      },
+    );
+
+    test(
+      'course review mirror parses new interaction and member avatar fields',
+      () {
+        final review = ReviewPayload.fromJson({
+          'id': 43,
+          'offeringId': 4,
+          'rating': 4,
+          'content': 'Helpful details',
+          'contentHtml': '<p>Helpful details</p>',
+          'author': {
+            'kind': 'member',
+            'label': 'Member',
+            'avatarUrl': 'https://example.test/avatar.png',
+          },
+          'viewer': {
+            'canEdit': false,
+            'canDelete': false,
+            'isHelpful': false,
+            'isDisliked': true,
+          },
+          'helpfulCount': 2,
+          'dislikeCount': 3,
+          'createdAt': '2026-09-30T00:00:00Z',
+          'updatedAt': '2026-09-30T00:00:00Z',
+        });
+
+        expect(review.viewer.isDisliked, isTrue);
+        expect(review.dislikeCount, 3);
+        expect(review.author.avatarUrl, 'https://example.test/avatar.png');
+      },
+    );
+
     test('无令牌时不带 Authorization 头', () async {
       setupClient();
       final adapter = MockAdapter((request) async {
@@ -91,6 +183,56 @@ void main() {
 
       await client.post<bool>('/api/ping');
       expect(adapter.requests, hasLength(1));
+    });
+
+    test(
+      'postEnvelope preserves success metadata while resolving the result',
+      () async {
+        setupClient();
+        dio.httpClientAdapter = MockAdapter((request) async {
+          return ResponseData(
+            200,
+            {
+              'code': 0,
+              'result': 'registered',
+              'messageCode': 'auth.register.emailVerify',
+              'params': {'email': 'student@example.test'},
+            },
+            headers: {'New-Token': 'renewed'},
+          );
+        });
+
+        final response = await client.postEnvelope<String>(
+          '/api/register',
+          parser: (json) => json as String,
+        );
+        expect(response.result, 'registered');
+        expect(response.messageCode, 'auth.register.emailVerify');
+        expect(response.params, {'email': 'student@example.test'});
+        expect(renewedTokens, ['renewed']);
+      },
+    );
+
+    test('postEnvelope keeps the existing API error path', () async {
+      setupClient();
+      dio.httpClientAdapter = MockAdapter((request) async {
+        return ResponseData(200, {
+          'code': 1,
+          'result': null,
+          'messageCode': 'auth.register.failed',
+        });
+      });
+
+      await expectLater(
+        client.postEnvelope<String>('/api/register'),
+        throwsA(
+          isA<ApiException>().having(
+            (error) => error.messageCode,
+            'messageCode',
+            'auth.register.failed',
+          ),
+        ),
+      );
     });
 
     test('New-Token 响应头触发 onTokenRenewed 回调', () async {
@@ -590,6 +732,63 @@ void main() {
       expect(capturedBody.containsKey('website'), isFalse);
       expect(capturedBody['categoryId'], [1]);
     });
+
+    for (final String code in <String>[
+      pendingReviewMessageCode,
+      checkingMessageCode,
+    ]) {
+      test('待审成功信封映射为 pendingReview(issue #975): $code', () async {
+        final storage = _MemoryTokenStorage();
+        final dio = Dio(BaseOptions(baseUrl: 'http://test'));
+        final client = GfApiClient(dio: dio, tokenStorage: storage);
+        dio.httpClientAdapter = MockAdapter((request) async {
+          final Map<String, dynamic> envelope = {
+            'code': 0,
+            'messageCode': code,
+          };
+          switch (request.path) {
+            case '/api/forum/topics/write':
+              envelope['result'] = 975;
+            case '/api/forum/posts/create':
+              envelope['result'] = {
+                'id': 9,
+                'postNo': 2,
+                'renderedContent': '',
+              };
+            default:
+              envelope['result'] = {
+                'id': 9,
+                'content': 'x',
+                'renderedContent': '',
+                'updatedAt': '',
+              };
+          }
+          return ResponseData(200, envelope);
+        });
+
+        final written = await TopicRepository(client).writeTopicResult(
+          topicId: 0,
+          title: '标题',
+          content: '内容',
+          categoryIds: [1],
+          topicStatus: 1,
+        );
+        expect(written.id, 975);
+        final bool checking = code == checkingMessageCode;
+        expect(written.pendingReview, isTrue);
+        expect(written.checking, checking);
+        final created = await PostRepository(
+          client,
+        ).createPost(topicId: 1, content: '回复');
+        expect(created.pendingReview, isTrue);
+        expect(created.checking, checking);
+        final updated = await PostRepository(
+          client,
+        ).updatePost(postId: 9, content: 'x');
+        expect(updated.pendingReview, isTrue);
+        expect(updated.checking, checking);
+      });
+    }
 
     test('NotificationRepository.fetchNotifications 游标参数', () async {
       final storage = _MemoryTokenStorage();

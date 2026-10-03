@@ -411,9 +411,13 @@ func buildPushContent(notification eventNotification.Entity, lang string) *pushC
 		}
 	case eventNotification.EventTypeComment, eventNotification.EventTypePostReply,
 		eventNotification.EventTypeTopicPost, eventNotification.EventTypeMention,
-		eventNotification.EventTypeLike:
+		eventNotification.EventTypeLike, eventNotification.EventTypeReviewApproved:
 		url = topicURL(payload)
 		title = truncateTitle(topicTitle(payload))
+	case eventNotification.EventTypeReviewRejected:
+		// 被拒内容对作者不可见：深链落通知中心，标题用写入时的标题快照。
+		url = urlconfig.Notifications()
+		title = truncateTitle(payload.TopicTitle)
 	default:
 		url = urlconfig.Notifications()
 	}

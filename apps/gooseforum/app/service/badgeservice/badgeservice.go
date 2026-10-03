@@ -66,6 +66,7 @@ func buildAllForAdmin() []AdminBadge {
 	for _, def := range systemDefs {
 		seen[def.Code] = true
 		badge := applyOverride(def, overrides[def.Code])
+		badge.IconURL = versionedBadgeIconURL(badge.IconURL)
 		result = append(result, AdminBadge{Badge: badge, IsSystem: true, CanDelete: false})
 	}
 
@@ -73,7 +74,9 @@ func buildAllForAdmin() []AdminBadge {
 		if entity == nil || seen[entity.Code] || entity.Type != badges.TypeCustom {
 			continue
 		}
-		result = append(result, AdminBadge{Badge: fromEntity(entity), IsSystem: false, CanDelete: true})
+		badge := fromEntity(entity)
+		badge.IconURL = versionedBadgeIconURL(badge.IconURL)
+		result = append(result, AdminBadge{Badge: badge, IsSystem: false, CanDelete: true})
 	}
 
 	slices.SortStableFunc(result, func(a, b AdminBadge) int {

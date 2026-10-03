@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-09-27
+> Last verified: 2026-10-03
 
 This is the single entry point for yourtj-hub product, architecture, development, and operations specs.
 Docs describe only the currently supported model; stale phase plans, PR delivery checklists, and
@@ -75,16 +75,17 @@ status. Do not use PR-relative "shipped this / later" labels as long-term status
 - [Development entry](development/README.md)
 - [Local environment](development/local-development.md)
 - [Testing strategy & commands](development/testing.md)
-- [Branches, commits & pull requests](development/pull-requests.md)
+- [Issues, requirements, review & pull requests](development/pull-requests.md)
 - [Documentation governance](development/documentation.md)
 - [Newcomer orientation (repo-seed)](development.md)
 - [Go dependency vulnerability scanning](development/dependency-scanning.md)
 
 ### Operations
 
+- [Reviewed releases](operations/releases.md)
 - [Deployment & release](operations/deployment.md)
 - [Campus connection operations](operations/campus.md)
-- [Independent status site on Netlify](operations/status-netlify.md)
+- [Independent status site on Cloudflare](operations/status-cloudflare.md)
 - [Mobile releases and signing](operations/mobile-releases.md)
 - [Object storage](operations/object-storage.md)
 - [Oryn repository maintenance](operations/oryn.md)

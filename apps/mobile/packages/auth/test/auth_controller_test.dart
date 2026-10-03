@@ -164,7 +164,7 @@ void main() {
       await controller.submitTotp('222222');
 
       expect(controller.phase, LoginPhase.needsTotp);
-      // 与 _mapAuthError 策略一致:不泄露 `server.<code>` 字面量。
+      // 与 _resolveAuthError 策略一致:不泄露 `server.<code>` 字面量。
       expect(
         controller.error,
         'Two-factor verification failed, please try again',
@@ -629,7 +629,7 @@ class FakeAuthRepository implements AuthRepository {
   }
 
   @override
-  Future<String> register({
+  Future<GfResponse<String>> register({
     required String username,
     required String email,
     required String password,
@@ -643,7 +643,7 @@ class FakeAuthRepository implements AuthRepository {
         messageCode: 'common.captchaRequired',
       );
     }
-    return '注册成功';
+    return const GfResponse<String>(code: 0, result: '注册成功');
   }
 
   @override

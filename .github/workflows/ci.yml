@@ -1,0 +1,132 @@
+name: CI / Verify
+on:
+  pull_request:
+  push:
+    branches: [dev, main]
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  inputs:
+    runs-on: ubuntu-latest
+    outputs:
+      plan: ${{ steps.select.outputs.plan }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - id: select
+        run: python3 scripts/ci/select_inputs.py
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: ci-plan
+          path: ci-plan.json
+          retention-days: 7
+          if-no-files-found: error
+  docs:
+    needs: inputs
+    if: fromJSON(needs.inputs.outputs.plan).docs.run
+    uses: ./.github/workflows/ci-docs.yml
+  govulncheck:
+    needs: inputs
+    if: fromJSON(needs.inputs.outputs.plan).govulncheck.run
+    uses: ./.github/workflows/ci-govulncheck.yml
+  backend:
+    needs: inputs
+    if: fromJSON(needs.inputs.outputs.plan).backend.run
+    uses: ./.github/workflows/ci-backend.yml
+    with:
+      postgres: ${{ fromJSON(needs.inputs.outputs.plan).postgres.run }}
+  frontend:
+    needs: inputs
+    if: fromJSON(needs.inputs.outputs.plan).frontend.run
+    uses: ./.github/workflows/ci-frontend.yml
+  contract:
+    needs: inputs
+    if: fromJSON(needs.inputs.outputs.plan).contract.run
+    uses: ./.github/workflows/ci-contract.yml
+  mobile:
+    needs: inputs
+    if: fromJSON(needs.inputs.outputs.plan).mobile.run
+    uses: ./.github/workflows/ci-mobile.yml
+  android:
+    needs: inputs
+    if: fromJSON(needs.inputs.outputs.plan).android.run
+    uses: ./.github/workflows/ci-mobile-native.yml
+    with:
+      platforms: '["android"]'
+  ios:
+    needs: inputs
+    if: fromJSON(needs.inputs.outputs.plan).ios.run
+    uses: ./.github/workflows/ci-mobile-native.yml
+    with:
+      platforms: '["ios"]'
+  status:
+    needs: inputs
+    if: fromJSON(needs.inputs.outputs.plan).status.run
+    uses: ./.github/workflows/ci-status.yml
+  automation:
+    needs: inputs
+    if: fromJSON(needs.inputs.outputs.plan).automation.run
+    uses: ./.github/workflows/ci-automation.yml
+  release:
+    needs: inputs
+    if: fromJSON(needs.inputs.outputs.plan).release.run
+    uses: ./.github/workflows/ci-release.yml
+  ci-backend:
+    needs: [inputs, backend]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          SELECTED: ${{ fromJSON(needs.inputs.outputs.plan).backend.run }}
+          RESULT: ${{ needs.backend.result }}
+          INPUTS: ${{ needs.inputs.result }}
+        run: |
+          test "$INPUTS" = success
+          if [ "$SELECTED" = true ]; then test "$RESULT" = success; else test "$RESULT" = skipped; fi
+  ci-frontend:
+    needs: [inputs, frontend]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          SELECTED: ${{ fromJSON(needs.inputs.outputs.plan).frontend.run }}
+          RESULT: ${{ needs.frontend.result }}
+          INPUTS: ${{ needs.inputs.result }}
+        run: |
+          test "$INPUTS" = success
+          if [ "$SELECTED" = true ]; then test "$RESULT" = success; else test "$RESULT" = skipped; fi
+  ci-contract:
+    needs: [inputs, contract]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          SELECTED: ${{ fromJSON(needs.inputs.outputs.plan).contract.run }}
+          RESULT: ${{ needs.contract.result }}
+          INPUTS: ${{ needs.inputs.result }}
+        run: |
+          test "$INPUTS" = success
+          if [ "$SELECTED" = true ]; then test "$RESULT" = success; else test "$RESULT" = skipped; fi
+  # This validates proposed PR code, including CI scripts. Maintainers must review changes to
+  # this gate/classifier; it is not an authorization boundary independent of code review.
+  # Publication additionally uses the trusted-main release-authorized controller.
+  ci-required:
+    needs: [inputs, docs, govulncheck, backend, frontend, contract, mobile, android, ios, status, automation, release, ci-backend, ci-frontend, ci-contract]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - env:
+          CI_PLAN: ${{ needs.inputs.outputs.plan }}
+          CI_NEEDS: ${{ toJSON(needs) }}
+          INPUT_RESULT: ${{ needs.inputs.result }}
+        run: |
+          test "$INPUT_RESULT" = success
+          python3 scripts/ci/select_inputs.py --verify

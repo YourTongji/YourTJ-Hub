@@ -14,9 +14,14 @@ Repair publication additionally requires sandboxed application validation and an
 
 ## Execution and policy
 
+The manual `release_notes_smoke` dispatch exercises the same `workflow.py draft-notes` retry path as
+Prepare for mobile, iOS-only TestFlight, and web/operators historical ranges. Each job validates the
+rendered candidate and uploads its draft/status evidence without publishing a release or supplying
+human approval. Runtime protocol tests and the deterministic Core smoke also run in Oryn's CI.
+
 [Oryn workflow](../../.github/workflows/oryn.yml) runs on this repository's Actions runners. The trusted
 [setup action](../../.github/actions/setup-oryn/action.yml) loads
-[Oryn Mini at an immutable commit](https://github.com/yzxoi/oryn-mini/tree/f46317be263a6973f4c91320bddcfa9146d488c5)
+[Oryn Mini at an immutable commit](https://github.com/yzxoi/oryn-mini/tree/e4a75d61bcc84b74c3216162f79bb7433af30e6e)
 and applies [this repository's policy](../../.github/oryn/repositories.json). Oryn's public Synergy core
 creates a fresh temporary home per invocation; no server, database or reusable model history is deployed.
 GitHub comments contain bounded queue receipts; Actions artifacts expire after seven days. New
@@ -25,9 +30,9 @@ work or side effects; repeated settlement cannot downgrade terminal work.
 
 Manual runs use the selected workflow commit. Issue/PR events load the current default branch (`dev`),
 never the contributor's PR head as executable workflow or operator policy. The model sees target source
-as evidence. The model is `deepseek-v4.1-flash` through OpenCode Go, with
-`reasoning_effort=max` and thinking enabled. The conservative profile uses 128,000 context tokens,
-32,768 output tokens and text input; it does not enable image input. Oryn identifies itself with its
+as evidence. The default model is `opencode-go/deepseek-v4.1-flash`; repository variables override that profile.
+The configured deployment uses `oryn/glm-5.3-flash` with its configured base URL. Reasoning is `max`;
+model capabilities follow the pinned runtime profile, and receipts record the effective model. Oryn identifies itself with its
 own User-Agent and a fresh `x-opencode-session` per Core invocation, reused across tool calls and
 report retries. See [OpenCode Go's client requirements](https://opencode.ai/docs/go/).
 The default task budget is 1800
@@ -51,7 +56,8 @@ recorded by the planner. Stale admissions are deferred individually, and aborted
 invalidation produces a normal superseded/cancelled outcome, and closed, locked or protected queued
 targets are skipped. These dispositions do not become retryable execution failures. Close/merge still require a current
 maintainer command and live evidence; merge additionally requires independent approval and successful
-`ci-backend`, `ci-frontend`, and `ci-contract` checks. Generated fixes remain draft PRs for human review.
+`ci-required` check. Release-request paths are excluded from ordinary merge commands and repair
+patches, independently of removable labels. Generated fixes remain draft PRs for human review.
 
 The trusted [validation entry](../../.github/oryn/validate.mjs) is installed outside the candidate
 checkout and mounted read-only in Oryn's credential-free bubblewrap sandbox. It compares the working
@@ -62,6 +68,17 @@ runners install Go, Node/pnpm and Flutter before repair execution; PostgreSQL us
 service. Flutter's writable SDK cache lives in the temporary validation home. Validation failures or
 budget exhaustion prevent patch publication; browser layout tests and other full CI suites remain
 required wherever existing repository CI selects them. Oryn cannot repair its own `.github` policy.
+
+## Release drafting
+
+[Release / Prepare](../../.github/workflows/release-prepare.yml) uses the runtime's dedicated
+Release Notes schema through the isolated Core runner. Evidence and output are channel-specific;
+no repository tools, signing credentials, target token or publication authority enter the model
+child. The host validates evidence references and renders files for final human review. See
+[release operations](releases.md). `release_notes_smoke=true` on the Oryn manual workflow replays
+a historical source range through the live provider and saves drafts without changing any release,
+Apple metadata or production instance. Its baseline is an explicit source replay, not a claim about
+historical Apple availability.
 
 ## Register and install the App
 

@@ -4,11 +4,11 @@
 
 路由快照来自 `TestRoutesSnapshot`（`fixtures/routes-snapshot.json`，默认配置装配，不含 OIDC `/api/oauth/*` 端点——OIDC 另有专项）。
 
-- 快照路由总数：347
-- /api JSON 路由：281，已入契约：282（100%），已知未覆盖：0
+- 快照路由总数：355
+- /api JSON 路由：289，已入契约：290（100%），已知未覆盖：0
 - 非 API 排除路由：65
 
-## 已覆盖（282）
+## 已覆盖（290）
 
 | Method | Path | operationId |
 | --- | --- | --- |
@@ -17,6 +17,7 @@
 | DELETE | `/api/forum/course-reviews/:reviewId/helpful` | `unmarkReviewHelpful` |
 | DELETE | `/api/pk/plan-items` | `pkDeletePlanItem` |
 | DELETE | `/api/pk/plans` | `pkDeletePlans` |
+| GET | `/api/admin/ai-moderation-settings` | `adminGetAiModerationSettings` |
 | GET | `/api/admin/ai-summary-settings` | `adminGetAiSummarySettings` |
 | GET | `/api/admin/announcement` | `adminGetAnnouncement` |
 | GET | `/api/admin/badges` | `adminListBadges` |
@@ -109,6 +110,10 @@
 | POST | `/api/admin/agent-list` | `adminAgentList` |
 | POST | `/api/admin/agent-rotate-token` | `adminAgentRotateToken` |
 | POST | `/api/admin/agent-update` | `adminAgentUpdate` |
+| POST | `/api/admin/ai-moderation/decisions` | `adminListAiModerationDecisions` |
+| POST | `/api/admin/ai-moderation/decisions/label` | `adminLabelAiModerationDecision` |
+| POST | `/api/admin/ai-moderation/replay` | `adminReplayAiModerationDecisions` |
+| POST | `/api/admin/ai-moderation/test` | `adminTestAiModerationConnection` |
 | POST | `/api/admin/ai-summary-models` | `adminListAiSummaryModels` |
 | POST | `/api/admin/badge-delete` | `adminDeleteBadge` |
 | POST | `/api/admin/badge-save` | `adminSaveBadge` |
@@ -140,6 +145,7 @@
 | POST | `/api/admin/role-delete` | `adminRoleDelete` |
 | POST | `/api/admin/role-list` | `adminRoleList` |
 | POST | `/api/admin/role-save` | `adminRoleSave` |
+| POST | `/api/admin/save-ai-moderation-settings` | `adminSaveAiModerationSettings` |
 | POST | `/api/admin/save-ai-summary-settings` | `adminSaveAiSummarySettings` |
 | POST | `/api/admin/save-announcement` | `adminSaveAnnouncement` |
 | POST | `/api/admin/save-friend-links` | `adminSaveFriendLinks` |
@@ -225,6 +231,8 @@
 | POST | `/api/forum/moderation/post-status` | `moderationUpdatePostStatus` |
 | POST | `/api/forum/moderation/report-status` | `moderationUpdateReportStatus` |
 | POST | `/api/forum/moderation/reports` | `listModerationReports` |
+| POST | `/api/forum/moderation/review-action` | `moderationReviewAction` |
+| POST | `/api/forum/moderation/review-queue` | `listModerationReviewQueue` |
 | POST | `/api/forum/moderation/topic-status` | `moderationUpdateTopicStatus` |
 | POST | `/api/forum/moderation/view-deleted-content` | `viewDeletedContent` |
 | POST | `/api/forum/my-sticker-delete` | `deleteMySticker` |

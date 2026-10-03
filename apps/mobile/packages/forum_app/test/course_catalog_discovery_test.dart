@@ -287,11 +287,19 @@ void main() {
       expect(courses.requests.last.departments, ['数学科学学院', '物理科学与工程学院']);
       courses.requests.last.result.complete(_result('筛选课程'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('重置搜索和筛选'));
+      // 重置入口是筛选行行首的 × chip，与筛选 chip 同一行，不再另起一行。
+      final reset = find.byKey(const ValueKey<String>('catalog-reset-filters'));
+      expect(tester.getSemantics(reset).label, '重置搜索和筛选');
+      expect(
+        tester.getCenter(reset).dy,
+        closeTo(tester.getCenter(find.text('院系')).dy, 0.5),
+      );
+      await tester.tap(reset);
       await tester.pump();
       expect(courses.requests.last.departments, isEmpty);
       courses.requests.last.result.complete(_result('全部课程'));
       await tester.pumpAndSettle();
+      expect(reset, findsNothing);
       await tester.pumpWidget(const SizedBox.shrink());
     },
   );

@@ -4,6 +4,26 @@
  */
 
 export interface paths {
+    "/mobile/releases.json": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read mobile release notes
+         * @description Returns a display-only catalog derived from reviewed release requests and successful GitHub distribution receipts. History coverage is per distribution channel; missing channels are omitted. TestFlight instructions are separate English testing notes. Responses are cached and carry an ETag. The catalog contains no candidate evidence, deployment payloads or credentials.
+         */
+        get: operations["getMobileReleaseCatalog"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/status": {
         parameters: {
             query?: never;
@@ -13,7 +33,7 @@ export interface paths {
         };
         /**
          * Read status snapshots
-         * @description Reads persisted snapshots only; visitors cannot trigger upstream collection. Current resource and uptime sources refresh every minute, history and traffic every fifteen minutes, and device reports hourly. Data is stale after 150 seconds (current), twenty minutes (history/traffic) or seventy minutes (devices). Retention is fifteen minutes, one hour and three hours respectively. fetchedAt is never advanced on failure. Resource history remains available independently when current metrics expire; the server envelope then has current/cpuCores null and preserves history's own timestamp. Browsers poll every sixty seconds; the CDN caches responses for at most thirty seconds. The browser rechecks freshness independently of the CDN cache.
+         * @description Reads persisted snapshots only; visitors cannot trigger upstream collection. GitHub Actions collects current resources, uptime, history and traffic every fifteen minutes, and device reports hourly; scheduled runs can be delayed. Data is stale after twenty minutes (current/history/traffic) or seventy minutes (devices). Retention is one hour and three hours respectively. fetchedAt is never advanced on failure. Resource history remains available independently when current metrics expire; the server envelope then has current/cpuCores null and preserves history's own timestamp. Browsers poll every sixty seconds. Dynamic API responses are not cached; the browser also rechecks freshness independently when a request fails.
          */
         get: operations["getStatus"];
         put?: never;
@@ -28,6 +48,46 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        MobileReleaseCatalog: {
+            /** @constant */
+            schemaVersion: 1;
+            historyCoverage: {
+                /** @constant */
+                source: "github-release-receipts";
+                /** Format: date-time */
+                publishedAt: string;
+                byChannel: {
+                    [key: string]: components["schemas"]["MobileReleaseCoverage"];
+                };
+            };
+            releases: components["schemas"]["MobileReleaseRecord"][];
+        };
+        MobileReleaseCoverage: {
+            /** @description Inclusive minimum installed build from which clients may claim a complete upgrade-note range. This is a conservative threshold, not proof that every build has a structured entry; use coveredBuilds for exact entries. If build 43 is the first known structured public build and no earlier public build is known, this floor is 43 and history below 43 is unknown. */
+            completeFromBuild: number;
+            throughBuild: number;
+            coveredBuilds: number[];
+        };
+        MobileReleaseRecord: {
+            version: string;
+            buildNumber: number;
+            channels: ("android" | "ios-app-store" | "ios-testflight")[];
+            highlights: components["schemas"]["MobileReleaseNote"][];
+            breaking: components["schemas"]["MobileReleaseNote"][];
+            requiredActions: components["schemas"]["MobileReleaseNote"][];
+            testflightNotes: {
+                id: string;
+                text: string;
+            }[];
+        };
+        MobileReleaseNote: {
+            id: string;
+            title: string;
+            summary: string;
+            /** @enum {string} */
+            kind: "feature" | "improvement" | "fix" | "security";
+            platforms: ("android" | "ios-app-store" | "ios-testflight")[];
+        };
         StatusDevicesSource: {
             /** @enum {string} */
             state: "ok" | "stale" | "unavailable" | "unconfigured";
@@ -191,6 +251,49 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    getMobileReleaseCatalog: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Receipt-backed release catalog */
+            200: {
+                headers: {
+                    ETag?: string;
+                    "Cache-Control"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MobileReleaseCatalog"];
+                };
+            };
+            /** @description Catalog unchanged */
+            304: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description GET required */
+            405: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Catalog source unavailable or invalid */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     getStatus: {
         parameters: {
             query?: {

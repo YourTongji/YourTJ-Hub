@@ -11,6 +11,7 @@ import 'package:forum_app/l10n/app_localizations.dart';
 import 'package:forum_app/src/pages/settings/settings_page.dart';
 import 'package:forum_app/src/providers.dart';
 import 'package:forum_app/src/push/push_service.dart';
+import 'package:forum_app/src/reading_preferences.dart';
 import 'package:forum_app/src/site_theme.dart';
 import 'package:forum_app/src/theme_mode.dart';
 import 'package:forum_app/src/widgets/app_refresh_indicator.dart';
@@ -664,6 +665,31 @@ void main() {
     expect(harness.page.requests, 0);
     expect(harness.user.requests, 0);
     expect(find.text('跟随系统'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('appearance links to text size with both current values', (
+    tester,
+  ) async {
+    final harness = await _mount(tester, section: 'appearance', language: 'en');
+    final row = find.byKey(const ValueKey('settings-text-size'));
+    await tester.scrollUntilVisible(
+      row,
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(find.text('Text size'), findsOneWidget);
+    expect(find.text('App Default · Reading Default'), findsOneWidget);
+
+    // Persist at once so no debounce timer outlives the test.
+    harness.container.read(contentFontScaleProvider.notifier)
+      ..setScale(1.2)
+      ..persistScale();
+    harness.container.read(appFontScaleProvider.notifier)
+      ..setScale(.9)
+      ..persistScale();
+    await tester.pumpAndSettle();
+    expect(find.text('App 90% · Reading 120%'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

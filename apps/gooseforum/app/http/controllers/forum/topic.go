@@ -111,7 +111,7 @@ func PostWindow(req component.BetterRequest[PostWindowReq]) component.Response {
 	if topicEntity.Id == 0 {
 		return component.FailResponseCode(component.MessageTopicNotFound, nil)
 	}
-	if !CanViewTopicSimple(&topicEntity, req.UserId) {
+	if !canViewTopic(&topicEntity, req.UserId) {
 		return component.FailResponseCode(component.MessageTopicNotFound, nil)
 	}
 
@@ -239,10 +239,10 @@ func PostWindow(req component.BetterRequest[PostWindowReq]) component.Response {
 	))
 }
 
-// canViewTopic 为历史别名，委托共享可见性谓词 CanViewTopicSimple，避免两处
-// 安全边界实现漂移。调用方：TopicDetail（读路径）。
+// canViewTopic 话题详情读路径的可见性：在共享谓词之上允许作者阅读自己待审中的
+// 话题（topicaccessservice.CanRead）。调用方：TopicDetail、PostWindow。
 func canViewTopic(entity *topics.Entity, userID uint64) bool {
-	return CanViewTopicSimple(entity, userID)
+	return topicaccessservice.CanRead(entity, userID)
 }
 
 // CanViewTopicSimple is the shared read-path visibility predicate for topics

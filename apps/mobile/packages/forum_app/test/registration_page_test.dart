@@ -22,6 +22,8 @@ class _Options implements HttpClientAdapter {
     required this.policies,
     this.fail = false,
     this.tongji = false,
+    this.registrationMessageCode,
+    this.registrationSuccessMessageCode,
   });
   final headers = <String?>[];
   @override
@@ -29,6 +31,8 @@ class _Options implements HttpClientAdapter {
   final List<String> domains;
   final bool policies;
   final bool tongji;
+  final String? registrationMessageCode;
+  final String? registrationSuccessMessageCode;
   bool fail;
   @override
   Future<ResponseBody> fetch(
@@ -36,6 +40,20 @@ class _Options implements HttpClientAdapter {
     Stream<Uint8List>? requestStream,
     Future<void>? cancelFuture,
   ) async {
+    if (request.path == '/api/register') {
+      return ResponseBody.fromString(
+        jsonEncode({
+          'code': registrationSuccessMessageCode == null ? 1 : 0,
+          'result': 'registered',
+          'messageCode':
+              registrationSuccessMessageCode ?? registrationMessageCode,
+        }),
+        200,
+        headers: {
+          Headers.contentTypeHeader: ['application/json'],
+        },
+      );
+    }
     expect(request.path, '/login');
     if (fail) {
       throw DioException(
@@ -138,7 +156,7 @@ class _Auth extends AuthController {
   }
 
   @override
-  Future<void> register({
+  Future<String?> register({
     required String username,
     required String email,
     required String password,
@@ -146,6 +164,7 @@ class _Auth extends AuthController {
     String? captchaCode,
   }) async {
     emails.add(email);
+    return null;
   }
 }
 
@@ -158,6 +177,8 @@ void main() {
     bool oldSession = false,
     bool register = true,
     bool tongji = false,
+    String? registrationMessageCode,
+    String? registrationSuccessMessageCode,
     Locale locale = const Locale('en'),
     double width = 390,
     double textScale = 1,
@@ -178,6 +199,8 @@ void main() {
       policies: policies,
       fail: fail,
       tongji: tongji,
+      registrationMessageCode: registrationMessageCode,
+      registrationSuccessMessageCode: registrationSuccessMessageCode,
     );
     final container = ProviderContainer(
       overrides: [
@@ -203,7 +226,11 @@ void main() {
           ),
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
-          home: LoginPage(authController: auth, authTokenStorage: staged),
+          home:
+              registrationMessageCode == null &&
+                  registrationSuccessMessageCode == null
+              ? LoginPage(authController: auth, authTokenStorage: staged)
+              : const LoginPage(),
         ),
       ),
     );
@@ -806,6 +833,50 @@ void main() {
     },
   );
   testWidgets(
+    'registration verification success toast is localized from success code',
+    (tester) async {
+      for (final language in ['zh', 'en', 'ja', 'de']) {
+        await pump(
+          tester,
+          locale: Locale(language),
+          registrationSuccessMessageCode: 'auth.register.emailVerify',
+        );
+        final l10n = AppLocalizations.of(
+          tester.element(find.byType(LoginPage)),
+        );
+        await tester.enterText(input(l10n.authUsername), 'mobile');
+        await tester.enterText(input(l10n.authEmail), 'student@tongji.edu.cn');
+        await tester.enterText(input(l10n.authPassword), 'test-password');
+        await tester.enterText(
+          input(l10n.authConfirmPassword),
+          'test-password',
+        );
+        await tester.ensureVisible(submit());
+        await tester.tap(submit());
+        await tester.pumpAndSettle();
+        expect(find.text(l10n.authRegisterEmailVerify), findsOneWidget);
+        expect(find.text(l10n.authRegisterSuccess), findsNothing);
+        expect(input(l10n.authEmail), findsNothing);
+        await tester.pump(const Duration(seconds: 4));
+        await tester.pumpAndSettle();
+      }
+    },
+  );
+
+  testWidgets('registration without verification keeps generic success toast', (
+    tester,
+  ) async {
+    await pump(tester, registrationSuccessMessageCode: 'auth.login.success');
+    await fill(tester, 'Email', 'student@tongji.edu.cn');
+    await tester.ensureVisible(submit());
+    await tester.tap(submit());
+    await tester.pumpAndSettle();
+    final l10n = AppLocalizations.of(tester.element(find.byType(LoginPage)));
+    expect(find.text(l10n.authRegisterSuccess), findsOneWidget);
+    expect(find.text(l10n.authRegisterEmailVerify), findsNothing);
+  });
+
+  testWidgets(
     'unrestricted registration keeps the full email and rejects mismatched passwords',
     (tester) async {
       final h = await pump(tester);
@@ -826,6 +897,94 @@ void main() {
       await tester.pump(const Duration(seconds: 4));
     },
   );
+  testWidgets('restricted registration accepts a pasted full email', (
+    tester,
+  ) async {
+    final h = await pump(tester, domains: ['tongji.edu.cn']);
+    await fill(tester, 'Email username', ' student@TONGJI.edu.cn ');
+    await tester.ensureVisible(submit());
+    await tester.tap(submit());
+    await tester.pumpAndSettle();
+    expect(h.auth.emails, ['student@tongji.edu.cn']);
+    await tester.pump(const Duration(seconds: 4));
+  });
+
+  for (final failure in {
+    'auth.register.dailyQuota':
+        "Today's registration quota is full. Please try again tomorrow.",
+    'auth.register.retryLogin':
+        'Registration had an issue; please try signing in',
+    'auth.register.failed': 'Registration failed',
+    'common.request.invalidParams': 'Invalid request parameters',
+    'unknown.registration.error': 'Failed to load',
+  }.entries) {
+    testWidgets('registration displays server reason: ${failure.key}', (
+      tester,
+    ) async {
+      await pump(tester, registrationMessageCode: failure.key);
+      await fill(tester, 'Email', 'student@tongji.edu.cn');
+      await tester.ensureVisible(submit());
+      await tester.tap(submit());
+      await tester.pumpAndSettle();
+      expect(find.text(failure.value), findsOneWidget);
+      expect(
+        find.text('Registered successfully, please sign in'),
+        findsNothing,
+      );
+      expect(
+        find.text(
+          'Registration successful. A verification email was sent; check your inbox.',
+        ),
+        findsNothing,
+      );
+      expect(find.text('Unable to register, please retry'), findsNothing);
+      expect(input('Confirm password'), findsOneWidget);
+    });
+  }
+
+  testWidgets('registration failure uses the selected Chinese locale', (
+    tester,
+  ) async {
+    await pump(
+      tester,
+      locale: const Locale('zh'),
+      registrationMessageCode: 'auth.register.failed',
+    );
+    await tester.enterText(input('用户名'), 'mobile');
+    await tester.enterText(input('邮箱'), 'student@tongji.edu.cn');
+    await tester.enterText(input('密码'), 'password123');
+    await tester.enterText(input('确认密码'), 'password123');
+    await tester.ensureVisible(submit());
+    await tester.tap(submit());
+    await tester.pumpAndSettle();
+    expect(find.text('注册失败'), findsOneWidget);
+    expect(find.text('Unable to register, please retry'), findsNothing);
+  });
+
+  testWidgets('pasted email selects its published domain', (tester) async {
+    final h = await pump(tester, domains: ['tongji.edu.cn', 's.tongji.edu.cn']);
+    await fill(tester, 'Email username', 'student@s.tongji.edu.cn');
+    await tester.ensureVisible(submit());
+    await tester.tap(submit());
+    await tester.pumpAndSettle();
+    expect(h.auth.emails, ['student@s.tongji.edu.cn']);
+    await tester.pump(const Duration(seconds: 4));
+  });
+
+  for (final email in ['student@example.com', 'student@@tongji.edu.cn', '']) {
+    testWidgets('restricted registration rejects invalid address: $email', (
+      tester,
+    ) async {
+      final h = await pump(tester, domains: ['tongji.edu.cn']);
+      await fill(tester, 'Email username', email);
+      await tester.ensureVisible(submit());
+      await tester.tap(submit());
+      await tester.pumpAndSettle();
+      expect(h.auth.emails, isEmpty);
+      expect(find.byKey(const Key('register-email-domain')), findsOneWidget);
+    });
+  }
+
   testWidgets('failed registration options can retry without losing the form', (
     tester,
   ) async {

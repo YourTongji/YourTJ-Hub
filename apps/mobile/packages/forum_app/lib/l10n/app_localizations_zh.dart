@@ -74,6 +74,24 @@ class AppLocalizationsZh extends AppLocalizations {
   String get imageSaveFailed => '图片保存失败，请稍后重试';
 
   @override
+  String get imageUnavailable => '无法显示此图片';
+
+  @override
+  String get imageUnavailableNetwork => '网络受限，暂时无法加载图片';
+
+  @override
+  String get imageUnavailableFormat => '不支持的图片格式';
+
+  @override
+  String get imageRetry => '重试';
+
+  @override
+  String get imageOpenInBrowser => '在浏览器打开';
+
+  @override
+  String get imagePermissionDenied => '相册权限已拒绝，请前往系统设置开启权限。';
+
+  @override
   String get announcementLabel => '公告';
 
   @override
@@ -250,7 +268,14 @@ class AppLocalizationsZh extends AppLocalizations {
   String get authCaptchaRequired => '请输入验证码';
 
   @override
+  String get publishCaptchaExplanation =>
+      '站点通常会对新账号的高频发布互动要求验证码。近期发布或回复较多时，请先完成验证；近期互动减少或账号注册时间达到站点设定条件后，此要求会自动解除。';
+
+  @override
   String get authOidcLogin => '使用 yourtj 统一登录';
+
+  @override
+  String get authRegisterEmailVerify => '注册成功，验证邮件已发送，请前往邮箱完成验证。';
 
   @override
   String get authRegisterSuccess => '注册成功,请登录';
@@ -1231,6 +1256,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get courseDetailReviews => '课评';
 
   @override
+  String get courseShareThisReview => '本条评分';
+
+  @override
   String get courseDetailOfferings => '开课班级';
 
   @override
@@ -1300,6 +1328,62 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get settingsFollowSiteThemeDesc => '使用服务器下发的站点配色';
+
+  @override
+  String get richContentCopyCode => '复制代码';
+
+  @override
+  String get richContentCodeCopied => '已复制代码';
+
+  @override
+  String get textSizeTitle => '字体大小';
+
+  @override
+  String get textSizeReset => '恢复默认';
+
+  @override
+  String get textSizeDefault => '默认';
+
+  @override
+  String textSizePercent(int percent) {
+    return '$percent%';
+  }
+
+  @override
+  String textSizeSummary(String appSize, String readingSize) {
+    return '全局 $appSize · 阅读 $readingSize';
+  }
+
+  @override
+  String get textSizeGlobal => '全局字号';
+
+  @override
+  String get textSizeGlobalDesc => '整个 App 的文字，包括正文';
+
+  @override
+  String get textSizeReading => '阅读字号';
+
+  @override
+  String get textSizeReadingDesc => '在全局字号基础上，单独调整帖子、Wiki 和课程评价的正文';
+
+  @override
+  String get textSizePreview => '预览';
+
+  @override
+  String get textSizePreviewTime => '10 分钟前';
+
+  @override
+  String get textSizePreviewTitle => '拖动下方滑块，预览会实时变化';
+
+  @override
+  String get textSizePreviewExcerpt => '全局字号改变整个 App 的文字，阅读字号在此基础上只调整正文。';
+
+  @override
+  String get textSizePreviewCategory => '使用指南';
+
+  @override
+  String get textSizePreviewBody =>
+      '### 正文预览\n阅读字号只改变这段帖子正文，其他文字跟随**全局字号**。\n\n- 默认大小已按系统字体设置和屏幕宽度适配';
 
   @override
   String get entryCourses => '课程';
@@ -1978,6 +2062,20 @@ class AppLocalizationsZh extends AppLocalizations {
   String get courseCopyAnonymousLabel => '匿名发布（对公众隐藏身份）';
 
   @override
+  String get courseCopyAnonymousTitle => '匿名发布';
+
+  @override
+  String get courseCopyAnonymousHint => '对公众隐藏身份';
+
+  @override
+  String courseCopyPublishAs(String name) {
+    return '以 $name 发布';
+  }
+
+  @override
+  String get courseCopyPublishPublic => '公开身份';
+
+  @override
   String get courseCopySubmitSuccess => '已提交';
 
   @override
@@ -2104,6 +2202,75 @@ class AppLocalizationsZh extends AppLocalizations {
   String get updateRetry => '重试';
 
   @override
+  String get updateCancelDownload => '取消下载';
+
+  @override
+  String get updateIncomplete => '更新未完成。请检查网络连接后重试。';
+
+  @override
+  String get updateOpenAppStore => '前往 App Store';
+
+  @override
+  String get updateOpenTestFlight => '在 App Store 查看 TestFlight';
+
+  @override
+  String get updateTestFlightInstructions =>
+      '此链接会打开 TestFlight 的 App Store 页面。若已安装 TestFlight，请打开它并查看 YourTJ 的测试版更新。';
+
+  @override
+  String get updateOpenPermissionSettings => '前往安装权限设置';
+
+  @override
+  String get updateChannelUnknown => '无法确认当前更新渠道。你仍可在“关于”中查看更新记录。';
+
+  @override
+  String get releaseNotes => '本次更新';
+
+  @override
+  String get releaseNotesHistory => '更新记录';
+
+  @override
+  String get releaseNotesEmpty => '暂时没有可用的更新说明。';
+
+  @override
+  String get releaseNotesEarlier => '还包含此前版本的其他改进。';
+
+  @override
+  String get releaseNotesIncomplete => '此前版本的更新记录不完整，本提示仅显示目标版本的内容。';
+
+  @override
+  String get releaseHistoryIncomplete => '此发布渠道的可用更新记录不完整。';
+
+  @override
+  String get releaseNotesMore => '查看全部更新内容';
+
+  @override
+  String get releaseNotesFewer => '收起';
+
+  @override
+  String releaseNotesShowRemaining(int count) {
+    return '展开其余 $count 项更新';
+  }
+
+  @override
+  String get releaseNotesRequired => '重要提示';
+
+  @override
+  String get releaseNotesHistoryError => '暂时无法读取更新记录。';
+
+  @override
+  String get releaseNotesKindFeature => '新功能';
+
+  @override
+  String get releaseNotesKindImprovement => '体验改进';
+
+  @override
+  String get releaseNotesKindFix => '问题修复';
+
+  @override
+  String get releaseNotesKindSecurity => '安全更新';
+
+  @override
   String get settingsPushConsent =>
       '开启后通过 Apple（iOS）或极光及手机厂商（Android）发送系统通知，会处理设备推送标识及通知内容。';
 
@@ -2222,7 +2389,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settingsAvatarSources => '选择预设头像或上传图片';
 
   @override
-  String get settingsEmailChangeStaged => '邮箱变更请求已提交。';
+  String get settingsEmailChangeStaged => '激活邮件已发送到新邮箱，请查收并完成验证。';
 
   @override
   String settingsEmailPending(String email) {
@@ -2975,4 +3142,144 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get draftCloudLimit => '此页最多加载最近 100 份云端草稿，删除后会刷新并显示后续草稿。';
+
+  @override
+  String get topicShareImage => '生成分享图片';
+
+  @override
+  String get shareImageTitle => '分享图片';
+
+  @override
+  String get shareImageTheme => '主题';
+
+  @override
+  String get shareImageThemePaper => '纸白';
+
+  @override
+  String get shareImageThemeSand => '暖砂';
+
+  @override
+  String get shareImageThemeBlue => '晴蓝';
+
+  @override
+  String get shareImageThemeMint => '薄荷';
+
+  @override
+  String get shareImageThemeDark => '深色';
+
+  @override
+  String get shareImageGenerating => '正在生成图片…';
+
+  @override
+  String get reviewDislike => '无用';
+
+  @override
+  String get courseReviewShare => '分享';
+
+  @override
+  String get courseReviewShareImage => '生成分享图片';
+
+  @override
+  String get courseReviewReportReasonHint => '请选择举报理由';
+
+  @override
+  String get courseReviewReportNoteLabel => '补充说明';
+
+  @override
+  String get courseReviewTemplates => '评价模板';
+
+  @override
+  String get courseReviewTemplateApply => '应用';
+
+  @override
+  String get courseReviewTemplateReplaceTitle => '替换现有内容？';
+
+  @override
+  String get courseReviewTemplateReplaceBody => '现有评价内容将被模板替换。';
+
+  @override
+  String get courseReviewTemplateKeepEditing => '继续编辑';
+
+  @override
+  String get courseReviewTemplateComprehensiveName => '综合评价';
+
+  @override
+  String get courseReviewTemplateComprehensiveDescription =>
+      '从课程、教师、工作量、考核和建议几个方面评价。';
+
+  @override
+  String get courseReviewTemplateQuickName => '简短评价';
+
+  @override
+  String get courseReviewTemplateQuickDescription => '简要概括课程整体体验。';
+
+  @override
+  String get courseReviewTemplateTeacherFocusedName => '教师评价';
+
+  @override
+  String get courseReviewTemplateTeacherFocusedDescription => '重点评价教学风格、进度和交流。';
+
+  @override
+  String get courseReviewTemplateExamFocusedName => '考核评价';
+
+  @override
+  String get courseReviewTemplateExamFocusedDescription => '介绍考试、作业和评分方式。';
+
+  @override
+  String get courseReviewTemplateWorkloadName => '工作量评价';
+
+  @override
+  String get courseReviewTemplateWorkloadDescription => '介绍每周工作量和时间投入。';
+
+  @override
+  String get courseReviewTemplateBlankName => '空白模板';
+
+  @override
+  String get courseReviewTemplateBlankDescription => '从空白评价开始。';
+
+  @override
+  String get courseReviewContentLimitError => '评价内容最多 2000 个字符。';
+
+  @override
+  String courseReviewCharacterCount(Object count) {
+    return '$count/2000';
+  }
+
+  @override
+  String get shareImageTooLong => '帖子内容过长，无法生成分享图片。';
+
+  @override
+  String get shareImageFailed => '分享图片失败，请稍后重试。';
+
+  @override
+  String get moderationBlockedTitle => '内容未发布';
+
+  @override
+  String get moderationBlockedPolicyHint =>
+      '请检查图片和文字是否符合社区规范，删除或替换可能不合适的部分后再发布。如果你认为判断有误，可以联系管理员。';
+
+  @override
+  String get moderationBlockedExternalHint =>
+      '本站不显示站外图片。请先保存图片，再通过编辑器上传到本站，然后重新发布。';
+
+  @override
+  String get moderationBlockedDraftKept => '你的文字和图片仍保留在编辑器中。';
+
+  @override
+  String get moderationBlockedBack => '返回修改';
+
+  @override
+  String get notificationReviewApproved => '你的内容已通过审核，现在所有人都能看到它';
+
+  @override
+  String get notificationReviewRejected => '你的内容未通过审核，不会公开显示';
+
+  @override
+  String get topicPendingReviewBanner => '这篇内容正在审核，目前只有你和审核员能看到。通过后所有人可见。';
+
+  @override
+  String get topicPendingReviewBannerModerator => '这篇内容正在等待审核，其他读者暂时看不到。';
+
+  @override
+  String get topicPendingReviewReply => '审核中 · 通过审核前，只有你和审核员能看到这条回复。';
 }

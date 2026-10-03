@@ -48,6 +48,20 @@ class MediaRepository extends ChangeNotifier {
   final DateTime Function() _now;
   final int budgetBytes;
   final int maxDownloadBytes;
+
+  /// Remote image hosts routinely gate on the request looking like a browser
+  /// fetch; Dart's default `Dart/x.y (dart:io)` user agent is rejected by some
+  /// hosts that serve the same URL fine in a web view. Deliberately no Referer:
+  /// an empty one is usually the permissive branch, a wrong one trips hotlink
+  /// protection.
+  //
+  // ponytail: headers only; add a cookie jar or per-host rules when a reported
+  // URL proves it needs them.
+  static const String _browserLikeUserAgent =
+      'Mozilla/5.0 (Linux; Android 14; YourTJ-Hub/1.0) AppleWebKit/537.36 '
+      '(KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36';
+  static const String _mediaAcceptHeader = 'image/*,*/*;q=0.8';
+
   final Map<String, Map<String, dynamic>> _entries = {};
   final Map<String, Future<Uint8List>> _pending = {};
   final Set<CancelToken> _tokens = {};
@@ -303,6 +317,7 @@ class MediaRepository extends ChangeNotifier {
     required String scopeKey,
     required String apiOrigin,
     Set<String>? allowedOrigins,
+    Future<String?> Function()? readAccessToken,
   }) {
     final generation = _generation;
     final key = sha256
@@ -320,6 +335,7 @@ class MediaRepository extends ChangeNotifier {
         generation,
         !scopeKey.startsWith('pending:'),
         allowedOrigins,
+        readAccessToken,
       );
       result.then<void>(
         (_) {
@@ -340,6 +356,15 @@ class MediaRepository extends ChangeNotifier {
       !uri.hasQuery &&
       !uri.hasFragment;
 
+  /// Only this site's own uploads may be retried with the session: pending
+  /// content images answer 404 to anonymous readers (issue #975).
+  bool _privateUploadAddress(Uri uri, Uri origin) =>
+      uri.origin == origin.origin &&
+      uri.userInfo.isEmpty &&
+      !uri.hasQuery &&
+      !uri.hasFragment &&
+      uri.path.startsWith('/file/img/');
+
   bool _restricted(Headers headers) {
     final control = (headers['cache-control']?.join(',') ?? '').toLowerCase();
     return control.split(',').any((part) {
@@ -357,6 +382,7 @@ class MediaRepository extends ChangeNotifier {
     int generation,
     bool resolvedScope,
     Set<String>? allowedOrigins,
+    Future<String?> Function()? readAccessToken,
   ) async {
     _guard(generation);
     var uri = Uri.parse(url);
@@ -423,6 +449,7 @@ class MediaRepository extends ChangeNotifier {
     try {
       _guard(generation);
       Response<ResponseBody>? response;
+      var redirected = false;
       for (var redirect = 0; redirect <= 5; redirect++) {
         checkOrigin();
         response = await _dio.getUri<ResponseBody>(
@@ -433,6 +460,8 @@ class MediaRepository extends ChangeNotifier {
             followRedirects: false,
             validateStatus: (_) => true,
             headers: {
+              'User-Agent': _browserLikeUserAgent,
+              'Accept': _mediaAcceptHeader,
               if (redirect == 0 &&
                   local != null &&
                   previous != null &&
@@ -456,6 +485,7 @@ class MediaRepository extends ChangeNotifier {
               await _saveIndex();
             });
           }
+          redirected = true;
           uri = uri.resolve(location);
           publicAddress = publicAddress && _publicAddress(uri, origin);
           if (!['https', 'http'].contains(uri.scheme)) {
@@ -466,7 +496,37 @@ class MediaRepository extends ChangeNotifier {
         }
         break;
       }
-      final status = response!.statusCode;
+      // Public images never carry credentials. A 404 from this site's own
+      // upload path may be the author's or a reviewer's pending image: retry
+      // once with the session, never across redirects, and never persist it.
+      if (response!.statusCode == 404 &&
+          !redirected &&
+          resolvedScope &&
+          readAccessToken != null &&
+          _privateUploadAddress(uri, origin)) {
+        final accessToken = await readAccessToken();
+        _guard(generation);
+        if (accessToken != null && accessToken.isNotEmpty) {
+          await response.data?.stream.listen((_) {}).cancel();
+          publicAddress = false;
+          response = await _dio.getUri<ResponseBody>(
+            uri,
+            cancelToken: token,
+            options: Options(
+              responseType: ResponseType.stream,
+              followRedirects: false,
+              validateStatus: (_) => true,
+              headers: {
+                'User-Agent': _browserLikeUserAgent,
+                'Accept': _mediaAcceptHeader,
+                'Authorization': 'Bearer $accessToken',
+              },
+            ),
+          );
+          _guard(generation);
+        }
+      }
+      final status = response.statusCode;
       if (status != 200 && !(status == 304 && local != null)) {
         await response.data?.stream.listen((_) {}).cancel();
         await _locked(() async {

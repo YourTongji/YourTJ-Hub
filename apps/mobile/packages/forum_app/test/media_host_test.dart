@@ -14,6 +14,7 @@ final _gif = base64Decode(
 class _Media extends MediaRepository {
   final scopes = <String>[];
   final originPolicies = <Set<String>?>[];
+  final tokenReaders = <Future<String?> Function()?>[];
   final delayed = Completer<Uint8List>();
   @override
   Future<Uint8List> load(
@@ -21,9 +22,11 @@ class _Media extends MediaRepository {
     required String scopeKey,
     required String apiOrigin,
     Set<String>? allowedOrigins,
+    Future<String?> Function()? readAccessToken,
   }) {
     scopes.add(scopeKey);
     originPolicies.add(allowedOrigins);
+    tokenReaders.add(readAccessToken);
     return scopeKey == 'account-a:zh' ? delayed.future : Future.value(_gif);
   }
 
@@ -48,11 +51,13 @@ void main() {
     (tester) async {
       final repo = _Media();
       addTearDown(repo.dispose);
+      Future<String?> readToken() async => null;
       Widget app(Set<String> origins) => MaterialApp(
         home: MediaHost(
           repository: repo,
           scopeKey: 'guest:zh',
           apiOrigin: 'https://example.test',
+          readAccessToken: readToken,
           child: GfMediaOriginPolicy(
             origins: origins,
             child: const GfNetworkImage(
@@ -65,6 +70,7 @@ void main() {
       await tester.pumpWidget(app({'https://example.test'}));
       final first = tester.widget<Image>(find.byType(Image)).image;
       expect(repo.originPolicies.last, {'https://example.test'});
+      expect(repo.tokenReaders.last, same(readToken));
       await tester.pumpWidget(
         app({'https://example.test', 'https://cdn.example.test'}),
       );

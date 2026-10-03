@@ -6,6 +6,8 @@ import '../atoms/gf_badge_medallion.dart';
 /// An earned badge with centered artwork and a readable, naturally sized title.
 /// The full description remains accessible when its visual preview is clipped.
 class GfAchievementCard extends StatelessWidget {
+  static const double medallionSize = GfBadgeMedallion.defaultSize;
+
   const GfAchievementCard({
     super.key,
     required this.title,
@@ -47,7 +49,11 @@ class GfAchievementCard extends StatelessWidget {
                 children: [
                   ExcludeSemantics(
                     child: Center(
-                      child: GfBadgeMedallion(icon: icon, color: color),
+                      child: GfBadgeMedallion(
+                        icon: icon,
+                        color: color,
+                        size: medallionSize,
+                      ),
                     ),
                   ),
                   const SizedBox(height: 12),

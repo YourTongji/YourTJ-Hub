@@ -1,13 +1,22 @@
+import hashlib
+import json
 from pathlib import Path
 import os
 import unittest
+from tempfile import TemporaryDirectory
 from unittest.mock import patch
 import publish_ios as publisher
 
 
 class IosResumeTest(unittest.TestCase):
     def setUp(self):
-        self.env = patch.dict(os.environ, MOBILE_VERSION='1.0.1', MOBILE_BUILD_NUMBER='2', IOS_IPA_PATH='/unused.ipa', IOS_PUBLISH_TARGET='both', IOS_EXISTING_BUILD_ONLY='false')
+        self.notes = TemporaryDirectory()
+        self.addCleanup(self.notes.cleanup)
+        note = Path(self.notes.name) / 'notes.txt'
+        note.write_text('Reviewed iOS App Store changes', encoding='utf-8')
+        test_note = Path(self.notes.name) / 'testflight.txt'
+        test_note.write_text('Test the iOS-only beta widget', encoding='utf-8')
+        self.env = patch.dict(os.environ, RELEASE_NOTES_DIGESTS=json.dumps({'ios.zh-Hans.txt': hashlib.sha256(note.read_bytes()).hexdigest(), 'testflight.en-US.txt': hashlib.sha256(test_note.read_bytes()).hexdigest()}), MOBILE_VERSION='1.0.1', MOBILE_BUILD_NUMBER='2', IOS_IPA_PATH='/unused.ipa', IOS_PUBLISH_TARGET='both', IOS_EXISTING_BUILD_ONLY='false', IOS_TESTFLIGHT_NOTES_PATH=str(test_note), IOS_STORE_NOTES_PATH=str(note))
         self.env.start()
         os.environ.pop('IOS_STORE_PATH', None)
         os.environ.pop('GITHUB_STEP_SUMMARY', None)
@@ -23,6 +32,8 @@ class IosResumeTest(unittest.TestCase):
                 return {'data': {'attributes': {'betaReviewState': 'WAITING_FOR_REVIEW'}}}
             if args[:2] == ('versions', 'list'):
                 return {'data': [{'id': 'version', 'attributes': {'versionString': '1.0.1', 'appStoreState': 'WAITING_FOR_REVIEW'}, 'relationships': {'build': {'data': {'id': 'build'}}}}]}
+            if args[:2] == ('localizations', 'list'):
+                return {'data': [{'id': 'locale', 'attributes': {'locale': 'zh-Hans', 'whatsNew': 'Reviewed iOS App Store changes'}}]}
             if args[:2] == ('builds', 'update'): return {}
             self.fail(f'Unexpected mutation: {args[:2]}')
         with patch.object(publisher, 'asc', side_effect=asc):
@@ -37,11 +48,26 @@ class IosResumeTest(unittest.TestCase):
                 return {'data': [{'id': 'build', 'attributes': {'processingState': 'VALID'}}]}
             if args[:3] == ('builds', 'beta-app-review-submission', 'view'):
                 return {'data': {'attributes': {'betaReviewState': 'APPROVED'}}}
+            if args[:2] == ('localizations', 'list'):
+                return {'data': [{'id': 'locale', 'attributes': {'locale': 'zh-Hans', 'whatsNew': 'Reviewed iOS App Store changes'}}]}
             if args[:2] == ('builds', 'update'): return {}
             self.fail(f'Unexpected App Store or upload mutation: {args[:2]}')
         with patch.dict(os.environ, IOS_PUBLISH_TARGET='testflight', IOS_EXISTING_BUILD_ONLY='true'), patch.object(publisher, 'asc', side_effect=asc):
             publisher.main()
         self.assertFalse(any(call[0] == 'versions' for call in calls))
+
+    def test_store_only_promotion_does_not_touch_testflight(self):
+        def asc(*args, **kwargs):
+            if args[:2] == ('builds', 'list'):
+                return {'data': [{'id': 'original', 'attributes': {'processingState': 'VALID'}}]}
+            if args[:2] == ('localizations', 'list'):
+                return {'data': [{'id': 'locale', 'attributes': {'locale': 'zh-Hans', 'whatsNew': 'Reviewed iOS App Store changes'}}]}
+            if args[:2] == ('builds', 'update'): return {}
+            if args[:2] == ('versions', 'list'):
+                return {'data': [{'id': 'version', 'attributes': {'versionString': '1.0.1', 'appStoreState': 'WAITING_FOR_REVIEW'}, 'relationships': {'build': {'data': {'id': 'original'}}}}]}
+            self.fail('Unexpected TestFlight or upload operation: ' + str(args[:2]))
+        with patch.dict(os.environ, IOS_PUBLISH_TARGET='app-store', IOS_EXPECTED_BUILD_ID='original', IOS_TESTFLIGHT_NOTES_PATH='/must-not-read'), patch.object(publisher, 'asc', side_effect=asc):
+            publisher.main()
 
     def test_recovery_missing_build_does_not_upload(self):
         with patch.dict(os.environ, IOS_EXISTING_BUILD_ONLY='true'), patch.object(publisher, 'find_build', return_value=None), patch.object(publisher, 'wait_for_build', side_effect=AssertionError('Unexpected upload polling')), patch.object(publisher, 'asc') as asc:
@@ -109,12 +135,18 @@ class IosResumeTest(unittest.TestCase):
         with TemporaryDirectory() as temp:
             store = Path(temp) / 'apps/mobile/store/zh-Hans'
             store.mkdir(parents=True)
-            (store / 'metadata.json').write_text(json.dumps({'description': 'Community', 'whatsNew': 'Update'}))
+            (store / 'metadata.json').write_text(json.dumps({'description': 'Community', 'whatsNew': 'Update'}), encoding='utf-8')
             with patch.object(publisher, 'ROOT', Path(temp)), patch.object(publisher, 'asc', side_effect=asc), patch.dict(os.environ, IOS_REVIEW_JSON=json.dumps(contact)):
                 publisher.main()
         self.assertIn(('review', 'details-create'), [call[:2] for call in calls])
         self.assertIn(('publish', 'testflight'), [call[:2] for call in calls])
         self.assertIn(('review', 'submit'), [call[:2] for call in calls])
+        flight = next(call for call in calls if call[:2] == ('publish', 'testflight'))
+        self.assertEqual(flight[flight.index('--test-notes') + 1], 'Test the iOS-only beta widget')
+        store = next(call for call in calls if call[:2] == ('localizations', 'update'))
+        self.assertEqual(store[store.index('--whats-new') + 1], 'Reviewed iOS App Store changes')
+        self.assertNotIn('Update', store)
+
 
     def test_cli_failures_do_not_echo_private_review_data(self):
         from subprocess import CompletedProcess
@@ -141,3 +173,46 @@ class IosResumeTest(unittest.TestCase):
         self.assertEqual(publisher.resource({'data': [{'id': 'one'}]}), {'id': 'one'})
         with self.assertRaisesRegex(ValueError, 'Ambiguous'):
             publisher.resource({'data': [{'id': 'one'}, {'id': 'two'}]})
+
+
+class ApprovedNotesTest(unittest.TestCase):
+    def test_missing_platform_notes_fails_before_apple_mutation(self):
+        with patch.dict(os.environ, MOBILE_VERSION='1.0.1', MOBILE_BUILD_NUMBER='2', IOS_PUBLISH_TARGET='testflight'), patch.object(publisher, 'asc') as asc, patch.object(publisher, 'find_build', side_effect=AssertionError('Apple lookup occurred before notes validation')):
+            os.environ.pop('IOS_TESTFLIGHT_NOTES_PATH', None)
+            with self.assertRaisesRegex(ValueError, 'reviewed.*notes'):
+                publisher.main()
+            asc.assert_not_called()
+
+
+class IosReviewRegressions(unittest.TestCase):
+    setUp = IosResumeTest.setUp
+    def test_accepted_store_notes_mismatch_cannot_emit_success(self):
+        import json
+        result = Path(self.notes.name) / 'result.json'
+        def asc(*args, **kwargs):
+            if args[:2] == ('builds', 'list'):
+                return {'data': [{'id': 'build', 'attributes': {'processingState': 'VALID'}}]}
+            if args[:2] == ('builds', 'update'): return {}
+            if args[:2] == ('versions', 'list'):
+                return {'data': [{'id': 'version', 'attributes': {'versionString': '1.0.1', 'appStoreState': 'WAITING_FOR_REVIEW'}, 'relationships': {'build': {'data': {'id': 'build'}}}}]}
+            if args[:2] == ('localizations', 'list'):
+                return {'data': [{'id': 'locale', 'attributes': {'locale': 'zh-Hans', 'whatsNew': 'Old unapproved text'}}]}
+            self.fail('Unexpected mutation: ' + str(args[:2]))
+        with patch.dict(os.environ, IOS_PUBLISH_TARGET='app-store', RELEASE_RESULT_PATH=str(result)), patch.object(publisher, 'asc', side_effect=asc):
+            with self.assertRaisesRegex(ValueError, 'approved.*notes.*WAITING_FOR_REVIEW'):
+                publisher.main()
+        self.assertFalse(result.exists())
+
+    def test_rejected_beta_resubmission_receipt_records_submitted(self):
+        import json
+        result = Path(self.notes.name) / 'result.json'
+        def asc(*args, **kwargs):
+            if args[:2] == ('builds', 'list'):
+                return {'data': [{'id': 'build', 'attributes': {'processingState': 'VALID'}}]}
+            if args[:3] == ('builds', 'beta-app-review-submission', 'view'):
+                return {'data': {'attributes': {'betaReviewState': 'REJECTED'}}}
+            if args[:3] == ('testflight', 'review', 'view'): return {'data': {'id': 'details'}}
+            return {}
+        with patch.dict(os.environ, IOS_PUBLISH_TARGET='testflight', RELEASE_RESULT_PATH=str(result), IOS_REVIEW_JSON=json.dumps({key: 'fixture' for key in publisher.REVIEW_FIELDS})), patch.object(publisher, 'asc', side_effect=asc):
+            publisher.main()
+        self.assertEqual(json.loads(result.read_text(encoding='utf-8'))['ios-testflight']['availability'], 'submitted')

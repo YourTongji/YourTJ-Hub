@@ -1,7 +1,10 @@
+import 'dart:async';
 import 'dart:math' as math;
+import 'dart:convert';
 
 import 'package:core/core.dart';
 import 'package:dio/dio.dart';
+import 'package:image/image.dart' as img;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -11,6 +14,7 @@ import 'package:forum_app/src/local/writing_store.dart';
 import 'package:forum_app/src/pages/topic/post_actions.dart';
 import 'package:forum_app/src/pages/topic/topic_page.dart';
 import 'package:forum_app/src/providers.dart';
+import 'package:forum_app/src/widgets/app_refresh_indicator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:ui_kit/ui_kit.dart';
 
@@ -110,6 +114,9 @@ class TopicWindowServer extends TopicRepository {
   /// before 窗口是否包含游标楼层本身(真实服务端严格早于游标,这里用于
   /// 构造重叠窗口,验证客户端仍按 id 去重)。
   bool overlapBeforeCursor = false;
+  bool delayNextTail = false;
+  Completer<PostWindowPayload>? delayedTail;
+  int failTailRequests = 0;
   final List<String> calls = <String>[];
 
   PostWindowPayload _payload(
@@ -145,10 +152,22 @@ class TopicWindowServer extends TopicRepository {
     int? limit,
   }) async {
     calls.add(
-      'anchor=${anchorPostId ?? 0} before=${beforePostNo ?? 0} '
+      'anchor=${anchorPostId ?? 0}${anchorPostNo == null ? '' : ' anchorNo=$anchorPostNo'} '
+      'before=${beforePostNo ?? 0} '
       'after=${afterPostNo ?? 0} limit=${limit ?? 0}',
     );
     final int size = limit ?? 20;
+    if (beforePostNo != null && beforePostNo >= 0x7fffffffffffffff) {
+      if (failTailRequests > 0) {
+        failTailRequests--;
+        throw StateError('temporary window failure');
+      }
+      if (delayNextTail) {
+        delayNextTail = false;
+        delayedTail = Completer<PostWindowPayload>();
+        return delayedTail!.future;
+      }
+    }
     if (anchorPostId != null) {
       final int index = posts.indexWhere((post) => post.id == anchorPostId);
       if (index < 0) {
@@ -214,10 +233,14 @@ class _CreatedReplyPostRepository extends PostRepository {
   _CreatedReplyPostRepository(
     super.client, {
     required this.onCreated,
+    this.requireCaptcha = false,
+    this.captchaAction = 'post.create',
     this.postNo = 16,
   });
 
   final void Function(String content) onCreated;
+  final bool requireCaptcha;
+  final String captchaAction;
   final int postNo;
 
   int get postId => 9000 + postNo;
@@ -230,9 +253,35 @@ class _CreatedReplyPostRepository extends PostRepository {
     String? captchaId,
     String? captchaCode,
   }) async {
+    if (requireCaptcha &&
+        (captchaId != 'challenge' ||
+            captchaCode == null ||
+            captchaCode.isEmpty)) {
+      throw ApiException(
+        fallbackMessage: 'Captcha required',
+        messageCode: 'common.captchaRequired',
+        params: <String, dynamic>{'action': captchaAction},
+      );
+    }
+    if (requireCaptcha && captchaCode != 'ABCD') {
+      throw const ApiException(
+        fallbackMessage: 'Captcha invalid',
+        messageCode: 'auth.captcha.invalid',
+      );
+    }
     onCreated(content);
     return CreatePostResult(id: postId, postNo: postNo, renderedContent: '');
   }
+}
+
+class _CaptchaAuthRepository extends AuthRepository {
+  _CaptchaAuthRepository(super.client);
+
+  @override
+  Future<CaptchaPayload> getCaptcha() async => CaptchaPayload(
+    captchaId: 'challenge',
+    captchaImg: base64Encode(img.encodePng(img.Image(width: 2, height: 2))),
+  );
 }
 
 void main() {
@@ -247,6 +296,8 @@ void main() {
     int floors = 15,
     int? postNo,
     bool pendingReply = false,
+    bool requireReplyCaptcha = false,
+    String replyCaptchaAction = 'post.create',
     bool trailingReplies = false,
     int createdPostNo = 16,
   }) async {
@@ -269,6 +320,8 @@ void main() {
         postRepositoryProvider.overrideWithValue(
           _CreatedReplyPostRepository(
             client,
+            requireCaptcha: requireReplyCaptcha,
+            captchaAction: replyCaptchaAction,
             postNo: createdPostNo,
             onCreated: (String content) {
               server.posts.add(floorPost(createdPostNo, content: content));
@@ -291,6 +344,9 @@ void main() {
         ),
         currentUserProvider.overrideWith(
           (ref) async => const CurrentUser(id: 1, username: 'alice'),
+        ),
+        authRepositoryProvider.overrideWithValue(
+          _CaptchaAuthRepository(client),
         ),
         writingStoreProvider.overrideWithValue(WritingStore()),
         offlineTopicCacheProvider.overrideWithValue(NoopOfflineCache()),
@@ -385,6 +441,154 @@ void main() {
     expect(server.calls.last, 'anchor=0 before=8 after=0 limit=0');
     expect(find.text('7楼内容'), findsOneWidget);
     expect(find.text('8楼内容'), findsOneWidget);
+    await disposePage(tester);
+  });
+
+  testWidgets('深链中间楼层切换倒序时直接读取最新尾窗', (tester) async {
+    tester.view.physicalSize = const Size(1080, 2400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    final Map<String, dynamic> page = anchoredPageJson(
+      posts: <PostPayload>[
+        for (int floor = 8; floor <= 15; floor++) floorPost(floor),
+      ],
+      hasBefore: true,
+      hasAfter: true,
+    );
+    await pumpTopic(tester, page: page, floors: 40, postNo: 8);
+
+    await tester.tap(find.text('倒序'));
+    await tester.pumpAndSettle();
+
+    expect(server.calls.last, contains('before=9223372036854775807'));
+    expect(find.text('40楼内容'), findsOneWidget);
+    expect(find.text('15楼内容'), findsNothing);
+    await disposePage(tester);
+  });
+
+  testWidgets('普通首屏切换倒序时直接读取最新尾窗', (tester) async {
+    tester.view.physicalSize = const Size(1080, 2400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final Map<String, dynamic> page = anchoredPageJson(
+      posts: <PostPayload>[
+        for (int floor = 1; floor <= 20; floor++) floorPost(floor),
+      ],
+      hasBefore: false,
+      hasAfter: true,
+    );
+    await pumpTopic(tester, page: page, floors: 40);
+
+    await tester.tap(find.text('倒序'));
+    await tester.pumpAndSettle();
+
+    expect(server.calls.last, contains('before=9223372036854775807'));
+    expect(find.text('40楼内容'), findsOneWidget);
+    expect(find.text('20楼内容'), findsNothing);
+    await disposePage(tester);
+  });
+
+  testWidgets('倒序下静默刷新重新读取最新尾窗', (tester) async {
+    tester.view.physicalSize = const Size(1080, 2400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final Map<String, dynamic> page = anchoredPageJson(
+      posts: <PostPayload>[
+        for (int floor = 1; floor <= 20; floor++) floorPost(floor),
+      ],
+      hasBefore: false,
+      hasAfter: true,
+    );
+    await pumpTopic(tester, page: page, floors: 40);
+
+    await tester.tap(find.text('倒序'));
+    await tester.pumpAndSettle();
+    expect(find.text('40楼内容'), findsOneWidget);
+    final int tailRequests = server.calls
+        .where((String call) => call.contains('before=9223372036854775807'))
+        .length;
+    expect(tailRequests, 1);
+
+    await tester
+        .widget<AppRefreshIndicator>(find.byType(AppRefreshIndicator))
+        .onRefresh();
+    await tester.pumpAndSettle();
+
+    expect(find.text('40楼内容'), findsOneWidget);
+    expect(find.text('20楼内容'), findsNothing);
+    expect(
+      server.calls
+          .where((String call) => call.contains('before=9223372036854775807'))
+          .length,
+      tailRequests + 1,
+    );
+    await disposePage(tester);
+  });
+
+  testWidgets('倒序加载失败保留原窗口,切换后可重试', (tester) async {
+    tester.view.physicalSize = const Size(1080, 2400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final Map<String, dynamic> page = anchoredPageJson(
+      posts: <PostPayload>[
+        for (int floor = 8; floor <= 15; floor++) floorPost(floor),
+      ],
+      hasBefore: true,
+      hasAfter: false,
+    );
+    await pumpTopic(tester, page: page, floors: 40, postNo: 8);
+    server.failTailRequests = 1;
+
+    await tester.tap(find.text('倒序'));
+    await tester.pumpAndSettle();
+    expect(find.text('8楼内容'), findsOneWidget);
+    expect(find.text('40楼内容'), findsNothing);
+
+    await tester.tap(find.text('加载更新回复'));
+    await tester.pumpAndSettle();
+    expect(find.text('40楼内容'), findsOneWidget);
+    await disposePage(tester);
+  });
+
+  testWidgets('快速切换排序会丢弃过期的倒序窗口响应', (tester) async {
+    tester.view.physicalSize = const Size(1080, 2400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final Map<String, dynamic> page = anchoredPageJson(
+      posts: <PostPayload>[
+        for (int floor = 8; floor <= 15; floor++) floorPost(floor),
+      ],
+      hasBefore: true,
+      hasAfter: true,
+    );
+    await pumpTopic(tester, page: page, floors: 40, postNo: 8);
+    server.delayNextTail = true;
+
+    await tester.tap(find.text('倒序'));
+    await tester.pump();
+    expect(server.delayedTail, isNotNull);
+    await tester.tap(find.text('正序'));
+    await tester.pump();
+    await tester.tap(find.text('倒序'));
+    await tester.pumpAndSettle();
+    expect(find.text('40楼内容'), findsOneWidget);
+
+    server.delayedTail!.complete(
+      PostWindowPayload(
+        posts: <PostPayload>[floorPost(20)],
+        replyTargets: const <ReplyTargetPayload>[],
+        beforePostNo: 20,
+        afterPostNo: 20,
+        hasBefore: true,
+        hasAfter: false,
+        total: 40,
+        maxPostNo: 40,
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('40楼内容'), findsOneWidget);
+    expect(find.text('20楼内容'), findsNothing);
     await disposePage(tester);
   });
 
@@ -542,6 +746,46 @@ void main() {
     expect(server.calls.last, 'anchor=0 before=8 after=0 limit=0');
     expect(find.text('7楼内容'), findsOneWidget);
     expect(find.text('8楼内容'), findsOneWidget);
+    await disposePage(tester);
+  });
+
+  testWidgets('新用户高频回复验证码显示原因说明', (tester) async {
+    final Map<String, dynamic> page = anchoredPageJson(
+      posts: <PostPayload>[
+        for (int floor = 8; floor <= 15; floor++) floorPost(floor),
+      ],
+      hasBefore: true,
+      hasAfter: false,
+    );
+    await pumpTopic(tester, page: page, postNo: 8, requireReplyCaptcha: true);
+
+    await replyToFloor(tester, 8, '需要验证码的回复');
+
+    expect(find.text(l10nOf(tester).publishCaptchaExplanation), findsOneWidget);
+    expect(find.byKey(const Key('reply-captcha')), findsOneWidget);
+    await disposePage(tester);
+  });
+
+  testWidgets('非回复 action 的验证码不显示回复说明', (tester) async {
+    final Map<String, dynamic> page = anchoredPageJson(
+      posts: <PostPayload>[
+        for (int floor = 8; floor <= 15; floor++) floorPost(floor),
+      ],
+      hasBefore: true,
+      hasAfter: false,
+    );
+    await pumpTopic(
+      tester,
+      page: page,
+      postNo: 8,
+      requireReplyCaptcha: true,
+      replyCaptchaAction: 'login',
+    );
+
+    await replyToFloor(tester, 8, '其他验证码 action');
+
+    expect(find.byKey(const Key('reply-captcha')), findsOneWidget);
+    expect(find.text(l10nOf(tester).publishCaptchaExplanation), findsNothing);
     await disposePage(tester);
   });
 }

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:core/core.dart';
@@ -80,6 +81,30 @@ class _Files extends FileRepository {
   }
 }
 
+/// 捕获真实 [FileRepository] 上送的 multipart 文件名，让 core 的改名收敛点
+/// （issue #969）在页面真实链路里被断言。
+class _CaptureUploadsAdapter implements HttpClientAdapter {
+  final filenames = <String>[];
+
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
+    final form = options.data as FormData;
+    filenames.add(form.files.single.value.filename!);
+    return ResponseBody.fromString(
+      jsonEncode({'code': 0, 'result': 'https://example.com/photo.jpg'}),
+      200,
+      headers: {Headers.contentTypeHeader: ['application/json']},
+    );
+  }
+
+  @override
+  void close({bool force = false}) {}
+}
+
 class _Pages extends PageRepository {
   _Pages(super.client);
   @override
@@ -119,6 +144,7 @@ void main() {
     String? draftKey,
     Locale locale = const Locale('zh'),
     double textScale = 1,
+    FileRepository? uploads,
   }) async {
     final client = GfApiClient(
       dio: Dio(),
@@ -137,7 +163,7 @@ void main() {
           (ref) async => const CurrentUser(id: 1, username: 'alice'),
         ),
         pageRepositoryProvider.overrideWithValue(_Pages(client)),
-        fileRepositoryProvider.overrideWithValue(files),
+        fileRepositoryProvider.overrideWithValue(uploads ?? files),
         imagePickerProvider.overrideWithValue(picker),
         stickerLibraryProvider.overrideWithValue(library),
         stickerCollectionProvider.overrideWith(
@@ -230,6 +256,33 @@ void main() {
     expect(picker.limit, 9);
     expect(files.names, ['first.jpg']);
     expect(find.text('second.jpg'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
+  });
+
+  testWidgets('re-encoded png bytes upload under the sniffed jpg name', (
+    tester,
+  ) async {
+    final adapter = _CaptureUploadsAdapter();
+    final uploads = FileRepository(
+      GfApiClient(
+        dio: Dio()..httpClientAdapter = adapter,
+        tokenStorage: MemoryTokenStorage(),
+        baseUrl: 'http://fake.local',
+      ),
+    );
+    await pumpPage(tester, uploads: uploads);
+    picker.files
+      ..clear()
+      ..add(
+        XFile.fromData(
+          Uint8List.fromList([0xFF, 0xD8, 0xFF, 0xE0]),
+          name: 'photo.png',
+          path: 'photo.png',
+        ),
+      );
+    await selectImages(tester);
+    expect(adapter.filenames, ['photo.jpg']);
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 600));
   });

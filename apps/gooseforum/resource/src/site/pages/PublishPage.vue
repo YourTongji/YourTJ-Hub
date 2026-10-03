@@ -2,7 +2,9 @@
 import { computed, nextTick, ref, watch } from 'vue'
 import { AlertTriangle, BookOpen, Check, FileText, HelpCircle, Lightbulb, ListChecks, Loader2, MessageSquare, Send, X } from '@lucide/vue'
 import { DialogContent, DialogDescription, DialogOverlay, DialogPortal, DialogRoot, DialogTitle, PopoverContent, PopoverPortal, PopoverRoot, PopoverTrigger } from 'reka-ui'
-import { submitTopic, sensitiveWordsFromError, uploadImage } from '@/runtime/api'
+import { pendingReviewMessage, submitTopicResult, sensitiveWordsFromError, uploadImage } from '@/runtime/api'
+import { queueFlashMessage } from '@/runtime/flash-message'
+import { showModerationBlocked } from '@/runtime/moderation-blocked'
 import { processImageFile, validateImageFile } from '@/runtime/image'
 import { useUnsavedDraftGuard } from '@/site/composables/useUnsavedDraftGuard'
 import { useCaptchaChallenge } from '@/site/composables/useCaptchaChallenge'
@@ -24,6 +26,7 @@ const page = defineProps<{
 const { t } = useI18n()
 const {
   captchaRequired: captchaRequired,
+  showPublishCaptchaExplanation: showPublishCaptchaExplanation,
   captchaId: captchaId,
   captchaImg: captchaImg,
   captchaCode: captchaCode,
@@ -378,7 +381,7 @@ async function save() {
   message.value = ''
   clearSensitiveHighlight()
   try {
-    const id = await submitTopic({
+    const { id, pendingReview, checking } = await submitTopicResult({
       topicId: currentTopicId.value,
       title: title.value.trim(),
       content: content.value.trim(),
@@ -394,6 +397,8 @@ async function save() {
     syncSavedSnapshot()
     forceNextNavigation()
     message.value = page.props.isEditing ? t('publish.topicUpdated') : t('publish.topicPublished')
+    // 待审（issue #975）：明确告知“已提交审核，通过后可见”，跨整页跳转保留提示。
+    if (pendingReview) queueFlashMessage(pendingReviewMessage({ checking }), 'info')
     window.location.href = `/p/post/${id}`
   } catch (err) {
     if (challengeFromError(err)) {
@@ -402,6 +407,7 @@ async function save() {
     } else {
       sensitiveWords.value = sensitiveWordsFromError(err)
       error.value = err instanceof Error ? err.message : t('publish.saveFailed')
+      showModerationBlocked(err)
     }
   } finally {
     submitting.value = false
@@ -420,7 +426,7 @@ async function persistDraft(nextUrl?: string, redirect = true): Promise<boolean>
   message.value = ''
   clearSensitiveHighlight()
   try {
-    const id = await submitTopic({
+    const { id, pendingReview, checking } = await submitTopicResult({
       topicId: currentTopicId.value,
       title: title.value.trim(),
       content: content.value.trim(),
@@ -435,6 +441,7 @@ async function persistDraft(nextUrl?: string, redirect = true): Promise<boolean>
     currentTopicId.value = id
     syncSavedSnapshot()
     forceNextNavigation()
+    if (pendingReview) queueFlashMessage(pendingReviewMessage({ checking }), 'info')
     if (redirect) window.location.href = nextUrl || '/drafts'
     return true
   } catch (err) {
@@ -443,6 +450,7 @@ async function persistDraft(nextUrl?: string, redirect = true): Promise<boolean>
     } else {
       sensitiveWords.value = sensitiveWordsFromError(err)
       error.value = err instanceof Error ? err.message : t('publish.draftSaveFailed')
+      showModerationBlocked(err)
     }
     return false
   } finally {
@@ -623,6 +631,7 @@ async function persistDraft(nextUrl?: string, redirect = true): Promise<boolean>
           <p v-if="message" class="gf-status-message gf-status-message-success">{{ message }}</p>
 
           <div v-if="captchaRequired" class="gf-card flex flex-wrap items-center gap-3 p-3">
+            <p v-if="showPublishCaptchaExplanation" class="w-full text-xs text-base-content/65">{{ t('auth.publishCaptchaExplanation') }}</p>
             <button
               type="button"
               class="relative h-10 w-28 shrink-0 overflow-hidden rounded-md border border-line"

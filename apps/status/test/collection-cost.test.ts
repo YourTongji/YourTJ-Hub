@@ -28,7 +28,7 @@ it('does not run authenticated device reports with the more frequent history col
 it('keeps lower-frequency analytics usable between scheduled runs and expires them independently', async () => {
   const { store } = memory()
   for (const [part, data] of [['24h', fixture.traffic.data], ['devices-7d', fixture.devices.data]] as const) {
-    await store.write(cacheKey(config, 'umami', part), { attemptedAt: now, fetchedAt: new Date(now).toISOString(), failed: false, data })
+    await store.write(await cacheKey(config, 'umami', part), { attemptedAt: now, fetchedAt: new Date(now).toISOString(), failed: false, data })
   }
   const read = async (minutes: number) => (await (await serveSnapshot(new Request('https://status.example.com/api/status'), store, config, now + minutes * 60_000)).json()).result
   expect((await read(14)).traffic.state).toBe('ok')
@@ -42,7 +42,7 @@ it('keeps lower-frequency analytics usable between scheduled runs and expires th
 
 it('retains an hourly device snapshot when the next run fails without renewing its timestamp', async () => {
   const { store } = memory()
-  await store.write(cacheKey(config, 'umami', 'devices-7d'), { attemptedAt: now, fetchedAt: new Date(now).toISOString(), failed: false, data: fixture.devices.data })
+  await store.write(await cacheKey(config, 'umami', 'devices-7d'), { attemptedAt: now, fetchedAt: new Date(now).toISOString(), failed: false, data: fixture.devices.data })
   const later = now + 65 * 60_000
   await collect('devices', store, config, async () => { throw new Error('offline') }, () => later)
   const response = await serveSnapshot(new Request('https://status.example.com/api/status'), store, config, later)

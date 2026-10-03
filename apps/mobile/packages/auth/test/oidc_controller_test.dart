@@ -91,7 +91,7 @@ class FakeAuthRepository implements AuthRepository {
   }) => throw UnimplementedError();
 
   @override
-  Future<String> register({
+  Future<GfResponse<String>> register({
     required String username,
     required String email,
     required String password,

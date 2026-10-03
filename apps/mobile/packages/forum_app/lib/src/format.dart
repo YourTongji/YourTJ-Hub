@@ -145,7 +145,26 @@ String formatChatDayLabel(
 bool _sameLocalDay(DateTime a, DateTime b) =>
     a.year == b.year && a.month == b.month && a.day == b.day;
 
-// 无 context 场景(如纯工具调用)回退中文;页面内请传入 l10n。
+/// 卡片元信息的短日期：<7 天用相对时间（今天/昨天/3天前），更早用
+/// today/yesterday/`M月D日`/`YYYY年M月D日`，让「学期 · 班次 · 教师 · 日期」
+/// 在常规字号单行内可读（日期过长时才换行，不截断）。
+String formatReviewDate(
+  String isoTime, {
+  AppLocalizations? l10n,
+  DateTime? now,
+}) {
+  final AppLocalizations loc = l10n ?? _fallbackL10n;
+  final DateTime? parsed = parseChatTimestamp(isoTime);
+  if (parsed == null) return formatDateTime(isoTime);
+  final DateTime current = now ?? DateTime.now();
+  final Duration diff = current.difference(parsed);
+  if (diff.isNegative || diff.inDays >= 7) {
+    return formatChatDayLabel(parsed, l10n: loc, now: current);
+  }
+  return timeAgo(isoTime, l10n: loc, now: current);
+}
+
+/// 与无 context 场景(如纯工具调用)回退中文;页面内请传入 l10n。
 final AppLocalizations _fallbackL10n = AppLocalizationsZh();
 
 /// 数字缩写(对齐 web `format.ts` formatNumber:1k/1m)。

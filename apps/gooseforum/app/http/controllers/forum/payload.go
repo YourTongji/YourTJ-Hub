@@ -1289,8 +1289,10 @@ func buildTopicDetailProps(c *gin.Context, topic *topics.Entity, firstPost *post
 		),
 		HotTopics: buildTopicHotTopics(topic.Id),
 		Permissions: TopicPermissions{
-			IsOwnTopic:       currentUserID == topic.UserId,
-			CanPost:          currentUserID > 0 && (firstPost.ContentType == posts.ContentTypeRegular || firstPost.ContentType == posts.ContentTypeQuestion || firstPost.ContentType == posts.ContentTypeThought || firstPost.ContentType == posts.ContentTypeArticle),
+			IsOwnTopic: currentUserID == topic.UserId,
+			// 待审话题只有作者与审核员能看到：通过前不开放回复（回复接口同样拒绝）。
+			CanPost: currentUserID > 0 && (topic.ProcessStatus == topics.ProcessStatusNormal || canModerate) &&
+				(firstPost.ContentType == posts.ContentTypeRegular || firstPost.ContentType == posts.ContentTypeQuestion || firstPost.ContentType == posts.ContentTypeThought || firstPost.ContentType == posts.ContentTypeArticle),
 			CanModerateTopic: canModerate,
 		},
 	}
@@ -1312,11 +1314,12 @@ func topicInitialPosts(topic *topics.Entity, anchorPostNo uint64) ([]*posts.Enti
 
 func buildPostWindowPayloadFromEntities(postEntities []*posts.Entity, userMap map[uint64]*users.EntityComplete, currentUserID uint64, canModerate bool, hasBefore bool, hasAfter bool, total int64, maxPostNo uint64, anchorPostID uint64, firstPost *posts.Entity) PostWindowPayload {
 	// 对非版主过滤待审（ProcessStatus=2）帖子：待审内容不应出现在普通用户流中，
-	// 避免渲染为空占位；封禁帖（ProcessStatus=1）保留现有"已处理"占位语义。
+	// 避免渲染为空占位；作者自己的待审帖保留（issue #975：作者能看到自己审核中的
+	// 内容）。封禁帖（ProcessStatus=1）保留现有"已处理"占位语义。
 	if !canModerate {
 		filtered := make([]*posts.Entity, 0, len(postEntities))
 		for _, item := range postEntities {
-			if item == nil || item.ProcessStatus == posts.ProcessStatusPending {
+			if item == nil || (item.ProcessStatus == posts.ProcessStatusPending && !ownPendingPost(item, currentUserID)) {
 				continue
 			}
 			filtered = append(filtered, item)
@@ -1443,7 +1446,7 @@ func buildPostPayloads(postEntities []*posts.Entity, userMap map[uint64]*users.E
 		isHidden := item.ProcessStatus != 0
 		isAuthorDeleted := isAuthorDeletedVisibility(item.VisibilityStatus)
 		isModeratorRemoved := isModeratorRemovedVisibility(item.VisibilityStatus)
-		if isHidden && !canModerate {
+		if isHidden && !canModerate && !ownPendingPost(item, currentUserID) {
 			content = ""
 			renderedContent = ""
 		}
@@ -3261,4 +3264,10 @@ func parsePositiveInt(value string, fallback int) int {
 		return fallback
 	}
 	return n
+}
+
+// ownPendingPost 作者本人的待审楼层：作者可以看到自己审核中的正文（issue #975），
+// 其他非版主读者仍看不到。被拒（封禁）的楼层不在此列。
+func ownPendingPost(item *posts.Entity, currentUserID uint64) bool {
+	return item != nil && currentUserID != 0 && item.UserId == currentUserID && item.ProcessStatus == posts.ProcessStatusPending
 }

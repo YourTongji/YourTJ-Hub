@@ -31,6 +31,9 @@ dependencies:
   gal: ^2.3.2
   url_launcher: ^6.3.2
   markdown_widget: ^2.3.2
+  # Syntax highlighting themes for the shared rich-content code block; the
+  # highlighter itself already comes in through markdown_widget.
+  flutter_highlight: ^0.7.0
   image: ^4.5.4
   shared_preferences: ^2.3.3
   flutter_secure_storage: ^9.2.4

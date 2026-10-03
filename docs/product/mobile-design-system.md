@@ -27,9 +27,24 @@ server ordering unless the product explicitly changes that ordering.
 `Current`: compact topic lists share a metadata band with the category rail and keep the category
 hit areas at least 44 × 44 logical pixels. Row separators are painted without extra layout height.
 Type labels distinguish question, moment and article. Narrow widths and enlarged system text increase
-row height as needed; Home list pins use an expandable summary with a minimum 48-pixel target.
+row height as needed; Home pins, in list and card mode, fold into a one-line strip that matches the
+collapsed announcement bar.
 
 The implemented reading scale is defined in [mobile experience](mobile-experience.md#navigation-and-reading).
+`Current`: long-form rich content (post Markdown, server-rendered Wiki HTML, course-review HTML) uses a
+single `GfRichContentTypography` profile in the UI kit instead of per-surface font sizes. The profile
+derives everything from `GfTypography.body`: body text at the design baseline, `bodyStrong` for
+emphasis, headings as relative ratios, inline code and code blocks one step smaller, and table and
+quote text at the body size, together with the paragraph rhythm, list indentation, quote rule and
+code/table cell padding. Course reviews use the same profile with a compact baseline. The reader
+preference (80%–140%) multiplies that baseline; the system `TextScaler` is never replaced, so large
+system fonts keep reflowing instead of being clamped away. Heading ratios apply in full at the design
+size and narrow as the painted body grows, so large text keeps the hierarchy without banner-sized
+headings. App-wide text goes through `GfAppTextScaler` at the app root: the system scaler
+receives `size × device default × app text preference` for every text, rich content included, so
+the reading preference is relative to the app text size. Code blocks own their highlighting, copy
+action and horizontal scrolling, and tables keep natural column widths while scrolling inside their
+own viewport — a page or card must never scroll sideways.
 `Planned`: all surfaces use that shared type hierarchy instead of shrinking text to fit controls.
 Names and action labels remain legible; timestamps and secondary metadata are subordinate. A post
 uses one author line, one body/media region and one action row, with subtle separators rather than
@@ -145,7 +160,9 @@ age. Accepted decision 0035 defines this retention model. The lifecycle and data
 in the [state and cache model](../architecture/mobile-state-and-cache.md).
 
 Course results support clear query/filter semantics, searchable long option lists, preserved filter
-state and automatic pagination. Applying a filter is atomic. The scheduler and official timetable
+state and automatic pagination. Applying a filter is atomic. Course rows keep the course name and
+teacher/department as the readable identity, while code, rating, credits and terms remain wrapping
+secondary metadata; long names and teacher lines grow naturally at enlarged text. The scheduler and official timetable
 share the web product's time axis, course colors and merged blocks. On phones, course cards prioritize
 course name and location; readable day/period headers and optional horizontal navigation take
 precedence over squeezing a desktop week into tiny text. Selection, week and plan survive tool
@@ -172,7 +189,13 @@ interaction targets do not stretch the artwork. Native page actions, notificatio
 ratings and image controls use ReIcon SVGs on a 24-pixel grid. Compact inline marks commonly render
 at 16 pixels, actions at 20–24 pixels, and navigation at 24 pixels inside independent touch targets.
 The bottom bar and wide rail switch each active destination from Outline to the matching Filled
-ReIcon glyph. Selected ratings use a filled counterpart. Brand marks and functional radio and
+ReIcon glyph. The compact shell bottom bar is icon-only at a fixed compact height with 44-pixel targets;
+destination names stay in the accessibility label and a long-press tooltip. The bar and the root
+header separate from content with a one-physical-pixel `line` hairline instead of a logical-pixel rule. Its iOS surface
+may use a restrained Flutter blur/translucency, while Android, high-contrast mode, reduced motion
+and accessible-navigation mode use the opaque theme surface. This does not claim adoption of a
+native iOS Liquid Glass API. Selecting a destination uses one interruptible 160 ms transition for its indicator,
+icon color and, where shown, label style; reduced motion settles that state immediately. Selected ratings use a filled counterpart. Brand marks and functional radio and
 strikethrough glyphs retain their source artwork, as recorded in the
 [UI Kit asset inventory](../../apps/mobile/packages/ui_kit/assets/README.md).
 Pinned topic markers use `thumbtack` Filled in the theme's red at 16 pixels on both list rows
@@ -203,7 +226,13 @@ shipped. Avoid fixed-height text containers, substring-based truncation and conc
 
 Acceptance includes widths 320, 390, 600, 768 and 1024; portrait/landscape and window resizing; both
 themes and system theme changes; text scale 1.0 and 2.0; four locales; screen-reader/keyboard traversal;
-keyboard open, slow/offline network, stale responses and account changes. Widget tests validate state
+keyboard open, slow/offline network, stale responses and account changes.
+The rich-content renderers are covered by a fixture matrix of 320/360/390/600/840 logical pixels ×
+system text scale 1.0/1.3/2.0 × light/dark across post Markdown, Wiki-style server HTML and
+course-review HTML, plus a nonlinear `TextScaler` case. The matrix asserts there is no `RenderFlex`
+overflow, that the page never becomes horizontally scrollable, and that horizontal scrolling only
+exists inside code blocks and wide tables; list indentation shrinks with the system font scale so
+nested items keep a readable width instead of being squeezed into a single character column. Widget tests validate state
 and layout; platform screenshots, gestures, IME behavior and frame timing need runtime evidence.
 
 ## References

@@ -141,6 +141,8 @@ class GfUserCardHeader extends StatelessWidget {
 /// Social profile header: cover and overlapping avatar, trailing actions,
 /// identity, public details and compact inline statistics.
 class GfUserCard extends StatelessWidget {
+  static const double badgeMedallionSize = 34;
+
   const GfUserCard({
     super.key,
     required this.avatarUrl,
@@ -287,7 +289,7 @@ class GfUserCard extends StatelessWidget {
                   alignment: Alignment.bottomCenter,
                   child: ExcludeSemantics(
                     child: GfBadgeMedallion(
-                      size: 34,
+                      size: badgeMedallionSize,
                       color: badge.color ?? colors.primary,
                       icon: badge.icon ?? const GfSymbol('award', size: 22),
                     ),

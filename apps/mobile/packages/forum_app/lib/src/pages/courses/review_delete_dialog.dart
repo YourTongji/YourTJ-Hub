@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:core/core.dart';
 import 'package:ui_kit/ui_kit.dart';
 import '../../../l10n/app_localizations.dart';
+import '../../reading_preferences.dart';
+import '../../widgets/rich_content/gf_html_content.dart';
 import 'course_common.dart';
 
 /// Shared, explicit confirmation for deleting one owned course review.
@@ -47,11 +50,19 @@ Future<bool> confirmCourseReviewDeletion(
                   color: colors.base200,
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Text(
-                  review.content,
-                  maxLines: 3,
-                  overflow: TextOverflow.ellipsis,
-                  style: GfTheme.typographyOf(context).small,
+                // 与服务端阅读态同源:预览是 contentHtml 摊平后的纯文本。
+                child: Consumer(
+                  builder: (BuildContext context, WidgetRef ref, Widget? _) =>
+                      Text(
+                        gfPlainTextFromHtml(review.contentHtml),
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                        style: GfRichContentTypography.of(
+                          context,
+                          userScale: ref.watch(contentFontScaleProvider),
+                          compact: true,
+                        ).body,
+                      ),
                 ),
               ),
             ],

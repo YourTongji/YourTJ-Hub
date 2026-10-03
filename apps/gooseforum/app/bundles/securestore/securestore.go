@@ -74,6 +74,14 @@ const StorageSecretKeyPurpose = "yourtj-storage-secret-key"
 // 密文落库、GET 仅回显是否已配置，遵循 issue #324 安全修复模式）。
 const AiSummaryAPIKeyPurpose = "yourtj-ai-summary-api-key"
 
+// ModerationJevAPIKeyPurpose AI 图文审查 Jev Decisions API key 的加密用途标签
+// （issue #975）。与视觉模型 key 分 purpose 存储，切换 provider 时互不耦合。
+const ModerationJevAPIKeyPurpose = "yourtj-moderation-jev-api-key"
+
+// ModerationVisionAPIKeyPurpose AI 图文审查视觉证据模型 API key 的加密用途标签
+// （issue #975）。
+const ModerationVisionAPIKeyPurpose = "yourtj-moderation-vision-api-key"
+
 // EncryptPurpose encrypts plaintext with a purpose-scoped key derived as
 // HMAC-SHA256(baseKey, purpose), so different callers never share a cipher key.
 func EncryptPurpose(plaintext, purpose string) (string, error) {

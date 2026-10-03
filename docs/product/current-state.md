@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-09-27
+> Last verified: 2026-10-03
 
 本页只汇总具体能力、缺口和维护文档。产品规则在对应规范中维护，接口字段以
 [契约覆盖矩阵](../../packages/api-contract/coverage-matrix.md)为准；历史交付过程由 Git 保存。
@@ -32,12 +32,13 @@
 | AI 可读公开导出 | `Current` | 索引、全文和单篇 Markdown 独立开关，只导出可见内容并标记截断；见[契约与数据](../architecture/contracts-and-data.md)。 |
 | 聚合搜索与索引管理 | `Partial` | 检索与管理可用；部分用户／生命周期变更在提交后异步入队，不能视为全链路事务同步。故障与重建边界见[契约与数据](../architecture/contracts-and-data.md#managed-search-reconciliation)。 |
 | 移动端页面与语言 | `Current` | 首页／校园／通知／私信四个持久分支，课程／排课／Wiki 原生页面，中英日德四语言；见[移动端体验](mobile-experience.md)。 |
-| 原生分发、推送与设备验收 | `Partial` | Android APK 与 iOS TestFlight 分发链路已具备；App Store 审核、隐私申报和带签名真机验收仍是发布门槛，APNs／JPush／OEM 生产凭据与真机投递按[移动发布指南](../operations/mobile-releases.md)验收。 |
+| 移动端正式分发 | `Current` | [官网](https://yourtj.de/#download)提供 iPhone／iPad App Store 和 Android 正式 APK 入口；公开分发与更新边界见[移动端体验](mobile-experience.md#distribution-and-updates)。 |
+| 原生推送与设备验收 | `Partial` | APNs／JPush／OEM 生产投递、安装后签名升级、校园小组件及学校认证仍需相应真机证据；按[移动发布指南](../operations/mobile-releases.md)验收，已上架不代表所有设备链路完成验证。 |
 | 受控 API 契约 | `Partial` | 所有非排除 `/api` 路由已纳管；OIDC 标准端点、文本导出与自动 Dart 生成不在完整生成链路内，见[契约状态](../architecture/contracts-and-data.md#contract-status)。 |
 | 数据库与文件 | `Current` | 部署默认 PostgreSQL，本地默认 SQLite；SQLite BLOB／S3 文件存储，见[架构](../architecture/system-overview.md)与[对象存储](../operations/object-storage.md)。 |
 | 论坛内积分 | `Partial` | 本地账本幂等入账和删除回滚可用；内存事件丢失后的持久补偿尚缺，见[积分规范](credit-and-escrow.md#current-boundary)。 |
 | 跨服务积分结算 | `Planned` | credit 尚未部署或接入论坛；见[积分规范](credit-and-escrow.md)。 |
-| 独立运行状态站 | `Partial` | Vue／Netlify 采集和快照读取已实现；生产项目、DNS 与定时采集仍需配置验收，见[状态站规范](server-status.md)。 |
+| 独立运行状态站 | `Partial` | Vue／Cloudflare 快照读取与 GitHub Actions 采集已实现；生产项目、DNS 与定时采集仍需配置验收，见[状态站规范](server-status.md)。 |
 
 ## Development and operations
 

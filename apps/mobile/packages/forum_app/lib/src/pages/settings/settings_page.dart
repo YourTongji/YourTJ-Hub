@@ -18,6 +18,7 @@ import '../../local/writing_store.dart';
 import '../../messages/chat_drafts.dart';
 import '../../asset_url.dart';
 import '../../server_messages.dart';
+import '../../reading_preferences.dart';
 import '../../theme_mode.dart';
 import '../../app_locale.dart';
 import '../../widgets/language_picker.dart';
@@ -34,6 +35,7 @@ import 'password_edit_page.dart';
 import 'session_device_label.dart';
 import '../../widgets/stickers/sticker_library_page.dart';
 import '../../widgets/stickers/sticker_strings.dart';
+import 'text_size_settings_page.dart';
 import 'username_edit_dialog.dart';
 import 'badge_display_dialog.dart';
 import 'profile_image_editor.dart';
@@ -226,7 +228,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             for (final b in wearable)
               GfSettingRow(
                 leading: GfBadgeMedallion(
-                  icon: UserBadgeArtwork(b, size: 24),
+                  icon: UserBadgeArtwork.medallion(b, 40),
                   color: userBadgeColor(b),
                   size: 40,
                 ),
@@ -1121,7 +1123,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               ]
             else if (_signedIn == false)
               _categoryRow(
-                symbol: 'log-out',
+                symbol: 'login4',
                 title: l10n.authLoginTitle,
                 onTap: () => context.push(
                   authLoginLocation(
@@ -1195,6 +1197,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   Widget _buildAppearance(AppLocalizations l10n, ScrollController controller) {
     final mode = ref.watch(themeModeProvider);
     final siteTheme = ref.watch(siteThemeProvider);
+    final double readingScale = ref.watch(contentFontScaleProvider);
+    final double appScale = ref.watch(appFontScaleProvider);
     return ListView(
       controller: controller,
       padding: const EdgeInsets.all(16),
@@ -1222,6 +1226,20 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   ),
               ],
             ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        _settingsSection(
+          context,
+          child: GfSettingRow(
+            key: const ValueKey('settings-text-size'),
+            symbol: 'type',
+            title: l10n.textSizeTitle,
+            description: l10n.textSizeSummary(
+              textSizeLabel(l10n, appScale),
+              textSizeLabel(l10n, readingScale),
+            ),
+            onTap: () => context.push('/settings/text-size'),
           ),
         ),
         const SizedBox(height: 12),

@@ -6,6 +6,7 @@ import '../../asset_url.dart';
 import 'sticker_library_state.dart';
 import 'sticker_strings.dart';
 import 'sticker_preview.dart';
+import '../share/share_image_readiness.dart';
 
 /// Shared expression renderer. Taps preview this sticker alone; holding exposes
 /// collection unless the surrounding message owns the long-press menu.
@@ -110,8 +111,12 @@ class _StickerImageState extends State<StickerImage> {
 
   @override
   Widget build(BuildContext context) {
+    final readiness = ShareImageReadiness.maybeOf(context);
+    final readinessKey = resolveApiAssetUrl(widget.url);
+    readiness?.begin(readinessKey);
     final bool showActions =
         !widget.deferLongPress && (widget.collectible || _failed);
+    var hasFrame = false;
     final semantics = Semantics(
       label:
           widget.label ??
@@ -128,25 +133,40 @@ class _StickerImageState extends State<StickerImage> {
         child: SizedBox.square(
           dimension: widget.size,
           child: GfNetworkImage(
-            resolveApiAssetUrl(widget.url),
+            readinessKey,
             key: ValueKey(_revision),
             fit: BoxFit.contain,
+            cacheWidth: readiness == null ? null : (widget.size * 2).round(),
             excludeFromSemantics: true,
-            loadingBuilder: (context, child, progress) => progress == null
-                ? child
-                : Center(
-                    child: SizedBox.square(
-                      dimension: 16,
-                      child: GfProgressIndicator(
-                        strokeWidth: 1.5,
-                        value: progress.expectedTotalBytes == null
-                            ? null
-                            : progress.cumulativeBytesLoaded /
-                                  progress.expectedTotalBytes!,
+            frameBuilder: (_, child, frame, _) {
+              hasFrame = frame != null;
+              if (frame != null) readiness?.finish(readinessKey);
+              return child;
+            },
+            loadingBuilder: (context, child, progress) {
+              if (readiness?.isFrozen(readinessKey) == true) {
+                return const SizedBox(
+                  height: 80,
+                  child: Center(child: GfSymbol('image-off')),
+                );
+              }
+              return progress == null && hasFrame
+                  ? child
+                  : Center(
+                      child: SizedBox.square(
+                        dimension: 16,
+                        child: GfProgressIndicator(
+                          strokeWidth: 1.5,
+                          value: progress?.expectedTotalBytes == null
+                              ? null
+                              : progress!.cumulativeBytesLoaded /
+                                    progress.expectedTotalBytes!,
+                        ),
                       ),
-                    ),
-                  ),
+                    );
+            },
             errorBuilder: (context, _, _) {
+              readiness?.finish(readinessKey);
               _failed = true;
               return Tooltip(
                 message: StickerStrings(context).unavailable,

@@ -56,10 +56,10 @@ const layout: LayoutPayload = {
   umamiEnabled: false,
 }
 
-function buildProps(oauthNotice: boolean): LoginPageProps {
+function buildProps(oauthNotice: boolean, redirectUrl = '/', initialMode: 'login' | 'register' = 'register'): LoginPageProps {
   return {
-    initialMode: 'register',
-    redirectUrl: '/',
+    initialMode,
+    redirectUrl,
     githubUrl: '/api/auth/github',
     googleUrl: '/api/auth/google',
     googleReady: true,
@@ -70,9 +70,9 @@ function buildProps(oauthNotice: boolean): LoginPageProps {
   }
 }
 
-function mountPage(oauthNotice: boolean) {
+function mountPage(oauthNotice: boolean, redirectUrl?: string, initialMode?: 'login' | 'register') {
   return mount(LoginPage, {
-    props: { layout, props: buildProps(oauthNotice) },
+    props: { layout, props: buildProps(oauthNotice, redirectUrl, initialMode) },
     global: { plugins: [i18n] },
   })
 }
@@ -83,6 +83,30 @@ describe('LoginPage oauthNotice 注册引导（PR #552 review P2）', () => {
     expect(wrapper.text()).toContain(i18n.global.t('auth.oauthNoAccount'))
     expect(wrapper.find('a[href="/api/auth/github"]').exists()).toBe(false)
     expect(wrapper.find('a[href="/api/auth/google"]').exists()).toBe(false)
+    expect(wrapper.find('[data-oauth-other-login]').exists()).toBe(true)
+    wrapper.unmount()
+  })
+
+  test('explicit exit clears registration notice and preserves the safe continuation', () => {
+    const wrapper = mountPage(true, '/campus?tab=course')
+    expect(wrapper.find('[data-oauth-other-login]').attributes('href')).toBe('/login?redirect=%2Fcampus%3Ftab%3Dcourse')
+    wrapper.unmount()
+  })
+
+  test('Tongji registration remains available and the exit rejects an unsafe continuation', () => {
+    const wrapper = mount(LoginPage, {
+      props: { layout, props: { ...buildProps(true, '//example.com'), tongjiReady: true, tongjiUrl: '/api/auth/tongji' } },
+      global: { plugins: [i18n] },
+    })
+    expect(wrapper.find('[data-tongji-login]').exists()).toBe(true)
+    expect(wrapper.find('[data-oauth-other-login]').attributes('href')).toBe('/login?redirect=%2F')
+    wrapper.unmount()
+  })
+
+  test('explicit exit retains the built-in OIDC authorization continuation', () => {
+    const continuation = '/api/oauth/authorize/callback?id=authorization-id'
+    const wrapper = mountPage(true, continuation)
+    expect(wrapper.find('[data-oauth-other-login]').attributes('href')).toBe(`/login?redirect=${encodeURIComponent(continuation)}`)
     wrapper.unmount()
   })
 
@@ -90,6 +114,18 @@ describe('LoginPage oauthNotice 注册引导（PR #552 review P2）', () => {
     const wrapper = mountPage(false)
     expect(wrapper.find('a[href="/api/auth/github"]').exists()).toBe(true)
     expect(wrapper.find('a[href="/api/auth/google"]').exists()).toBe(true)
+    wrapper.unmount()
+  })
+
+  test('ordinary login after exit shows all configured providers without the OAuth notice', () => {
+    const wrapper = mount(LoginPage, {
+      props: { layout, props: { ...buildProps(false, '/campus', 'login'), tongjiReady: true, tongjiUrl: '/api/auth/tongji?redirect=%2Fcampus' } },
+      global: { plugins: [i18n] },
+    })
+    expect(wrapper.find('[data-oauth-other-login]').exists()).toBe(false)
+    expect(wrapper.findAll('a[href="/api/auth/github"]')).toHaveLength(2)
+    expect(wrapper.findAll('a[href="/api/auth/google"]')).toHaveLength(2)
+    expect(wrapper.findAll('[data-tongji-login]')).toHaveLength(2)
     wrapper.unmount()
   })
 })

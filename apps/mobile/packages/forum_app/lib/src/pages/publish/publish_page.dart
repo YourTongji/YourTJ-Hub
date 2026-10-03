@@ -21,7 +21,9 @@ import '../../images/image_upload.dart';
 import '../../images/composer_upload_queue.dart';
 import '../../server_messages.dart';
 import '../../widgets/markdown_view.dart';
+import '../../widgets/editor/rich_markdown_editor.dart';
 import '../../widgets/status_views.dart';
+import '../../widgets/moderation_blocked_dialog.dart';
 import 'embed_image_move.dart';
 import 'publish_type.dart';
 
@@ -129,6 +131,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
   CaptchaPayload? _captcha;
   final _captchaCode = TextEditingController();
   bool _captchaLoading = false;
+  bool _showPublishCaptchaExplanation = false;
   String _loadError = '';
   String _error = '';
   String _message = '';
@@ -1120,9 +1123,9 @@ class _PublishPageState extends ConsumerState<PublishPage>
       _message = '';
     });
     try {
-      final int id = await ref
+      final WriteTopicResult written = await ref
           .read(topicRepositoryProvider)
-          .writeTopic(
+          .writeTopicResult(
             captchaId: _captcha?.captchaId,
             captchaCode: _captchaCode.text.trim(),
             topicId: _currentTopicId,
@@ -1133,6 +1136,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
             contentType: _contentType,
             images: _contentType == 3 ? null : List.of(_images),
           );
+      final int id = written.id;
       if (!mounted || !_sessionCurrent) return;
       _autosave?.cancel();
       // The server write succeeded; deletion must follow any in-flight autosave.
@@ -1153,6 +1157,13 @@ class _PublishPageState extends ConsumerState<PublishPage>
       _allowPop = true;
       final int resolvedId = id > 0 ? id : _currentTopicId;
       if (resolvedId > 0) _currentTopicId = resolvedId;
+      // 待审(issue #975):明确提示“已提交审核,通过后公开”,与 Web 同语义。
+      if (written.pendingReview) {
+        showGfToast(
+          context,
+          pendingReviewMessage(l10n, checking: written.checking),
+        );
+      }
       if (topicStatus == 1 && resolvedId > 0) {
         context.pushReplacement('/p/$resolvedId');
         return;
@@ -1167,14 +1178,23 @@ class _PublishPageState extends ConsumerState<PublishPage>
         _message = topicStatus == 1
             ? l10n.publishSuccess
             : l10n.publishSavedDraft;
+        _showPublishCaptchaExplanation = false;
       });
     } on ApiException catch (error) {
       if (!mounted || !_sessionCurrent) return;
       if (mounted && _sessionCurrent) {
         setState(() => _error = resolveErrorMessage(l10n, error));
       }
+      // AI 图文审查拦截(issue #975):弹出友好提示,草稿与图片保持不变。
+      if (await showModerationBlockedDialog(context, error)) return;
       if (error.messageCode == 'common.captchaRequired' ||
           error.messageCode == 'auth.captcha.invalid') {
+        if (error.messageCode == 'common.captchaRequired') {
+          setState(
+            () => _showPublishCaptchaExplanation =
+                error.params?['action'] == 'topic.write',
+          );
+        }
         await _loadCaptcha();
       }
     } catch (error) {
@@ -1511,6 +1531,14 @@ class _PublishPageState extends ConsumerState<PublishPage>
                     ],
                     const SizedBox(height: 16),
                     if (_captcha != null) ...[
+                      if (_showPublishCaptchaExplanation)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: Text(
+                            l10n.publishCaptchaExplanation,
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ),
                       Row(
                         children: [
                           InkWell(
@@ -1769,10 +1797,16 @@ class _PublishPageState extends ConsumerState<PublishPage>
       );
     }
     final defaults = DefaultStyles.getInstance(context);
-    return ConstrainedBox(
+    return RichMarkdownEditor(
       key: const Key('publish-editor'),
-      constraints: const BoxConstraints(minHeight: 220),
-      child: DragTarget<ComposerImageDragPayload>(
+      controller: _quill,
+      focusNode: _editorFocusNode,
+      placeholder: l10n.publishBodyPlaceholder,
+      onHeading: () => _toggleFormat(Attribute.h2),
+      onHeadingLongPress: () => _showHeadingLevelMenu(l10n),
+      onInsertLink: _insertLink,
+      showToolbar: false,
+      editorBuilder: (context) => DragTarget<ComposerImageDragPayload>(
         onMove: (DragTargetDetails<ComposerImageDragPayload> details) {
           _dragPointer = details.offset;
         },
@@ -1891,6 +1925,8 @@ class _PublishPageState extends ConsumerState<PublishPage>
                         ),
                       ),
                     ),
+                  // Publish owns media insertion; the shared toolbar handles
+                  // Markdown formatting only.
                   if (_contentType == 3 ||
                       MediaQuery.viewInsetsOf(context).bottom > 0)
                     _toolButton(
@@ -2001,94 +2037,12 @@ class _PublishPageState extends ConsumerState<PublishPage>
     _quill.formatSelection(LinkAttribute(url));
   }
 
-  Widget _buildToolbar(AppLocalizations l10n) {
-    final GfColors colors = GfTheme.colorsOf(context);
-
-    return ListenableBuilder(
-      listenable: _quill,
-      builder: (context, _) {
-        final attributes = _quill.getSelectionStyle().attributes;
-        bool selected(Attribute attribute) =>
-            attributes[attribute.key]?.value == attribute.value;
-        return ColoredBox(
-          color: colors.base200.withValues(alpha: 0.55),
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-            child: Row(
-              children: <Widget>[
-                _toolButton(
-                  symbol: 'undo-2',
-                  tooltip: l10n.publishUndo,
-                  onPressed: _quill.hasUndo ? _quill.undo : null,
-                ),
-                _toolButton(
-                  symbol: 'redo-2',
-                  tooltip: l10n.publishRedo,
-                  onPressed: _quill.hasRedo ? _quill.redo : null,
-                ),
-                _toolButton(
-                  symbol: 'heading',
-                  tooltip: l10n.publishHeading,
-                  selected: attributes[Attribute.header.key]?.value != null,
-                  onPressed: () => _toggleFormat(Attribute.h2),
-                  onLongPress: () => _showHeadingLevelMenu(l10n),
-                ),
-                _toolButton(
-                  symbol: 'link',
-                  tooltip: l10n.publishToolLink,
-                  onPressed: _insertLink,
-                ),
-
-                _toolButton(
-                  symbol: 'bold',
-                  tooltip: l10n.publishToolBold,
-                  selected: selected(Attribute.bold),
-                  onPressed: () => _toggleFormat(Attribute.bold),
-                ),
-                _toolButton(
-                  symbol: 'italic',
-                  tooltip: l10n.publishToolItalic,
-                  selected: selected(Attribute.italic),
-                  onPressed: () => _toggleFormat(Attribute.italic),
-                ),
-                _toolButton(
-                  symbol: 'strikethrough',
-                  tooltip: l10n.publishToolStrike,
-                  selected: selected(Attribute.strikeThrough),
-                  onPressed: () => _toggleFormat(Attribute.strikeThrough),
-                ),
-                _toolButton(
-                  symbol: 'quote',
-                  tooltip: l10n.publishToolQuote,
-                  selected: selected(Attribute.blockQuote),
-                  onPressed: () => _toggleFormat(Attribute.blockQuote),
-                ),
-                _toolButton(
-                  symbol: 'code',
-                  tooltip: l10n.publishToolCode,
-                  selected: selected(Attribute.inlineCode),
-                  onPressed: () => _toggleFormat(Attribute.inlineCode),
-                ),
-                _toolButton(
-                  symbol: 'unordered-list',
-                  tooltip: l10n.publishToolBulletList,
-                  selected: selected(Attribute.ul),
-                  onPressed: () => _toggleFormat(Attribute.ul),
-                ),
-                _toolButton(
-                  symbol: 'list-ordered',
-                  tooltip: l10n.publishToolOrderedList,
-                  selected: selected(Attribute.ol),
-                  onPressed: () => _toggleFormat(Attribute.ol),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
+  Widget _buildToolbar(AppLocalizations l10n) => RichMarkdownToolbar(
+    controller: _quill,
+    onHeading: () => _toggleFormat(Attribute.h2),
+    onHeadingLongPress: () => _showHeadingLevelMenu(l10n),
+    onInsertLink: _insertLink,
+  );
 
   Widget _toolButton({
     required String symbol,

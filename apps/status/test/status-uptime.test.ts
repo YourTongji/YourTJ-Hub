@@ -23,7 +23,9 @@ it('shows uptime, latency, real check history and an independent status link', a
     expect(wrapper.text()).toContain('可能不足 24 小时')
     await wrapper.get('.heartbeat-strip button').trigger('focus')
     expect(wrapper.get('[role="status"]').text()).toContain('访问异常')
-    await wrapper.setProps({ now: now + 360_000 })
+    await wrapper.setProps({ now: now + 19 * 60_000 })
+    expect(wrapper.get('.monitor-state').text()).toBe('可访问')
+    await wrapper.setProps({ now: now + 21 * 60_000 })
     expect(wrapper.get('.monitor-state').text()).toBe('状态未知')
     expect(wrapper.text()).toContain('数据已过期')
   } finally { wrapper.unmount() }
@@ -111,7 +113,7 @@ it('does not trust a future source fetch even when its latest check is recent', 
 it('distinguishes missing metrics from zero and stale checks from a freshly fetched response', async () => {
   const source = structuredClone(fixture.uptime)
   const monitor = source.data!.monitors[0]!
-  monitor.uptime24h = 0; monitor.current!.ping = 0; monitor.current!.time = '2026-09-14T11:50:00Z'
+  monitor.uptime24h = 0; monitor.current!.ping = 0; monitor.current!.time = '2026-09-14T11:39:00Z'
   const wrapper = mount(StatusUptime, { props: { source, now, failed: false, loading: false }, global: { plugins: [i18n] } })
   try {
     expect(wrapper.get('.uptime-percentage').text()).toBe('0.00%')

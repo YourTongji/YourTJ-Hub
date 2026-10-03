@@ -12,6 +12,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/markdown2html"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/forum"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/moderationDecision"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postRevisions"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postUserAction"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
@@ -319,6 +320,21 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 			topic.FirstImageURL = topic.ImageUrls[0]
 		}
 	}
+	// AI 图文审查（issue #975）：敏感词已转审时不再花 AI 成本；放在所有权/限额
+	// 校验之后，避免为注定被拒的请求调用模型。
+	var aiCheck *moderationservice.AIModeration
+	if !pendingReview {
+		var aiPending bool
+		var aiErr error
+		aiCheck, aiPending, aiErr = applyAIModeration(req.GinContext, betterRequestContext(req), moderationservice.AIContentInput{
+			AuthorID: req.UserId, SubjectType: moderationDecision.SubjectTopic, SubjectID: req.Params.TopicId,
+			Title: req.Params.Title, Content: req.Params.Content, Gallery: topic.ImageUrls,
+		})
+		if aiErr != nil {
+			return component.FailResponseError(aiErr)
+		}
+		pendingReview = aiPending
+	}
 	if pendingReview {
 		topic.ProcessStatus = topics.ProcessStatusPending
 	}
@@ -411,7 +427,10 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 		return component.FailResponseCode(component.MessageOperationFailed, nil)
 	}
 
-	fileusageservice.RegisterTopicInlineImagesOwned(topic.Id, req.UserId, firstPost.Content, topic.ImageUrls)
+	// 待审内容的图片登记为 PENDING：审核通过前对匿名读者不可读（issue #975）。
+	fileusageservice.RegisterTopicInlineImagesOwned(topic.Id, req.UserId, firstPost.Content, topic.ImageUrls,
+		topic.ProcessStatus == topics.ProcessStatusPending)
+	finishAIModeration(aiCheck, topic.Id)
 	categoryIDs := append(append([]uint64(nil), oldCategoryIds...), topic.CategoryIds...)
 	hotdataserve.InvalidateTopicListCacheForCategories(categoryIDs...)
 	if isEdit {
@@ -442,7 +461,7 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 		}
 	}
 	recordSuccessfulWrite(req.UserId, "topic.write")
-	return component.SuccessResponse(topic.Id)
+	return publishSuccess(topic.Id, pendingReview, aiCheck.Deferred())
 }
 
 type TopicStatusReq struct {
@@ -633,6 +652,18 @@ func createPost(req component.BetterRequest[CreatePostReq], agent bool) componen
 	if policyErr != nil {
 		return component.FailResponseError(policyErr)
 	}
+	var aiCheck *moderationservice.AIModeration
+	if !pendingReview {
+		var aiPending bool
+		var aiErr error
+		aiCheck, aiPending, aiErr = applyAIModeration(req.GinContext, betterRequestContext(req), moderationservice.AIContentInput{
+			AuthorID: req.UserId, SubjectType: moderationDecision.SubjectPost, Content: content,
+		})
+		if aiErr != nil {
+			return component.FailResponseError(aiErr)
+		}
+		pendingReview = aiPending
+	}
 	if pendingReview {
 		postEntity.ProcessStatus = posts.ProcessStatusPending
 	}
@@ -648,7 +679,8 @@ func createPost(req component.BetterRequest[CreatePostReq], agent bool) componen
 	if err := topicunseenservice.MarkVisited(req.UserId, topicEntity.Id, postEntity.Id, time.Now()); err != nil {
 		slog.Warn("mark created post visited failed", "userId", req.UserId, "topicId", topicEntity.Id, "postId", postEntity.Id, "error", err)
 	}
-	fileusageservice.RegisterPostInlineImagesOwned(postEntity.Id, req.UserId, postEntity.Content)
+	fileusageservice.RegisterPostInlineImagesOwned(postEntity.Id, req.UserId, postEntity.Content, pendingReview)
+	finishAIModeration(aiCheck, postEntity.Id)
 	if !pendingReview {
 		userStatistics.WriteComment(req.UserId)
 	}
@@ -683,12 +715,12 @@ func createPost(req component.BetterRequest[CreatePostReq], agent bool) componen
 	// Determine if this is an answer (for question topics)
 	isAnswer := isAnswerPost(req.Params.ReplyToPostId, &topicEntity)
 
-	return component.SuccessResponse(map[string]any{
+	return publishSuccess(map[string]any{
 		"id":              postEntity.Id,
 		"postNo":          postEntity.PostNo,
 		"renderedContent": postEntity.RenderedHTML,
 		"isAnswer":        isAnswer,
-	})
+	}, pendingReview, aiCheck.Deferred())
 }
 
 type DeletePostReq struct {
@@ -764,6 +796,23 @@ func UpdatePost(req component.BetterRequest[UpdatePostReq]) component.Response {
 	if policyErr != nil {
 		return component.FailResponseError(policyErr)
 	}
+	// AI 图文审查：首楼编辑按话题审查（与审核队列的话题条目对齐），回复按回复审查。
+	var aiCheck *moderationservice.AIModeration
+	if !pendingReview {
+		aiInput := moderationservice.AIContentInput{
+			AuthorID: req.UserId, SubjectType: moderationDecision.SubjectPost, SubjectID: postEntity.Id, Content: content,
+		}
+		if postEntity.PostNo == 1 {
+			aiInput.SubjectType, aiInput.SubjectID, aiInput.Title = moderationDecision.SubjectTopic, topicEntity.Id, topicEntity.Title
+		}
+		var aiPending bool
+		var aiErr error
+		aiCheck, aiPending, aiErr = applyAIModeration(req.GinContext, betterRequestContext(req), aiInput)
+		if aiErr != nil {
+			return component.FailResponseError(aiErr)
+		}
+		pendingReview = aiPending
+	}
 	// 覆写正文前捕获旧状态：存量帖子首次编辑惰性播种 v1 时，v1 的状态
 	// 必须取编辑前的旧状态，而非被本次待审覆写后的 Pending（否则此前
 	// 公开的旧正文会对非版主永久隐藏，post_revisions review 发现）。
@@ -819,11 +868,18 @@ func UpdatePost(req component.BetterRequest[UpdatePostReq]) component.Response {
 	postEntity.LastEditorId = req.UserId
 	postEntity.LastEditedAt = &now
 
-	fileusageservice.RegisterPostInlineImagesOwned(postEntity.Id, req.UserId, postEntity.Content)
+	fileusageservice.RegisterPostInlineImagesOwned(postEntity.Id, req.UserId, postEntity.Content,
+		postEntity.ProcessStatus == posts.ProcessStatusPending)
+	if isFirstPost {
+		fileusageservice.RegisterTopicInlineImagesOwned(topicEntity.Id, req.UserId, postEntity.Content, nil,
+			topicEntity.ProcessStatus == topics.ProcessStatusPending)
+		finishAIModeration(aiCheck, topicEntity.Id)
+	} else {
+		finishAIModeration(aiCheck, postEntity.Id)
+	}
 	if isFirstPost {
 		// 首楼编辑联动：附件重映射、列表缓存、搜索索引与业务事件
 		// （TopicUpdatedEvent 驱动通知/webhook/搜索），与 writeTopic 编辑分支一致。
-		fileusageservice.RegisterTopicInlineImagesOwned(topicEntity.Id, req.UserId, postEntity.Content, nil)
 		hotdataserve.InvalidateTopicListCacheForCategories(topicEntity.CategoryIds...)
 		llmsservice.ClearCache()
 		if topicEntity.Status == 1 && !pendingReview {
@@ -848,7 +904,7 @@ func UpdatePost(req component.BetterRequest[UpdatePostReq]) component.Response {
 		})
 	}
 
-	return component.SuccessResponse(map[string]any{
+	return publishSuccess(map[string]any{
 		"id":              postEntity.Id,
 		"postNo":          postEntity.PostNo,
 		"content":         postEntity.Content,
@@ -857,7 +913,7 @@ func UpdatePost(req component.BetterRequest[UpdatePostReq]) component.Response {
 		"lastEditorId":    postEntity.LastEditorId,
 		"lastEditedAt":    postEntity.LastEditedAt.Format(time.RFC3339),
 		"revisionCount":   postRevisions.CountByPostIds([]uint64{postEntity.Id})[postEntity.Id],
-	})
+	}, pendingReview, aiCheck.Deferred())
 }
 
 func DeletePost(req component.BetterRequest[DeletePostReq]) component.Response {

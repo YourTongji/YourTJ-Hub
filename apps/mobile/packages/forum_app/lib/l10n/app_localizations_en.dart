@@ -79,6 +79,26 @@ class AppLocalizationsEn extends AppLocalizations {
   String get imageSaveFailed => 'Couldn’t save the image. Try again later.';
 
   @override
+  String get imageUnavailable => 'Can’t display this image';
+
+  @override
+  String get imageUnavailableNetwork =>
+      'The network blocked this image. Try again later.';
+
+  @override
+  String get imageUnavailableFormat => 'Unsupported image format';
+
+  @override
+  String get imageRetry => 'Retry';
+
+  @override
+  String get imageOpenInBrowser => 'Open in browser';
+
+  @override
+  String get imagePermissionDenied =>
+      'Photo access was denied. Enable it in system settings.';
+
+  @override
   String get announcementLabel => 'Announcement';
 
   @override
@@ -259,7 +279,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get authCaptchaRequired => 'Please enter the captcha';
 
   @override
+  String get publishCaptchaExplanation =>
+      'The site may require a captcha for frequent posting by newer accounts. This check lifts as recent activity subsides or the account meets the site\'s age condition.';
+
+  @override
   String get authOidcLogin => 'Sign in with yourtj';
+
+  @override
+  String get authRegisterEmailVerify =>
+      'Registration successful. A verification email was sent; check your inbox.';
 
   @override
   String get authRegisterSuccess => 'Registered successfully, please sign in';
@@ -1247,6 +1275,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get courseDetailReviews => 'Reviews';
 
   @override
+  String get courseShareThisReview => 'This review';
+
+  @override
   String get courseDetailOfferings => 'Classes';
 
   @override
@@ -1317,6 +1348,65 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get settingsFollowSiteThemeDesc => 'Use server-issued site colors';
+
+  @override
+  String get richContentCopyCode => 'Copy code';
+
+  @override
+  String get richContentCodeCopied => 'Code copied';
+
+  @override
+  String get textSizeTitle => 'Text size';
+
+  @override
+  String get textSizeReset => 'Reset to default';
+
+  @override
+  String get textSizeDefault => 'Default';
+
+  @override
+  String textSizePercent(int percent) {
+    return '$percent%';
+  }
+
+  @override
+  String textSizeSummary(String appSize, String readingSize) {
+    return 'App $appSize · Reading $readingSize';
+  }
+
+  @override
+  String get textSizeGlobal => 'App text';
+
+  @override
+  String get textSizeGlobalDesc => 'All text in the app, including body text';
+
+  @override
+  String get textSizeReading => 'Reading text';
+
+  @override
+  String get textSizeReadingDesc =>
+      'Adjusts body text in posts, Wiki pages and course reviews on top of app text';
+
+  @override
+  String get textSizePreview => 'Preview';
+
+  @override
+  String get textSizePreviewTime => '10m';
+
+  @override
+  String get textSizePreviewTitle =>
+      'Drag a slider below to preview the change';
+
+  @override
+  String get textSizePreviewExcerpt =>
+      'App text changes all text in the app. Reading text adjusts only body text on top of it.';
+
+  @override
+  String get textSizePreviewCategory => 'Guide';
+
+  @override
+  String get textSizePreviewBody =>
+      '### Body text preview\nReading text changes only this post body. Everything else follows **app text**.\n\n- The default size is adapted to your system text size and screen';
 
   @override
   String get entryCourses => 'Courses';
@@ -2025,6 +2115,20 @@ class AppLocalizationsEn extends AppLocalizations {
       'Post anonymously (identity hidden from the public)';
 
   @override
+  String get courseCopyAnonymousTitle => 'Post anonymously';
+
+  @override
+  String get courseCopyAnonymousHint => 'Your identity stays hidden';
+
+  @override
+  String courseCopyPublishAs(String name) {
+    return 'Posting as $name';
+  }
+
+  @override
+  String get courseCopyPublishPublic => 'Public identity';
+
+  @override
   String get courseCopySubmitSuccess => 'Submitted';
 
   @override
@@ -2164,6 +2268,87 @@ class AppLocalizationsEn extends AppLocalizations {
   String get updateRetry => 'Retry';
 
   @override
+  String get updateCancelDownload => 'Cancel download';
+
+  @override
+  String get updateIncomplete =>
+      'The update didn’t finish. Check your connection and try again.';
+
+  @override
+  String get updateOpenAppStore => 'View on App Store';
+
+  @override
+  String get updateOpenTestFlight => 'View TestFlight in App Store';
+
+  @override
+  String get updateTestFlightInstructions =>
+      'This opens TestFlight\'s App Store page. If TestFlight is installed, open it and check YourTJ for the beta update.';
+
+  @override
+  String get updateOpenPermissionSettings => 'Open install permission settings';
+
+  @override
+  String get updateChannelUnknown =>
+      'Update channel could not be verified. You can still view release history in About.';
+
+  @override
+  String get releaseNotes => 'What’s new';
+
+  @override
+  String get releaseNotesHistory => 'Release history';
+
+  @override
+  String get releaseNotesEmpty => 'No release notes are available right now.';
+
+  @override
+  String get releaseNotesEarlier =>
+      'Includes other improvements from earlier versions.';
+
+  @override
+  String get releaseNotesIncomplete =>
+      'Earlier release notes are incomplete. This prompt shows notes for the target release only.';
+
+  @override
+  String get releaseHistoryIncomplete =>
+      'The available history is incomplete for this release channel.';
+
+  @override
+  String get releaseNotesMore => 'Show all updates';
+
+  @override
+  String get releaseNotesFewer => 'Show fewer';
+
+  @override
+  String releaseNotesShowRemaining(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Show $count more updates',
+      one: 'Show 1 more update',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get releaseNotesRequired => 'Required';
+
+  @override
+  String get releaseNotesHistoryError =>
+      'Release history is temporarily unavailable.';
+
+  @override
+  String get releaseNotesKindFeature => 'New';
+
+  @override
+  String get releaseNotesKindImprovement => 'Improved';
+
+  @override
+  String get releaseNotesKindFix => 'Fixed';
+
+  @override
+  String get releaseNotesKindSecurity => 'Security';
+
+  @override
   String get settingsPushConsent =>
       'Enable system notifications via Apple (iOS) or JPush and device vendors (Android). These services process push identifiers and notification content.';
 
@@ -2289,7 +2474,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsAvatarSources => 'Choose a preset or upload a photo';
 
   @override
-  String get settingsEmailChangeStaged => 'Email change request submitted.';
+  String get settingsEmailChangeStaged =>
+      'An activation email was sent to your new address. Check your inbox to activate it.';
 
   @override
   String settingsEmailPending(String email) {
@@ -3103,4 +3289,158 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get draftCloudLimit =>
       'This page loads the 100 most recently updated cloud drafts. Deleting a draft refreshes the list to show the next one.';
+
+  @override
+  String get topicShareImage => 'Generate share image';
+
+  @override
+  String get shareImageTitle => 'Share image';
+
+  @override
+  String get shareImageTheme => 'Theme';
+
+  @override
+  String get shareImageThemePaper => 'Paper';
+
+  @override
+  String get shareImageThemeSand => 'Sand';
+
+  @override
+  String get shareImageThemeBlue => 'Blue';
+
+  @override
+  String get shareImageThemeMint => 'Mint';
+
+  @override
+  String get shareImageThemeDark => 'Dark';
+
+  @override
+  String get shareImageGenerating => 'Preparing image…';
+
+  @override
+  String get reviewDislike => 'Not useful';
+
+  @override
+  String get courseReviewShare => 'Share';
+
+  @override
+  String get courseReviewShareImage => 'Generate share image';
+
+  @override
+  String get courseReviewReportReasonHint => 'Select a reason';
+
+  @override
+  String get courseReviewReportNoteLabel => 'Additional details';
+
+  @override
+  String get courseReviewTemplates => 'Review templates';
+
+  @override
+  String get courseReviewTemplateApply => 'Apply';
+
+  @override
+  String get courseReviewTemplateReplaceTitle => 'Replace existing content?';
+
+  @override
+  String get courseReviewTemplateReplaceBody =>
+      'The current review content will be replaced by the template.';
+
+  @override
+  String get courseReviewTemplateKeepEditing => 'Keep editing';
+
+  @override
+  String get courseReviewTemplateComprehensiveName => 'Comprehensive';
+
+  @override
+  String get courseReviewTemplateComprehensiveDescription =>
+      'Cover the course, instructor, workload, assessment and advice.';
+
+  @override
+  String get courseReviewTemplateQuickName => 'Quick review';
+
+  @override
+  String get courseReviewTemplateQuickDescription =>
+      'A short summary of your overall experience.';
+
+  @override
+  String get courseReviewTemplateTeacherFocusedName => 'Instructor focused';
+
+  @override
+  String get courseReviewTemplateTeacherFocusedDescription =>
+      'Focus on teaching style, pace and communication.';
+
+  @override
+  String get courseReviewTemplateExamFocusedName => 'Assessment focused';
+
+  @override
+  String get courseReviewTemplateExamFocusedDescription =>
+      'Describe exams, assignments and grading.';
+
+  @override
+  String get courseReviewTemplateWorkloadName => 'Workload focused';
+
+  @override
+  String get courseReviewTemplateWorkloadDescription =>
+      'Describe weekly workload and time commitment.';
+
+  @override
+  String get courseReviewTemplateBlankName => 'Blank';
+
+  @override
+  String get courseReviewTemplateBlankDescription =>
+      'Start with an empty review.';
+
+  @override
+  String get courseReviewContentLimitError =>
+      'Reviews can contain up to 2,000 characters.';
+
+  @override
+  String courseReviewCharacterCount(Object count) {
+    return '$count/2000';
+  }
+
+  @override
+  String get shareImageTooLong =>
+      'This post is too long to turn into one image.';
+
+  @override
+  String get shareImageFailed => 'Couldn’t share the image. Try again later.';
+
+  @override
+  String get moderationBlockedTitle => 'Not published';
+
+  @override
+  String get moderationBlockedPolicyHint =>
+      'Check that your images and text follow the community guidelines. Remove or replace anything that may be inappropriate, then publish again. If you think this is a mistake, contact an administrator.';
+
+  @override
+  String get moderationBlockedExternalHint =>
+      'This site doesn’t show external images. Save the image, upload it through the editor, then publish again.';
+
+  @override
+  String get moderationBlockedDraftKept =>
+      'Your text and images are still in the editor.';
+
+  @override
+  String get moderationBlockedBack => 'Edit post';
+
+  @override
+  String get notificationReviewApproved =>
+      'Your post was approved and is now visible to everyone';
+
+  @override
+  String get notificationReviewRejected =>
+      'Your post wasn’t approved and won’t be shown publicly';
+
+  @override
+  String get topicPendingReviewBanner =>
+      'This post is under review. Only you and reviewers can see it until it’s approved.';
+
+  @override
+  String get topicPendingReviewBannerModerator =>
+      'This post is awaiting review. Other readers can’t see it yet.';
+
+  @override
+  String get topicPendingReviewReply =>
+      'Under review · Only you and reviewers can see this reply until it’s approved.';
 }

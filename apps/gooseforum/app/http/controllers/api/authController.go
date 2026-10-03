@@ -249,7 +249,13 @@ func Login(c *gin.Context) {
 		c.JSON(200, component.FailDataCode(component.MessageAuthAccountFrozen, nil))
 		return
 	}
-	if totpservice.IsEnabled(userEntity.Id) {
+	totpEnabled, err := totpservice.IsEnabled(userEntity.Id)
+	if err != nil {
+		slog.Error("读取两步验证状态失败", "userId", userEntity.Id, "error", err)
+		c.JSON(200, component.FailDataCode(component.MessageAuthLoginFailed, nil))
+		return
+	}
+	if totpEnabled {
 		challengeToken, challengeJti, err := jwt.CreateChallengeTokenWithJti(userEntity.Id, userEntity.TokenVersion, jwt.PurposeTotpChallenge, 5*time.Minute)
 		if err != nil {
 			slog.Error("生成两步验证 challenge token 失败", "userId", userEntity.Id, "error", err)

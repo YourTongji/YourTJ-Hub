@@ -19,22 +19,42 @@ Future<void> saveImageFromUrl(BuildContext context, String imageUrl) async {
   final AppLocalizations l10n = AppLocalizations.of(context);
   try {
     final Uint8List bytes = await _downloadImageBytes(context, imageUrl);
-    final String fileName = _fileNameFor(imageUrl);
+    if (!context.mounted) return;
+    await saveImageBytes(context, bytes, _fileNameFor(imageUrl));
+  } catch (error) {
+    debugPrint('Image download/save failed (${error.runtimeType}).');
+    if (context.mounted) {
+      showGfToast(context, l10n.imageSaveFailed, error: true);
+    }
+  }
+}
+
+/// Saves generated PNG bytes using the same gallery/download path as images.
+Future<void> saveImageBytes(
+  BuildContext context,
+  Uint8List bytes,
+  String fileName,
+) async {
+  final l10n = AppLocalizations.of(context);
+  try {
     final bool isMobile =
         !kIsWeb &&
         (defaultTargetPlatform == TargetPlatform.android ||
             defaultTargetPlatform == TargetPlatform.iOS);
-
     if (isMobile) {
-      if (await saveImageToGallery(bytes, fileName)) {
-        if (context.mounted) showGfToast(context, l10n.imageSaved);
-      } else if (context.mounted) {
-        showGfToast(context, l10n.imageSaveFailed, error: true);
+      final result = await saveImageToGallery(bytes, fileName);
+      if (!context.mounted) return;
+      switch (result) {
+        case ImageGallerySaveResult.saved:
+          showGfToast(context, l10n.imageSaved);
+        case ImageGallerySaveResult.permissionDenied:
+          showGfToast(context, l10n.imagePermissionDenied, error: true);
+        case ImageGallerySaveResult.failed:
+          showGfToast(context, l10n.imageSaveFailed, error: true);
       }
       return;
     }
-
-    final ShareResult result = await SharePlus.instance.share(
+    final result = await SharePlus.instance.share(
       ShareParams(
         files: <XFile>[
           XFile.fromData(bytes, name: fileName, mimeType: _mimeType(fileName)),
@@ -43,15 +63,55 @@ Future<void> saveImageFromUrl(BuildContext context, String imageUrl) async {
         downloadFallbackEnabled: true,
       ),
     );
-    // On Web, share_plus reports `unavailable` after successfully using its
-    // browser download fallback, so a thrown error is the only failure signal.
-    if (context.mounted &&
-        (kIsWeb || result.status != ShareResultStatus.dismissed)) {
+    if (!context.mounted || result.status == ShareResultStatus.dismissed) {
+      return;
+    }
+    if (!kIsWeb && result.status == ShareResultStatus.unavailable) {
+      showGfToast(context, l10n.imageSaveFailed, error: true);
+    } else {
       showGfToast(context, l10n.imageSaved);
     }
-  } catch (_) {
+  } catch (error) {
+    debugPrint('Image save failed (${error.runtimeType}).');
     if (context.mounted) {
       showGfToast(context, l10n.imageSaveFailed, error: true);
+    }
+  }
+}
+
+/// Shares generated image bytes through the system share surface.
+Future<void> shareImageBytes(
+  BuildContext context,
+  Uint8List bytes,
+  String fileName,
+) async {
+  final l10n = AppLocalizations.of(context);
+  try {
+    final object = context.findRenderObject();
+    final box = object is RenderBox && object.attached && object.hasSize
+        ? object
+        : null;
+    final result = await SharePlus.instance.share(
+      ShareParams(
+        files: <XFile>[
+          XFile.fromData(bytes, name: fileName, mimeType: _mimeType(fileName)),
+        ],
+        fileNameOverrides: <String>[fileName],
+        sharePositionOrigin: box == null
+            ? null
+            : box.localToGlobal(Offset.zero) & box.size,
+        downloadFallbackEnabled: true,
+      ),
+    );
+    if (context.mounted &&
+        !kIsWeb &&
+        result.status == ShareResultStatus.unavailable) {
+      showGfToast(context, l10n.shareImageFailed, error: true);
+    }
+  } catch (error) {
+    debugPrint('Image share failed (${error.runtimeType}).');
+    if (context.mounted) {
+      showGfToast(context, l10n.shareImageFailed, error: true);
     }
   }
 }
@@ -81,7 +141,7 @@ Future<void> shareImageFromUrl(BuildContext context, String imageUrl) async {
     }
     final Uint8List bytes = await _downloadImageBytes(context, imageUrl);
     final String fileName = _fileNameFor(imageUrl);
-    await SharePlus.instance.share(
+    final result = await SharePlus.instance.share(
       ShareParams(
         files: <XFile>[
           XFile.fromData(bytes, name: fileName, mimeType: _mimeType(fileName)),
@@ -91,9 +151,15 @@ Future<void> shareImageFromUrl(BuildContext context, String imageUrl) async {
         downloadFallbackEnabled: true,
       ),
     );
-  } catch (_) {
+    if (context.mounted &&
+        !kIsWeb &&
+        result.status == ShareResultStatus.unavailable) {
+      showGfToast(context, l10n.shareImageFailed, error: true);
+    }
+  } catch (error) {
+    debugPrint('Image share failed (${error.runtimeType}).');
     if (context.mounted) {
-      showGfToast(context, l10n.imageSaveFailed, error: true);
+      showGfToast(context, l10n.shareImageFailed, error: true);
     }
   }
 }

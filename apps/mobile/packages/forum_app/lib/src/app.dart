@@ -15,11 +15,13 @@ import 'app_locale.dart';
 import 'site_theme.dart';
 import 'theme_mode.dart';
 import 'push/push_service.dart';
+import 'reading_preferences.dart';
 import 'startup_experience.dart';
 import 'updates/update_host.dart';
 import 'providers.dart';
 import 'apple/apple_sign_in.dart';
 import 'widgets/app_system_ui_overlay.dart';
+import 'widgets/media_image_failure.dart';
 import 'app_config.dart';
 import 'current_user.dart';
 import 'storage/media_host.dart';
@@ -64,11 +66,13 @@ class GfApp extends ConsumerWidget {
       themeAnimationDuration: GfMotion.duration(context, GfMotion.layout),
       themeAnimationCurve: GfMotion.layoutCurve,
       routerConfig: appRouter,
-      builder: (context, child) => AppSystemUiOverlay(
-        child: StorageGate(
-          child: _AppBusinessHosts(
-            locale: locale,
-            child: child ?? const SizedBox.shrink(),
+      builder: (context, child) => AppTextScaleScope(
+        child: AppSystemUiOverlay(
+          child: StorageGate(
+            child: _AppBusinessHosts(
+              locale: locale,
+              child: child ?? const SizedBox.shrink(),
+            ),
           ),
         ),
       ),
@@ -126,6 +130,8 @@ class _AppBusinessHosts extends ConsumerWidget {
       repository: mediaRepository,
       scopeKey: mediaScope,
       apiOrigin: origin,
+      readAccessToken: ref.read(tokenStorageProvider).read,
+      imageErrorBuilder: mediaImageFailure,
       child: StartupExperience(
         child: MobileUpdateHost(
           key: appUpdateHostKey,

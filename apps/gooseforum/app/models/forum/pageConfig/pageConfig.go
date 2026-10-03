@@ -50,6 +50,7 @@ const (
 	RateLimitSettings   = `rateLimitSettings`
 	MCPSettings         = `mcpSettings`
 	AiSummarySettings   = `aiSummarySettings`
+	AiModerationPage    = `aiModerationSettings` // issue #975 AI 图文审查配置（密钥只落密文）
 	OneSystemSettings   = `onesystemSettings`
 	WikiSyncSettings    = `wikiSyncSettings`
 	ScheduleSettings    = `scheduleSettings`

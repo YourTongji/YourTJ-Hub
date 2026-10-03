@@ -488,15 +488,28 @@ func PagePendingReview(page, pageSize int) struct {
 	Total    int64
 	Data     []Entity
 } {
+	return PagePendingReviewInCategories(page, pageSize, nil)
+}
+
+// PagePendingReviewInCategories 同 PagePendingReview，categoryIDs 非空时只列出
+// 属于这些分类的待审话题（前台版主按管辖分类审核，issue #975）。
+func PagePendingReviewInCategories(page, pageSize int, categoryIDs []uint64) struct {
+	Page     int
+	PageSize int
+	Total    int64
+	Data     []Entity
+} {
 	var list []Entity
 	page = max(page-1, 0)
 	pageSize = pageutil.BoundPageSize(pageSize)
 	b := builder().
 		Where(queryopt.Eq("process_status", ProcessStatusPending)).
 		Where(queryopt.Eq("topic_type", TopicTypeForum)).
-		Where(queryopt.IsNull("deleted_at")).
-		Order(queryopt.Desc("updated_at")).
-		Order(queryopt.Desc("id"))
+		Where(queryopt.IsNull("deleted_at"))
+	if len(categoryIDs) > 0 {
+		b = b.Where("id IN (SELECT topic_id FROM topic_category_index WHERE category_id IN ? AND effective = ?)", categoryIDs, 1)
+	}
+	b = b.Order(queryopt.Desc("updated_at")).Order(queryopt.Desc("id"))
 	var total int64
 	b.Session(&gorm.Session{}).Count(&total)
 	b.Limit(pageSize).Offset(pageSize * page).Find(&list)

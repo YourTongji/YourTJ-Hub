@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:webview_flutter/webview_flutter.dart' show WebViewWidget;
 import 'package:webview_flutter_platform_interface/webview_flutter_platform_interface.dart';
 import 'package:forum_app/l10n/app_localizations.dart';
 import 'package:forum_app/src/pages/admin/admin_page.dart';
@@ -14,7 +15,7 @@ import 'fixtures/admin_webview_fakes.dart';
 
 void main() {
   testWidgets(
-    'native campus handoff keeps Bearer first-party and returns after callback',
+    'native campus tolerates iOS handoff cancellation but preserves real failures',
     (tester) async {
       debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
       addTearDown(() => debugDefaultTargetPlatformOverride = null);
@@ -73,15 +74,169 @@ void main() {
         platform.controller.lastRequest!.headers['Authorization'],
         'Bearer native-test-session',
       );
+      Future<void> handOffToSchool() async {
+        expect(
+          await platform.delegate.request!(
+            const NavigationRequest(
+              url: 'https://forum.example/campus',
+              isMainFrame: true,
+            ),
+          ),
+          NavigationDecision.prevent,
+        );
+      }
+
+      Future<void> retry() async {
+        expect(find.text('Failed to load'), findsOneWidget);
+        expect(find.byType(WebViewWidget), findsNothing);
+        await tester.tap(find.text('Retry'));
+        await tester.pumpAndSettle();
+        expect(find.byType(WebViewWidget), findsOneWidget);
+        expect(
+          platform.controller.lastRequest!.uri.path,
+          '/api/auth/mobile-web-session',
+        );
+      }
+
+      // A cancelled load before the app has handed off is still a failure.
+      platform.delegate.resourceError!(
+        const WebResourceError(
+          errorCode: -999,
+          description: 'Cancelled before handoff',
+          isForMainFrame: true,
+        ),
+      );
+      await tester.pump();
+      await retry();
+      // Reject invalid sessions; a navigation exception must not bypass HTTP 401.
+      platform.delegate.httpError!(
+        HttpResponseError(
+          request: WebResourceRequest(
+            uri: platform.controller.lastRequest!.uri,
+          ),
+          response: const WebResourceResponse(uri: null, statusCode: 401),
+        ),
+      );
+      await tester.pump();
+      await retry();
+      await handOffToSchool();
+      // WebKit may identify the original request, the redirect, or omit the URL.
+      for (final code in [-999, 102]) {
+        for (final url in <String?>[
+          'https://forum.example/api/auth/mobile-web-session?target=campus',
+          'https://forum.example/campus',
+          null,
+        ]) {
+          platform.delegate.resourceError!(
+            WebResourceError(
+              errorCode: code,
+              description: 'Navigation cancelled during handoff',
+              isForMainFrame: true,
+              url: url,
+            ),
+          );
+          await tester.pump();
+          expect(
+            find.byType(WebViewWidget),
+            findsOneWidget,
+            reason: 'Expected handoff cancellation $code at $url',
+          );
+          expect(find.text('Retry'), findsNothing);
+        }
+      }
+      // Once the school page starts navigating, the handoff window is closed:
+      // a URL-less cancellation is then a real school failure with retry.
       expect(
         await platform.delegate.request!(
-          const NavigationRequest(
-            url: 'https://forum.example/campus',
-            isMainFrame: true,
-          ),
+          NavigationRequest(url: uri.toString(), isMainFrame: true),
         ),
-        NavigationDecision.prevent,
+        NavigationDecision.navigate,
       );
+      platform.delegate.resourceError!(
+        const WebResourceError(
+          errorCode: -999,
+          description: 'School page cancelled without URL',
+          isForMainFrame: true,
+        ),
+      );
+      await tester.pump();
+      await retry();
+      await handOffToSchool();
+      // Only the replaced handoff is exempt: school cancellations, offline and
+      // certificate failures still offer retry, without claiming state expiry.
+      for (final code in [-999, 102, -1009, -1202]) {
+        platform.delegate.resourceError!(
+          WebResourceError(
+            errorCode: code,
+            description: 'School page failed',
+            isForMainFrame: true,
+            url: uri.toString(),
+          ),
+        );
+        await tester.pump();
+        await retry();
+        await handOffToSchool();
+      }
+      // WebKit omits the request entirely: the tracked school main frame
+      // attributes the status to the page itself (#970).
+      expect(
+        await platform.delegate.request!(
+          NavigationRequest(url: uri.toString(), isMainFrame: true),
+        ),
+        NavigationDecision.navigate,
+      );
+      platform.delegate.httpError!(
+        const HttpResponseError(
+          response: WebResourceResponse(uri: null, statusCode: 500),
+        ),
+      );
+      await tester.pump();
+      await retry();
+      await handOffToSchool();
+      // Android reports the failing request: only the main frame's own URL
+      // may blank the school page; any other school URL stays a subresource.
+      expect(
+        await platform.delegate.request!(
+          NavigationRequest(url: uri.toString(), isMainFrame: true),
+        ),
+        NavigationDecision.navigate,
+      );
+      platform.delegate.httpError!(
+        HttpResponseError(
+          request: WebResourceRequest(uri: uri),
+          response: const WebResourceResponse(uri: null, statusCode: 502),
+        ),
+      );
+      await tester.pump();
+      await retry();
+      await handOffToSchool();
+      expect(
+        await platform.delegate.request!(
+          NavigationRequest(url: uri.toString(), isMainFrame: true),
+        ),
+        NavigationDecision.navigate,
+      );
+      platform.delegate.httpError!(
+        HttpResponseError(
+          request: WebResourceRequest(
+            uri: Uri.parse('https://api.tongji.edu.cn/static/captcha.png'),
+          ),
+          response: const WebResourceResponse(uri: null, statusCode: 404),
+        ),
+      );
+      await tester.pump();
+      expect(find.byType(WebViewWidget), findsOneWidget);
+      expect(find.text('Retry'), findsNothing);
+      await handOffToSchool();
+      platform.delegate.resourceError!(
+        const WebResourceError(
+          errorCode: -1009,
+          description: 'An image failed',
+          isForMainFrame: false,
+        ),
+      );
+      await tester.pump();
+      expect(find.byType(WebViewWidget), findsOneWidget);
       await tester.pump();
       expect(platform.controller.lastRequest!.uri, uri);
       expect(platform.controller.lastRequest!.headers, isEmpty);

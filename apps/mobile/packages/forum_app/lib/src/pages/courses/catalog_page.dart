@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -469,14 +470,6 @@ class _CourseCatalogPageState extends ConsumerState<_CourseCatalogContent> {
               resolveErrorMessage(l10n, _refreshError!),
               () => _load(refresh: true),
             ),
-          if (_hasActiveFilters)
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton(
-                onPressed: _resetFilters,
-                child: Text(l10n.coursesResetSearch),
-              ),
-            ),
           Expanded(
             child: _page.when(
               loading: () => const _CourseListSkeleton(),
@@ -495,6 +488,7 @@ class _CourseCatalogPageState extends ConsumerState<_CourseCatalogContent> {
   Widget _buildFilterRow(AppLocalizations l10n) {
     final Widget dept = _filterChip(
       label: l10n.coursesFilterDepartment,
+      dropdown: true,
       count: _selectedDepartments.length,
       selected: _selectedDepartments.isNotEmpty,
       onTap: _optionsLoading || _optionsError != null
@@ -509,6 +503,7 @@ class _CourseCatalogPageState extends ConsumerState<_CourseCatalogContent> {
     );
     final Widget term = _filterChip(
       label: l10n.coursesFilterTerm,
+      dropdown: true,
       count: _selectedTerms.length,
       selected: _selectedTerms.isNotEmpty,
       onTap: _optionsLoading || _optionsError != null
@@ -523,6 +518,7 @@ class _CourseCatalogPageState extends ConsumerState<_CourseCatalogContent> {
     );
     final Widget campus = _filterChip(
       label: l10n.coursesFilterCampus,
+      dropdown: true,
       count: _selectedCampuses.length,
       selected: _selectedCampuses.isNotEmpty,
       onTap: _optionsLoading || _optionsError != null
@@ -537,6 +533,7 @@ class _CourseCatalogPageState extends ConsumerState<_CourseCatalogContent> {
     );
     final Widget instructor = _filterChip(
       label: l10n.coursesFilterInstructor,
+      dropdown: true,
       count: _selectedInstructors.length,
       selected: _selectedInstructors.isNotEmpty,
       onTap: _pickInstructors,
@@ -551,22 +548,88 @@ class _CourseCatalogPageState extends ConsumerState<_CourseCatalogContent> {
       },
     );
 
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      child: Row(
-        children: <Widget>[
-          dept,
-          const SizedBox(width: 8),
-          term,
-          const SizedBox(width: 8),
-          campus,
-          const SizedBox(width: 8),
-          instructor,
-          const SizedBox(width: 8),
-          onlyReviews,
-          const SizedBox(width: 4),
-        ],
+    return ShaderMask(
+      // 左右边缘渐隐：提示横向还有更多筛选 chip。渐隐区正好落在 12dp 内边距上，
+      // 未滚动时不会把首个 chip 抹淡；滚到边界时 chip 会在边缘自然淡出。
+      shaderCallback: (Rect bounds) {
+        final double gutter = (12 / bounds.width).clamp(0.0, .25);
+        return LinearGradient(
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+          colors: <Color>[
+            Colors.transparent,
+            Colors.black,
+            Colors.black,
+            Colors.transparent,
+          ],
+          stops: <double>[0, gutter, 1 - gutter, 1],
+        ).createShader(bounds);
+      },
+      blendMode: BlendMode.dstIn,
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        // 有筛选时在行首出现一个同规格的 × chip（重置搜索和筛选）：留在筛选行
+        // 内部，不再另起一行把列表往下推。
+        child: Row(
+          children: <Widget>[
+            if (_hasActiveFilters) ...<Widget>[
+              _resetChip(l10n),
+              const SizedBox(width: 8),
+            ],
+            dept,
+            const SizedBox(width: 8),
+            term,
+            const SizedBox(width: 8),
+            campus,
+            const SizedBox(width: 8),
+            instructor,
+            const SizedBox(width: 8),
+            onlyReviews,
+            const SizedBox(width: 4),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _resetChip(AppLocalizations l10n) {
+    final GfColors colors = GfTheme.colorsOf(context);
+    final BorderRadius radius = BorderRadius.circular(
+      GfTheme.radiiOf(context).selector,
+    );
+    return Tooltip(
+      message: l10n.coursesResetSearch,
+      excludeFromSemantics: true,
+      child: Semantics(
+        container: true,
+        button: true,
+        label: l10n.coursesResetSearch,
+        child: Material(
+          type: MaterialType.transparency,
+          child: InkWell(
+            key: const ValueKey<String>('catalog-reset-filters'),
+            onTap: _resetFilters,
+            borderRadius: radius,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+              child: Center(
+                widthFactor: 1,
+                heightFactor: 1,
+                child: Ink(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: colors.base200,
+                    borderRadius: radius,
+                    border: Border.all(color: colors.line),
+                  ),
+                  child: GfSymbol('x', size: 16, color: colors.iconMuted),
+                ),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -577,64 +640,111 @@ class _CourseCatalogPageState extends ConsumerState<_CourseCatalogContent> {
     required VoidCallback? onTap,
     int? count,
     String? symbol,
+    bool dropdown = false,
   }) {
     final GfColors colors = GfTheme.colorsOf(context);
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(999),
-      child: Container(
-        constraints: const BoxConstraints(minHeight: 44),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: selected
-              ? colors.primary.withValues(alpha: 0.1)
-              : colors.base100,
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(
-            color: selected
-                ? colors.primary.withValues(alpha: 0.5)
-                : colors.line,
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            if (symbol != null) ...<Widget>[
-              GfSymbol(symbol, size: 14, color: colors.primary),
-              const SizedBox(width: 4),
-            ],
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-                color: selected
-                    ? colors.primary
-                    : colors.baseContent.withValues(alpha: 0.75),
-              ),
-            ),
-            if ((count ?? 0) > 0) ...<Widget>[
-              const SizedBox(width: 6),
-              Container(
-                constraints: const BoxConstraints(minWidth: 18),
-                padding: const EdgeInsets.symmetric(horizontal: 4),
-                height: 18,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: colors.primary,
-                  borderRadius: BorderRadius.circular(999),
+    final BorderRadius radius = BorderRadius.circular(
+      GfTheme.radiiOf(context).selector,
+    );
+    final bool reducedMotion = GfMotion.reducedOf(context);
+    final Color unselectedFill = colors.base100;
+    final Color selectedFill = colors.primary.withValues(alpha: 0.1);
+    final Color foreground = selected
+        ? colors.primary
+        : colors.baseContent.withValues(alpha: 0.75);
+    return Semantics(
+      container: true,
+      button: true,
+      enabled: onTap != null,
+      selected: selected,
+      child: Material(
+        type: MaterialType.transparency,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: radius,
+          child: ConstrainedBox(
+            // 命中区 44dp；可见 pill 只有 32dp（better-accessibility：视觉更扁，
+            // 触控目标不缩水）。
+            constraints: const BoxConstraints(minHeight: 44),
+            child: Center(
+              widthFactor: 1,
+              heightFactor: 1,
+              child: TweenAnimationBuilder<Color?>(
+                key: ValueKey<bool>(reducedMotion),
+                tween: ColorTween(
+                  end: selected ? selectedFill : unselectedFill,
                 ),
-                child: Text(
-                  '$count',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: colors.primaryContent,
+                duration: GfMotion.duration(context, GfMotion.selection),
+                curve: GfMotion.enterCurve,
+                builder: (context, fill, child) => Ink(
+                  decoration: BoxDecoration(
+                    color: fill,
+                    borderRadius: radius,
+                    border: Border.all(
+                      color: selected
+                          ? colors.primary.withValues(alpha: 0.5)
+                          : colors.line,
+                    ),
+                  ),
+                  child: child,
+                ),
+                child: ConstrainedBox(
+                  // Ink 把 1dp 描边计入 padding：30 + 2 = 可见 32dp。
+                  constraints: const BoxConstraints(minHeight: 30),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: <Widget>[
+                        if (symbol != null) ...<Widget>[
+                          GfSymbol(symbol, size: 14, color: colors.primary),
+                          const SizedBox(width: 4),
+                        ],
+                        Text(
+                          label,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                            color: foreground,
+                          ),
+                        ),
+                        if ((count ?? 0) > 0) ...<Widget>[
+                          const SizedBox(width: 6),
+                          Container(
+                            constraints: const BoxConstraints(minWidth: 18),
+                            padding: const EdgeInsets.symmetric(horizontal: 4),
+                            height: 18,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: colors.primary,
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: Text(
+                              '$count',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: colors.primaryContent,
+                              ),
+                            ),
+                          ),
+                        ],
+                        // 多选 picker 的下拉 affordance（toggle 不用）。
+                        if (dropdown) ...<Widget>[
+                          const SizedBox(width: 4),
+                          GfSymbol(
+                            'chevron-down',
+                            size: 14,
+                            color: selected ? colors.primary : colors.iconMuted,
+                          ),
+                        ],
+                      ],
+                    ),
                   ),
                 ),
               ),
-            ],
-          ],
+            ),
+          ),
         ),
       ),
     );
@@ -779,107 +889,104 @@ class _CourseRow extends StatelessWidget {
     final String credit = formatCreditText(course.creditX10);
     final int reviewCount = course.reviewCount ?? 0;
     final double? ratingAvg = course.ratingAvg;
+    // 学期 toggle 保留 44dp 命中区（WCAG/HIG）。为了让单学期/多学期卡片间距
+    // 完全一致，chip 行一律按 44dp 行高排（可见 chip 垂直居中），再把多出的
+    // 半高从前后间距里扣掉；标题与教师行裁掉首尾行距。CJK 字体行盒自带约
+    // 3–5dp 上下内边距，所以布局值比可见值小：真机实测字形间距为
+    // 顶 ≈ 标题→教师 ≈ 教师→chip ≈ 底 ≈ 13dp（better-layout：均匀、紧凑）。
+    final double chipHiddenHalf = _chipHiddenHalf(context, type);
+    const double titleGap = 6;
+    const double chipGap = 10;
+    final double metricsGap = math.max(0, chipGap - chipHiddenHalf);
+    final double bottomPadding = math.max(0, 12 - chipHiddenHalf);
+    const TextHeightBehavior tight = TextHeightBehavior(
+      applyHeightToFirstAscent: false,
+      applyHeightToLastDescent: false,
+    );
 
     return InkWell(
       onTap: onTap,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        padding: EdgeInsets.fromLTRB(16, 8, 16, bottomPadding),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Expanded(
-                  child: Text(
-                    course.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: type.bodyStrong,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 6,
-                    vertical: 2,
-                  ),
-                  decoration: BoxDecoration(
-                    color: colors.base200,
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Text(
-                    course.primaryCode,
-                    style: type.meta.copyWith(
-                      color: colors.baseContent.withValues(alpha: 0.55),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 6),
+            Text(course.name, style: type.heading, textHeightBehavior: tight),
+            const SizedBox(height: titleGap),
             Text(
               '$teacher · ${course.department}',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+              textHeightBehavior: tight,
               style: type.small.copyWith(
                 color: colors.baseContent.withValues(alpha: 0.6),
               ),
             ),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 12,
-              runSpacing: 6,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: <Widget>[
-                if (ratingAvg != null && ratingAvg > 0) ...<Widget>[
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: <Widget>[
-                      GfSymbol('star-filled', size: 14, color: colors.warning),
-                      const SizedBox(width: 2),
+            SizedBox(height: metricsGap),
+            ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 44),
+              child: Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: Wrap(
+                  spacing: 12,
+                  runSpacing: 6,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: <Widget>[
+                    if (ratingAvg != null && ratingAvg > 0) ...<Widget>[
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: <Widget>[
+                          GfSymbol(
+                            'star-filled',
+                            size: 14,
+                            color: colors.warning,
+                          ),
+                          const SizedBox(width: 2),
+                          Text(
+                            formatRating(ratingAvg),
+                            style: type.meta.copyWith(
+                              fontWeight: FontWeight.w600,
+                              color: colors.baseContent,
+                            ),
+                          ),
+                          if (reviewCount > 0) ...<Widget>[
+                            const SizedBox(width: 2),
+                            Text(
+                              '($reviewCount)',
+                              style: type.meta.copyWith(
+                                color: colors.baseContent.withValues(
+                                  alpha: 0.5,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ] else if (reviewCount > 0) ...<Widget>[
                       Text(
-                        formatRating(ratingAvg),
-                        style: type.small.copyWith(
-                          fontWeight: FontWeight.w600,
-                          color: colors.baseContent,
+                        l10n.coursesNoRating,
+                        style: type.meta.copyWith(
+                          color: colors.baseContent.withValues(alpha: 0.5),
                         ),
                       ),
-                      if (reviewCount > 0) ...<Widget>[
-                        const SizedBox(width: 2),
-                        Text(
-                          '($reviewCount)',
-                          style: type.caption.copyWith(
-                            color: colors.baseContent.withValues(alpha: 0.5),
-                          ),
+                      Text(
+                        '($reviewCount)',
+                        style: type.meta.copyWith(
+                          color: colors.baseContent.withValues(alpha: 0.5),
                         ),
-                      ],
+                      ),
                     ],
-                  ),
-                ] else if (reviewCount > 0) ...<Widget>[
-                  Text(
-                    l10n.coursesNoRating,
-                    style: type.caption.copyWith(
-                      color: colors.baseContent.withValues(alpha: 0.5),
-                    ),
-                  ),
-                  Text(
-                    '($reviewCount)',
-                    style: type.caption.copyWith(
-                      color: colors.baseContent.withValues(alpha: 0.5),
-                    ),
-                  ),
-                ],
-                if (credit.isNotEmpty) ...<Widget>[
-                  Text(
-                    '$credit ${copy.creditUnit}',
-                    style: type.small.copyWith(
-                      color: colors.baseContent.withValues(alpha: 0.7),
-                    ),
-                  ),
-                ],
-                ..._termChips(context, terms),
-              ],
+                    if (credit.isNotEmpty) ...<Widget>[
+                      Text(
+                        '$credit ${copy.creditUnit}',
+                        style: type.meta.copyWith(
+                          color: colors.baseContent.withValues(alpha: 0.7),
+                        ),
+                      ),
+                    ],
+                    _catalogChip(context: context, label: course.primaryCode),
+                    _termGroup(context, terms),
+                  ],
+                ),
+              ),
             ),
           ],
         ),
@@ -887,67 +994,123 @@ class _CourseRow extends StatelessWidget {
     );
   }
 
-  List<Widget> _termChips(BuildContext context, List<String> terms) {
-    if (terms.isEmpty) return const <Widget>[];
+  /// 学期 chip 可见高度：与 `type.meta` 同档字号 + 上下 4dp padding。
+  /// 返回 44dp 命中区中不可见部分的一半（隐形间距）。
+  static double _chipHiddenHalf(BuildContext context, GfTypography type) {
+    final TextStyle style = type.meta;
+    final double fontSize = MediaQuery.textScalerOf(
+      context,
+    ).scale(style.fontSize ?? 12);
+    final double chipHeight = fontSize * (style.height ?? 1.3) + 8;
+    return math.max(0, (44 - chipHeight) / 2);
+  }
+
+  /// 目录行统一信息 chip：可见高度 = `type.meta` + 上下 4dp，圆角走
+  /// `--gf-radius-selector`（8），与 App 其他 chip 同一套 token。
+  /// 可点击时用 44dp 透明命中区包住可见 chip（命中区不占视觉空间）。
+  Widget _catalogChip({
+    required BuildContext context,
+    required String label,
+    TextStyle? labelStyle,
+    VoidCallback? onTap,
+    bool expanded = false,
+    List<Widget> trailing = const <Widget>[],
+  }) {
     final GfColors colors = GfTheme.colorsOf(context);
     final GfTypography type = GfTheme.typographyOf(context);
-
-    Widget chip(String label, {VoidCallback? onTap}) {
-      return InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(999),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
-          child: Center(
-            widthFactor: 1,
-            heightFactor: 1,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-              decoration: BoxDecoration(
-                color: colors.base200.withValues(alpha: 0.6),
-                borderRadius: BorderRadius.circular(999),
-              ),
-              child: Text(
-                label,
-                style: type.meta.copyWith(
+    final BorderRadius radius = BorderRadius.circular(
+      GfTheme.radiiOf(context).selector,
+    );
+    final Widget box = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        // base200@60% 在浅色白底上只有 1.01:1，chip 形状会消失。
+        color: colors.baseContent.withValues(alpha: 0.06),
+        borderRadius: radius,
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Text(
+            label,
+            style:
+                labelStyle ??
+                type.meta.copyWith(
                   color: colors.baseContent.withValues(alpha: 0.7),
                 ),
-              ),
-            ),
           ),
-        ),
-      );
-    }
-
-    if (terms.length == 1) {
-      return <Widget>[
-        chip(
-          shortTerm(
-            terms.first,
-            locale: AppLocalizations.of(context).localeName,
-          ),
-        ),
-      ];
-    }
-    final List<Widget> visible = termsExpanded
-        ? terms
-              .map(
-                (term) => shortTerm(
-                  term,
-                  locale: AppLocalizations.of(context).localeName,
-                ),
-              )
-              .map(chip)
-              .toList()
-        : <Widget>[];
-    return <Widget>[
-      chip(
-        shortTerm(terms.first, locale: AppLocalizations.of(context).localeName),
-        onTap: onToggleTerms,
+          ...trailing,
+        ],
       ),
-      if (!termsExpanded) chip('+${terms.length - 1}', onTap: onToggleTerms),
-      ...visible,
-    ];
+    );
+    if (onTap == null) return box;
+    return MergeSemantics(
+      child: Semantics(
+        button: true,
+        expanded: expanded,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: radius,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+            child: Center(widthFactor: 1, heightFactor: 1, child: box),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 学期组：组内 gap 6（web `gap-1.5`）、外层组间距 12（`gap-3`），
+  /// 恰好 2×；折叠时首学期与 `+n` 合并在同一个 chip 内（不是两个松散小按钮），
+  /// 展开后其余学期以同规格 chip 排在内层 Wrap，换行以组为单位、不零散。
+  Widget _termGroup(BuildContext context, List<String> terms) {
+    if (terms.isEmpty) return const SizedBox.shrink();
+    final AppLocalizations l10n = AppLocalizations.of(context);
+    final GfColors colors = GfTheme.colorsOf(context);
+    final GfTypography type = GfTheme.typographyOf(context);
+    String label(String term) => shortTerm(term, locale: l10n.localeName);
+
+    final String first = label(terms.first);
+    if (terms.length == 1) {
+      return _catalogChip(context: context, label: first);
+    }
+    final Widget toggle = _catalogChip(
+      context: context,
+      label: first,
+      // 学期值与单学期卡片同色（不制造「选中」假语义），可展开信号交给
+      // 与筛选 chip 同一套的 chevron。
+      onTap: onToggleTerms,
+      expanded: termsExpanded,
+      trailing: <Widget>[
+        const SizedBox(width: 4),
+        Text(
+          termsExpanded
+              ? l10n.courseCopySummaryCollapse
+              : '+${terms.length - 1}',
+          style: type.meta.copyWith(
+            color: colors.baseContent.withValues(alpha: 0.6),
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(width: 2),
+        GfSymbol(
+          termsExpanded ? 'chevron-up' : 'chevron-down',
+          size: 12,
+          color: colors.baseContent.withValues(alpha: 0.6),
+        ),
+      ],
+    );
+    if (!termsExpanded) return toggle;
+    return Wrap(
+      spacing: 6,
+      runSpacing: 6,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: <Widget>[
+        toggle,
+        for (final String term in terms.skip(1))
+          _catalogChip(context: context, label: label(term)),
+      ],
+    );
   }
 }
 

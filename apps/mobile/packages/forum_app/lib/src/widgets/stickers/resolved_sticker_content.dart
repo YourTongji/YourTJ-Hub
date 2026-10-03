@@ -14,10 +14,15 @@ class ResolvedStickerContent extends ConsumerStatefulWidget {
     required this.content,
     required this.builder,
     this.errorAlignment = CrossAxisAlignment.start,
+    this.resolve = true,
   });
   final String content;
   final Widget Function(Map<String, String>) builder;
   final CrossAxisAlignment errorAlignment;
+
+  /// Share captures freeze the already-known token map instead of starting
+  /// late network resolution after export begins.
+  final bool resolve;
   @override
   ConsumerState<ResolvedStickerContent> createState() =>
       _ResolvedStickerContentState();
@@ -28,9 +33,15 @@ class _ResolvedStickerContentState
   StickerLibrary? _library;
   Set<String>? _names;
   bool _failed = false;
+  Map<String, String>? _frozenUrls;
   @override
   Widget build(BuildContext context) {
     final library = ref.watch(stickerLibraryProvider);
+    if (!widget.resolve) {
+      return widget.builder(
+        _frozenUrls ??= Map<String, String>.unmodifiable(library.urlByName),
+      );
+    }
     final names = stickerTokenPattern
         .allMatches(widget.content)
         .map((match) => match.group(1)!)

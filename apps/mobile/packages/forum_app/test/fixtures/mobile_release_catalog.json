@@ -1,0 +1,74 @@
+{
+  "historyCoverage": {
+    "byChannel": {
+      "android": {
+        "completeFromBuild": 41,
+        "coveredBuilds": [
+          42,
+          43
+        ],
+        "throughBuild": 43
+      },
+      "ios-testflight": {
+        "completeFromBuild": 43,
+        "coveredBuilds": [
+          43
+        ],
+        "throughBuild": 43
+      }
+    },
+    "publishedAt": "2026-10-03T00:00:00Z",
+    "source": "github-release-receipts"
+  },
+  "releases": [
+    {
+      "breaking": [],
+      "buildNumber": 43,
+      "channels": [
+        "android",
+        "ios-testflight"
+      ],
+      "highlights": [
+        {
+          "id": "chat-stickers",
+          "kind": "feature",
+          "platforms": [
+            "android"
+          ],
+          "summary": "Browse stickers in chat.",
+          "title": "Sticker picker"
+        }
+      ],
+      "requiredActions": [],
+      "testflightNotes": [
+        {
+          "id": "course-widget-check",
+          "text": "Verify the course widget after changing a course."
+        }
+      ],
+      "version": "2.3.4"
+    },
+    {
+      "breaking": [],
+      "buildNumber": 42,
+      "channels": [
+        "android"
+      ],
+      "highlights": [
+        {
+          "id": "chat-stickers",
+          "kind": "feature",
+          "platforms": [
+            "android"
+          ],
+          "summary": "Browse stickers in chat.",
+          "title": "Sticker picker"
+        }
+      ],
+      "requiredActions": [],
+      "testflightNotes": [],
+      "version": "2.3.4"
+    }
+  ],
+  "schemaVersion": 1
+}

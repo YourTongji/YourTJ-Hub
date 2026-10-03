@@ -131,11 +131,11 @@ class CourseRepository {
             ReviewPayload.fromJson(Map<String, dynamic>.from(json as Map)),
       );
 
-  /// 改课评。
+  /// 改课评（部分更新语义，后端只注册 PATCH；见 route4api.go）。
   Future<ReviewPayload> updateReview(
     int reviewId,
     UpdateCourseReviewInput input,
-  ) => _client.post<ReviewPayload>(
+  ) => _client.patch<ReviewPayload>(
     '$_base/course-reviews/$reviewId',
     body: input.toJson(),
     parser: (json) =>
@@ -156,6 +156,23 @@ class CourseRepository {
   /// 无用标记。
   Future<bool> markDislike(int reviewId, {required bool on}) =>
       _reviewAction('dislike', reviewId, on);
+
+  /// 举报课评（说明按服务端口径 trim，空说明省略；移动端限制 300 rune）。
+  Future<bool> reportReview({
+    required int reviewId,
+    required String reason,
+    String note = '',
+  }) async {
+    final trimmedNote = note.trim();
+    await _client.post<Object?>(
+      '$_base/course-reviews/$reviewId/reports',
+      body: {
+        'reason': reason,
+        if (trimmedNote.isNotEmpty) 'note': trimmedNote,
+      },
+    );
+    return true;
+  }
 
   Future<bool> _reviewAction(String kind, int reviewId, bool on) async {
     if (on) {

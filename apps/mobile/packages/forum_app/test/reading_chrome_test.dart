@@ -13,6 +13,45 @@ import 'package:forum_app/l10n/app_localizations.dart';
 import 'package:ui_kit/ui_kit.dart';
 import 'fixtures/page_fixtures.dart';
 
+/// One [ChromeAlignedPage] whose scroll view, visibility and chrome state the
+/// test flips directly, like a retained Home feed that swaps to a loader.
+class _DetachingPage extends StatefulWidget {
+  const _DetachingPage();
+
+  @override
+  State<_DetachingPage> createState() => _DetachingPageState();
+}
+
+class _DetachingPageState extends State<_DetachingPage> {
+  bool scrollable = true;
+  bool offstage = false;
+  bool hidden = false;
+
+  void set({bool? scrollable, bool? offstage, bool? hidden}) => setState(() {
+    this.scrollable = scrollable ?? this.scrollable;
+    this.offstage = offstage ?? this.offstage;
+    this.hidden = hidden ?? this.hidden;
+  });
+
+  @override
+  Widget build(BuildContext context) => MaterialApp(
+    home: TickerMode(
+      enabled: !offstage,
+      child: ChromeAlignedPage(
+        topInset: 48,
+        chromeHidden: hidden,
+        current: !offstage,
+        child: scrollable
+            ? ListView(
+                padding: const EdgeInsets.only(top: 48),
+                children: const [SizedBox(height: 2000)],
+              )
+            : const Text('loading'),
+      ),
+    ),
+  );
+}
+
 void main() {
   testWidgets('an empty feed still supports pull to refresh', (tester) async {
     var refreshed = 0;
@@ -97,7 +136,15 @@ void main() {
     await tester.pump();
     final position = tester.getTopLeft(find.text('row 4'));
     final viewport = scroll.position.viewportDimension;
-    container.read(readingChromeProvider).update(60, 120);
+    // Mid-gesture the header tracks the finger instead of waiting.
+    final logo = tester.getTopLeft(find.byType(GfLogo)).dy;
+    container.read(readingChromeProvider).update(32, 120);
+    await tester.pump();
+    expect(tester.getTopLeft(find.byType(GfLogo)).dy, closeTo(logo - 28.5, 1));
+    expect(tester.getTopLeft(find.text('row 4')), position);
+    container.read(readingChromeProvider)
+      ..update(40, 120)
+      ..settle(120);
     await tester.pumpAndSettle();
     expect(tester.getTopLeft(find.text('row 4')), position);
     expect(scroll.offset, 120);
@@ -153,32 +200,75 @@ void main() {
     await tester.tap(find.byType(TextButton));
     expect(opened, isTrue);
   });
-  test('48px downward hides, 12px reversal restores without jitter', () {
+  testWidgets('a page whose scroll view was replaced is left alone', (
+    tester,
+  ) async {
+    await tester.pumpWidget(const _DetachingPage());
+    await tester.pumpAndSettle();
+    final page = tester.state<_DetachingPageState>(find.byType(_DetachingPage));
+
+    // Align path: the feed swaps to a loader, then goes off screen hidden.
+    page.set(scrollable: false);
+    await tester.pumpAndSettle();
+    page.set(offstage: true, hidden: true);
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+
+    // Restore path: aligned off screen, then replaced before chrome returns.
+    page.set(scrollable: true, offstage: false, hidden: false);
+    await tester.pumpAndSettle();
+    page.set(offstage: true, hidden: true);
+    await tester.pumpAndSettle();
+    page.set(scrollable: false);
+    await tester.pumpAndSettle();
+    page.set(hidden: false);
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+
+    // A new scroll view is picked up and aligned again.
+    page.set(scrollable: true, hidden: true);
+    await tester.pumpAndSettle();
+    expect(
+      tester.state<ScrollableState>(find.byType(Scrollable)).position.pixels,
+      48,
+    );
+  });
+  test('chrome follows the finger and settles in the last direction', () {
     final chrome = ReadingChrome();
     addTearDown(chrome.dispose);
-    chrome.update(30, 30);
+    chrome.update(16, 200);
+    expect(chrome.reveal.value.value, .75);
+    expect(chrome.reveal.value.animate, isFalse);
     expect(chrome.hidden, isFalse);
-    chrome.update(18, 48);
+    chrome.update(24, 224);
+    expect(chrome.reveal.value.value, .375);
     expect(chrome.hidden, isTrue);
-    chrome.update(-6, 42);
-    expect(chrome.hidden, isTrue);
-    chrome.update(2, 44);
-    chrome.update(-6, 38);
-    expect(chrome.hidden, isTrue);
-    chrome.update(-6, 32);
+    chrome.settle(224);
+    expect(chrome.reveal.value.value, 0);
+    expect(chrome.reveal.value.animate, isTrue);
+    // Any upward travel pulls chrome back immediately.
+    chrome.update(-16, 208);
+    expect(chrome.reveal.value.value, .25);
+    chrome.settle(208);
+    expect(chrome.reveal.value.value, 1);
     expect(chrome.hidden, isFalse);
   });
-  test('top bounce and locked interaction reset accumulated travel', () {
+  test('the top keeps chrome attached; bounce and locks are ignored', () {
     final chrome = ReadingChrome();
     addTearDown(chrome.dispose);
-    chrome.update(60, 60);
+    chrome.update(32, 32);
+    expect(chrome.reveal.value.value, .5);
+    chrome.settle(32);
+    expect(chrome.reveal.value.value, 1);
+    chrome.update(200, 400);
+    expect(chrome.hidden, isTrue);
+    chrome.update(-30, 1030, maxScrollExtent: 1000);
+    expect(chrome.reveal.value.value, 0);
     chrome.update(-80, -20);
     expect(chrome.hidden, isFalse);
     chrome.update(100, 200, locked: true);
-    expect(chrome.hidden, isFalse);
-    chrome.update(40, 240);
-    expect(chrome.hidden, isFalse);
-    chrome.update(8, 248);
+    expect(chrome.reveal.value.value, 1);
+    chrome.update(64, 264);
     expect(chrome.hidden, isTrue);
     chrome.show();
     expect(chrome.hidden, isFalse);

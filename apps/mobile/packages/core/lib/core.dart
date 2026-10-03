@@ -3,6 +3,7 @@ library;
 
 export 'src/api/api_error.dart';
 export 'src/api/gf_api_client.dart';
+export 'src/api/image_bytes.dart';
 export 'src/api/forum_sse.dart';
 export 'src/api/forum_realtime_transport.dart';
 export 'src/api/repositories/auth_repository.dart';
