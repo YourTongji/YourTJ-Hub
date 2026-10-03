@@ -34,10 +34,16 @@ def discover():
     # READY_FOR_DISTRIBUTION belongs to appVersionState and cannot be mixed here.
     versions = asc('versions', 'list', '--app', APP_ID, '--platform', 'IOS', '--state',
                    'READY_FOR_SALE', '--latest', '--include', 'build')
-    require(len(versions['data']) <= 1, 'Ambiguous live App Store baseline')
+    # --latest emits computed CLI output rather than a JSON:API data envelope:
+    # https://github.com/rorkai/App-Store-Connect-CLI/blob/5.0.0/internal/asc/output_versions.go#L79
+    require(isinstance(versions, dict) and isinstance(versions.get('items'), list)
+            and versions.get('hasMore') is False and versions.get('totalCount') == len(versions['items']),
+            'Incomplete or invalid ASC latest-version response')
+    items = versions['items']
+    require(len(items) <= 1, 'Ambiguous live App Store baseline')
     store = None
-    if versions['data']:
-        version = versions['data'][0]
+    if items:
+        version = items[0]
         build_id = version['relationships']['build']['data']['id']
         builds = {i['id']: i for i in versions.get('included', []) if i['type'] == 'builds'}
         require(build_id in builds, 'Live App Store version is missing its exact build')
