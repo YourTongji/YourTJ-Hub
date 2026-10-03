@@ -13,9 +13,6 @@
     ],
     "not_found_handling": "404-page"
   },
-  "version_metadata": {
-    "binding": "VERSION"
-  },
   "r2_buckets": [
     {
       "binding": "SNAPSHOTS",
@@ -38,11 +35,11 @@
       "workers_dev": true,
       "preview_urls": false,
       "routes": [
-        { "pattern": "status.yourtj.de", "custom_domain": true }
+        {
+          "pattern": "status.yourtj.de",
+          "custom_domain": true
+        }
       ],
-      "version_metadata": {
-        "binding": "VERSION"
-      },
       "r2_buckets": [
         {
           "binding": "SNAPSHOTS",

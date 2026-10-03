@@ -43,9 +43,9 @@ use a main-only environment; status checks precede deployment and a source finge
 Public collection preassembles twelve range views so each API miss needs at most two R2 reads. Views
 retain source scope fingerprints, failure flags and timestamps; projection time never freshens data.
 R2 strong reads and conditional puts preserve attempted-at ordering. Production snapshots survive
-deployments; preview uses a separate bucket. Thirty-second edge entries vary by validated ranges,
-configuration and deployment version. Cache failure falls back to R2; storage failure returns
-noncacheable 503. Browser responses remain no-store. A public device revision identifies the credential
+deployments; preview uses a separate bucket. Dynamic responses remain no-store and do not use Cache
+API, whose response-copy CPU spikes are unsuitable for Free. Storage failure returns noncacheable 503.
+Source scope fingerprints invalidate revoked data immediately. A public device revision identifies the credential
 scope without putting secrets in Worker bindings; revoke or increment it when access changes.
 
 GitHub schedules can be delayed or dropped. The page displays actual sample times, treats current,

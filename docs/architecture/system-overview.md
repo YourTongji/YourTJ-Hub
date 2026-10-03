@@ -176,12 +176,13 @@ aggregates; only allowlisted categories and counts reach the public Sankey chart
 
 Snapshots persist in a private R2 bucket shared across production deployments. Preview uses a separate
 bucket and has no automatic schedules. Conditional writes prevent older collectors overwriting newer
-snapshots. The public API only reads snapshots and uses a 30-second edge cache keyed by validated
-ranges, deployment version and source configuration. Static assets bypass the Worker handler.
+snapshots. Collection preassembles range views; the API reads at most one public view and one device
+object, checking source scope fingerprints and original timestamps. Dynamic responses are no-store
+and do not enter the edge cache. Static assets bypass the Worker handler.
 
 Current metrics and history/traffic are collected every fifteen minutes; devices hourly. Worker has no
 collection schedules or upstream credentials. Source timestamps, independent freshness and bounded retention remain authoritative even
-when a response is cached. Main-branch deployment runs only for status-related input changes and after
+between successful browser polls. Main-branch deployment runs only for status-related input changes and after
 status checks succeed. See the [status specification](../product/server-status.md),
 [Cloudflare runbook](../operations/status-cloudflare.md) and
 [hosting decision](../decisions/0057-status-cloudflare.md).
