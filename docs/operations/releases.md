@@ -150,7 +150,11 @@ Review the resulting diff and obtain human approval on the new head; this change
 digest. Never upgrade an already approved candidate during recovery. Android and TestFlight formats
 are unchanged, and section labels and bullets count towards the App Store's 4000-character limit.
 The public mobile catalog contains structured entries, not this store-copy formatting field; the
-app continues to render those entries with its native update-history and prompt views.
+app renders formal release entries with its native update-history and prompt views. iOS public
+history always selects App Store entries, with no distribution-channel picker; TestFlight-only
+releases and testing instructions are not substituted for missing public history. The three
+presentation surfaces are separate: the app consumes structured facts, App Store receives
+`ios.zh-Hans.txt`, and TestFlight receives `testflight.en-US.txt` for Apple's testing UI.
 
 The trusted-main catalog publisher derives `releases.json` from merged reviewed candidates and
 successful channel deployment receipts. It validates each receipt against the candidate source SHA

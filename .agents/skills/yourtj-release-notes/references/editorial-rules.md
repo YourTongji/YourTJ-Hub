@@ -29,3 +29,9 @@ English testing instructions. Keep the entire App Store file within 4000 charact
 formatting. Do not hand-format the text file separately: validation rejects divergence from the
 structured facts. Existing candidates without a format field retain their original bytes; follow
 the runbook's explicit upgrade procedure before a fresh human review, never during approved recovery.
+
+Keep the three iOS display surfaces distinct. The app's native update prompt and history render
+structured formal-release facts; iOS history has no channel picker. App Store What's New is the
+plain-text `ios.zh-Hans.txt` rendering. TestFlight receives `testflight.en-US.txt` as plain-text
+testing instructions for Apple's UI, not as a second user-facing history tab or automatic in-app
+beta-notes prompt. Missing formal history must not fall back to TestFlight copy.
