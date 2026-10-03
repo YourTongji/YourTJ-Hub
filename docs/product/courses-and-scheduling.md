@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-10-01
+> Last verified: 2026-10-03
 
 ## Catalog and course identity
 
@@ -113,8 +113,9 @@ Flutter 提供 CSV／PNG；有冲突时导出前提示，PNG 使用独立海报�
 
 ## Boundaries and evidence
 
-Web、API 与 Flutter 课程／排课页面为 `Current`；移动端商店发布、原生推送及学校真机认证的验证缺口
-见[移动端体验](mobile-experience.md)和[移动发布指南](../operations/mobile-releases.md)，不将整个课程 UI 标为未实现。
+Web、API 与 Flutter 课程／排课页面为 `Current`；移动端已通过 App Store 和 Android APK 正式分发，
+入口见[移动端分发](mobile-experience.md#distribution-and-updates)。原生推送及学校真机认证的验证缺口
+仍见[移动端体验](mobile-experience.md)和[移动发布指南](../operations/mobile-releases.md)，不将整个课程 UI 标为未实现。
 
 接口结构以 [OpenAPI](../../packages/api-contract/openapi.yaml)、生成类型与路由契约测试为准；
 课程与排课规则分别由 `courseservice`、`pkservice` 和各端页面测试维护。

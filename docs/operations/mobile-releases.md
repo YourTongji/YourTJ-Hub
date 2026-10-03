@@ -6,12 +6,17 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-09-07
+> Last verified: 2026-10-03
 
-`Partial`: signed Android APK and iOS archive/export scripts, release validation and update-client
-checks exist. GitHub-hosted signing/upload requires the release workflow on `main`, configured
-`mobile-release` environment secrets, and a successful release run. Apple review and the Android
+`Current`: YourTJ is publicly distributed through the iPhone/iPad App Store and signed Android APKs,
+linked from [the official download page](https://yourtj.de/#download). Public channel status and direct
+links are maintained in [Distribution and updates](../product/mobile-experience.md#distribution-and-updates).
+
+Each new candidate still requires the reviewed release workflow on `main`, configured
+`mobile-release` environment secrets and successful platform execution. Apple review and the Android
 system installer remain independent gates; a completed upload does not mean distribution approval.
+`Partial`: native push delivery and signed upgrade/device journeys need candidate-specific evidence;
+public availability does not establish the full physical-device acceptance matrix.
 
 ## Version and activation
 
@@ -422,7 +427,7 @@ transport and never inject test visitors into the production site. Historical We
 rows cannot be relabelled as App. The status collector refreshes device reports every five minutes
 when its server-only report credentials are configured.
 
-`Partial`: before App distribution, verify the App Store Connect privacy form against the actual
+`Partial`: before each App update, verify the App Store Connect privacy form against the actual
 Umami configuration and retention policy. The source manifest includes analytics use of product
 interaction/other data and IP-derived coarse location, with no advertising tracking. The embedded
 privacy supplement discloses automatic collection without a switch, receive-side IP and regional

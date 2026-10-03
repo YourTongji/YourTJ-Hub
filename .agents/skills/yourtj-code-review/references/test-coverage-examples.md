@@ -1,109 +1,44 @@
-# Test coverage — 示例与注解
+# 批处理与数据库回归的评审示例
 
-> 本文件为 `$yourtj-code-review` 的 **Test coverage** 规则提供通用示例与注解。
-> 评审时对照片段理解规则意图，再在改动中找等价的实际用例与断言。
+仅在改动涉及批处理、回填、方言差异或失败恢复时使用本参考。
+总体策略见 [testing.md](../../../../docs/development/testing.md)，评审要求见
+[主技能](../SKILL.md#test-coverage)。下列是风险与证据的示例，不是每个 PR 都要完成的测试集合。
 
-## 1. 分支/错误返回/回退路径都要有断言
+## 失败后的状态与恢复
 
-规则：不止快乐路径；条件、错误返回、回退分支都要有断言。
+场景：回填写入一部分数据后遇到数据库错误，后续启动会重试。
 
-```go
-// 反例：只断言成功路径，错误/回退分支实际未执行
-func TestBackfill(t *testing.T) {
-    err := backfill(db)
-    require.NoError(t, err)
-}
+| 要验证的约定 | 有效证据 | 不足的证据 |
+|---|---|---|
+| 失败不会被当成完成 | 注入可达写入失败，断言错误和版本/游标保持约定状态 | 只检查日志出现错误 |
+| 已写入数据符合事务约定 | 按实际设计断言整批回滚或已完成行保留、未处理行不变 | 只断言函数返回 error |
+| 重试不损坏数据 | 移除故障后再次运行，断言最终数据及无重复写入 | 只调用两次并检查不报错 |
 
-// 正例：错误返回有断言，且断言失败后的状态（部分成功/回滚/自愈）
-func TestBackfill(t *testing.T) {
-    err := backfill(db)
-    require.ErrorContains(t, err, "backfill failed")
-    // 断言失败后数据未污染：已处理行保留、未处理行保持原值
-    var done int64
-    require.NoError(t, db.Model(&row{}).Where("flag = ?", doneFlag).Count(&done).Error)
-    assert.Equal(t, expectedDone, done)
-}
-```
+先从实现与迁移约定确定事务语义，不假设所有批处理都要整批回滚。
+缺陷修复要先让失败用例在旧实现上复现，再验证修复；测试保持独立，避免依赖上次运行留下的数据。
 
-断言"失败时的状态"比断言"报错"更有价值——迁移/批量任务即使报错，
-也要验证可重入（幂等重跑不会重复或损坏数据）。
+## 批次边界与数据量
 
-## 2. 边界与量级敏感点要显式测
+场景：keyset 分页只在当前批次已满时继续查询。
 
-规则：分页/批处理跨越批大小边界；游标/断点续跑、空输入、首尾元素、幂等重入、并发冲突。
+- 如果批大小可注入，使用较小批次并构造能跨过边界的最小数据，例如批大小 2、数据 3 行。
+  如果生产阈值固定，则使用足以越过实际阈值的数据；不额外造数万行来显得真实。
+- 检查批内末行、下一批首行与总体末行，证明没有跳行/重复；必要时检查空输入、恰好满批和结束条件。
+- 只有当并发修改、游标持久化或重入属于真实约定时，增加相应测试。
+- 规模相关性能结论需要测量条件与结果，少量数据的正确性测试不等于负载验证。
 
-```go
-// 正例：数据量超过批大小，跨批边界的行都要有断言
-func TestBatchBoundary(t *testing.T) {
-    const batchSize = 500
-    const total = 1100 // > batchSize：触发"批次打满后按主键 keyset 续跑"分支
-    seedRows(t, db, total) // 先构造总行数超批大小的真实输入
+## PostgreSQL 与 SQLite
 
-    err := backfillInBatches(db, batchSize)
-    require.NoError(t, err)
+场景：查询涉及 DISTINCT/ORDER BY、JSON、唯一性或迁移行为，SQLite 的结果不能证明 PostgreSQL 兼容。
 
-    // 跨批边界行（首行、批内末行、新批首行、总体末行）逐行断言，不只抽查
-    for _, id := range []int{0, 498, 499, 500, 501, 1099} {
-        var got Row
-        require.NoError(t, db.First(&got, id).Error)
-        assert.Equal(t, wantValue(id), got.Value, "row %d", id)
-    }
+- 在一次性 PostgreSQL 测试库中实际执行受影响查询，验证有业务意义的结果和排序。
+- 回归测试名含 `PostgreSQL` 或 `Postgres`，让现有 CI 选择器能执行；命令和环境变量遵循 testing.md。
+- 无测试 DSN 时明确跳过；报告“未执行 PG 验证”，不能把整个命令退出成功写成 PG 通过。
+- SQLite 测试可独立证明分页等与方言无关的逻辑，不复制同一测试来制造覆盖率。
+- 模型/迁移变更仍必须通过仓库的 PG 迁移门禁；已有有效证据不因准备提交而重复执行。
 
-    // 幂等重入：同批再跑一遍，结果不变、不重复写
-    require.NoError(t, backfillInBatches(db, batchSize))
-    assert.Equal(t, int64(total), processedCount(t, db))
-}
-```
+## 连接需求与证据
 
-只测小于批大小的样本时，keyset 分页分支完全不执行；真实行数一旦超过批大小
-就会走到未测代码。
-
-## 3. 失败路径可观测；重试与自愈有测试
-
-```go
-// 正例：迁移失败不推进版本 → 下次启动重跑；重跑幂等
-func TestMigrationFailureDoesNotAdvanceVersion(t *testing.T) {
-    err := runMigration(db)
-    require.Error(t, err)
-    assert.Equal(t, oldVersion, currentVersion(db)) // 版本未推进
-    // 修复后重跑成功，且不重复回填已处理行
-    require.NoError(t, runMigration(db))
-}
-```
-
-error 语义要明确（hard 失败 vs deferred/稍后重试），并断言"重试/自愈路径"而不仅是看日志。
-
-## 4. 数据量与方言贴近真实
-
-规则：真实可达数万行的表，小样本会漏掉只在量级/方言触发的缺陷；SQLite 宽松 ≠ PostgreSQL 严格。
-
-```go
-// 反例：只在默认方言断言"不报错"，方言与量级分支都没走到
-//   （SELECT DISTINCT ... ORDER BY <表达式>：PG 要求 ORDER BY 表达式必须出现在
-//   select list，SQLite 不报错；且未造大样本，量级分支也未执行）
-func TestListDistinctTermsPartial(t *testing.T) {
-    db := newSQLiteDB(t)
-    terms, err := listDistinctTerms(db)
-    require.NoError(t, err) // SQLite 放行；同一查询在 PostgreSQL 上会报错
-    assert.Greater(t, len(terms), 0)
-}
-
-// 正例：方言与量级分别兜住——目标方言真回归 + 大样本低代价回归
-func TestListDistinctTermsTargetDialect(t *testing.T) {
-    // ① 部署默认方言（PostgreSQL）：在真实方言上执行，SQLite 放行不代表 PG 通过
-    if dsn := os.Getenv("YOURTJ_TEST_PG_URL"); dsn != "" {
-        db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
-        require.NoError(t, err)
-        terms, err := listDistinctTerms(db)
-        require.NoError(t, err) // PG: ORDER BY 表达式必须在 select list，否则报错
-        assert.Equal(t, wantOrder, orderOf(terms))
-    }
-
-    // ② 量级：小样本测不出"行数超过阈值才走的分支"，用 sqlite :memory: 造大样本
-    db := newSQLiteDB(t)
-    seedRows(t, db, 1100) // 超过典型批大小 500，触发 keyset 分页等量级分支
-    require.NoError(t, listDistinctTerms(db))
-}
-```
-
-按部署默认方言验证；默认 SQLite 通过的查询不代表 PostgreSQL 上也通过。
+一个 AC 可以由多种证据共同支持，也可以由一个恰当边界的测试完整证明。评审时说明
+“哪个错误行为会使这个断言失败”，避免把文件存在、私有方法调用次数或复制实现逻辑当作用户结果。
+对于纯文档、模板或机械改动，语义核对、格式/链接检查通常足够，不强加数据库或应用回归测试。
