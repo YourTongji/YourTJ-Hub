@@ -191,13 +191,13 @@ def _draft_changelog(manifest, folder, request, result, response, replace=False)
         slug = re.sub(r"[^a-z0-9]+", "-", disclosure["id"].lower()).strip("-")[:60] or item["id"]
         stable_id = _stable_id(slug if re.fullmatch(r"[a-z0-9][a-z0-9-]*", slug) else item["id"], used)
         changelog["evidence"][stable_id] = [item["id"]]
-        platforms = [c for c in disclosure["channels"] if c != "ios-testflight"]
+        # TestFlight also gets the verbatim testing note; the required entry keeps the disclosure
+        # ahead of ordinary notes in the app, which drops the duplicate testing note.
         if "ios-testflight" in disclosure["channels"]:
             changelog["testflightNotes"].append({"id": stable_id, "text": disclosure["text"], "evidenceIds": [item["id"]]})
-        if platforms:
-            title, _ = _split_text(disclosure["text"])
-            changelog["requiredActions"].append({"id": stable_id, "title": title, "summary": disclosure["text"],
-                                                 "platforms": platforms, "kind": "improvement"})
+        title, _ = _split_text(disclosure["text"])
+        changelog["requiredActions"].append({"id": stable_id, "title": title, "summary": disclosure["text"],
+                                             "platforms": list(disclosure["channels"]), "kind": "improvement"})
     record["draft"] = {"model": response["model"], "promptVersion": 1, "inputSha256": response["inputSha256"],
                         "entries": result["entries"], "uncertainties": result["uncertainties"]}
     evidence_text = json.dumps(record, ensure_ascii=False, indent=2) + "\n"

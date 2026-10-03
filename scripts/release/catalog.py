@@ -19,6 +19,8 @@ CHANNEL_PLATFORMS = {
     "ios-testflight": {"ios", "ios-testflight"},
 }
 IOS_APP_ID = "6809457637"
+# ReleaseNoteCatalog.decode rejects more releases or covered builds than this.
+MAX_CATALOG_RELEASES = 300
 MAX_LOOKUP_BYTES = 1024 * 1024
 
 
@@ -190,6 +192,10 @@ def build_catalog(github, published_at=None, verified_store_builds=()):
         if structured_channels:
             releases.append(output)
 
+    # Keep the newest window; coverage below names only retained builds, and an older public
+    # build becomes the floor, so clients never claim completeness across a dropped release.
+    releases = releases[:MAX_CATALOG_RELEASES]
+    retained = {release["buildNumber"] for release in releases}
     all_builds = {(version, build): record for (version, build), record in by_build.items()}
     coverage = {}
     for channel in CHANNELS:
@@ -199,7 +205,7 @@ def build_catalog(github, published_at=None, verified_store_builds=()):
         for build in reversed(published_builds):
             record = next(value for (_, candidate_build), value in all_builds.items() if candidate_build == build)
             _, changelog = record["channelCandidates"][channel]
-            if changelog is None:
+            if changelog is None or build not in retained:
                 break
             covered.append(build)
         covered.reverse()

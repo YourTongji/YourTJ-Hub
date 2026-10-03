@@ -191,6 +191,37 @@ class CatalogReceiptTests(unittest.TestCase):
             self.maxDiff = None
             self.assertEqual(catalog, fixture)
 
+    def test_catalog_keeps_the_client_release_window_and_matching_coverage(self):
+        manifests, paths, rows = {}, {}, {"android": [], "ios-testflight": [], "ios-app-store": [], "statuses": {}}
+        with tempfile.TemporaryDirectory() as root:
+            for build in range(1, 302):
+                candidate_id = f"mobile-2.3.4-{build}"
+                folder = Path(root) / candidate_id
+                folder.mkdir()
+                (folder / "changelog.json").write_text(json.dumps({
+                    "highlights": [{"id": f"change-{build}", "title": "Update", "summary": "Faster feed.",
+                                    "kind": "improvement", "platforms": ["android"]}],
+                    "breaking": [], "requiredActions": [], "testflightNotes": []}), encoding="utf-8")
+                manifests[candidate_id] = ({"candidateId": candidate_id, "product": "mobile", "schemaVersion": 2,
+                                            "version": "2.3.4", "buildNumber": build, "tag": "mobile-v2.3.4",
+                                            "sourceSha": "a" * 40, "channels": ["android"]}, folder)
+                paths[candidate_id] = f"releases/requests/{candidate_id}"
+                item = deployment(candidate_id, "android", "available", digest="b" * 64)
+                item["id"] = candidate_id
+                item["payload"]["tag"] = "mobile-v2.3.4"
+                item["payload"]["binding"] = {"sourceSha": "a" * 40, "contentDigest": "digest"}
+                rows["android"].append(item)
+            with patch("catalog.candidate_paths", return_value=paths), \
+                 patch("catalog.load_published_candidate", side_effect=lambda cid, _folder: manifests[cid]), \
+                 patch("catalog.candidate_content_digest", return_value="digest"), \
+                 patch("catalog.public_app_store_version", return_value=None):
+                catalog = build_catalog(FakeGitHub(rows), published_at="2026-10-03T00:00:00Z")
+        self.assertEqual(len(catalog["releases"]), 300)
+        self.assertEqual(catalog["releases"][-1]["buildNumber"], 2)
+        coverage = catalog["historyCoverage"]["byChannel"]["android"]
+        self.assertEqual((coverage["completeFromBuild"], coverage["throughBuild"]), (1, 301))
+        self.assertEqual(coverage["coveredBuilds"], list(range(2, 302)))
+
     def test_catalog_rejects_candidate_receipt_digest_drift_and_conflicting_shared_ids(self):
         with tempfile.TemporaryDirectory() as root:
             root = Path(root)

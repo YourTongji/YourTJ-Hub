@@ -153,6 +153,52 @@ void main() {
   );
 
   test(
+    'TestFlight disclosures stay required and are not repeated as testing notes',
+    () {
+      final decoded = ReleaseNoteCatalog.decode({
+        'schemaVersion': 1,
+        'releases': [
+          {
+            ...release(
+              9,
+              channels: const ['ios-testflight'],
+              actions: [
+                note(
+                  'visit-analytics',
+                  'Visit analytics',
+                  platforms: const ['ios-testflight'],
+                  kind: 'improvement',
+                ),
+              ],
+            ),
+            'testflightNotes': [
+              for (var i = 0; i < 6; i++)
+                {'id': 'check-$i', 'text': 'Check flow $i.'},
+              {
+                'id': 'visit-analytics',
+                'text': 'Visit analytics are on by default.',
+              },
+            ],
+          },
+        ],
+      })!;
+      final notes = decoded.forRange(
+        installedBuild: 8,
+        targetBuild: 9,
+        platform: 'ios-testflight',
+      );
+      expect(notes, hasLength(7));
+      expect(notes.first.id, 'visit-analytics');
+      expect(notes.first.title, 'Visit analytics');
+      expect(notes.first.required, isTrue);
+      expect(
+        promptReleaseNotes(notes).map((entry) => entry.id),
+        contains('visit-analytics'),
+      );
+    },
+  );
+
+  test(
     'aggregates the exclusive to inclusive build range with channel filtering and required dedup',
     () {
       final decoded = ReleaseNoteCatalog.decode(catalog())!;

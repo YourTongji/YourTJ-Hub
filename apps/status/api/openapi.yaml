@@ -78,6 +78,7 @@ components:
             byChannel: {type: object, additionalProperties: {$ref: '#/components/schemas/MobileReleaseCoverage'}}
         releases:
           type: array
+          maxItems: 300
           items: {$ref: '#/components/schemas/MobileReleaseRecord'}
     MobileReleaseCoverage:
       type: object
@@ -93,7 +94,7 @@ components:
             public build and no earlier public build is known, this floor is 43 and history below
             43 is unknown.
         throughBuild: {type: integer, minimum: 0}
-        coveredBuilds: {type: array, items: {type: integer, minimum: 0}, uniqueItems: true}
+        coveredBuilds: {type: array, maxItems: 300, items: {type: integer, minimum: 0}, uniqueItems: true}
     MobileReleaseRecord:
       type: object
       required: [version, buildNumber, channels, highlights, breaking, requiredActions, testflightNotes]

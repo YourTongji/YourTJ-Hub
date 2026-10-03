@@ -276,11 +276,21 @@ class ReleaseNoteCatalog {
           r.channels.contains(platform),
     );
     for (final release in versions) {
-      for (final note in [
+      final structured = [
         ...release.highlights,
         ...release.breaking,
         ...release.requiredActions,
-        ...release.testflightNotes,
+      ];
+      // A TestFlight disclosure is also a required entry; keep that titled copy.
+      final structuredIds = {
+        for (final note in structured)
+          if (note.includesChannel(platform)) note.id,
+      };
+      for (final note in [
+        ...structured,
+        ...release.testflightNotes.where(
+          (note) => !structuredIds.contains(note.id),
+        ),
       ]) {
         if (!note.includesChannel(platform)) {
           continue;

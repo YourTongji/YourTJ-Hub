@@ -218,6 +218,27 @@ class PipelineTest(unittest.TestCase):
         # Publishing validation: verbatim disclosure, structured facts and rendered text agree.
         validate_candidate(manifest, folder)
 
+    def test_testflight_disclosure_stays_a_required_entry(self):
+        manifest = candidate() | {'schemaVersion': 2, 'channels': ['ios-testflight'],
+                                  'notes': {'ios-testflight': 'testflight.en-US.txt'},
+                                  'baselines': {'ios-testflight': {'tag': 'mobile-v1.0.14', 'sourceSha': 'b' * 40}},
+                                  'requiredDisclosures': [{'id': 'Visit analytics', 'channels': ['ios-testflight'],
+                                                           'text': 'Visit analytics are on by default.'}]}
+        items = [{'id': f'e{i}', 'channels': ['ios-testflight']} for i in range(6)]
+        record = {'schemaVersion': 1, 'sourceSha': manifest['sourceSha'],
+                  'evidence': items + [{'id': 'disclosure-x', 'channels': ['ios-testflight'], 'disclosureId': 'Visit analytics'}]}
+        folder = self.root / 'testflight'
+        folder.mkdir()
+        (folder / 'evidence.json').write_text(json.dumps(record), encoding='utf-8')
+        raw = json.dumps({'evidence': items}).encode()
+        entries = [{'channel': 'ios-testflight', 'text': f'Check flow {i}.', 'evidenceIds': [f'e{i}']} for i in range(6)]
+        render(manifest, folder, self.oryn(raw, entries), raw)
+        changelog = json.loads((folder / 'changelog.json').read_text(encoding='utf-8'))
+        self.assertEqual([(e['id'], e['platforms'], e['summary']) for e in changelog['requiredActions']],
+                         [('visit-analytics', ['ios-testflight'], 'Visit analytics are on by default.')])
+        self.assertIn('visit-analytics', [item['id'] for item in changelog['testflightNotes']])
+        validate_candidate(manifest, folder)
+
     def draft_fixture(self, channels):
         manifest = candidate() | {'schemaVersion': 2, 'channels': channels, 'notes': {c: FILES[c] for c in channels},
                                   'baselines': {c: {'tag': 'mobile-v1.0.14', 'sourceSha': 'b' * 40} for c in channels}}

@@ -36,6 +36,10 @@ per channel, so old unstructured releases do not claim complete note history. Se
 upgrade range, not a claim that every build from that number has a structured entry. When no older
 unstructured public build is known, it equals the first structured build; installations below that
 floor have unknown prior history and the client must not claim completeness.
+The catalog keeps the newest 300 structured builds, the client's decode limit. Coverage lists only
+retained builds, so the newest dropped public build becomes the floor. A required disclosure keeps its
+TestFlight channel as a required entry beside the verbatim testing note; the client shows the required
+copy once, ahead of ordinary notes.
 
 Recovery is channel-specific and uses original signed artifacts or an exact already uploaded Apple
 build. Uncertain uploads are queried before retransmission. A pending other App Store version is
