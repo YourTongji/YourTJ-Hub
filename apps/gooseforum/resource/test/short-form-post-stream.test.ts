@@ -341,11 +341,9 @@ describe('瞬间（短文 contentType: 2）在 PostStream 中的架构完整性'
     expect(firstHeader.text()).toContain(i18n.global.t('publish.contentTypes.thought'))
     expect(firstHeader.text()).not.toContain(i18n.global.t('topic.originalPost'))
 
-    // 首楼顶部右侧在移动端隐藏社媒图标（hidden sm:inline-flex），仅在桌面端快捷保留
+    // 首楼互动由主题级操作栏统一提供；楼层级互动只保留在回复楼层
     const firstLikeBtn = firstHeader.find('button[title="' + i18n.global.t('topic.like') + '"]')
-    expect(firstLikeBtn.exists()).toBe(true)
-    expect(firstLikeBtn.classes()).toContain('hidden')
-    expect(firstLikeBtn.classes()).toContain('sm:inline-flex')
+    expect(firstLikeBtn.exists()).toBe(false)
 
     // 回复楼层（非首楼）顶部无条件展示快捷互动按钮
     const secondHeader = secondPostArticle.get('.mb-1\\.5')
@@ -353,18 +351,19 @@ describe('瞬间（短文 contentType: 2）在 PostStream 中的架构完整性'
     expect(secondLikeBtn.exists()).toBe(true)
     expect(secondLikeBtn.classes()).not.toContain('hidden')
 
-    // 桌面端操作栏（.border-t .hidden.sm:flex）：完整平铺展开，不收纳
+    // 桌面端操作栏提供主题级回复入口；点赞数量由主题标题栏唯一展示
     const desktopBar = firstPostArticle.get('.border-t .hidden.sm\\:flex')
     expect(desktopBar.text()).toContain(i18n.global.t('topic.reply'))
-    expect(desktopBar.text()).toContain('5') // likeCount
+    expect(desktopBar.text()).toContain(i18n.global.t('topic.like'))
+    expect(desktopBar.text()).not.toContain('5')
     expect(desktopBar.text()).toContain(i18n.global.t('topic.bookmark'))
     expect(desktopBar.text()).toContain(i18n.global.t('topic.watch'))
     expect(desktopBar.find('button[title="' + i18n.global.t('topic.share') + '"]').exists()).toBe(true)
 
-    // 移动端操作栏（.border-t .flex.sm:hidden）：单行流线型布局 + 更多 Popover
+    // 移动端操作栏不重复悬浮回复 CTA，也不重复点赞数量
     const mobileBar = firstPostArticle.get('.border-t .flex.sm\\:hidden')
-    expect(mobileBar.text()).toContain(i18n.global.t('topic.reply'))
-    expect(mobileBar.text()).toContain('5') // likeCount
+    expect(mobileBar.text()).not.toContain(i18n.global.t('topic.reply'))
+    expect(mobileBar.text()).not.toContain('5')
     expect(mobileBar.find('button[title="' + i18n.global.t('topic.share') + '"]').exists()).toBe(true)
     expect(mobileBar.find('button[title="' + i18n.global.t('topic.more') + '"]').exists()).toBe(true)
   })

@@ -259,7 +259,9 @@ Rules:
 
 - The title is prominent but not oversized.
 - Topic body and editor preview must share prose behavior.
-- Post actions should be available without visually dominating the stream.
+- Show each topic fact once; header metadata owns reply, view, and like counts, while the right rail is for participant context.
+- Give each topic action one authority in the topic action bar. The first post must not repeat topic-level reply, like, bookmark, share, or report controls; later replies keep their own post-level actions.
+- Responsive and floating controls may move an action between layouts, but must not show a second entry point at the same viewport. The mobile reply entry point is floating; desktop reply stays in the topic action bar.
 - A user's own posts may expose edit actions when permissions allow.
 - Errors from post creation or editing must be shown near the action that failed.
 

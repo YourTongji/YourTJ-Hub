@@ -1,23 +1,10 @@
 <script setup lang="ts">
-import type { Component } from 'vue'
-import { Loader2, MessageSquare, X } from '@lucide/vue'
+import { MessageSquare, X } from '@lucide/vue'
 import { formatNumber } from '@/runtime/format'
 import PostPositionRail from '@/site/components/PostPositionRail.vue'
 import { useI18n } from 'vue-i18n'
 
-type TopicAction = {
-  key: string
-  icon: Component
-  active: boolean
-  acting: boolean
-  fill?: boolean
-  title: string
-  activeClass: string
-  onClick: () => void | Promise<void>
-}
-
 const props = defineProps<{
-  actions: TopicAction[]
   authenticated: boolean
   canPost: boolean
   currentLabel: string
@@ -105,25 +92,11 @@ function closeMobileRail() {
               >
                 {{ `${currentNo} / ${formatNumber(maxNo)}` }}
               </button>
-              <template v-if="authenticated">
-                <button
-                  v-for="action in actions"
-                  :key="action.key"
-                  type="button"
-                  class="inline-flex h-9 w-9 items-center justify-center rounded-full text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60"
-                  :class="action.active ? action.activeClass : 'text-base-content/75 hover:bg-base-200 hover:text-base-content'"
-                  :disabled="action.acting"
-                  :title="action.title"
-                  @click="action.onClick"
-                >
-                  <Loader2 v-if="action.acting" class="h-4 w-4 animate-spin" />
-                  <component :is="action.icon" v-else class="h-4 w-4" :fill="action.active && action.fill !== false ? 'currentColor' : 'none'" />
-                </button>
-              </template>
               <button
                 v-if="!authenticated || canPost"
                 type="button"
-                class="inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-sm font-semibold text-base-content/75 transition hover:bg-info/10 hover:text-primary"
+                data-test="mobile-topic-reply"
+                class="inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-sm font-semibold text-base-content/75 transition hover:bg-info/10 hover:text-primary sm:hidden"
                 :title="t('topic.joinDiscussion')"
                 @click="emit('openReply')"
               >

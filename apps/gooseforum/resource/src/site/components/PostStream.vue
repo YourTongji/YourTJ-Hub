@@ -229,69 +229,6 @@ const actionMessageSuccess = computed(() =>
   ].includes(actionMessage.value),
 )
 const reportReasons = ['spam', 'abuse', 'illegal', 'irrelevant', 'other']
-const floatingTopicActions = computed(() => {
-  const actions = [
-    {
-      key: 'like',
-      icon: Heart,
-      active: isLiked.value,
-      acting: actingLike.value,
-      fill: true,
-      title: t('topic.like'),
-      activeClass: 'bg-error/10 text-error hover:bg-error/10',
-      onClick: toggleLike,
-    },
-    {
-      key: 'bookmark',
-      icon: Bookmark,
-      active: isBookmarked.value,
-      acting: actingBookmark.value,
-      fill: true,
-      title: isBookmarked.value ? t('topic.bookmarked') : t('topic.bookmark'),
-      activeClass: 'bg-info/10 text-primary hover:bg-info/10',
-      onClick: toggleBookmark,
-    },
-    {
-      key: 'watch',
-      icon: Bell,
-      active: isWatched.value,
-      acting: actingWatch.value,
-      fill: true,
-      title: isWatched.value ? t('topic.watched') : t('topic.watch'),
-      activeClass: 'bg-success/10 text-success hover:bg-success/15',
-      onClick: toggleWatch,
-    },
-  ]
-
-  if (props.topicActions?.canModerateTopic) {
-    const isBanned = topicProcessStatus.value === 1
-    actions.push({
-      key: isBanned ? 'unban' : 'ban',
-      icon: isBanned ? RotateCcw : Ban,
-      active: false,
-      acting: actingModeration.value,
-      fill: false,
-      title: isBanned ? t('topic.moderationUnban') : t('topic.moderationBan'),
-      activeClass: 'text-base-content/75 hover:bg-base-200 hover:text-base-content',
-      onClick: async () => requestTopicModeration(isBanned ? 'unban' : 'ban'),
-    })
-  }
-
-  if (props.topicActions?.isOwnTopic && !isTopicRemoved()) {
-    actions.push({
-      key: 'delete-topic',
-      icon: Trash2,
-      active: false,
-      acting: deletingTopic.value,
-      fill: false,
-      title: t('topic.deleteTopic'),
-      activeClass: 'text-error hover:bg-error/10 hover:text-error',
-      onClick: async () => requestDeleteTopic(),
-    })
-  }
-
-  return actions
-})
 let postLoadObserver: IntersectionObserver | undefined
 let postBottomLoadFrame = 0
 let activePostScrollFrame = 0
@@ -2050,7 +1987,7 @@ defineExpose({ openFloatingPostComposer, focusPostComposer })
                   <time class="truncate">{{ formatDateTime(post.createdAt) }}</time>
                 </div>
               </div>
-              <div class="flex shrink-0 items-center gap-1 sm:gap-1.5">
+              <div data-test="post-action-strip" class="flex shrink-0 items-center gap-1 sm:gap-1.5">
                 <!-- 1. 编辑按钮：作者/可编辑者可见（首楼与回复楼层均可用） -->
                 <button
                   v-if="canEditPost(post)"
@@ -2064,7 +2001,7 @@ defineExpose({ openFloatingPostComposer, focusPostComposer })
                   <span class="sr-only">{{ t('common.edit') }}</span>
                 </button>
 
-                <!-- 2. 操作按钮组：非首楼移动+桌面均展示；首楼仅在桌面端展示快捷按钮，移动端收纳到首楼底部避免昵称被截断 -->
+                <!-- Topic-level reply, like, bookmark, share, and report controls are below. -->
                 <button
                   v-if="canDeleteRenderedPost(post)"
                   type="button"
@@ -2078,10 +2015,9 @@ defineExpose({ openFloatingPostComposer, focusPostComposer })
                   <span class="sr-only">{{ deletingPostId === post.id ? t('topic.deleting') : t('topic.delete') }}</span>
                 </button>
                 <button
-                  v-if="(!viewer.isAuthenticated || canPost) && !post.isHidden && !isPostRemoved(post)"
+                  v-if="(!viewer.isAuthenticated || canPost) && !post.isHidden && !isPostRemoved(post) && !isFirstPost(post)"
                   type="button"
-                  class="h-7 w-7 shrink-0 items-center justify-center rounded-md text-icon-muted transition hover:bg-info/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 sm:h-8 sm:w-8"
-                  :class="isFirstPost(post) ? 'hidden sm:inline-flex' : 'inline-flex'"
+                  class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-icon-muted transition hover:bg-info/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 sm:h-8 sm:w-8"
                   :title="t('topic.reply')"
                   @click="replyTo(post)"
                 >
@@ -2089,13 +2025,10 @@ defineExpose({ openFloatingPostComposer, focusPostComposer })
                   <span class="sr-only">{{ t('topic.reply') }}</span>
                 </button>
                 <button
-                  v-if="viewer.isAuthenticated && !post.isHidden && !isPostRemoved(post)"
+                  v-if="viewer.isAuthenticated && !post.isHidden && !isPostRemoved(post) && !isFirstPost(post)"
                   type="button"
-                  class="h-7 min-w-7 shrink-0 items-center justify-center gap-1 rounded-md px-1 text-icon-muted transition hover:bg-error/10 hover:text-error focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 sm:h-8 sm:min-w-8 sm:px-1.5"
-                  :class="[
-                    isFirstPost(post) ? 'hidden sm:inline-flex' : 'inline-flex',
-                    { 'text-error hover:text-error': postActionState(post).isLiked },
-                  ]"
+                  class="inline-flex h-7 min-w-7 shrink-0 items-center justify-center gap-1 rounded-md px-1 text-icon-muted transition hover:bg-error/10 hover:text-error focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 sm:h-8 sm:min-w-8 sm:px-1.5"
+                  :class="{ 'text-error hover:text-error': postActionState(post).isLiked }"
                   :title="t('topic.like')"
                   :disabled="postActionState(post).actingLike"
                   @click="togglePostLike(post)"
@@ -2105,13 +2038,10 @@ defineExpose({ openFloatingPostComposer, focusPostComposer })
                   <span class="sr-only">{{ t('topic.like') }}</span>
                 </button>
                 <button
-                  v-if="viewer.isAuthenticated && !post.isHidden && !isPostRemoved(post)"
+                  v-if="viewer.isAuthenticated && !post.isHidden && !isPostRemoved(post) && !isFirstPost(post)"
                   type="button"
                   class="gf-icon-button h-7 w-7 shrink-0 sm:h-8 sm:w-8 hover:bg-info/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                  :class="[
-                    isFirstPost(post) ? 'hidden sm:inline-flex' : 'inline-flex',
-                    { 'text-primary hover:text-primary': postActionState(post).isBookmarked },
-                  ]"
+                  :class="{ 'text-primary hover:text-primary': postActionState(post).isBookmarked }"
                   :title="postActionState(post).isBookmarked ? t('topic.bookmarked') : t('topic.bookmark')"
                   :disabled="postActionState(post).actingBookmark"
                   @click="togglePostBookmark(post)"
@@ -2120,9 +2050,9 @@ defineExpose({ openFloatingPostComposer, focusPostComposer })
                   <span class="sr-only">{{ t('topic.bookmark') }}</span>
                 </button>
                 <button
+                  v-if="!isFirstPost(post)"
                   type="button"
                   class="gf-icon-button h-7 w-7 shrink-0 sm:h-8 sm:w-8 hover:bg-base-200 hover:text-base-content focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-                  :class="isFirstPost(post) ? 'hidden sm:inline-flex' : 'inline-flex'"
                   :title="t('topic.share')"
                   @click="sharePost(post)"
                 >
@@ -2130,10 +2060,9 @@ defineExpose({ openFloatingPostComposer, focusPostComposer })
                   <span class="sr-only">{{ t('topic.share') }}</span>
                 </button>
                 <button
-                  v-if="!post.isOwnPost && !post.isHidden && !isPostRemoved(post)"
+                  v-if="!post.isOwnPost && !post.isHidden && !isPostRemoved(post) && !isFirstPost(post)"
                   type="button"
                   class="gf-icon-button h-7 w-7 shrink-0 sm:h-8 sm:w-8 hover:bg-warning/10 hover:text-warning focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-warning focus-visible:ring-offset-2"
-                  :class="isFirstPost(post) ? 'hidden sm:inline-flex' : 'inline-flex'"
                   :title="t('topic.report')"
                   @click="requestPostReport(post)"
                 >
@@ -2254,9 +2183,9 @@ defineExpose({ openFloatingPostComposer, focusPostComposer })
             <div v-if="post.lastEditedAt && post.lastEditor" class="mt-2 text-xs font-medium text-base-content/55">
               {{ lastEditedLabel(post) }}
             </div>
-            <div v-if="isFirstPost(post) && topicActions" class="mt-4 border-t border-line/60 pt-3">
+            <div v-if="isFirstPost(post) && topicActions" data-test="topic-actions" class="mt-4 border-t border-line/60 pt-3">
               <!-- 桌面端操作栏：完整平铺展开，不必收纳入更多菜单（sm 及以上屏幕显示） -->
-              <div class="hidden sm:flex sm:items-center sm:justify-between sm:gap-2">
+              <div data-test="desktop-topic-actions" class="hidden sm:flex sm:items-center sm:justify-between sm:gap-2">
                 <div class="flex flex-wrap items-center gap-2">
                   <!-- 回复 / 回答按钮（“问题”、“文章”、“瞬间”主操作醒目化，去除计数） -->
                   <button
@@ -2281,7 +2210,7 @@ defineExpose({ openFloatingPostComposer, focusPostComposer })
                     @click="toggleLike"
                   >
                     <Heart class="h-4 w-4 shrink-0 transition-transform" :class="{ 'scale-110': isLiked }" :fill="isLiked ? 'currentColor' : 'none'" />
-                    <span>{{ likeCount ? formatNumber(likeCount) : t('topic.like') }}</span>
+                    <span>{{ t('topic.like') }}</span>
                   </button>
 
                   <!-- 收藏按钮 -->
@@ -2335,7 +2264,7 @@ defineExpose({ openFloatingPostComposer, focusPostComposer })
 
                   <!-- 举报话题 -->
                   <button
-                    v-if="viewer.isAuthenticated && !topicActions.isOwnTopic && !isTopicRemoved()"
+                    v-if="!topicActions.isOwnTopic && !isTopicRemoved()"
                     type="button"
                     class="gf-button gf-button-sm rounded-full px-2.5 text-base-content/70 hover:bg-warning/10 hover:text-warning active:scale-95 transition-all"
                     @click="requestTopicReport"
@@ -2380,23 +2309,9 @@ defineExpose({ openFloatingPostComposer, focusPostComposer })
               </div>
 
               <!-- 移动端操作栏：单行高频互动 + 优雅的 Popover 收纳菜单（<sm 屏幕显示） -->
-              <div class="flex sm:hidden items-center justify-between gap-1">
-                <!-- 左侧核心高频互动：回复、点赞、收藏 -->
+              <div data-test="mobile-topic-actions" class="flex sm:hidden items-center justify-between gap-1">
+                <!-- 移动端主题互动；回复由悬浮入口提供 -->
                 <div class="flex items-center gap-1.5">
-                  <!-- 回复 / 回答按钮（“问题”、“文章”、“瞬间”移动端主操作醒目化，去除计数） -->
-                  <button
-                    v-if="(!viewer.isAuthenticated || canPost) && !isTopicRemoved()"
-                    type="button"
-                    class="gf-button gf-button-sm rounded-full active:scale-95 transition-all duration-150 flex items-center gap-1.5"
-                    :class="isProminentReply
-                      ? 'bg-primary text-primary-content font-medium px-3 shadow-xs hover:shadow hover:bg-primary/90'
-                      : 'px-2.5 text-base-content/70 hover:bg-base-200 hover:text-base-content'"
-                    @click="replyTo(firstPost || post)"
-                  >
-                    <CornerDownLeft class="h-3.5 w-3.5 shrink-0" />
-                    <span>{{ isQuestionTopic ? t('topic.writeAnswer') : t('topic.reply') }}</span>
-                  </button>
-
                   <!-- 点赞按钮 -->
                   <button
                     type="button"
@@ -2406,7 +2321,7 @@ defineExpose({ openFloatingPostComposer, focusPostComposer })
                     @click="toggleLike"
                   >
                     <Heart class="h-3.5 w-3.5 shrink-0 transition-transform" :class="{ 'scale-110': isLiked }" :fill="isLiked ? 'currentColor' : 'none'" />
-                    <span>{{ likeCount ? formatNumber(likeCount) : t('topic.like') }}</span>
+                    <span>{{ t('topic.like') }}</span>
                   </button>
 
                   <!-- 收藏按钮 -->
@@ -2483,7 +2398,7 @@ defineExpose({ openFloatingPostComposer, focusPostComposer })
 
                           <!-- 举报话题 -->
                           <button
-                            v-if="viewer.isAuthenticated && !topicActions.isOwnTopic && !isTopicRemoved()"
+                            v-if="!topicActions.isOwnTopic && !isTopicRemoved()"
                             type="button"
                             role="menuitem"
                             class="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-xs font-medium text-base-content/85 transition-colors hover:bg-warning/10 hover:text-warning active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-warning/60 cursor-pointer"
@@ -2615,14 +2530,6 @@ defineExpose({ openFloatingPostComposer, focusPostComposer })
 
             <dl class="space-y-4 border-t border-line px-4 py-5 text-sm">
               <div class="flex items-center justify-between gap-4">
-                <dt class="font-semibold text-base-content/55">{{ t('topic.replyCount') }}</dt>
-                <dd class="text-right font-semibold tabular-nums text-base-content">{{ formatNumber(topicActions.replyCount) }}</dd>
-              </div>
-              <div class="flex items-center justify-between gap-4">
-                <dt class="font-semibold text-base-content/55">{{ t('topic.viewCount') }}</dt>
-                <dd class="text-right font-semibold tabular-nums text-base-content">{{ formatNumber(topicActions.viewCount) }}</dd>
-              </div>
-              <div class="flex items-center justify-between gap-4">
                 <dt class="font-semibold text-base-content/55">{{ t('topic.participants') }}</dt>
                 <dd class="text-right font-semibold tabular-nums text-base-content">{{ topicActions.participants.length }}</dd>
               </div>
@@ -2675,7 +2582,6 @@ defineExpose({ openFloatingPostComposer, focusPostComposer })
     v-if="topicActions"
     v-model:mobile-rail-open="mobilePostRailOpen"
     :open="composerOpen"
-    :actions="floatingTopicActions"
     :authenticated="viewer.isAuthenticated"
     :can-post="canPost"
     :current-label="postRailCurrentLabel"
