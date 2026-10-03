@@ -10927,7 +10927,7 @@ AiModerationDecisionItem:
         $ref: '#/AiModerationReason'
     evidenceStatus:
       type: string
-      enum: [complete, unavailable, external, too_many, jev_failed, not_configured, rate_limited]
+      enum: [complete, unavailable, external, too_many, jev_failed, not_configured, rate_limited, text_truncated]
     finalAction:
       type: string
       enum: [allow, review, block]

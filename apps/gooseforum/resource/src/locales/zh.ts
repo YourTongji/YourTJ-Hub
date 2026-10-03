@@ -446,6 +446,7 @@ export default {
     evidenceJevFailed: '判定服务出错',
     evidenceNotConfigured: '模型尚未配置',
     evidenceRateLimited: '超出判定次数上限',
+    evidenceTextTruncated: '正文过长，超出部分未经检查',
     policyAdult: '成人内容',
     policyPolitical: '政治敏感',
     policyViolence: '暴力血腥',

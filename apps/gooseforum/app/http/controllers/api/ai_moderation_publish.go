@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	"sync/atomic"
 	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
@@ -14,8 +15,28 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// afterAIFinishForTest 仅测试用：在 finishAIModeration 启动判定后调用，用于复现
+// 后台判定与请求剩余步骤的交错执行。
+var afterAIFinishForTest atomic.Pointer[func()]
+
+// SetAfterAIFinishForTest 仅测试用：设置 finishAIModeration 之后的钩子，返回恢复函数。
+func SetAfterAIFinishForTest(fn func()) func() {
+	previous := afterAIFinishForTest.Swap(&fn)
+	return func() { afterAIFinishForTest.Store(previous) }
+}
+
+// finishAIModeration 落库决策并启动后台判定（nil 安全）。必须在图片引用登记
+// 之后调用：先发后审的自动通过会把 PENDING 引用提升为 ACTIVE，登记若晚于
+// 判定，会把已公开内容的图片重新写回 PENDING。
+func finishAIModeration(check *moderationservice.AIModeration, subjectID uint64) {
+	check.Finish(subjectID)
+	if hook := afterAIFinishForTest.Load(); hook != nil && *hook != nil {
+		(*hook)()
+	}
+}
+
 // applyAIModeration 在敏感词门禁之后、写库之前接入 AI 图文审查（issue #975）。
-// 返回的 check 必须在写库后调用 Finish(subjectID) 落库决策（nil 安全）；
+// 返回的 check 必须在写库并登记图片引用后调用 finishAIModeration 落库决策；
 // pending=true 时调用方把内容置为 ProcessStatusPending；err 非空时拒绝写入，
 // 编辑器保留草稿与图片（与敏感词 block 同语义）。shadow 模式不影响本次发布；
 // 先发后审模式不等待模型，内容直接写为待审，Finish 后在后台判定。

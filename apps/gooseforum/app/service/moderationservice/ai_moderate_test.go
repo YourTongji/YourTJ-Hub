@@ -457,3 +457,26 @@ func TestAIConnectionChecks(t *testing.T) {
 		t.Fatalf("not configured check = %+v", got)
 	}
 }
+
+// 送审只带前 aiMaxVisibleTextRunes 个可见字符：尾部未经检查的长正文不能凭这次结论公开（issue #975 review）。
+func TestAIModerationTruncatedTextNeverAllows(t *testing.T) {
+	h := setupAIModeration(t, func(o *pageConfig.AiModerationOptions) { o.TextModeration = true })
+	content := strings.Repeat("普", aiMaxVisibleTextRunes+4) + " 尾部违规标记"
+	check, action := enforce(t, AIContentInput{AuthorID: 20, SubjectType: moderationDecision.SubjectTopic, Title: "长正文标题", Content: content})
+	if action != moderationDecision.ActionReview || check.decision.EvidenceStatus != moderationDecision.EvidenceTextTruncated || h.jevCalls.Load() != 1 {
+		t.Fatalf("truncated body: action=%s status=%s jev=%d", action, check.decision.EvidenceStatus, h.jevCalls.Load())
+	}
+	if state, _ := json.Marshal(h.lastJev.Load().(jevRequest).State); strings.Contains(string(state), "尾部违规标记") {
+		t.Fatal("test premise: the tail should not reach Jev")
+	}
+
+	check, action = enforce(t, AIContentInput{AuthorID: 21, SubjectType: moderationDecision.SubjectTopic, Title: strings.Repeat("题", aiMaxTitleRunes+1), Content: "短正文"})
+	if action != moderationDecision.ActionReview || check.decision.EvidenceStatus != moderationDecision.EvidenceTextTruncated {
+		t.Fatalf("truncated title: action=%s status=%s", action, check.decision.EvidenceStatus)
+	}
+
+	_, action = enforce(t, AIContentInput{AuthorID: 22, SubjectType: moderationDecision.SubjectTopic, Title: "短标题", Content: strings.Repeat("普", aiMaxVisibleTextRunes)})
+	if action != moderationDecision.ActionAllow {
+		t.Fatalf("text at the limit should still allow: %s", action)
+	}
+}

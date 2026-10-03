@@ -19,6 +19,7 @@ const EVIDENCE_KEYS: Record<string, string> = {
   jev_failed: 'evidenceJevFailed',
   not_configured: 'evidenceNotConfigured',
   rate_limited: 'evidenceRateLimited',
+  text_truncated: 'evidenceTextTruncated',
 }
 
 const fmt = (value?: number) => (value ?? 0).toFixed(2)

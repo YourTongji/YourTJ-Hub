@@ -12518,7 +12518,7 @@ export interface components {
             /** @description Why the decision has this action; empty for clean content. Older records may have none. */
             reasons: components["schemas"]["AiModerationReason"][];
             /** @enum {string} */
-            evidenceStatus: "complete" | "unavailable" | "external" | "too_many" | "jev_failed" | "not_configured" | "rate_limited";
+            evidenceStatus: "complete" | "unavailable" | "external" | "too_many" | "jev_failed" | "not_configured" | "rate_limited" | "text_truncated";
             /** @enum {string} */
             finalAction: "allow" | "review" | "block";
             /** @description Action applied to the content; always `allow` in shadow mode. In deferred mode a result superseded by a newer edit is recorded as `review` and not applied. */

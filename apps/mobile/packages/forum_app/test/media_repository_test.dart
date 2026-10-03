@@ -84,6 +84,97 @@ void main() {
   });
   Future<Uint8List> load({String url = _url, String scope = 'site:42:zh'}) =>
       cache.load(url, scopeKey: scope, apiOrigin: _origin);
+  group('pending upload previews (issue #975)', () {
+    const upload = '$_origin/file/img/2026/10/02/pending.png';
+    var tokenReads = 0;
+    Future<String?> readToken() async {
+      tokenReads++;
+      return 'session-token';
+    }
+
+    setUp(() => tokenReads = 0);
+    Future<Uint8List> loadWithSession(
+      String url, {
+      String scope = 'site:42:zh',
+    }) => cache.load(
+      url,
+      scopeKey: scope,
+      apiOrigin: _origin,
+      readAccessToken: readToken,
+    );
+
+    test('a site upload that 404s anonymously retries once with the session '
+        'and is never stored', () async {
+      http.handle = (request) async =>
+          request.headers['Authorization'] == 'Bearer session-token'
+          ? response(cache: 'private, no-store', bytes: [7, 7])
+          : response(status: 404);
+      expect(await loadWithSession(upload), [7, 7]);
+      expect(http.requests.map((r) => r.headers['Authorization']), [
+        null,
+        'Bearer session-token',
+      ]);
+      expect(await cache.usageBytes(), 0);
+    });
+
+    test('even a public answer to the session request is not stored', () async {
+      http.handle = (request) async =>
+          request.headers.containsKey('Authorization')
+          ? response()
+          : response(status: 404);
+      await loadWithSession(upload);
+      expect(await cache.usageBytes(), 0);
+    });
+
+    test('public images, other hosts, redirects and unresolved scopes never '
+        'carry the session', () async {
+      http.handle = (_) async => response();
+      await loadWithSession(upload);
+      http.handle = (_) async => response(status: 404);
+      await expectLater(
+        loadWithSession('https://cdn.example.test/file/img/x.png'),
+        throwsA(anything),
+      );
+      await expectLater(
+        loadWithSession('$_origin/image.gif'),
+        throwsA(anything),
+      );
+      await expectLater(
+        loadWithSession(upload, scope: 'pending:0'),
+        throwsA(anything),
+      );
+      http.handle = (request) async => request.uri.toString() == '$upload?r=1'
+          ? response(
+              status: 302,
+              extra: {
+                'location': [upload],
+              },
+            )
+          : response(status: 404);
+      await expectLater(loadWithSession('$upload?r=1'), throwsA(anything));
+      expect(tokenReads, 0);
+      expect(
+        http.requests.every((r) => !r.headers.containsKey('Authorization')),
+        isTrue,
+      );
+    });
+
+    test('a scope change while reading the token drops the request', () async {
+      http.handle = (_) async => response(status: 404);
+      final pending = cache.load(
+        upload,
+        scopeKey: 'site:42:zh',
+        apiOrigin: _origin,
+        readAccessToken: () async {
+          cache.invalidate();
+          return 'session-token';
+        },
+      );
+      await expectLater(pending, throwsStateError);
+      expect(http.requests, hasLength(1));
+    });
+  });
+
   test(
     'chat origin policy rejects tracking redirects before requesting them',
     () async {

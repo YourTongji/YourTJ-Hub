@@ -142,6 +142,17 @@ func HasPendingReferences(fileName string) bool {
 	return count > 0
 }
 
+// ListPendingReferences returns the content references awaiting moderation for
+// a file, so callers can authorize previews against the owning content.
+func ListPendingReferences(fileName string) (entities []Entity) {
+	builder().
+		Where(queryopt.Eq("file_name", fileName)).
+		Where(queryopt.Eq("status", UsageStatusPending)).
+		Where(queryopt.Ne("usage_type", UsageUploadOwner)).
+		Find(&entities)
+	return
+}
+
 // ReplaceStickerTx couples the definition and its active file reference.
 func ReplaceStickerTx(tx *gorm.DB, stickerID, userID uint64, fileName string) error {
 	if err := tx.Where("target_type = ? AND target_id = ? AND usage_type = ?", TargetSticker, stickerID, UsageSticker).Delete(&Entity{}).Error; err != nil {

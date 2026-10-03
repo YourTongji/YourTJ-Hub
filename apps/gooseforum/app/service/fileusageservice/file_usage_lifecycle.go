@@ -54,6 +54,11 @@ func HasPendingReferences(fileName string) bool {
 	return fileUsage.HasPendingReferences(fileName)
 }
 
+// ListPendingReferences returns the pending content references of a file.
+func ListPendingReferences(fileName string) []fileUsage.Entity {
+	return fileUsage.ListPendingReferences(fileName)
+}
+
 // HasAnyReferences reports whether a filename is tracked by the content
 // attachment lifecycle.
 func HasAnyReferences(fileName string) bool {

@@ -15,6 +15,9 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/httputil"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/filemodel/filedata"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/fileUsage"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/authsessionservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/fileusageservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/moderationservice"
@@ -100,8 +103,34 @@ func canPreviewPendingFile(c *gin.Context, referenceName string) bool {
 	if ok && permission.CheckRole(roleID, permission.SiteManager) {
 		return true
 	}
-	// 前台版主工作台同样审核待审内容（issue #975），版主需要预览待审图片。
-	return moderationservice.CanAccessModeration(userID)
+	if moderationservice.IsAdmin(userID) {
+		return true
+	}
+	// 前台版主工作台同样审核待审内容（issue #975）：版主只能预览管辖分类内的
+	// 待审图片，沿待审引用回溯到所属主题的分类逐一校验。
+	for _, usage := range fileusageservice.ListPendingReferences(referenceName) {
+		if categoryIDs := pendingUsageCategories(usage); len(categoryIDs) > 0 &&
+			moderationservice.CanModerateAnyCategory(userID, categoryIDs) {
+			return true
+		}
+	}
+	return false
+}
+
+// pendingUsageCategories 返回待审引用所属主题的分类；无法回溯到主题时返回 nil。
+func pendingUsageCategories(usage fileUsage.Entity) []uint64 {
+	topicID := usage.TargetId
+	switch usage.TargetType {
+	case fileUsage.TargetTopic:
+	case fileUsage.TargetPost:
+		topicID = posts.Get(usage.TargetId).TopicId
+	default:
+		return nil
+	}
+	if topicID == 0 {
+		return nil
+	}
+	return topics.Get(topicID).CategoryIds
 }
 
 // SaveImgByGinContext handles image uploads with size and content checks.

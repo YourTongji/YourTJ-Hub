@@ -522,7 +522,7 @@ func TestModerationWorkbenchReviewQueueIsScopedToModeratorCategories(t *testing.
 	const ownCategory, otherCategory = uint64(9751), uint64(9752)
 	author := createHTTPContractUser(t, conn, contractTestID())
 	authorToken := contractSessionToken(t, author)
-	write := func(title string, category uint64) uint64 {
+	write := func(title string, category uint64) (uint64, string) {
 		url, _ := saveContractImage(t, author.Id)
 		body, _ := json.Marshal(map[string]any{"title": title, "content": "这是一段带配图的正文 ![](" + url + ")", "categoryId": []uint64{category}, "topicStatus": 1, "contentType": 3})
 		envelope := decodeContractEnvelope(t, serveJSON(router, "/api/forum/topics/write", string(body), authorToken))
@@ -530,9 +530,10 @@ func TestModerationWorkbenchReviewQueueIsScopedToModeratorCategories(t *testing.
 		if err := json.Unmarshal(envelope.Result, &id); err != nil || envelope.MessageCode != "content.moderation.pendingReview" {
 			t.Fatalf("pending write = %+v", envelope)
 		}
-		return id
+		return id, url
 	}
-	ownTopic, otherTopic := write("版主可审核的话题", ownCategory), write("其他分类的话题", otherCategory)
+	ownTopic, _ := write("版主可审核的话题", ownCategory)
+	otherTopic, otherImage := write("其他分类的话题", otherCategory)
 
 	moderator := createHTTPContractUser(t, conn, contractTestID())
 	if err := conn.Create(&moderators.Entity{UserId: moderator.Id, ScopeType: moderators.ScopeCategory, ScopeId: ownCategory, Status: moderators.StatusEnabled, CreatedBy: moderator.Id}).Error; err != nil {
@@ -563,6 +564,19 @@ func TestModerationWorkbenchReviewQueueIsScopedToModeratorCategories(t *testing.
 	// 待审图片：版主可预览。
 	if item := result.Items[0]; len(item.Images) == 0 || getImage(router, item.Images[0], token).Code != http.StatusOK {
 		t.Fatalf("moderator cannot preview pending image: %+v", item)
+	}
+	// 其他分类的待审图片：分类版主无权预览；全局版主可以。
+	if got := getImage(router, otherImage, token); got.Code != http.StatusNotFound {
+		t.Fatalf("out-of-scope pending image status = %d, want 404", got.Code)
+	}
+	globalModerator := createHTTPContractUser(t, conn, contractTestID())
+	if err := conn.Create(&moderators.Entity{UserId: globalModerator.Id, ScopeType: moderators.ScopeGlobal, Status: moderators.StatusEnabled, CreatedBy: globalModerator.Id}).Error; err != nil {
+		t.Fatal(err)
+	}
+	moderationservice.Invalidate()
+	t.Cleanup(func() { conn.Where("user_id = ?", globalModerator.Id).Delete(&moderators.Entity{}) })
+	if got := getImage(router, otherImage, contractSessionToken(t, globalModerator)); got.Code != http.StatusOK {
+		t.Fatalf("global moderator pending image status = %d, want 200", got.Code)
 	}
 
 	other := decodeContractEnvelope(t, serveJSON(router, "/api/forum/moderation/review-action", fmt.Sprintf(`{"kind":"topic","id":%d,"approve":true}`, otherTopic), token))
@@ -601,6 +615,66 @@ func notificationCount(conn *gorm.DB, userID uint64, eventType string) int64 {
 }
 
 func deferredMode(o *pageConfig.AiModerationOptions) { o.Mode = pageConfig.AiModerationModeDeferred }
+
+// 先发后审的后台判定可能早于请求剩余步骤完成（issue #975 review）：钩子让请求在
+// 启动判定后等到自动通过生效再继续。图片引用必须在启动判定前登记，否则会把已公开
+// 内容的图片写回 PENDING。覆盖发主题、发回复与编辑回复三条路径。
+func TestAIModerationDeferredApprovalAfterImageRegistration(t *testing.T) {
+	conn, router, _ := setupAIModerationContractTest(t, deferredMode)
+	author := createHTTPContractUser(t, conn, contractTestID())
+	token := contractSessionToken(t, author)
+	var approved func() bool
+	t.Cleanup(api.SetAfterAIFinishForTest(func() { waitFor(t, "auto approval inside the request", approved) }))
+	assertPublicImage := func(step, url string) {
+		t.Helper()
+		if got := getImage(router, url, ""); got.Code != http.StatusOK {
+			t.Fatalf("%s: anonymous image after auto approval = %d, want 200", step, got.Code)
+		}
+	}
+
+	topicImage, _ := saveContractImage(t, author.Id)
+	const title = "后台判定先于图片登记"
+	approved = func() bool {
+		var topic topics.Entity
+		conn.Where("user_id = ? AND title = ?", author.Id, title).First(&topic)
+		return topic.Id != 0 && topic.ProcessStatus == topics.ProcessStatusNormal
+	}
+	if envelope := decodeContractEnvelope(t, serveJSON(router, "/api/forum/topics/write", writeTopicBody(title, "今天拍到的校园风景 ![]("+topicImage+")"), token)); envelope.Code != 0 {
+		t.Fatalf("topic envelope = %+v", envelope)
+	}
+	assertPublicImage("topic", topicImage)
+
+	topicID, firstPostID := contractTestID(), contractTestID()
+	createContractPublishedTopic(t, conn, topicID, firstPostID, author.Id)
+	replyImage, _ := saveContractImage(t, author.Id)
+	replyContent := "这是一条带配图的回复 ![](" + replyImage + ")"
+	approved = func() bool {
+		var post posts.Entity
+		conn.Where("topic_id = ? AND content = ?", topicID, replyContent).First(&post)
+		return post.Id != 0 && post.ProcessStatus == posts.ProcessStatusNormal
+	}
+	body, _ := json.Marshal(map[string]any{"topicId": topicID, "content": replyContent})
+	envelope := decodeContractEnvelope(t, serveJSON(router, "/api/forum/posts/create", string(body), token))
+	var reply struct {
+		Id uint64 `json:"id"`
+	}
+	if err := json.Unmarshal(envelope.Result, &reply); err != nil || reply.Id == 0 {
+		t.Fatalf("reply envelope = %+v", envelope)
+	}
+	assertPublicImage("reply", replyImage)
+
+	editImage, _ := saveContractImage(t, author.Id)
+	editContent := "编辑后换了一张配图 ![](" + editImage + ")"
+	approved = func() bool {
+		post := posts.Get(reply.Id)
+		return post.Content == editContent && post.ProcessStatus == posts.ProcessStatusNormal
+	}
+	body, _ = json.Marshal(map[string]any{"postId": reply.Id, "content": editContent})
+	if edit := decodeContractEnvelope(t, serveJSON(router, "/api/forum/posts/update", string(body), token)); edit.Code != 0 {
+		t.Fatalf("edit envelope = %+v", edit)
+	}
+	assertPublicImage("edit", editImage)
+}
 
 // 先发后审：发布立即返回且对他人不可见；后台判定 allow 后自动公开、图片转 ACTIVE，
 // 不打扰作者（不发通知），也不记人工标签。

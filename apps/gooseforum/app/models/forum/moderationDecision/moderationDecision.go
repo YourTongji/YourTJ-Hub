@@ -30,6 +30,7 @@ const (
 	EvidenceJevFailed     = "jev_failed"     // Jev 超时/限流/5xx/概率无效
 	EvidenceNotConfigured = "not_configured" // 端点/模型/密钥缺失
 	EvidenceRateLimited   = "rate_limited"   // 命中 AI 调用成本护栏
+	EvidenceTextTruncated = "text_truncated" // 标题或正文超出单次送审长度，未送审部分未经检查
 )
 
 // 人工结论（审核队列 approve/reject 或管理端标注）。

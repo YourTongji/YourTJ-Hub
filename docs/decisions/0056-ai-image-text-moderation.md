@@ -55,7 +55,9 @@ synchronously and extends the HTTP write deadline only for requests that call mo
 through the same review implementation as the queue: `allow` publishes it silently, `block` rejects it and
 notifies the author, `review` and every failure leave it in the review queue. A per-subject generation
 counter plus a title/body comparison discard a background result once the author has edited again, and
-disallowed external images are still rejected synchronously because no model call is needed. In-flight
+disallowed external images are still rejected synchronously because no model call is needed. Jev sees at
+most 300 title and 4,000 visible body characters; longer content is marked `text_truncated` evidence and
+never auto-published, because the unsent part was not checked. In-flight
 checks are process-local: a restart leaves the content pending for a reviewer (fail-closed). Every decision is
 stored in `moderation_ai_decisions` with policy revision/hash, models, raw probabilities, evidence
 status, final and applied action; review-queue outcomes and manual labels are written back, and the
@@ -63,8 +65,12 @@ admin replay endpoint recomputes a confusion matrix from stored probabilities. T
 `enforce` only after shadow samples are labeled and replayed; demo thresholds are not used as-is.
 
 Pending images use an explicit `PENDING` usage status (applies to sensitive-word review too).
-`/file/img/*` returns 404 for anonymous readers and other users, serves the uploader and SiteManager
-reviewers with `Cache-Control: private, no-store`, and approval/unblock promotes the rows to `ACTIVE`.
+`/file/img/*` returns 404 for anonymous readers and other users, serves the uploader, SiteManager
+reviewers and moderators whose scope covers the owning topic's categories with `Cache-Control: private,
+no-store`, and approval/unblock promotes the rows to `ACTIVE`. Usages are registered before the
+background check starts, so an early automatic approval always finds them. The app requests images
+anonymously and retries a 404 from the site's own `/file/img/` path once with the session, never across
+redirects or to other hosts, and never stores the authenticated response on disk.
 Private-until-bound for every upload was not chosen: it changes all new uploads, cannot distinguish
 legacy normal uploads that have no owner row, and needs an owner preview path for every editor.
 

@@ -12,6 +12,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/eventbus"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/imagepolicy"
@@ -42,6 +43,7 @@ const (
 	aiVisionConcurrency      = 3
 	aiEvidenceCacheTTL       = 24 * time.Hour
 	aiMaxVisibleTextRunes    = 4000
+	aiMaxTitleRunes          = 300
 	aiReviewEvidenceRunes    = 600
 	aiBudgetMargin           = 3 * time.Second
 	aiMaxBudget              = 50 * time.Second
@@ -375,6 +377,10 @@ func (m *AIModeration) evaluate(ctx context.Context) *moderationDecision.Entity 
 		hub = hub[:cfg.MaxImagesPerDecision]
 		markIncomplete(moderationDecision.EvidenceTooMany)
 	}
+	// 模型只看到截断后的标题与正文；未送审的部分不能凭这次结论公开，截断即转人工。
+	if textExceedsJevLimit(m.input) {
+		markIncomplete(moderationDecision.EvidenceTextTruncated)
+	}
 	results := m.collectEvidence(ctx, hub)
 	evidenceForJev := make([]map[string]any, 0, len(results))
 	for index, result := range results {
@@ -544,6 +550,12 @@ func collectModerationImages(content string, gallery []string) ([]aiHubImage, []
 	return hub, external
 }
 
+// textExceedsJevLimit 报告标题或可见正文是否超出单次 Jev 请求的送审长度。
+func textExceedsJevLimit(input AIContentInput) bool {
+	return utf8.RuneCountInString(strings.TrimSpace(input.Title)) > aiMaxTitleRunes ||
+		utf8.RuneCountInString(strings.TrimSpace(markdown2html.ExtractVisibleText(input.Content))) > aiMaxVisibleTextRunes
+}
+
 // buildJevRequest 构造一次 Jev 请求：每条启用政策一个并行 Noul（违规可共存，
 // 不用单一 Choice 互相分摊概率）+ severity Score + review_needed Noul。
 // 站点规则原文写在 state.policy 中，问题通过字段路径引用，模型按站点定义判断。
@@ -583,7 +595,7 @@ func buildJevRequest(opts pageConfig.AiModerationOptions, input AIContentInput, 
 		Model: opts.JevModel,
 		State: map[string]any{
 			"content": map[string]string{
-				"title":        truncateEvidence(input.Title, 300),
+				"title":        truncateEvidence(input.Title, aiMaxTitleRunes),
 				"visible_text": truncateEvidence(markdown2html.ExtractVisibleText(input.Content), aiMaxVisibleTextRunes),
 			},
 			"images":                  evidence,

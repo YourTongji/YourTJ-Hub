@@ -446,6 +446,7 @@ export default {
     evidenceJevFailed: 'The decision service failed',
     evidenceNotConfigured: 'Models aren’t configured',
     evidenceRateLimited: 'Decision limit reached',
+    evidenceTextTruncated: 'Text too long; the rest was not checked',
     policyAdult: 'Adult content',
     policyPolitical: 'Political sensitivity',
     policyViolence: 'Violence and gore',

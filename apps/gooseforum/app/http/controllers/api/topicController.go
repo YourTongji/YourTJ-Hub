@@ -427,10 +427,10 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 		return component.FailResponseCode(component.MessageOperationFailed, nil)
 	}
 
-	aiCheck.Finish(topic.Id)
 	// 待审内容的图片登记为 PENDING：审核通过前对匿名读者不可读（issue #975）。
 	fileusageservice.RegisterTopicInlineImagesOwned(topic.Id, req.UserId, firstPost.Content, topic.ImageUrls,
 		topic.ProcessStatus == topics.ProcessStatusPending)
+	finishAIModeration(aiCheck, topic.Id)
 	categoryIDs := append(append([]uint64(nil), oldCategoryIds...), topic.CategoryIds...)
 	hotdataserve.InvalidateTopicListCacheForCategories(categoryIDs...)
 	if isEdit {
@@ -679,8 +679,8 @@ func createPost(req component.BetterRequest[CreatePostReq], agent bool) componen
 	if err := topicunseenservice.MarkVisited(req.UserId, topicEntity.Id, postEntity.Id, time.Now()); err != nil {
 		slog.Warn("mark created post visited failed", "userId", req.UserId, "topicId", topicEntity.Id, "postId", postEntity.Id, "error", err)
 	}
-	aiCheck.Finish(postEntity.Id)
 	fileusageservice.RegisterPostInlineImagesOwned(postEntity.Id, req.UserId, postEntity.Content, pendingReview)
+	finishAIModeration(aiCheck, postEntity.Id)
 	if !pendingReview {
 		userStatistics.WriteComment(req.UserId)
 	}
@@ -868,18 +868,18 @@ func UpdatePost(req component.BetterRequest[UpdatePostReq]) component.Response {
 	postEntity.LastEditorId = req.UserId
 	postEntity.LastEditedAt = &now
 
-	if isFirstPost {
-		aiCheck.Finish(topicEntity.Id)
-	} else {
-		aiCheck.Finish(postEntity.Id)
-	}
 	fileusageservice.RegisterPostInlineImagesOwned(postEntity.Id, req.UserId, postEntity.Content,
 		postEntity.ProcessStatus == posts.ProcessStatusPending)
 	if isFirstPost {
-		// 首楼编辑联动：附件重映射、列表缓存、搜索索引与业务事件
-		// （TopicUpdatedEvent 驱动通知/webhook/搜索），与 writeTopic 编辑分支一致。
 		fileusageservice.RegisterTopicInlineImagesOwned(topicEntity.Id, req.UserId, postEntity.Content, nil,
 			topicEntity.ProcessStatus == topics.ProcessStatusPending)
+		finishAIModeration(aiCheck, topicEntity.Id)
+	} else {
+		finishAIModeration(aiCheck, postEntity.Id)
+	}
+	if isFirstPost {
+		// 首楼编辑联动：附件重映射、列表缓存、搜索索引与业务事件
+		// （TopicUpdatedEvent 驱动通知/webhook/搜索），与 writeTopic 编辑分支一致。
 		hotdataserve.InvalidateTopicListCacheForCategories(topicEntity.CategoryIds...)
 		llmsservice.ClearCache()
 		if topicEntity.Status == 1 && !pendingReview {

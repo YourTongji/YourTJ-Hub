@@ -446,6 +446,7 @@ export default {
     evidenceJevFailed: '判定サービスでエラーが起きた',
     evidenceNotConfigured: 'モデルが未設定だった',
     evidenceRateLimited: '判定回数の上限に達した',
+    evidenceTextTruncated: '本文が長すぎ、超過分は未確認',
     policyAdult: '成人向け',
     policyPolitical: '政治的に敏感',
     policyViolence: '暴力・流血',
