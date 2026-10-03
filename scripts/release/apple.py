@@ -30,8 +30,10 @@ def discover():
                 and any(group['id'] == GROUP_ID for group in groups)):
             distributed.append((build['attributes']['uploadedDate'], identity(build) | {'state': attrs['externalBuildState']}))
     testflight = max(distributed, key=lambda row: row[0])[1] if distributed else None
+    # ASC 5's documented live-version query uses the appStoreState family.
+    # READY_FOR_DISTRIBUTION belongs to appVersionState and cannot be mixed here.
     versions = asc('versions', 'list', '--app', APP_ID, '--platform', 'IOS', '--state',
-                   'READY_FOR_SALE,READY_FOR_DISTRIBUTION', '--latest', '--include', 'build')
+                   'READY_FOR_SALE', '--latest', '--include', 'build')
     require(len(versions['data']) <= 1, 'Ambiguous live App Store baseline')
     store = None
     if versions['data']:
