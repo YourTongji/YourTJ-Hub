@@ -2,11 +2,13 @@
 import unittest
 import json
 import tempfile
+import subprocess
 from pathlib import Path
 from unittest.mock import patch
 
-from model import ReleaseError
-from catalog import successful_channels, public_app_store_version, build_catalog, previous_store_builds
+from model import FILES, ReleaseError, render_changelog, validate_candidate
+from test_model import candidate
+from catalog import successful_channels, public_app_store_version, build_catalog, previous_store_builds, candidate_content_digest
 
 
 class FakeGitHub:
@@ -33,6 +35,69 @@ def deployment(identity, channel, availability, *, state="success", digest=None)
 
 
 class CatalogReceiptTests(unittest.TestCase):
+    def test_reviewed_store_correction_uses_merge_order_not_receipt_retry_order(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            def git(*args):
+                return subprocess.check_output(['git', '-C', str(root), *args], text=True).strip()
+            git('init', '-q', '-b', 'main')
+            git('config', 'user.name', 'Fixture')
+            git('config', 'user.email', 'fixture@example.org')
+            original = candidate()['candidateId']
+            manifests = {}
+            rows = {'android': [], 'ios-app-store': [], 'statuses': {}}
+            for index, identity in enumerate((original, original + '-store-1', original + '-store-2')):
+                channels = ['android', 'ios-app-store'] if index == 0 else ['ios-app-store']
+                manifest = candidate() | {'schemaVersion': 2, 'candidateId': identity, 'channels': channels,
+                    'notes': {c: FILES[c] for c in channels},
+                    'baselines': {c: {'tag': None, 'sourceSha': None} for c in channels}}
+                if index:
+                    manifest.update(operation='promote-ios', existingRelease={'candidateId': original, 'buildId': 'apple-15'})
+                folder = root / 'releases/requests' / identity
+                folder.mkdir(parents=True)
+                changelog = {'schemaVersion': 1, 'version': manifest['version'], 'buildNumber': manifest['buildNumber'],
+                    'highlights': [{'id': c, 'title': 'Update', 'summary': f'Copy {index}', 'kind': 'feature',
+                                    'platforms': [c]} for c in channels],
+                    'breaking': [], 'requiredActions': [], 'testflightNotes': [],
+                    'evidence': {c: [c] for c in channels}}
+                (folder / 'manifest.json').write_text(json.dumps(manifest))
+                (folder / 'changelog.json').write_text(json.dumps(changelog))
+                (folder / 'evidence.json').write_text(json.dumps({'schemaVersion': 1, 'sourceSha': manifest['sourceSha'],
+                    'evidence': [{'id': c, 'channels': [c]} for c in channels]}))
+                for channel in channels:
+                    (folder / FILES[channel]).write_text(render_changelog(changelog, channel))
+                    row = deployment(identity, channel, 'available' if channel == 'android' else 'READY_FOR_DISTRIBUTION', digest='b' * 64)
+                    row['id'] = identity + channel
+                    row['payload']['tag'] = manifest['tag']
+                    row['payload']['details']['buildId'] = 'apple-15'
+                    rows[channel].append(row)
+                validate_candidate(manifest, folder)
+                for row in (r for c in channels for r in rows[c] if r['payload']['candidateId'] == identity):
+                    row['payload']['binding'] = {'sourceSha': manifest['sourceSha'], 'contentDigest': candidate_content_digest(folder)}
+                manifests[identity] = manifest, folder
+                git('add', '.')
+                git('commit', '-qm', f'Reviewed candidate {index}')
+            # Original receipt retried last; list order must not roll back reviewed copy.
+            with patch('catalog.git', side_effect=git), \
+                 patch('catalog.load_published_candidate', side_effect=lambda cid, _: manifests[cid]), \
+                 patch('catalog.public_app_store_version', return_value=None):
+                for reverse in (False, True):
+                    if reverse:
+                        rows['ios-app-store'].reverse()
+                    catalog = build_catalog(FakeGitHub(rows))
+                    entries = {e['id']: e for e in catalog['releases'][0]['highlights']}
+                    self.assertEqual(entries['ios-app-store']['summary'], 'Copy 2')
+                    self.assertEqual(entries['android']['summary'], 'Copy 0')
+                # A different source or unrelated promotion may not supersede this binary.
+                newer, folder = manifests[original + '-store-2']
+                for change in ({'sourceSha': 'c' * 40},
+                               {'existingRelease': {'candidateId': 'mobile-9.0.0-15', 'buildId': 'apple-15'}},
+                               {'existingRelease': {'candidateId': original, 'buildId': 'other-build'}}):
+                    manifests[newer['candidateId']] = newer | change, folder
+                    with self.assertRaises(ReleaseError):
+                        build_catalog(FakeGitHub(rows))
+                manifests[newer['candidateId']] = newer, folder
+
     def test_requires_successful_receipts_and_channel_specific_public_availability(self):
         rows = {
             "android": [deployment("mobile-1.2.3-23", "android", "available", digest="b" * 64)],

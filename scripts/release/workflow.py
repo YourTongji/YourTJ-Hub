@@ -67,8 +67,11 @@ def main():
         output = (args.folder / "oryn-output.json").resolve()
 
         def run_oryn(timeout):
+            # Let Oryn terminate its detached worker before the outer retry deadline.
+            # Later attempts may have much less budget than the configured first attempt.
+            env = {**os.environ, "ORYN_TASK_TIMEOUT_SECONDS": str(max(10, int(timeout) - 60))}
             subprocess.run(["bun", "script/release-notes.ts", str(model_input), str(output)],
-                           cwd=".oryn-runtime", check=True, timeout=timeout)
+                           cwd=".oryn-runtime", check=True, timeout=timeout, env=env)
         status = draft_notes(json.loads((folder / "manifest.json").read_text(encoding='utf-8')), folder,
                              model_input.read_bytes(), output, run_oryn,
                              attempts=int(os.environ.get("ORYN_NOTES_ATTEMPTS", "3")),

@@ -106,7 +106,7 @@ class MobileUpdateHostState extends State<MobileUpdateHost>
         builder: (_) => _UpdateDialog(
           release: release,
           installedVersion: info['version'] as String?,
-          installedBuild: (info['buildNumber'] as num).toInt(),
+          installedBuild: (info['catalogBuildNumber'] as num).toInt(),
           client: _client,
           preferences: preferences,
         ),

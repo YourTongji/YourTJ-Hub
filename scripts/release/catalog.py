@@ -96,6 +96,28 @@ def candidate_content_digest(folder):
                    for path in sorted(folder.iterdir())})
 
 
+def newer_store_correction(first, second):
+    """Choose reviewed copy by main merge order, never by a publisher's retry time."""
+    identity = ("version", "buildNumber", "tag", "sourceSha")
+    require(all(first[key] == second[key] for key in identity), "Store correction changes binary identity")
+    original = f"mobile-{first['version']}-{first['buildNumber']}"
+    build_ids = set()
+    for manifest in (first, second):
+        if manifest.get("operation") == "release":
+            require(manifest["candidateId"] == original, "Store correction has an unrelated original")
+        else:
+            existing = manifest.get("existingRelease") or {}
+            require(manifest.get("operation") == "promote-ios" and existing.get("candidateId") == original,
+                    "Store correction must promote the same original candidate")
+            build_ids.add(existing.get("buildId"))
+    require(len(build_ids) == 1, "Store corrections must use the same Apple build")
+    paths = {f"releases/requests/{m['candidateId']}/manifest.json": m["candidateId"] for m in (first, second)}
+    history = git("log", "--first-parent", "--format=", "--name-only", "HEAD", "--", *paths).splitlines()
+    newest = next((paths[path] for path in history if path in paths), None)
+    require(newest is not None, "Store correction has no merged candidate history")
+    return newest
+
+
 def build_catalog(github, published_at=None, verified_store_builds=()):
     paths = candidate_paths()
     receipts = successful_channels(github, public_app_store_version(), verified_store_builds)
@@ -118,13 +140,18 @@ def build_catalog(github, published_at=None, verified_store_builds=()):
                         and binding.get("sourceSha") == manifest["sourceSha"]
                         and binding.get("contentDigest") == candidate_content_digest(folder),
                         "Successful receipt does not match merged reviewed candidate bytes")
+                if manifest.get("operation") == "promote-ios":
+                    require((payload.get("details") or {}).get("buildId") == manifest["existingRelease"]["buildId"],
+                            "Promotion receipt does not match the reviewed Apple build")
             record = by_build.setdefault((manifest["version"], manifest["buildNumber"]),
                                          {"version": manifest["version"], "buildNumber": manifest["buildNumber"],
                                           "channelCandidates": {}})
             for channel in channels:
                 existing = record["channelCandidates"].get(channel)
-                require(existing is None or existing[0]["candidateId"] == manifest["candidateId"],
-                        "Two successful release candidates claim the same build/channel")
+                if existing is not None and existing[0]["candidateId"] != manifest["candidateId"]:
+                    require(channel == "ios-app-store", "Two successful release candidates claim the same build/channel")
+                    if newer_store_correction(existing[0], manifest) != manifest["candidateId"]:
+                        continue
                 record["channelCandidates"][channel] = (manifest, folder / CHANGELOG if manifest["schemaVersion"] >= 2 else None)
                 # Keep the temp directory alive until the generated catalog is written below.
                 # The caller receives only copied JSON values, so copy the structured source now.

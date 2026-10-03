@@ -14,9 +14,14 @@ Repair publication additionally requires sandboxed application validation and an
 
 ## Execution and policy
 
+The manual `release_notes_smoke` dispatch exercises the same `workflow.py draft-notes` retry path as
+Prepare for mobile, iOS-only TestFlight, and web/operators historical ranges. Each job validates the
+rendered candidate and uploads its draft/status evidence without publishing a release or supplying
+human approval. Runtime protocol tests and the deterministic Core smoke also run in Oryn's CI.
+
 [Oryn workflow](../../.github/workflows/oryn.yml) runs on this repository's Actions runners. The trusted
 [setup action](../../.github/actions/setup-oryn/action.yml) loads
-[Oryn Mini at an immutable commit](https://github.com/yzxoi/oryn-mini/tree/09337b75d286d4651025c8a1d28a248cd3ed5fc9)
+[Oryn Mini at an immutable commit](https://github.com/yzxoi/oryn-mini/tree/e4a75d61bcc84b74c3216162f79bb7433af30e6e)
 and applies [this repository's policy](../../.github/oryn/repositories.json). Oryn's public Synergy core
 creates a fresh temporary home per invocation; no server, database or reusable model history is deployed.
 GitHub comments contain bounded queue receipts; Actions artifacts expire after seven days. New

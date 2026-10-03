@@ -161,8 +161,6 @@ def validate_candidate(manifest, folder, draft=False):
                     and set(item["evidenceIds"]) <= set(changelog["evidence"][item["id"]]),
                     f"TestFlight note {item['id']} must reference the same reviewed changelog evidence")
         if not draft:
-            require(changelog["highlights"] or changelog["breaking"] or changelog["requiredActions"],
-                    "A published mobile candidate needs at least one reviewed changelog entry")
             for channel in channels:
                 require(render_changelog(changelog, channel).strip(),
                         f"{channel} has no reviewed changelog entry; users must not receive an update without notes")

@@ -120,6 +120,14 @@ def _stable_id(base, used):
     return candidate
 
 
+def _validate_oryn_metadata(item):
+    require("kind" not in item or item["kind"] in KINDS, "Invalid Oryn kind")
+    for field, limit in (("title", 100), ("summary", 400)):
+        require(field not in item or isinstance(item[field], str) and 0 < len(item[field].strip()) <= limit,
+                f"Invalid Oryn {field}")
+    require("required" not in item or isinstance(item["required"], bool), "Invalid Oryn required flag")
+
+
 def _draft_changelog(manifest, folder, request, result, response, replace=False):
     folder = Path(folder)
     changelog_path = folder / CHANGELOG
@@ -141,6 +149,7 @@ def _draft_changelog(manifest, folder, request, result, response, replace=False)
                 and isinstance(item["evidenceIds"], list) and item["evidenceIds"], "Invalid Oryn changelog draft")
         require(all(reference in evidence and channel in evidence[reference]["channels"]
                     for reference in item["evidenceIds"]), "Unknown or cross-platform changelog evidence")
+        _validate_oryn_metadata(item)
         entries[channel].append(item)
 
     evidence_path = folder / "evidence.json"
@@ -243,7 +252,9 @@ def _render_legacy(manifest, folder, request, result, response, replace):
     channels = manifest["channels"] + (["operators"] if manifest["product"] == "web" else [])
     entries = {channel: [] for channel in channels}
     for item in result["entries"]:
-        require(set(item) == {"channel", "text", "evidenceIds"}, "Unknown note fields")
+        allowed = ORYN_FIELDS | ORYN_OPTIONAL if manifest["product"] == "mobile" else ORYN_FIELDS
+        require(isinstance(item, dict) and ORYN_FIELDS <= set(item) <= allowed, "Unknown note fields")
+        _validate_oryn_metadata(item)
         channel = item["channel"]
         require(channel in entries and item["text"].strip() and item["evidenceIds"], "Invalid note entry")
         require(all(reference in evidence and channel in evidence[reference]["channels"]

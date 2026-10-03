@@ -99,8 +99,12 @@ regeneration. A store icon update requires a new IPA/build; already submitted bi
 
 Flutter 3.44.9 produces three signed APKs. Their **actual** Android version codes are base build `N`
 plus `1000` (armeabi-v7a), `2000` (arm64-v8a) or `4000` (x86_64). Asset names contain that actual
-code: `YourTJ-X.Y.Z+CODE-ABI.apk`. iOS uses the unmodified base `N`. The publisher verifies package,
-version, ABI and signing certificate before writing `SHA256SUMS.txt` or uploading. Changing Flutter's
+code: `YourTJ-X.Y.Z+CODE-ABI.apk`. iOS uses the unmodified base `N`.
+The Android app exposes that base `N` from its build configuration for catalog matching. The
+download candidate subtracts its selected APK ABI's fixed offset; base builds above 999 retain
+their full identity. APK update/install comparisons still use actual Android version codes.
+The publisher verifies package, version, ABI and signing certificate before writing `SHA256SUMS.txt`
+or uploading. Changing Flutter's
 split-code algorithm requires updating the validator; a mismatch fails the release. Certificate
 validation accepts both numbered signer output and Build Tools 37 scheme labels. Repeated identical
 certificates across schemes represent one identity; conflicting certificates, public-key digests and

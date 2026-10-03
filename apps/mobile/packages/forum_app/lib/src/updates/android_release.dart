@@ -30,6 +30,7 @@ class AndroidRelease {
     required this.sha256Digest,
     this.notes = const [],
     this.hasCompleteHistory = false,
+    this.catalogBuildNumber,
   });
 
   final String version;
@@ -39,6 +40,7 @@ class AndroidRelease {
   final String sha256Digest;
   final List<ReleaseNote> notes;
   final bool hasCompleteHistory;
+  final int? catalogBuildNumber;
 
   /// Metadata is accepted only from GitHub's HTTPS API, never from APK mirrors.
   /// GitHub computes the digest itself when the signed asset is uploaded.
@@ -96,6 +98,12 @@ class AndroidRelease {
             url: url,
             size: size,
             sha256Digest: digest.substring(7).toLowerCase(),
+            catalogBuildNumber: switch (abi) {
+              'armeabi-v7a' => number - 1000,
+              'arm64-v8a' => number - 2000,
+              'x86_64' => number - 4000,
+              _ => null,
+            },
           );
           break;
         }
@@ -153,11 +161,7 @@ class AndroidReleaseClient {
     return AndroidRelease.latest(response.data as List, abis, installedBuild);
   }
 
-  /// Split APK version codes add an ABI offset (1000/2000/4000, see
-  /// `scripts/mobile-release/publish_android.py`); the release catalog records
-  /// the shared build number.
-  static int catalogBuild(int versionCode) => versionCode % 1000;
-
+  /// [installedBuild] is the base build from native BuildConfig, before ABI offsets.
   Future<AndroidRelease> withNotes(
     AndroidRelease release,
     int installedBuild, {
@@ -166,9 +170,11 @@ class AndroidReleaseClient {
     try {
       final catalog = await loadHistory(refresh: refresh);
       if (catalog == null) return release;
+      final targetBuild = release.catalogBuildNumber;
+      if (targetBuild == null || targetBuild <= 0) return release;
       final notes = catalog.notesForUpdate(
-        installedBuild: catalogBuild(installedBuild),
-        targetBuild: catalogBuild(release.buildNumber),
+        installedBuild: installedBuild,
+        targetBuild: targetBuild,
         platform: 'android',
         channel: 'android',
       );
@@ -178,10 +184,11 @@ class AndroidReleaseClient {
         url: release.url,
         size: release.size,
         sha256Digest: release.sha256Digest,
+        catalogBuildNumber: targetBuild,
         notes: notes,
         hasCompleteHistory: catalog.hasCompleteRange(
-          installedBuild: catalogBuild(installedBuild),
-          targetBuild: catalogBuild(release.buildNumber),
+          installedBuild: installedBuild,
+          targetBuild: targetBuild,
           channel: 'android',
         ),
       );

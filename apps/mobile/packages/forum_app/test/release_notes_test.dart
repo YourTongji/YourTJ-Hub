@@ -427,7 +427,7 @@ void main() {
         ['arm64-v8a'],
         2004,
       )!;
-      final decorated = await client.withNotes(selected, 2004, refresh: false);
+      final decorated = await client.withNotes(selected, 4, refresh: false);
       expect(decorated.buildNumber, 2007);
       expect(decorated.notes.map((entry) => entry.id), [
         'important-change',
@@ -436,6 +436,34 @@ void main() {
       expect(decorated.hasCompleteHistory, isTrue);
     },
   );
+
+  test('Android notes preserve base builds above 999', () async {
+    final body = catalog();
+    body['releases'] = [
+      release(1001, highlights: [note('large-build', 'Update')]),
+    ];
+    body['historyCoverage']['byChannel'] = {
+      'android': {
+        'completeFromBuild': 1000,
+        'throughBuild': 1001,
+        'coveredBuilds': [1001],
+      },
+    };
+    SharedPreferences.setMockInitialValues({
+      'mobile.releaseNotes.${Uri.encodeComponent(mobileReleaseNotesUrl)}.json':
+          jsonEncode(body),
+    });
+    final client = AndroidReleaseClient()
+      ..notesPreferences = await SharedPreferences.getInstance();
+    final selected = AndroidRelease.latest(
+      [releaseFixture(versionCode: 3001)],
+      ['arm64-v8a'],
+      3000,
+    )!;
+    final decorated = await client.withNotes(selected, 1000, refresh: false);
+    expect(decorated.notes.map((entry) => entry.id), ['large-build']);
+    expect(decorated.hasCompleteHistory, isTrue);
+  });
 
   test(
     'follows only HTTPS GitHub release asset redirects without credentials',

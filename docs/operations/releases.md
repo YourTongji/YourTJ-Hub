@@ -125,8 +125,11 @@ PRs' conventional title type or branch prefix (`feat` new, `fix` fixed, security
 security, otherwise improved). Its ID is `pr-<number>`, with `-ios` or `-beta` for iOS channels.
 A breaking `type!:` PR places it under required changes. Title and summary are split at a leading
 `标题：` or the first short sentence. Manifest disclosures become required entries with their
-exact text. Optional `kind`, `title`, `summary` and `required` fields from Oryn take precedence
-when valid. Entries without a linked PR keep a text-hash `oryn-` ID, which the reviewer replaces
+exact text. Optional mobile `kind`, `title`, `summary` and `required` fields from Oryn take precedence;
+invalid supplied fields fail the attempt and trigger retry. Only absent fields use inference.
+Android/App Store text is at most 400 characters, TestFlight text at most 500, titles 1–100,
+summaries 1–400, and `required` must be boolean. Web/operators retain their three-field entry format.
+Entries without a linked PR keep a text-hash `oryn-` ID, which the reviewer replaces
 with a concise semantic slug. The reviewer still checks wording, kind and grouping before approval.
 Android notes use the app's sections: required, security, new, improved and fixed. A summary that
 only restates its title is rendered once.
@@ -142,6 +145,11 @@ The status site's `/mobile/releases.json` route proxies this fixed asset with bo
 timeout, conditional ETags and stale-capable CDN caching. It is display-only and contains no evidence.
 Normal release publication refreshes the catalog; operators may run the trusted-main manual refresh
 workflow after reconciling a receipt or catalog failure.
+For multiple successful App Store requests for the same binary, the most recently merged reviewed
+request supplies its store copy. Supersession requires the same source/tag/version/build and a promotion
+of the original candidate and Apple build. Publisher retries cannot restore older copy, and another
+platform's notes are preserved. TestFlight-only requests are complete with reviewed TestFlight entries;
+they do not require artificial Android or App Store highlights.
 
 ## Verification and publication
 

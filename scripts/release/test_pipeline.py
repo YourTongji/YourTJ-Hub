@@ -16,6 +16,7 @@ from model import FILES, ReleaseError, digest, validate_candidate
 from notes import draft_notes, render
 from cli import execute, parser
 from test_model import candidate
+import workflow
 
 
 class FakeGitHub:
@@ -90,6 +91,17 @@ class PipelineTest(unittest.TestCase):
         self.assertEqual(note.read_text(encoding='utf-8'), '人工修改后的 Android 说明。')
         response['inputSha256'] = '0' * 64
         with self.assertRaises(ReleaseError): render(manifest, self.root, response, raw, replace=True)
+
+    def test_legacy_mobile_promotions_accept_new_oryn_metadata(self):
+        manifest = candidate() | {'channels': ['ios-app-store'], 'notes': {'ios-app-store': FILES['ios-app-store']},
+                                  'baselines': {'ios-app-store': {'tag': None, 'sourceSha': None}}}
+        raw = json.dumps({'evidence': [{'id': 'ios', 'channels': ['ios-app-store']}]}).encode()
+        (self.root / 'evidence.json').write_text(json.dumps({'schemaVersion': 1, 'sourceSha': manifest['sourceSha']}))
+        response = self.oryn(raw, [{'channel': 'ios-app-store', 'text': '修复课程显示。', 'evidenceIds': ['ios'],
+                                    'kind': 'fix', 'title': '课程修复', 'summary': '课程正确显示。', 'required': False}])
+        render(manifest, self.root, response, raw)
+        validate_candidate(manifest, self.root)
+        self.assertEqual((self.root / FILES['ios-app-store']).read_text().strip(), '修复课程显示。')
 
     def test_schema_two_oryn_rerender_preserves_all_original_bytes_without_replace(self):
         manifest = candidate() | {"schemaVersion": 2}
@@ -266,6 +278,42 @@ class PipelineTest(unittest.TestCase):
         status, _, pending = self.run_draft(manifest, folder, raw, [OSError('provider down')] * 3,
                                             budget=2030, clock=lambda: next(clock))
         self.assertEqual((status['status'], len(pending)), ('failed', 2))
+
+    def test_ios_only_testflight_draft_passes_final_channel_validation(self):
+        manifest, folder, raw = self.draft_fixture(['ios-testflight'])
+        response = self.oryn(raw, [{'channel': 'ios-testflight', 'text': 'Verify the iOS widget.',
+                                   'evidenceIds': ['e-ios-testflight']}])
+        status, _, _ = self.run_draft(manifest, folder, raw, [response])
+        self.assertEqual(status['status'], 'complete')
+        validate_candidate(manifest, folder)
+
+    def test_retry_passes_remaining_budget_to_oryn_worker(self):
+        manifest, folder, raw = self.draft_fixture(['android'])
+        (folder / 'manifest.json').write_text(json.dumps(manifest))
+        (folder.parent / 'oryn-input.json').write_bytes(raw)
+        def draft(*args, **kwargs):
+            args[4](125)
+            return {'status': 'complete', 'missing': [], 'attempts': [], 'stopped': None}
+        with patch('sys.argv', ['workflow.py', 'draft-notes', '--folder', str(folder.parent)]), \
+             patch('workflow.draft_notes', side_effect=draft), \
+             patch('workflow.subprocess.run') as run:
+            workflow.main()
+        self.assertEqual(run.call_args.kwargs['env']['ORYN_TASK_TIMEOUT_SECONDS'], '65')
+        self.assertEqual(run.call_args.kwargs['timeout'], 125)
+
+    def test_invalid_optional_oryn_fields_retry_without_losing_required_markers(self):
+        manifest, folder, raw = self.draft_fixture(['android'])
+        good = {'channel': 'android', 'text': '登录更新：请重新登录。', 'evidenceIds': ['e-android'],
+                'kind': 'security', 'title': '登录更新', 'summary': '请重新登录。', 'required': True}
+        bad = [{'kind': 'unknown'}, {'title': 'x' * 101}, {'title': ''},
+               {'summary': 'x' * 401}, {'required': 'true'}]
+        outcomes = [self.oryn(raw, [good | change]) for change in bad] + [self.oryn(raw, [good])]
+        status, _, _ = self.run_draft(manifest, folder, raw, outcomes, attempts=len(outcomes))
+        self.assertEqual(len(status['attempts']), len(outcomes))
+        self.assertTrue(all(item['error'] for item in status['attempts'][:-1]))
+        changelog = json.loads((folder / 'changelog.json').read_text())
+        self.assertEqual(len(changelog['breaking']), 1)
+        validate_candidate(manifest, folder)
 
     def test_a_draft_missing_a_channel_is_retried_then_kept_for_human_completion(self):
         manifest, folder, raw = self.draft_fixture(['android', 'ios-testflight'])
