@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 2,
+  "candidateId": "mobile-1.0.15-16",
+  "sourceSha": "b4e3bedfc55474f258561f5092e22f1651748fc2",
+  "product": "mobile",
+  "version": "1.0.15",
+  "tag": "mobile-v1.0.15",
+  "buildNumber": 16,
+  "channels": [
+    "android",
+    "ios-testflight",
+    "ios-app-store"
+  ],
+  "operation": "release",
+  "existingRelease": null,
+  "baselines": {
+    "android": {
+      "tag": "mobile-v1.0.14",
+      "sourceSha": "1a4c04c1752dd76f14e4d708fbb150609a2f72de"
+    },
+    "ios-testflight": {
+      "tag": "mobile-v1.0.14",
+      "sourceSha": "1a4c04c1752dd76f14e4d708fbb150609a2f72de",
+      "buildId": "172a6094-f00a-40bc-99db-36e0f4cc0964",
+      "state": "IN_BETA_TESTING"
+    },
+    "ios-app-store": {
+      "tag": "mobile-v1.0.11",
+      "sourceSha": "1ec1eac38c76f7302461e39cf4d3996210cd98b3",
+      "buildId": "887d648d-6f18-4139-b7fa-869e36af3d2d",
+      "state": "READY_FOR_SALE"
+    }
+  },
+  "notes": {
+    "android": "android.zh-CN.md",
+    "ios-testflight": "testflight.en-US.txt",
+    "ios-app-store": "ios.zh-Hans.txt"
+  },
+  "serverRequirement": null,
+  "requiredDisclosures": []
+}
