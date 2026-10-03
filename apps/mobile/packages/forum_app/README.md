@@ -1,5 +1,9 @@
 # forum_app
 
+`Current`：YourTJ App 已正式发布，[官网](https://yourtj.de/#download)提供 App Store 与 Android APK
+下载入口。分发状态和更新机制见[移动端体验](../../../../docs/product/mobile-experience.md#distribution-and-updates)，
+签名、提交审核和逐版本验收见[移动发布指南](../../../../docs/operations/mobile-releases.md)。
+
 `Current`: 校园页原生展示官方身份连接、教学周与问候、今日课程、周课表、学业记录、校历及通知正文；底栏“校园”的首页顶部直接提供课程评价、排课器、Wiki 入口，未登录或未绑定也可使用；组件与“探索校园”和搜索共享，返回后仍处于校园分支。设置按内嵌卡片分组，资料统计适配大字体。
 空通知、草稿和会话提供后续操作；共享按钮、表单、标签栏及空状态由 `ui_kit` 统一适配触控和系统字号。
 

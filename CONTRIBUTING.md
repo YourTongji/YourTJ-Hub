@@ -2,7 +2,7 @@
 
 感谢你对 YourTJ Hub 的关注。任何形式的贡献——问题反馈、功能建议、文档改进、代码与 Pull Request——都欢迎。
 
-> 本文档是贡献入口；详细的分支与 PR 纪律见 [`docs/development/pull-requests.md`](docs/development/pull-requests.md)，
+> 本文档是贡献入口；需求、Issue、分支与 PR 标准见 [`docs/development/pull-requests.md`](docs/development/pull-requests.md)，
 > 验证命令与测试策略见 [`docs/development/testing.md`](docs/development/testing.md)。
 
 ## 项目简介
@@ -38,12 +38,17 @@ make test       # 后端 vet+test、契约检查、前端 typecheck+test+i18n；
 
 ## 开发流程
 
+开发前按 [Issue/PR 标准](docs/development/pull-requests.md) 说明现状与依据、相关外部产品调研、
+目标用户及不同角色的故事，明确范围和可验证的验收标准。缺陷修复从受影响任务、复现与预期结果出发；
+小型维护可简写，不为每次编辑创建 Issue，也不要求报告者先完成调研或设计测试。
+
 1. 从最新 `origin/dev` 创建分支：`feat/<topic>` / `fix/<topic>` / `docs/<topic>`，PR 目标为 `dev`。
 2. 优先使用 worktree 隔离并行任务，不要在一个 checkout 里混多个分支。
 3. 提交使用 Conventional Commits（`feat:` / `fix:` / `docs:` / `refactor:` / `chore:` / `test:`），
    只 stage 本任务所属文件。
 4. push 前本地门禁通过（或至少明确报告哪些检查未跑）；CI 拥有全量门禁矩阵。
-5. 打开 PR：描述动机、行为变更、验证命令与结果、文档/契约影响、已知缺口；不要合并自己的 PR，
+5. 使用 PR 模板：保留摘要、行为变更、验证、文档/契约影响、已知缺口，补充背景与调研、
+   用户与故事、逐项验收结果、补充材料；不要合并自己的 PR，
    至少一人 review。禁止 `push --force` 到共享分支。
 
 完整纪律见 [pull-requests.md](docs/development/pull-requests.md)。
@@ -60,4 +65,5 @@ make test       # 后端 vet+test、契约检查、前端 typecheck+test+i18n；
 ## 提问与讨论
 
 - 问题反馈与功能建议：[Issues](https://github.com/YourTongji/YourTJ-Hub/issues)
-- 较大的改动建议先通过 Issue 对齐问题、用户与验收标准。
+- 功能建议可使用 [功能表单](.github/ISSUE_TEMPLATE/feature-request.yml)，缺陷使用
+  [问题反馈表单](.github/ISSUE_TEMPLATE/bug-report.yml)。较大的改动先对齐问题、用户与验收标准。
