@@ -2101,7 +2101,11 @@
     "ios-app-store: apps/mobile/packages/forum_app/lib/src/storage/media_repository.dart diff exceeds model excerpt; reviewer must inspect full source",
     "ios-app-store: apps/mobile/packages/forum_app/test/courses_page_test.dart diff exceeds model excerpt; reviewer must inspect full source",
     "#944: commit reference has no pull request; retained source evidence without PR metadata",
-    "#975: commit reference has no pull request; retained source evidence without PR metadata"
+    "#975: commit reference has no pull request; retained source evidence without PR metadata",
+    "Editorial revision: the coding agent carried forward the source-checked notes from closed request #1030, remapped every reference to this candidate's evidence by channel and path, verified unchanged distribution baselines and cited net diffs, and revised the update-history and TestFlight instructions for #1032. This is not a human approval.",
+    "Android and TestFlight retain the mobile-v1.0.14 baseline; App Store retains the live mobile-v1.0.11 baseline. Automatic visitor statistics is newly distributed only relative to App Store and remains an exact mandatory disclosure there.",
+    "Before App Store submission, verify the live App Store Connect privacy declarations against production analytics/retention configuration. Candidate-specific physical-device acceptance and live privacy-form verification are not established by this metadata preparation.",
+    "Preparation run 37137782915: Oryn release-notes returned no usable draft after three attempts; each attempt logged core_failed / failed-partial and the workflow reported CalledProcessError from the Oryn subprocess. Platform notes were completed by the coding agent from retained evidence and prior source-checked editorial work, without claiming model-authored provenance or human approval."
   ],
   "evidence": [
     {

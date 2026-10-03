@@ -36,6 +36,17 @@
     "ios-testflight": "testflight.en-US.txt",
     "ios-app-store": "ios.zh-Hans.txt"
   },
-  "serverRequirement": null,
-  "requiredDisclosures": []
+  "serverRequirement": {
+    "sourceSha": "b4e3bedfc55474f258561f5092e22f1651748fc2",
+    "reason": "先完成 Web 0.0.50 部署，提供待审核内容与图片访问、图片上传错误语义及当前 App 隐私补充说明，再发布对应移动端。"
+  },
+  "requiredDisclosures": [
+    {
+      "id": "automatic-visitor-statistics",
+      "channels": [
+        "ios-app-store"
+      ],
+      "text": "升级后，正式 iOS App 连接正式站时会自动统计公开页面访问，游客和已登录用户均适用；原“参与访问统计”关闭选择不再生效，App 内不再提供关闭开关。关于页可查看统计说明，详情见隐私政策。"
+    }
+  ]
 }
