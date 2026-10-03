@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 2,
+  "candidateId": "web-0.0.50",
+  "sourceSha": "b4e3bedfc55474f258561f5092e22f1651748fc2",
+  "product": "web",
+  "version": "0.0.50",
+  "tag": "v0.0.50",
+  "buildNumber": null,
+  "channels": [
+    "web"
+  ],
+  "operation": "release",
+  "existingRelease": null,
+  "baselines": {
+    "web": {
+      "tag": "v0.0.49",
+      "sourceSha": "081600c3236b8e89b9e7c0dfbdc6d97539ad5f89"
+    }
+  },
+  "notes": {
+    "web": "web.zh-CN.md"
+  },
+  "serverRequirement": null,
+  "requiredDisclosures": []
+}
