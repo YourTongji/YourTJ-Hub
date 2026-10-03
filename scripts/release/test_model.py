@@ -5,7 +5,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from model import ReleaseError, validate_candidate, validate_approval, next_identity, channels_for, render_changelog
+from model import (ReleaseError, validate_candidate, validate_approval, next_identity, channels_for, render_changelog,
+                   validate_changelog)
 
 
 SHA = "a" * 40
@@ -116,6 +117,24 @@ class CandidateTests(unittest.TestCase):
             (self.path / "changelog.json").write_text(json.dumps(invalid, ensure_ascii=False), encoding="utf-8")
             with self.subTest(invalid=invalid), self.assertRaises(ReleaseError):
                 validate_candidate(manifest, self.path)
+
+    def test_each_changelog_group_fits_the_client_limit(self):
+        def changelog(count, group="highlights"):
+            value = {"schemaVersion": 1, "version": "1.0.15", "buildNumber": 15, "highlights": [], "breaking": [],
+                     "requiredActions": [], "evidence": {}, "testflightNotes": []}
+            for i in range(count):
+                if group == "testflightNotes":
+                    value[group].append({"id": f"t-{i}", "text": "Check it.", "evidenceIds": ["proof"]})
+                else:
+                    value[group].append({"id": f"n-{i}", "title": "Fix", "summary": "Fixed.",
+                                         "platforms": ["android"], "kind": "fix"})
+                value["evidence"][value[group][-1]["id"]] = ["proof"]
+            return value
+        for group in ("highlights", "breaking", "requiredActions", "testflightNotes"):
+            with self.subTest(group=group):
+                validate_changelog(changelog(100, group), "1.0.15", 15, ["android", "ios-testflight"], draft=True)
+                with self.assertRaisesRegex(ReleaseError, "at most 100"):
+                    validate_changelog(changelog(101, group), "1.0.15", 15, ["android", "ios-testflight"], draft=True)
 
     def test_each_user_facing_channel_needs_structured_notes_before_publishing(self):
         manifest = candidate() | {"schemaVersion": 2, "channels": ["android", "ios-app-store"],

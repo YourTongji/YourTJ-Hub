@@ -8,7 +8,8 @@ from unittest.mock import patch
 
 from model import FILES, ReleaseError, render_changelog, validate_candidate
 from test_model import candidate
-from catalog import successful_channels, public_app_store_version, build_catalog, previous_store_builds, candidate_content_digest
+from catalog import (successful_channels, public_app_store_version, build_catalog, previous_store_builds,
+                     candidate_content_digest, serialize_catalog, MAX_CATALOG_BYTES)
 
 
 class FakeGitHub:
@@ -191,17 +192,18 @@ class CatalogReceiptTests(unittest.TestCase):
             self.maxDiff = None
             self.assertEqual(catalog, fixture)
 
-    def test_catalog_keeps_the_client_release_window_and_matching_coverage(self):
+    def structured_catalog(self, builds, entries=lambda build: [{"id": f"change-{build}", "title": "Update",
+                                                                 "summary": "Faster feed.", "kind": "improvement",
+                                                                 "platforms": ["android"]}]):
         manifests, paths, rows = {}, {}, {"android": [], "ios-testflight": [], "ios-app-store": [], "statuses": {}}
         with tempfile.TemporaryDirectory() as root:
-            for build in range(1, 302):
+            for build in builds:
                 candidate_id = f"mobile-2.3.4-{build}"
                 folder = Path(root) / candidate_id
                 folder.mkdir()
                 (folder / "changelog.json").write_text(json.dumps({
-                    "highlights": [{"id": f"change-{build}", "title": "Update", "summary": "Faster feed.",
-                                    "kind": "improvement", "platforms": ["android"]}],
-                    "breaking": [], "requiredActions": [], "testflightNotes": []}), encoding="utf-8")
+                    "highlights": entries(build), "breaking": [], "requiredActions": [], "testflightNotes": []},
+                    ensure_ascii=False), encoding="utf-8")
                 manifests[candidate_id] = ({"candidateId": candidate_id, "product": "mobile", "schemaVersion": 2,
                                             "version": "2.3.4", "buildNumber": build, "tag": "mobile-v2.3.4",
                                             "sourceSha": "a" * 40, "channels": ["android"]}, folder)
@@ -215,12 +217,38 @@ class CatalogReceiptTests(unittest.TestCase):
                  patch("catalog.load_published_candidate", side_effect=lambda cid, _folder: manifests[cid]), \
                  patch("catalog.candidate_content_digest", return_value="digest"), \
                  patch("catalog.public_app_store_version", return_value=None):
-                catalog = build_catalog(FakeGitHub(rows), published_at="2026-10-03T00:00:00Z")
+                return build_catalog(FakeGitHub(rows), published_at="2026-10-03T00:00:00Z")
+
+    def test_catalog_keeps_the_client_release_window_and_matching_coverage(self):
+        catalog = self.structured_catalog(range(1, 302))
         self.assertEqual(len(catalog["releases"]), 300)
         self.assertEqual(catalog["releases"][-1]["buildNumber"], 2)
         coverage = catalog["historyCoverage"]["byChannel"]["android"]
         self.assertEqual((coverage["completeFromBuild"], coverage["throughBuild"]), (1, 301))
         self.assertEqual(coverage["coveredBuilds"], list(range(2, 302)))
+
+    def test_catalog_trims_oldest_history_to_the_client_byte_budget(self):
+        long = "界面" * 175
+        catalog = self.structured_catalog(range(1, 101), lambda build: [
+            {"id": f"change-{build}-{i}", "title": "体验改进", "summary": long, "kind": "improvement",
+             "platforms": ["android"]} for i in range(10)])
+        size = len(serialize_catalog(catalog).encode("utf-8"))
+        self.assertLessEqual(size, MAX_CATALOG_BYTES)
+        self.assertGreater(size, MAX_CATALOG_BYTES - 20000)
+        builds = [release["buildNumber"] for release in catalog["releases"]]
+        self.assertEqual(builds[0], 100)
+        self.assertLess(len(builds), 100)
+        coverage = catalog["historyCoverage"]["byChannel"]["android"]
+        self.assertEqual(coverage["coveredBuilds"], sorted(builds))
+        self.assertEqual(coverage["completeFromBuild"], min(builds) - 1)
+
+    def test_catalog_omits_a_build_whose_merged_groups_exceed_the_client_limit(self):
+        catalog = self.structured_catalog([1, 2, 3], lambda build: [
+            {"id": f"change-{build}-{i}", "title": "Fix", "summary": "Fixed.", "kind": "fix",
+             "platforms": ["android"]} for i in range(101 if build == 2 else 1)])
+        self.assertEqual([release["buildNumber"] for release in catalog["releases"]], [3, 1])
+        coverage = catalog["historyCoverage"]["byChannel"]["android"]
+        self.assertEqual((coverage["completeFromBuild"], coverage["coveredBuilds"]), (2, [3]))
 
     def test_catalog_rejects_candidate_receipt_digest_drift_and_conflicting_shared_ids(self):
         with tempfile.TemporaryDirectory() as root:

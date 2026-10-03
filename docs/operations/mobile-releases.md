@@ -41,8 +41,12 @@ per channel, so old unstructured releases do not claim complete note history. Se
 upgrade range, not a claim that every build from that number has a structured entry. When no older
 unstructured public build is known, it equals the first structured build; installations below that
 floor have unknown prior history and the client must not claim completeness.
-The catalog keeps the newest 300 structured builds, the client's decode limit. Coverage lists only
-retained builds, so the newest dropped public build becomes the floor. A required disclosure keeps its
+Release requests allow at most 100 entries per changelog group, the client's per-release limit; a
+build whose merged channel entries exceed it is left out of the catalog. The catalog keeps the newest
+structured builds that fit both the client's 300-release limit and the 1 MiB limit shared by the
+status proxy and the client, measured on the exact published UTF-8 bytes; publishing rechecks the
+size before upload. Coverage lists only retained builds, so the newest dropped public build becomes
+the floor. A required disclosure keeps its
 TestFlight channel as a required entry beside the verbatim testing note; the client shows the required
 copy once, ahead of ordinary notes.
 

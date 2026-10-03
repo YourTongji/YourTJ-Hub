@@ -10,7 +10,7 @@ from urllib.request import urlopen
 
 from controller import load_candidate
 from github import git, run
-from model import CHANGELOG, ID, digest, require
+from model import CHANGELOG, ID, MAX_CHANGELOG_GROUP, digest, require
 
 CHANNELS = ("android", "ios-app-store", "ios-testflight")
 CHANNEL_PLATFORMS = {
@@ -19,8 +19,15 @@ CHANNEL_PLATFORMS = {
     "ios-testflight": {"ios", "ios-testflight"},
 }
 IOS_APP_ID = "6809457637"
-# ReleaseNoteCatalog.decode rejects more releases or covered builds than this.
+# ReleaseNoteCatalog.decode rejects more releases or covered builds than this; the status proxy
+# and the client loader both reject a larger published file.
 MAX_CATALOG_RELEASES = 300
+MAX_CATALOG_BYTES = 1024 * 1024
+GROUPS = ("highlights", "breaking", "requiredActions", "testflightNotes")
+
+
+def serialize_catalog(catalog):
+    return json.dumps(catalog, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n"
 MAX_LOOKUP_BYTES = 1024 * 1024
 
 
@@ -189,35 +196,52 @@ def build_catalog(github, published_at=None, verified_store_builds=()):
             if channel == "ios-testflight":
                 output["testflightNotes"].extend({"id": item["id"], "text": item["text"]}
                                                 for item in changelog["testflightNotes"])
-        if structured_channels:
+        # Channel candidates for one build merge here; a release the client cannot parse is
+        # omitted, and coverage stops before it.
+        if structured_channels and all(len(output[group]) <= MAX_CHANGELOG_GROUP for group in GROUPS):
             releases.append(output)
 
-    # Keep the newest window; coverage below names only retained builds, and an older public
-    # build becomes the floor, so clients never claim completeness across a dropped release.
-    releases = releases[:MAX_CATALOG_RELEASES]
-    retained = {release["buildNumber"] for release in releases}
     all_builds = {(version, build): record for (version, build), record in by_build.items()}
-    coverage = {}
-    for channel in CHANNELS:
-        published_builds = sorted((build for (_, build), record in all_builds.items()
-                                  if channel in record["channelCandidates"]))
-        covered = []
-        for build in reversed(published_builds):
-            record = next(value for (_, candidate_build), value in all_builds.items() if candidate_build == build)
-            _, changelog = record["channelCandidates"][channel]
-            if changelog is None or build not in retained:
-                break
-            covered.append(build)
-        covered.reverse()
-        if covered:
-            # This is an inclusive installed-build floor, not an entry-range bound. Without a
-            # known older public build, the first structured build is the floor; earlier history is unknown.
-            previous = [build for build in published_builds if build < covered[0]]
-            coverage[channel] = {"completeFromBuild": max(previous) if previous else covered[0],
-                                 "throughBuild": covered[-1], "coveredBuilds": covered}
-    return {"schemaVersion": 1, "historyCoverage": {"source": "github-release-receipts",
-            "publishedAt": published_at or datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
-            "byChannel": coverage}, "releases": releases}
+    published_at = published_at or datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+    def assemble(window):
+        # Coverage names only retained builds, so the newest dropped public build becomes the
+        # floor and clients never claim completeness across an omitted release.
+        retained = {release["buildNumber"] for release in window}
+        coverage = {}
+        for channel in CHANNELS:
+            published_builds = sorted((build for (_, build), record in all_builds.items()
+                                      if channel in record["channelCandidates"]))
+            covered = []
+            for build in reversed(published_builds):
+                record = next(value for (_, candidate_build), value in all_builds.items() if candidate_build == build)
+                _, changelog = record["channelCandidates"][channel]
+                if changelog is None or build not in retained:
+                    break
+                covered.append(build)
+            covered.reverse()
+            if covered:
+                # This is an inclusive installed-build floor, not an entry-range bound. Without a
+                # known older public build, the first structured build is the floor; earlier history is unknown.
+                previous = [build for build in published_builds if build < covered[0]]
+                coverage[channel] = {"completeFromBuild": max(previous) if previous else covered[0],
+                                     "throughBuild": covered[-1], "coveredBuilds": covered}
+        return {"schemaVersion": 1, "historyCoverage": {"source": "github-release-receipts",
+                "publishedAt": published_at, "byChannel": coverage}, "releases": window}
+
+    # Keep the newest window that fits both the client's record limit and the exact byte budget.
+    releases = releases[:MAX_CATALOG_RELEASES]
+    catalog = assemble(releases)
+    excess = len(serialize_catalog(catalog).encode("utf-8")) - MAX_CATALOG_BYTES
+    while excess > 0:
+        drop = freed = 0
+        while freed < excess and drop < len(releases):
+            drop += 1
+            freed += len(json.dumps(releases[-drop], ensure_ascii=False, separators=(",", ":")).encode("utf-8"))
+        releases = releases[:len(releases) - drop]
+        catalog = assemble(releases)
+        excess = len(serialize_catalog(catalog).encode("utf-8")) - MAX_CATALOG_BYTES
+    return catalog
 
 
 def previous_store_builds(github, release):
@@ -242,7 +266,8 @@ def publish_catalog(github):
     release = github.api("releases/tags/mobile-notes", missing=True)
     verified_store = previous_store_builds(github, release) if release else set()
     catalog = build_catalog(github, verified_store_builds=verified_store)
-    content = json.dumps(catalog, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n"
+    content = serialize_catalog(catalog)
+    require(len(content.encode("utf-8")) <= MAX_CATALOG_BYTES, "Release catalog exceeds the client byte limit")
     with tempfile.TemporaryDirectory() as temporary:
         path = Path(temporary) / "releases.json"
         path.write_text(content, encoding="utf-8")

@@ -13,6 +13,8 @@ SHA = re.compile(r"[0-9a-f]{40}")
 ID = re.compile(r"(?:web|mobile)-[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9]+)?(?:-store-[0-9]+)?")
 VERSION = re.compile(r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)")
 MAX_BUILD = 2099996000
+# ReleaseNoteVersion.parse rejects a release with more entries in any group.
+MAX_CHANGELOG_GROUP = 100
 
 
 class ReleaseError(ValueError):
@@ -209,6 +211,7 @@ def validate_changelog(value, version, build_number, channels, draft=False):
     ids = set()
     for group in ("highlights", "breaking", "requiredActions"):
         require(isinstance(value[group], list), f"Invalid changelog {group}")
+        require(len(value[group]) <= MAX_CHANGELOG_GROUP, f"Changelog {group} allows at most {MAX_CHANGELOG_GROUP} entries")
         for entry in value[group]:
             require(isinstance(entry, dict) and set(entry) == {"id", "title", "summary", "platforms", "kind"},
                     "Invalid changelog entry fields")
@@ -228,6 +231,7 @@ def validate_changelog(value, version, build_number, channels, draft=False):
     testflight = value["testflightNotes"]
     require(isinstance(testflight, list) and ("ios-testflight" not in channels or draft or testflight),
             "TestFlight release requires structured testing notes")
+    require(len(testflight) <= MAX_CHANGELOG_GROUP, f"Changelog testflightNotes allows at most {MAX_CHANGELOG_GROUP} entries")
     for item in testflight:
         require(isinstance(item, dict) and set(item) == {"id", "text", "evidenceIds"}
                 and isinstance(item["id"], str) and re.fullmatch(r"[a-z0-9][a-z0-9-]{0,79}", item["id"])

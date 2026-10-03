@@ -102,11 +102,12 @@ components:
         version: {type: string, pattern: '^\d+\.\d+\.\d+$'}
         buildNumber: {type: integer, minimum: 1}
         channels: {type: array, items: {type: string, enum: [android, ios-app-store, ios-testflight]}, uniqueItems: true}
-        highlights: {type: array, items: {$ref: '#/components/schemas/MobileReleaseNote'}}
-        breaking: {type: array, items: {$ref: '#/components/schemas/MobileReleaseNote'}}
-        requiredActions: {type: array, items: {$ref: '#/components/schemas/MobileReleaseNote'}}
+        highlights: {type: array, maxItems: 100, items: {$ref: '#/components/schemas/MobileReleaseNote'}}
+        breaking: {type: array, maxItems: 100, items: {$ref: '#/components/schemas/MobileReleaseNote'}}
+        requiredActions: {type: array, maxItems: 100, items: {$ref: '#/components/schemas/MobileReleaseNote'}}
         testflightNotes:
           type: array
+          maxItems: 100
           items:
             type: object
             required: [id, text]
