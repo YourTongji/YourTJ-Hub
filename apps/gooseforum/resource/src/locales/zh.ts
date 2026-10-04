@@ -1759,6 +1759,7 @@ export default {
     latestReply: '最新回复',
     replyPosition: '回复位置',
     joinDiscussion: '参与讨论',
+    loginToJoinDiscussion: '登录参与讨论',
     resizeComposer: '调整回复面板高度',
     markdownSoon: 'Markdown 支持稍后补齐',
     publishReply: '发布回复',

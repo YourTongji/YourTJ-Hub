@@ -260,8 +260,11 @@ Rules:
 - The title is prominent but not oversized.
 - Topic body and editor preview must share prose behavior.
 - Show each topic fact once; header metadata owns reply, view, and like counts, while the right rail is for participant context.
-- Give each topic action one authority in the topic action bar. The first post must not repeat topic-level reply, like, bookmark, share, or report controls; later replies keep their own post-level actions.
-- Responsive and floating controls may move an action between layouts, but must not show a second entry point at the same viewport. The mobile reply entry point is floating; desktop reply stays in the topic action bar.
+- The first post must not repeat topic-level reply, like, bookmark, share, or report controls in its per-post action strip; later replies keep their own post-level actions.
+- The topic action bar and the floating control pill are synced mirrors: the pill carries the same topic-level actions (like, bookmark, watch, plus moderation and delete where permitted) driven by the same state and handlers, so the two entry points never drift. The pill mounts outside the post stream, so topic-level actions stay reachable when the first post is not loaded (deep-link windows). For guests the pill shows a like button with the current count and a \"log in to join\" reply entry instead of the authenticated mirror actions.
+- Topic and post reporting require sign-in; do not render report controls for guests, because the report API rejects anonymous submissions.
+- The floating control pill must not render as an empty shell: it always keeps at least the reply entry or a mirrored action visible at every viewport.
+- The mobile reply entry point is floating; desktop reply stays in the topic action bar.
 - A user's own posts may expose edit actions when permissions allow.
 - Errors from post creation or editing must be shown near the action that failed.
 

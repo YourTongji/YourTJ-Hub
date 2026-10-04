@@ -1,10 +1,27 @@
 <script setup lang="ts">
-import { MessageSquare, X } from '@lucide/vue'
+import type { Component } from 'vue'
+import { Loader2, MessageSquare, X } from '@lucide/vue'
 import { formatNumber } from '@/runtime/format'
 import PostPositionRail from '@/site/components/PostPositionRail.vue'
 import { useI18n } from 'vue-i18n'
 
+// 话题级操作镜像项：由 PostStream 的 floatingTopicActions 提供，
+// 与首楼底部话题操作栏共用同一份状态与处理器，保证双入口同步。
+// label 为可选计数/文字徽标（如游客态的点赞数）。
+type TopicAction = {
+  key: string
+  icon: Component
+  active: boolean
+  acting: boolean
+  fill?: boolean
+  label?: string
+  title: string
+  activeClass: string
+  onClick: () => void | Promise<void>
+}
+
 const props = defineProps<{
+  actions: TopicAction[]
   authenticated: boolean
   canPost: boolean
   currentLabel: string
@@ -24,6 +41,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   earliest: []
   latest: []
+  openLogin: []
   openReply: []
   selectRail: [postNo: number]
   'update:mobileRailOpen': [value: boolean]
@@ -46,7 +64,7 @@ function closeMobileRail() {
       class="pointer-events-auto fixed inset-0 z-[89] xl:hidden"
       @click="closeMobileRail"
     />
-    <div class="pointer-events-none fixed inset-x-0 bottom-4 z-[90] px-3 sm:px-6">
+    <div data-test="floating-controls" class="pointer-events-none fixed inset-x-0 bottom-4 z-[90] px-3 sm:px-6">
       <div class="relative mx-auto flex w-full max-w-full justify-center">
         <Transition name="floating-reply" mode="out-in">
           <div
@@ -81,6 +99,7 @@ function closeMobileRail() {
             />
           </div>
           <div v-else-if="!open" class="pointer-events-auto flex max-w-full flex-col items-center gap-2">
+            <!-- 话题级操作镜像：与首楼底部操作栏同步；回复入口全宽度可见（dev 行为） -->
             <div class="gf-floating-surface flex w-fit max-w-full items-center gap-1 rounded-full p-1">
               <button
                 v-if="hasRail"
@@ -92,16 +111,32 @@ function closeMobileRail() {
               >
                 {{ `${currentNo} / ${formatNumber(maxNo)}` }}
               </button>
+              <template v-if="actions.length">
+                <button
+                  v-for="action in actions"
+                  :key="action.key"
+                  type="button"
+                  class="inline-flex h-9 items-center justify-center gap-1 rounded-full text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60"
+                  :class="[action.label ? 'px-2.5' : 'w-9', action.active ? action.activeClass : 'text-base-content/75 hover:bg-base-200 hover:text-base-content']"
+                  :disabled="action.acting"
+                  :title="action.title"
+                  @click="action.onClick"
+                >
+                  <Loader2 v-if="action.acting" class="h-4 w-4 animate-spin" />
+                  <component :is="action.icon" v-else class="h-4 w-4" :fill="action.active && action.fill !== false ? 'currentColor' : 'none'" />
+                  <span v-if="action.label" class="text-xs font-semibold tabular-nums">{{ action.label }}</span>
+                </button>
+              </template>
               <button
                 v-if="!authenticated || canPost"
                 type="button"
                 data-test="mobile-topic-reply"
-                class="inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-sm font-semibold text-base-content/75 transition hover:bg-info/10 hover:text-primary sm:hidden"
-                :title="t('topic.joinDiscussion')"
-                @click="emit('openReply')"
+                class="inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-sm font-semibold text-base-content/75 transition hover:bg-info/10 hover:text-primary"
+                :title="authenticated ? t('topic.joinDiscussion') : t('topic.loginToJoinDiscussion')"
+                @click="authenticated ? emit('openReply') : emit('openLogin')"
               >
                 <MessageSquare class="h-4 w-4" />
-                <span>{{ t('topic.joinDiscussion') }}</span>
+                <span>{{ authenticated ? t('topic.joinDiscussion') : t('topic.loginToJoinDiscussion') }}</span>
               </button>
             </div>
           </div>
