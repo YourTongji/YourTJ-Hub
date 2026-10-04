@@ -5938,10 +5938,14 @@ export interface paths {
          * Approve or reject a queued topic or post
          * @description Admin console operation gated by the `SiteManager` role permission
          *     (SiteManager group); callers without it fail with HTTP 403 and
-         *     `permission.denied`. Approving sets `processStatus=0`, rejecting sets
-         *     `processStatus=1`; approving a topic also updates its first post,
-         *     clears the topic-list cache, rebuilds the search document (rejected
-         *     topics are removed from the public index), publishes the deferred
+         *     `permission.denied`. Versioned submissions require the exact `revisionId` returned
+         *     by the queue; an omitted or stale revision returns `admin.review.processed`.
+         *     Approval publishes the candidate quietly. Rejection sets its `processStatus=1`,
+         *     keeps any previous public version and sends an author notification linked to content
+         *     management. `reason` optionally explains a manual rejection. Legacy unversioned
+         *     items retain their compatible review path. Approving a topic also updates its first post,
+         *     clears the topic-list cache, rebuilds the search document (a rejected new
+         *     topic remains excluded; a rejected edit retains the public version), publishes the deferred
          *     publish/update events (statistics, points, notifications) and writes
          *     an operation-audit log entry. Business failures (HTTP 200, `code: 1`):
          *     unknown target → `admin.review.notFound`; wiki-station topics and wiki
