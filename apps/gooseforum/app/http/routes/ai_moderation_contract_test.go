@@ -791,8 +791,13 @@ func TestModerationCandidateCategoryScopeCannotBeBypassedWithFirstPost(t *testin
 	router.POST("/api/forum/moderation/review-action", middleware.JWTAuthCheck, middleware.CheckWritableAccount, UpButterReq(api.ModerationReviewAction))
 	author := createHTTPContractUser(t, conn, contractTestID())
 	token := contractSessionToken(t, author)
+	imageURL, _ := saveContractImage(t, author.Id)
 	write := func(id, category uint64) uint64 {
-		body := mustReviewJSON(t, map[string]any{"topicId": id, "title": "分类权限回归", "content": "迁往其他分类的候选正文", "categoryId": []uint64{category}, "topicStatus": 1, "contentType": 3})
+		content := "迁往其他分类的候选正文"
+		if id != 0 {
+			content += " ![](" + imageURL + ")"
+		}
+		body := mustReviewJSON(t, map[string]any{"topicId": id, "title": "分类权限回归", "content": content, "categoryId": []uint64{category}, "topicStatus": 1, "contentType": 3})
 		e := decodeContractEnvelope(t, serveJSON(router, "/api/forum/topics/write", string(body), token))
 		var result uint64
 		if err := json.Unmarshal(e.Result, &result); err != nil || e.Code != 0 {
@@ -808,18 +813,34 @@ func TestModerationCandidateCategoryScopeCannotBeBypassedWithFirstPost(t *testin
 	write(topicID, otherCategory)
 	revisionID := posts.Get(postID).LatestRevisionId
 	moderator := createHTTPContractUser(t, conn, contractTestID())
-	grant := func(category uint64) {
-		if err := conn.Create(&moderators.Entity{UserId: moderator.Id, ScopeType: moderators.ScopeCategory, ScopeId: category, Status: moderators.StatusEnabled}).Error; err != nil {
+	candidateModerator := createHTTPContractUser(t, conn, contractTestID())
+	grant := func(userID, category uint64) {
+		if err := conn.Create(&moderators.Entity{UserId: userID, ScopeType: moderators.ScopeCategory, ScopeId: category, Status: moderators.StatusEnabled}).Error; err != nil {
 			t.Fatal(err)
 		}
 		moderationservice.Invalidate()
 	}
-	grant(ownCategory)
+	grant(moderator.Id, ownCategory)
+	grant(candidateModerator.Id, otherCategory)
 	t.Cleanup(func() {
-		conn.Where("user_id = ?", moderator.Id).Delete(&moderators.Entity{})
+		conn.Where("user_id IN ?", []uint64{moderator.Id, candidateModerator.Id}).Delete(&moderators.Entity{})
 		moderationservice.Invalidate()
 	})
 	moderatorToken := contractSessionToken(t, moderator)
+	assertImage := func(label, token string, want int) {
+		t.Helper()
+		response := getImage(router, imageURL, token)
+		if response.Code != want {
+			t.Errorf("%s: candidate image status=%d, want %d", label, response.Code, want)
+		}
+		if want == http.StatusOK && response.Header().Get("Cache-Control") != "private, no-store" {
+			t.Errorf("%s: candidate image entered shared cache", label)
+		}
+	}
+	assertImage("author", token, http.StatusOK)
+	assertImage("anonymous", "", http.StatusNotFound)
+	assertImage("current category only", moderatorToken, http.StatusNotFound)
+	assertImage("candidate category only", contractSessionToken(t, candidateModerator), http.StatusNotFound)
 	queue := func() struct {
 		Items []api.ReviewQueueItem
 		Total int64
@@ -865,7 +886,8 @@ func TestModerationCandidateCategoryScopeCannotBeBypassedWithFirstPost(t *testin
 			t.Fatal("out-of-scope revision history exposed candidate")
 		}
 	}
-	grant(otherCategory)
+	grant(moderator.Id, otherCategory)
+	assertImage("both categories", moderatorToken, http.StatusOK)
 	if q := queue(); q.Total != 1 || len(q.Items) != 1 || q.Items[0].RevisionId != revisionID {
 		t.Fatalf("both-category moderator queue: %+v", q)
 	}

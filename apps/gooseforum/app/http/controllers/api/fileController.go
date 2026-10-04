@@ -110,8 +110,7 @@ func canPreviewPendingFile(c *gin.Context, referenceName string) bool {
 	// 前台版主工作台同样审核待审内容（issue #975）：版主只能预览管辖分类内的
 	// 待审图片，沿待审引用回溯到所属主题的分类逐一校验。
 	for _, usage := range fileusageservice.ListPendingReferences(referenceName) {
-		if categoryIDs := pendingUsageCategories(usage); len(categoryIDs) > 0 &&
-			moderationservice.CanModerateAnyCategory(userID, categoryIDs) {
+		if canPreviewPendingUsage(userID, usage) {
 			return true
 		}
 	}
@@ -120,7 +119,7 @@ func canPreviewPendingFile(c *gin.Context, referenceName string) bool {
 
 // PENDING only marks a private file reference; drafts use it too. Moderator
 // access additionally requires a submitted topic and a review-backed reference.
-func pendingUsageCategories(usage fileUsage.Entity) []uint64 {
+func canPreviewPendingUsage(userID uint64, usage fileUsage.Entity) bool {
 	topicID := usage.TargetId
 	var post posts.Entity
 	var revision postRevisions.Entity
@@ -129,7 +128,7 @@ func pendingUsageCategories(usage fileUsage.Entity) []uint64 {
 	case fileUsage.TargetPostRevision:
 		revision = postRevisions.Get(usage.TargetId)
 		if revision.Id == 0 {
-			return nil
+			return false
 		}
 		post = posts.Get(revision.PostId)
 		topicID = post.TopicId
@@ -137,37 +136,39 @@ func pendingUsageCategories(usage fileUsage.Entity) []uint64 {
 		post = posts.Get(usage.TargetId)
 		topicID = post.TopicId
 	default:
-		return nil
+		return false
 	}
 	if topicID == 0 {
-		return nil
+		return false
 	}
 	topic := topics.Get(topicID)
 	if topic.Id == 0 || topic.Status != 1 || topic.VisibilityStatus != topics.VisibilityActive {
-		return nil
+		return false
+	}
+	if !moderationservice.CanModerateAnyCategory(userID, topic.CategoryIds) {
+		return false
 	}
 	if usage.TargetType == fileUsage.TargetTopic {
 		post = posts.Get(topic.FirstPostId)
 	}
 	if post.Id == 0 || post.VisibilityStatus != posts.VisibilityActive {
-		return nil
+		return false
 	}
 	if revision.Id != 0 {
 		if post.PostNo == 1 {
-			return revision.CategoryIds
+			// Category edits require authority over both the current topic and the
+			// candidate. A match in either category group alone is insufficient.
+			return moderationservice.CanModerateAnyCategory(userID, revision.CategoryIds)
 		}
-		return topic.CategoryIds
+		return true
 	}
 	// Versioned submissions authorize their own image snapshot above. Legacy
 	// topic/post refs can retain draft images omitted from that snapshot.
 	if post.LatestRevisionId != 0 {
-		return nil
+		return false
 	}
-	if usage.TargetType == fileUsage.TargetTopic && topic.ProcessStatus != topics.ProcessStatusNormal ||
-		usage.TargetType == fileUsage.TargetPost && post.ProcessStatus != posts.ProcessStatusNormal {
-		return topic.CategoryIds
-	}
-	return nil
+	return usage.TargetType == fileUsage.TargetTopic && topic.ProcessStatus != topics.ProcessStatusNormal ||
+		usage.TargetType == fileUsage.TargetPost && post.ProcessStatus != posts.ProcessStatusNormal
 }
 
 // SaveImgByGinContext handles image uploads with size and content checks.
