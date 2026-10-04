@@ -222,6 +222,7 @@ function editorSnapshot() {
     // pipeline, so reading it directly avoids a full DOM→Markdown
     // serialization on every unsaved-changes check.
     content: content.value.trim(),
+      images: page.props.topic.images ?? [],
     categoryIds: [...categoryIds.value].sort((a, b) => a - b),
   })
 }
@@ -385,6 +386,7 @@ async function save() {
       topicId: currentTopicId.value,
       title: title.value.trim(),
       content: content.value.trim(),
+      images: page.props.topic.images ?? [],
       categoryId: categoryIds.value,
       topicStatus: 1,
       website: website.value,
@@ -430,6 +432,7 @@ async function persistDraft(nextUrl?: string, redirect = true): Promise<boolean>
       topicId: currentTopicId.value,
       title: title.value.trim(),
       content: content.value.trim(),
+      images: page.props.topic.images ?? [],
       categoryId: categoryIds.value,
       topicStatus: 0,
       website: website.value,

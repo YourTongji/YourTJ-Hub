@@ -81,3 +81,15 @@ func CountByPostIds(postIds []uint64) map[uint64]int64 {
 	}
 	return result
 }
+
+func Get(id uint64) (entity Entity) {
+	if id != 0 {
+		builder().First(&entity, id)
+	}
+	return
+}
+
+func IDsByPost(postID uint64) (ids []uint64) {
+	builder().Where("post_id = ?", postID).Pluck("id", &ids)
+	return
+}

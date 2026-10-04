@@ -6257,6 +6257,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Under review · Only you and reviewers can see this reply until it’s approved.'**
   String get topicPendingReviewReply;
+
+  /// No description provided for @contentReviewBlocked.
+  ///
+  /// In en, this message translates to:
+  /// **'Not approved'**
+  String get contentReviewBlocked;
+
+  /// No description provided for @contentReviewRetry.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit and resubmit'**
+  String get contentReviewRetry;
+
+  /// No description provided for @contentReviewLive.
+  ///
+  /// In en, this message translates to:
+  /// **'Your previous version remains public.'**
+  String get contentReviewLive;
+
+  /// No description provided for @contentReviewView.
+  ///
+  /// In en, this message translates to:
+  /// **'View content'**
+  String get contentReviewView;
+
+  /// No description provided for @contentReviewPending.
+  ///
+  /// In en, this message translates to:
+  /// **'Under review'**
+  String get contentReviewPending;
 }
 
 class _AppLocalizationsDelegate

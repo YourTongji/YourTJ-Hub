@@ -1205,5 +1205,10 @@
   "notificationReviewRejected": "Dein Beitrag wurde nicht freigegeben und wird nicht öffentlich angezeigt",
   "topicPendingReviewBanner": "Dieser Beitrag wird geprüft. Bis zur Freigabe sehen ihn nur du und die Prüfenden.",
   "topicPendingReviewBannerModerator": "Dieser Beitrag wartet auf Prüfung. Andere Lesende sehen ihn noch nicht.",
-  "topicPendingReviewReply": "In Prüfung · Bis zur Freigabe sehen diese Antwort nur du und die Prüfenden."
+  "topicPendingReviewReply": "In Prüfung · Bis zur Freigabe sehen diese Antwort nur du und die Prüfenden.",
+  "contentReviewBlocked": "Nicht freigegeben",
+  "contentReviewRetry": "Bearbeiten und erneut senden",
+  "contentReviewLive": "Die bisherige Version bleibt öffentlich.",
+  "contentReviewView": "Inhalt ansehen",
+  "contentReviewPending": "In Prüfung"
 }

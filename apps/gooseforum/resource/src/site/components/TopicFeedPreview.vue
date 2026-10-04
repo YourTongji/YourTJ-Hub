@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import TopicFeedMeta from '@/site/components/TopicFeedMeta.vue'
 import type { TopicPayload } from '@gooseforum/client'
+
+const { t } = useI18n()
 
 const props = withDefaults(defineProps<{
   topic: TopicPayload
@@ -43,6 +46,7 @@ const singleImageClass = computed(() => {
 
 <template>
   <div :class="compact ? 'p-3.5' : 'p-4 sm:p-5'">
+  <span v-if="topic.processStatus === 2" class="inline-flex rounded bg-warning/15 px-2 py-0.5 text-xs text-warning">{{ t('topic.pendingReviewBadge') }}</span>
     <div v-if="singleImage" :class="compact ? 'flex gap-3 sm:gap-4' : 'flex flex-col gap-3 sm:flex-row sm:gap-4'">
       <TopicFeedMeta
         :topic="topic"

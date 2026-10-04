@@ -956,6 +956,7 @@ export interface PublishPageProps {
   isEditing: boolean
   categories: PublishCategoryPayload[]
   topic: {
+    images?: string[]
     title: string
     content: string
     categoryIds: number[]

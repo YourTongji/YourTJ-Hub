@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postRevisions"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/moderationservice"
@@ -55,7 +56,16 @@ func canReviewTarget(userID uint64, kind string, id uint64) bool {
 		topicID = post.TopicId
 	}
 	topic := topics.GetSimple(topicID)
-	return topic.Id != 0 && moderationservice.CanModerateAnyCategory(userID, topic.CategoryIds)
+	if topic.Id == 0 || !moderationservice.CanModerateAnyCategory(userID, topic.CategoryIds) {
+		return false
+	}
+	if kind == "topic" {
+		revision := postRevisions.Get(posts.Get(topic.FirstPostId).LatestRevisionId)
+		if revision.Id != 0 && !moderationservice.CanModerateAnyCategory(userID, revision.CategoryIds) {
+			return false
+		}
+	}
+	return true
 }
 
 // postContentWrittenAt 帖子当前正文的最后写入时间：编辑过取 last_edited_at，

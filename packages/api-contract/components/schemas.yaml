@@ -8832,6 +8832,15 @@ AdminReviewQueueItem:
   type: object
   required: [id, title, excerpt, userId, username, processStatus, createdAt]
   properties:
+    revisionId:
+      type: integer
+      format: uint64
+      description: Exact submitted version. Send back unchanged when deciding; omitted for legacy entries.
+    content:
+      type: string
+      description: Full candidate Markdown, visible to authorized reviewers only.
+    reviewReason:
+      type: string
     id:
       type: integer
       format: uint64
@@ -8912,6 +8921,14 @@ AdminReviewActionRequest:
   type: object
   required: [kind, id]
   properties:
+    revisionId:
+      type: integer
+      format: uint64
+      description: Required for versioned submissions. Missing or stale IDs return admin.review.processed without applying a decision.
+    reason:
+      type: string
+      maxLength: 512
+      description: Optional author-visible rejection reason.
     kind:
       type: string
       enum: [topic, post]
@@ -9335,8 +9352,27 @@ AdminImportTaskReplayResponse:
 
 MyContentItem:
   type: object
-  required: [id, contentType, title, createdAt]
+  required: [id, contentType, title, createdAt, processStatus, revisionId, hasPublishedVersion, content, images]
   properties:
+    processStatus:
+      type: integer
+      enum: [0, 1, 2]
+      description: Latest submission state; 1 can be edited and resubmitted, 2 is private pending review.
+    revisionId:
+      type: integer
+      format: uint64
+    reviewReason:
+      type: string
+    hasPublishedVersion:
+      type: boolean
+      description: An approved version remains publicly readable while the submitted edit is pending or rejected.
+    content:
+      type: string
+      description: Complete latest submitted Markdown for the authenticated author, including rejected content.
+    images:
+      type: array
+      items:
+        type: string
     id:
       type: integer
       format: uint64

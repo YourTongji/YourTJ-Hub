@@ -1,4 +1,7 @@
+import '../../realtime/realtime_updates.dart';
 import 'content_password_dialog.dart';
+import 'content_reply_dialog.dart';
+import '../../widgets/markdown_view.dart';
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -167,9 +170,51 @@ class _ContentPageState extends ConsumerState<ContentPage> {
     });
   }
 
+  Future<void> _view(UserContentItem item) async {
+    await showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(item.title),
+        content: SizedBox(
+          width: 600,
+          child: SingleChildScrollView(
+            child: GfMarkdownView(data: item.content, images: item.images),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(AppLocalizations.of(context).commonCancel),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _edit(UserContentItem item) async {
+    if (item.contentType == 'topic') {
+      await context.push('/publish?id=${item.id}');
+      if (mounted) await _load();
+      return;
+    }
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (_) => ContentReplyDialog(item: item),
+    );
+    if (saved == true && mounted) await _load();
+  }
+
   Future<void> _act(UserContentItem item, String action) async {
     final l10n = AppLocalizations.of(context);
     final epoch = ref.read(offlineCacheEpochProvider);
+    if (action == 'edit') {
+      await _edit(item);
+      return;
+    }
+    if (action == 'view') {
+      await _view(item);
+      return;
+    }
     if (action == 'restore') {
       await _run((_) => ref.read(contentRepositoryProvider).restore(item));
     } else {
@@ -187,6 +232,12 @@ class _ContentPageState extends ConsumerState<ContentPage> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<int>(
+      realtimeInvalidationsProvider.select((state) => state.contentRevision),
+      (_, _) {
+        if (mounted) _load();
+      },
+    );
     final l10n = AppLocalizations.of(context);
     ref.listen(offlineCacheEpochProvider, (_, next) {
       setState(() {
@@ -318,7 +369,19 @@ class _ContentPageState extends ConsumerState<ContentPage> {
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                           ),
-                          subtitle: secondaryText.isEmpty
+                          subtitle: !widget.deleted && item.processStatus != 0
+                              ? Text(
+                                  [
+                                    item.processStatus == 2
+                                        ? l10n.contentReviewPending
+                                        : l10n.contentReviewBlocked,
+                                    if (item.reviewReason.isNotEmpty)
+                                      item.reviewReason,
+                                    if (item.hasPublishedVersion)
+                                      l10n.contentReviewLive,
+                                  ].join('\n'),
+                                )
+                              : secondaryText.isEmpty
                               ? null
                               : Text(
                                   secondaryText,
@@ -327,6 +390,8 @@ class _ContentPageState extends ConsumerState<ContentPage> {
                                 ),
                           onTap: widget.deleted
                               ? null
+                              : item.processStatus != 0
+                              ? () => _view(item)
                               : () => context.push(
                                   Uri(
                                     path: '/p/${item.topicId ?? item.id}',
@@ -348,6 +413,16 @@ class _ContentPageState extends ConsumerState<ContentPage> {
                                   enabled: !_busy,
                                   onSelected: (action) => _act(item, action),
                                   itemBuilder: (_) => [
+                                    if (!widget.deleted) ...[
+                                      PopupMenuItem(
+                                        value: 'view',
+                                        child: Text(l10n.contentReviewView),
+                                      ),
+                                      PopupMenuItem(
+                                        value: 'edit',
+                                        child: Text(l10n.contentReviewRetry),
+                                      ),
+                                    ],
                                     if (item.canRestore)
                                       PopupMenuItem(
                                         value: 'restore',

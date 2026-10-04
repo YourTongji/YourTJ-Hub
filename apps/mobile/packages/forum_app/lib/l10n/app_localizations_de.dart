@@ -3478,4 +3478,19 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get topicPendingReviewReply =>
       'In Prüfung · Bis zur Freigabe sehen diese Antwort nur du und die Prüfenden.';
+
+  @override
+  String get contentReviewBlocked => 'Nicht freigegeben';
+
+  @override
+  String get contentReviewRetry => 'Bearbeiten und erneut senden';
+
+  @override
+  String get contentReviewLive => 'Die bisherige Version bleibt öffentlich.';
+
+  @override
+  String get contentReviewView => 'Inhalt ansehen';
+
+  @override
+  String get contentReviewPending => 'In Prüfung';
 }

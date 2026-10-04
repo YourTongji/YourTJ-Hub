@@ -1,6 +1,7 @@
 package forum
 
 import (
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/publicationservice"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -68,6 +69,7 @@ func TopicDetail(c *gin.Context) {
 		renderNotFound(c)
 		return
 	}
+	publicationservice.OwnerSnapshot(&topic, &firstPost, loginUser.UserId, false)
 	postservice.EnsureRenderedHTML(&firstPost)
 	if loginUser.UserId > 0 {
 		if err := topicunseenservice.MarkVisited(loginUser.UserId, topic.Id, topic.LastPostId, time.Now()); err != nil {

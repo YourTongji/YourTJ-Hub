@@ -112,6 +112,7 @@ func TestWebRouteToMobile(t *testing.T) {
 		{"/u/7", "/u/7"},
 		{"/wiki/guide/intro", mobileFallbackRoute},
 		{"/notifications", mobileFallbackRoute},
+		{"/settings?tab=content", "/my-content"},
 		{"https://forum.example.com/p/post/1001", mobileFallbackRoute}, // 全 URL 非站内路径
 	}
 	for _, c := range cases {

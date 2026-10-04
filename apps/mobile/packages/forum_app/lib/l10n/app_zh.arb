@@ -1552,5 +1552,10 @@
   "notificationReviewRejected": "你的内容未通过审核，不会公开显示",
   "topicPendingReviewBanner": "这篇内容正在审核，目前只有你和审核员能看到。通过后所有人可见。",
   "topicPendingReviewBannerModerator": "这篇内容正在等待审核，其他读者暂时看不到。",
-  "topicPendingReviewReply": "审核中 · 通过审核前，只有你和审核员能看到这条回复。"
+  "topicPendingReviewReply": "审核中 · 通过审核前，只有你和审核员能看到这条回复。",
+  "contentReviewBlocked": "未通过审核",
+  "contentReviewRetry": "修改并重新提交",
+  "contentReviewLive": "原有公开版本保持可见。",
+  "contentReviewView": "查看内容",
+  "contentReviewPending": "审核中"
 }

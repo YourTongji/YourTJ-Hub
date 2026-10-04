@@ -142,6 +142,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
+  <span v-if="topic.processStatus === 2" class="inline-flex rounded bg-warning/15 px-2 py-0.5 text-xs text-warning">{{ t('topic.pendingReviewBadge') }}</span>
   <article
     ref="rowEl"
     class="group gf-topic-row"

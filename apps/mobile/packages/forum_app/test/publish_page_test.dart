@@ -22,7 +22,6 @@ import 'package:forum_app/src/widgets/editor/rich_markdown_editor.dart';
 import 'package:forum_app/src/widgets/markdown_view.dart';
 import 'package:forum_app/src/router.dart';
 import 'package:forum_app/src/providers.dart';
-import 'fixtures/page_fixtures.dart' show topicDetailPayloadJson;
 import 'fixtures/sticker_fixtures.dart';
 import 'package:forum_app/src/widgets/stickers/sticker_picker.dart';
 import 'package:forum_app/src/widgets/stickers/sticker_image.dart';
@@ -46,7 +45,6 @@ class _PublishPageRepository extends PageRepository {
 
   final PagePayload payload;
   bool offline = false;
-  PagePayload? existingTopic;
   final List<String> paths = <String>[];
 
   @override
@@ -55,10 +53,6 @@ class _PublishPageRepository extends PageRepository {
     if (offline) throw const NetworkException(fallbackMessage: 'offline');
     return payload;
   }
-
-  @override
-  Future<PagePayload> topicDetail(int topicId, {int? postNo}) async =>
-      existingTopic ?? await super.topicDetail(topicId, postNo: postNo);
 }
 
 class _FailingWritingStore extends WritingStore {
@@ -180,6 +174,7 @@ PagePayload _publishPayload({
   List<int>? categoryIds,
   String? content,
   bool viewerAuthenticated = true,
+  List<String> images = const [],
 }) {
   return PagePayload.fromJson(<String, dynamic>{
     'component': PageComponent.publish,
@@ -198,6 +193,7 @@ PagePayload _publishPayload({
         'categoryIds': categoryIds ?? (editing ? <int>[2] : null),
         'topicStatus': topicStatus ?? (editing ? 1 : 0),
         'contentType': contentType,
+        'images': images,
       },
     },
     'meta': <String, dynamic>{'title': editing ? '编辑话题' : '发布话题'},
@@ -288,14 +284,12 @@ void main() {
         categoryIds: categoryIds,
         content: content,
         viewerAuthenticated: viewerAuthenticated,
+        images: readableGallery
+            ? const ['/file/img/gallery-photo.png']
+            : const [],
       ),
     );
     pageRepository.offline = offline;
-    if (readableGallery) {
-      final detail = topicDetailPayloadJson();
-      (detail['props'] as Map)['topic']['id'] = 42;
-      pageRepository.existingTopic = PagePayload.fromJson(detail);
-    }
     final _RecordingTopicRepository topicRepository = _RecordingTopicRepository(
       client,
       resultId: resultId,
@@ -1395,19 +1389,19 @@ void main() {
   }
 
   testWidgets(
-    'an unreadable existing gallery blocks editing instead of clearing photos',
+    'rejected content can be edited without fetching its unavailable public page',
     (tester) async {
       final result = await pumpPublishPage(
         tester,
         editing: true,
         contentType: 2,
       );
-      expect(find.byKey(const Key('publish-editor')), findsNothing);
+      expect(find.byKey(const Key('publish-editor')), findsOneWidget);
       expect(
         tester
             .widget<GfButton>(find.byKey(const Key('publish-appbar-submit')))
             .onPressed,
-        isNull,
+        isNotNull,
       );
       expect(result.topicRepository.writes, isEmpty);
     },

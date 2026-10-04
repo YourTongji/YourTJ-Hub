@@ -19,18 +19,15 @@ createPost:
       `comment.content.tooLong` (params minLength/maxLength); bounds count rendered
       visible text and the raw Markdown source is capped relative to `maxPostLength`.
       Request bodies over 2 MiB are rejected with HTTP 400 `common.request.parseFailed`.
-      Content moderation (issue #975): the existing sensitive-word gate runs first; when the
-      admin-configured AI image/text moderation is enabled in `enforce` mode the request
-      waits for a synchronous decision. A block fails with `content.aiModeration.blocked`
-      (or `content.aiModeration.externalImageBlocked` when non-site images are disallowed)
-      and nothing is written; a review result (or any model failure) stores the content as
-      pending review and the success envelope carries `messageCode`
-      `content.moderation.pendingReview` (also used for sensitive-word review). In `deferred`
-      mode the request does not wait: the content is stored as pending and the envelope carries
-      `content.moderation.checking`; a background decision then publishes it, rejects it (the
-      author is notified), or leaves it for a reviewer. Disallowed non-site images are still
-      rejected synchronously. Images referenced by pending content are not publicly readable
-      until approval.
+      Moderated submissions are saved with their immutable revision, private image references
+      and a durable review task before returning success (`content.moderation.checking`).
+      Both `enforce` (compatibility setting) and `deferred` run in the background. Sensitive-word
+      blocks and disallowed external images follow the same saved-then-rejected path.
+      Approval publishes silently; rejection notifies the author and retains editable content
+      in content management. An existing approved version stays public during edit review and
+      after a rejected edit. Stale decisions cannot apply to newer submissions.
+      Draft saves do not start review; publishing a draft does. Basic validation and account
+      permission failures remain synchronous. Pending attachments are private until approval.
     security:
       - bearerAuth: []
       - accessTokenCookie: []
@@ -114,18 +111,15 @@ updatePost:
       bounds count rendered visible text and the raw Markdown source is capped relative
       to `maxPostLength`. Request bodies over 2 MiB are rejected with HTTP 400
       `common.request.parseFailed`.
-      Content moderation (issue #975): the existing sensitive-word gate runs first; when the
-      admin-configured AI image/text moderation is enabled in `enforce` mode the request
-      waits for a synchronous decision. A block fails with `content.aiModeration.blocked`
-      (or `content.aiModeration.externalImageBlocked` when non-site images are disallowed)
-      and nothing is written; a review result (or any model failure) stores the content as
-      pending review and the success envelope carries `messageCode`
-      `content.moderation.pendingReview` (also used for sensitive-word review). In `deferred`
-      mode the request does not wait: the content is stored as pending and the envelope carries
-      `content.moderation.checking`; a background decision then publishes it, rejects it (the
-      author is notified), or leaves it for a reviewer. Disallowed non-site images are still
-      rejected synchronously. Images referenced by pending content are not publicly readable
-      until approval.
+      Moderated submissions are saved with their immutable revision, private image references
+      and a durable review task before returning success (`content.moderation.checking`).
+      Both `enforce` (compatibility setting) and `deferred` run in the background. Sensitive-word
+      blocks and disallowed external images follow the same saved-then-rejected path.
+      Approval publishes silently; rejection notifies the author and retains editable content
+      in content management. An existing approved version stays public during edit review and
+      after a rejected edit. Stale decisions cannot apply to newer submissions.
+      Draft saves do not start review; publishing a draft does. Basic validation and account
+      permission failures remain synchronous. Pending attachments are private until approval.
     security:
       - bearerAuth: []
       - accessTokenCookie: []

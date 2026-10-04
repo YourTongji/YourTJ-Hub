@@ -2,6 +2,7 @@ import 'package:core/core.dart';
 
 /// Reuse TopicPage's floor query; older payloads safely open the topic.
 String? notificationTarget(NotificationPayload item) {
+  if (item.eventType == 'review_rejected') return '/my-content';
   final topicId = item.topic?.id ?? item.payload.topicId;
   if (topicId != null && topicId > 0) {
     final postNo = item.payload.postNo;

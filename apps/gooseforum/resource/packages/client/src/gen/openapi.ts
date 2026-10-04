@@ -765,18 +765,15 @@ export interface paths {
          *     Request bodies over 2 MiB are rejected with HTTP 400 `common.request.parseFailed`
          *     before binding; JSON binding is otherwise lenient, so a malformed body within the
          *     limit binds to zero values and fails as `common.request.invalidParams` (HTTP 200).
-         *     Content moderation (issue #975): the existing sensitive-word gate runs first; when the
-         *     admin-configured AI image/text moderation is enabled in `enforce` mode the request
-         *     waits for a synchronous decision. A block fails with `content.aiModeration.blocked`
-         *     (or `content.aiModeration.externalImageBlocked` when non-site images are disallowed)
-         *     and nothing is written; a review result (or any model failure) stores the content as
-         *     pending review and the success envelope carries `messageCode`
-         *     `content.moderation.pendingReview` (also used for sensitive-word review). In `deferred`
-         *     mode the request does not wait: the content is stored as pending and the envelope carries
-         *     `content.moderation.checking`; a background decision then publishes it, rejects it (the
-         *     author is notified), or leaves it for a reviewer. Disallowed non-site images are still
-         *     rejected synchronously. Images referenced by pending content are not publicly readable
-         *     until approval.
+         *     Moderated submissions are saved with their immutable revision, private image references
+         *     and a durable review task before returning success (`content.moderation.checking`).
+         *     Both `enforce` (compatibility setting) and `deferred` run in the background. Sensitive-word
+         *     blocks and disallowed external images follow the same saved-then-rejected path.
+         *     Approval publishes silently; rejection notifies the author and retains editable content
+         *     in content management. An existing approved version stays public during edit review and
+         *     after a rejected edit. Stale decisions cannot apply to newer submissions.
+         *     Draft saves do not start review; publishing a draft does. Basic validation and account
+         *     permission failures remain synchronous. Pending attachments are private until approval.
          */
         post: operations["writeTopic"];
         delete?: never;
@@ -941,18 +938,15 @@ export interface paths {
          *     `comment.content.tooLong` (params minLength/maxLength); bounds count rendered
          *     visible text and the raw Markdown source is capped relative to `maxPostLength`.
          *     Request bodies over 2 MiB are rejected with HTTP 400 `common.request.parseFailed`.
-         *     Content moderation (issue #975): the existing sensitive-word gate runs first; when the
-         *     admin-configured AI image/text moderation is enabled in `enforce` mode the request
-         *     waits for a synchronous decision. A block fails with `content.aiModeration.blocked`
-         *     (or `content.aiModeration.externalImageBlocked` when non-site images are disallowed)
-         *     and nothing is written; a review result (or any model failure) stores the content as
-         *     pending review and the success envelope carries `messageCode`
-         *     `content.moderation.pendingReview` (also used for sensitive-word review). In `deferred`
-         *     mode the request does not wait: the content is stored as pending and the envelope carries
-         *     `content.moderation.checking`; a background decision then publishes it, rejects it (the
-         *     author is notified), or leaves it for a reviewer. Disallowed non-site images are still
-         *     rejected synchronously. Images referenced by pending content are not publicly readable
-         *     until approval.
+         *     Moderated submissions are saved with their immutable revision, private image references
+         *     and a durable review task before returning success (`content.moderation.checking`).
+         *     Both `enforce` (compatibility setting) and `deferred` run in the background. Sensitive-word
+         *     blocks and disallowed external images follow the same saved-then-rejected path.
+         *     Approval publishes silently; rejection notifies the author and retains editable content
+         *     in content management. An existing approved version stays public during edit review and
+         *     after a rejected edit. Stale decisions cannot apply to newer submissions.
+         *     Draft saves do not start review; publishing a draft does. Basic validation and account
+         *     permission failures remain synchronous. Pending attachments are private until approval.
          */
         post: operations["createPost"];
         delete?: never;
@@ -982,18 +976,15 @@ export interface paths {
          *     bounds count rendered visible text and the raw Markdown source is capped relative
          *     to `maxPostLength`. Request bodies over 2 MiB are rejected with HTTP 400
          *     `common.request.parseFailed`.
-         *     Content moderation (issue #975): the existing sensitive-word gate runs first; when the
-         *     admin-configured AI image/text moderation is enabled in `enforce` mode the request
-         *     waits for a synchronous decision. A block fails with `content.aiModeration.blocked`
-         *     (or `content.aiModeration.externalImageBlocked` when non-site images are disallowed)
-         *     and nothing is written; a review result (or any model failure) stores the content as
-         *     pending review and the success envelope carries `messageCode`
-         *     `content.moderation.pendingReview` (also used for sensitive-word review). In `deferred`
-         *     mode the request does not wait: the content is stored as pending and the envelope carries
-         *     `content.moderation.checking`; a background decision then publishes it, rejects it (the
-         *     author is notified), or leaves it for a reviewer. Disallowed non-site images are still
-         *     rejected synchronously. Images referenced by pending content are not publicly readable
-         *     until approval.
+         *     Moderated submissions are saved with their immutable revision, private image references
+         *     and a durable review task before returning success (`content.moderation.checking`).
+         *     Both `enforce` (compatibility setting) and `deferred` run in the background. Sensitive-word
+         *     blocks and disallowed external images follow the same saved-then-rejected path.
+         *     Approval publishes silently; rejection notifies the author and retains editable content
+         *     in content management. An existing approved version stays public during edit review and
+         *     after a rejected edit. Stale decisions cannot apply to newer submissions.
+         *     Draft saves do not start review; publishing a draft does. Basic validation and account
+         *     permission failures remain synchronous. Pending attachments are private until approval.
          */
         post: operations["updatePost"];
         delete?: never;
@@ -1962,10 +1953,10 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Stream foreground chat and notification invalidations
+         * Stream foreground content, chat and notification invalidations
          * @description A single authenticated foreground SSE connection per app instance. The
          *     stream emits an immediate hello with resync=true; clients must reconcile
-         *     chat, notification and unread state over REST after every connection or
+         *     content, chat, notification and unread state over REST after every connection or
          *     reconnect. Events are owner-scoped hints, contain no message bodies or
          *     notification previews, have no replay IDs, and are never a substitute for
          *     REST cursors. A full server queue closes the stream rather than silently
@@ -5924,7 +5915,8 @@ export interface paths {
          *     below 1 or above 50 falls back to 20. Any other `kind` fails
          *     validation with HTTP 200 `common.request.invalidParams`. Topic items
          *     omit `topicId`/`postNo`; post items include them and truncate the
-         *     excerpt to 120 bytes.
+         *     excerpt to 120 bytes. Published items with a pending edit are included; `content`,
+         *     `images` and `revisionId` describe the candidate. Use this exact revisionId when acting.
          */
         post: operations["adminListReviewQueue"];
         delete?: never;
@@ -10775,6 +10767,14 @@ export interface components {
         AdminReviewQueueItem: {
             /**
              * Format: uint64
+             * @description Exact submitted version. Send back unchanged when deciding; omitted for legacy entries.
+             */
+            revisionId?: number;
+            /** @description Full candidate Markdown, visible to authorized reviewers only. */
+            content?: string;
+            reviewReason?: string;
+            /**
+             * Format: uint64
              * @description Topic id when kind=topic, post id when kind=post.
              */
             id: number;
@@ -10823,6 +10823,13 @@ export interface components {
             result: components["schemas"]["AdminReviewQueueResult"];
         }) | components["schemas"]["ApiFailure"];
         AdminReviewActionRequest: {
+            /**
+             * Format: uint64
+             * @description Required for versioned submissions. Missing or stale IDs return admin.review.processed without applying a decision.
+             */
+            revisionId?: number;
+            /** @description Optional author-visible rejection reason. */
+            reason?: string;
             /** @enum {string} */
             kind: "topic" | "post";
             /** Format: uint64 */
@@ -11567,6 +11574,19 @@ export interface components {
             data: components["schemas"]["PkPlansDeleteResult"];
         };
         MyContentItem: {
+            /**
+             * @description Latest submission state; 1 can be edited and resubmitted, 2 is private pending review.
+             * @enum {integer}
+             */
+            processStatus: 0 | 1 | 2;
+            /** Format: uint64 */
+            revisionId: number;
+            reviewReason?: string;
+            /** @description An approved version remains publicly readable while the submitted edit is pending or rejected. */
+            hasPublishedVersion: boolean;
+            /** @description Complete latest submitted Markdown for the authenticated author, including rejected content. */
+            content: string;
+            images: string[];
             /** Format: uint64 */
             id: number;
             /** @enum {string} */
@@ -16587,7 +16607,7 @@ export interface operations {
             /**
              * @description SSE frames: hello {version, heartbeatSeconds, resync, capabilities},
              *     chat.changed {convId, change}, notifications.changed {change},
-             *     unread.changed {}, and session.invalidated {}. Changes are hints;
+             *     content.changed {}, unread.changed {}, and session.invalidated {}. Changes are hints;
              *     REST remains authoritative.
              */
             200: {

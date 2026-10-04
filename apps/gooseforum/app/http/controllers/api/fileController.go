@@ -2,6 +2,7 @@ package api
 
 import (
 	"bytes"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postRevisions"
 	"io"
 	"log/slog"
 	"mime"
@@ -122,6 +123,16 @@ func pendingUsageCategories(usage fileUsage.Entity) []uint64 {
 	topicID := usage.TargetId
 	switch usage.TargetType {
 	case fileUsage.TargetTopic:
+	case fileUsage.TargetPostRevision:
+		revision := postRevisions.Get(usage.TargetId)
+		post := posts.Get(revision.PostId)
+		if post.VisibilityStatus != posts.VisibilityActive {
+			return nil
+		}
+		if post.PostNo == 1 {
+			return revision.CategoryIds
+		}
+		topicID = post.TopicId
 	case fileUsage.TargetPost:
 		topicID = posts.Get(usage.TargetId).TopicId
 	default:

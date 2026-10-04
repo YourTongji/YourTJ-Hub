@@ -503,7 +503,8 @@ func PagePendingReviewInCategories(page, pageSize int, categoryIDs []uint64) str
 	page = max(page-1, 0)
 	pageSize = pageutil.BoundPageSize(pageSize)
 	b := builder().
-		Where(queryopt.Eq("process_status", ProcessStatusPending)).
+		Where("(process_status = ? OR first_post_id IN (SELECT p.id FROM posts p JOIN post_revisions r ON r.id = p.latest_revision_id WHERE r.process_status = ?))", ProcessStatusPending, ProcessStatusPending).
+		Where("status = ? AND visibility_status = ?", 1, VisibilityActive).
 		Where(queryopt.Eq("topic_type", TopicTypeForum)).
 		Where(queryopt.IsNull("deleted_at"))
 	if len(categoryIDs) > 0 {
@@ -540,7 +541,7 @@ func UpdateStatusTx(tx *gorm.DB, id uint64, status int8) error {
 // 内容被删除后不应继续停留在管理审核队列（PRD R1），避免"已删除+待审"
 // 语义叠加导致审核队列出现幽灵项。
 func ResetPendingReview(id uint64) error {
-	return builder().Unscoped().Where(queryopt.Eq("id", id)).UpdateColumn("process_status", ProcessStatusNormal).Error
+	return builder().Unscoped().Where(queryopt.Eq("id", id)).Where("first_post_id NOT IN (SELECT id FROM posts WHERE latest_revision_id <> 0)").UpdateColumn("process_status", ProcessStatusNormal).Error
 }
 
 func UpdatePinWeight(id uint64, pinWeight int) error {
@@ -794,3 +795,11 @@ func MarkPrivacyErased(id uint64, erasedBy uint64, reason string) error {
 
 // TopicTypePtr 返回话题类型指针，供 PageQuery.TopicType 显式过滤使用。
 func TopicTypePtr(t int8) *int8 { return &t }
+
+// PendingByAuthor is an owner-only overlay; never put it into a shared cache.
+func PendingByAuthor(userID uint64, limit int) (entities []*Entity) {
+	builder().Where("user_id = ? AND status = 1 AND topic_type = ? AND visibility_status = ? AND process_status <> ?", userID, TopicTypeForum, VisibilityActive, ProcessStatusBlocked).
+		Where("process_status = ? OR first_post_id IN (SELECT p.id FROM posts p JOIN post_revisions r ON r.id = p.latest_revision_id WHERE r.process_status = ?)", ProcessStatusPending, ProcessStatusPending).
+		Order("updated_at desc").Limit(limit).Find(&entities)
+	return
+}

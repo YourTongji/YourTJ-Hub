@@ -4,6 +4,7 @@
 enum ForumRealtimeEventType {
   hello('hello'),
   chatChanged('chat.changed'),
+  contentChanged('content.changed'),
   notificationsChanged('notifications.changed'),
   unreadChanged('unread.changed'),
   sessionInvalidated('session.invalidated');
@@ -32,7 +33,8 @@ class ForumRealtimeHello {
       version: json['version'] as int,
       heartbeatSeconds: json['heartbeatSeconds'] as int,
       resync: json['resync'] as bool,
-      visibleRead: capabilities is Map<String, dynamic> &&
+      visibleRead:
+          capabilities is Map<String, dynamic> &&
           capabilities['visibleRead'] == true,
     );
   }
@@ -56,6 +58,7 @@ class ForumRealtimeNotificationsChanged {
 
   final String change;
 
-  factory ForumRealtimeNotificationsChanged.fromJson(Map<String, dynamic> json) =>
-      ForumRealtimeNotificationsChanged(change: json['change'] as String);
+  factory ForumRealtimeNotificationsChanged.fromJson(
+    Map<String, dynamic> json,
+  ) => ForumRealtimeNotificationsChanged(change: json['change'] as String);
 }

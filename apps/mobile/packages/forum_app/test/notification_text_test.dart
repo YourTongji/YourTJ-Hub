@@ -76,6 +76,7 @@ void main() {
         floor == 8 ? '/p/512?postNo=8' : '/p/512',
       );
     }
+    expect(notificationTarget(notification(event: 'review_rejected')), '/my-content');
     expect(notificationTarget(notification(event: 'mention')), isNull);
     expect(notificationTarget(notification(event: 'follow')), '/u/1');
   });

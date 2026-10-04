@@ -3282,4 +3282,19 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get topicPendingReviewReply => '审核中 · 通过审核前，只有你和审核员能看到这条回复。';
+
+  @override
+  String get contentReviewBlocked => '未通过审核';
+
+  @override
+  String get contentReviewRetry => '修改并重新提交';
+
+  @override
+  String get contentReviewLive => '原有公开版本保持可见。';
+
+  @override
+  String get contentReviewView => '查看内容';
+
+  @override
+  String get contentReviewPending => '审核中';
 }

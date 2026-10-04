@@ -309,6 +309,17 @@ const postNavigationTargetTop = 160
 // 树状视图折叠态：仅会话内有效，切换话题时重置（不持久化，默认全展开）。
 const collapsedIds = ref(new Set<number>())
 
+// Reconcile published/pending rows without discarding a reply being composed.
+watch(() => props.initialPostStream, next => {
+  const incoming = new Map(next.posts.map(post => [post.id, post]))
+  posts.value = posts.value.flatMap(post => {
+    const refreshed = incoming.get(post.id)
+    if (refreshed) { incoming.delete(post.id); return [refreshed] }
+    return post.processStatus === 2 ? [] : [post]
+  })
+  posts.value.push(...incoming.values())
+})
+
 watch(
   () => props.interactions,
   (next) => {
@@ -1532,6 +1543,7 @@ async function savePostEdit() {
     if (index >= 0) {
       posts.value[index] = {
         ...posts.value[index],
+        processStatus: updated.pendingReview ? 2 : 0,
         content: updated.content,
         renderedContent: updated.renderedContent,
         updatedAt: updated.updatedAt,
@@ -1590,7 +1602,6 @@ async function submitPost() {
     const pendingReview = typeof createdPost === 'object' && createdPost !== null && createdPost.pendingReview === true
     // 待审回复（issue #975）尚未公开：提示“已提交审核”或“正在自动检查”，不跳转定位到新楼层。
     pushFlash(pendingReview ? pendingReviewMessage(createdPost) : t('topic.replyPosted'), pendingReview ? 'info' : 'success')
-    if (pendingReview) return
     const createdPostId = typeof createdPost === 'object' && createdPost !== null ? createdPost.id : createdPost
     try {
       if (typeof createdPostId === 'number') {

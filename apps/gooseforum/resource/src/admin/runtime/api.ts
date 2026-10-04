@@ -561,8 +561,8 @@ export function getReviewQueue(kind: 'topic' | 'post', page: number, pageSize: n
   )
 }
 
-export function reviewAction(kind: 'topic' | 'post', id: number, approve: boolean) {
-  return postJson<unknown>('/api/admin/review-action', { kind, id, approve }, adminText('k00gd'))
+export function reviewAction(kind: 'topic' | 'post', id: number, approve: boolean, revisionId = 0) {
+  return postJson<unknown>('/api/admin/review-action', { kind, id, approve, revisionId }, adminText('k00gd'))
 }
 
 export function createExportTask(tables: string[], format: 'json' | 'csv') {

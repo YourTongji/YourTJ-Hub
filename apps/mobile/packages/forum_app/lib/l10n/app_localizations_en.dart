@@ -3443,4 +3443,19 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get topicPendingReviewReply =>
       'Under review · Only you and reviewers can see this reply until it’s approved.';
+
+  @override
+  String get contentReviewBlocked => 'Not approved';
+
+  @override
+  String get contentReviewRetry => 'Edit and resubmit';
+
+  @override
+  String get contentReviewLive => 'Your previous version remains public.';
+
+  @override
+  String get contentReviewView => 'View content';
+
+  @override
+  String get contentReviewPending => 'Under review';
 }

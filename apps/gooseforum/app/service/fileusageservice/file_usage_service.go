@@ -262,3 +262,56 @@ func fileNameFromPublicURL(value, publicPrefix string) string {
 func SetStickerUsageTx(tx *gorm.DB, stickerID, userID uint64, fileName string) error {
 	return fileUsage.ReplaceStickerTx(tx, stickerID, userID, fileName)
 }
+
+// RegisterRevisionImagesTx retains private candidate images without replacing
+// the currently public topic/post references. A save failure rolls back all refs.
+func RegisterRevisionImagesTx(tx *gorm.DB, revisionID, userID uint64, content string, gallery []string) error {
+	urls := append(markdown2html.ExtractImageURLs(content), gallery...)
+	for _, usage := range ownedUsages(userID, urls) {
+		if err := tx.Create(&fileUsage.Entity{FileName: usage.FileName, TargetType: fileUsage.TargetPostRevision, TargetId: revisionID, UsageType: usage.UsageType, UserId: userID, Status: fileUsage.UsageStatusPending}).Error; err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// PublishRevisionImagesTx replaces only the effective content refs. Revision
+// refs stay private, so superseded/rejected attachments never become public.
+func PublishRevisionImagesTx(tx *gorm.DB, revisionID, topicID, postID uint64, first bool) error {
+	target, id := fileUsage.TargetPost, postID
+	if first {
+		target, id = fileUsage.TargetTopic, topicID
+	}
+	if err := tx.Where("target_type = ? AND target_id = ? AND usage_type = ?", target, id, fileUsage.UsageInlineImage).Delete(&fileUsage.Entity{}).Error; err != nil {
+		return err
+	}
+	// First-post edits historically also registered post refs; revoke both sets.
+	if first {
+		if err := tx.Where("target_type = ? AND target_id = ? AND usage_type = ?", fileUsage.TargetPost, postID, fileUsage.UsageInlineImage).Delete(&fileUsage.Entity{}).Error; err != nil {
+			return err
+		}
+	}
+	var refs []fileUsage.Entity
+	if err := tx.Where("target_type = ? AND target_id = ?", fileUsage.TargetPostRevision, revisionID).Find(&refs).Error; err != nil {
+		return err
+	}
+	for _, ref := range refs {
+		ref.Id, ref.TargetType, ref.TargetId, ref.Status = 0, target, id, fileUsage.UsageStatusActive
+		if err := tx.Create(&ref).Error; err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// PrivatizeUnpublishedImagesTx closes effective references left by a draft or
+// blocked public row before its next candidate is submitted.
+func PrivatizeUnpublishedImagesTx(tx *gorm.DB, topicID, postID uint64, first bool) error {
+	q := tx.Model(&fileUsage.Entity{}).Where("usage_type = ? AND status = ?", fileUsage.UsageInlineImage, fileUsage.UsageStatusActive)
+	if first {
+		q = q.Where("(target_type = ? AND target_id = ?) OR (target_type = ? AND target_id = ?)", fileUsage.TargetTopic, topicID, fileUsage.TargetPost, postID)
+	} else {
+		q = q.Where("target_type = ? AND target_id = ?", fileUsage.TargetPost, postID)
+	}
+	return q.Update("status", fileUsage.UsageStatusPending).Error
+}

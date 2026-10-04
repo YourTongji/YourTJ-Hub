@@ -19,7 +19,7 @@ var bodyByLangType = map[string]map[string]string{
 		"mention":         "提到了你",
 		"system":          "系统管理提醒",
 		"review_approved": "你的内容已通过审核，现在所有人可见",
-		"review_rejected": "你的内容未通过审核，不会公开显示",
+		"review_rejected": "本次提交未通过审核，可在内容管理中修改重提",
 	},
 	"en": {
 		"comment":         "commented on your topic",
@@ -32,7 +32,7 @@ var bodyByLangType = map[string]map[string]string{
 		"mention":         "mentioned you",
 		"system":          "Admin alert",
 		"review_approved": "Your post was approved and is now visible to everyone",
-		"review_rejected": "Your post wasn’t approved and won’t be shown publicly",
+		"review_rejected": "Your submission wasn’t approved. Edit and resubmit it from content management.",
 	},
 	"ja": {
 		"comment":         "あなたのトピックにコメントしました",
@@ -45,7 +45,7 @@ var bodyByLangType = map[string]map[string]string{
 		"mention":         "あなたをメンションしました",
 		"system":          "管理者向けアラート",
 		"review_approved": "投稿が承認され、すべての人に表示されるようになりました",
-		"review_rejected": "投稿は承認されなかったため、公開されません",
+		"review_rejected": "今回の投稿は承認されませんでした。コンテンツ管理から修正して再送信できます。",
 	},
 	"de": {
 		"comment":         "hat dein Thema kommentiert",
@@ -58,7 +58,7 @@ var bodyByLangType = map[string]map[string]string{
 		"mention":         "hat dich erwähnt",
 		"system":          "Admin-Warnung",
 		"review_approved": "Dein Beitrag wurde freigegeben und ist jetzt für alle sichtbar",
-		"review_rejected": "Dein Beitrag wurde nicht freigegeben und wird nicht öffentlich angezeigt",
+		"review_rejected": "Deine Einreichung wurde nicht freigegeben. Du kannst sie in der Inhaltsverwaltung bearbeiten und erneut einreichen.",
 	},
 }
 

@@ -3321,4 +3321,19 @@ class AppLocalizationsJa extends AppLocalizations {
   @override
   String get topicPendingReviewReply =>
       '審査中 · 承認されるまで、この返信はあなたと審査担当者だけに表示されます。';
+
+  @override
+  String get contentReviewBlocked => '承認されませんでした';
+
+  @override
+  String get contentReviewRetry => '編集して再送信';
+
+  @override
+  String get contentReviewLive => '以前の公開版は引き続き表示されます。';
+
+  @override
+  String get contentReviewView => '内容を見る';
+
+  @override
+  String get contentReviewPending => '審査中';
 }

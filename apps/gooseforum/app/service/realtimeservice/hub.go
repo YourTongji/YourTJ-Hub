@@ -9,6 +9,7 @@ import (
 
 const (
 	EventChatChanged          = "chat.changed"
+	EventContentChanged       = "content.changed"
 	EventNotificationsChanged = "notifications.changed"
 	EventUnreadChanged        = "unread.changed"
 )

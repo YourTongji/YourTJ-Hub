@@ -5,6 +5,9 @@ import (
 	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/fileUsage"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postRevisions"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 )
 
 // TargetRef 标识一个内容目标（话题/回复），用于附件生命周期管理。
@@ -15,6 +18,13 @@ type TargetRef struct {
 
 // HardenTargetFiles 内容删除时把附件引用转入受限恢复态（30 天窗口）。
 func HardenTargetFiles(ref TargetRef, expiresAt time.Time) {
+	if ref.TargetType == fileUsage.TargetPost {
+		for _, id := range postRevisions.IDsByPost(ref.TargetID) {
+			if err := fileUsage.MarkTargetRecovering(fileUsage.TargetPostRevision, id, expiresAt); err != nil {
+				slog.Error("harden revision files", "error", err)
+			}
+		}
+	}
 	if err := fileUsage.MarkTargetRecovering(ref.TargetType, ref.TargetID, expiresAt); err != nil {
 		slog.Error("mark file usages recovering failed", "targetType", ref.TargetType, "targetId", ref.TargetID, "err", err)
 	}
@@ -22,7 +32,28 @@ func HardenTargetFiles(ref TargetRef, expiresAt time.Time) {
 
 // RecoverTargetFiles 内容恢复时把附件引用恢复为正常可见。
 func RecoverTargetFiles(ref TargetRef) {
-	if err := fileUsage.MarkTargetActive(ref.TargetType, ref.TargetID); err != nil {
+	if ref.TargetType == fileUsage.TargetPost {
+		for _, id := range postRevisions.IDsByPost(ref.TargetID) {
+			if err := fileUsage.RestoreRevisionPrivate(id); err != nil {
+				slog.Error("recover revision files", "error", err)
+			}
+		}
+	}
+	status := fileUsage.UsageStatusActive
+	switch ref.TargetType {
+	case fileUsage.TargetTopic:
+		topic := topics.Get(ref.TargetID)
+		if topic.Status != 1 || topic.ProcessStatus != topics.ProcessStatusNormal {
+			status = fileUsage.UsageStatusPending
+		}
+	case fileUsage.TargetPost:
+		post := posts.Get(ref.TargetID)
+		topic := topics.Get(post.TopicId)
+		if post.ProcessStatus != posts.ProcessStatusNormal || topic.Status != 1 || topic.ProcessStatus != topics.ProcessStatusNormal {
+			status = fileUsage.UsageStatusPending
+		}
+	}
+	if err := fileUsage.RestoreTarget(ref.TargetType, ref.TargetID, status); err != nil {
 		slog.Error("mark file usages active failed", "targetType", ref.TargetType, "targetId", ref.TargetID, "err", err)
 	}
 }
@@ -77,6 +108,13 @@ func HasActiveReferences(fileName string) bool {
 // 不构成公开下载授权（fileController 按 ACTIVE 引用判权）；取证视图当前
 // 仅返回文本正文，附件字节的取证回显是后续增强——留存不等于现有读路径可访问。
 func RetireTargetFiles(ref TargetRef) {
+	if ref.TargetType == fileUsage.TargetPost {
+		for _, id := range postRevisions.IDsByPost(ref.TargetID) {
+			if err := fileUsage.MarkTargetPurged(fileUsage.TargetPostRevision, id); err != nil {
+				slog.Error("retire revision files", "error", err)
+			}
+		}
+	}
 	if err := fileUsage.MarkTargetPurged(ref.TargetType, ref.TargetID); err != nil {
 		slog.Error("retire file usages failed", "targetType", ref.TargetType, "targetId", ref.TargetID, "err", err)
 	}

@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"errors"
 	"fmt"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/publicationservice"
 	"log/slog"
 	"maps"
 	"net/url"
@@ -650,6 +651,7 @@ type ModerationPageProps struct {
 }
 
 type PublishTopicPayload struct {
+	Images      []string `json:"images"`
 	Title       string   `json:"title"`
 	Content     string   `json:"content"`
 	CategoryIDs []uint64 `json:"categoryIds"`
@@ -1347,6 +1349,17 @@ func buildPostWindowPayloadFromEntities(postEntities []*posts.Entity, userMap ma
 }
 
 func buildPostPayloads(postEntities []*posts.Entity, userMap map[uint64]*users.EntityComplete, currentUserID uint64, canModerate bool, firstPost *posts.Entity) ([]PostPayload, []ReplyTargetPayload) {
+	owned := make([]*posts.Entity, 0, len(postEntities))
+	for _, item := range postEntities {
+		if item == nil {
+			continue
+		}
+		copy := *item
+		dummy := topics.Entity{VisibilityStatus: topics.VisibilityActive}
+		publicationservice.OwnerSnapshot(&dummy, &copy, currentUserID, false)
+		owned = append(owned, &copy)
+	}
+	postEntities = owned
 	postMap := make(map[uint64]*posts.Entity, len(postEntities))
 	for _, item := range postEntities {
 		if item != nil {
@@ -2979,7 +2992,9 @@ func BuildNotificationPayload(notification *eventNotification.Entity) Notificati
 	if payload.TopicId > 0 {
 		topicURL := urlconfig.PostDetail(payload.TopicId)
 		// wiki 页面更新通知：目标 URL 为 wiki 页面而非帖子详情（review P2）。
-		if notification.EventType == eventNotification.EventTypeWikiUpdated && payload.Extra.ProfileURL != "" {
+		if notification.EventType == eventNotification.EventTypeReviewRejected {
+			topicURL = "/settings?tab=content"
+		} else if notification.EventType == eventNotification.EventTypeWikiUpdated && payload.Extra.ProfileURL != "" {
 			topicURL = payload.Extra.ProfileURL
 		} else if payload.PostNo > 0 {
 			// 楼层号链接：删除/重建索引后仍稳定落到正确楼层，不依赖 post ID。
@@ -3080,14 +3095,16 @@ func buildPublishPageProps(c *gin.Context, topicID uint64) (PublishPageProps, er
 	}
 
 	topic := topics.Get(topicID)
-	if topic.Id == 0 || topic.UserId != component.LoginUserId(c) {
+	if topic.Id == 0 || topic.UserId != component.LoginUserId(c) || topic.VisibilityStatus != topics.VisibilityActive {
 		return props, errors.New("topic not found")
 	}
 	firstPost := posts.Get(topic.FirstPostId)
 	if firstPost.Id == 0 {
 		firstPost, _ = posts.GetByTopicPostNoAtOrAfter(topic.Id, 1)
 	}
+	publicationservice.OwnerSnapshot(&topic, &firstPost, component.LoginUserId(c), true)
 	props.Topic = PublishTopicPayload{
+		Images:      append([]string{}, topic.ImageUrls...),
 		Title:       topic.Title,
 		Content:     firstPost.Content,
 		CategoryIDs: topic.CategoryIds,
