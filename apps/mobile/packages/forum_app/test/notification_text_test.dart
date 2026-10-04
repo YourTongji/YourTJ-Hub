@@ -36,6 +36,30 @@ NotificationPayload notification({
 );
 
 void main() {
+  test(
+    'review copy uses the reviewed subject instead of legacy preview text',
+    () {
+      for (final event in [
+        'review_pending',
+        'review_approved',
+        'review_rejected',
+      ]) {
+        final subject = event == 'review_rejected' ? '首******尾' : '无标题正文摘要';
+        final copy = notificationText(
+          notification(
+            event: event,
+            topicTitle: subject,
+            content: 'Legacy raw preview',
+          ),
+          AppLocalizationsEn(),
+        );
+        expect(copy.$2, startsWith(subject));
+        expect(copy.$2, isNot(contains('Legacy raw preview')));
+        expect(copy.$2, isNot(contains('Actual preview')));
+      }
+    },
+  );
+
   test('manual review and rejection explain the next step in all locales', () {
     for (final l10n in [
       AppLocalizationsZh(),

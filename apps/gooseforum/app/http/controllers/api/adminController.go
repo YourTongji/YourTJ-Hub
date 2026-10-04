@@ -2403,7 +2403,10 @@ func reviewContent(ctx context.Context, params ReviewActionReq, actorID uint64, 
 			action = moderationDecision.ActionAllow
 		}
 		if err := publicationservice.Review(ctx, params.RevisionId, action, params.Reason, actorID); err != nil {
-			return component.FailResponseCode(component.MessageAdminReviewProcessed, nil)
+			if errors.Is(err, publicationservice.ErrUnavailable) {
+				return component.FailResponseCode(component.MessageAdminReviewProcessed, nil)
+			}
+			return component.FailResponseCode(component.MessageOperationFailed, nil)
 		}
 		if !automatic {
 			optlogger.UserOptCode(actorID, optlogger.EditTopic, post.TopicId, "admin.opt.review.post", optlogger.MessageParams{"id": post.Id, "topicId": post.TopicId, "approve": params.Approve})

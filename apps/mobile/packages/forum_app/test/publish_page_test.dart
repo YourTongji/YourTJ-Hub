@@ -3,6 +3,9 @@ import 'dart:ui' show SemanticsAction, Tristate;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:forum_app/src/local/writing_store.dart';
 import 'package:forum_app/src/current_user.dart';
+import 'package:forum_app/src/server_messages.dart';
+import 'package:forum_app/src/pages/content/content_page.dart';
+import 'package:forum_app/src/pages/topic/post_edit_sheet.dart';
 
 import 'package:core/core.dart';
 import 'package:image/image.dart' as img;
@@ -93,9 +96,11 @@ class _RecordingTopicRepository extends TopicRepository {
     super.client, {
     this.resultId = 99,
     this.requireCaptcha = false,
+    this.pendingReview = false,
     this.captchaAction = 'topic.write',
   });
   final bool requireCaptcha;
+  final bool pendingReview;
   final String captchaAction;
 
   final int resultId;
@@ -157,8 +162,34 @@ class _RecordingTopicRepository extends TopicRepository {
       topicStatus: topicStatus,
       contentType: contentType,
     ));
-    return WriteTopicResult(id: resultId);
+    return WriteTopicResult(
+      id: resultId,
+      pendingReview: pendingReview,
+      checking: pendingReview,
+    );
   }
+}
+
+class _RejectedContentRepository extends ContentRepository {
+  _RejectedContentRepository(super.client);
+  @override
+  Future<UserContentPage> list({
+    required String contentType,
+    bool deleted = false,
+    int cursor = 0,
+  }) async => const UserContentPage(
+    items: [
+      UserContentItem(
+        id: 42,
+        contentType: 'topic',
+        title: 'Rejected topic',
+        content: 'Stale list body',
+        processStatus: 1,
+      ),
+    ],
+    hasMore: false,
+    nextCursorId: 0,
+  );
 }
 
 class _CaptchaAuthRepository extends AuthRepository {
@@ -272,6 +303,7 @@ void main() {
     bool viewerAuthenticated = true,
     WritingStore? localStore,
     bool withStickers = false,
+    bool fromContentManagement = false,
   }) async {
     final _MemoryTokenStorage storage = _MemoryTokenStorage();
     final GfApiClient client = GfApiClient(
@@ -299,10 +331,19 @@ void main() {
       resultId: resultId,
       requireCaptcha: requireCaptcha,
       captchaAction: captchaAction,
+      pendingReview: fromContentManagement,
     );
     final GoRouter router = GoRouter(
-      initialLocation: editing ? '/publish?$editQueryKey=42' : '/publish',
+      initialLocation: fromContentManagement
+          ? '/my-content'
+          : editing
+          ? '/publish?$editQueryKey=42'
+          : '/publish',
       routes: <RouteBase>[
+        GoRoute(
+          path: '/my-content',
+          builder: (context, state) => const ContentPage(),
+        ),
         GoRoute(
           path: '/',
           builder: (BuildContext context, GoRouterState state) =>
@@ -331,6 +372,10 @@ void main() {
       ProviderScope(
         overrides: <Override>[
           tokenStorageProvider.overrideWithValue(storage),
+          if (fromContentManagement)
+            contentRepositoryProvider.overrideWithValue(
+              _RejectedContentRepository(client),
+            ),
           if (withStickers)
             stickerLibraryProvider.overrideWith(
               (ref) => StickerLibrary(ComposerStickerRepository(client)),
@@ -1674,6 +1719,75 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 600));
   });
+
+  for (final type in [1, 2, 3]) {
+    testWidgets(
+      'rejected type $type opens its normal editor from content management and resubmits',
+      (tester) async {
+        final result = await pumpPublishPage(
+          tester,
+          editing: true,
+          contentType: type,
+          initialContentType: 3,
+          content: 'Latest candidate body',
+          fromContentManagement: true,
+          locale: const Locale('en'),
+        );
+        await tester.tap(find.byType(PopupMenuButton<String>));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Edit and resubmit'));
+        await tester.pumpAndSettle();
+        expect(result.pageRepository.paths.last, '/publish?id=42');
+        expect(find.byType(PostEditSheet), findsNothing);
+        expect(
+          find.byType(QuillEditor),
+          type == 3 ? findsOneWidget : findsNothing,
+        );
+        if (type == 3) {
+          final controller = tester
+              .widget<QuillEditor>(find.byType(QuillEditor))
+              .controller;
+          expect(
+            controller.document.toPlainText(),
+            contains('Latest candidate body'),
+          );
+          controller.replaceText(
+            0,
+            controller.document.length - 1,
+            'Corrected candidate body',
+            const TextSelection.collapsed(offset: 24),
+          );
+        } else {
+          final body = find.byWidgetPredicate(
+            (w) =>
+                w is TextField && w.controller?.text == 'Latest candidate body',
+          );
+          expect(body, findsOneWidget);
+          await tester.enterText(body, 'Corrected candidate body');
+        }
+        await tester.tap(find.byKey(const Key('publish-appbar-submit')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const Key('publish-appbar-submit')));
+        await tester.pumpAndSettle();
+        final write = result.topicRepository.writes.single;
+        expect(write.topicId, 42);
+        expect(write.contentType, type);
+        expect(write.content, contains('Corrected candidate body'));
+        expect(write.topicStatus, 1);
+        expect(result.router.state.uri.path, '/p/99');
+        expect(
+          find.text(
+            pendingReviewMessage(
+              AppLocalizations.of(tester.element(find.text('topic-99'))),
+              checking: true,
+            ),
+          ),
+          findsOneWidget,
+        );
+        await tester.pump(const Duration(seconds: 4));
+      },
+    );
+  }
 
   testWidgets('内容管理编辑瞬间优先使用服务端类型而非文章默认值', (tester) async {
     final result = await pumpPublishPage(

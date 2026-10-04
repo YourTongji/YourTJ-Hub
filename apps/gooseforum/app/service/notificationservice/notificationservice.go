@@ -64,6 +64,12 @@ func hydrateNotifications(notifications []*eventNotification.Entity) error {
 		if userInfo, ok := userMap[notification.Payload.ActorId]; ok {
 			notification.Payload.ActorName = userInfo.Username
 		}
+		// Review subjects describe the reviewed version (including untitled bodies
+		// and redacted rejections), not the currently public topic title.
+		switch notification.EventType {
+		case eventNotification.EventTypeReviewPending, eventNotification.EventTypeReviewApproved, eventNotification.EventTypeReviewRejected:
+			return
+		}
 		if topicInfo, ok := topicMap[notification.Payload.TopicId]; ok {
 			notification.Payload.TopicTitle = topicInfo.Title
 		}

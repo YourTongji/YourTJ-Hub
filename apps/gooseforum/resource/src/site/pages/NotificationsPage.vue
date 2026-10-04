@@ -415,8 +415,10 @@ function markItemReadAndNavigate(item: NotificationPayload) {
               </a>
               <span v-else class="shrink-0 font-semibold text-base-content" :class="isReviewResult(item) ? 'w-full' : 'max-w-[42%] truncate'">{{ item.eventType === 'follow' ? actorName(item) : notificationTitleText(item) }}</span>
               <span class="shrink-0 text-base-content/55">{{ item.actor.id || item.eventType === 'follow' ? notificationVerb(item) : '' }}</span>
+              <a v-if="isReviewResult(item) && targetURL(item)" :href="targetURL(item)" class="min-w-0 truncate font-medium text-primary" @click="markItemReadAndNavigate(item)">{{ item.payload.topicTitle || t('contentReview.view') }}</a>
+              <span v-else-if="isReviewResult(item)" class="min-w-0 truncate font-medium text-base-content/75">{{ item.payload.topicTitle }}</span>
               <a
-                v-if="item.topic"
+                v-else-if="item.topic"
                 :href="item.topic.url"
                 class="min-w-0 max-w-full truncate font-semibold text-primary hover:text-primary"
                 @click="markItemReadAndNavigate(item)"
@@ -440,8 +442,6 @@ function markItemReadAndNavigate(item: NotificationPayload) {
                 {{ t('notifications.viewProfile') }}
               </a>
               <span v-else-if="item.actor.id || item.eventType === 'follow'" class="font-medium text-base-content/75">{{ notificationText(item) }}</span>
-              <a v-else-if="isReviewResult(item) && targetURL(item)" :href="targetURL(item)" class="min-w-0 truncate font-medium text-primary" @click="markItemReadAndNavigate(item)">{{ item.payload.topicTitle || t('contentReview.view') }}</a>
-              <span v-else-if="isReviewResult(item) && item.payload.topicTitle" class="min-w-0 truncate font-medium text-base-content/75">{{ item.payload.topicTitle }}</span>
               <span v-if="!item.isRead" class="h-1.5 w-1.5 rounded-full bg-primary" />
             </div>
             <p v-if="isReviewResult(item)" class="mt-0.5 text-xs text-base-content/55">

@@ -197,6 +197,9 @@ class _ContentPageState extends ConsumerState<ContentPage> {
       if (mounted) await _load();
       return;
     }
+    // Content kind is topic/post; the publish page selects the topic's format
+    // (question, moment or article) from the latest editable version.
+    if (item.contentType != 'post') return;
     final epoch = ref.read(offlineCacheEpochProvider);
     final saved = await showPostEditSheet(
       context,

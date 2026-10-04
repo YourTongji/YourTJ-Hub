@@ -50,16 +50,23 @@ import '../../../l10n/app_localizations.dart';
                   orElse: () => l10n.notificationNew,
                 ),
         };
-  final subtitle =
-      [
-            item.content,
-            item.payload.content,
-            item.payload.templateParams?.preview,
-            item.topic?.title,
-            item.payload.topicTitle,
-          ]
-          .map(literal)
-          .firstWhere((s) => s.isNotEmpty && s != title, orElse: () => '');
+  final isReview =
+      event == 'review_pending' ||
+      event == 'review_approved' ||
+      event == 'review_rejected';
+  // The server preserves the reviewed snapshot and redacts rejected subjects.
+  // Legacy previews/live topic titles must not replace that snapshot.
+  final subtitle = isReview
+      ? literal(item.payload.topicTitle)
+      : [
+              item.content,
+              item.payload.content,
+              item.payload.templateParams?.preview,
+              item.topic?.title,
+              item.payload.topicTitle,
+            ]
+            .map(literal)
+            .firstWhere((s) => s.isNotEmpty && s != title, orElse: () => '');
   if (event == 'review_pending') {
     return (
       title,
