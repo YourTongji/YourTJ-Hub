@@ -65,6 +65,23 @@ the golf filter and match searches for 高尔夫 and 高尔夫球; only the name
 identified by the guide. Indoor activity lists are never inferred from a generic
 sports-centre tag.
 
+Course destination matching reads the maintained `name`, `short_name` and
+`alt_name` fields for in-campus `academic`, `library`, `place` and `sport` features.
+Aliases use `、`, commas or semicolons as list separators. Matching normalizes width,
+case, spacing and punctuation, recognizes supported campus prefixes in course text
+and handles campus and university prefixes in stored names. It requires a unique
+feature ID in the selected campus. Classroom descriptions
+belong to the course record and should not be added as building aliases. A named
+sports feature can be matched without a `building` tag; unnamed sports footprints
+remain discoverable on the map but cannot be identified from a generic course
+location such as “网球场” solely through their activity tags.
+
+Preserve source IDs and verified names when adding aliases through supplements.
+A matched course location establishes a map destination only; it does not verify the
+school's building identifier, an indoor room coordinate or live occupancy. The
+[product contract](../../../../../../../docs/product/campus-map.md) owns multiple
+destination choices and the conditions used by place-scoped schedule queries.
+
 From `apps/gooseforum/resource`:
 
 ```bash

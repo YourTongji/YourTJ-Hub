@@ -49,7 +49,9 @@ it('filters synced arrangements and emits the uniquely resolved map target', asy
       ],
     }],
   })
-  const resolveLocation = vi.fn().mockResolvedValue({ campusId: 'jiading', featureId: 'a' })
+  const resolveLocation = vi.fn().mockResolvedValue([
+    { raw: '安楼A101', building: '安楼', room: 'A101', condition: '', target: { campusId: 'jiading', featureId: 'a' } },
+  ])
   const wrapper = mount(CampusMapSchedulePanel, {
     props: { resolveLocation },
     global: { plugins: [createI18n({ legacy: false, locale: 'zh', messages: { zh } })] },
@@ -82,9 +84,10 @@ it('limits the result list to the selected building', async () => {
     props: {
       resolveLocation: vi.fn(),
       building: { campusId: 'jiading', featureId: 'an', name: '安楼' },
-      matchLocation: (_campus: string, room: string) => room.startsWith('安楼')
-        ? { campusId: 'jiading', featureId: 'an' }
-        : { campusId: 'jiading', featureId: 'bo' },
+      matchLocation: (_campus: string, room: string) => [{
+        raw: room, building: '', room: '', condition: '',
+        target: { campusId: 'jiading', featureId: room.startsWith('安楼') ? 'an' : 'bo' },
+      }],
     },
     global: { plugins: [createI18n({ legacy: false, locale: 'zh', messages: { zh } })] },
   })
@@ -166,5 +169,67 @@ it('drops period-12-only arrangements for current 11-section calendars', async (
   expect(wrapper.findAll('.atlas-schedule__list button')).toHaveLength(1)
   expect(wrapper.text()).toContain('安楼A101')
   expect(wrapper.text()).not.toContain('安楼A102')
+  wrapper.unmount()
+})
+
+it('offers each course location without selecting the first mapped place', async () => {
+  api.calendars.mockResolvedValue([{ calendarId: 122, calendarName: '2026-2027学年第一学期' }])
+  api.latest.mockResolvedValue({ latestSyncAt: null })
+  api.byTime.mockResolvedValue({ courses: [{ courseCode: 'MULTI101', courseName: '多地点课程' }] })
+  const room = '安楼A101、博楼B201、实验室'
+  api.details.mockResolvedValue({ MULTI101: [{ campus: '嘉定校区', teachingClassId: 1, arrangementInfo: [
+    { arrangementText: '周一第1-2节', occupyDay: 1, occupyTime: [1, 2], occupyWeek: [1], occupyRoom: room },
+  ] }] })
+  const an = { campusId: 'jiading', featureId: 'an' }
+  const bo = { campusId: 'jiading', featureId: 'bo' }
+  const wrapper = mount(CampusMapSchedulePanel, {
+    props: { resolveLocation: vi.fn().mockResolvedValue([
+      { raw: '安楼A101', building: '安楼', room: 'A101', condition: '', target: an },
+      { raw: '博楼B201', building: '博楼', room: 'B201', condition: '', target: bo },
+      { raw: '实验室', building: '实验室', room: '', condition: '' },
+    ]) },
+    global: { plugins: [createI18n({ legacy: false, locale: 'zh', messages: { zh } })] },
+  })
+  await flushPromises()
+  await wrapper.get('.atlas-schedule__submit').trigger('click')
+  await flushPromises()
+  await wrapper.get('.atlas-schedule__list button').trigger('click')
+  await flushPromises()
+  expect(wrapper.text()).toContain(room)
+  expect(wrapper.emitted('select')?.at(-1)).toEqual([null])
+  const choices = wrapper.findAll('.atlas-location-choices button')
+  expect(choices).toHaveLength(3)
+  expect(choices[2]!.attributes('disabled')).toBeDefined()
+  await choices[1]!.trigger('click')
+  expect(wrapper.emitted('select')?.at(-1)).toEqual([bo])
+  wrapper.unmount()
+})
+
+it('scopes multi-location arrangements to only places that apply in the query week', async () => {
+  api.calendars.mockResolvedValue([{ calendarId: 122, calendarName: '2026-2027学年第一学期' }])
+  api.latest.mockResolvedValue({ latestSyncAt: null })
+  api.byTime.mockResolvedValue({ courses: [{ courseCode: 'ROTATE101', courseName: '分周课程' }] })
+  api.details.mockResolvedValue({ ROTATE101: [{ campus: '嘉定校区', teachingClassId: 1, arrangementInfo: [
+    { arrangementText: '周一第1-2节', occupyDay: 1, occupyTime: [1, 2], occupyWeek: [1, 2], occupyRoom: '单周安楼A101，双周博楼B201' },
+  ] }] })
+  const wrapper = mount(CampusMapSchedulePanel, {
+    props: {
+      resolveLocation: vi.fn(),
+      building: { campusId: 'jiading', featureId: 'an', name: '安楼' },
+      matchLocation: () => [
+        { raw: '单周安楼A101', building: '安楼', room: 'A101', condition: '单周', target: { campusId: 'jiading', featureId: 'an' } },
+        { raw: '双周博楼B201', building: '博楼', room: 'B201', condition: '双周', target: { campusId: 'jiading', featureId: 'bo' } },
+      ],
+    },
+    global: { plugins: [createI18n({ legacy: false, locale: 'zh', messages: { zh } })] },
+  })
+  await flushPromises()
+  await wrapper.get('.atlas-schedule__submit').trigger('click')
+  await flushPromises()
+  expect(wrapper.findAll('.atlas-schedule__list button')).toHaveLength(1)
+  await wrapper.get('input[type="number"]').setValue('2')
+  await wrapper.get('.atlas-schedule__submit').trigger('click')
+  await flushPromises()
+  expect(wrapper.findAll('.atlas-schedule__list button')).toHaveLength(0)
   wrapper.unmount()
 })

@@ -9,6 +9,13 @@ import type { CampusDatasetKey, CampusStatus, LayoutPayload } from '@gooseforum/
 
 const { focusLocation } = vi.hoisted(() => ({ focusLocation: vi.fn() }))
 const campusApi = vi.hoisted(() => ({ status: vi.fn(), dataset: vi.fn() }))
+const pkApi = vi.hoisted(() => ({ calendars: vi.fn(), byTime: vi.fn(), details: vi.fn(), latest: vi.fn() }))
+vi.mock('../src/runtime/pk-api', () => ({
+  getPkCalendars: pkApi.calendars,
+  getPkCoursesByTime: pkApi.byTime,
+  getPkCourseDetails: pkApi.details,
+  getPkLatestUpdate: pkApi.latest,
+}))
 vi.mock('../src/runtime/campus-api', async (original) => ({
   ...await original<typeof import('../src/runtime/campus-api')>(),
   campusAPI: campusApi,
@@ -102,6 +109,37 @@ it('does not offer navigation for Zhangjiang schematic buildings', async () => {
   expect(page.get('.atlas-detail h2').exists()).toBe(true)
   expect(page.find('.atlas-detail a.atlas-share').exists()).toBe(false)
 })
+it('offers course schedules for outdoor sports places without a building tag', async () => {
+  const feature = dataset.features.find((item) => item.properties.category === 'sport' &&
+    item.properties.campus && !item.properties.building)
+  window.history.replaceState({}, '', `/map#place=${encodeURIComponent(String(feature.id))}`)
+  const page = await openPage()
+  expect(page.get('.atlas-detail h2').exists()).toBe(true)
+  expect(page.get('.atlas-schedule-open').text()).toBe("View this place's schedule")
+})
+it('keeps a scoped schedule and its multiple location choices open when a map pin changes', async () => {
+  window.history.replaceState({}, '', '/map#place=way%2F183383474')
+  pkApi.calendars.mockResolvedValue([{ calendarId: 122, calendarName: 'Test term' }])
+  pkApi.latest.mockResolvedValue({ latestSyncAt: null })
+  pkApi.byTime.mockResolvedValue({ courses: [{ courseCode: 'MULTI101', courseName: 'Scoped multi-location course' }] })
+  pkApi.details.mockResolvedValue({ MULTI101: [{ campus: '四平路校区', teachingClassId: 1, arrangementInfo: [
+    { occupyDay: 1, occupyTime: [1, 2], occupyWeek: [1], occupyRoom: '北115，南203', arrangementText: 'Mon 1-2' },
+  ] }] })
+  const page = await openPage()
+  await page.get('.atlas-schedule-open').trigger('click')
+  await flushPromises()
+  const originalScope = page.get('.atlas-schedule__scope').text()
+  await page.get('.atlas-schedule__submit').trigger('click')
+  await flushPromises()
+  await page.get('.atlas-schedule__list button').trigger('click')
+  await flushPromises()
+  expect(page.findAll('.atlas-location-choices button')).toHaveLength(2)
+  await page.findAll('.atlas-location-choices button')[1]!.trigger('click')
+  await flushPromises()
+  expect(window.location.hash).toBe('#place=way%2F183383472')
+  expect(page.findAll('.atlas-location-choices button')).toHaveLength(2)
+  expect(page.get('.atlas-schedule__scope').text()).toBe(originalScope)
+})
 it('reports an outside-campus fix from the uncalibrated plan without promising an overlay', async () => {
   window.history.replaceState({}, '', '/map?campus=zhangjiang')
   const page = await openPage()
@@ -174,8 +212,8 @@ it('locates a confirmed timetable building using only the generic map feature id
   expect(campusApi.dataset.mock.calls.map(([key]) => key).sort()).toEqual(['calendar', 'timetable', 'today'])
   await page.get('.atlas-mine__course').trigger('click')
   await flushPromises()
-  expect(page.get('.atlas-mine__selected').text()).toContain('四平路校区 · 北 · 115')
-  expect(page.get('.atlas-mine__selected').text()).not.toContain('Building location could not be verified')
+  expect(page.get('.atlas-mine__selected').text()).toContain('四平路校区 · 北115')
+  expect(page.get('.atlas-mine__selected').text()).not.toContain('Place location could not be verified')
   expect(page.findComponent({ name: 'CampusCanvas' }).props('selected').id).toBe('way/183383474')
   expect(window.location.hash).toBe('#place=way%2F183383474')
   expect(page.find('.atlas-place').exists()).toBe(false)
@@ -232,7 +270,7 @@ it('keeps an unconfirmed campus/building combination unpinned', async () => {
   const page = await openPage()
   await page.get('.atlas-mine__course').trigger('click')
   await flushPromises()
-  expect(page.get('.atlas-mine__selected').text()).toContain('Building location could not be verified')
+  expect(page.get('.atlas-mine__selected').text()).toContain('Place location could not be verified')
   expect(page.findComponent({ name: 'CampusCanvas' }).props('selected')).toBeNull()
   expect(window.location.hash).toBe('')
 })

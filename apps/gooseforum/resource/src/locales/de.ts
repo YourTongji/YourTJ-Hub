@@ -536,6 +536,11 @@ export default {
 },
   campusMap: {
     menu: { label: "Kartenmenü", places: "Orte", courses: "Mein Stundenplan" },
+    locations: {
+      label: "Kursorte",
+      choose: "Wählen Sie einen Ort aus. Wochenangaben und andere Bedingungen bleiben im Original erhalten.",
+      unmapped: "Nicht gefunden: Der Name hat keine eindeutige Zuordnung auf der Karte.",
+    },
     mine: {
       source: "Dein offizieller Tongji-Stundenplan",
       personalTab: "Mein Stundenplan",
@@ -555,7 +560,7 @@ export default {
       search: "Kurse oder Raumnummern suchen",
       noCourses: "In dieser Unterrichtswoche gibt es keine Kurse.",
       noMatches: "Kein passender Kurs oder Raum gefunden.",
-      locationUnverified: "Der Gebäudestandort konnte nicht bestätigt werden; es wird keine Markierung angezeigt.",
+      locationUnverified: "Der Ort konnte nicht bestätigt werden; es wird keine Markierung angezeigt.",
     },
     schedule: {
       source: "Synchronisierter Kursplan",
@@ -574,7 +579,7 @@ export default {
       unavailable: "Lehrveranstaltungen sind vorübergehend nicht verfügbar.",
       noCourses: "Keine synchronisierten Lehrveranstaltungen zu dieser Zeit.",
       noMatches: "Keine passenden Kurse.",
-      openBuilding: "Stundenplan dieses Gebäudes anzeigen",
+      openBuilding: "Stundenplan dieses Ortes anzeigen",
       buildingScope: "Kurse für „{building}“ auf der Karte.",
       queryDate: "Suchdatum: {date}",
       lastSynced: "Letzte Synchronisierung des Kursmoduls: {date}",

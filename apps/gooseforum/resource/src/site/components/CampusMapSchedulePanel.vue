@@ -9,7 +9,8 @@ import {
 } from '@/runtime/pk-api'
 import type { PkCalendar, PkCourse } from '@/site/types/pk'
 import { hasTwelfthSection } from '@/site/utils/sectionTimes'
-import type { CampusMapTarget } from '@/site/campus-map/official-location'
+import { officialLocationApplies, type CampusMapTarget, type OfficialMapLocation } from '@/site/campus-map/official-location'
+import CampusMapLocationChoices from './CampusMapLocationChoices.vue'
 
 interface ScheduleEntry {
   key: string
@@ -22,8 +23,8 @@ interface ScheduleEntry {
 }
 
 const props = defineProps<{
-  resolveLocation: (campus: string, room: string) => Promise<CampusMapTarget | undefined>
-  matchLocation?: (campus: string, room: string) => CampusMapTarget | undefined
+  resolveLocation: (campus: string, room: string) => Promise<OfficialMapLocation[]>
+  matchLocation?: (campus: string, room: string) => OfficialMapLocation[]
   building?: { campusId: string; featureId: string; name: string }
 }>()
 const emit = defineEmits<{ select: [target: CampusMapTarget | null] }>()
@@ -39,8 +40,9 @@ const search = ref('')
 const state = ref<'loading-calendar' | 'ready' | 'loading' | 'error'>('loading-calendar')
 const entries = ref<ScheduleEntry[]>([])
 const selected = ref<ScheduleEntry | null>(null)
-const locationMapped = ref(false)
 const locationResolved = ref(false)
+const selectedLocations = ref<OfficialMapLocation[]>([])
+const selectedLocationIndex = ref<number | null>(null)
 let requestVersion = 0
 let selectionVersion = 0
 
@@ -86,8 +88,7 @@ watch([calendarId, day, section, week, dateMode, queryDate, () => props.building
   selectionVersion++
   entries.value = []
   selected.value = null
-  locationMapped.value = false
-  locationResolved.value = false
+  clearLocation()
   if (state.value === 'loading') state.value = 'ready'
   emit('select', null)
 }, { flush: 'sync' })
@@ -111,8 +112,7 @@ async function searchSchedule() {
   const term = calendarId.value
   const period = section.value
   selected.value = null
-  locationMapped.value = false
-  locationResolved.value = false
+  clearLocation()
   emit('select', null)
   state.value = 'loading'
   try {
@@ -150,8 +150,11 @@ async function searchSchedule() {
     const matchLocation = props.matchLocation
     entries.value = building && matchLocation
       ? matched.filter((entry) => {
-          const target = matchLocation(entry.campus, entry.room)
-          return target?.campusId === building.campusId && target.featureId === building.featureId
+          return matchLocation(entry.campus, entry.room).some((location) =>
+            location.target?.campusId === building.campusId &&
+            location.target.featureId === building.featureId &&
+            officialLocationApplies(location, selection),
+          )
         })
       : matched
     state.value = 'ready'
@@ -160,21 +163,34 @@ async function searchSchedule() {
   }
 }
 
+function clearLocation() {
+  selectedLocations.value = []
+  selectedLocationIndex.value = null
+  locationResolved.value = false
+}
+
+function chooseLocation(location: OfficialMapLocation, index: number) {
+  if (!location.target) return
+  selectedLocationIndex.value = selectedLocationIndex.value === index ? null : index
+  emit('select', selectedLocationIndex.value !== null ? location.target : null)
+}
+
 async function locate(entry: ScheduleEntry) {
   if (selected.value === entry) {
     selected.value = null
-    locationMapped.value = false
-    locationResolved.value = false
+    clearLocation()
     emit('select', null)
     return
   }
   const version = ++selectionVersion
   selected.value = entry
-  locationMapped.value = false
-  locationResolved.value = false
-  const target = await props.resolveLocation(entry.campus, entry.room)
+  clearLocation()
+  emit('select', null)
+  const locations = await props.resolveLocation(entry.campus, entry.room)
   if (version !== selectionVersion || selected.value !== entry) return
-  locationMapped.value = Boolean(target)
+  selectedLocations.value = locations
+  const target = locations.length === 1 ? locations[0]?.target : undefined
+  selectedLocationIndex.value = target ? 0 : null
   locationResolved.value = true
   emit('select', target ?? null)
 }
@@ -244,7 +260,13 @@ onBeforeUnmount(() => {
         <small>{{ entry.arrangementText }}<template v-if="entry.teacher"> · {{ entry.teacher }}</template></small>
       </button>
     </div>
-    <p v-if="selected && locationResolved && !locationMapped" class="atlas-schedule__unmapped" role="status">{{ t('campusMap.mine.locationUnverified') }}</p>
+    <CampusMapLocationChoices
+      v-if="selected && locationResolved"
+      :locations="selectedLocations"
+      :selected-index="selectedLocationIndex"
+      @select="chooseLocation"
+    />
+    <p v-if="selected && locationResolved && !selectedLocations.some(location => location.target)" class="atlas-schedule__unmapped" role="status">{{ t('campusMap.mine.locationUnverified') }}</p>
     <p class="atlas-schedule__provenance"><template v-if="displayedScheduleDate">{{ t('campusMap.schedule.scheduleDate', { date: displayedScheduleDate }) }}</template><template v-else>{{ t('campusMap.schedule.weekAndDay', { week, day: t(`common.weekdays.${['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'][day - 1]}`) }) }}</template><br>{{ t('campusMap.schedule.source') }}<template v-if="latestSyncDate"> · {{ t('campusMap.schedule.lastSynced', { date: latestSyncDate }) }}</template><template v-else> · {{ t('campusMap.schedule.syncUnknown') }}</template></p>
   </div>
 </template>

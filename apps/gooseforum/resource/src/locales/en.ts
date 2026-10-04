@@ -537,6 +537,11 @@ export default {
 },
   campusMap: {
     menu: { label: "Map menu", places: "Places", courses: "My timetable" },
+    locations: {
+      label: "Course locations",
+      choose: "Choose a location to view. Week and other conditions retain their original wording.",
+      unmapped: "Not located: the name has no unique map match.",
+    },
     mine: {
       source: "Your official Tongji timetable",
       personalTab: "My timetable",
@@ -556,7 +561,7 @@ export default {
       search: "Search courses or room numbers",
       noCourses: "There are no classes in this teaching week.",
       noMatches: "No matching course or room number.",
-      locationUnverified: "Building location could not be verified; no map pin is shown.",
+      locationUnverified: "Place location could not be verified; no map pin is shown.",
     },
     schedule: {
       source: "Synced course schedule",
@@ -575,7 +580,7 @@ export default {
       unavailable: "Course arrangements are temporarily unavailable.",
       noCourses: "No synced course arrangements for this time.",
       noMatches: "No matching courses.",
-      openBuilding: "View this building's schedule",
+      openBuilding: "View this place's schedule",
       buildingScope: "Showing courses matched to “{building}” on the map.",
       queryDate: "Query date: {date}",
       lastSynced: "Course module last synced: {date}",

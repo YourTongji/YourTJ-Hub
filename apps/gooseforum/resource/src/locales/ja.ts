@@ -536,6 +536,11 @@ export default {
 },
   campusMap: {
     menu: { label: "地図メニュー", places: "場所", courses: "自分の時間割" },
+    locations: {
+      label: "授業の場所",
+      choose: "表示する場所を選んでください。週などの条件は原文で表示します。",
+      unmapped: "未特定：地図上の場所を一意に特定できません。",
+    },
     mine: {
       source: "同済大学の公式時間割",
       personalTab: "自分の時間割",
@@ -555,7 +560,7 @@ export default {
       search: "授業名または教室番号を検索",
       noCourses: "選択した週に授業はありません。",
       noMatches: "一致する授業または教室番号はありません。",
-      locationUnverified: "建物の場所を確認できないため、地図上にピンを表示しません。",
+      locationUnverified: "場所を確認できないため、地図上にピンを表示しません。",
     },
     schedule: {
       source: "コース機能の同期時間割",
@@ -574,7 +579,7 @@ export default {
       unavailable: "授業予定を一時的に取得できません。",
       noCourses: "この時間に同期済みの授業予定はありません。",
       noMatches: "一致する授業はありません。",
-      openBuilding: "この建物の時間割を見る",
+      openBuilding: "この場所の時間割を見る",
       buildingScope: "地図上の「{building}」に一致する授業を表示します。",
       queryDate: "検索日：{date}",
       lastSynced: "コース機能の最終同期：{date}",

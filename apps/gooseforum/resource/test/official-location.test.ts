@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest'
 import type { CampusData } from '../src/site/campus-map/catalog'
-import { officialCampusId, officialLocationTarget, parseOfficialLocation } from '../src/site/campus-map/official-location'
+import { officialCampusId, officialLocationApplies, officialLocationTarget, officialLocationTargets, parseOfficialLocation, parseOfficialLocations } from '../src/site/campus-map/official-location'
 
 it('splits only a clearly separated building phrase and room token for display', () => {
   expect(parseOfficialLocation('济事楼（软件学院） A101')).toEqual({
@@ -20,6 +20,137 @@ it.each([
 
 it.each(['未知地点', '2024秋季1班'])('%s remains raw when it has no reliable building-room boundary', (value) => {
   expect(parseOfficialLocation(value)).toBeNull()
+})
+
+it.each([
+  ['瑞安楼阶3', { building: '瑞安楼', room: '阶3' }],
+  ['诚楼C408A', { building: '诚楼', room: 'C408A' }],
+  ['物理馆2-4楼', { building: '物理馆', room: '2-4楼' }],
+  ['济事楼419实验室', { building: '济事楼', room: '419实验室' }],
+  ['开物馆机房A211', { building: '开物馆', room: '机房A211' }],
+])('extracts real classroom descriptions without turning them into building aliases: %s', (value, expected) => {
+  expect(parseOfficialLocation(value)).toEqual(expected)
+})
+
+it('maps a named sports venue without requiring a building footprint', () => {
+  const data = mapData(['court', '网球场'])
+  data.features[0]!.properties.category = 'sport'
+  expect(officialLocationTarget('嘉定校区', '网球场', data)).toEqual({ campusId: 'jiading', featureId: 'court' })
+})
+
+it('does not split conjunction characters inside a building name', () => {
+  const data = mapData(['zhonghe', '衷和楼'])
+  expect(officialLocationTarget('四平路校区', '衷和楼201', data)).toEqual({ campusId: 'siping', featureId: 'zhonghe' })
+  expect(parseOfficialLocations('衷和楼201')).toHaveLength(1)
+})
+
+it('preserves omitted buildings and week conditions across room lists', () => {
+  const data = mapData(['ruian', '瑞安楼'], ['physics', '物理馆'])
+  const parts = officialLocationTargets('四平路校区', '单周瑞安楼403、505、双周物理馆301、302', data)
+  expect(parts.map(({ building, room, condition }) => ({ building, room, condition }))).toEqual([
+    { building: '瑞安楼', room: '403', condition: '单周' },
+    { building: '瑞安楼', room: '505', condition: '单周' },
+    { building: '物理馆', room: '301', condition: '双周' },
+    { building: '物理馆', room: '302', condition: '双周' },
+  ])
+  expect(parts.map(part => part.target?.featureId)).toEqual(['ruian', 'ruian', 'physics', 'physics'])
+  expect(officialLocationTarget('四平路校区', '瑞安楼403，物理馆301', data)).toBeUndefined()
+  expect(officialLocationTarget('四平路校区', '瑞安楼403、505', data)?.featureId).toBe('ruian')
+})
+
+it('keeps unresolved parts instead of treating a partial match as the only location', () => {
+  const data = mapData(['a', '安楼（A楼）'])
+  const parts = officialLocationTargets('嘉定校区', '安楼A101；实验室', data)
+  expect(parts.map(part => part.raw)).toEqual(['安楼A101', '实验室'])
+  expect(parts[0]?.target?.featureId).toBe('a')
+  expect(parts[1]?.target).toBeUndefined()
+  expect(officialLocationTarget('嘉定校区', '安楼A101；实验室', data)).toBeUndefined()
+})
+
+it.each([
+  '学院教室 B403、B405、B407',
+  '嘉定机房F214A/F214B/F217',
+  '工程实践中心彰武路100号A楼、B楼',
+  '彰武路100号，工程实践中心A楼、B楼',
+  '未核验楼体F214A/F214B',
+])('retains unknown qualifiers across abbreviated continuations: %s', (value) => {
+  const data = mapData(['b', '红楼（B楼）'], ['f', '诚楼（F楼）'])
+  expect(officialLocationTargets('四平路校区', value, data).every(part => !part.target)).toBe(true)
+})
+
+it('inherits a named building for lettered room continuations', () => {
+  const data = mapData(['a', '安楼（A楼）'], ['b', '博楼（B楼）'])
+  const parts = officialLocationTargets('嘉定校区', '安楼A101、A102、双周A103', data)
+  expect(parts.map(part => part.building)).toEqual(['安楼', '安楼', '安楼'])
+  expect(parts.map(part => part.room)).toEqual(['A101', 'A102', 'A103'])
+  expect(parts.every(part => part.target?.featureId === 'a')).toBe(true)
+})
+
+it('inherits conditions when continuing a lettered building list', () => {
+  const data = mapData(['a', '甲楼（A楼）'], ['b', '乙楼（B楼）'])
+  const parts = officialLocationTargets('嘉定校区', '单周A楼、B楼', data)
+  expect(parts.map(part => part.target?.featureId)).toEqual(['a', 'b'])
+  expect(parts.map(part => part.condition)).toEqual(['单周', '单周'])
+  expect(parts.every(part => !officialLocationApplies(part, { week: 2, day: 1 }))).toBe(true)
+})
+
+it('rejects explicit campus conflicts and keeps unknown conditions for manual selection', () => {
+  const data = mapData(['a', '安楼（A楼）'])
+  expect(officialLocationTargets('嘉定校区', '沪北安楼A101', data)[0]?.target).toBeUndefined()
+  const location = officialLocationTargets('嘉定校区', '后8周安楼A101', data)[0]!
+  expect(location.condition).toBe('后8周')
+  expect(location.target?.featureId).toBe('a')
+  expect(officialLocationApplies(location, { week: 12, day: 1 })).toBe(false)
+})
+
+it('retains an explicit campus across omitted rooms and later places', () => {
+  const parts = officialLocationTargets('四平路校区', '嘉定校区北楼115、116、南203')
+  expect(parts).toHaveLength(3)
+  expect(parts.every(part => !part.target)).toBe(true)
+  expect(officialLocationTargets('四平路校区', '北楼115室（嘉定、沪西）')[0]?.target).toBeUndefined()
+})
+
+it('keeps alternatives uncertain even when they also have a weekday condition', () => {
+  const parts = officialLocationTargets('四平路校区', '周一北115或南203')
+  expect(parts.map(part => part.target?.featureId)).toEqual(['way/183383474', 'way/183383472'])
+  expect(parts.every(part => !officialLocationApplies(part, { week: 1, day: 1 }))).toBe(true)
+})
+
+it('does not remove inherited or pending condition text from a place name', () => {
+  const data = mapData(['a', '安楼'], ['court', '网球场'], ['hall', '体育中心篮球馆'])
+  data.features[1]!.properties.category = 'sport'
+  const parts = officialLocationTargets('嘉定校区', '单周，安楼A101、102；双周，网球场', data)
+  expect(parts.map(part => part.target?.featureId)).toEqual(['a', 'a', 'court'])
+  expect(parts.map(part => part.condition)).toEqual(['单周', '单周', '双周'])
+  const exact = officialLocationTargets('嘉定校区', '单周，体育中心篮球馆', data)[0]!
+  expect(exact.building).toBe('体育中心篮球馆')
+  expect(exact.room).toBe('')
+  const rooms = officialLocationTargets('嘉定校区', '体育中心篮球馆、201、202', data)
+  expect(rooms.map(part => part.target?.featureId)).toEqual(['hall', 'hall', 'hall'])
+})
+
+it.each([
+  ['第3-4周', 3, 1, true], ['第3-4周', 5, 1, false],
+  ['单周', 1, 1, true], ['单周', 2, 1, false], ['双周', 2, 1, true],
+  ['周四', 1, 4, true], ['周四', 1, 5, false], ['【9月24日】', 1, 1, false],
+])('filters only interpretable location conditions: %s', (condition, week, day, applies) => {
+  expect(officialLocationApplies({ raw: '', building: '', room: '', condition }, { week, day })).toBe(applies)
+})
+
+it('does not split delimiters inside parentheses or map online announcements', () => {
+  expect(parseOfficialLocations('同济大学图书馆（旧名，备注）201')).toHaveLength(1)
+  const data = mapData(['a', '安楼'])
+  expect(officialLocationTargets('嘉定校区', '在线体育课，关注Canvas安楼101通知', data).some(part => part.target)).toBe(false)
+})
+
+it('does not map ambiguous sports names, excluded categories or numeric fragments', () => {
+  const data = mapData(['a', '网球场'], ['b', '网球场'], ['living', '12'])
+  data.features[0]!.properties.category = 'sport'
+  data.features[1]!.properties.category = 'sport'
+  expect(officialLocationTarget('嘉定校区', '网球场', data)).toBeUndefined()
+  expect(officialLocationTarget('嘉定校区', '12', data)).toBeUndefined()
+  data.features[1]!.properties.campus = false
+  expect(officialLocationTarget('嘉定校区', '网球场', data)?.featureId).toBe('a')
 })
 
 it.each([
