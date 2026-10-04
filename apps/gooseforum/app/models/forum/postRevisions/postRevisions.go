@@ -7,12 +7,13 @@ const tableName = "post_revisions"
 // Entity retains immutable content snapshots; only review outcome fields change.
 // Deletion guards hide retained audit bodies and attachments from normal reads.
 type Entity struct {
-	Title         string     `gorm:"column:title;type:text;" json:"title"`
-	CategoryIds   []uint64   `gorm:"column:category_ids;type:text;serializer:json" json:"categoryIds"`
-	ImageUrls     []string   `gorm:"column:image_urls;type:text;serializer:json" json:"imageUrls"`
-	ContentType   int8       `gorm:"column:content_type;not null;default:0;" json:"contentType"`
-	ReviewReason  string     `gorm:"column:review_reason;type:text;" json:"reviewReason"`
-	ReviewActorId uint64     `gorm:"column:review_actor_id;not null;default:0;" json:"-"`
+	Title         string   `gorm:"column:title;type:text;" json:"title"`
+	CategoryIds   []uint64 `gorm:"column:category_ids;type:text;serializer:json" json:"categoryIds"`
+	ImageUrls     []string `gorm:"column:image_urls;type:text;serializer:json" json:"imageUrls"`
+	ContentType   int8     `gorm:"column:content_type;not null;default:0;" json:"contentType"`
+	ReviewReason  string   `gorm:"column:review_reason;type:text;" json:"reviewReason"`
+	ReviewActorId uint64   `gorm:"column:review_actor_id;not null;default:0;" json:"-"`
+	// ReviewedAt records the latest review decision, including transfer to human review while pending.
 	ReviewedAt    *time.Time `gorm:"column:reviewed_at;" json:"reviewedAt,omitempty"`
 	Id            uint64     `gorm:"primaryKey;column:id;autoIncrement;not null;" json:"id"`
 	PostId        uint64     `gorm:"column:post_id;not null;default:0;index;" json:"postId"`

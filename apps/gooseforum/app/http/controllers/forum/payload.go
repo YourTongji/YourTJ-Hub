@@ -2977,6 +2977,9 @@ func BuildNotificationPayloads(notifications []*eventNotification.Entity) []Noti
 
 func BuildNotificationPayload(notification *eventNotification.Entity) NotificationPayload {
 	payload := notification.Payload
+	if notification.EventType == eventNotification.EventTypeReviewRejected {
+		payload = eventNotification.RedactReviewRejectedPayload(payload)
+	}
 	item := NotificationPayload{
 		ID:        notification.Id,
 		EventType: notification.EventType,

@@ -920,8 +920,9 @@ export default {
     },
   },
   notifications: {
+    reviewPendingDetail: '確認結果をお知らせします。待っている間も内容を確認・編集できます。',
     reviewApprovedDetail: 'すべての人に表示されるようになりました。',
-    reviewRejectedDetail: '公開されず、ご自身でも開けなくなります。ご不明な点は管理者にお問い合わせください。',
+    reviewRejectedDetail: '今回の投稿は公開されません。コンテンツ管理で内容を確認・修正して再送信してください。ご不明な点は管理者にお問い合わせください。',
     title: '通知',
     unread: '{count} 未読',
     summary: '返信、いいね、フォロー、システム通知を含む {total} 件を読み込み済みです。',
@@ -962,6 +963,7 @@ export default {
       badge: '「{badge}」バッジを獲得しました',
       like: 'あなたの返信にいいねしました',
       wikiUpdated: 'ウォッチ中の wiki ページが更新されました',
+      reviewPending: '投稿は手動確認を待っています',
       reviewApproved: '投稿が承認されました',
       reviewRejected: '投稿は承認されませんでした',
     },

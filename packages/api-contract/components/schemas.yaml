@@ -4960,6 +4960,27 @@ NotificationTopicRef:
       type: string
   additionalProperties: false
 
+NotificationActorPayload:
+  type: object
+  required: [id, username, avatarUrl]
+  properties:
+    id:
+      type: integer
+      format: uint64
+      minimum: 0
+      description: 0 for system and moderation feedback without a triggering user.
+    username:
+      type: string
+    nickname:
+      type: string
+      description: Present only when the user has a nickname.
+    avatarUrl:
+      type: string
+    wornBadge:
+      type: [object, 'null']
+      description: Present only when the user wears a badge.
+  additionalProperties: false
+
 NotificationPayload:
   type: object
   required: [id, eventType, isRead, createdAt, title, content, actor, payload]
@@ -4970,7 +4991,7 @@ NotificationPayload:
       minimum: 1
     eventType:
       type: string
-      description: Notification event type (comment/post_reply/topic_post/mention/follow/badge/like/wiki_updated/system/review_approved/review_rejected); the payload shape varies with it. `review_approved` links to the approved topic/post; `review_rejected` carries only `payload.topicTitle` because rejected content is not visible to its author (issue #975).
+      description: Notification event type (comment/post_reply/topic_post/mention/follow/badge/like/wiki_updated/system/review_pending/review_approved/review_rejected); the payload shape varies with it. AI approval is quiet. `review_pending` notifies transfer to human review and links to the pending topic/post; human `review_approved` links to the approved version. `review_rejected` links to content management for editing/resubmission, with topic/post identifiers and a subject snapshot retaining only its first/last Unicode character around six asterisks; title/content/preview fields carry no rejected original text.
     isRead:
       type: boolean
     createdAt:
@@ -4982,8 +5003,8 @@ NotificationPayload:
       type: string
       description: Stored preview; for likes without one, a readable excerpt of the currently visible referenced reply.
     actor:
-      $ref: '#/TopicAuthorPayload'
-      description: Actor identity with the current public avatar hydrated in a batch when the actor exists.
+      $ref: '#/NotificationActorPayload'
+      description: Actor identity with the current public avatar hydrated in a batch when the actor exists; id 0 for system and moderation feedback.
     topic:
       $ref: '#/NotificationTopicRef'
     payload:

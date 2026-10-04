@@ -3297,4 +3297,15 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get contentReviewPending => '审核中';
+
+  @override
+  String get notificationReviewPending => '你的内容正在等待人工审核';
+
+  @override
+  String get notificationReviewPendingDetail =>
+      '我们会尽快处理，审核结果会通知你。等待期间你可以查看或修改内容。';
+
+  @override
+  String get notificationReviewRejectedDetail =>
+      '它不会公开显示，请前往内容管理自查修改后重新提交。如有疑问，请联系管理员。';
 }

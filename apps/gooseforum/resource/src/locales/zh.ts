@@ -921,8 +921,9 @@ export default {
     },
   },
   notifications: {
+    reviewPendingDetail: '我们会尽快处理，审核结果会通知你。等待期间你可以查看或修改内容。',
     reviewApprovedDetail: '现在所有人都能看到它。',
-    reviewRejectedDetail: '它不会公开显示，你也无法再打开它。如有疑问，请联系管理员。',
+    reviewRejectedDetail: '它不会公开显示，请前往内容管理自查修改后重新提交。如有疑问，请联系管理员。',
     title: '通知',
     unread: '{count} 未读',
     summary: '已加载 {total} 条，回复、点赞、关注和系统消息会集中展示在这里。',
@@ -963,6 +964,7 @@ export default {
       badge: '获得了「{badge}」徽章',
       like: '赞了你的回复',
       wikiUpdated: '更新了你订阅的 wiki 页面',
+      reviewPending: '你的内容正在等待人工审核',
       reviewApproved: '你的内容已通过审核',
       reviewRejected: '你的内容未通过审核',
     },

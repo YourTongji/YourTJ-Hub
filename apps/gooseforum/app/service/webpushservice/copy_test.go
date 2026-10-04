@@ -22,6 +22,7 @@ func TestCopyTableComplete(t *testing.T) {
 		eventNotification.EventTypeLike,
 		eventNotification.EventTypeWikiUpdated,
 		eventNotification.EventTypeSystem,
+		eventNotification.EventTypeReviewPending,
 		eventNotification.EventTypeReviewApproved,
 		eventNotification.EventTypeReviewRejected,
 	}
@@ -274,7 +275,7 @@ func TestBuildPushContentReviewResult(t *testing.T) {
 	rejected := eventNotification.Entity{Id: 8, EventType: eventNotification.EventTypeReviewRejected,
 		Payload: eventNotification.NotificationPayload{TopicTitle: "被拒的话题"}}
 	content = buildPushContent(rejected, "en")
-	if content == nil || content.URL != "/settings?tab=content" || content.Title != "被拒的话题" || !strings.Contains(content.Body, "wasn’t approved") {
+	if content == nil || content.URL != "/settings?tab=content" || content.Title != "被******题" || !strings.Contains(content.Body, "wasn’t approved") {
 		t.Fatalf("rejected push = %+v", content)
 	}
 }

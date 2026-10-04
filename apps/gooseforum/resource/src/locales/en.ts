@@ -921,8 +921,9 @@ export default {
     },
   },
   notifications: {
+    reviewPendingDetail: 'We’ll review it soon and notify you of the result. You can view or edit it while you wait.',
     reviewApprovedDetail: 'It’s now visible to everyone.',
-    reviewRejectedDetail: 'It won’t be shown publicly, and you can no longer open it. If you have questions, contact an administrator.',
+    reviewRejectedDetail: 'This submission won’t be shown publicly. Review, edit and resubmit it from content management. Contact an administrator if you have questions.',
     title: 'Notifications',
     unread: '{count} unread',
     summary: '{total} loaded, including replies, likes, follows, and system messages.',
@@ -963,6 +964,7 @@ export default {
       badge: 'earned the "{badge}" badge',
       like: 'liked your reply',
       wikiUpdated: 'updated a wiki page you are watching',
+      reviewPending: 'Your post is awaiting manual review',
       reviewApproved: 'Your post was approved',
       reviewRejected: 'Your post wasn’t approved',
     },

@@ -291,8 +291,10 @@ complete operation coverage and the precondition for such a gate is met.
 - Moderated saves commit the revision, private `post_revision` file usages and `content-review` task
   atomically. The worker and human review use the same version-checked transaction, locking post then
   topic; only the latest active pending revision can change publication. Approval replaces all fields,
-  public file references and search/counter projections together. Rejection records one owner notification
-  in that transaction. `content-published` tasks deliver existing publication events/pushes after commit;
+  public file references and search/counter projections together. Transfer to human review, human approval,
+  and rejection each record an owner notification in that transaction; automatic approval is quiet.
+  Pending revisions with `reviewed_at` already have a human-queue receipt, so retries do not repeat it
+  and late automatic results cannot override the handoff. `content-published` tasks deliver existing publication events/pushes after commit;
   realtime `content.changed` carries no content and asks the author to reconcile via authenticated REST.
 - Revision history remains read-only. Pending/rejected bodies are excluded from public history;
   the author reads the latest rejected candidate through content management. Deletion/retention guards

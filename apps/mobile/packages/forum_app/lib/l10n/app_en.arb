@@ -1652,5 +1652,8 @@
   "contentReviewRetry": "Edit and resubmit",
   "contentReviewLive": "Your previous version remains public.",
   "contentReviewView": "View content",
-  "contentReviewPending": "Under review"
+  "contentReviewPending": "Under review",
+  "notificationReviewPending": "Your post is awaiting manual review",
+  "notificationReviewPendingDetail": "We’ll review it soon and notify you of the result. You can view or edit it while you wait.",
+  "notificationReviewRejectedDetail": "This submission won’t be shown publicly. Review, edit and resubmit it from content management. Contact an administrator if you have questions."
 }

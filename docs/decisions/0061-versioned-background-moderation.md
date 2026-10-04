@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Superseded by [0062](0062-moderation-notification-feedback.md)
 Class: architecture
 
 ## Context and Problem Statement

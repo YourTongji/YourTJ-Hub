@@ -25,6 +25,7 @@ type Effect struct {
 	RevisionId         uint64 `json:"revisionId"`
 	PreviousRevisionId uint64 `json:"previousRevisionId"`
 	NotificationId     uint64 `json:"notificationId,omitempty"`
+	NotificationOnly   bool   `json:"notificationOnly,omitempty"`
 }
 
 // RunEffectsTask uses the existing event handlers' idempotent rewards/activity
@@ -63,6 +64,8 @@ func RunEffectsTask(ctx context.Context, task *taskQueue.Entity) error {
 		realtimeservice.DefaultHub.Publish(post.UserId, realtimeservice.Event{Type: realtimeservice.EventUnreadChanged})
 		webpushservice.EnqueueNotification(post.UserId, effect.NotificationId)
 		nativepushservice.EnqueueNotification(post.UserId, effect.NotificationId)
+	}
+	if effect.NotificationOnly || revision.ProcessStatus != posts.ProcessStatusNormal {
 		return nil
 	}
 	if (effect.PreviousRevisionId != 0 && post.PublishedRevisionId != revision.Id) || post.ProcessStatus != posts.ProcessStatusNormal || topic.ProcessStatus != topics.ProcessStatusNormal {

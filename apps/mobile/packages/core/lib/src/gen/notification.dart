@@ -6,6 +6,8 @@ import 'topic.dart';
 part 'notification.freezed.dart';
 part 'notification.g.dart';
 
+// review_pending links to the author's candidate; review_approved is human-only.
+// review_rejected opens content management, with a server-masked subject snapshot.
 @freezed
 abstract class NotificationPayload with _$NotificationPayload {
   const factory NotificationPayload({

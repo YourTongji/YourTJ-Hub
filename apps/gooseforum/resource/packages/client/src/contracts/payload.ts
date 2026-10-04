@@ -817,6 +817,7 @@ export type NotificationTemplateKey =
   | 'notifications.templates.follow'
   | 'notifications.templates.badge'
   | 'notifications.templates.wikiUpdated'
+  | 'notifications.templates.reviewPending'
   | 'notifications.templates.reviewApproved'
   | 'notifications.templates.reviewRejected'
 
@@ -844,6 +845,8 @@ export interface DraftPayload {
   categories: Array<{ id: number; name: string; url: string; color: string }>
 }
 
+// review_pending links to the author's candidate; review_approved is human-only.
+// review_rejected links to content management; payload.topicTitle is masked by the server.
 export interface NotificationPayload {
   id: number
   eventType: string

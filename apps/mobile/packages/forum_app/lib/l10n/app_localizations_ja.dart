@@ -3336,4 +3336,15 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get contentReviewPending => '審査中';
+
+  @override
+  String get notificationReviewPending => '投稿は手動確認を待っています';
+
+  @override
+  String get notificationReviewPendingDetail =>
+      '確認結果をお知らせします。待っている間も内容を確認・編集できます。';
+
+  @override
+  String get notificationReviewRejectedDetail =>
+      '今回の投稿は公開されません。コンテンツ管理で内容を確認・修正して再送信してください。ご不明な点は管理者にお問い合わせください。';
 }

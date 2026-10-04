@@ -920,8 +920,9 @@ export default {
     },
   },
   notifications: {
+    reviewPendingDetail: 'Wir prüfen ihn bald und informieren dich über das Ergebnis. Bis dahin kannst du ihn ansehen oder bearbeiten.',
     reviewApprovedDetail: 'Er ist jetzt für alle sichtbar.',
-    reviewRejectedDetail: 'Er wird nicht öffentlich angezeigt, und du kannst ihn nicht mehr öffnen. Bei Fragen wende dich an die Administration.',
+    reviewRejectedDetail: 'Diese Einreichung wird nicht öffentlich angezeigt. Bitte prüfe, bearbeite und sende sie über die Inhaltsverwaltung erneut. Bei Fragen wende dich an die Administration.',
     title: 'Benachrichtigungen',
     unread: '{count} ungelesen',
     summary: '{total} geladen, inklusive Antworten, Gefällt-mir, Follows und Systemnachrichten.',
@@ -962,6 +963,7 @@ export default {
       badge: 'hat das Abzeichen "{badge}" erhalten',
       like: 'hat deine Antwort mit "Gefällt mir" markiert',
       wikiUpdated: 'hat eine Wiki-Seite aktualisiert, der du folgst',
+      reviewPending: 'Dein Beitrag wartet auf manuelle Prüfung',
       reviewApproved: 'Dein Beitrag wurde freigegeben',
       reviewRejected: 'Dein Beitrag wurde nicht freigegeben',
     },

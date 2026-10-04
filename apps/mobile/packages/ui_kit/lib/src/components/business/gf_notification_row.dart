@@ -22,6 +22,7 @@ class GfNotificationRow extends StatelessWidget {
     this.onTap,
     this.onMarkRead,
     this.markReadLabel = 'Mark as read',
+    this.subtitleMaxLines = 3,
   });
   final String symbol;
   final GfNotificationTone tone;
@@ -30,6 +31,8 @@ class GfNotificationRow extends StatelessWidget {
   final bool unread;
   final VoidCallback? onTap, onMarkRead, onActorTap;
   final String markReadLabel;
+  /// Null shows complete guidance rather than truncating a content preview.
+  final int? subtitleMaxLines;
 
   @override
   Widget build(BuildContext context) {
@@ -152,8 +155,10 @@ class GfNotificationRow extends StatelessWidget {
                         padding: const EdgeInsets.only(top: 5),
                         child: Text(
                           subtitle,
-                          maxLines: 3,
-                          overflow: TextOverflow.ellipsis,
+                          maxLines: subtitleMaxLines,
+                          overflow: subtitleMaxLines == null
+                              ? TextOverflow.visible
+                              : TextOverflow.ellipsis,
                           style: TextStyle(
                             fontSize: 15,
                             height: 1.4,

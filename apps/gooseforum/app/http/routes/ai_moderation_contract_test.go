@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/db4fileconnect"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/eventbus"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/securestore"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/api"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/forum"
@@ -347,8 +348,8 @@ func TestModerationWorkbenchReviewQueueIsScopedToModeratorCategories(t *testing.
 	if own.Code != 0 || topics.Get(ownTopic).ProcessStatus != topics.ProcessStatusNormal {
 		t.Fatalf("in-scope review = %+v", own)
 	}
-	if notificationCount(conn, author.Id, eventNotification.EventTypeReviewApproved) != 0 {
-		t.Fatal("approvals should be quiet")
+	if notificationCount(conn, author.Id, eventNotification.EventTypeReviewApproved) != 1 {
+		t.Fatal("human approval must notify the author once")
 	}
 
 	stranger := createHTTPContractUser(t, conn, contractTestID())
@@ -591,7 +592,7 @@ func TestAsyncEditRejectPreservesLiveAndFencesOldDecisions(t *testing.T) {
 		t.Fatal("rejection withdrew public original")
 	}
 	notice := latestNotification(t, conn, author.Id)
-	if !strings.Contains(notice.Payload.Content, "原有公开版本") || notice.Payload.PostId != postID {
+	if notice.Payload.Content != "" || !strings.Contains(notice.Payload.TopicTitle, "******") || notice.Payload.PostId != postID {
 		t.Fatalf("notice: %+v", notice)
 	}
 	// Deletion after a submission makes its delayed result inapplicable.
@@ -871,5 +872,54 @@ func TestModerationCandidateCategoryScopeCannotBeBypassedWithFirstPost(t *testin
 	body := fmt.Sprintf(`{"kind":"post","id":%d,"approve":true,"revisionId":%d}`, postID, revisionID)
 	if e := decodeContractEnvelope(t, serveJSON(router, "/api/forum/moderation/review-action", body, moderatorToken)); e.Code != 0 {
 		t.Fatalf("authorized first-post review: %+v", e)
+	}
+}
+
+func TestAsyncHumanReviewNotifications(t *testing.T) {
+	eventbus.InitEventBus()
+	conn, router, _ := setupAIModerationContractTest(t, func(o *pageConfig.AiModerationOptions) { o.TextModeration = true })
+	author := createHTTPContractUser(t, conn, contractTestID())
+	body := `{"title":"人工审核通知测试","content":"需要人工确认的完整内容","categoryId":[1],"topicStatus":1,"contentType":2}`
+	envelope := decodeContractEnvelope(t, serveJSON(router, "/api/forum/topics/write", body, contractSessionToken(t, author)))
+	var topicID uint64
+	if err := json.Unmarshal(envelope.Result, &topicID); err != nil || topicID == 0 {
+		t.Fatalf("submission: %+v", envelope)
+	}
+	post := posts.Get(topics.Get(topicID).FirstPostId)
+	for i := 0; i < 2; i++ {
+		if err := publicationservice.Review(context.Background(), post.LatestRevisionId, moderationDecision.ActionReview, "等待人工审核", 0); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got := notificationCount(conn, author.Id, "review_pending"); got != 1 {
+		t.Fatalf("manual review notices = %d, want 1", got)
+	}
+	if err := publicationservice.Review(context.Background(), post.LatestRevisionId, moderationDecision.ActionAllow, "", 0); !errors.Is(err, publicationservice.ErrUnavailable) {
+		t.Fatalf("late AI decision overrode human queue: %v", err)
+	}
+	pending := latestNotification(t, conn, author.Id)
+	if pending.Payload.TopicId != topicID || pending.Payload.PostNo != 1 {
+		t.Fatalf("pending target: %+v", pending)
+	}
+	if err := publicationservice.Review(context.Background(), post.LatestRevisionId, moderationDecision.ActionAllow, "", author.Id+1); err != nil {
+		t.Fatal(err)
+	}
+	if err := publicationservice.Review(context.Background(), post.LatestRevisionId, moderationDecision.ActionAllow, "", author.Id+1); !errors.Is(err, publicationservice.ErrUnavailable) {
+		t.Fatalf("replay = %v", err)
+	}
+	if got := notificationCount(conn, author.Id, eventNotification.EventTypeReviewApproved); got != 1 {
+		t.Fatalf("approved notices = %d", got)
+	}
+	var tasks []taskQueue.Entity
+	if err := conn.Where("type = ?", publicationservice.EffectTaskType).Find(&tasks).Error; err != nil {
+		t.Fatal(err)
+	}
+	for _, task := range tasks {
+		if err := publicationservice.RunEffectsTask(context.Background(), &task); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got := posts.Get(post.Id); got.ProcessStatus != posts.ProcessStatusNormal {
+		t.Fatalf("not published: %+v", got)
 	}
 }

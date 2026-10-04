@@ -25,6 +25,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/postservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/realtimeservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/searchservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/unreadservice"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -55,7 +56,7 @@ func RunReviewTask(ctx context.Context, task *taskQueue.Entity) error {
 	} else if err != nil {
 		return err
 	}
-	if post.LatestRevisionId != revision.Id || revision.ProcessStatus != posts.ProcessStatusPending || !available(topic, post) {
+	if post.LatestRevisionId != revision.Id || revision.ProcessStatus != posts.ProcessStatusPending || revision.ReviewedAt != nil || !available(topic, post) {
 		return nil
 	}
 	subject, id := moderationDecision.SubjectPost, post.Id
@@ -143,7 +144,21 @@ func Review(ctx context.Context, revisionID uint64, action, reason string, actor
 			return ErrUnavailable
 		}
 		if action == moderationDecision.ActionReview {
-			return tx.Model(&revision).Update("review_reason", reason).Error
+			// A pending revision with ReviewedAt has already been routed to a human.
+			// The timestamp and notification commit together under the post lock.
+			if revision.ReviewedAt != nil {
+				return nil
+			}
+			if strings.TrimSpace(reason) == "" {
+				reason = "等待人工审核"
+			}
+			if err := tx.Model(&revision).Updates(map[string]any{"review_reason": reason, "reviewed_at": time.Now()}).Error; err != nil {
+				return err
+			}
+			return enqueueReviewNotice(tx, revision, topic, post, eventNotification.EventTypeReviewPending, Effect{RevisionId: revisionID, NotificationOnly: true})
+		}
+		if actorID == 0 && revision.ReviewedAt != nil {
+			return ErrUnavailable
 		}
 		if action != moderationDecision.ActionAllow && action != moderationDecision.ActionBlock {
 			return errors.New("invalid review action")
@@ -219,19 +234,6 @@ func Review(ctx context.Context, revisionID uint64, action, reason string, actor
 			return err
 		}
 		effect := Effect{RevisionId: revisionID, PreviousRevisionId: previous}
-		if action == moderationDecision.ActionBlock {
-			if strings.TrimSpace(reason) == "" {
-				reason = "内容未通过审核，请修改后重新提交。"
-			}
-			if wasPublic {
-				reason += " 原有公开版本保持可见。"
-			}
-			notice := eventNotification.Entity{UserId: post.UserId, TopicID: topic.Id, EventType: eventNotification.EventTypeReviewRejected, Payload: eventNotification.NotificationPayload{TemplateKey: eventNotification.TemplateReviewRejected, TopicTitle: topic.Title, TopicId: topic.Id, PostId: post.Id, PostNo: post.PostNo, Content: reason}}
-			if err := tx.Create(&notice).Error; err != nil {
-				return err
-			}
-			effect.NotificationId = notice.Id
-		}
 		if actorID != 0 {
 			human := moderationDecision.HumanRejected
 			if action == moderationDecision.ActionAllow {
@@ -241,17 +243,57 @@ func Review(ctx context.Context, revisionID uint64, action, reason string, actor
 				return err
 			}
 		}
-		raw, err := json.Marshal(effect)
-		if err != nil {
-			return err
+		if action == moderationDecision.ActionBlock {
+			effect.NotificationOnly = true
+			return enqueueReviewNotice(tx, revision, topic, post, eventNotification.EventTypeReviewRejected, effect)
 		}
-		return taskQueue.CreateTx(tx, &taskQueue.Entity{Type: EffectTaskType, TaskJson: string(raw)})
+		if actorID != 0 {
+			return enqueueReviewNotice(tx, revision, topic, post, eventNotification.EventTypeReviewApproved, effect)
+		}
+		return enqueueEffect(tx, effect)
 	})
 	if err == nil {
+		unreadservice.Invalidate(post.UserId)
 		hotdataserve.InvalidateTopicListCacheForCategories(append(oldCategories, topic.CategoryIds...)...)
 		llmsservice.ClearCache()
 		realtimeservice.DefaultHub.Publish(post.UserId, realtimeservice.Event{Type: realtimeservice.EventContentChanged})
 		realtimeservice.DefaultHub.Publish(post.UserId, realtimeservice.Event{Type: realtimeservice.EventNotificationsChanged})
 	}
 	return err
+}
+
+// Notifications contain a safe subject snapshot; rejection reasons and full
+// candidates remain in content management, not notification or push payloads.
+func enqueueReviewNotice(tx *gorm.DB, revision postRevisions.Entity, topic topics.Entity, post posts.Entity, eventType string, effect Effect) error {
+	template := eventNotification.TemplateReviewPending
+	if eventType == eventNotification.EventTypeReviewApproved {
+		template = eventNotification.TemplateReviewApproved
+	}
+	subject := strings.TrimSpace(revision.Title)
+	if subject == "" {
+		subject = revision.Content
+	}
+	subject = markdown2html.ExtractVisibleText(subject)
+	if chars := []rune(subject); eventType != eventNotification.EventTypeReviewRejected && len(chars) > 60 {
+		subject = string(chars[:60]) + "…"
+	}
+	payload := eventNotification.NotificationPayload{TemplateKey: template, TopicTitle: subject, TopicId: topic.Id, PostId: post.Id, PostNo: post.PostNo}
+	if eventType == eventNotification.EventTypeReviewRejected {
+		payload.TemplateKey = eventNotification.TemplateReviewRejected
+		payload = eventNotification.RedactReviewRejectedPayload(payload)
+	}
+	notice := eventNotification.Entity{UserId: post.UserId, TopicID: topic.Id, EventType: eventType, Payload: payload}
+	if err := tx.Create(&notice).Error; err != nil {
+		return err
+	}
+	effect.NotificationId = notice.Id
+	return enqueueEffect(tx, effect)
+}
+
+func enqueueEffect(tx *gorm.DB, effect Effect) error {
+	raw, err := json.Marshal(effect)
+	if err != nil {
+		return err
+	}
+	return taskQueue.CreateTx(tx, &taskQueue.Entity{Type: EffectTaskType, TaskJson: string(raw)})
 }

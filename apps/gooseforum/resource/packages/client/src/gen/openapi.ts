@@ -8393,7 +8393,7 @@ export interface components {
         NotificationPayload: {
             /** Format: uint64 */
             id: number;
-            /** @description Notification event type (comment/post_reply/topic_post/mention/follow/badge/like/wiki_updated/system/review_approved/review_rejected); the payload shape varies with it. `review_approved` links to the approved topic/post; `review_rejected` carries only `payload.topicTitle` because rejected content is not visible to its author (issue */
+            /** @description Notification event type (comment/post_reply/topic_post/mention/follow/badge/like/wiki_updated/system/review_pending/review_approved/review_rejected); the payload shape varies with it. AI approval is quiet. `review_pending` notifies transfer to human review and links to the pending topic/post; human `review_approved` links to the approved version. `review_rejected` links to content management for editing/resubmission, with topic/post identifiers and a subject snapshot retaining only its first/last Unicode character around six asterisks; title/content/preview fields carry no rejected original text. */
             eventType: string;
             isRead: boolean;
             /** @description Notification creation time in RFC 3339 format. */
@@ -8401,8 +8401,8 @@ export interface components {
             title: string;
             /** @description Stored preview; for likes without one, a readable excerpt of the currently visible referenced reply. */
             content: string;
-            /** @description Actor identity with the current public avatar hydrated in a batch when the actor exists. */
-            actor: components["schemas"]["TopicAuthorPayload"];
+            /** @description Actor identity with the current public avatar hydrated in a batch when the actor exists; id 0 for system and moderation feedback. */
+            actor: components["schemas"]["NotificationActorPayload"];
             topic?: components["schemas"]["NotificationTopicRef"];
             /** @description Raw event payload (title/content/templateKey/templateParams/actorId/topicId/postId/metadata and friends); shape varies by eventType. */
             payload: {
@@ -12606,6 +12606,19 @@ export interface components {
         };
         DisplayBadgesRequest: {
             badgeCodes: string[];
+        };
+        NotificationActorPayload: {
+            /**
+             * Format: uint64
+             * @description 0 for system and moderation feedback without a triggering user.
+             */
+            id: number;
+            username: string;
+            /** @description Present only when the user has a nickname. */
+            nickname?: string;
+            avatarUrl: string;
+            /** @description Present only when the user wears a badge. */
+            wornBadge?: Record<string, never> | null;
         };
         ForwardChatMessagesRequest: {
             /** Format: uint64 */

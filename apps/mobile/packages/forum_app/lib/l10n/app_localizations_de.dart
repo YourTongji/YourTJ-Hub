@@ -3493,4 +3493,16 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get contentReviewPending => 'In Prüfung';
+
+  @override
+  String get notificationReviewPending =>
+      'Dein Beitrag wartet auf manuelle Prüfung';
+
+  @override
+  String get notificationReviewPendingDetail =>
+      'Wir prüfen ihn bald und informieren dich über das Ergebnis. Bis dahin kannst du ihn ansehen oder bearbeiten.';
+
+  @override
+  String get notificationReviewRejectedDetail =>
+      'Diese Einreichung wird nicht öffentlich angezeigt. Bitte prüfe, bearbeite und sende sie über die Inhaltsverwaltung erneut. Bei Fragen wende dich an die Administration.';
 }

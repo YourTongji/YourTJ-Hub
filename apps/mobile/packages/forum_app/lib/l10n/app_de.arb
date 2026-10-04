@@ -1210,5 +1210,8 @@
   "contentReviewRetry": "Bearbeiten und erneut senden",
   "contentReviewLive": "Die bisherige Version bleibt öffentlich.",
   "contentReviewView": "Inhalt ansehen",
-  "contentReviewPending": "In Prüfung"
+  "contentReviewPending": "In Prüfung",
+  "notificationReviewPending": "Dein Beitrag wartet auf manuelle Prüfung",
+  "notificationReviewPendingDetail": "Wir prüfen ihn bald und informieren dich über das Ergebnis. Bis dahin kannst du ihn ansehen oder bearbeiten.",
+  "notificationReviewRejectedDetail": "Diese Einreichung wird nicht öffentlich angezeigt. Bitte prüfe, bearbeite und sende sie über die Inhaltsverwaltung erneut. Bei Fragen wende dich an die Administration."
 }

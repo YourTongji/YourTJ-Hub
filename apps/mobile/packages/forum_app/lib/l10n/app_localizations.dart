@@ -6287,6 +6287,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Under review'**
   String get contentReviewPending;
+
+  /// No description provided for @notificationReviewPending.
+  ///
+  /// In en, this message translates to:
+  /// **'Your post is awaiting manual review'**
+  String get notificationReviewPending;
+
+  /// No description provided for @notificationReviewPendingDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'We’ll review it soon and notify you of the result. You can view or edit it while you wait.'**
+  String get notificationReviewPendingDetail;
+
+  /// No description provided for @notificationReviewRejectedDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'This submission won’t be shown publicly. Review, edit and resubmit it from content management. Contact an administrator if you have questions.'**
+  String get notificationReviewRejectedDetail;
 }
 
 class _AppLocalizationsDelegate

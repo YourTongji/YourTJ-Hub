@@ -482,6 +482,10 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                                   GfNotificationTone.warning,
                                 ),
                                 'system' => ('info', GfNotificationTone.info),
+                                'review_pending' => (
+                                  'clock',
+                                  GfNotificationTone.info,
+                                ),
                                 'review_approved' => (
                                   'circle-check',
                                   GfNotificationTone.success,
@@ -523,6 +527,12 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                                     tone: tone,
                                     title: title,
                                     subtitle: subtitle,
+                                    subtitleMaxLines:
+                                        notificationEvent(
+                                          n,
+                                        ).startsWith('review_')
+                                        ? null
+                                        : 3,
                                     time: timeAgo(n.createdAt, l10n: l10n),
                                     unread: !n.isRead,
                                     onMarkRead:

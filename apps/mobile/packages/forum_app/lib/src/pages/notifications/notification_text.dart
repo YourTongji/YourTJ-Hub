@@ -35,6 +35,7 @@ import '../../../l10n/app_localizations.dart';
           'like' => l10n.notificationLike(actor),
           'wiki_updated' => l10n.notificationWikiUpdated(actor),
           // 人工审核结果(issue #975):无触发者,标题即结论,副标题为内容标题。
+          'review_pending' => l10n.notificationReviewPending,
           'review_approved' => l10n.notificationReviewApproved,
           'review_rejected' => l10n.notificationReviewRejected,
           'badge' =>
@@ -59,6 +60,24 @@ import '../../../l10n/app_localizations.dart';
           ]
           .map(literal)
           .firstWhere((s) => s.isNotEmpty && s != title, orElse: () => '');
+  if (event == 'review_pending') {
+    return (
+      title,
+      [
+        subtitle,
+        l10n.notificationReviewPendingDetail,
+      ].where((s) => s.isNotEmpty).join('\n'),
+    );
+  }
+  if (event == 'review_rejected') {
+    return (
+      title,
+      [
+        subtitle,
+        l10n.notificationReviewRejectedDetail,
+      ].where((s) => s.isNotEmpty).join('\n'),
+    );
+  }
   return (title, subtitle);
 }
 
@@ -72,6 +91,7 @@ String notificationEvent(NotificationPayload item) =>
       'notifications.templates.badge' => 'badge',
       'notifications.templates.like' => 'like',
       'notifications.templates.wikiUpdated' => 'wiki_updated',
+      'notifications.templates.reviewPending' => 'review_pending',
       'notifications.templates.reviewApproved' => 'review_approved',
       'notifications.templates.reviewRejected' => 'review_rejected',
       _ => item.eventType,

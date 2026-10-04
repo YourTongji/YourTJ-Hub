@@ -55,3 +55,41 @@ for (const theme of ['gf-light', 'gf-dark']) {
     } finally { await page.close() }
   })
 }
+
+for (const theme of ['gf-light', 'gf-dark']) {
+  for (const contentType of [1, 2]) {
+    test(`content manager opens and submits short editor type ${contentType} (${theme})`, async () => {
+      const page = await browser.newPage({ viewport: { width: 390, height: 844 } })
+      page.setDefaultTimeout(10000)
+      try {
+        await page.route('**/publish?id=42', route => route.fulfill({ json: {
+          version: '1.0', component: 'publish.index', layout: {}, meta: {},
+          props: { topicId: 42, isEditing: true, categories: [], topic: { contentType, title: '校园生活中的一次讨论', content: '这是等待审核的新版本内容', categoryIds: [101], images: [], topicStatus: 1 } },
+        } }))
+        let submitted
+        await page.route('**/api/forum/topics/write', route => {
+          submitted = route.request().postDataJSON()
+          return route.fulfill({ json: { code: 1, messageCode: 'common.operation.failed' } })
+        })
+        await page.goto(`${origin}/assets/test/fixtures/browser/managed-content.html?theme=${theme}&topic=1`)
+        await page.getByRole('button', { name: '修改并重新提交' }).click()
+        const dialog = page.getByRole('dialog')
+        await dialog.waitFor()
+        const editor = dialog.locator('.vditor [contenteditable="true"]:visible').first()
+        await editor.waitFor()
+        assert.ok((await editor.innerText()).includes('这是等待审核的新版本内容'))
+        assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
+        if (process.env.YOURTJ_REVIEW_SCREENSHOTS) {
+          await mkdir(process.env.YOURTJ_REVIEW_SCREENSHOTS, { recursive: true })
+          await page.screenshot({ path: `${process.env.YOURTJ_REVIEW_SCREENSHOTS}/short-editor-${contentType}-${theme}.png` })
+        }
+        await dialog.getByRole('button', { name: '保存', exact: true }).click()
+        await page.getByText('操作失败', { exact: true }).waitFor()
+        assert.equal(submitted.topicId, 42)
+        assert.equal(submitted.contentType, contentType)
+        assert.ok(submitted.content.includes('这是等待审核的新版本内容'))
+        assert.deepEqual(submitted.categoryId, [101])
+      } finally { await page.close() }
+    })
+  }
+}

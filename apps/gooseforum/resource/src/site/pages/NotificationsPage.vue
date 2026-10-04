@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { userDisplayName } from '@/runtime/private-notes'
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
-import { Award, Bell, Check, CheckCheck, CheckCircle2, Info, MessageCircle, ShieldAlert, UserPlus } from '@lucide/vue'
+import { Award, Bell, Clock, Check, CheckCheck, CheckCircle2, Info, MessageCircle, ShieldAlert, UserPlus } from '@lucide/vue'
 import { useI18n } from 'vue-i18n'
 import { fetchNotifications, markAllNotificationsRead, markNotificationRead } from '@/runtime/api'
 import { formatDateTime } from '@/runtime/format'
@@ -177,10 +177,11 @@ function setActiveFilter(filter: NotificationFilter) {
 
 // 人工审核结果（issue #975）：无触发者，标题即结论，副行说明后续。
 function isReviewResult(item: NotificationPayload) {
-  return item.eventType === 'review_approved' || item.eventType === 'review_rejected'
+  return item.eventType === 'review_pending' || item.eventType === 'review_approved' || item.eventType === 'review_rejected'
 }
 
 function notificationIcon(item: NotificationPayload) {
+  if (item.eventType === 'review_pending') return Clock
   if (item.eventType === 'review_approved') return CheckCircle2
   if (item.eventType === 'review_rejected') return ShieldAlert
   if (item.eventType === 'follow') return UserPlus
@@ -233,6 +234,8 @@ function notificationTemplateText(item: NotificationPayload) {
     }
     case 'notifications.templates.wikiUpdated':
       return t('notifications.templates.wikiUpdated')
+    case 'notifications.templates.reviewPending':
+      return t('notifications.templates.reviewPending')
     case 'notifications.templates.reviewApproved':
       return t('notifications.templates.reviewApproved')
     case 'notifications.templates.reviewRejected':
@@ -272,6 +275,7 @@ function actorURL(item: NotificationPayload) {
 }
 
 function targetURL(item: NotificationPayload) {
+  if (item.eventType === 'review_rejected') return '/settings?tab=content'
   if (item.topic) return item.topic.url
   if (item.eventType === 'badge') return item.payload.metadata?.profileUrl || actorURL(item)
   if (item.eventType === 'follow') return actorURL(item)
@@ -405,11 +409,11 @@ function markItemReadAndNavigate(item: NotificationPayload) {
             <component :is="notificationIcon(item)" class="h-4 w-4" :class="notificationTone(item)" />
           </div>
           <div class="min-w-0">
-            <div class="flex min-w-0 items-center gap-1.5 text-sm leading-5">
+            <div class="flex min-w-0 items-center gap-1.5 text-sm leading-5" :class="{ 'flex-wrap': isReviewResult(item) }">
               <a v-if="actorURL(item) && item.eventType !== 'badge'" :href="actorURL(item)" class="max-w-[42%] shrink-0 truncate font-semibold text-base-content hover:text-primary" @click="markItemReadAndNavigate(item)">
                 {{ actorName(item) }}
               </a>
-              <span v-else class="max-w-[42%] shrink-0 truncate font-semibold text-base-content">{{ item.eventType === 'follow' ? actorName(item) : notificationTitleText(item) }}</span>
+              <span v-else class="shrink-0 font-semibold text-base-content" :class="isReviewResult(item) ? 'w-full' : 'max-w-[42%] truncate'">{{ item.eventType === 'follow' ? actorName(item) : notificationTitleText(item) }}</span>
               <span class="shrink-0 text-base-content/55">{{ item.actor.id || item.eventType === 'follow' ? notificationVerb(item) : '' }}</span>
               <a
                 v-if="item.topic"
@@ -436,11 +440,12 @@ function markItemReadAndNavigate(item: NotificationPayload) {
                 {{ t('notifications.viewProfile') }}
               </a>
               <span v-else-if="item.actor.id || item.eventType === 'follow'" class="font-medium text-base-content/75">{{ notificationText(item) }}</span>
+              <a v-else-if="isReviewResult(item) && targetURL(item)" :href="targetURL(item)" class="min-w-0 truncate font-medium text-primary" @click="markItemReadAndNavigate(item)">{{ item.payload.topicTitle || t('contentReview.view') }}</a>
               <span v-else-if="isReviewResult(item) && item.payload.topicTitle" class="min-w-0 truncate font-medium text-base-content/75">{{ item.payload.topicTitle }}</span>
               <span v-if="!item.isRead" class="h-1.5 w-1.5 rounded-full bg-primary" />
             </div>
-            <p v-if="isReviewResult(item)" class="mt-0.5 line-clamp-2 text-xs text-base-content/55">
-              {{ item.eventType === 'review_approved' ? t('notifications.reviewApprovedDetail') : t('notifications.reviewRejectedDetail') }}
+            <p v-if="isReviewResult(item)" class="mt-0.5 text-xs text-base-content/55">
+              {{ item.eventType === 'review_pending' ? t('notifications.reviewPendingDetail') : item.eventType === 'review_approved' ? t('notifications.reviewApprovedDetail') : t('notifications.reviewRejectedDetail') }}
             </p>
             <p v-else-if="item.content && item.content !== notificationText(item)" class="mt-0.5 line-clamp-1 text-xs text-base-content/55">{{ item.content }}</p>
             <time class="mt-1 block text-xs text-base-content/55 md:hidden">{{ formatDateTime(item.createdAt) }}</time>
