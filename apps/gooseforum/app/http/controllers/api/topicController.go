@@ -432,7 +432,8 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 		return component.FailResponseCode(component.MessageOperationFailed, nil)
 	}
 
-	// 待审内容的图片登记为 PENDING：审核通过前对匿名读者不可读（issue #975）。
+	// PENDING keeps both drafts and review candidates private. File reads also
+	// check the submitted content/version before granting moderator preview.
 	fileusageservice.RegisterTopicInlineImagesOwned(topic.Id, req.UserId, firstPost.Content, topic.ImageUrls,
 		topic.ProcessStatus == topics.ProcessStatusPending || topic.Status == 0)
 	finishAIModeration(aiCheck, topic.Id)

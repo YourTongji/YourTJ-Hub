@@ -2,7 +2,6 @@ package api
 
 import (
 	"bytes"
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postRevisions"
 	"io"
 	"log/slog"
 	"mime"
@@ -17,6 +16,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/httputil"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/filemodel/filedata"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/fileUsage"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postRevisions"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/authsessionservice"
@@ -118,30 +118,56 @@ func canPreviewPendingFile(c *gin.Context, referenceName string) bool {
 	return false
 }
 
-// pendingUsageCategories 返回待审引用所属主题的分类；无法回溯到主题时返回 nil。
+// PENDING only marks a private file reference; drafts use it too. Moderator
+// access additionally requires a submitted topic and a review-backed reference.
 func pendingUsageCategories(usage fileUsage.Entity) []uint64 {
 	topicID := usage.TargetId
+	var post posts.Entity
+	var revision postRevisions.Entity
 	switch usage.TargetType {
 	case fileUsage.TargetTopic:
 	case fileUsage.TargetPostRevision:
-		revision := postRevisions.Get(usage.TargetId)
-		post := posts.Get(revision.PostId)
-		if post.VisibilityStatus != posts.VisibilityActive {
+		revision = postRevisions.Get(usage.TargetId)
+		if revision.Id == 0 {
 			return nil
 		}
-		if post.PostNo == 1 {
-			return revision.CategoryIds
-		}
+		post = posts.Get(revision.PostId)
 		topicID = post.TopicId
 	case fileUsage.TargetPost:
-		topicID = posts.Get(usage.TargetId).TopicId
+		post = posts.Get(usage.TargetId)
+		topicID = post.TopicId
 	default:
 		return nil
 	}
 	if topicID == 0 {
 		return nil
 	}
-	return topics.Get(topicID).CategoryIds
+	topic := topics.Get(topicID)
+	if topic.Id == 0 || topic.Status != 1 || topic.VisibilityStatus != topics.VisibilityActive {
+		return nil
+	}
+	if usage.TargetType == fileUsage.TargetTopic {
+		post = posts.Get(topic.FirstPostId)
+	}
+	if post.Id == 0 || post.VisibilityStatus != posts.VisibilityActive {
+		return nil
+	}
+	if revision.Id != 0 {
+		if post.PostNo == 1 {
+			return revision.CategoryIds
+		}
+		return topic.CategoryIds
+	}
+	// Versioned submissions authorize their own image snapshot above. Legacy
+	// topic/post refs can retain draft images omitted from that snapshot.
+	if post.LatestRevisionId != 0 {
+		return nil
+	}
+	if usage.TargetType == fileUsage.TargetTopic && topic.ProcessStatus != topics.ProcessStatusNormal ||
+		usage.TargetType == fileUsage.TargetPost && post.ProcessStatus != posts.ProcessStatusNormal {
+		return topic.CategoryIds
+	}
+	return nil
 }
 
 // SaveImgByGinContext handles image uploads with size and content checks.

@@ -71,8 +71,8 @@ func FilterOwnedImageURLs(userID uint64, urls []string) []string {
 // explicit gallery list, keeping only files owned by userID (see
 // FilterOwnedImageURLs). It is the ownership-checked write path for user
 // content; unowned markdown URLs are skipped instead of being pinned.
-// pending=true registers PENDING rows for content awaiting moderation so its
-// images are not publicly readable before approval (issue #975).
+// pending=true registers private PENDING rows for drafts or review candidates.
+// This alone does not authorize moderator preview; readers check the content.
 func RegisterTopicInlineImagesOwned(topicID uint64, userID uint64, content string, gallery []string, pending bool) {
 	urls := markdown2html.ExtractImageURLs(content)
 	urls = append(urls, gallery...)
