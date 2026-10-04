@@ -1487,7 +1487,7 @@ function isOwnPendingPost(post: PostPayload) {
 }
 
 function canEditPost(post: PostPayload) {
-  return post.isOwnPost && !post.isHidden && !isPostRemoved(post)
+  return post.isOwnPost && (!post.isHidden || post.processStatus === 2) && !isPostRemoved(post)
 }
 
 function canDeleteRenderedPost(post: PostPayload) {

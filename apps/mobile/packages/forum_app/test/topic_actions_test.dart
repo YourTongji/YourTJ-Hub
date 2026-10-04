@@ -132,6 +132,11 @@ void main() {
       expect(h.router.state.uri.path, '/');
     },
   );
+  testWidgets('pending topic still opens the author editor', (tester) async {
+    await pump(tester, status: 2);
+    await menu(tester, 'Edit');
+    expect(find.text('Editor 100'), findsOneWidget);
+  });
   testWidgets('session change cancels a pending topic deletion', (
     tester,
   ) async {

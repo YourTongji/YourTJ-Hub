@@ -46,7 +46,6 @@ const singleImageClass = computed(() => {
 
 <template>
   <div :class="compact ? 'p-3.5' : 'p-4 sm:p-5'">
-  <span v-if="topic.processStatus === 2" class="inline-flex rounded bg-warning/15 px-2 py-0.5 text-xs text-warning">{{ t('topic.pendingReviewBadge') }}</span>
     <div v-if="singleImage" :class="compact ? 'flex gap-3 sm:gap-4' : 'flex flex-col gap-3 sm:flex-row sm:gap-4'">
       <TopicFeedMeta
         :topic="topic"

@@ -245,15 +245,21 @@ func GetLatestPublishedByUserId(userId uint64, limit int) ([]*Entity, error) {
 	return entities, err
 }
 
-func GetPublishedByUserBeforeId(userId uint64, beforeId uint64, limit int) ([]*Entity, error) {
+// GetProfileTopicsBeforeID includes private pending topics only for the author.
+// Filter before applying the cursor/limit so private entries paginate normally.
+func GetProfileTopicsBeforeID(userId uint64, beforeId uint64, limit int, includePending bool) ([]*Entity, error) {
 	var entities []*Entity
 	query := builder().
 		Where(queryopt.Eq("user_id", userId)).
 		Where(queryopt.Eq("status", 1)).
-		Where(queryopt.Eq("process_status", 0)).
 		Where(queryopt.Eq("visibility_status", VisibilityActive)).
-		Where(queryopt.Eq("topic_type", TopicTypeForum)).
-		Where(firstPostVisibleSQL, ProcessStatusNormal)
+		Where(queryopt.Eq("topic_type", TopicTypeForum))
+	if includePending {
+		query = query.Where("process_status IN ?", []int8{ProcessStatusNormal, ProcessStatusPending}).
+			Where("EXISTS (SELECT 1 FROM posts WHERE posts.id = topics.first_post_id AND posts.topic_id = topics.id AND posts.process_status IN ? AND posts.deleted_at IS NULL)", []int8{ProcessStatusNormal, ProcessStatusPending})
+	} else {
+		query = query.Where("process_status = ?", ProcessStatusNormal).Where(firstPostVisibleSQL, ProcessStatusNormal)
+	}
 	if beforeId > 0 {
 		query = query.Where(queryopt.Lt("id", beforeId))
 	}

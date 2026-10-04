@@ -13,6 +13,24 @@ before(async () => {
 })
 after(async () => { await browser?.close(); await server?.close() })
 for (const theme of ['gf-light', 'gf-dark']) {
+  test(`managed moment opens and submits as a moment (${theme})`, async () => {
+    const page = await browser.newPage({ viewport: { width: 390, height: 844 } })
+    try {
+      let submitted
+      await page.route('**/api/forum/topics/write', async route => {
+        submitted = route.request().postDataJSON()
+        await route.fulfill({ json: { code: 1, messageCode: 'common.operation.failed' } })
+      })
+      await page.goto(`${origin}/assets/test/fixtures/browser/publish-images.html?type=2&theme=${theme}`)
+      await page.getByText('编辑瞬间', { exact: true }).waitFor()
+      await page.locator('.vditor [contenteditable="true"]:visible').first().waitFor()
+      await page.getByRole('button', { name: '更新内容', exact: true }).click()
+      await page.getByText('操作失败', { exact: true }).waitFor()
+      assert.equal(submitted.topicId, 17)
+      assert.equal(submitted.contentType, 2)
+      assert.equal(submitted.topicStatus, 1)
+    } finally { await page.close() }
+  })
   test(`rejected topic gallery can be removed before saving a draft (${theme})`, async () => {
     const page = await browser.newPage({ viewport: { width: 390, height: 844 } })
     try {

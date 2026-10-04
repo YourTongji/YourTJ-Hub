@@ -142,7 +142,6 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <span v-if="topic.processStatus === 2" class="inline-flex rounded bg-warning/15 px-2 py-0.5 text-xs text-warning">{{ t('topic.pendingReviewBadge') }}</span>
   <article
     ref="rowEl"
     class="group gf-topic-row"
@@ -178,6 +177,7 @@ onBeforeUnmount(() => {
           >
             {{ topicDisplayLabel(topic.id, topic.title, topic.description) }}
           </a>
+          <span v-if="topic.processStatus === 2" class="inline-flex shrink-0 whitespace-nowrap rounded bg-warning/15 px-2 py-0.5 text-xs text-warning">{{ t('topic.pendingReviewBadge') }}</span>
           <span
             v-if="topic.unseen"
             class="h-2 w-2 shrink-0 rounded-full bg-primary"

@@ -106,6 +106,7 @@ class _RecordingTopicRepository extends TopicRepository {
       String content,
       List<int> categoryIds,
       int topicStatus,
+      int contentType,
     })
   >
   writes =
@@ -116,6 +117,7 @@ class _RecordingTopicRepository extends TopicRepository {
           String content,
           List<int> categoryIds,
           int topicStatus,
+          int contentType,
         })
       >[];
 
@@ -153,6 +155,7 @@ class _RecordingTopicRepository extends TopicRepository {
       content: content,
       categoryIds: List<int>.of(categoryIds),
       topicStatus: topicStatus,
+      contentType: contentType,
     ));
     return WriteTopicResult(id: resultId);
   }
@@ -254,6 +257,7 @@ void main() {
     String editQueryKey = 'topicId',
     String? localDraftKey,
     int contentType = 0,
+    int? initialContentType,
     int? topicStatus,
     List<int>? categoryIds,
     Locale locale = const Locale('zh'),
@@ -309,7 +313,8 @@ void main() {
           builder: (BuildContext context, GoRouterState state) => PublishPage(
             topicId: publishTopicIdFromUri(state.uri),
             localDraftKey: localDraftKey,
-            initialContentType: contentType == 0 ? 3 : contentType,
+            initialContentType:
+                initialContentType ?? (contentType == 0 ? 3 : contentType),
             markdownConverter: markdownConverter,
           ),
         ),
@@ -1667,6 +1672,24 @@ void main() {
     expect(find.text('已保存为草稿'), findsOneWidget);
 
     await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
+  });
+
+  testWidgets('内容管理编辑瞬间优先使用服务端类型而非文章默认值', (tester) async {
+    final result = await pumpPublishPage(
+      tester,
+      editing: true,
+      editQueryKey: 'id',
+      contentType: 2,
+      initialContentType: 3,
+    );
+    expect(find.byType(QuillEditor), findsNothing);
+    await tester.tap(find.byKey(const Key('publish-appbar-submit')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('publish-appbar-submit')));
+    await tester.pumpAndSettle();
+    expect(result.topicRepository.writes.single.topicId, 42);
+    expect(result.topicRepository.writes.single.contentType, 2);
     await tester.pump(const Duration(milliseconds: 600));
   });
 

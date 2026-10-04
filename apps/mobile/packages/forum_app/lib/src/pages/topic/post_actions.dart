@@ -402,7 +402,10 @@ class _PostActionsState extends ConsumerState<PostActions> {
         enabled: !_busy,
         onSelected: _action,
         itemBuilder: (_) => [
-          if (post.isOwnPost && available)
+          if (post.isOwnPost &&
+              widget.topicAvailable &&
+              !_removed &&
+              (!post.isHidden || post.processStatus == 2))
             PopupMenuItem(value: 'edit', child: Text(l10n.commonEdit)),
           if (post.isOwnPost && available)
             PopupMenuItem(value: 'delete', child: Text(l10n.contentDelete)),

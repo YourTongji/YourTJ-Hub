@@ -19,7 +19,7 @@ vi.mock('@/site/components/VditorOfficial.vue', () => ({
   }),
 }))
 let wrapper: VueWrapper | undefined
-async function mountPage() {
+async function mountPage(contentType = 3) {
   const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/', component: { template: '<div />' } }] })
   await router.push('/')
   await router.isReady()
@@ -28,7 +28,7 @@ async function mountPage() {
     props: {
       layout: { viewer: { id: 7, isAuthenticated: true }, posting: {} } as any,
       props: { topicId: 17, isEditing: true, categories: [{ id: 1, name: '分类', color: '#666' }], topic: {
-        title: '被拒后修改', content: '正文 ![旧图](/file/img/old.png)', categoryIds: [1], contentType: 3,
+        title: '被拒后修改', content: '正文 ![旧图](/file/img/old.png)', categoryIds: [1], contentType,
         images: ['/file/img/old.png', '/file/img/gallery.png'],
       } } as any,
     },
@@ -40,6 +40,13 @@ async function mountPage() {
 afterEach(() => { wrapper?.unmount(); vi.restoreAllMocks() })
 
 describe('发布页编辑图片', () => {
+  test('内容管理的瞬间编辑使用服务端类型并保持瞬间提交', async () => {
+    const view = await mountPage(2)
+    expect((view.vm as any).contentType).toBe(2)
+    await (view.vm as any).save()
+    expect(submit).toHaveBeenCalledWith(expect.objectContaining({ topicId: 17, contentType: 2 }))
+  })
+
   test.each(['save', 'saveDraft'])('%s 不带回已从正文删除的图片，保留独立图库和新正文图片', async action => {
     const view = await mountPage()
     await view.get('[data-test="editor"]').setValue('修改后正文 ![新图](/file/img/new.png)')

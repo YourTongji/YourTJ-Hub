@@ -6,8 +6,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:forum_app/l10n/app_localizations.dart';
 import 'package:forum_app/src/pages/content/content_page.dart';
+import 'package:forum_app/src/pages/topic/post_actions.dart';
 import 'package:forum_app/src/providers.dart';
 import 'package:ui_kit/ui_kit.dart';
+import '../test/fixtures/page_fixtures.dart';
 
 class _TokenStorage implements TokenStorage {
   @override
@@ -103,6 +105,50 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.textContaining('审核中'), findsOneWidget);
       expect(find.byType(AlertDialog), findsNothing);
+      expect(tester.takeException(), isNull);
+
+      // Detail actions retain the author's editor while the reply is pending.
+      final detail = TopicDetailProps.fromJson(
+        topicDetailPayloadJson()['props'] as Map<String, dynamic>,
+      );
+      final pendingPost = detail.postStream.posts.first.copyWith(
+        id: 42,
+        postNo: 2,
+        isOwnPost: true,
+        isHidden: true,
+        processStatus: 2,
+        content: '修改后的回复正文',
+      );
+      await tester.pumpWidget(
+        ProviderScope(
+          key: UniqueKey(),
+          overrides: [
+            postRepositoryProvider.overrideWithValue(_Posts(client, repo)),
+          ],
+          child: MaterialApp(
+            theme: gfThemeData(brightness),
+            locale: const Locale('zh'),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: Scaffold(
+              body: PostActions(
+                post: pendingPost,
+                onChanged: () async {},
+                onReply: null,
+                onReport: () {},
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byType(PopupMenuButton<String>));
+      await tester.pumpAndSettle();
+      await binding.takeScreenshot('pending-edit-menu-${brightness.name}');
+      await tester.tap(find.text('编辑'));
+      await tester.pumpAndSettle();
+      expect(find.text('修改后的回复正文'), findsOneWidget);
+      await binding.takeScreenshot('pending-edit-sheet-${brightness.name}');
       expect(tester.takeException(), isNull);
     });
   }

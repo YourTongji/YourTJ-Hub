@@ -1956,12 +1956,16 @@ func buildUserProfileProps(c *gin.Context, user users.EntityComplete, section st
 		switch activityTab {
 		case userProfileActivityTopics:
 			cursor := positiveUint(c.Query("cursor"))
-			topicPage, _ := topics.GetPublishedByUserBeforeId(user.Id, cursor, userProfileTopicPageSize+1)
+			topicPage, _ := topics.GetProfileTopicsBeforeID(user.Id, cursor, userProfileTopicPageSize+1, currentUserID == user.Id)
 			hasNext := len(topicPage) > userProfileTopicPageSize
 			if hasNext {
 				topicPage = topicPage[:userProfileTopicPageSize]
 			}
-			topicPayloads = buildTrackedTopicPayloads(currentUserID, transform.Topics2Vo(topicPage, hotdataserve.CategoryMap()))
+			topicViews := transform.Topics2Vo(topicPage, hotdataserve.CategoryMap())
+			if currentUserID == user.Id {
+				topicViews = ownerTopicViews(topicPage, currentUserID)
+			}
+			topicPayloads = buildTrackedTopicPayloads(currentUserID, topicViews)
 			pagination = buildUserActivityTopicPagination(user.Id, topicPage, hasNext)
 		case userProfileActivityLikes:
 			refs, nextCursor := topicUserAction.ListLikedTopicRefsBefore(user.Id, c.Query("cursor"), userProfileTimelinePageSize)

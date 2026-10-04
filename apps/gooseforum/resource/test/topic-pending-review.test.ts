@@ -55,10 +55,11 @@ function pendingPost(isOwnPost: boolean, content: string): PostPayload {
 }
 
 function mountStream(post: PostPayload) {
+  const first = { ...pendingPost(true, ''), id: 9750, postNo: 1, processStatus: 0, isHidden: false, content: '首楼', renderedContent: '<p>首楼</p>' }
   return mount(PostStream, {
     props: {
       topicId: 975, topicTitle: '待审话题', contentType: 0,
-      initialPostStream: { posts: [{ ...pendingPost(true, ''), id: 9750, postNo: 1, processStatus: 0, isHidden: false, content: '首楼', renderedContent: '<p>首楼</p>' }, post], hasBefore: false, hasAfter: false } as PostWindowPayload,
+      initialPostStream: { posts: post.postNo === 1 ? [post] : [first, post], hasBefore: false, hasAfter: false } as PostWindowPayload,
       viewer: { id: 1, username: 'author', email: '', avatarUrl: '', isAuthenticated: true, canAccessAdmin: false, isModerator: false, requiresEmailVerification: false, adminPermissions: [] }, canPost: false,
     },
     global: { plugins: [i18n], directives: { 'code-copy': () => {}, 'code-highlight': () => {}, 'math-render': () => {}, 'content-enhancements': () => {} } },
@@ -73,6 +74,18 @@ function mountReplyRow(post: PostPayload) {
 }
 
 describe('pending post content (issue #975)', () => {
+  test('authors can edit pending content without enabling public interactions', async () => {
+    const post = pendingPost(true, '再次编辑待审内容')
+    for (const wrapper of [mountStream({ ...post, postNo: 1 }), mountStream(post), mountReplyRow(post)]) {
+      await flushPromises()
+      const target = wrapper.find('#post-9751')
+      const content = target.exists() ? target : wrapper
+      expect(content.find('[title="编辑"]').exists()).toBe(true)
+      expect(content.find('[title="赞"]').exists()).toBe(false)
+      wrapper.unmount()
+    }
+  })
+
   test('authors read their own pending post in full, with a review badge', async () => {
     for (const wrapper of [mountStream(pendingPost(true, '刚写完的回复')), mountReplyRow(pendingPost(true, '刚写完的回复'))]) {
       await flushPromises()

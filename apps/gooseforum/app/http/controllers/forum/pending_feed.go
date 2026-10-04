@@ -14,16 +14,9 @@ func withOwnPendingTopics(public []*vo.TopicsSimpleVo, userID uint64, page int) 
 		return public
 	}
 	candidates := topics.PendingByAuthor(userID, 30)
-	contentTypes := map[uint64]int8{}
-	for _, topic := range candidates {
-		post := posts.Get(topic.FirstPostId)
-		publicationservice.OwnerSnapshot(topic, &post, userID, false)
-		contentTypes[topic.Id] = post.ContentType
-	}
-	private := transform.Topics2Vo(candidates, hotdataserve.CategoryMap())
+	private := ownerTopicViews(candidates, userID)
 	byID := map[uint64]*vo.TopicsSimpleVo{}
 	for _, item := range private {
-		item.ContentType = contentTypes[item.Id]
 		byID[item.Id] = item
 	}
 	result := make([]*vo.TopicsSimpleVo, 0, len(public)+len(private))
@@ -46,4 +39,19 @@ func withOwnPendingTopics(public []*vo.TopicsSimpleVo, userID uint64, page int) 
 		}
 	}
 	return result
+}
+
+// Only call with freshly queried entities, never shared cached topic pointers.
+func ownerTopicViews(candidates []*topics.Entity, userID uint64) []*vo.TopicsSimpleVo {
+	contentTypes := map[uint64]int8{}
+	for _, topic := range candidates {
+		post := posts.Get(topic.FirstPostId)
+		publicationservice.OwnerSnapshot(topic, &post, userID, false)
+		contentTypes[topic.Id] = post.ContentType
+	}
+	private := transform.Topics2Vo(candidates, hotdataserve.CategoryMap())
+	for _, item := range private {
+		item.ContentType = contentTypes[item.Id]
+	}
+	return private
 }
