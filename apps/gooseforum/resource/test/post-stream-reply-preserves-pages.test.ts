@@ -212,4 +212,31 @@ describe('PostStream 回复后保留已加载分页（issue #717 回归）', () 
     expect(postNos).toContain(82)
     expect(postNos).toContain(101)
   })
+  test.each([2, 0])('首窗刷新后按锚点核验尾部待审楼层，保留状态 %s 的回复', async status => {
+    const pending = { ...makePost(80), processStatus: 2 }
+    wrapper = await mountStream({ posts: [makePost(79), pending], hasBefore: true, hasAfter: false, maxPostNo: 80, total: 80 })
+    getPostWindowMock.mockResolvedValue({ posts: [{ ...pending, processStatus: status }], hasBefore: true, hasAfter: false })
+    await wrapper.setProps({ initialPostStream: { posts: page(1, 20), hasBefore: false, hasAfter: true, maxPostNo: 80, total: 80 } })
+    await flushPromises()
+    expect(getPostWindowMock).toHaveBeenCalledWith(expect.objectContaining({ topicId: TOPIC_ID, anchorPostId: pending.id, limit: 1 }))
+    expect(loadedPostNos(wrapper)).toContain(79)
+    expect(loadedPostNos(wrapper)).toContain(80)
+    expect(wrapper.findAll('[data-test="post-pending-review"]')).toHaveLength(status === 2 ? 1 : 0)
+  })
+
+  test('只移除确认拒绝的尾部回复，网络错误时保留', async () => {
+    const pending = { ...makePost(80), processStatus: 2 }
+    wrapper = await mountStream({ posts: [makePost(79), pending], hasBefore: true, hasAfter: false, maxPostNo: 80, total: 80 })
+    getPostWindowMock.mockRejectedValueOnce(new Error('offline'))
+    const firstWindow = () => ({ posts: page(1, 20), hasBefore: false, hasAfter: true, maxPostNo: 80, total: 80 })
+    await wrapper.setProps({ initialPostStream: firstWindow() })
+    await flushPromises()
+    expect(loadedPostNos(wrapper)).toContain(80)
+    getPostWindowMock.mockResolvedValueOnce({ posts: [{ ...pending, processStatus: 1, content: '', renderedContent: '', isHidden: true }] })
+    await wrapper.setProps({ initialPostStream: firstWindow() })
+    await flushPromises()
+    expect(loadedPostNos(wrapper)).not.toContain(80)
+    expect(loadedPostNos(wrapper)).toContain(79)
+  })
+
 })

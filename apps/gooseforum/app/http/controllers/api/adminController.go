@@ -2292,6 +2292,10 @@ func reviewQueue(req component.BetterRequest[ReviewQueueReq], categoryIDs []uint
 		for _, t := range result.Data {
 			post := posts.Get(t.FirstPostId)
 			revision := postRevisions.Get(post.LatestRevisionId)
+			// The author may have submitted another revision after the queue query.
+			if len(categoryIDs) > 0 && revision.Id != 0 && !moderationservice.CanModerateAnyCategory(req.UserId, revision.CategoryIds) {
+				continue
+			}
 			if revision.Id != 0 {
 				publicationservice.ApplySnapshot(&t, &post, revision)
 			}

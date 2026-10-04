@@ -1066,7 +1066,9 @@ export interface paths {
          * @description Public read endpoint: any caller who can view the topic can read the history.
          *     An optional valid JWT (cookie or Bearer) only affects masking; revisions of
          *     deleted posts and pending/blocked revisions are masked (empty content, zero
-         *     editor payload) for non-moderators. Query binding is strict: malformed values
+         *     editor payload) for non-moderators. Private first-post revisions also require
+         *     the moderator to have scope over both the current topic and revision categories.
+         *     Query binding is strict: malformed values
          *     fail with HTTP 400 and `common.request.parseFailed`. A missing/zero postId or an
          *     unknown post fails with `post.notFound` (HTTP 200). Pages follow the version
          *     cursor: omit beforeVersion (or send 0) for the newest page, then pass the
@@ -1344,7 +1346,8 @@ export interface paths {
          *     Authorization is decided inside the controller (`CanAccessModeration`): callers
          *     without moderation access fail with HTTP 200 and `permission.denied`. Admins and
          *     global moderators see every pending item; category moderators see only content
-         *     whose topic belongs to one of their categories, and `total` counts that scope.
+         *     whose topic belongs to one of their categories. Versioned topic edits also require
+         *     scope over a candidate category; filtering happens before pagination and `total`.
          */
         post: operations["listModerationReviewQueue"];
         delete?: never;
@@ -1364,12 +1367,15 @@ export interface paths {
         put?: never;
         /**
          * Approve or reject pending-review content from the moderation workbench
-         * @description Same semantics as the admin review action (approval publishes the content and its
-         *     pending images, replays deferred business events and notifies the author with
-         *     `review_approved`; rejection keeps it hidden and notifies `review_rejected`).
+         * @description Same semantics as the admin review action. Versioned approval quietly publishes
+         *     the candidate and its images; rejection retains any previous public version and
+         *     notifies the author with a content-management link. The exact `revisionId` from
+         *     the queue is required for versioned submissions.
          *     Callers without moderation access fail with `permission.denied`; targets outside
          *     the caller's category scope fail with `admin.review.notFound` so the content's
-         *     state is not revealed. Requires a writable account.
+         *     state is not revealed. First-post edits require scope over both the current and
+         *     candidate categories, including requests addressed as `kind=post`. Requires a
+         *     writable account.
          */
         post: operations["moderationReviewAction"];
         delete?: never;

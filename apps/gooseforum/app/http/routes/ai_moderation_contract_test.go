@@ -783,3 +783,93 @@ func mustReviewJSON(t *testing.T, value any) []byte {
 	}
 	return raw
 }
+
+func TestModerationCandidateCategoryScopeCannotBeBypassedWithFirstPost(t *testing.T) {
+	conn, router, _ := setupAIModerationContractTest(t, func(o *pageConfig.AiModerationOptions) { o.TextModeration = true })
+	router.POST("/api/forum/moderation/review-queue", middleware.JWTAuthCheck, UpButterReq(api.ModerationReviewQueue))
+	router.POST("/api/forum/moderation/review-action", middleware.JWTAuthCheck, middleware.CheckWritableAccount, UpButterReq(api.ModerationReviewAction))
+	author := createHTTPContractUser(t, conn, contractTestID())
+	token := contractSessionToken(t, author)
+	write := func(id, category uint64) uint64 {
+		body := mustReviewJSON(t, map[string]any{"topicId": id, "title": "分类权限回归", "content": "迁往其他分类的候选正文", "categoryId": []uint64{category}, "topicStatus": 1, "contentType": 3})
+		e := decodeContractEnvelope(t, serveJSON(router, "/api/forum/topics/write", string(body), token))
+		var result uint64
+		if err := json.Unmarshal(e.Result, &result); err != nil || e.Code != 0 {
+			t.Fatalf("write: %+v", e)
+		}
+		return result
+	}
+	ownCategory := contractTestID()
+	otherCategory := ownCategory + 1
+	topicID := write(0, ownCategory)
+	postID := topics.Get(topicID).FirstPostId
+	runSubmission(t, conn, posts.Get(postID).LatestRevisionId)
+	write(topicID, otherCategory)
+	revisionID := posts.Get(postID).LatestRevisionId
+	moderator := createHTTPContractUser(t, conn, contractTestID())
+	grant := func(category uint64) {
+		if err := conn.Create(&moderators.Entity{UserId: moderator.Id, ScopeType: moderators.ScopeCategory, ScopeId: category, Status: moderators.StatusEnabled}).Error; err != nil {
+			t.Fatal(err)
+		}
+		moderationservice.Invalidate()
+	}
+	grant(ownCategory)
+	t.Cleanup(func() {
+		conn.Where("user_id = ?", moderator.Id).Delete(&moderators.Entity{})
+		moderationservice.Invalidate()
+	})
+	moderatorToken := contractSessionToken(t, moderator)
+	queue := func() struct {
+		Items []api.ReviewQueueItem
+		Total int64
+	} {
+		e := decodeContractEnvelope(t, serveJSON(router, "/api/forum/moderation/review-queue", `{"kind":"topic","pageSize":1}`, moderatorToken))
+		var result struct {
+			Items []api.ReviewQueueItem
+			Total int64
+		}
+		if err := json.Unmarshal(e.Result, &result); err != nil || e.Code != 0 {
+			t.Fatalf("queue: %+v", e)
+		}
+		return result
+	}
+	if q := queue(); q.Total != 0 || len(q.Items) != 0 {
+		t.Errorf("candidate outside moderator categories leaked: %+v", q)
+	}
+	for _, target := range []struct {
+		kind string
+		id   uint64
+	}{{"topic", topicID}, {"post", postID}} {
+		body := fmt.Sprintf(`{"kind":%q,"id":%d,"approve":true,"revisionId":%d}`, target.kind, target.id, revisionID)
+		e := decodeContractEnvelope(t, serveJSON(router, "/api/forum/moderation/review-action", body, moderatorToken))
+		if e.Code != 1 || e.MessageCode != "admin.review.notFound" {
+			t.Errorf("out-of-scope %s review accepted: %+v", target.kind, e)
+		}
+	}
+	if postRevisions.Get(revisionID).ProcessStatus != posts.ProcessStatusPending {
+		t.Fatal("out-of-scope action published candidate")
+	}
+	history := decodeContractEnvelope(t, serveAuthSecurityJSON(router, http.MethodGet, fmt.Sprintf("/api/forum/posts/revisions?postId=%d", postID), "", moderatorToken))
+	var versions struct {
+		Versions []struct {
+			Content       string
+			ProcessStatus int8
+		}
+	}
+	if err := json.Unmarshal(history.Result, &versions); err != nil || history.Code != 0 {
+		t.Fatalf("history: %+v", history)
+	}
+	for _, version := range versions.Versions {
+		if version.ProcessStatus == posts.ProcessStatusPending && version.Content != "" {
+			t.Fatal("out-of-scope revision history exposed candidate")
+		}
+	}
+	grant(otherCategory)
+	if q := queue(); q.Total != 1 || len(q.Items) != 1 || q.Items[0].RevisionId != revisionID {
+		t.Fatalf("both-category moderator queue: %+v", q)
+	}
+	body := fmt.Sprintf(`{"kind":"post","id":%d,"approve":true,"revisionId":%d}`, postID, revisionID)
+	if e := decodeContractEnvelope(t, serveJSON(router, "/api/forum/moderation/review-action", body, moderatorToken)); e.Code != 0 {
+		t.Fatalf("authorized first-post review: %+v", e)
+	}
+}

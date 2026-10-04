@@ -509,6 +509,9 @@ func PagePendingReviewInCategories(page, pageSize int, categoryIDs []uint64) str
 		Where(queryopt.IsNull("deleted_at"))
 	if len(categoryIDs) > 0 {
 		b = b.Where("id IN (SELECT topic_id FROM topic_category_index WHERE category_id IN ? AND effective = ?)", categoryIDs, 1)
+		// Filter the candidate before counting/pagination, so a category move cannot
+		// expose its private snapshot to a moderator of only the old category.
+		b = filterReviewCandidateCategories(b, categoryIDs)
 	}
 	b = b.Order(queryopt.Desc("updated_at")).Order(queryopt.Desc("id"))
 	var total int64
@@ -520,6 +523,17 @@ func PagePendingReviewInCategories(page, pageSize int, categoryIDs []uint64) str
 		Total    int64
 		Data     []Entity
 	}{Page: page + 1, PageSize: pageSize, Total: total, Data: list}
+}
+
+func filterReviewCandidateCategories(b *gorm.DB, categoryIDs []uint64) *gorm.DB {
+	values := "json_each(COALESCE(r.category_ids, '[]')) AS candidate_category"
+	if b.Name() == "postgres" {
+		values = "jsonb_array_elements_text(COALESCE(NULLIF(NULLIF(r.category_ids, ''), 'null'), '[]')::jsonb) AS candidate_category(value)"
+	}
+	return b.Where(`NOT EXISTS (SELECT 1 FROM posts p WHERE p.id = topics.first_post_id AND p.latest_revision_id <> 0)
+		OR EXISTS (SELECT 1 FROM posts p JOIN post_revisions r ON r.id = p.latest_revision_id
+		WHERE p.id = topics.first_post_id AND EXISTS (SELECT 1 FROM `+values+`
+		WHERE CAST(candidate_category.value AS BIGINT) IN ?))`, categoryIDs)
 }
 
 func UpdateProcessStatus(id uint64, processStatus int8) error {

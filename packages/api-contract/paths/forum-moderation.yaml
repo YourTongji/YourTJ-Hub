@@ -383,7 +383,8 @@ listModerationReviewQueue:
       Authorization is decided inside the controller (`CanAccessModeration`): callers
       without moderation access fail with HTTP 200 and `permission.denied`. Admins and
       global moderators see every pending item; category moderators see only content
-      whose topic belongs to one of their categories, and `total` counts that scope.
+      whose topic belongs to one of their categories. Versioned topic edits also require
+      scope over a candidate category; filtering happens before pagination and `total`.
     security:
       - bearerAuth: []
       - accessTokenCookie: []
@@ -428,12 +429,15 @@ moderationReviewAction:
     summary: Approve or reject pending-review content from the moderation workbench
     operationId: moderationReviewAction
     description: |
-      Same semantics as the admin review action (approval publishes the content and its
-      pending images, replays deferred business events and notifies the author with
-      `review_approved`; rejection keeps it hidden and notifies `review_rejected`).
+      Same semantics as the admin review action. Versioned approval quietly publishes
+      the candidate and its images; rejection retains any previous public version and
+      notifies the author with a content-management link. The exact `revisionId` from
+      the queue is required for versioned submissions.
       Callers without moderation access fail with `permission.denied`; targets outside
       the caller's category scope fail with `admin.review.notFound` so the content's
-      state is not revealed. Requires a writable account.
+      state is not revealed. First-post edits require scope over both the current and
+      candidate categories, including requests addressed as `kind=post`. Requires a
+      writable account.
     security:
       - bearerAuth: []
       - accessTokenCookie: []
