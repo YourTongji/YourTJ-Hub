@@ -6,9 +6,10 @@ import ManagedContent from '../../../src/site/components/ManagedContent.vue'
 import { useContentUpdates } from '../../../src/runtime/content-updates'
 import { i18n, setLocale } from '../../../src/runtime/i18n'
 import '../../../src/styles/resource.css'
+import { setTheme } from '../../../src/runtime/site-theme'
 import type { MyContentItem } from '../../../src/runtime/api'
 await setLocale('zh')
-document.documentElement.dataset.theme = new URLSearchParams(location.search).get('theme') || 'gf-light'
+setTheme(new URLSearchParams(location.search).get('theme') === 'gf-dark' ? 'gf-dark' : 'gf-light')
 const params = new URLSearchParams(location.search)
 const layout = { viewer: { isAuthenticated: true, id: 1, username: 'viewer' }, sidebar: { categories: [{ id: 101, label: '校园生活', color: '#10b981', url: '/c/101' }], activeKey: '' }, posting: { maxTitleLength: 100 }, theme: { current: params.get('theme') || 'gf-light' } } as unknown as LayoutPayload
 const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/', component: { template: '<div />' } }] })

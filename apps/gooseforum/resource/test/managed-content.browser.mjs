@@ -78,6 +78,7 @@ for (const theme of ['gf-light', 'gf-dark']) {
         const editor = dialog.locator('.vditor [contenteditable="true"]:visible').first()
         await editor.waitFor()
         assert.ok((await editor.innerText()).includes('这是等待审核的新版本内容'))
+        assert.equal(await dialog.locator('.vditor--dark').count(), theme === 'gf-dark' ? 1 : 0)
         assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
         if (process.env.YOURTJ_REVIEW_SCREENSHOTS) {
           await mkdir(process.env.YOURTJ_REVIEW_SCREENSHOTS, { recursive: true })
