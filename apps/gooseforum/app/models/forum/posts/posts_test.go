@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postRevisions"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 )
 
@@ -100,11 +101,10 @@ func postNos(rows []*Entity) []uint64 {
 	return res
 }
 
-// review N1 死区修复：wiki 首楼由 wiki 修订审核队列管理，不进入论坛审核队列；
-// wiki 分站评论（post_no>1）与论坛话题帖子（无论楼层）仍进入论坛审核队列。
+// 回复队列包含 wiki 和论坛的待审回复；论坛首楼交给主题队列，wiki 首楼不在论坛审核范围。
 func TestPagePendingReviewIncludesWikiReplies(t *testing.T) {
 	conn := dbconnect.Connect()
-	if err := conn.AutoMigrate(&Entity{}, &topics.Entity{}); err != nil {
+	if err := conn.AutoMigrate(&Entity{}, &topics.Entity{}, &postRevisions.Entity{}); err != nil {
 		t.Fatalf("migrate pending review tables: %v", err)
 	}
 	now := time.Date(2026, 8, 14, 12, 0, 0, 0, time.UTC)
@@ -113,19 +113,21 @@ func TestPagePendingReviewIncludesWikiReplies(t *testing.T) {
 		forumTopicID = uint64(200_002)
 	)
 	topicIDs := []uint64{wikiTopicID, forumTopicID}
-	postIDs := []uint64{200_101, 200_102, 200_103, 200_104}
+	postIDs := []uint64{200_101, 200_102, 200_103, 200_104, 200_105, 200_106}
+	const revisionID = uint64(300_101)
 	conn.Unscoped().Where("id IN ?", topicIDs).Delete(&topics.Entity{})
 	conn.Unscoped().Where("id IN ?", postIDs).Delete(&Entity{})
+	conn.Where("id = ?", revisionID).Delete(&postRevisions.Entity{})
 	t.Cleanup(func() {
 		conn.Unscoped().Where("id IN ?", topicIDs).Delete(&topics.Entity{})
 		conn.Unscoped().Where("id IN ?", postIDs).Delete(&Entity{})
+		conn.Where("id = ?", revisionID).Delete(&postRevisions.Entity{})
 	})
 
-	// wiki 话题：首楼 pending（应由 wiki 修订队列管理，排除）、评论 pending（应入队）。
-	// 论坛话题：首楼 pending（应入队）、评论 normal（应排除）。
+	// 旧 pending 行和已有公开版的 pending 改稿都应入队，未改动的 normal 回复应排除。
 	if err := conn.Create(&[]topics.Entity{
-		{Id: wikiTopicID, Title: "wiki", TopicType: topics.TopicTypeWiki, CreatedAt: now, UpdatedAt: now},
-		{Id: forumTopicID, Title: "forum", TopicType: topics.TopicTypeForum, CreatedAt: now, UpdatedAt: now},
+		{Id: wikiTopicID, Title: "wiki", Status: 1, TopicType: topics.TopicTypeWiki, CreatedAt: now, UpdatedAt: now},
+		{Id: forumTopicID, Title: "forum", Status: 1, TopicType: topics.TopicTypeForum, CreatedAt: now, UpdatedAt: now},
 	}).Error; err != nil {
 		t.Fatalf("create topics: %v", err)
 	}
@@ -134,8 +136,15 @@ func TestPagePendingReviewIncludesWikiReplies(t *testing.T) {
 		{Id: postIDs[1], TopicId: wikiTopicID, PostNo: 2, UserId: 2, Content: "wiki reply", ProcessStatus: ProcessStatusPending, CreatedAt: now},
 		{Id: postIDs[2], TopicId: forumTopicID, PostNo: 1, UserId: 3, Content: "forum first", ProcessStatus: ProcessStatusPending, CreatedAt: now},
 		{Id: postIDs[3], TopicId: forumTopicID, PostNo: 2, UserId: 4, Content: "forum reply", ProcessStatus: ProcessStatusNormal, CreatedAt: now},
+		{Id: postIDs[4], TopicId: forumTopicID, PostNo: 3, UserId: 4, Content: "pending forum reply", ProcessStatus: ProcessStatusPending, CreatedAt: now},
+		{Id: postIDs[5], TopicId: forumTopicID, PostNo: 4, UserId: 4, Content: "public reply", LatestRevisionId: revisionID, ProcessStatus: ProcessStatusNormal, CreatedAt: now},
 	}).Error; err != nil {
 		t.Fatalf("create posts: %v", err)
+	}
+	if err := conn.Create(&postRevisions.Entity{
+		Id: revisionID, PostId: postIDs[5], Version: 2, Content: "pending edit", ProcessStatus: ProcessStatusPending,
+	}).Error; err != nil {
+		t.Fatalf("create pending revision: %v", err)
 	}
 
 	page := PagePendingReview(1, 50)
@@ -143,11 +152,11 @@ func TestPagePendingReviewIncludesWikiReplies(t *testing.T) {
 	for _, post := range page.Data {
 		got[post.Id] = true
 	}
-	if !got[postIDs[1]] || !got[postIDs[2]] {
-		t.Fatalf("PagePendingReview ids = %v, want wiki reply %d and forum first %d included", pendingReviewIDs(page.Data), postIDs[1], postIDs[2])
+	if !got[postIDs[1]] || !got[postIDs[4]] || !got[postIDs[5]] {
+		t.Fatalf("PagePendingReview ids = %v, want pending wiki reply, forum reply and edited reply", pendingReviewIDs(page.Data))
 	}
-	if got[postIDs[0]] || got[postIDs[3]] {
-		t.Fatalf("PagePendingReview leaked wiki first post or normal-status post: %v", pendingReviewIDs(page.Data))
+	if page.Total != 3 || len(page.Data) != 3 {
+		t.Fatalf("PagePendingReview total=%d ids=%v, want exactly three replies and no first posts", page.Total, pendingReviewIDs(page.Data))
 	}
 }
 

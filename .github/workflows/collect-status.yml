@@ -20,8 +20,9 @@ concurrency:
 
 jobs:
   dispatch:
+    # Fallback only: Cloudflare Cron avoids GitHub's delayed/dropped schedule events.
     # The default-branch scheduler gets no production environment or credentials.
-    if: github.repository == 'YourTongji/YourTJ-Hub' && vars.STATUS_COLLECTION_ENABLED == 'true' && github.event_name == 'schedule'
+    if: github.repository == 'YourTongji/YourTJ-Hub' && vars.STATUS_COLLECTION_ENABLED == 'true' && vars.STATUS_SCHEDULER_ENABLED != 'true' && github.event_name == 'schedule'
     runs-on: ubuntu-latest
     timeout-minutes: 2
     permissions:
