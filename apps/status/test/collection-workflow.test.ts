@@ -7,8 +7,13 @@ import { runInNewContext } from 'node:vm'
 import { parse } from 'yaml'
 
 const workflow = parse(readFileSync('../../.github/workflows/collect-status.yml', 'utf8'))
-const allowed = (job: { if: string }, event: string, ref: string, enabled = 'true', repo = 'YourTongji/YourTJ-Hub') =>
-  runInNewContext(job.if, { github: { event_name: event, ref, repository: repo }, vars: { STATUS_COLLECTION_ENABLED: enabled } })
+const allowed = (job: { if: string }, event: string, ref: string, enabled = 'true', repo = 'YourTongji/YourTJ-Hub', scheduler = '') =>
+  runInNewContext(job.if, { github: { event_name: event, ref, repository: repo }, vars: { STATUS_COLLECTION_ENABLED: enabled, STATUS_SCHEDULER_ENABLED: scheduler } })
+
+it('disables the delayed GitHub timer when Cloudflare owns scheduling, while keeping main dispatch usable', () => {
+  expect(allowed(workflow.jobs.dispatch, 'schedule', 'refs/heads/dev', 'true', 'YourTongji/YourTJ-Hub', 'true')).toBe(false)
+  expect(allowed(workflow.jobs.collect, 'workflow_dispatch', 'refs/heads/main', 'true', 'YourTongji/YourTJ-Hub', 'true')).toBe(true)
+})
 
 it('only a main workflow_dispatch can enter the secret-bearing collector', () => {
   const job = workflow.jobs.collect

@@ -6,13 +6,13 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-10-03
+> Last verified: 2026-10-04
 
 `Partial`：状态站的 Cloudflare 实现使用 Workers Static Assets、只读 Worker API 和私有 R2 快照。较重的采集
 在公开仓库的 GitHub Actions 标准 Linux runner 执行，独立于论坛进程、数据库和静态资源。
 页面行为由[状态站规范](../product/server-status.md)维护。
 
-读取器已通过隔离预览验证；生产域名切换、正式采集与设备统计仍需配置并验收。
+正式读取器、域名和手动公开／设备采集已验证；独立 Cron 调度器仍需凭据配置和连续定时验收。
 
 ## 1. Cloudflare 资源
 
@@ -28,18 +28,46 @@ pnpm exec wrangler r2 bucket list
 ```
 
 仅当 bucket 不存在时创建 `yourtj-status`、`yourtj-status-preview`，均不启用公共读取。
-Worker 使用 R2 binding，不保存 S3 密钥、Umami 密码或其他采集凭据，也不配置 Cloudflare Cron。
+公开 Worker 使用 R2 binding，不保存 S3 密钥、Umami 密码或调度令牌，也不配置 Cron。
+独立的 `yourtj-status-scheduler` Worker 仅定时向 GitHub 发起采集工作流，没有公开 URL、
+域名路由或 R2 binding；预览配置不含定时任务。它使用同一 Workers Free 账户。
 默认预览的来源关闭并绑定独立 bucket；生产明确使用 `--env production`。
 
 ## 2. 采集与凭据
 
 [Collect / status](../../.github/workflows/collect-status.yml) 每十五分钟采集资源、可用性、
 历史和流量，每小时采集设备统计。两个任务串行执行，最长五分钟，不上传快照为 Actions
-artifact。GitHub 定时任务只在默认分支 dev 触发；该调度 job 不挂载生产 environment，
+artifact。Cloudflare Cron 按 UTC 触发独立调度器，向固定仓库的固定采集工作流发送 main
+`workflow_dispatch`；它不抓取、转换或保存业务统计。响应不是 204、超时或缺少令牌会使
+Cron 执行失败，日志仅记录结果类型和 HTTP 状态码。不会自动重发结果不明的 POST。
+
+GitHub 自带定时任务只作为备用，在默认分支 dev 触发；该调度 job 不挂载生产 environment，
 只用短期 `GITHUB_TOKEN` 的 `actions: write` 权限向 main 发起 `workflow_dispatch`。
 生产采集的 workflow 定义和源码都来自该 main 提交；仅 checkout main 不能隔离 dev 的 workflow。
 手动采集也仅允许从 main 运行。仓库变量 `STATUS_COLLECTION_ENABLED=true` 才启用任务；
 资源、main 源码和凭据就绪后再开启。此开关不影响公开站点读取已保存快照。
+`STATUS_SCHEDULER_ENABLED=true` 允许部署独立调度器，并停用 GitHub 备用调度 job；
+它不是已部署 Cron 的停止开关。暂停采集用 `STATUS_COLLECTION_ENABLED=false`，若还要停止
+dispatch 请求，则清空调度器的 Cron。不要同时运行两套定时调度。
+
+### 独立调度器配置
+
+1. 为调度器创建专用 GitHub fine-grained token：仅 `YourTongji/YourTJ-Hub` 仓库，
+   `Actions: Read and write`，不授予 Contents write、Secrets 或 Administration 权限。
+   Actions 权限可触发该仓库其他工作流，GitHub 不支持将此权限收窄到单个工作流；代码固定目标
+   不能代替令牌权限边界。使用有限有效期，并在到期前轮换；组织审批完成前不能启用。
+2. 将令牌私密写入独立 Worker 的 `GITHUB_DISPATCH_TOKEN` secret，不复制本机 gh 登录令牌，
+   不写入公开读取器、仓库文件或前端变量。先从已审核 main 手动运行两种采集并验证全部来源。
+3. 首次创建先用无 Cron 的临时配置建立 Worker，再私密写入 secret；确认 secret 名称存在
+   后设置 `STATUS_SCHEDULER_ENABLED=true` 停止备用调度，再从已提交、已验证 main 部署
+   `pnpm deploy:scheduler`。该命令只部署独立调度器并保留既有 secret；失败则按下述回退
+   步骤恢复备用调度，不在未配置凭据时启用 Cron。
+4. Cron 配置全球传播可能需要十五分钟。确认至少连续两个公共触发和一次设备触发均实际
+   创建 main 工作流、采集成功，且正式 API 原始时间戳推进。部署成功或单次手动采集
+   不算定时验收；必须另查 Cron CPU 是否在 Free 额度内。
+5. 启用后 `Deploy / status` 同步部署调度器。排障先看 Cron 执行记录、GitHub main 的采集
+   记录和 `/api/status` 时间戳。令牌失效时修复权限／轮换，手动补采集可暂时恢复；
+   回退前先移除 Cloudflare Cron，再将 `STATUS_SCHEDULER_ENABLED=false` 恢复 GitHub 备用调度。
 
 GitHub `status-collector` environment 配置四个 secrets：
 
@@ -123,7 +151,8 @@ production Wrangler 配置声明 `status.yourtj.de` Custom Domain；首次部署
   一个设备对象。视图保留各来源的时间、失败标记和作用域指纹，不会延长数据有效期。
 - R2 和 S3 适配器都使用 ETag 条件写，慢任务不能覆盖新快照。单源失败保留原始成功时间并
   标记过期；采集任务报告失败，其他来源已成功写入的结果仍可用。请求拒绝重定向和过大响应。
-- GitHub schedule 可能排队、延迟或丢弃，默认分支长期无活动也可能停用。状态站不是告警
+- GitHub 备用 schedule 可能排队、延迟或丢弃，不能保证页面数据持续可用。Cloudflare Cron
+  避开此定时事件链路，但 GitHub runner 排队和上游故障仍会影响采集。状态站不是告警
   系统；监控由独立 Uptime Kuma 提供。当前／历史／流量二十分钟后过期，一小时后隐藏；
   设备七十分钟后过期，三小时后隐藏。页面仍每六十秒读取，并独立检查时间。
 - 此公开仓库的标准 GitHub runner 免分钟费；不使用收费 larger runner，不累积快照 artifacts。
@@ -144,4 +173,6 @@ production Wrangler 配置声明 `status.yourtj.de` Custom Domain；首次部署
 - [R2 定价](https://developers.cloudflare.com/r2/pricing/)
 - [GitHub Actions 免费用量](https://docs.github.com/en/billing/concepts/product-billing/github-actions)
 - [GitHub schedule 限制](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule)
+- [Cloudflare Cron](https://developers.cloudflare.com/workers/configuration/cron-triggers/)
+- [GitHub dispatch 权限](https://docs.github.com/en/rest/actions/workflows#create-a-workflow-dispatch-event)
 - [GitHub token 触发 workflow_dispatch](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow)

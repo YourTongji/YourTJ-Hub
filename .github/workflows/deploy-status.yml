@@ -54,3 +54,8 @@ jobs:
         env:
           COMMIT_REF: ${{ github.sha }}
         run: node scripts/verify-deployment.mjs https://status.yourtj.de
+      - name: Deploy collection scheduler
+        if: vars.STATUS_SCHEDULER_ENABLED == 'true'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: pnpm deploy:scheduler
