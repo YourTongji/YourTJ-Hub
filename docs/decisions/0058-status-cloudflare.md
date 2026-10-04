@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed
+Superseded by [0060](0060-status-cron-dispatch.md)
 Class: architecture
 
 ## Context and Problem Statement

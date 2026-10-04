@@ -17,9 +17,10 @@
     "test:browser": "node --test test/*.browser.mjs",
     "contract:generate": "openapi-typescript api/openapi.yaml -o src/generated/openapi.ts",
     "contract:check": "pnpm contract:generate && git diff --exit-code -- src/generated/openapi.ts",
-    "worker:build": "wrangler deploy --env=\"\" --dry-run --outdir .wrangler/build && wrangler deploy --env production --dry-run --outdir .wrangler/build-production",
+    "worker:build": "wrangler deploy --env=\"\" --dry-run --outdir .wrangler/build && wrangler deploy --env production --dry-run --outdir .wrangler/build-production && wrangler deploy --config wrangler.scheduler.jsonc --env production --dry-run --outdir .wrangler/build-scheduler",
     "deploy:preview": "wrangler deploy --env=\"\"",
-    "deploy:production": "wrangler deploy --env production"
+    "deploy:production": "wrangler deploy --env production",
+    "deploy:scheduler": "wrangler deploy --config wrangler.scheduler.jsonc --env production"
   },
   "dependencies": {
     "@lucide/vue": "^1.16.0",
