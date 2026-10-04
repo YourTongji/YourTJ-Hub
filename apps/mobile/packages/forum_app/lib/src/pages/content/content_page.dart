@@ -1,6 +1,6 @@
 import '../../realtime/realtime_updates.dart';
 import 'content_password_dialog.dart';
-import 'content_reply_dialog.dart';
+import '../topic/post_edit_sheet.dart';
 import '../../widgets/markdown_view.dart';
 import 'package:core/core.dart';
 import 'package:flutter/material.dart';
@@ -197,11 +197,17 @@ class _ContentPageState extends ConsumerState<ContentPage> {
       if (mounted) await _load();
       return;
     }
-    final saved = await showDialog<bool>(
-      context: context,
-      builder: (_) => ContentReplyDialog(item: item),
+    final epoch = ref.read(offlineCacheEpochProvider);
+    final saved = await showPostEditSheet(
+      context,
+      postId: item.id,
+      content: item.content,
     );
-    if (saved == true && mounted) await _load();
+    if (saved == true &&
+        mounted &&
+        epoch == ref.read(offlineCacheEpochProvider)) {
+      await _load();
+    }
   }
 
   Future<void> _act(UserContentItem item, String action) async {

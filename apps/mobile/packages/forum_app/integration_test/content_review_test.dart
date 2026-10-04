@@ -7,6 +7,7 @@ import 'package:integration_test/integration_test.dart';
 import 'package:forum_app/l10n/app_localizations.dart';
 import 'package:forum_app/src/pages/content/content_page.dart';
 import 'package:forum_app/src/pages/topic/post_actions.dart';
+import 'package:forum_app/src/pages/topic/post_edit_sheet.dart';
 import 'package:forum_app/src/providers.dart';
 import 'package:ui_kit/ui_kit.dart';
 import '../test/fixtures/page_fixtures.dart';
@@ -29,17 +30,19 @@ class _Content extends ContentRepository {
     bool deleted = false,
     int cursor = 0,
   }) async => UserContentPage(
-    items: [
-      UserContentItem(
-        id: 42,
-        contentType: 'post',
-        title: '校园生活中的一次讨论',
-        content: '**完整正文**\n\n被拒的修改仍可编辑。',
-        processStatus: submitted ? 2 : 1,
-        reviewReason: submitted ? '' : '请修改正文后重新提交。',
-        hasPublishedVersion: true,
-      ),
-    ],
+    items: contentType != 'post'
+        ? []
+        : [
+            UserContentItem(
+              id: 42,
+              contentType: 'post',
+              title: '校园生活中的一次讨论',
+              content: '**完整正文**\n\n被拒的修改仍可编辑。',
+              processStatus: submitted ? 2 : 1,
+              reviewReason: submitted ? '' : '请修改正文后重新提交。',
+              hasPublishedVersion: true,
+            ),
+          ],
     hasMore: false,
     nextCursorId: 0,
   );
@@ -93,18 +96,36 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
+      await tester.tap(find.text('回复'));
+      await tester.pumpAndSettle();
       expect(find.textContaining('请修改正文后重新提交'), findsOneWidget);
       await binding.takeScreenshot('content-review-${brightness.name}');
       await tester.tap(find.byType(PopupMenuButton<String>));
       await tester.pumpAndSettle();
       await tester.tap(find.text('修改并重新提交'));
       await tester.pumpAndSettle();
+      expect(find.byType(PostEditSheet), findsOneWidget);
+      expect(
+        find.byTooltip(
+          AppLocalizations.of(
+            tester.element(find.byType(PostEditSheet)),
+          ).publishToolImage,
+        ),
+        findsOneWidget,
+      );
       await tester.enterText(find.byType(TextField), '修改后的回复正文');
+      await tester.tap(find.byTooltip('关闭'));
+      await tester.pumpAndSettle();
+      expect(find.byType(AlertDialog), findsOneWidget);
+      await tester.tap(find.text('取消'));
+      await tester.pumpAndSettle();
+      expect(find.text('修改后的回复正文'), findsOneWidget);
       await binding.takeScreenshot('content-review-edit-${brightness.name}');
-      await tester.tap(find.widgetWithText(TextButton, '修改并重新提交'));
+      await tester.tap(find.widgetWithText(GfButton, '保存'));
       await tester.pumpAndSettle();
       expect(find.textContaining('审核中'), findsOneWidget);
       expect(find.byType(AlertDialog), findsNothing);
+      expect(find.byType(PostEditSheet), findsNothing);
       expect(tester.takeException(), isNull);
 
       // Detail actions retain the author's editor while the reply is pending.

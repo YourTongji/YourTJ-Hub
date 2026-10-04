@@ -105,12 +105,10 @@ class _PostActionsState extends ConsumerState<PostActions> {
       return;
     }
     if (action == 'edit') {
-      final saved = await showGfBottomSheet<bool>(
+      final saved = await showPostEditSheet(
         context,
-        barrierDismissible: false,
-        keyboardAware: true,
-        enableDrag: false,
-        builder: (_) => PostEditSheet(post: post),
+        postId: post.id,
+        content: post.content,
       );
       if (saved == true &&
           mounted &&

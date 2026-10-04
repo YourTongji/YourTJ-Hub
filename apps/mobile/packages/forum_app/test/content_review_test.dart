@@ -4,7 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:forum_app/l10n/app_localizations.dart';
-import 'package:forum_app/src/pages/content/content_reply_dialog.dart';
+import 'package:forum_app/src/pages/content/content_page.dart';
+import 'package:forum_app/src/pages/topic/post_edit_sheet.dart';
 import 'package:forum_app/src/providers.dart';
 import 'package:forum_app/src/realtime/realtime_updates.dart';
 import 'package:ui_kit/ui_kit.dart';
@@ -19,6 +20,7 @@ class _Posts extends PostRepository {
     required int postId,
     required String content,
   }) async {
+    expect(postId, 42);
     attempts.add(content);
     if (fail) throw const ApiException(fallbackMessage: 'Save failed');
     return UpdatePostResult(
@@ -30,6 +32,31 @@ class _Posts extends PostRepository {
       checking: true,
     );
   }
+}
+
+class _Content extends ContentRepository {
+  _Content(super.client, this.posts);
+  final _Posts posts;
+  @override
+  Future<UserContentPage> list({
+    required String contentType,
+    bool deleted = false,
+    int cursor = 0,
+  }) async => UserContentPage(
+    items: contentType != 'post'
+        ? []
+        : [
+            UserContentItem(
+              id: 42,
+              contentType: 'post',
+              title: 'Topic',
+              content: 'Rejected body',
+              processStatus: posts.fail ? 1 : 2,
+            ),
+          ],
+    hasMore: false,
+    nextCursorId: 0,
+  );
 }
 
 void main() {
@@ -63,46 +90,54 @@ void main() {
     );
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [postRepositoryProvider.overrideWithValue(repo)],
+        overrides: [
+          postRepositoryProvider.overrideWithValue(repo),
+          contentRepositoryProvider.overrideWithValue(
+            _Content(
+              GfApiClient(
+                dio: Dio(),
+                tokenStorage: MemoryTokenStorage(),
+                baseUrl: 'https://example.test',
+              ),
+              repo,
+            ),
+          ),
+        ],
         child: MaterialApp(
           theme: gfThemeData(Brightness.light),
           locale: const Locale('en'),
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
-          home: Builder(
-            builder: (context) => Scaffold(
-              body: TextButton(
-                onPressed: () => showDialog<bool>(
-                  context: context,
-                  builder: (_) => const ContentReplyDialog(
-                    item: UserContentItem(
-                      id: 42,
-                      contentType: 'post',
-                      title: '',
-                      content: 'Rejected body',
-                      processStatus: 1,
-                    ),
-                  ),
-                ),
-                child: const Text('Open'),
-              ),
-            ),
-          ),
+          home: const ContentPage(),
         ),
       ),
     );
-    await tester.tap(find.text('Open'));
     await tester.pumpAndSettle();
+    await tester.tap(find.text('Replies'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(PopupMenuButton<String>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Edit and resubmit'));
+    await tester.pumpAndSettle();
+    expect(find.byType(PostEditSheet), findsOneWidget);
+    expect(find.byTooltip('Add image'), findsOneWidget);
     expect(find.text('Rejected body'), findsOneWidget);
     await tester.enterText(find.byType(TextField), 'Corrected body');
-    await tester.tap(find.widgetWithText(TextButton, 'Edit and resubmit'));
+    await tester.tap(find.widgetWithText(GfButton, 'Save'));
     await tester.pumpAndSettle();
     expect(find.text('Corrected body'), findsOneWidget);
-    expect(find.byType(AlertDialog), findsOneWidget);
-    repo.fail = false;
-    await tester.tap(find.widgetWithText(TextButton, 'Edit and resubmit'));
+    expect(find.byType(PostEditSheet), findsOneWidget);
+    await tester.tap(find.byTooltip('Close'));
     await tester.pumpAndSettle();
-    expect(find.byType(AlertDialog), findsNothing);
+    expect(find.text('Keep your work?'), findsOneWidget);
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    expect(find.text('Corrected body'), findsOneWidget);
+    repo.fail = false;
+    await tester.tap(find.widgetWithText(GfButton, 'Save'));
+    await tester.pumpAndSettle();
+    expect(find.byType(PostEditSheet), findsNothing);
+    expect(find.text('Under review'), findsOneWidget);
     expect(repo.attempts, ['Corrected body', 'Corrected body']);
     expect(tester.takeException(), isNull);
   });
