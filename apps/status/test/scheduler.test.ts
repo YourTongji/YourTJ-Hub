@@ -15,7 +15,7 @@ it.each([
   const [url, init] = fetcher.mock.calls[0]!
   expect(url).toBe('https://api.github.com/repos/YourTongji/YourTJ-Hub/actions/workflows/collect-status.yml/dispatches')
   expect(init.method).toBe('POST')
-  expect(init.redirect).toBe('error')
+  expect(init.redirect).toBe('manual')
   expect(init.signal).toBeInstanceOf(AbortSignal)
   expect(init.headers.Authorization).toBe('Bearer test-only-token')
   expect(JSON.parse(init.body)).toEqual({ ref: 'main', inputs: { kind } })

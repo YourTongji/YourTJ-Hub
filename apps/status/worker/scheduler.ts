@@ -22,7 +22,9 @@ export default {
     try {
       response = await fetch('https://api.github.com/repos/YourTongji/YourTJ-Hub/actions/workflows/collect-status.yml/dispatches', {
         method: 'POST',
-        redirect: 'error',
+        // Workers rejects redirect: 'error' before sending the request. Manual
+        // mode plus the 204-only check below rejects redirects without leaking credentials.
+        redirect: 'manual',
         signal: AbortSignal.timeout(10_000),
         headers: {
           Authorization: `Bearer ${env.GITHUB_DISPATCH_TOKEN}`,

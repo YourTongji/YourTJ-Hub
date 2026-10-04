@@ -32,8 +32,9 @@ pnpm worker:build
 The HTTP contract is in `api/openapi.yaml`. Query validation, provider sanitization, freshness and
 conditional writes are shared by the API and external collector. `worker:build` checks both default
 preview and production reader configuration, plus the production scheduler. Browser tests cover four
-languages, themes and mobile/desktop sizes. A real Workers-runtime test checks upstream fetch and
-credential-safe redirect rejection.
+languages, themes and mobile/desktop sizes. Real Workers-runtime tests check both provider and
+scheduler fetch, including credential-safe redirect rejection; Node fetch mocks alone cannot
+verify which Request options work on Workers.
 
 ## Deployment
 
