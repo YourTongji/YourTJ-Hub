@@ -45,7 +45,9 @@ if [ "$(db_mode)" = "postgres" ]; then
   # 与 sync-db-from-main.sh 的 pg_dbname || exit 1 语义一致。
   PG_DB="$(pg_dbname)" || exit 1
   TMP="/tmp/backup-${PG_DB}-$$.sql"
-  if docker exec yourtj-postgres pg_dump -U yourtj -d "$PG_DB" > "$TMP"; then
+  FEED_PG_FLAGS=()
+  while IFS= read -r flag; do FEED_PG_FLAGS+=("$flag"); done < <(python3 "$SCRIPT_DIR/feed-privacy.py" --pg-flags)
+  if docker exec yourtj-postgres pg_dump "${FEED_PG_FLAGS[@]}" -U yourtj -d "$PG_DB" > "$TMP"; then
     mv -f "$TMP" "$BACKUP_DIR/pg-${PG_DB}-${TS}.sql"
     echo "backup-db: $INSTANCE pg dump ($PG_DB) backed up"
   else
@@ -69,6 +71,7 @@ backup_one() {
   [ -f "$db" ] || { echo "backup-db: $db not found, skip"; return 0; }
   TMP="/tmp/backup-${label}-$$.db"
   sqlite3 "$db" ".backup '$TMP'" || { echo "backup-db: $label snapshot failed" >&2; rm -f "$TMP"; exit 1; }
+  python3 "$SCRIPT_DIR/feed-privacy.py" --sqlite-copy "$TMP"
   mv -f "$TMP" "$BACKUP_DIR/${label}-${TS}.db"
   echo "backup-db: $label backed up"
 }

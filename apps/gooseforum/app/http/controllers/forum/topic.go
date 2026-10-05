@@ -15,6 +15,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/badgeservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/feedservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/moderationservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/postservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/topicaccessservice"
@@ -88,6 +89,11 @@ func TopicDetail(c *gin.Context) {
 	renderPage(c, "topic.gohtml", payload)
 	if shouldCountTopicView(&topic) {
 		topicviewservice.RecordView(topic.Id)
+		if foregroundPage(c) && topic.VisibilityStatus == topics.VisibilityActive && firstPost.ProcessStatus == posts.ProcessStatusNormal && firstPost.VisibilityStatus == posts.VisibilityActive {
+			feedservice.CaptureView(loginUser.UserId, topic.Id, topic.UserId)
+			feedservice.CaptureOpened(loginUser.UserId, topic.Id, c.GetHeader("X-Goose-Feed-Trace"), cast.ToInt(c.GetHeader("X-Goose-Feed-Position")))
+			feedservice.CaptureActivity(loginUser.UserId)
+		}
 	}
 }
 

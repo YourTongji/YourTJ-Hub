@@ -54,6 +54,7 @@ status. Do not use PR-relative "shipped this / later" labels as long-term status
 - [Vision & principles](product/vision-and-principles.md)
 - [Current state & gaps](product/current-state.md)
 - [Forum experience](product/forum.md)
+- [Feed ranking and measurement](product/feed-ranking.md)
 - [Courses, reviews & scheduling](product/courses-and-scheduling.md)
 - [Mobile experience](product/mobile-experience.md)
 - [Mobile interaction and layout standard](product/mobile-design-system.md)
@@ -84,6 +85,7 @@ status. Do not use PR-relative "shipped this / later" labels as long-term status
 
 - [Reviewed releases](operations/releases.md)
 - [Deployment & release](operations/deployment.md)
+- [Feed ranking operations](operations/feed-ranking.md)
 - [Campus connection operations](operations/campus.md)
 - [Independent status site on Cloudflare](operations/status-cloudflare.md)
 - [Mobile releases and signing](operations/mobile-releases.md)

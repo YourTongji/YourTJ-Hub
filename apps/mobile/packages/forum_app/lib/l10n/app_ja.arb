@@ -320,6 +320,7 @@
   "dateMonthDayTime": "{month}月{day}日 {time}",
   "dateYearMonthDayTime": "{year}年{month}月{day}日 {time}",
   "topicFloorSelected": "{floor}階へ移動しました",
+  "sortForYou": "おすすめ",
   "sortLatest": "最新",
   "sortHot": "人気",
   "sortPopular": "注目",
@@ -1213,5 +1214,10 @@
   "contentReviewPending": "審査中",
   "notificationReviewPending": "投稿は手動確認を待っています",
   "notificationReviewPendingDetail": "確認結果をお知らせします。待っている間も内容を確認・編集できます。",
-  "notificationReviewRejectedDetail": "今回の投稿は公開されません。コンテンツ管理で内容を確認・修正して再送信してください。ご不明な点は管理者にお問い合わせください。"
+  "notificationReviewRejectedDetail": "今回の投稿は公開されません。コンテンツ管理で内容を確認・修正して再送信してください。ご不明な点は管理者にお問い合わせください。",
+  "feedReasonFollowing": "フォロー中の人から",
+  "feedReasonCategory": "参加したカテゴリ",
+  "feedReasonNewReply": "新しい返信",
+  "feedReasonRecent": "最近の投稿",
+  "sortDaily": "今日の人気"
 }

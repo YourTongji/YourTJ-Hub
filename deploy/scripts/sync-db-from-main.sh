@@ -72,6 +72,7 @@ sync_one() {
   sqlite3 "$src" ".backup '$TMP'" || { echo "sync-db: $label snapshot failed" >&2; rm -f "$TMP"; exit 1; }
   # Campus credentials and identity reservations never cross environments.
   if [ "$label" = "sqlite" ]; then
+    python3 "$SCRIPT_DIR/feed-privacy.py" --sqlite-copy "$TMP"
     for table in campus_identity_bindings campus_identity_reservations; do
       if [ "$(sqlite3 "$TMP" "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='$table';")" = "1" ]; then
         sqlite3 "$TMP" "DELETE FROM $table;"
@@ -108,7 +109,7 @@ SQL
   # 无法逃逸引号执行任意命令; 管道两侧的 $MAIN_PG/$DEV_PG 均由容器内
   # shell 从环境变量读取, 而非拼接进命令字符串。
   docker exec -e MAIN_PG="$MAIN_PG" -e DEV_PG="$DEV_PG" yourtj-postgres sh -c \
-    'pg_dump --exclude-table-data=public.campus_identity_bindings --exclude-table-data=public.campus_identity_reservations -U yourtj -d "$MAIN_PG" | psql -U yourtj -d "$DEV_PG"' >/dev/null
+    'pg_dump --exclude-table-data=public.feed_new_topic_outcome --exclude-table-data=public.feed_action_result --exclude-table-data=public.feed_actor_work --exclude-table-data=public.feed_period_progress --exclude-table-data=public.feed_owner --exclude-table-data=public.topic_view_fact --exclude-table-data=public.topic_action_credit --exclude-table-data=public.feed_serve_log --exclude-table-data=public.feed_page_observation --exclude-table-data=public.feed_event_log --exclude-table-data=public.feed_experiment_assignment --exclude-table-data=public.feed_user_daily --exclude-table-data=public.feed_candidate_sample --exclude-table-data=public.feed_rank_snapshot --exclude-table-data=public.feed_state --exclude-table-data=public.topic_rank_schedule --exclude-table-data=public.campus_identity_bindings --exclude-table-data=public.campus_identity_reservations -U yourtj -d "$MAIN_PG" | psql -U yourtj -d "$DEV_PG"' >/dev/null
   echo "sync-db: dev PG db synced from main"
   sync_one "$MAIN_FILE_DB" "$DEV_FILE_DB" "file"
   chown -R 1000:1000 "$ROOT/dev/storage" 2>/dev/null || true
@@ -119,7 +120,8 @@ fi
 # 保留 dev 旧库一份(排查用)
 if [ -f "$DEV_DB" ]; then
   mkdir -p "$ROOT/snapshots/dev-prev"
-  cp -f "$DEV_DB" "$ROOT/snapshots/dev-prev/sqlite-$(date +%Y%m%d_%H%M%S).db"
+  PREV_DB="$ROOT/snapshots/dev-prev/sqlite-$(date +%Y%m%d_%H%M%S).db"
+  "$SCRIPT_DIR/snapshot-db.sh" "$DEV_DB" "$PREV_DB"
   [ -f "$DEV_FILE_DB" ] && cp -f "$DEV_FILE_DB" "$ROOT/snapshots/dev-prev/file-$(date +%Y%m%d_%H%M%S).db"
 fi
 

@@ -359,7 +359,16 @@ class _TopicPageState extends ConsumerState<TopicPage>
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    FeedTelemetry.instance.routeVisible(
+      ModalRoute.of(context)?.isCurrent ?? true,
+    );
+  }
+
+  @override
   void dispose() {
+    FeedTelemetry.instance.endDetail();
     unawaited(_saveReplyDraft(notify: false));
     _replyAutosave?.cancel();
     WidgetsBinding.instance.removeObserver(this);

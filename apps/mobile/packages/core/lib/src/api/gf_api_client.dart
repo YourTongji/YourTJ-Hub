@@ -5,6 +5,7 @@ import 'package:dio/dio.dart';
 import '../gen/page.dart';
 import '../gen/response.dart';
 import '../token/token_storage.dart';
+import 'feed_telemetry.dart';
 import 'api_error.dart';
 
 typedef JsonParser<T> = T Function(Object? json);
@@ -26,6 +27,9 @@ class GfApiClient {
     this.onUnauthorized,
   }) {
     dio.options.baseUrl = baseUrl;
+    FeedTelemetry.instance.send = (body) async {
+      await dio.post('/api/forum/feed/events', data: body);
+    };
     dio.interceptors.add(
       InterceptorsWrapper(
         onRequest: (options, handler) async {
@@ -36,6 +40,11 @@ class GfApiClient {
           if (token != null && token.isNotEmpty) {
             options.headers['Authorization'] = 'Bearer $token';
           }
+          if (options.path.startsWith('/api/logout') ||
+              options.path.endsWith('/account-close')) {
+            FeedTelemetry.instance.bindAccount(0);
+          }
+          options.headers.addAll(FeedTelemetry.instance.headers(options.path));
           handler.next(options);
         },
       ),

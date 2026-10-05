@@ -153,7 +153,7 @@ watch(wikiSearchOpen, (open) => {
 const browseItems = computed<SidebarNavItem[]>(() => [
   sidebarItem('topics', t('shell.nav.topics'), '/'),
   sidebarItem('hot', t('shell.nav.hot'), '/?sort=hot'),
-  sidebarItem('popular', t('shell.nav.popular'), '/?sort=popular'),
+  sidebarItem('popular', props.layout.dailyRanking ? t('topicList.tabs.daily') : t('shell.nav.popular'), '/?sort=popular'),
 ])
 
 // 功能组：站点能力页。

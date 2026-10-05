@@ -485,7 +485,13 @@
   "commonLoadFailed": "加载失败",
   "topicEmpty": "暂无话题",
   "homePinnedTopics": "置顶话题（{count}）",
-  "@homePinnedTopics": {"placeholders": {"count": {"type": "int"}}},
+  "@homePinnedTopics": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "topicPinned": "置顶",
   "settingsAvatarUploaded": "头像已上传:{url}",
   "@settingsAvatarUploaded": {
@@ -555,6 +561,7 @@
     }
   },
   "topicFloorSelected": "已跳转到 {floor} 楼",
+  "sortForYou": "为你推荐",
   "sortLatest": "最新",
   "sortHot": "热门",
   "sortPopular": "流行",
@@ -1560,5 +1567,10 @@
   "contentReviewPending": "审核中",
   "notificationReviewPending": "你的内容正在等待人工审核",
   "notificationReviewPendingDetail": "我们会尽快处理，审核结果会通知你。等待期间你可以查看或修改内容。",
-  "notificationReviewRejectedDetail": "它不会公开显示，请前往内容管理自查修改后重新提交。如有疑问，请联系管理员。"
+  "notificationReviewRejectedDetail": "它不会公开显示，请前往内容管理自查修改后重新提交。如有疑问，请联系管理员。",
+  "feedReasonFollowing": "来自你关注的人",
+  "feedReasonCategory": "你参与过的分类",
+  "feedReasonNewReply": "有新的回复",
+  "feedReasonRecent": "近期发布",
+  "sortDaily": "今日热榜"
 }

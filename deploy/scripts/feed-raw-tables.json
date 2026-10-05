@@ -1,0 +1,16 @@
+[
+  "feed_owner",
+  "topic_view_fact",
+  "topic_action_credit",
+  "feed_serve_log",
+  "feed_page_observation",
+  "feed_event_log",
+  "feed_experiment_assignment",
+  "feed_user_daily",
+  "feed_candidate_sample",
+  "feed_rank_snapshot",
+  "feed_action_result",
+  "feed_period_progress",
+  "feed_actor_work",
+  "feed_new_topic_outcome"
+]

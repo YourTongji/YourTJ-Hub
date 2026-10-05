@@ -1,6 +1,11 @@
 package topicUserAction
 
 import (
+	"context"
+	"fmt"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/feed"
+	"gorm.io/gorm"
 	"strconv"
 	"time"
 
@@ -95,39 +100,54 @@ func upsertAt(userId, topicId uint64, field string, value *time.Time) bool {
 //
 // 并发下只有一个请求能命中迁移，统计/通知副作用必须只在迁移时执行。
 func setAt(userId, topicId uint64, field string, value *time.Time) bool {
-	if userId == 0 || topicId == 0 {
-		return false
-	}
-	if value == nil {
-		result := builder().
-			Where(queryopt.Eq("user_id", userId)).
-			Where(queryopt.Eq("topic_id", topicId)).
-			Where(field + " IS NOT NULL").
-			Updates(map[string]any{field: nil, "updated_at": time.Now()})
-		return result.Error == nil && result.RowsAffected > 0
-	}
+	changed, _ := SetState(context.Background(), userId, topicId, field, value != nil)
+	return changed
+}
 
-	// 1) 更新当前未设置的行：命中即发生 "未设置 → 已设置" 迁移
-	result := builder().
-		Where(queryopt.Eq("user_id", userId)).
-		Where(queryopt.Eq("topic_id", topicId)).
-		Where(field + " IS NULL").
-		Updates(map[string]any{field: value, "updated_at": time.Now()})
-	if result.Error == nil && result.RowsAffected > 0 {
-		return true
+// SetState propagates transaction errors. Native ranking credit and analytics
+// events commit with the real transition; duplicate requests add neither.
+func SetState(ctx context.Context, userId, topicId uint64, field string, active bool) (bool, error) {
+	if userId == 0 || topicId == 0 {
+		return false, nil
 	}
-	// 2) 行不存在时插入；已存在（并发已设置）则冲突静默，不算迁移
-	insert := builder().Clauses(clause.OnConflict{
-		Columns:   []clause.Column{{Name: "user_id"}, {Name: "topic_id"}},
-		DoNothing: true,
-	}).Create(&Entity{
-		UserId:       userId,
-		TopicId:      topicId,
-		LikedAt:      valueForField(field, "liked_at", value),
-		BookmarkedAt: valueForField(field, "bookmarked_at", value),
-		WatchedAt:    valueForField(field, "watched_at", value),
+	if field != "liked_at" && field != "bookmarked_at" && field != "watched_at" {
+		return false, fmt.Errorf("unsupported topic action")
+	}
+	changed := false
+	err := dbconnect.ConnectContext(ctx).Transaction(func(tx *gorm.DB) error {
+		value := timeForState(active)
+		condition := field + " IS NOT NULL"
+		if active {
+			condition = field + " IS NULL"
+		}
+		result := tx.Model(&Entity{}).Where("user_id = ? AND topic_id = ?", userId, topicId).Where(condition).Updates(map[string]any{field: value, "updated_at": time.Now()})
+		if result.Error != nil {
+			return result.Error
+		}
+		changed = result.RowsAffected > 0
+		if !changed && active {
+			insert := tx.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "user_id"}, {Name: "topic_id"}}, DoNothing: true}).Create(&Entity{UserId: userId, TopicId: topicId, LikedAt: valueForField(field, "liked_at", value), BookmarkedAt: valueForField(field, "bookmarked_at", value), WatchedAt: valueForField(field, "watched_at", value)})
+			if insert.Error != nil {
+				return insert.Error
+			}
+			changed = insert.RowsAffected > 0
+		}
+		if !changed || field == "watched_at" {
+			return nil
+		}
+		kind := "like"
+		if field == "bookmarked_at" {
+			kind = "bookmark"
+		}
+		if err := feed.CreditTx(tx, userId, topicId, kind, active, time.Now()); err != nil {
+			return err
+		}
+		if err := feed.MarkTx(tx, topicId); err != nil {
+			return err
+		}
+		return feed.EventTx(tx, userId, topicId, topicId, kind, active)
 	})
-	return insert.Error == nil && insert.RowsAffected > 0
+	return changed && err == nil, err
 }
 
 func timeForState(active bool) *time.Time {

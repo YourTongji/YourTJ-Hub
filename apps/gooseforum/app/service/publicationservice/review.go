@@ -10,6 +10,7 @@ import (
 	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/markdown2html"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/eventNotification"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/feed"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/moderationDecision"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postRevisions"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
@@ -179,7 +180,25 @@ func Review(ctx context.Context, revisionID uint64, action, reason string, actor
 		if action == moderationDecision.ActionAllow {
 			revision.ProcessStatus = status
 			revision.RenderedHTML = approvedHTML
+			firstPublication := stampFirstPublic(&post, now, wasPublic)
 			ApplySnapshot(&topic, &post, revision)
+			if post.PostNo == 1 && topic.FirstPublicAt == nil {
+				at := *post.FirstPublicAt
+				topic.FirstPublicAt = &at
+				topic.FirstPublicEstimated = post.FirstPublicEstimated
+				if err := tx.Model(&topics.Entity{}).Where("id = ? AND first_public_at IS NULL", topic.Id).UpdateColumns(map[string]any{"first_public_at": at, "first_public_estimated": topic.FirstPublicEstimated}).Error; err != nil {
+					return err
+				}
+			}
+			if firstPublication {
+				kind := "public_reply"
+				if post.PostNo == 1 {
+					kind = "public_topic"
+				}
+				if err := feed.EventTx(tx, post.UserId, topic.Id, post.Id, kind, true); err != nil {
+					return err
+				}
+			}
 			post.PublishedRevisionId = revision.Id
 			if err := posts.SaveTx(tx, &post); err != nil {
 				return err
@@ -296,4 +315,19 @@ func enqueueEffect(tx *gorm.DB, effect Effect) error {
 		return err
 	}
 	return taskQueue.CreateTx(tx, &taskQueue.Entity{Type: EffectTaskType, TaskJson: string(raw)})
+}
+
+// A legacy public projection has an estimated clock; every genuinely pending
+// first publication starts its clock at approval, and restore never resets it.
+func stampFirstPublic(post *posts.Entity, now time.Time, wasPublic bool) bool {
+	if post.FirstPublicAt != nil {
+		return false
+	}
+	at := now
+	if wasPublic {
+		at = post.CreatedAt
+		post.FirstPublicEstimated = true
+	}
+	post.FirstPublicAt = &at
+	return !wasPublic
 }

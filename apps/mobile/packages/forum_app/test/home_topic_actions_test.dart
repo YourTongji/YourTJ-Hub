@@ -33,6 +33,8 @@ GfApiClient _client() =>
 class _Pages extends PageRepository {
   _Pages() : super(_client());
   List<Map<String, Object>> categories = const [];
+  bool dailyRanking = false;
+  bool includeDailyTab = false;
   bool liked = true;
   int likeCount = 5;
   bool bookmarked = true;
@@ -41,8 +43,17 @@ class _Pages extends PageRepository {
   PagePayload payload() {
     final data = homePayloadJson();
     final layout = data['layout'] as Map<String, dynamic>;
+    layout['dailyRanking'] = dailyRanking;
     (layout['sidebar'] as Map<String, dynamic>)['categories'] = categories;
     final props = data['props'] as Map<String, dynamic>;
+    if (includeDailyTab) {
+      (props['tabs'] as List).add({
+        'key': 'popular',
+        'label': '流行',
+        'url': '/?sort=popular',
+        'active': false,
+      });
+    }
     final first = (props['topics'] as List).first as Map<String, dynamic>;
     props['topics'] = [
       for (var i = 0; i < 40; i++)
@@ -311,6 +322,23 @@ void main() {
     }
     return container;
   }
+
+  testWidgets(
+    'daily label follows layout readiness and the legacy label remains on rollback',
+    (tester) async {
+      final pages = _Pages()
+        ..dailyRanking = true
+        ..includeDailyTab = true;
+      await pump(tester, pages, _Topics(pages));
+      expect(find.text('今日热榜'), findsOneWidget);
+      expect(find.text('流行'), findsNothing);
+      await tester.pumpWidget(const SizedBox());
+      final legacy = _Pages()..includeDailyTab = true;
+      await pump(tester, legacy, _Topics(legacy));
+      expect(find.text('流行'), findsOneWidget);
+      expect(find.text('今日热榜'), findsNothing);
+    },
+  );
 
   for (final scale in [1.0, 2.0, 3.0]) {
     testWidgets('home categories stay compact and readable at ${scale}x text', (

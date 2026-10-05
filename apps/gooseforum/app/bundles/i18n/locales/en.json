@@ -132,5 +132,7 @@
   "serverMessages.sticker.libraryFull": "Your library can hold {limit} stickers. Remove some before adding more.",
   "serverMessages.sticker.uploadQuota": "You have reached the limit of {limit} uploaded stickers. Sent assets are retained for message history.",
   "serverMessages.sticker.imageRequired": "Choose an image or GIF you uploaded, up to {maxSizeMb} MB.",
-  "serverMessages.sticker.unavailable": "This sticker is unavailable."
+  "serverMessages.sticker.unavailable": "This sticker is unavailable.",
+  "forYouFeed": "For You",
+  "dailyFeed": "Today's top"
 }

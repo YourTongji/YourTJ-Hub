@@ -5,9 +5,12 @@ import (
 	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/feedconfig"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/jsonopt"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/pageutil"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/queryopt"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/feed"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"gorm.io/gorm"
 )
 
@@ -549,12 +552,18 @@ func UpdateProcessStatus(id uint64, processStatus int8) error {
 // UpdateProcessStatusTx updates moderation state and lets callers enqueue an
 // outbox task in the same transaction.
 func UpdateProcessStatusTx(tx *gorm.DB, id uint64, processStatus int8) error {
-	return tx.Table(tableName).Where(queryopt.Eq("id", id)).UpdateColumn("process_status", processStatus).Error
+	if err := tx.Table(tableName).Where(queryopt.Eq("id", id)).UpdateColumn("process_status", processStatus).Error; err != nil {
+		return err
+	}
+	return feed.MarkTx(tx, id)
 }
 
 // UpdateStatusTx updates publish status inside a caller-owned transaction.
 func UpdateStatusTx(tx *gorm.DB, id uint64, status int8) error {
-	return tx.Table(tableName).Where(queryopt.Eq("id", id)).UpdateColumn("status", status).Error
+	if err := tx.Table(tableName).Where(queryopt.Eq("id", id)).UpdateColumn("status", status).Error; err != nil {
+		return err
+	}
+	return feed.MarkTx(tx, id)
 }
 
 // ResetPendingReview 作废待审状态：将 process_status 复位为正常。
@@ -673,6 +682,16 @@ func ReservePostSequenceTx(tx *gorm.DB, topicId uint64) (uint64, error) {
 }
 
 func applyPageSort(b *gorm.DB, sort string) {
+	if feedconfig.RankReady() && (sort == "hot" || sort == "popular") {
+		b.Where("rank_ready = ? AND rank_params_hash = ?", true, feedconfig.Current().RankHash).Where("user_id IN (?)", users.EligibleIDsQuery(b.Statement.Context))
+		if sort == "popular" {
+			b.Where("daily_score > 0 AND (rank_due_at IS NULL OR rank_due_at >= ?)", time.Now().Add(-10*time.Minute)).Order("daily_score DESC")
+		} else {
+			b.Order("rank_score DESC")
+		}
+		b.Order("id DESC")
+		return
+	}
 	switch sort {
 	case "hot":
 		b.Order(queryopt.Desc("reply_count")).Order(queryopt.Desc("id"))
