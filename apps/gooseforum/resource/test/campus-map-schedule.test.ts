@@ -65,7 +65,7 @@ it('filters synced arrangements and emits the uniquely resolved map target', asy
   expect(wrapper.text()).toContain('安楼A101')
   await wrapper.get('.atlas-schedule__list button').trigger('click')
   await flushPromises()
-  expect(resolveLocation).toHaveBeenCalledWith('嘉定校区', '安楼A101')
+  expect(resolveLocation).toHaveBeenCalledWith('嘉定校区', '安楼A101', { calendarId: 122 })
   expect(wrapper.emitted('select')?.at(-1)).toEqual([{ campusId: 'jiading', featureId: 'a' }])
   wrapper.unmount()
 })

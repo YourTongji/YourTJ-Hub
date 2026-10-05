@@ -538,6 +538,20 @@ export default {
   campusMap: {
     menu: { label: "Map menu", places: "Places", courses: "My timetable" },
     locations: {
+      reviewPending: "Location details are awaiting review. Follow the original course arrangement.",
+      unassigned: "Conditions with unclear scope: {conditions}",
+      hints: {
+        named: "Named place; not located.",
+        generic: "Generic place; exact location unconfirmed.",
+        online: "Online class; no physical location.",
+        pending: "Location to be arranged.",
+        no_room: "No classroom assigned.",
+        unknown: "Location unclear.",
+        missing: "This location is not in this term’s directory; original text retained.",
+        review: "This location needs review and cannot be pinned yet.",
+        campus: "The stated campus cannot be confirmed on this map.",
+        unmapped: "Not located: no unique map match.",
+      },
       label: "Course locations",
       choose: "Choose a location to view. Week and other conditions retain their original wording.",
       unmapped: "Not located: the name has no unique map match.",

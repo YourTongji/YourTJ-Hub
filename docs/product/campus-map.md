@@ -27,8 +27,8 @@ at `/map`, with an entry in the community navigation.
 | Sports drawing | Current | Siping, Jiading and Huxi athletics tracks have red running surfaces, green infields, lanes and football markings. Hubei follows the official straight-track layout. Individual supported court footprints receive markings; aggregated court polygons do not imply a court count. |
 | Current location | Current | Explicit button press requests one browser WGS84 fix. A blue point and geodesic accuracy circle show it; a nearby calibrated campus is selected automatically. Outside-campus, denial, unsupported, timeout and unavailable states are explicit. A fix received before the renderer is ready is focused after loading. The uncalibrated Zhangjiang plan reports an outside-campus fix without promising a position overlay. No navigation or continuous tracking. |
 | Coverage and facility detail | Partial | Hubei and Lingang have approximately aligned official-plan building traces. Zhangjiang has the four named buildings and paths in an explicitly uncalibrated local plan: location may be obtained but is not drawn on that plan. Indoor rooms, entrances, court counts and live venue information are not fully verified. |
-| Personal timetable on map | Partial | The `/campus` Today section header has one generic “view my courses on the map” link beside “View Week”; it opens the existing map with the timetable tab selected. The map menu switches between place browsing, the private personal timetable, and a course-module schedule search while keeping the same map, campus selector, and map controls. The private view verifies the forum session and campus binding, then reads the existing personal timetable APIs into an in-memory searchable list. The schedule search composes the existing PK `courses-by-time` and batched `course-details` APIs, supporting term, weekday, period group and teaching-week filters. Both views retain original campus/room text and show parsed destinations with their original conditions. A single uniquely matched destination can be pinned; multiple destinations require an explicit choice. Unmatched destinations remain visible without a pin. The intent URL contains no course identity or location; canonical links stay `/map`. |
-| Timetable-to-map place matching | Partial | Existing explicit Siping and Jiading mappings are combined with unique exact matches against names and clear aliases for academic, library, place and sports features in the selected campus GeoJSON. Supported room and floor descriptions can be separated from a building name; these descriptions do not supply indoor coordinates. Conflicting campus declarations and ambiguous or unmatched names retain their original text and do not place a pin. These matches are project-level name matches, not school-verified building IDs or `towerCode` mappings. |
+| Personal timetable on map | Partial | The `/campus` Today section header has one generic “view my courses on the map” link beside “View Week”; it opens the existing map with the timetable tab selected. The map menu switches between place browsing, the private personal timetable, and a course-module schedule search while keeping the same map, campus selector, and map controls. The private view verifies the forum session and campus binding, then reads the existing personal timetable APIs into an in-memory searchable list. The schedule search composes the existing PK `courses-by-time` and batched `course-details` APIs, supporting term, weekday, period group and teaching-week filters. Both views retain original campus/room text and show offline dictionary members with their original conditions and pending-review notice. The PK view supplies the selected calendar ID; the private view supplies the current school-calendar name. A single uniquely matched destination can be pinned; multiple destinations require an explicit choice. Unmatched destinations remain visible without a pin. The intent URL contains no course identity or location; canonical links stay `/map`. |
+| Timetable-to-map place matching | Partial | A semester-scoped offline dictionary replaces runtime location parsing. It requires an exact course-campus/raw-text key and a matching PK calendar ID or registered school-calendar name. The bundled 2026–2027 first-semester undergraduate PK aggregate retains its pending-review status. Uncovered or different-semester text remains visible without a target, with no old-parser fallback. Flagged extraction results, nonphysical members and ambiguous campus declarations have no target. Independently maintained Siping/Jiading identities and unique exact GeoJSON name/alias matches resolve extracted physical places. Detail fields retain rooms and floors without indoor coordinates. These matches are project-level name matches, not school-verified building IDs or `towerCode` mappings. |
 | Place and classroom schedules | Partial | Academic building and sports-place details open a schedule query scoped to that destination. It filters the PK course module's teaching arrangements by term, date (when a term start date is available) or teaching week plus weekday, and period group. A multi-location arrangement participates only when a matching destination's conditions can be confirmed for the selected week and weekday; unspecified alternatives and unresolved conditions are excluded from the scoped query. It displays the original location text, arrangement period, course, teacher, selected course date/week, source and latest successful PK-module sync date when available. Changing query filters clears prior results and the selected map pin; obsolete in-flight responses cannot populate the new query. An empty result means no matching arrangement was returned; request failure is shown separately. Coverage and freshness follow the module's synchronized data, which does not establish complete classroom schedules or live occupancy. No result may be called a free, open or reservable room. |
 | Native mobile | Partial | The shared page-component identifier is mirrored in Dart; the Flutter app has no native campus-map screen. Mobile browsers use the responsive Web page. |
 
@@ -40,22 +40,36 @@ Place details retain source-derived names; activity controls and descriptions fo
 interface language. Coverage notes appear in the
 map information dialog. They do not advertise live venue status.
 
-Bare lettered building lists such as `A101、B201` resolve each building independently.
-An explicit parent such as `安楼A101、A102` keeps its room list; a change of room-letter
-prefix under an explicit matched building remains unconfirmed. Unknown institutional
-qualifiers are retained rather than replaced by a bare building alias.
+The offline dictionary preserves each extracted member's kind, place, detail,
+explicit campus, address and relationship. Online classes, pending arrangements,
+no-room records, generic descriptions and unknown locations have distinct visible
+hints. A named place still needs a unique independent map match. Faculty-derived
+names remain bound to the source semester; ambiguous cross-faculty records stay
+flagged. Nearby external campuses retain their names and cannot resolve to a
+similarly named Tongji feature.
 
-Place-scoped schedules require both prefix conditions and temporal room suffixes to
-apply. For example, `单周北楼115室（第3-4周）` applies in week 3. Suffixes belong to
-their own room, so `北楼115室（单周）、116室（双周）` filters the rooms separately.
-Dates and other unresolved time annotations retain their original text and can still
-be selected manually when the destination is known, but cannot confirm a scoped
-arrangement from a week and weekday alone. Ordinary room notes such as `(中)` do not
-create a time restriction.
+Explicit project mappings connect Jiading's `体育中心游泳馆`, `体育中心篮球馆`
+and `体育中心乒乓馆` to the indoor sports-hall feature that records those
+activities. This remains a building-level destination without indoor room or
+entrance coordinates.
+
+The complete dictionary remains pending review even when an individual result has
+no extraction concern. A visible notice refers visitors to the original course
+arrangement; flagged results remain visible and cannot be pinned. Multiple members,
+including different rooms in one building, require an explicit choice.
+
+Place-scoped schedules evaluate each member's original `time` conditions together.
+For example, `单周致臻楼414，双周致臻楼416` retains two independently constrained
+rooms. `time` is null when absent. Known week ranges, first-N weeks, parity and
+weekdays can confirm a member; last-N weeks, dates, clock times, unresolved scope
+and other unsupported conditions cannot confirm an arrangement from week and
+weekday alone. Alternative or unclear relationships and flagged results are also
+excluded. The original arrangement and all extracted members stay visible in the
+unscoped course list.
 
 ## Data and deployment boundary
 
-The page uses MapLibre GL JS and versioned GeoJSON assets. Both the renderer and
+The page uses MapLibre GL JS, versioned GeoJSON and bundled offline location dictionaries. Browsing makes no model calls and does not send private course locations to an extraction provider. Both the renderer and
 data load only when visiting the map. A same-origin CSP worker avoids changing the
 forum's script policy. Labels use the local DOM/font stack instead of remote glyph
 services. No map API token, external tile service, additional database, PMTiles
@@ -100,11 +114,10 @@ facilities outside that boundary are not guaranteed to appear in search.
   stable place IDs, campus-boundary filtering, geometry bounds, all six datasets, sports geometry, location/error handling and data privacy.
 - `resource/test/campus-map-page.test.ts` covers translated sports discovery, cached fixes before
   canvas readiness, selected-building navigation, sports-place schedules, the uncalibrated-plan location notice and data/renderer failure recovery.
-- `resource/test/official-location.test.ts` covers classroom descriptions, multiple destinations,
-  campus conflicts, real campus aliases, prefix/suffix conditions and sports destinations. The personal and schedule panel
+- `resource/test/official-location.test.ts` covers complete dictionary-member preservation, exact source/semester lookup, multiple destinations, unique map identities, campus conflicts and per-member conditions. `resource/test/offline-location.test.ts` covers the replacement regression and absence of old-parser fallback. `resource/test/location-dictionary.test.ts` validates prompt/schema/types, bounded preparation, source IDs and conflict-preserving assembly/merge. The personal and schedule panel
   tests cover explicit destination choices, clearing private records and scoped query conditions.
 - `resource/test/campus-map-location.browser.mjs` uses synthetic public course responses with
-  the production page, renderer and campus data to verify suffix filtering and distinct bare-building
+  the production page, renderer and campus data to verify dictionary misses, review/online hints, semester isolation, condition filtering and multiple-member
   choices at desktop and 375px widths. CI retains its screenshots and receipt as a temporary artifact;
   these checks do not establish dev deployment acceptance.
 - `app/http/controllers/forum/campus_map_test.go` covers anonymous HTML and page
@@ -113,4 +126,4 @@ facilities outside that boundary are not guaranteed to appear in search.
 - Web type checking, the shared client tests, the production asset build, and
   desktop/mobile browser checks validate the page integration.
 
-See [decision 0022](../decisions/0022-campus-map-native-atlas.md) for the reuse boundary.
+See [decision 0022](../decisions/0022-campus-map-native-atlas.md) for the map reuse boundary and [decision 0064](../decisions/0064-offline-campus-location-dictionaries.md) for offline extraction. The [maintenance reference](../../apps/gooseforum/resource/scripts/campus-locations/README.md) owns prompts, schema, source fingerprints and dictionary updates.

@@ -7,12 +7,13 @@ const emit = defineEmits<{ select: [location: OfficialMapLocation, index: number
 const { t } = useI18n()
 
 function label(location: OfficialMapLocation) {
-  return [location.condition, location.building, location.room].filter(Boolean).join(' ')
+  return [location.campusText, location.condition, location.building, location.room, location.address].filter(Boolean).join(' ')
 }
 </script>
 
 <template>
   <div class="atlas-location-choices">
+    <p v-if="locations.some(location => location.reviewPending)" class="atlas-location-choices__hint">{{ t('campusMap.locations.reviewPending') }}</p>
     <p v-if="locations.length > 1" class="atlas-location-choices__hint">{{ t('campusMap.locations.choose') }}</p>
     <div class="atlas-location-choices__list" :aria-label="t('campusMap.locations.label')">
       <button
@@ -25,7 +26,8 @@ function label(location: OfficialMapLocation) {
       >
         <span>{{ location.raw }}</span>
         <small v-if="label(location) && label(location) !== location.raw">{{ label(location) }}</small>
-        <small v-if="!location.target" class="atlas-location-choices__unmapped">{{ t('campusMap.locations.unmapped') }}</small>
+        <small v-if="location.unassignedConditions?.length">{{ t('campusMap.locations.unassigned', { conditions: location.unassignedConditions.join('；') }) }}</small>
+        <small v-if="!location.target" class="atlas-location-choices__unmapped">{{ t(`campusMap.locations.hints.${location.hint ?? 'unmapped'}`) }}</small>
       </button>
     </div>
   </div>

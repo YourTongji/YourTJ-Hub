@@ -538,6 +538,20 @@ export default {
   campusMap: {
     menu: { label: "地图菜单", places: "地点", courses: "本人课表" },
     locations: {
+      reviewPending: "地点资料仍待复核，请以课程原始安排为准。",
+      unassigned: "未确认归属的条件：{conditions}",
+      hints: {
+        named: "命名地点，尚未定位。",
+        generic: "地点为泛称，尚未确认具体位置。",
+        online: "线上课程，无实体位置。",
+        pending: "地点待安排。",
+        no_room: "不排教室。",
+        unknown: "地点尚不明确。",
+        missing: "该学期尚未收录此地点，保留原文。",
+        review: "此地点有待复核的疑点，暂不定位。",
+        campus: "地点校区无法与当前地图确认对应。",
+        unmapped: "未定位：名称无法唯一匹配地图地点。",
+      },
       label: "课程地点",
       choose: "包含多个地点，请选择要查看的位置；周次等条件按原文显示。",
       unmapped: "未定位：名称无法唯一匹配地图地点。",

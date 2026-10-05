@@ -1,243 +1,172 @@
 import type { CampusData, CampusFeature } from './catalog'
+import table from './data/locations/2026-2027-1.json'
+import type { LocationDictionary, LocationExtraction, LocationHint, LocationKind, LocationLookupContext, LocationRelation } from './location-types'
+export type { LocationLookupContext } from './location-types'
+
+// The asset is validated against the extraction schema in CI; it is not a model call at runtime.
+const dictionary = table as LocationDictionary
 
 export interface CampusMapTarget {
   campusId: string
   featureId: string
 }
-
 export interface OfficialMapLocation {
   raw: string
   building: string
   room: string
   condition: string
-  /** Explicit campus context also applies to subsequent entries until replaced. */
-  campusIds?: string[]
+  kind?: LocationKind
+  relation?: LocationRelation
+  time?: string[] | null
+  conditions?: string[]
+  address?: string | null
+  campusText?: string | null
+  unassignedConditions?: string[]
+  needsReview?: boolean
+  reviewPending?: boolean
+  hint?: LocationHint
   alternative?: boolean
   target?: CampusMapTarget
 }
 
-const campusMarkers: [string, RegExp][] = [
-  ['siping', /四平/],
-  ['jiading', /嘉定/],
-  ['huxi', /沪西/],
-  ['hubei', /沪北/],
-  ['zhangjiang', /张江/],
-  ['lingang', /临港/],
-]
-
+const campusNames: Record<string, string> = {
+  '四平': 'siping', '四平路': 'siping', '四平校区': 'siping', '四平路校区': 'siping',
+  '嘉定': 'jiading', '嘉定校区': 'jiading', '沪西': 'huxi', '沪西校区': 'huxi',
+  '沪北': 'hubei', '沪北校区': 'hubei', '张江': 'zhangjiang', '张江校区': 'zhangjiang',
+  '临港': 'lingang', '临港校区': 'lingang', '临港基地': 'lingang',
+}
 export function officialCampusId(value: string): string | undefined {
-  const matches = explicitCampusIds(value)
-  return matches.length === 1 ? matches[0] : undefined
+  return campusNames[value.trim().replace(/^同济大学/u, '')]
 }
 
-function explicitCampusIds(value: string): string[] {
-  return campusMarkers.filter(([, marker]) => marker.test(value)).map(([id]) => id)
+function extraction(campus: string, raw: string, context: LocationLookupContext): LocationExtraction | undefined {
+  const meta = dictionary._meta
+  // Never apply one term's faculty-derived names to other terms or an unknown calendar.
+  if (context.calendarId !== undefined && context.calendarId !== meta.calendar_id) return
+  if (context.term !== undefined && !meta.term_names.includes(context.term)) return
+  if (context.calendarId === undefined && context.term === undefined) return
+  // Keys are source strings, not normalized aliases. Do not silently combine source identities.
+  const entries = Object.hasOwn(dictionary.dictionary, campus) ? dictionary.dictionary[campus] : undefined
+  return entries && Object.hasOwn(entries, raw) ? entries[raw] : undefined
 }
 
-function withoutCampusPrefix(value: string, campus = ''): string {
-  let result = value.trim()
-  if (campus && result.startsWith(campus)) result = result.slice(campus.length).trim()
-  return result.replace(/^(?:同济大学)?(?:四平(?:路)?|嘉定|沪西|沪北|张江|临港)(?:校区|基地)?\s*/u, '').trim()
+export function parseOfficialLocations(value: string, campus = '', context: LocationLookupContext = {}): OfficialMapLocation[] {
+  if (!value.trim()) return []
+  const result = extraction(campus, value, context)
+  if (!result) return [{ raw: value, building: '', room: '', condition: '', kind: 'unknown', hint: 'missing', time: null }]
+  return result.locations.map(member => ({
+    raw: member.source_text,
+    building: member.place ?? '',
+    room: member.detail ?? '',
+    condition: [...(member.time ?? []), ...member.conditions].join('且'),
+    kind: member.kind,
+    relation: result.relation,
+    time: member.time ? [...member.time] : null,
+    conditions: [...member.conditions],
+    address: member.address,
+    campusText: member.campus_text,
+    unassignedConditions: [...result.unassigned_conditions],
+    needsReview: result.needs_review,
+    reviewPending: dictionary._meta.review_status === 'review_2_pending',
+    alternative: ['alternative', 'mixed', 'unclear'].includes(result.relation),
+    hint: result.needs_review ? 'review' : member.kind,
+  }))
 }
 
-export function parseOfficialLocation(value: string, campus = ''): { building: string; room: string } | null {
-  const locations = parseOfficialLocations(value, campus)
+export function parseOfficialLocation(value: string, campus = '', context: LocationLookupContext = {}): { building: string; room: string } | null {
+  const locations = parseOfficialLocations(value, campus, context)
   const location = locations[0]
-  return locations.length === 1 && location?.room
-    ? { building: location.building, room: location.room }
-    : null
+  return locations.length === 1 && location?.building && location.room
+    ? { building: location.building, room: location.room } : null
 }
 
 function normalize(value: string): string {
-  return value.normalize('NFKC').toLocaleLowerCase().replace(/[\s\p{P}\p{S}]/gu, '')
+  return value.normalize('NFKC').toLowerCase().replace(/[\s\p{P}\p{S}]/gu, '')
 }
-
 function aliases(feature: CampusFeature): string[] {
-  const properties = feature.properties
-  const name = properties.name?.trim() ?? ''
-  const values = [name, properties.alt_name ?? '', properties.short_name ?? '']
-  const alias = name.match(/[（(]([^（）()]+)[）)]/u)?.[1]?.trim()
-  if (alias && /^(?:[a-z]\s*)?(?:楼|馆|栋)$|^[a-z]楼$/iu.test(alias)) {
-    values.push(alias)
-    if (/^[a-z]楼$/iu.test(alias)) values.push(alias.slice(0, -1))
-  }
-  if (name) values.push(name.replace(/[（(][^（）()]*[）)]/gu, '').trim())
-  return values.flatMap((value) => value.split(/[、,，;；]/u))
-    .flatMap((value) => [value.trim(), withoutCampusPrefix(value).replace(/^同济大学/u, '').trim()])
-    .filter((value) => value && !/^\d+$/u.test(value))
+  const { name = '', alt_name = '', short_name = '' } = feature.properties
+  const values = [name, alt_name, short_name, name.replace(/[（(][^（）()]*[）)]/gu, '').trim()]
+  const letter = name.match(/[（(]([A-Za-z])楼[）)]/u)?.[1]
+  if (letter) values.push(letter, `${letter}楼`)
+  return values.flatMap(value => value.split(/[、,，;；]/u))
+    .flatMap(value => [value, value.replace(/^(?:同济大学)?(?:四平(?:路)?|嘉定|沪西|沪北|张江|临港)(?:校区|基地)?\s*/u, '').replace(/^同济大学/u, '')])
+    .map(normalize).filter(Boolean)
 }
 
-function confirmedTarget(campusId: string, building: string, room: string): CampusMapTarget | undefined {
-  if (campusId === 'siping') {
-    if (['北', '北楼', '教学北楼'].includes(building) && (room || building !== '北'))
-      return { campusId, featureId: 'way/183383474' }
-    if (['南', '南楼', '教学南楼'].includes(building) && (room || building !== '南'))
-      return { campusId, featureId: 'way/183383472' }
-  }
-  if (campusId === 'jiading' && ['济事楼', '济事南楼', '济事北楼', '济事楼（软件学院）'].includes(building))
-    return { campusId, featureId: 'way/135405205' }
-  return undefined
+// Curated building identities are separate from text extraction and never parse a room.
+const confirmedPlaces: Record<string, Record<string, string>> = {
+  siping: {
+    '北教学楼': 'way/183383474', '北楼': 'way/183383474', '教学北楼': 'way/183383474',
+    '南教学楼': 'way/183383472', '南楼': 'way/183383472', '教学南楼': 'way/183383472',
+  },
+  jiading: {
+    '济事楼': 'way/135405205', '济事南楼': 'way/135405205', '济事北楼': 'way/135405205', '济事楼（软件学院）': 'way/135405205',
+    // The recorded sports_hall hosts these activities; this identifies its building, not an indoor room.
+    '体育中心游泳馆': 'way/1456432428', '体育中心篮球馆': 'way/1456432428', '体育中心乒乓馆': 'way/1456432428',
+  },
 }
 
-// Descriptions are retained verbatim; a building-level match is not an indoor coordinate.
-const roomDescription = /^(?:阶\s*\d{1,3}|[A-Za-z]{0,3}\d{1,4}[A-Za-z]?(?:[-~～至][A-Za-z]?\d{1,4}[A-Za-z]?)?(?:\s*(?:室|小教室|中教室|大教室|教室|实验室|机房|阶梯教室|智慧教室|洁净室|楼)(?:[（(][^（）()]*[）)])?)?|[一二三四五六七八九十\d]+楼(?:.*)?|(?:专业|苹果)?(?:实验室|教室|机房|画室|小影院|报告厅|体操房|篮球馆|游泳馆|羽毛球场|乒乓馆|力量房|多功能房|健身房)(?:\s*[A-Za-z]?\d{1,4}[A-Za-z]?)?)$/u
-const conditionPrefix = /^(?:上课)?(?:第?\d+(?:[-~～至]\d+)?周|前\d+周|后\d+周|单周|双周|周[一二三四五六日天]|【[^】]+】|其余周数)/u
-const roomContinuation = /^(?:阶\s*\d{1,3}|[A-Za-z]{0,3}\d{1,4}[A-Za-z]?(?:[-~～至][A-Za-z]?\d{1,4}[A-Za-z]?)?)(?:\s*(?:室|教室|实验室|机房|楼))?$/u
-
-function suffixConditions(value: string): { text: string; conditions: string[] } {
-  let text = value
-  const conditions: string[] = []
-  const notes: string[] = []
-  // Keep ordinary room notes such as (中); only temporal annotations constrain a query.
-  const annotation = /(?:[（(]([^（）()]+)[）)]|【([^【】]+)】|\[([^\[\]]+)\])\s*$/u
-  for (let match = text.match(annotation); match; match = text.match(annotation)) {
-    const note = (match[1] ?? match[2] ?? match[3])!.trim()
-    if (/周|星期|日期|时间|调课|待定|\d\s*[年月日时分]|\d{1,2}[:：]\d{2}|\d{4}[-/.]\d{1,2}[-/.]\d{1,2}/u.test(note)) conditions.unshift(note)
-    else notes.unshift(match[0])
-    text = text.slice(0, match.index).trimEnd()
-  }
-  return { text: conditions.length ? text + notes.join('') : value, conditions }
+interface PlaceIndex {
+  featureIds: Set<string>
+  names: Map<string, Set<string>>
 }
-
-function splitLocationText(value: string): { parts: string[]; alternative: boolean } {
-  const parts: string[] = []
-  let alternative = false
-  let start = 0
-  let depth = 0
-  for (let index = 0; index < value.length; index++) {
-    const char = value[index]!
-    if ('（([【'.includes(char)) depth++
-    if ('）)]】'.includes(char)) depth = Math.max(0, depth - 1)
-    // Conjunctions can be part of a name (e.g. 衷和楼); split only after a destination/room ending.
-    const conjunction = /[和或]/u.test(char) && /[\dA-Za-z）)楼馆场厅室房河]$|中心$|大厦$/u.test(value.slice(start, index).trim())
-    if (depth === 0 && (/[、,，;；+\\/]/u.test(char) || conjunction)) {
-      if (char === '或') alternative = true
-      parts.push(value.slice(start, index).trim())
-      start = index + 1
+// Campus datasets are immutable after loading; reuse their name projection across schedule rows.
+const placeIndexes = new WeakMap<CampusData, PlaceIndex>()
+function placeIndex(data: CampusData): PlaceIndex {
+  const existing = placeIndexes.get(data)
+  if (existing) return existing
+  const index: PlaceIndex = { featureIds: new Set(), names: new Map() }
+  for (const feature of data.features) {
+    if (feature.id == null || !feature.properties.campus ||
+      !['academic', 'library', 'place', 'sport'].includes(feature.properties.category)) continue
+    const id = String(feature.id)
+    index.featureIds.add(id)
+    for (const key of aliases(feature)) {
+      const ids = index.names.get(key) ?? new Set<string>()
+      ids.add(id)
+      index.names.set(key, ids)
     }
   }
-  parts.push(value.slice(start).trim())
-  return { parts: parts.filter(Boolean), alternative }
+  placeIndexes.set(data, index)
+  return index
 }
 
-function parseBuilding(location: string): { building: string; room: string } | null {
-  const match = location.match(/^(.+?(?:楼|馆|中心|大厦|栋|报告厅|教室|机房|实验室|专教|教)(?:[（(][^（）()]+[）)])?|[北南东西]|文|中法|[A-Za-z]{1,3}|机房|实验室)\s*(.+)$/u)
-  if (!match || !roomDescription.test(match[2]!.trim())) return null
-  return { building: match[1]!, room: match[2]!.trim().replace(/\s+室$/u, '') }
-}
-
-function parseLocations(value: string, campus: string, refine?: (location: OfficialMapLocation, text: string) => void): OfficialMapLocation[] {
-  if (!value.trim()) return []
-  // Announcements and remote lessons do not identify a campus destination.
-  const { parts, alternative } = /线上|在线|Canvas|关注.*通知/iu.test(value)
-    ? { parts: [value.trim()], alternative: false } : splitLocationText(value)
-  const locations: OfficialMapLocation[] = []
-  let previous: OfficialMapLocation | undefined
-  let previousUncertain = false
-  let previousLetters: string | undefined
-  let previousCondition = ''
-  let pendingCondition = ''
-  let campusIds: string[] = []
-  for (const raw of parts) {
-    const prefix = raw.match(conditionPrefix)?.[0] ?? ''
-    let text = raw.slice(prefix.length).replace(/^\s*[:：]\s*/u, '').trim()
-    const condition = prefix || pendingCondition
-    pendingCondition = ''
-    if (!text && prefix) { pendingCondition = prefix; continue }
-    const explicit = explicitCampusIds(raw)
-    if (explicit.length) campusIds = explicit
-    text = withoutCampusPrefix(text, campus)
-    const suffix = suffixConditions(text)
-    text = suffix.text
-    const parsed = parseBuilding(text)
-    const continuation = roomContinuation.test(text)
-    const letters = text.match(/^[A-Za-z]{1,3}(?=\d)/u)?.[0]?.toUpperCase()
-    const bareBuilding = previous && /^[A-Za-z]{1,3}$/u.test(previous.building)
-    // A101、B201 names separate buildings; 安楼A101、A102 explicitly continues rooms.
-    const inherited = continuation && (previous?.room || previous?.target) && !(bareBuilding && letters)
-    const uncertain: boolean = Boolean(inherited && (previousUncertain || (previous?.target && letters && letters !== previousLetters)))
-    const unknownPrefix = continuation && previous && !previous.room && !previous.target
-      ? previous.building.match(/^(.+?)[A-Za-z]{0,3}\d{1,4}[A-Za-z]?$/u)?.[1] : undefined
-    const buildingContinuation = /^[A-Za-z]楼$/u.test(text) && previous && /[A-Za-z]楼$/u.test(previous.building)
-      ? previous.building.replace(/[A-Za-z]楼$/u, text) : undefined
-    const listCondition = condition || (inherited || unknownPrefix || buildingContinuation || (continuation && bareBuilding) ? previousCondition : '')
-    const location: OfficialMapLocation = {
-      raw,
-      building: inherited ? previous!.building : unknownPrefix ?? buildingContinuation ?? parsed?.building ?? text,
-      room: inherited || unknownPrefix ? text : parsed?.room ?? '',
-      condition: [listCondition, ...suffix.conditions].filter(Boolean).join('且'),
-      ...(campusIds.length ? { campusIds } : {}),
-      ...(alternative ? { alternative: true } : {}),
-    }
-    // Refine before carrying context forward, so a whole map name remains the parent of its room list.
-    if (!uncertain) refine?.(location, inherited || unknownPrefix || buildingContinuation ? location.building + location.room : text)
-    locations.push(location)
-    previous = location
-    previousUncertain = uncertain
-    previousLetters = inherited ? letters ?? previousLetters : location.room.match(/^[A-Za-z]{1,3}(?=\d)/u)?.[0]?.toUpperCase()
-    previousCondition = listCondition
-  }
-  if (pendingCondition) locations.push({ raw: pendingCondition, building: '', room: '', condition: pendingCondition })
-  return locations
-}
-
-export function parseOfficialLocations(value: string, campus = ''): OfficialMapLocation[] {
-  return parseLocations(value, campus)
-}
-
-function prefixEnd(value: string, key: string): number | undefined {
-  let prefix = ''
-  for (let index = 0; index < value.length; index++) {
-    prefix += normalize(value[index]!)
-    if (!key.startsWith(prefix)) return undefined
-    if (prefix === key) {
-      while (/[\s）)]/u.test(value[index + 1] ?? '') && index + 1 < value.length) index++
-      return index + 1
-    }
-  }
-  return undefined
-}
-
-export function officialLocationTargets(campus: string, value: string, data?: CampusData | null): OfficialMapLocation[] {
+export function officialLocationTargets(campus: string, value: string, data?: CampusData | null, context: LocationLookupContext = {}): OfficialMapLocation[] {
   const campusId = officialCampusId(campus)
-  const names = (data?.features ?? []).filter((feature) => feature.properties.campus &&
-    ['academic', 'library', 'place', 'sport'].includes(feature.properties.category))
-    .flatMap((feature) => aliases(feature).map((name) => ({ feature, name, key: normalize(name) })))
-  return parseLocations(value, campus, (location, raw) => {
-    if (!campusId || location.campusIds?.some(id => id !== campusId) || /线上|在线|Canvas/iu.test(location.raw)) return
-    // Exact whole names win over a room-looking name; only recognized suffixes permit prefix matching.
-    const exact = names.filter((entry) => entry.key === normalize(raw))
-    if (exact.length) { location.building = raw; location.room = '' }
-    else {
-      const prefixes = names.flatMap((entry) => {
-        const end = prefixEnd(raw, entry.key)
-        const suffix = end === undefined ? '' : raw.slice(end).trim()
-        return suffix && roomDescription.test(suffix) ? [{ ...entry, suffix }] : []
-      }).sort((a, b) => b.key.length - a.key.length)
-      const longest = prefixes[0]
-      if (longest) { location.building = longest.name; location.room = longest.suffix }
+  const index = data ? placeIndex(data) : undefined
+  return parseOfficialLocations(value, campus, context).map(location => {
+    if (location.hint === 'missing' || location.needsReview) return location
+    if (!['named', 'generic'].includes(location.kind ?? '')) return location
+    if (!campusId || (context.dataCampusId && context.dataCampusId !== campusId) ||
+      (location.campusText && officialCampusId(location.campusText) !== campusId)) {
+      location.hint = 'campus'
+      return location
     }
-    location.target = confirmedTarget(campusId, location.building, location.room)
-    if (location.target) return
-    const ids = new Set(names.filter((entry) => entry.key === normalize(location.building))
-      .map((entry) => entry.feature.id).filter((id) => id != null).map(String))
-    if (ids.size === 1) location.target = { campusId, featureId: [...ids][0]! }
+    const confirmed = confirmedPlaces[campusId]?.[location.building]
+    const ids = confirmed
+      ? new Set(!data || index?.featureIds.has(confirmed) ? [confirmed] : [])
+      : index?.names.get(normalize(location.building)) ?? new Set<string>()
+    if (ids.size === 1) {
+      location.target = { campusId, featureId: [...ids][0]! }
+      location.hint = undefined
+    } else location.hint = location.kind === 'generic' ? 'generic' : 'unmapped'
+    return location
   })
 }
 
-export function officialLocationTarget(campus: string, value: string, data?: CampusData | null): CampusMapTarget | undefined {
-  const locations = officialLocationTargets(campus, value, data)
-  if (!locations.length || locations.some((location) => !location.target)) return undefined
-  const targets = new Map(locations.map((location) => [JSON.stringify(location.target), location.target!]))
-  return targets.size === 1 ? [...targets.values()][0] : undefined
+export function officialLocationTarget(campus: string, value: string, data?: CampusData | null, context: LocationLookupContext = {}): CampusMapTarget | undefined {
+  const locations = officialLocationTargets(campus, value, data, context)
+  // Multiple members always require a choice, including two rooms in the same building.
+  return locations.length === 1 ? locations[0]?.target : undefined
 }
 
 export function officialLocationApplies(location: OfficialMapLocation, context: { week: number; day: number }): boolean {
-  if (location.alternative) return false
-  if (!location.condition) return true
-  return location.condition.split('且').every(condition => conditionApplies(condition.replace(/^上课/u, ''), context))
+  if (location.alternative || location.needsReview || location.hint === 'missing' ||
+    location.unassignedConditions?.length || location.conditions?.length) return false
+  if (!Number.isInteger(context.week) || context.week < 1 || !Number.isInteger(context.day) || context.day < 1 || context.day > 7) return false
+  const times = location.time ?? (location.condition ? location.condition.split('且') : [])
+  return times.every(condition => conditionApplies(condition.replace(/^上课/u, ''), context))
 }
-
 function conditionApplies(condition: string, context: { week: number; day: number }): boolean {
   if (condition === '单周') return context.week % 2 === 1
   if (condition === '双周') return context.week % 2 === 0
@@ -246,6 +175,6 @@ function conditionApplies(condition: string, context: { week: number; day: numbe
   if (weeks) return context.week >= Number(weeks[1]) && context.week <= Number(weeks[2] ?? weeks[1])
   const first = condition.match(/^前(\d+)周$/u)
   if (first) return context.week <= Number(first[1])
-  // Last-N weeks, dates and unspecified alternatives require a source-defined range.
+  // Last-N weeks, dates, times and unspecified alternatives require more source context.
   return false
 }

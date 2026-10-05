@@ -17,6 +17,7 @@ import {
   parseOfficialLocations,
   type CampusMapTarget,
   type OfficialMapLocation,
+  type LocationLookupContext,
 } from '@/site/campus-map/official-location'
 import {
   ArrowLeft,
@@ -208,9 +209,9 @@ function select(id: string, fromTimetable = false) {
   url.hash = `place=${encodeURIComponent(id)}`
   window.history.replaceState(window.history.state, '', url)
 }
-async function resolveMineLocation(campusName: string, room: string): Promise<OfficialMapLocation[]> {
+async function resolveMineLocation(campusName: string, room: string, context: LocationLookupContext = {}): Promise<OfficialMapLocation[]> {
   const campusId = officialCampusId(campusName)
-  if (!campusId) return parseOfficialLocations(room, campusName)
+  if (!campusId) return parseOfficialLocations(room, campusName, context)
   let pending: Promise<void> | undefined
   if (campus.value.id !== campusId) pending = switchCampus(campusId, false, false)
   else {
@@ -220,7 +221,7 @@ async function resolveMineLocation(campusName: string, room: string): Promise<Of
   const version = mineSelectionVersion
   await pending
   if (version !== mineSelectionVersion || campus.value.id !== campusId) return []
-  return officialLocationTargets(campusName, room, data.value)
+  return officialLocationTargets(campusName, room, data.value, { ...context, dataCampusId: campus.value.id })
 }
 function selectMinePlace(target: CampusMapTarget | null | undefined) {
   const version = ++mineSelectionVersion
@@ -249,12 +250,12 @@ function closeBuildingSchedule() {
   buildingScheduleOpen.value = false
   buildingScheduleScope.value = null
 }
-async function resolveBuildingScheduleLocation(campusName: string, room: string): Promise<OfficialMapLocation[]> {
+async function resolveBuildingScheduleLocation(campusName: string, room: string, context: LocationLookupContext = {}): Promise<OfficialMapLocation[]> {
   // The dialog owns its query scope independently of the selected map pin.
-  return matchMapLocations(campusName, room)
+  return matchMapLocations(campusName, room, context)
 }
-function matchMapLocations(campusName: string, room: string): OfficialMapLocation[] {
-  return officialLocationTargets(campusName, room, data.value)
+function matchMapLocations(campusName: string, room: string, context: LocationLookupContext = {}): OfficialMapLocation[] {
+  return officialLocationTargets(campusName, room, data.value, { ...context, dataCampusId: campus.value.id })
 }
 function closePlace() {
   mineSelectionVersion++

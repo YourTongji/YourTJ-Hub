@@ -537,6 +537,20 @@ export default {
   campusMap: {
     menu: { label: "Kartenmenü", places: "Orte", courses: "Mein Stundenplan" },
     locations: {
+      reviewPending: "Die Ortsangaben werden noch geprüft. Maßgeblich ist die ursprüngliche Kursangabe.",
+      unassigned: "Bedingungen mit unklarem Bezug: {conditions}",
+      hints: {
+        named: "Benannter Ort, noch nicht zugeordnet.",
+        generic: "Allgemeine Ortsangabe; genauer Ort unbestätigt.",
+        online: "Onlinekurs ohne physischen Ort.",
+        pending: "Ort wird noch festgelegt.",
+        no_room: "Kein Unterrichtsraum zugewiesen.",
+        unknown: "Ort unklar.",
+        missing: "Für dieses Semester nicht erfasst; Originaltext bleibt sichtbar.",
+        review: "Dieser Ort muss geprüft werden und kann noch nicht markiert werden.",
+        campus: "Der angegebene Campus ist auf dieser Karte nicht bestätigt.",
+        unmapped: "Kein eindeutiger Treffer auf der Karte.",
+      },
       label: "Kursorte",
       choose: "Wählen Sie einen Ort aus. Wochenangaben und andere Bedingungen bleiben im Original erhalten.",
       unmapped: "Nicht gefunden: Der Name hat keine eindeutige Zuordnung auf der Karte.",

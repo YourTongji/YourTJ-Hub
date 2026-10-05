@@ -9,7 +9,7 @@ import {
 } from '@/runtime/pk-api'
 import type { PkCalendar, PkCourse } from '@/site/types/pk'
 import { hasTwelfthSection } from '@/site/utils/sectionTimes'
-import { officialLocationApplies, type CampusMapTarget, type OfficialMapLocation } from '@/site/campus-map/official-location'
+import { officialLocationApplies, type CampusMapTarget, type OfficialMapLocation, type LocationLookupContext } from '@/site/campus-map/official-location'
 import CampusMapLocationChoices from './CampusMapLocationChoices.vue'
 
 interface ScheduleEntry {
@@ -23,8 +23,8 @@ interface ScheduleEntry {
 }
 
 const props = defineProps<{
-  resolveLocation: (campus: string, room: string) => Promise<OfficialMapLocation[]>
-  matchLocation?: (campus: string, room: string) => OfficialMapLocation[]
+  resolveLocation: (campus: string, room: string, context?: LocationLookupContext) => Promise<OfficialMapLocation[]>
+  matchLocation?: (campus: string, room: string, context?: LocationLookupContext) => OfficialMapLocation[]
   building?: { campusId: string; featureId: string; name: string }
 }>()
 const emit = defineEmits<{ select: [target: CampusMapTarget | null] }>()
@@ -150,7 +150,7 @@ async function searchSchedule() {
     const matchLocation = props.matchLocation
     entries.value = building && matchLocation
       ? matched.filter((entry) => {
-          return matchLocation(entry.campus, entry.room).some((location) =>
+          return matchLocation(entry.campus, entry.room, { calendarId: term }).some((location) =>
             location.target?.campusId === building.campusId &&
             location.target.featureId === building.featureId &&
             officialLocationApplies(location, selection),
@@ -186,7 +186,7 @@ async function locate(entry: ScheduleEntry) {
   selected.value = entry
   clearLocation()
   emit('select', null)
-  const locations = await props.resolveLocation(entry.campus, entry.room)
+  const locations = await props.resolveLocation(entry.campus, entry.room, { calendarId: calendarId.value })
   if (version !== selectionVersion || selected.value !== entry) return
   selectedLocations.value = locations
   const target = locations.length === 1 ? locations[0]?.target : undefined
@@ -272,7 +272,7 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-.atlas-schedule { display: grid; gap: 12px; min-height: 0; overflow: auto; padding-bottom: 18px; color: #24342f; font-size: 12px; }
+.atlas-schedule { display: grid; grid-auto-rows: max-content; align-content: start; gap: 12px; min-height: 0; overflow: auto; padding-bottom: 18px; color: #24342f; font-size: 12px; }
 .atlas-schedule label { display: grid; gap: 5px; color: #62746d; }
 .atlas-schedule select, .atlas-schedule input { min-width: 0; width: 100%; border: 1px solid #dce4de; border-radius: 9px; background: white; padding: 9px 10px; color: inherit; font: inherit; }
 .atlas-schedule__filters { display: grid; grid-template-columns: 1fr 1.15fr .7fr; gap: 7px; }
@@ -280,7 +280,7 @@ onBeforeUnmount(() => {
 .atlas-schedule__submit:disabled { opacity: .55; cursor: wait; }
 .atlas-schedule__note, .atlas-schedule__status, .atlas-schedule__unmapped { margin: 0; color: #62746d; line-height: 1.5; }
 .atlas-schedule__scope, .atlas-schedule__provenance { margin: 0; color: #62746d; font-size: 11px; line-height: 1.5; }
-.atlas-schedule__list { display: grid; gap: 7px; min-height: 0; overflow: auto; }
+.atlas-schedule__list { display: grid; gap: 7px; }
 .atlas-schedule__list button { display: grid; gap: 4px; border: 1px solid #e1e8e3; border-radius: 10px; background: white; padding: 10px; color: inherit; text-align: left; cursor: pointer; }
 .atlas-schedule__list button[aria-pressed='true'] { border-color: #58846b; box-shadow: 0 0 0 2px #58846b22; }
 .atlas-schedule__list span, .atlas-schedule__list small { color: #62746d; line-height: 1.4; }

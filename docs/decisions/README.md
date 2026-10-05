@@ -147,3 +147,4 @@ A decision starts `Proposed`. Once implemented, its status becomes `Accepted` an
 - [0058](0058-status-cloudflare.md) — Cloudflare 静态资源、只读 Worker API、GitHub Actions 定时采集与 R2 条件写快照。
 - [0059](0059-receipt-backed-mobile-release-catalog.md) — Build the public mobile notes catalog from reviewed candidates and successful channel receipts.
 - [0060](0060-status-cron-dispatch.md) — 独立 Cloudflare Cron 触发 main 采集工作流，隔离调度凭据并保留真实数据时间。
+- [0064](0064-offline-campus-location-dictionaries.md) — 按学期消费离线课程地点字典，保留待复核状态与来源，独立匹配地图且无旧算法回退。

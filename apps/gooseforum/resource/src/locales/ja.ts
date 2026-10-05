@@ -537,6 +537,20 @@ export default {
   campusMap: {
     menu: { label: "地図メニュー", places: "場所", courses: "自分の時間割" },
     locations: {
+      reviewPending: "場所の情報は確認待ちです。元の授業案内を確認してください。",
+      unassigned: "適用先が不明な条件：{conditions}",
+      hints: {
+        named: "名称のある場所ですが、未特定です。",
+        generic: "一般的な名称のため、場所は未確認です。",
+        online: "オンライン授業です。",
+        pending: "場所は未定です。",
+        no_room: "教室の割り当てはありません。",
+        unknown: "場所が不明です。",
+        missing: "この学期の一覧にない場所です。原文を表示します。",
+        review: "確認が必要なため、場所を表示できません。",
+        campus: "記載されたキャンパスと地図の対応が未確認です。",
+        unmapped: "地図上の場所を一意に特定できません。",
+      },
       label: "授業の場所",
       choose: "表示する場所を選んでください。週などの条件は原文で表示します。",
       unmapped: "未特定：地図上の場所を一意に特定できません。",

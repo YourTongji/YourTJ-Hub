@@ -3,13 +3,13 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { CampusDataset, CampusEvent } from '@gooseforum/client'
 import { campusAPI } from '@/runtime/campus-api'
-import type { CampusMapTarget, OfficialMapLocation } from '@/site/campus-map/official-location'
+import type { CampusMapTarget, OfficialMapLocation, LocationLookupContext } from '@/site/campus-map/official-location'
 import CampusMapSchedulePanel from './CampusMapSchedulePanel.vue'
 import CampusMapLocationChoices from './CampusMapLocationChoices.vue'
 
 const props = defineProps<{
   authenticated: boolean
-  resolveLocation: (campus: string, room: string) => Promise<OfficialMapLocation[]>
+  resolveLocation: (campus: string, room: string, context?: LocationLookupContext) => Promise<OfficialMapLocation[]>
 }>()
 const emit = defineEmits<{ select: [target: CampusMapTarget | null] }>()
 const { t } = useI18n()
@@ -82,7 +82,8 @@ async function chooseCourse(course: CampusEvent) {
   clearLocation()
   const version = selectionVersion
   emit('select', null)
-  const locations = await props.resolveLocation(course.campus, course.room)
+  const term = calendar.value?.metrics.find(metric => metric.label === '当前学期')?.value
+  const locations = await props.resolveLocation(course.campus, course.room, { term })
   if (version !== selectionVersion || selected.value !== course) return
   selectedLocations.value = locations
   const target = locations.length === 1 ? locations[0]?.target : undefined
