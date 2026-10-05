@@ -340,6 +340,7 @@ func apiRoute(ginApp *gin.Engine) {
 	// refresh its JWT or extend its session while opening a long-lived stream.
 	forumApi.GET("events", middleware.StreamOriginProtection, middleware.JWTAuthCheck, middleware.NoUpdateUserActivity, api.StreamEvents)
 	forumLoginApi := forumApi.Use(middleware.CSRFProtection, middleware.JWTAuthCheck)
+	forumLoginApi.GET("mention-targets", middleware.RateLimit(middleware.RateLimitInteract), UpQueryReq(api.MentionTargets))
 	forumLoginApi.GET("my-stickers", middleware.NoUpdateUserActivity, UpButterReq(api.MyStickers))
 	forumLoginApi.POST("my-sticker-save", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpLimitedJsonReq(64<<10, api.SaveMySticker))
 	forumLoginApi.POST("my-sticker-delete", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpLimitedJsonReq(64<<10, api.DeleteMySticker))
@@ -433,6 +434,9 @@ func apiRoute(ginApp *gin.Engine) {
 	// the human topic/post rate limits keyed by IP and bot userId.
 	agentApi := baseApi.Group("v1/agent", middleware.AgentAuth)
 	agentApi.GET("me", UpButterReq(api.AgentMe))
+	agentApi.GET("events", middleware.RateLimit(middleware.RateLimitInteract), UpQueryReq(api.AgentEvents))
+	agentApi.GET("events/:eventId", middleware.RateLimit(middleware.RateLimitInteract), UpUriQueryReq(api.AgentEvent))
+	agentApi.POST("events/ack", middleware.RateLimit(middleware.RateLimitInteract), UpLimitedJsonReq(16384, api.AgentAckEvents))
 	agentApi.GET("topics", UpQueryReq(api.AgentTopicList))
 	agentApi.POST("topics", middleware.RateLimit(middleware.RateLimitTopicWrite), UpLimitedJsonReq(maxContentWriteBodyBytes, api.AgentWriteTopic))
 	agentApi.GET("topics/:topicId/posts", UpUriQueryReq(api.AgentPostList))
@@ -487,7 +491,14 @@ func apiRoute(ginApp *gin.Engine) {
 		POST("agent-create", UpButterReq(api.AgentCreate)).
 		POST("agent-update", UpButterReq(api.AgentUpdate)).
 		POST("agent-rotate-token", UpButterReq(api.AgentRotateToken)).
-		POST("agent-disable", UpButterReq(api.AgentDisable))
+		POST("agent-disable", UpButterReq(api.AgentDisable)).
+		POST("agent-webhook-config", UpLimitedJsonReq(4096, api.AgentWebhookConfigure)).
+		POST("agent-webhook-rotate-secret", middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.AgentWebhookRotateSecret)).
+		POST("agent-webhook-test", middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.AgentWebhookTest)).
+		POST("agent-webhook-deliveries", UpButterReq(api.AgentWebhookDeliveries)).
+		POST("agent-webhook-redeliver", middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.AgentWebhookRedeliver)).
+		POST("agent-interaction-intents", UpButterReq(api.AgentInteractionIntents)).
+		POST("agent-interaction-replay", middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.AgentInteractionReplay))
 
 	adminApi.Group("", middleware.CheckPermission(permission.PageManager)).
 		GET("friend-links", UpButterReq(api.GetFriendLinks)).

@@ -897,6 +897,7 @@
   "mentionTagReplyTarget": "正在回复",
   "mentionTagTopicAuthor": "主题作者",
   "mentionTagParticipant": "参与者",
+  "mentionAgentLabel": "机器人",
   "@notificationMention": {
     "placeholders": {
       "actor": {

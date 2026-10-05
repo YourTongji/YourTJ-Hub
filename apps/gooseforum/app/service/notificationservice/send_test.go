@@ -144,3 +144,26 @@ func TestBlockedInteractionsDoNotCreateNotifications(t *testing.T) {
 		t.Fatalf("allowed notifications=%d, %v", count, err)
 	}
 }
+
+func TestInteractionsDoNotWakeBotsThroughHumanNotifications(t *testing.T) {
+	conn := db.Connect()
+	if err := conn.AutoMigrate(&eventNotification.Entity{}, &users.BlockEntity{}, &users.EntityComplete{}); err != nil {
+		t.Fatal(err)
+	}
+	bot := users.EntityComplete{Id: 776655, Username: "wake_bot", Email: "wake_bot@example.invalid", ActorType: users.ActorTypeBot}
+	if err := conn.Create(&bot).Error; err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		conn.Unscoped().Delete(&bot)
+		conn.Where("user_id = ?", bot.Id).Delete(&eventNotification.Entity{})
+	})
+	if err := SendPostReplyNotification(bot.Id, 881, 2, 880, "reply", 776656); err != nil {
+		t.Fatal(err)
+	}
+	var count int64
+	conn.Model(&eventNotification.Entity{}).Where("user_id = ?", bot.Id).Count(&count)
+	if count != 0 {
+		t.Fatalf("bot received %d legacy wakeups; Agent events must be its only interaction channel", count)
+	}
+}

@@ -80,7 +80,7 @@ jobs:
           username: ${{ secrets.VM_USER }}
           key: ${{ secrets.VM_SSH_KEY }}
           port: ${{ secrets.VM_SSH_PORT || '22' }}
-          source: "deploy/scripts/deploy.sh,deploy/scripts/backup-db.sh,deploy/scripts/pgdsn.sh,deploy/scripts/apply-config.sh"
+          source: "deploy/scripts/deploy.sh,deploy/scripts/backup-db.sh,deploy/scripts/pgdsn.sh,deploy/scripts/apply-config.sh,deploy/scripts/rotate-agent-epoch.py"
           target: "/tmp/yourtj-deploy-${{ github.run_id }}"
           strip_components: 2
       - name: Upload rendered main config to prod host
@@ -122,6 +122,7 @@ jobs:
             install -m 0755 "$RUN_DIR/backup-db.sh" /opt/yourtj/scripts/backup-db.sh
             install -m 0755 "$RUN_DIR/pgdsn.sh" /opt/yourtj/scripts/pgdsn.sh
             install -m 0755 "$RUN_DIR/apply-config.sh" /opt/yourtj/scripts/apply-config.sh
+            install -m 0755 "$RUN_DIR/rotate-agent-epoch.py" /opt/yourtj/scripts/rotate-agent-epoch.py
             # 0.5 更新 compose(仅 main 部署更新共享 compose, 生产为权威):
             #   - 先备份现有 compose, 部署失败时由 deploy.sh 恢复(PR review #4)
             if [ -f /opt/yourtj/docker-compose.yaml ]; then

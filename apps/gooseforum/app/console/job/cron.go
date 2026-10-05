@@ -14,7 +14,10 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/preferences"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/dailyStats"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/networkAccessLog"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/taskQueue"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/agenteventservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/agentwebhookservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/contentdeleteservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/courseservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/dataservice"
@@ -168,6 +171,21 @@ func registerJobs() {
 	}))
 	slog.Info("reg cron", "entryID", entryID, "spec", wikiSpec, "err", err)
 	// 排课数据定时同步（issue #569）：默认关闭；管理端「一系统同步」开启并保存
+	entryID, err = scheduler.AddFunc("13 3 * * *", func() {
+		if err := agenteventservice.Cleanup(); err != nil {
+			slog.Error("agent event retention cleanup failed", "err", err)
+		}
+		if err := agentwebhookservice.Cleanup(); err != nil {
+			slog.Error("agent webhook retention cleanup failed", "err", err)
+		}
+		for _, prefix := range []string{"agent-interaction.", "agent-webhook."} {
+			if _, err := taskQueue.DeleteTerminalByTypePrefix(prefix, []int{taskQueue.StatusSuccess, taskQueue.StatusFailed}, time.Now().Add(-37*24*time.Hour), 500); err != nil {
+				slog.Error("agent terminal task cleanup failed", "prefix", prefix, "err", err)
+			}
+		}
+	})
+	slog.Info("reg cron", "entryID", entryID, "spec", "13 3 * * *", "err", err)
+
 	// cron 表达式后注册本条目，配置热更新走 RefreshPkSyncCron（无需重启）。
 	registerPkSyncCron()
 }

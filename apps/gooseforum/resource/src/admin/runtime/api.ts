@@ -6,6 +6,10 @@ import type {
   AdminAgent,
   AdminAgentCreateResult,
   AdminAgentRotateResult,
+  AdminAgentWebhookDelivery,
+  AdminAgentWebhookDeliveryPage,
+  AdminAgentInteractionIntentPage,
+  AdminAgentWebhookSecretResult,
   AdminTaskRow,
   AdminTopic,
   AdminSticker,
@@ -74,13 +78,15 @@ function apiError(data: ApiEnvelope<unknown>, fallback: string) {
 }
 
 async function readApiResponse<T>(response: Response, fallback: string): Promise<T> {
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}`)
-  }
   if (response.status === 204) {
     return undefined as T
   }
-  const data = (await response.json()) as ApiEnvelope<T>
+  const data = (await response.json().catch(() => undefined)) as ApiEnvelope<T> | undefined
+  if (!response.ok) {
+    if (data?.messageCode) throw apiError(data, fallback)
+    throw new Error(`HTTP ${response.status}`)
+  }
+  if (!data) throw new Error(fallback)
   if (data.code !== undefined && data.code !== 0) {
     throw apiError(data, fallback)
   }
@@ -609,6 +615,57 @@ export function rotateAgentToken(agentId: number) {
 
 export function disableAgent(agentId: number) {
   return postJson<unknown>('/api/admin/agent-disable', { agentId }, adminText('k00k6'))
+}
+
+export function saveAgentWebhookConfig(data: {
+  agentId: number
+  configVersion: number
+  eventsEnabled: boolean
+  eventTypes: string[]
+  webhookEnabled: boolean
+  webhookEndpoint: string
+}) {
+  return postJson<AdminAgent>('/api/admin/agent-webhook-config', data, t('agentWebhook.loadFailed'))
+}
+
+export function rotateAgentWebhookSecret(data: {
+  agentId: number
+  configVersion: number
+  emergency: boolean
+}) {
+  return postJson<AdminAgentWebhookSecretResult>(
+    '/api/admin/agent-webhook-rotate-secret', data, t('agentWebhook.loadFailed'),
+  )
+}
+
+export function testAgentWebhook(agentId: number) {
+  return postJson<AdminAgentWebhookDelivery>(
+    '/api/admin/agent-webhook-test', { agentId }, t('agentWebhook.testFailed'),
+  )
+}
+
+export function getAgentWebhookDeliveries(agentId: number, page: number, pageSize: number) {
+  return postJson<AdminAgentWebhookDeliveryPage>(
+    '/api/admin/agent-webhook-deliveries', { agentId, page, pageSize }, t('agentWebhook.loadFailed'),
+  )
+}
+
+export function redeliverAgentWebhookDelivery(agentId: number, deliveryId: number) {
+  return postJson<AdminAgentWebhookDelivery>(
+    '/api/admin/agent-webhook-redeliver', { agentId, deliveryId }, t('agentWebhook.redeliverFailed'),
+  )
+}
+
+export function getAgentInteractionIntents(agentId: number, page: number, pageSize: number) {
+  return postJson<AdminAgentInteractionIntentPage>(
+    '/api/admin/agent-interaction-intents', { agentId, page, pageSize }, t('agentWebhook.loadFailed'),
+  )
+}
+
+export function replayAgentInteractionIntent(agentId: number, intentId: string | number) {
+  return postJson<unknown>(
+    '/api/admin/agent-interaction-replay', { agentId, intentId }, t('agentWebhook.replayFailed'),
+  )
 }
 
 export function getWikiNamespaces() {

@@ -10,6 +10,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topicUserStat"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/agenteventservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/pointservice"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -22,6 +23,12 @@ var topicSequenceLocks [topicSequenceLockShards]sync.Mutex
 var ErrPostNotFound = errors.New("post not found")
 
 func CreateTopicPost(entity *posts.Entity, topicEntity topics.Entity) error {
+	return CreateTopicPostWithHooks(entity, topicEntity, nil, nil)
+}
+
+// Hooks share the business transaction, including source authorization and the
+// idempotency ledger. An error rolls back the sequence and every derived write.
+func CreateTopicPostWithHooks(entity *posts.Entity, topicEntity topics.Entity, before, after func(*gorm.DB) error) error {
 	lock := &topicSequenceLocks[entity.TopicId%topicSequenceLockShards]
 	lock.Lock()
 	defer lock.Unlock()
@@ -29,6 +36,11 @@ func CreateTopicPost(entity *posts.Entity, topicEntity topics.Entity) error {
 	// Sequence reservation locks the topic before the post becomes visible. All
 	// derived writes share that transaction, so rebuilds see either side in full.
 	return db.Connect().Transaction(func(tx *gorm.DB) error {
+		if before != nil {
+			if err := before(tx); err != nil {
+				return err
+			}
+		}
 		postNo, err := topics.ReservePostSequenceTx(tx, entity.TopicId)
 		if err != nil {
 			return err
@@ -53,7 +65,16 @@ func CreateTopicPost(entity *posts.Entity, topicEntity topics.Entity) error {
 		for _, id := range ids {
 			posters = append(posters, topics.Poster{UserID: id})
 		}
-		return topics.IncrementPostFastTx(tx, entity.TopicId, posters, entity.Id, entity.CreatedAt)
+		if err := topics.IncrementPostFastTx(tx, entity.TopicId, posters, entity.Id, entity.CreatedAt); err != nil {
+			return err
+		}
+		if err := agenteventservice.CapturePublicTx(tx, entity); err != nil {
+			return err
+		}
+		if after != nil {
+			return after(tx)
+		}
+		return nil
 	})
 }
 

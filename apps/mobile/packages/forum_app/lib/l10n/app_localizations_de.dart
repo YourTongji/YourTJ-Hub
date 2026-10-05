@@ -1871,6 +1871,9 @@ class AppLocalizationsDe extends AppLocalizations {
   String get mentionTagParticipant => 'Teilnehmer';
 
   @override
+  String get mentionAgentLabel => 'Bot';
+
+  @override
   String notificationPostReply(String actor) {
     return '$actor hat dir geantwortet';
   }

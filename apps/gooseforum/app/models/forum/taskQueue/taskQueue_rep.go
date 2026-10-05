@@ -32,6 +32,7 @@ func CreateTx(tx *gorm.DB, entity *Entity) error {
 // GetPendingTasks 获取待处理的任务
 func GetPendingTasks(limit int) (tasks []*Entity) {
 	builder().Where(queryopt.In("status", []int{StatusPending, StatusRetrying})).
+		Where("next_run_at IS NULL OR next_run_at <= ?", time.Now()).
 		Order("id asc").
 		Limit(limit).
 		Find(&tasks)
@@ -45,10 +46,22 @@ func GetPendingTasksByType(typePrefix string, limit int) (tasks []*Entity) {
 		query = query.Where("type LIKE ?", typePrefix+"%")
 	}
 	query.Where(queryopt.In("status", []int{StatusPending, StatusRetrying})).
+		Where("next_run_at IS NULL OR next_run_at <= ?", time.Now()).
 		Order("id asc").
 		Limit(limit).
 		Find(&tasks)
 	return
+}
+
+// PendingManagedGroups selects one due job per Agent per polling batch so an
+// unhealthy receiver cannot monopolize the queue behind a long same-Agent run.
+func PendingManagedGroups(typePrefix string, limit int) (tasks []*Entity) {
+	if typePrefix != "agent-webhook." {
+		return GetPendingTasksByType(typePrefix, limit)
+	}
+	sub := builder().Select("MIN(id)").Where("type LIKE ? AND status IN (?, ?)", typePrefix+"%", StatusPending, StatusRetrying).Where("next_run_at IS NULL OR next_run_at <= ?", time.Now()).Group("schedule_group")
+	builder().Where("id IN (?)", sub).Order("id asc").Limit(limit).Find(&tasks)
+	return tasks
 }
 
 // emailTypeQuery 返回邮件 worker 的类型匹配条件（email.* 前缀 + 存量
@@ -67,6 +80,7 @@ func GetPendingEmailTasks(limit int) (tasks []*Entity) {
 	builder().
 		Where(clause, args...).
 		Where(queryopt.In("status", []int{StatusPending, StatusRetrying})).
+		Where("next_run_at IS NULL OR next_run_at <= ?", time.Now()).
 		Order("id asc").
 		Limit(limit).
 		Find(&tasks)
@@ -80,10 +94,14 @@ func GetPendingEmailTasks(limit int) (tasks []*Entity) {
 // 并发 worker 同时领取同一任务时只有一个成功（RowsAffected=1），其余返回
 // claimed=false —— 取代原先"查询 pending + 无守卫更新 running"的两步分离，
 // 消除多 worker 重复领取与重复外部副作用。
-func ClaimTask(id uint64) (entity Entity, claimed bool, err error) {
-	err = db.Connect().Transaction(func(tx *gorm.DB) error {
+func ClaimTask(id uint64) (Entity, bool, error) { return ClaimTaskWithDB(db.Connect(), id) }
+
+// ClaimTaskWithDB keeps owner semantics usable on isolated migration/PG fixtures.
+func ClaimTaskWithDB(conn *gorm.DB, id uint64) (entity Entity, claimed bool, err error) {
+	err = conn.Transaction(func(tx *gorm.DB) error {
 		res := tx.Table(tableName).
 			Where("id = ? AND status IN (?, ?)", id, StatusPending, StatusRetrying).
+			Where("next_run_at IS NULL OR next_run_at <= ?", time.Now()).
 			Updates(map[string]any{
 				"status":       StatusRunning,
 				"processed_at": time.Now(),
@@ -251,4 +269,46 @@ func DeleteTerminalByTypePrefix(typePrefix string, statuses []int, before time.T
 			return total, nil
 		}
 	}
+}
+
+// TransitionOwnedTx couples a domain result with its task's fenced transition.
+// Returning false requires the caller to roll back all domain writes.
+func TransitionOwnedTx(tx *gorm.DB, id uint64, token string, status uint8, due *time.Time, lastError string) (bool, error) {
+	r := tx.Model(&Entity{}).Where("id = ? AND status = ? AND lease_token = ?", id, StatusRunning, token).Updates(map[string]any{"status": status, "next_run_at": due, "last_error": lastError, "processed_at": time.Now()})
+	return r.RowsAffected == 1, r.Error
+}
+func OwnedTx(tx *gorm.DB, id uint64, token string) (bool, error) {
+	var n int64
+	err := tx.Model(&Entity{}).Where("id = ? AND status = ? AND lease_token = ?", id, StatusRunning, token).Count(&n).Error
+	return n == 1, err
+}
+
+// RetryOwned persists delay for managed Agent workers; no sleeping worker.
+func RetryOwned(id uint64, token string, due time.Time, lastError string, maxAttempts uint8) error {
+	return db.Connect().Transaction(func(tx *gorm.DB) error {
+		var row Entity
+		if err := tx.Where("id = ? AND status = ? AND lease_token = ?", id, StatusRunning, token).First(&row).Error; err != nil {
+			if err == gorm.ErrRecordNotFound {
+				return nil
+			}
+			return err
+		}
+		status := uint8(StatusRetrying)
+		if row.RetryCount+1 >= maxAttempts {
+			status = StatusFailed
+		}
+		r := tx.Model(&Entity{}).Where("id = ? AND status = ? AND lease_token = ?", id, StatusRunning, token).Updates(map[string]any{"status": status, "next_run_at": due, "retry_count": row.RetryCount + 1, "last_error": lastError, "processed_at": time.Now()})
+		return r.Error
+	})
+}
+func ResetTerminalTx(tx *gorm.DB, id uint64, due time.Time) error {
+	return tx.Model(&Entity{}).Where("id = ? AND status IN (?, ?)", id, StatusFailed, StatusSuccess).Updates(map[string]any{"status": StatusPending, "retry_count": 0, "next_run_at": due, "last_error": "", "lease_token": ""}).Error
+}
+
+// CancelPendingIDsTx leaves already permitted/running attempts in flight.
+func CancelPendingIDsTx(tx *gorm.DB, ids []uint64, reason string) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	return tx.Model(&Entity{}).Where("id IN ? AND status IN (?, ?)", ids, StatusPending, StatusRetrying).Updates(map[string]any{"status": StatusSuccess, "last_error": reason, "processed_at": time.Now()}).Error
 }

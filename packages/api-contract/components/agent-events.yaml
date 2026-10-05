@@ -1,0 +1,575 @@
+AgentEventData:
+  type: object
+  properties:
+    topicId: &id001
+      type: integer
+      format: uint64
+      minimum: 1
+    postId: *id001
+    postNo: *id001
+    replyToPostId:
+      type: integer
+      minimum: 0
+    actorId: *id001
+    actorType:
+      type: string
+      enum:
+      - human
+    reasons:
+      type: array
+      items:
+        type: string
+        enum:
+        - post_reply
+        - mention
+        - comment
+    url:
+      type: string
+  required:
+  - topicId
+  - postId
+  - postNo
+  - replyToPostId
+  - actorId
+  - actorType
+  - reasons
+  - url
+  additionalProperties: false
+AgentEvent:
+  type: object
+  properties:
+    id:
+      type: string
+      maxLength: 80
+    instanceId:
+      type: string
+    schemaVersion:
+      type: integer
+      const: 1
+    type:
+      type: string
+      enum: &id003
+      - agent.mentioned
+      - agent.post_replied
+      - agent.topic_commented
+    occurredAt:
+      type: string
+      format: date-time
+    agentId: *id001
+    state:
+      type: string
+      enum:
+      - active
+      - withdrawn
+      - expired
+    data:
+      $ref: '#/AgentEventData'
+    ackedAt:
+      type: string
+      format: date-time
+    resultingTopicId: *id001
+    resultingPostId: *id001
+  required:
+  - id
+  - instanceId
+  - schemaVersion
+  - type
+  - occurredAt
+  - agentId
+  - state
+  additionalProperties: false
+AgentEventsSuccess:
+  allOf:
+  - $ref: ../components/schemas.yaml#/ApiSuccess
+  - type: object
+    properties:
+      result:
+        type: object
+        properties:
+          events:
+            type: array
+            items:
+              $ref: '#/AgentEvent'
+            maxItems: 100
+          nextCursor:
+            type: string
+          hasMore: &id002
+            type: boolean
+          replayFloor:
+            type: string
+        required:
+        - events
+        - nextCursor
+        - hasMore
+        - replayFloor
+        additionalProperties: false
+AgentEventsResponse:
+  oneOf:
+  - $ref: '#/AgentEventsSuccess'
+  - $ref: ../components/schemas.yaml#/ApiFailure
+AgentEventSuccess:
+  allOf:
+  - $ref: ../components/schemas.yaml#/ApiSuccess
+  - type: object
+    properties:
+      result:
+        $ref: '#/AgentEvent'
+AgentEventResponse:
+  oneOf:
+  - $ref: '#/AgentEventSuccess'
+  - $ref: ../components/schemas.yaml#/ApiFailure
+AgentAckSuccess:
+  allOf:
+  - $ref: ../components/schemas.yaml#/ApiSuccess
+  - type: object
+    properties:
+      result: *id002
+AgentAckResponse:
+  oneOf:
+  - $ref: '#/AgentAckSuccess'
+  - $ref: ../components/schemas.yaml#/ApiFailure
+AgentAckRequest:
+  type: object
+  properties:
+    eventIds:
+      type: array
+      items:
+        type: string
+        minLength: 1
+        maxLength: 80
+      minItems: 1
+      maxItems: 100
+  required:
+  - eventIds
+  additionalProperties: false
+MentionTarget:
+  type: object
+  properties:
+    userId: *id001
+    username:
+      type: string
+    nickname:
+      type: string
+    avatarUrl:
+      type: string
+    actorType:
+      type: string
+      enum:
+      - human
+      - bot
+  required:
+  - userId
+  - username
+  - nickname
+  - avatarUrl
+  - actorType
+  additionalProperties: false
+MentionTargetsSuccess:
+  allOf:
+  - $ref: ../components/schemas.yaml#/ApiSuccess
+  - type: object
+    properties:
+      result:
+        type: array
+        items:
+          $ref: '#/MentionTarget'
+        maxItems: 20
+MentionTargetsResponse:
+  oneOf:
+  - $ref: '#/MentionTargetsSuccess'
+  - $ref: ../components/schemas.yaml#/ApiFailure
+AgentWebhookConfigRequest:
+  type: object
+  properties:
+    agentId: *id001
+    configVersion:
+      type: integer
+      minimum: 0
+    eventsEnabled: *id002
+    eventTypes:
+      type: array
+      items:
+        type: string
+        enum: *id003
+      maxItems: 3
+    webhookEnabled: *id002
+    webhookEndpoint:
+      type: string
+      maxLength: 512
+  required:
+  - agentId
+  additionalProperties: false
+AgentWebhookRotateRequest:
+  type: object
+  properties:
+    agentId: *id001
+    configVersion:
+      type: integer
+      minimum: 0
+    emergency: *id002
+  required:
+  - agentId
+  additionalProperties: false
+AgentWebhookConfigSuccess:
+  allOf:
+  - $ref: ../components/schemas.yaml#/ApiSuccess
+  - type: object
+    properties:
+      result:
+        $ref: ../components/schemas.yaml#/AdminAgentItem
+AgentWebhookConfigResponse:
+  oneOf:
+  - $ref: '#/AgentWebhookConfigSuccess'
+  - $ref: ../components/schemas.yaml#/ApiFailure
+AgentWebhookSecretSuccess:
+  allOf:
+  - $ref: ../components/schemas.yaml#/ApiSuccess
+  - type: object
+    properties:
+      result:
+        type: object
+        properties:
+          secret:
+            type: string
+            description: One-time independent whsec_ HMAC secret. Store outside the
+              forum DB; never use the Agent bearer token.
+          secretVersion:
+            type: integer
+            minimum: 1
+          configVersion:
+            type: integer
+            minimum: 1
+        required:
+        - secret
+        - secretVersion
+        - configVersion
+        additionalProperties: false
+AgentWebhookSecretResponse:
+  oneOf:
+  - $ref: '#/AgentWebhookSecretSuccess'
+  - $ref: ../components/schemas.yaml#/ApiFailure
+AgentWebhookPageRequest:
+  type: object
+  properties:
+    agentId: *id001
+    page:
+      type: integer
+      minimum: 1
+      maximum: 10000
+      default: 1
+    pageSize:
+      type: integer
+      minimum: 1
+      maximum: 100
+      default: 20
+  required:
+  - agentId
+  additionalProperties: false
+AgentWebhookRedeliverRequest:
+  type: object
+  properties:
+    agentId: *id001
+    deliveryId: *id001
+  required:
+  - agentId
+  - deliveryId
+  additionalProperties: false
+AgentIntentReplayRequest:
+  type: object
+  properties:
+    agentId: *id001
+    intentId:
+      type: string
+      minLength: 1
+      maxLength: 64
+  required:
+  - agentId
+  - intentId
+  additionalProperties: false
+AgentWebhookAttempt:
+  type: object
+  properties:
+    id:
+      type: string
+    instanceId:
+      type: string
+    deliveryId: *id001
+    round:
+      type: integer
+      minimum: 1
+    number:
+      type: integer
+      minimum: 1
+    httpStatus:
+      type: integer
+    errorClass:
+      type: string
+    durationMs:
+      type: integer
+    authorizedAt:
+      type: string
+      format: date-time
+    completedAt:
+      type:
+      - string
+      - 'null'
+      format: date-time
+  required:
+  - id
+  - instanceId
+  - deliveryId
+  - round
+  - number
+  - httpStatus
+  - errorClass
+  - durationMs
+  - authorizedAt
+  - completedAt
+  additionalProperties: false
+AgentWebhookDelivery:
+  type: object
+  properties:
+    id: *id001
+    instanceId: &id004
+      type: string
+    eventId: &id005
+      type: string
+    agentId: *id001
+    endpointGeneration: &id006
+      type: integer
+      minimum: 0
+    schemaVersion: &id007
+      type: integer
+      const: 1
+    status: &id008
+      type: string
+      enum:
+      - pending
+      - running
+      - accepted
+      - retry_wait
+      - dead
+      - cancelled
+    reason: &id009
+      type: string
+    taskId: &id010
+      type: integer
+      minimum: 0
+    round: &id011
+      type: integer
+      minimum: 1
+    attemptCount: &id012
+      type: integer
+      minimum: 0
+    totalAttempts: &id013
+      type: integer
+      minimum: 0
+    deadline: &id014
+      type: string
+      format: date-time
+    expiresAt: &id015
+      type: string
+      format: date-time
+    nextRunAt: &id016
+      type:
+      - string
+      - 'null'
+      format: date-time
+    createdBy: &id017
+      type: integer
+      minimum: 0
+    lastRedeliveredBy: &id018
+      type: integer
+      minimum: 0
+    acceptedAt: &id019
+      type:
+      - string
+      - 'null'
+      format: date-time
+    createdAt: &id020
+      type: string
+      format: date-time
+    updatedAt: &id021
+      type: string
+      format: date-time
+  required:
+  - id
+  - instanceId
+  - eventId
+  - agentId
+  - endpointGeneration
+  - schemaVersion
+  - status
+  - reason
+  - taskId
+  - round
+  - attemptCount
+  - totalAttempts
+  - deadline
+  - expiresAt
+  - nextRunAt
+  - createdBy
+  - lastRedeliveredBy
+  - acceptedAt
+  - createdAt
+  - updatedAt
+  additionalProperties: false
+AgentWebhookDeliveryItem:
+  type: object
+  properties:
+    id: *id001
+    instanceId: *id004
+    eventId: *id005
+    agentId: *id001
+    endpointGeneration: *id006
+    schemaVersion: *id007
+    status: *id008
+    reason: *id009
+    taskId: *id010
+    round: *id011
+    attemptCount: *id012
+    totalAttempts: *id013
+    deadline: *id014
+    expiresAt: *id015
+    nextRunAt: *id016
+    createdBy: *id017
+    lastRedeliveredBy: *id018
+    acceptedAt: *id019
+    createdAt: *id020
+    updatedAt: *id021
+    attempts:
+      type: array
+      items:
+        $ref: '#/AgentWebhookAttempt'
+      maxItems: 100
+  required:
+  - id
+  - instanceId
+  - eventId
+  - agentId
+  - endpointGeneration
+  - schemaVersion
+  - status
+  - reason
+  - taskId
+  - round
+  - attemptCount
+  - totalAttempts
+  - deadline
+  - expiresAt
+  - nextRunAt
+  - createdBy
+  - lastRedeliveredBy
+  - acceptedAt
+  - createdAt
+  - updatedAt
+  - attempts
+  additionalProperties: false
+AgentWebhookTestSuccess:
+  allOf:
+  - $ref: ../components/schemas.yaml#/ApiSuccess
+  - type: object
+    properties:
+      result:
+        $ref: '#/AgentWebhookDelivery'
+AgentWebhookTestResponse:
+  oneOf:
+  - $ref: '#/AgentWebhookTestSuccess'
+  - $ref: ../components/schemas.yaml#/ApiFailure
+AgentWebhookDeliveriesSuccess:
+  allOf:
+  - $ref: ../components/schemas.yaml#/ApiSuccess
+  - type: object
+    properties:
+      result:
+        type: object
+        properties:
+          list:
+            type: array
+            items:
+              $ref: '#/AgentWebhookDeliveryItem'
+          total:
+            type: integer
+            minimum: 0
+          page:
+            type: integer
+            minimum: 1
+          pageSize:
+            type: integer
+            minimum: 1
+        required:
+        - list
+        - total
+        - page
+        - pageSize
+        additionalProperties: false
+AgentWebhookDeliveriesResponse:
+  oneOf:
+  - $ref: '#/AgentWebhookDeliveriesSuccess'
+  - $ref: ../components/schemas.yaml#/ApiFailure
+AgentInteractionIntent:
+  type: object
+  properties:
+    intentId:
+      type: string
+    sourceOccurrenceId:
+      type: string
+    postId: *id001
+    revision:
+      type: integer
+      minimum: 0
+    status:
+      type: string
+    errorCode:
+      type: string
+    retryCount:
+      type: integer
+      minimum: 0
+    createdAt:
+      type: string
+      format: date-time
+    expiresAt:
+      type: string
+      format: date-time
+  required:
+  - intentId
+  - sourceOccurrenceId
+  - postId
+  - revision
+  - status
+  - errorCode
+  - retryCount
+  - createdAt
+  - expiresAt
+  additionalProperties: false
+AgentInteractionIntentsSuccess:
+  allOf:
+  - $ref: ../components/schemas.yaml#/ApiSuccess
+  - type: object
+    properties:
+      result:
+        type: object
+        properties:
+          list:
+            type: array
+            items:
+              $ref: '#/AgentInteractionIntent'
+          total:
+            type: integer
+            minimum: 0
+          page:
+            type: integer
+            minimum: 0
+          pageSize:
+            type: integer
+            minimum: 0
+        required:
+        - list
+        - total
+        - page
+        - pageSize
+        additionalProperties: false
+AgentInteractionIntentsResponse:
+  oneOf:
+  - $ref: '#/AgentInteractionIntentsSuccess'
+  - $ref: ../components/schemas.yaml#/ApiFailure

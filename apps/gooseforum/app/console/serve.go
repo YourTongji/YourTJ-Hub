@@ -27,6 +27,8 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/routes"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/migration"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/taskQueue"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/agenteventservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/agentwebhookservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/backgroundservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/courseservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/dataservice"
@@ -275,6 +277,9 @@ func (r *serveRuntime) runStartup() (fatalErr error) {
 // writes the database (or depends on a migrated schema). It runs only after
 // migration succeeds or defers via a non-fatal sentinel.
 func startBusinessServices() {
+	agentwebhookservice.Register()
+	backgroundservice.RunManagedWorker("agent_interaction_worker", "agent-interaction.", agenteventservice.HandleTask)
+	backgroundservice.RunManagedWorker("agent_webhook_worker", "agent-webhook.", agentwebhookservice.HandleTask)
 	// 初始化OAuth配置
 	oauthservice.InitOAuth()
 	oidcservice.InitOIDC()

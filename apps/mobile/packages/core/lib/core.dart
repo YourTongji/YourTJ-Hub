@@ -23,6 +23,8 @@ export 'src/api/repositories/sticker_repository.dart';
 export 'src/api/repositories/wiki_repository.dart';
 
 export 'src/gen/agent.dart';
+export 'src/gen/agent_event.dart';
+export 'src/gen/mention_target.dart';
 export 'src/gen/auth.dart';
 export 'src/gen/course_catalog.dart';
 export 'src/gen/course_review.dart';

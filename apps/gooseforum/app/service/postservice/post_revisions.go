@@ -3,8 +3,11 @@ package postservice
 import (
 	"time"
 
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/agentinstance"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postRevisions"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/agenteventservice"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -58,6 +61,19 @@ func appendPostRevision(tx *gorm.DB, post *posts.Entity, editorID uint64, proces
 			return err
 		}
 		next = 2
+	}
+	if agentinstance.Current().ID != "" && agentinstance.Current().Epoch != "" {
+		// Seed the prior public revision before overwriting legacy content.
+		topic, err := topics.GetUnscopedTx(tx, post.TopicId)
+		if err != nil {
+			return err
+		}
+		if next > 1 && !post.IsAnonymous && topic.Status == 1 && topic.ProcessStatus == topics.ProcessStatusNormal && topic.VisibilityStatus == topics.VisibilityActive && topic.TopicType == topics.TopicTypeForum && oldProcessStatus == posts.ProcessStatusNormal {
+			if err := agenteventservice.BaselineTx(tx, post.Id, next-1); err != nil {
+				return err
+			}
+		}
+
 	}
 	now := time.Now()
 	if err := postRevisions.CreateTx(tx, &postRevisions.Entity{

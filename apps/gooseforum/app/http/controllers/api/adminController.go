@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/agentinstance"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/buildinfo"
 	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/eventbus"
@@ -34,6 +35,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/moderators"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/optRecord"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postRevisions"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/role"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/rolePermissionRs"
@@ -45,6 +47,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userStatistics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/agenteventservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/badgeservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/contentdeleteservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/dataservice"
@@ -588,8 +591,29 @@ func EditTopic(req component.BetterRequest[EditTopicReq]) component.Response {
 	}
 
 	if err := db.ConnectContext(requestContext(req.GinContext)).Transaction(func(tx *gorm.DB) error {
+		// Keep the first-post authorization fence ahead of the topic lock,
+		// matching event reads, source-linked replies and public edits.
+		if topic.FirstPostId > 0 {
+			if _, err := posts.GetUnscopedTx(tx, topic.FirstPostId); err != nil {
+				return err
+			}
+		}
 		if err := topics.UpdateProcessStatusTx(tx, topic.Id, req.Params.ProcessStatus); err != nil {
 			return err
+		}
+		if req.Params.ProcessStatus != topics.ProcessStatusNormal {
+			if err := agenteventservice.WithdrawContentTx(tx, topic.Id, 0); err != nil {
+				return err
+			}
+		}
+		if req.Params.ProcessStatus == topics.ProcessStatusNormal && topic.FirstPostId > 0 {
+			p, err := posts.GetCurrentTx(tx, topic.FirstPostId)
+			if err != nil {
+				return err
+			}
+			if err := agenteventservice.CapturePublicTx(tx, &p); err != nil {
+				return err
+			}
 		}
 		return searchservice.EnqueueTopicSearchTask(tx, topic.Id)
 	}); err != nil {
@@ -2380,13 +2404,43 @@ func reviewContent(ctx context.Context, params ReviewActionReq, actorID uint64, 
 		if topic.ProcessStatus != topics.ProcessStatusPending {
 			return component.FailResponseCode(component.MessageAdminReviewProcessed, nil)
 		}
+		var priorPublic postRevisions.Entity
+		var hasPriorPublic bool
+		usePublicationBaseline := agentinstance.Current().ID != "" && agentinstance.Current().Epoch != ""
 		if err := db.ConnectContext(ctx).Transaction(func(tx *gorm.DB) error {
+			// Match first-post edits: post before topic, then participants/Agent.
+			if topic.FirstPostId > 0 {
+				if _, err := posts.GetUnscopedTx(tx, topic.FirstPostId); err != nil {
+					return err
+				}
+			}
 			if err := topics.UpdateProcessStatusTx(tx, topic.Id, targetStatus); err != nil {
 				return err
 			}
 			// 首楼同步状态
 			if topic.FirstPostId > 0 {
 				if err := posts.UpdateProcessStatusTx(tx, topic.FirstPostId, targetStatus); err != nil {
+					return err
+				}
+				if params.Approve {
+					if usePublicationBaseline {
+						var err error
+						priorPublic, hasPriorPublic, err = agenteventservice.PreviousPublicTx(tx, topic.FirstPostId)
+						if err != nil {
+							return err
+						}
+					}
+					post, err := posts.GetUnscopedTx(tx, topic.FirstPostId)
+					if err != nil {
+						return err
+					}
+					if err := agenteventservice.CapturePublicTx(tx, &post); err != nil {
+						return err
+					}
+				}
+			}
+			if !params.Approve {
+				if err := agenteventservice.WithdrawContentTx(tx, topic.Id, 0); err != nil {
 					return err
 				}
 			}
@@ -2414,7 +2468,10 @@ func reviewContent(ctx context.Context, params ReviewActionReq, actorID uint64, 
 		// 批准后补发事件：新建主题发完整发布事件（搜索索引/统计/积分/活动/通知），
 		// 编辑主题仅重建索引与通知，避免重复积分。
 		if params.Approve && topic.Status == 1 {
-			if userActivities.HasRecord(userActivities.ActionPost, userActivities.SubjectTopic, topic.Id) {
+			if hasPriorPublic {
+				eventbus.Publish(eventbus.DetachedContext(ctx), &eventhandlers.PostUpdatedEvent{TopicId: topic.Id, PostId: firstPost.Id, PostNo: firstPost.PostNo, UserId: firstPost.UserId, OldContent: priorPublic.Content, NewContent: firstPost.Content, IsAnonymous: firstPost.IsAnonymous})
+			}
+			if hasPriorPublic || (!usePublicationBaseline && userActivities.HasRecord(userActivities.ActionPost, userActivities.SubjectTopic, topic.Id)) {
 				eventbus.Publish(eventbus.DetachedContext(ctx), &eventhandlers.TopicUpdatedEvent{Topic: &topic, FirstPost: &firstPost})
 			} else {
 				userStatistics.WriteTopic(topic.UserId)
@@ -2439,9 +2496,28 @@ func reviewContent(ctx context.Context, params ReviewActionReq, actorID uint64, 
 			return component.FailResponseCode(component.MessageAdminReviewProcessed, nil)
 		}
 		topicEntity := topics.GetSimple(post.TopicId)
+		var priorPublic postRevisions.Entity
+		var hasPriorPublic bool
+		usePublicationBaseline := agentinstance.Current().ID != "" && agentinstance.Current().Epoch != ""
 		if err := db.ConnectContext(ctx).Transaction(func(tx *gorm.DB) error {
 			if err := posts.UpdateProcessStatusTx(tx, post.Id, targetStatus); err != nil {
 				return err
+			}
+			if params.Approve {
+				if usePublicationBaseline {
+					var err error
+					priorPublic, hasPriorPublic, err = agenteventservice.PreviousPublicTx(tx, post.Id)
+					if err != nil {
+						return err
+					}
+				}
+				if err := agenteventservice.CapturePublicTx(tx, &post); err != nil {
+					return err
+				}
+			} else {
+				if err := agenteventservice.WithdrawContentTx(tx, post.TopicId, post.Id); err != nil {
+					return err
+				}
 			}
 			return searchservice.EnqueueTopicSearchTask(tx, topicEntity.Id)
 		}); err != nil {
@@ -2459,7 +2535,10 @@ func reviewContent(ctx context.Context, params ReviewActionReq, actorID uint64, 
 		}
 		hotdataserve.InvalidateTopicListCacheForCategories(topicEntity.CategoryIds...)
 		// 批准后补发事件：仅对新建待审回复补发（编辑场景创建时已发布过事件）。
-		if params.Approve && !userActivities.HasRecord(userActivities.ActionComment, userActivities.SubjectPost, post.Id) {
+		if params.Approve && hasPriorPublic {
+			eventbus.Publish(eventbus.DetachedContext(ctx), &eventhandlers.PostUpdatedEvent{TopicId: post.TopicId, PostId: post.Id, PostNo: post.PostNo, UserId: post.UserId, OldContent: priorPublic.Content, NewContent: post.Content, IsAnonymous: post.IsAnonymous})
+		}
+		if params.Approve && !hasPriorPublic && (usePublicationBaseline || !userActivities.HasRecord(userActivities.ActionComment, userActivities.SubjectPost, post.Id)) {
 			userStatistics.WriteComment(post.UserId)
 			topicEntity := topics.GetSimple(post.TopicId)
 			replyToAuthorID := uint64(0)

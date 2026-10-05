@@ -3468,6 +3468,12 @@ abstract class AppLocalizations {
   /// **'Participant'**
   String get mentionTagParticipant;
 
+  /// No description provided for @mentionAgentLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Bot'**
+  String get mentionAgentLabel;
+
   /// No description provided for @notificationPostReply.
   ///
   /// In en, this message translates to:

@@ -219,3 +219,11 @@ rules, persisted through `pageConfig`'s compare-and-swap API. It drafts public n
 applies confirmed rules to original dated occurrences before emitting ICS; source teaching
 weeks and stable event identities are preserved. Both clients explicitly choose whether to
 apply rules. The LLM does not receive private timetables.
+
+## Agent interaction boundary
+
+Public source revisions and durable intents commit with forum content. Agent event materialization
+and optional signed delivery reuse `task_queue`; external runners own models, scheduling, ingress
+deduplication and processing ACK. Instance identity/epoch remain outside business snapshots.
+See [MADR 0061](../decisions/0061-agent-interaction-events.md) for transaction/lock and protocol choices
+and the [Agent runbook](../operations/agents.md) for current limits and restore behavior.

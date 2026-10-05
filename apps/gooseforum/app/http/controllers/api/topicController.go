@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"strings"
 	"time"
@@ -12,6 +13,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/markdown2html"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/forum"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/agentWrites"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/moderationDecision"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postRevisions"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postUserAction"
@@ -23,6 +25,8 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userStatistics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/agenteventservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/agentwriteservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/contentdeleteservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/eventhandlers"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/fileusageservice"
@@ -262,6 +266,15 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 	}
 
 	// 敏感词检查（标题+内容）
+	if agent {
+		cached, lookupErr := agentwriteservice.Lookup(betterRequestContext(req), req.UserId)
+		if lookupErr != nil {
+			return agentWriteFailure(lookupErr)
+		}
+		if cached != nil {
+			return agentReplayResponse(req.UserId, cached)
+		}
+	}
 	pendingReview, _, policyErr := checkContentPolicy(req.UserId, req.Params.Title+"\n"+req.Params.Content, "topic", req.Params.TopicId)
 	if policyErr != nil {
 		return component.FailResponseError(policyErr)
@@ -358,9 +371,17 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 	// 记录是否为编辑：事务内 topics.CreateTx 会回填 topic.Id，因此提交后分支判断
 	// 必须使用此快照（isEdit），不能复用已被回填的 topic.Id。
 	isEdit := topic.Id > 0
+	var reservation, replay *agentWrites.Entry
 	// 单事务原子提交：话题 + 首帖 + 指针（首/末帖 ID、最后回复时间）+ 分类索引。
 	// 任一步失败整体回滚，不留孤立话题/缺首帖/缺分类索引；事件与缓存失效仅在提交后执行。
 	err = db.ConnectContext(betterRequestContext(req)).Transaction(func(tx *gorm.DB) error {
+		if agent {
+			var reserveErr error
+			reservation, replay, reserveErr = agentwriteservice.BeginTx(betterRequestContext(req), tx, req.UserId)
+			if reserveErr != nil {
+				return reserveErr
+			}
+		}
 		if isEdit {
 			// 锁序与 UpdatePost 首楼分支保持一致（posts → topics）：先写
 			// firstPost 行、再写 topic 派生字段。若这里先锁 topics 再锁
@@ -369,6 +390,12 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 			if err := posts.SaveTx(tx, &firstPost); err != nil {
 				return err
 			}
+			if firstPost.ProcessStatus != posts.ProcessStatusNormal || firstPost.IsAnonymous {
+				if err := agenteventservice.WithdrawContentTx(tx, topic.Id, 0); err != nil {
+					return err
+				}
+			}
+
 			// 首楼编辑追加版本历史 + 最后编辑者/时间（与 UpdatePost 同语义）。
 			// 存量帖子无版本快照时用旧正文惰性播种 v1（状态取编辑前 oldProcessStatus）。
 			if err := postservice.AppendPostRevisionWithOld(tx, &firstPost, req.UserId, firstPost.ProcessStatus, oldContent, oldProcessStatus); err != nil {
@@ -417,12 +444,27 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 				return err
 			}
 		}
+		if err := agenteventservice.CapturePublicTx(tx, &firstPost); err != nil {
+			return err
+		}
 		if err := topicCategoryIndex.ReplaceTopicCategoriesTx(tx, topic.Id, req.Params.CategoryId); err != nil {
 			return err
 		}
-		return searchservice.EnqueueTopicSearchTask(tx, topic.Id)
+		if err := searchservice.EnqueueTopicSearchTask(tx, topic.Id); err != nil {
+			return err
+		}
+		if agent {
+			return agentwriteservice.FinishTx(betterRequestContext(req), tx, req.UserId, reservation, topic.Id, firstPost.Id)
+		}
+		return nil
 	})
+	if errors.Is(err, agentwriteservice.ErrReplay) {
+		return agentReplayResponse(req.UserId, replay)
+	}
 	if err != nil {
+		if agent {
+			return agentWriteFailure(err)
+		}
 		slog.Error("topic write transaction failed", "topicId", topic.Id, "isEdit", isEdit, "err", err)
 		return component.FailResponseCode(component.MessageOperationFailed, nil)
 	}
@@ -490,8 +532,27 @@ func UpdateTopicStatus(req component.BetterRequest[TopicStatusReq]) component.Re
 	}
 	topic.Status = nextStatus
 	if err := db.ConnectContext(betterRequestContext(req)).Transaction(func(tx *gorm.DB) error {
+		if topic.FirstPostId > 0 {
+			if _, err := posts.GetUnscopedTx(tx, topic.FirstPostId); err != nil {
+				return err
+			}
+		}
 		if err := topics.UpdateStatusTx(tx, topic.Id, nextStatus); err != nil {
 			return err
+		}
+		if nextStatus == 1 && topic.FirstPostId > 0 {
+			p, err := posts.GetCurrentTx(tx, topic.FirstPostId)
+			if err != nil {
+				return err
+			}
+			if err := agenteventservice.CapturePublicTx(tx, &p); err != nil {
+				return err
+			}
+		}
+		if nextStatus != 1 {
+			if err := agenteventservice.WithdrawContentTx(tx, topic.Id, 0); err != nil {
+				return err
+			}
 		}
 		return searchservice.EnqueueTopicSearchTask(tx, topic.Id)
 	}); err != nil {
@@ -648,6 +709,15 @@ func createPost(req component.BetterRequest[CreatePostReq], agent bool) componen
 	}
 
 	// 敏感词检查
+	if agent {
+		cached, lookupErr := agentwriteservice.Lookup(betterRequestContext(req), req.UserId)
+		if lookupErr != nil {
+			return agentWriteFailure(lookupErr)
+		}
+		if cached != nil {
+			return agentReplayResponse(req.UserId, cached)
+		}
+	}
 	pendingReview, _, policyErr := checkContentPolicy(req.UserId, content, "post", 0)
 	if policyErr != nil {
 		return component.FailResponseError(policyErr)
@@ -668,8 +738,25 @@ func createPost(req component.BetterRequest[CreatePostReq], agent bool) componen
 		postEntity.ProcessStatus = posts.ProcessStatusPending
 	}
 
-	err = postservice.CreateTopicPost(postEntity, topicEntity)
+	if agent {
+		var reservation, replay *agentWrites.Entry
+		err = postservice.CreateTopicPostWithHooks(postEntity, topicEntity, func(tx *gorm.DB) error {
+			var reserveErr error
+			reservation, replay, reserveErr = agentwriteservice.BeginTx(betterRequestContext(req), tx, req.UserId)
+			return reserveErr
+		}, func(tx *gorm.DB) error {
+			return agentwriteservice.FinishTx(betterRequestContext(req), tx, req.UserId, reservation, postEntity.TopicId, postEntity.Id)
+		})
+		if errors.Is(err, agentwriteservice.ErrReplay) {
+			return agentReplayResponse(req.UserId, replay)
+		}
+	} else {
+		err = postservice.CreateTopicPost(postEntity, topicEntity)
+	}
 	if err != nil {
+		if agent {
+			return agentWriteFailure(err)
+		}
 		return component.FailResponseCode(
 			component.MessageCommentCreateFailed,
 
@@ -844,6 +931,15 @@ func UpdatePost(req component.BetterRequest[UpdatePostReq]) component.Response {
 		if err := posts.SaveTx(tx, &postEntity); err != nil {
 			return err
 		}
+		if postEntity.ProcessStatus != posts.ProcessStatusNormal || postEntity.IsAnonymous {
+			targetPostID := postEntity.Id
+			if isFirstPost {
+				targetPostID = 0
+			}
+			if err := agenteventservice.WithdrawContentTx(tx, postEntity.TopicId, targetPostID); err != nil {
+				return err
+			}
+		}
 		// 版本历史与帖子更新同事务：追加失败则整体回滚，不留无版本的编辑。
 		if err := postservice.AppendPostRevisionWithOld(tx, &postEntity, req.UserId, postEntity.ProcessStatus, oldContent, oldProcessStatus); err != nil {
 			return err
@@ -856,9 +952,11 @@ func UpdatePost(req component.BetterRequest[UpdatePostReq]) component.Response {
 			if err := topics.UpdateFirstPostDerivedTx(tx, &topicEntity); err != nil {
 				return err
 			}
-			return searchservice.EnqueueTopicSearchTask(tx, topicEntity.Id)
+			if err := searchservice.EnqueueTopicSearchTask(tx, topicEntity.Id); err != nil {
+				return err
+			}
 		}
-		return nil
+		return agenteventservice.CapturePublicTx(tx, &postEntity)
 	}); err != nil {
 		return component.FailResponseCode(
 			component.MessagePostUpdateFailed,

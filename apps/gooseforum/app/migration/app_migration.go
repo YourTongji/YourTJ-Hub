@@ -2,6 +2,7 @@ package migration
 
 import (
 	"fmt"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/agentservice"
 	"log/slog"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
@@ -418,6 +419,15 @@ func runVersionedDataMigrations() error {
 		}
 		slog.Info("app migration preset sticker packs backfilled", "changed", changed)
 		currentVersion = 30
+	}
+	if currentVersion < 31 {
+		if err := agentservice.BackfillRobotBadges(); err != nil {
+			return fmt.Errorf("app migration v31 robot badges: %w", err)
+		}
+		if err := pageConfig.SyncMigrationVersion(31); err != nil {
+			return err
+		}
+		currentVersion = 31
 	}
 	slog.Info("app migration end", "version", currentVersion)
 	return nil

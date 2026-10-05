@@ -81,3 +81,22 @@ func CountByPostIds(postIds []uint64) map[uint64]int64 {
 	}
 	return result
 }
+
+// LatestTx and VersionTx preserve the caller's snapshot and distinguish missing
+// source revisions from database errors; workers never read the mutable body.
+func LatestTx(tx *gorm.DB, postID uint64) (Entity, error) {
+	var e Entity
+	err := tx.Where("post_id = ?", postID).Order("version DESC").Take(&e).Error
+	return e, err
+}
+func VersionTx(tx *gorm.DB, postID, version uint64) (Entity, error) {
+	var e Entity
+	err := tx.Where("post_id = ? AND version = ?", postID, version).Take(&e).Error
+	return e, err
+}
+
+func PreviousNormalTx(tx *gorm.DB, postID, before uint64) (Entity, error) {
+	var e Entity
+	err := tx.Where("post_id = ? AND version < ? AND process_status = 0", postID, before).Order("version DESC").Take(&e).Error
+	return e, err
+}

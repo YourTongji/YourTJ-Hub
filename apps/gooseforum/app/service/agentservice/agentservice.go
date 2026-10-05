@@ -18,11 +18,15 @@ import (
 	"strings"
 	"time"
 
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/agentinstance"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/algorithm"
 	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/safefetch"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/agents"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userStatistics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/agenteventservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/badgeservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/userservice"
 	"gorm.io/gorm"
 )
@@ -94,6 +98,9 @@ func tokenPrefixOf(token string) string {
 // and non-bot users never resolve. On success the last-used timestamp is
 // touched.
 func ResolveByToken(token string) (*agents.Entity, *users.EntityComplete, error) {
+	if !agentinstance.Current().APIEnabled {
+		return nil, nil, ErrAgentDisabled
+	}
 	prefix := tokenPrefixOf(token)
 	if prefix == "" {
 		return nil, nil, ErrAgentTokenInvalid
@@ -175,9 +182,10 @@ func Create(p CreateParams) (CreateResult, error) {
 
 	now := time.Now()
 	userEntity := users.EntityComplete{
-		Username:    username,
-		Nickname:    nickname,
-		ActorType:   users.ActorTypeBot,
+		Username:  username,
+		Nickname:  nickname,
+		ActorType: users.ActorTypeBot,
+
 		IsActivated: users.ActivationSuccess,
 		IsFrozen:    users.StatusNormal,
 		ActivatedAt: &now,
@@ -199,6 +207,13 @@ func Create(p CreateParams) (CreateResult, error) {
 		if err := tx.Create(&agentEntity).Error; err != nil {
 			return err
 		}
+		if err := badgeservice.GrantRobotTx(tx, userEntity.Id, p.CreatedBy); err != nil {
+			return err
+		}
+		if err := users.WearRobotBadgeIfEmptyTx(tx, userEntity.Id); err != nil {
+			return err
+		}
+		userEntity.WornBadgeCode = "robot"
 		stats := userStatistics.Entity{UserId: userEntity.Id}
 		if err := tx.Create(&stats).Error; err != nil {
 			return err
@@ -271,6 +286,9 @@ func Update(userID uint64, p UpdateParams) (*AgentView, error) {
 			return nil, err
 		}
 		agentUpdates["webhook_endpoint"] = normalized
+		agentUpdates["webhook_enabled"] = false
+		agentUpdates["endpoint_generation"] = gorm.Expr("endpoint_generation + 1")
+		agentUpdates["config_version"] = gorm.Expr("config_version + 1")
 	}
 	if p.Enabled != nil {
 		switch *p.Enabled {
@@ -283,6 +301,11 @@ func Update(userID uint64, p UpdateParams) (*AgentView, error) {
 			// prefix is retained as the unique index and rotation CAS anchor.
 			agentUpdates["enabled"] = agents.StatusDisabled
 			agentUpdates["token_hash"] = ""
+			agentUpdates["webhook_enabled"] = false
+			agentUpdates["events_enabled"] = false
+			agentUpdates["endpoint_generation"] = gorm.Expr("endpoint_generation + 1")
+			agentUpdates["subscription_generation"] = gorm.Expr("subscription_generation + 1")
+			agentUpdates["config_version"] = gorm.Expr("config_version + 1")
 		default:
 			return nil, ErrAgentEnabledInvalid
 		}
@@ -298,6 +321,9 @@ func Update(userID uint64, p UpdateParams) (*AgentView, error) {
 	}
 
 	if err := db.Connect().Transaction(func(tx *gorm.DB) error {
+		if err := users.LockInteractionUserIDs(tx, []uint64{userID}); err != nil {
+			return err
+		}
 		if p.Enabled != nil && *p.Enabled == agents.StatusEnabled {
 			// Re-enabling an Agent whose credential was revoked by a prior
 			// disable must not resurrect a leaked token: require an explicit
@@ -316,6 +342,11 @@ func Update(userID uint64, p UpdateParams) (*AgentView, error) {
 			}
 		} else if agents.GetByUserIDWithDB(tx, userID) == nil {
 			return gorm.ErrRecordNotFound
+		}
+		if p.Enabled != nil && *p.Enabled == agents.StatusDisabled {
+			if err := agenteventservice.WithdrawAgentTx(tx, userID); err != nil {
+				return err
+			}
 		}
 		if nickname != nil {
 			result := tx.Model(&users.EntityComplete{}).
@@ -387,13 +418,19 @@ func RotateToken(userID uint64) (string, error) {
 // Re-enabling requires an explicit rotation (ErrAgentNeedsRotate); the
 // non-secret token prefix is retained as the unique index and CAS anchor.
 func Disable(userID uint64) error {
-	if err := agents.RevokeCredential(userID); err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ErrAgentNotFound
+	err := db.Connect().Transaction(func(tx *gorm.DB) error {
+		if _, err := agents.GetTx(tx, userID, true); err != nil {
+			return err
 		}
-		return err
+		if err := agents.RevokeCredentialTx(tx, userID); err != nil {
+			return err
+		}
+		return agenteventservice.WithdrawAgentTx(tx, userID)
+	})
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return ErrAgentNotFound
 	}
-	return nil
+	return err
 }
 
 func normalizeNickname(raw string) (string, error) {
@@ -405,7 +442,7 @@ func normalizeNickname(raw string) (string, error) {
 }
 
 // normalizeWebhookEndpoint trims and validates the optional webhook endpoint.
-// Empty is allowed. Stored endpoints must be HTTP(S), carry no credentials or
+// Empty is allowed. Stored endpoints must be public HTTPS on port 443, carry no credentials or
 // fragment, and cannot target an obvious local/private literal. The webhook
 // sender must repeat address validation after DNS resolution before dialing.
 func normalizeWebhookEndpoint(raw string) (string, error) {
@@ -413,7 +450,7 @@ func normalizeWebhookEndpoint(raw string) (string, error) {
 	if value == "" {
 		return "", nil
 	}
-	if len(value) > maxWebhookLength {
+	if len(value) > maxWebhookLength || safefetch.ValidateWebhookURL(value) != nil {
 		return "", ErrAgentWebhookInvalid
 	}
 	parsed, err := url.Parse(value)
@@ -471,4 +508,34 @@ func isLegacyNumericIPPart(part string) bool {
 		}
 	}
 	return true
+}
+
+// BackfillRobotBadges is reentrant, bounded and preserves explicit selections.
+func BackfillRobotBadges() error {
+	var after uint64
+	for {
+		rows, err := users.BotBadgeBackfillBatch(after, 200)
+		if err != nil {
+			return err
+		}
+		if len(rows) == 0 {
+			return nil
+		}
+		for _, row := range rows {
+			if err := db.Connect().Transaction(func(tx *gorm.DB) error {
+				if err := users.LockInteractionUserIDs(tx, []uint64{row.Id}); err != nil {
+					return err
+				}
+				if err := badgeservice.GrantRobotTx(tx, row.Id, 0); err != nil {
+					return err
+				}
+				return users.WearRobotBadgeIfEmptyTx(tx, row.Id)
+			}); err != nil {
+				return err
+			}
+			row.WornBadgeCode = "robot"
+			userservice.RefreshUserCaches(&row)
+			after = row.Id
+		}
+	}
 }

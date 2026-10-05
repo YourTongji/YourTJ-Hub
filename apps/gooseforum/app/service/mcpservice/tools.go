@@ -62,6 +62,11 @@ var maxJSONSafeInt = f(float64(1<<53 - 1))
 func strProp(desc string, minLen *int) *jsonschema.Schema {
 	return &jsonschema.Schema{Type: "string", Description: desc, MinLength: minLen}
 }
+func strPropMax(desc string, minLen *int, maxLen int) *jsonschema.Schema {
+	s := strProp(desc, minLen)
+	s.MaxLength = intPtr(maxLen)
+	return s
+}
 func strPropEnum(desc string, values ...string) *jsonschema.Schema {
 	s := strProp(desc, nil)
 	s.Enum = make([]any, len(values))
@@ -169,9 +174,11 @@ func registerListTopics(s *mcp.Server, svc *Service) {
 // registerCreateTopic exposes POST /api/v1/agent/topics (write, opt-in).
 func registerCreateTopic(s *mcp.Server, svc *Service) {
 	props := map[string]*jsonschema.Schema{
-		"title":      strProp("主题标题", intPtr(1)),
-		"content":    strProp("主题正文（Markdown）", intPtr(1)),
-		"categoryId": uintArrayProp("分类 ID 数组（1-3 个）", 1, 3),
+		"title":          strProp("主题标题", intPtr(1)),
+		"content":        strProp("主题正文（Markdown）", intPtr(1)),
+		"categoryId":     uintArrayProp("分类 ID 数组（1-3 个）", 1, 3),
+		"idempotencyKey": strPropMax("稳定任务键；相同键及请求重试返回同一资源", intPtr(1), 256),
+		"sourceEventId":  strPropMax("事件来源；新话题必须独立创建，事件回复使用 create_post", intPtr(1), 80),
 	}
 	required := []string{"title", "content", "categoryId"}
 	mcp.AddTool(s, &mcp.Tool{
@@ -187,11 +194,12 @@ func registerCreateTopic(s *mcp.Server, svc *Service) {
 			return nil, nil, err
 		}
 		params := api.AgentWriteTopicReq{
-			Title:      asString(in["title"]),
-			Content:    asString(in["content"]),
-			CategoryId: asUintSlice(in["categoryId"]),
+			Title:          asString(in["title"]),
+			Content:        asString(in["content"]),
+			CategoryId:     asUintSlice(in["categoryId"]),
+			IdempotencyKey: asString(in["idempotencyKey"]), SourceEventID: asString(in["sourceEventId"]),
 		}
-		resp := api.AgentWriteTopic(component.BetterRequest[api.AgentWriteTopicReq]{Params: params, UserId: agentID, Context: ctx})
+		resp := api.AgentWriteTopic(component.BetterRequest[api.AgentWriteTopicReq]{Params: params, UserId: agentID, Context: svc.credentialContext(ctx, req)})
 		v, err := serviceResult(resp)
 		if err != nil {
 			return nil, nil, err
@@ -248,9 +256,11 @@ func registerGetPosts(s *mcp.Server, svc *Service) {
 // registerCreatePost exposes POST /api/v1/agent/topics/{topicId}/posts (write, opt-in).
 func registerCreatePost(s *mcp.Server, svc *Service) {
 	props := map[string]*jsonschema.Schema{
-		"topicId":       intPropMax("主题 ID", f(1), maxJSONSafeInt, nil),
-		"content":       strProp("回复正文（Markdown）", intPtr(1)),
-		"replyToPostId": intPropMax("要回复的帖子 ID（可选）", f(0), maxJSONSafeInt, nil),
+		"topicId":        intPropMax("主题 ID", f(1), maxJSONSafeInt, nil),
+		"content":        strProp("回复正文（Markdown）", intPtr(1)),
+		"replyToPostId":  intPropMax("要回复的帖子 ID（可选）", f(0), maxJSONSafeInt, nil),
+		"idempotencyKey": strPropMax("稳定回复键；相同键及请求重试返回同一资源", intPtr(1), 256),
+		"sourceEventId":  strPropMax("本 Agent 的有效事件 ID，提交前复核来源可见性和目标话题", intPtr(1), 80),
 	}
 	required := []string{"topicId", "content"}
 	mcp.AddTool(s, &mcp.Tool{
@@ -266,11 +276,12 @@ func registerCreatePost(s *mcp.Server, svc *Service) {
 			return nil, nil, err
 		}
 		params := api.AgentCreatePostReq{
-			TopicId:       asUint(in["topicId"]),
-			Content:       asString(in["content"]),
-			ReplyToPostId: asUint(in["replyToPostId"]),
+			TopicId:        asUint(in["topicId"]),
+			Content:        asString(in["content"]),
+			ReplyToPostId:  asUint(in["replyToPostId"]),
+			IdempotencyKey: asString(in["idempotencyKey"]), SourceEventID: asString(in["sourceEventId"]),
 		}
-		resp := api.AgentCreatePost(component.BetterRequest[api.AgentCreatePostReq]{Params: params, UserId: agentID, Context: ctx})
+		resp := api.AgentCreatePost(component.BetterRequest[api.AgentCreatePostReq]{Params: params, UserId: agentID, Context: svc.credentialContext(ctx, req)})
 		v, err := serviceResult(resp)
 		if err != nil {
 			return nil, nil, err
@@ -295,6 +306,9 @@ func registerSearch(s *mcp.Server, svc *Service) {
 		Description: "站内搜索主题、用户与分类（bot 用户不会出现在用户搜索结果中）。",
 		InputSchema: objectSchema(props, nil),
 	}, recoverToolHandler("search", func(_ context.Context, req *mcp.CallToolRequest, in map[string]any) (*mcp.CallToolResult, map[string]any, error) {
+		if _, err := svc.userID(req); err != nil {
+			return nil, nil, err
+		}
 		params := forum.SearchJSONReq{
 			Q:     asString(in["q"]),
 			Scope: asString(in["scope"]),
@@ -318,6 +332,9 @@ func registerSearch(s *mcp.Server, svc *Service) {
 // exact quota with REST writes. The IP comes from the auth verifier's
 // TokenInfo.Extra["clientIP"], mirroring gin's ClientIP resolution.
 func (s *Service) checkWriteRateLimit(action string, req *mcp.CallToolRequest, userID uint64) error {
+	if !s.writesEnabled() {
+		return fmt.Errorf("mcpservice: content writes disabled")
+	}
 	cfg := hotdataserve.GetRateLimitConfigCache()
 	if !cfg.Enabled {
 		return nil

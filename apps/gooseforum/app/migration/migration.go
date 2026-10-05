@@ -15,6 +15,9 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/chat/imUserChatConfigs"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/chat/messages"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/filemodel/filedata"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/agentEvents"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/agentWebhook"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/agentWrites"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/agents"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/badges"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/campus"
@@ -691,6 +694,7 @@ func SchemaModels() []any {
 		&pointsRecord.Entity{},
 		&reports.Entity{},
 		&agents.Entity{},
+		&agentEvents.ReplayState{}, &agentEvents.Publication{}, &agentEvents.Intent{}, &agentEvents.Entity{}, &agentWrites.Entry{}, &agentWebhook.Delivery{}, &agentWebhook.Attempt{},
 		&topics.Entity{},
 		&posts.Entity{},
 		&postRevisions.Entity{},

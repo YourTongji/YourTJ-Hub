@@ -84,6 +84,7 @@ status. Do not use PR-relative "shipped this / later" labels as long-term status
 
 - [Reviewed releases](operations/releases.md)
 - [Deployment & release](operations/deployment.md)
+- [Agent events and external runners](operations/agents.md)
 - [Campus connection operations](operations/campus.md)
 - [Independent status site on Cloudflare](operations/status-cloudflare.md)
 - [Mobile releases and signing](operations/mobile-releases.md)

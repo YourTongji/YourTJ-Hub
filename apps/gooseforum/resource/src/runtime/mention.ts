@@ -11,6 +11,8 @@ export interface MentionUser {
   username: string
   nickname?: string
   avatarUrl: string
+  /** Server mention target actor kind. Local context candidates default to human. */
+  actorType?: 'human' | 'bot'
   /** 本地上下文弱标签：正在回复 / 主题作者 / 参与者（仅本地候选带） */
   tag?: 'reply-target' | 'topic-author' | 'participant'
 }

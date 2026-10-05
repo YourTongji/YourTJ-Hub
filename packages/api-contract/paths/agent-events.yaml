@@ -1,0 +1,422 @@
+agentListEvents:
+  get:
+    tags:
+    - Agent
+    summary: Pull this Agent event inbox
+    operationId: agentListEvents
+    description: Read does not ACK. Cursor binds current instance, stream epoch and
+      Agent. cursor_expired includes replayFloor; cursor_reset requires resynchronization.
+      With no after, starts at retained floor. Current visibility is checked before
+      projection.
+    security:
+    - agentBearerAuth: []
+    responses:
+      '200':
+        description: Success or a business failure envelope; inspect code.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/agent-events.yaml#/AgentEventsResponse
+            examples:
+              list:
+                externalValue: ../fixtures/agent-events-list.json
+              reset:
+                externalValue: ../fixtures/agent-events-reset.json
+              expired:
+                externalValue: ../fixtures/agent-events-expired.json
+      '401':
+        description: Missing or invalid credential.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+    parameters:
+    - name: after
+      in: query
+      schema:
+        type: string
+        maxLength: 2048
+    - name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 50
+agentGetEvent:
+  get:
+    tags:
+    - Agent
+    summary: Read one owned event
+    operationId: agentGetEvent
+    description: Withdrawn content returns a tombstone without data; foreign or expired
+      events fail without source disclosure.
+    security:
+    - agentBearerAuth: []
+    responses:
+      '200':
+        description: Success or a business failure envelope; inspect code.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/agent-events.yaml#/AgentEventResponse
+            examples:
+              tombstone:
+                externalValue: ../fixtures/agent-events-tombstone.json
+              inaccessible:
+                externalValue: ../fixtures/agent-events-inaccessible.json
+      '401':
+        description: Missing or invalid credential.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+    parameters:
+    - name: eventId
+      in: path
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 80
+agentAckEvents:
+  post:
+    tags:
+    - Agent
+    summary: Acknowledge completed or skipped events
+    operationId: agentAckEvents
+    description: Idempotent batch confirmation, at most 100 IDs. Revalidates credential,
+      ownership, expiry and current source visibility in the transaction. HTTP/Webhook
+      success never implies ACK.
+    security:
+    - agentBearerAuth: []
+    responses:
+      '200':
+        description: Success or a business failure envelope; inspect code.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/agent-events.yaml#/AgentAckResponse
+            examples:
+              ack:
+                externalValue: ../fixtures/agent-events-ack.json
+      '401':
+        description: Missing or invalid credential.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/agent-events.yaml#/AgentAckRequest
+forumMentionTargets:
+  get:
+    tags:
+    - Forum
+    summary: Find human and enabled Agent mention candidates
+    operationId: forumMentionTargets
+    description: Login required. Returns public identity fields; bot candidates are
+      labelled without adding bots to global human search.
+    security:
+    - bearerAuth: []
+    - accessTokenCookie: []
+    responses:
+      '200':
+        description: Success or a business failure envelope; inspect code.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/agent-events.yaml#/MentionTargetsResponse
+            examples:
+              mentions:
+                externalValue: ../fixtures/agent-events-mentions.json
+      '401':
+        description: Missing or invalid credential.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+    parameters:
+    - name: q
+      in: query
+      schema:
+        type: string
+        maxLength: 64
+    - name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 20
+        default: 20
+adminAgentWebhookConfigure:
+  post:
+    tags:
+    - Admin
+    summary: Configure independent event and Webhook switches
+    operationId: adminAgentWebhookConfigure
+    description: CAS configVersion is mandatory for concurrency correctness (initial
+      version 0). Endpoint accepts public HTTPS port 443 only. Subscriptions and endpoint
+      generations are separate; historical events never move to a new endpoint. A
+      secret must exist before enabling Webhook.
+    security:
+    - bearerAuth: []
+    - accessTokenCookie: []
+    responses:
+      '200':
+        description: Success or a business failure envelope; inspect code.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/agent-events.yaml#/AgentWebhookConfigResponse
+            examples:
+              config-conflict:
+                externalValue: ../fixtures/agent-events-config-conflict.json
+      '401':
+        description: Missing or invalid credential.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+      '403':
+        description: Admin role required.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/agent-events.yaml#/AgentWebhookConfigRequest
+adminAgentWebhookRotateSecret:
+  post:
+    tags:
+    - Admin
+    summary: Rotate the one-time Webhook HMAC secret
+    operationId: adminAgentWebhookRotateSecret
+    description: 'Returns Cache-Control: no-store. Ordinary rotation dual signs for
+      24 hours; emergency rotation immediately invalidates the previous secret. Independent
+      from bearer token rotation.'
+    security:
+    - bearerAuth: []
+    - accessTokenCookie: []
+    responses:
+      '200':
+        description: Success or a business failure envelope; inspect code.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/agent-events.yaml#/AgentWebhookSecretResponse
+            examples:
+              secret:
+                externalValue: ../fixtures/agent-events-secret.json
+      '401':
+        description: Missing or invalid credential.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+      '403':
+        description: Admin role required.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/agent-events.yaml#/AgentWebhookRotateRequest
+adminAgentWebhookTest:
+  post:
+    tags:
+    - Admin
+    summary: Queue a signed connection test
+    operationId: adminAgentWebhookTest
+    description: Sends agent.webhook_test through the same safety policy; receivers
+      must not create content for tests.
+    security:
+    - bearerAuth: []
+    - accessTokenCookie: []
+    responses:
+      '200':
+        description: Success or a business failure envelope; inspect code.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/agent-events.yaml#/AgentWebhookTestResponse
+      '401':
+        description: Missing or invalid credential.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+      '403':
+        description: Admin role required.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/AdminAgentIdRequest
+adminAgentWebhookDeliveries:
+  post:
+    tags:
+    - Admin
+    summary: Inspect bounded delivery and attempt diagnostics
+    operationId: adminAgentWebhookDeliveries
+    description: Returns no body, secret or raw receiver response. Accepted means
+      durable receiver ingress, not Agent processing.
+    security:
+    - bearerAuth: []
+    - accessTokenCookie: []
+    responses:
+      '200':
+        description: Success or a business failure envelope; inspect code.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/agent-events.yaml#/AgentWebhookDeliveriesResponse
+            examples:
+              deliveries:
+                externalValue: ../fixtures/agent-events-deliveries.json
+      '401':
+        description: Missing or invalid credential.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+      '403':
+        description: Admin role required.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/agent-events.yaml#/AgentWebhookPageRequest
+adminAgentWebhookRedeliver:
+  post:
+    tags:
+    - Admin
+    summary: Explicitly restart one failed delivery round
+    operationId: adminAgentWebhookRedeliver
+    description: Preserves eventId and endpoint generation. Only unexpired failed
+      deliveries with current generation and source visibility are allowed; maximum
+      3 rounds and 27 total attempts.
+    security:
+    - bearerAuth: []
+    - accessTokenCookie: []
+    responses:
+      '200':
+        description: Success or a business failure envelope; inspect code.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/agent-events.yaml#/AgentAckResponse
+      '401':
+        description: Missing or invalid credential.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+      '403':
+        description: Admin role required.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/agent-events.yaml#/AgentWebhookRedeliverRequest
+adminAgentInteractionIntents:
+  post:
+    tags:
+    - Admin
+    summary: Inspect pending and failed source intents
+    operationId: adminAgentInteractionIntents
+    description: Recipient-filtered recovery list; preserves failed unmaterialized
+      intent diagnostics independently from deliveries.
+    security:
+    - bearerAuth: []
+    - accessTokenCookie: []
+    responses:
+      '200':
+        description: Success or a business failure envelope; inspect code.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/agent-events.yaml#/AgentInteractionIntentsResponse
+            examples:
+              intents:
+                externalValue: ../fixtures/agent-events-intents.json
+      '401':
+        description: Missing or invalid credential.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+      '403':
+        description: Admin role required.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/agent-events.yaml#/AgentWebhookPageRequest
+adminAgentInteractionReplay:
+  post:
+    tags:
+    - Admin
+    summary: Replay one retained source intent
+    operationId: adminAgentInteractionReplay
+    description: Uses original frozen recipient identities and generations; re-materialization
+      preserves eventId. Expired or unrelated source intents are refused.
+    security:
+    - bearerAuth: []
+    - accessTokenCookie: []
+    responses:
+      '200':
+        description: Success or a business failure envelope; inspect code.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/agent-events.yaml#/AgentAckResponse
+      '401':
+        description: Missing or invalid credential.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+      '403':
+        description: Admin role required.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/agent-events.yaml#/AgentIntentReplayRequest

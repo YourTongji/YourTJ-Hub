@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/agenteventservice"
 	"log/slog"
 	"strings"
 	"time"
@@ -195,18 +196,15 @@ func DeleteTopicAs(topic topics.Entity, operatorID uint64, visibility string, re
 }
 
 func markTopicDeleted(topicID uint64, visibility string, operatorID uint64, reason string) error {
-	// 删除时作废待审状态：被删话题不应继续停留在管理审核队列（PRD R1）。
-	// 无论作者删除还是管理端删除，一律把 process_status 复位为正常，
-	// 避免"已删除"与"待审"语义叠加导致审核队列出现幽灵项。
-	if err := topics.ResetPendingReview(topicID); err != nil {
-		return err
-	}
-	switch visibility {
-	case topics.VisibilityModeratorRemoved:
-		return topics.MarkModeratorRemoved(topicID, operatorID, reason)
-	default:
-		return topics.MarkUserDeleted(topicID, operatorID, reason)
-	}
+	return dbconnect.Connect().Transaction(func(tx *gorm.DB) error {
+		if _, err := topics.GetUnscopedTx(tx, topicID); err != nil {
+			return err
+		}
+		if err := topics.MarkDeletedTx(tx, topicID, visibility, operatorID, reason); err != nil {
+			return err
+		}
+		return agenteventservice.WithdrawContentTx(tx, topicID, 0)
+	})
 }
 
 func clearTopicCaches(topicID uint64, categoryIDs ...uint64) {
@@ -283,6 +281,9 @@ func DeletePostByUser(userID uint64, postID uint64) (DeletePostResult, error) {
 		if err := posts.ResetPendingReviewTx(tx, postID); err != nil {
 			return component.NewMessageError(component.MessageContentDeleteFailed, "删除回复失败", component.MessageParams{"error": err.Error()})
 		}
+		if err := agenteventservice.WithdrawContentTx(tx, post.TopicId, postID); err != nil {
+			return err
+		}
 		return nil
 	})
 	if err != nil {
@@ -347,6 +348,9 @@ func DeletePostAsModerator(moderatorID uint64, postID uint64, reason string) err
 		// 作废待审状态：被删回复不应继续停留在管理审核队列（PRD R1）。
 		if err := posts.ResetPendingReviewTx(tx, postID); err != nil {
 			return component.NewMessageError(component.MessageContentDeleteFailed, "删除回复失败", component.MessageParams{"error": err.Error()})
+		}
+		if err := agenteventservice.WithdrawContentTx(tx, post.TopicId, postID); err != nil {
+			return err
 		}
 		return nil
 	}); err != nil {

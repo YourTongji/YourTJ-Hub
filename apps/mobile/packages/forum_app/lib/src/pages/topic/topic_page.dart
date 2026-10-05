@@ -1822,6 +1822,7 @@ class _TopicPageState extends ConsumerState<TopicPage>
                                               l10n.mentionTagTopicAuthor,
                                           tagParticipant:
                                               l10n.mentionTagParticipant,
+                                          agentLabel: l10n.mentionAgentLabel,
                                         ),
                                         onSelect: _selectMentionCandidate,
                                       ),

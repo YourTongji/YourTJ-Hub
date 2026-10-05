@@ -1,5 +1,6 @@
 import '../../gen/search.dart';
 import '../../gen/topic.dart';
+import '../../gen/mention_target.dart';
 import '../gf_api_client.dart';
 import 'post_repository.dart';
 
@@ -27,6 +28,22 @@ class TopicRepository {
         'page': page,
       },
       parser: (json) => SearchPageProps.fromJson(json as Map<String, dynamic>),
+    );
+  }
+
+  /// Search public human and Agent identities for editor autocomplete only.
+  Future<List<MentionTarget>> mentionTargets({
+    required String query,
+    int limit = 20,
+    CancelToken? cancelToken,
+  }) {
+    return _client.get<List<MentionTarget>>(
+      '/api/forum/mention-targets',
+      cancelToken: cancelToken,
+      queryParameters: {'q': query, 'limit': limit},
+      parser: (json) => (json as List<dynamic>)
+          .map((item) => MentionTarget.fromJson(item as Map<String, dynamic>))
+          .toList(),
     );
   }
 

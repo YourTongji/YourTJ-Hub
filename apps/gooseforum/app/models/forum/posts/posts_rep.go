@@ -696,3 +696,17 @@ func PagePendingReviewInCategories(page, pageSize int, categoryIDs []uint64) str
 		Data     []Entity
 	}{Page: page + 1, PageSize: pageSize, Total: total, Data: list}
 }
+
+// GetCurrentTx reads current source metadata without taking a second post lock.
+// Callers holding the topic lock serialize against first-post moderation commits.
+func GetCurrentTx(tx *gorm.DB, id uint64) (Entity, error) {
+	var e Entity
+	err := tx.Unscoped().Where("id = ?", id).Take(&e).Error
+	return e, err
+}
+
+func TopicPostIDsTx(tx *gorm.DB, topicID uint64) ([]uint64, error) {
+	var ids []uint64
+	err := tx.Unscoped().Model(&Entity{}).Where("topic_id = ?", topicID).Order("id ASC").Pluck("id", &ids).Error
+	return ids, err
+}

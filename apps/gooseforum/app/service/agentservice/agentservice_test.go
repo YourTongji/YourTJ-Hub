@@ -8,6 +8,8 @@ import (
 
 	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/agents"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/badges"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userBadges"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userStatistics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"gorm.io/gorm"
@@ -16,9 +18,11 @@ import (
 func setupAgentTestDB(t *testing.T) {
 	t.Helper()
 	conn := db.Connect()
-	if err := conn.AutoMigrate(&users.EntityComplete{}, &agents.Entity{}, &userStatistics.Entity{}); err != nil {
+	if err := conn.AutoMigrate(&users.EntityComplete{}, &agents.Entity{}, &userStatistics.Entity{}, &badges.Entity{}, &userBadges.Entity{}); err != nil {
 		t.Fatalf("migrate agent tables: %v", err)
 	}
+	conn.Where("1 = 1").Delete(&badges.Entity{})
+	conn.Where("1 = 1").Delete(&userBadges.Entity{})
 	conn.Where("1 = 1").Delete(&agents.Entity{})
 	conn.Where("1 = 1").Delete(&userStatistics.Entity{})
 	conn.Where("1 = 1").Delete(&users.EntityComplete{})
@@ -507,4 +511,70 @@ func TestGetAndListAgents(t *testing.T) {
 
 func ptr[T any](v T) *T {
 	return &v
+}
+
+func TestCreateAgentDefaultsToWornRobotBadge(t *testing.T) {
+	setupAgentTestDB(t)
+	result, err := Create(CreateParams{Username: "badge-agent"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.User.WornBadgeCode != "robot" {
+		t.Fatalf("worn badge = %q, want robot", result.User.WornBadgeCode)
+	}
+}
+
+func TestRobotBadgeBackfillReentrantAndPreservesChoices(t *testing.T) {
+	setupAgentTestDB(t)
+	conn := db.Connect()
+	rows := []users.EntityComplete{{Username: "old-robot", ActorType: users.ActorTypeBot}, {Username: "selected-robot", ActorType: users.ActorTypeBot, WornBadgeCode: "sponsor"}, {Username: "human", ActorType: users.ActorTypeHuman}}
+	for i := range rows {
+		if err := conn.Create(&rows[i]).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+	for range 2 {
+		if err := BackfillRobotBadges(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var count int64
+	if err := conn.Model(&userBadges.Entity{}).Where("user_id = ? AND badge_code = 'robot' AND revoked_at IS NULL", rows[0].Id).Count(&count).Error; err != nil {
+		t.Fatal(err)
+	}
+	if count != 1 {
+		t.Fatalf("grant count=%d", count)
+	}
+	for i, want := range []string{"robot", "sponsor", ""} {
+		row, err := users.Get(rows[i].Id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if row.WornBadgeCode != want {
+			t.Fatalf("%s badge=%s want=%s", row.Username, row.WornBadgeCode, want)
+		}
+	}
+}
+func TestRobotBadgeFailureRollsBackAgentCreation(t *testing.T) {
+	setupAgentTestDB(t)
+	definition := badges.Entity{Code: "robot", Type: badges.TypeSystem, IsEnabled: true}
+	if err := db.Connect().Create(&definition).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Connect().Model(&definition).Update("is_enabled", false).Error; err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Create(CreateParams{Username: "badge-rollback"}); err == nil {
+		t.Fatal("disabled robot definition must fail atomically")
+	}
+	if users.ExistUsername("badge-rollback") {
+		t.Fatal("failed badge grant left a bot account")
+	}
+	var count int64
+	if err := db.Connect().Model(&agents.Entity{}).Count(&count).Error; err != nil {
+		t.Fatal(err)
+	}
+	if count != 0 {
+		t.Fatal("failed badge grant left Agent config")
+	}
 }

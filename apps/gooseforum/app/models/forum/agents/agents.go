@@ -39,6 +39,21 @@ const (
 )
 
 type Entity struct {
+	ConfigVersion            uint64     `gorm:"not null;default:0" json:"configVersion"`
+	EventsEnabled            bool       `gorm:"not null;default:false" json:"eventsEnabled"`
+	EventTypes               string     `gorm:"type:text;not null;default:'[]'" json:"eventTypes"`
+	SubscriptionGeneration   uint64     `gorm:"not null;default:0" json:"subscriptionGeneration"`
+	EventsEnabledAt          *time.Time `json:"eventsEnabledAt"`
+	WebhookEnabled           bool       `gorm:"not null;default:false" json:"webhookEnabled"`
+	EndpointGeneration       uint64     `gorm:"not null;default:0" json:"endpointGeneration"`
+	EventSeq                 uint64     `gorm:"not null;default:0" json:"-"`
+	SecretCiphertext         string     `gorm:"type:text;not null;default:''" json:"-"`
+	PreviousSecretCiphertext string     `gorm:"type:text;not null;default:''" json:"-"`
+	PreviousSecretExpiresAt  *time.Time `json:"-"`
+	SecretVersion            uint64     `gorm:"not null;default:0" json:"secretVersion"`
+	WebhookPausedReason      string     `gorm:"type:varchar(64);not null;default:''" json:"webhookPausedReason"`
+	LastWebhookAcceptedAt    *time.Time `json:"lastWebhookAcceptedAt"`
+
 	UserId          uint64     `gorm:"primaryKey;column:user_id;not null;" json:"userId"`
 	TokenPrefix     string     `gorm:"column:token_prefix;type:varchar(16);not null;default:'';uniqueIndex" json:"tokenPrefix"`
 	TokenHash       string     `gorm:"column:token_hash;type:varchar(128);not null;default:'';" json:"-"`

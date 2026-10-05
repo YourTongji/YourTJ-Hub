@@ -257,6 +257,10 @@
   },
   {
     "method": "GET",
+    "path": "/api/forum/mention-targets"
+  },
+  {
+    "method": "GET",
     "path": "/api/forum/my-course-reviews"
   },
   {
@@ -366,6 +370,14 @@
   {
     "method": "GET",
     "path": "/api/user/totp/status"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/agent/events"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/agent/events/:eventId"
   },
   {
     "method": "GET",
@@ -625,6 +637,14 @@
   },
   {
     "method": "POST",
+    "path": "/api/admin/agent-interaction-intents"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/agent-interaction-replay"
+  },
+  {
+    "method": "POST",
     "path": "/api/admin/agent-list"
   },
   {
@@ -634,6 +654,26 @@
   {
     "method": "POST",
     "path": "/api/admin/agent-update"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/agent-webhook-config"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/agent-webhook-deliveries"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/agent-webhook-redeliver"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/agent-webhook-rotate-secret"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/agent-webhook-test"
   },
   {
     "method": "POST",
@@ -1358,6 +1398,10 @@
   {
     "method": "POST",
     "path": "/api/user/totp/setup"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/agent/events/ack"
   },
   {
     "method": "POST",

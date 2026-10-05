@@ -1068,3 +1068,10 @@ GitHub `Deploy / main` 仅部署应用和渲染配置，不自动执行索引全
 `rebuild-course-search --in-place` 的区别是：后台流程还清理失效文档、重新检查并保存进度；
 CLI 的原地刷新仅补写字段。管理页只在可见且存在活动任务时每 5 秒轮询，失败、离开页面
 或任务终止后停止；点击「刷新状态」可重新获取状态。
+
+## Agent isolation during database replacement
+
+Agent instance identity and stream epoch are deployment state outside business database backups.
+Database restore rotates the epoch before reopening; dev snapshot synchronization also revokes copied
+Agent credentials/secrets, clears Agent-derived rows and disables ingress/production/outbound switches.
+See the [Agent runbook](agents.md#retention-restore-and-rollback) for activation and reconciliation.

@@ -647,11 +647,93 @@ export interface AdminAgent {
   email: string
   tokenPrefix: string
   webhookEndpoint: string
+  configVersion: number
+  eventsEnabled: boolean
+  eventTypes: string[]
+  webhookEnabled: boolean
+  endpointGeneration: number
+  subscriptionGeneration: number
+  secretConfigured: boolean
+  secretVersion: number
+  latestAcceptedAt: string | null
+  pendingCount: number
+  pauseReason: string
+  summaryUnavailable: boolean
   enabled: number
   createdBy: number
   lastUsedAt?: number | null
   createdAt: number
   updatedAt: number
+}
+
+export interface AdminAgentWebhookSecretResult {
+  secret: string
+  secretVersion: number
+  configVersion: number
+}
+
+export interface AdminAgentWebhookAttempt {
+  id: string
+  deliveryId: number
+  round: number
+  number: number
+  httpStatus?: number | null
+  errorClass?: string | null
+  durationMs?: number | null
+  authorizedAt?: string | null
+  completedAt?: string | null
+}
+
+export interface AdminAgentWebhookDelivery {
+  id: number
+  instanceId: string
+  eventId: string
+  agentId: number
+  endpointGeneration: number
+  schemaVersion: number
+  status: string
+  reason?: string | null
+  taskId?: number | null
+  round: number
+  attemptCount: number
+  totalAttempts: number
+  deadline?: string | null
+  expiresAt?: string | null
+  nextRunAt?: string | null
+  createdBy?: number | null
+  lastRedeliveredBy?: number | null
+  acceptedAt?: string | null
+  createdAt: string
+  updatedAt: string
+  attempts: AdminAgentWebhookAttempt[]
+}
+
+export interface AdminAgentWebhookDeliveryPage {
+  list: AdminAgentWebhookDelivery[]
+  total: number
+  page: number
+  pageSize: number
+}
+
+export interface AdminAgentInteractionIntent {
+  id: string | number
+  agentId?: number
+  sourceOccurrenceId?: string
+  postId?: number
+  revision?: number
+  status: string
+  createdAt: string
+  expiresAt?: string | null
+  retryCount?: number
+  lastError?: string | null
+  taskId?: number | null
+}
+
+export interface AdminAgentInteractionIntentPage {
+  list: AdminAgentInteractionIntent[]
+  total: number
+  page: number
+  pageSize: number
 }
 
 export interface AdminAgentCreateResult {

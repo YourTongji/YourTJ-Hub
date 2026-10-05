@@ -6,6 +6,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/sticker"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/agenteventservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/appleauthservice"
 	"gorm.io/gorm"
 )
@@ -21,6 +22,9 @@ func CloseAccount(ctx context.Context, userID uint64) error {
 		if err := appleauthservice.RevokeAndDeleteTx(ctx, tx, userID); err != nil {
 			return err
 		}
-		return users.CloseAccountTx(tx, userID)
+		if err := users.CloseAccountTx(tx, userID); err != nil {
+			return err
+		}
+		return agenteventservice.WithdrawActorTx(tx, userID)
 	})
 }

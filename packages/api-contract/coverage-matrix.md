@@ -4,11 +4,11 @@
 
 路由快照来自 `TestRoutesSnapshot`（`fixtures/routes-snapshot.json`，默认配置装配，不含 OIDC `/api/oauth/*` 端点——OIDC 另有专项）。
 
-- 快照路由总数：355
-- /api JSON 路由：289，已入契约：290（100%），已知未覆盖：0
+- 快照路由总数：366
+- /api JSON 路由：300，已入契约：301（100%），已知未覆盖：0
 - 非 API 排除路由：65
 
-## 已覆盖（290）
+## 已覆盖（301）
 
 | Method | Path | operationId |
 | --- | --- | --- |
@@ -68,6 +68,7 @@
 | GET | `/api/forum/courses/:courseId/summary` | `getCourseSummary` |
 | GET | `/api/forum/events` | `streamForumEvents` |
 | GET | `/api/forum/get-site-statistics` | `getSiteStatistics` |
+| GET | `/api/forum/mention-targets` | `forumMentionTargets` |
 | GET | `/api/forum/my-course-reviews` | `listOwnCourseReviews` |
 | GET | `/api/forum/my-stickers` | `myStickers` |
 | GET | `/api/forum/notifications` | `getNotifications` |
@@ -96,6 +97,8 @@
 | GET | `/api/user-notes` | `listPrivateNotes` |
 | GET | `/api/user/sessions` | `listSessions` |
 | GET | `/api/user/totp/status` | `getTotpStatus` |
+| GET | `/api/v1/agent/events` | `agentListEvents` |
+| GET | `/api/v1/agent/events/:eventId` | `agentGetEvent` |
 | GET | `/api/v1/agent/me` | `agentMe` |
 | GET | `/api/v1/agent/search` | `agentSearch` |
 | GET | `/api/v1/agent/topics` | `agentTopicList` |
@@ -107,9 +110,16 @@
 | PATCH | `/api/forum/course-reviews/:reviewId` | `updateCourseReview` |
 | POST | `/api/admin/agent-create` | `adminAgentCreate` |
 | POST | `/api/admin/agent-disable` | `adminAgentDisable` |
+| POST | `/api/admin/agent-interaction-intents` | `adminAgentInteractionIntents` |
+| POST | `/api/admin/agent-interaction-replay` | `adminAgentInteractionReplay` |
 | POST | `/api/admin/agent-list` | `adminAgentList` |
 | POST | `/api/admin/agent-rotate-token` | `adminAgentRotateToken` |
 | POST | `/api/admin/agent-update` | `adminAgentUpdate` |
+| POST | `/api/admin/agent-webhook-config` | `adminAgentWebhookConfigure` |
+| POST | `/api/admin/agent-webhook-deliveries` | `adminAgentWebhookDeliveries` |
+| POST | `/api/admin/agent-webhook-redeliver` | `adminAgentWebhookRedeliver` |
+| POST | `/api/admin/agent-webhook-rotate-secret` | `adminAgentWebhookRotateSecret` |
+| POST | `/api/admin/agent-webhook-test` | `adminAgentWebhookTest` |
 | POST | `/api/admin/ai-moderation/decisions` | `adminListAiModerationDecisions` |
 | POST | `/api/admin/ai-moderation/decisions/label` | `adminLabelAiModerationDecision` |
 | POST | `/api/admin/ai-moderation/replay` | `adminReplayAiModerationDecisions` |
@@ -291,6 +301,7 @@
 | POST | `/api/user/totp/disable` | `disableTotp` |
 | POST | `/api/user/totp/enable` | `enableTotp` |
 | POST | `/api/user/totp/setup` | `setupTotp` |
+| POST | `/api/v1/agent/events/ack` | `agentAckEvents` |
 | POST | `/api/v1/agent/topics` | `agentWriteTopic` |
 | POST | `/api/v1/agent/topics/:topicId/posts` | `agentCreatePost` |
 | POST | `/api/wear-badge` | `wearBadge` |

@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -452,16 +453,8 @@ func TestReviewActionApprovedPendingPostEventCarriesPostNo(t *testing.T) {
 		}
 	}
 
-	captured := make(chan *eventhandlers.CommentCreatedEvent, 4)
-	handler := cqrs.NewEventHandler("TestReviewActionCommentCapture", func(_ context.Context, event *eventhandlers.CommentCreatedEvent) error {
-		// 非阻塞投递：路由器是进程级单例，测试结束后仍会收到其他测试发布的事件，直接丢弃。
-		select {
-		case captured <- event:
-		default:
-		}
-		return nil
-	})
-	startReviewActionEventBus(t, handler, captured)
+	captured := reviewCommentEvents
+	startReviewActionEventBus(t)
 
 	res := ReviewAction(component.BetterRequest[ReviewActionReq]{
 		Params: ReviewActionReq{Kind: "post", Id: pendingPostID, Approve: true},
@@ -485,21 +478,40 @@ func TestReviewActionApprovedPendingPostEventCarriesPostNo(t *testing.T) {
 
 // startReviewActionEventBus 启动事件总线路由器并注册捕获 handler，然后通过哨兵事件
 // 回环确认路由器已订阅 CommentCreatedEvent 主题（发布早于订阅的事件会被丢弃）。
-func startReviewActionEventBus(t *testing.T, handler cqrs.EventHandler, captured chan *eventhandlers.CommentCreatedEvent) {
+var reviewEventBusOnce sync.Once
+var reviewCommentEvents = make(chan *eventhandlers.CommentCreatedEvent, 16)
+var reviewUpdatedEvents = make(chan *eventhandlers.PostUpdatedEvent, 16)
+
+// Register both capture handlers before starting the process-wide router once.
+func startReviewActionEventBus(t *testing.T) {
 	t.Helper()
-	eventbus.Start(handler)
+	reviewEventBusOnce.Do(func() {
+		eventbus.Start(
+			cqrs.NewEventHandler("TestReviewActionCommentCapture", func(_ context.Context, event *eventhandlers.CommentCreatedEvent) error {
+				select {
+				case reviewCommentEvents <- event:
+				default:
+				}
+				return nil
+			}),
+			cqrs.NewEventHandler("Test1042ApprovedEditCapture", func(_ context.Context, event *eventhandlers.PostUpdatedEvent) error {
+				select {
+				case reviewUpdatedEvents <- event:
+				default:
+				}
+				return nil
+			}),
+		)
+	})
 	const sentinel = uint64(0xDEADBEEF)
-	deadline := time.Now().Add(10 * time.Second)
-	for time.Now().Before(deadline) {
+	for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline); {
 		eventbus.Publish(context.Background(), &eventhandlers.CommentCreatedEvent{PostNo: sentinel})
 		select {
-		case event := <-captured:
-			if event.PostNo != sentinel {
-				t.Fatalf("unexpected event during readiness probe: %#v", event)
+		case event := <-reviewCommentEvents:
+			if event.PostNo == sentinel {
+				return
 			}
-			return
-		case <-time.After(300 * time.Millisecond):
-			// 路由器尚未就绪，重试探针。
+		case <-time.After(100 * time.Millisecond):
 		}
 	}
 	t.Fatal("event bus router did not become ready")

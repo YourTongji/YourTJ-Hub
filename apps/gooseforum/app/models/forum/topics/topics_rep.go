@@ -9,6 +9,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/pageutil"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/queryopt"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // firstPostVisibleSQL 首楼可见性半连接条件，与详情页/GetPublished 的公开
@@ -794,3 +795,23 @@ func MarkPrivacyErased(id uint64, erasedBy uint64, reason string) error {
 
 // TopicTypePtr 返回话题类型指针，供 PageQuery.TopicType 显式过滤使用。
 func TopicTypePtr(t int8) *int8 { return &t }
+
+// GetUnscopedTx locks the topic until the enclosing source authorization or
+// lifecycle transaction commits. Missing/deleted content is never public.
+func GetUnscopedTx(tx *gorm.DB, id uint64) (Entity, error) {
+	var e Entity
+	err := tx.Unscoped().Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", id).Take(&e).Error
+	return e, err
+}
+
+// MarkDeletedTx commits deletion with dependent event-copy revocation.
+func MarkDeletedTx(tx *gorm.DB, id uint64, visibility string, deletedBy uint64, reason string) error {
+	result := tx.Unscoped().Model(&Entity{}).Where("id = ? AND retention_status <> ?", id, RetentionPurged).Updates(map[string]any{"deleted_at": time.Now(), "process_status": ProcessStatusNormal, "visibility_status": visibility, "retention_status": RetentionRecoverable, "deleted_by": deletedBy, "delete_reason": reason})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected != 1 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
+}

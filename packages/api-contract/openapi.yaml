@@ -51,6 +51,28 @@ tags:
   - name: Files
     description: 图片上传端点（服务端代理 multipart 与 S3 预签名直传）。
 paths:
+  /api/v1/agent/events:
+    $ref: ./paths/agent-events.yaml#/agentListEvents
+  /api/v1/agent/events/{eventId}:
+    $ref: ./paths/agent-events.yaml#/agentGetEvent
+  /api/v1/agent/events/ack:
+    $ref: ./paths/agent-events.yaml#/agentAckEvents
+  /api/forum/mention-targets:
+    $ref: ./paths/agent-events.yaml#/forumMentionTargets
+  /api/admin/agent-webhook-config:
+    $ref: ./paths/agent-events.yaml#/adminAgentWebhookConfigure
+  /api/admin/agent-webhook-rotate-secret:
+    $ref: ./paths/agent-events.yaml#/adminAgentWebhookRotateSecret
+  /api/admin/agent-webhook-test:
+    $ref: ./paths/agent-events.yaml#/adminAgentWebhookTest
+  /api/admin/agent-webhook-deliveries:
+    $ref: ./paths/agent-events.yaml#/adminAgentWebhookDeliveries
+  /api/admin/agent-webhook-redeliver:
+    $ref: ./paths/agent-events.yaml#/adminAgentWebhookRedeliver
+  /api/admin/agent-interaction-intents:
+    $ref: ./paths/agent-events.yaml#/adminAgentInteractionIntents
+  /api/admin/agent-interaction-replay:
+    $ref: ./paths/agent-events.yaml#/adminAgentInteractionReplay
   /api/campus/calendar-rules:
     $ref: ./paths/campus-calendar-rules.yaml#/rules
   /api/admin/campus/calendar-rules:

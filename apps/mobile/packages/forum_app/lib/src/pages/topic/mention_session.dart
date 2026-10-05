@@ -25,6 +25,7 @@ class MentionUser {
     required this.avatarUrl,
     this.nickname,
     this.tag,
+    this.actorType = 'human',
   });
 
   final int id;
@@ -32,6 +33,7 @@ class MentionUser {
   final String? nickname;
   final String avatarUrl;
   final MentionTag? tag;
+  final String actorType;
 
   String get displayName =>
       (nickname == null || nickname!.isEmpty) ? username : nickname!;
@@ -44,10 +46,11 @@ class MentionUser {
           other.username == username &&
           other.nickname == nickname &&
           other.avatarUrl == avatarUrl &&
+          other.actorType == actorType &&
           other.tag == tag;
 
   @override
-  int get hashCode => Object.hash(id, username, nickname, avatarUrl, tag);
+  int get hashCode => Object.hash(id, username, nickname, avatarUrl, actorType, tag);
 }
 
 /// 识别出的 mention token：光标前文本中 [start, start + length) 即 "@query"。

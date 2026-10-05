@@ -5,6 +5,7 @@ import (
 	"errors"
 	"sort"
 
+	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/markdown2html"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/eventNotification"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
@@ -92,28 +93,25 @@ func handleCommentCreated(ctx context.Context, event *CommentCreatedEvent) error
 // resolveMentionUserIDs 从正文提取 mention 并解析为用户 ID：
 // 去重、排除作者本人与无效目标；limit>0 时最多返回 limit 个（fan-out 上限）。
 func resolveMentionUserIDs(content string, excludeUserID uint64, limit int) []uint64 {
-	usernames := markdown2html.ExtractMentions(content)
-	if len(usernames) == 0 {
+	ids, err := users.ResolveMentionIDsTx(db.Connect(), content, excludeUserID, limit)
+	if err != nil || len(ids) == 0 {
 		return nil
 	}
-	userMap := users.GetMentionTargetIds(usernames)
-	userIDs := make([]uint64, 0, len(usernames))
-	seen := make(map[uint64]struct{}, len(usernames))
-	for _, username := range usernames {
-		userID, ok := userMap[username]
-		if !ok || userID == 0 || userID == excludeUserID {
-			continue
-		}
-		if _, dup := seen[userID]; dup {
-			continue
-		}
-		seen[userID] = struct{}{}
-		userIDs = append(userIDs, userID)
-		if limit > 0 && len(userIDs) >= limit {
-			break
+	humans, err := users.FilterHumanRecipientsTx(db.Connect(), ids)
+	if err != nil {
+		return nil
+	}
+	allowed := map[uint64]bool{}
+	for _, id := range humans {
+		allowed[id] = true
+	}
+	out := make([]uint64, 0, len(ids))
+	for _, id := range ids {
+		if allowed[id] {
+			out = append(out, id)
 		}
 	}
-	return userIDs
+	return out
 }
 
 // priorityRecipients 计算每个接收者应收到的最高优先级通知类型
@@ -298,7 +296,7 @@ func handleTopicMentionPublished(ctx context.Context, event *TopicPublishedEvent
 func newMentionUserIDs(oldContent, newContent string, editorID uint64) []uint64 {
 	return mentionDiff(
 		resolveMentionUserIDs(oldContent, editorID, 0),
-		resolveMentionUserIDs(newContent, editorID, 0),
+		resolveMentionUserIDs(newContent, editorID, maxMentionFanOut),
 	)
 }
 

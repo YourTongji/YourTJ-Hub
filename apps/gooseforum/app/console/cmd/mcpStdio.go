@@ -48,7 +48,10 @@ func runMcpStdio(cmd *cobra.Command, _ []string) error {
 	_ = db.Connect()
 
 	writes, _ := cmd.Flags().GetBool("writes")
-	svc := mcpservice.NewStdioService(agent.UserId, writes)
+	svc, err := mcpservice.NewStdioServiceWithToken(token, writes)
+	if err != nil {
+		return err
+	}
 	if err := svc.RunStdio(cmd.Context()); err != nil {
 		slog.Error("mcp-stdio exited", "error", err)
 		os.Exit(1)

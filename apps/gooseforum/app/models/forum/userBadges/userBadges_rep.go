@@ -128,3 +128,10 @@ func Revoke(userID uint64, badgeCode string) error {
 		Where("revoked_at IS NULL").
 		Update("revoked_at", now).Error
 }
+
+// GrantTx grants/reactivates exactly one badge without publishing notifications
+// before the surrounding account transaction has committed.
+func GrantTx(tx *gorm.DB, userID uint64, code string, grantedBy uint64) error {
+	row := Entity{UserId: userID, BadgeCode: code, Source: SourceManual, Reason: "Agent default robot identity", GrantedBy: grantedBy, GrantedAt: time.Now()}
+	return tx.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "user_id"}, {Name: "badge_code"}}, DoUpdates: clause.Assignments(map[string]any{"revoked_at": nil})}).Create(&row).Error
+}
