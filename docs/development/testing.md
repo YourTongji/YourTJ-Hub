@@ -109,6 +109,10 @@ while required-check settings migrate. Docs/governance and current govulncheck r
   which checks the public component registry against Go, including order and exclusion of `admin.shell`.
   Browser regressions live in `resource/test/*.browser.mjs`, render the production Vue components
   and CSS through Vite, and stub API responses. These are separate from happy-dom component tests.
+  The campus-map suite uses a separate temporary Vite `cacheDir` and removes it after closing its
+  server, because its dependency optimizer differs from the other suites. The Node runner runs
+  suites concurrently; sharing the default cache across different optimizer configurations can
+  replace Vue chunks during imports and prevent another fixture from mounting.
   The campus-map location regression checks offline dictionary status, uncovered text, semester isolation, scoped time conditions and multiple-member choices with synthetic public course responses. It writes desktop/375px screenshots and a source receipt
   to `CAMPUS_MAP_BROWSER_EVIDENCE_DIR` (a temporary directory by default). CI uploads
   `campus-map-browser-evidence-<workflow SHA>` for 30 days; link the current run's artifact in a PR

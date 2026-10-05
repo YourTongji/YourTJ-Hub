@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { resolve } from 'node:path'
 import { after, before, test } from 'node:test'
@@ -31,7 +31,7 @@ const details = Object.fromEntries(courses.map((course, index) => [course.code, 
 }]]))
 const receipt = { source: 'Production Vue page, CSS and GeoJSON; anonymous viewer; synthetic public PK responses',
   fixtures: courses, tests: [], screenshots: [] }
-let server, browser, origin
+let server, browser, origin, cacheDir
 
 before(async () => {
   await mkdir(evidence, { recursive: true })
@@ -45,7 +45,10 @@ before(async () => {
     ? { kind: 'github-workflow-sha', value: process.env.GITHUB_SHA }
     : { kind: 'source-sha256', value: hash.digest('hex'), files: hashFiles }
   // A virtual entry keeps the fixture in this test while Vite handles real imports and styles.
-  server = await createServer({ root: resource,
+  // This optimizer has a different dependency set. Sharing the default cache with concurrent
+  // browser suites can replace their Vue chunks while pages are importing them.
+  cacheDir = await mkdtemp(resolve(tmpdir(), 'yourtj-campus-map-vite-'))
+  server = await createServer({ root: resource, cacheDir,
     build: { rollupOptions: { input: { site: resolve(resource, 'src/site/main.ts'), admin: resolve(resource, 'src/admin/main.ts') } } },
     optimizeDeps: { include: ['vue', 'vue-i18n', '@lucide/vue', 'maplibre-gl'], noDiscovery: true },
     server: { host: '127.0.0.1', port: 0, open: false, hmr: false },
@@ -80,6 +83,7 @@ before(async () => {
 after(async () => {
   await browser?.close()
   await server?.close()
+  if (cacheDir) await rm(cacheDir, { recursive: true, force: true })
   await writeFile(resolve(evidence, 'receipt.json'), JSON.stringify(receipt, null, 2))
 })
 
