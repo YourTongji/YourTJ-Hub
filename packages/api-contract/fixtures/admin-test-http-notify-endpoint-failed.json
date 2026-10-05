@@ -1,0 +1,10 @@
+{
+  "result": {
+    "success": false,
+    "messageCode": "admin.httpNotify.testFailed",
+    "params": {
+      "error": "500 Internal Server Error"
+    }
+  },
+  "code": 0
+}

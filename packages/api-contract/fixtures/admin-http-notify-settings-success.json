@@ -5,13 +5,50 @@
       {
         "id": "ep1",
         "name": "契约 webhook",
+        "channelType": "generic",
         "enabled": true,
         "url": "https://hook.example.test/notify",
+        "urlConfigured": true,
+        "target": "",
         "secretConfigured": true,
         "events": [
           "topic.created"
         ],
         "timeoutSeconds": 5,
+        "failureCount": 0,
+        "lastError": "",
+        "abnormalTerminated": false
+      },
+      {
+        "id": "ep2",
+        "name": "飞书审批群",
+        "channelType": "feishu",
+        "enabled": true,
+        "url": "",
+        "urlConfigured": true,
+        "target": "",
+        "secretConfigured": false,
+        "events": [
+          "moderation.report.post.created"
+        ],
+        "timeoutSeconds": 3,
+        "failureCount": 0,
+        "lastError": "",
+        "abnormalTerminated": false
+      },
+      {
+        "id": "ep3",
+        "name": "AstrBot 群",
+        "channelType": "astrbot",
+        "enabled": true,
+        "url": "http://astrbot.example.test:9966/send",
+        "urlConfigured": true,
+        "target": "aiocqhttp:GroupMessage:123456",
+        "secretConfigured": true,
+        "events": [
+          "moderation.review.topic.requested"
+        ],
+        "timeoutSeconds": 3,
         "failureCount": 0,
         "lastError": "",
         "abnormalTerminated": false

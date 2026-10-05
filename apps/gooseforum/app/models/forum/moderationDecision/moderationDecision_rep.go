@@ -22,6 +22,13 @@ func Get(id uint64) (entity Entity) {
 }
 
 // LatestForSubjects 批量返回每个主体最近一次 AI 决策（审核队列展示与人工结论回写用）。
+// ExistsForRevision reports whether AI moderation evaluated the revision.
+func ExistsForRevision(revisionID uint64) bool {
+	var count int64
+	builder().Where("revision_id = ?", revisionID).Limit(1).Count(&count)
+	return count > 0
+}
+
 func LatestForSubjects(subjectType string, subjectIDs []uint64) map[uint64]Entity {
 	result := make(map[uint64]Entity, len(subjectIDs))
 	if len(subjectIDs) == 0 {

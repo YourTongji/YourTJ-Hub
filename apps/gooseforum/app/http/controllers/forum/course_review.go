@@ -203,7 +203,7 @@ func ReportCourseReview(req component.BetterRequest[ReportCourseReviewReq]) comp
 	if target.UserID == req.UserId {
 		return component.FailResponseCode(component.MessageReportOwnContent, nil)
 	}
-	_, created, err := reports.CreateOpen(reports.Entity{
+	report, created, err := reports.CreateOpen(reports.Entity{
 		TargetType: reports.TargetCourseReview,
 		TargetId:   req.Params.ReviewId,
 		ReporterId: req.UserId,
@@ -216,6 +216,7 @@ func ReportCourseReview(req component.BetterRequest[ReportCourseReviewReq]) comp
 	if !created {
 		return component.FailResponseCode(component.MessageReportDuplicate, nil)
 	}
+	publishReportCreated(req.GinContext, report)
 	return component.SuccessResponse(true)
 }
 
