@@ -553,7 +553,7 @@ export async function updateTopicAgentReplies(topicId: number, agentRepliesDisab
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ topicId, agentRepliesDisabled }),
   })
-  return readApiResponse<boolean>(response, t('api.topicStatusFailed'))
+  return readApiResponse<boolean>(response, t('publish.saveFailed'))
 }
 
 export async function updateTopicStatus(id: number, topicStatus: 0 | 1): Promise<boolean> {

@@ -333,7 +333,7 @@ export interface TopicDetailProps {
   hotTopics: TopicPayload[]
   permissions: {
     isOwnTopic: boolean
-  canManageAgentReplies?: boolean
+    canManageAgentReplies?: boolean
     canPost: boolean
     canModerateTopic: boolean
   }

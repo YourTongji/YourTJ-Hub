@@ -20,7 +20,7 @@ async function toggle(event: Event) {
     await updateTopicAgentReplies(topicId, next)
     if (topicId === props.topicId) emit('changed', next)
   } catch (err) {
-    if (topicId === props.topicId) error.value = err instanceof Error ? err.message : t('api.topicStatusFailed')
+    if (topicId === props.topicId) error.value = err instanceof Error ? err.message : t('publish.saveFailed')
   } finally {
     saving.value = false
   }

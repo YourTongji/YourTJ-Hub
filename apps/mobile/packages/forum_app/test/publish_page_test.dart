@@ -748,6 +748,9 @@ void main() {
         '原始标题',
       );
       expect(find.byKey(const Key('publish-add-title')), findsNothing);
+      await tester.tap(find.byKey(const Key('publish-appbar-submit')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('publish-agent-replies')), findsNothing);
     });
   }
 

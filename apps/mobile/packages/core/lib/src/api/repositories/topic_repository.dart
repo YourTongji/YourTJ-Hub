@@ -137,7 +137,10 @@ class TopicRepository {
     );
   }
 
-  Future<void> updateAgentReplies({required int topicId, required bool disabled}) async {
+  Future<void> updateAgentReplies({
+    required int topicId,
+    required bool disabled,
+  }) async {
     await _client.post<Object?>(
       '/api/forum/topics/agent-replies',
       body: {'topicId': topicId, 'agentRepliesDisabled': disabled},

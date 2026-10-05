@@ -792,7 +792,7 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Set the own topic robot reply policy
+         * Set the robot reply policy for a topic you own
          * @description Immediately sets the robot reply policy of an active ordinary forum topic.
          *     Only its author may change it; Wiki and deleted topics cannot be changed.
          *     Does not edit content or enter moderation. Repeated values are idempotent.

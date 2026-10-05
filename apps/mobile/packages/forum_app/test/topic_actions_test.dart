@@ -15,12 +15,14 @@ class _Topics extends TopicRepository {
   _Topics(super.client);
   final deleted = <int>[];
   final replySettings = <bool>[];
+  bool failReplySetting = false;
   @override
   Future<void> updateAgentReplies({
     required int topicId,
     required bool disabled,
   }) async {
     expect(topicId, 100);
+    if (failReplySetting) throw StateError("save failed");
     replySettings.add(disabled);
   }
 
@@ -131,6 +133,40 @@ void main() {
     },
   );
 
+  testWidgets('failed robot reply setting keeps its state and permits retry', (
+    tester,
+  ) async {
+    var refreshes = 0;
+    final h = await pump(
+      tester,
+      onChanged: () async {
+        refreshes++;
+      },
+    );
+    h.repo.failReplySetting = true;
+    await menu(tester, 'Disable robot replies');
+    expect(refreshes, 0);
+    expect(h.repo.replySettings, isEmpty);
+    expect(find.text('Bad state: save failed'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 8));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('More options'));
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .widget<CheckedPopupMenuItem<String>>(
+            find.byType(CheckedPopupMenuItem<String>),
+          )
+          .checked,
+      isFalse,
+    );
+    h.repo.failReplySetting = false;
+    await tester.tap(find.text('Disable robot replies'));
+    await tester.pumpAndSettle();
+    expect(h.repo.replySettings, [true]);
+    expect(refreshes, 1);
+  });
+
   testWidgets('own topic opens its editor and refreshes after returning', (
     tester,
   ) async {
@@ -233,6 +269,6 @@ void main() {
     await menu(tester, 'Share');
     expect(tester.takeException(), isNull);
     expect(find.byType(TopicActions), findsOneWidget);
-    await tester.pump(const Duration(seconds: 4));
+    await tester.pump(const Duration(seconds: 8));
   });
 }

@@ -1,7 +1,7 @@
 updateTopicAgentReplies:
   post:
     tags: [Forum]
-    summary: Set the own topic robot reply policy
+    summary: Set the robot reply policy for a topic you own
     operationId: updateTopicAgentReplies
     description: |
       Immediately sets the robot reply policy of an active ordinary forum topic.
