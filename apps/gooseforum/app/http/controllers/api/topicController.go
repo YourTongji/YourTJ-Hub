@@ -394,6 +394,13 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 	// 记录是否为编辑：事务内 topics.CreateTx 会回填 topic.Id，因此提交后分支判断
 	// 必须使用此快照（isEdit），不能复用已被回填的 topic.Id。
 	isEdit := topic.Id > 0
+	// Markdown mention/sticker resolution can query the database. Render before
+	// opening the content transaction so SQLite's single connection cannot wait
+	// on itself, and PostgreSQL does not hold content locks during rendering.
+	renderedContent := firstPost.RenderedHTML
+	if !isEdit {
+		renderedContent = postservice.RenderPostHTML(req.Params.Content)
+	}
 	var reservation *agentwriteservice.Reservation
 	var replay *agentWrites.Entry
 	// 单事务原子提交：话题 + 首帖 + 指针（首/末帖 ID、最后回复时间）+ 分类索引。
@@ -445,7 +452,7 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 				PostNo:          1,
 				UserId:          req.UserId,
 				Content:         req.Params.Content,
-				RenderedHTML:    postservice.RenderPostHTML(req.Params.Content),
+				RenderedHTML:    renderedContent,
 				RenderedVersion: markdown2html.GetPostVersion(),
 				ProcessStatus:   posts.ProcessStatusNormal,
 				ContentType:     req.Params.ContentType,
