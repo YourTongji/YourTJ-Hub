@@ -201,6 +201,7 @@ abstract class TopicPayload with _$TopicPayload {
 @freezed
 abstract class TopicDetailPayload with _$TopicDetailPayload {
   const factory TopicDetailPayload({
+    @Default(false) bool agentRepliesDisabled,
     required int id,
     required String title,
     required String description,
@@ -313,6 +314,7 @@ abstract class TopicDetailProps with _$TopicDetailProps {
 @freezed
 abstract class TopicDetailPermissions with _$TopicDetailPermissions {
   const factory TopicDetailPermissions({
+    @Default(false) bool canManageAgentReplies,
     required bool isOwnTopic,
     required bool canPost,
     required bool canModerateTopic,

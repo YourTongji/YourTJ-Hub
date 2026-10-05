@@ -333,12 +333,15 @@ export interface TopicDetailProps {
   hotTopics: TopicPayload[]
   permissions: {
     isOwnTopic: boolean
+  canManageAgentReplies?: boolean
     canPost: boolean
     canModerateTopic: boolean
   }
 }
 
 export interface TopicDetailPayload {
+  /** Missing on older servers; defaults to allowing Agent replies. */
+  agentRepliesDisabled?: boolean
   id: number
   title: string
   description: string
@@ -964,6 +967,7 @@ export interface PublishPageProps {
     content: string
     categoryIds: number[]
     topicStatus: number
+    agentRepliesDisabled?: boolean
     contentType?: 0 | 1 | 2 | 3 // 0=regular, 1=question, 2=thought, 3=article
   }
 }

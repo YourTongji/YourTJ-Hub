@@ -61,6 +61,7 @@ const {
   challengeFromError,
 } = useCaptchaChallenge()
 
+const agentRepliesDisabled = ref(false)
 const title = ref('')
 const content = ref('')
 const categoryIds = ref<number[]>([])
@@ -153,6 +154,7 @@ const typeMeta = computed(() => {
 // 快照序列化与 PublishPage editorSnapshot 同构：标题/正文 trim、分类排序、图片取已上传 URL。
 function editorSnapshot() {
   return JSON.stringify({
+    agentRepliesDisabled: agentRepliesDisabled.value,
     title: title.value.trim(),
     content: content.value.trim(),
     categoryIds: [...categoryIds.value].sort((a, b) => a - b),
@@ -162,13 +164,13 @@ function editorSnapshot() {
 
 const uploadedImageUrls = computed(() => uploadedImages.value.filter((i) => !i.uploading && i.url).map((i) => i.url))
 const dirty = computed(() => uploading.value || editorSnapshot() !== baselineSnapshot.value)
-const hasContent = computed(() => Boolean(title.value.trim() || content.value.trim() || categoryIds.value.length > 0 || uploadedImageUrls.value.length > 0))
+const hasContent = computed(() => Boolean(agentRepliesDisabled.value || title.value.trim() || content.value.trim() || categoryIds.value.length > 0 || uploadedImageUrls.value.length > 0))
 // 服务端草稿需要正文/分类；标题仅对非瞬间类型必填（瞬间留空即空标题草稿）。
 // 编辑模式不提供保存草稿（把已发布话题降级为 topicStatus:0 草稿是错误语义）。
 const canSaveDraft = computed(() => !isEditing.value && Boolean((title.value.trim() || quickPublishType.value === 2) && content.value.trim() && categoryIds.value.length > 0) && !submitting.value && !savingDraft.value && !uploading.value)
 
 function stashHasContent(stash: QuickPublishDraftStash): boolean {
-  return Boolean(stash.title.trim() || stash.content.trim() || stash.categoryIds.length > 0 || stash.images.length > 0)
+  return Boolean(stash.agentRepliesDisabled || stash.title.trim() || stash.content.trim() || stash.categoryIds.length > 0 || stash.images.length > 0)
 }
 
 function resolvePendingNav(allow: boolean) {
@@ -224,6 +226,7 @@ async function saveDraftAndClose() {
       title: title.value.trim(),
       content: content.value.trim(),
       categoryId: [...categoryIds.value],
+      agentRepliesDisabled: agentRepliesDisabled.value,
       topicStatus: 0,
       contentType: quickPublishType.value,
       images: uploadedImageUrls.value,
@@ -315,9 +318,11 @@ watch(
       clearCaptcha()
       draftUserId.value = viewerId.value
 
+      agentRepliesDisabled.value = false
       const stash = readQuickPublishDraft(draftUserId.value, quickPublishType.value, quickPublishEditPayload.value?.topicId)
       if (stash && stashHasContent(stash)) {
         // 本地暂存优先：恢复上次未保存的内容并提示
+        agentRepliesDisabled.value = stash.agentRepliesDisabled ?? false
         title.value = stash.title
         content.value = stash.content
         categoryIds.value = [...stash.categoryIds]
@@ -349,7 +354,7 @@ watch(
 
       // 基线快照在字段填充完成后捕获：此后任何偏离都视为未保存改动
       baselineSnapshot.value = stash && stashHasContent(stash)
-        ? JSON.stringify({ title: '', content: '', categoryIds: [], images: [] })
+        ? JSON.stringify({ agentRepliesDisabled: false, title: '', content: '', categoryIds: [], images: [] })
         : editorSnapshot()
 
       void nextTick(() => {
@@ -392,10 +397,11 @@ function stashCurrentDraft() {
     content: content.value,
     categoryIds: [...categoryIds.value],
     images: uploadedImageUrls.value,
+    agentRepliesDisabled: agentRepliesDisabled.value,
   }, quickPublishEditPayload.value?.topicId)
 }
 
-watch([title, content, categoryIds, uploadedImages, quickPublishOpen], () => {
+watch([title, content, agentRepliesDisabled, categoryIds, uploadedImages, quickPublishOpen], () => {
   if (!quickPublishOpen.value) return
   if (stashTimer) window.clearTimeout(stashTimer)
   stashTimer = window.setTimeout(stashCurrentDraft, 500)
@@ -591,6 +597,7 @@ async function handleSubmit() {
       title: finalTitle,
       content: finalContent,
       categoryId: categoryIds.value,
+      agentRepliesDisabled: agentRepliesDisabled.value,
       topicStatus: 1,
       contentType: quickPublishType.value,
       images: uploadedImages.value.filter((i) => !i.uploading && i.url).map((i) => i.url),
@@ -683,6 +690,10 @@ async function handleSubmit() {
 
         <!-- 弹层主体：首行快捷传图 -> 选择分类 -> 填写标题 -> 添加正文铺满 -> 底部工具栏 -->
         <div class="flex-1 min-h-0 flex flex-col px-4 sm:px-6 py-2.5 sm:py-3 gap-2.5 sm:gap-3 overflow-hidden sm:overflow-y-auto">
+          <label v-if="!isEditing" class="flex items-center gap-2 px-4 py-2 text-sm">
+            <input v-model="agentRepliesDisabled" type="checkbox" :disabled="submitting || savingDraft" />
+            <span>{{ t('agentReplies.disable') }}<small class="block text-base-content/60">{{ t('agentReplies.help') }}</small></span>
+          </label>
           <!-- 本地暂存恢复提示（issue #583） -->
           <p
             v-if="draftRestored"

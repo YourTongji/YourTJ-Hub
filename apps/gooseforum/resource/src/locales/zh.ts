@@ -1,6 +1,11 @@
 import adminRaw from './admin-raw.generated'
 
 export default {
+  agentReplies: {
+    disable: "禁止机器人回复",
+    disabled: "作者已禁止机器人回复",
+    help: "阻止本站 Agent 账号回复，不影响已有回复。",
+  },
   planSync: {
     title: "处理方案冲突",
     body: "其他设备也修改了这些内容。请选择每项要保留的值，其余修改会自动合并。",
@@ -2790,6 +2795,7 @@ export default {
     topic: {
       notFound: '内容不存在',
       ownerMismatch: '不要更改别人发出的帖子哦',
+      agentRepliesDisabled: "话题作者已禁止机器人回复。",
       operationDenied: '不可操作',
       repliesNotAllowed: '该话题不允许回复（瞬间/文章类型）',
       contentTypeChangeNotAllowed: '不能更改已有回复的话题的内容类型',

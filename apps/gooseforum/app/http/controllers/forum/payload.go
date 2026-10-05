@@ -340,29 +340,30 @@ type TopicDetailProps struct {
 }
 
 type TopicDetailPayload struct {
-	ID               uint64                 `json:"id"`
-	Title            string                 `json:"title"`
-	Description      string                 `json:"description"`
-	FirstImageURL    string                 `json:"firstImageUrl,omitempty"`
-	Images           []string               `json:"images,omitempty"`
-	URL              string                 `json:"url"`
-	TopicStatus      int8                   `json:"topicStatus"`
-	ProcessStatus    int8                   `json:"processStatus"`
-	AuthorDeleted    bool                   `json:"authorDeleted"`
-	ModeratorRemoved bool                   `json:"moderatorRemoved"`
-	Author           TopicAuthorPayload     `json:"author"`
-	Participants     []TopicAuthorPayload   `json:"participants"`
-	Categories       []TopicCategoryPayload `json:"categories"`
-	ReplyCount       uint64                 `json:"replyCount"`
-	MaxPostNo        uint64                 `json:"maxPostNo"`
-	ViewCount        uint64                 `json:"viewCount"`
-	LikeCount        uint64                 `json:"likeCount"`
-	IsLiked          bool                   `json:"isLiked"`
-	IsBookmarked     bool                   `json:"isBookmarked"`
-	IsWatched        bool                   `json:"isWatched"`
-	CreatedAt        string                 `json:"createdAt"`
-	UpdatedAt        string                 `json:"updatedAt"`
-	ContentType      int8                   `json:"contentType"`
+	AgentRepliesDisabled bool                   `json:"agentRepliesDisabled"`
+	ID                   uint64                 `json:"id"`
+	Title                string                 `json:"title"`
+	Description          string                 `json:"description"`
+	FirstImageURL        string                 `json:"firstImageUrl,omitempty"`
+	Images               []string               `json:"images,omitempty"`
+	URL                  string                 `json:"url"`
+	TopicStatus          int8                   `json:"topicStatus"`
+	ProcessStatus        int8                   `json:"processStatus"`
+	AuthorDeleted        bool                   `json:"authorDeleted"`
+	ModeratorRemoved     bool                   `json:"moderatorRemoved"`
+	Author               TopicAuthorPayload     `json:"author"`
+	Participants         []TopicAuthorPayload   `json:"participants"`
+	Categories           []TopicCategoryPayload `json:"categories"`
+	ReplyCount           uint64                 `json:"replyCount"`
+	MaxPostNo            uint64                 `json:"maxPostNo"`
+	ViewCount            uint64                 `json:"viewCount"`
+	LikeCount            uint64                 `json:"likeCount"`
+	IsLiked              bool                   `json:"isLiked"`
+	IsBookmarked         bool                   `json:"isBookmarked"`
+	IsWatched            bool                   `json:"isWatched"`
+	CreatedAt            string                 `json:"createdAt"`
+	UpdatedAt            string                 `json:"updatedAt"`
+	ContentType          int8                   `json:"contentType"`
 }
 
 type PostPayload struct {
@@ -418,9 +419,10 @@ type PostWindowPayload struct {
 }
 
 type TopicPermissions struct {
-	IsOwnTopic       bool `json:"isOwnTopic"`
-	CanPost          bool `json:"canPost"`
-	CanModerateTopic bool `json:"canModerateTopic"`
+	CanManageAgentReplies bool `json:"canManageAgentReplies"`
+	IsOwnTopic            bool `json:"isOwnTopic"`
+	CanPost               bool `json:"canPost"`
+	CanModerateTopic      bool `json:"canModerateTopic"`
 }
 
 type UserProfileProps struct {
@@ -651,12 +653,13 @@ type ModerationPageProps struct {
 }
 
 type PublishTopicPayload struct {
-	Images      []string `json:"images"`
-	Title       string   `json:"title"`
-	Content     string   `json:"content"`
-	CategoryIDs []uint64 `json:"categoryIds"`
-	TopicStatus int8     `json:"topicStatus"`
-	ContentType int8     `json:"contentType"`
+	AgentRepliesDisabled bool     `json:"agentRepliesDisabled"`
+	Images               []string `json:"images"`
+	Title                string   `json:"title"`
+	Content              string   `json:"content"`
+	CategoryIDs          []uint64 `json:"categoryIds"`
+	TopicStatus          int8     `json:"topicStatus"`
+	ContentType          int8     `json:"contentType"`
 }
 
 type SearchPageProps struct {
@@ -1291,7 +1294,8 @@ func buildTopicDetailProps(c *gin.Context, topic *topics.Entity, firstPost *post
 		),
 		HotTopics: buildTopicHotTopics(topic.Id),
 		Permissions: TopicPermissions{
-			IsOwnTopic: currentUserID == topic.UserId,
+			CanManageAgentReplies: currentUserID != 0 && currentUserID == topic.UserId && topic.TopicType == topics.TopicTypeForum && topic.VisibilityStatus == topics.VisibilityActive,
+			IsOwnTopic:            currentUserID == topic.UserId,
 			// 待审话题只有作者与审核员能看到：通过前不开放回复（回复接口同样拒绝）。
 			CanPost: currentUserID > 0 && (topic.ProcessStatus == topics.ProcessStatusNormal || canModerate) &&
 				(firstPost.ContentType == posts.ContentTypeRegular || firstPost.ContentType == posts.ContentTypeQuestion || firstPost.ContentType == posts.ContentTypeThought || firstPost.ContentType == posts.ContentTypeArticle),
@@ -1623,29 +1627,30 @@ func buildTopicDetailPayload(c *gin.Context, topic *topics.Entity, firstPost *po
 	}
 
 	return TopicDetailPayload{
-		ID:               topic.Id,
-		Title:            topic.Title,
-		Description:      topic.Excerpt,
-		FirstImageURL:    topic.FirstImageURL,
-		Images:           topic.ImageUrls,
-		URL:              urlconfig.PostDetail(topic.Id),
-		TopicStatus:      topic.Status,
-		ProcessStatus:    topic.ProcessStatus,
-		AuthorDeleted:    isAuthorDeletedVisibility(topic.VisibilityStatus),
-		ModeratorRemoved: isModeratorRemovedVisibility(topic.VisibilityStatus),
-		Author:           authorPayload(topic.UserId),
-		Participants:     participants,
-		Categories:       categoryPayloads(topic.CategoryIds),
-		ReplyCount:       topic.ReplyCount,
-		MaxPostNo:        topic.PostSeq,
-		ViewCount:        topic.ViewCount,
-		LikeCount:        topic.LikeCount,
-		IsLiked:          isLiked,
-		IsBookmarked:     isBookmarked,
-		IsWatched:        isWatched,
-		CreatedAt:        createdAt.Format(time.RFC3339),
-		UpdatedAt:        updatedAt.Format(time.RFC3339),
-		ContentType:      resolveTopicContentType(firstPost.ContentType),
+		AgentRepliesDisabled: topic.AgentRepliesDisabled,
+		ID:                   topic.Id,
+		Title:                topic.Title,
+		Description:          topic.Excerpt,
+		FirstImageURL:        topic.FirstImageURL,
+		Images:               topic.ImageUrls,
+		URL:                  urlconfig.PostDetail(topic.Id),
+		TopicStatus:          topic.Status,
+		ProcessStatus:        topic.ProcessStatus,
+		AuthorDeleted:        isAuthorDeletedVisibility(topic.VisibilityStatus),
+		ModeratorRemoved:     isModeratorRemovedVisibility(topic.VisibilityStatus),
+		Author:               authorPayload(topic.UserId),
+		Participants:         participants,
+		Categories:           categoryPayloads(topic.CategoryIds),
+		ReplyCount:           topic.ReplyCount,
+		MaxPostNo:            topic.PostSeq,
+		ViewCount:            topic.ViewCount,
+		LikeCount:            topic.LikeCount,
+		IsLiked:              isLiked,
+		IsBookmarked:         isBookmarked,
+		IsWatched:            isWatched,
+		CreatedAt:            createdAt.Format(time.RFC3339),
+		UpdatedAt:            updatedAt.Format(time.RFC3339),
+		ContentType:          resolveTopicContentType(firstPost.ContentType),
 	}
 }
 
@@ -3111,12 +3116,13 @@ func buildPublishPageProps(c *gin.Context, topicID uint64) (PublishPageProps, er
 	}
 	publicationservice.OwnerSnapshot(&topic, &firstPost, component.LoginUserId(c), true)
 	props.Topic = PublishTopicPayload{
-		Images:      append([]string{}, topic.ImageUrls...),
-		Title:       topic.Title,
-		Content:     firstPost.Content,
-		CategoryIDs: topic.CategoryIds,
-		TopicStatus: topic.Status,
-		ContentType: firstPost.ContentType,
+		AgentRepliesDisabled: topic.AgentRepliesDisabled,
+		Images:               append([]string{}, topic.ImageUrls...),
+		Title:                topic.Title,
+		Content:              firstPost.Content,
+		CategoryIDs:          topic.CategoryIds,
+		TopicStatus:          topic.Status,
+		ContentType:          firstPost.ContentType,
 	}
 	return props, nil
 }

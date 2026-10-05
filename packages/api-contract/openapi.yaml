@@ -113,6 +113,8 @@ paths:
     $ref: ./paths/auth-sessions.yaml#/revokeAllSessions
   /api/forum/topics/write:
     $ref: ./paths/forum-topics.yaml#/writeTopic
+  /api/forum/topics/agent-replies:
+    $ref: ./paths/forum-topic-policy.yaml#/updateTopicAgentReplies
   /api/forum/topics/status:
     $ref: ./paths/forum-topic-interactions.yaml#/updateTopicStatus
   /api/forum/topics/delete:

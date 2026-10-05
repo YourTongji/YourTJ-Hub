@@ -439,6 +439,18 @@ OidcExchangeSuccess:
         result:
           $ref: '#/OidcExchangeResult'
 
+UpdateTopicAgentRepliesRequest:
+  type: object
+  required: [topicId, agentRepliesDisabled]
+  properties:
+    topicId:
+      type: integer
+      format: uint64
+      minimum: 1
+    agentRepliesDisabled:
+      type: boolean
+  additionalProperties: false
+
 WriteTopicRequest:
   type: object
   required: [content, categoryId]
@@ -456,6 +468,10 @@ WriteTopicRequest:
       title:
         minLength: 1
   properties:
+    agentRepliesDisabled:
+      type: boolean
+      default: false
+      description: Initial robot reply policy for a new topic only. Ignored on content edits; use topics/agent-replies to change an existing topic.
     topicId:
       type: integer
       format: uint64
@@ -571,6 +587,9 @@ AgentTopicItem:
   type: object
   required: [id, title, excerpt, categoryIds, userId, status, processStatus, replyCount, viewCount, postCount, createdAt, updatedAt]
   properties:
+    agentRepliesDisabled:
+      type: boolean
+      description: Whether the topic author prohibits replies from bot identities. Missing on older servers means false.
     id:
       type: integer
       format: uint64

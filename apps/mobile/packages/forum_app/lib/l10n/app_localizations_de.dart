@@ -9,6 +9,17 @@ class AppLocalizationsDe extends AppLocalizations {
   AppLocalizationsDe([String locale = 'de']) : super(locale);
 
   @override
+  String get agentRepliesDisable => 'Roboterantworten deaktivieren';
+
+  @override
+  String get agentRepliesDisabled =>
+      'Der Autor hat Roboterantworten deaktiviert';
+
+  @override
+  String get agentRepliesHelp =>
+      'Blockiert Antworten von Agent-Konten der Website. Bestehende Antworten bleiben erhalten.';
+
+  @override
   String get campusCourseReviews => 'Kursbewertungen';
 
   @override

@@ -14,6 +14,16 @@ import 'pages_smoke_test.dart' show MemoryTokenStorage;
 class _Topics extends TopicRepository {
   _Topics(super.client);
   final deleted = <int>[];
+  final replySettings = <bool>[];
+  @override
+  Future<void> updateAgentReplies({
+    required int topicId,
+    required bool disabled,
+  }) async {
+    expect(topicId, 100);
+    replySettings.add(disabled);
+  }
+
   final moderated = <bool>[];
   @override
   Future<void> deleteTopic({required int topicId}) async =>
@@ -66,6 +76,7 @@ void main() {
                 topic: props.topic.copyWith(processStatus: status),
                 permissions: props.permissions.copyWith(
                   isOwnTopic: own,
+                  canManageAgentReplies: own,
                   canModerateTopic: moderator,
                 ),
               ),
@@ -99,6 +110,26 @@ void main() {
     await tester.tap(find.text(action));
     await tester.pumpAndSettle();
   }
+
+  testWidgets(
+    'author changes robot replies and refreshes; readers have no control',
+    (tester) async {
+      var refreshes = 0;
+      final author = await pump(
+        tester,
+        onChanged: () async {
+          refreshes++;
+        },
+      );
+      await menu(tester, 'Disable robot replies');
+      expect(author.repo.replySettings, [true]);
+      expect(refreshes, 1);
+      await pump(tester, own: false);
+      await tester.tap(find.byTooltip('More options'));
+      await tester.pumpAndSettle();
+      expect(find.text('Disable robot replies'), findsNothing);
+    },
+  );
 
   testWidgets('own topic opens its editor and refreshes after returning', (
     tester,

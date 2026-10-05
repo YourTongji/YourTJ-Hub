@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useContentUpdates } from '@/runtime/content-updates'
+import AgentReplySetting from '@/site/components/AgentReplySetting.vue'
 import { useRouter } from 'vue-router'
 import { userDisplayName } from '@/runtime/private-notes'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
@@ -333,6 +334,13 @@ function handleTopicState(nextLikeCount: number) {
         </div>
       </div>
     </header>
+
+    <AgentReplySetting
+      :topic-id="view.topic.id"
+      :disabled="view.topic.agentRepliesDisabled ?? false"
+      :can-manage="view.permissions.canManageAgentReplies ?? false"
+      @changed="view.topic.agentRepliesDisabled = $event"
+    />
 
     <PostStream
       ref="postStreamRef"

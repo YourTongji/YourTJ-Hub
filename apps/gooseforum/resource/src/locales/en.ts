@@ -1,6 +1,11 @@
 import adminRaw from './admin-raw.en.generated'
 
 export default {
+  agentReplies: {
+    disable: "Disable robot replies",
+    disabled: "The author has disabled robot replies",
+    help: "Blocks replies from site Agent accounts. Existing replies remain.",
+  },
   planSync: {
     title: "Resolve plan conflicts",
     body: "Another device changed these items too. Choose each value to keep; other changes merge automatically.",
@@ -2788,6 +2793,7 @@ export default {
     topic: {
       notFound: 'Topic not found',
       ownerMismatch: "You cannot edit someone else's post",
+      agentRepliesDisabled: "The topic author has disabled robot replies.",
       operationDenied: 'Operation not allowed',
       repliesNotAllowed: 'This topic does not allow replies (Moment/Article type)',
       contentTypeChangeNotAllowed: 'Cannot change content type of a topic that has replies',

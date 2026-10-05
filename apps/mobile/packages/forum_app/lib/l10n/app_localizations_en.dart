@@ -9,6 +9,16 @@ class AppLocalizationsEn extends AppLocalizations {
   AppLocalizationsEn([String locale = 'en']) : super(locale);
 
   @override
+  String get agentRepliesDisable => 'Disable robot replies';
+
+  @override
+  String get agentRepliesDisabled => 'The author has disabled robot replies';
+
+  @override
+  String get agentRepliesHelp =>
+      'Blocks replies from site Agent accounts. Existing replies remain.';
+
+  @override
   String get campusCourseReviews => 'Course reviews';
 
   @override

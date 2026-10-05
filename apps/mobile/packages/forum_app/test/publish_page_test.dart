@@ -112,6 +112,7 @@ class _RecordingTopicRepository extends TopicRepository {
       List<int> categoryIds,
       int topicStatus,
       int contentType,
+      bool agentRepliesDisabled,
     })
   >
   writes =
@@ -123,6 +124,7 @@ class _RecordingTopicRepository extends TopicRepository {
           List<int> categoryIds,
           int topicStatus,
           int contentType,
+          bool agentRepliesDisabled,
         })
       >[];
 
@@ -134,6 +136,7 @@ class _RecordingTopicRepository extends TopicRepository {
     required List<int> categoryIds,
     required int topicStatus,
     int contentType = 3,
+    bool agentRepliesDisabled = false,
     List<String>? images,
     String? captchaId,
     String? captchaCode,
@@ -161,6 +164,7 @@ class _RecordingTopicRepository extends TopicRepository {
       categoryIds: List<int>.of(categoryIds),
       topicStatus: topicStatus,
       contentType: contentType,
+      agentRepliesDisabled: agentRepliesDisabled,
     ));
     return WriteTopicResult(
       id: resultId,
@@ -568,6 +572,33 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('保留这次创作？'), findsNothing);
     expect(result.router.state.uri.path, '/');
+  });
+
+  testWidgets('new topic submits the selected robot reply restriction', (
+    tester,
+  ) async {
+    usePhoneViewport(tester);
+    final result = await pumpPublishPage(
+      tester,
+      editing: false,
+      contentType: 2,
+      categoryIds: [2],
+    );
+    await tester.enterText(
+      find.byKey(const Key('publish-editor')),
+      'A sufficiently long campus moment.',
+    );
+    await tester.tap(find.byKey(const Key('publish-appbar-submit')));
+    await tester.pumpAndSettle();
+    final setting = find.byKey(const Key('publish-agent-replies'));
+    await tester.ensureVisible(setting);
+    await tester.tap(
+      find.descendant(of: setting, matching: find.byType(Switch)),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('publish-appbar-submit')));
+    await tester.pumpAndSettle();
+    expect(result.topicRepository.writes.single.agentRepliesDisabled, isTrue);
   });
 
   for (final draft in [false, true]) {

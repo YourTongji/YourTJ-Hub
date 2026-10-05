@@ -40,6 +40,12 @@ func Get(id any) (entity EntityComplete, err error) {
 	return
 }
 
+// GetActorTx reads account identity from the transaction, never request flags.
+func GetActorTx(tx *gorm.DB, id uint64) (entity EntityComplete, err error) {
+	err = tx.Table(tableName).Select("id", "actor_type").Where("id = ? AND deleted_at IS NULL", id).Take(&entity).Error
+	return
+}
+
 // GetWithContext is the cancellable worker/request variant of Get.
 func GetWithContext(ctx context.Context, id any) (entity EntityComplete, err error) {
 	err = dbconnect.ConnectContext(ctx).Table(tableName).Where(pid, id).First(&entity).Error

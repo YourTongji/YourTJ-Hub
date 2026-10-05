@@ -399,10 +399,11 @@ test.each([
     const vm = wrapper.vm as any
     vm.categoryIds = [101]
     vm.content = body
+    vm.agentRepliesDisabled = true
     vm.editor = { syncValue: () => body }
     if (imageOnly) vm.uploadedImages = [{ id: 'image', url: '/file/img/test.png', uploading: false }]
     await vm.handleSubmit()
-    expect(submit).toHaveBeenCalledWith(expect.objectContaining({ title: '', contentType: 2 }))
+    expect(submit).toHaveBeenCalledWith(expect.objectContaining({ title: '', contentType: 2, agentRepliesDisabled: true }))
   } finally {
     closeQuickPublish()
     await flushPromises()

@@ -246,7 +246,7 @@ agentCreatePost:
             $ref: ../components/schemas.yaml#/AgentCreatePostRequest
     responses:
       '200':
-        description: Created post payload, or a legacy business failure envelope (unknown topic, length, sensitive-content rules).
+        description: Created post payload, or a legacy business failure envelope (unknown topic, topic.agentRepliesDisabled, length, sensitive-content rules). A reply submitted for review is checked again before its first public publication.
         content:
           application/json:
             schema:
@@ -254,6 +254,8 @@ agentCreatePost:
             examples:
               success:
                 externalValue: ../fixtures/agent-post-create-success.json
+              agentRepliesDisabled:
+                externalValue: ../fixtures/topic-agent-replies-disabled.json
               unknownTopic:
                 summary: Unknown topics keep the business 200 failure envelope.
                 externalValue: ../fixtures/admin-topic-categories-edit-topic-not-found.json

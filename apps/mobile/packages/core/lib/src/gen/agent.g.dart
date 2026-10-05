@@ -32,6 +32,7 @@ Map<String, dynamic> _$$AgentMeResultImplToJson(_$AgentMeResultImpl instance) =>
 
 _$AgentTopicItemImpl _$$AgentTopicItemImplFromJson(Map<String, dynamic> json) =>
     _$AgentTopicItemImpl(
+      agentRepliesDisabled: json['agentRepliesDisabled'] as bool? ?? false,
       id: (json['id'] as num).toInt(),
       title: json['title'] as String,
       excerpt: json['excerpt'] as String,
@@ -52,6 +53,7 @@ _$AgentTopicItemImpl _$$AgentTopicItemImplFromJson(Map<String, dynamic> json) =>
 Map<String, dynamic> _$$AgentTopicItemImplToJson(
   _$AgentTopicItemImpl instance,
 ) => <String, dynamic>{
+  'agentRepliesDisabled': instance.agentRepliesDisabled,
   'id': instance.id,
   'title': instance.title,
   'excerpt': instance.excerpt,

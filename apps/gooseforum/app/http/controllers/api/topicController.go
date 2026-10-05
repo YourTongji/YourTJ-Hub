@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"strings"
 	"time"
@@ -31,6 +32,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/postservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/publicationservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/searchservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/topicpolicyservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/topicunseenservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/userservice"
 	"github.com/gin-gonic/gin"
@@ -128,16 +130,17 @@ func postSourceLimit(maxPostLength int) int {
 }
 
 type WriteTopicReq struct {
-	TopicId     uint64   `json:"topicId"`
-	Content     string   `json:"content" validate:"required"`
-	Title       string   `json:"title"` // 瞬间（contentType=2）可留空，其余类型由 writeTopic 强制非空
-	CategoryId  []uint64 `json:"categoryId" validate:"min=1,max=3"`
-	TopicStatus int8     `json:"topicStatus" validate:"oneof=0 1"`
-	Website     string   `json:"website,omitempty"` // 蜜罐字段，正常用户不可见
-	CaptchaId   string   `json:"captchaId,omitempty"`
-	CaptchaCode string   `json:"captchaCode,omitempty"`
-	ContentType int8     `json:"contentType" validate:"oneof=0 1 2 3"` // 内容类型：0=默认, 1=提问, 2=想法, 3=文章
-	Images      []string `json:"images,omitempty"`
+	AgentRepliesDisabled bool     `json:"agentRepliesDisabled"`
+	TopicId              uint64   `json:"topicId"`
+	Content              string   `json:"content" validate:"required"`
+	Title                string   `json:"title"` // 瞬间（contentType=2）可留空，其余类型由 writeTopic 强制非空
+	CategoryId           []uint64 `json:"categoryId" validate:"min=1,max=3"`
+	TopicStatus          int8     `json:"topicStatus" validate:"oneof=0 1"`
+	Website              string   `json:"website,omitempty"` // 蜜罐字段，正常用户不可见
+	CaptchaId            string   `json:"captchaId,omitempty"`
+	CaptchaCode          string   `json:"captchaCode,omitempty"`
+	ContentType          int8     `json:"contentType" validate:"oneof=0 1 2 3"` // 内容类型：0=默认, 1=提问, 2=想法, 3=文章
+	Images               []string `json:"images,omitempty"`
 }
 
 // WriteTopic creates or updates a topic and its first post.
@@ -302,6 +305,7 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 			return component.FailResponseCode(component.MessageTopicDailyLimit, nil)
 		}
 		topic.UserId = req.UserId
+		topic.AgentRepliesDisabled = req.Params.AgentRepliesDisabled
 	}
 	topic.CategoryIds = req.Params.CategoryId
 	topic.Status = req.Params.TopicStatus
@@ -643,6 +647,9 @@ func createPost(req component.BetterRequest[CreatePostReq], agent bool) componen
 	if topicEntity.Id == 0 || !forum.CanViewTopicSimple(&topicEntity, req.UserId) {
 		return component.FailResponseCode(component.MessageTopicNotFound, nil)
 	}
+	if topicEntity.AgentRepliesDisabled && userEntity.IsBot() {
+		return component.FailResponseCode(component.MessageTopicAgentRepliesDisabled, nil)
+	}
 
 	var parentPost posts.Entity
 	if req.Params.ReplyToPostId > 0 {
@@ -689,6 +696,9 @@ func createPost(req component.BetterRequest[CreatePostReq], agent bool) componen
 		err = postservice.CreateTopicPost(postEntity, topicEntity)
 	}
 	if err != nil {
+		if errors.Is(err, topicpolicyservice.ErrAgentRepliesDisabled) {
+			return component.FailResponseCode(component.MessageTopicAgentRepliesDisabled, nil)
+		}
 		return component.FailResponseCode(
 			component.MessageCommentCreateFailed,
 

@@ -1,4 +1,7 @@
 {
+  "agentRepliesDisable": "禁止机器人回复",
+  "agentRepliesDisabled": "作者已禁止机器人回复",
+  "agentRepliesHelp": "阻止本站 Agent 账号回复，不影响已有回复。",
   "campusCourseReviews": "课程评价",
   "myCourseReviewsTitle": "我的课评",
   "myCourseReviewsEmpty": "还没有发布课评，去课程目录看看吧。",

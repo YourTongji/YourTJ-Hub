@@ -128,6 +128,7 @@ const (
 	MessageTopicNotFound                    MessageCode = "topic.notFound"                    // 主题不存在。
 	MessageTopicOwnerMismatch               MessageCode = "topic.ownerMismatch"               // 不能修改或删除他人的主题。
 	MessageTopicOperationDenied             MessageCode = "topic.operationDenied"             // 当前主题不可操作。
+	MessageTopicAgentRepliesDisabled        MessageCode = "topic.agentRepliesDisabled"        // 作者禁止机器人回复。
 	MessageTopicSaveFailed                  MessageCode = "topic.saveFailed"                  // 主题保存失败。
 	MessageTopicDailyLimit                  MessageCode = "topic.dailyLimit"                  // 当天发布过多。
 	MessageTopicTitleTooShort               MessageCode = "topic.title.tooShort"              // 标题过短，params.minLength。
