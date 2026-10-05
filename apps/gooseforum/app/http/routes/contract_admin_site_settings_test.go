@@ -738,11 +738,18 @@ func TestAdminGetHttpNotifySettingsHTTPContract(t *testing.T) {
 		if err != nil {
 			t.Fatalf("encrypt contract webhook secret: %v", err)
 		}
+		sealedURL, err := securestore.EncryptPurpose("https://open.feishu.cn/open-apis/bot/v2/hook/contract-hook-token", securestore.HttpNotifyURLPurpose)
+		if err != nil {
+			t.Fatalf("encrypt contract feishu webhook url: %v", err)
+		}
 		persistContractPageConfig(t, conn, pageConfig.HttpNotify, pageConfig.HttpNotifyStorageConfig{
 			Enabled: true,
 			Endpoints: []pageConfig.HttpNotifyStorageEndpoint{
 				{Id: "ep1", Name: "契约 webhook", Enabled: true, URL: "https://hook.example.test/notify",
 					SecretEncrypted: sealed, Events: []string{"topic.created"}, TimeoutSeconds: 5},
+				// 飞书 webhook 地址是凭据：只落库密文，GET 不回显（issue #1049）。
+				{Id: "ep2", Name: "飞书审批群", ChannelType: pageConfig.HttpNotifyChannelFeishu, Enabled: true,
+					URLEncrypted: sealedURL, Events: []string{"moderation.report.post.created"}, TimeoutSeconds: 3},
 			},
 		})
 		serveAdminSiteOK(t, conn, router, http.MethodGet, path, "", "admin-http-notify-settings-success.json")
@@ -801,6 +808,44 @@ func TestAdminSaveHttpNotifySettingsHTTPContract(t *testing.T) {
 		if plain, err := securestore.DecryptPurpose(stored.Endpoints[0].SecretEncrypted, securestore.HttpNotifySecretPurpose); err != nil || plain != "keep-secret" {
 			t.Fatalf("stored webhook secret decrypt = %q, err %v; want kept %q", plain, err, "keep-secret")
 		}
+	})
+
+	t.Run("feishu webhook url is encrypted, kept when blank, and never stored in plaintext", func(t *testing.T) {
+		conn, router := setupAdminSiteContractTest(t)
+		t.Cleanup(func() {
+			conn.Where("page_type = ?", pageConfig.HttpNotify).Delete(&pageConfig.Entity{})
+			hotdataserve.ClearHttpNotifyConfigCache()
+		})
+		hook := "https://open.feishu.cn/open-apis/bot/v2/hook/contract-feishu-token"
+		serveAdminSiteOK(t, conn, router, http.MethodPost, path,
+			`{"settings":{"enabled":true,"endpoints":[{"name":"飞书","channelType":"feishu","enabled":true,"url":"`+hook+`","secret":"","events":["moderation.report.post.created"],"timeoutSeconds":3,"failureCount":0,"lastError":"","abnormalTerminated":false}]}}`,
+			"admin-agent-disable-success.json")
+		stored := pageConfig.GetConfigByPageType(pageConfig.HttpNotify, pageConfig.HttpNotifyStorageConfig{})
+		if len(stored.Endpoints) != 1 || stored.Endpoints[0].Id == "" || stored.Endpoints[0].URL != "" {
+			t.Fatalf("stored feishu endpoint = %#v, want a server id and no plaintext url", stored.Endpoints)
+		}
+		if plain, err := securestore.DecryptPurpose(stored.Endpoints[0].URLEncrypted, securestore.HttpNotifyURLPurpose); err != nil || plain != hook {
+			t.Fatalf("stored feishu url decrypt = %q, err %v", plain, err)
+		}
+		id := stored.Endpoints[0].Id
+		serveAdminSiteOK(t, conn, router, http.MethodPost, path,
+			`{"settings":{"enabled":true,"endpoints":[{"id":"`+id+`","name":"飞书","channelType":"feishu","enabled":true,"url":"","secret":"","events":["moderation.report.post.created"],"timeoutSeconds":3,"failureCount":0,"lastError":"","abnormalTerminated":false}]}}`,
+			"admin-agent-disable-success.json")
+		kept := pageConfig.GetConfigByPageType(pageConfig.HttpNotify, pageConfig.HttpNotifyStorageConfig{})
+		if kept.Endpoints[0].URLEncrypted != stored.Endpoints[0].URLEncrypted {
+			t.Fatalf("blank feishu url must keep the stored ciphertext: %#v", kept.Endpoints)
+		}
+		hotdataserve.ClearHttpNotifyConfigCache()
+		if runtime := hotdataserve.GetHttpNotifyConfigCache(); len(runtime.Endpoints) != 1 || runtime.Endpoints[0].URL != hook {
+			t.Fatalf("runtime config must decrypt the feishu url: %#v", runtime.Endpoints)
+		}
+	})
+
+	t.Run("unknown channel type is rejected", func(t *testing.T) {
+		conn, router := setupAdminSiteContractTest(t)
+		serveAdminSiteOK(t, conn, router, http.MethodPost, path,
+			`{"settings":{"enabled":true,"endpoints":[{"id":"x","name":"x","channelType":"slack","enabled":true,"url":"https://x.test","secret":"","events":[],"timeoutSeconds":3,"failureCount":0,"lastError":"","abnormalTerminated":false}]}}`,
+			"invalid-params.json")
 	})
 
 	adminSiteGuardScenarios(t, http.MethodPost, path, "admin-save-http-notify-settings")

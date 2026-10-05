@@ -481,3 +481,124 @@ moderationReviewAction:
                 externalValue: ../fixtures/account-frozen.json
               csrfRejected:
                 externalValue: ../fixtures/csrf-rejected.json
+
+moderationApprovalActionPreview:
+  post:
+    tags: [Forum]
+    summary: Preview a signed moderation quick action opened from a notification card
+    operationId: moderationApprovalActionPreview
+    description: |
+      Read-only step of the notification quick-approval flow (issue #1049). The signed token
+      comes from a Feishu/generic approval notification button (`/moderation/action?token=…`)
+      and only proves the link was issued by this site, was not tampered with and has not
+      expired — it never grants authority. The caller's own session is re-authorized with the
+      workbench permission model (category moderators, CourseManager, Admin), and the target's
+      current state is re-checked. Unauthorized callers receive `state=forbidden` without any
+      target content; stale links for edited pending content return `state=changed`. Never
+      mutates state. The token travels in the POST body so it never enters access logs.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/ModerationApprovalActionRequest
+    responses:
+      '200':
+        description: Current quick-action view (business state in `result.state`), or a validation failure envelope.
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: ../components/schemas.yaml#/ModerationApprovalActionResponse
+                - $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              ready:
+                externalValue: ../fixtures/moderation-approval-action-preview-ready.json
+              forbidden:
+                externalValue: ../fixtures/moderation-approval-action-forbidden.json
+              invalidToken:
+                externalValue: ../fixtures/moderation-approval-action-invalid.json
+              invalidParams:
+                externalValue: ../fixtures/invalid-params.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Cross-site request rejected by the CSRF gate.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
+
+moderationApprovalActionExecute:
+  post:
+    tags: [Forum]
+    summary: Execute a signed moderation quick action after explicit confirmation
+    operationId: moderationApprovalActionExecute
+    description: |
+      Mutating step of the notification quick-approval flow (issue #1049). Runs only when the
+      same checks as the preview yield `state=ready`; otherwise the current state
+      (`processed`, `changed`, `forbidden`, `expired`, `invalid`, `notFound`) is returned
+      unchanged. Pending topics/posts reuse the workbench review action (`approve`/`reject`);
+      reports reuse the workbench ban/hide/report-status logic (`ban` for topic/post,
+      `hide` for course reviews, `dismiss`) and close the report with a compare-and-set, so a
+      repeated or concurrent click never overwrites the first handler. `handler_id` and the
+      moderation/operation logs record the real signed-in actor. Private-message reports
+      never receive quick actions. Requires a writable account.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/ModerationApprovalActionRequest
+    responses:
+      '200':
+        description: Action result (business state in `result.state`), or a validation failure envelope.
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: ../components/schemas.yaml#/ModerationApprovalActionResponse
+                - $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              done:
+                externalValue: ../fixtures/moderation-approval-action-execute-done.json
+              processed:
+                externalValue: ../fixtures/moderation-approval-action-execute-processed.json
+              invalidParams:
+                externalValue: ../fixtures/invalid-params.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Frozen or unactivated account, or a cross-site request rejected by the CSRF gate.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json

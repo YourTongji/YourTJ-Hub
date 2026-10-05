@@ -110,6 +110,20 @@ func UpdateStatus(id uint64, status string, resolution string, handlerId uint64)
 	}).Error
 }
 
+// UpdateStatusIfOpen closes a report only while it is still open (compare-and-set).
+// It reports false when another moderator already handled it, so a repeated or
+// concurrent quick action never overwrites the first handler (issue #1049).
+func UpdateStatusIfOpen(id uint64, status string, resolution string, handlerId uint64) (bool, error) {
+	now := time.Now()
+	result := builder().Where(queryopt.Eq("id", id)).Where(queryopt.Eq(fieldStatus, StatusOpen)).Updates(map[string]any{
+		"status":     status,
+		"resolution": resolution,
+		"handler_id": handlerId,
+		"handled_at": &now,
+	})
+	return result.RowsAffected == 1, result.Error
+}
+
 // ClearExpiredEvidenceSnapshots clears evidence_snapshot on closed reports older than before.
 // Skips rows whose topic has LEGAL_HOLD or EVIDENCE_HOLD retention (hold overrides TTL).
 // Open reports are never cleared. Returns number of rows updated.

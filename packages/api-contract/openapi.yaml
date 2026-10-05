@@ -11,7 +11,8 @@ info:
     (like/bookmark/watch on topics and posts, follow, report), user account and
     profile operations (captcha, user card, profile/email/username/avatar/password
     changes, OAuth bindings), notification reads and read-marking, direct chat
-    (send/messages/mark-read), admin topic/post moderation, Admin-gated operations
+    (send/messages/mark-read), admin topic/post moderation, notification quick-approval
+    confirmation (signed-link preview/execute), Admin-gated operations
     (Agent account management, operation audit log paging, traffic overview),
     admin user management (user list/edit, user badge grants, role options),
     admin role management (permission options, role list/save/delete), admin
@@ -155,6 +156,10 @@ paths:
     $ref: ./paths/forum-moderation.yaml#/listModerationReviewQueue
   /api/forum/moderation/review-action:
     $ref: ./paths/forum-moderation.yaml#/moderationReviewAction
+  /api/forum/moderation/approval-action/preview:
+    $ref: ./paths/forum-moderation.yaml#/moderationApprovalActionPreview
+  /api/forum/moderation/approval-action/execute:
+    $ref: ./paths/forum-moderation.yaml#/moderationApprovalActionExecute
   /api/forum/moderation/view-deleted-content:
     $ref: ./paths/forum-moderation.yaml#/viewDeletedContent
   /api/get-captcha:

@@ -18,6 +18,7 @@ import { toBool } from '@/admin/utils/toBool'
 import { BasicPage } from '@/admin/components/global-layout'
 import { Button } from '@/admin/components/ui/button'
 import { Badge } from '@/admin/components/ui/badge'
+import { Checkbox } from '@/admin/components/ui/checkbox'
 import { Input } from '@/admin/components/ui/input'
 import { Textarea } from '@/admin/components/ui/textarea'
 import { Switch } from '@/admin/components/ui/switch'
@@ -341,8 +342,37 @@ const httpNotifyEvents = computed(() => {
     { value: 'comment.created', label: adminText('k00cm') },
     { value: 'user.signup', label: adminText('k00cn') },
     { value: 'moderation.report.created', label: adminText('k00co') },
+    ...approvalNotifyEvents.map(value => ({ value, label: adminText(approvalNotifyEventLabels[value]) })),
   ]
 })
+
+// 审批事件（issue #1049）：飞书通道只投递这些事件与「举报创建」聚合事件，卡片带快捷审批链接。
+const approvalNotifyEvents = [
+  'moderation.review.topic.requested',
+  'moderation.review.post.requested',
+  'moderation.report.topic.created',
+  'moderation.report.post.created',
+  'moderation.report.chat_message.created',
+  'moderation.report.course_review.created',
+] as const
+const approvalNotifyEventLabels: Record<(typeof approvalNotifyEvents)[number], string> = {
+  'moderation.review.topic.requested': 'k00x0',
+  'moderation.review.post.requested': 'k00x1',
+  'moderation.report.topic.created': 'k00x2',
+  'moderation.report.post.created': 'k00x3',
+  'moderation.report.chat_message.created': 'k00x4',
+  'moderation.report.course_review.created': 'k00x5',
+}
+
+function isApprovalNotifyEvent(eventName: string) {
+  return eventName === 'moderation.report.created' || (approvalNotifyEvents as readonly string[]).includes(eventName)
+}
+
+function endpointEventOptions(endpoint: HttpNotifyEndpoint) {
+  return endpoint.channelType === 'feishu'
+    ? httpNotifyEvents.value.filter(item => isApprovalNotifyEvent(item.value))
+    : httpNotifyEvents.value
+}
 
 const httpNotifyForm = reactive<HttpNotifySettings>({
   enabled: false,
@@ -581,18 +611,18 @@ function normalizeHttpNotify(settings: Partial<HttpNotifySettings> = {}) {
   return {
     enabled: toBool(settings.enabled, false),
     endpoints: Array.isArray(settings.endpoints)
-      ? settings.endpoints.map(endpoint => normalizeEndpoint(endpoint)).filter(endpoint => endpoint.url)
+      ? settings.endpoints.map(endpoint => normalizeEndpoint(endpoint)).filter(endpoint => endpoint.url || endpoint.urlConfigured)
       : [],
   } satisfies HttpNotifySettings
 }
 
-// httpNotifyPayload 保存请求负载：去掉端点只读回显字段（secretConfigured），
-// 与 OpenAPI 请求 schema 一致（issue #324 S1）。
+// httpNotifyPayload 保存请求负载：去掉端点只读回显字段（secretConfigured、
+// urlConfigured），与 OpenAPI 请求 schema 一致（issue #324 S1 / #1049）。
 function httpNotifyPayload() {
   const settings = normalizeHttpNotify(httpNotifyForm)
   return {
     enabled: settings.enabled,
-    endpoints: settings.endpoints.map(({ secretConfigured: _configured, ...endpoint }) => endpoint),
+    endpoints: settings.endpoints.map(({ secretConfigured: _secret, urlConfigured: _url, ...endpoint }) => endpoint),
   } satisfies HttpNotifySettings
 }
 
@@ -601,14 +631,17 @@ function normalizeEndpoint(endpoint: Partial<HttpNotifyEndpoint> = {}) {
     ? endpoint.events.map(item => String(item).trim()).filter(Boolean)
     : []
   const enabled = toBool(endpoint.enabled, true)
+  const channelType = endpoint.channelType === 'feishu' ? 'feishu' : 'generic'
   return {
     id: endpoint.id || crypto.randomUUID(),
     name: endpoint.name ?? '',
+    channelType,
     enabled,
     url: endpoint.url?.trim() ?? '',
     secret: endpoint.secret ?? '',
     secretConfigured: toBool(endpoint.secretConfigured, false),
-    events,
+    urlConfigured: toBool(endpoint.urlConfigured, false),
+    events: channelType === 'feishu' ? events.filter(isApprovalNotifyEvent) : events,
     timeoutSeconds: Math.min(Math.max(Number(endpoint.timeoutSeconds ?? 2), 1), 15),
     failureCount: enabled ? 0 : Number(endpoint.failureCount ?? 0),
     lastError: enabled ? '' : endpoint.lastError ?? '',
@@ -634,11 +667,12 @@ function validateHttpNotify(settings: HttpNotifySettings) {
   }
   for (const endpoint of enabledEndpoints) {
     const name = endpoint.name || endpoint.url || adminText('k00cw')
-    if (!endpoint.url) {
+    // 飞书地址留空保存时保留服务端已加密的地址（issue #1049）。
+    if (!endpoint.url && !(endpoint.channelType === 'feishu' && endpoint.urlConfigured)) {
       adminToast.warning(adminText('k00d3', { name }))
       return false
     }
-    if (!isHttpUrl(endpoint.url)) {
+    if (endpoint.url && !isHttpUrl(endpoint.url)) {
       adminToast.warning(adminText('k00d4', { name }))
       return false
     }
@@ -1053,6 +1087,7 @@ function addHttpEndpoint() {
   httpNotifyForm.endpoints.push({
     id: crypto.randomUUID(),
     name: '',
+    channelType: 'generic',
     enabled: true,
     url: '',
     secret: '',
@@ -1077,8 +1112,16 @@ function toggleEndpointEvent(endpoint: HttpNotifyEndpoint, eventName: string, ch
   }
 }
 
-function onEndpointEventChange(endpoint: HttpNotifyEndpoint, eventName: string, event: Event) {
-  toggleEndpointEvent(endpoint, eventName, (event.target as HTMLInputElement).checked)
+// 切换通道：飞书只保留审批事件（无则默认勾选举报回复）；已存飞书地址是凭据，
+// 切走后需重新填写（issue #1049）。
+function onEndpointChannelChange(endpoint: HttpNotifyEndpoint, channelType: HttpNotifyEndpoint['channelType']) {
+  if (endpoint.channelType === channelType) return
+  endpoint.channelType = channelType
+  if (channelType === 'feishu') {
+    endpoint.events = endpoint.events.filter(isApprovalNotifyEvent)
+    if (endpoint.events.length === 0) endpoint.events = ['moderation.report.post.created']
+  }
+  endpoint.urlConfigured = false
 }
 
 // ---- 一系统同步（issue #248）----
@@ -1678,14 +1721,42 @@ onUnmounted(stopSyncPolling)
                     </AdminActionButton>
                   </div>
 
-                  <div class="grid gap-3 md:grid-cols-[minmax(140px,220px)_minmax(0,1fr)_120px]">
+                  <div class="grid gap-3 md:grid-cols-[minmax(140px,220px)_140px_minmax(0,1fr)_120px]">
                     <label class="grid gap-2 text-sm font-medium">
                       {{ adminText('k0079') }}
                       <Input v-model="endpoint.name" :disabled="!httpNotifyForm.enabled" placeholder="Webhook" />
                     </label>
+                    <div class="grid gap-2 text-sm font-medium">
+                      {{ adminText('k00x6') }}
+                      <Select
+                        :model-value="endpoint.channelType"
+                        :disabled="!httpNotifyForm.enabled"
+                        @update:model-value="value => onEndpointChannelChange(endpoint, value === 'feishu' ? 'feishu' : 'generic')"
+                      >
+                        <SelectTrigger class="w-full" :aria-label="adminText('k00x6')">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="generic">{{ adminText('k00x7') }}</SelectItem>
+                          <SelectItem value="feishu">{{ adminText('k00x8') }}</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                     <label class="grid gap-2 text-sm font-medium">
                       URL
-                      <Input v-model="endpoint.url" :disabled="!httpNotifyForm.enabled" placeholder="http://example.com/webhook" />
+                      <div class="flex items-center gap-2">
+                        <Input
+                          v-model="endpoint.url"
+                          :disabled="!httpNotifyForm.enabled"
+                          :type="endpoint.channelType === 'feishu' ? 'password' : 'text'"
+                          autocomplete="off"
+                          :placeholder="endpoint.channelType === 'feishu' ? 'https://open.feishu.cn/open-apis/bot/v2/hook/…' : 'http://example.com/webhook'"
+                        />
+                        <Badge v-if="endpoint.channelType === 'feishu'" :variant="endpoint.urlConfigured ? 'default' : 'outline'" class="shrink-0">
+                          {{ endpoint.urlConfigured ? adminText('k00t8') : adminText('k00t9') }}
+                        </Badge>
+                      </div>
+                      <span v-if="endpoint.channelType === 'feishu'" class="text-xs font-normal text-muted-foreground">{{ adminText('k00x9') }}</span>
                     </label>
                     <label class="grid gap-2 text-sm font-medium">
                       {{ adminText('k00cx') }}
@@ -1702,17 +1773,22 @@ onUnmounted(stopSyncPolling)
                       </Badge>
                     </div>
                     <span class="text-xs font-normal text-muted-foreground">{{ adminText('k00u0') }}</span>
+                    <span v-if="endpoint.channelType === 'feishu'" class="text-xs font-normal text-muted-foreground">{{ adminText('k00xa') }}</span>
                   </label>
 
                   <div class="space-y-2">
                     <div class="text-sm font-medium">{{ adminText('k00cy') }}</div>
+                    <div v-if="endpoint.channelType === 'feishu'" class="text-xs text-muted-foreground">{{ adminText('k00xb') }}</div>
                     <div class="flex flex-wrap gap-2">
-                      <label v-for="item in httpNotifyEvents" :key="item.value" class="inline-flex items-center gap-2 rounded-md border px-2.5 py-1.5 text-sm">
-                        <input
-                          type="checkbox"
+                      <label
+                        v-for="item in endpointEventOptions(endpoint)"
+                        :key="item.value"
+                        class="inline-flex cursor-pointer items-center gap-2 rounded-md border px-2.5 py-1.5 text-sm transition-colors has-[[data-state=checked]]:border-primary/50 has-[[data-state=checked]]:bg-primary/5 has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-60"
+                      >
+                        <Checkbox
+                          :model-value="endpoint.events.includes(item.value)"
                           :disabled="!httpNotifyForm.enabled"
-                          :checked="endpoint.events.includes(item.value)"
-                          @change="onEndpointEventChange(endpoint, item.value, $event)"
+                          @update:model-value="checked => toggleEndpointEvent(endpoint, item.value, checked === true)"
                         />
                         {{ item.label }}
                       </label>

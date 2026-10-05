@@ -5,13 +5,31 @@
       {
         "id": "ep1",
         "name": "契约 webhook",
+        "channelType": "generic",
         "enabled": true,
         "url": "https://hook.example.test/notify",
+        "urlConfigured": true,
         "secretConfigured": true,
         "events": [
           "topic.created"
         ],
         "timeoutSeconds": 5,
+        "failureCount": 0,
+        "lastError": "",
+        "abnormalTerminated": false
+      },
+      {
+        "id": "ep2",
+        "name": "飞书审批群",
+        "channelType": "feishu",
+        "enabled": true,
+        "url": "",
+        "urlConfigured": true,
+        "secretConfigured": false,
+        "events": [
+          "moderation.report.post.created"
+        ],
+        "timeoutSeconds": 3,
         "failureCount": 0,
         "lastError": "",
         "abnormalTerminated": false

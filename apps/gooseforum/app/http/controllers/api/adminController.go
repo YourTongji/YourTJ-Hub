@@ -65,6 +65,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/themeservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/userservice"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/samber/lo"
 	"gorm.io/gorm"
 )
@@ -1881,7 +1882,9 @@ type SaveHttpNotifySettingsReq struct {
 
 // SaveHttpNotifySettings 保存 HTTP 通知设置：各端点 secret 明文仅在请求瞬间存在——
 // 非空时 securestore 加密后落库；为空时按 id（无 id 按 url）保留已存密文/存量明文
-// （issue #324 S1）。
+// （issue #324 S1）。飞书通道的 webhook URL 同样按凭据处理：非空时加密落库，为空
+// 时保留同端点已存 URL 密文；缺 id 的端点由服务端补发 id，保证投递状态回写可按 id
+// 匹配（凭据型 URL 不落明文，无法按 url 匹配，issue #1049）。
 func SaveHttpNotifySettings(req component.BetterRequest[SaveHttpNotifySettingsReq]) component.Response {
 	input := req.Params.Settings
 	entity := pageConfig.GetByPageType(pageConfig.HttpNotify)
@@ -1896,11 +1899,33 @@ func SaveHttpNotifySettings(req component.BetterRequest[SaveHttpNotifySettingsRe
 	}
 	next := make([]pageConfig.HttpNotifyStorageEndpoint, 0, len(input.Endpoints))
 	for _, ep := range input.Endpoints {
+		channel := pageConfig.NormalizeHttpNotifyChannel(ep.ChannelType)
+		if channel == "" {
+			return component.FailResponseCode(component.MessageRequestInvalidParams, nil)
+		}
 		key := ep.Id
 		if key == "" {
 			key = ep.URL
 		}
 		orig := existing[key]
+		id := ep.Id
+		if id == "" {
+			id = uuid.NewString()
+		}
+		endpointURL := ep.URL
+		sealedURL := ""
+		if pageConfig.HttpNotifyURLIsSecret(channel) {
+			if plainURL := strings.TrimSpace(ep.URL); plainURL != "" {
+				encrypted, err := securestore.EncryptPurpose(plainURL, securestore.HttpNotifyURLPurpose)
+				if err != nil {
+					return component.FailResponseError(fmt.Errorf("加密 webhook 地址失败（请确认 app.signingKey 已配置）：%w", err))
+				}
+				sealedURL = encrypted
+			} else if pageConfig.HttpNotifyURLIsSecret(orig.ChannelType) {
+				sealedURL = orig.URLEncrypted
+			}
+			endpointURL = ""
+		}
 		sealed := orig.SecretEncrypted
 		legacy := orig.Secret
 		if secret := strings.TrimSpace(ep.Secret); secret != "" {
@@ -1912,10 +1937,12 @@ func SaveHttpNotifySettings(req component.BetterRequest[SaveHttpNotifySettingsRe
 			legacy = ""
 		}
 		next = append(next, pageConfig.HttpNotifyStorageEndpoint{
-			Id:                 ep.Id,
+			Id:                 id,
 			Name:               ep.Name,
+			ChannelType:        channel,
 			Enabled:            ep.Enabled,
-			URL:                ep.URL,
+			URL:                endpointURL,
+			URLEncrypted:       sealedURL,
 			Secret:             legacy,
 			SecretEncrypted:    sealed,
 			Events:             ep.Events,

@@ -1,0 +1,10 @@
+{
+  "result": {
+    "state": "forbidden",
+    "subject": "report",
+    "action": "dismiss",
+    "workbenchUrl": "/moderation?tab=reports",
+    "expiresAt": "2099-01-02T00:00:00Z"
+  },
+  "code": 0
+}

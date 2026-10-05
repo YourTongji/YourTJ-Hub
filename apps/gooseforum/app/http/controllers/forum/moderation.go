@@ -207,17 +207,25 @@ func UpdateModerationTopicStatus(req component.BetterRequest[ModerationTopicStat
 	if !moderationservice.CanModerateAnyCategory(req.UserId, topic.CategoryIds) {
 		return component.FailResponseCode(component.MessagePermissionDenied, nil)
 	}
-	nextStatus := moderationTargetStatus(req.Params.Action)
-	if topic.ProcessStatus == nextStatus {
-		return component.SuccessResponse(true)
+	if err := applyTopicModerationStatus(moderationRequestContext(req.GinContext), req.UserId, topic, moderationTargetStatus(req.Params.Action)); err != nil {
+		return component.FailResponseCode(component.MessageOperationFailed, nil)
 	}
-	if err := dbconnect.ConnectContext(moderationRequestContext(req.GinContext)).Transaction(func(tx *gorm.DB) error {
+	return component.SuccessResponse(true)
+}
+
+// applyTopicModerationStatus 版主封禁/解封话题的唯一实现（工作台与快捷审批共用，
+// issue #1049）。调用方负责权限校验；目标状态未变时幂等返回。
+func applyTopicModerationStatus(ctx context.Context, actorID uint64, topic topics.Entity, nextStatus int8) error {
+	if topic.ProcessStatus == nextStatus {
+		return nil
+	}
+	if err := dbconnect.ConnectContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := topics.UpdateProcessStatusTx(tx, topic.Id, nextStatus); err != nil {
 			return err
 		}
 		return searchservice.EnqueueTopicSearchTask(tx, topic.Id)
 	}); err != nil {
-		return component.FailResponseCode(component.MessageOperationFailed, nil)
+		return err
 	}
 	topic.ProcessStatus = nextStatus
 	if nextStatus == topics.ProcessStatusNormal {
@@ -227,16 +235,20 @@ func UpdateModerationTopicStatus(req component.BetterRequest[ModerationTopicStat
 	hotdataserve.InvalidateTopicListCacheForCategories(topic.CategoryIds...)
 	// 审核封禁/解封不发布事件，同步清理 LLMS 投影缓存，避免封禁内容在 10s 窗口内继续导出。
 	llmsservice.ClearCache()
-	moderationservice.TopicStatusChanged(req.UserId, topic.Id, topic.Title, nextStatus == 1)
-	return component.SuccessResponse(true)
+	moderationservice.TopicStatusChanged(actorID, topic.Id, topic.Title, nextStatus == 1)
+	return nil
 }
 
 func CreateReport(req component.BetterRequest[CreateReportReq]) component.Response {
 	if req.Params.TargetType == reports.TargetChatMessage {
-		if err := chatservice.ReportMessage(req.UserId, req.Params.TargetId, req.Params.Reason, req.Params.Note); err != nil {
+		report, created, err := chatservice.ReportMessage(req.UserId, req.Params.TargetId, req.Params.Reason, req.Params.Note)
+		if err != nil {
 			return component.FailResponseCode(component.MessageReportTargetInvalid, nil)
 		}
 		moderationservice.InvalidatePrivateReports()
+		if created {
+			publishReportCreated(req.GinContext, report)
+		}
 		return component.SuccessResponse(true)
 	}
 	target, ok := reportTargetInfo(req.Params.TargetType, req.Params.TargetId, req.UserId)
@@ -262,15 +274,22 @@ func CreateReport(req component.BetterRequest[CreateReportReq]) component.Respon
 		return component.FailResponseCode(component.MessageReportDuplicate, nil)
 	}
 	moderationservice.InvalidateTopic(target.TopicID)
-	eventbus.Publish(detachedModerationRequestContext(req.GinContext), &eventhandlers.ReportCreatedEvent{
+	publishReportCreated(req.GinContext, report)
+	return component.SuccessResponse(true)
+}
+
+// publishReportCreated 新举报进入审批通知层（issue #1049）：topic/post/chat_message/
+// course_review 四类举报创建成功（且为新举报）后统一发布，通知失败不影响举报本身。
+func publishReportCreated(c *gin.Context, report reports.Entity) {
+	eventbus.Publish(detachedModerationRequestContext(c), &eventhandlers.ReportCreatedEvent{
 		ReportId:   report.Id,
 		TargetType: report.TargetType,
 		TargetId:   report.TargetId,
 		TopicId:    report.TopicId,
 		ReporterId: report.ReporterId,
 		Reason:     report.Reason,
+		Note:       report.Note,
 	})
-	return component.SuccessResponse(true)
 }
 
 // buildReportEvidenceSnapshot 在举报创建时刻定格目标内容（Issue #94 R6）。
@@ -332,17 +351,25 @@ func UpdateModerationPostStatus(req component.BetterRequest[ModerationPostStatus
 	if topic.Id == 0 || !moderationservice.CanModerateAnyCategory(req.UserId, topic.CategoryIds) {
 		return component.FailResponseCode(component.MessagePermissionDenied, nil)
 	}
-	nextStatus := moderationTargetStatus(req.Params.Action)
-	if post.ProcessStatus == nextStatus {
-		return component.SuccessResponse(true)
+	if err := applyPostModerationStatus(moderationRequestContext(req.GinContext), req.UserId, post, topic, moderationTargetStatus(req.Params.Action)); err != nil {
+		return component.FailResponseCode(component.MessageOperationFailed, nil)
 	}
-	if err := dbconnect.ConnectContext(moderationRequestContext(req.GinContext)).Transaction(func(tx *gorm.DB) error {
+	return component.SuccessResponse(true)
+}
+
+// applyPostModerationStatus 版主封禁/解封回复的唯一实现（工作台与快捷审批共用，
+// issue #1049）。调用方负责权限校验；目标状态未变时幂等返回。
+func applyPostModerationStatus(ctx context.Context, actorID uint64, post posts.Entity, topic topics.Entity, nextStatus int8) error {
+	if post.ProcessStatus == nextStatus {
+		return nil
+	}
+	if err := dbconnect.ConnectContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := posts.UpdateProcessStatusTx(tx, post.Id, nextStatus); err != nil {
 			return err
 		}
 		return searchservice.EnqueueTopicSearchTask(tx, post.TopicId)
 	}); err != nil {
-		return component.FailResponseCode(component.MessageOperationFailed, nil)
+		return err
 	}
 	if nextStatus == posts.ProcessStatusNormal {
 		fileusageservice.PromotePendingPostFiles(post.Id)
@@ -357,7 +384,7 @@ func UpdateModerationPostStatus(req component.BetterRequest[ModerationPostStatus
 		userMap := users.GetMapByIds([]uint64{post.UserId})
 		postAuthor = userPayload(post.UserId, userMap).Username
 	}
-	moderationservice.PostStatusChanged(req.UserId, moderationservice.PostSnapshot{
+	moderationservice.PostStatusChanged(actorID, moderationservice.PostSnapshot{
 		PostId:       post.Id,
 		TopicId:      post.TopicId,
 		TopicTitle:   topic.Title,
@@ -366,7 +393,7 @@ func UpdateModerationPostStatus(req component.BetterRequest[ModerationPostStatus
 		PostAuthor:   postAuthor,
 		Excerpt:      moderationExcerpt(post.Content),
 	}, nextStatus == 1)
-	return component.SuccessResponse(true)
+	return nil
 }
 
 // ModerationPostRevealReq 匿名楼层作者揭示请求体（Admin；必须填写理由）。

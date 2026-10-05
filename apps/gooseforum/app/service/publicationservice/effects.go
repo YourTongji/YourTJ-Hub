@@ -26,6 +26,9 @@ type Effect struct {
 	PreviousRevisionId uint64 `json:"previousRevisionId"`
 	NotificationId     uint64 `json:"notificationId,omitempty"`
 	NotificationOnly   bool   `json:"notificationOnly,omitempty"`
+	// ReviewRequested marks the transfer to human review; moderator approval
+	// notifications are published after that commit (issue #1049).
+	ReviewRequested bool `json:"reviewRequested,omitempty"`
 }
 
 // RunEffectsTask uses the existing event handlers' idempotent rewards/activity
@@ -56,6 +59,13 @@ func RunEffectsTask(ctx context.Context, task *taskQueue.Entity) error {
 	}
 	if !available(topic, post) {
 		return nil
+	}
+	// Publish before the author pushes so a failed publish retries without
+	// repeating them; per-approval delivery dedupe absorbs task retries.
+	if effect.ReviewRequested && post.LatestRevisionId == revision.Id && revision.ProcessStatus == posts.ProcessStatusPending {
+		if err := eventbus.PublishE(ctx, &eventhandlers.ModerationReviewRequestedEvent{RevisionID: revision.Id}); err != nil {
+			return err
+		}
 	}
 	realtimeservice.DefaultHub.Publish(post.UserId, realtimeservice.Event{Type: realtimeservice.EventContentChanged})
 	userservice.InvalidateUserPublicProfileCache(post.UserId)

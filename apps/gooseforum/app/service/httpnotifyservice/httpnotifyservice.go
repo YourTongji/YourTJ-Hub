@@ -6,7 +6,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -23,11 +23,24 @@ import (
 )
 
 const (
-	EventTopicPublished   = "topic.published"
-	EventTopicUpdated     = "topic.updated"
-	EventCommentCreated   = "comment.created"
-	EventUserSignup       = "user.signup"
-	EventReportCreated    = "moderation.report.created"
+	EventTopicPublished = "topic.published"
+	EventTopicUpdated   = "topic.updated"
+	EventCommentCreated = "comment.created"
+	EventUserSignup     = "user.signup"
+	// EventReportCreated “全部举报”的聚合兼容事件：保持既有 payload 形状，
+	// 覆盖 topic/post/chat_message/course_review 四类举报（issue #1049）。
+	EventReportCreated = "moderation.report.created"
+
+	// 版主审批事件（issue #1049）：payload 为统一的审批安全摘要（ApprovalPayload）。
+	EventReviewTopicRequested      = "moderation.review.topic.requested"
+	EventReviewPostRequested       = "moderation.review.post.requested"
+	EventReportTopicCreated        = "moderation.report.topic.created"
+	EventReportPostCreated         = "moderation.report.post.created"
+	EventReportChatMessageCreated  = "moderation.report.chat_message.created"
+	EventReportCourseReviewCreated = "moderation.report.course_review.created"
+)
+
+const (
 	defaultTimeoutSeconds = 2
 	maxTimeoutSeconds     = 15
 	contentTypeJSON       = "application/json"
@@ -46,41 +59,70 @@ type Envelope struct {
 	Data      any    `json:"data"`
 }
 
+// Alternative 同一领域事件的一种订阅名及其 generic 负载。
+type Alternative struct {
+	Event string
+	Data  any
+}
+
+// Message 一次领域事件的投递（issue #1049）。
+//
+// Alternatives 按优先级排列同一事件的订阅名（具体事件在前、聚合兼容事件在后）：
+// 每个 Endpoint 只按它订阅的首个事件名投递一次，同时订阅“全部举报”与具体举报
+// 类型的 Endpoint 不会收到两份。Approval 非空表示待人工审批事件，飞书等卡片通道
+// 据此渲染；为空时卡片通道跳过。DedupeKey 非空时，同一 Endpoint 在 dedupeTTL 内对
+// 同一审批只投递一次（重复发布、相同版本重提不重复提醒）。
+type Message struct {
+	Alternatives []Alternative
+	Approval     *ApprovalPayload
+	DedupeKey    string
+}
+
+// Notify 投递单一事件名的通知（既有事件的兼容入口）。
 func Notify(eventName string, data any) {
+	Publish(Message{Alternatives: []Alternative{{Event: eventName, Data: data}}})
+}
+
+// Publish 异步投递：每个 Endpoint 独立 goroutine 发送，单一通道失败或超时不影响
+// 其他通道，也不阻塞发帖/举报主流程（best-effort）。
+func Publish(msg Message) {
 	config := hotdataserve.GetHttpNotifyConfigCache()
-	if !shouldNotify(config, eventName) {
+	if !config.Enabled {
 		return
 	}
-	now := time.Now().Unix()
-	body, err := json.Marshal(Envelope{
-		Event:     eventName,
-		Timestamp: now,
-		Data:      data,
-	})
-	if err != nil {
-		slog.Error("httpnotify: marshal payload failed", "event", eventName, "err", err)
-		return
-	}
+	now := time.Now()
 	for _, endpoint := range config.Endpoints {
-		if !endpointAccepts(endpoint, eventName) {
+		alt, ok := selectAlternative(endpoint, msg)
+		if !ok {
 			continue
 		}
-		endpoint := endpoint
-		go deliver(endpoint, eventName, now, body)
+		if msg.DedupeKey != "" && !recentDeliveries.claim(endpointKey(endpoint)+"\x00"+msg.DedupeKey, now) {
+			continue
+		}
+		channel := channelFor(endpoint)
+		body, err := channel.encode(endpoint, alt, msg.Approval, now)
+		if err != nil {
+			slog.Error("httpnotify: encode payload failed", "endpoint", endpoint.Name, "event", alt.Event, "err", err)
+			continue
+		}
+		go deliver(endpoint, channel, alt.Event, now.Unix(), body)
 	}
 }
 
-func ShouldNotify(eventName string) bool {
-	return shouldNotify(hotdataserve.GetHttpNotifyConfigCache(), eventName)
+// ShouldNotify 任一事件名存在可投递的 Endpoint 时返回 true（调用方据此跳过负载构建）。
+func ShouldNotify(eventNames ...string) bool {
+	return shouldNotify(hotdataserve.GetHttpNotifyConfigCache(), eventNames...)
 }
 
-func shouldNotify(config pageConfig.HttpNotifyConfig, eventName string) bool {
+func shouldNotify(config pageConfig.HttpNotifyConfig, eventNames ...string) bool {
 	if !config.Enabled {
 		return false
 	}
 	for _, endpoint := range config.Endpoints {
-		if endpointAccepts(endpoint, eventName) {
-			return true
+		for _, eventName := range eventNames {
+			if endpointAccepts(endpoint, eventName) {
+				return true
+			}
 		}
 	}
 	return false
@@ -90,32 +132,87 @@ func endpointAccepts(endpoint pageConfig.HttpNotifyEndpoint, eventName string) b
 	if !endpoint.Enabled || endpoint.AbnormalTerminated || strings.TrimSpace(endpoint.URL) == "" {
 		return false
 	}
-	return slices.Contains(endpoint.Events, eventName)
+	return channelFor(endpoint).supportsEvent(eventName) && slices.Contains(endpoint.Events, eventName)
 }
 
-func deliver(endpoint pageConfig.HttpNotifyEndpoint, eventName string, timestamp int64, body []byte) {
-	req, err := buildRequest(endpoint, eventName, deliveryID(), timestamp, body)
+func selectAlternative(endpoint pageConfig.HttpNotifyEndpoint, msg Message) (Alternative, bool) {
+	if channelFor(endpoint).requiresApproval() && msg.Approval == nil {
+		return Alternative{}, false
+	}
+	for _, alt := range msg.Alternatives {
+		if endpointAccepts(endpoint, alt.Event) {
+			return alt, true
+		}
+	}
+	return Alternative{}, false
+}
+
+func endpointKey(endpoint pageConfig.HttpNotifyEndpoint) string {
+	if endpoint.Id != "" {
+		return "id:" + endpoint.Id
+	}
+	return "url:" + endpoint.URL
+}
+
+func deliver(endpoint pageConfig.HttpNotifyEndpoint, channel notifyChannel, eventName string, timestamp int64, body []byte) {
+	req, err := channel.buildRequest(endpoint, eventName, deliveryID(), timestamp, body)
 	if err != nil {
-		slog.Error("httpnotify: build request failed", "endpoint", endpoint.Name, "event", eventName, "err", err)
-		recordDeliveryResult(endpoint, false, err.Error())
+		message := deliveryErrorMessage(err)
+		slog.Error("httpnotify: build request failed", "endpoint", endpoint.Name, "event", eventName, "err", message)
+		recordDeliveryResult(endpoint, false, message)
 		return
 	}
 	resp, err := sendRequest(req, endpointTimeout(endpoint))
 	if err != nil {
-		slog.Error("httpnotify: request failed", "endpoint", endpoint.Name, "event", eventName, "err", err)
-		recordDeliveryResult(endpoint, false, err.Error())
+		message := deliveryErrorMessage(err)
+		slog.Error("httpnotify: request failed", "endpoint", endpoint.Name, "event", eventName, "err", message)
+		recordDeliveryResult(endpoint, false, message)
 		return
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		slog.Warn("httpnotify: non-2xx response", "endpoint", endpoint.Name, "event", eventName, "status", resp.StatusCode)
-		recordDeliveryResult(endpoint, false, resp.Status)
+	if err := channel.checkResponse(resp); err != nil {
+		message := deliveryErrorMessage(err)
+		slog.Warn("httpnotify: delivery rejected", "endpoint", endpoint.Name, "event", eventName, "status", resp.StatusCode, "err", message)
+		recordDeliveryResult(endpoint, false, message)
 		return
 	}
 	recordDeliveryResult(endpoint, true, "")
 }
 
+// maxDeliveryErrorRunes lastError 的最大长度（管理端回显与日志）。
+const maxDeliveryErrorRunes = 200
+
+// deliveryErrorMessage 生成可落库/打日志的失败摘要：*url.Error 的字符串会带完整
+// 请求 URL，而飞书 webhook URL 本身就是凭据（hook token），因此只保留其内层错误。
+func deliveryErrorMessage(err error) string {
+	var urlErr *url.Error
+	if errors.As(err, &urlErr) {
+		err = urlErr.Err
+	}
+	message := strings.TrimSpace(err.Error())
+	if runes := []rune(message); len(runes) > maxDeliveryErrorRunes {
+		message = string(runes[:maxDeliveryErrorRunes])
+	}
+	return message
+}
+
+// buildRequest 生成 generic 通道请求：X-Goose-* 头与 HMAC 签名保持既有契约不变。
 func buildRequest(endpoint pageConfig.HttpNotifyEndpoint, eventName string, deliveryID string, timestamp int64, body []byte) (*http.Request, error) {
+	req, err := newJSONPost(endpoint, body)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("X-Goose-Event", eventName)
+	req.Header.Set("X-Goose-Delivery", deliveryID)
+	req.Header.Set("X-Goose-Timestamp", strconv.FormatInt(timestamp, 10))
+	if endpoint.Secret != "" {
+		req.Header.Set("X-Goose-Signature", sign(endpoint.Secret, timestamp, body))
+	}
+	return req, nil
+}
+
+// newJSONPost 校验端点 URL（仅 http/https）并构造 JSON POST 请求。
+func newJSONPost(endpoint pageConfig.HttpNotifyEndpoint, body []byte) (*http.Request, error) {
 	targetURL, err := url.Parse(strings.TrimSpace(endpoint.URL))
 	if err != nil {
 		return nil, err
@@ -128,12 +225,6 @@ func buildRequest(endpoint pageConfig.HttpNotifyEndpoint, eventName string, deli
 		return nil, err
 	}
 	req.Header.Set("Content-Type", contentTypeJSON)
-	req.Header.Set("X-Goose-Event", eventName)
-	req.Header.Set("X-Goose-Delivery", deliveryID)
-	req.Header.Set("X-Goose-Timestamp", strconv.FormatInt(timestamp, 10))
-	if endpoint.Secret != "" {
-		req.Header.Set("X-Goose-Signature", sign(endpoint.Secret, timestamp, body))
-	}
 	return req, nil
 }
 

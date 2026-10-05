@@ -1384,6 +1384,61 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/forum/moderation/approval-action/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Preview a signed moderation quick action opened from a notification card
+         * @description Read-only step of the notification quick-approval flow (issue #1049). The signed token
+         *     comes from a Feishu/generic approval notification button (`/moderation/action?token=…`)
+         *     and only proves the link was issued by this site, was not tampered with and has not
+         *     expired — it never grants authority. The caller's own session is re-authorized with the
+         *     workbench permission model (category moderators, CourseManager, Admin), and the target's
+         *     current state is re-checked. Unauthorized callers receive `state=forbidden` without any
+         *     target content; stale links for edited pending content return `state=changed`. Never
+         *     mutates state. The token travels in the POST body so it never enters access logs.
+         */
+        post: operations["moderationApprovalActionPreview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/moderation/approval-action/execute": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Execute a signed moderation quick action after explicit confirmation
+         * @description Mutating step of the notification quick-approval flow (issue #1049). Runs only when the
+         *     same checks as the preview yield `state=ready`; otherwise the current state
+         *     (`processed`, `changed`, `forbidden`, `expired`, `invalid`, `notFound`) is returned
+         *     unchanged. Pending topics/posts reuse the workbench review action (`approve`/`reject`);
+         *     reports reuse the workbench ban/hide/report-status logic (`ban` for topic/post,
+         *     `hide` for course reviews, `dismiss`) and close the report with a compare-and-set, so a
+         *     repeated or concurrent click never overwrites the first handler. `handler_id` and the
+         *     moderation/operation logs record the real signed-in actor. Private-message reports
+         *     never receive quick actions. Requires a writable account.
+         */
+        post: operations["moderationApprovalActionExecute"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/forum/moderation/view-deleted-content": {
         parameters: {
             query?: never;
@@ -10464,9 +10519,13 @@ export interface components {
             settings?: components["schemas"]["AdminRateLimitSettingsConfig"];
         };
         AdminHttpNotifyEndpoint: {
+            /** @description Endpoint id. Endpoints saved without an id receive a server-generated one. */
             id: string;
             name: string;
+            /** @description Optional on save; omitted means `generic`. Unknown values fail with `common.request.invalidParams`. */
+            channelType?: components["schemas"]["AdminHttpNotifyChannelType"];
             enabled: boolean;
+            /** @description Webhook URL. For `feishu` endpoints the URL embeds the bot hook token, so it is encrypted at rest (AES-256-GCM) and never returned; an empty value keeps the stored URL of the matching `feishu` endpoint. */
             url: string;
             /** @description Plaintext webhook signing secret accepted on save requests (issue */
             secret: string;
@@ -12563,6 +12622,51 @@ export interface components {
             /** Format: date-time */
             createdAt: string;
         };
+        ModerationApprovalActionRequest: {
+            /** @description Signed quick-action token from the `token` query parameter of a notification button link (`/moderation/action?token=…`). */
+            token: string;
+        };
+        /**
+         * @description Quick-action confirmation view (issue #1049). Target content (`title`, `excerpt`, `targetUrl`)
+         *     is only present when the signed-in caller may moderate the target; anonymous targets only
+         *     expose the `anonymous` marker, never the author.
+         */
+        ModerationApprovalActionView: {
+            /**
+             * @description `ready` — can be executed; `done` — executed by this request; `processed` — already
+             *     handled (by anyone) and nothing changed; `changed` — the pending content was edited after
+             *     the notification, handle the latest version in the workbench; `expired`/`invalid` — the
+             *     link is stale or not issued by this site; `forbidden` — the caller cannot moderate the
+             *     target; `notFound` — the target no longer exists; `failed` — the action could not be
+             *     applied.
+             * @enum {string}
+             */
+            state: "ready" | "done" | "processed" | "changed" | "expired" | "invalid" | "forbidden" | "notFound" | "failed";
+            /** @enum {string} */
+            subject?: "review.topic" | "review.post" | "report";
+            /** @enum {string} */
+            action?: "approve" | "reject" | "ban" | "hide" | "dismiss";
+            /** @enum {string} */
+            targetType?: "topic" | "post" | "chat_message" | "course_review";
+            /** Format: int64 */
+            targetId?: number;
+            /** Format: int64 */
+            reportId?: number;
+            title?: string;
+            excerpt?: string;
+            anonymous?: boolean;
+            targetUrl?: string;
+            /** @description Site-relative workbench entry for handling the item manually. */
+            workbenchUrl: string;
+            /**
+             * Format: date-time
+             * @description Link expiry (UTC, RFC 3339).
+             */
+            expiresAt?: string;
+        };
+        ModerationApprovalActionResponse: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["ModerationApprovalActionView"];
+        };
         UserBlock: {
             /** Format: uint64 */
             targetUserId: number;
@@ -12762,11 +12866,24 @@ export interface components {
         ModerationPostRevealResponse: (components["schemas"]["ApiSuccess"] & {
             result: components["schemas"]["PostAuthorRevealPayload"];
         }) | components["schemas"]["ApiFailure"];
+        /**
+         * @description Notification channel adapter (issue #1049). `generic` posts the structured JSON envelope
+         *     with `X-Goose-*` headers and the optional HMAC signature; `feishu` posts a schema 2.0
+         *     interactive card to a Feishu group custom-bot webhook (approval events only), signs it with
+         *     the bot's signature secret, and counts HTTP 200 responses whose body `code` is non-zero as
+         *     failures. Stored endpoints without a channel type are treated as `generic`.
+         * @enum {string}
+         */
+        AdminHttpNotifyChannelType: "generic" | "feishu";
         AdminHttpNotifyEndpointView: {
             id: string;
             name: string;
+            channelType: components["schemas"]["AdminHttpNotifyChannelType"];
             enabled: boolean;
+            /** @description Stored webhook URL for `generic` endpoints; always empty for `feishu` endpoints, whose URL is a credential (see `urlConfigured`). */
             url: string;
+            /** @description Whether a webhook URL is stored (plaintext for `generic`, encrypted for `feishu`). */
+            urlConfigured: boolean;
             /** @description Whether a webhook signing secret is stored for this endpoint (encrypted with AES-256-GCM). The secret itself is never returned (issue */
             secretConfigured: boolean;
             events: string[];
@@ -15659,6 +15776,90 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiSuccess"] | components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen or unactivated account, or a cross-site request rejected by the CSRF gate. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    moderationApprovalActionPreview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModerationApprovalActionRequest"];
+            };
+        };
+        responses: {
+            /** @description Current quick-action view (business state in `result.state`), or a validation failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModerationApprovalActionResponse"] | components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Cross-site request rejected by the CSRF gate. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    moderationApprovalActionExecute: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModerationApprovalActionRequest"];
+            };
+        };
+        responses: {
+            /** @description Action result (business state in `result.state`), or a validation failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModerationApprovalActionResponse"] | components["schemas"]["ApiFailure"];
                 };
             };
             /** @description Missing, invalid, expired, or revoked access token. */

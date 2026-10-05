@@ -25,7 +25,7 @@ const topics = ref<TopicPayload[]>([...page.props.topics])
 const busyIds = ref<number[]>([])
 const actionError = ref('')
 const loadingList = ref(false)
-const activeConsoleTab = ref<'review' | 'reports' | 'ban' | 'logs' | 'guidance'>('review')
+const activeConsoleTab = ref<'review' | 'reports' | 'ban' | 'logs' | 'guidance'>(initialConsoleTab())
 const reportItems = ref<ModerationReportItem[]>([])
 const reportStatus = ref<'open' | 'closed'>('open')
 const reportNextCursor = ref(0)
@@ -40,6 +40,12 @@ const logHasNext = ref(true)
 const logLoading = ref(false)
 const logLoaded = ref(false)
 const logError = ref('')
+
+// 审批通知卡片的「打开版主工作台」按钮带 ?tab=review|reports，直达对应队列（issue #1049）。
+function initialConsoleTab(): 'review' | 'reports' {
+  if (typeof window === 'undefined') return 'review'
+  return new URLSearchParams(window.location.search).get('tab') === 'reports' ? 'reports' : 'review'
+}
 
 const managementTabs = [
   { key: 'review', icon: ShieldCheck },
