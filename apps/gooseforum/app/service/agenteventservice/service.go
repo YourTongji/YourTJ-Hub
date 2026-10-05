@@ -177,15 +177,9 @@ func CapturePublicTx(tx *gorm.DB, post *posts.Entity, plans ...*WriteCapturePlan
 		return nil
 	}
 	previous := state.Version
-	if previous == 0 && rev.Version > 1 {
-		prior, priorErr := postRevisions.PreviousNormalTx(tx, p.Id, rev.Version)
-		if priorErr != nil && !errors.Is(priorErr, gorm.ErrRecordNotFound) {
-			return priorErr
-		}
-		if priorErr == nil {
-			previous = prior.Version
-		}
-	}
+	// Only a watermark recorded while the old projection was actually public
+	// establishes prior publication. Normal draft revisions are not evidence.
+
 	if err := agentEvents.SetPublicationTx(tx, agentEvents.Publication{InstanceID: cfg.ID, PostID: p.Id, Version: rev.Version}); err != nil {
 		return err
 	}

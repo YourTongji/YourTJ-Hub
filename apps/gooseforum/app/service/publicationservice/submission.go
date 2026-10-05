@@ -15,6 +15,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/taskQueue"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topicCategoryIndex"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/agenteventservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/fileusageservice"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -103,6 +104,22 @@ func SubmitWithHooks(ctx context.Context, topic *topics.Entity, post *posts.Enti
 			live.LatestRevisionId = baseline.Id
 			if live.ProcessStatus == posts.ProcessStatusNormal && liveTopic.Status == 1 && liveTopic.ProcessStatus == topics.ProcessStatusNormal {
 				live.PublishedRevisionId = baseline.Id
+			}
+		}
+		// Establish a legacy event baseline while the previous projection is still
+		// provably public. A draft can have normal revisions but has never produced
+		// a public occurrence. Do not infer a baseline later from revision status.
+		if live.PublishedRevisionId != 0 {
+			if _, _, err := agenteventservice.PublicSourceTx(tx, live.Id); err == nil {
+				var published postRevisions.Entity
+				if err := tx.Where("id = ? AND post_id = ?", live.PublishedRevisionId, live.Id).Take(&published).Error; err != nil {
+					return err
+				}
+				if err := agenteventservice.BaselineTx(tx, live.Id, published.Version); err != nil {
+					return err
+				}
+			} else if !errors.Is(err, agenteventservice.ErrInaccessible) && !errors.Is(err, gorm.ErrRecordNotFound) {
+				return err
 			}
 		}
 		preserveLive := live.ProcessStatus == posts.ProcessStatusNormal && liveTopic.Status == 1 && liveTopic.ProcessStatus == topics.ProcessStatusNormal

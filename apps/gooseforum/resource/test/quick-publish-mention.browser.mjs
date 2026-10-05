@@ -17,7 +17,7 @@ for (const [width, height, fontSize] of [[320, 640, 16], [320, 640, 32], [375, 6
   test(`quick publisher mention candidates remain tappable at ${width}x${height}, ${fontSize}px text`, async () => {
     const page = await browser.newPage({ viewport: { width, height } })
     try {
-      await page.route('**/api/forum/search?*', route => route.fulfill({ json: { code: 0, result: { users: Array.from({ length: 8 }, (_, i) => ({ id: i + 2, username: `tester${i}`, nickname: `测试用户${i}`, avatarUrl: '' })) } } }))
+      await page.route('**/api/forum/mention-targets?*', route => route.fulfill({ json: { code: 0, result: Array.from({ length: 8 }, (_, i) => ({ userId: i + 2, username: `tester${i}`, nickname: `测试用户${i}`, avatarUrl: '', actorType: 'human' })) } }))
       await page.goto(`${origin}/assets/test/fixtures/browser/quick-publish.html`)
       await page.evaluate(size => { document.documentElement.style.fontSize = `${size}px` }, fontSize)
       const editor = page.locator('.vditor [contenteditable="true"]:visible').first()

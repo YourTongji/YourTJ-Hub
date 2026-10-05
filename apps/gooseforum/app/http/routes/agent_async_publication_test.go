@@ -12,6 +12,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/agents"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/moderationDecision"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postRevisions"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/publicationservice"
@@ -130,5 +131,68 @@ func TestAsyncApprovalCommitsAgentIntent(t *testing.T) {
 	}
 	if count != 1 {
 		t.Fatalf("approval committed %d Agent intents, want 1 before effects run", count)
+	}
+}
+
+func TestAsyncFirstDraftPublicationNotMistakenForPublicBaseline(t *testing.T) {
+	for _, wasPublic := range []bool{false, true} {
+		t.Run(fmt.Sprintf("previouslyPublic=%t", wasPublic), func(t *testing.T) {
+			setupAIModerationContractTest(t, func(o *pageConfig.AiModerationOptions) { o.TextModeration = true })
+			conn := setupAgentEventsHTTP(t)
+			name := "draft_listener"
+			if wasPublic {
+				name = "legacy_listener"
+			}
+			listener, _ := createAgentForumAgent(t, conn, name)
+			now := time.Now().Add(-time.Minute)
+			if err := agents.UpdateColumns(conn, listener, map[string]any{"events_enabled": true, "events_enabled_at": now, "subscription_generation": 1, "event_types": `["agent.mentioned","forum.topic_created"]`}); err != nil {
+				t.Fatal(err)
+			}
+			author := createHTTPContractUser(t, conn, contractTestID())
+			status := int8(0)
+			if wasPublic {
+				status = 1
+			}
+			topic := topics.Entity{UserId: author.Id, Title: "Existing draft or public topic", Status: status, CategoryIds: []uint64{1}, PostSeq: 1}
+			if err := conn.Create(&topic).Error; err != nil {
+				t.Fatal(err)
+			}
+			post := posts.Entity{TopicId: topic.Id, PostNo: 1, UserId: author.Id, Content: "Original content @" + name}
+			if err := conn.Create(&post).Error; err != nil {
+				t.Fatal(err)
+			}
+			if err := conn.Create(&postRevisions.Entity{PostId: post.Id, Version: 1, EditorId: author.Id, Content: post.Content}).Error; err != nil {
+				t.Fatal(err)
+			}
+			topic.FirstPostId = post.Id
+			if err := conn.Save(&topic).Error; err != nil {
+				t.Fatal(err)
+			}
+			topic.Status = 1
+			post.Content = "Publish the candidate with original mention @" + name
+			if err := publicationservice.Submit(context.Background(), &topic, &post); err != nil {
+				t.Fatal(err)
+			}
+			if err := publicationservice.Review(context.Background(), post.LatestRevisionId, moderationDecision.ActionAllow, "", 0); err != nil {
+				t.Fatal(err)
+			}
+			var intents []agentEvents.Intent
+			if err := conn.Where("post_id = ?", post.Id).Find(&intents).Error; err != nil {
+				t.Fatal(err)
+			}
+			if wasPublic {
+				if len(intents) != 0 {
+					t.Fatalf("legacy public edit rebroadcast original occurrence: %#v", intents)
+				}
+			} else {
+				if len(intents) != 1 || len(intents[0].Recipients) != 1 {
+					t.Fatalf("first draft publication lost its recipients: %#v", intents)
+				}
+				reasons := intents[0].Recipients[0].Reasons
+				if len(reasons) != 2 || reasons[0] != "mention" || reasons[1] != "topic_created" {
+					t.Fatalf("first draft publication reasons: %#v", reasons)
+				}
+			}
+		})
 	}
 }
