@@ -27,6 +27,9 @@ _$PublishTopicPayloadImpl _$$PublishTopicPayloadImplFromJson(
 ) => _$PublishTopicPayloadImpl(
   title: json['title'] as String,
   content: json['content'] as String,
+  images:
+      (json['images'] as List<dynamic>?)?.map((e) => e as String).toList() ??
+      const <String>[],
   categoryIds:
       (json['categoryIds'] as List<dynamic>?)
           ?.map((e) => (e as num).toInt())
@@ -41,6 +44,7 @@ Map<String, dynamic> _$$PublishTopicPayloadImplToJson(
 ) => <String, dynamic>{
   'title': instance.title,
   'content': instance.content,
+  'images': instance.images,
   'categoryIds': instance.categoryIds,
   'topicStatus': instance.topicStatus,
   'contentType': instance.contentType,

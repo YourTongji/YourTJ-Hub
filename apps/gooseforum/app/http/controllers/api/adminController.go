@@ -34,6 +34,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/moderators"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/optRecord"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postRevisions"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/role"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/rolePermissionRs"
@@ -58,6 +59,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/oauthservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/optlogger"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/permission"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/publicationservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/searchservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/storageservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/themeservice"
@@ -2185,10 +2187,13 @@ type ReviewQueueReq struct {
 }
 
 type ReviewQueueItem struct {
-	Id      uint64 `json:"id"`
-	Title   string `json:"title"`
-	Excerpt string `json:"excerpt"`
-	UserId  uint64 `json:"userId"`
+	RevisionId   uint64 `json:"revisionId,omitempty"`
+	Content      string `json:"content,omitempty"`
+	ReviewReason string `json:"reviewReason,omitempty"`
+	Id           uint64 `json:"id"`
+	Title        string `json:"title"`
+	Excerpt      string `json:"excerpt"`
+	UserId       uint64 `json:"userId"`
 	// Username/Nickname 作者身份；备注名显示 note(display name) 需要昵称，无昵称时省略。
 	Username      string `json:"username"`
 	Nickname      string `json:"nickname,omitempty"`
@@ -2236,15 +2241,21 @@ func attachAiReview(items []ReviewQueueItem, subjectType string) {
 		ids = append(ids, item.Id)
 	}
 	decisions := moderationDecision.LatestForSubjects(subjectType, ids)
-	checking := moderationservice.DeferredChecking(subjectType, ids)
+	revisionIDs := make([]uint64, 0, len(items))
+	for _, item := range items {
+		if item.RevisionId != 0 {
+			revisionIDs = append(revisionIDs, item.RevisionId)
+		}
+	}
+	checking := publicationservice.Checking(revisionIDs)
 	for i := range items {
-		if checking[items[i].Id] {
+		if checking[items[i].RevisionId] {
 			// 检查中的条目不展示上一版本的旧结论。
 			items[i].AiChecking = true
 			continue
 		}
 		decision, ok := decisions[items[i].Id]
-		if !ok || decision.AppliedAction != moderationDecision.ActionReview {
+		if !ok || decision.AppliedAction != moderationDecision.ActionReview || (items[i].RevisionId != 0 && decision.RevisionId != items[i].RevisionId) {
 			continue
 		}
 		view := aiDecisionItem(decision)
@@ -2279,6 +2290,15 @@ func reviewQueue(req component.BetterRequest[ReviewQueueReq], categoryIDs []uint
 		}
 		userMap := users.GetMapByIds(userIDs)
 		for _, t := range result.Data {
+			post := posts.Get(t.FirstPostId)
+			revision := postRevisions.Get(post.LatestRevisionId)
+			// The author may have submitted another revision after the queue query.
+			if len(categoryIDs) > 0 && revision.Id != 0 && !moderationservice.CanModerateAnyCategory(req.UserId, revision.CategoryIds) {
+				continue
+			}
+			if revision.Id != 0 {
+				publicationservice.ApplySnapshot(&t, &post, revision)
+			}
 			username := ""
 			nickname := ""
 			if u, ok := userMap[t.UserId]; ok {
@@ -2290,7 +2310,7 @@ func reviewQueue(req component.BetterRequest[ReviewQueueReq], categoryIDs []uint
 				excerpt = t.Title
 			}
 			items = append(items, ReviewQueueItem{
-				Id: t.Id, Title: t.Title, Excerpt: excerpt,
+				Id: t.Id, Title: t.Title, Excerpt: excerpt, RevisionId: revision.Id, Content: post.Content, ReviewReason: revision.ReviewReason,
 				UserId: t.UserId, Username: username, Nickname: nickname,
 				ProcessStatus: t.ProcessStatus,
 				CreatedAt:     t.CreatedAt.Format(time.RFC3339),
@@ -2317,6 +2337,11 @@ func reviewQueue(req component.BetterRequest[ReviewQueueReq], categoryIDs []uint
 				component.FailDataCode(component.MessageAdminReviewFailed, nil))
 		}
 		for _, p := range result.Data {
+			revision := postRevisions.Get(p.LatestRevisionId)
+			if revision.Id != 0 {
+				dummy := topics.Entity{}
+				publicationservice.ApplySnapshot(&dummy, &p, revision)
+			}
 			username := ""
 			nickname := ""
 			if u, ok := userMap[p.UserId]; ok {
@@ -2332,7 +2357,7 @@ func reviewQueue(req component.BetterRequest[ReviewQueueReq], categoryIDs []uint
 				excerpt = excerpt[:120]
 			}
 			items = append(items, ReviewQueueItem{
-				Id: p.Id, Title: title, Excerpt: excerpt,
+				Id: p.Id, Title: title, Excerpt: excerpt, RevisionId: revision.Id, Content: p.Content, ReviewReason: revision.ReviewReason,
 				UserId: p.UserId, Username: username, Nickname: nickname,
 				ProcessStatus: p.ProcessStatus,
 				CreatedAt:     p.CreatedAt.Format(time.RFC3339),
@@ -2348,9 +2373,11 @@ func reviewQueue(req component.BetterRequest[ReviewQueueReq], categoryIDs []uint
 }
 
 type ReviewActionReq struct {
-	Kind    string `json:"kind" validate:"required,oneof=topic post"`
-	Id      uint64 `json:"id" validate:"required"`
-	Approve bool   `json:"approve"`
+	RevisionId uint64 `json:"revisionId"`
+	Reason     string `json:"reason" validate:"max=512"`
+	Kind       string `json:"kind" validate:"required,oneof=topic post"`
+	Id         uint64 `json:"id" validate:"required"`
+	Approve    bool   `json:"approve"`
 }
 
 // ReviewAction 审核通过（ProcessStatus=0）或拒绝（ProcessStatus=1）。
@@ -2363,6 +2390,30 @@ func ReviewAction(req component.BetterRequest[ReviewActionReq]) component.Respon
 // 完全一致。自动结论不回写人工标签、不记操作日志；自动通过不通知作者（发布时
 // 已告知通过后公开），自动拒绝照常通知。
 func reviewContent(ctx context.Context, params ReviewActionReq, actorID uint64, automatic bool) component.Response {
+	post := posts.Get(params.Id)
+	if params.Kind == "topic" {
+		post = posts.Get(topics.Get(params.Id).FirstPostId)
+	}
+	if post.LatestRevisionId != 0 {
+		if params.RevisionId == 0 || params.RevisionId != post.LatestRevisionId {
+			return component.FailResponseCode(component.MessageAdminReviewProcessed, nil)
+		}
+		action := moderationDecision.ActionBlock
+		if params.Approve {
+			action = moderationDecision.ActionAllow
+		}
+		if err := publicationservice.Review(ctx, params.RevisionId, action, params.Reason, actorID); err != nil {
+			if errors.Is(err, publicationservice.ErrUnavailable) {
+				return component.FailResponseCode(component.MessageAdminReviewProcessed, nil)
+			}
+			return component.FailResponseCode(component.MessageOperationFailed, nil)
+		}
+		if !automatic {
+			optlogger.UserOptCode(actorID, optlogger.EditTopic, post.TopicId, "admin.opt.review.post", optlogger.MessageParams{"id": post.Id, "topicId": post.TopicId, "approve": params.Approve})
+		}
+		return component.SuccessResponseCode("success", component.MessageOperationSuccess, nil)
+	}
+
 	targetStatus := int8(0)
 	if !params.Approve {
 		targetStatus = 1

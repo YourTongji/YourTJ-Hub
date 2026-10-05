@@ -17,6 +17,7 @@ export interface ForumRealtimeNotificationsChanged {
 }
 
 export type ForumRealtimeEvent =
+  | { event: 'content.changed'; data: Record<string, never> }
   | { event: 'hello'; data: ForumRealtimeHello }
   | { event: 'chat.changed'; data: ForumRealtimeChatChanged }
   | { event: 'notifications.changed'; data: ForumRealtimeNotificationsChanged }

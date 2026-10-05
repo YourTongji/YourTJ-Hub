@@ -433,7 +433,9 @@ Widget _topicRow(
   ];
 
   return GfTopicRow(
-    title: _topicDisplayTitle(topic),
+    title: topic.processStatus == 2
+        ? "${l10n.contentReviewPending} · ${_topicDisplayTitle(topic)}"
+        : _topicDisplayTitle(topic),
     description: topic.title.isEmpty ? '' : topic.description,
     categories: categories,
     participantAvatarUrls: participantAvatarUrls,
@@ -489,7 +491,9 @@ Widget buildTopicFeedCard(
 
   return GfTopicCard(
     key: ValueKey<int>(topic.id),
-    title: topic.title,
+    title: topic.processStatus == 2
+        ? "${l10n.contentReviewPending} · ${topic.title}"
+        : topic.title,
     description: topic.description,
     authorName: privateDisplayName(
       context,

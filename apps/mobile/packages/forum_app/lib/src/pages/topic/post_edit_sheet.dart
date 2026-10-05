@@ -8,16 +8,29 @@ import '../../providers.dart';
 import '../../server_messages.dart';
 import '../../widgets/moderation_blocked_dialog.dart';
 
+Future<bool?> showPostEditSheet(
+  BuildContext context, {
+  required int postId,
+  required String content,
+}) => showGfBottomSheet<bool>(
+  context,
+  barrierDismissible: false,
+  keyboardAware: true,
+  enableDrag: false,
+  builder: (_) => PostEditSheet(postId: postId, content: content),
+);
+
 class PostEditSheet extends ConsumerStatefulWidget {
-  const PostEditSheet({super.key, required this.post});
-  final PostPayload post;
+  const PostEditSheet({super.key, required this.postId, required this.content});
+  final int postId;
+  final String content;
   @override
   ConsumerState<PostEditSheet> createState() => _PostEditSheetState();
 }
 
 class _PostEditSheetState extends ConsumerState<PostEditSheet> {
   late final TextEditingController _text = TextEditingController(
-    text: widget.post.content,
+    text: widget.content,
   );
   bool _busy = false;
   bool _uploading = false;
@@ -32,7 +45,7 @@ class _PostEditSheetState extends ConsumerState<PostEditSheet> {
   Future<void> _close() async {
     if (_busy || _uploading) return;
     final l10n = AppLocalizations.of(context);
-    if (_text.text != widget.post.content) {
+    if (_text.text != widget.content) {
       final discard = await showDialog<bool>(
         context: context,
         animationStyle: GfMotion.dialogStyle(context),
@@ -73,7 +86,7 @@ class _PostEditSheetState extends ConsumerState<PostEditSheet> {
     try {
       final UpdatePostResult updated = await ref
           .read(postRepositoryProvider)
-          .updatePost(postId: widget.post.id, content: _text.text.trim());
+          .updatePost(postId: widget.postId, content: _text.text.trim());
       if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) return;
       if (updated.pendingReview) {
         final AppLocalizations l10n = AppLocalizations.of(context);

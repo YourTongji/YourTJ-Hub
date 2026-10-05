@@ -28,7 +28,7 @@ import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, r
 import { AlertTriangle, Ban, Bell, BookOpen, Bookmark, ChevronsUp, Clock, CornerDownLeft, Flag, Heart, HelpCircle, History, Loader2, MoreHorizontal, PencilLine, RotateCcw, Share2, Sparkles, Trash2, X } from '@lucide/vue'
 import { PopoverContent, PopoverPortal, PopoverRoot, PopoverTrigger } from 'reka-ui'
 import { showModerationBlocked } from '@/runtime/moderation-blocked'
-import { bookmarkTopic, deletePost, deleteTopic, getPostRevisions, getPostWindow, likeTopic, createPost, sensitiveWordsFromError, submitReport, updateModerationTopicStatus, updateModerationPostStatus, updatePost, watchTopic, likePost, bookmarkPost, reportContentEvent, type PostRevisionResult, pendingReviewMessage } from '@/runtime/api'
+import { ApiResponseError, bookmarkTopic, deletePost, deleteTopic, getPostRevisions, getPostWindow, likeTopic, createPost, sensitiveWordsFromError, submitReport, updateModerationTopicStatus, updateModerationPostStatus, updatePost, watchTopic, likePost, bookmarkPost, reportContentEvent, type PostRevisionResult, pendingReviewMessage } from '@/runtime/api'
 import { formatDateTime, formatNumber } from '@/runtime/format'
 import { useFlashMessages } from '@/runtime/flash-message'
 import { fetchPage } from '@/runtime/router'
@@ -308,6 +308,44 @@ let postElements: HTMLElement[] = []
 const postNavigationTargetTop = 160
 // 树状视图折叠态：仅会话内有效，切换话题时重置（不持久化，默认全展开）。
 const collapsedIds = ref(new Set<number>())
+
+let contentRefreshSequence = 0
+onBeforeUnmount(() => { contentRefreshSequence += 1 })
+
+// A refreshed first window says nothing about an already loaded tail reply.
+// Recheck absent pending replies by their exact anchor before replacing/removing them.
+watch(() => props.initialPostStream, async next => {
+  const sequence = ++contentRefreshSequence
+  const topicId = props.topicId
+  const incoming = new Map(next.posts.map(post => [post.id, post]))
+  const missingPending = posts.value.filter(post => post.processStatus === 2 && !incoming.has(post.id))
+  posts.value = posts.value.flatMap(post => {
+    const refreshed = incoming.get(post.id)
+    if (refreshed) {
+      incoming.delete(post.id)
+      return post.processStatus === 2 && refreshed.processStatus === 1 ? [] : [refreshed]
+    }
+    return [post]
+  })
+  posts.value.push(...incoming.values())
+  for (const pending of missingPending) {
+    let refreshed: PostPayload | undefined
+    try {
+      const window = await getPostWindow({ topicId, anchorPostId: pending.id, limit: 1 })
+      refreshed = window.posts.find(post => post.id === pending.id)
+    } catch (error) {
+      if (!(error instanceof ApiResponseError) || !['post.notFound', 'topic.notFound'].includes(error.messageCode ?? '')) continue
+    }
+    if (sequence !== contentRefreshSequence || topicId !== props.topicId) return
+    const index = posts.value.findIndex(post => post.id === pending.id && post === pending)
+    if (index < 0) continue
+    if (!refreshed || refreshed.processStatus === 1 || refreshed.isAuthorDeleted || refreshed.isModeratorRemoved) {
+      posts.value.splice(index, 1)
+    } else {
+      posts.value[index] = refreshed
+    }
+  }
+})
 
 watch(
   () => props.interactions,
@@ -1449,7 +1487,7 @@ function isOwnPendingPost(post: PostPayload) {
 }
 
 function canEditPost(post: PostPayload) {
-  return post.isOwnPost && !post.isHidden && !isPostRemoved(post)
+  return post.isOwnPost && (!post.isHidden || post.processStatus === 2) && !isPostRemoved(post)
 }
 
 function canDeleteRenderedPost(post: PostPayload) {
@@ -1532,6 +1570,7 @@ async function savePostEdit() {
     if (index >= 0) {
       posts.value[index] = {
         ...posts.value[index],
+        processStatus: updated.pendingReview ? 2 : 0,
         content: updated.content,
         renderedContent: updated.renderedContent,
         updatedAt: updated.updatedAt,
@@ -1590,7 +1629,6 @@ async function submitPost() {
     const pendingReview = typeof createdPost === 'object' && createdPost !== null && createdPost.pendingReview === true
     // 待审回复（issue #975）尚未公开：提示“已提交审核”或“正在自动检查”，不跳转定位到新楼层。
     pushFlash(pendingReview ? pendingReviewMessage(createdPost) : t('topic.replyPosted'), pendingReview ? 'info' : 'success')
-    if (pendingReview) return
     const createdPostId = typeof createdPost === 'object' && createdPost !== null ? createdPost.id : createdPost
     try {
       if (typeof createdPostId === 'number') {

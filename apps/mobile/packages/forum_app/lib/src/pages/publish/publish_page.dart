@@ -489,24 +489,7 @@ class _PublishPageState extends ConsumerState<PublishPage>
           ? props.topic.categoryIds
           : (widget.editCategoryIds ?? const <int>[]);
 
-      // The publish payload lacks gallery metadata; read the topic's existing
-      // projection before editing so a simple-text edit cannot remove photos.
-      List<String> existingImages = [];
-      if (props.isEditing &&
-          props.topic.contentType != 3 &&
-          props.topic.contentType != 0) {
-        final detail = await ref
-            .read(pageRepositoryProvider)
-            .topicDetail(props.topicId);
-        final existing = parsePageProps<TopicDetailProps>(detail);
-        if (existing == null || existing.topic.id != props.topicId) {
-          throw const FormatException(
-            'Existing topic gallery could not be read',
-          );
-        }
-        existingImages = existing.topic.images ?? const [];
-        if (!mounted || !_sessionCurrent) return;
-      }
+      final existingImages = props.topic.images;
       if (_owner == null &&
           payload.layout.viewer.isAuthenticated &&
           payload.layout.viewer.id > 0) {

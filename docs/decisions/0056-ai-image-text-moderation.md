@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Superseded by [0061](0061-versioned-background-moderation.md)
 Class: architecture
 
 ## Context and Problem Statement

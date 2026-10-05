@@ -25,6 +25,7 @@ import { followUser } from '@/runtime/api'
 import { broadcastFollowChange, onFollowChange } from '@/runtime/follow-state'
 import { formatDate, formatDateTime, formatNumber, timeAgo } from '@/runtime/format'
 import { fetchPage } from '@/runtime/router'
+import { useContentUpdates } from '@/runtime/content-updates'
 import { topicDescription, topicDisplayLabel } from '@/runtime/topic-description'
 import EmptyState from '@/site/components/EmptyState.vue'
 import TopicList from '@/site/components/TopicList.vue'
@@ -56,6 +57,9 @@ const loadingMore = ref(false)
 const loadError = ref('')
 const loadMoreSentinel = ref<HTMLElement | null>(null)
 let observer: IntersectionObserver | undefined
+let contentGeneration = 0
+let loadedContentPages = 1
+const refreshingContent = ref(false)
 
 const displayName = computed(() => userDisplayName(page.props.user.userId, page.props.user.username, page.props.user.nickname))
 // 简介行只承载 bio：签名永远以独立签名块呈现，不做 fallback 展示
@@ -122,6 +126,10 @@ const socialProfileLinks = computed(() => socialKeys
 watch(
   () => [page.props.user.userId, page.props.section, page.props.activityTab, page.props.pagination.nextUrl],
   () => {
+    contentGeneration++
+    loadedContentPages = 1
+    refreshingContent.value = false
+    loadingMore.value = false
     isFollowing.value = page.props.user.isFollowing
     coverUrl.value = page.props.user.profileCoverUrl || ''
     followError.value = ''
@@ -191,17 +199,54 @@ function topicCategories(topic: TopicPayload) {
   return topic.categories.slice(0, 2)
 }
 
-async function loadMore() {
-  if (!isWaterfallTab.value || loadingMore.value || !pagination.value.hasNext || !pagination.value.nextUrl) return
+// Re-fetch the loaded cursor window: merely merging would retain rejected rows
+// or stale pending badges. The generation also invalidates in-flight pagination.
+async function reconcileContent() {
+  if (!page.layout.viewer?.isAuthenticated || page.layout.viewer.id !== page.props.user.userId || page.props.section !== 'activity' || page.props.activityTab !== 'topics') return
+  const generation = ++contentGeneration
+  const pageCount = loadedContentPages
+  refreshingContent.value = true
+  loadingMore.value = false
+  let url = `/u/${page.props.user.userId}/activity/topics`
+  let refreshed: TopicPayload[] = []
+  let nextPagination = pagination.value
+  let fetchedPages = 0
+  try {
+    while (url && fetchedPages < pageCount) {
+      const payload = await fetchPage(new URL(url, window.location.origin)) as PagePayload<UserProfileProps>
+      if (generation !== contentGeneration) return
+      refreshed = mergeTopics(refreshed, payload.props.topics)
+      nextPagination = payload.props.pagination
+      fetchedPages++
+      url = nextPagination.hasNext ? nextPagination.nextUrl : ''
+    }
+    activityTopics.value = refreshed
+    pagination.value = nextPagination
+    loadedContentPages = fetchedPages
+    loadError.value = ''
+  } catch (error) {
+    if (generation === contentGeneration) loadError.value = error instanceof Error ? error.message : t('common.loadFailed')
+  } finally {
+    if (generation === contentGeneration) refreshingContent.value = false
+  }
+}
 
+useContentUpdates(() => void reconcileContent(), () => !!page.layout.viewer?.isAuthenticated)
+
+async function loadMore() {
+  if (!isWaterfallTab.value || refreshingContent.value || loadingMore.value || !pagination.value.hasNext || !pagination.value.nextUrl) return
+
+  const generation = contentGeneration
   loadingMore.value = true
   loadError.value = ''
   try {
     const payload = (await fetchPage(new URL(pagination.value.nextUrl, window.location.origin))) as PagePayload<UserProfileProps>
+    if (generation !== contentGeneration) return
     if (isStandaloneConnections.value) {
       connections.value = mergeConnections(connections.value, page.props.section === 'following' ? payload.props.following : payload.props.followers)
     } else if (page.props.activityTab === 'topics') {
       activityTopics.value = mergeTopics(activityTopics.value, payload.props.topics)
+      loadedContentPages++
     } else if (page.props.activityTab === 'likes') {
       likes.value = mergeLikes(likes.value, payload.props.likes)
     } else if (page.props.section === 'bookmarks' || page.props.activityTab === 'bookmarks') {
@@ -211,9 +256,9 @@ async function loadMore() {
     }
     pagination.value = payload.props.pagination
   } catch (error) {
-    loadError.value = error instanceof Error ? error.message : t('common.loadFailed')
+    if (generation === contentGeneration) loadError.value = error instanceof Error ? error.message : t('common.loadFailed')
   } finally {
-    loadingMore.value = false
+    if (generation === contentGeneration) loadingMore.value = false
   }
 }
 
@@ -283,9 +328,13 @@ onActivated(() => {
   void nextTick(observeSentinel)
 })
 onDeactivated(() => {
+  contentGeneration++
+  loadingMore.value = false
+  refreshingContent.value = false
   observer?.disconnect()
 })
 onBeforeUnmount(() => {
+  contentGeneration++
   observer?.disconnect()
   offFollowChange?.()
 })

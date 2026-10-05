@@ -41,3 +41,10 @@ func TestBuildNotificationPayloadWikiUpdatedKeepsProfileURL(t *testing.T) {
 		t.Fatalf("notification topic = %#v, want wiki profile URL", item.Topic)
 	}
 }
+
+func TestRejectedNotificationRedactsHistoricalOriginalsAndLinksRecovery(t *testing.T) {
+	item := BuildNotificationPayload(&eventNotification.Entity{EventType: eventNotification.EventTypeReviewRejected, Payload: eventNotification.NotificationPayload{Title: "旧的敏感标题", TopicTitle: "旧的敏感标题", Content: "被拒原文", TemplateParams: eventNotification.NotificationTemplateParams{Preview: "被拒原文"}, TopicId: 42, PostNo: 1}})
+	if item.Title != "" || item.Content != "" || item.Payload.Title != "" || item.Payload.Content != "" || item.Payload.TemplateParams.Preview != "" || item.Topic == nil || item.Topic.Title != "旧******题" || item.Topic.URL != "/settings?tab=content" {
+		t.Fatalf("unsafe rejected notification: %+v", item)
+	}
+}

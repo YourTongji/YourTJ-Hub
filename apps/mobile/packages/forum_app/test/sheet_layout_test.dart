@@ -132,7 +132,7 @@ void main() {
                     ),
                   ),
                 )
-              : PostEditSheet(post: post),
+              : PostEditSheet(postId: post.id, content: post.content),
         );
       }
       await tester.pumpAndSettle();

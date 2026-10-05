@@ -3478,4 +3478,31 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get topicPendingReviewReply =>
       'In Prüfung · Bis zur Freigabe sehen diese Antwort nur du und die Prüfenden.';
+
+  @override
+  String get contentReviewBlocked => 'Nicht freigegeben';
+
+  @override
+  String get contentReviewRetry => 'Bearbeiten und erneut senden';
+
+  @override
+  String get contentReviewLive => 'Die bisherige Version bleibt öffentlich.';
+
+  @override
+  String get contentReviewView => 'Inhalt ansehen';
+
+  @override
+  String get contentReviewPending => 'In Prüfung';
+
+  @override
+  String get notificationReviewPending =>
+      'Dein Beitrag wartet auf manuelle Prüfung';
+
+  @override
+  String get notificationReviewPendingDetail =>
+      'Wir prüfen ihn bald und informieren dich über das Ergebnis. Bis dahin kannst du ihn ansehen oder bearbeiten.';
+
+  @override
+  String get notificationReviewRejectedDetail =>
+      'Diese Einreichung wird nicht öffentlich angezeigt. Bitte prüfe, bearbeite und sende sie über die Inhaltsverwaltung erneut. Bei Fragen wende dich an die Administration.';
 }

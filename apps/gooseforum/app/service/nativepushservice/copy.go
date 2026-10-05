@@ -40,6 +40,9 @@ func buildNativePayload(notification eventNotification.Entity, locale string) *n
 // 只有旧 postId 锚点而没有楼层号时回退话题。
 func webRouteToMobile(webURL string) string {
 	path := strings.TrimSpace(webURL)
+	if path == "/settings?tab=content" {
+		return "/my-content"
+	}
 	if path == "" {
 		return mobileFallbackRoute
 	}

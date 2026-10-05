@@ -692,6 +692,7 @@ void main() {
       '/p/12?postNo=8',
       '/u/34',
       '/notifications',
+      '/my-content',
     ]) {
       expect(pushRoute(route), route);
     }

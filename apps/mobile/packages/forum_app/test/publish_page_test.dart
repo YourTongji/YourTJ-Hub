@@ -3,6 +3,9 @@ import 'dart:ui' show SemanticsAction, Tristate;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:forum_app/src/local/writing_store.dart';
 import 'package:forum_app/src/current_user.dart';
+import 'package:forum_app/src/server_messages.dart';
+import 'package:forum_app/src/pages/content/content_page.dart';
+import 'package:forum_app/src/pages/topic/post_edit_sheet.dart';
 
 import 'package:core/core.dart';
 import 'package:image/image.dart' as img;
@@ -22,7 +25,6 @@ import 'package:forum_app/src/widgets/editor/rich_markdown_editor.dart';
 import 'package:forum_app/src/widgets/markdown_view.dart';
 import 'package:forum_app/src/router.dart';
 import 'package:forum_app/src/providers.dart';
-import 'fixtures/page_fixtures.dart' show topicDetailPayloadJson;
 import 'fixtures/sticker_fixtures.dart';
 import 'package:forum_app/src/widgets/stickers/sticker_picker.dart';
 import 'package:forum_app/src/widgets/stickers/sticker_image.dart';
@@ -46,7 +48,6 @@ class _PublishPageRepository extends PageRepository {
 
   final PagePayload payload;
   bool offline = false;
-  PagePayload? existingTopic;
   final List<String> paths = <String>[];
 
   @override
@@ -55,10 +56,6 @@ class _PublishPageRepository extends PageRepository {
     if (offline) throw const NetworkException(fallbackMessage: 'offline');
     return payload;
   }
-
-  @override
-  Future<PagePayload> topicDetail(int topicId, {int? postNo}) async =>
-      existingTopic ?? await super.topicDetail(topicId, postNo: postNo);
 }
 
 class _FailingWritingStore extends WritingStore {
@@ -99,9 +96,11 @@ class _RecordingTopicRepository extends TopicRepository {
     super.client, {
     this.resultId = 99,
     this.requireCaptcha = false,
+    this.pendingReview = false,
     this.captchaAction = 'topic.write',
   });
   final bool requireCaptcha;
+  final bool pendingReview;
   final String captchaAction;
 
   final int resultId;
@@ -112,6 +111,7 @@ class _RecordingTopicRepository extends TopicRepository {
       String content,
       List<int> categoryIds,
       int topicStatus,
+      int contentType,
     })
   >
   writes =
@@ -122,6 +122,7 @@ class _RecordingTopicRepository extends TopicRepository {
           String content,
           List<int> categoryIds,
           int topicStatus,
+          int contentType,
         })
       >[];
 
@@ -159,9 +160,36 @@ class _RecordingTopicRepository extends TopicRepository {
       content: content,
       categoryIds: List<int>.of(categoryIds),
       topicStatus: topicStatus,
+      contentType: contentType,
     ));
-    return WriteTopicResult(id: resultId);
+    return WriteTopicResult(
+      id: resultId,
+      pendingReview: pendingReview,
+      checking: pendingReview,
+    );
   }
+}
+
+class _RejectedContentRepository extends ContentRepository {
+  _RejectedContentRepository(super.client);
+  @override
+  Future<UserContentPage> list({
+    required String contentType,
+    bool deleted = false,
+    int cursor = 0,
+  }) async => const UserContentPage(
+    items: [
+      UserContentItem(
+        id: 42,
+        contentType: 'topic',
+        title: 'Rejected topic',
+        content: 'Stale list body',
+        processStatus: 1,
+      ),
+    ],
+    hasMore: false,
+    nextCursorId: 0,
+  );
 }
 
 class _CaptchaAuthRepository extends AuthRepository {
@@ -180,6 +208,7 @@ PagePayload _publishPayload({
   List<int>? categoryIds,
   String? content,
   bool viewerAuthenticated = true,
+  List<String> images = const [],
 }) {
   return PagePayload.fromJson(<String, dynamic>{
     'component': PageComponent.publish,
@@ -198,6 +227,7 @@ PagePayload _publishPayload({
         'categoryIds': categoryIds ?? (editing ? <int>[2] : null),
         'topicStatus': topicStatus ?? (editing ? 1 : 0),
         'contentType': contentType,
+        'images': images,
       },
     },
     'meta': <String, dynamic>{'title': editing ? '编辑话题' : '发布话题'},
@@ -258,6 +288,7 @@ void main() {
     String editQueryKey = 'topicId',
     String? localDraftKey,
     int contentType = 0,
+    int? initialContentType,
     int? topicStatus,
     List<int>? categoryIds,
     Locale locale = const Locale('zh'),
@@ -272,6 +303,7 @@ void main() {
     bool viewerAuthenticated = true,
     WritingStore? localStore,
     bool withStickers = false,
+    bool fromContentManagement = false,
   }) async {
     final _MemoryTokenStorage storage = _MemoryTokenStorage();
     final GfApiClient client = GfApiClient(
@@ -288,23 +320,30 @@ void main() {
         categoryIds: categoryIds,
         content: content,
         viewerAuthenticated: viewerAuthenticated,
+        images: readableGallery
+            ? const ['/file/img/gallery-photo.png']
+            : const [],
       ),
     );
     pageRepository.offline = offline;
-    if (readableGallery) {
-      final detail = topicDetailPayloadJson();
-      (detail['props'] as Map)['topic']['id'] = 42;
-      pageRepository.existingTopic = PagePayload.fromJson(detail);
-    }
     final _RecordingTopicRepository topicRepository = _RecordingTopicRepository(
       client,
       resultId: resultId,
       requireCaptcha: requireCaptcha,
       captchaAction: captchaAction,
+      pendingReview: fromContentManagement,
     );
     final GoRouter router = GoRouter(
-      initialLocation: editing ? '/publish?$editQueryKey=42' : '/publish',
+      initialLocation: fromContentManagement
+          ? '/my-content'
+          : editing
+          ? '/publish?$editQueryKey=42'
+          : '/publish',
       routes: <RouteBase>[
+        GoRoute(
+          path: '/my-content',
+          builder: (context, state) => const ContentPage(),
+        ),
         GoRoute(
           path: '/',
           builder: (BuildContext context, GoRouterState state) =>
@@ -315,7 +354,8 @@ void main() {
           builder: (BuildContext context, GoRouterState state) => PublishPage(
             topicId: publishTopicIdFromUri(state.uri),
             localDraftKey: localDraftKey,
-            initialContentType: contentType == 0 ? 3 : contentType,
+            initialContentType:
+                initialContentType ?? (contentType == 0 ? 3 : contentType),
             markdownConverter: markdownConverter,
           ),
         ),
@@ -332,6 +372,10 @@ void main() {
       ProviderScope(
         overrides: <Override>[
           tokenStorageProvider.overrideWithValue(storage),
+          if (fromContentManagement)
+            contentRepositoryProvider.overrideWithValue(
+              _RejectedContentRepository(client),
+            ),
           if (withStickers)
             stickerLibraryProvider.overrideWith(
               (ref) => StickerLibrary(ComposerStickerRepository(client)),
@@ -1395,19 +1439,19 @@ void main() {
   }
 
   testWidgets(
-    'an unreadable existing gallery blocks editing instead of clearing photos',
+    'rejected content can be edited without fetching its unavailable public page',
     (tester) async {
       final result = await pumpPublishPage(
         tester,
         editing: true,
         contentType: 2,
       );
-      expect(find.byKey(const Key('publish-editor')), findsNothing);
+      expect(find.byKey(const Key('publish-editor')), findsOneWidget);
       expect(
         tester
             .widget<GfButton>(find.byKey(const Key('publish-appbar-submit')))
             .onPressed,
-        isNull,
+        isNotNull,
       );
       expect(result.topicRepository.writes, isEmpty);
     },
@@ -1673,6 +1717,93 @@ void main() {
     expect(find.text('已保存为草稿'), findsOneWidget);
 
     await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
+  });
+
+  for (final type in [1, 2, 3]) {
+    testWidgets(
+      'rejected type $type opens its normal editor from content management and resubmits',
+      (tester) async {
+        final result = await pumpPublishPage(
+          tester,
+          editing: true,
+          contentType: type,
+          initialContentType: 3,
+          content: 'Latest candidate body',
+          fromContentManagement: true,
+          locale: const Locale('en'),
+        );
+        await tester.tap(find.byType(PopupMenuButton<String>));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Edit and resubmit'));
+        await tester.pumpAndSettle();
+        expect(result.pageRepository.paths.last, '/publish?id=42');
+        expect(find.byType(PostEditSheet), findsNothing);
+        expect(
+          find.byType(QuillEditor),
+          type == 3 ? findsOneWidget : findsNothing,
+        );
+        if (type == 3) {
+          final controller = tester
+              .widget<QuillEditor>(find.byType(QuillEditor))
+              .controller;
+          expect(
+            controller.document.toPlainText(),
+            contains('Latest candidate body'),
+          );
+          controller.replaceText(
+            0,
+            controller.document.length - 1,
+            'Corrected candidate body',
+            const TextSelection.collapsed(offset: 24),
+          );
+        } else {
+          final body = find.byWidgetPredicate(
+            (w) =>
+                w is TextField && w.controller?.text == 'Latest candidate body',
+          );
+          expect(body, findsOneWidget);
+          await tester.enterText(body, 'Corrected candidate body');
+        }
+        await tester.tap(find.byKey(const Key('publish-appbar-submit')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const Key('publish-appbar-submit')));
+        await tester.pumpAndSettle();
+        final write = result.topicRepository.writes.single;
+        expect(write.topicId, 42);
+        expect(write.contentType, type);
+        expect(write.content, contains('Corrected candidate body'));
+        expect(write.topicStatus, 1);
+        expect(result.router.state.uri.path, '/p/99');
+        expect(
+          find.text(
+            pendingReviewMessage(
+              AppLocalizations.of(tester.element(find.text('topic-99'))),
+              checking: true,
+            ),
+          ),
+          findsOneWidget,
+        );
+        await tester.pump(const Duration(seconds: 4));
+      },
+    );
+  }
+
+  testWidgets('内容管理编辑瞬间优先使用服务端类型而非文章默认值', (tester) async {
+    final result = await pumpPublishPage(
+      tester,
+      editing: true,
+      editQueryKey: 'id',
+      contentType: 2,
+      initialContentType: 3,
+    );
+    expect(find.byType(QuillEditor), findsNothing);
+    await tester.tap(find.byKey(const Key('publish-appbar-submit')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('publish-appbar-submit')));
+    await tester.pumpAndSettle();
+    expect(result.topicRepository.writes.single.topicId, 42);
+    expect(result.topicRepository.writes.single.contentType, 2);
     await tester.pump(const Duration(milliseconds: 600));
   });
 

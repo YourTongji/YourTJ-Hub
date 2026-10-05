@@ -114,7 +114,7 @@ func ResetPendingReview(id uint64) error {
 
 // ResetPendingReviewTx resets moderation state as part of the delete transaction.
 func ResetPendingReviewTx(tx *gorm.DB, id uint64) error {
-	return tx.Table(tableName).Unscoped().Where(queryopt.Eq("id", id)).
+	return tx.Table(tableName).Unscoped().Where(queryopt.Eq("id", id)).Where("latest_revision_id = 0").
 		Update("process_status", ProcessStatusNormal).Error
 }
 
@@ -676,7 +676,9 @@ func PagePendingReviewInCategories(page, pageSize int, categoryIDs []uint64) str
 	page = max(page-1, 0)
 	pageSize = pageutil.BoundPageSize(pageSize)
 	b := builder().
-		Where(queryopt.Eq("process_status", ProcessStatusPending)).
+		Where("(process_status = ? OR latest_revision_id IN (SELECT id FROM post_revisions WHERE process_status = ?))", ProcessStatusPending, ProcessStatusPending).
+		Where("post_no > 1 AND visibility_status = ?", VisibilityActive).
+		Where("topic_id IN (SELECT id FROM topics WHERE status = 1 AND visibility_status = ? AND deleted_at IS NULL)", VisibilityActive).
 		// wiki 首楼由 wiki 修订审核队列管理，不进入论坛审核（review N1，
 		// 避免绕过 wiki 修订流程直接审核/拒绝）；wiki 分站评论（post_no>1）仍走论坛审核队列。
 		// 字面量 0 == topics.TopicTypeForum（论坛话题）。不能 import topics：

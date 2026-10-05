@@ -252,3 +252,12 @@ func DeleteTerminalByTypePrefix(typePrefix string, statuses []int, before time.T
 		}
 	}
 }
+
+// ActivePayloads is a bounded lookup for owner-domain queue indicators.
+func ActivePayloads(taskType string, payloads []string) (result []string) {
+	if len(payloads) == 0 {
+		return
+	}
+	builder().Where("type = ? AND task_json IN ? AND status IN ?", taskType, payloads, []uint8{StatusPending, StatusRunning, StatusRetrying}).Pluck("task_json", &result)
+	return
+}

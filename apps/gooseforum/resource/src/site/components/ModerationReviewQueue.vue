@@ -68,7 +68,7 @@ async function review(item: ReviewQueueItem, approve: boolean) {
   busyIds.value = [...busyIds.value, item.id]
   error.value = ''
   try {
-    await moderationReviewAction(kind.value, item.id, approve)
+    await moderationReviewAction(kind.value, item.id, approve, item.revisionId)
     items.value = items.value.filter(entry => entry.id !== item.id)
     total.value = Math.max(total.value - 1, 0)
     emit('changed')
@@ -117,7 +117,7 @@ onMounted(() => { void load(true) })
               <span v-else-if="item.aiReview" class="shrink-0 rounded bg-warning/15 px-1.5 py-0.5 text-xs font-medium text-warning">{{ t('aiModerationAdmin.queueBadge') }}</span>
             </div>
             <p v-if="item.aiChecking" class="text-xs leading-5 text-base-content/55">{{ t('aiModerationAdmin.queueCheckingHint') }}</p>
-            <p class="line-clamp-2 text-[13px] leading-5 text-base-content/60">{{ item.excerpt || t('moderation.review.noExcerpt') }}</p>
+            <p class="whitespace-pre-wrap text-[13px] leading-5 text-base-content/60">{{ item.content || item.excerpt || t('moderation.review.noExcerpt') }}</p>
             <ul v-if="item.aiReview?.reasons?.length" class="space-y-0.5 text-xs leading-5 text-base-content/55">
               <li v-for="(reason, index) in item.aiReview.reasons" :key="index">{{ reasonText(t, reason) }}</li>
             </ul>
