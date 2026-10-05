@@ -3,7 +3,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import Draggable from 'vuedraggable'
-import { AlertTriangle, Check, ChevronDown, ChevronLeft, ChevronRight, FileText, HelpCircle, Loader2, Plus, Sparkles, X } from '@lucide/vue'
+import { AlertTriangle, Bot, Check, ChevronDown, ChevronLeft, ChevronRight, FileText, HelpCircle, Loader2, Plus, Sparkles, X } from '@lucide/vue'
 import {
   DialogContent,
   DialogOverlay,
@@ -678,22 +678,41 @@ async function handleSubmit() {
             </span>
           </div>
 
-          <button
-            type="button"
-            class="rounded-full p-1.5 text-base-content/40 hover:bg-base-200 hover:text-base-content hover:rotate-90 transition-all duration-200 active:scale-[0.92] focus-visible:ring-2 focus-visible:ring-primary/40 outline-none"
-            :aria-label="t('publish.modal.close')"
-            @click="requestClose"
-          >
-            <X class="h-5 w-5 transition-transform duration-200" />
-          </button>
+          <div class="flex items-center gap-1">
+            <PopoverRoot v-if="!isEditing">
+              <PopoverTrigger as-child>
+                <button
+                  type="button"
+                  class="rounded-full p-1.5 hover:bg-base-200 focus-visible:ring-2 focus-visible:ring-primary/40 outline-none"
+                  :class="agentRepliesDisabled ? 'text-primary' : 'text-base-content/40'"
+                  :aria-label="t('agentReplies.disable')"
+                  :title="t('agentReplies.disable')"
+                >
+                  <Bot class="h-5 w-5" />
+                </button>
+              </PopoverTrigger>
+              <PopoverPortal>
+                <PopoverContent side="bottom" align="end" :side-offset="8" class="z-[100] w-72 max-w-[calc(100vw-2rem)] rounded-xl border border-line bg-base-100 p-3 shadow-lg">
+                  <label class="flex items-start gap-2 text-sm">
+                    <input v-model="agentRepliesDisabled" type="checkbox" class="mt-1 shrink-0" :disabled="submitting || savingDraft" />
+                    <span>{{ t('agentReplies.disable') }}<small class="mt-1 block text-base-content/60">{{ t('agentReplies.help') }}</small></span>
+                  </label>
+                </PopoverContent>
+              </PopoverPortal>
+            </PopoverRoot>
+            <button
+              type="button"
+              class="rounded-full p-1.5 text-base-content/40 hover:bg-base-200 hover:text-base-content hover:rotate-90 transition-all duration-200 active:scale-[0.92] focus-visible:ring-2 focus-visible:ring-primary/40 outline-none"
+              :aria-label="t('publish.modal.close')"
+              @click="requestClose"
+            >
+              <X class="h-5 w-5 transition-transform duration-200" />
+            </button>
+          </div>
         </div>
 
         <!-- 弹层主体：首行快捷传图 -> 选择分类 -> 填写标题 -> 添加正文铺满 -> 底部工具栏 -->
         <div class="flex-1 min-h-0 flex flex-col px-4 sm:px-6 py-2.5 sm:py-3 gap-2.5 sm:gap-3 overflow-hidden sm:overflow-y-auto">
-          <label v-if="!isEditing" class="flex items-center gap-2 px-4 py-2 text-sm">
-            <input v-model="agentRepliesDisabled" type="checkbox" :disabled="submitting || savingDraft" />
-            <span>{{ t('agentReplies.disable') }}<small class="block text-base-content/60">{{ t('agentReplies.help') }}</small></span>
-          </label>
           <!-- 本地暂存恢复提示（issue #583） -->
           <p
             v-if="draftRestored"

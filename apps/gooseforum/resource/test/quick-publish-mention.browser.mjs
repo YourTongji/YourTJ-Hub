@@ -20,6 +20,10 @@ for (const [width, height, fontSize] of [[320, 640, 16], [320, 640, 32], [375, 6
       await page.route('**/api/forum/search?*', route => route.fulfill({ json: { code: 0, result: { users: Array.from({ length: 8 }, (_, i) => ({ id: i + 2, username: `tester${i}`, nickname: `测试用户${i}`, avatarUrl: '' })) } } }))
       await page.goto(`${origin}/assets/test/fixtures/browser/quick-publish.html`)
       await page.evaluate(size => { document.documentElement.style.fontSize = `${size}px` }, fontSize)
+      const replySetting = page.getByRole('button', { name: '禁止机器人回复', exact: true })
+      await replySetting.click()
+      await page.getByRole('checkbox').check()
+      await page.keyboard.press('Escape')
       const editor = page.locator('.vditor [contenteditable="true"]:visible').first()
       await editor.waitFor()
       await editor.click()
@@ -40,6 +44,8 @@ for (const [width, height, fontSize] of [[320, 640, 16], [320, 640, 32], [375, 6
       await last.click({ timeout: 3000 })
       await page.waitForFunction(() => document.querySelector('.vditor [contenteditable="true"]')?.textContent.includes('@tester7'))
       await page.locator('.gf-mention-panel').waitFor({ state: 'detached' })
+      await replySetting.click()
+      assert.equal(await page.getByRole('checkbox').isChecked(), true, 'reply choice must survive editing and reopening settings')
     } finally { await page.close() }
   })
 }
