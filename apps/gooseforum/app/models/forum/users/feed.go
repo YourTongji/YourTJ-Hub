@@ -36,3 +36,11 @@ func FilterEligibleFeedAuthors(ctx context.Context, viewer uint64, ids []uint64)
 func EligibleIDsQuery(ctx context.Context) *gorm.DB {
 	return db.ConnectContext(ctx).Model(&EntityComplete{}).Select("id").Where("is_frozen = ?", StatusNormal)
 }
+
+// FeedActorEligibleTx checks the persistent identity state even after temporary
+// feed deletion fences have expired. Retained content may still be moderated.
+func FeedActorEligibleTx(tx *gorm.DB, uid uint64) (bool, error) {
+	var ids []uint64
+	err := tx.Model(&EntityComplete{}).Select("id").Where("id = ? AND is_frozen = ?", uid, StatusNormal).Limit(1).Find(&ids).Error
+	return len(ids) == 1, err
+}

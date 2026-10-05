@@ -10,7 +10,6 @@ import (
 	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/markdown2html"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/eventNotification"
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/feed"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/moderationDecision"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postRevisions"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
@@ -195,7 +194,7 @@ func Review(ctx context.Context, revisionID uint64, action, reason string, actor
 				if post.PostNo == 1 {
 					kind = "public_topic"
 				}
-				if err := feed.EventTx(tx, post.UserId, topic.Id, post.Id, kind, true); err != nil {
+				if err := capturePublicContributionTx(tx, post.UserId, topic.Id, post.Id, kind); err != nil {
 					return err
 				}
 			}

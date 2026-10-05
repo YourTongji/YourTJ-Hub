@@ -157,6 +157,6 @@ func NewTopicFactsTx(tx *gorm.DB, ids []uint64) ([]Entity, error) {
 	if len(ids) == 0 {
 		return rows, nil
 	}
-	err := tx.Model(&Entity{}).Select("id,user_id,first_public_at,first_public_estimated").Where("id IN ? AND status = 1 AND process_status = 0 AND visibility_status = ? AND topic_type = ?", ids[:min(len(ids), 20)], VisibilityActive, TopicTypeForum).Where(firstPostVisibleSQL, ProcessStatusNormal).Find(&rows).Error
+	err := tx.Model(&Entity{}).Select("id,user_id,first_public_at,first_public_estimated").Where("id IN ? AND status = 1 AND process_status = 0 AND visibility_status = ? AND topic_type = ?", ids[:min(len(ids), 20)], VisibilityActive, TopicTypeForum).Where(firstPostVisibleSQL, ProcessStatusNormal).Where("user_id IN (?)", users.EligibleIDsQuery(tx.Statement.Context)).Find(&rows).Error
 	return rows, err
 }
