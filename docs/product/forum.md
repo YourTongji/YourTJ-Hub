@@ -43,7 +43,7 @@ Web、SSR 与 Flutter 的列表和详情均不展示标题（普通列表与首�
 以现有审核拒绝终态保留原因；重新允许回复不会自动复活已拒绝的版本。
 
 设置独立于正文版本，正文编辑与审核不能重置它。AI 总结、内容审核和人类账号粘贴的 AI 文本
-不属于这个开关的识别范围。实现边界见[决策 0063](../decisions/0063-topic-agent-replies.md)。
+不属于这个开关的识别范围。实现边界见[决策 0064](../decisions/0064-topic-agent-replies.md)。
 
 ## Feed and reading
 
