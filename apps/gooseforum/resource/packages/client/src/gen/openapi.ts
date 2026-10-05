@@ -4993,8 +4993,10 @@ export interface paths {
          *     events are ignored. `generic` endpoints receive a `webhook.test`
          *     envelope with the usual `X-Goose-*` headers and signature; `feishu`
          *     endpoints receive a sample approval card whose buttons only open the
-         *     moderator workbench. An empty `url` or `secret` reuses the stored
-         *     value of the endpoint with the same `id` (the stored URL only when the
+         *     moderator workbench; `astrbot` endpoints receive the same sample as
+         *     plain text in the `target` session. URLs without a host fail with a
+         *     readable reason instead of being sent. An empty `url` or `secret`
+         *     reuses the stored value of the endpoint with the same `id` (the stored URL only when the
          *     channel type is unchanged), matching save semantics. Unknown
          *     `channelType` values fail with `common.request.invalidParams`. The
          *     outcome is reported inside the success envelope (`code` stays 0):
@@ -10563,6 +10565,8 @@ export interface components {
             enabled: boolean;
             /** @description Webhook URL. For `feishu` endpoints the URL embeds the bot hook token, so it is encrypted at rest (AES-256-GCM) and never returned; an empty value keeps the stored URL of the matching `feishu` endpoint. */
             url: string;
+            /** @description Recipient inside the channel, stored and returned in plaintext (surrounding whitespace is trimmed). For `astrbot` endpoints this is the target session `umo` (the SID shown by the `/sid` command) and is required for delivery; other channels ignore it. */
+            target?: string;
             /** @description Plaintext webhook signing secret accepted on save requests (issue */
             secret: string;
             events: string[];
@@ -12907,10 +12911,14 @@ export interface components {
          *     with `X-Goose-*` headers and the optional HMAC signature; `feishu` posts a schema 2.0
          *     interactive card to a Feishu group custom-bot webhook (approval events only), signs it with
          *     the bot's signature secret, and counts HTTP 200 responses whose body `code` is non-zero as
-         *     failures. Stored endpoints without a channel type are treated as `generic`.
+         *     failures. `astrbot` posts `{content, umo, message_type: "text"}` to the `/send` endpoint of
+         *     the AstrBot push_lite plugin (`/send` is appended when the URL has no path) with
+         *     `Authorization: Bearer <secret>`, renders every event as plain text, and only counts 2xx
+         *     responses with `status: "queued"` as success. Stored endpoints without a channel type are
+         *     treated as `generic`.
          * @enum {string}
          */
-        AdminHttpNotifyChannelType: "generic" | "feishu";
+        AdminHttpNotifyChannelType: "generic" | "feishu" | "astrbot";
         AdminHttpNotifyEndpointView: {
             id: string;
             name: string;
@@ -12918,8 +12926,10 @@ export interface components {
             enabled: boolean;
             /** @description Stored webhook URL for `generic` endpoints; always empty for `feishu` endpoints, whose URL is a credential (see `urlConfigured`). */
             url: string;
-            /** @description Whether a webhook URL is stored (plaintext for `generic`, encrypted for `feishu`). */
+            /** @description Whether a webhook URL is stored (plaintext for `generic` and `astrbot`, encrypted for `feishu`). */
             urlConfigured: boolean;
+            /** @description Stored channel recipient (the `astrbot` session `umo`); empty for channels that do not use one. */
+            target: string;
             /** @description Whether a webhook signing secret is stored for this endpoint (encrypted with AES-256-GCM). The secret itself is never returned (issue */
             secretConfigured: boolean;
             events: string[];

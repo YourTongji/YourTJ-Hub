@@ -9,6 +9,7 @@
         "enabled": true,
         "url": "https://hook.example.test/notify",
         "urlConfigured": true,
+        "target": "",
         "secretConfigured": true,
         "events": [
           "topic.created"
@@ -25,9 +26,27 @@
         "enabled": true,
         "url": "",
         "urlConfigured": true,
+        "target": "",
         "secretConfigured": false,
         "events": [
           "moderation.report.post.created"
+        ],
+        "timeoutSeconds": 3,
+        "failureCount": 0,
+        "lastError": "",
+        "abnormalTerminated": false
+      },
+      {
+        "id": "ep3",
+        "name": "AstrBot 群",
+        "channelType": "astrbot",
+        "enabled": true,
+        "url": "http://astrbot.example.test:9966/send",
+        "urlConfigured": true,
+        "target": "aiocqhttp:GroupMessage:123456",
+        "secretConfigured": true,
+        "events": [
+          "moderation.review.topic.requested"
         ],
         "timeoutSeconds": 3,
         "failureCount": 0,

@@ -37,10 +37,13 @@ Chosen: channel adapters plus a signed confirmation page.
 - Event producers publish domain events after commit. The HTTP notification service turns each
   event into a safe approval summary (sanitized, truncated text; no anonymous author; chat reports
   carry no text, note, reporter or actions) and lets each endpoint's channel encode it. Channels are
-  `generic` (unchanged envelope, X-Goose headers, 2xx success) and `feishu` (card schema 2.0,
-  optional Feishu signature, HTTP 200 with non-zero `code` counts as a failure).
+  `generic` (unchanged envelope, X-Goose headers, 2xx success), `feishu` (card schema 2.0,
+  optional Feishu signature, HTTP 200 with non-zero `code` counts as a failure) and `astrbot`
+  (plain text for every event, posted to the unmodified push_lite plugin's `/send` API with
+  a Bearer token and a per-endpoint target session `umo`; only `status: queued` counts as success,
+  so delivery failures inside AstrBot stay invisible). Endpoint URLs must name a host.
 - Admins can send a test delivery to one endpoint before saving it: generic endpoints get a signed
-  `webhook.test` envelope, Feishu gets a sample card. Tests ignore the switches and subscriptions and
+  `webhook.test` envelope, Feishu gets a sample card, AstrBot gets the sample as text. Tests ignore the switches and subscriptions and
   never count toward automatic disabling. Each endpoint can also be saved on its own.
 - Feishu webhook URLs are credentials: encrypted with a purpose-scoped key, never echoed, kept when
   saved empty, and scrubbed from delivery errors.
@@ -79,5 +82,6 @@ Chosen: channel adapters plus a signed confirmation page.
 
 - Feishu custom bot (signature, response codes): https://open.feishu.cn/document/client-docs/bot-v3/add-custom-bot
 - Feishu card button behaviors: https://open.feishu.cn/document/feishu-cards/card-components/interactive-components/button
+- AstrBot push_lite plugin (`/send` API): https://github.com/Raven95676/astrbot_plugin_push_lite
 - Issue: https://github.com/YourTongji/YourTJ-Hub/issues/1049
 - Related: [0056](0056-ai-image-text-moderation.md), [0061](0061-versioned-background-moderation.md), [0062](0062-moderation-notification-feedback.md)

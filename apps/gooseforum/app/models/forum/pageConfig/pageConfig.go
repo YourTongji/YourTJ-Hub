@@ -559,6 +559,9 @@ type HttpNotifyConfig struct {
 const (
 	HttpNotifyChannelGeneric = "generic" // 通用 Webhook：结构化 JSON + X-Goose-* 头与 HMAC 签名
 	HttpNotifyChannelFeishu  = "feishu"  // 飞书群自定义机器人：interactive 卡片 + 飞书签名校验
+	// HttpNotifyChannelAstrBot AstrBot push_lite 插件：纯文本消息推到 Target 指定的会话（umo），
+	// Secret 为插件 API token（Authorization: Bearer）。
+	HttpNotifyChannelAstrBot = "astrbot"
 )
 
 // NormalizeHttpNotifyChannel 归一通道类型：空值为 generic，未知值返回 ""（由调用方拒绝）。
@@ -568,6 +571,8 @@ func NormalizeHttpNotifyChannel(channel string) string {
 		return HttpNotifyChannelGeneric
 	case HttpNotifyChannelFeishu:
 		return HttpNotifyChannelFeishu
+	case HttpNotifyChannelAstrBot:
+		return HttpNotifyChannelAstrBot
 	default:
 		return ""
 	}
@@ -584,12 +589,14 @@ func HttpNotifyURLIsSecret(channel string) bool {
 // 密文绝不随 JSON 序列化导出（管理端 GET 仅回显是否已配置）。
 // 持久化走 HttpNotifyStorageEndpoint（密文带 json 标签）。
 // ChannelType 为空等同 generic；飞书通道的 URL 同样只落库密文（HttpNotifyURLIsSecret）。
+// Target 为通道内的接收目标（AstrBot 为会话 umo，即 /sid 显示的 SID），不是凭据。
 type HttpNotifyEndpoint struct {
 	Id                 string   `json:"id"`
 	Name               string   `json:"name"`
 	ChannelType        string   `json:"channelType,omitempty"`
 	Enabled            bool     `json:"enabled"`
 	URL                string   `json:"url"`
+	Target             string   `json:"target,omitempty"`
 	Secret             string   `json:"-"` // 运行时明文（服务内存）；密文见 HttpNotifyStorageEndpoint
 	Events             []string `json:"events"`
 	TimeoutSeconds     int      `json:"timeoutSeconds"`
@@ -609,7 +616,8 @@ type HttpNotifyStorageEndpoint struct {
 	ChannelType        string   `json:"channelType,omitempty"`
 	Enabled            bool     `json:"enabled"`
 	URL                string   `json:"url"`
-	URLEncrypted       string   `json:"urlEncrypted,omitempty"`    // 凭据型 URL 密文（AES-256-GCM）
+	URLEncrypted       string   `json:"urlEncrypted,omitempty"` // 凭据型 URL 密文（AES-256-GCM）
+	Target             string   `json:"target,omitempty"`
 	Secret             string   `json:"secret,omitempty"`          // 迁移前存量明文（兼容读取）
 	SecretEncrypted    string   `json:"secretEncrypted,omitempty"` // 密文（AES-256-GCM）
 	Events             []string `json:"events"`
@@ -632,6 +640,7 @@ func (s HttpNotifyStorageEndpoint) ToConfig() HttpNotifyEndpoint {
 		ChannelType:        NormalizeHttpNotifyChannel(s.ChannelType),
 		Enabled:            s.Enabled,
 		URL:                s.URL,
+		Target:             s.Target,
 		Secret:             secret,
 		Events:             s.Events,
 		TimeoutSeconds:     s.TimeoutSeconds,
@@ -665,6 +674,7 @@ type HttpNotifyEndpointView struct {
 	Enabled            bool     `json:"enabled"`
 	URL                string   `json:"url"`
 	URLConfigured      bool     `json:"urlConfigured"`
+	Target             string   `json:"target"`
 	SecretConfigured   bool     `json:"secretConfigured"`
 	Events             []string `json:"events"`
 	TimeoutSeconds     int      `json:"timeoutSeconds"`
@@ -695,6 +705,7 @@ func (s HttpNotifyStorageConfig) ToView() HttpNotifyView {
 			Enabled:            e.Enabled,
 			URL:                url,
 			URLConfigured:      strings.TrimSpace(e.URL) != "" || strings.TrimSpace(e.URLEncrypted) != "",
+			Target:             e.Target,
 			SecretConfigured:   strings.TrimSpace(e.SecretEncrypted) != "" || strings.TrimSpace(e.Secret) != "",
 			Events:             e.Events,
 			TimeoutSeconds:     e.TimeoutSeconds,
@@ -722,6 +733,7 @@ func (c HttpNotifyConfig) ToView() HttpNotifyView {
 			Enabled:            e.Enabled,
 			URL:                url,
 			URLConfigured:      strings.TrimSpace(e.URL) != "",
+			Target:             e.Target,
 			SecretConfigured:   strings.TrimSpace(e.Secret) != "",
 			Events:             e.Events,
 			TimeoutSeconds:     e.TimeoutSeconds,
@@ -742,6 +754,7 @@ type HttpNotifyEndpointInput struct {
 	ChannelType        string   `json:"channelType"`
 	Enabled            bool     `json:"enabled"`
 	URL                string   `json:"url"`
+	Target             string   `json:"target"`
 	Secret             string   `json:"secret"`
 	Events             []string `json:"events"`
 	TimeoutSeconds     int      `json:"timeoutSeconds"`

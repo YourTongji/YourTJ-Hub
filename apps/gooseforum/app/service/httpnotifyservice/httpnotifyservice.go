@@ -211,7 +211,7 @@ func buildRequest(endpoint pageConfig.HttpNotifyEndpoint, eventName string, deli
 	return req, nil
 }
 
-// newJSONPost 校验端点 URL（仅 http/https）并构造 JSON POST 请求。
+// newJSONPost 校验端点 URL（仅 http/https，且须带主机名）并构造 JSON POST 请求。
 func newJSONPost(endpoint pageConfig.HttpNotifyEndpoint, body []byte) (*http.Request, error) {
 	targetURL, err := url.Parse(strings.TrimSpace(endpoint.URL))
 	if err != nil {
@@ -219,6 +219,11 @@ func newJSONPost(endpoint pageConfig.HttpNotifyEndpoint, body []byte) (*http.Req
 	}
 	if targetURL.Scheme != "http" && targetURL.Scheme != "https" {
 		return nil, fmt.Errorf("unsupported url scheme: %s", targetURL.Scheme)
+	}
+	// http:///send、http://:9966/send 等写法能通过 url.Parse，但没有主机名，
+	// net/http 只会报晦涩的 "no Host in request URL"。
+	if targetURL.Hostname() == "" {
+		return nil, errors.New("url is missing a host (expected http://host:port/path)")
 	}
 	req, err := http.NewRequest(http.MethodPost, targetURL.String(), bytes.NewReader(body))
 	if err != nil {

@@ -1944,6 +1944,7 @@ func SaveHttpNotifySettings(req component.BetterRequest[SaveHttpNotifySettingsRe
 			Enabled:            ep.Enabled,
 			URL:                endpointURL,
 			URLEncrypted:       sealedURL,
+			Target:             strings.TrimSpace(ep.Target),
 			Secret:             legacy,
 			SecretEncrypted:    sealed,
 			Events:             ep.Events,
@@ -1976,6 +1977,7 @@ func TestHttpNotifyEndpoint(req component.BetterRequest[TestHttpNotifyEndpointRe
 		ChannelType:    channel,
 		Enabled:        true,
 		URL:            strings.TrimSpace(input.URL),
+		Target:         strings.TrimSpace(input.Target),
 		Secret:         strings.TrimSpace(input.Secret),
 		TimeoutSeconds: input.TimeoutSeconds,
 	}

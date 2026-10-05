@@ -8069,13 +8069,17 @@ AdminSaveRateLimitSettingsRequest:
 
 AdminHttpNotifyChannelType:
   type: string
-  enum: [generic, feishu]
+  enum: [generic, feishu, astrbot]
   description: |
     Notification channel adapter (issue #1049). `generic` posts the structured JSON envelope
     with `X-Goose-*` headers and the optional HMAC signature; `feishu` posts a schema 2.0
     interactive card to a Feishu group custom-bot webhook (approval events only), signs it with
     the bot's signature secret, and counts HTTP 200 responses whose body `code` is non-zero as
-    failures. Stored endpoints without a channel type are treated as `generic`.
+    failures. `astrbot` posts `{content, umo, message_type: "text"}` to the `/send` endpoint of
+    the AstrBot push_lite plugin (`/send` is appended when the URL has no path) with
+    `Authorization: Bearer <secret>`, renders every event as plain text, and only counts 2xx
+    responses with `status: "queued"` as success. Stored endpoints without a channel type are
+    treated as `generic`.
 
 AdminHttpNotifyEndpoint:
   type: object
@@ -8094,9 +8098,12 @@ AdminHttpNotifyEndpoint:
     url:
       type: string
       description: Webhook URL. For `feishu` endpoints the URL embeds the bot hook token, so it is encrypted at rest (AES-256-GCM) and never returned; an empty value keeps the stored URL of the matching `feishu` endpoint.
+    target:
+      type: string
+      description: Recipient inside the channel, stored and returned in plaintext (surrounding whitespace is trimmed). For `astrbot` endpoints this is the target session `umo` (the SID shown by the `/sid` command) and is required for delivery; other channels ignore it.
     secret:
       type: string
-      description: Plaintext webhook signing secret accepted on save requests (issue #324 S1). Never stored or returned in plaintext — an empty value keeps the stored (encrypted) secret for the matching endpoint (matched by id, falling back to url). For `feishu` endpoints this is the bot's signature-verification secret.
+      description: Plaintext webhook signing secret accepted on save requests (issue #324 S1). Never stored or returned in plaintext — an empty value keeps the stored (encrypted) secret for the matching endpoint (matched by id, falling back to url). For `feishu` endpoints this is the bot's signature-verification secret; for `astrbot` endpoints it is the plugin's API token.
     events:
       type: array
       items:
@@ -8114,7 +8121,7 @@ AdminHttpNotifyEndpoint:
 
 AdminHttpNotifyEndpointView:
   type: object
-  required: [id, name, channelType, enabled, url, urlConfigured, secretConfigured, events, timeoutSeconds, failureCount, lastError, abnormalTerminated]
+  required: [id, name, channelType, enabled, url, urlConfigured, target, secretConfigured, events, timeoutSeconds, failureCount, lastError, abnormalTerminated]
   properties:
     id:
       type: string
@@ -8129,7 +8136,10 @@ AdminHttpNotifyEndpointView:
       description: Stored webhook URL for `generic` endpoints; always empty for `feishu` endpoints, whose URL is a credential (see `urlConfigured`).
     urlConfigured:
       type: boolean
-      description: Whether a webhook URL is stored (plaintext for `generic`, encrypted for `feishu`).
+      description: Whether a webhook URL is stored (plaintext for `generic` and `astrbot`, encrypted for `feishu`).
+    target:
+      type: string
+      description: Stored channel recipient (the `astrbot` session `umo`); empty for channels that do not use one.
     secretConfigured:
       type: boolean
       description: Whether a webhook signing secret is stored for this endpoint (encrypted with AES-256-GCM). The secret itself is never returned (issue #324 S1).

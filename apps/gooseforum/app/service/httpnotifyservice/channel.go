@@ -26,10 +26,14 @@ type notifyChannel interface {
 }
 
 func channelFor(endpoint pageConfig.HttpNotifyEndpoint) notifyChannel {
-	if pageConfig.NormalizeHttpNotifyChannel(endpoint.ChannelType) == pageConfig.HttpNotifyChannelFeishu {
+	switch pageConfig.NormalizeHttpNotifyChannel(endpoint.ChannelType) {
+	case pageConfig.HttpNotifyChannelFeishu:
 		return feishuChannel{}
+	case pageConfig.HttpNotifyChannelAstrBot:
+		return astrbotChannel{}
+	default:
+		return genericChannel{}
 	}
-	return genericChannel{}
 }
 
 // genericChannel 通用 Webhook：Envelope JSON + X-Goose-* 头 + 可选 HMAC 签名，2xx 即成功。

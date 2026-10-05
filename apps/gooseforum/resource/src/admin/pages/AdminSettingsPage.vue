@@ -369,6 +369,16 @@ function isApprovalNotifyEvent(eventName: string) {
   return eventName === 'moderation.report.created' || (approvalNotifyEvents as readonly string[]).includes(eventName)
 }
 
+const httpChannelLabels: Record<HttpNotifyEndpoint['channelType'], string> = {
+  generic: 'k00x7',
+  feishu: 'k00x8',
+  astrbot: 'k00xj',
+}
+
+function toHttpChannel(value: unknown): HttpNotifyEndpoint['channelType'] {
+  return value === 'feishu' || value === 'astrbot' ? value : 'generic'
+}
+
 function endpointEventOptions(endpoint: HttpNotifyEndpoint) {
   return endpoint.channelType === 'feishu'
     ? httpNotifyEvents.value.filter(item => isApprovalNotifyEvent(item.value))
@@ -632,13 +642,14 @@ function normalizeEndpoint(endpoint: Partial<HttpNotifyEndpoint> = {}) {
     ? endpoint.events.map(item => String(item).trim()).filter(Boolean)
     : []
   const enabled = toBool(endpoint.enabled, true)
-  const channelType = endpoint.channelType === 'feishu' ? 'feishu' : 'generic'
+  const channelType = toHttpChannel(endpoint.channelType)
   return {
     id: endpoint.id || crypto.randomUUID(),
     name: endpoint.name ?? '',
     channelType,
     enabled,
     url: endpoint.url?.trim() ?? '',
+    target: endpoint.target?.trim() ?? '',
     secret: endpoint.secret ?? '',
     secretConfigured: toBool(endpoint.secretConfigured, false),
     urlConfigured: toBool(endpoint.urlConfigured, false),
@@ -650,10 +661,12 @@ function normalizeEndpoint(endpoint: Partial<HttpNotifyEndpoint> = {}) {
   } satisfies HttpNotifyEndpoint
 }
 
+// 必须写出主机名：浏览器会把 http:///send 解析成主机 send，这里与服务端一样拒绝。
 function isHttpUrl(value: string) {
+  if (!/^https?:\/\/[^/?#:]/i.test(value)) return false
   try {
     const url = new URL(value)
-    return url.protocol === 'http:' || url.protocol === 'https:'
+    return (url.protocol === 'http:' || url.protocol === 'https:') && url.hostname !== ''
   } catch {
     return false
   }
@@ -676,6 +689,10 @@ function httpEndpointProblem(endpoint: HttpNotifyEndpoint, requireEvents = true)
   // 飞书地址留空保存时保留服务端已加密的地址（issue #1049）。
   if (!endpoint.url && !(endpoint.channelType === 'feishu' && endpoint.urlConfigured)) return adminText('k00d3', { name })
   if (endpoint.url && !isHttpUrl(endpoint.url)) return adminText('k00d4', { name })
+  if (endpoint.channelType === 'astrbot') {
+    if (!endpoint.target) return adminText('k00xo', { name })
+    if (!endpoint.secret && !endpoint.secretConfigured) return adminText('k00xp', { name })
+  }
   if (requireEvents && !endpoint.events.length) return adminText('k00d5', { name })
   if (!Number.isFinite(endpoint.timeoutSeconds) || endpoint.timeoutSeconds < 1 || endpoint.timeoutSeconds > 15) return adminText('k00d6', { name })
   return ''
@@ -1095,6 +1112,7 @@ function addHttpEndpoint() {
     channelType: 'generic',
     enabled: true,
     url: '',
+    target: '',
     secret: '',
     events: ['topic.published'],
     timeoutSeconds: 2,
@@ -1134,7 +1152,7 @@ const httpEndpointTests = reactive<Record<string, { ok: boolean, message: string
 
 // 测试结果只对发送时的地址、密钥和通道有效；改动这些字段后旧结果不再显示。
 function httpEndpointSignature(endpoint: HttpNotifyEndpoint) {
-  return JSON.stringify([endpoint.channelType, endpoint.url.trim(), endpoint.secret, endpoint.timeoutSeconds])
+  return JSON.stringify([endpoint.channelType, endpoint.url.trim(), endpoint.target?.trim() ?? '', endpoint.secret, endpoint.timeoutSeconds])
 }
 
 function httpEndpointTestResult(endpoint: HttpNotifyEndpoint) {
@@ -1199,17 +1217,25 @@ async function saveHttpEndpoint(endpoint: HttpNotifyEndpoint) {
   }
 }
 
-// 折叠摘要中的地址：飞书地址是凭据，只显示是否已配置；通用地址只显示主机名。
+// 折叠摘要中的地址：飞书地址是凭据，只显示是否已配置；AstrBot 显示目标会话；
+// 通用地址只显示主机名。
 function httpEndpointTarget(endpoint: HttpNotifyEndpoint) {
   if (endpoint.channelType === 'feishu') {
     return endpoint.url || endpoint.urlConfigured ? adminText('k00t8') : adminText('k00t9')
   }
+  if (endpoint.channelType === 'astrbot') return endpoint.target?.trim() || adminText('k00t9')
   if (!endpoint.url) return adminText('k00t9')
   try {
     return new URL(endpoint.url).host || endpoint.url
   } catch {
     return endpoint.url
   }
+}
+
+function httpEndpointUrlPlaceholder(endpoint: HttpNotifyEndpoint) {
+  if (endpoint.channelType === 'feishu') return 'https://open.feishu.cn/open-apis/bot/v2/hook/…'
+  if (endpoint.channelType === 'astrbot') return 'http://astrbot.example.com:9966/send'
+  return 'http://example.com/webhook'
 }
 
 function toggleEndpointEvent(endpoint: HttpNotifyEndpoint, eventName: string, checked: boolean) {
@@ -1835,7 +1861,7 @@ onUnmounted(stopSyncPolling)
                           <Badge v-if="endpoint.abnormalTerminated" variant="destructive" class="px-2 py-0 text-xs">{{ adminText('k00cz') }}</Badge>
                         </span>
                         <span class="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-1.5 text-xs text-muted-foreground">
-                          <span>{{ endpoint.channelType === 'feishu' ? adminText('k00x8') : adminText('k00x7') }}</span>
+                          <span>{{ adminText(httpChannelLabels[endpoint.channelType]) }}</span>
                           <span aria-hidden="true">·</span>
                           <span class="max-w-full truncate">{{ httpEndpointTarget(endpoint) }}</span>
                           <span aria-hidden="true">·</span>
@@ -1862,7 +1888,7 @@ onUnmounted(stopSyncPolling)
                         <Select
                           :model-value="endpoint.channelType"
                           :disabled="!httpNotifyForm.enabled"
-                          @update:model-value="value => onEndpointChannelChange(endpoint, value === 'feishu' ? 'feishu' : 'generic')"
+                          @update:model-value="value => onEndpointChannelChange(endpoint, toHttpChannel(value))"
                         >
                           <SelectTrigger class="w-full min-w-0 font-normal" :aria-label="adminText('k00x6')">
                             <SelectValue class="min-w-0 overflow-hidden" />
@@ -1870,6 +1896,7 @@ onUnmounted(stopSyncPolling)
                           <SelectContent>
                             <SelectItem value="generic">{{ adminText('k00x7') }}</SelectItem>
                             <SelectItem value="feishu">{{ adminText('k00x8') }}</SelectItem>
+                            <SelectItem value="astrbot">{{ adminText('k00xj') }}</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
@@ -1884,20 +1911,26 @@ onUnmounted(stopSyncPolling)
                             :disabled="!httpNotifyForm.enabled"
                             :type="endpoint.channelType === 'feishu' ? 'password' : 'text'"
                             autocomplete="off"
-                            :placeholder="endpoint.channelType === 'feishu' ? 'https://open.feishu.cn/open-apis/bot/v2/hook/…' : 'http://example.com/webhook'"
+                            :placeholder="httpEndpointUrlPlaceholder(endpoint)"
                           />
                           <Badge v-if="endpoint.channelType === 'feishu'" :variant="endpoint.urlConfigured ? 'default' : 'outline'" class="shrink-0">
                             {{ endpoint.urlConfigured ? adminText('k00t8') : adminText('k00t9') }}
                           </Badge>
                         </div>
                         <span v-if="endpoint.channelType === 'feishu'" class="text-xs font-normal text-muted-foreground">{{ adminText('k00x9') }}</span>
+                        <span v-else-if="endpoint.channelType === 'astrbot'" class="text-xs font-normal text-muted-foreground">{{ adminText('k00xm') }}</span>
                       </label>
                       <label class="grid min-w-0 content-start gap-2 text-sm font-medium">
                         {{ adminText('k00cx') }}
                         <Input v-model.number="endpoint.timeoutSeconds" :disabled="!httpNotifyForm.enabled" type="number" min="1" max="15" />
                       </label>
+                      <label v-if="endpoint.channelType === 'astrbot'" class="grid min-w-0 content-start gap-2 text-sm font-medium @xl:col-start-1">
+                        {{ adminText('k00xk') }}
+                        <Input v-model="endpoint.target" :disabled="!httpNotifyForm.enabled" autocomplete="off" spellcheck="false" placeholder="aiocqhttp:GroupMessage:123456" />
+                        <span class="text-xs font-normal text-muted-foreground">{{ adminText('k00xl') }}</span>
+                      </label>
                       <label class="grid min-w-0 content-start gap-2 text-sm font-medium @xl:col-start-1">
-                        Secret
+                        {{ endpoint.channelType === 'astrbot' ? 'API token' : 'Secret' }}
                         <div class="flex min-w-0 items-center gap-2">
                           <Input v-model="endpoint.secret" :disabled="!httpNotifyForm.enabled" type="password" autocomplete="new-password" />
                           <Badge :variant="endpoint.secretConfigured ? 'default' : 'outline'" class="shrink-0">
@@ -1906,12 +1939,14 @@ onUnmounted(stopSyncPolling)
                         </div>
                         <span class="text-xs font-normal text-muted-foreground">{{ adminText('k00u0') }}</span>
                         <span v-if="endpoint.channelType === 'feishu'" class="text-xs font-normal text-muted-foreground">{{ adminText('k00xa') }}</span>
+                        <span v-else-if="endpoint.channelType === 'astrbot'" class="text-xs font-normal text-muted-foreground">{{ adminText('k00xn') }}</span>
                       </label>
                     </div>
 
                     <div class="space-y-2">
                       <div class="text-sm font-medium">{{ adminText('k00cy') }}</div>
                       <div v-if="endpoint.channelType === 'feishu'" class="text-xs text-muted-foreground">{{ adminText('k00xb') }}</div>
+                      <div v-else-if="endpoint.channelType === 'astrbot'" class="text-xs text-muted-foreground">{{ adminText('k00xq') }}</div>
                       <div class="flex flex-wrap gap-2">
                         <label
                           v-for="item in endpointEventOptions(endpoint)"

@@ -752,6 +752,10 @@ func TestAdminGetHttpNotifySettingsHTTPContract(t *testing.T) {
 				// 飞书 webhook 地址是凭据：只落库密文，GET 不回显（issue #1049）。
 				{Id: "ep2", Name: "飞书审批群", ChannelType: pageConfig.HttpNotifyChannelFeishu, Enabled: true,
 					URLEncrypted: sealedURL, Events: []string{"moderation.report.post.created"}, TimeoutSeconds: 3},
+				// AstrBot：地址与目标会话明文回显，API token 与 secret 同样只回显是否已配置。
+				{Id: "ep3", Name: "AstrBot 群", ChannelType: pageConfig.HttpNotifyChannelAstrBot, Enabled: true,
+					URL: "http://astrbot.example.test:9966/send", Target: "aiocqhttp:GroupMessage:123456",
+					SecretEncrypted: sealed, Events: []string{"moderation.review.topic.requested"}, TimeoutSeconds: 3},
 			},
 		})
 		serveAdminSiteOK(t, conn, router, http.MethodGet, path, "", "admin-http-notify-settings-success.json")
@@ -840,6 +844,24 @@ func TestAdminSaveHttpNotifySettingsHTTPContract(t *testing.T) {
 		hotdataserve.ClearHttpNotifyConfigCache()
 		if runtime := hotdataserve.GetHttpNotifyConfigCache(); len(runtime.Endpoints) != 1 || runtime.Endpoints[0].URL != hook {
 			t.Fatalf("runtime config must decrypt the feishu url: %#v", runtime.Endpoints)
+		}
+	})
+
+	t.Run("astrbot target session is stored trimmed and the api token encrypted", func(t *testing.T) {
+		conn, router := setupAdminSiteContractTest(t)
+		t.Cleanup(func() {
+			conn.Where("page_type = ?", pageConfig.HttpNotify).Delete(&pageConfig.Entity{})
+			hotdataserve.ClearHttpNotifyConfigCache()
+		})
+		serveAdminSiteOK(t, conn, router, http.MethodPost, path,
+			`{"settings":{"enabled":true,"endpoints":[{"id":"ep-bot","name":"AstrBot","channelType":"astrbot","enabled":true,"url":"http://astrbot.example.test:9966/send","target":" aiocqhttp:GroupMessage:1 ","secret":"bot-token","events":["moderation.review.topic.requested"],"timeoutSeconds":3,"failureCount":0,"lastError":"","abnormalTerminated":false}]}}`,
+			"admin-agent-disable-success.json")
+		stored := pageConfig.GetConfigByPageType(pageConfig.HttpNotify, pageConfig.HttpNotifyStorageConfig{})
+		if len(stored.Endpoints) != 1 || stored.Endpoints[0].Target != "aiocqhttp:GroupMessage:1" || stored.Endpoints[0].URL != "http://astrbot.example.test:9966/send" {
+			t.Fatalf("stored astrbot endpoint = %#v", stored.Endpoints)
+		}
+		if plain, err := securestore.DecryptPurpose(stored.Endpoints[0].SecretEncrypted, securestore.HttpNotifySecretPurpose); err != nil || plain != "bot-token" {
+			t.Fatalf("stored astrbot token decrypt = %q, err %v", plain, err)
 		}
 	})
 
@@ -932,6 +954,53 @@ func TestAdminTestHttpNotifyEndpointHTTPContract(t *testing.T) {
 		recorder := serveAdminSiteRaw(t, conn, router, http.MethodPost, path, endpointBody("ep-feishu", "generic", ""))
 		if err := json.Unmarshal(recorder.Body.Bytes(), &envelope); err != nil || envelope.Result.Success || envelope.Result.Params["error"] != "url is required" {
 			t.Fatalf("switching channel must not reuse the stored feishu url: %s", recorder.Body.String())
+		}
+	})
+
+	t.Run("astrbot endpoint pushes text to the target session with the stored token", func(t *testing.T) {
+		conn, router := setupAdminSiteContractTest(t)
+		received := make(chan map[string]string, 1)
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			var data map[string]string
+			_ = json.NewDecoder(r.Body).Decode(&data)
+			data["path"] = r.URL.Path
+			data["authorization"] = r.Header.Get("Authorization")
+			received <- data
+			_, _ = w.Write([]byte(`{"status":"queued","message_id":"m1","queue_size":1}`))
+		}))
+		t.Cleanup(server.Close)
+		sealed, err := securestore.EncryptPurpose("bot-token", securestore.HttpNotifySecretPurpose)
+		if err != nil {
+			t.Fatal(err)
+		}
+		persistContractPageConfig(t, conn, pageConfig.HttpNotify, pageConfig.HttpNotifyStorageConfig{
+			Enabled: true,
+			Endpoints: []pageConfig.HttpNotifyStorageEndpoint{
+				{Id: "ep-bot", Name: "AstrBot", ChannelType: pageConfig.HttpNotifyChannelAstrBot, Enabled: true,
+					URL: server.URL, Target: "old", SecretEncrypted: sealed, TimeoutSeconds: 2},
+			},
+		})
+		hotdataserve.ClearHttpNotifyConfigCache()
+		t.Cleanup(hotdataserve.ClearHttpNotifyConfigCache)
+		body := `{"endpoint":{"id":"ep-bot","name":"AstrBot","channelType":"astrbot","enabled":true,"url":"` + server.URL + `","target":"aiocqhttp:GroupMessage:1","secret":"","events":[],"timeoutSeconds":2,"failureCount":0,"lastError":"","abnormalTerminated":false}}`
+		serveAdminSiteOK(t, conn, router, http.MethodPost, path, body, "admin-test-http-notify-endpoint-success.json")
+		got := <-received
+		if got["path"] != "/send" || got["authorization"] != "Bearer bot-token" || got["umo"] != "aiocqhttp:GroupMessage:1" || !strings.HasPrefix(got["content"], "【测试】") {
+			t.Fatalf("astrbot test delivery = %v", got)
+		}
+	})
+
+	t.Run("url without a host fails with a readable reason", func(t *testing.T) {
+		conn, router := setupAdminSiteContractTest(t)
+		var envelope struct {
+			Result struct {
+				Success bool              `json:"success"`
+				Params  map[string]string `json:"params"`
+			} `json:"result"`
+		}
+		recorder := serveAdminSiteRaw(t, conn, router, http.MethodPost, path, endpointBody("", "generic", "http://:9966/send"))
+		if err := json.Unmarshal(recorder.Body.Bytes(), &envelope); err != nil || envelope.Result.Success || !strings.Contains(envelope.Result.Params["error"], "missing a host") {
+			t.Fatalf("hostless url = %s", recorder.Body.String())
 		}
 	})
 

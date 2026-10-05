@@ -164,6 +164,23 @@ func verify(secret string, timestamp string, rawBody []byte, signature string) b
 sign = base64(HMAC_SHA256(key = timestamp + "\n" + secret, message = ""))
 ```
 
+### AstrBot 机器人
+
+选择「AstrBot 机器人（push_lite 插件）」可以通过 AstrBot 把通知推到 QQ 群、私聊等会话，插件不需要改动：
+
+1. 在 AstrBot 中安装 [astrbot_plugin_push_lite](https://github.com/Raven95676/astrbot_plugin_push_lite)。插件默认在 `9966` 端口提供接口，这个端口和 AstrBot 管理面板的端口不同。
+2. URL 填插件的接口地址，例如 `http://astrbot.example.com:9966/send`。只填到端口时会自动补上 `/send`。论坛服务器必须能访问这个地址。
+3. 在要接收通知的会话里发送 `/sid`，把返回的 SID（例如 `aiocqhttp:GroupMessage:123456`）填入「目标会话 SID」。
+4. 把插件配置里的 API token 填入「API token」。它和 Secret 一样加密存储、不再回显。
+
+系统向插件发送 `POST /send`，请求头为 `Authorization: Bearer <API token>`，请求体为：
+
+```json
+{ "content": "【新举报 · 回复】垃圾广告\n编号：举报 #12 · 回复 #34\n…", "umo": "aiocqhttp:GroupMessage:123456", "message_type": "text" }
+```
+
+AstrBot 通道可以订阅所有事件，统一以纯文本发送：审核和举报消息包含编号、标题、摘要、作者、分类和处理链接，其他事件包含标题、关键字段和站内链接。插件返回 `{"status": "queued"}` 才算成功；令牌错误（403）或缺少字段（400）时会显示插件给出的原因。插件收到消息后排队转发，转发到聊天平台失败时论坛无法得知，请查看 AstrBot 日志。
+
 ### 测试发送与单独保存
 
 每个回调地址展开后都有「测试发送」和「保存此地址」：
@@ -185,6 +202,8 @@ sign = base64(HMAC_SHA256(key = timestamp + "\n" + secret, message = ""))
 ```
 
 - 飞书群收到一张带「测试」标签的示例审批卡片，样式与真实通知相同；卡片上的按钮只会打开版主工作台。
+- AstrBot 会话收到一条以「【测试】」开头的示例举报文本，链接只会打开版主工作台。
+- URL 没有主机名（例如 `http:///send`、`http://:9966/send`）时不会发送，结果提示 `url is missing a host`。
 - **保存此地址**只保存当前这一个地址，其他地址未保存的修改不会一起提交。保存成功后该地址会自动收起。
 
 ### 快捷审批的安全模型

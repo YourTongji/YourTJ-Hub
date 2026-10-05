@@ -914,8 +914,10 @@ adminTestHttpNotifyEndpoint:
       events are ignored. `generic` endpoints receive a `webhook.test`
       envelope with the usual `X-Goose-*` headers and signature; `feishu`
       endpoints receive a sample approval card whose buttons only open the
-      moderator workbench. An empty `url` or `secret` reuses the stored
-      value of the endpoint with the same `id` (the stored URL only when the
+      moderator workbench; `astrbot` endpoints receive the same sample as
+      plain text in the `target` session. URLs without a host fail with a
+      readable reason instead of being sent. An empty `url` or `secret`
+      reuses the stored value of the endpoint with the same `id` (the stored URL only when the
       channel type is unchanged), matching save semantics. Unknown
       `channelType` values fail with `common.request.invalidParams`. The
       outcome is reported inside the success envelope (`code` stays 0):

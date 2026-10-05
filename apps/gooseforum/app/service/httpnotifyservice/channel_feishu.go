@@ -34,6 +34,11 @@ func (feishuChannel) encode(endpoint pageConfig.HttpNotifyEndpoint, _ Alternativ
 
 // testBody 发送一张示例举报卡片：样式与真实审批卡片一致，按钮只打开版主工作台。
 func (feishuChannel) testBody(endpoint pageConfig.HttpNotifyEndpoint, baseURI string, now time.Time) ([]byte, error) {
+	return feishuBody(endpoint, feishuCard(sampleApproval(baseURI, now), true), now)
+}
+
+// sampleApproval 「测试发送」用的示例举报：不对应站内真实内容，动作只指向版主工作台。
+func sampleApproval(baseURI string, now time.Time) ApprovalPayload {
 	sample := ApprovalPayload{BaseURI: baseURI, Approval: Approval{
 		ID: "test", Kind: ApprovalKindReport, TargetType: "post", TargetID: 1, ReportID: 1,
 		Reason: "spam", Title: "示例话题：期中复习资料汇总",
@@ -48,7 +53,7 @@ func (feishuChannel) testBody(endpoint pageConfig.HttpNotifyEndpoint, baseURI st
 		{Action: ApprovalActionBan, URL: sample.Approval.ModerationURL},
 		{Action: ApprovalActionDismiss, URL: sample.Approval.ModerationURL},
 	}
-	return feishuBody(endpoint, feishuCard(sample, true), now)
+	return sample
 }
 
 func feishuBody(endpoint pageConfig.HttpNotifyEndpoint, card map[string]any, now time.Time) ([]byte, error) {
@@ -109,14 +114,16 @@ func feishuSign(timestamp string, secret string) string {
 	return base64.StdEncoding.EncodeToString(mac.Sum(nil))
 }
 
-var feishuTargetLabels = map[string]string{
+// approvalTargetLabels / approvalReasonLabels / approvalActionLabels 审批摘要的中文文案，
+// 飞书卡片与 AstrBot 文本共用。
+var approvalTargetLabels = map[string]string{
 	"topic":         "话题",
 	"post":          "回复",
 	"chat_message":  "私信",
 	"course_review": "课程评价",
 }
 
-var feishuReasonLabels = map[string]string{
+var approvalReasonLabels = map[string]string{
 	"spam":           "垃圾广告",
 	"abuse":          "辱骂/人身攻击",
 	"illegal":        "违法违规",
@@ -126,21 +133,28 @@ var feishuReasonLabels = map[string]string{
 	"ai":             "AI 审核存疑",
 }
 
-// feishuActionStyle 快捷按钮的文案、样式与图标。图标 token 均取自飞书卡片图标库
+var approvalActionLabels = map[string]string{
+	ApprovalActionApprove: "通过并公开",
+	ApprovalActionReject:  "拒绝",
+	ApprovalActionBan:     "封禁并结案",
+	ApprovalActionHide:    "隐藏评价并结案",
+	ApprovalActionDismiss: "驳回举报",
+}
+
+// feishuActionStyle 快捷按钮的样式与图标（文案见 approvalActionLabels）。图标 token 均取自飞书卡片图标库
 // （https://open.feishu.cn/document/feishu-cards/enumerations-for-icons），
 // 写错的 token 在客户端静默不显示，新增时须逐个核对。
 type feishuActionStyle struct {
-	label      string
 	buttonType string
 	icon       string
 }
 
 var feishuActionStyles = map[string]feishuActionStyle{
-	ApprovalActionApprove: {"通过并公开", "primary_filled", "yes_outlined"},
-	ApprovalActionReject:  {"拒绝", "danger", "no_outlined"},
-	ApprovalActionBan:     {"封禁并结案", "danger", "ban_outlined"},
-	ApprovalActionHide:    {"隐藏评价并结案", "danger", "invisible_outlined"},
-	ApprovalActionDismiss: {"驳回举报", "default", "close_outlined"},
+	ApprovalActionApprove: {"primary_filled", "yes_outlined"},
+	ApprovalActionReject:  {"danger", "no_outlined"},
+	ApprovalActionBan:     {"danger", "ban_outlined"},
+	ApprovalActionHide:    {"danger", "invisible_outlined"},
+	ApprovalActionDismiss: {"default", "close_outlined"},
 }
 
 // feishuCard 渲染 schema 2.0 卡片：标题栏（图标、编号、最多 3 个标签）→ 内容标题 →
@@ -149,7 +163,7 @@ var feishuActionStyles = map[string]feishuActionStyle{
 // 「测试发送」的示例卡片：样式与真实卡片一致，按钮只打开版主工作台。
 func feishuCard(payload ApprovalPayload, test bool) map[string]any {
 	a := payload.Approval
-	target := feishuTargetLabels[a.TargetType]
+	target := approvalTargetLabels[a.TargetType]
 	if target == "" {
 		target = SafeText(a.TargetType, 20)
 	}
@@ -157,7 +171,7 @@ func feishuCard(payload ApprovalPayload, test bool) map[string]any {
 	if a.Kind == ApprovalKindReport {
 		title, template, headerIcon, reasonColor = "新举报 · "+target, "red", "report_outlined", "red"
 	}
-	reason := feishuReasonLabels[a.Reason]
+	reason := approvalReasonLabels[a.Reason]
 	if reason == "" {
 		reason = SafeText(a.Reason, 20)
 	}
@@ -270,7 +284,7 @@ func feishuCard(payload ApprovalPayload, test bool) map[string]any {
 			if !ok || action.URL == "" {
 				continue
 			}
-			buttons = append(buttons, feishuButton(style.label, style.buttonType, style.icon, base+action.URL))
+			buttons = append(buttons, feishuButton(approvalActionLabels[action.Action], style.buttonType, style.icon, base+action.URL))
 		}
 		if a.ModerationURL != "" {
 			buttons = append(buttons, feishuButton("打开版主工作台", "default", "admin_outlined", base+a.ModerationURL))

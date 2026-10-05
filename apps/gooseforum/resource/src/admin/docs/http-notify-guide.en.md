@@ -164,6 +164,23 @@ If "signature verification" is enabled on the Feishu bot, enter its secret as th
 sign = base64(HMAC_SHA256(key = timestamp + "\n" + secret, message = ""))
 ```
 
+### AstrBot bot
+
+Choose **AstrBot bot (push_lite plugin)** to push notifications through AstrBot to QQ groups, private chats, and other sessions. The plugin needs no changes:
+
+1. Install [astrbot_plugin_push_lite](https://github.com/Raven95676/astrbot_plugin_push_lite) in AstrBot. The plugin serves its API on port `9966` by default, which is not the AstrBot dashboard port.
+2. Enter the plugin's API address as the URL, for example `http://astrbot.example.com:9966/send`. If you stop at the port, `/send` is added for you. The forum server must be able to reach this address.
+3. Send `/sid` in the session that should get notifications, and enter the SID it returns (for example `aiocqhttp:GroupMessage:123456`) as the **Target session SID**.
+4. Enter the API token from the plugin settings as the **API token**. Like a Secret, it is stored encrypted and never shown again.
+
+The system sends `POST /send` to the plugin with `Authorization: Bearer <API token>` and this body:
+
+```json
+{ "content": "【新举报 · 回复】垃圾广告\n编号：举报 #12 · 回复 #34\n…", "umo": "aiocqhttp:GroupMessage:123456", "message_type": "text" }
+```
+
+The AstrBot channel can subscribe to every event and sends all of them as plain text (in Chinese, like the Feishu card). Review and report messages include the IDs, title, excerpt, author, categories, and handling links; other events include the title, key fields, and a link. Only a `{"status": "queued"}` reply counts as success; a bad token (403) or missing field (400) shows the plugin's reason. The plugin queues messages before forwarding them, so the forum cannot see failures on the chat platform side. Check the AstrBot logs if a message never arrives.
+
 ### Test delivery and saving one URL
 
 Each callback URL has **Send test** and **Save this URL** at the bottom of its panel:
@@ -185,6 +202,8 @@ Each callback URL has **Send test** and **Save this URL** at the bottom of its p
 ```
 
 - Feishu groups receive a sample approval card marked "测试" (test) that looks exactly like a real notification; its buttons only open the moderator workspace.
+- AstrBot sessions receive a sample report as text starting with "【测试】" (test); its links only open the moderator workspace.
+- A URL without a host (such as `http:///send` or `http://:9966/send`) is not sent; the result shows `url is missing a host`.
 - **Save this URL** saves only this callback URL; unsaved changes to other URLs are not submitted. The panel collapses after a successful save.
 
 ### Quick-action security model
