@@ -15,7 +15,7 @@ import (
 // 口径一致：首楼需 process_status 正常且未软删。首楼被删除/擦除后主题无
 // 正文，继续公开展示会产生「有标题无正文」的孤儿条目（issue #492）。
 // 所有公开列表/导出入口应统一附加本条件。
-const firstPostVisibleSQL = "EXISTS (SELECT 1 FROM posts WHERE posts.id = topics.first_post_id AND posts.topic_id = topics.id AND posts.process_status = ? AND posts.deleted_at IS NULL)"
+const firstPostVisibleSQL = "(SELECT posts.process_status FROM posts WHERE posts.id = topics.first_post_id AND posts.topic_id = topics.id AND posts.deleted_at IS NULL AND posts.visibility_status = 'ACTIVE') = ?"
 
 func SaveOrCreateById(entity *Entity) int64 {
 	if entity.Id == 0 {
