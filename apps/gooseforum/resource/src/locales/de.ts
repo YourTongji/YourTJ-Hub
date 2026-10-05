@@ -3246,6 +3246,8 @@ export default {
     'admin.storage.saveFailed': 'Speichern der Speichereinstellungen fehlgeschlagen: {error}',
     'admin.storage.testFailed': 'Verbindungstest zum Speicher fehlgeschlagen: {error}',
     'admin.storage.testSuccess': 'Verbindungstest zum Speicher erfolgreich.',
+    'admin.httpNotify.testFailed': 'Testzustellung fehlgeschlagen: {error}',
+    'admin.httpNotify.testSuccess': 'Testnachricht gesendet. Prüfen Sie die Darstellung beim Empfänger.',
     'admin.storage.migrateFailed': 'Erstellung der Dateimigrationsaufgabe fehlgeschlagen: {error}',
     'admin.storage.migrateInvalidProvider': 'Die Dateimigration erfordert einen S3-kompatiblen Anbieter.',
     'admin.data.exportFailed': 'Erstellung der Exportaufgabe fehlgeschlagen: {error}',

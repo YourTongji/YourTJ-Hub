@@ -3,6 +3,7 @@ package routes
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -90,6 +91,7 @@ func setupAdminSiteContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 	siteAPI.POST("/save-rate-limit-settings", UpButterReq(api.SaveRateLimitSettings))
 	siteAPI.GET("/http-notify-settings", UpButterReq(api.GetHttpNotifySettings))
 	siteAPI.POST("/save-http-notify-settings", UpButterReq(api.SaveHttpNotifySettings))
+	siteAPI.POST("/test-http-notify-endpoint", UpButterReq(api.TestHttpNotifyEndpoint))
 	siteAPI.GET("/onesystem-settings", UpButterReq(api.GetOnesystemSettings))
 	siteAPI.POST("/save-onesystem-settings", UpButterReq(api.SaveOnesystemSettings))
 	siteAPI.GET("/ai-summary-settings", UpButterReq(api.GetAiSummarySettings))
@@ -849,6 +851,96 @@ func TestAdminSaveHttpNotifySettingsHTTPContract(t *testing.T) {
 	})
 
 	adminSiteGuardScenarios(t, http.MethodPost, path, "admin-save-http-notify-settings")
+}
+
+func TestAdminTestHttpNotifyEndpointHTTPContract(t *testing.T) {
+	path := "/api/admin/test-http-notify-endpoint"
+	type delivery struct {
+		event string
+		body  string
+	}
+	receiver := func(t *testing.T, status int, reply string) (string, <-chan delivery) {
+		t.Helper()
+		received := make(chan delivery, 4)
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			body, _ := io.ReadAll(r.Body)
+			received <- delivery{r.Header.Get("X-Goose-Event"), string(body)}
+			w.WriteHeader(status)
+			_, _ = w.Write([]byte(reply))
+		}))
+		t.Cleanup(server.Close)
+		return server.URL + "/hook", received
+	}
+	endpointBody := func(id, channel, url string) string {
+		return `{"endpoint":{"id":"` + id + `","name":"测试","channelType":"` + channel + `","enabled":false,"url":"` + url + `","secret":"","events":[],"timeoutSeconds":2,"failureCount":0,"lastError":"","abnormalTerminated":false}}`
+	}
+
+	t.Run("generic endpoint receives a webhook.test event", func(t *testing.T) {
+		conn, router := setupAdminSiteContractTest(t)
+		hook, received := receiver(t, http.StatusNoContent, "")
+		serveAdminSiteOK(t, conn, router, http.MethodPost, path, endpointBody("", "generic", hook), "admin-test-http-notify-endpoint-success.json")
+		if got := <-received; got.event != "webhook.test" || !strings.Contains(got.body, `"event":"webhook.test"`) {
+			t.Fatalf("test delivery = %+v", got)
+		}
+	})
+
+	t.Run("receiver failure is reported without touching the stored failure state", func(t *testing.T) {
+		conn, router := setupAdminSiteContractTest(t)
+		hook, received := receiver(t, http.StatusInternalServerError, "")
+		persistContractPageConfig(t, conn, pageConfig.HttpNotify, pageConfig.HttpNotifyStorageConfig{
+			Enabled: true,
+			Endpoints: []pageConfig.HttpNotifyStorageEndpoint{
+				{Id: "ep-test", Name: "测试", Enabled: true, URL: hook, Events: []string{"topic.published"}, TimeoutSeconds: 2},
+			},
+		})
+		hotdataserve.ClearHttpNotifyConfigCache()
+		t.Cleanup(hotdataserve.ClearHttpNotifyConfigCache)
+		serveAdminSiteOK(t, conn, router, http.MethodPost, path, endpointBody("ep-test", "generic", hook), "admin-test-http-notify-endpoint-failed.json")
+		<-received
+		stored := pageConfig.GetConfigByPageType(pageConfig.HttpNotify, pageConfig.HttpNotifyStorageConfig{})
+		if stored.Endpoints[0].FailureCount != 0 || stored.Endpoints[0].LastError != "" || !stored.Endpoints[0].Enabled {
+			t.Fatalf("a test delivery must not change the stored failure state: %+v", stored.Endpoints[0])
+		}
+	})
+
+	t.Run("blank feishu url reuses the stored webhook only for the same channel", func(t *testing.T) {
+		conn, router := setupAdminSiteContractTest(t)
+		hook, received := receiver(t, http.StatusOK, `{"code":0,"msg":"success"}`)
+		sealedURL, err := securestore.EncryptPurpose(hook, securestore.HttpNotifyURLPurpose)
+		if err != nil {
+			t.Fatal(err)
+		}
+		persistContractPageConfig(t, conn, pageConfig.HttpNotify, pageConfig.HttpNotifyStorageConfig{
+			Enabled: true,
+			Endpoints: []pageConfig.HttpNotifyStorageEndpoint{
+				{Id: "ep-feishu", Name: "飞书", ChannelType: pageConfig.HttpNotifyChannelFeishu, Enabled: true,
+					URLEncrypted: sealedURL, Events: []string{"moderation.report.post.created"}, TimeoutSeconds: 2},
+			},
+		})
+		hotdataserve.ClearHttpNotifyConfigCache()
+		t.Cleanup(hotdataserve.ClearHttpNotifyConfigCache)
+		serveAdminSiteOK(t, conn, router, http.MethodPost, path, endpointBody("ep-feishu", "feishu", ""), "admin-test-http-notify-endpoint-success.json")
+		if got := <-received; !strings.Contains(got.body, `"msg_type":"interactive"`) || !strings.Contains(got.body, `"content":"测试"`) {
+			t.Fatalf("feishu test card = %s", got.body)
+		}
+		var envelope struct {
+			Result struct {
+				Success bool              `json:"success"`
+				Params  map[string]string `json:"params"`
+			} `json:"result"`
+		}
+		recorder := serveAdminSiteRaw(t, conn, router, http.MethodPost, path, endpointBody("ep-feishu", "generic", ""))
+		if err := json.Unmarshal(recorder.Body.Bytes(), &envelope); err != nil || envelope.Result.Success || envelope.Result.Params["error"] != "url is required" {
+			t.Fatalf("switching channel must not reuse the stored feishu url: %s", recorder.Body.String())
+		}
+	})
+
+	t.Run("unknown channel type is rejected", func(t *testing.T) {
+		conn, router := setupAdminSiteContractTest(t)
+		serveAdminSiteOK(t, conn, router, http.MethodPost, path, endpointBody("x", "slack", "https://x.test"), "invalid-params.json")
+	})
+
+	adminSiteGuardScenarios(t, http.MethodPost, path, "admin-test-http-notify-endpoint")
 }
 
 func TestAdminGetOnesystemSettingsHTTPContract(t *testing.T) {

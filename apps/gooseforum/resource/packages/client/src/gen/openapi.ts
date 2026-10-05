@@ -4973,6 +4973,42 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/test-http-notify-endpoint": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send a test notification to one webhook endpoint
+         * @description Admin console operation gated by the `SiteManager` role permission;
+         *     callers without it fail with HTTP 403 and `permission.denied`.
+         *     Sends one test delivery synchronously to the submitted (possibly
+         *     unsaved) endpoint — nothing is persisted, and the result does not
+         *     count toward the endpoint's failure counter or automatic disabling.
+         *     The master switch, the endpoint's `enabled` flag and its subscribed
+         *     events are ignored. `generic` endpoints receive a `webhook.test`
+         *     envelope with the usual `X-Goose-*` headers and signature; `feishu`
+         *     endpoints receive a sample approval card whose buttons only open the
+         *     moderator workbench. An empty `url` or `secret` reuses the stored
+         *     value of the endpoint with the same `id` (the stored URL only when the
+         *     channel type is unchanged), matching save semantics. Unknown
+         *     `channelType` values fail with `common.request.invalidParams`. The
+         *     outcome is reported inside the success envelope (`code` stays 0):
+         *     `result.success` plus `admin.httpNotify.testSuccess` /
+         *     `admin.httpNotify.testFailed`, the latter with `params.error`
+         *     carrying a failure reason that never includes the request URL.
+         */
+        post: operations["adminTestHttpNotifyEndpoint"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/onesystem-settings": {
         parameters: {
             query?: never;
@@ -10655,7 +10691,7 @@ export interface components {
         AdminConnectionTestResult: {
             /** @description Whether the probe succeeded. Note the envelope `code` stays 0 either way — the outcome is reported inside `result`. */
             success: boolean;
-            /** @description `admin.mail.testSuccess` / `admin.mail.testFailed` for mail, `admin.storage.testSuccess` / `admin.storage.testFailed` for storage. */
+            /** @description `admin.mail.testSuccess` / `admin.mail.testFailed` for mail, `admin.storage.testSuccess` / `admin.storage.testFailed` for storage, `admin.httpNotify.testSuccess` / `admin.httpNotify.testFailed` for webhook endpoints. */
             messageCode: string;
             /** @description On mail success `{email}`; on failure `{error}` with the raw dial/send error text. */
             params?: {
@@ -12897,6 +12933,13 @@ export interface components {
             enabled: boolean;
             endpoints: components["schemas"]["AdminHttpNotifyEndpointView"][];
         };
+        /** @description The endpoint to test, as currently edited. Empty `url`/`secret` reuse the stored values of the endpoint with the same `id`. */
+        AdminTestHttpNotifyEndpointRequest: {
+            endpoint: components["schemas"]["AdminHttpNotifyEndpoint"];
+        };
+        AdminTestHttpNotifyEndpointResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["AdminConnectionTestResult"];
+        }) | components["schemas"]["ApiFailure"];
         /** @description Admin GET view — provider endpoint/model are returned, the api key only as a configured flag. */
         AdminAiSummarySettingsView: {
             /** @description Master switch; when off the summary endpoint reports `status=disabled`. */
@@ -21894,6 +21937,48 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AdminPageConfigSaveResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminTestHttpNotifyEndpoint: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminTestHttpNotifyEndpointRequest"];
+            };
+        };
+        responses: {
+            /** @description Test outcome inside a success envelope (`code` is 0 on both success and failure), or `common.request.invalidParams` for an unknown channel type. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminTestHttpNotifyEndpointResponse"];
                 };
             };
             /** @description Missing, invalid, expired, or revoked access token. */

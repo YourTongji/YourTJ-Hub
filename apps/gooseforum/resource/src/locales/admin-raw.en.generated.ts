@@ -983,4 +983,11 @@ export default {
   "k00x9": "Anyone with this URL can post to the group, so it’s encrypted after saving and not shown again. Leave it empty to keep the saved URL.",
   "k00xa": "If the bot has signature verification on, enter its secret here. Otherwise, leave it empty.",
   "k00xb": "Feishu groups only get review and report alerts. Card buttons open a confirmation page on this site, and handling an item requires signing in with moderator permissions.",
+  "k00xc": "Events: {count}",
+  "k00xd": "Expand all",
+  "k00xe": "Collapse all",
+  "k00xf": "Send test",
+  "k00xg": "Save this URL",
+  "k00xh": "Saved. HTTP notifications are turned off; turn them on and save to start sending.",
+  "k00xi": "Test delivery failed",
 } as const

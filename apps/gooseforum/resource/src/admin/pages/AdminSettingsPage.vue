@@ -8,7 +8,7 @@ import httpNotifyGuideJa from '@/admin/docs/http-notify-guide.ja.md?raw'
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import MarkdownIt from 'markdown-it'
-import { Bot, CheckCircle2, CircleHelp, ClipboardPaste, Clock, Code, FileText, Globe, GripVertical, HardDrive, KeyRound, Loader2, MailCheck, Plus, RefreshCw, RotateCcw, Save, ScrollText, Send, Shield, Sparkles, Trash2, Upload, Webhook } from '@lucide/vue'
+import { Bot, CheckCircle2, ChevronDown, CircleHelp, ClipboardPaste, Clock, Code, FileText, Globe, GripVertical, HardDrive, KeyRound, Loader2, MailCheck, Plus, RefreshCw, RotateCcw, Save, ScrollText, Send, Shield, Sparkles, Trash2, Upload, Webhook, XCircle } from '@lucide/vue'
 import { BULK_IMPORT_LIMIT, BULK_IMPORT_PREVIEW_LIMIT, parseImportText } from '@/admin/bulkImport'
 import type { BulkImportPreview } from '@/admin/bulkImport'
 import { isSupportedUploadExtension, normalizeExtensionToken } from '@/admin/uploadExtensions'
@@ -69,6 +69,7 @@ import {
   saveTermsOfService,
   syncPkCalendar,
   testMailConnection,
+  testHttpNotifyEndpoint,
   testStorageConnection,
   uploadAdminImage,
   validatePkCredential,
@@ -665,27 +666,28 @@ function validateHttpNotify(settings: HttpNotifySettings) {
     adminToast.warning(adminText('k00d2'))
     return false
   }
-  for (const endpoint of enabledEndpoints) {
-    const name = endpoint.name || endpoint.url || adminText('k00cw')
-    // 飞书地址留空保存时保留服务端已加密的地址（issue #1049）。
-    if (!endpoint.url && !(endpoint.channelType === 'feishu' && endpoint.urlConfigured)) {
-      adminToast.warning(adminText('k00d3', { name }))
-      return false
-    }
-    if (endpoint.url && !isHttpUrl(endpoint.url)) {
-      adminToast.warning(adminText('k00d4', { name }))
-      return false
-    }
-    if (!endpoint.events.length) {
-      adminToast.warning(adminText('k00d5', { name }))
-      return false
-    }
-    if (!Number.isFinite(endpoint.timeoutSeconds) || endpoint.timeoutSeconds < 1 || endpoint.timeoutSeconds > 15) {
-      adminToast.warning(adminText('k00d6', { name }))
-      return false
-    }
-  }
-  return true
+  return enabledEndpoints.every(endpoint => validateHttpEndpoint(endpoint))
+}
+
+// httpEndpointProblem 返回端点配置的第一个问题（已本地化），没有问题时返回空串。
+// requireEvents=false 用于测试发送：测试不依赖订阅事件。
+function httpEndpointProblem(endpoint: HttpNotifyEndpoint, requireEvents = true) {
+  const name = endpoint.name || endpoint.url || adminText('k00cw')
+  // 飞书地址留空保存时保留服务端已加密的地址（issue #1049）。
+  if (!endpoint.url && !(endpoint.channelType === 'feishu' && endpoint.urlConfigured)) return adminText('k00d3', { name })
+  if (endpoint.url && !isHttpUrl(endpoint.url)) return adminText('k00d4', { name })
+  if (requireEvents && !endpoint.events.length) return adminText('k00d5', { name })
+  if (!Number.isFinite(endpoint.timeoutSeconds) || endpoint.timeoutSeconds < 1 || endpoint.timeoutSeconds > 15) return adminText('k00d6', { name })
+  return ''
+}
+
+// validateHttpEndpoint 校验未通过时展开该端点并提示原因。
+function validateHttpEndpoint(endpoint: HttpNotifyEndpoint) {
+  const problem = httpEndpointProblem(endpoint)
+  if (!problem) return true
+  expandedHttpEndpoints.add(endpoint.id)
+  adminToast.warning(problem)
+  return false
 }
 
 
@@ -881,7 +883,8 @@ async function load() {
 
 async function save() {
   const httpNotifySettings = props.kind === 'http-notify' ? httpNotifyPayload() : null
-  if (httpNotifySettings && !validateHttpNotify(httpNotifySettings)) return
+  // 校验需要只读回显字段（飞书地址留空时依赖 urlConfigured），不能用已剥离它们的保存负载。
+  if (httpNotifySettings && !validateHttpNotify(normalizeHttpNotify(httpNotifyForm))) return
   if (props.kind === 'ai-summary' && !validateAiSummary()) return
   if (props.kind === 'schedule' && !validateSchedule()) return
   if (props.kind === 'site-info' && !validateSiteInfo()) return
@@ -1084,8 +1087,10 @@ function removeExtension(ext: string) {
 }
 
 function addHttpEndpoint() {
+  const id = crypto.randomUUID()
+  expandedHttpEndpoints.add(id)
   httpNotifyForm.endpoints.push({
-    id: crypto.randomUUID(),
+    id,
     name: '',
     channelType: 'generic',
     enabled: true,
@@ -1100,7 +1105,111 @@ function addHttpEndpoint() {
 }
 
 function removeHttpEndpoint(index: number) {
-  httpNotifyForm.endpoints.splice(index, 1)
+  const [removed] = httpNotifyForm.endpoints.splice(index, 1)
+  if (removed) expandedHttpEndpoints.delete(removed.id)
+}
+
+// 已保存的渠道默认收起，只显示摘要；新增或校验未通过的渠道展开。
+const expandedHttpEndpoints = reactive(new Set<string>())
+const allHttpEndpointsExpanded = computed(() =>
+  httpNotifyForm.endpoints.length > 0 && httpNotifyForm.endpoints.every(endpoint => expandedHttpEndpoints.has(endpoint.id)))
+
+function toggleHttpEndpoint(endpoint: HttpNotifyEndpoint) {
+  if (expandedHttpEndpoints.has(endpoint.id)) expandedHttpEndpoints.delete(endpoint.id)
+  else expandedHttpEndpoints.add(endpoint.id)
+}
+
+function toggleAllHttpEndpoints() {
+  const expand = !allHttpEndpointsExpanded.value
+  for (const endpoint of httpNotifyForm.endpoints) {
+    if (expand) expandedHttpEndpoints.add(endpoint.id)
+    else expandedHttpEndpoints.delete(endpoint.id)
+  }
+}
+
+// 单个回调地址的保存与测试（issue #1049）：配置时就能确认地址、签名和展示效果。
+const savingHttpEndpoints = reactive(new Set<string>())
+const testingHttpEndpoints = reactive(new Set<string>())
+const httpEndpointTests = reactive<Record<string, { ok: boolean, message: string, signature: string }>>({})
+
+// 测试结果只对发送时的地址、密钥和通道有效；改动这些字段后旧结果不再显示。
+function httpEndpointSignature(endpoint: HttpNotifyEndpoint) {
+  return JSON.stringify([endpoint.channelType, endpoint.url.trim(), endpoint.secret, endpoint.timeoutSeconds])
+}
+
+function httpEndpointTestResult(endpoint: HttpNotifyEndpoint) {
+  const result = httpEndpointTests[endpoint.id]
+  return result && result.signature === httpEndpointSignature(endpoint) ? result : null
+}
+
+function httpEndpointInput(endpoint: HttpNotifyEndpoint): HttpNotifyEndpoint {
+  const { secretConfigured: _secret, urlConfigured: _url, ...input } = normalizeEndpoint(endpoint)
+  return input
+}
+
+async function testHttpEndpoint(endpoint: HttpNotifyEndpoint) {
+  if (testingHttpEndpoints.has(endpoint.id)) return
+  const signature = httpEndpointSignature(endpoint)
+  const problem = httpEndpointProblem(normalizeEndpoint(endpoint), false)
+  if (problem) {
+    httpEndpointTests[endpoint.id] = { ok: false, message: problem, signature }
+    return
+  }
+  testingHttpEndpoints.add(endpoint.id)
+  try {
+    const response = await testHttpNotifyEndpoint(httpEndpointInput(endpoint))
+    httpEndpointTests[endpoint.id] = { ok: response.success, message: resolveApiMessage(response, adminText('k00xi')), signature }
+  } catch (err) {
+    httpEndpointTests[endpoint.id] = { ok: false, message: err instanceof Error ? err.message : adminText('k00xi'), signature }
+  } finally {
+    testingHttpEndpoints.delete(endpoint.id)
+  }
+}
+
+// saveHttpEndpoint 只保存这一个地址：以服务端当前配置为准替换（或按表单顺序插入）
+// 该端点，其他地址未保存的修改不会被一并提交。
+async function saveHttpEndpoint(endpoint: HttpNotifyEndpoint) {
+  if (savingHttpEndpoints.has(endpoint.id) || !validateHttpEndpoint(normalizeEndpoint(endpoint))) return
+  savingHttpEndpoints.add(endpoint.id)
+  try {
+    const server = normalizeHttpNotify(await getHttpNotifySettings())
+    const stored = new Map(server.endpoints.map(item => [item.id, item]))
+    const endpoints = httpNotifyForm.endpoints
+      .map(item => (item.id === endpoint.id ? normalizeEndpoint(item) : stored.get(item.id)))
+      .filter((item): item is ReturnType<typeof normalizeEndpoint> => item !== undefined)
+    const listed = new Set(endpoints.map(item => item.id))
+    endpoints.push(...server.endpoints.filter(item => !listed.has(item.id)))
+    await saveHttpNotifySettings({
+      enabled: server.enabled,
+      endpoints: endpoints.map(({ secretConfigured: _secret, urlConfigured: _url, ...item }) => item),
+    })
+    const saved = normalizeHttpNotify(await getHttpNotifySettings()).endpoints.find(item => item.id === endpoint.id)
+    if (saved) {
+      endpoint.secret = ''
+      endpoint.secretConfigured = saved.secretConfigured
+      endpoint.urlConfigured = saved.urlConfigured
+      if (endpoint.channelType === 'feishu') endpoint.url = ''
+    }
+    expandedHttpEndpoints.delete(endpoint.id)
+    adminToast.success(server.enabled ? adminText('k000e') : adminText('k00xh'))
+  } catch (err) {
+    adminToast.error(err, adminText('k000f'))
+  } finally {
+    savingHttpEndpoints.delete(endpoint.id)
+  }
+}
+
+// 折叠摘要中的地址：飞书地址是凭据，只显示是否已配置；通用地址只显示主机名。
+function httpEndpointTarget(endpoint: HttpNotifyEndpoint) {
+  if (endpoint.channelType === 'feishu') {
+    return endpoint.url || endpoint.urlConfigured ? adminText('k00t8') : adminText('k00t9')
+  }
+  if (!endpoint.url) return adminText('k00t9')
+  try {
+    return new URL(endpoint.url).host || endpoint.url
+  } catch {
+    return endpoint.url
+  }
 }
 
 function toggleEndpointEvent(endpoint: HttpNotifyEndpoint, eventName: string, checked: boolean) {
@@ -1697,101 +1806,147 @@ onUnmounted(stopSyncPolling)
                     <div class="text-lg font-medium">{{ adminText('k00cs') }}</div>
                     <p class="text-sm text-muted-foreground">{{ adminText('k00ct') }}</p>
                   </div>
-                  <Button type="button" variant="secondary" @click="addHttpEndpoint"><Plus class="size-4" />{{ adminText('k00cu') }}</Button>
+                  <div class="flex flex-wrap items-center gap-2">
+                    <Button v-if="httpNotifyForm.endpoints.length > 1" type="button" variant="ghost" @click="toggleAllHttpEndpoints">
+                      {{ allHttpEndpointsExpanded ? adminText('k00xe') : adminText('k00xd') }}
+                    </Button>
+                    <Button type="button" variant="secondary" @click="addHttpEndpoint"><Plus class="size-4" />{{ adminText('k00cu') }}</Button>
+                  </div>
                 </div>
 
                 <div v-if="httpNotifyForm.endpoints.length === 0" class="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
                   {{ adminText('k00cv') }}
                 </div>
 
-                <div v-for="(endpoint, index) in httpNotifyForm.endpoints" :key="endpoint.id || index" class="space-y-3 rounded-lg border bg-background p-3">
-                  <div class="flex flex-wrap items-center justify-between gap-3">
-                    <div class="flex min-w-0 items-center gap-3">
-                      <Switch v-model="endpoint.enabled" :disabled="!httpNotifyForm.enabled" />
-                      <div class="min-w-0">
-                        <div class="flex flex-wrap items-center gap-2">
-                          <span class="font-medium">{{ endpoint.name || adminText('k00cw') }}</span>
+                <div v-for="(endpoint, index) in httpNotifyForm.endpoints" :key="endpoint.id || index" class="@container rounded-lg border bg-background">
+                  <div class="flex items-center gap-3 p-4">
+                    <span aria-hidden="true" class="inline-flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold tabular-nums text-primary">{{ index + 1 }}</span>
+                    <Switch v-model="endpoint.enabled" :disabled="!httpNotifyForm.enabled" />
+                    <button
+                      type="button"
+                      class="group flex min-w-0 flex-1 items-center gap-3 rounded-md text-start outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                      :aria-expanded="expandedHttpEndpoints.has(endpoint.id)"
+                      :aria-controls="`http-endpoint-${endpoint.id}`"
+                      @click="toggleHttpEndpoint(endpoint)"
+                    >
+                      <span class="min-w-0 flex-1">
+                        <span class="flex min-w-0 flex-wrap items-center gap-2">
+                          <span class="truncate font-medium">{{ endpoint.name || adminText('k00cw') }}</span>
                           <Badge v-if="endpoint.abnormalTerminated" variant="destructive" class="px-2 py-0 text-xs">{{ adminText('k00cz') }}</Badge>
-                        </div>
-                        <div v-if="endpoint.lastError" class="mt-0.5 truncate text-xs text-muted-foreground">{{ endpoint.lastError }}</div>
-                      </div>
-                    </div>
+                        </span>
+                        <span class="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-1.5 text-xs text-muted-foreground">
+                          <span>{{ endpoint.channelType === 'feishu' ? adminText('k00x8') : adminText('k00x7') }}</span>
+                          <span aria-hidden="true">·</span>
+                          <span class="max-w-full truncate">{{ httpEndpointTarget(endpoint) }}</span>
+                          <span aria-hidden="true">·</span>
+                          <span>{{ adminText('k00xc', { count: endpoint.events.length }) }}</span>
+                        </span>
+                        <span v-if="endpoint.lastError" class="mt-0.5 block truncate text-xs text-muted-foreground">{{ endpoint.lastError }}</span>
+                      </span>
+                      <ChevronDown class="size-4 shrink-0 text-muted-foreground transition-transform duration-200 group-aria-expanded:rotate-180 motion-reduce:transition-none" />
+                    </button>
                     <AdminActionButton compact tone="danger" :title="adminText('k005i')" @click="removeHttpEndpoint(index)">
                       <Trash2 class="size-4" />
                     </AdminActionButton>
                   </div>
 
-                  <div class="grid gap-3 md:grid-cols-[minmax(140px,220px)_140px_minmax(0,1fr)_120px]">
-                    <label class="grid gap-2 text-sm font-medium">
-                      {{ adminText('k0079') }}
-                      <Input v-model="endpoint.name" :disabled="!httpNotifyForm.enabled" placeholder="Webhook" />
-                    </label>
-                    <div class="grid gap-2 text-sm font-medium">
-                      {{ adminText('k00x6') }}
-                      <Select
-                        :model-value="endpoint.channelType"
-                        :disabled="!httpNotifyForm.enabled"
-                        @update:model-value="value => onEndpointChannelChange(endpoint, value === 'feishu' ? 'feishu' : 'generic')"
-                      >
-                        <SelectTrigger class="w-full" :aria-label="adminText('k00x6')">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="generic">{{ adminText('k00x7') }}</SelectItem>
-                          <SelectItem value="feishu">{{ adminText('k00x8') }}</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <label class="grid gap-2 text-sm font-medium">
-                      URL
-                      <div class="flex items-center gap-2">
-                        <Input
-                          v-model="endpoint.url"
-                          :disabled="!httpNotifyForm.enabled"
-                          :type="endpoint.channelType === 'feishu' ? 'password' : 'text'"
-                          autocomplete="off"
-                          :placeholder="endpoint.channelType === 'feishu' ? 'https://open.feishu.cn/open-apis/bot/v2/hook/…' : 'http://example.com/webhook'"
-                        />
-                        <Badge v-if="endpoint.channelType === 'feishu'" :variant="endpoint.urlConfigured ? 'default' : 'outline'" class="shrink-0">
-                          {{ endpoint.urlConfigured ? adminText('k00t8') : adminText('k00t9') }}
-                        </Badge>
-                      </div>
-                      <span v-if="endpoint.channelType === 'feishu'" class="text-xs font-normal text-muted-foreground">{{ adminText('k00x9') }}</span>
-                    </label>
-                    <label class="grid gap-2 text-sm font-medium">
-                      {{ adminText('k00cx') }}
-                      <Input v-model.number="endpoint.timeoutSeconds" :disabled="!httpNotifyForm.enabled" type="number" min="1" max="15" />
-                    </label>
-                  </div>
-
-                  <label class="grid gap-2 text-sm font-medium">
-                    Secret
-                    <div class="flex items-center gap-2">
-                      <Input v-model="endpoint.secret" :disabled="!httpNotifyForm.enabled" type="password" autocomplete="new-password" />
-                      <Badge :variant="endpoint.secretConfigured ? 'default' : 'outline'" class="shrink-0">
-                        {{ endpoint.secretConfigured ? adminText('k00t8') : adminText('k00t9') }}
-                      </Badge>
-                    </div>
-                    <span class="text-xs font-normal text-muted-foreground">{{ adminText('k00u0') }}</span>
-                    <span v-if="endpoint.channelType === 'feishu'" class="text-xs font-normal text-muted-foreground">{{ adminText('k00xa') }}</span>
-                  </label>
-
-                  <div class="space-y-2">
-                    <div class="text-sm font-medium">{{ adminText('k00cy') }}</div>
-                    <div v-if="endpoint.channelType === 'feishu'" class="text-xs text-muted-foreground">{{ adminText('k00xb') }}</div>
-                    <div class="flex flex-wrap gap-2">
-                      <label
-                        v-for="item in endpointEventOptions(endpoint)"
-                        :key="item.value"
-                        class="inline-flex cursor-pointer items-center gap-2 rounded-md border px-2.5 py-1.5 text-sm transition-colors has-[[data-state=checked]]:border-primary/50 has-[[data-state=checked]]:bg-primary/5 has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-60"
-                      >
-                        <Checkbox
-                          :model-value="endpoint.events.includes(item.value)"
-                          :disabled="!httpNotifyForm.enabled"
-                          @update:model-value="checked => toggleEndpointEvent(endpoint, item.value, checked === true)"
-                        />
-                        {{ item.label }}
+                  <div v-show="expandedHttpEndpoints.has(endpoint.id)" :id="`http-endpoint-${endpoint.id}`" class="space-y-6 border-t p-4">
+                    <!-- 按卡片自身宽度切换列数；网格项 min-w-0，长文案不会溢出到相邻列 -->
+                    <div class="grid gap-4 @xl:grid-cols-2">
+                      <label class="grid min-w-0 gap-2 text-sm font-medium">
+                        {{ adminText('k0079') }}
+                        <Input v-model="endpoint.name" :disabled="!httpNotifyForm.enabled" placeholder="Webhook" />
                       </label>
+                      <div class="grid min-w-0 gap-2 text-sm font-medium">
+                        {{ adminText('k00x6') }}
+                        <Select
+                          :model-value="endpoint.channelType"
+                          :disabled="!httpNotifyForm.enabled"
+                          @update:model-value="value => onEndpointChannelChange(endpoint, value === 'feishu' ? 'feishu' : 'generic')"
+                        >
+                          <SelectTrigger class="w-full min-w-0 font-normal" :aria-label="adminText('k00x6')">
+                            <SelectValue class="min-w-0 overflow-hidden" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="generic">{{ adminText('k00x7') }}</SelectItem>
+                            <SelectItem value="feishu">{{ adminText('k00x8') }}</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
+                    <div class="grid gap-4 @xl:grid-cols-[minmax(0,1fr)_9rem]">
+                      <label class="grid min-w-0 content-start gap-2 text-sm font-medium">
+                        URL
+                        <div class="flex min-w-0 items-center gap-2">
+                          <Input
+                            v-model="endpoint.url"
+                            :disabled="!httpNotifyForm.enabled"
+                            :type="endpoint.channelType === 'feishu' ? 'password' : 'text'"
+                            autocomplete="off"
+                            :placeholder="endpoint.channelType === 'feishu' ? 'https://open.feishu.cn/open-apis/bot/v2/hook/…' : 'http://example.com/webhook'"
+                          />
+                          <Badge v-if="endpoint.channelType === 'feishu'" :variant="endpoint.urlConfigured ? 'default' : 'outline'" class="shrink-0">
+                            {{ endpoint.urlConfigured ? adminText('k00t8') : adminText('k00t9') }}
+                          </Badge>
+                        </div>
+                        <span v-if="endpoint.channelType === 'feishu'" class="text-xs font-normal text-muted-foreground">{{ adminText('k00x9') }}</span>
+                      </label>
+                      <label class="grid min-w-0 content-start gap-2 text-sm font-medium">
+                        {{ adminText('k00cx') }}
+                        <Input v-model.number="endpoint.timeoutSeconds" :disabled="!httpNotifyForm.enabled" type="number" min="1" max="15" />
+                      </label>
+                      <label class="grid min-w-0 content-start gap-2 text-sm font-medium @xl:col-start-1">
+                        Secret
+                        <div class="flex min-w-0 items-center gap-2">
+                          <Input v-model="endpoint.secret" :disabled="!httpNotifyForm.enabled" type="password" autocomplete="new-password" />
+                          <Badge :variant="endpoint.secretConfigured ? 'default' : 'outline'" class="shrink-0">
+                            {{ endpoint.secretConfigured ? adminText('k00t8') : adminText('k00t9') }}
+                          </Badge>
+                        </div>
+                        <span class="text-xs font-normal text-muted-foreground">{{ adminText('k00u0') }}</span>
+                        <span v-if="endpoint.channelType === 'feishu'" class="text-xs font-normal text-muted-foreground">{{ adminText('k00xa') }}</span>
+                      </label>
+                    </div>
+
+                    <div class="space-y-2">
+                      <div class="text-sm font-medium">{{ adminText('k00cy') }}</div>
+                      <div v-if="endpoint.channelType === 'feishu'" class="text-xs text-muted-foreground">{{ adminText('k00xb') }}</div>
+                      <div class="flex flex-wrap gap-2">
+                        <label
+                          v-for="item in endpointEventOptions(endpoint)"
+                          :key="item.value"
+                          class="inline-flex cursor-pointer items-center gap-2 rounded-md border px-2.5 py-1.5 text-sm transition-colors has-[[data-state=checked]]:border-primary/50 has-[[data-state=checked]]:bg-primary/5 has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-60"
+                        >
+                          <Checkbox
+                            :model-value="endpoint.events.includes(item.value)"
+                            :disabled="!httpNotifyForm.enabled"
+                            @update:model-value="checked => toggleEndpointEvent(endpoint, item.value, checked === true)"
+                          />
+                          {{ item.label }}
+                        </label>
+                      </div>
+                    </div>
+
+                    <div class="flex flex-wrap items-center gap-3 border-t pt-4">
+                      <span
+                        role="status"
+                        class="flex min-w-0 flex-1 basis-60 items-start gap-1.5 text-xs"
+                        :class="httpEndpointTestResult(endpoint)?.ok ? 'text-success' : 'text-destructive'"
+                      >
+                        <template v-if="httpEndpointTestResult(endpoint)">
+                          <CheckCircle2 v-if="httpEndpointTestResult(endpoint)?.ok" class="size-4 shrink-0" /><XCircle v-else class="size-4 shrink-0" />
+                          <span class="min-w-0 break-words">{{ httpEndpointTestResult(endpoint)?.message }}</span>
+                        </template>
+                      </span>
+                      <div class="ms-auto flex flex-wrap items-center gap-2">
+                        <Button type="button" variant="secondary" size="sm" :disabled="testingHttpEndpoints.has(endpoint.id)" @click="testHttpEndpoint(endpoint)">
+                          <Loader2 v-if="testingHttpEndpoints.has(endpoint.id)" class="size-4 animate-spin" /><Send v-else class="size-4" />{{ adminText('k00xf') }}
+                        </Button>
+                        <Button type="button" size="sm" :disabled="savingHttpEndpoints.has(endpoint.id)" @click="saveHttpEndpoint(endpoint)">
+                          <Loader2 v-if="savingHttpEndpoints.has(endpoint.id)" class="size-4 animate-spin" /><Save v-else class="size-4" />{{ adminText('k00xg') }}
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 </div>

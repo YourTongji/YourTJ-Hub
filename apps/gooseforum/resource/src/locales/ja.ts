@@ -3248,6 +3248,8 @@ export default {
     'admin.storage.saveFailed': 'ストレージ設定の保存に失敗しました: {error}',
     'admin.storage.testFailed': 'ストレージ接続テストに失敗しました: {error}',
     'admin.storage.testSuccess': 'ストレージ接続テストに成功しました。',
+    'admin.httpNotify.testFailed': 'テスト送信に失敗しました: {error}',
+    'admin.httpNotify.testSuccess': 'テストメッセージを送信しました。受信側で表示を確認してください。',
     'admin.storage.migrateFailed': 'ファイル移行タスクの作成に失敗しました: {error}',
     'admin.storage.migrateInvalidProvider': 'ファイル移行には S3 互換のストレージが必要です。',
     'admin.data.exportFailed': 'エクスポートタスクの作成に失敗しました: {error}',

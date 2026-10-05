@@ -3249,6 +3249,8 @@ export default {
     'admin.storage.saveFailed': '存储设置保存失败：{error}',
     'admin.storage.testFailed': '存储连接测试失败：{error}',
     'admin.storage.testSuccess': '存储连接测试成功。',
+    'admin.httpNotify.testFailed': '测试发送失败：{error}',
+    'admin.httpNotify.testSuccess': '测试消息已发出，请到接收端查看效果。',
     'admin.storage.migrateFailed': '文件迁移任务创建失败：{error}',
     'admin.storage.migrateInvalidProvider': '文件迁移仅支持对象存储（S3 兼容）配置。',
     'admin.data.exportFailed': '导出任务创建失败：{error}',

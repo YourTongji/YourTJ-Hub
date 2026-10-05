@@ -39,6 +39,9 @@ Chosen: channel adapters plus a signed confirmation page.
   carry no text, note, reporter or actions) and lets each endpoint's channel encode it. Channels are
   `generic` (unchanged envelope, X-Goose headers, 2xx success) and `feishu` (card schema 2.0,
   optional Feishu signature, HTTP 200 with non-zero `code` counts as a failure).
+- Admins can send a test delivery to one endpoint before saving it: generic endpoints get a signed
+  `webhook.test` envelope, Feishu gets a sample card. Tests ignore the switches and subscriptions and
+  never count toward automatic disabling. Each endpoint can also be saved on its own.
 - Feishu webhook URLs are credentials: encrypted with a purpose-scoped key, never echoed, kept when
   saved empty, and scrubbed from delivery errors.
 - Specific events (`moderation.review.{topic,post}.requested`,

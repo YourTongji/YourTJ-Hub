@@ -8160,6 +8160,26 @@ AdminHttpNotifySettingsConfig:
         $ref: '#/AdminHttpNotifyEndpoint'
   additionalProperties: false
 
+AdminTestHttpNotifyEndpointRequest:
+  type: object
+  required: [endpoint]
+  properties:
+    endpoint:
+      $ref: '#/AdminHttpNotifyEndpoint'
+  additionalProperties: false
+  description: The endpoint to test, as currently edited. Empty `url`/`secret` reuse the stored values of the endpoint with the same `id`.
+
+AdminTestHttpNotifyEndpointResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result]
+          properties:
+            result:
+              $ref: '#/AdminConnectionTestResult'
+    - $ref: '#/ApiFailure'
+
 AdminHttpNotifySettingsView:
   type: object
   required: [enabled, endpoints]
@@ -8560,7 +8580,7 @@ AdminConnectionTestResult:
       description: Whether the probe succeeded. Note the envelope `code` stays 0 either way — the outcome is reported inside `result`.
     messageCode:
       type: string
-      description: "`admin.mail.testSuccess` / `admin.mail.testFailed` for mail, `admin.storage.testSuccess` / `admin.storage.testFailed` for storage."
+      description: "`admin.mail.testSuccess` / `admin.mail.testFailed` for mail, `admin.storage.testSuccess` / `admin.storage.testFailed` for storage, `admin.httpNotify.testSuccess` / `admin.httpNotify.testFailed` for webhook endpoints."
     params:
       type: object
       additionalProperties: true

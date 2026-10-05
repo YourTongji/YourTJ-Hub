@@ -451,6 +451,8 @@ paths:
     $ref: ./paths/admin-site-settings.yaml#/adminGetHttpNotifySettings
   /api/admin/save-http-notify-settings:
     $ref: ./paths/admin-site-settings.yaml#/adminSaveHttpNotifySettings
+  /api/admin/test-http-notify-endpoint:
+    $ref: ./paths/admin-site-settings.yaml#/adminTestHttpNotifyEndpoint
   /api/admin/onesystem-settings:
     $ref: ./paths/admin-site-settings.yaml#/adminGetOnesystemSettings
   /api/admin/save-onesystem-settings:

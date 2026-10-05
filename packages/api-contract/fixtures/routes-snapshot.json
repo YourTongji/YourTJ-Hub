@@ -881,6 +881,10 @@
   },
   {
     "method": "POST",
+    "path": "/api/admin/test-http-notify-endpoint"
+  },
+  {
+    "method": "POST",
     "path": "/api/admin/test-mail-connection"
   },
   {

@@ -164,6 +164,29 @@ func verify(secret string, timestamp string, rawBody []byte, signature string) b
 sign = base64(HMAC_SHA256(key = timestamp + "\n" + secret, message = ""))
 ```
 
+### 测试发送与单独保存
+
+每个回调地址展开后都有「测试发送」和「保存此地址」：
+
+- **测试发送**用表单里当前的配置（可以还没保存）立即发送一条测试消息，并在按钮旁显示结果。URL 或 Secret 留空时沿用这个地址已保存的值。测试不受总开关、启用状态和订阅事件影响，也不计入失败次数。
+- 通用 Webhook 收到 `webhook.test` 事件，同样带 `X-Goose-*` 请求头和签名，可以用来验证签名代码：
+
+```json
+{
+  "event": "webhook.test",
+  "timestamp": 1710000000,
+  "data": {
+    "baseUri": "https://forum.example",
+    "endpointId": "…",
+    "endpointName": "审核群",
+    "message": "This is a test delivery from the HTTP notification settings."
+  }
+}
+```
+
+- 飞书群收到一张带「测试」标签的示例审批卡片，样式与真实通知相同；卡片上的按钮只会打开版主工作台。
+- **保存此地址**只保存当前这一个地址，其他地址未保存的修改不会一起提交。保存成功后该地址会自动收起。
+
 ### 快捷审批的安全模型
 
 卡片和审批载荷中的操作链接指向站内确认页 `/moderation/action`，不会直接执行任何操作：

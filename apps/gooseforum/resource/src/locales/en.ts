@@ -3247,6 +3247,8 @@ export default {
     'admin.storage.saveFailed': 'Failed to save storage settings: {error}',
     'admin.storage.testFailed': 'Storage connection test failed: {error}',
     'admin.storage.testSuccess': 'Storage connection test succeeded.',
+    'admin.httpNotify.testFailed': 'Test delivery failed: {error}',
+    'admin.httpNotify.testSuccess': 'Test message sent. Check the receiver to see how it looks.',
     'admin.storage.migrateFailed': 'Failed to create file migration task: {error}',
     'admin.storage.migrateInvalidProvider': 'File migration requires an S3-compatible storage provider.',
     'admin.data.exportFailed': 'Failed to create export task: {error}',

@@ -18,6 +18,8 @@ type notifyChannel interface {
 	// requiresApproval 通道是否只能渲染审批摘要（Message.Approval 为空时跳过）。
 	requiresApproval() bool
 	encode(endpoint pageConfig.HttpNotifyEndpoint, alt Alternative, approval *ApprovalPayload, now time.Time) ([]byte, error)
+	// testBody 管理端「测试发送」的请求体：让管理员在保存前确认地址、签名与展示效果。
+	testBody(endpoint pageConfig.HttpNotifyEndpoint, baseURI string, now time.Time) ([]byte, error)
 	buildRequest(endpoint pageConfig.HttpNotifyEndpoint, eventName string, deliveryID string, timestamp int64, body []byte) (*http.Request, error)
 	// checkResponse 非 nil 即计为失败，进入 failureCount/lastError/异常停用。
 	checkResponse(resp *http.Response) error
@@ -39,6 +41,16 @@ func (genericChannel) requiresApproval() bool { return false }
 
 func (genericChannel) encode(_ pageConfig.HttpNotifyEndpoint, alt Alternative, _ *ApprovalPayload, now time.Time) ([]byte, error) {
 	return json.Marshal(Envelope{Event: alt.Event, Timestamp: now.Unix(), Data: alt.Data})
+}
+
+// testBody 发送 webhook.test 事件：与正式事件同样带 X-Goose-* 头与签名，接收方可借此验签。
+func (genericChannel) testBody(endpoint pageConfig.HttpNotifyEndpoint, baseURI string, now time.Time) ([]byte, error) {
+	return json.Marshal(Envelope{Event: EventWebhookTest, Timestamp: now.Unix(), Data: WebhookTestData{
+		BaseURI:      baseURI,
+		EndpointID:   endpoint.Id,
+		EndpointName: endpoint.Name,
+		Message:      "This is a test delivery from the HTTP notification settings.",
+	}})
 }
 
 func (genericChannel) buildRequest(endpoint pageConfig.HttpNotifyEndpoint, eventName string, deliveryID string, timestamp int64, body []byte) (*http.Request, error) {

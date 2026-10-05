@@ -164,6 +164,29 @@ If "signature verification" is enabled on the Feishu bot, enter its secret as th
 sign = base64(HMAC_SHA256(key = timestamp + "\n" + secret, message = ""))
 ```
 
+### Test delivery and saving one URL
+
+Each callback URL has **Send test** and **Save this URL** at the bottom of its panel:
+
+- **Send test** immediately sends one test message using the current form values (they do not need to be saved first) and shows the result next to the buttons. An empty URL or Secret reuses the value already saved for this URL. Tests ignore the master switch, the enabled state, and the subscribed events, and they never count toward the failure counter.
+- Generic webhooks receive a `webhook.test` event with the usual `X-Goose-*` headers and signature, so you can check your signature verification:
+
+```json
+{
+  "event": "webhook.test",
+  "timestamp": 1710000000,
+  "data": {
+    "baseUri": "https://forum.example",
+    "endpointId": "…",
+    "endpointName": "Moderators",
+    "message": "This is a test delivery from the HTTP notification settings."
+  }
+}
+```
+
+- Feishu groups receive a sample approval card marked "测试" (test) that looks exactly like a real notification; its buttons only open the moderator workspace.
+- **Save this URL** saves only this callback URL; unsaved changes to other URLs are not submitted. The panel collapses after a successful save.
+
 ### Quick-action security model
 
 Action links in cards and approval payloads point to the on-site confirmation page `/moderation/action` and never execute anything directly:

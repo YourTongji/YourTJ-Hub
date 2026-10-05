@@ -983,4 +983,11 @@ export default {
   "k00x9": "Mit dieser URL kann jeder in die Gruppe posten. Sie wird nach dem Speichern verschlüsselt und nicht mehr angezeigt. Leer lassen, um die gespeicherte URL zu behalten.",
   "k00xa": "Wenn beim Bot die Signaturprüfung aktiv ist, geben Sie hier das Secret ein. Andernfalls leer lassen.",
   "k00xb": "Feishu-Gruppen erhalten nur Prüf- und Meldungshinweise. Die Schaltflächen auf der Karte öffnen eine Bestätigungsseite auf dieser Website; zum Bearbeiten ist eine Anmeldung mit Moderationsrechten nötig.",
+  "k00xc": "Ereignisse: {count}",
+  "k00xd": "Alle aufklappen",
+  "k00xe": "Alle zuklappen",
+  "k00xf": "Test senden",
+  "k00xg": "Diese Adresse speichern",
+  "k00xh": "Gespeichert. HTTP-Benachrichtigungen sind ausgeschaltet; schalten Sie sie ein und speichern Sie, damit gesendet wird.",
+  "k00xi": "Testzustellung fehlgeschlagen",
 } as const

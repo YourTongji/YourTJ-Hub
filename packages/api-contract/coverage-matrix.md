@@ -4,11 +4,11 @@
 
 路由快照来自 `TestRoutesSnapshot`（`fixtures/routes-snapshot.json`，默认配置装配，不含 OIDC `/api/oauth/*` 端点——OIDC 另有专项）。
 
-- 快照路由总数：358
-- /api JSON 路由：291，已入契约：292（100%），已知未覆盖：0
+- 快照路由总数：359
+- /api JSON 路由：292，已入契约：293（100%），已知未覆盖：0
 - 非 API 排除路由：66
 
-## 已覆盖（292）
+## 已覆盖（293）
 
 | Method | Path | operationId |
 | --- | --- | --- |
@@ -170,6 +170,7 @@
 | POST | `/api/admin/sticker-import` | `adminStickerImport` |
 | POST | `/api/admin/sticker-save` | `adminStickerSave` |
 | POST | `/api/admin/storage-migrate-task` | `adminCreateStorageMigrateTask` |
+| POST | `/api/admin/test-http-notify-endpoint` | `adminTestHttpNotifyEndpoint` |
 | POST | `/api/admin/test-mail-connection` | `adminTestMailConnection` |
 | POST | `/api/admin/test-storage-connection` | `adminTestStorageConnection` |
 | POST | `/api/admin/topics/categories-edit` | `adminEditTopicCategories` |

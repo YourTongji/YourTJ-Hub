@@ -536,6 +536,7 @@ func apiRoute(ginApp *gin.Engine) {
 		GET("storage-migrate-tasks", UpButterReq(api.GetStorageMigrateTasks)).
 		GET("http-notify-settings", UpButterReq(api.GetHttpNotifySettings)).
 		POST("save-http-notify-settings", UpButterReq(api.SaveHttpNotifySettings)).
+		POST("test-http-notify-endpoint", UpButterReq(api.TestHttpNotifyEndpoint)).
 		GET("badges", UpButterReq(api.BadgeList)).
 		GET("mcp-settings", UpButterReq(api.GetMCPSettings)).
 		POST("save-mcp-settings", UpButterReq(api.SaveMCPSettings)).

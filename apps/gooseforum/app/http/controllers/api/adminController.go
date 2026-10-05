@@ -52,6 +52,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/eventhandlers"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/filemigrateservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/fileusageservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/httpnotifyservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/llmsservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/mailservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/moderationservice"
@@ -1953,6 +1954,62 @@ func SaveHttpNotifySettings(req component.BetterRequest[SaveHttpNotifySettingsRe
 		})
 	}
 	return savePageConfig(pageConfig.HttpNotify, pageConfig.HttpNotifyStorageConfig{Enabled: input.Enabled, Endpoints: next}, hotdataserve.ClearHttpNotifyConfigCache)
+}
+
+type TestHttpNotifyEndpointReq struct {
+	Endpoint pageConfig.HttpNotifyEndpointInput `json:"endpoint" validate:"required"`
+}
+
+// TestHttpNotifyEndpoint 用表单中的（可能未保存的）配置向单个回调地址同步发送一条
+// 测试消息，不落库、不计入失败次数（issue #1049）。地址或密钥留空时沿用同 id 端点的
+// 已存值，与保存语义一致；已存地址只在通道类型未变时沿用（飞书地址是凭据）。结果在
+// 成功信封内返回，失败原因不含请求地址。
+func TestHttpNotifyEndpoint(req component.BetterRequest[TestHttpNotifyEndpointReq]) component.Response {
+	input := req.Params.Endpoint
+	channel := pageConfig.NormalizeHttpNotifyChannel(input.ChannelType)
+	if channel == "" {
+		return component.FailResponseCode(component.MessageRequestInvalidParams, nil)
+	}
+	endpoint := pageConfig.HttpNotifyEndpoint{
+		Id:             input.Id,
+		Name:           input.Name,
+		ChannelType:    channel,
+		Enabled:        true,
+		URL:            strings.TrimSpace(input.URL),
+		Secret:         strings.TrimSpace(input.Secret),
+		TimeoutSeconds: input.TimeoutSeconds,
+	}
+	if input.Id != "" && (endpoint.URL == "" || endpoint.Secret == "") {
+		for _, stored := range hotdataserve.GetHttpNotifyConfigCache().Endpoints {
+			if stored.Id != input.Id {
+				continue
+			}
+			if endpoint.URL == "" && pageConfig.NormalizeHttpNotifyChannel(stored.ChannelType) == channel {
+				endpoint.URL = stored.URL
+			}
+			if endpoint.Secret == "" {
+				endpoint.Secret = stored.Secret
+			}
+		}
+	}
+	failed := func(message string) component.Response {
+		return component.SuccessResponse(TestStorageConnectionResp{
+			Success:     false,
+			MessageCode: component.MessageAdminHttpNotifyTestFailed,
+			Params:      component.MessageParams{"error": message},
+		})
+	}
+	if endpoint.URL == "" {
+		return failed("url is required")
+	}
+	baseURI := strings.TrimRight(hotdataserve.GetSiteSettingsConfigCache().SiteUrl, "/")
+	if err := httpnotifyservice.SendTest(endpoint, baseURI, time.Now()); err != nil {
+		return failed(err.Error())
+	}
+	return component.SuccessResponse(TestStorageConnectionResp{
+		Success:     true,
+		MessageCode: component.MessageAdminHttpNotifyTestSuccess,
+	})
 }
 
 // GetStorageSettings 获取存储设置：仅回显是否已配置凭据，不回显凭据明文/密文
