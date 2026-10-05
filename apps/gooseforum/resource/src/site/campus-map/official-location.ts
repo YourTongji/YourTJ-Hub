@@ -84,6 +84,21 @@ const roomDescription = /^(?:阶\s*\d{1,3}|[A-Za-z]{0,3}\d{1,4}[A-Za-z]?(?:[-~�
 const conditionPrefix = /^(?:上课)?(?:第?\d+(?:[-~～至]\d+)?周|前\d+周|后\d+周|单周|双周|周[一二三四五六日天]|【[^】]+】|其余周数)/u
 const roomContinuation = /^(?:阶\s*\d{1,3}|[A-Za-z]{0,3}\d{1,4}[A-Za-z]?(?:[-~～至][A-Za-z]?\d{1,4}[A-Za-z]?)?)(?:\s*(?:室|教室|实验室|机房|楼))?$/u
 
+function suffixConditions(value: string): { text: string; conditions: string[] } {
+  let text = value
+  const conditions: string[] = []
+  const notes: string[] = []
+  // Keep ordinary room notes such as (中); only temporal annotations constrain a query.
+  const annotation = /(?:[（(]([^（）()]+)[）)]|【([^【】]+)】|\[([^\[\]]+)\])\s*$/u
+  for (let match = text.match(annotation); match; match = text.match(annotation)) {
+    const note = (match[1] ?? match[2] ?? match[3])!.trim()
+    if (/周|星期|日期|时间|调课|待定|\d\s*[年月日时分]|\d{1,2}[:：]\d{2}|\d{4}[-/.]\d{1,2}[-/.]\d{1,2}/u.test(note)) conditions.unshift(note)
+    else notes.unshift(match[0])
+    text = text.slice(0, match.index).trimEnd()
+  }
+  return { text: conditions.length ? text + notes.join('') : value, conditions }
+}
+
 function splitLocationText(value: string): { parts: string[]; alternative: boolean } {
   const parts: string[] = []
   let alternative = false
@@ -118,6 +133,9 @@ function parseLocations(value: string, campus: string, refine?: (location: Offic
     ? { parts: [value.trim()], alternative: false } : splitLocationText(value)
   const locations: OfficialMapLocation[] = []
   let previous: OfficialMapLocation | undefined
+  let previousUncertain = false
+  let previousLetters: string | undefined
+  let previousCondition = ''
   let pendingCondition = ''
   let campusIds: string[] = []
   for (const raw of parts) {
@@ -129,25 +147,35 @@ function parseLocations(value: string, campus: string, refine?: (location: Offic
     const explicit = explicitCampusIds(raw)
     if (explicit.length) campusIds = explicit
     text = withoutCampusPrefix(text, campus)
+    const suffix = suffixConditions(text)
+    text = suffix.text
     const parsed = parseBuilding(text)
     const continuation = roomContinuation.test(text)
-    const inherited = continuation && (previous?.room || previous?.target)
+    const letters = text.match(/^[A-Za-z]{1,3}(?=\d)/u)?.[0]?.toUpperCase()
+    const bareBuilding = previous && /^[A-Za-z]{1,3}$/u.test(previous.building)
+    // A101、B201 names separate buildings; 安楼A101、A102 explicitly continues rooms.
+    const inherited = continuation && (previous?.room || previous?.target) && !(bareBuilding && letters)
+    const uncertain: boolean = Boolean(inherited && (previousUncertain || (previous?.target && letters && letters !== previousLetters)))
     const unknownPrefix = continuation && previous && !previous.room && !previous.target
       ? previous.building.match(/^(.+?)[A-Za-z]{0,3}\d{1,4}[A-Za-z]?$/u)?.[1] : undefined
     const buildingContinuation = /^[A-Za-z]楼$/u.test(text) && previous && /[A-Za-z]楼$/u.test(previous.building)
       ? previous.building.replace(/[A-Za-z]楼$/u, text) : undefined
+    const listCondition = condition || (inherited || unknownPrefix || buildingContinuation || (continuation && bareBuilding) ? previousCondition : '')
     const location: OfficialMapLocation = {
       raw,
       building: inherited ? previous!.building : unknownPrefix ?? buildingContinuation ?? parsed?.building ?? text,
       room: inherited || unknownPrefix ? text : parsed?.room ?? '',
-      condition: condition || (inherited || unknownPrefix || buildingContinuation ? previous!.condition : ''),
+      condition: [listCondition, ...suffix.conditions].filter(Boolean).join('且'),
       ...(campusIds.length ? { campusIds } : {}),
       ...(alternative ? { alternative: true } : {}),
     }
     // Refine before carrying context forward, so a whole map name remains the parent of its room list.
-    refine?.(location, inherited || unknownPrefix || buildingContinuation ? location.building + location.room : text)
+    if (!uncertain) refine?.(location, inherited || unknownPrefix || buildingContinuation ? location.building + location.room : text)
     locations.push(location)
     previous = location
+    previousUncertain = uncertain
+    previousLetters = inherited ? letters ?? previousLetters : location.room.match(/^[A-Za-z]{1,3}(?=\d)/u)?.[0]?.toUpperCase()
+    previousCondition = listCondition
   }
   if (pendingCondition) locations.push({ raw: pendingCondition, building: '', room: '', condition: pendingCondition })
   return locations
@@ -206,8 +234,11 @@ export function officialLocationTarget(campus: string, value: string, data?: Cam
 
 export function officialLocationApplies(location: OfficialMapLocation, context: { week: number; day: number }): boolean {
   if (location.alternative) return false
-  const condition = location.condition.replace(/^上课/u, '')
-  if (!condition) return true
+  if (!location.condition) return true
+  return location.condition.split('且').every(condition => conditionApplies(condition.replace(/^上课/u, ''), context))
+}
+
+function conditionApplies(condition: string, context: { week: number; day: number }): boolean {
   if (condition === '单周') return context.week % 2 === 1
   if (condition === '双周') return context.week % 2 === 0
   if (/^周[一二三四五六日天]$/u.test(condition)) return ('一二三四五六日'.indexOf(condition[1]!.replace('天', '日')) + 1) === context.day

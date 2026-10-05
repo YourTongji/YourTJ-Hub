@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-10-04
+> Last verified: 2026-10-05
 
 The campus map helps people find a building or sports facility and understand its
 position among nearby paths and landmarks. It is available to anonymous visitors
@@ -39,6 +39,19 @@ identity is controlled by the header selector.
 Place details retain source-derived names; activity controls and descriptions follow the selected
 interface language. Coverage notes appear in the
 map information dialog. They do not advertise live venue status.
+
+Bare lettered building lists such as `A101、B201` resolve each building independently.
+An explicit parent such as `安楼A101、A102` keeps its room list; a change of room-letter
+prefix under an explicit matched building remains unconfirmed. Unknown institutional
+qualifiers are retained rather than replaced by a bare building alias.
+
+Place-scoped schedules require both prefix conditions and temporal room suffixes to
+apply. For example, `单周北楼115室（第3-4周）` applies in week 3. Suffixes belong to
+their own room, so `北楼115室（单周）、116室（双周）` filters the rooms separately.
+Dates and other unresolved time annotations retain their original text and can still
+be selected manually when the destination is known, but cannot confirm a scoped
+arrangement from a week and weekday alone. Ordinary room notes such as `(中)` do not
+create a time restriction.
 
 ## Data and deployment boundary
 
@@ -88,8 +101,12 @@ facilities outside that boundary are not guaranteed to appear in search.
 - `resource/test/campus-map-page.test.ts` covers translated sports discovery, cached fixes before
   canvas readiness, selected-building navigation, sports-place schedules, the uncalibrated-plan location notice and data/renderer failure recovery.
 - `resource/test/official-location.test.ts` covers classroom descriptions, multiple destinations,
-  campus conflicts, unique name matching and sports destinations. The personal and schedule panel
+  campus conflicts, real campus aliases, prefix/suffix conditions and sports destinations. The personal and schedule panel
   tests cover explicit destination choices, clearing private records and scoped query conditions.
+- `resource/test/campus-map-location.browser.mjs` uses synthetic public course responses with
+  the production page, renderer and campus data to verify suffix filtering and distinct bare-building
+  choices at desktop and 375px widths. CI retains its screenshots and receipt as a temporary artifact;
+  these checks do not establish dev deployment acceptance.
 - `app/http/controllers/forum/campus_map_test.go` covers anonymous HTML and page
   payload responses.
 - `app/http/middleware/securityHeaders_test.go` verifies the map-only location policy.

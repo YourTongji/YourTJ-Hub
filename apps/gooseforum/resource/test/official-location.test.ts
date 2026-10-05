@@ -1,6 +1,79 @@
+import { readFileSync } from 'node:fs'
 import { expect, it } from 'vitest'
 import type { CampusData } from '../src/site/campus-map/catalog'
 import { officialCampusId, officialLocationApplies, officialLocationTarget, officialLocationTargets, parseOfficialLocation, parseOfficialLocations } from '../src/site/campus-map/official-location'
+
+const jiadingData = JSON.parse(readFileSync(new URL('../src/site/campus-map/data/jiading.geojson', import.meta.url), 'utf8')) as CampusData
+
+it.each([
+  ['北楼115室（单周）', '单周', 1, 1, true],
+  ['北楼115室（单周）', '单周', 2, 1, false],
+  ['北楼115（双周）', '双周', 2, 1, true],
+  ['北楼115（双周）', '双周', 1, 1, false],
+  ['北楼115室（9月24日）', '9月24日', 2, 2, false],
+  ['单周北楼115室（第3-4周）', '单周且第3-4周', 3, 1, true],
+  ['单周北楼115室（第3-4周）', '单周且第3-4周', 1, 1, false],
+  ['单周北楼115室（第3-4周）', '单周且第3-4周', 4, 1, false],
+  ['单周北楼115室（双周）', '单周且双周', 1, 1, false],
+  ['单周北楼115室（9月24日）', '单周且9月24日', 1, 1, false],
+  ['北楼115室（周四）（第3周）', '周四且第3周', 3, 4, true],
+  ['北楼115室（周四）（第3周）', '周四且第3周', 3, 5, false],
+  ['北楼115室【15:25～17:05，第一周自2026年9月7日始】', '15:25～17:05，第一周自2026年9月7日始', 1, 1, false],
+  ['北楼115室（时间另行通知）', '时间另行通知', 1, 1, false],
+])('retains suffix conditions and requires every time restriction: %s (%s), week %s day %s', (raw, condition, week, day, applies) => {
+  const location = officialLocationTargets('四平路校区', raw)[0]!
+  expect(location.raw).toBe(raw)
+  expect(location.condition).toBe(condition)
+  expect(location.target?.featureId).toBe('way/183383474')
+  expect(officialLocationApplies(location, { week, day })).toBe(applies)
+})
+
+it('retains ordinary room notes without inventing a time condition', () => {
+  const location = officialLocationTargets('四平路校区', '北楼321智慧教室(中)')[0]!
+  expect(location.room).toBe('321智慧教室(中)')
+  expect(location.condition).toBe('')
+  expect(officialLocationApplies(location, { week: 2, day: 1 })).toBe(true)
+  const data = mapData(['court', '小足球场'])
+  data.features[0]!.properties.category = 'sport'
+  const numbered = officialLocationTargets('嘉定校区', '小足球场（2号）', data)[0]!
+  expect(numbered.building).toBe('小足球场（2号）')
+  expect(numbered.condition).toBe('')
+  expect(numbered.target).toBeUndefined()
+})
+
+it('carries list prefixes without carrying one room suffix into the next room', () => {
+  const parts = officialLocationTargets('嘉定校区', '单周A101、B201（第3周）', jiadingData)
+  expect(parts.map(part => part.condition)).toEqual(['单周', '单周且第3周'])
+  expect(parts.map(part => part.target?.featureId)).toEqual(['way/266167562', 'way/263922904'])
+  const rooms = officialLocationTargets('四平路校区', '北楼115室（单周）、116室（双周）')
+  expect(rooms.map(part => part.condition)).toEqual(['单周', '双周'])
+  expect(rooms.map(part => officialLocationApplies(part, { week: 2, day: 1 }))).toEqual([false, true])
+})
+
+it('resolves bare building abbreviations independently using the actual Jiading aliases', () => {
+  const parts = officialLocationTargets('嘉定校区', 'A101、201、B301', jiadingData)
+  expect(parts.map(part => part.target?.featureId)).toEqual(['way/266167562', 'way/266167562', 'way/263922904'])
+  expect(officialLocationTargets('嘉定校区', 'A101、B201', jiadingData).map(part => part.target?.featureId))
+    .toEqual(['way/266167562', 'way/263922904'])
+  expect(officialLocationTarget('嘉定校区', 'A101、B201', jiadingData)).toBeUndefined()
+  expect(officialLocationTarget('嘉定校区', 'A101、A102', jiadingData)?.featureId).toBe('way/266167562')
+  expect(officialLocationTargets('嘉定校区', '安楼A101、A102', jiadingData).map(part => part.target?.featureId))
+    .toEqual(['way/266167562', 'way/266167562'])
+  expect(officialLocationTargets('嘉定校区', '安楼A101、102、A103', jiadingData).map(part => part.target?.featureId))
+    .toEqual(['way/266167562', 'way/266167562', 'way/266167562'])
+})
+
+it('does not recover an unknown or ambiguous bare building by inheriting the previous target', () => {
+  expect(officialLocationTargets('嘉定校区', 'A101、Z201', jiadingData)[1]?.target).toBeUndefined()
+  const ambiguous = mapData(['a', '安楼（A楼）'], ['b', '博楼（B楼）'], ['other', '其他楼（B楼）'])
+  expect(officialLocationTargets('嘉定校区', 'A101、B201', ambiguous)[1]?.target).toBeUndefined()
+})
+
+it('keeps different lettered rooms under an explicit parent uncertain until a new building is named', () => {
+  const parts = officialLocationTargets('嘉定校区', '济事楼A101、B201、202、博楼B203', jiadingData)
+  expect(parts.map(part => part.target?.featureId)).toEqual(['way/135405205', undefined, undefined, 'way/263922904'])
+  expect(officialLocationTargets('嘉定校区', '学院教室A101、B201', jiadingData).every(part => !part.target)).toBe(true)
+})
 
 it('splits only a clearly separated building phrase and room token for display', () => {
   expect(parseOfficialLocation('济事楼（软件学院） A101')).toEqual({
