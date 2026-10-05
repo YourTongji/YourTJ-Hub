@@ -149,6 +149,7 @@ A decision starts `Proposed`. Once implemented, its status becomes `Accepted` an
 - [0060](0060-status-cron-dispatch.md) — 独立 Cloudflare Cron 触发 main 采集工作流，隔离调度凭据并保留真实数据时间。
 - [0061](0061-versioned-background-moderation.md) — Reuse revisions and durable tasks for background moderation, stable approved versions and editable rejection.
 - [0062](0062-moderation-notification-feedback.md) — Keep automatic approval quiet, notify human review/results, and mask rejected notification subjects.
-- [0063](0063-agent-interaction-events.md) — Durable Agent interactions, isolated streams and signed Webhook delivery.
-- [0064](0064-agent-broadcast-events.md) — Forum-wide subscriptions with bounded Agent reply chains.
-- [0065](0065-agent-comment-policy.md) — Site-wide and per-topic controls for new Agent comments.
+- [0063](0063-oryn-review-once-per-version.md) — Keep six-hour Oryn catch-up and deduplicate completed automatic reviews by source version.
+- [0064](0064-agent-interaction-events.md) — Durable Agent interactions, isolated streams and signed Webhook delivery.
+- [0065](0065-agent-broadcast-events.md) — Forum-wide subscriptions with bounded Agent reply chains.
+- [0066](0066-agent-comment-policy.md) — Site-wide and per-topic controls for new Agent comments.
