@@ -278,6 +278,16 @@ func TransitionOwnedTx(tx *gorm.DB, id uint64, token string, status uint8, due *
 	r := tx.Model(&Entity{}).Where("id = ? AND status = ? AND lease_token = ?", id, StatusRunning, token).Updates(map[string]any{"status": status, "next_run_at": due, "last_error": lastError, "processed_at": time.Now()})
 	return r.RowsAffected == 1, r.Error
 }
+
+// FailOwnedTx counts an infrastructure failure together with its fenced task
+// transition. Domain owners update their recovery diagnostics in the same tx.
+func FailOwnedTx(tx *gorm.DB, id uint64, token string, status uint8, due *time.Time, lastError string) (bool, error) {
+	r := tx.Model(&Entity{}).Where("id = ? AND status = ? AND lease_token = ?", id, StatusRunning, token).Updates(map[string]any{
+		"status": status, "next_run_at": due, "last_error": lastError,
+		"processed_at": time.Now(), "retry_count": gorm.Expr("retry_count + 1"),
+	})
+	return r.RowsAffected == 1, r.Error
+}
 func OwnedTx(tx *gorm.DB, id uint64, token string) (bool, error) {
 	var n int64
 	err := tx.Model(&Entity{}).Where("id = ? AND status = ? AND lease_token = ?", id, StatusRunning, token).Count(&n).Error

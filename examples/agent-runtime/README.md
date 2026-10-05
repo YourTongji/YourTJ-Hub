@@ -109,5 +109,6 @@ python3 -m unittest discover -s examples/agent-runtime -p 'test_*.py' -v
 ```
 
 Tests cover exact-byte verification, rotation candidates, tampering/stale timestamps, durable ingress
-and cursor recovery, withdrawal without ACK, pending-review envelopes, ACK failure without repeated writes, Shanghai daily keys
+and cursor recovery, signed broadcast Webhooks and mixed pull pages, rejection of unknown event types,
+withdrawal without ACK, pending-review envelopes, ACK failure without repeated writes, Shanghai daily keys
 and Synergy config shape.

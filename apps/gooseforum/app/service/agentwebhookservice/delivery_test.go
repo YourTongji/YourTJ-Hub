@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"errors"
+	"net/http"
 	"net/netip"
 	"strings"
 	"testing"
@@ -376,5 +377,173 @@ func TestConfigureRejectsPrivateDNSBeforePersistingDestination(t *testing.T) {
 	row := agents.GetByUserID(a.UserId)
 	if row.WebhookEndpoint != "" || row.ConfigVersion != 0 {
 		t.Fatalf("failed target validation persisted config %#v", row)
+	}
+}
+
+func configuredDelivery(t *testing.T) (*gorm.DB, agentWebhook.Delivery, taskQueue.Entity) {
+	t.Helper()
+	conn := setup(t)
+	a := agents.Entity{UserId: 40, TokenPrefix: "delivery_failures", Enabled: 1}
+	if err := conn.Create(&a).Error; err != nil {
+		t.Fatal(err)
+	}
+	secret, err := RotateSecret(a.UserId, 0, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = Configure(a.UserId, secret.ConfigVersion, ConfigParams{EventsEnabled: true, EventTypes: []string{"agent.mentioned"}, WebhookEnabled: true, WebhookEndpoint: "https://example.com/hook"}); err != nil {
+		t.Fatal(err)
+	}
+	row, err := Test(a.UserId, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	task, claimed, err := taskQueue.ClaimTask(row.TaskID)
+	if err != nil || !claimed {
+		t.Fatalf("claim=%t err=%v", claimed, err)
+	}
+	return conn, row, task
+}
+
+func TestResponseBodyFailureUsesKnownHTTPOutcome(t *testing.T) {
+	for _, tc := range []struct {
+		name           string
+		code           int
+		status, reason string
+	}{
+		{"accepted", http.StatusOK, agentWebhook.Accepted, ""},
+		{"gone", http.StatusGone, agentWebhook.Dead, "receiver_gone"},
+		{"redirect", http.StatusTemporaryRedirect, agentWebhook.Dead, "receiver_rejected"},
+		{"rejected", http.StatusBadRequest, agentWebhook.Dead, "receiver_rejected"},
+		{"rate_limited", http.StatusTooManyRequests, agentWebhook.RetryWait, "receiver_retryable"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			conn, row, task := configuredDelivery(t)
+			var p permit
+			if err := conn.Transaction(func(tx *gorm.DB) error { var err error; p, err = authorizeTx(tx, &task, row.ID); return err }); err != nil {
+				t.Fatal(err)
+			}
+			before := time.Now()
+			if err := complete(&task, p, safefetch.Result{StatusCode: tc.code, RetryAfter: "3600"}, &safefetch.FetchError{Class: safefetch.ErrorTooLarge}); err != nil {
+				t.Fatal(err)
+			}
+			got, err := agentWebhook.GetTx(conn, "inst_test", row.ID, false)
+			if err != nil || got.Status != tc.status || got.Reason != tc.reason {
+				t.Fatalf("delivery=%#v err=%v", got, err)
+			}
+			if tc.code == http.StatusTooManyRequests && (got.NextRunAt == nil || got.NextRunAt.Before(before.Add(time.Hour))) {
+				t.Fatalf("Retry-After discarded: %#v", got.NextRunAt)
+			}
+		})
+	}
+}
+
+func TestRedeliveryClearsPreviousRoundAcceptance(t *testing.T) {
+	conn, row, task := configuredDelivery(t)
+	var p permit
+	if err := conn.Transaction(func(tx *gorm.DB) error { var err error; p, err = authorizeTx(tx, &task, row.ID); return err }); err != nil {
+		t.Fatal(err)
+	}
+	if err := complete(&task, p, safefetch.Result{StatusCode: http.StatusOK}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := Redeliver(row.AgentID, row.ID, 2); err != nil {
+		t.Fatal(err)
+	}
+	got, err := agentWebhook.GetTx(conn, "inst_test", row.ID, false)
+	if err != nil || got.Status != agentWebhook.Pending || got.AcceptedAt != nil {
+		t.Fatalf("new round retains acceptance: %#v err=%v", got, err)
+	}
+}
+
+func failNextDeliveryQuery(t *testing.T, conn *gorm.DB) {
+	t.Helper()
+	failed := false
+	name := "test:delivery_query_failure"
+	if err := conn.Callback().Query().Before("gorm:query").Register(name, func(tx *gorm.DB) {
+		if !failed && tx.Statement.Table == "agent_webhook_deliveries" {
+			failed = true
+			_ = tx.AddError(errors.New("injected delivery read failure"))
+		}
+	}); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = conn.Callback().Query().Remove(name) })
+}
+
+func TestInfrastructureExhaustionMakesDeliveryReplayable(t *testing.T) {
+	conn, row, task := configuredDelivery(t)
+	task.RetryCount = 8
+	if err := conn.Model(&taskQueue.Entity{}).Where("id = ?", task.Id).Update("retry_count", task.RetryCount).Error; err != nil {
+		t.Fatal(err)
+	}
+	failNextDeliveryQuery(t, conn)
+	if err := HandleTask(t.Context(), &task); err != nil {
+		// The managed scheduler's fallback must not leave a nonterminal delivery.
+		if err := taskQueue.RetryOwned(task.Id, task.LeaseToken, time.Now().Add(time.Minute), "agent task infrastructure failure", 9); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got, err := agentWebhook.GetTx(conn, "inst_test", row.ID, false)
+	if err != nil || got.Status != agentWebhook.Dead || got.Reason != "infrastructure_error" {
+		t.Fatalf("unrecoverable infrastructure failure: %#v err=%v", got, err)
+	}
+	queued, err := taskQueue.GetByID(task.Id)
+	if err != nil || queued.Status != taskQueue.StatusFailed || queued.RetryCount != 9 {
+		t.Fatalf("task=%#v err=%v", queued, err)
+	}
+	if err := Redeliver(row.AgentID, row.ID, 2); err != nil {
+		t.Fatalf("cannot recover exhausted delivery: %v", err)
+	}
+}
+
+func TestInfrastructureFailureCannotOverwriteNewTaskLease(t *testing.T) {
+	conn, row, stale := configuredDelivery(t)
+	stale.RetryCount = 8
+	if err := conn.Model(&taskQueue.Entity{}).Where("id = ?", stale.Id).Update("status", taskQueue.StatusPending).Error; err != nil {
+		t.Fatal(err)
+	}
+	current, claimed, err := taskQueue.ClaimTask(stale.Id)
+	if err != nil || !claimed {
+		t.Fatalf("claim=%t err=%v", claimed, err)
+	}
+	failNextDeliveryQuery(t, conn)
+	_ = HandleTask(t.Context(), &stale)
+	got, err := agentWebhook.GetTx(conn, "inst_test", row.ID, false)
+	if err != nil || got.Status != agentWebhook.Pending || got.Reason != "" {
+		t.Fatalf("stale failure overwrote delivery: %#v err=%v", got, err)
+	}
+	queued, err := taskQueue.GetByID(stale.Id)
+	if err != nil || queued.Status != taskQueue.StatusRunning || queued.LeaseToken != current.LeaseToken || queued.RetryCount != 0 {
+		t.Fatalf("stale failure overwrote task: %#v err=%v", queued, err)
+	}
+}
+
+func TestInfrastructureDiagnosticFailureRollsBackTaskTransition(t *testing.T) {
+	conn, row, task := configuredDelivery(t)
+	task.RetryCount = 8
+	if err := conn.Model(&taskQueue.Entity{}).Where("id = ?", task.Id).Update("retry_count", task.RetryCount).Error; err != nil {
+		t.Fatal(err)
+	}
+	failNextDeliveryQuery(t, conn)
+	name := "test:delivery_diagnostic_failure"
+	if err := conn.Callback().Update().Before("gorm:update").Register(name, func(tx *gorm.DB) {
+		if tx.Statement.Table == "agent_webhook_deliveries" {
+			_ = tx.AddError(errors.New("injected diagnostic write failure"))
+		}
+	}); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = conn.Callback().Update().Remove(name) })
+	if err := HandleTask(t.Context(), &task); err == nil {
+		t.Fatal("diagnostic persistence failure must remain observable")
+	}
+	got, err := agentWebhook.GetTx(conn, "inst_test", row.ID, false)
+	if err != nil || got.Status != agentWebhook.Pending {
+		t.Fatalf("partial delivery transition: %#v err=%v", got, err)
+	}
+	queued, err := taskQueue.GetByID(task.Id)
+	if err != nil || queued.Status != taskQueue.StatusRunning || queued.RetryCount != 8 || queued.LeaseToken != task.LeaseToken {
+		t.Fatalf("partial task transition: %#v err=%v", queued, err)
 	}
 }

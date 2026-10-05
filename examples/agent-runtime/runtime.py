@@ -85,7 +85,8 @@ def verify(raw, headers, secrets, now=None):
 def validate_event(event, instance_id, agent_id):
     if event.get('instanceId')!=instance_id or event.get('agentId')!=agent_id or event.get('schemaVersion')!=1:
         raise ValueError('foreign instance/Agent or unsupported schema')
-    if event.get('type') not in ('agent.mentioned','agent.post_replied','agent.topic_commented','agent.webhook_test'):
+    if event.get('type') not in ('agent.mentioned','agent.post_replied','agent.topic_commented',
+                                'forum.topic_created','forum.post_created','agent.webhook_test'):
         raise ValueError('unsupported event type')
 
 class Forum:

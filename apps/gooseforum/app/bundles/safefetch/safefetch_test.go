@@ -6,6 +6,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -306,5 +307,46 @@ func TestWebhookRejectsMappedPublicAddressFromDNS(t *testing.T) {
 	}})
 	if _, err := client.PostJSON(t.Context(), "https://mapped.example/hook", []byte(`{}`), nil); !IsClass(err, ErrorBlocked) || calls.Load() != 0 {
 		t.Fatalf("mapped DNS err=%v dials=%d", err, calls.Load())
+	}
+}
+
+func TestWebhookRetainsResponseMetadataWhenBodyFails(t *testing.T) {
+	for _, mode := range []string{"content_length", "chunked", "truncated"} {
+		for _, status := range []int{http.StatusOK, http.StatusGone, http.StatusTooManyRequests} {
+			t.Run(fmt.Sprintf("%s/%d", mode, status), func(t *testing.T) {
+				server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					w.Header().Set("Retry-After", "3600")
+					if mode == "content_length" {
+						w.Header().Set("Content-Length", "65")
+					} else if mode == "truncated" {
+						w.Header().Set("Content-Length", "16")
+					}
+					w.WriteHeader(status)
+					if mode == "chunked" {
+						w.(http.Flusher).Flush()
+					}
+					if mode == "truncated" {
+						_, _ = w.Write([]byte("short"))
+					} else {
+						_, _ = w.Write([]byte(strings.Repeat("x", 65)))
+					}
+				}))
+				defer server.Close()
+				certificate := server.Certificate()
+				host := strings.Replace(certificate.DNSNames[0], "*.", "hook.", 1)
+				pool := x509.NewCertPool()
+				pool.AddCert(certificate)
+				var calls atomic.Int32
+				client := New(Config{Resolver: fakeResolver{host: {publicAddr()}}, DialContext: mappedDialer(server.Listener.Addr().String(), &calls), MaxBodyBytes: 64})
+				client.httpClient.Transport.(*http.Transport).TLSClientConfig = &tls.Config{RootCAs: pool, MinVersion: tls.VersionTLS12}
+				result, err := client.PostJSON(t.Context(), "https://"+host+"/hook", []byte(`{}`), nil)
+				if err == nil || (mode != "truncated" && !IsClass(err, ErrorTooLarge)) {
+					t.Fatalf("body limit/read error = %v", err)
+				}
+				if result.StatusCode != status || result.RetryAfter != "3600" || result.Duration <= 0 {
+					t.Fatalf("lost response metadata: %#v, err=%v", result, err)
+				}
+			})
+		}
 	}
 }

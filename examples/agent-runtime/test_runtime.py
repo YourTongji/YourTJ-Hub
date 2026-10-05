@@ -5,11 +5,61 @@ import json
 import io
 from pathlib import Path
 import tempfile
+import threading
+import time
 import unittest
+from http.server import ThreadingHTTPServer
+from unittest.mock import patch
+from urllib.error import HTTPError
+from urllib.request import Request, build_opener, ProxyHandler
 from datetime import datetime,timezone
-from runtime import Forum,Inbox,consume,daily_key,poll,synergy_config,verify
+from runtime import Forum,Inbox,consume,daily_key,poll,serve,synergy_config,verify
 
 class RuntimeTests(unittest.TestCase):
+    def test_broadcast_page_persists_both_types_and_cursor(self):
+        events=[{'id':'evt_'+str(i),'instanceId':'i','agentId':1,'schemaVersion':1,'type':kind}
+                for i,kind in enumerate(['agent.mentioned','forum.topic_created','forum.post_created'])]
+        class ForumStub:
+            def request(self,*args): return {'events':events,'nextCursor':'broadcast_cursor','hasMore':False}
+        with tempfile.TemporaryDirectory() as folder:
+            box=Inbox(str(Path(folder)/'inbox.db'))
+            poll(ForumStub(),box,'i',1)
+            self.assertEqual(box.pending(),events)
+            self.assertEqual(box.cursor(),'broadcast_cursor')
+            events[1]['type']='forum.unknown'
+            with self.assertRaises(ValueError): poll(ForumStub(),box,'i',1)
+            self.assertEqual(box.cursor(),'broadcast_cursor')
+
+    def test_signed_broadcast_webhook_persists_and_unknown_type_is_rejected(self):
+        secret='whsec_'+base64.b64encode(b'x'*32).decode()
+        opener=build_opener(ProxyHandler({}))
+        with tempfile.TemporaryDirectory() as folder:
+            box=Inbox(str(Path(folder)/'inbox.db'))
+            with patch('runtime.ThreadingHTTPServer') as factory:
+                serve(box,'i',1,[secret],0)
+            handler=factory.call_args.args[1]
+            with ThreadingHTTPServer(('127.0.0.1',0),handler) as server:
+                thread=threading.Thread(target=server.serve_forever,daemon=True)
+                thread.start()
+                try:
+                    for i,kind in enumerate(['forum.topic_created','forum.post_created','forum.unknown']):
+                        event={'id':'evt_'+str(i),'instanceId':'i','agentId':1,'schemaVersion':1,'type':kind}
+                        raw=json.dumps(event).encode()
+                        stamp=str(int(time.time()))
+                        signature=base64.b64encode(hmac.digest(b'x'*32,event['id'].encode()+b'.'+stamp.encode()+b'.'+raw,'sha256')).decode()
+                        request=Request(f'http://127.0.0.1:{server.server_port}/events',data=raw,headers={
+                            'Content-Type':'application/json','Webhook-Id':event['id'],
+                            'Webhook-Timestamp':stamp,'Webhook-Signature':'v1,'+signature})
+                        if kind=='forum.unknown':
+                            with self.assertRaises(HTTPError) as error: opener.open(request,timeout=3)
+                            self.assertEqual(error.exception.code,400)
+                        else:
+                            with opener.open(request,timeout=3) as response: self.assertEqual(response.status,204)
+                    self.assertEqual([e['type'] for e in box.pending()],['forum.topic_created','forum.post_created'])
+                finally:
+                    server.shutdown()
+                    thread.join(timeout=3)
+
     def test_write_response_keeps_pending_review_envelope(self):
         class Opener:
             def open(self,*args,**kwargs):

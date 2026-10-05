@@ -374,15 +374,20 @@ func (c *Client) PostJSON(ctx context.Context, rawURL string, body []byte, heade
 		return Result{}, classifyError(err)
 	}
 	defer func() { _ = response.Body.Close() }()
+	// Webhook acceptance/retry is determined by the received status and headers;
+	// an oversized or interrupted diagnostic body must not erase that outcome.
+	result := Result{StatusCode: response.StatusCode, RetryAfter: response.Header.Get("Retry-After")}
 	if response.ContentLength > c.maxBodyBytes {
-		return Result{}, &FetchError{Class: ErrorTooLarge}
+		result.Duration = time.Since(started)
+		return result, &FetchError{Class: ErrorTooLarge}
 	}
 	responseBody, err := io.ReadAll(io.LimitReader(response.Body, c.maxBodyBytes+1))
+	result.Duration = time.Since(started)
 	if err != nil {
-		return Result{}, classifyError(err)
+		return result, classifyError(err)
 	}
 	if int64(len(responseBody)) > c.maxBodyBytes {
-		return Result{}, &FetchError{Class: ErrorTooLarge}
+		return result, &FetchError{Class: ErrorTooLarge}
 	}
-	return Result{StatusCode: response.StatusCode, Duration: time.Since(started), RetryAfter: response.Header.Get("Retry-After")}, nil
+	return result, nil
 }

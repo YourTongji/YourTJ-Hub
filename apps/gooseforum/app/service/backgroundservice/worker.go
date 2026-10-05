@@ -266,6 +266,12 @@ func RunManagedWorker(name, typePrefix string, handler TaskHandler) {
 	for i := range workers {
 		RunWorker(fmt.Sprintf("%s_%d", name, i), typePrefix, func(ctx context.Context, task *taskQueue.Entity) error {
 			err := handler(ctx, task)
+			// Webhook handlers atomically persist their delivery and task retry.
+			// On persistence failure retain the lease for crash recovery; a generic
+			// task-only terminal state would make the delivery impossible to replay.
+			if typePrefix == "agent-webhook." {
+				return err
+			}
 			if err != nil {
 				due := time.Now().Add(time.Duration(1<<min(task.RetryCount, 8)) * time.Minute)
 				return taskQueue.RetryOwned(task.Id, task.LeaseToken, due, "agent task infrastructure failure", 9)

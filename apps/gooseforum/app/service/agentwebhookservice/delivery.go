@@ -187,7 +187,7 @@ func Redeliver(agentID, deliveryID, adminID uint64) error {
 		} else if err := taskQueue.ResetTerminalTx(tx, row.TaskID, now); err != nil {
 			return err
 		}
-		return agentWebhook.UpdateTx(tx, state.ID, row.ID, map[string]any{"status": agentWebhook.Pending, "reason": "", "round": row.Round + 1, "attempt_count": 0, "deadline": minTime(now.Add(24*time.Hour), row.ExpiresAt), "next_run_at": now, "last_redelivered_by": adminID})
+		return agentWebhook.UpdateTx(tx, state.ID, row.ID, map[string]any{"status": agentWebhook.Pending, "reason": "", "round": row.Round + 1, "attempt_count": 0, "deadline": minTime(now.Add(24*time.Hour), row.ExpiresAt), "next_run_at": now, "accepted_at": nil, "last_redelivered_by": adminID})
 	})
 }
 func minTime(a, b time.Time) time.Time {
@@ -392,6 +392,67 @@ func urlParse(raw string) (string, error) {
 	return strings.ToLower(u.Hostname()), nil
 }
 func HandleTask(ctx context.Context, task *taskQueue.Entity) error {
+	err := handleTask(ctx, task)
+	if err == nil || errors.Is(err, ErrLeaseLost) {
+		return nil
+	}
+	// Own infrastructure retries together with delivery diagnostics. If this
+	// transaction also fails, leave the lease recoverable rather than allowing
+	// the generic scheduler to terminalize only the task.
+	if retryErr := retryInfrastructureFailure(task); retryErr != nil {
+		return errors.Join(err, retryErr)
+	}
+	return nil
+}
+
+func retryInfrastructureFailure(task *taskQueue.Entity) error {
+	var payload struct {
+		InstanceID string `json:"instanceId"`
+		DeliveryID uint64 `json:"deliveryId"`
+	}
+	if err := json.Unmarshal([]byte(task.TaskJson), &payload); err != nil {
+		return db.Connect().Transaction(func(tx *gorm.DB) error {
+			_, err := taskQueue.TransitionOwnedTx(tx, task.Id, task.LeaseToken, taskQueue.StatusFailed, nil, "invalid_payload")
+			return err
+		})
+	}
+	return db.Connect().Transaction(func(tx *gorm.DB) error {
+		row, err := agentWebhook.GetTx(tx, payload.InstanceID, payload.DeliveryID, false)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			_, err = taskQueue.TransitionOwnedTx(tx, task.Id, task.LeaseToken, taskQueue.StatusFailed, nil, "delivery_missing")
+			return err
+		}
+		if err != nil {
+			return err
+		}
+		// Match send completion's Agent -> task -> delivery lock order.
+		if _, err := agents.GetTx(tx, row.AgentID, true); err != nil {
+			return err
+		}
+		status, taskStatus := agentWebhook.RetryWait, uint8(taskQueue.StatusRetrying)
+		next := time.Now().Add(time.Duration(1<<min(task.RetryCount, 8)) * time.Minute)
+		var due *time.Time = &next
+		if task.RetryCount+1 >= 9 {
+			status, taskStatus, due = agentWebhook.Dead, taskQueue.StatusFailed, nil
+		}
+		owned, err := taskQueue.FailOwnedTx(tx, task.Id, task.LeaseToken, taskStatus, due, "infrastructure_error")
+		if err != nil || !owned {
+			return err
+		}
+		row, err = agentWebhook.GetTx(tx, payload.InstanceID, payload.DeliveryID, true)
+		if err != nil {
+			return err
+		}
+		if row.Status != agentWebhook.Pending && row.Status != agentWebhook.Running && row.Status != agentWebhook.RetryWait {
+			return nil
+		}
+		return agentWebhook.UpdateTx(tx, payload.InstanceID, row.ID, map[string]any{
+			"status": status, "reason": "infrastructure_error", "next_run_at": due, "permit_expires_at": nil,
+		})
+	})
+}
+
+func handleTask(ctx context.Context, task *taskQueue.Entity) error {
 	var payload struct {
 		InstanceID string `json:"instanceId"`
 		DeliveryID uint64 `json:"deliveryId"`
@@ -489,7 +550,9 @@ func complete(task *taskQueue.Entity, p permit, result safefetch.Result, sendErr
 	taskStatus := uint8(taskQueue.StatusFailed)
 	var due *time.Time
 	switch {
-	case sendErr == nil && result.StatusCode >= 200 && result.StatusCode < 300:
+	// Response bodies are diagnostics only. A received HTTP outcome remains
+	// authoritative even if that body is oversized, truncated or times out.
+	case result.StatusCode >= 200 && result.StatusCode < 300:
 		status = agentWebhook.Accepted
 		reason = ""
 		taskStatus = taskQueue.StatusSuccess
@@ -499,9 +562,9 @@ func complete(task *taskQueue.Entity, p permit, result safefetch.Result, sendErr
 		reason = "secret_invalid"
 	case result.StatusCode == http.StatusGone:
 		reason = "receiver_gone"
-	case sendErr != nil || result.StatusCode == http.StatusRequestTimeout || result.StatusCode == http.StatusTooManyRequests || result.StatusCode >= 500:
+	case (sendErr != nil && result.StatusCode == 0) || result.StatusCode == http.StatusRequestTimeout || result.StatusCode == http.StatusTooManyRequests || result.StatusCode >= 500:
 		reason = "network_unavailable"
-		if sendErr == nil {
+		if result.StatusCode != 0 {
 			reason = "receiver_retryable"
 		}
 		if p.delivery.AttemptCount < 9 && now.Before(p.delivery.Deadline) {

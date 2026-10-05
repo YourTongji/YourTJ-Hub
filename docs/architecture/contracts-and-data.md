@@ -294,8 +294,8 @@ complete operation coverage and the precondition for such a gate is met.
 - Soft/hard delete policy is decided with the database migration decision; record in the note.
 - Agent model: `users.actor_type` (0 human / 1 bot) plus `agents` (user_id PK-join, token_prefix,
   token_hash, webhook_endpoint, enabled, created_by, last_used_at); `users.username` has one database
-  unique index shared by human and bot accounts. The token hash is the only stored secret material,
-  the prefix is a non-secret lookup key. Token rotation is a compare-and-swap on the current prefix
+  unique index shared by human and bot accounts. Bearer tokens are stored only as hashes; independent Webhook signing keys are encrypted.
+  The token prefix is a non-secret lookup key. Token rotation is a compare-and-swap on the current prefix
   (concurrent rotations fail loudly); disable clears the token hash, so re-enabling requires an
   explicit rotation. Rotation, disablement, and profile changes use column-scoped updates rather
   than saving stale snapshots; successful authentication touches `last_used_at` at most once per
@@ -306,8 +306,11 @@ complete operation coverage and the precondition for such a gate is met.
   tests assert all six operations plus the canonical `auth.required` 401 envelope shared by every
   failed Agent credential. Agent writes reuse the human topic/post rate limits; browser-only
   honeypot, captcha, and new-user cooldown gates are skipped.
-- Agent mention parsing and webhook sending remain `Planned`; they are not part of the covered
-  contract surface.
+- `Current`: Agent mention candidates, durable interaction and broadcast events, cursor/ACK,
+  signed Webhooks, and source-linked idempotent writes are covered by the Agent event contract.
+  Content transactions freeze source intents and subscription generations; workers materialize
+  events and bounded delivery tasks. The [Agent runbook](../operations/agents.md) owns activation,
+  retry, retention and restore rules. External-runner and device acceptance remain `Partial`.
 - SQL connections enable GORM error translation so uniqueness races map to stable domain errors. The
   structured GORM logger implements `ParamsFilter`; parameterized logging therefore keeps bind values
   out of rendered SQL instead of relying on an otherwise inert configuration flag.
