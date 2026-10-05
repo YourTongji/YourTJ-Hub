@@ -5,12 +5,13 @@ import "time"
 const tableName = "file_usages"
 
 const (
-	TargetTopic       = "topic"
-	TargetPost        = "post"
-	TargetUser        = "user"
-	TargetAdminUpload = "admin_upload"
-	TargetUploadOwner = "upload_owner"
-	TargetSticker     = "sticker"
+	TargetTopic        = "topic"
+	TargetPostRevision = "post_revision"
+	TargetPost         = "post"
+	TargetUser         = "user"
+	TargetAdminUpload  = "admin_upload"
+	TargetUploadOwner  = "upload_owner"
+	TargetSticker      = "sticker"
 )
 
 const (

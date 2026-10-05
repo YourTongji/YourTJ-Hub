@@ -51,7 +51,7 @@ func MarkTargetRecovering(targetType string, targetId uint64, expiresAt time.Tim
 	return builder().
 		Where(queryopt.Eq("target_type", targetType)).
 		Where(queryopt.Eq("target_id", targetId)).
-		Where(queryopt.Eq("status", UsageStatusActive)).
+		Where(queryopt.In("status", []string{UsageStatusActive, UsageStatusPending})).
 		Updates(map[string]any{
 			"status":     UsageStatusRecovering,
 			"expires_at": expiresAt,
@@ -60,12 +60,17 @@ func MarkTargetRecovering(targetType string, targetId uint64, expiresAt time.Tim
 
 // MarkTargetActive 将某内容的附件引用恢复为正常（内容恢复）。
 func MarkTargetActive(targetType string, targetId uint64) error {
+	return RestoreTarget(targetType, targetId, UsageStatusActive)
+}
+
+// RestoreTarget restores content references with their actual publication visibility.
+func RestoreTarget(targetType string, targetId uint64, status string) error {
 	return builder().
 		Where(queryopt.Eq("target_type", targetType)).
 		Where(queryopt.Eq("target_id", targetId)).
 		Where(queryopt.Eq("status", UsageStatusRecovering)).
 		Updates(map[string]any{
-			"status":     UsageStatusActive,
+			"status":     status,
 			"expires_at": nil,
 		}).Error
 }
@@ -162,4 +167,8 @@ func ReplaceStickerTx(tx *gorm.DB, stickerID, userID uint64, fileName string) er
 		return nil
 	}
 	return tx.Create(&Entity{FileName: fileName, TargetType: TargetSticker, TargetId: stickerID, UsageType: UsageSticker, UserId: userID}).Error
+}
+
+func RestoreRevisionPrivate(id uint64) error {
+	return builder().Where("target_type = ? AND target_id = ? AND status = ?", TargetPostRevision, id, UsageStatusRecovering).Updates(map[string]any{"status": UsageStatusPending, "expires_at": nil}).Error
 }

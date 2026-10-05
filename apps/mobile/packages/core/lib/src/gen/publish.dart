@@ -23,6 +23,7 @@ abstract class PublishTopicPayload with _$PublishTopicPayload {
   const factory PublishTopicPayload({
     required String title,
     required String content,
+    @Default(<String>[]) List<String> images,
     @Default(<int>[]) List<int> categoryIds,
     required int topicStatus,
     @Default(3) int contentType,

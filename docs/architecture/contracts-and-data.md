@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-09-25
+> Last verified: 2026-10-04
 
 ## Contract status
 
@@ -280,15 +280,27 @@ complete operation coverage and the precondition for such a gate is met.
 - Migrations: upstream `app/migration` (Go migrations, run at startup/CLI); PostgreSQL is the
   default deployment database and SQLite the local development/test default; MySQL is not
   supported; the file db stays SQLite.
-- Post content revisions: `post_revisions` is an append-only snapshot table (post_id, version,
-  editor_id, content, rendered_html, process_status, created_at). Every content edit — first post
-  (post_no = 1) and replies alike, by the author — appends a new version inside the edit
-  transaction and updates `posts.last_editor_id` / `last_edited_at`; post creation seeds version 1
-  (editor = author). A row lock serializes concurrent edits so (post_id, version) stays monotonic.
-  History is read-only (`GET /api/forum/posts/revisions?postId=`): deleted/anonymized posts
-  blank all version bodies, and blocked posts plus pending-review versions hide their bodies from
-  non-moderators — the same visibility rules the post window applies. Permanent deletion and
-  privacy erasure blank revision bodies so the snapshot table cannot bypass the deletion lifecycle.
+- Post revisions: `post_revisions` retains immutable body/rendered HTML, content type and first-post
+  title/categories/gallery snapshots. Review status, reason, actor and time are mutable results.
+  `posts.latest_revision_id` selects the latest submission; `published_revision_id` records the approved
+  version. Normal public rows remain unchanged while a new candidate is pending or rejected. The
+  owner overlay is built on copies and never enters a shared public cache. Legacy public rows get a
+  baseline from the current row on their next moderated edit; existing active pending rows are adopted
+  by data migration 31, in bounded batches, idempotently. A legacy overwritten public version is not
+  reconstructed from incomplete history.
+- Moderated saves commit the revision, private `post_revision` file usages and `content-review` task
+  atomically. The worker and human review use the same version-checked transaction, locking post then
+  topic; only the latest active pending revision can change publication. Approval replaces all fields,
+  public file references and search/counter projections together. Transfer to human review, human approval,
+  and rejection each record an owner notification in that transaction; automatic approval is quiet.
+  Pending revisions with `reviewed_at` already have a human-queue receipt, so retries do not repeat it
+  and late automatic results cannot override the handoff. `content-published` tasks deliver existing publication events/pushes after commit;
+  realtime `content.changed` carries no content and asks the author to reconcile via authenticated REST.
+- Revision history remains read-only. Pending/rejected bodies are excluded from public history;
+  the author reads the latest rejected candidate through content management. Deletion/retention guards
+  apply to revision projections and files as well as ordinary posts. Final deletion retains audit bodies
+  under [the retention decision](../decisions/0021-deletion-final-state-data-retention.md), while normal
+  read/export/review paths cannot expose or republish them.
 - State machines: business lifecycles use explicit state machines (e.g. topic:
   draft/published/archived/deleted), not ambiguous boolean combinations (product principle 9).
 - Soft/hard delete policy is decided with the database migration decision; record in the note.

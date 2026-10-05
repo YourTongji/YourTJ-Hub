@@ -89,7 +89,9 @@ func appendPostRevision(tx *gorm.DB, post *posts.Entity, editorID uint64, proces
 	return tx.Table("posts").
 		Where("id = ?", post.Id).
 		Updates(map[string]any{
-			"last_editor_id": editorID,
-			"last_edited_at": now,
+			"latest_revision_id":    0,
+			"published_revision_id": 0,
+			"last_editor_id":        editorID,
+			"last_edited_at":        now,
 		}).Error
 }

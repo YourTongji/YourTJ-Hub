@@ -324,6 +324,12 @@ export async function reportContentEvent(eventType: 'content_delete_clicked' | '
 }
 
 export interface MyContentItem {
+  processStatus: number
+  revisionId: number
+  reviewReason?: string
+  hasPublishedVersion: boolean
+  content: string
+  images: string[]
   id: number
   contentType: DeletedContentType
   title: string
@@ -627,11 +633,11 @@ export async function fetchModerationReviewQueue(kind: 'topic' | 'post', page = 
   return readApiResponse<ModerationReviewQueueResult>(response, t('moderation.review.loadFailed'))
 }
 
-export async function moderationReviewAction(kind: 'topic' | 'post', id: number, approve: boolean): Promise<unknown> {
+export async function moderationReviewAction(kind: 'topic' | 'post', id: number, approve: boolean, revisionId = 0): Promise<unknown> {
   const response = await fetch('/api/forum/moderation/review-action', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ kind, id, approve }),
+    body: JSON.stringify({ kind, id, approve, revisionId }),
   })
   return readApiResponse<unknown>(response, t('moderation.review.actionFailed'))
 }

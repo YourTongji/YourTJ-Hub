@@ -213,20 +213,22 @@ func SendSystemAlert(userID uint64, title string, content string) error {
 	return err
 }
 
-// SendReviewResultNotification 通知作者人工审核结果（issue #975）。待审期间作者只看到
-// “已提交审核”，审核完成后必须得到结论：通过时通知链接到内容（回复带楼层号）；
-// 拒绝时内容对作者同样不可见，只保留标题快照、不生成链接，避免跳到 404。
-// TopicID 冗余列始终写入，话题删除联动时随之清理。
+// SendReviewResultNotification notifies the author of a human decision.
+// Rejected content is recoverable in content management; its subject is masked.
 func SendReviewResultNotification(userID uint64, approved bool, topicID uint64, topicTitle string, postID uint64, postNo uint64) error {
 	payload := eventNotification.NotificationPayload{
 		TemplateKey: eventNotification.TemplateReviewRejected,
 		TopicTitle:  topicTitle,
+		TopicId:     topicID,
+		PostId:      postID,
+		PostNo:      postNo,
 	}
 	eventType := eventNotification.EventTypeReviewRejected
 	if approved {
 		payload.TemplateKey = eventNotification.TemplateReviewApproved
-		payload.TopicId, payload.PostId, payload.PostNo = topicID, postID, postNo
 		eventType = eventNotification.EventTypeReviewApproved
+	} else {
+		payload = eventNotification.RedactReviewRejectedPayload(payload)
 	}
 	notification := &eventNotification.Entity{
 		UserId:    userID,

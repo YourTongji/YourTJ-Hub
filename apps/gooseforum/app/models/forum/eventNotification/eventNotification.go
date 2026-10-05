@@ -1,6 +1,7 @@
 package eventNotification
 
 import (
+	"strings"
 	"time"
 )
 
@@ -17,8 +18,8 @@ const (
 	EventTypeLike        = "like"         // 楼层点赞通知
 	EventTypeWikiUpdated = "wiki_updated" // wiki 页面审核通过后的更新通知
 	EventTypeMention     = "mention"      // @mention 通知（issue #563）
-	// 人工审核结果（issue #975）：通过时链接到内容；拒绝时内容对作者也不可见，
-	// payload 不带 TopicId（只带标题快照），客户端不生成跳转。
+	// Manual review links to the candidate; rejection links to content management.
+	EventTypeReviewPending  = "review_pending"
 	EventTypeReviewApproved = "review_approved"
 	EventTypeReviewRejected = "review_rejected"
 )
@@ -33,6 +34,7 @@ const (
 	TemplateWikiUpdated = "notifications.templates.wikiUpdated"
 	TemplateMention     = "notifications.templates.mention"
 	// 人工审核结果模板（issue #975）。
+	TemplateReviewPending  = "notifications.templates.reviewPending"
 	TemplateReviewApproved = "notifications.templates.reviewApproved"
 	TemplateReviewRejected = "notifications.templates.reviewRejected"
 )
@@ -107,4 +109,18 @@ type Entity struct {
 
 func (itself *Entity) TableName() string {
 	return tableName
+}
+
+// RedactReviewRejectedPayload also sanitizes historical snapshots at read/push
+// boundaries. Fixed-length masking is idempotent and does not reveal text length.
+func RedactReviewRejectedPayload(payload NotificationPayload) NotificationPayload {
+	subject := []rune(strings.TrimSpace(payload.TopicTitle))
+	payload.TopicTitle = ""
+	if len(subject) > 0 {
+		payload.TopicTitle = string(subject[0]) + "******" + string(subject[len(subject)-1])
+	}
+	payload.Title = ""
+	payload.Content = ""
+	payload.TemplateParams.Preview = ""
+	return payload
 }

@@ -150,6 +150,30 @@ void main() {
     }
   });
 
+  testWidgets(
+    'own pending reply is editable while public actions stay hidden',
+    (tester) async {
+      await pump(
+        tester,
+        repo(),
+        PostActions(
+          post: post().copyWith(processStatus: 2, isHidden: true),
+          onChanged: () async {},
+          onReply: null,
+          onReport: () {},
+        ),
+      );
+      await tester.tap(find.byType(PopupMenuButton<String>));
+      await tester.pumpAndSettle();
+      expect(find.text('Edit'), findsOneWidget);
+      expect(find.text('Share'), findsNothing);
+      expect(find.text('Generate share image'), findsNothing);
+      await tester.tap(find.text('Edit'));
+      await tester.pumpAndSettle();
+      expect(find.text('Original reply'), findsOneWidget);
+    },
+  );
+
   testWidgets('more action uses the same muted and busy icon colors', (
     tester,
   ) async {

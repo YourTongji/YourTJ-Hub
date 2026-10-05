@@ -34,7 +34,7 @@ func TestPostRevisionsSchemaCreatedOnSQLite(t *testing.T) {
 	if !conn.Migrator().HasTable("post_revisions") {
 		t.Fatal("post_revisions table missing after AutoMigrate")
 	}
-	for _, column := range []string{"id", "post_id", "version", "editor_id", "content", "rendered_html", "process_status", "created_at"} {
+	for _, column := range []string{"id", "post_id", "version", "editor_id", "content", "rendered_html", "process_status", "created_at", "title", "category_ids", "image_urls", "content_type", "review_reason", "reviewed_at"} {
 		if !conn.Migrator().HasColumn(&postRevisions.Entity{}, column) {
 			t.Errorf("post_revisions column %q missing after AutoMigrate", column)
 		}
@@ -98,5 +98,28 @@ func TestPostRevisionsSchemaUpgradeFromLegacySubset(t *testing.T) {
 	// 新表可用
 	if err := conn.Create(&postRevisions.Entity{PostId: 1, Version: 1, EditorId: 1, Content: "post-upgrade revision"}).Error; err != nil {
 		t.Fatalf("insert revision after upgrade: %v", err)
+	}
+}
+
+func TestPublicationPointersUpgradePreservesLegacyBody(t *testing.T) {
+	conn, err := gorm.Open(sqlite.Open("file:publication-pointers-upgrade?mode=memory&cache=shared"), &gorm.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := conn.Exec("CREATE TABLE posts (id integer PRIMARY KEY, topic_id integer NOT NULL DEFAULT 0, post_no integer NOT NULL DEFAULT 0, content text, process_status integer NOT NULL DEFAULT 0)").Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := conn.Exec("INSERT INTO posts (id,topic_id,post_no,content) VALUES (1,1,1,'approved legacy body')").Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := conn.AutoMigrate(&posts.Entity{}); err != nil {
+		t.Fatal(err)
+	}
+	var post posts.Entity
+	if err := conn.First(&post, 1).Error; err != nil {
+		t.Fatal(err)
+	}
+	if post.Content != "approved legacy body" || post.LatestRevisionId != 0 || post.PublishedRevisionId != 0 {
+		t.Fatalf("legacy row changed: %+v", post)
 	}
 }

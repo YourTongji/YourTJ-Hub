@@ -44,7 +44,7 @@ func agentReplayResponse(userID uint64, entry *agentWrites.Entry) component.Resp
 	}
 	pending := p.ProcessStatus == posts.ProcessStatusPending || t.ProcessStatus == topics.ProcessStatusPending
 	if entry.Operation == "topic" {
-		return publishSuccess(t.Id, pending, false)
+		return publishSuccess(t.Id, pending)
 	}
-	return publishSuccess(map[string]any{"id": p.Id, "postNo": p.PostNo, "renderedContent": p.RenderedHTML, "isAnswer": isAnswerPost(p.ReplyToPostId, &t)}, pending, false)
+	return publishSuccess(map[string]any{"id": p.Id, "postNo": p.PostNo, "renderedContent": p.RenderedHTML, "isAnswer": isAnswerPost(p.ReplyToPostId, &t)}, pending)
 }

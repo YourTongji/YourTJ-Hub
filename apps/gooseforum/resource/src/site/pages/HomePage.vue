@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useContentUpdates } from '@/runtime/content-updates'
 import { computed, nextTick, onActivated, onBeforeUnmount, onDeactivated, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Bell, ChevronDown, ChevronUp, LayoutGrid, List, Mail, RefreshCw, UsersRound } from '@lucide/vue'
@@ -238,6 +239,8 @@ async function checkForNewTopics() {
     if (revision === feedRevision) checkingForNew.value = false
   }
 }
+
+useContentUpdates(() => void refreshFirstPage('replace'), () => !!page.layout.viewer?.isAuthenticated)
 
 async function refreshFirstPage(mode: 'prepend' | 'replace') {
   if (pendingHomeFeedUrl.value || failedHomeFeedUrl.value || refreshing.value || loadingMore.value) return

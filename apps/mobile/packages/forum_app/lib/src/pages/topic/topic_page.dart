@@ -1,3 +1,4 @@
+import '../../realtime/realtime_updates.dart';
 import '../../report_content.dart';
 import '../../widgets/stickers/sticker_draft_preview.dart';
 import '../../widgets/stickers/sticker_picker.dart';
@@ -1210,6 +1211,7 @@ class _TopicPageState extends ConsumerState<TopicPage>
           context,
           pendingReviewMessage(l10n, checking: result.checking),
         );
+        await _showCreatedReply(result);
         return;
       }
       showGfToast(context, l10n.topicReplySuccess);
@@ -1562,6 +1564,12 @@ class _TopicPageState extends ConsumerState<TopicPage>
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<int>(
+      realtimeInvalidationsProvider.select((state) => state.contentRevision),
+      (_, _) {
+        if (mounted) _load(silent: true);
+      },
+    );
     ref.listen<int>(
       cacheClearEpochProvider.select(
         (epochs) => epochs[CacheCategory.forum] ?? 0,

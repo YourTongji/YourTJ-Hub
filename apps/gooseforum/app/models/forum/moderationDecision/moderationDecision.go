@@ -80,6 +80,7 @@ type ImageRecord struct {
 }
 
 type Entity struct {
+	RevisionId        uint64        `gorm:"column:revision_id;not null;default:0;index;" json:"revisionId"`
 	Id                uint64        `gorm:"primaryKey;column:id;autoIncrement;not null;" json:"id"`
 	SubjectType       string        `gorm:"column:subject_type;type:varchar(32);not null;default:'';index:idx_moderation_ai_decisions_subject,priority:1;" json:"subjectType"`
 	SubjectId         uint64        `gorm:"column:subject_id;not null;default:0;index:idx_moderation_ai_decisions_subject,priority:2;" json:"subjectId"`

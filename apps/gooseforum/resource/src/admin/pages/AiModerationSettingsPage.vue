@@ -100,7 +100,7 @@ async function load() {
   loading.value = true
   try {
     const view = await getAiModerationSettings()
-    Object.assign(form, view, { jevApiKey: '', visionApiKey: '', clearJevApiKey: false, clearVisionApiKey: false })
+    Object.assign(form, view, { mode: view.mode === 'enforce' ? 'deferred' : view.mode, jevApiKey: '', visionApiKey: '', clearJevApiKey: false, clearVisionApiKey: false })
   } catch (err) {
     adminToast.error(err, text('loadFailed'))
   } finally {
@@ -332,7 +332,7 @@ onMounted(() => {
             {{ text('mode') }}
             <div class="flex w-fit max-w-full flex-wrap rounded-lg border bg-muted/20 p-1">
               <button
-                v-for="value in ['shadow', 'enforce', 'deferred'] as const"
+                v-for="value in ['shadow', 'deferred'] as const"
                 :key="value"
                 type="button"
                 class="rounded-md px-3 py-1.5 text-sm font-medium transition-colors"

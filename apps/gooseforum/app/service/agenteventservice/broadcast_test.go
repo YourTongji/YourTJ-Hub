@@ -321,3 +321,25 @@ func TestBroadcastDepthSurvivesSourceResultReplacement(t *testing.T) {
 		t.Fatal("replacing a source event result reset an already accepted reply depth")
 	}
 }
+
+func TestBroadcastCaptureUsesPublishedRevisionNotPendingCandidate(t *testing.T) {
+	f := broadcastSetup(t)
+	var approved postRevisions.Entity
+	if err := f.conn.Where("post_id = ? AND version = 1", f.first.Id).Take(&approved).Error; err != nil {
+		t.Fatal(err)
+	}
+	pending := postRevisions.Entity{PostId: f.first.Id, Version: 2, EditorId: f.human.Id, Content: "private candidate @" + f.botB.Username, ProcessStatus: posts.ProcessStatusPending}
+	if err := f.conn.Create(&pending).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := f.conn.Model(&f.first).Updates(map[string]any{"published_revision_id": approved.Id, "latest_revision_id": pending.Id}).Error; err != nil {
+		t.Fatal(err)
+	}
+	_, events := f.capture(f.first)
+	if events[f.botB.Id].ID != "" {
+		t.Fatal("private pending mention escaped into Agent inbox")
+	}
+	if events[f.botA.Id].Type != "forum.topic_created" {
+		t.Fatalf("published first revision not broadcast: %#v", events)
+	}
+}

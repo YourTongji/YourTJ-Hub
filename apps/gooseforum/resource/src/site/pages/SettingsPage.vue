@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import ManagedContent from '@/site/components/ManagedContent.vue'
+import { useContentUpdates } from '@/runtime/content-updates'
 import BadgeDisplayEditor from '@/site/components/BadgeDisplayEditor.vue'
 import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import {
@@ -500,6 +502,8 @@ function toggleMyContent(item: MyContentItem) {
     selectedMyContentIds.value = [...selectedMyContentIds.value, item.id]
   }
 }
+
+useContentUpdates(() => { if (myContentLoaded.value) void loadMyContent() })
 
 async function loadMyContent() {
   if (loadingMyContent.value) return
@@ -2480,7 +2484,7 @@ async function toggleBinding(provider: string) {
                 <p class="mx-auto mt-1 max-w-md text-sm leading-6 text-base-content/50">{{ t('settings.content.emptyDescription') }}</p>
               </div>
               <div v-else class="divide-y divide-line">
-                <label
+                <div
                   v-for="item in myContentItems"
                   :key="myContentItemKey(item)"
                   class="flex cursor-pointer items-start gap-3 px-4 py-3 transition hover:bg-base-200/60"
@@ -2488,16 +2492,18 @@ async function toggleBinding(provider: string) {
                   <input
                     type="checkbox"
                     class="mt-1 h-4 w-4 shrink-0 rounded border-line accent-primary"
+                    :aria-label="item.title || item.excerpt || t('settings.deleted.untitled')"
                     :checked="isMyContentSelected(item)"
                     @change="toggleMyContent(item)"
                   />
-                  <span class="min-w-0">
+                  <span class="min-w-0 flex-1">
                     <!-- 无标题瞬间（标题为空）用摘要作主文案，避免空标题行；摘要不重复展示 -->
                     <span class="block truncate text-sm font-semibold text-base-content">{{ item.title || item.excerpt || t('settings.deleted.untitled') }}</span>
                     <span v-if="item.title && item.excerpt" class="mt-0.5 block truncate text-[13px] leading-5 text-base-content/55">{{ item.excerpt }}</span>
                     <span class="mt-0.5 block text-xs text-base-content/45">{{ formatDate(item.createdAt) }}</span>
+                    <ManagedContent :item="item" @saved="loadMyContent" />
                   </span>
-                </label>
+                </div>
               </div>
             </div>
           </section>

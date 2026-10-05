@@ -158,7 +158,14 @@ func CapturePublicTx(tx *gorm.DB, post *posts.Entity, plans ...*WriteCapturePlan
 	if err != nil {
 		return err
 	}
-	rev, err := postRevisions.LatestTx(tx, p.Id)
+	var rev postRevisions.Entity
+	if p.PublishedRevisionId != 0 {
+		// MAX(version) may point at a private candidate while the public row still
+		// shows its prior approved version. Resolve the published pointer exactly.
+		err = tx.Where("id = ? AND post_id = ?", p.PublishedRevisionId, p.Id).Take(&rev).Error
+	} else {
+		rev, err = postRevisions.LatestTx(tx, p.Id)
+	}
 	if err != nil {
 		return err
 	}
@@ -171,11 +178,11 @@ func CapturePublicTx(tx *gorm.DB, post *posts.Entity, plans ...*WriteCapturePlan
 	}
 	previous := state.Version
 	if previous == 0 && rev.Version > 1 {
-		prior, found, err := PreviousPublicTx(tx, p.Id)
-		if err != nil {
-			return err
+		prior, priorErr := postRevisions.PreviousNormalTx(tx, p.Id, rev.Version)
+		if priorErr != nil && !errors.Is(priorErr, gorm.ErrRecordNotFound) {
+			return priorErr
 		}
-		if found {
+		if priorErr == nil {
 			previous = prior.Version
 		}
 	}

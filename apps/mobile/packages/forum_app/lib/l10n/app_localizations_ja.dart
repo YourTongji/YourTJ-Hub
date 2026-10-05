@@ -3324,4 +3324,30 @@ class AppLocalizationsJa extends AppLocalizations {
   @override
   String get topicPendingReviewReply =>
       '審査中 · 承認されるまで、この返信はあなたと審査担当者だけに表示されます。';
+
+  @override
+  String get contentReviewBlocked => '承認されませんでした';
+
+  @override
+  String get contentReviewRetry => '編集して再送信';
+
+  @override
+  String get contentReviewLive => '以前の公開版は引き続き表示されます。';
+
+  @override
+  String get contentReviewView => '内容を見る';
+
+  @override
+  String get contentReviewPending => '審査中';
+
+  @override
+  String get notificationReviewPending => '投稿は手動確認を待っています';
+
+  @override
+  String get notificationReviewPendingDetail =>
+      '確認結果をお知らせします。待っている間も内容を確認・編集できます。';
+
+  @override
+  String get notificationReviewRejectedDetail =>
+      '今回の投稿は公開されません。コンテンツ管理で内容を確認・修正して再送信してください。ご不明な点は管理者にお問い合わせください。';
 }

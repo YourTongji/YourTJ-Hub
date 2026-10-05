@@ -9,9 +9,21 @@ class UserContentItem {
     this.deletedAt = '',
     this.topicId,
     this.postNo,
+    this.processStatus = 0,
+    this.revisionId = 0,
+    this.reviewReason = '',
+    this.hasPublishedVersion = false,
+    this.content = '',
+    this.images = const [],
     this.canRestore = false,
     this.canPermanent = false,
   });
+  final int processStatus;
+  final int revisionId;
+  final String reviewReason;
+  final bool hasPublishedVersion;
+  final String content;
+  final List<String> images;
   final int id;
   final String contentType;
   final String title;
@@ -32,6 +44,12 @@ class UserContentItem {
         deletedAt: json['deletedAt'] as String? ?? '',
         topicId: (json['topicId'] as num?)?.toInt(),
         postNo: (json['postNo'] as num?)?.toInt(),
+        processStatus: (json['processStatus'] as num?)?.toInt() ?? 0,
+        revisionId: (json['revisionId'] as num?)?.toInt() ?? 0,
+        reviewReason: json['reviewReason'] as String? ?? '',
+        hasPublishedVersion: json['hasPublishedVersion'] == true,
+        content: json['content'] as String? ?? '',
+        images: (json['images'] as List? ?? []).cast<String>(),
         canRestore: json['canRestore'] == true,
         canPermanent: json['canPermanent'] == true,
       );

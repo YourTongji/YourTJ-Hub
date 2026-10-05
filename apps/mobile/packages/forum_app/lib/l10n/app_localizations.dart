@@ -6263,6 +6263,54 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Under review · Only you and reviewers can see this reply until it’s approved.'**
   String get topicPendingReviewReply;
+
+  /// No description provided for @contentReviewBlocked.
+  ///
+  /// In en, this message translates to:
+  /// **'Not approved'**
+  String get contentReviewBlocked;
+
+  /// No description provided for @contentReviewRetry.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit and resubmit'**
+  String get contentReviewRetry;
+
+  /// No description provided for @contentReviewLive.
+  ///
+  /// In en, this message translates to:
+  /// **'Your previous version remains public.'**
+  String get contentReviewLive;
+
+  /// No description provided for @contentReviewView.
+  ///
+  /// In en, this message translates to:
+  /// **'View content'**
+  String get contentReviewView;
+
+  /// No description provided for @contentReviewPending.
+  ///
+  /// In en, this message translates to:
+  /// **'Under review'**
+  String get contentReviewPending;
+
+  /// No description provided for @notificationReviewPending.
+  ///
+  /// In en, this message translates to:
+  /// **'Your post is awaiting manual review'**
+  String get notificationReviewPending;
+
+  /// No description provided for @notificationReviewPendingDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'We’ll review it soon and notify you of the result. You can view or edit it while you wait.'**
+  String get notificationReviewPendingDetail;
+
+  /// No description provided for @notificationReviewRejectedDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'This submission won’t be shown publicly. Review, edit and resubmit it from content management. Contact an administrator if you have questions.'**
+  String get notificationReviewRejectedDetail;
 }
 
 class _AppLocalizationsDelegate

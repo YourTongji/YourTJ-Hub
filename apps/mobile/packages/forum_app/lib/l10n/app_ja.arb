@@ -1206,5 +1206,13 @@
   "notificationReviewRejected": "投稿は承認されなかったため、公開されません",
   "topicPendingReviewBanner": "この投稿は審査中です。承認されるまで、表示されるのはあなたと審査担当者だけです。",
   "topicPendingReviewBannerModerator": "この投稿は審査待ちです。ほかの読者にはまだ表示されません。",
-  "topicPendingReviewReply": "審査中 · 承認されるまで、この返信はあなたと審査担当者だけに表示されます。"
+  "topicPendingReviewReply": "審査中 · 承認されるまで、この返信はあなたと審査担当者だけに表示されます。",
+  "contentReviewBlocked": "承認されませんでした",
+  "contentReviewRetry": "編集して再送信",
+  "contentReviewLive": "以前の公開版は引き続き表示されます。",
+  "contentReviewView": "内容を見る",
+  "contentReviewPending": "審査中",
+  "notificationReviewPending": "投稿は手動確認を待っています",
+  "notificationReviewPendingDetail": "確認結果をお知らせします。待っている間も内容を確認・編集できます。",
+  "notificationReviewRejectedDetail": "今回の投稿は公開されません。コンテンツ管理で内容を確認・修正して再送信してください。ご不明な点は管理者にお問い合わせください。"
 }

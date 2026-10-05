@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Durable Agent ingress and deterministic REST writes; models run externally.
 
-Signature protocol: docs/decisions/0061-agent-interaction-events.md.
+Signature protocol: docs/decisions/0063-agent-interaction-events.md.
 Never acknowledge before durable ingress, nor process webhook test messages.
 """
 import argparse

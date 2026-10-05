@@ -100,3 +100,15 @@ func PreviousNormalTx(tx *gorm.DB, postID, before uint64) (Entity, error) {
 	err := tx.Where("post_id = ? AND version < ? AND process_status = 0", postID, before).Order("version DESC").Take(&e).Error
 	return e, err
 }
+
+func Get(id uint64) (entity Entity) {
+	if id != 0 {
+		builder().First(&entity, id)
+	}
+	return
+}
+
+func IDsByPost(postID uint64) (ids []uint64) {
+	builder().Where("post_id = ?", postID).Pluck("id", &ids)
+	return
+}

@@ -16,6 +16,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/httputil"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/filemodel/filedata"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/fileUsage"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postRevisions"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/authsessionservice"
@@ -109,28 +110,65 @@ func canPreviewPendingFile(c *gin.Context, referenceName string) bool {
 	// 前台版主工作台同样审核待审内容（issue #975）：版主只能预览管辖分类内的
 	// 待审图片，沿待审引用回溯到所属主题的分类逐一校验。
 	for _, usage := range fileusageservice.ListPendingReferences(referenceName) {
-		if categoryIDs := pendingUsageCategories(usage); len(categoryIDs) > 0 &&
-			moderationservice.CanModerateAnyCategory(userID, categoryIDs) {
+		if canPreviewPendingUsage(userID, usage) {
 			return true
 		}
 	}
 	return false
 }
 
-// pendingUsageCategories 返回待审引用所属主题的分类；无法回溯到主题时返回 nil。
-func pendingUsageCategories(usage fileUsage.Entity) []uint64 {
+// PENDING only marks a private file reference; drafts use it too. Moderator
+// access additionally requires a submitted topic and a review-backed reference.
+func canPreviewPendingUsage(userID uint64, usage fileUsage.Entity) bool {
 	topicID := usage.TargetId
+	var post posts.Entity
+	var revision postRevisions.Entity
 	switch usage.TargetType {
 	case fileUsage.TargetTopic:
+	case fileUsage.TargetPostRevision:
+		revision = postRevisions.Get(usage.TargetId)
+		if revision.Id == 0 {
+			return false
+		}
+		post = posts.Get(revision.PostId)
+		topicID = post.TopicId
 	case fileUsage.TargetPost:
-		topicID = posts.Get(usage.TargetId).TopicId
+		post = posts.Get(usage.TargetId)
+		topicID = post.TopicId
 	default:
-		return nil
+		return false
 	}
 	if topicID == 0 {
-		return nil
+		return false
 	}
-	return topics.Get(topicID).CategoryIds
+	topic := topics.Get(topicID)
+	if topic.Id == 0 || topic.Status != 1 || topic.VisibilityStatus != topics.VisibilityActive {
+		return false
+	}
+	if !moderationservice.CanModerateAnyCategory(userID, topic.CategoryIds) {
+		return false
+	}
+	if usage.TargetType == fileUsage.TargetTopic {
+		post = posts.Get(topic.FirstPostId)
+	}
+	if post.Id == 0 || post.VisibilityStatus != posts.VisibilityActive {
+		return false
+	}
+	if revision.Id != 0 {
+		if post.PostNo == 1 {
+			// Category edits require authority over both the current topic and the
+			// candidate. A match in either category group alone is insufficient.
+			return moderationservice.CanModerateAnyCategory(userID, revision.CategoryIds)
+		}
+		return true
+	}
+	// Versioned submissions authorize their own image snapshot above. Legacy
+	// topic/post refs can retain draft images omitted from that snapshot.
+	if post.LatestRevisionId != 0 {
+		return false
+	}
+	return usage.TargetType == fileUsage.TargetTopic && topic.ProcessStatus != topics.ProcessStatusNormal ||
+		usage.TargetType == fileUsage.TargetPost && post.ProcessStatus != posts.ProcessStatusNormal
 }
 
 // SaveImgByGinContext handles image uploads with size and content checks.

@@ -4971,6 +4971,27 @@ NotificationTopicRef:
       type: string
   additionalProperties: false
 
+NotificationActorPayload:
+  type: object
+  required: [id, username, avatarUrl]
+  properties:
+    id:
+      type: integer
+      format: uint64
+      minimum: 0
+      description: 0 for system and moderation feedback without a triggering user.
+    username:
+      type: string
+    nickname:
+      type: string
+      description: Present only when the user has a nickname.
+    avatarUrl:
+      type: string
+    wornBadge:
+      type: [object, 'null']
+      description: Present only when the user wears a badge.
+  additionalProperties: false
+
 NotificationPayload:
   type: object
   required: [id, eventType, isRead, createdAt, title, content, actor, payload]
@@ -4981,7 +5002,7 @@ NotificationPayload:
       minimum: 1
     eventType:
       type: string
-      description: Notification event type (comment/post_reply/topic_post/mention/follow/badge/like/wiki_updated/system/review_approved/review_rejected); the payload shape varies with it. `review_approved` links to the approved topic/post; `review_rejected` carries only `payload.topicTitle` because rejected content is not visible to its author (issue #975).
+      description: Notification event type (comment/post_reply/topic_post/mention/follow/badge/like/wiki_updated/system/review_pending/review_approved/review_rejected); the payload shape varies with it. AI approval is quiet. `review_pending` notifies transfer to human review and links to the pending topic/post; human `review_approved` links to the approved version. `review_rejected` links to content management for editing/resubmission, with topic/post identifiers and a subject snapshot retaining only its first/last Unicode character around six asterisks; title/content/preview fields carry no rejected original text.
     isRead:
       type: boolean
     createdAt:
@@ -4993,8 +5014,8 @@ NotificationPayload:
       type: string
       description: Stored preview; for likes without one, a readable excerpt of the currently visible referenced reply.
     actor:
-      $ref: '#/TopicAuthorPayload'
-      description: Actor identity with the current public avatar hydrated in a batch when the actor exists.
+      $ref: '#/NotificationActorPayload'
+      description: Actor identity with the current public avatar hydrated in a batch when the actor exists; id 0 for system and moderation feedback.
     topic:
       $ref: '#/NotificationTopicRef'
     payload:
@@ -8888,6 +8909,15 @@ AdminReviewQueueItem:
   type: object
   required: [id, title, excerpt, userId, username, processStatus, createdAt]
   properties:
+    revisionId:
+      type: integer
+      format: uint64
+      description: Exact submitted version. Send back unchanged when deciding; omitted for legacy entries.
+    content:
+      type: string
+      description: Full candidate Markdown, visible to authorized reviewers only.
+    reviewReason:
+      type: string
     id:
       type: integer
       format: uint64
@@ -8968,6 +8998,14 @@ AdminReviewActionRequest:
   type: object
   required: [kind, id]
   properties:
+    revisionId:
+      type: integer
+      format: uint64
+      description: Required for versioned submissions. Missing or stale IDs return admin.review.processed without applying a decision.
+    reason:
+      type: string
+      maxLength: 512
+      description: Optional author-visible rejection reason.
     kind:
       type: string
       enum: [topic, post]
@@ -9391,8 +9429,27 @@ AdminImportTaskReplayResponse:
 
 MyContentItem:
   type: object
-  required: [id, contentType, title, createdAt]
+  required: [id, contentType, title, createdAt, processStatus, revisionId, hasPublishedVersion, content, images]
   properties:
+    processStatus:
+      type: integer
+      enum: [0, 1, 2]
+      description: Latest submission state; 1 can be edited and resubmitted, 2 is private pending review.
+    revisionId:
+      type: integer
+      format: uint64
+    reviewReason:
+      type: string
+    hasPublishedVersion:
+      type: boolean
+      description: An approved version remains publicly readable while the submitted edit is pending or rejected.
+    content:
+      type: string
+      description: Complete latest submitted Markdown for the authenticated author, including rejected content.
+    images:
+      type: array
+      items:
+        type: string
     id:
       type: integer
       format: uint64

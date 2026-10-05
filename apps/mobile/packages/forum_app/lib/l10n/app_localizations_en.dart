@@ -3446,4 +3446,30 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get topicPendingReviewReply =>
       'Under review · Only you and reviewers can see this reply until it’s approved.';
+
+  @override
+  String get contentReviewBlocked => 'Not approved';
+
+  @override
+  String get contentReviewRetry => 'Edit and resubmit';
+
+  @override
+  String get contentReviewLive => 'Your previous version remains public.';
+
+  @override
+  String get contentReviewView => 'View content';
+
+  @override
+  String get contentReviewPending => 'Under review';
+
+  @override
+  String get notificationReviewPending => 'Your post is awaiting manual review';
+
+  @override
+  String get notificationReviewPendingDetail =>
+      'We’ll review it soon and notify you of the result. You can view or edit it while you wait.';
+
+  @override
+  String get notificationReviewRejectedDetail =>
+      'This submission won’t be shown publicly. Review, edit and resubmit it from content management. Contact an administrator if you have questions.';
 }

@@ -116,7 +116,7 @@ type AiModerationDecisionListReq struct {
 	PageSize    int    `json:"pageSize"`
 	FinalAction string `json:"finalAction" validate:"omitempty,oneof=allow review block"`
 	HumanAction string `json:"humanAction" validate:"omitempty,oneof=none approved rejected"`
-	Mode        string `json:"mode" validate:"omitempty,oneof=shadow enforce"`
+	Mode        string `json:"mode" validate:"omitempty,oneof=shadow enforce deferred"`
 }
 
 // AiModerationDecisionItem 决策记录的管理端视图（不含任何密钥/原始 prompt）。

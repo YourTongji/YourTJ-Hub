@@ -323,3 +323,12 @@ func CancelPendingIDsTx(tx *gorm.DB, ids []uint64, reason string) error {
 	}
 	return tx.Model(&Entity{}).Where("id IN ? AND status IN (?, ?)", ids, StatusPending, StatusRetrying).Updates(map[string]any{"status": StatusSuccess, "last_error": reason, "processed_at": time.Now()}).Error
 }
+
+// ActivePayloads is a bounded lookup for owner-domain queue indicators.
+func ActivePayloads(taskType string, payloads []string) (result []string) {
+	if len(payloads) == 0 {
+		return
+	}
+	builder().Where("type = ? AND task_json IN ? AND status IN ?", taskType, payloads, []uint8{StatusPending, StatusRunning, StatusRetrying}).Pluck("task_json", &result)
+	return
+}

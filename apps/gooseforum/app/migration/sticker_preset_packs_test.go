@@ -8,6 +8,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/badges"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/sticker"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userBadges"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
@@ -18,8 +19,8 @@ import (
 
 func TestVersionedMigrationBackfillsPresetPacks(t *testing.T) {
 	conn := dbconnect.Connect()
-	// v31（机器人徽章）在其后会继续执行；提供它读取的表，避免本用例因缺表失败。
-	if err := conn.AutoMigrate(&pageConfig.Entity{}, &sticker.Entity{}, &users.EntityComplete{}, &badges.Entity{}, &userBadges.Entity{}); err != nil {
+	// Later data migrations need their own schema even in this sticker regression.
+	if err := conn.AutoMigrate(&pageConfig.Entity{}, &sticker.Entity{}, &posts.Entity{}, &users.EntityComplete{}, &badges.Entity{}, &userBadges.Entity{}); err != nil {
 		t.Fatal(err)
 	}
 	rows := seedLegacyPresetPacks(t, conn)
@@ -31,8 +32,8 @@ func TestVersionedMigrationBackfillsPresetPacks(t *testing.T) {
 			t.Fatal(err)
 		}
 		assertPresetPacks(t, conn, rows)
-		if got := pageConfig.GetMigrationVersion(); got != 31 {
-			t.Fatalf("migration version=%d, want 31", got)
+		if got := pageConfig.GetMigrationVersion(); got != 32 {
+			t.Fatalf("migration version=%d, want 32", got)
 		}
 	}
 }
@@ -86,7 +87,7 @@ func assertPresetPacks(t *testing.T, conn *gorm.DB, rows []sticker.Entity) {
 
 func TestVersionedPresetPackMigrationFailureDoesNotAdvance(t *testing.T) {
 	conn := dbconnect.Connect()
-	if err := conn.AutoMigrate(&pageConfig.Entity{}, &sticker.Entity{}); err != nil {
+	if err := conn.AutoMigrate(&pageConfig.Entity{}, &sticker.Entity{}, &posts.Entity{}); err != nil {
 		t.Fatal(err)
 	}
 	rows := seedLegacyPresetPacks(t, conn)

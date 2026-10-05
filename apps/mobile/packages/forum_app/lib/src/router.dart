@@ -192,6 +192,8 @@ class _GfShellState extends ConsumerState<GfShell> with WidgetsBindingObserver {
   void _handleRealtimeEvent(ForumSseFrame frame) {
     if (!mounted) return;
     switch (frame.event) {
+      case 'content.changed':
+        ref.read(realtimeInvalidationsProvider.notifier).content();
       case 'chat.changed':
         try {
           final event = ForumRealtimeChatChanged.fromJson(

@@ -168,7 +168,7 @@ func RebuildTopicPostStatsTx(tx *gorm.DB, topicEntity topics.Entity) error {
 	var lastPost *posts.Entity
 	replierIndex := map[uint64]*topicUserStat.ReplierStat{}
 	for _, post := range activePosts {
-		if post == nil || post.VisibilityStatus != posts.VisibilityActive {
+		if post == nil || post.VisibilityStatus != posts.VisibilityActive || post.ProcessStatus != posts.ProcessStatusNormal {
 			continue
 		}
 		postCount++
