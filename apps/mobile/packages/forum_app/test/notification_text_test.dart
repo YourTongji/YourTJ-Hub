@@ -36,6 +36,52 @@ NotificationPayload notification({
 );
 
 void main() {
+  test(
+    'review copy uses the reviewed subject instead of legacy preview text',
+    () {
+      for (final event in [
+        'review_pending',
+        'review_approved',
+        'review_rejected',
+      ]) {
+        final subject = event == 'review_rejected' ? '首******尾' : '无标题正文摘要';
+        final copy = notificationText(
+          notification(
+            event: event,
+            topicTitle: subject,
+            content: 'Legacy raw preview',
+          ),
+          AppLocalizationsEn(),
+        );
+        expect(copy.$2, startsWith(subject));
+        expect(copy.$2, isNot(contains('Legacy raw preview')));
+        expect(copy.$2, isNot(contains('Actual preview')));
+      }
+    },
+  );
+
+  test('manual review and rejection explain the next step in all locales', () {
+    for (final l10n in [
+      AppLocalizationsZh(),
+      AppLocalizationsEn(),
+      AppLocalizationsJa(),
+      AppLocalizationsDe(),
+    ]) {
+      final pending = notificationText(
+        notification(template: 'notifications.templates.reviewPending'),
+        l10n,
+      );
+      expect(pending.$1, l10n.notificationReviewPending);
+      expect(pending.$2, contains(l10n.notificationReviewPendingDetail));
+      final rejected = notificationText(
+        notification(template: 'notifications.templates.reviewRejected'),
+        l10n,
+      );
+      expect(rejected.$1, l10n.notificationReviewRejected);
+      expect(rejected.$2, contains(l10n.notificationReviewRejectedDetail));
+    }
+  });
+
   test('mention text in every locale and stable floor navigation', () {
     for (final locale in <AppLocalizations>[
       AppLocalizationsZh(),
@@ -76,6 +122,10 @@ void main() {
         floor == 8 ? '/p/512?postNo=8' : '/p/512',
       );
     }
+    expect(
+      notificationTarget(notification(event: 'review_rejected')),
+      '/my-content',
+    );
     expect(notificationTarget(notification(event: 'mention')), isNull);
     expect(notificationTarget(notification(event: 'follow')), '/u/1');
   });

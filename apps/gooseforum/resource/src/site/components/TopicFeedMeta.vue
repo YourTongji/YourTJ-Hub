@@ -78,6 +78,7 @@ const { t } = useI18n()
           </span>
         </div>
       </div>
+      <span v-if="topic.processStatus === 2" class="inline-flex shrink-0 whitespace-nowrap rounded bg-warning/15 px-2 py-0.5 text-xs text-warning">{{ t('topic.pendingReviewBadge') }}</span>
       <Pin
         v-if="showPinned && topic.pinWeight > 0"
         class="mt-0.5 h-4 w-4 shrink-0 rotate-45 text-error"

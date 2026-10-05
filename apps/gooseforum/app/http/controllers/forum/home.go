@@ -31,7 +31,7 @@ func Home(c *gin.Context) {
 	topicPage := hotdataserve.GetLatestTopicsSimpleVoPaginated(page, sort)
 	payload := PagePayload{
 		Component: PageComponentHome,
-		Props:     buildHomeProps(c, page, sort, topicPage.Topics, topicPage.HasNext),
+		Props:     buildHomeProps(c, page, sort, withOwnPendingTopics(topicPage.Topics, component.LoginUserId(c), page), topicPage.HasNext),
 		Meta:      buildHomeMeta(c, page, sort, topicPage.HasNext),
 		Layout:    buildLayout(c, activeKeyForHome(sort)),
 		URL:       buildPageURL(c),
@@ -75,7 +75,7 @@ func followingHome(c *gin.Context, page int) {
 	for i := range result.Topics {
 		entities[i] = &result.Topics[i]
 	}
-	props := buildHomeProps(c, page, "following", transform.Topics2Vo(entities, hotdataserve.CategoryMap()), result.NextCursor != "")
+	props := buildHomeProps(c, page, "following", withOwnPendingTopics(transform.Topics2Vo(entities, hotdataserve.CategoryMap()), viewerID, page), result.NextCursor != "")
 	if result.NextCursor != "" {
 		next, _ := url.Parse(props.Pagination.NextURL)
 		query := next.Query()

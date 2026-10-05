@@ -2,7 +2,9 @@ package routes
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"image"
 	"image/color"
@@ -17,6 +19,7 @@ import (
 	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/db4fileconnect"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/eventbus"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/securestore"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/api"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/forum"
@@ -27,12 +30,15 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/moderationDecision"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/moderators"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postRevisions"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/rolePermissionRs"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/taskQueue"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/moderationservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/permission"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/publicationservice"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
@@ -144,7 +150,10 @@ func saveContractImage(t *testing.T, ownerID uint64) (string, string) {
 }
 
 func writeTopicBody(title, content string) string {
-	body, _ := json.Marshal(map[string]any{"title": title, "content": content, "categoryId": []uint64{1}, "topicStatus": 1, "contentType": 3})
+	body, err := json.Marshal(map[string]any{"title": title, "content": content, "categoryId": []uint64{1}, "topicStatus": 1, "contentType": 3})
+	if err != nil {
+		panic(err)
+	}
 	return string(body)
 }
 
@@ -163,119 +172,6 @@ func usageStatuses(t *testing.T, conn *gorm.DB, fileName string) []string {
 	return statuses
 }
 
-func TestAIModerationTopicWriteBlocksWithoutCreatingContent(t *testing.T) {
-	conn, router, stub := setupAIModerationContractTest(t, nil)
-	stub.probabilities = map[string]float64{pageConfig.AiPolicyAdult: 0.98}
-	stub.severity = 2.9
-	author := createHTTPContractUser(t, conn, contractTestID())
-	url, name := saveContractImage(t, author.Id)
-
-	recorder := serveJSON(router, "/api/forum/topics/write", writeTopicBody("AI block contract", "正常文字配图 ![]("+url+")"), contractSessionToken(t, author))
-	assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "topic-write-ai-blocked.json"))
-	var count int64
-	conn.Model(&topics.Entity{}).Where("user_id = ?", author.Id).Count(&count)
-	if count != 0 {
-		t.Fatalf("blocked publish created %d topics", count)
-	}
-	if statuses := usageStatuses(t, conn, name); len(statuses) != 0 {
-		t.Fatalf("blocked publish registered usages %v", statuses)
-	}
-	if decision := moderationDecision.LatestForSubjects(moderationDecision.SubjectTopic, []uint64{0})[0]; decision.FinalAction != moderationDecision.ActionBlock {
-		t.Fatalf("block decision not recorded: %+v", decision)
-	}
-}
-
-func TestAIModerationExternalImageBlockedHTTPContract(t *testing.T) {
-	conn, router, _ := setupAIModerationContractTest(t, func(o *pageConfig.AiModerationOptions) {
-		o.ExternalImageAction = pageConfig.AiModerationActionBlock
-	})
-	author := createHTTPContractUser(t, conn, contractTestID())
-	recorder := serveJSON(router, "/api/forum/topics/write", writeTopicBody("AI external contract", "这里引用了一张外链图片 ![](https://img.example.com/x.png)"), contractSessionToken(t, author))
-	assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "topic-write-ai-external-image-blocked.json"))
-}
-
-// 待审内容（AI review）的图片对匿名/他人不可读，作者与站点管理员可授权预览；
-// 人工批准后图片随内容公开，并回写人工结论。
-func TestAIModerationPendingTopicImagesStayPrivateUntilApproved(t *testing.T) {
-	conn, router, stub := setupAIModerationContractTest(t, nil)
-	stub.probabilities = map[string]float64{pageConfig.AiPolicyViolence: 0.8}
-	stub.severity = 2
-	author := createHTTPContractUser(t, conn, contractTestID())
-	stranger := createHTTPContractUser(t, conn, contractTestID())
-	manager := createContractSiteManager(t, conn)
-	url, name := saveContractImage(t, author.Id)
-
-	recorder := serveJSON(router, "/api/forum/topics/write", writeTopicBody("AI review contract", "这是一段带配图的正文 ![]("+url+")"), contractSessionToken(t, author))
-	envelope := decodeContractEnvelope(t, recorder)
-	assertFixtureEnvelope(t, envelope, contractFixture(t, "topic-write-pending-review.json"))
-	var topicID uint64
-	if err := json.Unmarshal(envelope.Result, &topicID); err != nil || topicID == 0 {
-		t.Fatalf("topic id = %s", envelope.Result)
-	}
-	topic := topics.Get(topicID)
-	if topic.ProcessStatus != topics.ProcessStatusPending {
-		t.Fatalf("topic process status = %d, want pending", topic.ProcessStatus)
-	}
-	if statuses := usageStatuses(t, conn, name); len(statuses) != 1 || statuses[0] != fileUsage.UsageStatusPending {
-		t.Fatalf("usage statuses = %v, want [PENDING]", statuses)
-	}
-
-	if got := getImage(router, url, ""); got.Code != http.StatusNotFound {
-		t.Fatalf("anonymous pending image status = %d, want 404", got.Code)
-	}
-	if got := getImage(router, url, contractSessionToken(t, stranger)); got.Code != http.StatusNotFound {
-		t.Fatalf("stranger pending image status = %d, want 404", got.Code)
-	}
-	ownerView := getImage(router, url, contractSessionToken(t, author))
-	if ownerView.Code != http.StatusOK || ownerView.Header().Get("Cache-Control") != "private, no-store" {
-		t.Fatalf("owner preview status=%d cache=%q", ownerView.Code, ownerView.Header().Get("Cache-Control"))
-	}
-	managerToken := contractSessionToken(t, manager)
-	if got := getImage(router, url, managerToken); got.Code != http.StatusOK {
-		t.Fatalf("site manager preview status = %d, want 200", got.Code)
-	}
-
-	queue := serveAuthSecurityJSON(router, http.MethodPost, "/api/admin/review-queue", `{"kind":"topic","pageSize":50}`, managerToken)
-	var queueResult struct {
-		Items []api.ReviewQueueItem `json:"items"`
-	}
-	if err := json.Unmarshal(decodeContractEnvelope(t, queue).Result, &queueResult); err != nil {
-		t.Fatal(err)
-	}
-	var item *api.ReviewQueueItem
-	for i := range queueResult.Items {
-		if queueResult.Items[i].Id == topicID {
-			item = &queueResult.Items[i]
-		}
-	}
-	if item == nil || item.AiReview == nil || len(item.Images) != 1 || item.AiReview.TriggeredPolicies[0] != pageConfig.AiPolicyViolence {
-		t.Fatalf("review queue item = %+v", item)
-	}
-	if item.AiReview.Images[0].Evidence == "" {
-		t.Fatal("review queue must expose the truncated evidence summary to moderators")
-	}
-
-	action := serveAuthSecurityJSON(router, http.MethodPost, "/api/admin/review-action", fmt.Sprintf(`{"kind":"topic","id":%d,"approve":true}`, topicID), managerToken)
-	if envelope := decodeContractEnvelope(t, action); envelope.Code != 0 {
-		t.Fatalf("approve failed: %s", action.Body.String())
-	}
-	if statuses := usageStatuses(t, conn, name); len(statuses) != 1 || statuses[0] != fileUsage.UsageStatusActive {
-		t.Fatalf("usage statuses after approve = %v, want [ACTIVE]", statuses)
-	}
-	if got := getImage(router, url, ""); got.Code != http.StatusOK || !strings.Contains(got.Header().Get("Cache-Control"), "public") {
-		t.Fatalf("approved image status=%d cache=%q", got.Code, got.Header().Get("Cache-Control"))
-	}
-	if decision := moderationDecision.LatestForSubjects(moderationDecision.SubjectTopic, []uint64{topicID})[topicID]; decision.HumanAction != moderationDecision.HumanApproved {
-		t.Fatalf("human outcome = %q, want approved", decision.HumanAction)
-	}
-	// 作者收到“已通过”通知，链接到话题。
-	notice := latestNotification(t, conn, author.Id)
-	if notice.EventType != eventNotification.EventTypeReviewApproved || notice.Payload.TopicId != topicID ||
-		notice.Payload.TemplateKey != eventNotification.TemplateReviewApproved || notice.Payload.TopicTitle != "AI review contract" {
-		t.Fatalf("approval notification = %+v", notice)
-	}
-}
-
 func latestNotification(t *testing.T, conn *gorm.DB, userID uint64) eventNotification.Entity {
 	t.Helper()
 	var notice eventNotification.Entity
@@ -283,141 +179,6 @@ func latestNotification(t *testing.T, conn *gorm.DB, userID uint64) eventNotific
 		t.Fatalf("load notification for user %d: %v", userID, err)
 	}
 	return notice
-}
-
-func TestAIModerationRejectedReplyImagesNeverBecomePublic(t *testing.T) {
-	conn, router, stub := setupAIModerationContractTest(t, nil)
-	stub.probabilities = map[string]float64{pageConfig.AiPolicyIllegalOrDangerous: 0.9}
-	author := createHTTPContractUser(t, conn, contractTestID())
-	manager := createContractSiteManager(t, conn)
-	topicID, firstPostID := contractTestID(), contractTestID()
-	createContractPublishedTopic(t, conn, topicID, firstPostID, author.Id)
-	url, name := saveContractImage(t, author.Id)
-
-	body, _ := json.Marshal(map[string]any{"topicId": topicID, "content": "这是一条带配图的回复 ![](" + url + ")"})
-	envelope := decodeContractEnvelope(t, serveJSON(router, "/api/forum/posts/create", string(body), contractSessionToken(t, author)))
-	if envelope.Code != 0 || envelope.MessageCode != "content.moderation.pendingReview" {
-		t.Fatalf("reply envelope = %+v", envelope)
-	}
-	var created struct {
-		Id uint64 `json:"id"`
-	}
-	_ = json.Unmarshal(envelope.Result, &created)
-	if post := posts.Get(created.Id); post.ProcessStatus != posts.ProcessStatusPending {
-		t.Fatalf("reply process status = %d", post.ProcessStatus)
-	}
-	reject := serveAuthSecurityJSON(router, http.MethodPost, "/api/admin/review-action", fmt.Sprintf(`{"kind":"post","id":%d,"approve":false}`, created.Id), contractSessionToken(t, manager))
-	if decodeContractEnvelope(t, reject).Code != 0 {
-		t.Fatalf("reject failed: %s", reject.Body.String())
-	}
-	if statuses := usageStatuses(t, conn, name); len(statuses) != 1 || statuses[0] != fileUsage.UsageStatusPending {
-		t.Fatalf("rejected reply usages = %v, want [PENDING]", statuses)
-	}
-	if got := getImage(router, url, ""); got.Code != http.StatusNotFound {
-		t.Fatalf("rejected image status = %d, want 404", got.Code)
-	}
-	if decision := moderationDecision.LatestForSubjects(moderationDecision.SubjectPost, []uint64{created.Id})[created.Id]; decision.HumanAction != moderationDecision.HumanRejected {
-		t.Fatalf("human outcome = %q, want rejected", decision.HumanAction)
-	}
-	// 作者收到“未通过”通知：只带标题快照，不带可跳转的话题/楼层。
-	notice := latestNotification(t, conn, author.Id)
-	if notice.EventType != eventNotification.EventTypeReviewRejected || notice.Payload.TopicId != 0 || notice.Payload.PostNo != 0 ||
-		notice.TopicID != topicID || notice.Payload.TopicTitle == "" {
-		t.Fatalf("rejection notification = %+v", notice)
-	}
-}
-
-func TestAIModerationAllowAndEditPaths(t *testing.T) {
-	conn, router, stub := setupAIModerationContractTest(t, nil)
-	author := createHTTPContractUser(t, conn, contractTestID())
-	token := contractSessionToken(t, author)
-	url, name := saveContractImage(t, author.Id)
-	envelope := decodeContractEnvelope(t, serveJSON(router, "/api/forum/topics/write", writeTopicBody("AI allow contract", "今天拍到的校园风景 ![]("+url+")"), token))
-	if envelope.Code != 0 || envelope.MessageCode != "" {
-		t.Fatalf("allowed publish envelope = %+v", envelope)
-	}
-	if statuses := usageStatuses(t, conn, name); len(statuses) != 1 || statuses[0] != fileUsage.UsageStatusActive {
-		t.Fatalf("allowed usages = %v", statuses)
-	}
-	var topicID uint64
-	_ = json.Unmarshal(envelope.Result, &topicID)
-	topic := topics.Get(topicID)
-
-	// 编辑首楼后命中 AI block：拒绝编辑，原内容与公开状态保持不变。
-	stub.probabilities = map[string]float64{pageConfig.AiPolicyAdult: 0.99}
-	editURL, _ := saveContractImage(t, author.Id)
-	body, _ := json.Marshal(map[string]any{"postId": topic.FirstPostId, "content": "编辑后替换了一张配图 ![](" + editURL + ")"})
-	edit := decodeContractEnvelope(t, serveJSON(router, "/api/forum/posts/update", string(body), token))
-	if edit.Code != 1 || edit.MessageCode != "content.aiModeration.blocked" {
-		t.Fatalf("blocked edit envelope = %+v", edit)
-	}
-	if post := posts.Get(topic.FirstPostId); strings.Contains(post.Content, editURL) || topics.Get(topicID).ProcessStatus != topics.ProcessStatusNormal {
-		t.Fatal("blocked edit must not change the stored content or status")
-	}
-}
-
-// 人工结论只回写到评估过当前正文的 AI 决策：AI 放行后作者再编辑、编辑因
-// 敏感词转审（跳过 AI），版主拒绝的是新版本，不能记到旧版本的放行决策上。
-func TestAIModerationHumanOutcomeSkipsStaleDecision(t *testing.T) {
-	conn, router, _ := setupAIModerationContractTest(t, nil)
-	security := hotdataserve.GetSecuritySettingsConfigCache()
-	security.SensitiveWords = []string{"违禁词九七五"}
-	security.SensitiveAction = "review"
-	persistHTTPContractConfig(t, conn, pageConfig.SecuritySettings, security)
-	hotdataserve.ClearSecuritySettingsConfigCache()
-	author := createHTTPContractUser(t, conn, contractTestID())
-	token := contractSessionToken(t, author)
-	url, _ := saveContractImage(t, author.Id)
-	envelope := decodeContractEnvelope(t, serveJSON(router, "/api/forum/topics/write", writeTopicBody("AI stale label", "今天拍到的校园一角 ![]("+url+")"), token))
-	var topicID uint64
-	if err := json.Unmarshal(envelope.Result, &topicID); err != nil || envelope.Code != 0 || envelope.MessageCode != "" {
-		t.Fatalf("allowed publish envelope = %+v", envelope)
-	}
-	before := moderationDecision.LatestForSubjects(moderationDecision.SubjectTopic, []uint64{topicID})[topicID]
-	if before.Id == 0 || before.FinalAction != moderationDecision.ActionAllow {
-		t.Fatalf("initial decision = %+v", before)
-	}
-
-	topic := topics.Get(topicID)
-	body, _ := json.Marshal(map[string]any{"postId": topic.FirstPostId, "content": "编辑后加入了违禁词九七五 ![](" + url + ")"})
-	if edit := decodeContractEnvelope(t, serveJSON(router, "/api/forum/posts/update", string(body), token)); edit.Code != 0 || edit.MessageCode != "content.moderation.pendingReview" {
-		t.Fatalf("sensitive edit envelope = %+v", edit)
-	}
-	if topics.Get(topicID).ProcessStatus != topics.ProcessStatusPending {
-		t.Fatal("sensitive edit must send the topic to review")
-	}
-
-	manager := createContractSiteManager(t, conn)
-	action := serveAuthSecurityJSON(router, http.MethodPost, "/api/admin/review-action", fmt.Sprintf(`{"kind":"topic","id":%d,"approve":false}`, topicID), contractSessionToken(t, manager))
-	if decodeContractEnvelope(t, action).Code != 0 {
-		t.Fatalf("reject failed: %s", action.Body.String())
-	}
-	after := moderationDecision.LatestForSubjects(moderationDecision.SubjectTopic, []uint64{topicID})[topicID]
-	if after.Id != before.Id || after.HumanAction != "" {
-		t.Fatalf("stale decision labeled: %+v", after)
-	}
-}
-
-// 回归：现有敏感词转审路径同样不得让待审内容的图片提前公开（issue #975 收口）。
-func TestSensitiveReviewRegistersPendingImages(t *testing.T) {
-	conn, router, _ := setupAIModerationContractTest(t, func(o *pageConfig.AiModerationOptions) { o.Enabled = false })
-	security := hotdataserve.GetSecuritySettingsConfigCache()
-	security.SensitiveWords = []string{"违禁词九七五"}
-	security.SensitiveAction = "review"
-	persistHTTPContractConfig(t, conn, pageConfig.SecuritySettings, security)
-	hotdataserve.ClearSecuritySettingsConfigCache()
-	author := createHTTPContractUser(t, conn, contractTestID())
-	url, name := saveContractImage(t, author.Id)
-	envelope := decodeContractEnvelope(t, serveJSON(router, "/api/forum/topics/write", writeTopicBody("敏感词转审", "违禁词九七五 ![]("+url+")"), contractSessionToken(t, author)))
-	if envelope.Code != 0 || envelope.MessageCode != "content.moderation.pendingReview" {
-		t.Fatalf("sensitive review envelope = %+v", envelope)
-	}
-	if statuses := usageStatuses(t, conn, name); len(statuses) != 1 || statuses[0] != fileUsage.UsageStatusPending {
-		t.Fatalf("sensitive review usages = %v, want [PENDING]", statuses)
-	}
-	if got := getImage(router, url, ""); got.Code != http.StatusNotFound {
-		t.Fatalf("anonymous image status = %d, want 404", got.Code)
-	}
 }
 
 func TestAdminAiModerationSettingsHTTPContract(t *testing.T) {
@@ -524,10 +285,10 @@ func TestModerationWorkbenchReviewQueueIsScopedToModeratorCategories(t *testing.
 	authorToken := contractSessionToken(t, author)
 	write := func(title string, category uint64) (uint64, string) {
 		url, _ := saveContractImage(t, author.Id)
-		body, _ := json.Marshal(map[string]any{"title": title, "content": "这是一段带配图的正文 ![](" + url + ")", "categoryId": []uint64{category}, "topicStatus": 1, "contentType": 3})
+		body := mustReviewJSON(t, map[string]any{"title": title, "content": "这是一段带配图的正文 ![](" + url + ")", "categoryId": []uint64{category}, "topicStatus": 1, "contentType": 3})
 		envelope := decodeContractEnvelope(t, serveJSON(router, "/api/forum/topics/write", string(body), authorToken))
 		var id uint64
-		if err := json.Unmarshal(envelope.Result, &id); err != nil || envelope.MessageCode != "content.moderation.pendingReview" {
+		if err := json.Unmarshal(envelope.Result, &id); err != nil || envelope.MessageCode != "content.moderation.checking" {
 			t.Fatalf("pending write = %+v", envelope)
 		}
 		return id, url
@@ -583,12 +344,12 @@ func TestModerationWorkbenchReviewQueueIsScopedToModeratorCategories(t *testing.
 	if other.Code != 1 || other.MessageCode != "admin.review.notFound" || topics.Get(otherTopic).ProcessStatus != topics.ProcessStatusPending {
 		t.Fatalf("out-of-scope review = %+v", other)
 	}
-	own := decodeContractEnvelope(t, serveJSON(router, "/api/forum/moderation/review-action", fmt.Sprintf(`{"kind":"topic","id":%d,"approve":true}`, ownTopic), token))
+	own := decodeContractEnvelope(t, serveJSON(router, "/api/forum/moderation/review-action", fmt.Sprintf(`{"kind":"topic","id":%d,"approve":true,"revisionId":%d}`, ownTopic, posts.Get(topics.Get(ownTopic).FirstPostId).LatestRevisionId), token))
 	if own.Code != 0 || topics.Get(ownTopic).ProcessStatus != topics.ProcessStatusNormal {
 		t.Fatalf("in-scope review = %+v", own)
 	}
-	if notice := latestNotification(t, conn, author.Id); notice.EventType != eventNotification.EventTypeReviewApproved || notice.Payload.TopicId != ownTopic {
-		t.Fatalf("author notification = %+v", notice)
+	if notificationCount(conn, author.Id, eventNotification.EventTypeReviewApproved) != 1 {
+		t.Fatal("human approval must notify the author once")
 	}
 
 	stranger := createHTTPContractUser(t, conn, contractTestID())
@@ -614,254 +375,31 @@ func notificationCount(conn *gorm.DB, userID uint64, eventType string) int64 {
 	return count
 }
 
-func deferredMode(o *pageConfig.AiModerationOptions) { o.Mode = pageConfig.AiModerationModeDeferred }
-
-// 先发后审的后台判定可能早于请求剩余步骤完成（issue #975 review）：钩子让请求在
-// 启动判定后等到自动通过生效再继续。图片引用必须在启动判定前登记，否则会把已公开
-// 内容的图片写回 PENDING。覆盖发主题、发回复与编辑回复三条路径。
-func TestAIModerationDeferredApprovalAfterImageRegistration(t *testing.T) {
-	conn, router, _ := setupAIModerationContractTest(t, deferredMode)
-	author := createHTTPContractUser(t, conn, contractTestID())
-	token := contractSessionToken(t, author)
-	var approved func() bool
-	t.Cleanup(api.SetAfterAIFinishForTest(func() { waitFor(t, "auto approval inside the request", approved) }))
-	assertPublicImage := func(step, url string) {
-		t.Helper()
-		if got := getImage(router, url, ""); got.Code != http.StatusOK {
-			t.Fatalf("%s: anonymous image after auto approval = %d, want 200", step, got.Code)
-		}
-	}
-
-	topicImage, _ := saveContractImage(t, author.Id)
-	const title = "后台判定先于图片登记"
-	approved = func() bool {
-		var topic topics.Entity
-		conn.Where("user_id = ? AND title = ?", author.Id, title).First(&topic)
-		return topic.Id != 0 && topic.ProcessStatus == topics.ProcessStatusNormal
-	}
-	if envelope := decodeContractEnvelope(t, serveJSON(router, "/api/forum/topics/write", writeTopicBody(title, "今天拍到的校园风景 ![]("+topicImage+")"), token)); envelope.Code != 0 {
-		t.Fatalf("topic envelope = %+v", envelope)
-	}
-	assertPublicImage("topic", topicImage)
-
-	topicID, firstPostID := contractTestID(), contractTestID()
-	createContractPublishedTopic(t, conn, topicID, firstPostID, author.Id)
-	replyImage, _ := saveContractImage(t, author.Id)
-	replyContent := "这是一条带配图的回复 ![](" + replyImage + ")"
-	approved = func() bool {
-		var post posts.Entity
-		conn.Where("topic_id = ? AND content = ?", topicID, replyContent).First(&post)
-		return post.Id != 0 && post.ProcessStatus == posts.ProcessStatusNormal
-	}
-	body, _ := json.Marshal(map[string]any{"topicId": topicID, "content": replyContent})
-	envelope := decodeContractEnvelope(t, serveJSON(router, "/api/forum/posts/create", string(body), token))
-	var reply struct {
-		Id uint64 `json:"id"`
-	}
-	if err := json.Unmarshal(envelope.Result, &reply); err != nil || reply.Id == 0 {
-		t.Fatalf("reply envelope = %+v", envelope)
-	}
-	assertPublicImage("reply", replyImage)
-
-	editImage, _ := saveContractImage(t, author.Id)
-	editContent := "编辑后换了一张配图 ![](" + editImage + ")"
-	approved = func() bool {
-		post := posts.Get(reply.Id)
-		return post.Content == editContent && post.ProcessStatus == posts.ProcessStatusNormal
-	}
-	body, _ = json.Marshal(map[string]any{"postId": reply.Id, "content": editContent})
-	if edit := decodeContractEnvelope(t, serveJSON(router, "/api/forum/posts/update", string(body), token)); edit.Code != 0 {
-		t.Fatalf("edit envelope = %+v", edit)
-	}
-	assertPublicImage("edit", editImage)
-}
-
-// 先发后审：发布立即返回且对他人不可见；后台判定 allow 后自动公开、图片转 ACTIVE，
-// 不打扰作者（不发通知），也不记人工标签。
-func TestAIModerationDeferredAllowPublishesSilently(t *testing.T) {
-	conn, router, stub := setupAIModerationContractTest(t, deferredMode)
-	hold := make(chan struct{})
-	stub.holds = []chan struct{}{hold}
-	author := createHTTPContractUser(t, conn, contractTestID())
-	manager := createContractSiteManager(t, conn)
-	url, name := saveContractImage(t, author.Id)
-
-	envelope := decodeContractEnvelope(t, serveJSON(router, "/api/forum/topics/write", writeTopicBody("先发后审的话题", "今天拍到的校园风景 ![]("+url+")"), contractSessionToken(t, author)))
-	assertFixtureEnvelope(t, envelope, contractFixture(t, "topic-write-checking.json"))
-	var topicID uint64
-	if err := json.Unmarshal(envelope.Result, &topicID); err != nil || topicID == 0 {
-		t.Fatalf("topic id = %s", envelope.Result)
-	}
-	if topics.Get(topicID).ProcessStatus != topics.ProcessStatusPending {
-		t.Fatal("deferred publish must store the topic as pending until the check finishes")
-	}
-	if got := getImage(router, url, ""); got.Code != http.StatusNotFound {
-		t.Fatalf("anonymous image during check = %d, want 404", got.Code)
-	}
-
-	// 检查进行中：审核队列标记“自动检查中”。
-	queue := serveAuthSecurityJSON(router, http.MethodPost, "/api/admin/review-queue", `{"kind":"topic","pageSize":50}`, contractSessionToken(t, manager))
-	var queueResult struct {
-		Items []api.ReviewQueueItem `json:"items"`
-	}
-	if err := json.Unmarshal(decodeContractEnvelope(t, queue).Result, &queueResult); err != nil {
-		t.Fatal(err)
-	}
-	checking := false
-	for _, item := range queueResult.Items {
-		if item.Id == topicID {
-			checking = item.AiChecking && item.AiReview == nil
-		}
-	}
-	if !checking {
-		t.Fatalf("queue must flag the topic as being checked: %+v", queueResult.Items)
-	}
-
-	stub.release(hold)
-	waitFor(t, "auto approval", func() bool { return topics.Get(topicID).ProcessStatus == topics.ProcessStatusNormal })
-	if statuses := usageStatuses(t, conn, name); len(statuses) != 1 || statuses[0] != fileUsage.UsageStatusActive {
-		t.Fatalf("usage statuses after auto approval = %v, want [ACTIVE]", statuses)
-	}
-	if got := getImage(router, url, ""); got.Code != http.StatusOK {
-		t.Fatalf("anonymous image after approval = %d, want 200", got.Code)
-	}
-	decision := moderationDecision.LatestForSubjects(moderationDecision.SubjectTopic, []uint64{topicID})[topicID]
-	if decision.Mode != pageConfig.AiModerationModeDeferred || decision.AppliedAction != moderationDecision.ActionAllow || decision.HumanAction != "" {
-		t.Fatalf("deferred decision = %+v", decision)
-	}
-	if n := notificationCount(conn, author.Id, eventNotification.EventTypeReviewApproved); n != 0 {
-		t.Fatalf("auto approval sent %d notifications, want none", n)
-	}
-	if moderationservice.DeferredChecking(moderationDecision.SubjectTopic, []uint64{topicID})[topicID] {
-		t.Fatal("finished check must leave the in-flight set")
-	}
-}
-
-// 先发后审：后台判定 block 时自动拒绝，图片保持不可读，作者收到“未通过”通知。
-func TestAIModerationDeferredBlockRejectsAndNotifies(t *testing.T) {
-	conn, router, stub := setupAIModerationContractTest(t, deferredMode)
-	stub.probabilities = map[string]float64{pageConfig.AiPolicyAdult: 0.99}
-	author := createHTTPContractUser(t, conn, contractTestID())
-	topicID, firstPostID := contractTestID(), contractTestID()
-	createContractPublishedTopic(t, conn, topicID, firstPostID, author.Id)
-	url, name := saveContractImage(t, author.Id)
-
-	body, _ := json.Marshal(map[string]any{"topicId": topicID, "content": "这是一条带配图的回复 ![](" + url + ")"})
-	envelope := decodeContractEnvelope(t, serveJSON(router, "/api/forum/posts/create", string(body), contractSessionToken(t, author)))
-	if envelope.Code != 0 || envelope.MessageCode != "content.moderation.checking" {
-		t.Fatalf("reply envelope = %+v", envelope)
-	}
-	var created struct {
-		Id uint64 `json:"id"`
-	}
-	if err := json.Unmarshal(envelope.Result, &created); err != nil || created.Id == 0 {
-		t.Fatalf("reply result = %s", envelope.Result)
-	}
-	waitFor(t, "auto rejection", func() bool { return posts.Get(created.Id).ProcessStatus == posts.ProcessStatusBlocked })
-	if statuses := usageStatuses(t, conn, name); len(statuses) != 1 || statuses[0] != fileUsage.UsageStatusPending {
-		t.Fatalf("usage statuses after auto rejection = %v, want [PENDING]", statuses)
-	}
-	if notice := latestNotification(t, conn, author.Id); notice.EventType != eventNotification.EventTypeReviewRejected {
-		t.Fatalf("author notification = %q, want review_rejected", notice.EventType)
-	}
-	if decision := moderationDecision.LatestForSubjects(moderationDecision.SubjectPost, []uint64{created.Id})[created.Id]; decision.AppliedAction != moderationDecision.ActionBlock || decision.HumanAction != "" {
-		t.Fatalf("deferred decision = %+v", decision)
-	}
-}
-
-// 先发后审：介于两线（review）时留在审核队列并附带 AI 原因，不自动处理。
-func TestAIModerationDeferredReviewStaysQueued(t *testing.T) {
-	conn, router, stub := setupAIModerationContractTest(t, deferredMode)
-	stub.probabilities = map[string]float64{pageConfig.AiPolicyViolence: 0.8}
-	author := createHTTPContractUser(t, conn, contractTestID())
-	manager := createContractSiteManager(t, conn)
-	url, _ := saveContractImage(t, author.Id)
-	envelope := decodeContractEnvelope(t, serveJSON(router, "/api/forum/topics/write", writeTopicBody("先发后审转人工", "这是一段带配图的正文 ![]("+url+")"), contractSessionToken(t, author)))
-	var topicID uint64
-	_ = json.Unmarshal(envelope.Result, &topicID)
-	waitFor(t, "deferred review decision", func() bool {
-		return moderationDecision.LatestForSubjects(moderationDecision.SubjectTopic, []uint64{topicID})[topicID].Id != 0 &&
-			!moderationservice.DeferredChecking(moderationDecision.SubjectTopic, []uint64{topicID})[topicID]
-	})
-	if topics.Get(topicID).ProcessStatus != topics.ProcessStatusPending {
-		t.Fatal("review result must keep the topic pending for a moderator")
-	}
-	queue := serveAuthSecurityJSON(router, http.MethodPost, "/api/admin/review-queue", `{"kind":"topic","pageSize":50}`, contractSessionToken(t, manager))
-	var queueResult struct {
-		Items []api.ReviewQueueItem `json:"items"`
-	}
-	if err := json.Unmarshal(decodeContractEnvelope(t, queue).Result, &queueResult); err != nil {
-		t.Fatal(err)
-	}
-	for _, item := range queueResult.Items {
-		if item.Id == topicID {
-			if item.AiChecking || item.AiReview == nil || item.AiReview.AppliedAction != moderationDecision.ActionReview {
-				t.Fatalf("queued item = %+v", item)
-			}
-			return
-		}
-	}
-	t.Fatal("topic missing from the review queue")
-}
-
-// 先发后审：站点拦截外链图片时无需模型即可判定，仍在编辑器里同步提示，不写入内容。
-func TestAIModerationDeferredBlocksExternalImagesUpfront(t *testing.T) {
-	conn, router, stub := setupAIModerationContractTest(t, func(o *pageConfig.AiModerationOptions) {
-		o.Mode = pageConfig.AiModerationModeDeferred
-		o.ExternalImageAction = pageConfig.AiModerationActionBlock
-	})
-	author := createHTTPContractUser(t, conn, contractTestID())
-	countTopics := func() (n int64) { conn.Model(&topics.Entity{}).Count(&n); return }
-	before := countTopics()
-	envelope := decodeContractEnvelope(t, serveJSON(router, "/api/forum/topics/write", writeTopicBody("引用站外图片的话题", "引用一张站外图片 ![](https://example.com/a.png)"), contractSessionToken(t, author)))
-	if envelope.Code != 1 || envelope.MessageCode != "content.aiModeration.externalImageBlocked" {
-		t.Fatalf("external image envelope = %+v", envelope)
-	}
-	if countTopics() != before || stub.jevCalls.Load() != 0 {
-		t.Fatal("upfront external-image block must not write content or call models")
-	}
-}
-
-// 先发后审：检查期间作者再次编辑，旧版本的 allow 结论作废，只有新版本的结论生效。
-func TestAIModerationDeferredIgnoresSupersededOutcome(t *testing.T) {
+func TestPendingEditPreservesPublishedTopic(t *testing.T) {
 	conn, router, stub := setupAIModerationContractTest(t, func(o *pageConfig.AiModerationOptions) {
 		o.Mode = pageConfig.AiModerationModeDeferred
 		o.TextModeration = true
 	})
-	first, second := make(chan struct{}), make(chan struct{})
-	stub.holds = []chan struct{}{first, second}
-	stub.blockMarker = "编辑后的违规版本"
+	hold := make(chan struct{})
+	stub.holds = []chan struct{}{hold}
 	author := createHTTPContractUser(t, conn, contractTestID())
-	token := contractSessionToken(t, author)
-	envelope := decodeContractEnvelope(t, serveJSON(router, "/api/forum/topics/write", writeTopicBody("检查期间改稿", "最初版本的正文内容足够长"), token))
-	var topicID uint64
-	if err := json.Unmarshal(envelope.Result, &topicID); err != nil || envelope.MessageCode != "content.moderation.checking" {
-		t.Fatalf("publish envelope = %+v", envelope)
+	topicID, postID := contractTestID(), contractTestID()
+	createContractPublishedTopic(t, conn, topicID, postID, author.Id)
+	oldTopic, oldPost := topics.Get(topicID), posts.Get(postID)
+	body := mustReviewJSON(t, map[string]any{"topicId": topicID, "title": "修改后的新标题", "content": "修改后的正文等待审核", "categoryId": []uint64{1}, "topicStatus": 1, "contentType": 3})
+	envelope := decodeContractEnvelope(t, serveJSON(router, "/api/forum/topics/write", string(body), contractSessionToken(t, author)))
+	if envelope.Code != 0 {
+		t.Fatalf("save failed: %+v", envelope)
 	}
-	waitFor(t, "first check to start", func() bool { return stub.jevCalls.Load() == 1 })
-	body, _ := json.Marshal(map[string]any{"topicId": topicID, "title": "检查期间改稿", "content": "编辑后的违规版本正文内容",
-		"categoryId": []uint64{1}, "topicStatus": 1, "contentType": 3})
-	if edit := decodeContractEnvelope(t, serveJSON(router, "/api/forum/topics/write", string(body), token)); edit.Code != 0 || edit.MessageCode != "content.moderation.checking" {
-		t.Fatalf("edit envelope = %+v", edit)
+	current, post := topics.Get(topicID), posts.Get(postID)
+	if current.ProcessStatus != topics.ProcessStatusNormal || current.Title != oldTopic.Title || post.Content != oldPost.Content {
+		t.Fatalf("pending edit replaced live content: topic=%+v post=%+v", current, post)
 	}
-	waitFor(t, "second check to start", func() bool { return stub.jevCalls.Load() == 2 })
-
-	// 旧版本先完成且判定 allow：不得公开改稿后的内容。
-	stub.release(first)
-	waitFor(t, "first decision", func() bool {
-		var count int64
-		conn.Model(&moderationDecision.Entity{}).Where("subject_type = ? AND subject_id = ?", moderationDecision.SubjectTopic, topicID).Count(&count)
-		return count == 1
-	})
-	time.Sleep(100 * time.Millisecond)
-	if status := topics.Get(topicID).ProcessStatus; status != topics.ProcessStatusPending {
-		t.Fatalf("superseded allow changed the topic status to %d", status)
-	}
-	stub.release(second)
-	waitFor(t, "rejection of the edited version", func() bool { return topics.Get(topicID).ProcessStatus == topics.ProcessStatusBlocked })
 }
 
-// getTopicPage 以 SPA 页面请求（X-Goose-Page）读取话题详情 JSON。
+// 先发后审的后台判定可能早于请求剩余步骤完成（issue #975 review）：钩子让请求在
+// 启动判定后等到自动通过生效再继续。图片引用必须在启动判定前登记，否则会把已公开
+// 内容的图片写回 PENDING。覆盖发主题、发回复与编辑回复三条路径。
 func getTopicPage(router http.Handler, topicID uint64, token string) *httptest.ResponseRecorder {
 	request := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/p/post/%d", topicID), nil)
 	request.Header.Set("X-Goose-Page", "true")
@@ -930,7 +468,7 @@ func TestAIModerationAuthorCanReadOwnPendingContent(t *testing.T) {
 	// 公开话题里的待审回复：作者在楼层窗口里能看到正文，他人看不到这一楼。
 	publicTopicID, firstPostID := contractTestID(), contractTestID()
 	createContractPublishedTopic(t, conn, publicTopicID, firstPostID, stranger.Id)
-	body, _ := json.Marshal(map[string]any{"topicId": publicTopicID, "content": "作者自己审核中的这条回复"})
+	body := mustReviewJSON(t, map[string]any{"topicId": publicTopicID, "content": "作者自己审核中的这条回复"})
 	if reply := decodeContractEnvelope(t, serveJSON(router, "/api/forum/posts/create", string(body), authorToken)); reply.MessageCode != "content.moderation.checking" {
 		t.Fatalf("reply envelope = %+v", reply)
 	}
@@ -940,5 +478,470 @@ func TestAIModerationAuthorCanReadOwnPendingContent(t *testing.T) {
 	}
 	if got := serveAuthSecurityJSON(router, http.MethodGet, path, "", strangerToken); strings.Contains(got.Body.String(), "作者自己审核中的这条回复") {
 		t.Fatal("other readers must not see a pending reply")
+	}
+}
+
+func runSubmission(t *testing.T, conn *gorm.DB, revisionID uint64) {
+	t.Helper()
+	var jobs []taskQueue.Entity
+	conn.Where("type = ?", publicationservice.TaskType).Find(&jobs)
+	for _, job := range jobs {
+		var payload publicationservice.Task
+		if err := json.Unmarshal([]byte(job.TaskJson), &payload); err != nil {
+			t.Fatal(err)
+		}
+		if payload.RevisionId == revisionID {
+			if err := publicationservice.RunReviewTask(context.Background(), &job); err != nil {
+				t.Fatal(err)
+			}
+			return
+		}
+	}
+	t.Fatalf("no durable job for revision %d", revisionID)
+}
+
+func submitContractTopic(t *testing.T, router *gin.Engine, token, title, content string) uint64 {
+	t.Helper()
+	envelope := decodeContractEnvelope(t, serveJSON(router, "/api/forum/topics/write", writeTopicBody(title, content), token))
+	var id uint64
+	if err := json.Unmarshal(envelope.Result, &id); err != nil || id == 0 || envelope.Code != 0 {
+		t.Fatalf("submit: %+v", envelope)
+	}
+	return id
+}
+
+func TestAsyncModerationDurableSaveApproveRejectAndResubmit(t *testing.T) {
+	for _, block := range []bool{false, true} {
+		t.Run(fmt.Sprint(block), func(t *testing.T) {
+			conn, router, stub := setupAIModerationContractTest(t, func(o *pageConfig.AiModerationOptions) { o.TextModeration = true })
+			if block {
+				stub.probabilities = map[string]float64{pageConfig.AiPolicyAdult: 0.99}
+				stub.severity = 3
+			}
+			author := createHTTPContractUser(t, conn, contractTestID())
+			token := contractSessionToken(t, author)
+			url, _ := saveContractImage(t, author.Id)
+			id := submitContractTopic(t, router, token, "异步审核发布测试", "发送成功后后台开始审核 ![]("+url+")")
+			post := posts.Get(topics.Get(id).FirstPostId)
+			if stub.jevCalls.Load() != 0 || post.ProcessStatus != posts.ProcessStatusPending || post.LatestRevisionId == 0 {
+				t.Fatalf("publish waited for a model or lost revision: %+v", post)
+			}
+			if getImage(router, url, "").Code != 404 || getImage(router, url, token).Code != 200 {
+				t.Fatal("private image permissions")
+			}
+			runSubmission(t, conn, post.LatestRevisionId)
+			runSubmission(t, conn, post.LatestRevisionId)
+			if block {
+				if topics.Get(id).ProcessStatus != topics.ProcessStatusBlocked || postRevisions.Get(post.LatestRevisionId).ProcessStatus != posts.ProcessStatusBlocked {
+					t.Fatal("rejected state missing")
+				}
+				if notificationCount(conn, author.Id, eventNotification.EventTypeReviewRejected) != 1 {
+					t.Fatal("rejection must notify exactly once")
+				}
+				if getImage(router, url, "").Code != 404 || getImage(router, url, token).Code != 200 {
+					t.Fatal("rejected image must remain private and editable")
+				}
+				stub.probabilities = map[string]float64{}
+				stub.severity = 0
+				body := mustReviewJSON(t, map[string]any{"topicId": id, "title": "已修改重新提交", "content": "修改后的内容重新进入审核", "categoryId": []uint64{1}, "topicStatus": 1, "contentType": 3})
+				if result := decodeContractEnvelope(t, serveJSON(router, "/api/forum/topics/write", string(body), token)); result.Code != 0 {
+					t.Fatalf("blocked resubmit: %+v", result)
+				}
+				next := posts.Get(post.Id)
+				if next.LatestRevisionId == post.LatestRevisionId || next.ProcessStatus != posts.ProcessStatusPending {
+					t.Fatal("blocked resubmission did not create a pending revision")
+				}
+				runSubmission(t, conn, next.LatestRevisionId)
+			}
+			if topics.Get(id).ProcessStatus != topics.ProcessStatusNormal {
+				t.Fatal("allow did not publish")
+			}
+			if !block && getImage(router, url, "").Code != 200 {
+				t.Fatal("approved image not public")
+			}
+			if notificationCount(conn, author.Id, eventNotification.EventTypeReviewApproved) != 0 {
+				t.Fatal("automatic approval should be quiet")
+			}
+		})
+	}
+}
+
+func TestAsyncEditRejectPreservesLiveAndFencesOldDecisions(t *testing.T) {
+	conn, router, _ := setupAIModerationContractTest(t, func(o *pageConfig.AiModerationOptions) { o.TextModeration = true })
+	author := createHTTPContractUser(t, conn, contractTestID())
+	token := contractSessionToken(t, author)
+	topicID, postID := contractTestID(), contractTestID()
+	createContractPublishedTopic(t, conn, topicID, postID, author.Id)
+	old := posts.Get(postID)
+	submit := func(content string) uint64 {
+		body := mustReviewJSON(t, map[string]any{"postId": postID, "content": content})
+		if e := decodeContractEnvelope(t, serveJSON(router, "/api/forum/posts/update", string(body), token)); e.Code != 0 {
+			t.Fatalf("edit: %+v", e)
+		}
+		return posts.Get(postID).LatestRevisionId
+	}
+	first := submit("第一次修改仍在审核中的内容")
+	second := submit("第二次修改仍在审核中的内容")
+	if err := publicationservice.Review(context.Background(), first, moderationDecision.ActionAllow, "", 0); !errors.Is(err, publicationservice.ErrUnavailable) {
+		t.Fatalf("stale review = %v", err)
+	}
+	if err := publicationservice.Review(context.Background(), second, moderationDecision.ActionBlock, "测试拒绝原因", 0); err != nil {
+		t.Fatal(err)
+	}
+	if got := posts.Get(postID); got.Content != old.Content || got.ProcessStatus != posts.ProcessStatusNormal {
+		t.Fatal("rejection withdrew public original")
+	}
+	notice := latestNotification(t, conn, author.Id)
+	if notice.Payload.Content != "" || !strings.Contains(notice.Payload.TopicTitle, "******") || notice.Payload.PostId != postID {
+		t.Fatalf("notice: %+v", notice)
+	}
+	// Deletion after a submission makes its delayed result inapplicable.
+	third := submit("删除发生前提交的最新内容")
+	conn.Model(&posts.Entity{}).Where("id = ?", postID).Update("visibility_status", posts.VisibilityUserDeleted)
+	if err := publicationservice.Review(context.Background(), third, moderationDecision.ActionAllow, "", 0); !errors.Is(err, publicationservice.ErrUnavailable) {
+		t.Fatalf("deleted review = %v", err)
+	}
+}
+
+func TestAsyncReplyCountersAndManualRevisionFence(t *testing.T) {
+	conn, router, _ := setupAIModerationContractTest(t, func(o *pageConfig.AiModerationOptions) { o.TextModeration = true })
+	author := createHTTPContractUser(t, conn, contractTestID())
+	token := contractSessionToken(t, author)
+	topicID, postID := contractTestID(), contractTestID()
+	createContractPublishedTopic(t, conn, topicID, postID, author.Id)
+	before := topics.Get(topicID)
+	body := mustReviewJSON(t, map[string]any{"topicId": topicID, "content": "尚未通过审核的新增回复内容"})
+	e := decodeContractEnvelope(t, serveJSON(router, "/api/forum/posts/create", string(body), token))
+	var result struct {
+		Id uint64 `json:"id"`
+	}
+	if err := json.Unmarshal(e.Result, &result); err != nil || result.Id == 0 {
+		t.Fatalf("reply: %+v", e)
+	}
+	if after := topics.Get(topicID); after.ReplyCount != before.ReplyCount || after.LastPostId != before.LastPostId {
+		t.Fatal("pending reply changed public counters")
+	}
+	post := posts.Get(result.Id)
+	manager := createContractSiteManager(t, conn)
+	for _, revision := range []uint64{0, post.LatestRevisionId + 1} {
+		b := fmt.Sprintf(`{"kind":"post","id":%d,"approve":true,"revisionId":%d}`, post.Id, revision)
+		if got := decodeContractEnvelope(t, serveJSON(router, "/api/admin/review-action", b, contractSessionToken(t, manager))); got.Code == 0 {
+			t.Fatal("manual action without matching revision was accepted")
+		}
+	}
+	runSubmission(t, conn, post.LatestRevisionId)
+	if after := topics.Get(topicID); after.ReplyCount != before.ReplyCount+1 {
+		t.Fatalf("approved reply count %d", after.ReplyCount)
+	}
+}
+
+func TestAsyncCandidatePrivacyAndCompletePublication(t *testing.T) {
+	conn, router, _ := setupAIModerationContractTest(t, func(o *pageConfig.AiModerationOptions) { o.TextModeration = true })
+	router.GET("/", middleware.JWTAuth, forum.Home)
+	router.GET("/p/post/:id", middleware.JWTAuth, forum.TopicDetail)
+	router.GET("/api/forum/user/my-content", middleware.JWTAuthCheck, UpQueryReq(api.MyContentList))
+	author := createHTTPContractUser(t, conn, contractTestID())
+	stranger := createHTTPContractUser(t, conn, contractTestID())
+	token := contractSessionToken(t, author)
+	topicID, postID := contractTestID(), contractTestID()
+	createContractPublishedTopic(t, conn, topicID, postID, author.Id)
+	imageURL, _ := saveContractImage(t, author.Id)
+	candidate := "private-candidate-body-that-must-not-leak"
+	body := mustReviewJSON(t, map[string]any{"topicId": topicID, "title": "private-candidate-title", "content": candidate, "images": []string{imageURL}, "categoryId": []uint64{1}, "topicStatus": 1, "contentType": 2})
+	if e := decodeContractEnvelope(t, serveJSON(router, "/api/forum/topics/write", string(body), token)); e.Code != 0 {
+		t.Fatalf("submit: %+v", e)
+	}
+	// A missing render cache must rebuild only the owner projection.
+	conn.Model(&postRevisions.Entity{}).Where("id = ?", posts.Get(postID).LatestRevisionId).Update("rendered_html", "")
+	page := func(path, session string) string {
+		r := httptest.NewRequest(http.MethodGet, path, nil)
+		r.Header.Set("X-Goose-Page", "1")
+		if session != "" {
+			r.Header.Set("Authorization", "Bearer "+session)
+		}
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, r)
+		if w.Code != 200 {
+			t.Fatalf("%s: %d %.300s", path, w.Code, w.Body.String())
+		}
+		return w.Body.String()
+	}
+	for _, path := range []string{"/", fmt.Sprintf("/p/post/%d", topicID), fmt.Sprintf("/api/forum/posts/window?topicId=%d", topicID)} {
+		own := page(path, token)
+		if !strings.Contains(own, candidate) && !strings.Contains(own, "private-candidate-title") {
+			t.Fatalf("owner missing candidate: %s", path)
+		}
+		if live := posts.Get(postID); live.Content != "Topic first post content" || live.ProcessStatus != posts.ProcessStatusNormal {
+			t.Fatalf("owner render modified public projection via %s: %+v", path, live)
+		}
+		// Read after the author to catch accidental mutation of shared cached entries.
+		for _, session := range []string{"", contractSessionToken(t, stranger)} {
+			public := page(path, session)
+			if strings.Contains(public, candidate) || strings.Contains(public, "private-candidate-title") || strings.Contains(public, imageURL) {
+				t.Fatalf("candidate leaked via %s", path)
+			}
+		}
+	}
+	history := page(fmt.Sprintf("/api/forum/posts/revisions?postId=%d", postID), contractSessionToken(t, stranger))
+	if strings.Contains(history, candidate) {
+		t.Fatal("candidate leaked via revision history")
+	}
+	rev := posts.Get(postID).LatestRevisionId
+	runSubmission(t, conn, rev)
+	published, first := topics.Get(topicID), posts.Get(postID)
+	if published.Title != "private-candidate-title" || len(published.CategoryIds) != 1 || published.CategoryIds[0] != 1 || len(published.ImageUrls) != 1 || published.ImageUrls[0] != imageURL || first.Content != candidate || first.ContentType != 2 {
+		t.Fatalf("partial publication: %+v / %+v", published, first)
+	}
+	if getImage(router, imageURL, "").Code != 200 {
+		t.Fatal("published gallery remains private")
+	}
+	// Reject a later edit and verify the management route owns the rejected body.
+	body = mustReviewJSON(t, map[string]any{"postId": postID, "content": "rejected-body-retained-for-author"})
+	if e := decodeContractEnvelope(t, serveJSON(router, "/api/forum/posts/update", string(body), token)); e.Code != 0 {
+		t.Fatalf("edit: %+v", e)
+	}
+	if err := publicationservice.Review(context.Background(), posts.Get(postID).LatestRevisionId, moderationDecision.ActionBlock, "请修改正文", 0); err != nil {
+		t.Fatal(err)
+	}
+	manager := page("/api/forum/user/my-content?contentType=topic", token)
+	if !strings.Contains(manager, "rejected-body-retained-for-author") || !strings.Contains(manager, "请修改正文") || !strings.Contains(manager, `"hasPublishedVersion":true`) {
+		t.Fatalf("missing recovery content: %.800s", manager)
+	}
+	if strings.Contains(page("/", token), "rejected-body-retained-for-author") {
+		t.Fatal("rejected candidate remained in feed")
+	}
+}
+
+func TestAsyncSaveIsAtomicAndDraftPublishCannotBypassReview(t *testing.T) {
+	conn, router, stub := setupAIModerationContractTest(t, func(o *pageConfig.AiModerationOptions) { o.TextModeration = true })
+	author := createHTTPContractUser(t, conn, contractTestID())
+	token := contractSessionToken(t, author)
+	imageURL, _ := saveContractImage(t, author.Id)
+	var before int64
+	conn.Model(&posts.Entity{}).Count(&before)
+	if err := conn.Callback().Create().Before("gorm:create").Register("test:fail-review-task", func(tx *gorm.DB) {
+		if tx.Statement.Table == "task_queue" {
+			_ = tx.AddError(errors.New("injected task failure"))
+		}
+	}); err != nil {
+		t.Fatal(err)
+	}
+	e := decodeContractEnvelope(t, serveJSON(router, "/api/forum/topics/write", writeTopicBody("事务失败测试", "保存失败必须回滚全部内容 ![]("+imageURL+")"), token))
+	if err := conn.Callback().Create().Remove("test:fail-review-task"); err != nil {
+		t.Fatal(err)
+	}
+	var after int64
+	conn.Model(&posts.Entity{}).Count(&after)
+	if e.Code == 0 || before != after {
+		t.Fatalf("task failure left content: %+v, count %d -> %d", e, before, after)
+	}
+	var refs int64
+	conn.Model(&fileUsage.Entity{}).Where("user_id = ?", author.Id).Count(&refs)
+	if refs != 0 {
+		t.Fatal("failed submission left private references")
+	}
+	body := mustReviewJSON(t, map[string]any{"title": "保存草稿测试", "content": "这份草稿在点击发布时必须审核", "categoryId": []uint64{1}, "topicStatus": 0, "contentType": 3})
+	e = decodeContractEnvelope(t, serveJSON(router, "/api/forum/topics/write", string(body), token))
+	var topicID uint64
+	if err := json.Unmarshal(e.Result, &topicID); err != nil || e.Code != 0 {
+		t.Fatalf("draft: %+v", e)
+	}
+	if posts.Get(topics.Get(topicID).FirstPostId).LatestRevisionId != 0 || stub.jevCalls.Load() != 0 {
+		t.Fatal("saving a draft started review")
+	}
+	e = decodeContractEnvelope(t, serveJSON(router, "/api/forum/topics/status", fmt.Sprintf(`{"topicId":%d,"topicStatus":1}`, topicID), token))
+	if e.Code != 0 || topics.Get(topicID).ProcessStatus != topics.ProcessStatusPending {
+		t.Fatalf("draft publication bypassed review: %+v", e)
+	}
+}
+
+func TestAsyncLegacyPendingAdoptionIsIdempotent(t *testing.T) {
+	conn, _, _ := setupAIModerationContractTest(t, nil)
+	author := createHTTPContractUser(t, conn, contractTestID())
+	topicID, postID := contractTestID(), contractTestID()
+	createContractPublishedTopic(t, conn, topicID, postID, author.Id)
+	conn.Model(&posts.Entity{}).Where("id = ?", postID).Update("process_status", posts.ProcessStatusPending)
+	conn.Model(&topics.Entity{}).Where("id = ?", topicID).Update("process_status", topics.ProcessStatusPending)
+	for i := 0; i < 2; i++ {
+		if err := publicationservice.AdoptPending(context.Background()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	post := posts.Get(postID)
+	var count int64
+	raw := mustReviewJSON(t, publicationservice.Task{RevisionId: post.LatestRevisionId})
+	conn.Model(&taskQueue.Entity{}).Where("type = ? AND task_json = ?", publicationservice.TaskType, string(raw)).Count(&count)
+	if post.LatestRevisionId == 0 || count != 1 || post.PublishedRevisionId != 0 || post.Content != "Topic first post content" {
+		t.Fatalf("legacy adoption lost content or duplicated job: %+v, jobs %d", post, count)
+	}
+}
+
+func mustReviewJSON(t *testing.T, value any) []byte {
+	t.Helper()
+	raw, err := json.Marshal(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return raw
+}
+
+func TestModerationCandidateCategoryScopeCannotBeBypassedWithFirstPost(t *testing.T) {
+	conn, router, _ := setupAIModerationContractTest(t, func(o *pageConfig.AiModerationOptions) { o.TextModeration = true })
+	router.POST("/api/forum/moderation/review-queue", middleware.JWTAuthCheck, UpButterReq(api.ModerationReviewQueue))
+	router.POST("/api/forum/moderation/review-action", middleware.JWTAuthCheck, middleware.CheckWritableAccount, UpButterReq(api.ModerationReviewAction))
+	author := createHTTPContractUser(t, conn, contractTestID())
+	token := contractSessionToken(t, author)
+	imageURL, _ := saveContractImage(t, author.Id)
+	write := func(id, category uint64) uint64 {
+		content := "迁往其他分类的候选正文"
+		if id != 0 {
+			content += " ![](" + imageURL + ")"
+		}
+		body := mustReviewJSON(t, map[string]any{"topicId": id, "title": "分类权限回归", "content": content, "categoryId": []uint64{category}, "topicStatus": 1, "contentType": 3})
+		e := decodeContractEnvelope(t, serveJSON(router, "/api/forum/topics/write", string(body), token))
+		var result uint64
+		if err := json.Unmarshal(e.Result, &result); err != nil || e.Code != 0 {
+			t.Fatalf("write: %+v", e)
+		}
+		return result
+	}
+	ownCategory := contractTestID()
+	otherCategory := ownCategory + 1
+	topicID := write(0, ownCategory)
+	postID := topics.Get(topicID).FirstPostId
+	runSubmission(t, conn, posts.Get(postID).LatestRevisionId)
+	write(topicID, otherCategory)
+	revisionID := posts.Get(postID).LatestRevisionId
+	moderator := createHTTPContractUser(t, conn, contractTestID())
+	candidateModerator := createHTTPContractUser(t, conn, contractTestID())
+	grant := func(userID, category uint64) {
+		if err := conn.Create(&moderators.Entity{UserId: userID, ScopeType: moderators.ScopeCategory, ScopeId: category, Status: moderators.StatusEnabled}).Error; err != nil {
+			t.Fatal(err)
+		}
+		moderationservice.Invalidate()
+	}
+	grant(moderator.Id, ownCategory)
+	grant(candidateModerator.Id, otherCategory)
+	t.Cleanup(func() {
+		conn.Where("user_id IN ?", []uint64{moderator.Id, candidateModerator.Id}).Delete(&moderators.Entity{})
+		moderationservice.Invalidate()
+	})
+	moderatorToken := contractSessionToken(t, moderator)
+	assertImage := func(label, token string, want int) {
+		t.Helper()
+		response := getImage(router, imageURL, token)
+		if response.Code != want {
+			t.Errorf("%s: candidate image status=%d, want %d", label, response.Code, want)
+		}
+		if want == http.StatusOK && response.Header().Get("Cache-Control") != "private, no-store" {
+			t.Errorf("%s: candidate image entered shared cache", label)
+		}
+	}
+	assertImage("author", token, http.StatusOK)
+	assertImage("anonymous", "", http.StatusNotFound)
+	assertImage("current category only", moderatorToken, http.StatusNotFound)
+	assertImage("candidate category only", contractSessionToken(t, candidateModerator), http.StatusNotFound)
+	queue := func() struct {
+		Items []api.ReviewQueueItem
+		Total int64
+	} {
+		e := decodeContractEnvelope(t, serveJSON(router, "/api/forum/moderation/review-queue", `{"kind":"topic","pageSize":1}`, moderatorToken))
+		var result struct {
+			Items []api.ReviewQueueItem
+			Total int64
+		}
+		if err := json.Unmarshal(e.Result, &result); err != nil || e.Code != 0 {
+			t.Fatalf("queue: %+v", e)
+		}
+		return result
+	}
+	if q := queue(); q.Total != 0 || len(q.Items) != 0 {
+		t.Errorf("candidate outside moderator categories leaked: %+v", q)
+	}
+	for _, target := range []struct {
+		kind string
+		id   uint64
+	}{{"topic", topicID}, {"post", postID}} {
+		body := fmt.Sprintf(`{"kind":%q,"id":%d,"approve":true,"revisionId":%d}`, target.kind, target.id, revisionID)
+		e := decodeContractEnvelope(t, serveJSON(router, "/api/forum/moderation/review-action", body, moderatorToken))
+		if e.Code != 1 || e.MessageCode != "admin.review.notFound" {
+			t.Errorf("out-of-scope %s review accepted: %+v", target.kind, e)
+		}
+	}
+	if postRevisions.Get(revisionID).ProcessStatus != posts.ProcessStatusPending {
+		t.Fatal("out-of-scope action published candidate")
+	}
+	history := decodeContractEnvelope(t, serveAuthSecurityJSON(router, http.MethodGet, fmt.Sprintf("/api/forum/posts/revisions?postId=%d", postID), "", moderatorToken))
+	var versions struct {
+		Versions []struct {
+			Content       string
+			ProcessStatus int8
+		}
+	}
+	if err := json.Unmarshal(history.Result, &versions); err != nil || history.Code != 0 {
+		t.Fatalf("history: %+v", history)
+	}
+	for _, version := range versions.Versions {
+		if version.ProcessStatus == posts.ProcessStatusPending && version.Content != "" {
+			t.Fatal("out-of-scope revision history exposed candidate")
+		}
+	}
+	grant(moderator.Id, otherCategory)
+	assertImage("both categories", moderatorToken, http.StatusOK)
+	if q := queue(); q.Total != 1 || len(q.Items) != 1 || q.Items[0].RevisionId != revisionID {
+		t.Fatalf("both-category moderator queue: %+v", q)
+	}
+	body := fmt.Sprintf(`{"kind":"post","id":%d,"approve":true,"revisionId":%d}`, postID, revisionID)
+	if e := decodeContractEnvelope(t, serveJSON(router, "/api/forum/moderation/review-action", body, moderatorToken)); e.Code != 0 {
+		t.Fatalf("authorized first-post review: %+v", e)
+	}
+}
+
+func TestAsyncHumanReviewNotifications(t *testing.T) {
+	eventbus.InitEventBus()
+	conn, router, _ := setupAIModerationContractTest(t, func(o *pageConfig.AiModerationOptions) { o.TextModeration = true })
+	author := createHTTPContractUser(t, conn, contractTestID())
+	body := `{"title":"人工审核通知测试","content":"需要人工确认的完整内容","categoryId":[1],"topicStatus":1,"contentType":2}`
+	envelope := decodeContractEnvelope(t, serveJSON(router, "/api/forum/topics/write", body, contractSessionToken(t, author)))
+	var topicID uint64
+	if err := json.Unmarshal(envelope.Result, &topicID); err != nil || topicID == 0 {
+		t.Fatalf("submission: %+v", envelope)
+	}
+	post := posts.Get(topics.Get(topicID).FirstPostId)
+	for i := 0; i < 2; i++ {
+		if err := publicationservice.Review(context.Background(), post.LatestRevisionId, moderationDecision.ActionReview, "等待人工审核", 0); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got := notificationCount(conn, author.Id, "review_pending"); got != 1 {
+		t.Fatalf("manual review notices = %d, want 1", got)
+	}
+	if err := publicationservice.Review(context.Background(), post.LatestRevisionId, moderationDecision.ActionAllow, "", 0); !errors.Is(err, publicationservice.ErrUnavailable) {
+		t.Fatalf("late AI decision overrode human queue: %v", err)
+	}
+	pending := latestNotification(t, conn, author.Id)
+	if pending.Payload.TopicId != topicID || pending.Payload.PostNo != 1 {
+		t.Fatalf("pending target: %+v", pending)
+	}
+	if err := publicationservice.Review(context.Background(), post.LatestRevisionId, moderationDecision.ActionAllow, "", author.Id+1); err != nil {
+		t.Fatal(err)
+	}
+	if err := publicationservice.Review(context.Background(), post.LatestRevisionId, moderationDecision.ActionAllow, "", author.Id+1); !errors.Is(err, publicationservice.ErrUnavailable) {
+		t.Fatalf("replay = %v", err)
+	}
+	if got := notificationCount(conn, author.Id, eventNotification.EventTypeReviewApproved); got != 1 {
+		t.Fatalf("approved notices = %d", got)
+	}
+	var tasks []taskQueue.Entity
+	if err := conn.Where("type = ?", publicationservice.EffectTaskType).Find(&tasks).Error; err != nil {
+		t.Fatal(err)
+	}
+	for _, task := range tasks {
+		if err := publicationservice.RunEffectsTask(context.Background(), &task); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got := posts.Get(post.Id); got.ProcessStatus != posts.ProcessStatusNormal {
+		t.Fatalf("not published: %+v", got)
 	}
 }

@@ -1,3 +1,4 @@
+import '../../realtime/realtime_updates.dart';
 import 'dart:async';
 import 'dart:math' as math;
 
@@ -841,6 +842,12 @@ class _HomePageState extends ConsumerState<HomePage> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<int>(
+      realtimeInvalidationsProvider.select((state) => state.contentRevision),
+      (_, _) {
+        if (mounted) _load(silent: true);
+      },
+    );
     ref.listen<int>(
       cacheClearEpochProvider.select(
         (epochs) => epochs[CacheCategory.forum] ?? 0,

@@ -113,6 +113,7 @@ func TestUpdatePostInvalidatesLLMSCache(t *testing.T) {
 	post2ID := base + 4
 	createLLMSCacheTopic(t, conn, topicID, post1ID, userID, "Reply topic", "first body", nil)
 	createLLMSCacheReply(t, conn, post2ID, topicID, userID, 2, "old reply content")
+	createLLMSCacheUser(t, conn, userID)
 	setLLMSCacheEnabled(t, conn)
 	host := "https://cache.example.test"
 

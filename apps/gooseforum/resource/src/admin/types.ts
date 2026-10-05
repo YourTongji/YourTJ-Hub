@@ -410,6 +410,9 @@ export interface AdminTaskRow {
 }
 
 export interface ReviewQueueItem {
+  revisionId?: number
+  content?: string
+  reviewReason?: string
   id: number
   title: string
   excerpt: string

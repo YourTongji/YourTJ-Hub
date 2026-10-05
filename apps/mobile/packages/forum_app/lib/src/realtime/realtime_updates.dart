@@ -13,11 +13,13 @@ final realtimeConnectProvider = Provider<RealtimeConnect>((ref) {
 
 class RealtimeInvalidations {
   const RealtimeInvalidations({
+    this.contentRevision = 0,
     required this.chatRevision,
     required this.chatConvId,
     required this.notificationsRevision,
   });
 
+  final int contentRevision;
   final int chatRevision;
 
   /// Zero means reconcile every open conversation (for example after hello).
@@ -33,19 +35,29 @@ class RealtimeInvalidationNotifier extends Notifier<RealtimeInvalidations> {
     notificationsRevision: 0,
   );
 
+  void content() => state = RealtimeInvalidations(
+    contentRevision: state.contentRevision + 1,
+    chatRevision: state.chatRevision,
+    chatConvId: state.chatConvId,
+    notificationsRevision: state.notificationsRevision,
+  );
+
   void chat(int convId) => state = RealtimeInvalidations(
+    contentRevision: state.contentRevision,
     chatRevision: state.chatRevision + 1,
     chatConvId: convId,
     notificationsRevision: state.notificationsRevision,
   );
 
   void notifications() => state = RealtimeInvalidations(
+    contentRevision: state.contentRevision,
     chatRevision: state.chatRevision,
     chatConvId: state.chatConvId,
     notificationsRevision: state.notificationsRevision + 1,
   );
 
   void resync() => state = RealtimeInvalidations(
+    contentRevision: state.contentRevision + 1,
     chatRevision: state.chatRevision + 1,
     chatConvId: 0,
     notificationsRevision: state.notificationsRevision + 1,

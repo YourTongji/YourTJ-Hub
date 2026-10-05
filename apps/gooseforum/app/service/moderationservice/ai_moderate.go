@@ -26,18 +26,9 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/fileusageservice"
 )
 
-// AI 图文审查编排（issue #975）。调用方在现有敏感词门禁之后、写库之前调用：
-//
-//	check := PrepareAIModeration(input)      // 关闭/无需审查时返回 nil（nil 安全）
-//	action := check.Enforce(ctx)             // enforce 同步判定；shadow 恒为 allow
-//	... block → 拒绝请求；review → ProcessStatusPending；allow → 正常写入 ...
-//	check.Finish(subjectID)                  // enforce 落库决策；shadow 异步判定并落库
-//
-// deferred（先发后审）：调用方不等待模型，直接把内容写为待审，再调用 Finish；
-// 后台判定落库后交给 SetDeferredOutcomeHandler 注册的处理器自动公开或拒绝。
-//
-// 失败语义：任何视觉/Jev 故障、超时、拒答、无效 JSON、未配置、成本护栏命中都
-// 只会产生 review（人工审核），绝不 allow，也不会因故障直接 block。
+// AI evaluation is independent of publication. Durable submission workers use
+// EvaluateSubmission; normal writes in observation mode call Finish. Every model
+// failure yields review, never an automatic allow or rejection.
 
 const (
 	aiVisionConcurrency      = 3
@@ -119,99 +110,6 @@ func (m *AIModeration) Deferred() bool {
 	return m != nil && m.cfg.Mode == pageConfig.AiModerationModeDeferred
 }
 
-// BlockExternalImagesNow 先发后审模式下的同步前置检查：站点配置拦截外链图片且
-// 内容含外链图片时，不调用任何模型就能得出 block，直接在编辑器里提示作者，
-// 不必先写入再异步拒绝。返回 true 时决策已就绪，调用方拒绝写入并 Finish(0)。
-func (m *AIModeration) BlockExternalImagesNow() bool {
-	if !m.Deferred() || len(m.external) == 0 || m.cfg.ExternalImageAction != pageConfig.AiModerationActionBlock {
-		return false
-	}
-	m.once.Do(func() { m.decision = m.evaluate(m.ctxBase) })
-	m.decision.AppliedAction = m.decision.FinalAction
-	return m.decision.FinalAction == moderationDecision.ActionBlock
-}
-
-// DeferredOutcomeFunc 先发后审的结论处理器：input 为本次判定所评估的标题与正文，
-// 处理器应确认主体当前内容仍与之一致再应用。同一主体有更新的判定排队时，旧判定
-// 不会交给处理器。decision.FinalAction 为 allow | review | block。
-type DeferredOutcomeFunc func(ctx context.Context, decision moderationDecision.Entity, input AIContentInput)
-
-var deferredOutcome DeferredOutcomeFunc
-
-// SetDeferredOutcomeHandler 由 HTTP 层在启动时注册（复用审核队列的通过/拒绝实现，
-// 避免 service 反向依赖控制器）。未注册时结论只落库，内容留在审核队列。
-func SetDeferredOutcomeHandler(fn DeferredOutcomeFunc) {
-	deferredOutcome = fn
-}
-
-// deferredInFlight 正在后台判定的主体（subjectType:id）：running 供审核队列标记
-// “自动检查中”；generation 在每次排队时递增，判定完成时只有最新一次才会应用，
-// 作者在检查期间再次编辑时旧结论自动作废。仅进程内状态：进程重启时未完成的
-// 判定丢失，内容保持待审由人工处理（fail-closed）。
-type deferredState struct {
-	running    int
-	generation uint64
-}
-
-var deferredInFlight = struct {
-	sync.Mutex
-	m map[string]*deferredState
-}{m: map[string]*deferredState{}}
-
-func deferredKey(subjectType string, subjectID uint64) string {
-	return subjectType + ":" + fmt.Sprint(subjectID)
-}
-
-// startDeferred 登记一次排队中的判定，返回其代次。
-func startDeferred(subjectType string, subjectID uint64) uint64 {
-	deferredInFlight.Lock()
-	defer deferredInFlight.Unlock()
-	key := deferredKey(subjectType, subjectID)
-	state := deferredInFlight.m[key]
-	if state == nil {
-		state = &deferredState{}
-		deferredInFlight.m[key] = state
-	}
-	state.running++
-	state.generation++
-	return state.generation
-}
-
-// isLatestDeferred 该次判定是否仍是主体最新排队的一次。
-func isLatestDeferred(subjectType string, subjectID uint64, generation uint64) bool {
-	deferredInFlight.Lock()
-	defer deferredInFlight.Unlock()
-	state := deferredInFlight.m[deferredKey(subjectType, subjectID)]
-	return state != nil && state.generation == generation
-}
-
-// endDeferred 结束一次判定的登记。
-func endDeferred(subjectType string, subjectID uint64) {
-	deferredInFlight.Lock()
-	defer deferredInFlight.Unlock()
-	key := deferredKey(subjectType, subjectID)
-	state := deferredInFlight.m[key]
-	if state == nil {
-		return
-	}
-	if state.running--; state.running <= 0 {
-		delete(deferredInFlight.m, key)
-	}
-}
-
-// DeferredChecking 返回 subjectIDs 中正在后台自动检查的主体。
-func DeferredChecking(subjectType string, subjectIDs []uint64) map[uint64]bool {
-	deferredInFlight.Lock()
-	defer deferredInFlight.Unlock()
-	result := map[uint64]bool{}
-	for _, id := range subjectIDs {
-		if state := deferredInFlight.m[deferredKey(subjectType, id)]; state != nil && state.running > 0 {
-			result[id] = true
-		}
-	}
-	return result
-}
-
 // RequestBudget enforce 模式下判定可能占用的最长时间（调用方据此放宽 HTTP 写超时）。
 func (m *AIModeration) RequestBudget() time.Duration {
 	if !m.Enforcing() {
@@ -246,9 +144,8 @@ func (m *AIModeration) ExternalImageBlocked() bool {
 		m.decision.ErrorKind == "external_image_blocked"
 }
 
-// Finish 写入决策记录：已同步判定（enforce，或先发后审的外链前置拦截）直接落库
-// （subjectID 为已写入/已存在主体，block 时为 0 或编辑目标）；shadow 与先发后审在
-// 后台以 detached context 判定并落库，不影响本次发布。先发后审落库后交给结论处理器。
+// Finish records shadow observations, or a decision explicitly evaluated by a
+// model-only caller. Publication workers persist their version-bound decisions.
 func (m *AIModeration) Finish(subjectID uint64) {
 	if m == nil {
 		return
@@ -259,10 +156,10 @@ func (m *AIModeration) Finish(subjectID uint64) {
 		}
 		return
 	}
-	deferred := m.Deferred()
-	var generation uint64
-	if deferred {
-		generation = startDeferred(m.input.SubjectType, subjectID)
+	// Observation mode never controls publication. Enforced submissions are
+	// evaluated by publicationservice through the transactional task queue.
+	if m.Deferred() {
+		return
 	}
 	ctx := eventbus.DetachedContext(m.ctxBase)
 	go func() {
@@ -270,24 +167,9 @@ func (m *AIModeration) Finish(subjectID uint64) {
 		defer cancel()
 		m.once.Do(func() { m.decision = m.evaluate(ctx) })
 		m.decision.AppliedAction = moderationDecision.ActionAllow
-		if !deferred {
-			m.persist(subjectID)
-			return
-		}
-		// 先发后审：被更新的编辑取代、或未注册处理器时结论只记录（applied=review，
-		// 内容留给人工）；结论落库后才结束登记，审核队列不会在“检查中”与“有结论”
-		// 之间出现空档。
-		apply := deferredOutcome != nil && isLatestDeferred(m.input.SubjectType, subjectID, generation)
-		m.decision.AppliedAction = moderationDecision.ActionReview
-		if apply {
-			m.decision.AppliedAction = m.decision.FinalAction
-		}
 		m.persist(subjectID)
-		endDeferred(m.input.SubjectType, subjectID)
-		if apply {
-			deferredOutcome(ctx, *m.decision, m.input)
-		}
 	}()
+
 }
 
 func (m *AIModeration) persist(subjectID uint64) {
@@ -657,4 +539,34 @@ func RecordAIHumanOutcome(subjectType string, subjectID uint64, contentAt time.T
 	if err := moderationDecision.SetHumanAction(latest.Id, action, actorID, time.Now()); err != nil {
 		slog.Error("record ai moderation human outcome failed", "decisionId", latest.Id, "err", err)
 	}
+}
+
+// EvaluateSubmission runs inside the durable content worker, never an HTTP write.
+// Configuration is resolved at execution time; disabled/shadow policies allow.
+func EvaluateSubmission(ctx context.Context, input AIContentInput) *moderationDecision.Entity {
+	check := PrepareAIModeration(ctx, input)
+	if check == nil || check.cfg.Mode == pageConfig.AiModerationModeShadow {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(ctx, aiShadowTimeout)
+	defer cancel()
+	decision := check.evaluate(ctx)
+	decision.SubjectId, decision.AppliedAction = input.SubjectID, decision.FinalAction
+	if decision.FinalAction != moderationDecision.ActionReview {
+		for i := range decision.Images {
+			decision.Images[i].Evidence = ""
+		}
+	}
+	return decision
+}
+
+// NeedsSubmissionReview determines routing without contacting any model.
+func NeedsSubmissionReview(ctx context.Context, input AIContentInput) bool {
+	cfg := hotdataserve.GetSecuritySettingsConfigCache()
+	text := input.Title + "\n" + input.Content
+	if len(FindSensitiveWordsInTextsWithConfig([]string{text, markdown2html.ExtractVisibleText(text)}, cfg)) > 0 {
+		return true
+	}
+	check := PrepareAIModeration(ctx, input)
+	return check != nil && check.cfg.Mode != pageConfig.AiModerationModeShadow
 }

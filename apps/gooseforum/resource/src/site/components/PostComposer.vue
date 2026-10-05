@@ -208,6 +208,8 @@ const loginHref = computed(() => {
 
 function closeComposer() {
   if (composerBusy.value) return
+  // Read the editor before it unmounts; its input callback may still be pending.
+  content.value = editor.value?.syncValue() ?? content.value
   emit('update:open', false)
 }
 
@@ -272,6 +274,7 @@ async function uploadImageFiles(files: File[]) {
 
 function submit() {
   if (composerBusy.value) return
+  content.value = editor.value?.syncValue() ?? content.value
   emit('submit')
 }
 </script>

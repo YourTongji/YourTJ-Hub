@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/publicationservice"
 	"log/slog"
 	"net"
 	"net/http"
@@ -311,6 +312,8 @@ func startBusinessServices() {
 	backgroundservice.RunWorker("course_search_worker", searchservice.TaskTypeCourseSearch, searchservice.RunCourseSearchTask)
 	// 主题、用户、分类搜索 worker：消费 transaction-bound outbox，避免业务
 	// 请求/事件 consumer 同步等待 Meilisearch。
+	backgroundservice.RunWorker("content_review_worker", publicationservice.TaskType, publicationservice.RunReviewTask)
+	backgroundservice.RunWorker("content_published_worker", publicationservice.EffectTaskType, publicationservice.RunEffectsTask)
 	backgroundservice.RunWorker("topic_search_worker", searchservice.TaskTypeTopicSearch, searchservice.RunTopicSearchTask)
 	backgroundservice.RunWorker("user_search_worker", searchservice.TaskTypeUserSearch, searchservice.RunUserSearchTask)
 	backgroundservice.RunWorker("category_search_worker", searchservice.TaskTypeCategorySearch, searchservice.RunCategorySearchTask)

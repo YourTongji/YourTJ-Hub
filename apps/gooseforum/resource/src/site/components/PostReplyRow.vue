@@ -65,7 +65,7 @@ const { t } = useI18n()
 const isRemoved = computed(() => props.post.isAuthorDeleted || props.post.isModeratorRemoved)
 // 作者本人的待审回复照常展示正文（issue #975），由“审核中”标记说明状态。
 const showHiddenPlaceholder = computed(() => props.post.isHidden && !props.post.canModerate && !(props.post.isOwnPost && props.post.processStatus === 2))
-const canEdit = computed(() => props.post.isOwnPost && !props.post.isHidden && !isRemoved.value)
+const canEdit = computed(() => props.post.isOwnPost && (!props.post.isHidden || props.post.processStatus === 2) && !isRemoved.value)
 const canDelete = computed(() => props.post.isOwnPost && !props.post.isHidden && !isRemoved.value)
 const canReply = computed(() => (!props.authenticated || props.canPost) && !props.post.isHidden && !isRemoved.value)
 const canLike = computed(() => props.authenticated && !props.post.isHidden && !isRemoved.value)

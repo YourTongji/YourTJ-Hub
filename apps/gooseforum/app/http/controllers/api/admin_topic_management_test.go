@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -13,6 +14,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/category"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/moderationLog"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/optRecord"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postRevisions"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/taskQueue"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topicCategoryIndex"
@@ -503,4 +505,49 @@ func startReviewActionEventBus(t *testing.T, handler cqrs.EventHandler, captured
 		}
 	}
 	t.Fatal("event bus router did not become ready")
+}
+
+func TestReviewActionVersionedDatabaseFailureIsRetryable(t *testing.T) {
+	conn := setupAdminTopicTestDB(t)
+	if err := conn.AutoMigrate(&postRevisions.Entity{}); err != nil {
+		t.Fatal(err)
+	}
+	seedAdminTopic(t, conn, 946201)
+	postID := topics.Get(946201).FirstPostId
+	revision := postRevisions.Entity{PostId: postID, ProcessStatus: posts.ProcessStatusPending}
+	if err := conn.Create(&revision).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := conn.Model(&posts.Entity{}).Where("id = ?", postID).Update("latest_revision_id", revision.Id).Error; err != nil {
+		t.Fatal(err)
+	}
+	const callback = "test:review_database_failure"
+	if err := conn.Callback().Query().Before("gorm:query").Register(callback, func(tx *gorm.DB) {
+		if tx.Statement.Table == "post_revisions" {
+			_ = tx.AddError(errors.New("temporary database failure"))
+		}
+	}); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = conn.Callback().Query().Remove(callback) })
+	result := ReviewAction(component.BetterRequest[ReviewActionReq]{Params: ReviewActionReq{Kind: "post", Id: postID, RevisionId: revision.Id, Approve: true}})
+	if result.Data.MessageCode != component.MessageOperationFailed {
+		t.Fatalf("database failure returned %v, want operation failure", result.Data.MessageCode)
+	}
+	if err := conn.Callback().Query().Remove(callback); err != nil {
+		t.Fatal(err)
+	}
+	if err := conn.First(&revision, revision.Id).Error; err != nil {
+		t.Fatal(err)
+	}
+	if revision.ProcessStatus != posts.ProcessStatusPending {
+		t.Fatal("failed review consumed the pending revision")
+	}
+	if err := conn.Model(&revision).Update("process_status", posts.ProcessStatusNormal).Error; err != nil {
+		t.Fatal(err)
+	}
+	result = ReviewAction(component.BetterRequest[ReviewActionReq]{Params: ReviewActionReq{Kind: "post", Id: postID, RevisionId: revision.Id, Approve: true}})
+	if result.Data.MessageCode != component.MessageAdminReviewProcessed {
+		t.Fatalf("terminal revision returned %v", result.Data.MessageCode)
+	}
 }

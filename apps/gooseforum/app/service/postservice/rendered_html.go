@@ -100,6 +100,13 @@ func ensureRenderedHTML(entity *posts.Entity, save func(*posts.Entity) error) (s
 	if entity == nil || entity.Id == 0 {
 		return "", nil
 	}
+	// Pending entities may be owner-only revision projections over a live row.
+	// A cache rebuild must never persist that candidate over the public version.
+	if entity.ProcessStatus == posts.ProcessStatusPending {
+		entity.RenderedHTML = RenderPostHTML(entity.Content)
+		entity.RenderedVersion = markdown2html.GetPostVersion()
+		return entity.RenderedHTML, nil
+	}
 	// Sticker definitions are mutable. Resolve only token-bearing posts at read
 	// time, so disable/delete/rename/import never leave stale persisted URLs.
 	if strings.Contains(entity.Content, "[:sticker:") {

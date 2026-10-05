@@ -86,7 +86,7 @@ async function confirmAction() {
   const { item, approve } = actionRow.value
   saving.value = true
   try {
-    await reviewAction(kind.value, item.id, approve)
+    await reviewAction(kind.value, item.id, approve, item.revisionId)
     actionRow.value = null
     await loadQueue()
     adminToast.success(approve ? adminText('k00gj') : adminText('k00gk'))
@@ -195,7 +195,7 @@ onMounted(loadQueue)
                 </div>
               </TableCell>
               <TableCell class="max-w-0 py-2">
-                <p class="line-clamp-2 text-xs leading-4 text-muted-foreground">{{ item.excerpt || '-' }}</p>
+                <p class="max-h-64 overflow-auto whitespace-pre-wrap break-words text-xs leading-4 text-muted-foreground">{{ item.content || item.excerpt || '-' }}</p>
                 <ReviewQueueAiDetails :item="item" />
               </TableCell>
               <TableCell class="py-2 text-sm">{{ userDisplayName(item.userId, item.username || `#${item.userId}`, item.nickname) }}</TableCell>
@@ -230,7 +230,7 @@ onMounted(loadQueue)
                   <span class="min-w-0 truncate text-[15px] font-semibold leading-5">{{ item.title || '-' }}</span>
                   <Badge v-if="item.postNo" variant="secondary" class="h-5 shrink-0 rounded-full px-1.5 text-[10px]">#{{ item.postNo }}</Badge>
                 </div>
-                <p class="line-clamp-2 break-words text-[12px] leading-5 text-muted-foreground">{{ item.excerpt || '-' }}</p>
+                <p class="max-h-64 overflow-auto whitespace-pre-wrap break-words text-[12px] leading-5 text-muted-foreground">{{ item.content || item.excerpt || '-' }}</p>
                 <ReviewQueueAiDetails :item="item" />
               </div>
             </div>

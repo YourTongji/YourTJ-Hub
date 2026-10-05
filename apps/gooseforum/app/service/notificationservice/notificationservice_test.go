@@ -1,6 +1,13 @@
 package notificationservice
 
-import "testing"
+import (
+	"testing"
+
+	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/eventNotification"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
+)
 
 func TestNormalizePageSize(t *testing.T) {
 	tests := []struct {
@@ -20,5 +27,39 @@ func TestNormalizePageSize(t *testing.T) {
 				t.Fatalf("normalizePageSize(%d) = %d, want %d", tt.in, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestHydrateReviewKeepsReviewedVersionSubject(t *testing.T) {
+	conn := db.Connect()
+	if err := conn.AutoMigrate(&topics.Entity{}, &users.EntityComplete{}); err != nil {
+		t.Fatal(err)
+	}
+	for _, liveTitle := range []string{"", "Old public title"} {
+		topic := topics.Entity{Title: liveTitle}
+		if err := conn.Create(&topic).Error; err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { conn.Delete(&topic) })
+		for _, event := range []string{eventNotification.EventTypeReviewPending, eventNotification.EventTypeReviewApproved, eventNotification.EventTypeReviewRejected} {
+			subject := "Candidate body excerpt"
+			if event == eventNotification.EventTypeReviewRejected {
+				subject = "C******t"
+			}
+			notice := &eventNotification.Entity{EventType: event, Payload: eventNotification.NotificationPayload{TopicId: topic.Id, TopicTitle: subject}}
+			if err := hydrateNotifications([]*eventNotification.Entity{notice}); err != nil {
+				t.Fatal(err)
+			}
+			if notice.Payload.TopicTitle != subject {
+				t.Errorf("%s: subject=%q, want %q", event, notice.Payload.TopicTitle, subject)
+			}
+		}
+		social := &eventNotification.Entity{EventType: eventNotification.EventTypeLike, Payload: eventNotification.NotificationPayload{TopicId: topic.Id, TopicTitle: "Old snapshot"}}
+		if err := hydrateNotifications([]*eventNotification.Entity{social}); err != nil {
+			t.Fatal(err)
+		}
+		if social.Payload.TopicTitle != liveTitle {
+			t.Errorf("social title=%q", social.Payload.TopicTitle)
+		}
 	}
 }

@@ -220,6 +220,7 @@ PublishTopicPayload _$PublishTopicPayloadFromJson(Map<String, dynamic> json) {
 mixin _$PublishTopicPayload {
   String get title => throw _privateConstructorUsedError;
   String get content => throw _privateConstructorUsedError;
+  List<String> get images => throw _privateConstructorUsedError;
   List<int> get categoryIds => throw _privateConstructorUsedError;
   int get topicStatus => throw _privateConstructorUsedError;
   int get contentType => throw _privateConstructorUsedError;
@@ -244,6 +245,7 @@ abstract class $PublishTopicPayloadCopyWith<$Res> {
   $Res call({
     String title,
     String content,
+    List<String> images,
     List<int> categoryIds,
     int topicStatus,
     int contentType,
@@ -267,6 +269,7 @@ class _$PublishTopicPayloadCopyWithImpl<$Res, $Val extends PublishTopicPayload>
   $Res call({
     Object? title = null,
     Object? content = null,
+    Object? images = null,
     Object? categoryIds = null,
     Object? topicStatus = null,
     Object? contentType = null,
@@ -281,6 +284,10 @@ class _$PublishTopicPayloadCopyWithImpl<$Res, $Val extends PublishTopicPayload>
                 ? _value.content
                 : content // ignore: cast_nullable_to_non_nullable
                       as String,
+            images: null == images
+                ? _value.images
+                : images // ignore: cast_nullable_to_non_nullable
+                      as List<String>,
             categoryIds: null == categoryIds
                 ? _value.categoryIds
                 : categoryIds // ignore: cast_nullable_to_non_nullable
@@ -311,6 +318,7 @@ abstract class _$$PublishTopicPayloadImplCopyWith<$Res>
   $Res call({
     String title,
     String content,
+    List<String> images,
     List<int> categoryIds,
     int topicStatus,
     int contentType,
@@ -333,6 +341,7 @@ class __$$PublishTopicPayloadImplCopyWithImpl<$Res>
   $Res call({
     Object? title = null,
     Object? content = null,
+    Object? images = null,
     Object? categoryIds = null,
     Object? topicStatus = null,
     Object? contentType = null,
@@ -347,6 +356,10 @@ class __$$PublishTopicPayloadImplCopyWithImpl<$Res>
             ? _value.content
             : content // ignore: cast_nullable_to_non_nullable
                   as String,
+        images: null == images
+            ? _value._images
+            : images // ignore: cast_nullable_to_non_nullable
+                  as List<String>,
         categoryIds: null == categoryIds
             ? _value._categoryIds
             : categoryIds // ignore: cast_nullable_to_non_nullable
@@ -370,10 +383,12 @@ class _$PublishTopicPayloadImpl implements _PublishTopicPayload {
   const _$PublishTopicPayloadImpl({
     required this.title,
     required this.content,
+    final List<String> images = const <String>[],
     final List<int> categoryIds = const <int>[],
     required this.topicStatus,
     this.contentType = 3,
-  }) : _categoryIds = categoryIds;
+  }) : _images = images,
+       _categoryIds = categoryIds;
 
   factory _$PublishTopicPayloadImpl.fromJson(Map<String, dynamic> json) =>
       _$$PublishTopicPayloadImplFromJson(json);
@@ -382,6 +397,15 @@ class _$PublishTopicPayloadImpl implements _PublishTopicPayload {
   final String title;
   @override
   final String content;
+  final List<String> _images;
+  @override
+  @JsonKey()
+  List<String> get images {
+    if (_images is EqualUnmodifiableListView) return _images;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(_images);
+  }
+
   final List<int> _categoryIds;
   @override
   @JsonKey()
@@ -399,7 +423,7 @@ class _$PublishTopicPayloadImpl implements _PublishTopicPayload {
 
   @override
   String toString() {
-    return 'PublishTopicPayload(title: $title, content: $content, categoryIds: $categoryIds, topicStatus: $topicStatus, contentType: $contentType)';
+    return 'PublishTopicPayload(title: $title, content: $content, images: $images, categoryIds: $categoryIds, topicStatus: $topicStatus, contentType: $contentType)';
   }
 
   @override
@@ -409,6 +433,7 @@ class _$PublishTopicPayloadImpl implements _PublishTopicPayload {
             other is _$PublishTopicPayloadImpl &&
             (identical(other.title, title) || other.title == title) &&
             (identical(other.content, content) || other.content == content) &&
+            const DeepCollectionEquality().equals(other._images, _images) &&
             const DeepCollectionEquality().equals(
               other._categoryIds,
               _categoryIds,
@@ -425,6 +450,7 @@ class _$PublishTopicPayloadImpl implements _PublishTopicPayload {
     runtimeType,
     title,
     content,
+    const DeepCollectionEquality().hash(_images),
     const DeepCollectionEquality().hash(_categoryIds),
     topicStatus,
     contentType,
@@ -451,6 +477,7 @@ abstract class _PublishTopicPayload implements PublishTopicPayload {
   const factory _PublishTopicPayload({
     required final String title,
     required final String content,
+    final List<String> images,
     final List<int> categoryIds,
     required final int topicStatus,
     final int contentType,
@@ -463,6 +490,8 @@ abstract class _PublishTopicPayload implements PublishTopicPayload {
   String get title;
   @override
   String get content;
+  @override
+  List<String> get images;
   @override
   List<int> get categoryIds;
   @override

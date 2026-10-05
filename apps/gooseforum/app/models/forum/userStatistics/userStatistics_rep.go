@@ -127,3 +127,12 @@ func GetByUserIds(userIds []uint64) (entities []*Entity) {
 
 // CreateTx initializes statistics atomically with an account.
 func CreateTx(tx *gorm.DB, id uint64) error { return tx.Create(&Entity{UserId: id}).Error }
+
+// RecordPublicationTx couples the first public appearance to its review commit.
+func RecordPublicationTx(tx *gorm.DB, userID uint64, topic bool) error {
+	column := "reply_count"
+	if topic {
+		column = "topic_count"
+	}
+	return tx.Model(&Entity{}).Where("user_id = ?", userID).UpdateColumn(column, gorm.Expr(column+" + 1")).Error
+}
