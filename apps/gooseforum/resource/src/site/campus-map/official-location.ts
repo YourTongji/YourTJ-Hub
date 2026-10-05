@@ -1,10 +1,8 @@
-import type { CampusData, CampusFeature } from './catalog'
-import table from './data/locations/2026-2027-1.json'
-import type { LocationDictionary, LocationExtraction, LocationHint, LocationKind, LocationLookupContext, LocationRelation } from './location-types'
+import type { CampusData } from './catalog'
+import overrides from './data/locations/overrides.json'
+import { missingExtraction, parseStableLocation, placeCatalog } from './deterministic-location'
+import type { LocationExtraction, LocationHint, LocationKind, LocationLookupContext, LocationOverride, LocationOverrideConfig, LocationRelation } from './location-types'
 export type { LocationLookupContext } from './location-types'
-
-// The asset is validated against the extraction schema in CI; it is not a model call at runtime.
-const dictionary = table as LocationDictionary
 
 export interface CampusMapTarget {
   campusId: string
@@ -36,95 +34,73 @@ const campusNames: Record<string, string> = {
   '临港': 'lingang', '临港校区': 'lingang', '临港基地': 'lingang',
 }
 export function officialCampusId(value: string): string | undefined {
-  return campusNames[value.trim().replace(/^同济大学/u, '')]
+  const key = value.trim().replace(/^同济大学/u, '')
+  return Object.hasOwn(campusNames, key) ? campusNames[key] : undefined
 }
 
-function extraction(campus: string, raw: string, context: LocationLookupContext): LocationExtraction | undefined {
-  const meta = dictionary._meta
-  // Never apply one term's faculty-derived names to other terms or an unknown calendar.
-  if (context.calendarId !== undefined && context.calendarId !== meta.calendar_id) return
-  if (context.term !== undefined && !meta.term_names.includes(context.term)) return
-  if (context.calendarId === undefined && context.term === undefined) return
-  // Keys are source strings, not normalized aliases. Do not silently combine source identities.
-  const entries = Object.hasOwn(dictionary.dictionary, campus) ? dictionary.dictionary[campus] : undefined
-  return entries && Object.hasOwn(entries, raw) ? entries[raw] : undefined
+/** Exact source text; matching scoped overrides beat campus-wide rules. Misses use stable parsing. */
+export function findLocationOverride(campusId: string, raw: string, context: LocationLookupContext,
+  rules: readonly LocationOverride[] = (overrides as LocationOverrideConfig).rules): LocationOverride | undefined {
+  const matches = rules.filter(rule => rule.campusId === campusId && rule.raw === raw && (!rule.scope || (
+    (context.calendarId !== undefined || context.term !== undefined) &&
+    (context.calendarId === undefined || context.calendarId === rule.scope.calendarId) &&
+    (context.term === undefined || rule.scope.termNames.includes(context.term))
+  )))
+  return matches.find(rule => rule.scope) ?? matches[0]
+}
+
+function present(result: LocationExtraction, reviewPending: boolean, block: boolean): OfficialMapLocation[] {
+  return result.locations.map(member => ({
+    raw: member.source_text,
+    building: member.place ?? '', room: member.detail ?? '',
+    condition: [...(member.time ?? []), ...member.conditions].join('且'),
+    kind: member.kind, relation: result.relation,
+    time: member.time ? [...member.time] : null, conditions: [...member.conditions],
+    address: member.address, campusText: member.campus_text,
+    unassignedConditions: [...result.unassigned_conditions],
+    needsReview: result.needs_review || block, reviewPending,
+    alternative: ['alternative', 'mixed', 'unclear'].includes(result.relation),
+    hint: result.needs_review || block ? 'review' : member.kind === 'unknown' ? 'missing' : member.kind,
+  }))
 }
 
 export function parseOfficialLocations(value: string, campus = '', context: LocationLookupContext = {}): OfficialMapLocation[] {
   if (!value.trim()) return []
-  const result = extraction(campus, value, context)
-  if (!result) return [{ raw: value, building: '', room: '', condition: '', kind: 'unknown', hint: 'missing', time: null }]
-  return result.locations.map(member => ({
-    raw: member.source_text,
-    building: member.place ?? '',
-    room: member.detail ?? '',
-    condition: [...(member.time ?? []), ...member.conditions].join('且'),
-    kind: member.kind,
-    relation: result.relation,
-    time: member.time ? [...member.time] : null,
-    conditions: [...member.conditions],
-    address: member.address,
-    campusText: member.campus_text,
-    unassignedConditions: [...result.unassigned_conditions],
-    needsReview: result.needs_review,
-    reviewPending: dictionary._meta.review_status === 'review_2_pending',
-    alternative: ['alternative', 'mixed', 'unclear'].includes(result.relation),
-    hint: result.needs_review ? 'review' : member.kind,
-  }))
+  const campusId = officialCampusId(campus)
+  if (!campusId) return present(missingExtraction(value), false, false)
+  const rule = findLocationOverride(campusId, value, context)
+  // A matching block/concern is final: it cannot fall through to a guessed destination.
+  return rule ? present(rule.result, rule.reviewPending, rule.action === 'block') : present(parseStableLocation(value, campusId), false, false)
 }
 
 export function parseOfficialLocation(value: string, campus = '', context: LocationLookupContext = {}): { building: string; room: string } | null {
   const locations = parseOfficialLocations(value, campus, context)
   const location = locations[0]
-  return locations.length === 1 && location?.building && location.room
+  return locations.length === 1 && location?.building && location.room && !location.needsReview
     ? { building: location.building, room: location.room } : null
 }
 
-function normalize(value: string): string {
-  return value.normalize('NFKC').toLowerCase().replace(/[\s\p{P}\p{S}]/gu, '')
-}
-function aliases(feature: CampusFeature): string[] {
-  const { name = '', alt_name = '', short_name = '' } = feature.properties
-  const values = [name, alt_name, short_name, name.replace(/[（(][^（）()]*[）)]/gu, '').trim()]
-  const letter = name.match(/[（(]([A-Za-z])楼[）)]/u)?.[1]
-  if (letter) values.push(letter, `${letter}楼`)
-  return values.flatMap(value => value.split(/[、,，;；]/u))
-    .flatMap(value => [value, value.replace(/^(?:同济大学)?(?:四平(?:路)?|嘉定|沪西|沪北|张江|临港)(?:校区|基地)?\s*/u, '').replace(/^同济大学/u, '')])
-    .map(normalize).filter(Boolean)
-}
-
-// Curated building identities are separate from text extraction and never parse a room.
-const confirmedPlaces: Record<string, Record<string, string>> = {
-  siping: {
-    '北教学楼': 'way/183383474', '北楼': 'way/183383474', '教学北楼': 'way/183383474',
-    '南教学楼': 'way/183383472', '南楼': 'way/183383472', '教学南楼': 'way/183383472',
-  },
-  jiading: {
-    '济事楼': 'way/135405205', '济事南楼': 'way/135405205', '济事北楼': 'way/135405205', '济事楼（软件学院）': 'way/135405205',
-    // The recorded sports_hall hosts these activities; this identifies its building, not an indoor room.
-    '体育中心游泳馆': 'way/1456432428', '体育中心篮球馆': 'way/1456432428', '体育中心乒乓馆': 'way/1456432428',
-  },
-}
-
+const normalize = (value: string) => value.normalize('NFKC').toLowerCase().replace(/[\s\p{P}\p{S}]/gu, '')
 interface PlaceIndex {
   featureIds: Set<string>
   names: Map<string, Set<string>>
 }
-// Campus datasets are immutable after loading; reuse their name projection across schedule rows.
 const placeIndexes = new WeakMap<CampusData, PlaceIndex>()
 function placeIndex(data: CampusData): PlaceIndex {
   const existing = placeIndexes.get(data)
   if (existing) return existing
   const index: PlaceIndex = { featureIds: new Set(), names: new Map() }
   for (const feature of data.features) {
-    if (feature.id == null || !feature.properties.campus ||
-      !['academic', 'library', 'place', 'sport'].includes(feature.properties.category)) continue
+    const p = feature.properties
+    if (feature.id == null || !p.campus || !['academic', 'library', 'place', 'sport'].includes(p.category)) continue
     const id = String(feature.id)
     index.featureIds.add(id)
-    for (const key of aliases(feature)) {
+    for (const name of [p.name ?? '', p.alt_name ?? '', p.short_name ?? ''].flatMap(name =>
+      [name, name.replace(/[（(][^（）()]*[）)]/gu, '').trim()]).flatMap(name => name.split(/[、,，;；]/u))) {
+      const key = normalize(name.replace(/^(?:同济大学)?(?:四平(?:路)?|嘉定|沪西|沪北|张江|临港)(?:校区|基地)?\s*/u, '').replace(/^同济大学/u, ''))
+      if (!key) continue
       const ids = index.names.get(key) ?? new Set<string>()
-      ids.add(id)
-      index.names.set(key, ids)
+      ids.add(id); index.names.set(key, ids)
     }
   }
   placeIndexes.set(data, index)
@@ -135,20 +111,19 @@ export function officialLocationTargets(campus: string, value: string, data?: Ca
   const campusId = officialCampusId(campus)
   const index = data ? placeIndex(data) : undefined
   return parseOfficialLocations(value, campus, context).map(location => {
-    if (location.hint === 'missing' || location.needsReview) return location
-    if (!['named', 'generic'].includes(location.kind ?? '')) return location
+    if (location.hint === 'missing' || location.needsReview || !['named', 'generic'].includes(location.kind ?? '')) return location
     if (!campusId || (context.dataCampusId && context.dataCampusId !== campusId) ||
       (location.campusText && officialCampusId(location.campusText) !== campusId)) {
-      location.hint = 'campus'
-      return location
+      location.hint = 'campus'; return location
     }
-    const confirmed = confirmedPlaces[campusId]?.[location.building]
-    const ids = confirmed
-      ? new Set(!data || index?.featureIds.has(confirmed) ? [confirmed] : [])
-      : index?.names.get(normalize(location.building)) ?? new Set<string>()
-    if (ids.size === 1) {
-      location.target = { campusId, featureId: [...ids][0]! }
-      location.hint = undefined
+    const entries = (placeCatalog[campusId] ?? []).filter(place => [place.name, ...place.aliases].some(name => normalize(name) === normalize(location.building)))
+    const identities = new Set(entries.map(place => place.featureId))
+    const sourceIds = new Set(entries.flatMap(place => [place.name, ...place.aliases].flatMap(name => [...(index?.names.get(normalize(name)) ?? [])])))
+    const ids = entries.length ? identities : index?.names.get(normalize(location.building)) ?? new Set<string>()
+    // Dataset removal or ambiguous source names cannot silently use a stale catalog target.
+    if (ids.size === 1 && sourceIds.size <= 1 && (!sourceIds.size || sourceIds.has([...ids][0]!)) &&
+      (!data || index?.featureIds.has([...ids][0]!))) {
+      location.target = { campusId, featureId: [...ids][0]! }; location.hint = undefined
     } else location.hint = location.kind === 'generic' ? 'generic' : 'unmapped'
     return location
   })
@@ -156,7 +131,6 @@ export function officialLocationTargets(campus: string, value: string, data?: Ca
 
 export function officialLocationTarget(campus: string, value: string, data?: CampusData | null, context: LocationLookupContext = {}): CampusMapTarget | undefined {
   const locations = officialLocationTargets(campus, value, data, context)
-  // Multiple members always require a choice, including two rooms in the same building.
   return locations.length === 1 ? locations[0]?.target : undefined
 }
 

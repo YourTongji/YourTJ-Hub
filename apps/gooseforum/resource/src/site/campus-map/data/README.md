@@ -65,11 +65,18 @@ the golf filter and match searches for 高尔夫 and 高尔夫球; only the name
 identified by the guide. Indoor activity lists are never inferred from a generic
 sports-centre tag.
 
-Course destination matching first reads the semester-scoped offline dictionary in
-`locations/`, keyed by exact course campus and original text. See the
-[maintenance reference](../../../../scripts/campus-locations/README.md) for the
-source and prompt identities, v2 result types, pending-review state and update
-commands. Uncovered text has no heuristic fallback.
+Course destination matching first checks exact campus/raw-text overrides in
+`locations/overrides.json`; term-scoped interpretations require their calendar identity.
+Blocking and flagged overrides prohibit fallback. A miss uses the cross-semester
+verified-name catalog in `locations/places.json` and conservative simple room parsing.
+The original extraction dictionary supplies maintenance candidates and regression
+inputs, not a global runtime prerequisite. See the
+[maintenance reference](../../../../scripts/campus-locations/README.md) for lookup
+priority, source evidence, Schema, pending review and update commands. In Siping,
+南/北 followed by numeric room text expands to 南教学楼/北教学楼; standalone directions
+are not aliases. Only unambiguous numeric continuations inherit a prior building.
+The complete candidate `place` set is audited independently from map coverage;
+unverified extracted names cannot automatically become catalog aliases.
 
 After extraction, independent map matching reads `name`, `short_name` and
 `alt_name` for in-campus `academic`, `library`, `place` and `sport` features.

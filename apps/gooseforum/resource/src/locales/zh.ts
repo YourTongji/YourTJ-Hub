@@ -547,7 +547,7 @@ export default {
         pending: "地点待安排。",
         no_room: "不排教室。",
         unknown: "地点尚不明确。",
-        missing: "该学期尚未收录此地点，保留原文。",
+        missing: "此地点无法可靠解析，保留原文。",
         review: "此地点有待复核的疑点，暂不定位。",
         campus: "地点校区无法与当前地图确认对应。",
         unmapped: "未定位：名称无法唯一匹配地图地点。",

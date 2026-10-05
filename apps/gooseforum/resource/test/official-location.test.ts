@@ -1,14 +1,14 @@
 import { readFileSync } from 'node:fs'
 import { expect, it } from 'vitest'
 import type { CampusData } from '../src/site/campus-map/catalog'
-import { officialCampusId, officialLocationApplies, officialLocationTarget, officialLocationTargets, parseOfficialLocations, type OfficialMapLocation } from '../src/site/campus-map/official-location'
+import { findLocationOverride, officialCampusId, officialLocationApplies, officialLocationTarget, officialLocationTargets, parseOfficialLocations, type OfficialMapLocation } from '../src/site/campus-map/official-location'
 import table from '../src/site/campus-map/data/locations/2026-2027-1.json'
 
 const context = { calendarId: 122 }
 const data = Object.fromEntries(['siping', 'jiading', 'huxi'].map(campus => [campus,
   JSON.parse(readFileSync(new URL(`../src/site/campus-map/data/${campus}.geojson`, import.meta.url), 'utf8')) as CampusData]))
 
-it('preserves all source members, types, relationships and review flags without reparsing', () => {
+it('preserves all offline source members through equivalent parsing or pending exception overrides', () => {
   let count = 0
   for (const [campus, entries] of Object.entries(table.dictionary)) {
     for (const [raw, result] of Object.entries(entries)) {
@@ -18,7 +18,8 @@ it('preserves all source members, types, relationships and review flags without 
         expect(locations[index]).toMatchObject({ raw: member.source_text, building: member.place ?? '',
           room: member.detail ?? '', kind: member.kind, relation: result.relation, time: member.time,
           conditions: member.conditions, campusText: member.campus_text, address: member.address,
-          unassignedConditions: result.unassigned_conditions, needsReview: result.needs_review, reviewPending: true })
+          unassignedConditions: result.unassigned_conditions, needsReview: result.needs_review,
+          reviewPending: findLocationOverride(officialCampusId(campus)!, raw, context)?.reviewPending ?? false })
       }
       count++
     }
@@ -53,15 +54,13 @@ it('keeps the user-confirmed faculty names visible without inventing a map ident
   expect(officialLocationTargets('嘉定校区', '学院教室', data.jiading, context)[0]).toMatchObject({ needsReview: true, hint: 'review' })
 })
 
-it('looks up exact source keys, including punctuation, spaces, campus and term', () => {
-  for (const [campus, raw, ctx] of [
-    ['四平路校区', '北115 ', context], ['四平', '北115', context], ['嘉定校区', '北115', context],
-    ['四平路校区', '北115', { term: '2026秋季' }], ['四平路校区', '__proto__', context],
-  ] as const) {
-    expect(officialLocationTargets(campus, raw, data.siping, ctx)[0]).toMatchObject({ raw, hint: 'missing' })
+it('accepts stable campus aliases and rooms across terms but never guesses unknown keys or campuses', () => {
+  for (const [campus, raw] of [['嘉定校区', '北115'], ['四平路校区', '__proto__'], ['__proto__', '北115']] as const) {
+    expect(officialLocationTargets(campus, raw, data.siping, context)[0]).toMatchObject({ raw, hint: 'missing' })
   }
-  expect(officialLocationTarget('四平路校区', '北115', data.siping, { term: '2026-2027学年第一学期' })?.featureId).toBe('way/183383474')
-  expect(officialLocationTarget('四平路校区', '北115', data.siping, { calendarId: 121, term: table._meta.term })).toBeUndefined()
+  for (const campus of ['四平路校区', '四平']) {
+    expect(officialLocationTarget(campus, '北115 ', data.siping, { calendarId: 121 })?.featureId).toBe('way/183383474')
+  }
 })
 
 it('never mutates the shared dictionary through a returned value', () => {
@@ -100,7 +99,7 @@ it('requires a unique feature and never falls back to a different campus or a mi
   expect(officialCampusId('嘉定校区、四平路校区')).toBeUndefined()
 })
 
-it('uses per-member time conditions from the dictionary', () => {
+it('uses per-member time conditions from the exception override', () => {
   const locations = officialLocationTargets('嘉定校区', '单周致臻楼414，双周致臻楼416', data.jiading, context)
   expect(locations.map(location => officialLocationApplies(location, { week: 1, day: 2 }))).toEqual([true, false])
   expect(locations.map(location => officialLocationApplies(location, { week: 2, day: 2 }))).toEqual([false, true])

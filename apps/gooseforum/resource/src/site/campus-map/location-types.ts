@@ -20,7 +20,7 @@ export interface LocationExtraction {
 }
 export interface LocationLookupContext {
   calendarId?: number
-  /** Exact school-calendar display name for private timetables, which have no PK calendar ID. */
+  /** School-calendar display name; only term-scoped overrides require it or a calendar ID. */
   term?: string
   dataCampusId?: string
 }
@@ -40,6 +40,26 @@ export interface LocationDictionarySource {
   run_fingerprint: string
   source_prompt_sha256: string
   correction_rule: string
+}
+export interface StablePlace {
+  name: string
+  aliases: string[]
+  featureId: string
+  evidence: string
+}
+export interface LocationOverride {
+  campusId: string
+  raw: string
+  scope?: { calendarId: number; termNames: string[] }
+  action: 'replace' | 'block'
+  result: LocationExtraction
+  reviewPending: boolean
+  reason: string
+  source: string
+}
+export interface LocationOverrideConfig {
+  schema_version: 'campus-location-overrides/v1'
+  rules: LocationOverride[]
 }
 export interface LocationDictionary {
   _meta: LocationDictionarySource & { sources?: LocationDictionarySource[] }

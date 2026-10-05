@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed
+Rejected
 Class: architecture
 
 ## Context and Problem Statement
@@ -68,6 +68,7 @@ outside Git. Runtime and maintenance tools make no network model calls.
 
 ## Links
 
+- [Stable campus places and explicit overrides](0066-stable-campus-places-and-overrides.md) — stable building identification is not gated by complete semester dictionaries.
 - [Campus-map product contract](../product/campus-map.md)
 - [Maintained dictionary, prompts and tooling](../../apps/gooseforum/resource/scripts/campus-locations/README.md)
 - [Map deployment boundary](0022-campus-map-native-atlas.md)

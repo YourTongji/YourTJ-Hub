@@ -13,16 +13,22 @@ const evidence = resolve(process.env.CAMPUS_MAP_BROWSER_EVIDENCE_DIR ?? `${tmpdi
 const fixturePath = '/assets/test/campus-map-location.html'
 const virtualId = 'virtual:campus-map-location-browser'
 const courses = [
-  { code: 'SYN_MISSING', name: '未收录地点示例', campus: '四平路校区', room: '北楼9999室（单周）' },
+  { code: 'SYN_MISSING', name: '未收录地点示例', campus: '四平路校区', room: '未知教学楼9999室（单周）' },
   { code: 'SYN_TIME', name: '周次条件示例', campus: '嘉定校区', room: '1-2周济事楼430;3-16周济事楼109' },
   { code: 'SYN_REVIEW', name: '待复核地点示例', campus: '嘉定校区', room: '学院教室' },
   { code: 'SYN_MULTI', name: '多个楼宇示例', campus: '四平路校区', room: '瑞安楼403、505、507，物理馆319、301、302' },
   { code: 'SYN_ONLINE', name: '线上课程示例', campus: '嘉定校区', room: '线上课堂' },
+  { code: 'SYN_DATE', name: '日期尾注示例', campus: '四平路校区', room: '北楼115室（9月24日）' },
+  { code: 'SYN_PARITY', name: '单双周尾注示例', campus: '四平路校区', room: '北楼115室（单周）' },
+  { code: 'SYN_ABBR', name: '跨楼缩写示例', campus: '嘉定校区', room: 'A101、B201' },
 ]
 const targets = {
   jishi: { id: 'way/135405205', name: '济事楼（软件学院）' },
   rui: { id: 'way/183383954', name: '瑞安楼' },
   physics: { id: 'way/183383958', name: '物理馆' },
+  north: { id: 'way/183383474', name: '教学北楼' },
+  an: { id: 'way/266167562', name: '安楼（A楼）' },
+  bo: { id: 'way/263922904', name: '博楼（B楼）' },
 }
 const details = Object.fromEntries(courses.map((course, index) => [course.code, [{
   campus: course.campus, teachingClassId: index + 1,
@@ -35,7 +41,9 @@ let server, browser, origin, cacheDir
 
 before(async () => {
   await mkdir(evidence, { recursive: true })
-  const hashFiles = ['src/site/campus-map/official-location.ts', 'src/site/campus-map/location-types.ts', 'src/site/campus-map/data/locations/2026-2027-1.json', 'src/site/campus-map/CampusCanvas.vue',
+  const hashFiles = ['src/site/campus-map/official-location.ts', 'src/site/campus-map/location-types.ts',
+    'src/site/campus-map/deterministic-location.ts', 'src/site/campus-map/data/locations/places.json',
+    'src/site/campus-map/data/locations/overrides.json', 'src/site/campus-map/CampusCanvas.vue',
     'src/site/pages/CampusMapPage.vue', 'src/site/components/CampusMapSchedulePanel.vue',
     'src/site/components/CampusMapLocationChoices.vue', 'src/site/campus-map/data/siping.geojson',
     'src/site/campus-map/data/jiading.geojson', 'src/styles/resource.css']
@@ -105,6 +113,8 @@ async function open(width, query) {
   await page.goto(`${origin}${fixturePath}${query}`)
   await page.locator('html[data-ready="true"]').waitFor()
   await page.locator('.maplibregl-canvas').waitFor()
+  // Canvas/labels exist before MapLibre's load event; screenshots must show the rendered map.
+  await page.locator('.atlas-map-status').waitFor({ state: 'hidden' })
   return { page, errors }
 }
 async function query(panel, week, empty = false) {
@@ -136,15 +146,15 @@ async function mapCapture(page, filename, target) {
 }
 
 for (const width of [1280, 375]) {
-  test(`offline status, missing text, online members and semester isolation at ${width}px`, async () => {
+  test(`override status, unknown text, online members and cross-term stable matching at ${width}px`, async () => {
     const { page, errors } = await open(width, '?mine=1')
-    const result = { scenario: 'dictionary status and misses', width, status: 'failed' }
+    const result = { scenario: 'override status and cross-term stable matching', width, status: 'failed' }
     receipt.tests.push(result)
     try {
       await page.locator('.atlas-mine__views button').nth(1).click()
       const panel = page.locator('.atlas-mine .atlas-schedule')
       await query(panel, 1)
-      for (const [index, expected] of [[0, '尚未收录'], [2, '有待复核'], [4, '线上课程']]) {
+      for (const [index, expected] of [[0, '无法可靠解析'], [2, '有待复核'], [4, '线上课程']]) {
         await panel.locator('.atlas-schedule__list button').filter({ hasText: courses[index].name }).click()
         const choices = panel.locator('.atlas-location-choices')
         assert.ok((await choices.innerText()).includes(expected))
@@ -156,16 +166,16 @@ for (const width of [1280, 375]) {
       await panel.locator('select').first().selectOption('121')
       await query(panel, 1)
       await panel.locator('.atlas-schedule__list button').filter({ hasText: courses[1].name }).click()
-      assert.ok((await panel.locator('.atlas-location-choices').innerText()).includes('尚未收录'))
-      assert.equal(await panel.locator('.atlas-location-choices button:enabled').count(), 0)
-      await capture(page, `term-missing-${width}.png`, { calendarId: 121 })
+      assert.equal(await panel.locator('.atlas-location-choices button:enabled').count(), 2)
+      assert.ok((await panel.locator('.atlas-location-choices').innerText()).includes('济事楼'))
+      await capture(page, `term-stable-${width}.png`, { calendarId: 121, raw: courses[1].room })
       assert.deepEqual(errors, [])
       result.status = 'passed'
     } finally { await page.close() }
   })
-  test(`dictionary time conditions constrain building schedules at ${width}px`, async () => {
+  test(`parsed time conditions constrain building schedules at ${width}px`, async () => {
     const { page, errors } = await open(width, `?campus=jiading#place=${encodeURIComponent(targets.jishi.id)}`)
-    const result = { scenario: 'dictionary time conditions', width, status: 'failed' }
+    const result = { scenario: 'parsed time conditions', width, status: 'failed' }
     receipt.tests.push(result)
     try {
       await page.locator('.atlas-schedule-open').click()
@@ -176,7 +186,7 @@ for (const width of [1280, 375]) {
       await entry.click()
       const choices = panel.locator('.atlas-location-choices button')
       assert.equal(await choices.count(), 2)
-      assert.ok((await panel.locator('.atlas-location-choices').innerText()).includes('仍待复核'))
+      assert.equal((await panel.locator('.atlas-location-choices').innerText()).includes('仍待复核'), false)
       assert.ok((await choices.nth(0).innerText()).includes('1-2周'))
       assert.ok((await choices.nth(1).innerText()).includes('3-16周'))
       assert.equal(new URL(page.url()).hash, '')
@@ -190,9 +200,9 @@ for (const width of [1280, 375]) {
       result.status = 'passed'
     } finally { await page.close() }
   })
-  test(`dictionary members select distinct real buildings at ${width}px`, async () => {
+  test(`parsed members select distinct real buildings at ${width}px`, async () => {
     const { page, errors } = await open(width, `#place=${encodeURIComponent(targets.rui.id)}`)
-    const result = { scenario: 'multiple dictionary members', width, status: 'failed' }
+    const result = { scenario: 'multiple parsed members', width, status: 'failed' }
     receipt.tests.push(result)
     try {
       await page.locator('.atlas-schedule-open').click()
@@ -216,6 +226,69 @@ for (const width of [1280, 375]) {
       const boxes = await choices.evaluateAll(items => items.map(item => item.getBoundingClientRect().height))
       assert.ok(boxes.every(height => height >= 44))
       await mapCapture(page, `multiple-map-${width}.png`, targets.physics)
+      assert.deepEqual(errors, [])
+      result.status = 'passed'
+    } finally { await page.close() }
+  })
+  test(`date and parity suffixes retain original text and constrain scoped queries at ${width}px`, async () => {
+    const result = { scenario: 'review date/parity suffix counterexamples', width, status: 'failed' }
+    receipt.tests.push(result)
+    const unscoped = await open(width, '?mine=1')
+    try {
+      await unscoped.page.locator('.atlas-mine__views button').nth(1).click()
+      const panel = unscoped.page.locator('.atlas-mine .atlas-schedule')
+      await query(panel, 2)
+      await panel.locator('.atlas-schedule__list button').filter({ hasText: courses[5].name }).click()
+      assert.ok((await panel.locator('.atlas-location-choices').innerText()).includes(courses[5].room))
+      await selectedTarget(unscoped.page, targets.north)
+      await capture(unscoped.page, `date-original-${width}.png`, { week: 2, raw: courses[5].room, selectedTarget: targets.north })
+      assert.deepEqual(unscoped.errors, [])
+    } finally { await unscoped.page.close() }
+    const { page, errors } = await open(width, `#place=${encodeURIComponent(targets.north.id)}`)
+    try {
+      await page.locator('.atlas-schedule-open').click()
+      const panel = page.locator('dialog[open]')
+      await query(panel, 1)
+      const entries = panel.locator('.atlas-schedule__list button')
+      assert.equal(await entries.count(), 1, 'the date-only course cannot confirm an arrangement')
+      assert.ok((await entries.innerText()).includes(courses[6].name))
+      await entries.click()
+      assert.ok((await panel.locator('.atlas-location-choices').innerText()).includes(courses[6].room))
+      await selectedTarget(page, targets.north)
+      await capture(page, `parity-odd-${width}.png`, { week: 1, raw: courses[6].room, selectedTarget: targets.north })
+      await query(panel, 2, true)
+      assert.equal(await panel.locator('.atlas-schedule__list button').count(), 0)
+      await capture(page, `date-parity-excluded-${width}.png`, { week: 2, excluded: [courses[5].room, courses[6].room] })
+      assert.deepEqual(errors, [])
+      result.status = 'passed'
+    } finally { await page.close() }
+  })
+  test(`A101 and B201 choose their own verified buildings at ${width}px`, async () => {
+    const { page, errors } = await open(width, `?campus=jiading#place=${encodeURIComponent(targets.an.id)}`)
+    const result = { scenario: 'review cross-building abbreviation counterexample', width, status: 'failed' }
+    receipt.tests.push(result)
+    try {
+      await selectedTarget(page, targets.an)
+      await capture(page, `abbreviations-map-initial-${width}.png`, { view: 'map', selectedTarget: targets.an })
+      await page.locator('.atlas-schedule-open').click()
+      const panel = page.locator('dialog[open]')
+      const scope = await panel.locator('.atlas-schedule__scope').innerText()
+      await query(panel, 2)
+      const entry = panel.locator('.atlas-schedule__list button')
+      assert.equal(await entry.count(), 1)
+      await entry.click()
+      const choices = panel.locator('.atlas-location-choices button')
+      assert.equal(await choices.count(), 2)
+      assert.equal(new URL(page.url()).hash, '')
+      await capture(page, `abbreviations-unselected-${width}.png`, { week: 2, raw: courses[7].room })
+      for (const [index, target] of [[0, targets.an], [1, targets.bo]]) {
+        await choices.nth(index).click()
+        await selectedTarget(page, target)
+        assert.equal(await choices.nth(index).getAttribute('aria-pressed'), 'true')
+        assert.equal(await panel.locator('.atlas-schedule__scope').innerText(), scope)
+        await capture(page, `abbreviations-${index}-${width}.png`, { week: 2, raw: courses[7].room, selectedTarget: target })
+      }
+      await mapCapture(page, `abbreviations-map-final-${width}.png`, targets.bo)
       assert.deepEqual(errors, [])
       result.status = 'passed'
     } finally { await page.close() }

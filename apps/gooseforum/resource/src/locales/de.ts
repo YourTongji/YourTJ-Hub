@@ -546,7 +546,7 @@ export default {
         pending: "Ort wird noch festgelegt.",
         no_room: "Kein Unterrichtsraum zugewiesen.",
         unknown: "Ort unklar.",
-        missing: "Für dieses Semester nicht erfasst; Originaltext bleibt sichtbar.",
+        missing: "Der Ort lässt sich nicht zuverlässig deuten; der Originaltext bleibt sichtbar.",
         review: "Dieser Ort muss geprüft werden und kann noch nicht markiert werden.",
         campus: "Der angegebene Campus ist auf dieser Karte nicht bestätigt.",
         unmapped: "Kein eindeutiger Treffer auf der Karte.",

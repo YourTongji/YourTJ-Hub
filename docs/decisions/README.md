@@ -151,4 +151,5 @@ A decision starts `Proposed`. Once implemented, its status becomes `Accepted` an
 - [0062](0062-moderation-notification-feedback.md) — Keep automatic approval quiet, notify human review/results, and mask rejected notification subjects.
 - [0063](0063-oryn-review-once-per-version.md) — Keep six-hour Oryn catch-up and deduplicate completed automatic reviews by source version.
 - [0064](0064-moderation-approval-notify-channels.md) — 版主审批通知走 HTTP 通知的通道适配器（通用 JSON／飞书卡片／AstrBot 文本），快捷操作只打开签名确认页并按当前会话复核权限。
-- [0065](0065-offline-campus-location-dictionaries.md) — 按学期消费离线课程地点字典，保留待复核状态与来源，独立匹配地图且无旧算法回退。
+- [0065](0065-offline-campus-location-dictionaries.md) — 整学期精确字典作为定位前置条件的提案（Rejected）。
+- [0066](0066-stable-campus-places-and-overrides.md) — 跨学期核验地点目录、保守简单房间解析与优先执行的 JSON 例外覆盖，离线提取仅供维护与回归。

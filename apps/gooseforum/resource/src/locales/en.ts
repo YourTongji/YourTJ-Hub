@@ -547,7 +547,7 @@ export default {
         pending: "Location to be arranged.",
         no_room: "No classroom assigned.",
         unknown: "Location unclear.",
-        missing: "This location is not in this term’s directory; original text retained.",
+        missing: "This location cannot be reliably interpreted; original text retained.",
         review: "This location needs review and cannot be pinned yet.",
         campus: "The stated campus cannot be confirmed on this map.",
         unmapped: "Not located: no unique map match.",
