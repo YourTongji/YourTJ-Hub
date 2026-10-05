@@ -21,7 +21,7 @@ runs:
     - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
       with:
         repository: yzxoi/oryn-mini
-        ref: e4a75d61bcc84b74c3216162f79bb7433af30e6e
+        ref: 9803b502d172426d898bcd34a0abff17284b853a
         token: ${{ steps.source.outputs.token }}
         path: .oryn-runtime
         persist-credentials: false
