@@ -96,7 +96,9 @@ func TestAgentCreatePostGlobalPolicyBlocksNewWritesButReplays(t *testing.T) {
 		t.Fatalf("created = %s %v", envelope.Result, err)
 	}
 
-	entity := pageConfig.Entity{PageType: pageConfig.AgentCommentPolicy, Config: `{"allowAgentComments":false}`}
+	entity := pageConfig.GetByPageType(pageConfig.AgentCommentPolicy)
+	entity.PageType = pageConfig.AgentCommentPolicy
+	entity.Config = `{"allowAgentComments":false}`
 	if affected := pageConfig.CreateOrSave(&entity); affected == 0 {
 		t.Fatal("save global policy: no row written")
 	}

@@ -68,13 +68,12 @@ func CreateTopicPostWithHooks(entity *posts.Entity, topicEntity topics.Entity, b
 		if err := topics.IncrementPostFastTx(tx, entity.TopicId, posters, entity.Id, entity.CreatedAt); err != nil {
 			return err
 		}
-		if err := agenteventservice.CapturePublicTx(tx, entity); err != nil {
-			return err
-		}
 		if after != nil {
+			// Agent finalization stamps causal metadata and captures publication
+			// using the participants frozen before credential authorization.
 			return after(tx)
 		}
-		return nil
+		return agenteventservice.CapturePublicTx(tx, entity)
 	})
 }
 

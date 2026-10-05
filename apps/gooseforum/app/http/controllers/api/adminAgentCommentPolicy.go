@@ -26,7 +26,10 @@ type SaveAgentCommentPolicyReq struct {
 // SaveAgentCommentPolicy 保存全局 Agent 评论开关（热生效，无需重启）。
 func SaveAgentCommentPolicy(req component.BetterRequest[SaveAgentCommentPolicyReq]) component.Response {
 	config := pageConfig.AgentCommentPolicyConfig{AllowAgentComments: *req.Params.AllowAgentComments}
-	return savePageConfig(pageConfig.AgentCommentPolicy, config, hotdataserve.ClearAgentCommentPolicyConfigCache)
+	if err := agentcommentservice.SaveGlobalPolicy(config); err != nil {
+		return component.FailResponseError(err)
+	}
+	return component.SuccessResponseCode("success", component.MessageOperationSuccess, nil)
 }
 
 type SetAgentCommentTopicPolicyReq struct {

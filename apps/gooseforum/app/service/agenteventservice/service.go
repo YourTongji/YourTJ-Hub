@@ -143,7 +143,7 @@ func BaselineTx(tx *gorm.DB, postID, version uint64) error {
 
 // CapturePublicTx advances publication state and freezes numeric recipients and
 // subscription/endpoint generations in the same transaction as the content.
-func CapturePublicTx(tx *gorm.DB, post *posts.Entity) error {
+func CapturePublicTx(tx *gorm.DB, post *posts.Entity, plans ...*WriteCapturePlan) error {
 	cfg := agentinstance.Current()
 	if cfg.ID == "" || cfg.Epoch == "" {
 		return nil
@@ -234,7 +234,11 @@ func CapturePublicTx(tx *gorm.DB, post *posts.Entity) error {
 			reasons[t.UserId] = append(reasons[t.UserId], "comment")
 		}
 	}
-	if err := appendBroadcastReasonsTx(tx, reasons, p, previous); err != nil {
+	var plan *WriteCapturePlan
+	if len(plans) > 0 {
+		plan = plans[0]
+	}
+	if err := appendBroadcastReasonsTx(tx, reasons, p, previous, plan); err != nil {
 		return err
 	}
 	ids := make([]uint64, 0, len(reasons))
@@ -364,7 +368,7 @@ func actorTypeLabel(actorType int8) string {
 // appendBroadcastReasonsTx adds the forum-wide types to every enabled Agent
 // subscription. Directed reasons are appended first so an interaction keeps its
 // more specific type when both apply to the same Agent.
-func appendBroadcastReasonsTx(tx *gorm.DB, reasons map[uint64][]string, p posts.Entity, previous uint64) error {
+func appendBroadcastReasonsTx(tx *gorm.DB, reasons map[uint64][]string, p posts.Entity, previous uint64, plan *WriteCapturePlan) error {
 	if previous != 0 {
 		return nil
 	}
@@ -372,9 +376,15 @@ func appendBroadcastReasonsTx(tx *gorm.DB, reasons map[uint64][]string, p posts.
 	if p.PostNo == 1 {
 		reason = "topic_created"
 	}
-	subscribers, err := agents.ListEnabledTx(tx)
-	if err != nil {
-		return err
+	var subscribers []agents.Entity
+	if plan != nil {
+		subscribers = plan.Subscribers
+	} else {
+		var err error
+		subscribers, err = agents.ListEnabledTx(tx)
+		if err != nil {
+			return err
+		}
 	}
 	for _, subscriber := range subscribers {
 		if subscriber.UserId == 0 || subscriber.UserId == p.UserId {
@@ -390,21 +400,11 @@ func appendBroadcastReasonsTx(tx *gorm.DB, reasons map[uint64][]string, p posts.
 // is a post that extends a run of MaxConsecutiveBotPosts Agent posts in its
 // topic; both rules together break chains even when a client ignores
 // sourceEventId.
-func botBroadcastAllowedTx(tx *gorm.DB, instanceID string, p posts.Entity) (bool, error) {
-	parent, found, err := agentEvents.ResultingEventForPostTx(tx, instanceID, p.Id)
-	if err != nil {
-		return false, err
+func botBroadcastAllowedTx(tx *gorm.DB, p posts.Entity) (bool, error) {
+	if p.AgentEventDepth > MaxBroadcastDepth {
+		return false, nil
 	}
-	if found {
-		depth, err := chainDepthTx(tx, instanceID, parent, MaxBroadcastDepth)
-		if err != nil {
-			return false, err
-		}
-		if depth+1 > MaxBroadcastDepth {
-			return false, nil
-		}
-	}
-	authorIDs, err := posts.TailAuthorIDsTx(tx, p.TopicId, MaxConsecutiveBotPosts)
+	authorIDs, err := posts.TailAuthorIDsTx(tx, p.TopicId, p.PostNo, MaxConsecutiveBotPosts)
 	if err != nil {
 		return false, err
 	}
@@ -426,24 +426,6 @@ func botBroadcastAllowedTx(tx *gorm.DB, instanceID string, p posts.Entity) (bool
 	return false, nil
 }
 
-// chainDepthTx walks the resulting-post links between events; withdrawn events
-// have redacted their result, which ends the walk and stays permissive.
-func chainDepthTx(tx *gorm.DB, instanceID string, event agentEvents.Entity, limit int) (int, error) {
-	depth := 0
-	current := event
-	for depth < limit {
-		parent, found, err := agentEvents.ResultingEventForPostTx(tx, instanceID, current.PostID)
-		if err != nil {
-			return 0, err
-		}
-		if !found {
-			break
-		}
-		depth++
-		current = parent
-	}
-	return depth, nil
-}
 func filterReasons(reasons []string, typesJSON string) []string {
 	var types []string
 	_ = json.Unmarshal([]byte(typesJSON), &types)
@@ -555,7 +537,7 @@ func handleTask(ctx context.Context, task *taskQueue.Entity) error {
 		}
 		broadcastAllowed := true
 		if !actorHuman {
-			broadcastAllowed, err = botBroadcastAllowedTx(tx, cfg.ID, p)
+			broadcastAllowed, err = botBroadcastAllowedTx(tx, p)
 			if err != nil {
 				return err
 			}

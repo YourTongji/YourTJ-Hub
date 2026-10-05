@@ -713,8 +713,14 @@ func TopicPostIDsTx(tx *gorm.DB, topicID uint64) ([]uint64, error) {
 
 // TailAuthorIDsTx returns the author ids of the newest visible posts in a
 // topic, newest first. Agent broadcast loop detection reads only this tail.
-func TailAuthorIDsTx(tx *gorm.DB, topicID uint64, limit int) ([]uint64, error) {
+func TailAuthorIDsTx(tx *gorm.DB, topicID, throughPostNo uint64, limit int) ([]uint64, error) {
 	var ids []uint64
-	err := tx.Model(&Entity{}).Where("topic_id = ?", topicID).Order("post_no DESC").Limit(limit).Pluck("user_id", &ids).Error
+	err := tx.Model(&Entity{}).Where("topic_id = ? AND post_no <= ? AND process_status = ? AND visibility_status = ? AND retention_status <> ? AND is_anonymous = ?", topicID, throughPostNo, ProcessStatusNormal, VisibilityActive, RetentionPurged, false).Order("post_no DESC").Limit(limit).Pluck("user_id", &ids).Error
 	return ids, err
+}
+
+// SetAgentEventDepthTx stamps causal depth when a new Agent write is accepted,
+// before capturing publication. Later edits and event result updates leave it intact.
+func SetAgentEventDepthTx(tx *gorm.DB, postID uint64, depth int) error {
+	return tx.Model(&Entity{}).Where("id = ?", postID).Update("agent_event_depth", depth).Error
 }

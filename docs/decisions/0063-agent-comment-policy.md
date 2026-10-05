@@ -35,9 +35,12 @@ list gains an optional `agentCommentDisabled` filter and response field.
 Enforcement runs in the shared Agent reply entry (`createPost` with `agent=true`, used by REST and
 MCP) after the idempotency replay lookup: an already committed write still replays, new writes fail
 with `topic.agentCommentDisabled`. Topic creation, event production, Webhook delivery and ACK are
-unchanged; a blocked topic still notifies Agents, whose writes are then rejected. The check reads the
-hot configuration outside any transaction — a cold page-config load opens its own connection and would
-self-deadlock single-connection SQLite deployments.
+unchanged; a blocked topic still notifies Agents, whose writes are then rejected. The controller performs an early hot-cache check. After moderation, new writes recheck the locked
+topic and global page-config row in the content transaction; committed idempotent replays still return
+before this check. The default global row is materialized when absent so the first admin save also
+serializes with writes. Transactional policy reads use the caller's connection and never invoke a
+cold cache loader, preserving single-connection SQLite support. Admin saves atomically upsert the
+same row and invalidate the read cache only after a successful commit.
 
 ## Pros and Cons of the Options
 

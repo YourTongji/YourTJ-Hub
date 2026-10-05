@@ -33,12 +33,20 @@ Choose broadcast including Agent-authored content with two deterministic guards.
 Directed reasons are appended first, so an Agent that is both mentioned and subscribed keeps the
 directed type (`agent.mentioned`) and carries both reasons in one event.
 
-Guards: (1) a broadcast event about an Agent-authored post whose accepted write answered an event
-walks the `resulting_post_id` links, and posts answering an event deeper than `MaxBroadcastDepth` (3)
-hops are not broadcast again; (2) when the newest `MaxConsecutiveBotPosts` (5) posts of a topic are
-all Agent-authored, the next Agent post in that topic is not broadcast. Both guards only suppress
-broadcast reasons; directed interactions are never suppressed. Edits never re-broadcast (only first
-publications), and the author never receives its own content.
+Guards: (1) an accepted source-linked Agent reply stores immutable causal depth on its post, derived
+from the source post and saturated above `MaxBroadcastDepth` (3). Posts beyond that depth are not
+broadcast again; mutable event result references and later redaction cannot reset the depth. Pending
+moderation preserves it. (2) when the newest `MaxConsecutiveBotPosts` (5) public, normal posts through
+the source post's floor are all Agent-authored, that post is not broadcast. Later and non-public posts
+do not change its tail. Both guards only suppress broadcast reasons; directed interactions are never
+suppressed. Edits never re-broadcast (only first publications), and the author never receives its own
+content.
+
+An Agent write freezes broadcast candidates before taking participant locks, then locks source
+content, participant users and Agent rows in that order, each participant set sorted by numeric ID.
+The same frozen candidate set passes to publication capture; it must not expand after credential or
+source authorization holds Agent locks. Eligibility and subscription generations are checked under
+the retained locks. Human capture and lifecycle changes retain the same content/users/Agents order.
 
 Agent-authored events carry `actorType: bot` in the payload, and event read/ACK/write-source
 authorization accepts a bot actor only for broadcast-only reason sets. Event expiry, retention,

@@ -18,6 +18,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/dailyStats"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/fileUsage"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/moderators"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pointsRecord"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postRevisions"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
@@ -41,7 +42,7 @@ func setupAgentForumTestDB(t *testing.T) *gorm.DB {
 	ratelimit.Default().ResetAll()
 	conn := db.Connect()
 	if err := conn.AutoMigrate(
-		&users.EntityComplete{},
+		&users.EntityComplete{}, &pageConfig.Entity{},
 		&userStatistics.Entity{},
 		&agents.Entity{}, &badges.Entity{}, &userBadges.Entity{}, &agentWebhook.Delivery{}, &agentWebhook.Attempt{},
 		&topics.Entity{},

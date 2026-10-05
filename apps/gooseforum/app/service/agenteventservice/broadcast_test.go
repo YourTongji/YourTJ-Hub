@@ -156,6 +156,17 @@ func (f *broadcastFixture) capture(post posts.Entity) (bool, map[uint64]agentEve
 // produced the given post.
 func (f *broadcastFixture) linkResult(eventID string, postID uint64) {
 	f.t.Helper()
+	var event agentEvents.Entity
+	if err := f.conn.Where("id = ?", eventID).Take(&event).Error; err != nil {
+		f.t.Fatal(err)
+	}
+	var source posts.Entity
+	if err := f.conn.Where("id = ?", event.PostID).Take(&source).Error; err != nil {
+		f.t.Fatal(err)
+	}
+	if err := posts.SetAgentEventDepthTx(f.conn, postID, min(source.AgentEventDepth+1, MaxBroadcastDepth+1)); err != nil {
+		f.t.Fatal(err)
+	}
 	if err := f.conn.Model(&agentEvents.Entity{}).Where("id = ?", eventID).Update("resulting_post_id", postID).Error; err != nil {
 		f.t.Fatal(err)
 	}
@@ -255,5 +266,58 @@ func TestBroadcastMergesWithDirectedReason(t *testing.T) {
 	}
 	if nonMentioned := events[f.botC.Id]; nonMentioned.Type != "forum.post_created" {
 		t.Fatalf("plain subscriber %#v", nonMentioned)
+	}
+}
+
+func TestBroadcastBacklogUsesSourceTail(t *testing.T) {
+	f := broadcastSetup(t)
+	var firstBot posts.Entity
+	for n := uint64(2); n <= 6; n++ {
+		p := f.addPost(f.topic, f.botA.Id, n, 0, "queued bot reply")
+		if n == 2 {
+			firstBot = p
+		}
+	}
+	_, events := f.capture(firstBot)
+	if events[f.botC.Id].ID == "" {
+		t.Fatal("later bot posts suppressed the first bot publication")
+	}
+}
+
+func TestBroadcastHiddenHumanDoesNotBreakBotRun(t *testing.T) {
+	f := broadcastSetup(t)
+	for n := uint64(2); n <= 5; n++ {
+		f.addPost(f.topic, f.botA.Id, n, 0, "bot reply")
+	}
+	hidden := f.addPost(f.topic, f.human.Id, 6, 0, "pending human reply")
+	if err := f.conn.Model(&hidden).Update("process_status", posts.ProcessStatusPending).Error; err != nil {
+		t.Fatal(err)
+	}
+	last := f.addPost(f.topic, f.botA.Id, 7, 0, "fifth public bot reply")
+	_, events := f.capture(last)
+	if events[f.botC.Id].ID != "" {
+		t.Fatal("non-public human post reset the broadcast loop bound")
+	}
+}
+
+func TestBroadcastDepthSurvivesSourceResultReplacement(t *testing.T) {
+	f := broadcastSetup(t)
+	_, events := f.capture(f.first)
+	parent := events[f.botA.Id]
+	for hop := 1; hop <= MaxBroadcastDepth; hop++ {
+		topic := f.addTopic(f.botA.Id)
+		post := f.addPost(topic, f.botA.Id, 1, 0, "source-linked hop")
+		f.linkResult(parent.ID, post.Id)
+		_, produced := f.capture(post)
+		parent = produced[f.botC.Id]
+	}
+	topic := f.addTopic(f.botA.Id)
+	first := f.addPost(topic, f.botA.Id, 1, 0, "first accepted response")
+	f.linkResult(parent.ID, first.Id)
+	second := f.addPost(topic, f.botA.Id, 2, 0, "second accepted response")
+	f.linkResult(parent.ID, second.Id)
+	_, produced := f.capture(first)
+	if produced[f.botC.Id].ID != "" {
+		t.Fatal("replacing a source event result reset an already accepted reply depth")
 	}
 }

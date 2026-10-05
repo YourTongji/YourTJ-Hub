@@ -123,6 +123,9 @@ func migrateSchema() error {
 	if err = upgradeTopicAgentCommentPolicy(db); err != nil {
 		return fmt.Errorf("dbconnect topic agent comment policy upgrade failed: %w", err)
 	}
+	if err = upgradePostAgentEventDepth(db); err != nil {
+		return err
+	}
 	if err = db.AutoMigrate(SchemaModels()...); err != nil {
 		// 迁移失败必须上层按非零码退出，否则服务会带着残缺 schema 继续启动，
 		// 登录/注册等依赖新表的接口在运行期才会报错，故障被发现时已影响线上。
@@ -951,4 +954,12 @@ func dedupeWikiRevisionNumbers(db *gorm.DB) error {
 	}
 	slog.Info("migration: wiki revision dedupe done", "groups", len(dups))
 	return nil
+}
+
+// Preserve legacy SQLite rows when adding immutable Agent causal metadata.
+func upgradePostAgentEventDepth(db *gorm.DB) error {
+	if !db.Migrator().HasTable(&posts.Entity{}) || db.Migrator().HasColumn(&posts.Entity{}, "agent_event_depth") {
+		return nil
+	}
+	return db.Exec("ALTER TABLE posts ADD COLUMN agent_event_depth INTEGER NOT NULL DEFAULT 0").Error
 }

@@ -372,7 +372,8 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 	// 记录是否为编辑：事务内 topics.CreateTx 会回填 topic.Id，因此提交后分支判断
 	// 必须使用此快照（isEdit），不能复用已被回填的 topic.Id。
 	isEdit := topic.Id > 0
-	var reservation, replay *agentWrites.Entry
+	var reservation *agentwriteservice.Reservation
+	var replay *agentWrites.Entry
 	// 单事务原子提交：话题 + 首帖 + 指针（首/末帖 ID、最后回复时间）+ 分类索引。
 	// 任一步失败整体回滚，不留孤立话题/缺首帖/缺分类索引；事件与缓存失效仅在提交后执行。
 	err = db.ConnectContext(betterRequestContext(req)).Transaction(func(tx *gorm.DB) error {
@@ -445,8 +446,10 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 				return err
 			}
 		}
-		if err := agenteventservice.CapturePublicTx(tx, &firstPost); err != nil {
-			return err
+		if !agent {
+			if err := agenteventservice.CapturePublicTx(tx, &firstPost); err != nil {
+				return err
+			}
 		}
 		if err := topicCategoryIndex.ReplaceTopicCategoriesTx(tx, topic.Id, req.Params.CategoryId); err != nil {
 			return err
@@ -745,7 +748,8 @@ func createPost(req component.BetterRequest[CreatePostReq], agent bool) componen
 	}
 
 	if agent {
-		var reservation, replay *agentWrites.Entry
+		var reservation *agentwriteservice.Reservation
+		var replay *agentWrites.Entry
 		err = postservice.CreateTopicPostWithHooks(postEntity, topicEntity, func(tx *gorm.DB) error {
 			var reserveErr error
 			reservation, replay, reserveErr = agentwriteservice.BeginTx(betterRequestContext(req), tx, req.UserId)

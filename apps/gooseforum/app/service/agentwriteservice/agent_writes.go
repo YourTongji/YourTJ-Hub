@@ -16,8 +16,10 @@ import (
 	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/agentWrites"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/agents"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/agentcommentservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/agenteventservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/agentservice"
 	"gorm.io/gorm"
@@ -88,9 +90,16 @@ func entry(agentID uint64, o Options) agentWrites.Entry {
 	return agentWrites.Entry{InstanceID: agentinstance.Current().ID, AgentID: agentID, Operation: o.Operation, TargetID: o.TargetID, RequestKey: o.Key, Digest: o.Digest, SourceEventID: o.SourceEventID, ExpiresAt: time.Now().UTC().Add(Retention)}
 }
 
+// Reservation keeps the frozen publication candidates with the optional ledger
+// entry. Even writes without an idempotency key need the same lock plan.
+type Reservation struct {
+	Entry   *agentWrites.Entry
+	Capture *agenteventservice.WriteCapturePlan
+}
+
 // BeginTx runs before content insertion. Existing target content is locked before
 // users and Agent configuration, matching lifecycle and interaction authorization.
-func BeginTx(ctx context.Context, tx *gorm.DB, agentID uint64) (reservation, replay *agentWrites.Entry, err error) {
+func BeginTx(ctx context.Context, tx *gorm.DB, agentID uint64) (reservation *Reservation, replay *agentWrites.Entry, err error) {
 	o, ok := FromContext(ctx)
 	if !ok {
 		return nil, nil, nil
@@ -98,6 +107,11 @@ func BeginTx(ctx context.Context, tx *gorm.DB, agentID uint64) (reservation, rep
 	if err = ValidateOptions(o); err != nil {
 		return nil, nil, err
 	}
+	plan, prepareErr := agenteventservice.PrepareWriteCaptureTx(tx, agentID, o.TargetID, o.SourceEventID)
+	if prepareErr != nil {
+		return nil, nil, prepareErr
+	}
+	reservation = &Reservation{Capture: plan}
 	if o.SourceEventID != "" {
 		if err = agenteventservice.ValidateSourceTx(tx, agentID, o.SourceEventID, o.TargetID); err != nil {
 			return nil, nil, err
@@ -108,9 +122,6 @@ func BeginTx(ctx context.Context, tx *gorm.DB, agentID uint64) (reservation, rep
 			return nil, nil, agenteventservice.ErrInaccessible
 		}
 	}
-	// 「Agent 评论策略」在控制器层（REST 与 MCP 共用的 createPost 入口）校验：
-	// 全局开关是热配置，其冷加载会另开连接读库，不能在事务内执行
-	// （单连接池的 SQLite 部署会自锁）。
 	if err = users.LockInteractionUserIDs(tx, []uint64{agentID}); err != nil {
 		return nil, nil, err
 	}
@@ -123,7 +134,10 @@ func BeginTx(ctx context.Context, tx *gorm.DB, agentID uint64) (reservation, rep
 		return nil, nil, agentservice.ErrAgentTokenInvalid
 	}
 	if o.Key == "" {
-		return nil, nil, nil
+		if o.Operation == "post" {
+			err = agentcommentservice.CheckNewCommentTx(tx, o.TargetID)
+		}
+		return reservation, nil, err
 	}
 	e := entry(agentID, o)
 	replay, err = agentWrites.ReserveTx(tx, &e, time.Now().UTC())
@@ -133,7 +147,13 @@ func BeginTx(ctx context.Context, tx *gorm.DB, agentID uint64) (reservation, rep
 	if replay != nil {
 		return nil, replay, ErrReplay
 	}
-	return &e, nil, nil
+	if o.Operation == "post" {
+		if err = agentcommentservice.CheckNewCommentTx(tx, o.TargetID); err != nil {
+			return nil, nil, err
+		}
+	}
+	reservation.Entry = &e
+	return reservation, nil, nil
 }
 
 // Lookup performs authorization again for a committed result before expensive
@@ -162,12 +182,23 @@ func Lookup(ctx context.Context, agentID uint64) (*agentWrites.Entry, error) {
 	return result, err
 }
 
-func FinishTx(ctx context.Context, tx *gorm.DB, agentID uint64, reservation *agentWrites.Entry, topicID, postID uint64) error {
-	if err := agentWrites.CompleteTx(tx, reservation, topicID, postID); err != nil {
-		return err
+func FinishTx(ctx context.Context, tx *gorm.DB, agentID uint64, reservation *Reservation, topicID, postID uint64) error {
+	var plan *agenteventservice.WriteCapturePlan
+	if reservation != nil {
+		if err := agentWrites.CompleteTx(tx, reservation.Entry, topicID, postID); err != nil {
+			return err
+		}
+		plan = reservation.Capture
+		if plan != nil {
+			if err := posts.SetAgentEventDepthTx(tx, postID, plan.Depth); err != nil {
+				return err
+			}
+		}
 	}
 	if o, ok := FromContext(ctx); ok && o.SourceEventID != "" {
-		return agenteventservice.RecordResultTx(tx, agentID, o.SourceEventID, topicID, postID)
+		if err := agenteventservice.RecordResultTx(tx, agentID, o.SourceEventID, topicID, postID); err != nil {
+			return err
+		}
 	}
-	return nil
+	return agenteventservice.CapturePublicTx(tx, &posts.Entity{Id: postID}, plan)
 }
