@@ -47,3 +47,28 @@ for (const width of [320, 1280]) {
     } finally { await page.close() }
   })
 }
+
+for (const width of [320, 1280]) {
+  test(`Agent comment policy fits ${width}px and saves controls`, async () => {
+    const page = await browser.newPage({ viewport: { width, height: 900 } })
+    try {
+      const errors = []
+      page.on('pageerror', error => errors.push(error.message))
+      await page.route('**/api/admin/agent-comment-policy', route => route.fulfill({ json: { code: 0, result: { allowAgentComments: true } } }))
+      await page.route('**/api/admin/topics/list', route => route.fulfill({ json: { code: 0, result: { list: [{ id: 1201, title: 'A public topic', username: 'classmate', agentCommentDisabled: false }], page: 1, size: 10, total: 1, hasNext: false } } }))
+      await page.route('**/api/admin/save-agent-comment-policy', route => route.fulfill({ json: { code: 0 } }))
+      await page.goto(`${origin}/assets/test/fixtures/browser/agent-comment-policy.html`)
+      const globalSwitch = page.getByRole('switch', { name: 'Allow Agent comments', exact: true })
+      await globalSwitch.waitFor()
+      await page.getByText('A public topic', { exact: true }).waitFor()
+      assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'policy page fits viewport')
+      await globalSwitch.click()
+      const request = page.waitForRequest('**/api/admin/save-agent-comment-policy')
+      await page.getByRole('button', { name: 'Save', exact: true }).click()
+      assert.equal((await request).postDataJSON().allowAgentComments, false)
+      await page.getByRole('button', { name: 'Save', exact: true }).waitFor()
+      if (process.env.AGENT_INTERACTIONS_SCREENSHOT_DIR) await page.screenshot({ path: `${process.env.AGENT_INTERACTIONS_SCREENSHOT_DIR}/yourtj-1054-policy-${width}.png`, fullPage: true })
+      assert.deepEqual(errors, [])
+    } finally { await page.close() }
+  })
+}

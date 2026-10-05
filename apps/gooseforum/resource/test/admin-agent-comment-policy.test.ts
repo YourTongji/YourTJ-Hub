@@ -117,3 +117,48 @@ describe('Agent comment policy page', () => {
     expect(getTopicsList).toHaveBeenLastCalledWith(expect.objectContaining({ agentCommentDisabled: true }))
   })
 })
+
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>(done => { resolve = done })
+  return { promise, resolve }
+}
+
+describe('Agent policy asynchronous state', () => {
+  test('keeps the global switch disabled when its read fails', async () => {
+    const { body } = await mountPage()
+    vi.mocked(getAgentCommentPolicy).mockRejectedValue(new Error('offline'))
+    await flushPromises()
+    await clickByText(body, 'Refresh')
+    await flushPromises()
+    expect(body.findAll('[role="switch"]')[0].attributes('disabled')).toBeDefined()
+  })
+
+  test('does not allow editing or refreshing the global switch during save', async () => {
+    const { body } = await mountPage()
+    await flushPromises()
+    const saving = deferred<void>()
+    vi.mocked(saveAgentCommentPolicy).mockReturnValueOnce(saving.promise)
+    await body.findAll('[role="switch"]')[0].trigger('click')
+    await clickByText(body, 'Save')
+    expect(body.findAll('[role="switch"]')[0].attributes('disabled')).toBeDefined()
+    expect(body.findAll('button').find(item => item.text().includes('Refresh'))?.attributes('disabled')).toBeDefined()
+    saving.resolve()
+    await flushPromises()
+  })
+
+  test('ignores an older topic request after a newer filter response', async () => {
+    const { page, body } = await mountPage()
+    await flushPromises()
+    const oldRequest = deferred<Awaited<ReturnType<typeof getTopicsList>>>()
+    vi.mocked(getTopicsList).mockReturnValueOnce(oldRequest.promise)
+    await clickByText(body, 'Search')
+    vi.mocked(getTopicsList).mockResolvedValueOnce({ list: [topic({ id: 1202, title: 'Banned current result', agentCommentDisabled: true })], page: 1, size: 10, total: 1, hasNext: false })
+    await clickByText(body, 'All topics')
+    await flushPromises()
+    oldRequest.resolve({ list: [topic({ title: 'Stale unfiltered result' })], page: 1, size: 10, total: 1, hasNext: false })
+    await flushPromises()
+    expect(page.find('tbody').text()).toContain('Banned current result')
+    expect(page.find('tbody').text()).not.toContain('Stale unfiltered result')
+  })
+})

@@ -25,6 +25,7 @@ const pageSize = 10
 
 const allowAgentComments = ref(true)
 const policyLoading = ref(false)
+const policyLoaded = ref(false)
 const policySaving = ref(false)
 const policyDirty = ref(false)
 const policyError = ref('')
@@ -37,13 +38,17 @@ const hasNext = ref(false)
 const search = ref('')
 const onlyDisabled = ref(false)
 const toggling = ref<number | null>(null)
+let topicsRequest = 0
 
 async function loadPolicy() {
+  if (policyLoading.value || policySaving.value) return
+  policyLoaded.value = false
   policyLoading.value = true
   policyError.value = ''
   try {
     const policy = await getAgentCommentPolicy()
     allowAgentComments.value = policy.allowAgentComments
+    policyLoaded.value = true
     policyDirty.value = false
   } catch (err) {
     policyError.value = err instanceof Error ? err.message : t('agentPolicy.loadFailed')
@@ -58,6 +63,7 @@ function onAllowChange(value: boolean | 'indeterminate') {
 }
 
 async function savePolicy() {
+  if (!policyLoaded.value || policyLoading.value || policySaving.value || !policyDirty.value) return
   policySaving.value = true
   policyError.value = ''
   try {
@@ -72,6 +78,8 @@ async function savePolicy() {
 }
 
 async function loadTopics() {
+  if (toggling.value !== null) return
+  const request = ++topicsRequest
   topicsLoading.value = true
   topicsError.value = ''
   try {
@@ -81,16 +89,19 @@ async function loadTopics() {
       search: search.value,
       agentCommentDisabled: onlyDisabled.value ? true : undefined,
     })
+    if (request !== topicsRequest) return
     topics.value = result.list
     hasNext.value = Boolean(result.hasNext)
   } catch (err) {
+    if (request !== topicsRequest) return
     topicsError.value = err instanceof Error ? err.message : t('agentPolicy.loadFailed')
   } finally {
-    topicsLoading.value = false
+    if (request === topicsRequest) topicsLoading.value = false
   }
 }
 
 async function toggleTopic(topic: AdminTopic, disabled: boolean) {
+  if (toggling.value !== null || topicsLoading.value) return
   toggling.value = topic.id
   try {
     await setAgentCommentTopicPolicy(topic.id, disabled)
@@ -130,7 +141,7 @@ onMounted(() => {
 <template>
   <BasicPage :title="t('agentPolicy.title')" :description="t('agentPolicy.description')" sticky>
     <template #actions>
-      <Button variant="outline" type="button" @click="loadPolicy(); loadTopics()">
+      <Button variant="outline" type="button" :disabled="policyLoading || policySaving || topicsLoading || toggling !== null" @click="loadPolicy(); loadTopics()">
         <RefreshCw class="size-4" />
         {{ t('agentPolicy.refresh') }}
       </Button>
@@ -142,10 +153,10 @@ onMounted(() => {
           <h2 class="text-sm font-medium">{{ t('agentPolicy.globalTitle') }}</h2>
           <p class="mt-1 max-w-2xl text-xs text-muted-foreground">{{ t('agentPolicy.globalHint') }}</p>
         </div>
-        <div class="flex items-center gap-3">
+        <div class="flex flex-wrap items-center gap-3">
           <span class="text-sm">{{ t('agentPolicy.allowAgentComments') }}</span>
-          <Switch :model-value="allowAgentComments" :disabled="policyLoading" @update:model-value="onAllowChange" />
-          <Button type="button" :disabled="policySaving || !policyDirty" @click="savePolicy">
+          <Switch :model-value="allowAgentComments" :disabled="!policyLoaded || policyLoading || policySaving" :aria-label="t('agentPolicy.allowAgentComments')" @update:model-value="onAllowChange" />
+          <Button type="button" :disabled="!policyLoaded || policyLoading || policySaving || !policyDirty" @click="savePolicy">
             {{ policySaving ? t('agentPolicy.saving') : t('agentPolicy.save') }}
           </Button>
         </div>
@@ -160,9 +171,9 @@ onMounted(() => {
           <p class="mt-1 max-w-2xl text-xs text-muted-foreground">{{ t('agentPolicy.topicsHint') }}</p>
         </div>
         <div class="flex flex-wrap items-center gap-2">
-          <Input v-model="search" class="w-56" :placeholder="t('agentPolicy.searchPlaceholder')" @keyup.enter="applyFilters" />
-          <Button variant="outline" type="button" @click="applyFilters">{{ t('agentPolicy.search') }}</Button>
-          <Button :variant="onlyDisabled ? 'default' : 'outline'" type="button" @click="toggleOnlyDisabled">
+          <Input v-model="search" :disabled="toggling !== null" class="w-56 max-w-full" :placeholder="t('agentPolicy.searchPlaceholder')" @keyup.enter="applyFilters" />
+          <Button variant="outline" type="button" :disabled="toggling !== null" @click="applyFilters">{{ t('agentPolicy.search') }}</Button>
+          <Button :variant="onlyDisabled ? 'default' : 'outline'" type="button" :disabled="toggling !== null" @click="toggleOnlyDisabled">
             {{ onlyDisabled ? t('agentPolicy.filterDisabled') : t('agentPolicy.filterAll') }}
           </Button>
         </div>
@@ -202,7 +213,8 @@ onMounted(() => {
                   <span class="text-xs text-muted-foreground">{{ t('agentPolicy.banLabel') }}</span>
                   <Switch
                     :model-value="topic.agentCommentDisabled"
-                    :disabled="toggling === topic.id"
+                    :disabled="toggling !== null"
+                    :aria-label="`${t('agentPolicy.banLabel')}: ${topic.title}`"
                     @update:model-value="(value: boolean | 'indeterminate') => toggleTopic(topic, value === true)"
                   />
                 </div>
@@ -213,11 +225,11 @@ onMounted(() => {
       </div>
 
       <div class="flex items-center justify-end gap-2 border-t p-3 text-xs text-muted-foreground">
-        <Button variant="outline" size="sm" type="button" :disabled="page <= 1 || topicsLoading" @click="changePage(-1)">
+        <Button variant="outline" size="sm" type="button" :disabled="page <= 1 || topicsLoading || toggling !== null" @click="changePage(-1)">
           {{ t('agentPolicy.previous') }}
         </Button>
         <span>{{ page }}</span>
-        <Button variant="outline" size="sm" type="button" :disabled="!hasNext || topicsLoading" @click="changePage(1)">
+        <Button variant="outline" size="sm" type="button" :disabled="!hasNext || topicsLoading || toggling !== null" @click="changePage(1)">
           {{ t('agentPolicy.next') }}
         </Button>
       </div>
