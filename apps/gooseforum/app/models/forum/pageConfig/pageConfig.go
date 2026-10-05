@@ -554,15 +554,49 @@ type HttpNotifyConfig struct {
 	Endpoints []HttpNotifyEndpoint `json:"endpoints"`
 }
 
+// 通知通道类型（issue #1049）：同一套 Endpoint/Events 订阅模型，按通道渲染请求。
+// 缺省（存量配置）一律按 generic 解释，不需要迁移。
+const (
+	HttpNotifyChannelGeneric = "generic" // 通用 Webhook：结构化 JSON + X-Goose-* 头与 HMAC 签名
+	HttpNotifyChannelFeishu  = "feishu"  // 飞书群自定义机器人：interactive 卡片 + 飞书签名校验
+	// HttpNotifyChannelAstrBot AstrBot push_lite 插件：纯文本消息推到 Target 指定的会话（umo），
+	// Secret 为插件 API token（Authorization: Bearer）。
+	HttpNotifyChannelAstrBot = "astrbot"
+)
+
+// NormalizeHttpNotifyChannel 归一通道类型：空值为 generic，未知值返回 ""（由调用方拒绝）。
+func NormalizeHttpNotifyChannel(channel string) string {
+	switch strings.TrimSpace(channel) {
+	case "", HttpNotifyChannelGeneric:
+		return HttpNotifyChannelGeneric
+	case HttpNotifyChannelFeishu:
+		return HttpNotifyChannelFeishu
+	case HttpNotifyChannelAstrBot:
+		return HttpNotifyChannelAstrBot
+	default:
+		return ""
+	}
+}
+
+// HttpNotifyURLIsSecret 通道 URL 本身是否为凭据：飞书自定义机器人 webhook 地址内含
+// hook token，持有即可向群发消息，因此与 secret 同样密文落库、GET 不回显（issue #1049）。
+func HttpNotifyURLIsSecret(channel string) bool {
+	return NormalizeHttpNotifyChannel(channel) == HttpNotifyChannelFeishu
+}
+
 // HttpNotifyEndpoint 通知端点（S1，issue #324）：Secret 只落库密文（securestore
 // AES-256-GCM），运行时由 hotdataserve 解密为明文置于 json:"-" 字段——明文/
 // 密文绝不随 JSON 序列化导出（管理端 GET 仅回显是否已配置）。
 // 持久化走 HttpNotifyStorageEndpoint（密文带 json 标签）。
+// ChannelType 为空等同 generic；飞书通道的 URL 同样只落库密文（HttpNotifyURLIsSecret）。
+// Target 为通道内的接收目标（AstrBot 为会话 umo，即 /sid 显示的 SID），不是凭据。
 type HttpNotifyEndpoint struct {
 	Id                 string   `json:"id"`
 	Name               string   `json:"name"`
+	ChannelType        string   `json:"channelType,omitempty"`
 	Enabled            bool     `json:"enabled"`
 	URL                string   `json:"url"`
+	Target             string   `json:"target,omitempty"`
 	Secret             string   `json:"-"` // 运行时明文（服务内存）；密文见 HttpNotifyStorageEndpoint
 	Events             []string `json:"events"`
 	TimeoutSeconds     int      `json:"timeoutSeconds"`
@@ -575,11 +609,15 @@ type HttpNotifyEndpoint struct {
 // 分离，密文只在持久化序列化时出现，不进入 API 响应/缓存结构。
 // Secret 为 v25 迁移前的存量明文（json:"secret"，兼容读取，迁移后清空）；
 // SecretEncrypted 为 securestore 密文（优先于明文）。
+// URLEncrypted 为凭据型 URL（飞书 webhook）的 securestore 密文，此时 URL 恒为空。
 type HttpNotifyStorageEndpoint struct {
 	Id                 string   `json:"id"`
 	Name               string   `json:"name"`
+	ChannelType        string   `json:"channelType,omitempty"`
 	Enabled            bool     `json:"enabled"`
 	URL                string   `json:"url"`
+	URLEncrypted       string   `json:"urlEncrypted,omitempty"` // 凭据型 URL 密文（AES-256-GCM）
+	Target             string   `json:"target,omitempty"`
 	Secret             string   `json:"secret,omitempty"`          // 迁移前存量明文（兼容读取）
 	SecretEncrypted    string   `json:"secretEncrypted,omitempty"` // 密文（AES-256-GCM）
 	Events             []string `json:"events"`
@@ -589,7 +627,8 @@ type HttpNotifyStorageEndpoint struct {
 	AbnormalTerminated bool     `json:"abnormalTerminated"`
 }
 
-// ToConfig 将落库形状转为领域结构（密钥为密文或存量明文原样拷贝，调用方解密/识别）。
+// ToConfig 将落库形状转为领域结构（密钥为密文或存量明文原样拷贝，调用方解密/识别；
+// 凭据型 URL 的密文不在此拷贝，由 hotdataserve 解密后填入 URL）。
 func (s HttpNotifyStorageEndpoint) ToConfig() HttpNotifyEndpoint {
 	secret := s.SecretEncrypted
 	if secret == "" {
@@ -598,8 +637,10 @@ func (s HttpNotifyStorageEndpoint) ToConfig() HttpNotifyEndpoint {
 	return HttpNotifyEndpoint{
 		Id:                 s.Id,
 		Name:               s.Name,
+		ChannelType:        NormalizeHttpNotifyChannel(s.ChannelType),
 		Enabled:            s.Enabled,
 		URL:                s.URL,
+		Target:             s.Target,
 		Secret:             secret,
 		Events:             s.Events,
 		TimeoutSeconds:     s.TimeoutSeconds,
@@ -625,11 +666,15 @@ func (s HttpNotifyStorageConfig) ToConfig() HttpNotifyConfig {
 }
 
 // HttpNotifyEndpointView 管理端 GET 回显形状：不含密钥，仅回显是否已配置（issue #324 S1）。
+// 凭据型 URL（飞书 webhook）同样不回显：URL 为空，URLConfigured 表示是否已配置。
 type HttpNotifyEndpointView struct {
 	Id                 string   `json:"id"`
 	Name               string   `json:"name"`
+	ChannelType        string   `json:"channelType"`
 	Enabled            bool     `json:"enabled"`
 	URL                string   `json:"url"`
+	URLConfigured      bool     `json:"urlConfigured"`
+	Target             string   `json:"target"`
 	SecretConfigured   bool     `json:"secretConfigured"`
 	Events             []string `json:"events"`
 	TimeoutSeconds     int      `json:"timeoutSeconds"`
@@ -648,11 +693,19 @@ type HttpNotifyView struct {
 func (s HttpNotifyStorageConfig) ToView() HttpNotifyView {
 	endpoints := make([]HttpNotifyEndpointView, 0, len(s.Endpoints))
 	for _, e := range s.Endpoints {
+		channel := NormalizeHttpNotifyChannel(e.ChannelType)
+		url := e.URL
+		if HttpNotifyURLIsSecret(channel) {
+			url = ""
+		}
 		endpoints = append(endpoints, HttpNotifyEndpointView{
 			Id:                 e.Id,
 			Name:               e.Name,
+			ChannelType:        channel,
 			Enabled:            e.Enabled,
-			URL:                e.URL,
+			URL:                url,
+			URLConfigured:      strings.TrimSpace(e.URL) != "" || strings.TrimSpace(e.URLEncrypted) != "",
+			Target:             e.Target,
 			SecretConfigured:   strings.TrimSpace(e.SecretEncrypted) != "" || strings.TrimSpace(e.Secret) != "",
 			Events:             e.Events,
 			TimeoutSeconds:     e.TimeoutSeconds,
@@ -668,11 +721,19 @@ func (s HttpNotifyStorageConfig) ToView() HttpNotifyView {
 func (c HttpNotifyConfig) ToView() HttpNotifyView {
 	endpoints := make([]HttpNotifyEndpointView, 0, len(c.Endpoints))
 	for _, e := range c.Endpoints {
+		channel := NormalizeHttpNotifyChannel(e.ChannelType)
+		url := e.URL
+		if HttpNotifyURLIsSecret(channel) {
+			url = ""
+		}
 		endpoints = append(endpoints, HttpNotifyEndpointView{
 			Id:                 e.Id,
 			Name:               e.Name,
+			ChannelType:        channel,
 			Enabled:            e.Enabled,
-			URL:                e.URL,
+			URL:                url,
+			URLConfigured:      strings.TrimSpace(e.URL) != "",
+			Target:             e.Target,
 			SecretConfigured:   strings.TrimSpace(e.Secret) != "",
 			Events:             e.Events,
 			TimeoutSeconds:     e.TimeoutSeconds,
@@ -686,11 +747,14 @@ func (c HttpNotifyConfig) ToView() HttpNotifyView {
 
 // HttpNotifyEndpointInput 管理端保存请求的绑定形状：secret 为明文输入
 // （仅请求瞬间存在，绝不落库）。空值 = 保持同 id 端点的已存密文（issue #324 S1）。
+// 凭据型 URL（飞书）同理：空值 = 保持同 id 端点的已存 URL 密文（issue #1049）。
 type HttpNotifyEndpointInput struct {
 	Id                 string   `json:"id"`
 	Name               string   `json:"name"`
+	ChannelType        string   `json:"channelType"`
 	Enabled            bool     `json:"enabled"`
 	URL                string   `json:"url"`
+	Target             string   `json:"target"`
 	Secret             string   `json:"secret"`
 	Events             []string `json:"events"`
 	TimeoutSeconds     int      `json:"timeoutSeconds"`

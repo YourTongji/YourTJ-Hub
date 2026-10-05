@@ -64,6 +64,10 @@ const MailSmtpPasswordPurpose = "yourtj-mail-smtp-password"
 // HttpNotifySecretPurpose HTTP 通知 webhook 验签密钥的加密用途标签（issue #324 S1）。
 const HttpNotifySecretPurpose = "yourtj-http-notify-secret"
 
+// HttpNotifyURLPurpose 凭据型通知 URL（飞书自定义机器人 webhook，内含 hook token）的
+// 加密用途标签（issue #1049），与验签密钥分 purpose 存储。
+const HttpNotifyURLPurpose = "yourtj-http-notify-url"
+
 // StorageAccessKeyPurpose 对象存储 accessKey 的加密用途标签（issue #324 S3）。
 const StorageAccessKeyPurpose = "yourtj-storage-access-key"
 

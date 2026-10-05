@@ -4,11 +4,11 @@
 
 路由快照来自 `TestRoutesSnapshot`（`fixtures/routes-snapshot.json`，默认配置装配，不含 OIDC `/api/oauth/*` 端点——OIDC 另有专项）。
 
-- 快照路由总数：356
-- /api JSON 路由：290，已入契约：291（100%），已知未覆盖：0
-- 非 API 排除路由：65
+- 快照路由总数：360
+- /api JSON 路由：293，已入契约：294（100%），已知未覆盖：0
+- 非 API 排除路由：66
 
-## 已覆盖（291）
+## 已覆盖（294）
 
 | Method | Path | operationId |
 | --- | --- | --- |
@@ -170,6 +170,7 @@
 | POST | `/api/admin/sticker-import` | `adminStickerImport` |
 | POST | `/api/admin/sticker-save` | `adminStickerSave` |
 | POST | `/api/admin/storage-migrate-task` | `adminCreateStorageMigrateTask` |
+| POST | `/api/admin/test-http-notify-endpoint` | `adminTestHttpNotifyEndpoint` |
 | POST | `/api/admin/test-mail-connection` | `adminTestMailConnection` |
 | POST | `/api/admin/test-storage-connection` | `adminTestStorageConnection` |
 | POST | `/api/admin/topics/categories-edit` | `adminEditTopicCategories` |
@@ -208,6 +209,8 @@
 | POST | `/api/forum/course-reviews/:reviewId/reports` | `reportCourseReview` |
 | POST | `/api/forum/courses/bookmark` | `bookmarkCourse` |
 | POST | `/api/forum/follow-user` | `followUser` |
+| POST | `/api/forum/moderation/approval-action/execute` | `moderationApprovalActionExecute` |
+| POST | `/api/forum/moderation/approval-action/preview` | `moderationApprovalActionPreview` |
 | POST | `/api/forum/moderation/course-create` | `adminCourseCreate` |
 | POST | `/api/forum/moderation/course-delete` | `adminCourseDelete` |
 | POST | `/api/forum/moderation/course-list` | `adminCourseList` |
@@ -309,7 +312,7 @@
 | Method | Path | 归属切片 |
 | --- | --- | --- |
 
-## 排除（非 JSON API，65）
+## 排除（非 JSON API，66）
 
 | Method | Path | 原因 |
 | --- | --- | --- |
@@ -339,6 +342,7 @@
 | GET | `/mcp` | MCP streamable HTTP 端点（Any 展开多方法），走 MCP 自有协议契约 |
 | GET | `/messages` | SSR 页面（GoHTML 三模渲染），非 JSON API |
 | GET | `/moderation` | SSR 页面（GoHTML 三模渲染），非 JSON API |
+| GET | `/moderation/action` | SSR 页面（GoHTML 三模渲染），非 JSON API；审批快捷操作确认页，数据走 moderationApprovalAction* 契约 |
 | GET | `/moderation/course-reviews` | SSR 页面（GoHTML 三模渲染），非 JSON API |
 | GET | `/moderation/courses` | SSR 页面（GoHTML 三模渲染），非 JSON API |
 | GET | `/notifications` | SSR 页面（GoHTML 三模渲染），非 JSON API |

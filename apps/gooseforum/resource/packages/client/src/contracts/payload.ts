@@ -562,6 +562,26 @@ export interface ModerationReportListResponse {
   hasNext: boolean
 }
 
+export interface ModerationActionPageProps {
+  // 快捷审批确认页（issue #1049）：token 只在前端读取并 POST 给 preview/execute，SSR 仅提供空壳。
+}
+
+/** 快捷审批确认页视图（issue #1049）：无权限、token 无效或过期时不含目标内容。 */
+export interface ModerationApprovalActionView {
+  state: 'ready' | 'done' | 'processed' | 'changed' | 'expired' | 'invalid' | 'forbidden' | 'notFound' | 'failed'
+  subject?: 'review.topic' | 'review.post' | 'report'
+  action?: 'approve' | 'reject' | 'ban' | 'hide' | 'dismiss'
+  targetType?: 'topic' | 'post' | 'chat_message' | 'course_review'
+  targetId?: number
+  reportId?: number
+  title?: string
+  excerpt?: string
+  anonymous?: boolean
+  targetUrl?: string
+  workbenchUrl: string
+  expiresAt?: string
+}
+
 export interface ModerationDeletedContentView {
   contentType: 'topic' | 'post'
   contentId: number

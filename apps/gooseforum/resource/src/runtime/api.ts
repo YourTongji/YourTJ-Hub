@@ -1,7 +1,7 @@
 // CourseSummaryPayload 以别名导入：本文件 1663 行另有一个同名但形状不同的
 // CourseSummaryPayload（AI 总结：consensus/keywords/pros/cons），二者同名异物。
 // 这里导入的是课程卡片（id/name/ratingAvg/...），故别名为 CourseCatalogItem 避免混淆。
-import type { CourseSummaryPayload as CourseCatalogItem, LinkPreview, ModerationDeletedContentView, ModerationLogListResponse, ModerationReportListResponse, NotificationFilter, NotificationListResponse, PostPayload, PostWindowPayload, StickerItem, UserCardPayload, UserSearchPayload } from '@gooseforum/client'
+import type { CourseSummaryPayload as CourseCatalogItem, LinkPreview, ModerationApprovalActionView, ModerationDeletedContentView, ModerationLogListResponse, ModerationReportListResponse, NotificationFilter, NotificationListResponse, PostPayload, PostWindowPayload, StickerItem, UserCardPayload, UserSearchPayload } from '@gooseforum/client'
 import { i18n } from './i18n'
 import type { ReviewQueueItem } from '@/admin/types'
 import { resolveApiMessage } from './api-message'
@@ -649,6 +649,27 @@ export async function updateModerationReportStatus(id: number, action: 'ban' | '
     body: JSON.stringify({ id, action }),
   })
   return readApiResponse<boolean>(response, t('api.moderationActionFailed'))
+}
+
+// 快捷审批确认页（issue #1049）：token 只放在 POST body；preview 只读，execute 按当前
+// 登录会话重新校验权限后执行，非 ready 状态原样返回且不产生变更。
+export async function previewModerationApprovalAction(token: string): Promise<ModerationApprovalActionView> {
+  return postModerationApprovalAction('/api/forum/moderation/approval-action/preview', token)
+}
+
+export async function executeModerationApprovalAction(token: string): Promise<ModerationApprovalActionView> {
+  return postModerationApprovalAction('/api/forum/moderation/approval-action/execute', token)
+}
+
+async function postModerationApprovalAction(url: string, token: string): Promise<ModerationApprovalActionView> {
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ token }),
+  })
+  return readApiResponse<ModerationApprovalActionView>(response, t('api.moderationActionFailed'))
 }
 
 export async function fetchModerationLogs(cursor = 0, pageSize = 20): Promise<ModerationLogListResponse> {

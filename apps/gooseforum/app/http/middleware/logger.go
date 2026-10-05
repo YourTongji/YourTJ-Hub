@@ -76,7 +76,7 @@ func ShouldRedactQuery(u *url.URL) bool {
 	if u == nil {
 		return false
 	}
-	if isAuthenticationCallback(u.Path) {
+	if isAuthenticationCallback(u.Path) || isSignedActionPage(u.Path) {
 		return true
 	}
 	if u.Path == "/login" {
@@ -93,7 +93,7 @@ func ShouldRedactQuery(u *url.URL) bool {
 		// Fail closed: an unparseable redirect still embeds an opaque
 		// continuation URL, so it must not enter logs either.
 		redirect, err := url.Parse(raw)
-		return err != nil || isAuthenticationCallback(redirect.Path)
+		return err != nil || isAuthenticationCallback(redirect.Path) || isSignedActionPage(redirect.Path)
 	}
 	return false
 }
@@ -112,6 +112,12 @@ func logReferer(raw string) string {
 	u.RawQuery = ""
 	u.ForceQuery = false
 	return u.String()
+}
+
+// isSignedActionPage 版主快捷审批确认页的查询串携带签名 token（issue #1049），
+// 与认证回调同样不得进入请求日志（含未登录时 /login?redirect= 的续跳地址）。
+func isSignedActionPage(path string) bool {
+	return strings.TrimSuffix(path, "/") == "/moderation/action"
 }
 
 func isAuthenticationCallback(path string) bool {

@@ -473,6 +473,10 @@
   },
   {
     "method": "GET",
+    "path": "/moderation/action"
+  },
+  {
+    "method": "GET",
     "path": "/moderation/course-reviews"
   },
   {
@@ -877,6 +881,10 @@
   },
   {
     "method": "POST",
+    "path": "/api/admin/test-http-notify-endpoint"
+  },
+  {
+    "method": "POST",
     "path": "/api/admin/test-mail-connection"
   },
   {
@@ -1026,6 +1034,14 @@
   {
     "method": "POST",
     "path": "/api/forum/follow-user"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/moderation/approval-action/execute"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/moderation/approval-action/preview"
   },
   {
     "method": "POST",
