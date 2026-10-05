@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -37,6 +38,10 @@ func TestFeishuEncodeSignsAndRendersUserTextAsPlainText(t *testing.T) {
 	body, err := feishuChannel{}.encode(endpoint, Alternative{Event: EventReportPostCreated}, testApproval(), now)
 	if err != nil {
 		t.Fatal(err)
+	}
+	// 时间按 UTC+8 显示，不随服务器（容器常为 UTC）时区变化。
+	if !strings.Contains(string(body), "时间：2026-10-04 20:00") {
+		t.Fatalf("card time must render in UTC+8: %s", body)
 	}
 	var decoded struct {
 		MsgType   string         `json:"msg_type"`
@@ -167,6 +172,23 @@ func TestDeliveryDeduperClaimsOncePerTTL(t *testing.T) {
 	}
 	if len(d.seen) > maxDedupeEntries {
 		t.Fatalf("deduper grew past its bound: %d", len(d.seen))
+	}
+
+	// 登记时间扎堆（突发批量举报，时间相同）时，超限也只淘汰一半，而不是几乎全部。
+	burst := &deliveryDeduper{seen: map[string]time.Time{}}
+	for i := range maxDedupeEntries + 1 {
+		burst.claim("burst|"+strconv.Itoa(i), now)
+	}
+	if len(burst.seen) < maxDedupeEntries/2 {
+		t.Fatalf("clustered claims evicted too many entries: %d left", len(burst.seen))
+	}
+	// 时间不同时淘汰最早的一半，最新的登记保留。
+	ordered := &deliveryDeduper{seen: map[string]time.Time{}}
+	for i := range maxDedupeEntries + 1 {
+		ordered.claim("ordered|"+strconv.Itoa(i), now.Add(time.Duration(i)))
+	}
+	if ordered.claim("ordered|"+strconv.Itoa(maxDedupeEntries-1), now.Add(time.Minute)) {
+		t.Fatal("the newest claims must survive pruning")
 	}
 }
 

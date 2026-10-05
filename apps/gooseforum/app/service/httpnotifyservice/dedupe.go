@@ -1,6 +1,7 @@
 package httpnotifyservice
 
 import (
+	"slices"
 	"sync"
 	"time"
 )
@@ -44,7 +45,8 @@ func (d *deliveryDeduper) release(key string, at time.Time) {
 	}
 }
 
-// prune 清理过期项；仍超上限时淘汰最早的一半，保证内存有界。
+// prune 清理过期项；仍超上限时按登记时间淘汰最早的一半（按条数而非时间中点，
+// 登记时间扎堆时也只淘汰一半，保证内存有界且去重不会一次失效）。
 func (d *deliveryDeduper) prune(now time.Time) {
 	for key, at := range d.seen {
 		if now.Sub(at) >= dedupeTTL {
@@ -54,23 +56,12 @@ func (d *deliveryDeduper) prune(now time.Time) {
 	if len(d.seen) < maxDedupeEntries {
 		return
 	}
-	var cutoff time.Time
-	for _, at := range d.seen {
-		if cutoff.IsZero() || at.Before(cutoff) {
-			cutoff = at
-		}
+	keys := make([]string, 0, len(d.seen))
+	for key := range d.seen {
+		keys = append(keys, key)
 	}
-	// 以最早与最新时间的中点为界淘汰较旧的一半。
-	latest := cutoff
-	for _, at := range d.seen {
-		if at.After(latest) {
-			latest = at
-		}
-	}
-	mid := cutoff.Add(latest.Sub(cutoff) / 2)
-	for key, at := range d.seen {
-		if !at.After(mid) {
-			delete(d.seen, key)
-		}
+	slices.SortFunc(keys, func(a, b string) int { return d.seen[a].Compare(d.seen[b]) })
+	for _, key := range keys[:len(keys)/2] {
+		delete(d.seen, key)
 	}
 }

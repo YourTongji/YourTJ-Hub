@@ -145,7 +145,7 @@ func astrbotApprovalText(payload ApprovalPayload, test bool) string {
 	if len(a.Categories) > 0 {
 		line("分类", SafeText(strings.Join(a.Categories, "、"), 40))
 	}
-	line("时间", feishuTime(a.CreatedAt))
+	line("时间", approvalTime(a.CreatedAt))
 	line("举报说明", SafeText(a.Note, 300))
 	if a.TargetType == "chat_message" {
 		b.WriteString("\n私信内容不会发到外部，请在版主工作台查看证据并处理。")

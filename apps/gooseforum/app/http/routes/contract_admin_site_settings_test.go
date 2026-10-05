@@ -1004,6 +1004,27 @@ func TestAdminTestHttpNotifyEndpointHTTPContract(t *testing.T) {
 		}
 	})
 
+	t.Run("blank secret is not reused after the channel type changes", func(t *testing.T) {
+		conn, router := setupAdminSiteContractTest(t)
+		hook, received := receiver(t, http.StatusOK, `{"code":0,"msg":"success"}`)
+		sealed, err := securestore.EncryptPurpose("generic-hmac-secret", securestore.HttpNotifySecretPurpose)
+		if err != nil {
+			t.Fatal(err)
+		}
+		persistContractPageConfig(t, conn, pageConfig.HttpNotify, pageConfig.HttpNotifyStorageConfig{
+			Enabled: true,
+			Endpoints: []pageConfig.HttpNotifyStorageEndpoint{
+				{Id: "ep-switch", Name: "切换", Enabled: true, URL: hook, SecretEncrypted: sealed, Events: []string{"topic.published"}, TimeoutSeconds: 2},
+			},
+		})
+		hotdataserve.ClearHttpNotifyConfigCache()
+		t.Cleanup(hotdataserve.ClearHttpNotifyConfigCache)
+		serveAdminSiteOK(t, conn, router, http.MethodPost, path, endpointBody("ep-switch", "feishu", hook), "admin-test-http-notify-endpoint-success.json")
+		if got := <-received; strings.Contains(got.body, `"sign"`) {
+			t.Fatalf("the stored generic HMAC secret must not be used as the feishu signing secret: %s", got.body)
+		}
+	})
+
 	t.Run("unknown channel type is rejected", func(t *testing.T) {
 		conn, router := setupAdminSiteContractTest(t)
 		serveAdminSiteOK(t, conn, router, http.MethodPost, path, endpointBody("x", "slack", "https://x.test"), "invalid-params.json")

@@ -185,7 +185,7 @@ The AstrBot channel can subscribe to every event and sends all of them as plain 
 
 Each callback URL has **Send test** and **Save this URL** at the bottom of its panel:
 
-- **Send test** immediately sends one test message using the current form values (they do not need to be saved first) and shows the result next to the buttons. An empty URL or Secret reuses the value already saved for this URL. Tests ignore the master switch, the enabled state, and the subscribed events, and they never count toward the failure counter. The forum server sends the test request; like real notifications, the target address is not restricted (internal addresses included), and the failure reason is shown to the admin. Only site managers can use it.
+- **Send test** immediately sends one test message using the current form values (they do not need to be saved first) and shows the result next to the buttons. An empty URL or Secret reuses the value already saved for this URL, as long as the channel type is unchanged; after switching channels, enter them again. Tests ignore the master switch, the enabled state, and the subscribed events, and they never count toward the failure counter. The forum server sends the test request; like real notifications, the target address is not restricted (internal addresses included), and the failure reason is shown to the admin. Only site managers can use it.
 - Generic webhooks receive a `webhook.test` event with the usual `X-Goose-*` headers and signature, so you can check your signature verification:
 
 ```json

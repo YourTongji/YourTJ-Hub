@@ -8177,7 +8177,7 @@ AdminTestHttpNotifyEndpointRequest:
     endpoint:
       $ref: '#/AdminHttpNotifyEndpoint'
   additionalProperties: false
-  description: The endpoint to test, as currently edited. Empty `url`/`secret` reuse the stored values of the endpoint with the same `id`.
+  description: The endpoint to test, as currently edited. Empty `url`/`secret` reuse the stored values of the endpoint with the same `id` while its channel type is unchanged.
 
 AdminTestHttpNotifyEndpointResponse:
   oneOf:

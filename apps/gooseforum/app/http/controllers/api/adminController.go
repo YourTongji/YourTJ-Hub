@@ -1963,7 +1963,7 @@ type TestHttpNotifyEndpointReq struct {
 
 // TestHttpNotifyEndpoint 用表单中的（可能未保存的）配置向单个回调地址同步发送一条
 // 测试消息，不落库、不计入失败次数（issue #1049）。地址或密钥留空时沿用同 id 端点的
-// 已存值，与保存语义一致；已存地址只在通道类型未变时沿用（飞书地址是凭据）。结果在
+// 已存值，与保存语义一致；只在通道类型未变时沿用（飞书地址是凭据，各通道密钥含义不同）。结果在
 // 成功信封内返回，失败原因不含请求地址。
 func TestHttpNotifyEndpoint(req component.BetterRequest[TestHttpNotifyEndpointReq]) component.Response {
 	input := req.Params.Endpoint
@@ -1986,7 +1986,12 @@ func TestHttpNotifyEndpoint(req component.BetterRequest[TestHttpNotifyEndpointRe
 			if stored.Id != input.Id {
 				continue
 			}
-			if endpoint.URL == "" && pageConfig.NormalizeHttpNotifyChannel(stored.ChannelType) == channel {
+			// 已存地址和密钥都只在通道类型未变时沿用：切换通道后旧 HMAC 密钥不是
+			// 飞书签名密钥，也不是 AstrBot token，沿用只会得到令人困惑的签名失败。
+			if pageConfig.NormalizeHttpNotifyChannel(stored.ChannelType) != channel {
+				continue
+			}
+			if endpoint.URL == "" {
 				endpoint.URL = stored.URL
 			}
 			if endpoint.Secret == "" {

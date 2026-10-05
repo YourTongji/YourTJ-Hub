@@ -127,7 +127,7 @@ func TestAstrBotTextRendersApprovalsAndEvents(t *testing.T) {
 	}
 	text := decode(body)
 	// 用户文本折叠为单行：换行与控制字符不能伪造出额外的行。
-	for _, want := range []string{"【新举报 · 回复】辱骂/人身攻击 · 匿名", "摘要：line1 line2\n", "作者：匿名（不披露身份）", "封禁并结案：https://hub.example.test/moderation/action?token=t1"} {
+	for _, want := range []string{"【新举报 · 回复】辱骂/人身攻击 · 匿名", "摘要：line1 line2\n", "作者：匿名（不披露身份）", "时间：2026-10-04 20:00\n", "封禁并结案：https://hub.example.test/moderation/action?token=t1"} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("approval text missing %q:\n%s", want, text)
 		}

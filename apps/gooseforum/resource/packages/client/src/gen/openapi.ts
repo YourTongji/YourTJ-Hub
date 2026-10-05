@@ -4996,8 +4996,9 @@ export interface paths {
          *     moderator workbench; `astrbot` endpoints receive the same sample as
          *     plain text in the `target` session. URLs without a host fail with a
          *     readable reason instead of being sent. An empty `url` or `secret`
-         *     reuses the stored value of the endpoint with the same `id` (the stored URL only when the
-         *     channel type is unchanged), matching save semantics. Unknown
+         *     reuses the stored value of the endpoint with the same `id`, but only
+         *     while its channel type is unchanged (a Feishu URL is a credential, and
+         *     a secret means something different on each channel). Unknown
          *     `channelType` values fail with `common.request.invalidParams`. The
          *     outcome is reported inside the success envelope (`code` stays 0):
          *     `result.success` plus `admin.httpNotify.testSuccess` /
@@ -12943,7 +12944,7 @@ export interface components {
             enabled: boolean;
             endpoints: components["schemas"]["AdminHttpNotifyEndpointView"][];
         };
-        /** @description The endpoint to test, as currently edited. Empty `url`/`secret` reuse the stored values of the endpoint with the same `id`. */
+        /** @description The endpoint to test, as currently edited. Empty `url`/`secret` reuse the stored values of the endpoint with the same `id` while its channel type is unchanged. */
         AdminTestHttpNotifyEndpointRequest: {
             endpoint: components["schemas"]["AdminHttpNotifyEndpoint"];
         };

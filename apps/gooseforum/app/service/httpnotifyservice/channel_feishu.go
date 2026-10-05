@@ -242,7 +242,7 @@ func feishuCard(payload ApprovalPayload, test bool) map[string]any {
 	if len(a.Categories) > 0 {
 		fields = append(fields, feishuField("tag_outlined", "分类", SafeText(strings.Join(a.Categories, "、"), 40)))
 	}
-	if created := feishuTime(a.CreatedAt); created != "" {
+	if created := approvalTime(a.CreatedAt); created != "" {
 		fields = append(fields, feishuField("time_outlined", "时间", created))
 	}
 	if len(fields) == 1 {
@@ -325,13 +325,17 @@ func feishuCard(payload ApprovalPayload, test bool) map[string]any {
 	}
 }
 
-// feishuTime 把 RFC3339 时间转为服务器本地时区的「2006-01-02 15:04」，无法解析时原样截断。
-func feishuTime(value string) string {
+// approvalLocation 审批消息显示时间用的时区。站点没有时区设置，服务器（容器）常是 UTC，
+// 而版主都在上海，与 campusservice 一样固定为 UTC+8。
+var approvalLocation = time.FixedZone("Asia/Shanghai", 8*3600)
+
+// approvalTime 把 RFC3339 时间转为 UTC+8 的「2006-01-02 15:04」，无法解析时原样截断。
+func approvalTime(value string) string {
 	if value == "" {
 		return ""
 	}
 	if parsed, err := time.Parse(time.RFC3339, value); err == nil {
-		return parsed.In(time.Local).Format("2006-01-02 15:04")
+		return parsed.In(approvalLocation).Format("2006-01-02 15:04")
 	}
 	return SafeText(value, 40)
 }
