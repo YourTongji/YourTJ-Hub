@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-09-14
+> Last verified: 2026-10-05
 
 Implementation status: **Current** for the configured integration. Live run results are recorded in
 Actions; a green preflight proves App access and planning, while an executed review proves model access.
@@ -21,7 +21,7 @@ human approval. Runtime protocol tests and the deterministic Core smoke also run
 
 [Oryn workflow](../../.github/workflows/oryn.yml) runs on this repository's Actions runners. The trusted
 [setup action](../../.github/actions/setup-oryn/action.yml) loads
-[Oryn Mini at an immutable commit](https://github.com/yzxoi/oryn-mini/tree/e4a75d61bcc84b74c3216162f79bb7433af30e6e)
+[Oryn Mini at an immutable commit](https://github.com/yzxoi/oryn-mini/tree/9803b502d172426d898bcd34a0abff17284b853a)
 and applies [this repository's policy](../../.github/oryn/repositories.json). Oryn's public Synergy core
 creates a fresh temporary home per invocation; no server, database or reusable model history is deployed.
 GitHub comments contain bounded queue receipts; Actions artifacts expire after seven days. New
@@ -46,10 +46,23 @@ Independent repair review uses the cumulative staged change inventory. Incomplet
 as needs_human; deadlines and the separate repair-output limit still apply. See
 [the diff evidence decision](../decisions/0018-oryn-paged-diff-evidence.md).
 
+The repository uses `reviewPolicy=once_per_version`. Six-hour scans recover unreviewed items,
+missed commands, due failures and waiting tasks, plus automatic implementation and generated-PR
+follow-up. A published ordinary review does not expire into another automatic review. Discussion,
+CI/review status and labels do not cause a completed version to be reviewed again. PR versions include
+head/base SHAs and title/body; issue versions include title/body independently of default-branch commits.
+Exact automatic events use the same deduplication, so queued pushes skip an already reviewed latest
+version. A changed PR version can start fresh even when its old lane is leased or exhausted.
+Active source polling and publication still check exact SHAs. Selected manual dispatches or a new
+authorized review command can request another review. Retry waits begin at 15 minutes; actual execution
+requires the next enabled scan/event. Existing issue reports are preserved during catch-up until an
+edited-issue event or explicit review replaces them with a text-versioned report. See
+[the selection decision](../decisions/0063-oryn-review-once-per-version.md).
+
 All Oryn policy capabilities are enabled: reviews, triage, source-backed Mermaid diagrams, emoji labels,
 questions, stop/resume, repair, adoption, rebase, clusters, automatic small-bug implementation, close and
-merge. A scan selects at most 20 eligible items; later scans pick up the remaining items after cooldown
-receipts exclude completed work. Two item workflows run concurrently. Each item publishes immediately after its own execution,
+merge. A scan selects at most 20 eligible items; later scans pick up the remaining items while published
+reviews of the current version are excluded. Two item workflows run concurrently. Each item publishes immediately after its own execution,
 without waiting for other items in the batch; [the item workflow](../../.github/workflows/oryn-item.yml)
 keeps model and publisher credentials in separate jobs. All jobs use the trusted workflow commit
 recorded by the planner. Stale admissions are deferred individually, and aborted reservations are released. Source/authority

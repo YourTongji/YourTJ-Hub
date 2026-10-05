@@ -4,7 +4,7 @@
       "name": "YourTongji/YourTJ-Hub",
       "enabled": true,
       "maxItems": 20,
-      "cooldownHours": 168,
+      "reviewPolicy": "once_per_version",
       "allowRepair": true,
       "allowAdopt": true,
       "allowRebase": true,
