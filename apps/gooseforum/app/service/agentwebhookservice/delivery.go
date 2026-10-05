@@ -431,7 +431,7 @@ func retryInfrastructureFailure(task *taskQueue.Entity) error {
 		}
 		status, taskStatus := agentWebhook.RetryWait, uint8(taskQueue.StatusRetrying)
 		next := time.Now().Add(time.Duration(1<<min(task.RetryCount, 8)) * time.Minute)
-		var due *time.Time = &next
+		due := &next
 		if task.RetryCount+1 >= 9 {
 			status, taskStatus, due = agentWebhook.Dead, taskQueue.StatusFailed, nil
 		}

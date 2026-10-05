@@ -106,19 +106,21 @@ func TestAsyncApprovalCommitsAgentIntent(t *testing.T) {
 	const hook = "test:agent-intent-failure"
 	if err := conn.Callback().Create().Before("gorm:create").Register(hook, func(tx *gorm.DB) {
 		if tx.Statement.Table == "agent_interaction_intents" {
-			tx.AddError(failure)
+			_ = tx.AddError(failure)
 		}
 	}); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { conn.Callback().Create().Remove(hook) })
+	t.Cleanup(func() { _ = conn.Callback().Create().Remove(hook) })
 	if err := publicationservice.Review(context.Background(), post.LatestRevisionId, moderationDecision.ActionAllow, "", 0); !errors.Is(err, failure) {
 		t.Fatalf("approval ignored Agent persistence failure: %v", err)
 	}
 	if got := posts.Get(post.Id); got.ProcessStatus != posts.ProcessStatusPending || got.PublishedRevisionId != 0 {
 		t.Fatalf("approval escaped transaction rollback: %#v", got)
 	}
-	conn.Callback().Create().Remove(hook)
+	if err := conn.Callback().Create().Remove(hook); err != nil {
+		t.Fatal(err)
+	}
 	if err := publicationservice.Review(context.Background(), post.LatestRevisionId, moderationDecision.ActionAllow, "", 0); err != nil {
 		t.Fatal(err)
 	}

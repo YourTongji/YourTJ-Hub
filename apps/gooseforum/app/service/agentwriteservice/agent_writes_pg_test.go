@@ -97,13 +97,13 @@ func testPostgreSQLBroadcastWriters(t *testing.T, linked bool) {
 			select {
 			case <-release:
 			case <-time.After(5 * time.Second):
-				tx.AddError(fmt.Errorf("broadcast lock rendezvous timed out"))
+				_ = tx.AddError(fmt.Errorf("broadcast lock rendezvous timed out"))
 			}
 		}
 	}); err != nil {
 		t.Fatal(err)
 	}
-	defer conn.Callback().Query().Remove("test:broadcast-rendezvous")
+	defer func() { _ = conn.Callback().Query().Remove("test:broadcast-rendezvous") }()
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 	done := make(chan error, 2)

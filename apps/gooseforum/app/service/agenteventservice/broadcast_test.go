@@ -121,7 +121,7 @@ func (f *broadcastFixture) addPost(topic topics.Entity, authorID, postNo, replyT
 }
 
 // capture publishes the post and materializes every recipient event.
-func (f *broadcastFixture) capture(post posts.Entity) (bool, map[uint64]agentEvents.Entity) {
+func (f *broadcastFixture) capture(post posts.Entity) map[uint64]agentEvents.Entity {
 	f.t.Helper()
 	if err := f.conn.Transaction(func(tx *gorm.DB) error { return CapturePublicTx(tx, &post) }); err != nil {
 		f.t.Fatal(err)
@@ -129,7 +129,7 @@ func (f *broadcastFixture) capture(post posts.Entity) (bool, map[uint64]agentEve
 	var intent agentEvents.Intent
 	err := f.conn.Where("post_id = ?", post.Id).Take(&intent).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return false, nil
+		return nil
 	}
 	if err != nil {
 		f.t.Fatal(err)
@@ -149,7 +149,7 @@ func (f *broadcastFixture) capture(post posts.Entity) (bool, map[uint64]agentEve
 	for _, row := range rows {
 		events[row.AgentID] = row
 	}
-	return true, events
+	return events
 }
 
 // linkResult emulates the accepted Agent write ledger recording that the event
@@ -174,7 +174,7 @@ func (f *broadcastFixture) linkResult(eventID string, postID uint64) {
 
 func TestBroadcastForwardsForumEventsToSubscribedAgents(t *testing.T) {
 	f := broadcastSetup(t)
-	_, events := f.capture(f.first)
+	events := f.capture(f.first)
 	topicEvent := events[f.botA.Id]
 	if topicEvent.Type != "forum.topic_created" || len(topicEvent.Reasons) != 1 || topicEvent.Reasons[0] != "topic_created" {
 		t.Fatalf("topic event %#v", topicEvent)
@@ -190,12 +190,12 @@ func TestBroadcastForwardsForumEventsToSubscribedAgents(t *testing.T) {
 	}
 
 	reply := f.addPost(f.topic, f.human.Id, 2, f.first.Id, "plain human reply")
-	if _, events = f.capture(reply); events[f.botA.Id].Type != "forum.post_created" {
+	if events = f.capture(reply); events[f.botA.Id].Type != "forum.post_created" {
 		t.Fatalf("reply event %#v", events[f.botA.Id])
 	}
 
 	agentPost := f.addPost(f.topic, f.botA.Id, 3, 0, "agent reply without an event source")
-	_, events = f.capture(agentPost)
+	events = f.capture(agentPost)
 	if events[f.botA.Id].ID != "" {
 		t.Fatal("author received its own broadcast event")
 	}
@@ -210,7 +210,7 @@ func TestBroadcastForwardsForumEventsToSubscribedAgents(t *testing.T) {
 
 func TestBroadcastDepthCapStopsEventDrivenChains(t *testing.T) {
 	f := broadcastSetup(t)
-	_, events := f.capture(f.first)
+	events := f.capture(f.first)
 	parent := events[f.botA.Id]
 	if parent.ID == "" {
 		t.Fatal("missing root broadcast event")
@@ -219,7 +219,7 @@ func TestBroadcastDepthCapStopsEventDrivenChains(t *testing.T) {
 		topic := f.addTopic(f.botA.Id)
 		post := f.addPost(topic, f.botA.Id, 1, 0, fmt.Sprintf("agent hop %d", hop))
 		f.linkResult(parent.ID, post.Id)
-		_, produced := f.capture(post)
+		produced := f.capture(post)
 		event := produced[f.botC.Id]
 		if hop <= MaxBroadcastDepth {
 			if event.ID == "" {
@@ -239,7 +239,7 @@ func TestBroadcastSuppressesConsecutiveBotPosts(t *testing.T) {
 	f.capture(f.first)
 	for postNo := uint64(2); postNo <= uint64(MaxConsecutiveBotPosts+1); postNo++ {
 		post := f.addPost(f.topic, f.botA.Id, postNo, 0, fmt.Sprintf("agent post %d", postNo))
-		_, events := f.capture(post)
+		events := f.capture(post)
 		observed := events[f.botC.Id]
 		if postNo <= uint64(MaxConsecutiveBotPosts) {
 			if observed.ID == "" {
@@ -256,7 +256,7 @@ func TestBroadcastSuppressesConsecutiveBotPosts(t *testing.T) {
 func TestBroadcastMergesWithDirectedReason(t *testing.T) {
 	f := broadcastSetup(t)
 	reply := f.addPost(f.topic, f.human.Id, 2, f.first.Id, "hi @"+f.botA.Username)
-	_, events := f.capture(reply)
+	events := f.capture(reply)
 	merged := events[f.botA.Id]
 	if merged.Type != "agent.mentioned" {
 		t.Fatalf("directed type did not win: %#v", merged)
@@ -278,7 +278,7 @@ func TestBroadcastBacklogUsesSourceTail(t *testing.T) {
 			firstBot = p
 		}
 	}
-	_, events := f.capture(firstBot)
+	events := f.capture(firstBot)
 	if events[f.botC.Id].ID == "" {
 		t.Fatal("later bot posts suppressed the first bot publication")
 	}
@@ -294,7 +294,7 @@ func TestBroadcastHiddenHumanDoesNotBreakBotRun(t *testing.T) {
 		t.Fatal(err)
 	}
 	last := f.addPost(f.topic, f.botA.Id, 7, 0, "fifth public bot reply")
-	_, events := f.capture(last)
+	events := f.capture(last)
 	if events[f.botC.Id].ID != "" {
 		t.Fatal("non-public human post reset the broadcast loop bound")
 	}
@@ -302,13 +302,13 @@ func TestBroadcastHiddenHumanDoesNotBreakBotRun(t *testing.T) {
 
 func TestBroadcastDepthSurvivesSourceResultReplacement(t *testing.T) {
 	f := broadcastSetup(t)
-	_, events := f.capture(f.first)
+	events := f.capture(f.first)
 	parent := events[f.botA.Id]
 	for hop := 1; hop <= MaxBroadcastDepth; hop++ {
 		topic := f.addTopic(f.botA.Id)
 		post := f.addPost(topic, f.botA.Id, 1, 0, "source-linked hop")
 		f.linkResult(parent.ID, post.Id)
-		_, produced := f.capture(post)
+		produced := f.capture(post)
 		parent = produced[f.botC.Id]
 	}
 	topic := f.addTopic(f.botA.Id)
@@ -316,7 +316,7 @@ func TestBroadcastDepthSurvivesSourceResultReplacement(t *testing.T) {
 	f.linkResult(parent.ID, first.Id)
 	second := f.addPost(topic, f.botA.Id, 2, 0, "second accepted response")
 	f.linkResult(parent.ID, second.Id)
-	_, produced := f.capture(first)
+	produced := f.capture(first)
 	if produced[f.botC.Id].ID != "" {
 		t.Fatal("replacing a source event result reset an already accepted reply depth")
 	}
@@ -335,7 +335,7 @@ func TestBroadcastCaptureUsesPublishedRevisionNotPendingCandidate(t *testing.T) 
 	if err := f.conn.Model(&f.first).Updates(map[string]any{"published_revision_id": approved.Id, "latest_revision_id": pending.Id}).Error; err != nil {
 		t.Fatal(err)
 	}
-	_, events := f.capture(f.first)
+	events := f.capture(f.first)
 	if events[f.botB.Id].ID != "" {
 		t.Fatal("private pending mention escaped into Agent inbox")
 	}

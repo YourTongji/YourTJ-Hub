@@ -316,9 +316,10 @@ func TestWebhookRetainsResponseMetadataWhenBodyFails(t *testing.T) {
 			t.Run(fmt.Sprintf("%s/%d", mode, status), func(t *testing.T) {
 				server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					w.Header().Set("Retry-After", "3600")
-					if mode == "content_length" {
+					switch mode {
+					case "content_length":
 						w.Header().Set("Content-Length", "65")
-					} else if mode == "truncated" {
+					case "truncated":
 						w.Header().Set("Content-Length", "16")
 					}
 					w.WriteHeader(status)

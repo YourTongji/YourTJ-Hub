@@ -92,7 +92,7 @@ func TestCommittedReplayIgnoresLaterCommentBan(t *testing.T) {
 	if err := conn.Transaction(func(tx *gorm.DB) error {
 		_, replay, err := BeginTx(ctx, tx, 1)
 		if !errors.Is(err, ErrReplay) || replay == nil || replay.PostID != 20 {
-			return fmt.Errorf("committed replay changed: %#v %v", replay, err)
+			return fmt.Errorf("committed replay changed: %#v %w", replay, err)
 		}
 		return nil
 	}); err != nil {
