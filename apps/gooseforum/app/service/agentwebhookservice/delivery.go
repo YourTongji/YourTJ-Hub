@@ -84,10 +84,13 @@ func enqueueTx(tx *gorm.DB, row *agentWebhook.Delivery) error {
 	return scheduleTx(tx, row)
 }
 func scheduleTx(tx *gorm.DB, row *agentWebhook.Delivery) error {
-	payload, _ := json.Marshal(struct {
+	payload, err := json.Marshal(struct {
 		InstanceID string `json:"instanceId"`
 		DeliveryID uint64 `json:"deliveryId"`
 	}{row.InstanceID, row.ID})
+	if err != nil {
+		return err
+	}
 	task := taskQueue.Entity{Type: TaskType, TaskJson: string(payload), ScheduleGroup: strconv.FormatUint(row.AgentID, 10)}
 	if err := taskQueue.CreateTx(tx, &task); err != nil {
 		return err
