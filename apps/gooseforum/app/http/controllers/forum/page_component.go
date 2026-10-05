@@ -15,6 +15,7 @@ const (
 	PageComponentMessages               PageComponent = "messages.index"
 	PageComponentDrafts                 PageComponent = "drafts.index"
 	PageComponentModeration             PageComponent = "moderation.index"
+	PageComponentModerationAction       PageComponent = "moderation.action"
 	PageComponentSettings               PageComponent = "settings.index"
 	PageComponentThemePreview           PageComponent = "theme.preview"
 	PageComponentPublish                PageComponent = "publish.index"

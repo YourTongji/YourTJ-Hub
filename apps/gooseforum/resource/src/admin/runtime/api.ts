@@ -24,6 +24,7 @@ import type {
   DailyTraffic,
   FriendLinkGroup,
   GithubRelease,
+  HttpNotifyEndpoint,
   HttpNotifySettings,
   MailSettings,
   PageResult,
@@ -507,6 +508,15 @@ export function saveScheduleSettings(settings: ScheduleSettings) {
 
 export function saveHttpNotifySettings(settings: HttpNotifySettings) {
   return postJson<unknown>('/api/admin/save-http-notify-settings', { settings }, adminText('k00ci'))
+}
+
+// testHttpNotifyEndpoint 用表单中的（可能未保存的）配置向单个回调地址发送测试消息（issue #1049）。
+export function testHttpNotifyEndpoint(endpoint: HttpNotifyEndpoint) {
+  return postJson<{ success: boolean, messageCode: string, params?: { error?: string } }>(
+    '/api/admin/test-http-notify-endpoint',
+    { endpoint },
+    adminText('k00xi'),
+  )
 }
 
 export function saveAnnouncement(settings: AnnouncementConfig) {

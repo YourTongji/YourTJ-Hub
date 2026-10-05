@@ -8067,21 +8067,43 @@ AdminSaveRateLimitSettingsRequest:
   additionalProperties: false
   description: Replacement rate-limit settings. Saving also resets all in-memory rate-limit counters so new windows/quotas apply immediately. The Go struct tags `settings` with `validate:"required"`, but struct-level required never fails — a missing/malformed body saves a zero-value configuration.
 
+AdminHttpNotifyChannelType:
+  type: string
+  enum: [generic, feishu, astrbot]
+  description: |
+    Notification channel adapter (issue #1049). `generic` posts the structured JSON envelope
+    with `X-Goose-*` headers and the optional HMAC signature; `feishu` posts a schema 2.0
+    interactive card to a Feishu group custom-bot webhook (approval events only), signs it with
+    the bot's signature secret, and counts HTTP 200 responses whose body `code` is non-zero as
+    failures. `astrbot` posts `{content, umo, message_type: "text"}` to the `/send` endpoint of
+    the AstrBot push_lite plugin (`/send` is appended when the URL has no path) with
+    `Authorization: Bearer <secret>`, renders every event as plain text, and only counts 2xx
+    responses with `status: "queued"` as success. Stored endpoints without a channel type are
+    treated as `generic`.
+
 AdminHttpNotifyEndpoint:
   type: object
   required: [id, name, enabled, url, secret, events, timeoutSeconds, failureCount, lastError, abnormalTerminated]
   properties:
     id:
       type: string
+      description: Endpoint id. Endpoints saved without an id receive a server-generated one.
     name:
       type: string
+    channelType:
+      $ref: '#/AdminHttpNotifyChannelType'
+      description: Optional on save; omitted means `generic`. Unknown values fail with `common.request.invalidParams`.
     enabled:
       type: boolean
     url:
       type: string
+      description: Webhook URL. For `feishu` endpoints the URL embeds the bot hook token, so it is encrypted at rest (AES-256-GCM) and never returned; an empty value keeps the stored URL of the matching `feishu` endpoint.
+    target:
+      type: string
+      description: Recipient inside the channel, stored and returned in plaintext (surrounding whitespace is trimmed). For `astrbot` endpoints this is the target session `umo` (the SID shown by the `/sid` command) and is required for delivery; other channels ignore it.
     secret:
       type: string
-      description: Plaintext webhook signing secret accepted on save requests (issue #324 S1). Never stored or returned in plaintext — an empty value keeps the stored (encrypted) secret for the matching endpoint (matched by id, falling back to url).
+      description: Plaintext webhook signing secret accepted on save requests (issue #324 S1). Never stored or returned in plaintext — an empty value keeps the stored (encrypted) secret for the matching endpoint (matched by id, falling back to url). For `feishu` endpoints this is the bot's signature-verification secret; for `astrbot` endpoints it is the plugin's API token.
     events:
       type: array
       items:
@@ -8099,16 +8121,25 @@ AdminHttpNotifyEndpoint:
 
 AdminHttpNotifyEndpointView:
   type: object
-  required: [id, name, enabled, url, secretConfigured, events, timeoutSeconds, failureCount, lastError, abnormalTerminated]
+  required: [id, name, channelType, enabled, url, urlConfigured, target, secretConfigured, events, timeoutSeconds, failureCount, lastError, abnormalTerminated]
   properties:
     id:
       type: string
     name:
       type: string
+    channelType:
+      $ref: '#/AdminHttpNotifyChannelType'
     enabled:
       type: boolean
     url:
       type: string
+      description: Stored webhook URL for `generic` endpoints; always empty for `feishu` endpoints, whose URL is a credential (see `urlConfigured`).
+    urlConfigured:
+      type: boolean
+      description: Whether a webhook URL is stored (plaintext for `generic` and `astrbot`, encrypted for `feishu`).
+    target:
+      type: string
+      description: Stored channel recipient (the `astrbot` session `umo`); empty for channels that do not use one.
     secretConfigured:
       type: boolean
       description: Whether a webhook signing secret is stored for this endpoint (encrypted with AES-256-GCM). The secret itself is never returned (issue #324 S1).
@@ -8139,6 +8170,26 @@ AdminHttpNotifySettingsConfig:
         $ref: '#/AdminHttpNotifyEndpoint'
   additionalProperties: false
 
+AdminTestHttpNotifyEndpointRequest:
+  type: object
+  required: [endpoint]
+  properties:
+    endpoint:
+      $ref: '#/AdminHttpNotifyEndpoint'
+  additionalProperties: false
+  description: The endpoint to test, as currently edited. Empty `url`/`secret`/`target` reuse the stored values of the endpoint with the same `id` while its channel type is unchanged.
+
+AdminTestHttpNotifyEndpointResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result]
+          properties:
+            result:
+              $ref: '#/AdminConnectionTestResult'
+    - $ref: '#/ApiFailure'
+
 AdminHttpNotifySettingsView:
   type: object
   required: [enabled, endpoints]
@@ -8160,6 +8211,75 @@ AdminHttpNotifySettingsResponse:
         result:
           $ref: '#/AdminHttpNotifySettingsView'
           description: Stored notify settings without endpoint secrets (configured state only), or the built-in default (disabled, empty endpoint list) when nothing has been saved.
+
+ModerationApprovalActionRequest:
+  type: object
+  required: [token]
+  properties:
+    token:
+      type: string
+      maxLength: 2048
+      description: Signed quick-action token from the `token` query parameter of a notification button link (`/moderation/action?token=…`).
+  additionalProperties: false
+
+ModerationApprovalActionView:
+  type: object
+  required: [state, workbenchUrl]
+  description: |
+    Quick-action confirmation view (issue #1049). Target content (`title`, `excerpt`, `targetUrl`)
+    is only present when the signed-in caller may moderate the target; anonymous targets only
+    expose the `anonymous` marker, never the author.
+  properties:
+    state:
+      type: string
+      enum: [ready, done, processed, changed, expired, invalid, forbidden, notFound, failed]
+      description: |
+        `ready` — can be executed; `done` — executed by this request; `processed` — already
+        handled (by anyone) and nothing changed; `changed` — the pending content was edited after
+        the notification, handle the latest version in the workbench; `expired`/`invalid` — the
+        link is stale or not issued by this site; `forbidden` — the caller cannot moderate the
+        target; `notFound` — the target no longer exists; `failed` — the action could not be
+        applied.
+    subject:
+      type: string
+      enum: [review.topic, review.post, report]
+    action:
+      type: string
+      enum: [approve, reject, ban, hide, dismiss]
+    targetType:
+      type: string
+      enum: [topic, post, chat_message, course_review]
+    targetId:
+      type: integer
+      format: int64
+    reportId:
+      type: integer
+      format: int64
+    title:
+      type: string
+    excerpt:
+      type: string
+    anonymous:
+      type: boolean
+    targetUrl:
+      type: string
+    workbenchUrl:
+      type: string
+      description: Site-relative workbench entry for handling the item manually.
+    expiresAt:
+      type: string
+      format: date-time
+      description: Link expiry (UTC, RFC 3339).
+  additionalProperties: false
+
+ModerationApprovalActionResponse:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          $ref: '#/ModerationApprovalActionView'
 
 AdminSaveHttpNotifySettingsRequest:
   type: object
@@ -8470,7 +8590,7 @@ AdminConnectionTestResult:
       description: Whether the probe succeeded. Note the envelope `code` stays 0 either way — the outcome is reported inside `result`.
     messageCode:
       type: string
-      description: "`admin.mail.testSuccess` / `admin.mail.testFailed` for mail, `admin.storage.testSuccess` / `admin.storage.testFailed` for storage."
+      description: "`admin.mail.testSuccess` / `admin.mail.testFailed` for mail, `admin.storage.testSuccess` / `admin.storage.testFailed` for storage, `admin.httpNotify.testSuccess` / `admin.httpNotify.testFailed` for webhook endpoints."
     params:
       type: object
       additionalProperties: true

@@ -123,6 +123,11 @@
     },
     {
       "method": "GET",
+      "path": "/moderation/action",
+      "reason": "SSR 页面（GoHTML 三模渲染），非 JSON API；审批快捷操作确认页，数据走 moderationApprovalAction* 契约"
+    },
+    {
+      "method": "GET",
       "path": "/moderation/course-reviews",
       "reason": "SSR 页面（GoHTML 三模渲染），非 JSON API"
     },

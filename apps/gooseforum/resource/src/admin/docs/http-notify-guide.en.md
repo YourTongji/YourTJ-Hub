@@ -10,6 +10,17 @@ HTTP notifications send asynchronous POST requests to callback URLs when selecte
 - `user.signup`
 - `moderation.report.created`
 
+Approval events (issue #1049, moderator to-dos):
+
+- `moderation.review.topic.requested`: a topic entered the manual review queue (a sensitive word matched, or AI review was uncertain or failed; nothing is sent while the automatic check is running)
+- `moderation.review.post.requested`: a reply entered the manual review queue
+- `moderation.report.topic.created`: a topic was reported
+- `moderation.report.post.created`: a reply was reported
+- `moderation.report.chat_message.created`: a chat message was reported
+- `moderation.report.course_review.created`: a course review was reported
+
+`moderation.report.created` remains the aggregate "all reports" event with an unchanged payload. **Scope change**: it used to fire only for topic and reply reports; chat message and course review reports now fire it too, so `targetType` can be `chat_message` or `course_review`. Existing subscribers should make sure they handle these values. If one URL subscribes to both the aggregate event and a specific report event, each report is delivered once, using the specific event. The publish-first AI check (still checking) is not manual review and sends nothing; a notification is sent only when the AI verdict asks for human review. A pending state for course reviews is not implemented yet (planned); only course review reports notify today.
+
 ### Request format
 
 The request body is JSON. Headers include the event name, delivery ID, timestamp, and signature.
@@ -101,6 +112,112 @@ func verify(secret string, timestamp string, rawBody []byte, signature string) b
 }
 ```
 
+### Approval event payload
+
+The `data` of an approval event is a safe summary: titles and excerpts have control characters removed and are truncated, anonymous content carries no author identity, and chat message reports only say "handle it in the moderator workspace" without the message text or the reporter. Site paths can be joined with `baseUri` into absolute URLs.
+
+```json
+{
+  "event": "moderation.report.post.created",
+  "timestamp": 1710000000,
+  "data": {
+    "baseUri": "https://forum.example",
+    "approval": {
+      "id": "report:9012",
+      "kind": "report",
+      "targetType": "post",
+      "targetId": 3456,
+      "reportId": 9012,
+      "topicId": 1201,
+      "reason": "spam",
+      "title": "期中复习资料汇总",
+      "excerpt": "……",
+      "anonymous": false,
+      "author": { "id": 7, "displayName": "Alice", "url": "/u/7" },
+      "categories": ["学习"],
+      "createdAt": "2026-10-04T08:00:00Z",
+      "targetUrl": "/p/post/1201#post-3456",
+      "moderationUrl": "/moderation?tab=reports",
+      "actions": [
+        { "action": "ban", "url": "/moderation/action?token=…" },
+        { "action": "dismiss", "url": "/moderation/action?token=…" }
+      ]
+    }
+  }
+}
+```
+
+`id` is a stable approval identifier and the deduplication key: the same URL does not receive the same approval twice within 24 hours (kept in process memory; after a restart or with several instances one duplicate reminder is possible). A failed delivery (network error or a non-success reply) does not use up the deduplication slot, so the same approval is still delivered if it is published again later. For pending content the `id` includes the submitted revision number, so content that is edited and sent to manual review again is notified as a new approval.
+
+Manual review approvals carry three more fields: `reason` is `sensitive_word` (a sensitive word matched) or `ai` (AI review was uncertain or failed); `version` is the submitted revision number; `edited` is `true` when the revision edits already published content, and the title and excerpt come from the submitted revision.
+
+### Channel types
+
+Each callback URL can choose a channel type:
+
+- **Generic webhook (JSON)**: the request format above; any HTTP 2xx counts as success.
+- **Feishu group bot**: add a "custom bot" to a Feishu group and enter its webhook URL. The Feishu channel only delivers approval events, rendered as a card with the target, reason, excerpt, and quick-action buttons. A Feishu webhook URL is a credential: it is stored encrypted, never shown after saving, and saving with an empty value keeps the configured URL. A Feishu response with HTTP 200 but a non-zero `code` counts as a failure.
+
+If "signature verification" is enabled on the Feishu bot, enter its secret as the Secret; the system then adds `timestamp` and `sign` to the request body:
+
+```text
+sign = base64(HMAC_SHA256(key = timestamp + "\n" + secret, message = ""))
+```
+
+### AstrBot bot
+
+Choose **AstrBot bot (push_lite plugin)** to push notifications through AstrBot to QQ groups, private chats, and other sessions. The plugin needs no changes:
+
+1. Install [astrbot_plugin_push_lite](https://github.com/Raven95676/astrbot_plugin_push_lite) in AstrBot. The plugin serves its API on port `9966` by default, which is not the AstrBot dashboard port.
+2. Enter the plugin's API address as the URL, for example `http://astrbot.example.com:9966/send`. If you stop at the port, `/send` is added for you. The forum server must be able to reach this address.
+3. Send `/sid` in the session that should get notifications, and enter the SID it returns (for example `aiocqhttp:GroupMessage:123456`) as the **Target session SID**.
+4. Enter the API token from the plugin settings as the **API token**. Like a Secret, it is stored encrypted and never shown again.
+
+The system sends `POST /send` to the plugin with `Authorization: Bearer <API token>` and this body:
+
+```json
+{ "content": "【新举报 · 回复】垃圾广告\n编号：举报 #12 · 回复 #34\n…", "umo": "aiocqhttp:GroupMessage:123456", "message_type": "text" }
+```
+
+The AstrBot channel can subscribe to every event and sends all of them as plain text (in Chinese, like the Feishu card). Review and report messages include the IDs, title, excerpt, author, categories, and handling links; other events include the title, key fields, and a link. Only a `{"status": "queued"}` reply counts as success; a bad token (403) or missing field (400) shows the plugin's reason. The plugin queues messages before forwarding them, so the forum cannot see failures on the chat platform side. Check the AstrBot logs if a message never arrives.
+
+### Test delivery and saving one URL
+
+Each callback URL has **Send test** and **Save this URL** at the bottom of its panel:
+
+- **Send test** immediately sends one test message using the current form values (they do not need to be saved first) and shows the result next to the buttons. An empty URL or Secret reuses the value already saved for this URL, as long as the channel type is unchanged; after switching channels, enter them again. Tests ignore the master switch, the enabled state, and the subscribed events, and they never count toward the failure counter. The forum server sends the test request; like real notifications, the target address is not restricted (internal addresses included), and the failure reason is shown to the admin. Only site managers can use it.
+- Generic webhooks receive a `webhook.test` event with the usual `X-Goose-*` headers and signature, so you can check your signature verification:
+
+```json
+{
+  "event": "webhook.test",
+  "timestamp": 1710000000,
+  "data": {
+    "baseUri": "https://forum.example",
+    "endpointId": "…",
+    "endpointName": "Moderators",
+    "message": "This is a test delivery from the HTTP notification settings."
+  }
+}
+```
+
+- Feishu groups receive a sample approval card marked "测试" (test) that looks exactly like a real notification; its buttons only open the moderator workspace.
+- AstrBot sessions receive a sample report as text starting with "【测试】" (test); its links only open the moderator workspace.
+- A URL without a host (such as `http:///send` or `http://:9966/send`) is not sent; the result shows `url is missing a host`.
+- **Save this URL** saves only this callback URL; unsaved changes to other URLs are not submitted. The panel collapses after a successful save.
+
+### Quick-action security model
+
+Action links in cards and approval payloads point to the on-site confirmation page `/moderation/action` and never execute anything directly:
+
+- The token in the link is signed by the site. It only proves "this site issued this link for this target and action", expires after 24 hours, and is not a login credential.
+- Opening the link requires signing in. The confirmation page first shows the target and its current state read-only; the action runs only after the moderator clicks the action button (such as "Approve" or "Block").
+- On execution, moderator permissions and category scope are re-checked for the signed-in account, the same commands as the moderator workspace are reused, and the moderation log records the real actor.
+- Content already handled by someone else is not handled again; actions are bound to the revision in the notification, so nothing runs if the author edits the content after the notification, and the page points to the workspace for the latest version.
+- The confirmation page is not cached, sends no Referer, and its token is not written to access logs.
+
 ### Failure protection
+
+Each notification is sent once and never retried automatically. If the receiver is unavailable, that notification is lost; this applies to every event, including approval and report alerts. Failures count toward the failure counter, and the latest error appears in the settings. Notifications are reminders only; the moderator workspace is the source of truth for pending work.
 
 If the same callback URL fails 3 times in a row, the system disables that URL and marks it abnormally stopped. Re-enable and save it to clear the failure state.

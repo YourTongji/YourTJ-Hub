@@ -1,0 +1,16 @@
+{
+  "result": {
+    "state": "ready",
+    "subject": "report",
+    "action": "dismiss",
+    "targetType": "topic",
+    "targetId": 1201,
+    "reportId": 9012,
+    "title": "期中复习资料汇总",
+    "excerpt": "整理了本学期各科目的复习资料，需要的同学自取。",
+    "targetUrl": "/p/post/1201",
+    "workbenchUrl": "/moderation?tab=reports",
+    "expiresAt": "2099-01-02T00:00:00Z"
+  },
+  "code": 0
+}
