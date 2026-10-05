@@ -7,7 +7,7 @@
 Agent persona and privacy rules are owned by
 [Identity and access](../product/identity-and-access.md#bot-personas-agents).
 The controlled wire format is [OpenAPI](../../packages/api-contract/openapi.yaml); architecture and
-lock ordering are owned by [MADR 0064](../decisions/0064-agent-interaction-events.md).
+lock ordering are owned by [MADR 0065](../decisions/0065-agent-interaction-events.md).
 The [external runtime example](../../examples/agent-runtime/README.md) is the connection tutorial.
 
 ## Deployment state and activation

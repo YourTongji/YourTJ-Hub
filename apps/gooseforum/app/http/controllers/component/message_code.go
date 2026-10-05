@@ -296,6 +296,10 @@ const (
 	MessageAdminStorageMigrateFailed          MessageCode = "admin.storage.migrateFailed"          // 文件迁移任务创建失败，params.error 可带原始错误。
 	MessageAdminStorageMigrateInvalidProvider MessageCode = "admin.storage.migrateInvalidProvider" // 文件迁移仅支持对象存储（S3 兼容）配置。
 
+	// HTTP 通知
+	MessageAdminHttpNotifyTestFailed  MessageCode = "admin.httpNotify.testFailed"  // 回调地址测试发送失败，params.error 为不含地址的失败原因。
+	MessageAdminHttpNotifyTestSuccess MessageCode = "admin.httpNotify.testSuccess" // 回调地址测试发送成功。
+
 	// 数据导入导出
 	MessageAdminDataExportFailed        MessageCode = "admin.data.exportFailed"        // 导出任务创建失败，params.error 可带原始错误。
 	MessageAdminDataImportFailed        MessageCode = "admin.data.importFailed"        // 导入失败，params.error 可带原始错误。

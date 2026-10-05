@@ -10,6 +10,7 @@ import type {
   LinksPageProps,
   LoginPageProps,
   MessagesPageProps,
+  ModerationActionPageProps,
   ModerationPageProps,
   NotificationsPageProps,
   PublishPageProps,
@@ -41,6 +42,7 @@ export const pageComponents = [
   'messages.index',
   'drafts.index',
   'moderation.index',
+  'moderation.action',
   'settings.index',
   'theme.preview',
   'publish.index',
@@ -74,6 +76,7 @@ export interface PagePayloadMap {
   'messages.index': MessagesPageProps
   'drafts.index': DraftsPageProps
   'moderation.index': ModerationPageProps
+  'moderation.action': ModerationActionPageProps
   'settings.index': SettingsPageProps
   'theme.preview': ThemePreviewProps
   'publish.index': PublishPageProps

@@ -4,9 +4,11 @@ import (
 	"context"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/category"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/reports"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
@@ -14,6 +16,8 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/urlconfig"
 )
 
+// ReportCreatedEvent 新举报已创建（仅新建，重复举报不发布）。四类举报目标
+// （topic/post/chat_message/course_review）均发布本事件（issue #1049）。
 type ReportCreatedEvent struct {
 	ReportId   uint64
 	TargetType string
@@ -21,6 +25,7 @@ type ReportCreatedEvent struct {
 	TopicId    uint64
 	ReporterId uint64
 	Reason     string
+	Note       string
 }
 
 func handleHttpNotifyTopicPublished(ctx context.Context, event *TopicPublishedEvent) error {
@@ -93,35 +98,67 @@ func handleHttpNotifyUserSignUp(ctx context.Context, event *UserSignUpEvent) err
 	return nil
 }
 
+// handleHttpNotifyReportCreated 新举报进入审批通知层（issue #1049）：具体举报类型
+// 事件携带统一审批摘要，“全部举报”聚合事件保持既有负载形状；同一 Endpoint 同时
+// 订阅二者时只收到具体事件一份。
 func handleHttpNotifyReportCreated(ctx context.Context, event *ReportCreatedEvent) error {
-	if !httpnotifyservice.ShouldNotify(httpnotifyservice.EventReportCreated) {
+	specific := reportApprovalEvent(event.TargetType)
+	if !httpnotifyservice.ShouldNotify(specific, httpnotifyservice.EventReportCreated) {
 		return nil
 	}
-	topic := topics.GetSimple(event.TopicId)
+	approval, ok := reportApproval(event, time.Now())
+	if !ok {
+		// 没有审批摘要的举报类型（如今后新增的目标）仍投递“全部举报”聚合事件，
+		// 不因审批层不认识而静默丢弃既有订阅。
+		httpnotifyservice.Notify(httpnotifyservice.EventReportCreated, legacyReportNotifyPayload(event))
+		return nil
+	}
+	alternatives := make([]httpnotifyservice.Alternative, 0, 2)
+	if specific != "" {
+		alternatives = append(alternatives, httpnotifyservice.Alternative{Event: specific, Data: approval})
+	}
+	alternatives = append(alternatives, httpnotifyservice.Alternative{Event: httpnotifyservice.EventReportCreated, Data: legacyReportNotifyPayload(event)})
+	httpnotifyservice.Publish(httpnotifyservice.Message{
+		Alternatives: alternatives,
+		Approval:     &approval,
+		DedupeKey:    approval.Approval.ID,
+	})
+	return nil
+}
+
+// legacyReportNotifyPayload moderation.report.created 的既有负载形状。匿名楼层不携带
+// 真实作者（issue #524，与举报证据快照同口径）；私信举报仅 Admin 可处理，不外带
+// 举报人身份（与审核日志不复制举报人同口径）。
+func legacyReportNotifyPayload(event *ReportCreatedEvent) notifyEventData {
 	payload := notifyEventData{
 		BaseURI:       baseURI(),
 		ReportID:      new(event.ReportId),
 		TargetType:    event.TargetType,
 		TargetID:      new(event.TargetId),
-		ReporterID:    new(event.ReporterId),
 		Reason:        new(event.Reason),
-		Topic:         new(topicNotifyPayloadFromSmall(topic)),
-		Reporter:      new(userNotifyPayload(event.ReporterId)),
 		ModerationURL: moderationTargetURL(event),
 	}
-	if event.TargetType == "reply" || event.TargetType == "post" {
+	if event.TargetType != reports.TargetChatMessage {
+		payload.ReporterID = new(event.ReporterId)
+		payload.Reporter = new(userNotifyPayload(event.ReporterId))
+	}
+	if event.TopicId > 0 {
+		payload.Topic = new(topicNotifyPayloadFromSmall(topics.GetSimple(event.TopicId)))
+	}
+	if event.TargetType == "reply" || event.TargetType == reports.TargetPost {
 		post := posts.Get(event.TargetId)
-		commenter := userNotifyPayload(post.UserId)
-		payload.Post = &notifyPost{
+		postPayload := notifyPost{
 			ID:     post.Id,
 			PostNo: post.PostNo,
-			UserID: post.UserId,
-			User:   commenter,
 			URL:    postURL(post.TopicId, post.Id),
 		}
+		if !post.IsAnonymous {
+			postPayload.UserID = post.UserId
+			postPayload.User = userNotifyPayload(post.UserId)
+		}
+		payload.Post = &postPayload
 	}
-	httpnotifyservice.Notify(httpnotifyservice.EventReportCreated, payload)
-	return nil
+	return payload
 }
 
 type notifyEventData struct {
@@ -282,6 +319,12 @@ func postURL(topicID uint64, postID uint64) string {
 }
 
 func moderationTargetURL(event *ReportCreatedEvent) string {
+	switch event.TargetType {
+	case reports.TargetChatMessage:
+		return moderationReportsURL
+	case reports.TargetCourseReview:
+		return moderationCourseReviewsURL
+	}
 	if event.TopicId == 0 {
 		return ""
 	}

@@ -585,11 +585,18 @@ export interface PostingSettings {
   }
 }
 
+/** 通道类型（issue #1049）：generic 原样 JSON；feishu 飞书自定义机器人审批卡片。 */
+export type HttpNotifyChannelType = 'generic' | 'feishu' | 'astrbot'
+
 export interface HttpNotifyEndpoint {
   id: string
   name: string
+  channelType: HttpNotifyChannelType
   enabled: boolean
+  /** 飞书 webhook 地址按凭据加密存储，GET 恒为空；留空保存保留已配置地址。 */
   url: string
+  /** 通道内的接收目标：AstrBot 为会话 umo（/sid 显示的 SID），其他通道为空。 */
+  target?: string
   secret: string
   events: string[]
   timeoutSeconds: number
@@ -598,6 +605,8 @@ export interface HttpNotifyEndpoint {
   abnormalTerminated: boolean
   /** GET 回显（issue #324 S1）：端点密钥是否已配置（服务端加密存储，不回显密钥）。 */
   secretConfigured?: boolean
+  /** GET 回显（issue #1049）：webhook 地址是否已配置（飞书地址不回显明文）。 */
+  urlConfigured?: boolean
 }
 
 export interface HttpNotifySettings {

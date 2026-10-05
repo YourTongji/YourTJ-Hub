@@ -235,6 +235,16 @@ func GetHttpNotifyConfigCache() pageConfig.HttpNotifyConfig {
 		storage := jsonopt.Decode[pageConfig.HttpNotifyStorageConfig](entity.Config)
 		cfg := storage.ToConfig()
 		for i := range cfg.Endpoints {
+			// 凭据型 URL（飞书 webhook，issue #1049）只落库密文；解密失败时置空，
+			// 端点因 URL 为空不再投递（fail closed），管理员重新填写后恢复。
+			if sealedURL := storage.Endpoints[i].URLEncrypted; sealedURL != "" {
+				if plain, err := securestore.DecryptPurpose(sealedURL, securestore.HttpNotifyURLPurpose); err == nil {
+					cfg.Endpoints[i].URL = plain
+				} else {
+					slog.Warn("http notify url decrypt failed (signing key rotated?)", "err", err)
+					cfg.Endpoints[i].URL = ""
+				}
+			}
 			secret := cfg.Endpoints[i].Secret
 			if secret == "" {
 				continue

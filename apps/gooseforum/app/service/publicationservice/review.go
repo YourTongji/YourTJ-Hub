@@ -156,7 +156,7 @@ func Review(ctx context.Context, revisionID uint64, action, reason string, actor
 			if err := tx.Model(&revision).Updates(map[string]any{"review_reason": reason, "reviewed_at": time.Now()}).Error; err != nil {
 				return err
 			}
-			return enqueueReviewNotice(tx, revision, topic, post, eventNotification.EventTypeReviewPending, Effect{RevisionId: revisionID, NotificationOnly: true})
+			return enqueueReviewNotice(tx, revision, topic, post, eventNotification.EventTypeReviewPending, Effect{RevisionId: revisionID, NotificationOnly: true, ReviewRequested: true})
 		}
 		if actorID == 0 && revision.ReviewedAt != nil {
 			return ErrUnavailable

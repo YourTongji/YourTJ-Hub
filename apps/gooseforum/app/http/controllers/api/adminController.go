@@ -54,6 +54,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/eventhandlers"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/filemigrateservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/fileusageservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/httpnotifyservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/llmsservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/mailservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/moderationservice"
@@ -67,6 +68,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/themeservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/userservice"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/samber/lo"
 	"gorm.io/gorm"
 )
@@ -1909,7 +1911,9 @@ type SaveHttpNotifySettingsReq struct {
 
 // SaveHttpNotifySettings 保存 HTTP 通知设置：各端点 secret 明文仅在请求瞬间存在——
 // 非空时 securestore 加密后落库；为空时按 id（无 id 按 url）保留已存密文/存量明文
-// （issue #324 S1）。
+// （issue #324 S1）。飞书通道的 webhook URL 同样按凭据处理：非空时加密落库，为空
+// 时保留同端点已存 URL 密文；缺 id 的端点由服务端补发 id，保证投递状态回写可按 id
+// 匹配（凭据型 URL 不落明文，无法按 url 匹配，issue #1049）。
 func SaveHttpNotifySettings(req component.BetterRequest[SaveHttpNotifySettingsReq]) component.Response {
 	input := req.Params.Settings
 	entity := pageConfig.GetByPageType(pageConfig.HttpNotify)
@@ -1924,11 +1928,33 @@ func SaveHttpNotifySettings(req component.BetterRequest[SaveHttpNotifySettingsRe
 	}
 	next := make([]pageConfig.HttpNotifyStorageEndpoint, 0, len(input.Endpoints))
 	for _, ep := range input.Endpoints {
+		channel := pageConfig.NormalizeHttpNotifyChannel(ep.ChannelType)
+		if channel == "" {
+			return component.FailResponseCode(component.MessageRequestInvalidParams, nil)
+		}
 		key := ep.Id
 		if key == "" {
 			key = ep.URL
 		}
 		orig := existing[key]
+		id := ep.Id
+		if id == "" {
+			id = uuid.NewString()
+		}
+		endpointURL := ep.URL
+		sealedURL := ""
+		if pageConfig.HttpNotifyURLIsSecret(channel) {
+			if plainURL := strings.TrimSpace(ep.URL); plainURL != "" {
+				encrypted, err := securestore.EncryptPurpose(plainURL, securestore.HttpNotifyURLPurpose)
+				if err != nil {
+					return component.FailResponseError(fmt.Errorf("加密 webhook 地址失败（请确认 app.signingKey 已配置）：%w", err))
+				}
+				sealedURL = encrypted
+			} else if pageConfig.HttpNotifyURLIsSecret(orig.ChannelType) {
+				sealedURL = orig.URLEncrypted
+			}
+			endpointURL = ""
+		}
 		sealed := orig.SecretEncrypted
 		legacy := orig.Secret
 		if secret := strings.TrimSpace(ep.Secret); secret != "" {
@@ -1940,10 +1966,13 @@ func SaveHttpNotifySettings(req component.BetterRequest[SaveHttpNotifySettingsRe
 			legacy = ""
 		}
 		next = append(next, pageConfig.HttpNotifyStorageEndpoint{
-			Id:                 ep.Id,
+			Id:                 id,
 			Name:               ep.Name,
+			ChannelType:        channel,
 			Enabled:            ep.Enabled,
-			URL:                ep.URL,
+			URL:                endpointURL,
+			URLEncrypted:       sealedURL,
+			Target:             strings.TrimSpace(ep.Target),
 			Secret:             legacy,
 			SecretEncrypted:    sealed,
 			Events:             ep.Events,
@@ -1954,6 +1983,71 @@ func SaveHttpNotifySettings(req component.BetterRequest[SaveHttpNotifySettingsRe
 		})
 	}
 	return savePageConfig(pageConfig.HttpNotify, pageConfig.HttpNotifyStorageConfig{Enabled: input.Enabled, Endpoints: next}, hotdataserve.ClearHttpNotifyConfigCache)
+}
+
+type TestHttpNotifyEndpointReq struct {
+	Endpoint pageConfig.HttpNotifyEndpointInput `json:"endpoint" validate:"required"`
+}
+
+// TestHttpNotifyEndpoint 用表单中的（可能未保存的）配置向单个回调地址同步发送一条
+// 测试消息，不落库、不计入失败次数（issue #1049）。地址、密钥或接收目标留空时沿用同 id 端点的
+// 已存值，与保存语义一致；只在通道类型未变时沿用（飞书地址是凭据，各通道密钥含义不同）。结果在
+// 成功信封内返回，失败原因不含请求地址。
+func TestHttpNotifyEndpoint(req component.BetterRequest[TestHttpNotifyEndpointReq]) component.Response {
+	input := req.Params.Endpoint
+	channel := pageConfig.NormalizeHttpNotifyChannel(input.ChannelType)
+	if channel == "" {
+		return component.FailResponseCode(component.MessageRequestInvalidParams, nil)
+	}
+	endpoint := pageConfig.HttpNotifyEndpoint{
+		Id:             input.Id,
+		Name:           input.Name,
+		ChannelType:    channel,
+		Enabled:        true,
+		URL:            strings.TrimSpace(input.URL),
+		Target:         strings.TrimSpace(input.Target),
+		Secret:         strings.TrimSpace(input.Secret),
+		TimeoutSeconds: input.TimeoutSeconds,
+	}
+	if input.Id != "" && (endpoint.URL == "" || endpoint.Secret == "" || endpoint.Target == "") {
+		for _, stored := range hotdataserve.GetHttpNotifyConfigCache().Endpoints {
+			if stored.Id != input.Id {
+				continue
+			}
+			// 已存地址和密钥都只在通道类型未变时沿用：切换通道后旧 HMAC 密钥不是
+			// 飞书签名密钥，也不是 AstrBot token，沿用只会得到令人困惑的签名失败。
+			if pageConfig.NormalizeHttpNotifyChannel(stored.ChannelType) != channel {
+				continue
+			}
+			if endpoint.URL == "" {
+				endpoint.URL = stored.URL
+			}
+			if endpoint.Secret == "" {
+				endpoint.Secret = stored.Secret
+			}
+			if endpoint.Target == "" {
+				endpoint.Target = stored.Target
+			}
+		}
+	}
+	failed := func(message string) component.Response {
+		return component.SuccessResponse(TestStorageConnectionResp{
+			Success:     false,
+			MessageCode: component.MessageAdminHttpNotifyTestFailed,
+			Params:      component.MessageParams{"error": message},
+		})
+	}
+	if endpoint.URL == "" {
+		return failed("url is required")
+	}
+	baseURI := strings.TrimRight(hotdataserve.GetSiteSettingsConfigCache().SiteUrl, "/")
+	if err := httpnotifyservice.SendTest(endpoint, baseURI, time.Now()); err != nil {
+		return failed(err.Error())
+	}
+	return component.SuccessResponse(TestStorageConnectionResp{
+		Success:     true,
+		MessageCode: component.MessageAdminHttpNotifyTestSuccess,
+	})
 }
 
 // GetStorageSettings 获取存储设置：仅回显是否已配置凭据，不回显凭据明文/密文
