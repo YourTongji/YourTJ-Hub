@@ -2,6 +2,7 @@ package mcpservice
 
 import (
 	"context"
+	"net/http"
 	"net/http/httptest"
 	"testing"
 
@@ -28,7 +29,7 @@ func TestHTTPToolRevalidatesBoundCredential(t *testing.T) {
 	setupMCPServiceTestDB(t)
 	id, token := createMCPServiceAgent(t, "http_rotation")
 	svc := NewService()
-	info, err := svc.verifier(context.Background(), token, httptest.NewRequest("POST", "/mcp", nil))
+	info, err := svc.verifier(context.Background(), token, httptest.NewRequest(http.MethodPost, "/mcp", nil))
 	if err != nil {
 		t.Fatal(err)
 	}

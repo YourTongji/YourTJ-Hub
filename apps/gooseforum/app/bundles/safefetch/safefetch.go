@@ -177,7 +177,7 @@ func (c *Client) Fetch(ctx context.Context, rawURL string) (Result, error) {
 	if err != nil {
 		return Result{}, classifyError(err)
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 
 	if response.ContentLength > c.maxBodyBytes {
 		return Result{}, &FetchError{Class: ErrorTooLarge, Err: errors.New("content length exceeds limit")}
@@ -373,7 +373,7 @@ func (c *Client) PostJSON(ctx context.Context, rawURL string, body []byte, heade
 	if err != nil {
 		return Result{}, classifyError(err)
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	if response.ContentLength > c.maxBodyBytes {
 		return Result{}, &FetchError{Class: ErrorTooLarge}
 	}

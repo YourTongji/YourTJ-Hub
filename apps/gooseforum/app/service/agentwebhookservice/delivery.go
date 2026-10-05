@@ -494,9 +494,9 @@ func complete(task *taskQueue.Entity, p permit, result safefetch.Result, sendErr
 		reason = "target_blocked"
 	case errors.Is(sendErr, ErrSecretRequired):
 		reason = "secret_invalid"
-	case result.StatusCode == 410:
+	case result.StatusCode == http.StatusGone:
 		reason = "receiver_gone"
-	case sendErr != nil || result.StatusCode == 408 || result.StatusCode == 429 || result.StatusCode >= 500:
+	case sendErr != nil || result.StatusCode == http.StatusRequestTimeout || result.StatusCode == http.StatusTooManyRequests || result.StatusCode >= 500:
 		reason = "network_unavailable"
 		if sendErr == nil {
 			reason = "receiver_retryable"

@@ -264,7 +264,7 @@ func TestWebhookJSONTLSRedirectIsNotFollowedAndDNSRevalidated(t *testing.T) {
 	var received atomic.Int32
 	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		received.Add(1)
-		if r.Method != "POST" || r.Header.Get("Content-Type") != "application/json" || r.Header.Get("Authorization") != "" || r.Header.Get("Webhook-Delivery-Id") != "19" {
+		if r.Method != http.MethodPost || r.Header.Get("Content-Type") != "application/json" || r.Header.Get("Authorization") != "" || r.Header.Get("Webhook-Delivery-Id") != "19" {
 			t.Error("invalid JSON POST or leaked ambient credential")
 		}
 		w.Header().Set("Location", "https://127.0.0.1/private")
@@ -286,7 +286,7 @@ func TestWebhookJSONTLSRedirectIsNotFollowedAndDNSRevalidated(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.StatusCode != 307 || result.RetryAfter != "120" || calls.Load() != 1 || received.Load() != 1 {
+	if result.StatusCode != http.StatusTemporaryRedirect || result.RetryAfter != "120" || calls.Load() != 1 || received.Load() != 1 {
 		t.Fatalf("result=%#v dials=%d requests=%d", result, calls.Load(), received.Load())
 	}
 	resolver[host] = []netip.Addr{netip.MustParseAddr("127.0.0.1")}

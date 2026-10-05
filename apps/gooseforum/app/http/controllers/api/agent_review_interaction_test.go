@@ -75,10 +75,10 @@ func TestAdminTopicStatusLocksPostsBeforeTopic(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { conn.Callback().Query().Remove(callback); conn.Callback().Update().Remove(callback) })
+	t.Cleanup(func() { _ = conn.Callback().Query().Remove(callback); _ = conn.Callback().Update().Remove(callback) })
 	if err := conn.Callback().Update().Before("gorm:update").Register(callback, func(tx *gorm.DB) {
 		if tx.Statement.Table == "topics" && !lockedPost {
-			tx.AddError(fmt.Errorf("topic update acquired before source post locks"))
+			_ = tx.AddError(fmt.Errorf("topic update acquired before source post locks"))
 		}
 	}); err != nil {
 		t.Fatal(err)

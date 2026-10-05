@@ -393,12 +393,12 @@ func TestActorFreezeBeforeParticipantFenceRejectsCachedState(t *testing.T) {
 		frozen = true
 		// Model a freeze committed before authorization acquires the user fence.
 		if err := tx.Session(&gorm.Session{NewDB: true}).Model(&users.EntityComplete{}).Where("id = ?", p.UserId).Update("is_frozen", users.StatusFrozen).Error; err != nil {
-			tx.AddError(err)
+			_ = tx.AddError(err)
 		}
 	}); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { conn.Callback().Query().Remove(callback) })
+	t.Cleanup(func() { _ = conn.Callback().Query().Remove(callback) })
 	err := conn.Transaction(func(tx *gorm.DB) error { return ValidateEventTx(tx, &event) })
 	if !frozen {
 		t.Fatal("authorization did not fence its participants")

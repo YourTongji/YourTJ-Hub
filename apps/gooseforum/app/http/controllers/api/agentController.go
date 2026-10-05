@@ -442,7 +442,11 @@ func agentWriteContext[T any](req component.BetterRequest[T], operation string, 
 	if req.GinContext != nil {
 		key = req.GinContext.GetHeader("Idempotency-Key")
 	}
-	o := agentwriteservice.Options{Key: key, SourceEventID: sourceID, Operation: operation, TargetID: targetID, Digest: agentwriteservice.RequestDigest(digestInput), CredentialHash: hash}
+	digest, err := agentwriteservice.RequestDigest(digestInput)
+	if err != nil {
+		return nil, err
+	}
+	o := agentwriteservice.Options{Key: key, SourceEventID: sourceID, Operation: operation, TargetID: targetID, Digest: digest, CredentialHash: hash}
 	if err := agentwriteservice.ValidateOptions(o); err != nil {
 		return nil, err
 	}

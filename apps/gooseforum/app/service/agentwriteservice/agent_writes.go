@@ -52,10 +52,13 @@ func FromContext(ctx context.Context) (Options, bool) {
 	return o, ok
 }
 
-func RequestDigest(request any) string {
-	b, _ := json.Marshal(request)
+func RequestDigest(request any) (string, error) {
+	b, err := json.Marshal(request)
+	if err != nil {
+		return "", err
+	}
 	d := sha256.Sum256(b)
-	return hex.EncodeToString(d[:])
+	return hex.EncodeToString(d[:]), nil
 }
 
 func ValidateOptions(o Options) error {

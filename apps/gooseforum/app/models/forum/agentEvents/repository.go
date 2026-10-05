@@ -103,7 +103,7 @@ func CancelPostIntentsTx(tx *gorm.DB, instance string, postID uint64) error {
 
 func PageIntentsForAgentTx(tx *gorm.DB, instance string, agentID uint64, page, size int) ([]Intent, int64, error) {
 	condition := "EXISTS (SELECT 1 FROM json_each(recipients) WHERE CAST(json_extract(value, '$.agentId') AS INTEGER) = ?)"
-	if tx.Dialector.Name() == "postgres" {
+	if tx.Name() == "postgres" {
 		condition = "EXISTS (SELECT 1 FROM jsonb_array_elements(recipients::jsonb) AS target WHERE (target->>'agentId')::bigint = ?)"
 	}
 	q := tx.Model(&Intent{}).Where("instance_id = ?", instance).Where(condition, agentID)

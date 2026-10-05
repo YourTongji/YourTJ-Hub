@@ -27,7 +27,7 @@ func TestPostgreSQLConcurrentWriteReservationWaitsForCommittedResult(t *testing.
 	if err := admin.Exec("CREATE SCHEMA " + schema).Error; err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { admin.Exec("DROP SCHEMA " + schema + " CASCADE"); pool, _ := admin.DB(); pool.Close() })
+	t.Cleanup(func() { admin.Exec("DROP SCHEMA " + schema + " CASCADE"); pool, _ := admin.DB(); _ = pool.Close() })
 	if parsed, err := url.Parse(dsn); err == nil && (parsed.Scheme == "postgres" || parsed.Scheme == "postgresql") {
 		q := parsed.Query()
 		q.Set("search_path", schema)
@@ -40,7 +40,7 @@ func TestPostgreSQLConcurrentWriteReservationWaitsForCommittedResult(t *testing.
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { pool, _ := conn.DB(); pool.Close() })
+	t.Cleanup(func() { pool, _ := conn.DB(); _ = pool.Close() })
 	if err := conn.AutoMigrate(&Entry{}); err != nil {
 		t.Fatal(err)
 	}

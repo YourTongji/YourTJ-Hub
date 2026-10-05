@@ -64,8 +64,11 @@ func Configure(agentID, expectedVersion uint64, p ConfigParams) (*agents.Entity,
 		return nil, ErrInvalidConfig
 	}
 	sort.Strings(types)
-	encoded, _ := json.Marshal(types)
-	err := db.Connect().Transaction(func(tx *gorm.DB) error {
+	encoded, err := json.Marshal(types)
+	if err != nil {
+		return nil, err
+	}
+	err = db.Connect().Transaction(func(tx *gorm.DB) error {
 		row, err := agents.GetTx(tx, agentID, true)
 		if err != nil {
 			return err

@@ -132,7 +132,7 @@ type AgentIntentReplayReq struct {
 }
 
 func agentWebhookFailure(err error) component.Response {
-	code := ""
+	var code string
 	switch {
 	case errors.Is(err, agentwebhookservice.ErrConfigConflict):
 		code = "configConflict"

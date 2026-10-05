@@ -76,7 +76,10 @@ type cursor struct {
 }
 
 func encodeCursor(instance, epoch string, agent, seq uint64) string {
-	b, _ := json.Marshal(cursor{instance, epoch, agent, seq})
+	b, err := json.Marshal(cursor{instance, epoch, agent, seq})
+	if err != nil {
+		panic(err) // This fixed struct contains only JSON-supported primitive fields.
+	}
 	return base64.RawURLEncoding.EncodeToString(b)
 }
 
@@ -273,7 +276,10 @@ func CapturePublicTx(tx *gorm.DB, post *posts.Entity) error {
 	if err := agentEvents.CreateIntentTx(tx, &i); err != nil {
 		return err
 	}
-	payload, _ := json.Marshal(map[string]string{"instanceId": cfg.ID, "intentId": i.ID})
+	payload, err := json.Marshal(map[string]string{"instanceId": cfg.ID, "intentId": i.ID})
+	if err != nil {
+		return err
+	}
 	task := taskQueue.Entity{Type: TaskType, TaskJson: string(payload)}
 	if err := taskQueue.CreateTx(tx, &task); err != nil {
 		return err
@@ -692,7 +698,10 @@ func ReplayIntent(id string) error {
 		if time.Now().After(i.ExpiresAt) || i.Status == "cancelled" || i.Status == "expired" {
 			return ErrInaccessible
 		}
-		payload, _ := json.Marshal(map[string]string{"instanceId": cfg.ID, "intentId": i.ID})
+		payload, err := json.Marshal(map[string]string{"instanceId": cfg.ID, "intentId": i.ID})
+		if err != nil {
+			return err
+		}
 		task := taskQueue.Entity{Type: TaskType, TaskJson: string(payload)}
 		if err := taskQueue.CreateTx(tx, &task); err != nil {
 			return err

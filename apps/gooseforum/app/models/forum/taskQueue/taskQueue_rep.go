@@ -1,6 +1,7 @@
 package taskQueue
 
 import (
+	"errors"
 	"time"
 
 	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
@@ -288,7 +289,7 @@ func RetryOwned(id uint64, token string, due time.Time, lastError string, maxAtt
 	return db.Connect().Transaction(func(tx *gorm.DB) error {
 		var row Entity
 		if err := tx.Where("id = ? AND status = ? AND lease_token = ?", id, StatusRunning, token).First(&row).Error; err != nil {
-			if err == gorm.ErrRecordNotFound {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return nil
 			}
 			return err
