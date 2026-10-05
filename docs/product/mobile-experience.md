@@ -1128,6 +1128,10 @@ identity survive this layout change. The header keeps a small outer margin for i
   serialized so the latest choice remains stored. Account categories preserve existing section
   links, open on a normal back stack and fetch only their required data. Failed refreshes retain
   loaded content, and session changes clear private settings before loading the next account.
+  Signed-in users can log out directly from the bottom of the category index. The action requires
+  confirmation and retains push unbinding, server-session revocation, local credential and cache
+  cleanup, and navigation to sign-in. Cancelling leaves the session intact. Security contains
+  two-factor authentication and session management; guests have no logout action.
   The category index and section headers support enlarged text, keyboard activation and localized
   accessible labels; content stays centered within 720 pixels on larger windows.
 - `Current`: users with follow permission retain the follow button for already-followed accounts,

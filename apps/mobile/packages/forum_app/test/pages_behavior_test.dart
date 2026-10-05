@@ -5214,7 +5214,7 @@ void main() {
   });
 
   group('设置登出', () {
-    testWidgets('登出调用 authRepository.logout、清 token 并跳转登录页', (tester) async {
+    testWidgets('设置索引登出支持取消，确认后清 token 和缓存并跳转登录页', (tester) async {
       final authRepo = LogoutAuthRepository(
         GfApiClient(
           dio: Dio(),
@@ -5266,7 +5266,7 @@ void main() {
         ],
       );
 
-      // 设置更大视口,保证安全分类内"退出登录"按钮无需滚动即可见。
+      // 设置更大视口，保证索引底部的登出入口无需滚动即可见。
       tester.view.physicalSize = const Size(1080, 2400);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.reset);
@@ -5284,10 +5284,22 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // 打开 Security 分类 找登出按钮。
+      // 安全分类不再提供登出；返回索引即可直接退出登录。
       await tester.tap(find.text('安全'));
       await tester.pumpAndSettle();
+      expect(find.text('退出登录'), findsNothing);
+      await tester.tap(find.byTooltip('返回'));
+      await tester.pumpAndSettle();
       expect(find.text('退出登录'), findsOneWidget);
+
+      await tester.tap(find.text('退出登录'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('取消'));
+      await tester.pumpAndSettle();
+      expect(authRepo.logoutCalls, 0);
+      expect(await storage.read(), 'token');
+      expect(topicCache.clears + chatCache.clears, 0);
+      expect(router.state.uri.path, '/settings');
 
       // 点击登出 → 确认对话框 → 确认。
       await tester.tap(find.text('退出登录'));
