@@ -111,8 +111,19 @@ export interface AdminTopic {
   replyCount: number
   likeCount: number
   pinWeight: number
+  /** 该主题是否禁止 Agent 评论（Agent 评论策略面板）。 */
+  agentCommentDisabled: boolean
   createdAt: string
   updatedAt?: string
+}
+
+export interface AdminAgentCommentPolicy {
+  allowAgentComments: boolean
+}
+
+export interface AdminAgentCommentTopicPolicy {
+  topicId: number
+  agentCommentDisabled: boolean
 }
 
 export interface AdminOptRecord {

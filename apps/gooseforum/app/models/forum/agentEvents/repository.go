@@ -78,6 +78,21 @@ func WithdrawTx(tx *gorm.DB, e *Entity, now time.Time) error {
 func RecordResultTx(tx *gorm.DB, instance string, agentID uint64, eventID string, topicID, postID uint64) error {
 	return tx.Model(&Entity{}).Where("instance_id = ? AND agent_id = ? AND id = ?", instance, agentID, eventID).Updates(map[string]any{"resulting_topic_id": topicID, "resulting_post_id": postID}).Error
 }
+
+// ResultingEventForPostTx finds the event whose accepted Agent write produced
+// the given post. It feeds the broadcast chain-depth bound; withdrawn events
+// have already redacted their resulting ids and simply do not match.
+func ResultingEventForPostTx(tx *gorm.DB, instance string, postID uint64) (Entity, bool, error) {
+	var e Entity
+	err := tx.Where("instance_id = ? AND resulting_post_id = ?", instance, postID).Order("id ASC").Take(&e).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return Entity{}, false, nil
+	}
+	if err != nil {
+		return Entity{}, false, err
+	}
+	return e, true, nil
+}
 func ListIntentsTx(tx *gorm.DB, instance string, limit int) ([]Intent, error) {
 	rows := make([]Intent, 0)
 	err := tx.Where("instance_id = ?", instance).Order("created_at DESC").Limit(limit).Find(&rows).Error

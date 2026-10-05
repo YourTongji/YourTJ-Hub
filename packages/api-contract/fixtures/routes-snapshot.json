@@ -45,6 +45,10 @@
   },
   {
     "method": "GET",
+    "path": "/api/admin/agent-comment-policy"
+  },
+  {
+    "method": "GET",
     "path": "/api/admin/ai-moderation-settings"
   },
   {
@@ -817,6 +821,10 @@
   },
   {
     "method": "POST",
+    "path": "/api/admin/save-agent-comment-policy"
+  },
+  {
+    "method": "POST",
     "path": "/api/admin/save-ai-moderation-settings"
   },
   {
@@ -898,6 +906,10 @@
   {
     "method": "POST",
     "path": "/api/admin/search/maintenance"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/set-agent-comment-topic-policy"
   },
   {
     "method": "POST",

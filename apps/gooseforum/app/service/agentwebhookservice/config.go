@@ -51,7 +51,8 @@ func Configure(agentID, expectedVersion uint64, p ConfigParams) (*agents.Entity,
 	types := make([]string, 0, 3)
 	for _, kind := range p.EventTypes {
 		switch kind {
-		case "agent.mentioned", "agent.post_replied", "agent.topic_commented":
+		case "agent.mentioned", "agent.post_replied", "agent.topic_commented",
+			"forum.topic_created", "forum.post_created":
 			if !seen[kind] {
 				seen[kind] = true
 				types = append(types, kind)

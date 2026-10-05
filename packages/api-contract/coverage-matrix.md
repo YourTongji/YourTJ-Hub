@@ -4,11 +4,11 @@
 
 路由快照来自 `TestRoutesSnapshot`（`fixtures/routes-snapshot.json`，默认配置装配，不含 OIDC `/api/oauth/*` 端点——OIDC 另有专项）。
 
-- 快照路由总数：366
-- /api JSON 路由：300，已入契约：301（100%），已知未覆盖：0
+- 快照路由总数：369
+- /api JSON 路由：303，已入契约：304（100%），已知未覆盖：0
 - 非 API 排除路由：65
 
-## 已覆盖（301）
+## 已覆盖（304）
 
 | Method | Path | operationId |
 | --- | --- | --- |
@@ -17,6 +17,7 @@
 | DELETE | `/api/forum/course-reviews/:reviewId/helpful` | `unmarkReviewHelpful` |
 | DELETE | `/api/pk/plan-items` | `pkDeletePlanItem` |
 | DELETE | `/api/pk/plans` | `pkDeletePlans` |
+| GET | `/api/admin/agent-comment-policy` | `adminGetAgentCommentPolicy` |
 | GET | `/api/admin/ai-moderation-settings` | `adminGetAiModerationSettings` |
 | GET | `/api/admin/ai-summary-settings` | `adminGetAiSummarySettings` |
 | GET | `/api/admin/announcement` | `adminGetAnnouncement` |
@@ -155,6 +156,7 @@
 | POST | `/api/admin/role-delete` | `adminRoleDelete` |
 | POST | `/api/admin/role-list` | `adminRoleList` |
 | POST | `/api/admin/role-save` | `adminRoleSave` |
+| POST | `/api/admin/save-agent-comment-policy` | `adminSaveAgentCommentPolicy` |
 | POST | `/api/admin/save-ai-moderation-settings` | `adminSaveAiModerationSettings` |
 | POST | `/api/admin/save-ai-summary-settings` | `adminSaveAiSummarySettings` |
 | POST | `/api/admin/save-announcement` | `adminSaveAnnouncement` |
@@ -176,6 +178,7 @@
 | POST | `/api/admin/save-terms-of-service` | `adminSaveTermsOfService` |
 | POST | `/api/admin/save-user-badges` | `adminSaveUserBadges` |
 | POST | `/api/admin/search/maintenance` | `adminSearchMaintenance` |
+| POST | `/api/admin/set-agent-comment-topic-policy` | `adminSetAgentCommentTopicPolicy` |
 | POST | `/api/admin/sticker-delete` | `adminStickerDelete` |
 | POST | `/api/admin/sticker-import` | `adminStickerImport` |
 | POST | `/api/admin/sticker-save` | `adminStickerSave` |

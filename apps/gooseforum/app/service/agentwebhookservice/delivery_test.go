@@ -110,6 +110,23 @@ func TestConfigCASGenerationsAndSecretRotation(t *testing.T) {
 		t.Fatalf("unsafe config=%v", err)
 	}
 }
+func TestConfigureAcceptsForumBroadcastTypes(t *testing.T) {
+	conn := setup(t)
+	a := agents.Entity{UserId: 13, TokenPrefix: "agt_broadcast", Enabled: 1}
+	if err := conn.Create(&a).Error; err != nil {
+		t.Fatal(err)
+	}
+	row, err := Configure(a.UserId, 0, ConfigParams{EventsEnabled: true, EventTypes: []string{"forum.topic_created", "forum.post_created", "agent.mentioned"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if row.EventTypes != `["agent.mentioned","forum.post_created","forum.topic_created"]` {
+		t.Fatalf("eventTypes=%s", row.EventTypes)
+	}
+	if _, err := Configure(a.UserId, row.ConfigVersion, ConfigParams{EventsEnabled: true, EventTypes: []string{"forum.unknown"}}); !errors.Is(err, ErrInvalidConfig) {
+		t.Fatalf("unknown type accepted: %v", err)
+	}
+}
 func TestPersistentRetryBudgetAndFencing(t *testing.T) {
 	conn := setup(t)
 	a := agents.Entity{UserId: 14, TokenPrefix: "agt_budget", Enabled: 1}

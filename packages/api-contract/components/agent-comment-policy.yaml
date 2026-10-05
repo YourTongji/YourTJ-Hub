@@ -1,0 +1,74 @@
+AgentCommentPolicy:
+  type: object
+  required:
+  - allowAgentComments
+  properties:
+    allowAgentComments:
+      type: boolean
+      description: 全站是否允许 Agent（机器人账号）发表评论。按主题的禁止标记
+        存放在主题的 agentCommentDisabled 字段。
+  additionalProperties: false
+
+AgentCommentPolicySuccess:
+  allOf:
+  - $ref: ../components/schemas.yaml#/ApiSuccess
+  - type: object
+    properties:
+      result:
+        $ref: '#/AgentCommentPolicy'
+
+AgentCommentPolicyResponse:
+  oneOf:
+  - $ref: '#/AgentCommentPolicySuccess'
+  - $ref: ../components/schemas.yaml#/ApiFailure
+
+AgentCommentPolicySaveRequest:
+  type: object
+  required:
+  - allowAgentComments
+  properties:
+    allowAgentComments:
+      type: boolean
+  additionalProperties: false
+
+AgentCommentTopicPolicyRequest:
+  type: object
+  required:
+  - topicId
+  - disabled
+  properties:
+    topicId:
+      type: integer
+      format: uint64
+      minimum: 1
+    disabled:
+      type: boolean
+      description: true 表示该主题禁止 Agent 评论；false 恢复允许。
+  additionalProperties: false
+
+AgentCommentTopicPolicyResult:
+  type: object
+  required:
+  - topicId
+  - agentCommentDisabled
+  properties:
+    topicId:
+      type: integer
+      format: uint64
+      minimum: 1
+    agentCommentDisabled:
+      type: boolean
+  additionalProperties: false
+
+AgentCommentTopicPolicySuccess:
+  allOf:
+  - $ref: ../components/schemas.yaml#/ApiSuccess
+  - type: object
+    properties:
+      result:
+        $ref: '#/AgentCommentTopicPolicyResult'
+
+AgentCommentTopicPolicyResponse:
+  oneOf:
+  - $ref: '#/AgentCommentTopicPolicySuccess'
+  - $ref: ../components/schemas.yaml#/ApiFailure

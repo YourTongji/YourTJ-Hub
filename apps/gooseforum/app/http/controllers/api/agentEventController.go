@@ -108,7 +108,7 @@ type AgentWebhookConfigReq struct {
 	AgentID         uint64   `json:"agentId" validate:"required"`
 	ConfigVersion   uint64   `json:"configVersion"`
 	EventsEnabled   bool     `json:"eventsEnabled"`
-	EventTypes      []string `json:"eventTypes" validate:"max=3"`
+	EventTypes      []string `json:"eventTypes" validate:"max=5"`
 	WebhookEnabled  bool     `json:"webhookEnabled"`
 	WebhookEndpoint string   `json:"webhookEndpoint" validate:"max=512"`
 }

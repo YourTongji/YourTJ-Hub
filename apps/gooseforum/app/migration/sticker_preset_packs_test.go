@@ -6,8 +6,11 @@ import (
 	"testing"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/badges"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/sticker"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userBadges"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/stickerservice"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -15,7 +18,8 @@ import (
 
 func TestVersionedMigrationBackfillsPresetPacks(t *testing.T) {
 	conn := dbconnect.Connect()
-	if err := conn.AutoMigrate(&pageConfig.Entity{}, &sticker.Entity{}); err != nil {
+	// v31（机器人徽章）在其后会继续执行；提供它读取的表，避免本用例因缺表失败。
+	if err := conn.AutoMigrate(&pageConfig.Entity{}, &sticker.Entity{}, &users.EntityComplete{}, &badges.Entity{}, &userBadges.Entity{}); err != nil {
 		t.Fatal(err)
 	}
 	rows := seedLegacyPresetPacks(t, conn)
@@ -27,8 +31,8 @@ func TestVersionedMigrationBackfillsPresetPacks(t *testing.T) {
 			t.Fatal(err)
 		}
 		assertPresetPacks(t, conn, rows)
-		if got := pageConfig.GetMigrationVersion(); got != 30 {
-			t.Fatalf("migration version=%d, want 30", got)
+		if got := pageConfig.GetMigrationVersion(); got != 31 {
+			t.Fatalf("migration version=%d, want 31", got)
 		}
 	}
 }

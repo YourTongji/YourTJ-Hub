@@ -5928,6 +5928,10 @@ AdminTopicsListRequest:
       format: uint64
       minimum: 0
       description: Optional author filter; 0 or omitted lists all authors.
+    agentCommentDisabled:
+      type: boolean
+      description: Optional Agent comment policy filter; omitted lists both,
+        true lists only topics where Agent comments are banned.
   additionalProperties: false
 
 AdminTopicBase:
@@ -5971,8 +5975,11 @@ AdminTopicListItem:
   allOf:
     - $ref: '#/AdminTopicBase'
     - type: object
-      required: [username, userAvatarUrl, viewCount, replyCount, likeCount, pinWeight]
+      required: [username, userAvatarUrl, viewCount, replyCount, likeCount, pinWeight, agentCommentDisabled]
       properties:
+        agentCommentDisabled:
+          type: boolean
+          description: Whether Agent comments are banned on this topic.
         username:
           type: string
           description: Author username; empty when the author account is gone.

@@ -710,3 +710,11 @@ func TopicPostIDsTx(tx *gorm.DB, topicID uint64) ([]uint64, error) {
 	err := tx.Unscoped().Model(&Entity{}).Where("topic_id = ?", topicID).Order("id ASC").Pluck("id", &ids).Error
 	return ids, err
 }
+
+// TailAuthorIDsTx returns the author ids of the newest visible posts in a
+// topic, newest first. Agent broadcast loop detection reads only this tail.
+func TailAuthorIDsTx(tx *gorm.DB, topicID uint64, limit int) ([]uint64, error) {
+	var ids []uint64
+	err := tx.Model(&Entity{}).Where("topic_id = ?", topicID).Order("post_no DESC").Limit(limit).Pluck("user_id", &ids).Error
+	return ids, err
+}

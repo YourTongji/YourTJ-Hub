@@ -120,6 +120,9 @@ func migrateSchema() error {
 	if err = upgradePkAudienceSchema(db); err != nil {
 		return fmt.Errorf("dbconnect pk audience schema upgrade failed: %w", err)
 	}
+	if err = upgradeTopicAgentCommentPolicy(db); err != nil {
+		return fmt.Errorf("dbconnect topic agent comment policy upgrade failed: %w", err)
+	}
 	if err = db.AutoMigrate(SchemaModels()...); err != nil {
 		// 迁移失败必须上层按非零码退出，否则服务会带着残缺 schema 继续启动，
 		// 登录/注册等依赖新表的接口在运行期才会报错，故障被发现时已影响线上。
@@ -359,6 +362,24 @@ func upgradeImportRunCompositeIndex(db *gorm.DB) error {
 		}
 		slog.Info("dbconnect course_import_run legacy unique index dropped, will be recreated as (kind, manifest_hash)")
 	}
+	return nil
+}
+
+// upgradeTopicAgentCommentPolicy 为存量库补 topics.agent_comment_disabled 列
+// （管理端「Agent 评论策略」按主题禁止 Agent 评论）。全新库由 AutoMigrate 建列；
+// SQLite 存量库依赖 AutoMigrate 补列会整表重建，必须显式 ALTER TABLE。
+// 默认 false（允许 Agent 评论），存量行语义不变。
+func upgradeTopicAgentCommentPolicy(db *gorm.DB) error {
+	if !db.Migrator().HasTable(&topics.Entity{}) {
+		return nil
+	}
+	if db.Migrator().HasColumn(&topics.Entity{}, "agent_comment_disabled") {
+		return nil
+	}
+	if err := db.Exec("ALTER TABLE topics ADD COLUMN agent_comment_disabled BOOLEAN NOT NULL DEFAULT FALSE").Error; err != nil {
+		return fmt.Errorf("add topics.agent_comment_disabled column: %w", err)
+	}
+	slog.Info("dbconnect topics.agent_comment_disabled column added (default false)")
 	return nil
 }
 

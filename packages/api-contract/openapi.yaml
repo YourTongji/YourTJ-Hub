@@ -73,6 +73,12 @@ paths:
     $ref: ./paths/agent-events.yaml#/adminAgentInteractionIntents
   /api/admin/agent-interaction-replay:
     $ref: ./paths/agent-events.yaml#/adminAgentInteractionReplay
+  /api/admin/agent-comment-policy:
+    $ref: ./paths/admin-agent-comment-policy.yaml#/adminGetAgentCommentPolicy
+  /api/admin/save-agent-comment-policy:
+    $ref: ./paths/admin-agent-comment-policy.yaml#/adminSaveAgentCommentPolicy
+  /api/admin/set-agent-comment-topic-policy:
+    $ref: ./paths/admin-agent-comment-policy.yaml#/adminSetAgentCommentTopicPolicy
   /api/campus/calendar-rules:
     $ref: ./paths/campus-calendar-rules.yaml#/rules
   /api/admin/campus/calendar-rules:

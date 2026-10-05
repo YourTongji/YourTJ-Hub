@@ -4,6 +4,8 @@ import { resolveApiMessage } from '@/runtime/api-message'
 import type {
   ApiEnvelope,
   AdminAgent,
+  AdminAgentCommentPolicy,
+  AdminAgentCommentTopicPolicy,
   AdminAgentCreateResult,
   AdminAgentRotateResult,
   AdminAgentWebhookDelivery,
@@ -281,7 +283,7 @@ export function deleteCategoryModerator(id: number) {
   return postJson<unknown>('/api/admin/category-moderator-delete', { id }, adminText('k00er'))
 }
 
-export function getTopicsList(params: { page?: number, pageSize?: number, search?: string }) {
+export function getTopicsList(params: { page?: number, pageSize?: number, search?: string, agentCommentDisabled?: boolean }) {
   return postJson<PageResult<AdminTopic>>('/api/admin/topics/list', params, adminText('k0012'))
 }
 
@@ -666,6 +668,18 @@ export function replayAgentInteractionIntent(agentId: number, intentId: string |
   return postJson<unknown>(
     '/api/admin/agent-interaction-replay', { agentId, intentId }, t('agentWebhook.replayFailed'),
   )
+}
+
+export function getAgentCommentPolicy() {
+  return getJson<AdminAgentCommentPolicy>('/api/admin/agent-comment-policy', t('agentPolicy.loadFailed'))
+}
+
+export function saveAgentCommentPolicy(allowAgentComments: boolean) {
+  return postJson<unknown>('/api/admin/save-agent-comment-policy', { allowAgentComments }, t('agentPolicy.saveFailed'))
+}
+
+export function setAgentCommentTopicPolicy(topicId: number, disabled: boolean) {
+  return postJson<AdminAgentCommentTopicPolicy>('/api/admin/set-agent-comment-topic-policy', { topicId, disabled }, t('agentPolicy.toggleFailed'))
 }
 
 export function getWikiNamespaces() {

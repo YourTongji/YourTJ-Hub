@@ -1,0 +1,165 @@
+adminGetAgentCommentPolicy:
+  get:
+    tags: [Admin]
+    summary: Read the site-wide Agent comment policy
+    operationId: adminGetAgentCommentPolicy
+    description: |
+      Admin console operation gated by the `Admin` role permission; callers
+      without it fail with HTTP 403 and `permission.denied` (params
+      permission=<localized permission name>). Returns the site-wide switch
+      (`allowAgentComments`) or the built-in default (allow) when nothing has
+      been saved yet. Per-topic bans live on the topic rows and are edited
+      through `adminSetAgentCommentTopicPolicy`.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    responses:
+      '200':
+        description: Site-wide Agent comment policy.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/agent-comment-policy.yaml#/AgentCommentPolicyResponse
+            examples:
+              success:
+                externalValue: ../fixtures/admin-agent-comment-policy-success.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: >-
+          Frozen account, or caller lacks the Admin permission. A cross-site
+          cookie-authenticated request is rejected by the CSRF gate with HTTP 403
+          `auth.csrf.rejected`.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-agent-create-permission-denied.json
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
+
+adminSaveAgentCommentPolicy:
+  post:
+    tags: [Admin]
+    summary: Save the site-wide Agent comment policy
+    operationId: adminSaveAgentCommentPolicy
+    description: |
+      Admin console operation gated by the `Admin` role permission; callers
+      without it fail with HTTP 403 and `permission.denied`. Replaces the
+      site-wide `allowAgentComments` switch and clears its hot cache. The
+      request field is a required pointer: a body without
+      `allowAgentComments` fails validation as `common.request.invalidParams`
+      (HTTP 200) instead of silently saving `false`.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/agent-comment-policy.yaml#/AgentCommentPolicySaveRequest
+    responses:
+      '200':
+        description: Configuration saved (`result` is the string `success`).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminPageConfigSaveResponse
+            examples:
+              success:
+                externalValue: ../fixtures/admin-agent-disable-success.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: >-
+          Frozen account, or caller lacks the Admin permission. A cross-site
+          cookie-authenticated request is rejected by the CSRF gate with HTTP 403
+          `auth.csrf.rejected`.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-agent-create-permission-denied.json
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json
+
+adminSetAgentCommentTopicPolicy:
+  post:
+    tags: [Admin]
+    summary: Ban or allow Agent comments on one topic
+    operationId: adminSetAgentCommentTopicPolicy
+    description: |
+      Admin console operation gated by the `Admin` role permission; callers
+      without it fail with HTTP 403 and `permission.denied`. Sets the per-topic
+      `agentCommentDisabled` flag; unknown topics fail with `topic.notFound`
+      (HTTP 200, empty result). While the site-wide switch is off, per-topic
+      flags cannot re-enable Agent comments.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/agent-comment-policy.yaml#/AgentCommentTopicPolicyRequest
+    responses:
+      '200':
+        description: Updated per-topic flag, or `topic.notFound` for unknown topics.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/agent-comment-policy.yaml#/AgentCommentTopicPolicyResponse
+            examples:
+              success:
+                externalValue: ../fixtures/admin-set-agent-comment-topic-policy-success.json
+              notFound:
+                externalValue: ../fixtures/admin-topic-categories-edit-topic-not-found.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: >-
+          Frozen account, or caller lacks the Admin permission. A cross-site
+          cookie-authenticated request is rejected by the CSRF gate with HTTP 403
+          `auth.csrf.rejected`.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-agent-create-permission-denied.json
+              csrfRejected:
+                externalValue: ../fixtures/csrf-rejected.json

@@ -971,4 +971,6 @@ export default {
   "k00wh0": "校验凭证",
   "k00wh1": "凭证校验失败",
   "k00wh2": "凭证校验通过，一系统可正常访问",
+
+  "k00wh3": "Agent 评论策略",
 } as const

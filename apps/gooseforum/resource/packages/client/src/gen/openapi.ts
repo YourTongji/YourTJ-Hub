@@ -224,6 +224,80 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/agent-comment-policy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the site-wide Agent comment policy
+         * @description Admin console operation gated by the `Admin` role permission; callers
+         *     without it fail with HTTP 403 and `permission.denied` (params
+         *     permission=<localized permission name>). Returns the site-wide switch
+         *     (`allowAgentComments`) or the built-in default (allow) when nothing has
+         *     been saved yet. Per-topic bans live on the topic rows and are edited
+         *     through `adminSetAgentCommentTopicPolicy`.
+         */
+        get: operations["adminGetAgentCommentPolicy"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/save-agent-comment-policy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Save the site-wide Agent comment policy
+         * @description Admin console operation gated by the `Admin` role permission; callers
+         *     without it fail with HTTP 403 and `permission.denied`. Replaces the
+         *     site-wide `allowAgentComments` switch and clears its hot cache. The
+         *     request field is a required pointer: a body without
+         *     `allowAgentComments` fails validation as `common.request.invalidParams`
+         *     (HTTP 200) instead of silently saving `false`.
+         */
+        post: operations["adminSaveAgentCommentPolicy"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/set-agent-comment-topic-policy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ban or allow Agent comments on one topic
+         * @description Admin console operation gated by the `Admin` role permission; callers
+         *     without it fail with HTTP 403 and `permission.denied`. Sets the per-topic
+         *     `agentCommentDisabled` flag; unknown topics fail with `topic.notFound`
+         *     (HTTP 200, empty result). While the site-wide switch is off, per-topic
+         *     flags cannot re-enable Agent comments.
+         */
+        post: operations["adminSetAgentCommentTopicPolicy"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/campus/calendar-rules": {
         parameters: {
             query?: never;
@@ -9794,6 +9868,8 @@ export interface components {
              * @description Optional author filter; 0 or omitted lists all authors.
              */
             userId?: number;
+            /** @description Optional Agent comment policy filter; omitted lists both, true lists only topics where Agent comments are banned. */
+            agentCommentDisabled?: boolean;
         };
         AdminTopicBase: {
             /** Format: uint64 */
@@ -9817,6 +9893,8 @@ export interface components {
             updatedAt: string;
         };
         AdminTopicListItem: components["schemas"]["AdminTopicBase"] & {
+            /** @description Whether Agent comments are banned on this topic. */
+            agentCommentDisabled: boolean;
             /** @description Author username; empty when the author account is gone. */
             username: string;
             /** @description Author's current nickname; omitted when the user has none. */
@@ -12680,8 +12758,8 @@ export interface components {
             /** Format: uint64 */
             actorId: number;
             /** @enum {string} */
-            actorType: "human";
-            reasons: ("post_reply" | "mention" | "comment")[];
+            actorType: "human" | "bot";
+            reasons: ("post_reply" | "mention" | "comment" | "topic_created" | "post_created")[];
             url: string;
         };
         AgentEvent: {
@@ -12690,7 +12768,7 @@ export interface components {
             /** @constant */
             schemaVersion: 1;
             /** @enum {string} */
-            type: "agent.mentioned" | "agent.post_replied" | "agent.topic_commented";
+            type: "agent.mentioned" | "agent.post_replied" | "agent.topic_commented" | "forum.topic_created" | "forum.post_created";
             /** Format: date-time */
             occurredAt: string;
             /** Format: uint64 */
@@ -12743,7 +12821,7 @@ export interface components {
             agentId: number;
             configVersion?: number;
             eventsEnabled?: boolean;
-            eventTypes?: ("agent.mentioned" | "agent.post_replied" | "agent.topic_commented")[];
+            eventTypes?: ("agent.mentioned" | "agent.post_replied" | "agent.topic_commented" | "forum.topic_created" | "forum.post_created")[];
             webhookEnabled?: boolean;
             webhookEndpoint?: string;
         };
@@ -12901,6 +12979,32 @@ export interface components {
             agentId: number;
             intentId: string;
         };
+        AgentCommentPolicy: {
+            /** @description 全站是否允许 Agent（机器人账号）发表评论。按主题的禁止标记 存放在主题的 agentCommentDisabled 字段。 */
+            allowAgentComments: boolean;
+        };
+        AgentCommentPolicySuccess: components["schemas"]["ApiSuccess"] & {
+            result?: components["schemas"]["AgentCommentPolicy"];
+        };
+        AgentCommentPolicyResponse: components["schemas"]["AgentCommentPolicySuccess"] | components["schemas"]["ApiFailure"];
+        AgentCommentPolicySaveRequest: {
+            allowAgentComments: boolean;
+        };
+        AgentCommentTopicPolicyRequest: {
+            /** Format: uint64 */
+            topicId: number;
+            /** @description true 表示该主题禁止 Agent 评论；false 恢复允许。 */
+            disabled: boolean;
+        };
+        AgentCommentTopicPolicyResult: {
+            /** Format: uint64 */
+            topicId: number;
+            agentCommentDisabled: boolean;
+        };
+        AgentCommentTopicPolicySuccess: components["schemas"]["ApiSuccess"] & {
+            result?: components["schemas"]["AgentCommentTopicPolicyResult"];
+        };
+        AgentCommentTopicPolicyResponse: components["schemas"]["AgentCommentTopicPolicySuccess"] | components["schemas"]["ApiFailure"];
         TongjiRegistrationStatus: {
             csrfToken: string;
             email: string;
@@ -13998,6 +14102,128 @@ export interface operations {
                 };
             };
             /** @description Admin role required. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminGetAgentCommentPolicy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Site-wide Agent comment policy. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentCommentPolicyResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the Admin permission. A cross-site cookie-authenticated request is rejected by the CSRF gate with HTTP 403 `auth.csrf.rejected`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminSaveAgentCommentPolicy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgentCommentPolicySaveRequest"];
+            };
+        };
+        responses: {
+            /** @description Configuration saved (`result` is the string `success`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminPageConfigSaveResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the Admin permission. A cross-site cookie-authenticated request is rejected by the CSRF gate with HTTP 403 `auth.csrf.rejected`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminSetAgentCommentTopicPolicy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgentCommentTopicPolicyRequest"];
+            };
+        };
+        responses: {
+            /** @description Updated per-topic flag, or `topic.notFound` for unknown topics. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentCommentTopicPolicyResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the Admin permission. A cross-site cookie-authenticated request is rejected by the CSRF gate with HTTP 403 `auth.csrf.rejected`. */
             403: {
                 headers: {
                     [name: string]: unknown;

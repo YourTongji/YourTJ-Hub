@@ -25,6 +25,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userStatistics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/agentcommentservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/agenteventservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/agentwriteservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/contentdeleteservice"
@@ -716,6 +717,11 @@ func createPost(req component.BetterRequest[CreatePostReq], agent bool) componen
 		}
 		if cached != nil {
 			return agentReplayResponse(req.UserId, cached)
+		}
+		// 幂等重放先于策略检查：已提交的成功写不受后续策略变更影响；
+		// 新写入则在此按全站开关与主题标记拒绝。
+		if !agentcommentservice.AllowsAgentComment(topicEntity) {
+			return agentWriteFailure(agentcommentservice.ErrAgentCommentDisabled)
 		}
 	}
 	pendingReview, _, policyErr := checkContentPolicy(req.UserId, content, "post", 0)

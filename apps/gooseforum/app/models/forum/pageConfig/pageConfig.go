@@ -49,6 +49,7 @@ const (
 	SiteChrome          = `siteChrome`
 	RateLimitSettings   = `rateLimitSettings`
 	MCPSettings         = `mcpSettings`
+	AgentCommentPolicy  = `agentCommentPolicy`
 	AiSummarySettings   = `aiSummarySettings`
 	AiModerationPage    = `aiModerationSettings` // issue #975 AI 图文审查配置（密钥只落密文）
 	OneSystemSettings   = `onesystemSettings`
@@ -709,6 +710,12 @@ type HttpNotifyConfigInput struct {
 type MCPSettingsConfig struct {
 	Enabled bool `json:"enabled"` // /mcp 端点总开关
 	Writes  bool `json:"writes"`  // 写工具（create_topic / create_post）开关
+}
+
+// AgentCommentPolicyConfig 站点级 Agent 评论策略，可在管理面板热修改。
+// 按主题的禁止标记存放在 topics.agent_comment_disabled。
+type AgentCommentPolicyConfig struct {
+	AllowAgentComments bool `json:"allowAgentComments"` // 全局允许 Agent 发表评论
 }
 
 // 节次作息编号体系标识：写入侧（默认值/管理端保存）恒为 ScheduleNumberingCurrent，

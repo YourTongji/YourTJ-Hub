@@ -108,6 +108,9 @@ func BeginTx(ctx context.Context, tx *gorm.DB, agentID uint64) (reservation, rep
 			return nil, nil, agenteventservice.ErrInaccessible
 		}
 	}
+	// 「Agent 评论策略」在控制器层（REST 与 MCP 共用的 createPost 入口）校验：
+	// 全局开关是热配置，其冷加载会另开连接读库，不能在事务内执行
+	// （单连接池的 SQLite 部署会自锁）。
 	if err = users.LockInteractionUserIDs(tx, []uint64{agentID}); err != nil {
 		return nil, nil, err
 	}

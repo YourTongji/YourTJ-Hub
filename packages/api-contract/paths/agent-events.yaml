@@ -20,6 +20,8 @@ agentListEvents:
             examples:
               list:
                 externalValue: ../fixtures/agent-events-list.json
+              broadcast:
+                externalValue: ../fixtures/agent-events-broadcast.json
               reset:
                 externalValue: ../fixtures/agent-events-reset.json
               expired:

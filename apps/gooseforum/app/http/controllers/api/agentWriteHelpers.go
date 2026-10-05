@@ -9,6 +9,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/agentcommentservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/agenteventservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/agentservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/agentwriteservice"
@@ -26,6 +27,8 @@ func agentWriteFailure(err error) component.Response {
 		return agentWriteAuthFailure()
 	case errors.Is(err, users.ErrInteractionBlocked):
 		return agentEventFailure(agenteventservice.ErrInaccessible)
+	case errors.Is(err, agentcommentservice.ErrAgentCommentDisabled):
+		return component.FailResponseCode(component.MessageTopicAgentCommentDisabled, nil)
 	default:
 		return agentEventFailure(err)
 	}

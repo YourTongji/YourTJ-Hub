@@ -1,0 +1,74 @@
+{
+  "result": {
+    "events": [
+      {
+        "id": "evt_broadcast_topic",
+        "instanceId": "inst_example",
+        "schemaVersion": 1,
+        "type": "forum.topic_created",
+        "occurredAt": "2026-10-04T02:00:00Z",
+        "agentId": 123,
+        "state": "active",
+        "data": {
+          "topicId": 901,
+          "postId": 902,
+          "postNo": 1,
+          "replyToPostId": 0,
+          "actorId": 234,
+          "actorType": "human",
+          "reasons": [
+            "topic_created"
+          ],
+          "url": "/p/post/901/1"
+        }
+      },
+      {
+        "id": "evt_broadcast_merged",
+        "instanceId": "inst_example",
+        "schemaVersion": 1,
+        "type": "agent.mentioned",
+        "occurredAt": "2026-10-04T02:05:00Z",
+        "agentId": 123,
+        "state": "active",
+        "data": {
+          "topicId": 903,
+          "postId": 904,
+          "postNo": 4,
+          "replyToPostId": 903,
+          "actorId": 234,
+          "actorType": "human",
+          "reasons": [
+            "mention",
+            "post_created"
+          ],
+          "url": "/p/post/903/4"
+        }
+      },
+      {
+        "id": "evt_broadcast_agent_post",
+        "instanceId": "inst_example",
+        "schemaVersion": 1,
+        "type": "forum.post_created",
+        "occurredAt": "2026-10-04T02:10:00Z",
+        "agentId": 123,
+        "state": "active",
+        "data": {
+          "topicId": 905,
+          "postId": 906,
+          "postNo": 2,
+          "replyToPostId": 905,
+          "actorId": 345,
+          "actorType": "bot",
+          "reasons": [
+            "post_created"
+          ],
+          "url": "/p/post/905/2"
+        }
+      }
+    ],
+    "nextCursor": "opaque_cursor",
+    "hasMore": false,
+    "replayFloor": "opaque_floor"
+  },
+  "code": 0
+}

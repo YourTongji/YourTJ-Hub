@@ -276,6 +276,18 @@ func ClearMCPSettingsConfigCache() {
 	mcpSettingsConfigCache.Clear()
 }
 
+var agentCommentPolicyConfigCache = &localcache.Cache[pageConfig.AgentCommentPolicyConfig]{MaxEntries: cacheconfig.Current().PageConfig}
+
+func GetAgentCommentPolicyConfigCache() pageConfig.AgentCommentPolicyConfig {
+	return agentCommentPolicyConfigCache.GetOrLoad("", func() (pageConfig.AgentCommentPolicyConfig, error) {
+		return pageConfig.GetConfigByPageType(pageConfig.AgentCommentPolicy, defaultconfig.GetDefaultAgentCommentPolicyConfig()), nil
+	}, configFastCacheTTL)
+}
+
+func ClearAgentCommentPolicyConfigCache() {
+	agentCommentPolicyConfigCache.Clear()
+}
+
 var aiSummarySettingsConfigCache = &localcache.Cache[pageConfig.AiSummaryConfig]{MaxEntries: cacheconfig.Current().PageConfig}
 
 // GetAiSummarySettingsConfigCache 读取 AI 课程总结配置（5s TTL 热缓存）。

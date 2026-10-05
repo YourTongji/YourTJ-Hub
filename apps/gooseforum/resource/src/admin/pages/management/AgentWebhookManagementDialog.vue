@@ -18,6 +18,8 @@ const eventOptions = [
   { value: 'agent.mentioned', label: 'agentWebhook.mentioned' },
   { value: 'agent.post_replied', label: 'agentWebhook.postReplied' },
   { value: 'agent.topic_commented', label: 'agentWebhook.topicCommented' },
+  { value: 'forum.topic_created', label: 'agentWebhook.topicCreated' },
+  { value: 'forum.post_created', label: 'agentWebhook.postCreated' },
 ] as const
 
 const currentAgent = ref<AdminAgent | null>(null)

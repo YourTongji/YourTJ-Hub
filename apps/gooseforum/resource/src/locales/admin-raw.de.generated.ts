@@ -971,4 +971,6 @@ export default {
   "k00wh0": "Anmeldedaten prüfen",
   "k00wh1": "Prüfung der Anmeldedaten fehlgeschlagen",
   "k00wh2": "Anmeldedaten gültig, OneSystem erreichbar",
+
+  "k00wh3": "Agent-Kommentarrichtlinie",
 } as const

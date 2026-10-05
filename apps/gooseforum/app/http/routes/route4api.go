@@ -498,7 +498,10 @@ func apiRoute(ginApp *gin.Engine) {
 		POST("agent-webhook-deliveries", UpButterReq(api.AgentWebhookDeliveries)).
 		POST("agent-webhook-redeliver", middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.AgentWebhookRedeliver)).
 		POST("agent-interaction-intents", UpButterReq(api.AgentInteractionIntents)).
-		POST("agent-interaction-replay", middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.AgentInteractionReplay))
+		POST("agent-interaction-replay", middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.AgentInteractionReplay)).
+		GET("agent-comment-policy", UpButterReq(api.GetAgentCommentPolicy)).
+		POST("save-agent-comment-policy", UpButterReq(api.SaveAgentCommentPolicy)).
+		POST("set-agent-comment-topic-policy", UpButterReq(api.SetAgentCommentTopicPolicy))
 
 	adminApi.Group("", middleware.CheckPermission(permission.PageManager)).
 		GET("friend-links", UpButterReq(api.GetFriendLinks)).

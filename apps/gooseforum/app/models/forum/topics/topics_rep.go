@@ -343,6 +343,8 @@ type AdminPageQuery struct {
 	Page, PageSize int
 	Search         string
 	UserId         uint64
+	// AgentCommentDisabled 非空时按「Agent 评论策略」标记过滤（管理面板用）。
+	AgentCommentDisabled *bool
 }
 
 type ModerationPageQuery struct {
@@ -420,6 +422,9 @@ func PageForAdmin(q AdminPageQuery) struct {
 	}
 	if q.UserId != 0 {
 		b.Where(queryopt.Eq("user_id", q.UserId))
+	}
+	if q.AgentCommentDisabled != nil {
+		b.Where(queryopt.Eq("agent_comment_disabled", *q.AgentCommentDisabled))
 	}
 	b.Limit(queryLimit).Offset(q.PageSize * q.Page).Order(queryopt.Desc("pin_weight")).Order(queryopt.Desc("updated_at")).Order(queryopt.Desc("id")).Find(&list)
 	hasNext := len(list) > q.PageSize
@@ -547,6 +552,13 @@ func ResetPendingReview(id uint64) error {
 func UpdatePinWeight(id uint64, pinWeight int) error {
 	return builder().Where(queryopt.Eq("id", id)).Updates(map[string]any{
 		"pin_weight": pinWeight,
+	}).Error
+}
+
+// UpdateAgentCommentDisabled 管理端「Agent 评论策略」按主题启停 Agent 评论。
+func UpdateAgentCommentDisabled(id uint64, disabled bool) error {
+	return builder().Where(queryopt.Eq("id", id)).Updates(map[string]any{
+		"agent_comment_disabled": disabled,
 	}).Error
 }
 

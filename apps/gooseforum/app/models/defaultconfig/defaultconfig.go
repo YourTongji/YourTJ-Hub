@@ -33,6 +33,7 @@ type pageConfigDefaults struct {
 	RateLimit    pageConfig.RateLimitConfig
 	MCP          pageConfig.MCPSettingsConfig
 	AiSummary    pageConfig.AiSummaryConfig
+	AgentComment pageConfig.AgentCommentPolicyConfig
 }
 
 var loadPageConfigDefaults = sync.OnceValues(func() (pageConfigDefaults, error) {
@@ -77,6 +78,9 @@ var loadPageConfigDefaults = sync.OnceValues(func() (pageConfigDefaults, error) 
 		return defaults, err
 	}
 	if err := loadJSON("ai_summary.json", &defaults.AiSummary); err != nil {
+		return defaults, err
+	}
+	if err := loadJSON("agent_comment_policy.json", &defaults.AgentComment); err != nil {
 		return defaults, err
 	}
 	return defaults, nil
@@ -155,6 +159,11 @@ func GetDefaultRateLimitConfig() pageConfig.RateLimitConfig {
 
 func GetDefaultMCPSettingsConfig() pageConfig.MCPSettingsConfig {
 	return mustPageConfigDefaults().MCP
+}
+
+// GetDefaultAgentCommentPolicyConfig 未保存过策略时回显内置默认（允许 Agent 评论）。
+func GetDefaultAgentCommentPolicyConfig() pageConfig.AgentCommentPolicyConfig {
+	return mustPageConfigDefaults().AgentComment
 }
 
 // GetDefaultScheduleSettingsConfig 排课器节次作息表默认值（现行 11 节制：

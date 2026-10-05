@@ -49,13 +49,14 @@ type Entity struct {
 	PostNo                 uint64     `gorm:"not null" json:"-"`
 	ReplyToPostID          uint64     `gorm:"not null" json:"-"`
 	ActorID                uint64     `gorm:"not null" json:"-"`
+	ActorType              string     `gorm:"size:16;not null;default:'human'" json:"-"`
 	Reasons                []string   `gorm:"type:text;serializer:json;not null" json:"-"`
 	OccurredAt             time.Time  `gorm:"not null" json:"occurredAt"`
 	ExpiresAt              time.Time  `gorm:"not null;index" json:"expiresAt"`
 	AckedAt                *time.Time `json:"ackedAt,omitempty"`
 	WithdrawnAt            *time.Time `json:"withdrawnAt,omitempty"`
 	ResultingTopicID       uint64     `gorm:"not null;default:0" json:"resultingTopicId,omitempty"`
-	ResultingPostID        uint64     `gorm:"not null;default:0" json:"resultingPostId,omitempty"`
+	ResultingPostID        uint64     `gorm:"not null;default:0;index" json:"resultingPostId,omitempty"`
 }
 
 func (Entity) TableName() string { return "agent_events" }

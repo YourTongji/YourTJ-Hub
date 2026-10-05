@@ -15,6 +15,7 @@ AgentEventData:
       type: string
       enum:
       - human
+      - bot
     reasons:
       type: array
       items:
@@ -23,6 +24,8 @@ AgentEventData:
         - post_reply
         - mention
         - comment
+        - topic_created
+        - post_created
     url:
       type: string
   required:
@@ -52,6 +55,8 @@ AgentEvent:
       - agent.mentioned
       - agent.post_replied
       - agent.topic_commented
+      - forum.topic_created
+      - forum.post_created
     occurredAt:
       type: string
       format: date-time
@@ -191,7 +196,7 @@ AgentWebhookConfigRequest:
       items:
         type: string
         enum: *id003
-      maxItems: 3
+      maxItems: 5
     webhookEnabled: *id002
     webhookEndpoint:
       type: string

@@ -30,6 +30,14 @@ const Retention = 7 * 24 * time.Hour
 const TaskType = "agent-interaction.materialize"
 const MaxMentionRecipients = 20
 
+// MaxBroadcastDepth bounds event-driven Agent chains: a post answering an
+// event deeper than this many hops is not broadcast again.
+const MaxBroadcastDepth = 3
+
+// MaxConsecutiveBotPosts suppresses broadcasts once a topic's newest posts are
+// all Agent-authored, which stops loops that ignore sourceEventId.
+const MaxConsecutiveBotPosts = 5
+
 type Error struct {
 	Code        string `json:"code"`
 	ReplayFloor string `json:"replayFloor,omitempty"`
@@ -183,44 +191,51 @@ func CapturePublicTx(tx *gorm.DB, post *posts.Entity) error {
 	if err != nil {
 		return err
 	}
-	if actor.ActorType != users.ActorTypeHuman || actor.IsFrozen != users.StatusNormal {
+	if actor.IsFrozen != users.StatusNormal {
 		return nil
 	}
-	currentIDs, err := users.ResolveMentionIDsTx(tx, rev.Content, p.UserId, MaxMentionRecipients)
-	if err != nil {
-		return err
-	}
-	old := map[uint64]bool{}
-	if previous > 0 {
-		oldRev, err := postRevisions.VersionTx(tx, p.Id, previous)
-		if err != nil {
-			return err
-		}
-		ids, err := users.ResolveMentionIDsTx(tx, oldRev.Content, p.UserId, 0)
-		if err != nil {
-			return err
-		}
-		for _, id := range ids {
-			old[id] = true
-		}
-	}
 	reasons := map[uint64][]string{}
-	if previous == 0 && p.PostNo > 1 && p.ReplyToPostId != 0 {
-		parent, err := posts.GetCurrentTx(tx, p.ReplyToPostId)
-		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+	if actor.ActorType == users.ActorTypeHuman {
+		// Directed interaction reasons stay human-only; Agent-authored content
+		// reaches Agents only through explicit broadcast subscriptions.
+		currentIDs, err := users.ResolveMentionIDsTx(tx, rev.Content, p.UserId, MaxMentionRecipients)
+		if err != nil {
 			return err
 		}
-		if err == nil && parent.TopicId == p.TopicId && !parent.IsAnonymous && !parent.DeletedAt.Valid && parent.VisibilityStatus == posts.VisibilityActive && parent.ProcessStatus == posts.ProcessStatusNormal {
-			reasons[parent.UserId] = append(reasons[parent.UserId], "post_reply")
+		old := map[uint64]bool{}
+		if previous > 0 {
+			oldRev, err := postRevisions.VersionTx(tx, p.Id, previous)
+			if err != nil {
+				return err
+			}
+			ids, err := users.ResolveMentionIDsTx(tx, oldRev.Content, p.UserId, 0)
+			if err != nil {
+				return err
+			}
+			for _, id := range ids {
+				old[id] = true
+			}
+		}
+		if previous == 0 && p.PostNo > 1 && p.ReplyToPostId != 0 {
+			parent, err := posts.GetCurrentTx(tx, p.ReplyToPostId)
+			if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+				return err
+			}
+			if err == nil && parent.TopicId == p.TopicId && !parent.IsAnonymous && !parent.DeletedAt.Valid && parent.VisibilityStatus == posts.VisibilityActive && parent.ProcessStatus == posts.ProcessStatusNormal {
+				reasons[parent.UserId] = append(reasons[parent.UserId], "post_reply")
+			}
+		}
+		for _, id := range currentIDs {
+			if !old[id] {
+				reasons[id] = append(reasons[id], "mention")
+			}
+		}
+		if previous == 0 && p.PostNo > 1 {
+			reasons[t.UserId] = append(reasons[t.UserId], "comment")
 		}
 	}
-	for _, id := range currentIDs {
-		if !old[id] {
-			reasons[id] = append(reasons[id], "mention")
-		}
-	}
-	if previous == 0 && p.PostNo > 1 {
-		reasons[t.UserId] = append(reasons[t.UserId], "comment")
+	if err := appendBroadcastReasonsTx(tx, reasons, p, previous); err != nil {
+		return err
 	}
 	ids := make([]uint64, 0, len(reasons))
 	for id := range reasons {
@@ -292,9 +307,142 @@ func eventType(reason string) string {
 		return "agent.post_replied"
 	case "mention":
 		return "agent.mentioned"
+	case "topic_created":
+		return "forum.topic_created"
+	case "post_created":
+		return "forum.post_created"
 	default:
 		return "agent.topic_commented"
 	}
+}
+
+func isBroadcastReason(reason string) bool {
+	return reason == "topic_created" || reason == "post_created"
+}
+
+func broadcastOnly(reasons []string) bool {
+	if len(reasons) == 0 {
+		return false
+	}
+	for _, reason := range reasons {
+		if !isBroadcastReason(reason) {
+			return false
+		}
+	}
+	return true
+}
+
+func dropBroadcastReasons(reasons []string) []string {
+	kept := make([]string, 0, len(reasons))
+	for _, reason := range reasons {
+		if !isBroadcastReason(reason) {
+			kept = append(kept, reason)
+		}
+	}
+	return kept
+}
+
+func intentBroadcastOnly(i agentEvents.Intent) bool {
+	if len(i.Recipients) == 0 {
+		return false
+	}
+	for _, recipient := range i.Recipients {
+		if !broadcastOnly(recipient.Reasons) {
+			return false
+		}
+	}
+	return true
+}
+
+func actorTypeLabel(actorType int8) string {
+	if actorType == users.ActorTypeBot {
+		return "bot"
+	}
+	return "human"
+}
+
+// appendBroadcastReasonsTx adds the forum-wide types to every enabled Agent
+// subscription. Directed reasons are appended first so an interaction keeps its
+// more specific type when both apply to the same Agent.
+func appendBroadcastReasonsTx(tx *gorm.DB, reasons map[uint64][]string, p posts.Entity, previous uint64) error {
+	if previous != 0 {
+		return nil
+	}
+	reason := "post_created"
+	if p.PostNo == 1 {
+		reason = "topic_created"
+	}
+	subscribers, err := agents.ListEnabledTx(tx)
+	if err != nil {
+		return err
+	}
+	for _, subscriber := range subscribers {
+		if subscriber.UserId == 0 || subscriber.UserId == p.UserId {
+			continue
+		}
+		reasons[subscriber.UserId] = append(reasons[subscriber.UserId], reason)
+	}
+	return nil
+}
+
+// botBroadcastAllowedTx bounds event-driven Agent chatter. A post answering an
+// event deeper than MaxBroadcastDepth hops is not broadcast again, and neither
+// is a post that extends a run of MaxConsecutiveBotPosts Agent posts in its
+// topic; both rules together break chains even when a client ignores
+// sourceEventId.
+func botBroadcastAllowedTx(tx *gorm.DB, instanceID string, p posts.Entity) (bool, error) {
+	parent, found, err := agentEvents.ResultingEventForPostTx(tx, instanceID, p.Id)
+	if err != nil {
+		return false, err
+	}
+	if found {
+		depth, err := chainDepthTx(tx, instanceID, parent, MaxBroadcastDepth)
+		if err != nil {
+			return false, err
+		}
+		if depth+1 > MaxBroadcastDepth {
+			return false, nil
+		}
+	}
+	authorIDs, err := posts.TailAuthorIDsTx(tx, p.TopicId, MaxConsecutiveBotPosts)
+	if err != nil {
+		return false, err
+	}
+	if len(authorIDs) < MaxConsecutiveBotPosts {
+		return true, nil
+	}
+	for _, authorID := range authorIDs {
+		author, err := users.GetInteractionUserTx(tx, authorID)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return true, nil
+		}
+		if err != nil {
+			return false, err
+		}
+		if author.ActorType != users.ActorTypeBot {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// chainDepthTx walks the resulting-post links between events; withdrawn events
+// have redacted their result, which ends the walk and stays permissive.
+func chainDepthTx(tx *gorm.DB, instanceID string, event agentEvents.Entity, limit int) (int, error) {
+	depth := 0
+	current := event
+	for depth < limit {
+		parent, found, err := agentEvents.ResultingEventForPostTx(tx, instanceID, current.PostID)
+		if err != nil {
+			return 0, err
+		}
+		if !found {
+			break
+		}
+		depth++
+		current = parent
+	}
+	return depth, nil
 }
 func filterReasons(reasons []string, typesJSON string) []string {
 	var types []string
@@ -401,8 +549,16 @@ func handleTask(ctx context.Context, task *taskQueue.Entity) error {
 		if err != nil {
 			return err
 		}
-		if actor.ActorType != users.ActorTypeHuman || actor.IsFrozen != users.StatusNormal {
+		actorHuman := actor.ActorType == users.ActorTypeHuman
+		if actor.IsFrozen != users.StatusNormal || (!actorHuman && !intentBroadcastOnly(i)) {
 			return agentEvents.UpdateIntentTx(tx, i.ID, "cancelled", "actor_unavailable")
+		}
+		broadcastAllowed := true
+		if !actorHuman {
+			broadcastAllowed, err = botBroadcastAllowedTx(tx, cfg.ID, p)
+			if err != nil {
+				return err
+			}
 		}
 		targets := i.Recipients
 		sort.Slice(targets, func(a, b int) bool { return targets[a].AgentID < targets[b].AgentID })
@@ -431,6 +587,13 @@ func handleTask(ctx context.Context, task *taskQueue.Entity) error {
 			if len(allowed) == 0 {
 				continue
 			}
+			reasons := r.Reasons
+			if !broadcastAllowed {
+				reasons = dropBroadcastReasons(reasons)
+				if len(reasons) == 0 {
+					continue
+				}
+			}
 			id := stableID(i.ID, r.AgentID)
 			_, err = agentEvents.EventTx(tx, cfg.ID, r.AgentID, id)
 			if err == nil {
@@ -443,7 +606,7 @@ func handleTask(ctx context.Context, task *taskQueue.Entity) error {
 			if err != nil {
 				return err
 			}
-			e := agentEvents.Entity{ID: id, InstanceID: cfg.ID, AgentID: r.AgentID, Seq: seq, SourceIntentID: i.ID, SubscriptionGeneration: r.SubscriptionGeneration, Type: eventType(r.Reasons[0]), TopicID: t.Id, PostID: p.Id, PostNo: p.PostNo, ReplyToPostID: p.ReplyToPostId, ActorID: i.ActorID, Reasons: r.Reasons, OccurredAt: i.CreatedAt, ExpiresAt: i.ExpiresAt}
+			e := agentEvents.Entity{ID: id, InstanceID: cfg.ID, AgentID: r.AgentID, Seq: seq, SourceIntentID: i.ID, SubscriptionGeneration: r.SubscriptionGeneration, Type: eventType(reasons[0]), TopicID: t.Id, PostID: p.Id, PostNo: p.PostNo, ReplyToPostID: p.ReplyToPostId, ActorID: i.ActorID, ActorType: actorTypeLabel(actor.ActorType), Reasons: reasons, OccurredAt: i.CreatedAt, ExpiresAt: i.ExpiresAt}
 			if err := agentEvents.CreateEventTx(tx, &e); err != nil {
 				return err
 			}
@@ -467,7 +630,11 @@ func Envelope(e agentEvents.Entity) Event {
 		out.State = "expired"
 		return out
 	}
-	out.Data = &EventData{TopicID: e.TopicID, PostID: e.PostID, PostNo: e.PostNo, ReplyToPostID: e.ReplyToPostID, ActorID: e.ActorID, ActorType: "human", Reasons: e.Reasons, URL: fmt.Sprintf("/p/post/%d/%d", e.TopicID, e.PostNo)}
+	actorType := e.ActorType
+	if actorType == "" {
+		actorType = "human"
+	}
+	out.Data = &EventData{TopicID: e.TopicID, PostID: e.PostID, PostNo: e.PostNo, ReplyToPostID: e.ReplyToPostID, ActorID: e.ActorID, ActorType: actorType, Reasons: e.Reasons, URL: fmt.Sprintf("/p/post/%d/%d", e.TopicID, e.PostNo)}
 	return out
 }
 
@@ -488,7 +655,7 @@ func ValidateEventTx(tx *gorm.DB, e *agentEvents.Entity) error {
 	if err != nil {
 		return err
 	}
-	if actor.ActorType != users.ActorTypeHuman || actor.IsFrozen != users.StatusNormal {
+	if actor.IsFrozen != users.StatusNormal || (actor.ActorType != users.ActorTypeHuman && !broadcastOnly(e.Reasons)) {
 		return ErrInaccessible
 	}
 	if err := users.CheckInteractionAllowed(tx, e.ActorID, e.AgentID); err != nil {

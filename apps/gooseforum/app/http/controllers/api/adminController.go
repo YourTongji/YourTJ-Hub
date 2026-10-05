@@ -439,6 +439,8 @@ type TopicsListReq struct {
 	PageSize int    `form:"pageSize"`
 	Search   string `form:"search"`
 	UserId   uint64 `form:"userId"`
+	// AgentCommentDisabled 非空时按「Agent 评论策略」标记过滤（管理面板用）。
+	AgentCommentDisabled *bool `form:"agentCommentDisabled"`
 }
 
 type TopicAdminBaseVo struct {
@@ -463,6 +465,8 @@ type TopicInfoAdminVo struct {
 	ReplyCount    uint64 `json:"replyCount"`
 	LikeCount     uint64 `json:"likeCount"`
 	PinWeight     int    `json:"pinWeight"`
+	// AgentCommentDisabled 该主题是否禁止 Agent 评论（Agent 评论策略面板）。
+	AgentCommentDisabled bool `json:"agentCommentDisabled"`
 }
 
 type TopicSourceReq struct {
@@ -476,7 +480,7 @@ type TopicSourceVo struct {
 
 func TopicsList(req component.BetterRequest[TopicsListReq]) component.Response {
 	param := req.Params
-	pageData := topics.PageForAdmin(topics.AdminPageQuery{Page: max(param.Page, 1), PageSize: param.PageSize, Search: param.Search, UserId: param.UserId})
+	pageData := topics.PageForAdmin(topics.AdminPageQuery{Page: max(param.Page, 1), PageSize: param.PageSize, Search: param.Search, UserId: param.UserId, AgentCommentDisabled: param.AgentCommentDisabled})
 	userIds := lo.Map(pageData.Data, func(t topics.Entity, _ int) uint64 {
 		return t.UserId
 	})
@@ -503,13 +507,14 @@ func TopicsList(req component.BetterRequest[TopicsListReq]) component.Response {
 					CreatedAt:     t.CreatedAt.Format(time.RFC3339),
 					UpdatedAt:     t.UpdatedAt.Format(time.RFC3339),
 				},
-				Username:      username,
-				Nickname:      nickname,
-				UserAvatarUrl: userAvatarUrl,
-				ViewCount:     t.ViewCount,
-				ReplyCount:    t.ReplyCount,
-				LikeCount:     t.LikeCount,
-				PinWeight:     t.PinWeight,
+				Username:             username,
+				Nickname:             nickname,
+				UserAvatarUrl:        userAvatarUrl,
+				ViewCount:            t.ViewCount,
+				ReplyCount:           t.ReplyCount,
+				LikeCount:            t.LikeCount,
+				PinWeight:            t.PinWeight,
+				AgentCommentDisabled: t.AgentCommentDisabled,
 			}
 		}),
 		Page:    pageData.Page,

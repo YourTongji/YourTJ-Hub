@@ -971,4 +971,6 @@ export default {
   "k00wh0": "Validate credential",
   "k00wh1": "Credential validation failed",
   "k00wh2": "Credential valid, OneSystem is reachable",
+
+  "k00wh3": "Agent comment policy",
 } as const
