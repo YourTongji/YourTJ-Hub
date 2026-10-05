@@ -1962,7 +1962,7 @@ type TestHttpNotifyEndpointReq struct {
 }
 
 // TestHttpNotifyEndpoint 用表单中的（可能未保存的）配置向单个回调地址同步发送一条
-// 测试消息，不落库、不计入失败次数（issue #1049）。地址或密钥留空时沿用同 id 端点的
+// 测试消息，不落库、不计入失败次数（issue #1049）。地址、密钥或接收目标留空时沿用同 id 端点的
 // 已存值，与保存语义一致；只在通道类型未变时沿用（飞书地址是凭据，各通道密钥含义不同）。结果在
 // 成功信封内返回，失败原因不含请求地址。
 func TestHttpNotifyEndpoint(req component.BetterRequest[TestHttpNotifyEndpointReq]) component.Response {
@@ -1981,7 +1981,7 @@ func TestHttpNotifyEndpoint(req component.BetterRequest[TestHttpNotifyEndpointRe
 		Secret:         strings.TrimSpace(input.Secret),
 		TimeoutSeconds: input.TimeoutSeconds,
 	}
-	if input.Id != "" && (endpoint.URL == "" || endpoint.Secret == "") {
+	if input.Id != "" && (endpoint.URL == "" || endpoint.Secret == "" || endpoint.Target == "") {
 		for _, stored := range hotdataserve.GetHttpNotifyConfigCache().Endpoints {
 			if stored.Id != input.Id {
 				continue
@@ -1996,6 +1996,9 @@ func TestHttpNotifyEndpoint(req component.BetterRequest[TestHttpNotifyEndpointRe
 			}
 			if endpoint.Secret == "" {
 				endpoint.Secret = stored.Secret
+			}
+			if endpoint.Target == "" {
+				endpoint.Target = stored.Target
 			}
 		}
 	}

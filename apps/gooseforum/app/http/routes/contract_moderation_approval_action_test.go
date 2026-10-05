@@ -333,6 +333,24 @@ func TestModerationApprovalActionReviewHTTPContract(t *testing.T) {
 		t.Fatalf("approved content published a review request: %d", id)
 	case <-time.After(200 * time.Millisecond):
 	}
+
+	// 目标不存在：分区版主与“不在范围内”得到同一结果（与工作台一致），全站版主看到 notFound。
+	missing := approvalBody(contractApprovalToken(t, tokenservice.ModerationActionSubjectReviewTopic, topicID+1_000_000, "approve", strconv.FormatUint(next.Id, 10), contractApprovalIssuedAt))
+	if state := approvalState(t, router, approvalPreviewPath, missing, moderator)["state"]; state != "forbidden" {
+		t.Fatalf("scoped moderator missing-target state = %v, want forbidden", state)
+	}
+	global := createHTTPContractUser(t, conn, contractTestID())
+	if err := conn.Create(&moderators.Entity{UserId: global.Id, ScopeType: moderators.ScopeGlobal, Status: moderators.StatusEnabled}).Error; err != nil {
+		t.Fatal(err)
+	}
+	moderationservice.Invalidate()
+	t.Cleanup(func() {
+		conn.Where("user_id = ?", global.Id).Delete(&moderators.Entity{})
+		moderationservice.Invalidate()
+	})
+	if state := approvalState(t, router, approvalPreviewPath, missing, global)["state"]; state != "notFound" {
+		t.Fatalf("global moderator missing-target state = %v, want notFound", state)
+	}
 }
 
 // 快捷审批确认页的查询串携带签名 token，不得进入请求日志（含未登录续跳地址）。

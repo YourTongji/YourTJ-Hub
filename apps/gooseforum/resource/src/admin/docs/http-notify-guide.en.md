@@ -147,7 +147,7 @@ The `data` of an approval event is a safe summary: titles and excerpts have cont
 }
 ```
 
-`id` is a stable approval identifier and the deduplication key: the same URL does not receive the same approval twice within 24 hours (kept in process memory; after a restart or with several instances one duplicate reminder is possible, never a missed one). A failed delivery (network error or a non-success reply) does not use up the deduplication slot, so the next publish of the same approval retries it. For pending content the `id` includes the submitted revision number, so content that is edited and sent to manual review again is notified as a new approval.
+`id` is a stable approval identifier and the deduplication key: the same URL does not receive the same approval twice within 24 hours (kept in process memory; after a restart or with several instances one duplicate reminder is possible). A failed delivery (network error or a non-success reply) does not use up the deduplication slot, so the same approval is still delivered if it is published again later. For pending content the `id` includes the submitted revision number, so content that is edited and sent to manual review again is notified as a new approval.
 
 Manual review approvals carry three more fields: `reason` is `sensitive_word` (a sensitive word matched) or `ai` (AI review was uncertain or failed); `version` is the submitted revision number; `edited` is `true` when the revision edits already published content, and the title and excerpt come from the submitted revision.
 
@@ -217,5 +217,7 @@ Action links in cards and approval payloads point to the on-site confirmation pa
 - The confirmation page is not cached, sends no Referer, and its token is not written to access logs.
 
 ### Failure protection
+
+Each notification is sent once and never retried automatically. If the receiver is unavailable, that notification is lost; this applies to every event, including approval and report alerts. Failures count toward the failure counter, and the latest error appears in the settings. Notifications are reminders only; the moderator workspace is the source of truth for pending work.
 
 If the same callback URL fails 3 times in a row, the system disables that URL and marks it abnormally stopped. Re-enable and save it to clear the failure state.

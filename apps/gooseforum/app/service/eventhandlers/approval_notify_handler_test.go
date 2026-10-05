@@ -89,6 +89,29 @@ func TestReportApprovalDeliversSpecificEventOncePerEndpoint(t *testing.T) {
 	}
 }
 
+// 审批层不认识的举报类型仍投递“全部举报”聚合事件，不静默丢弃既有订阅（reviewer nit）。
+func TestUnknownReportTargetStillDeliversAggregateEvent(t *testing.T) {
+	received := captureHttpNotify(t, httpnotifyservice.EventReportCreated)
+	if err := handleHttpNotifyReportCreated(context.Background(), &ReportCreatedEvent{
+		ReportId: 77, TargetType: "future_target", TargetId: 5, ReporterId: 9998, Reason: "spam",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	var envelope struct {
+		Event string `json:"event"`
+		Data  struct {
+			ReportID   uint64 `json:"reportId"`
+			TargetType string `json:"targetType"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(waitHttpNotify(t, received), &envelope); err != nil {
+		t.Fatal(err)
+	}
+	if envelope.Event != httpnotifyservice.EventReportCreated || envelope.Data.ReportID != 77 || envelope.Data.TargetType != "future_target" {
+		t.Fatalf("aggregate delivery = %+v", envelope)
+	}
+}
+
 // 投递失败归还去重名额：同一审批再次发布时重试，成功后才在 TTL 内去重（Oryn review）。
 func TestFailedApprovalDeliveryCanBeRetried(t *testing.T) {
 	received := captureHttpNotifyStatus(t, func(n int) int {

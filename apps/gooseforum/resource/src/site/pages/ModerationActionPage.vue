@@ -134,6 +134,12 @@ async function confirmAction() {
             </a>
           </div>
         </template>
+        <!-- 预览失败（未登录、网络错误等）时仍给出去处，从通知跳进来的版主不会困在本页 -->
+        <div v-else class="flex flex-wrap items-center gap-2 pt-2">
+          <a href="/moderation" class="gf-button gf-button-md gf-button-ghost">
+            {{ t('moderationAction.openWorkbench') }}
+          </a>
+        </div>
       </template>
     </section>
   </main>

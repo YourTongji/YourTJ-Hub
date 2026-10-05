@@ -108,6 +108,9 @@ func handleHttpNotifyReportCreated(ctx context.Context, event *ReportCreatedEven
 	}
 	approval, ok := reportApproval(event, time.Now())
 	if !ok {
+		// 没有审批摘要的举报类型（如今后新增的目标）仍投递“全部举报”聚合事件，
+		// 不因审批层不认识而静默丢弃既有订阅。
+		httpnotifyservice.Notify(httpnotifyservice.EventReportCreated, legacyReportNotifyPayload(event))
 		return nil
 	}
 	alternatives := make([]httpnotifyservice.Alternative, 0, 2)

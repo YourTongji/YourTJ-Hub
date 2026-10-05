@@ -144,7 +144,8 @@ func inspectReviewApprovalAction(userID uint64, claims tokenservice.ModerationAc
 	if err != nil || revisionID == 0 {
 		return forum.QuickActionInvalid
 	}
-	if _, _, ok := moderationReviewScope(userID); !ok {
+	global, _, ok := moderationReviewScope(userID)
+	if !ok {
 		return forum.QuickActionForbidden
 	}
 	kind := reviewKindForSubject(claims.Subject)
@@ -158,6 +159,10 @@ func inspectReviewApprovalAction(userID uint64, claims tokenservice.ModerationAc
 		topic = topics.GetSimple(post.TopicId)
 	}
 	if topic.Id == 0 || post.Id == 0 {
+		// 与工作台审核接口一致：分区版主对“不存在”和“不在范围内”得到同一结果。
+		if !global {
+			return forum.QuickActionForbidden
+		}
 		return forum.QuickActionNotFound
 	}
 	if !canReviewTarget(userID, kind, claims.ID, revisionID) {

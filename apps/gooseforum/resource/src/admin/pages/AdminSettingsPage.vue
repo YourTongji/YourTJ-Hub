@@ -682,6 +682,17 @@ function validateHttpNotify(settings: HttpNotifySettings) {
   return enabledEndpoints.every(endpoint => validateHttpEndpoint(endpoint))
 }
 
+// validateHttpEndpointUrls 全局保存按服务端全量替换端点列表，而 normalizeHttpNotify 会滤掉
+// 没有地址的端点：例如已存飞书地址（不回显，靠 urlConfigured 保留）切换通道后 URL 留空，
+// 不拦截就会连同已存凭据被静默删除。表单里的每个端点都必须有地址，不论是否启用。
+function validateHttpEndpointUrls() {
+  const missing = httpNotifyForm.endpoints.find(endpoint => !endpoint.url.trim() && !endpoint.urlConfigured)
+  if (!missing) return true
+  expandedHttpEndpoints.add(missing.id)
+  adminToast.warning(adminText('k00d3', { name: missing.name || adminText('k00cw') }))
+  return false
+}
+
 // httpEndpointProblem 返回端点配置的第一个问题（已本地化），没有问题时返回空串。
 // requireEvents=false 用于测试发送：测试不依赖订阅事件。
 function httpEndpointProblem(endpoint: HttpNotifyEndpoint, requireEvents = true) {
@@ -901,7 +912,7 @@ async function load() {
 async function save() {
   const httpNotifySettings = props.kind === 'http-notify' ? httpNotifyPayload() : null
   // 校验需要只读回显字段（飞书地址留空时依赖 urlConfigured），不能用已剥离它们的保存负载。
-  if (httpNotifySettings && !validateHttpNotify(normalizeHttpNotify(httpNotifyForm))) return
+  if (httpNotifySettings && (!validateHttpEndpointUrls() || !validateHttpNotify(normalizeHttpNotify(httpNotifyForm)))) return
   if (props.kind === 'ai-summary' && !validateAiSummary()) return
   if (props.kind === 'schedule' && !validateSchedule()) return
   if (props.kind === 'site-info' && !validateSiteInfo()) return

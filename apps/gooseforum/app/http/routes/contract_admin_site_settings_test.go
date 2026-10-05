@@ -988,6 +988,11 @@ func TestAdminTestHttpNotifyEndpointHTTPContract(t *testing.T) {
 		if got["path"] != "/send" || got["authorization"] != "Bearer bot-token" || got["umo"] != "aiocqhttp:GroupMessage:1" || !strings.HasPrefix(got["content"], "【测试】") {
 			t.Fatalf("astrbot test delivery = %v", got)
 		}
+		// SID 留空时沿用已存的接收目标，与 URL、密钥一致。
+		serveAdminSiteOK(t, conn, router, http.MethodPost, path, strings.Replace(body, `"target":"aiocqhttp:GroupMessage:1"`, `"target":""`, 1), "admin-test-http-notify-endpoint-success.json")
+		if got := <-received; got["umo"] != "old" {
+			t.Fatalf("blank target must reuse the stored session: %v", got)
+		}
 	})
 
 	t.Run("url without a host fails with a readable reason", func(t *testing.T) {
