@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
@@ -86,6 +87,40 @@ func TestReportApprovalDeliversSpecificEventOncePerEndpoint(t *testing.T) {
 	if err != nil || claims.Subject != tokenservice.ModerationActionSubjectReport || claims.ID != 101 || claims.Action != "ban" {
 		t.Fatalf("token claims = %+v err=%v", claims, err)
 	}
+}
+
+// 投递失败归还去重名额：同一审批再次发布时重试，成功后才在 TTL 内去重（Oryn review）。
+func TestFailedApprovalDeliveryCanBeRetried(t *testing.T) {
+	received := captureHttpNotifyStatus(t, func(n int) int {
+		if n == 1 {
+			return http.StatusInternalServerError
+		}
+		return http.StatusNoContent
+	}, httpnotifyservice.EventReportPostCreated)
+	approval := httpnotifyservice.ApprovalPayload{Approval: httpnotifyservice.Approval{ID: "report:retry-" + strconv.FormatInt(time.Now().UnixNano(), 10), Kind: "report", TargetType: "post"}}
+	msg := httpnotifyservice.Message{
+		Alternatives: []httpnotifyservice.Alternative{{Event: httpnotifyservice.EventReportPostCreated, Data: approval}},
+		Approval:     &approval,
+		DedupeKey:    approval.Approval.ID,
+	}
+	httpnotifyservice.Publish(msg)
+	waitHttpNotify(t, received)
+	// 第一次失败；名额在投递 goroutine 结束后归还，期间的重复发布仍被去重。
+	deadline := time.After(3 * time.Second)
+	for retried := false; !retried; {
+		httpnotifyservice.Publish(msg)
+		select {
+		case <-received:
+			retried = true
+		case <-time.After(50 * time.Millisecond):
+		case <-deadline:
+			t.Fatal("a failed approval delivery must be retried on the next publish")
+		}
+	}
+	// 第二次成功后名额保持占用。
+	time.Sleep(100 * time.Millisecond)
+	httpnotifyservice.Publish(msg)
+	expectNoMoreHttpNotify(t, received)
 }
 
 // 私信举报只给最少元数据：不含正文、举报说明、当事人身份，也没有快捷动作。

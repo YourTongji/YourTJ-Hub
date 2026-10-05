@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -22,11 +23,18 @@ import (
 // captureHttpNotify 把 HTTP 通知配置指向本地接收端，返回收到的请求体通道。
 func captureHttpNotify(t *testing.T, events ...string) <-chan []byte {
 	t.Helper()
+	return captureHttpNotifyStatus(t, func(int) int { return http.StatusNoContent }, events...)
+}
+
+// captureHttpNotifyStatus 同 captureHttpNotify，status 按第 n 次（从 1 起）请求决定响应码。
+func captureHttpNotifyStatus(t *testing.T, status func(n int) int, events ...string) <-chan []byte {
+	t.Helper()
 	received := make(chan []byte, 8)
+	var count atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, _ := io.ReadAll(r.Body)
 		received <- body
-		w.WriteHeader(http.StatusNoContent)
+		w.WriteHeader(status(int(count.Add(1))))
 	}))
 	t.Cleanup(server.Close)
 	if err := dbconnect.Connect().AutoMigrate(&pageConfig.Entity{}); err != nil {

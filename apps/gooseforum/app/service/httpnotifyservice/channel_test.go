@@ -150,6 +150,15 @@ func TestDeliveryDeduperClaimsOncePerTTL(t *testing.T) {
 	if !d.claim("ep2|report:1", now) {
 		t.Fatal("another endpoint must still receive the approval")
 	}
+	// 失败投递归还名额后可以重试；只归还自己那次登记，不删除之后的新登记。
+	d.release("ep2|report:1", now.Add(time.Second))
+	if d.claim("ep2|report:1", now.Add(time.Minute)) {
+		t.Fatal("release with a different claim time must not drop the claim")
+	}
+	d.release("ep2|report:1", now)
+	if !d.claim("ep2|report:1", now.Add(time.Minute)) {
+		t.Fatal("a released claim must allow the next delivery attempt")
+	}
 	if !d.claim("ep|report:1", now.Add(dedupeTTL)) {
 		t.Fatal("approval must be deliverable again after ttl")
 	}

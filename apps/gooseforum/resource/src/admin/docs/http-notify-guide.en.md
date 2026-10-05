@@ -19,7 +19,7 @@ Approval events (issue #1049, moderator to-dos):
 - `moderation.report.chat_message.created`: a chat message was reported
 - `moderation.report.course_review.created`: a course review was reported
 
-`moderation.report.created` remains the aggregate "all reports" event with an unchanged payload. If one URL subscribes to both the aggregate event and a specific report event, each report is delivered once, using the specific event. The publish-first AI check (still checking) is not manual review and sends nothing; a notification is sent only when the AI verdict asks for human review. A pending state for course reviews is not implemented yet (planned); only course review reports notify today.
+`moderation.report.created` remains the aggregate "all reports" event with an unchanged payload. **Scope change**: it used to fire only for topic and reply reports; chat message and course review reports now fire it too, so `targetType` can be `chat_message` or `course_review`. Existing subscribers should make sure they handle these values. If one URL subscribes to both the aggregate event and a specific report event, each report is delivered once, using the specific event. The publish-first AI check (still checking) is not manual review and sends nothing; a notification is sent only when the AI verdict asks for human review. A pending state for course reviews is not implemented yet (planned); only course review reports notify today.
 
 ### Request format
 
@@ -147,7 +147,7 @@ The `data` of an approval event is a safe summary: titles and excerpts have cont
 }
 ```
 
-`id` is a stable approval identifier and the deduplication key: the same URL does not receive the same approval twice within 24 hours (kept in process memory; after a restart one duplicate reminder is possible, never a missed one). For pending content the `id` includes the submitted revision number, so content that is edited and sent to manual review again is notified as a new approval.
+`id` is a stable approval identifier and the deduplication key: the same URL does not receive the same approval twice within 24 hours (kept in process memory; after a restart or with several instances one duplicate reminder is possible, never a missed one). A failed delivery (network error or a non-success reply) does not use up the deduplication slot, so the next publish of the same approval retries it. For pending content the `id` includes the submitted revision number, so content that is edited and sent to manual review again is notified as a new approval.
 
 Manual review approvals carry three more fields: `reason` is `sensitive_word` (a sensitive word matched) or `ai` (AI review was uncertain or failed); `version` is the submitted revision number; `edited` is `true` when the revision edits already published content, and the title and excerpt come from the submitted revision.
 
@@ -185,7 +185,7 @@ The AstrBot channel can subscribe to every event and sends all of them as plain 
 
 Each callback URL has **Send test** and **Save this URL** at the bottom of its panel:
 
-- **Send test** immediately sends one test message using the current form values (they do not need to be saved first) and shows the result next to the buttons. An empty URL or Secret reuses the value already saved for this URL. Tests ignore the master switch, the enabled state, and the subscribed events, and they never count toward the failure counter.
+- **Send test** immediately sends one test message using the current form values (they do not need to be saved first) and shows the result next to the buttons. An empty URL or Secret reuses the value already saved for this URL. Tests ignore the master switch, the enabled state, and the subscribed events, and they never count toward the failure counter. The forum server sends the test request; like real notifications, the target address is not restricted (internal addresses included), and the failure reason is shown to the admin. Only site managers can use it.
 - Generic webhooks receive a `webhook.test` event with the usual `X-Goose-*` headers and signature, so you can check your signature verification:
 
 ```json

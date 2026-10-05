@@ -96,16 +96,31 @@ func Publish(msg Message) {
 		if !ok {
 			continue
 		}
-		if msg.DedupeKey != "" && !recentDeliveries.claim(endpointKey(endpoint)+"\x00"+msg.DedupeKey, now) {
-			continue
+		dedupeKey := ""
+		if msg.DedupeKey != "" {
+			dedupeKey = endpointKey(endpoint) + "\x00" + msg.DedupeKey
+			if !recentDeliveries.claim(dedupeKey, now) {
+				continue
+			}
+		}
+		// 失败（编码、建请求、发送或对方拒收）时归还去重名额：登记不等于已送达。
+		releaseClaim := func() {
+			if dedupeKey != "" {
+				recentDeliveries.release(dedupeKey, now)
+			}
 		}
 		channel := channelFor(endpoint)
 		body, err := channel.encode(endpoint, alt, msg.Approval, now)
 		if err != nil {
 			slog.Error("httpnotify: encode payload failed", "endpoint", endpoint.Name, "event", alt.Event, "err", err)
+			releaseClaim()
 			continue
 		}
-		go deliver(endpoint, channel, alt.Event, now.Unix(), body)
+		go func() {
+			if !deliver(endpoint, channel, alt.Event, now.Unix(), body) {
+				releaseClaim()
+			}
+		}()
 	}
 }
 
@@ -154,29 +169,31 @@ func endpointKey(endpoint pageConfig.HttpNotifyEndpoint) string {
 	return "url:" + endpoint.URL
 }
 
-func deliver(endpoint pageConfig.HttpNotifyEndpoint, channel notifyChannel, eventName string, timestamp int64, body []byte) {
+// deliver 发送一次投递并记录结果，返回是否成功。
+func deliver(endpoint pageConfig.HttpNotifyEndpoint, channel notifyChannel, eventName string, timestamp int64, body []byte) bool {
 	req, err := channel.buildRequest(endpoint, eventName, deliveryID(), timestamp, body)
 	if err != nil {
 		message := deliveryErrorMessage(err)
 		slog.Error("httpnotify: build request failed", "endpoint", endpoint.Name, "event", eventName, "err", message)
 		recordDeliveryResult(endpoint, false, message)
-		return
+		return false
 	}
 	resp, err := sendRequest(req, endpointTimeout(endpoint))
 	if err != nil {
 		message := deliveryErrorMessage(err)
 		slog.Error("httpnotify: request failed", "endpoint", endpoint.Name, "event", eventName, "err", message)
 		recordDeliveryResult(endpoint, false, message)
-		return
+		return false
 	}
 	defer resp.Body.Close()
 	if err := channel.checkResponse(resp); err != nil {
 		message := deliveryErrorMessage(err)
 		slog.Warn("httpnotify: delivery rejected", "endpoint", endpoint.Name, "event", eventName, "status", resp.StatusCode, "err", message)
 		recordDeliveryResult(endpoint, false, message)
-		return
+		return false
 	}
 	recordDeliveryResult(endpoint, true, "")
+	return true
 }
 
 // maxDeliveryErrorRunes lastError 的最大长度（管理端回显与日志）。

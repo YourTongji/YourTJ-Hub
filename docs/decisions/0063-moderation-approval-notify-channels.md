@@ -51,8 +51,9 @@ Chosen: channel adapters plus a signed confirmation page.
   `moderation.report.{topic,post,chat_message,course_review}.created`) sit beside the legacy
   aggregate event. An endpoint subscribed to both receives each report once. Deliveries are
   deduplicated per endpoint and approval ID for 24 hours in process memory; a restart can repeat a
-  reminder once but never drops the first delivery. Pending content IDs include the
-  submitted revision ID.
+  reminder once but never drops the first delivery. A failed delivery releases its slot so the next
+  publish retries. Pending content IDs include the submitted revision ID. The aggregate
+  `moderation.report.created` event now also fires for chat message and course review reports.
 - Card buttons open `/moderation/action?token=…`. The token is an HMAC over subject, ID, action,
   revision ID and a 24-hour expiry, derived from the site signing key. It proves origin only.
   The page requires login, previews read-only, and executes only on an explicit POST that re-checks
