@@ -41,7 +41,19 @@ func setup(t *testing.T, pg bool) Service {
 		if err := admin.Exec("CREATE SCHEMA " + schema).Error; err != nil {
 			t.Fatal(err)
 		}
-		t.Cleanup(func() { admin.Exec("DROP SCHEMA " + schema + " CASCADE"); sql, _ := admin.DB(); sql.Close() })
+		t.Cleanup(func() {
+			if err := admin.Exec("DROP SCHEMA " + schema + " CASCADE").Error; err != nil {
+				t.Error(err)
+			}
+			sql, err := admin.DB()
+			if err != nil {
+				t.Error(err)
+				return
+			}
+			if err := sql.Close(); err != nil {
+				t.Error(err)
+			}
+		})
 		conn, err = gorm.Open(postgres.Open(dsn+" search_path="+schema), &gorm.Config{Logger: logger.Default.LogMode(logger.Silent)})
 	} else {
 		conn, err = gorm.Open(sqlite.Open("file:"+t.Name()+"?mode=memory&cache=shared&_busy_timeout=5000"), &gorm.Config{Logger: logger.Default.LogMode(logger.Silent)})
@@ -49,11 +61,18 @@ func setup(t *testing.T, pg bool) Service {
 	if err != nil {
 		t.Fatal(err)
 	}
-	sql, _ := conn.DB()
+	sql, err := conn.DB()
+	if err != nil {
+		t.Fatal(err)
+	}
 	if !pg {
 		sql.SetMaxOpenConns(1)
 	}
-	t.Cleanup(func() { sql.Close() })
+	t.Cleanup(func() {
+		if err := sql.Close(); err != nil {
+			t.Error(err)
+		}
+	})
 	if err := conn.AutoMigrate(&users.EntityComplete{}, &identity.Persona{}, &identity.Binding{}, &identity.Quota{}, &identity.Batch{}, &identity.RevealAudit{}, &rolePermissionRs.Entity{}); err != nil {
 		t.Fatal(err)
 	}
@@ -178,7 +197,10 @@ func exerciseQuota(t *testing.T, s Service) {
 	if !state.NameChangeAvailableAt.After(available) {
 		t.Fatal("rename did not lock")
 	}
-	raw, _ := json.Marshal(state.Persona)
+	raw, err := json.Marshal(state.Persona)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if strings.Contains(string(raw), "owner") || strings.Contains(string(raw), "seed") {
 		t.Fatal(string(raw))
 	}
@@ -270,11 +292,13 @@ func TestPostgreSQLGovernanceAndClosure(t *testing.T) {
 
 func TestPersistFailureRollsBackQuota(t *testing.T) {
 	s := setup(t, false)
-	s.DB.Callback().Create().Before("gorm:create").Register("fail-anonymous-batch", func(tx *gorm.DB) {
+	if err := s.DB.Callback().Create().Before("gorm:create").Register("fail-anonymous-batch", func(tx *gorm.DB) {
 		if tx.Statement.Table == (identity.Batch{}).TableName() {
-			tx.AddError(errors.New("disk failure"))
+			_ = tx.AddError(errors.New("disk failure"))
 		}
-	})
+	}); err != nil {
+		t.Fatal(err)
+	}
 	day, _ := anonymousnames.Day(s.Now())
 	if _, err := s.Generate(1, day, "persist-failure"); err == nil {
 		t.Fatal("success")
@@ -312,7 +336,9 @@ func TestRevealIsExplicitAuditedAndFailClosed(t *testing.T) {
 	if n != 1 {
 		t.Fatal(n)
 	}
-	s.DB.Migrator().DropTable(&identity.RevealAudit{})
+	if err := s.DB.Migrator().DropTable(&identity.RevealAudit{}); err != nil {
+		t.Fatal(err)
+	}
 	owner, err = s.Reveal(2, p.PublicUID, "investigation", "trace")
 	if err == nil || owner.UserID != 0 {
 		t.Fatal("disclosed despite audit failure", owner, err)
@@ -330,11 +356,13 @@ func TestGovernanceAuditFailureRollsBackBothIdentityRestrictions(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	s.DB.Callback().Create().Before("gorm:create").Register("fail-governance-audit", func(tx *gorm.DB) {
+	if err := s.DB.Callback().Create().Before("gorm:create").Register("fail-governance-audit", func(tx *gorm.DB) {
 		if tx.Statement.Table == (identity.RevealAudit{}).TableName() {
-			tx.AddError(errors.New("audit storage unavailable"))
+			_ = tx.AddError(errors.New("audit storage unavailable"))
 		}
-	})
+	}); err != nil {
+		t.Fatal(err)
+	}
 	if err := s.Govern(2, p.PublicUID, "required audit", true); err == nil {
 		t.Fatal("governance succeeded without audit")
 	}

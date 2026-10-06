@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"net/http/httptest"
 	"slices"
 	"strings"
@@ -136,7 +137,7 @@ func TestAdminWildcardDoesNotAdvertiseAnonymousReveal(t *testing.T) {
 
 func TestPersonaStructuredMetadataUsesIndependentProfile(t *testing.T) {
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())
-	c.Request = httptest.NewRequest("GET", "http://forum.local/p/post/1", nil)
+	c.Request = httptest.NewRequest(http.MethodGet, "http://forum.local/p/post/1", nil)
 	uid := strings.Repeat("a", 32)
 	topic := TopicDetailPayload{URL: "/p/post/1", Author: TopicAuthorPayload{Kind: "persona", PublicUID: uid, ProfileURL: "/a/" + uid, Username: "匿名花名"}}
 	meta := buildTopicMeta(c, topic)

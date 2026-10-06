@@ -11,7 +11,7 @@ import (
 func Avatar(seed string) string {
 	var hash int32
 	for _, c := range seed {
-		hash = hash*31 + int32(c)
+		hash = hash*31 + c
 	}
 	n := int64(hash)
 	if n < 0 {
