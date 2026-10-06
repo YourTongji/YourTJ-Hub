@@ -3197,6 +3197,7 @@ export default {
     'report.duplicate': 'すでに通報済みで、処理待ちです。',
     'report.createFailed': '通報の送信に失敗しました。しばらくしてから再試行してください。',
     'report.notFound': '通報が見つかりません。',
+    'report.alreadyProcessed': 'この通報はすでに処理されています。最新の状態を確認してください。',
     'review.notFound': 'レビューが見つからないか、表示できません。',
     'review.notOwned': '他人のレビューは編集・削除できません。',
     'review.duplicate': 'この開講にはすでにレビュー済みです。',

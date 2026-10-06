@@ -2,11 +2,13 @@ package routes
 
 import (
 	"net/http"
+	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/forum"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/markdown2html"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/forum"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/middleware"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/category"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/contentDeleteEvent"
@@ -393,6 +395,155 @@ func TestModerationReportStatusHTTPContract(t *testing.T) {
 			t.Fatalf("report status status = %d, want 200: %s", recorder.Code, recorder.Body.String())
 		}
 		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "result-true.json"))
+	})
+
+	t.Run("second moderator cannot overwrite the first result or add an audit entry", func(t *testing.T) {
+		conn, router := setupForumModerationContractTest(t)
+		prepareContractModerationTopic(t, conn)
+		createContractModerationReport(t, conn)
+		moderator := createContractCategoryModerator(t, conn)
+		first := serveJSON(router, path, `{"id":9012,"action":"resolve"}`, contractSessionToken(t, moderator))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, first), contractFixture(t, "result-true.json"))
+
+		second := serveJSON(router, path, `{"id":9012,"action":"reject"}`, contractSessionToken(t, moderator))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, second), contractFixture(t, "moderation-report-status-already-processed.json"))
+
+		stored := reports.Get(contractModerationReportID)
+		if stored.Status != reports.StatusResolved || stored.HandlerId != moderator.Id {
+			t.Fatalf("report after second action = status %q handler %d; want resolved by %d", stored.Status, stored.HandlerId, moderator.Id)
+		}
+		var logs int64
+		if err := conn.Model(&moderationLog.Entity{}).Where("subject_type = ? AND subject_id = ?", moderationLog.SubjectReport, contractModerationReportID).Count(&logs).Error; err != nil {
+			t.Fatal(err)
+		}
+		if logs != 1 {
+			t.Fatalf("report audit entries = %d, want 1", logs)
+		}
+		t.Cleanup(func() {
+			conn.Where("subject_type = ? AND subject_id = ?", moderationLog.SubjectReport, contractModerationReportID).Delete(&moderationLog.Entity{})
+		})
+	})
+
+	t.Run("concurrent actions have one winner", func(t *testing.T) {
+		conn, router := setupForumModerationContractTest(t)
+		prepareContractModerationTopic(t, conn)
+		createContractModerationReport(t, conn)
+		moderator := createContractCategoryModerator(t, conn)
+		token := contractSessionToken(t, moderator)
+		start := make(chan struct{})
+		type response struct {
+			action   string
+			recorder *httptest.ResponseRecorder
+		}
+		results := make(chan response, 2)
+		var requests sync.WaitGroup
+		for _, action := range []string{"resolve", "reject"} {
+			requests.Add(1)
+			go func(action string) {
+				defer requests.Done()
+				<-start
+				recorder := serveJSON(router, path, `{"id":9012,"action":"`+action+`"}`, token)
+				results <- response{action: action, recorder: recorder}
+			}(action)
+		}
+		close(start)
+		requests.Wait()
+		close(results)
+		winner := ""
+		for result := range results {
+			body := decodeContractEnvelope(t, result.recorder)
+			switch {
+			case body.Code == 0:
+				if winner != "" {
+					t.Fatal("both concurrent report actions succeeded")
+				}
+				winner = result.action
+			case body.MessageCode != "report.alreadyProcessed":
+				t.Fatalf("losing action %q messageCode = %q, want report.alreadyProcessed", result.action, body.MessageCode)
+			}
+		}
+		if winner == "" {
+			t.Fatal("no concurrent report action succeeded")
+		}
+		stored := reports.Get(contractModerationReportID)
+		wantStatus := reports.StatusResolved
+		if winner == "reject" {
+			wantStatus = reports.StatusRejected
+		}
+		if stored.Status != wantStatus || stored.HandlerId != moderator.Id {
+			t.Fatalf("report after concurrent actions = status %q handler %d; want %q by %d", stored.Status, stored.HandlerId, wantStatus, moderator.Id)
+		}
+		var logs int64
+		if err := conn.Model(&moderationLog.Entity{}).Where("subject_type = ? AND subject_id = ?", moderationLog.SubjectReport, contractModerationReportID).Count(&logs).Error; err != nil {
+			t.Fatal(err)
+		}
+		if logs != 1 {
+			t.Fatalf("report audit entries after concurrent actions = %d, want 1", logs)
+		}
+		t.Cleanup(func() {
+			conn.Where("subject_type = ? AND subject_id = ?", moderationLog.SubjectReport, contractModerationReportID).Delete(&moderationLog.Entity{})
+		})
+	})
+
+	t.Run("ban action changes the target and closes its report", func(t *testing.T) {
+		conn, router := setupForumModerationContractTest(t)
+		prepareContractModerationTopic(t, conn)
+		createContractModerationReport(t, conn)
+		moderator := createContractCategoryModerator(t, conn)
+		recorder := serveJSON(router, path, `{"id":9012,"action":"ban"}`, contractSessionToken(t, moderator))
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("report ban status = %d, want 200: %s", recorder.Code, recorder.Body.String())
+		}
+		if got := topics.Get(contractModerationTopicID).ProcessStatus; got != topics.ProcessStatusBlocked {
+			t.Fatalf("topic process status = %d, want blocked", got)
+		}
+		stored := reports.Get(contractModerationReportID)
+		if stored.Status != reports.StatusResolved || stored.Resolution != reports.ResolutionBanned || stored.HandlerId != moderator.Id {
+			t.Fatalf("report after ban = %+v", stored)
+		}
+	})
+
+	t.Run("show action is limited to course-review reports", func(t *testing.T) {
+		conn, router := setupForumModerationContractTest(t)
+		prepareContractModerationTopic(t, conn)
+		createContractModerationReport(t, conn)
+		moderator := createContractCategoryModerator(t, conn)
+		recorder := serveJSON(router, path, `{"id":9012,"action":"show"}`, contractSessionToken(t, moderator))
+		if got := decodeContractEnvelope(t, recorder).MessageCode; got != "common.request.invalidParams" {
+			t.Fatalf("show on topic report messageCode = %q, want common.request.invalidParams", got)
+		}
+		if stored := reports.Get(contractModerationReportID); stored.Status != reports.StatusOpen {
+			t.Fatalf("topic report status after invalid show = %q, want open", stored.Status)
+		}
+	})
+
+	t.Run("target update failure rolls back report closure", func(t *testing.T) {
+		conn, router := setupForumModerationContractTest(t)
+		prepareContractModerationTopic(t, conn)
+		createContractModerationReport(t, conn)
+		moderator := createContractCategoryModerator(t, conn)
+		if err := conn.Exec(`CREATE TRIGGER fail_topic_moderation BEFORE UPDATE ON topics
+			BEGIN SELECT RAISE(ABORT, 'injected target update failure'); END`).Error; err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { conn.Exec("DROP TRIGGER IF EXISTS fail_topic_moderation") })
+		recorder := serveJSON(router, path, `{"id":9012,"action":"ban"}`, contractSessionToken(t, moderator))
+		if got := decodeContractEnvelope(t, recorder).MessageCode; got != "common.operation.failed" {
+			t.Fatalf("failed ban messageCode = %q, want common.operation.failed", got)
+		}
+		if stored := reports.Get(contractModerationReportID); stored.Status != reports.StatusOpen || stored.HandlerId != 0 {
+			t.Fatalf("report after target update failure = %+v, want open and unhandled", stored)
+		}
+		if got := topics.Get(contractModerationTopicID).ProcessStatus; got != topics.ProcessStatusNormal {
+			t.Fatalf("topic process status after failed ban = %d, want normal", got)
+		}
+		var logs int64
+		if err := conn.Model(&moderationLog.Entity{}).Where("subject_type = ? AND subject_id = ?", moderationLog.SubjectReport, contractModerationReportID).Count(&logs).Error; err != nil {
+			t.Fatal(err)
+		}
+		if logs != 0 {
+			t.Fatalf("report audit entries after failed ban = %d, want 0", logs)
+		}
 	})
 
 	t.Run("missing session returns 401", func(t *testing.T) {

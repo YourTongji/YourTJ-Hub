@@ -102,7 +102,14 @@ func UpdateProcessStatus(id uint64, processStatus int8) error {
 // UpdateProcessStatusTx updates moderation state inside a caller-owned
 // transaction.
 func UpdateProcessStatusTx(tx *gorm.DB, id uint64, processStatus int8) error {
-	return tx.Table(tableName).Where(queryopt.Eq("id", id)).Update("process_status", processStatus).Error
+	result := tx.Table(tableName).Where(queryopt.Eq("id", id)).Update("process_status", processStatus)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 // ResetPendingReview 作废待审状态：将 process_status 复位为正常。
