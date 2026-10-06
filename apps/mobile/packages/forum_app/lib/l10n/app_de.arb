@@ -1234,5 +1234,11 @@
   "anonymousReason": "Grund (erforderlich)",
   "anonymousBan": "Beiträge des Kontos sperren",
   "anonymousRestore": "Diese Schreibsperre aufheben",
-  "anonymousReveal": "Identität mit Audit offenlegen"
+  "anonymousReveal": "Identität mit Audit offenlegen",
+  "sortForYou": "Für dich",
+  "feedReasonFollowing": "Von einer Person, der du folgst",
+  "feedReasonCategory": "Eine Kategorie, an der du teilnimmst",
+  "feedReasonNewReply": "Neue Antworten",
+  "feedReasonRecent": "Kürzlich veröffentlicht",
+  "sortDaily": "Top-Themen heute"
 }

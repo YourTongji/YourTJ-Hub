@@ -1,3 +1,4 @@
+import 'feed_visibility.dart';
 import '../private_notes.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -395,7 +396,9 @@ Future<void> _openTopic(
   TopicPayload topic,
   VoidCallback? onReturn,
 ) async {
+  FeedTelemetry.instance.select(topic);
   await context.push('/p/${topic.id}');
+  FeedTelemetry.instance.endDetail();
   onReturn?.call();
 }
 
@@ -432,39 +435,47 @@ Widget _topicRow(
       resolveApiAssetUrl(participant.avatarUrl),
   ];
 
-  return GfTopicRow(
-    title: topic.processStatus == 2
-        ? "${l10n.contentReviewPending} · ${_topicDisplayTitle(topic)}"
-        : _topicDisplayTitle(topic),
-    description: topic.title.isEmpty ? '' : topic.description,
-    categories: categories,
-    participantAvatarUrls: participantAvatarUrls,
-    activityText: timeAgo(
-      topic.activityText.isNotEmpty ? topic.activityText : topic.lastUpdateTime,
-      l10n: l10n,
+  return FeedVisibility(
+    topic: topic,
+    reason: _feedReason(l10n, topic.feedReason),
+    child: GfTopicRow(
+      title: topic.processStatus == 2
+          ? "${l10n.contentReviewPending} · ${_topicDisplayTitle(topic)}"
+          : _topicDisplayTitle(topic),
+      description: topic.title.isEmpty ? '' : topic.description,
+      categories: categories,
+      participantAvatarUrls: participantAvatarUrls,
+      activityText: timeAgo(
+        topic.activityText.isNotEmpty
+            ? topic.activityText
+            : topic.lastUpdateTime,
+        l10n: l10n,
+      ),
+      replyCount: topic.replyCount,
+      viewCount: topic.viewCount,
+      pinned: topic.pinWeight > 0,
+      pinnedLabel: l10n.topicPinned,
+      contentType: switch (topic.contentType) {
+        1 => GfTopicContentType.question,
+        2 => GfTopicContentType.moment,
+        3 => GfTopicContentType.article,
+        _ => null,
+      },
+      contentTypeLabel: switch (topic.contentType) {
+        1 => l10n.publishQuestion,
+        2 => l10n.publishMoment,
+        3 => l10n.publishArticle,
+        _ => null,
+      },
+      unseen: topic.unseen == true,
+      showDivider: !isLast,
+      onTap: () async {
+        FeedTelemetry.instance.select(topic);
+        await context.push('/p/${topic.id}');
+        FeedTelemetry.instance.endDetail();
+        onReturn?.call();
+      },
     ),
-    replyCount: topic.replyCount,
-    viewCount: topic.viewCount,
-    pinned: topic.pinWeight > 0,
-    pinnedLabel: l10n.topicPinned,
-    contentType: switch (topic.contentType) {
-      1 => GfTopicContentType.question,
-      2 => GfTopicContentType.moment,
-      3 => GfTopicContentType.article,
-      _ => null,
-    },
-    contentTypeLabel: switch (topic.contentType) {
-      1 => l10n.publishQuestion,
-      2 => l10n.publishMoment,
-      3 => l10n.publishArticle,
-      _ => null,
-    },
-    unseen: topic.unseen == true,
-    showDivider: !isLast,
-    onTap: () async {
-      await context.push('/p/${topic.id}');
-      onReturn?.call();
-    },
   );
 }
 
@@ -489,80 +500,96 @@ Widget buildTopicFeedCard(
     images.add(resolveApiAssetUrl(topic.firstImageUrl!));
   }
 
-  return GfTopicCard(
-    key: ValueKey<int>(topic.id),
-    title: topic.processStatus == 2
-        ? "${l10n.contentReviewPending} · ${topic.title}"
-        : topic.title,
-    description: topic.description,
-    authorName: topic.author.publicUid != null
-        ? '${topic.author.nickname ?? topic.author.username} · ${l10n.anonymousPersonaLabel}'
-        : privateDisplayName(
-      context,
-      topic.author.id,
-      topic.author.username,
-      nickname,
-    ),
-    authorAvatarUrl: resolveApiAssetUrl(topic.author.avatarUrl),
-    onAuthorTap: topic.author.publicUid != null
-        ? () => context.push('/a/${topic.author.publicUid}')
-        : topic.author.id > 0
-        ? () => context.push('/u/${topic.author.id}')
-        : null,
-    imageSemanticLabelBuilder: l10n.imageViewPosition,
-    onSaveImage: (url) => saveImageFromUrl(context, url),
-    saveImageLabel: l10n.imageSave,
-    onShareImage: (url) => shareImageFromUrl(context, url),
-    shareImageLabel: l10n.topicShare,
-    categories: <GfTopicCategory>[
-      for (final CategoryBriefPayload category in topic.categories)
-        if (category.id != hiddenCategoryId)
-          GfTopicCategory(
-            name: category.name,
-            color: colorFromHex(category.color),
-            onTap: onCategorySelected == null
-                ? null
-                : () => onCategorySelected(category.id),
+  return FeedVisibility(
+    topic: topic,
+    reason: _feedReason(l10n, topic.feedReason),
+    child: GfTopicCard(
+      key: ValueKey<int>(topic.id),
+      title: topic.processStatus == 2
+          ? "${l10n.contentReviewPending} · ${topic.title}"
+          : topic.title,
+      description: topic.description,
+      authorName: topic.author.publicUid != null
+          ? '${topic.author.nickname ?? topic.author.username} · ${l10n.anonymousPersonaLabel}'
+          : privateDisplayName(
+              context,
+              topic.author.id,
+              topic.author.username,
+              nickname,
+            ),
+      authorAvatarUrl: resolveApiAssetUrl(topic.author.avatarUrl),
+      onAuthorTap: topic.author.publicUid != null
+          ? () => context.push('/a/${topic.author.publicUid}')
+          : topic.author.id > 0
+          ? () => context.push('/u/${topic.author.id}')
+          : null,
+      imageSemanticLabelBuilder: l10n.imageViewPosition,
+      onSaveImage: (url) => saveImageFromUrl(context, url),
+      saveImageLabel: l10n.imageSave,
+      onShareImage: (url) => shareImageFromUrl(context, url),
+      shareImageLabel: l10n.topicShare,
+      categories: <GfTopicCategory>[
+        for (final CategoryBriefPayload category in topic.categories)
+          if (category.id != hiddenCategoryId)
+            GfTopicCategory(
+              name: category.name,
+              color: colorFromHex(category.color),
+              onTap: onCategorySelected == null
+                  ? null
+                  : () => onCategorySelected(category.id),
+            ),
+      ],
+      imageUrls: images,
+      onFirstMediaFrame: onFirstMediaFrame,
+      imageMetadata: <GfTopicImageMetadata>[
+        for (final TopicImageMetadataPayload metadata
+            in topic.imageMetadata ?? const <TopicImageMetadataPayload>[])
+          GfTopicImageMetadata(
+            url: resolveApiAssetUrl(metadata.url),
+            width: metadata.width,
+            height: metadata.height,
+            variants: <GfTopicImageVariant>[
+              for (final TopicImageVariantPayload variant in metadata.variants)
+                GfTopicImageVariant(
+                  url: resolveApiAssetUrl(variant.url),
+                  width: variant.width,
+                  height: variant.height,
+                ),
+            ],
           ),
-    ],
-    imageUrls: images,
-    onFirstMediaFrame: onFirstMediaFrame,
-    imageMetadata: <GfTopicImageMetadata>[
-      for (final TopicImageMetadataPayload metadata
-          in topic.imageMetadata ?? const <TopicImageMetadataPayload>[])
-        GfTopicImageMetadata(
-          url: resolveApiAssetUrl(metadata.url),
-          width: metadata.width,
-          height: metadata.height,
-          variants: <GfTopicImageVariant>[
-            for (final TopicImageVariantPayload variant in metadata.variants)
-              GfTopicImageVariant(
-                url: resolveApiAssetUrl(variant.url),
-                width: variant.width,
-                height: variant.height,
-              ),
-          ],
-        ),
-    ],
-    activityText: timeAgo(
-      topic.activityText.isNotEmpty ? topic.activityText : topic.lastUpdateTime,
-      l10n: l10n,
+      ],
+      activityText: timeAgo(
+        topic.activityText.isNotEmpty
+            ? topic.activityText
+            : topic.lastUpdateTime,
+        l10n: l10n,
+      ),
+      replyCount: topic.replyCount,
+      viewCount: topic.viewCount,
+      likeCount: topic.likeCount,
+      liked: topic.liked ?? false,
+      bookmarked: topic.bookmarked ?? false,
+      onLike: onLike,
+      onBookmark: onBookmark,
+      likeTooltip: l10n.topicLike,
+      bookmarkTooltip: l10n.topicBookmark,
+      bookmarkedTooltip: l10n.topicBookmarked,
+      pinned: topic.pinWeight > 0,
+      unseen: topic.unseen == true,
+      onTap: () async {
+        FeedTelemetry.instance.select(topic);
+        await context.push('/p/${topic.id}');
+        FeedTelemetry.instance.endDetail();
+        onReturn?.call();
+      },
     ),
-    replyCount: topic.replyCount,
-    viewCount: topic.viewCount,
-    likeCount: topic.likeCount,
-    liked: topic.liked ?? false,
-    bookmarked: topic.bookmarked ?? false,
-    onLike: onLike,
-    onBookmark: onBookmark,
-    likeTooltip: l10n.topicLike,
-    bookmarkTooltip: l10n.topicBookmark,
-    bookmarkedTooltip: l10n.topicBookmarked,
-    pinned: topic.pinWeight > 0,
-    unseen: topic.unseen == true,
-    onTap: () async {
-      await context.push('/p/${topic.id}');
-      onReturn?.call();
-    },
   );
 }
+
+String? _feedReason(AppLocalizations l10n, String? reason) => switch (reason) {
+  'following' => l10n.feedReasonFollowing,
+  'category' => l10n.feedReasonCategory,
+  'newreply' => l10n.feedReasonNewReply,
+  'recent' => l10n.feedReasonRecent,
+  _ => null,
+};

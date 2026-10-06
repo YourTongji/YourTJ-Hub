@@ -49,7 +49,7 @@ export function createTopicCardInteraction(initial: TopicPayload, t: (key: strin
     state.error = ''
     if (!bookmark) state.likeCount = Math.max(0, state.likeCount + (target ? 1 : -1))
     try {
-      const success = await (bookmark ? bookmarkTopic : likeTopic)(source.id, target ? 1 : 2)
+      const success = await (bookmark ? bookmarkTopic : likeTopic)(source.id, target ? 1 : 2, source)
       if (!active || requestGeneration !== generation) return
       if (!success) throw new Error(t(bookmark ? 'api.bookmarkFailed' : 'api.likeFailed'))
       source[field] = target

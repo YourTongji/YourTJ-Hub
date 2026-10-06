@@ -79,6 +79,19 @@ describe('TopicCardActions 卡片快捷互动（issue #380）', () => {
     vi.resetAllMocks()
   })
 
+  it('quick actions carry their own card trace', async () => {
+    vi.mocked(likeTopic).mockResolvedValue(true)
+    vi.mocked(bookmarkTopic).mockResolvedValue(true)
+    const topic = baseTopic({ feedTrace: 'card-trace', feedPosition: 2 })
+    const view = mountActions(topic)
+    await view.find('button[title="点赞"]').trigger('click')
+    await flushPromises()
+    await view.find('button[title="收藏"]').trigger('click')
+    await flushPromises()
+    expect(likeTopic).toHaveBeenCalledWith(42, 1, expect.objectContaining({ feedTrace: 'card-trace', feedPosition: 2 }))
+    expect(bookmarkTopic).toHaveBeenCalledWith(42, 1, expect.objectContaining({ feedTrace: 'card-trace', feedPosition: 2 }))
+  })
+
   it('pending action survives card/table remount and prevents duplicates', async () => {
     let complete!: (value: boolean) => void
     vi.mocked(likeTopic).mockReturnValue(new Promise(resolve => { complete = resolve }))
@@ -183,7 +196,7 @@ describe('TopicCardActions 卡片快捷互动（issue #380）', () => {
     expect(likeButton.text()).toBe('6')
     await flushPromises()
     expect(likeButton.text()).toBe('6')
-    expect(likeTopic).toHaveBeenCalledWith(42, 1)
+    expect(likeTopic).toHaveBeenCalledWith(42, 1, expect.objectContaining({ id: 42 }))
   })
 
   it('取消点赞乐观 -1 并调用 action=2', async () => {
@@ -193,7 +206,7 @@ describe('TopicCardActions 卡片快捷互动（issue #380）', () => {
     await likeButton.trigger('click')
     await flushPromises()
     expect(likeButton.text()).toBe('4')
-    expect(likeTopic).toHaveBeenCalledWith(42, 2)
+    expect(likeTopic).toHaveBeenCalledWith(42, 2, expect.objectContaining({ id: 42 }))
   })
 
   it('点赞失败回滚计数', async () => {
@@ -202,7 +215,7 @@ describe('TopicCardActions 卡片快捷互动（issue #380）', () => {
     const likeButton = view.find('button[title="点赞"]')
     await likeButton.trigger('click')
     await flushPromises()
-    expect(likeTopic).toHaveBeenCalledWith(42, 1)
+    expect(likeTopic).toHaveBeenCalledWith(42, 1, expect.objectContaining({ id: 42 }))
     expect(likeButton.text()).toBe('5')
     expect(likeButton.classes()).not.toContain('text-error')
   })
@@ -212,7 +225,7 @@ describe('TopicCardActions 卡片快捷互动（issue #380）', () => {
     const bookmarkButton = view.find('button[title="收藏"]')
     await bookmarkButton.trigger('click')
     await flushPromises()
-    expect(bookmarkTopic).toHaveBeenCalledWith(42, 1)
+    expect(bookmarkTopic).toHaveBeenCalledWith(42, 1, expect.objectContaining({ id: 42 }))
     expect(bookmarkButton.attributes('aria-pressed')).toBe('false')
     expect(bookmarkButton.attributes('title')).toBe('收藏')
   })

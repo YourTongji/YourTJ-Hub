@@ -38,7 +38,7 @@ import urllib.parse
 TOKEN_RE = re.compile(r"\{\{\s*([A-Z][A-Z0-9_]*)\s*\}\}")
 
 # 由实例 JSON 提供的非敏感 token；其余 token 一律视为 secret（从环境变量读取）。
-INSTANCE_TOKENS = {"SERVER_URL", "OIDC_ISSUER", "TRUSTED_PROXIES", "SEARCH_MAINTENANCE_ENABLED"}
+INSTANCE_TOKENS = {"SERVER_URL", "OIDC_ISSUER", "TRUSTED_PROXIES", "SEARCH_MAINTENANCE_ENABLED", "FEED_RANKING_ENABLED", "FEED_FOR_YOU_ENABLED", "FEED_METRICS_ENABLED", "FEED_ROLLOUT_PERCENT", "FEED_EXPERIMENT_PERIOD", "FEED_EXPERIMENT_SALT"}
 
 # 全部环境都允许为空的 token（可选功能，未配置即关闭）。
 BASE_OPTIONAL_TOKENS = {
@@ -191,6 +191,12 @@ def build_values(env, instance, environ, tokens, allow_empty):
         "SEARCH_MAINTENANCE_ENABLED": instance.get("search_maintenance_enabled") is True,
         "OIDC_ISSUER": str(instance["server_url"]).rstrip("/") + "/api/oauth",
         "TRUSTED_PROXIES": list(instance["trusted_proxies"]),
+        "FEED_RANKING_ENABLED": instance.get("feed", {}).get("ranking_enabled", False),
+        "FEED_FOR_YOU_ENABLED": instance.get("feed", {}).get("for_you_enabled", False),
+        "FEED_METRICS_ENABLED": instance.get("feed", {}).get("metrics_enabled", False),
+        "FEED_ROLLOUT_PERCENT": instance.get("feed", {}).get("rollout_percent", 20),
+        "FEED_EXPERIMENT_PERIOD": instance.get("feed", {}).get("experiment_period", env + "-default-entry-v1"),
+        "FEED_EXPERIMENT_SALT": instance.get("feed", {}).get("experiment_salt", env + "-default-entry-v1"),
     }
     values = {}
     summary = []
@@ -234,11 +240,11 @@ def summarize(summary):
     """向 stderr 输出键名/来源/长度，绝不打印 secret 值或其前缀。"""
     for tok, val, src in summary:
         if isinstance(val, list):
-            print(f"  {tok}: {src} (array len={len(val)})", file=sys.stderr)
+            print(f"  {tok}: {src} (array len={len(val) if isinstance(val, (str, list, dict)) else len(str(val))})", file=sys.stderr)
         elif isinstance(val, bool):
             print(f"  {tok}: {src} (boolean)", file=sys.stderr)
         else:
-            print(f"  {tok}: {src} len={len(val)}", file=sys.stderr)
+            print(f"  {tok}: {src} len={len(val) if isinstance(val, (str, list, dict)) else len(str(val))}", file=sys.stderr)
 
 
 def cmd_render(args):

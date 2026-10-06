@@ -138,5 +138,7 @@
   "anonymous.nameLocked": "This name is locked for one year.",
   "anonymous.dailyLimit": "All 10 daily draws are used. You can still select an existing batch today.",
   "anonymous.candidateExpired": "Candidates expired or are invalid. Reload today’s batches.",
-  "anonymous.unavailable": "Anonymous identity is unavailable"
+  "anonymous.unavailable": "Anonymous identity is unavailable",
+  "forYouFeed": "For You",
+  "dailyFeed": "Today's top"
 }

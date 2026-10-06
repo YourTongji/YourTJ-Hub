@@ -1,6 +1,11 @@
 package postUserAction
 
 import (
+	"context"
+	"fmt"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/feed"
+	"gorm.io/gorm"
 	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/queryopt"
@@ -42,38 +47,45 @@ func SetBookmarked(userId, postId uint64, bookmarked bool) bool {
 // 并发下（如双端同时点赞）只有一个请求能命中迁移，统计/通知副作用必须只在迁移时执行，
 // 避免重复计数与重复通知导致统计永久漂移。
 func setAt(userId, postId uint64, field string, value *time.Time) bool {
-	if userId == 0 || postId == 0 {
-		return false
+	changed, _ := SetState(context.Background(), userId, postId, 0, field, value != nil)
+	return changed
+}
+func SetState(ctx context.Context, uid, postID, topicID uint64, field string, active bool) (bool, error) {
+	if uid == 0 || postID == 0 {
+		return false, nil
 	}
-	if value == nil {
-		result := builder().
-			Where(queryopt.Eq("user_id", userId)).
-			Where(queryopt.Eq("post_id", postId)).
-			Where(field + " IS NOT NULL").
-			Updates(map[string]any{field: nil, "updated_at": time.Now()})
-		return result.Error == nil && result.RowsAffected > 0
+	if field != "liked_at" && field != "bookmarked_at" {
+		return false, fmt.Errorf("unsupported post action")
 	}
-
-	// 1) 更新当前未设置的行：命中即发生 "未设置 → 已设置" 迁移
-	result := builder().
-		Where(queryopt.Eq("user_id", userId)).
-		Where(queryopt.Eq("post_id", postId)).
-		Where(field + " IS NULL").
-		Updates(map[string]any{field: value, "updated_at": time.Now()})
-	if result.Error == nil && result.RowsAffected > 0 {
-		return true
-	}
-	// 2) 行不存在时插入；已存在（并发已设置）则冲突静默，不算迁移
-	insert := builder().Clauses(clause.OnConflict{
-		Columns:   []clause.Column{{Name: "user_id"}, {Name: "post_id"}},
-		DoNothing: true,
-	}).Create(&Entity{
-		UserId:       userId,
-		PostId:       postId,
-		LikedAt:      valueForField(field, "liked_at", value),
-		BookmarkedAt: valueForField(field, "bookmarked_at", value),
+	changed := false
+	err := dbconnect.ConnectContext(ctx).Transaction(func(tx *gorm.DB) error {
+		value := timeForState(active)
+		condition := field + " IS NOT NULL"
+		if active {
+			condition = field + " IS NULL"
+		}
+		r := tx.Model(&Entity{}).Where("user_id = ? AND post_id = ?", uid, postID).Where(condition).Updates(map[string]any{field: value, "updated_at": time.Now()})
+		if r.Error != nil {
+			return r.Error
+		}
+		changed = r.RowsAffected > 0
+		if !changed && active {
+			r = tx.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "user_id"}, {Name: "post_id"}}, DoNothing: true}).Create(&Entity{UserId: uid, PostId: postID, LikedAt: valueForField(field, "liked_at", value), BookmarkedAt: valueForField(field, "bookmarked_at", value)})
+			if r.Error != nil {
+				return r.Error
+			}
+			changed = r.RowsAffected > 0
+		}
+		if !changed || topicID == 0 {
+			return nil
+		}
+		kind := "post_like"
+		if field == "bookmarked_at" {
+			kind = "post_bookmark"
+		}
+		return feed.EventTx(tx, uid, topicID, postID, kind, active)
 	})
-	return insert.Error == nil && insert.RowsAffected > 0
+	return changed && err == nil, err
 }
 
 func timeForState(active bool) *time.Time {

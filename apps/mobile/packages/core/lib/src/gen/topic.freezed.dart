@@ -1497,6 +1497,9 @@ TopicPayload _$TopicPayloadFromJson(Map<String, dynamic> json) {
 
 /// @nodoc
 mixin _$TopicPayload {
+  String? get feedTrace => throw _privateConstructorUsedError;
+  int? get feedPosition => throw _privateConstructorUsedError;
+  String? get feedReason => throw _privateConstructorUsedError;
   int get id => throw _privateConstructorUsedError;
   String get title => throw _privateConstructorUsedError;
   String get description => throw _privateConstructorUsedError;
@@ -1540,6 +1543,9 @@ abstract class $TopicPayloadCopyWith<$Res> {
   ) = _$TopicPayloadCopyWithImpl<$Res, TopicPayload>;
   @useResult
   $Res call({
+    String? feedTrace,
+    int? feedPosition,
+    String? feedReason,
     int id,
     String title,
     String description,
@@ -1581,6 +1587,9 @@ class _$TopicPayloadCopyWithImpl<$Res, $Val extends TopicPayload>
   @pragma('vm:prefer-inline')
   @override
   $Res call({
+    Object? feedTrace = freezed,
+    Object? feedPosition = freezed,
+    Object? feedReason = freezed,
     Object? id = null,
     Object? title = null,
     Object? description = null,
@@ -1605,6 +1614,18 @@ class _$TopicPayloadCopyWithImpl<$Res, $Val extends TopicPayload>
   }) {
     return _then(
       _value.copyWith(
+            feedTrace: freezed == feedTrace
+                ? _value.feedTrace
+                : feedTrace // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            feedPosition: freezed == feedPosition
+                ? _value.feedPosition
+                : feedPosition // ignore: cast_nullable_to_non_nullable
+                      as int?,
+            feedReason: freezed == feedReason
+                ? _value.feedReason
+                : feedReason // ignore: cast_nullable_to_non_nullable
+                      as String?,
             id: null == id
                 ? _value.id
                 : id // ignore: cast_nullable_to_non_nullable
@@ -1715,6 +1736,9 @@ abstract class _$$TopicPayloadImplCopyWith<$Res>
   @override
   @useResult
   $Res call({
+    String? feedTrace,
+    int? feedPosition,
+    String? feedReason,
     int id,
     String title,
     String description,
@@ -1756,6 +1780,9 @@ class __$$TopicPayloadImplCopyWithImpl<$Res>
   @pragma('vm:prefer-inline')
   @override
   $Res call({
+    Object? feedTrace = freezed,
+    Object? feedPosition = freezed,
+    Object? feedReason = freezed,
     Object? id = null,
     Object? title = null,
     Object? description = null,
@@ -1780,6 +1807,18 @@ class __$$TopicPayloadImplCopyWithImpl<$Res>
   }) {
     return _then(
       _$TopicPayloadImpl(
+        feedTrace: freezed == feedTrace
+            ? _value.feedTrace
+            : feedTrace // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        feedPosition: freezed == feedPosition
+            ? _value.feedPosition
+            : feedPosition // ignore: cast_nullable_to_non_nullable
+                  as int?,
+        feedReason: freezed == feedReason
+            ? _value.feedReason
+            : feedReason // ignore: cast_nullable_to_non_nullable
+                  as String?,
         id: null == id
             ? _value.id
             : id // ignore: cast_nullable_to_non_nullable
@@ -1873,6 +1912,9 @@ class __$$TopicPayloadImplCopyWithImpl<$Res>
 @JsonSerializable()
 class _$TopicPayloadImpl implements _TopicPayload {
   const _$TopicPayloadImpl({
+    this.feedTrace,
+    this.feedPosition,
+    this.feedReason,
     required this.id,
     required this.title,
     required this.description,
@@ -1902,6 +1944,12 @@ class _$TopicPayloadImpl implements _TopicPayload {
   factory _$TopicPayloadImpl.fromJson(Map<String, dynamic> json) =>
       _$$TopicPayloadImplFromJson(json);
 
+  @override
+  final String? feedTrace;
+  @override
+  final int? feedPosition;
+  @override
+  final String? feedReason;
   @override
   final int id;
   @override
@@ -1978,7 +2026,7 @@ class _$TopicPayloadImpl implements _TopicPayload {
 
   @override
   String toString() {
-    return 'TopicPayload(id: $id, title: $title, description: $description, contentType: $contentType, firstImageUrl: $firstImageUrl, images: $images, imageMetadata: $imageMetadata, url: $url, author: $author, participants: $participants, categories: $categories, replyCount: $replyCount, viewCount: $viewCount, likeCount: $likeCount, pinWeight: $pinWeight, processStatus: $processStatus, activityText: $activityText, lastUpdateTime: $lastUpdateTime, unseen: $unseen, liked: $liked, bookmarked: $bookmarked)';
+    return 'TopicPayload(feedTrace: $feedTrace, feedPosition: $feedPosition, feedReason: $feedReason, id: $id, title: $title, description: $description, contentType: $contentType, firstImageUrl: $firstImageUrl, images: $images, imageMetadata: $imageMetadata, url: $url, author: $author, participants: $participants, categories: $categories, replyCount: $replyCount, viewCount: $viewCount, likeCount: $likeCount, pinWeight: $pinWeight, processStatus: $processStatus, activityText: $activityText, lastUpdateTime: $lastUpdateTime, unseen: $unseen, liked: $liked, bookmarked: $bookmarked)';
   }
 
   @override
@@ -1986,6 +2034,12 @@ class _$TopicPayloadImpl implements _TopicPayload {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
             other is _$TopicPayloadImpl &&
+            (identical(other.feedTrace, feedTrace) ||
+                other.feedTrace == feedTrace) &&
+            (identical(other.feedPosition, feedPosition) ||
+                other.feedPosition == feedPosition) &&
+            (identical(other.feedReason, feedReason) ||
+                other.feedReason == feedReason) &&
             (identical(other.id, id) || other.id == id) &&
             (identical(other.title, title) || other.title == title) &&
             (identical(other.description, description) ||
@@ -2033,6 +2087,9 @@ class _$TopicPayloadImpl implements _TopicPayload {
   @override
   int get hashCode => Object.hashAll([
     runtimeType,
+    feedTrace,
+    feedPosition,
+    feedReason,
     id,
     title,
     description,
@@ -2072,6 +2129,9 @@ class _$TopicPayloadImpl implements _TopicPayload {
 
 abstract class _TopicPayload implements TopicPayload {
   const factory _TopicPayload({
+    final String? feedTrace,
+    final int? feedPosition,
+    final String? feedReason,
     required final int id,
     required final String title,
     required final String description,
@@ -2098,6 +2158,12 @@ abstract class _TopicPayload implements TopicPayload {
   factory _TopicPayload.fromJson(Map<String, dynamic> json) =
       _$TopicPayloadImpl.fromJson;
 
+  @override
+  String? get feedTrace;
+  @override
+  int? get feedPosition;
+  @override
+  String? get feedReason;
   @override
   int get id;
   @override

@@ -106,6 +106,9 @@ abstract class AnnouncementPayload with _$AnnouncementPayload {
 @freezed
 abstract class HomeProps with _$HomeProps {
   const factory HomeProps({
+    String? actualSort,
+    String? degradeReason,
+    String? feedTrace,
     required String sort,
     required List<TabItemPayload> tabs,
     required List<TopicPayload> topics,

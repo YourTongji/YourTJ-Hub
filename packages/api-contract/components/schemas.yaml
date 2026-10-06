@@ -11304,3 +11304,84 @@ AiModerationReason:
       type: string
       description: Evidence status for `evidence_incomplete`.
   additionalProperties: false
+
+FeedEventPatch:
+  type: object
+  required: [trace, visibleMask]
+  properties:
+    trace: { type: string, minLength: 1, maxLength: 2048 }
+    visibleMask: { type: integer, minimum: 0, maximum: 1048575 }
+    dwell:
+      type: object
+      maxProperties: 20
+      additionalProperties: { type: integer, minimum: 0, maximum: 600, multipleOf: 5 }
+FeedEventsRequest:
+  type: object
+  required: [patches]
+  properties:
+    patches:
+      type: array
+      maxItems: 50
+      items: { $ref: '#/FeedEventPatch' }
+FeedEventsResponse:
+  type: object
+  required: [code, result]
+  properties:
+    code: { type: integer, const: 0 }
+    result: { type: boolean, const: true }
+    message: { type: string }
+    messageCode: { type: string }
+FeedMetricRow:
+  type: object
+  required: [day, feed, hash, rankHash, experiment, variant, weightVariant, capability, metric, count]
+  properties:
+    day: { type: string }
+    feed: { type: string }
+    hash: { type: string }
+    weightVariant: { type: string }
+    rankHash: { type: string }
+    experiment: { type: string }
+    variant: { type: string }
+    capability: { type: string }
+    metric: { type: string }
+    count: { type: integer }
+FeedPeriodSummary:
+  type: object
+  required: [id, hash, enrollUntil, analyzeAt, aborted, assignedControl, assignedTreatment, result]
+  properties:
+    id: { type: string }
+    hash: { type: string }
+    enrollUntil: { type: string, format: date-time }
+    analyzeAt: { type: string, format: date-time }
+    aborted: { type: string }
+    assignedControl: { type: integer, minimum: 0 }
+    assignedTreatment: { type: integer, minimum: 0 }
+    result: { type: string, description: Anonymous sufficient statistics and user-unit effect estimates encoded as JSON; empty until finalized. }
+FeedSummary:
+  type: object
+  required: [enabled, rankingReady, metricsEnabled, rolloutPercent, rawRetentionDays, paramsHash, rows, truncated, health, periods]
+  properties:
+    enabled: { type: boolean }
+    rankingReady: { type: boolean }
+    metricsEnabled: { type: boolean }
+    rolloutPercent: { type: integer, minimum: 0, maximum: 100 }
+    rawRetentionDays: { type: integer, minimum: 1, maximum: 30 }
+    paramsHash: { type: string }
+    rows:
+      type: array
+      maxItems: 1000
+      items: { $ref: '#/FeedMetricRow' }
+    periods:
+      type: array
+      maxItems: 20
+      items: { $ref: '#/FeedPeriodSummary' }
+    truncated: { type: boolean }
+    health: { type: object, additionalProperties: true }
+FeedSummaryResponse:
+  type: object
+  required: [code, result]
+  properties:
+    code: { type: integer, const: 0 }
+    result: { $ref: '#/FeedSummary' }
+    message: { type: string }
+    messageCode: { type: string }

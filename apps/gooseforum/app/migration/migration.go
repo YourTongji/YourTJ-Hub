@@ -24,6 +24,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/course"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/dailyStats"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/eventNotification"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/feed"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/fileUsage"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/inboxmail"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/migrationMapping"
@@ -640,7 +641,7 @@ func validateUniqueUsernames(db *gorm.DB) error {
 // SchemaModels 返回主库（db.default）的全部迁移模型。
 // 迁移与 PostgreSQL 兼容性测试共用同一份清单，避免两处维护漂移。
 func SchemaModels() []any {
-	return []any{
+	return append(feed.Models(), []any{
 		&identity.Persona{}, &identity.Binding{}, &identity.Quota{}, &identity.Batch{}, &identity.RevealAudit{},
 		&badges.Entity{},
 		&sticker.Entity{},
@@ -708,6 +709,7 @@ func SchemaModels() []any {
 		&wikiPageRevisions.Entity{},
 		&wikiSyncRuns.Entity{},
 		&topicUserStat.Entity{},
+		&topicUserStat.RankParticipant{},
 		&contentDeleteEvent.Entity{},
 		&role.Entity{},
 		&networkAccessLog.Entity{},
@@ -742,7 +744,7 @@ func SchemaModels() []any {
 		&inboxmail.CampaignRunEntity{},
 		&inboxmail.DeliveryEntity{},
 		&inboxmail.ClaimEntity{},
-	}
+	}...)
 }
 
 // upgradeCourseReviewLegacySchema 把存量 course_review 表升级到 B3 清理所需

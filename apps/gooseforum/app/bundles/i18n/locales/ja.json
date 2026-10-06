@@ -138,5 +138,7 @@
   "anonymous.nameLocked": "名前は1年間固定されています。",
   "anonymous.dailyLimit": "本日10回の抽選上限です。既存の候補から選べます。",
   "anonymous.candidateExpired": "候補が無効または期限切れです。本日の候補を再読み込みしてください。",
-  "anonymous.unavailable": "匿名の身元は利用できません"
+  "anonymous.unavailable": "匿名の身元は利用できません",
+  "forYouFeed": "おすすめ",
+  "dailyFeed": "今日の人気"
 }

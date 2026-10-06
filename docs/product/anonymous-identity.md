@@ -54,6 +54,10 @@ expanding the identity row into the editor, mention candidates or sticker panel.
 `Current`: topic lists project persona authors again at the final public payload boundary. Private
 author IDs, names and avatars cannot pass through even if an upstream transform is omitted or the
 public persona row is missing; member replies still retain their public attribution.
+Personalized feeds do not recall persona content through its owner's follows or author affinity,
+learn main-author affinity from persona topics, or label a persona as a followed main account.
+Public category, freshness and quality recall remain available; account-level eligibility and
+anti-abuse checks continue to use the private owner.
 
 `Current`: persona authors expose `kind`, `publicUid`, name, avatar and profile URL, with numeric
 author ID zero. Anonymous authors do not carry main-account badges, personal notes or profile fields.
@@ -99,7 +103,7 @@ anonymous display and legacy Wiki per-post anonymous replies remain separate and
 
 ## Sources
 
-- [MADR 0065](../decisions/0065-persistent-anonymous-forum-persona.md) records the alternatives.
+- [MADR 0066](../decisions/0066-persistent-anonymous-forum-persona.md) records the alternatives.
 - [Issue 1068](https://github.com/YourTongji/YourTJ-Hub/issues/1068) owns research and acceptance evidence.
 - [THUOCL provenance and license](../../apps/gooseforum/app/bundles/anonymousnames/README.md).
 - [Contracts and data](../architecture/contracts-and-data.md#persistent-anonymous-personas).

@@ -679,3 +679,16 @@ Web generated types and Dart mirrors change together. `/a/` is a three-mode page
 is a static response, recorded as route-coverage exclusions. Product semantics live in
 [anonymous identity](../product/anonymous-identity.md); permissions, retention and consistent backup
 recovery live in [operations](../operations/anonymous-identity.md).
+## Feed ranking projection and observation boundary
+
+`Current`: publication time is stamped only at actual first public approval; legacy timestamps are
+explicit estimates. Ranking columns and internal anonymous-contributor projections are rebuildable,
+with one serving worker, bounded owner queries and transactionally coalesced dirtiness. Account-close
+fences raw ingestion before cleanup. The default parameter and period records contain no credentials.
+
+The page protocol negotiates exact feed capability v2 and carries optional actualSort/degradeReason,
+feedTrace/position/reason. Personal cursors bind account, hash, offset and process epoch. New observation
+and admin aggregate routes are covered in OpenAPI, route snapshots, TS and Dart mirrors. Native actions
+carry optional signed source headers; absent context remains unclassified or separately inferred.
+[Feed product](../product/feed-ranking.md) and [operations](../operations/feed-ranking.md) own the
+behavior and lifecycle; schema definitions remain in models/migrations.

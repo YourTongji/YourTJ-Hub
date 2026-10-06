@@ -1805,6 +1805,9 @@ HomeProps _$HomePropsFromJson(Map<String, dynamic> json) {
 
 /// @nodoc
 mixin _$HomeProps {
+  String? get actualSort => throw _privateConstructorUsedError;
+  String? get degradeReason => throw _privateConstructorUsedError;
+  String? get feedTrace => throw _privateConstructorUsedError;
   String get sort => throw _privateConstructorUsedError;
   List<TabItemPayload> get tabs => throw _privateConstructorUsedError;
   List<TopicPayload> get topics => throw _privateConstructorUsedError;
@@ -1827,6 +1830,9 @@ abstract class $HomePropsCopyWith<$Res> {
       _$HomePropsCopyWithImpl<$Res, HomeProps>;
   @useResult
   $Res call({
+    String? actualSort,
+    String? degradeReason,
+    String? feedTrace,
     String sort,
     List<TabItemPayload> tabs,
     List<TopicPayload> topics,
@@ -1853,6 +1859,9 @@ class _$HomePropsCopyWithImpl<$Res, $Val extends HomeProps>
   @pragma('vm:prefer-inline')
   @override
   $Res call({
+    Object? actualSort = freezed,
+    Object? degradeReason = freezed,
+    Object? feedTrace = freezed,
     Object? sort = null,
     Object? tabs = null,
     Object? topics = null,
@@ -1861,6 +1870,18 @@ class _$HomePropsCopyWithImpl<$Res, $Val extends HomeProps>
   }) {
     return _then(
       _value.copyWith(
+            actualSort: freezed == actualSort
+                ? _value.actualSort
+                : actualSort // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            degradeReason: freezed == degradeReason
+                ? _value.degradeReason
+                : degradeReason // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            feedTrace: freezed == feedTrace
+                ? _value.feedTrace
+                : feedTrace // ignore: cast_nullable_to_non_nullable
+                      as String?,
             sort: null == sort
                 ? _value.sort
                 : sort // ignore: cast_nullable_to_non_nullable
@@ -1917,6 +1938,9 @@ abstract class _$$HomePropsImplCopyWith<$Res>
   @override
   @useResult
   $Res call({
+    String? actualSort,
+    String? degradeReason,
+    String? feedTrace,
     String sort,
     List<TabItemPayload> tabs,
     List<TopicPayload> topics,
@@ -1944,6 +1968,9 @@ class __$$HomePropsImplCopyWithImpl<$Res>
   @pragma('vm:prefer-inline')
   @override
   $Res call({
+    Object? actualSort = freezed,
+    Object? degradeReason = freezed,
+    Object? feedTrace = freezed,
     Object? sort = null,
     Object? tabs = null,
     Object? topics = null,
@@ -1952,6 +1979,18 @@ class __$$HomePropsImplCopyWithImpl<$Res>
   }) {
     return _then(
       _$HomePropsImpl(
+        actualSort: freezed == actualSort
+            ? _value.actualSort
+            : actualSort // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        degradeReason: freezed == degradeReason
+            ? _value.degradeReason
+            : degradeReason // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        feedTrace: freezed == feedTrace
+            ? _value.feedTrace
+            : feedTrace // ignore: cast_nullable_to_non_nullable
+                  as String?,
         sort: null == sort
             ? _value.sort
             : sort // ignore: cast_nullable_to_non_nullable
@@ -1981,6 +2020,9 @@ class __$$HomePropsImplCopyWithImpl<$Res>
 @JsonSerializable()
 class _$HomePropsImpl implements _HomeProps {
   const _$HomePropsImpl({
+    this.actualSort,
+    this.degradeReason,
+    this.feedTrace,
     required this.sort,
     required final List<TabItemPayload> tabs,
     required final List<TopicPayload> topics,
@@ -1992,6 +2034,12 @@ class _$HomePropsImpl implements _HomeProps {
   factory _$HomePropsImpl.fromJson(Map<String, dynamic> json) =>
       _$$HomePropsImplFromJson(json);
 
+  @override
+  final String? actualSort;
+  @override
+  final String? degradeReason;
+  @override
+  final String? feedTrace;
   @override
   final String sort;
   final List<TabItemPayload> _tabs;
@@ -2017,7 +2065,7 @@ class _$HomePropsImpl implements _HomeProps {
 
   @override
   String toString() {
-    return 'HomeProps(sort: $sort, tabs: $tabs, topics: $topics, pagination: $pagination, announcement: $announcement)';
+    return 'HomeProps(actualSort: $actualSort, degradeReason: $degradeReason, feedTrace: $feedTrace, sort: $sort, tabs: $tabs, topics: $topics, pagination: $pagination, announcement: $announcement)';
   }
 
   @override
@@ -2025,6 +2073,12 @@ class _$HomePropsImpl implements _HomeProps {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
             other is _$HomePropsImpl &&
+            (identical(other.actualSort, actualSort) ||
+                other.actualSort == actualSort) &&
+            (identical(other.degradeReason, degradeReason) ||
+                other.degradeReason == degradeReason) &&
+            (identical(other.feedTrace, feedTrace) ||
+                other.feedTrace == feedTrace) &&
             (identical(other.sort, sort) || other.sort == sort) &&
             const DeepCollectionEquality().equals(other._tabs, _tabs) &&
             const DeepCollectionEquality().equals(other._topics, _topics) &&
@@ -2038,6 +2092,9 @@ class _$HomePropsImpl implements _HomeProps {
   @override
   int get hashCode => Object.hash(
     runtimeType,
+    actualSort,
+    degradeReason,
+    feedTrace,
     sort,
     const DeepCollectionEquality().hash(_tabs),
     const DeepCollectionEquality().hash(_topics),
@@ -2061,6 +2118,9 @@ class _$HomePropsImpl implements _HomeProps {
 
 abstract class _HomeProps implements HomeProps {
   const factory _HomeProps({
+    final String? actualSort,
+    final String? degradeReason,
+    final String? feedTrace,
     required final String sort,
     required final List<TabItemPayload> tabs,
     required final List<TopicPayload> topics,
@@ -2071,6 +2131,12 @@ abstract class _HomeProps implements HomeProps {
   factory _HomeProps.fromJson(Map<String, dynamic> json) =
       _$HomePropsImpl.fromJson;
 
+  @override
+  String? get actualSort;
+  @override
+  String? get degradeReason;
+  @override
+  String? get feedTrace;
   @override
   String get sort;
   @override

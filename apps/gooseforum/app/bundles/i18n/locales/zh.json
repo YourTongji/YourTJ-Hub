@@ -138,5 +138,7 @@
   "anonymous.nameLocked": "花名一年内不可更改。",
   "anonymous.dailyLimit": "今日 10 次随机额度已用完，仍可选择当天已生成候选。",
   "anonymous.candidateExpired": "候选已过期或无效，请重新加载当天候选。",
-  "anonymous.unavailable": "匿名身份当前不可用"
+  "anonymous.unavailable": "匿名身份当前不可用",
+  "forYouFeed": "为你推荐",
+  "dailyFeed": "今日热榜"
 }

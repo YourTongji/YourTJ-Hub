@@ -173,6 +173,9 @@ bool _sameVariants(
 @freezed
 abstract class TopicPayload with _$TopicPayload {
   const factory TopicPayload({
+    String? feedTrace,
+    int? feedPosition,
+    String? feedReason,
     required int id,
     required String title,
     required String description,

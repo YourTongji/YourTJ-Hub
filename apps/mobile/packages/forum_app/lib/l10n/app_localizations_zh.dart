@@ -3372,4 +3372,22 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get anonymousReveal => '审计揭示身份';
+
+  @override
+  String get sortForYou => '为你推荐';
+
+  @override
+  String get feedReasonFollowing => '来自你关注的人';
+
+  @override
+  String get feedReasonCategory => '你参与过的分类';
+
+  @override
+  String get feedReasonNewReply => '有新的回复';
+
+  @override
+  String get feedReasonRecent => '近期发布';
+
+  @override
+  String get sortDaily => '今日热榜';
 }

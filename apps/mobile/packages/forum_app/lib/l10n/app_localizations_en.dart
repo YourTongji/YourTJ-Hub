@@ -3533,4 +3533,22 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get anonymousReveal => 'Reveal with audit';
+
+  @override
+  String get sortForYou => 'For you';
+
+  @override
+  String get feedReasonFollowing => 'From someone you follow';
+
+  @override
+  String get feedReasonCategory => 'A category you participate in';
+
+  @override
+  String get feedReasonNewReply => 'New replies';
+
+  @override
+  String get feedReasonRecent => 'Recently published';
+
+  @override
+  String get sortDaily => 'Today\'s top';
 }

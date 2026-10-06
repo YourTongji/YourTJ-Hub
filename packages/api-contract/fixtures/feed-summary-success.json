@@ -1,0 +1,20 @@
+{
+  "code": 0,
+  "result": {
+    "enabled": false,
+    "rankingReady": false,
+    "metricsEnabled": false,
+    "rolloutPercent": 20,
+    "rawRetentionDays": 30,
+    "paramsHash": "1234567890abcdef1234567890abcdef",
+    "rows": [],
+    "truncated": false,
+    "health": {
+      "accepted": 0,
+      "dropped": 0,
+      "queueBytes": 0,
+      "epoch": "1234567890abcdef1234567890abcdef"
+    },
+    "periods": []
+  }
+}

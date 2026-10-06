@@ -69,7 +69,7 @@ typedef _InteractionOverride = ({
 class _HomeFeedState {
   _HomeFeedState(this.sort, {this.category});
 
-  final String sort;
+  String sort;
   final CategoryNavPayload? category;
   AsyncValue<HomeProps> page = const AsyncValue.loading();
   final List<TopicPayload> topics = [];
@@ -107,6 +107,7 @@ class _HomePageState extends ConsumerState<HomePage> {
   final _feeds = <String, _HomeFeedState>{'': _HomeFeedState('')};
   _HomeFeedState get _activeFeed => _feeds[_activeKey]!;
   HomeProps? _navigationProps;
+  bool _dailyRanking = false;
   bool _announcementCollapsed = true;
   String? _swipeLoadingFeedKey;
   int _interactionRevision = 0;
@@ -328,6 +329,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                         feed.page = AsyncValue.data(cachedProps);
                         _navigationProps ??= cachedProps;
                         _categories = cached.layout.sidebar.categories;
+                        _dailyRanking = cached.layout.dailyRanking;
                         feed.topics
                           ..clear()
                           ..addAll(
@@ -365,10 +367,24 @@ class _HomePageState extends ConsumerState<HomePage> {
       }
       setState(() {
         feed.cached = false;
+        // Resolve the root into its actual tab while retaining list and scroll.
+        if (feed.category == null &&
+            feed.sort.isEmpty &&
+            identical(feed, _activeFeed)) {
+          final actual = props.actualSort ?? props.sort;
+          if (actual.isNotEmpty && !_feeds.containsKey(actual)) {
+            _feeds.remove('');
+            feed.sort = actual;
+            _feeds[actual] = feed;
+            _sort = actual;
+            _allSort = actual;
+          }
+        }
         feed.page = AsyncValue.data(props);
         if (feed.category == null) {
           _navigationProps = props;
           _categories = payload.layout.sidebar.categories;
+          _dailyRanking = payload.layout.dailyRanking;
         }
         feed.topics.clear();
         feed.topics.addAll(_mergeInteractions(props.topics, revision));
@@ -587,7 +603,7 @@ class _HomePageState extends ConsumerState<HomePage> {
 
   Future<void> _loadMore(_HomeFeedState feed) async {
     if (feed.cleared || feed.cached) return;
-    final HomeProps? props = feed.page.valueOrNull;
+    final HomeProps? props = feed.page.asData?.value;
     if (props == null || !props.pagination.hasNext || feed.loadingMore) return;
     final String nextUrl = props.pagination.nextUrl;
     if (nextUrl.isEmpty) return;
@@ -612,6 +628,11 @@ class _HomePageState extends ConsumerState<HomePage> {
       final HomeProps? next = _feedProps(payload, feed);
       if (next == null) throw const FormatException('home pagination');
       setState(() {
+        final previous = feed.page.asData?.value;
+        if ((next.actualSort ?? next.sort) !=
+            (previous?.actualSort ?? previous?.sort)) {
+          feed.topics.clear();
+        }
         final seen = feed.topics.map((topic) => topic.id).toSet();
         feed.topics.addAll(
           _mergeInteractions(
@@ -622,6 +643,11 @@ class _HomePageState extends ConsumerState<HomePage> {
         feed.page = AsyncValue.data(next);
       });
     } catch (error) {
+      if (error is ApiException && error.statusCode == 409) {
+        feed.loadingMore = false;
+        await _load(target: feed);
+        return;
+      }
       if (mounted &&
           sequence == feed.loadSequence &&
           epoch == ref.read(offlineCacheEpochProvider)) {
@@ -685,10 +711,12 @@ class _HomePageState extends ConsumerState<HomePage> {
           ? await repository.bookmarkTopic(
               topicId: topic.id,
               action: target ? 1 : 2,
+              feedTopic: topic,
             )
           : await repository.likeTopic(
               topicId: topic.id,
               action: target ? 1 : 2,
+              feedTopic: topic,
             );
       if (!mounted ||
           clearEpoch !=
@@ -794,7 +822,6 @@ class _HomePageState extends ConsumerState<HomePage> {
   }
 
   void _switchSort(String sort, {bool fromSwipe = false}) {
-    if (sort == 'latest') sort = '';
     if (sort == _sort) return;
     _sort = sort;
     _swipeLoadingFeedKey = fromSwipe ? _key(sort, _category) : null;
@@ -867,6 +894,7 @@ class _HomePageState extends ConsumerState<HomePage> {
         _interactionOverrides.clear();
         _returnedTopicOverrides.clear();
         _navigationProps = null;
+        _dailyRanking = false;
         _categories = [];
         setState(() {});
       },
@@ -885,6 +913,7 @@ class _HomePageState extends ConsumerState<HomePage> {
         ..clear()
         ..[_sort] = _HomeFeedState(_sort);
       _navigationProps = null;
+      _dailyRanking = false;
       _categories = [];
       _tabScrollRegistry.register(
         GfShellDestination.home,
@@ -909,7 +938,9 @@ class _HomePageState extends ConsumerState<HomePage> {
     final sortKeys = [
       for (final tab in _homeSortTabs(toolbarProps, _category)) tab.key,
     ];
-    final selectedSort = _sort.isEmpty ? 'latest' : _sort;
+    final selectedSort =
+        toolbarProps?.actualSort ??
+        (_sort.isEmpty ? (toolbarProps?.sort ?? 'latest') : _sort);
     final selectedSortPosition = sortKeys.indexOf(selectedSort);
     final selectedSortIndex = selectedSortPosition < 0
         ? 0
@@ -935,6 +966,7 @@ class _HomePageState extends ConsumerState<HomePage> {
           GfTabBar.heightFor(context) +
           (categories.isEmpty ? 0 : _categoryRailHeight(context)),
       toolbar: _HomeToolbar(
+        dailyRanking: _dailyRanking,
         props: toolbarProps,
         categories: categories,
         activeCategory: _category,
@@ -957,8 +989,10 @@ class _HomePageState extends ConsumerState<HomePage> {
         if (index < 0 || index >= sortKeys.length) {
           return const LogoMotionLoader();
         }
-        final sort = sortKeys[index] == 'latest' ? '' : sortKeys[index];
-        final feed = _feeds[_key(sort, _category)];
+        final sort = sortKeys[index];
+        final feed = _sort.isEmpty && sort == selectedSort
+            ? _activeFeed
+            : _feeds[_key(sort, _category)];
         if (feed == null) return const LogoMotionLoader(showMessage: true);
         return GfScrollToTop(
           key: feed.scrollKey,
@@ -1055,6 +1089,7 @@ class _HomePageState extends ConsumerState<HomePage> {
 
 class _HomeToolbar extends ConsumerWidget {
   const _HomeToolbar({
+    required this.dailyRanking,
     required this.props,
     required this.categories,
     required this.selected,
@@ -1066,6 +1101,7 @@ class _HomeToolbar extends ConsumerWidget {
   });
 
   final HomeProps? props;
+  final bool dailyRanking;
   final CategoryNavPayload? activeCategory;
   final ValueChanged<CategoryNavPayload?> onCategorySelected;
   final List<CategoryNavPayload> categories;
@@ -1183,8 +1219,9 @@ class _HomeToolbar extends ConsumerWidget {
     return switch (key) {
       'latest' => l10n.sortLatest,
       'hot' => l10n.sortHot,
-      'popular' => l10n.sortPopular,
+      'popular' => dailyRanking ? l10n.sortDaily : l10n.sortPopular,
       'following' => l10n.sortFollowing,
+      'for_you' => l10n.sortForYou,
       'new' => l10n.sortNew,
       _ => label.isNotEmpty ? label : key,
     };

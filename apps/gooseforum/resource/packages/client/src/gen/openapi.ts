@@ -2126,6 +2126,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/forum/feed/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Merge authenticated visible and foreground dwell observations
+         * @description Maximum body 32 KiB and 50 patches; account-bound HMAC trace expires within
+         *     six hours. Only its 20 server-served positions are valid. Visible masks
+         *     merge with OR and foreground dwell with max, in five-second steps capped
+         *     at 600 seconds. The server alone records a successful public detail open.
+         *     Client observations are measurement proxies, never points or global rank
+         *     credits. Cookie requests require same-origin CSRF validation. Each account
+         *     gets 12 batches/minute, burst 24; a global 200/s, burst 400 cap also applies.
+         *     HTTP 200 confirms bounded queue acceptance, not durable storage. When
+         *     metrics are disabled it is a no-op. Fields unknown to JSON binding are ignored.
+         */
+        post: operations["captureFeedEvents"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/feed/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read cached anonymous feed aggregates and experiment status
+         * @description Requires Admin permission. Returns the last seven UTC+8 days, at most 1000
+         *     aggregate rows and 20 experiment periods; truncated signals omitted rows.
+         *     Cached for 60 seconds. No per-user trace, activity, assignment or candidate
+         *     log is exposed. Parameters are read-only. The console exports this JSON.
+         */
+        get: operations["getFeedSummary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/forum/events": {
         parameters: {
             query?: never;
@@ -12967,6 +13018,70 @@ export interface components {
         DisplayBadgesRequest: {
             badgeCodes: string[];
         };
+        FeedEventPatch: {
+            trace: string;
+            visibleMask: number;
+            dwell?: {
+                [key: string]: number;
+            };
+        };
+        FeedEventsRequest: {
+            patches: components["schemas"]["FeedEventPatch"][];
+        };
+        FeedEventsResponse: {
+            /** @constant */
+            code: 0;
+            /** @constant */
+            result: true;
+            message?: string;
+            messageCode?: string;
+        };
+        FeedMetricRow: {
+            day: string;
+            feed: string;
+            hash: string;
+            weightVariant: string;
+            rankHash: string;
+            experiment: string;
+            variant: string;
+            capability: string;
+            metric: string;
+            count: number;
+        };
+        FeedPeriodSummary: {
+            id: string;
+            hash: string;
+            /** Format: date-time */
+            enrollUntil: string;
+            /** Format: date-time */
+            analyzeAt: string;
+            aborted: string;
+            assignedControl: number;
+            assignedTreatment: number;
+            /** @description Anonymous sufficient statistics and user-unit effect estimates encoded as JSON; empty until finalized. */
+            result: string;
+        };
+        FeedSummary: {
+            enabled: boolean;
+            rankingReady: boolean;
+            metricsEnabled: boolean;
+            rolloutPercent: number;
+            rawRetentionDays: number;
+            paramsHash: string;
+            rows: components["schemas"]["FeedMetricRow"][];
+            periods: components["schemas"]["FeedPeriodSummary"][];
+            truncated: boolean;
+            health: {
+                [key: string]: unknown;
+            };
+        };
+        FeedSummaryResponse: {
+            /** @constant */
+            code: 0;
+            result: components["schemas"]["FeedSummary"];
+            message?: string;
+            messageCode?: string;
+        };
         NotificationActorPayload: {
             /** @enum {string} */
             kind?: "member" | "persona";
@@ -17385,6 +17500,105 @@ export interface operations {
             };
             /** @description Missing, invalid, expired, or revoked access token. */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    captureFeedEvents: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FeedEventsRequest"];
+            };
+        };
+        responses: {
+            /** @description Accepted bounded patches or capture disabled. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeedEventsResponse"];
+                };
+            };
+            /** @description Malformed/oversized body, invalid trace, mask or dwell value. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing, revoked or invalid session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Cookie CSRF validation failed. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Rate limit or queue full; retry at most once after five seconds. */
+            429: {
+                headers: {
+                    "Retry-After"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    getFeedSummary: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Anonymous aggregate summary, or operation failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeedSummaryResponse"] | components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing, revoked or invalid session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Admin permission required. */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -1,0 +1,87 @@
+captureFeedEvents:
+  post:
+    tags: [Forum]
+    summary: Merge authenticated visible and foreground dwell observations
+    operationId: captureFeedEvents
+    description: |
+      Maximum body 32 KiB and 50 patches; account-bound HMAC trace expires within
+      six hours. Only its 20 server-served positions are valid. Visible masks
+      merge with OR and foreground dwell with max, in five-second steps capped
+      at 600 seconds. The server alone records a successful public detail open.
+      Client observations are measurement proxies, never points or global rank
+      credits. Cookie requests require same-origin CSRF validation. Each account
+      gets 12 batches/minute, burst 24; a global 200/s, burst 400 cap also applies.
+      HTTP 200 confirms bounded queue acceptance, not durable storage. When
+      metrics are disabled it is a no-op. Fields unknown to JSON binding are ignored.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: { $ref: ../components/schemas.yaml#/FeedEventsRequest }
+    responses:
+      '200':
+        description: Accepted bounded patches or capture disabled.
+        content:
+          application/json:
+            schema: { $ref: ../components/schemas.yaml#/FeedEventsResponse }
+            examples:
+              success: { externalValue: ../fixtures/feed-events-success.json }
+      '400':
+        description: Malformed/oversized body, invalid trace, mask or dwell value.
+        content:
+          application/json:
+            schema: { $ref: ../components/schemas.yaml#/ApiFailure }
+      '401':
+        description: Missing, revoked or invalid session.
+        content:
+          application/json:
+            schema: { $ref: ../components/schemas.yaml#/ApiFailure }
+      '403':
+        description: Cookie CSRF validation failed.
+        content:
+          application/json:
+            schema: { $ref: ../components/schemas.yaml#/ApiFailure }
+      '429':
+        description: Rate limit or queue full; retry at most once after five seconds.
+        headers:
+          Retry-After: { schema: { type: string } }
+        content:
+          application/json:
+            schema: { $ref: ../components/schemas.yaml#/ApiFailure }
+getFeedSummary:
+  get:
+    tags: [Admin]
+    summary: Read cached anonymous feed aggregates and experiment status
+    operationId: getFeedSummary
+    description: |
+      Requires Admin permission. Returns the last seven UTC+8 days, at most 1000
+      aggregate rows and 20 experiment periods; truncated signals omitted rows.
+      Cached for 60 seconds. No per-user trace, activity, assignment or candidate
+      log is exposed. Parameters are read-only. The console exports this JSON.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    responses:
+      '200':
+        description: Anonymous aggregate summary, or operation failure envelope.
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - { $ref: ../components/schemas.yaml#/FeedSummaryResponse }
+                - { $ref: ../components/schemas.yaml#/ApiFailure }
+            examples:
+              success: { externalValue: ../fixtures/feed-summary-success.json }
+      '401':
+        description: Missing, revoked or invalid session.
+        content:
+          application/json:
+            schema: { $ref: ../components/schemas.yaml#/ApiFailure }
+      '403':
+        description: Admin permission required.
+        content:
+          application/json:
+            schema: { $ref: ../components/schemas.yaml#/ApiFailure }

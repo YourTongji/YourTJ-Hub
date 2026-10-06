@@ -57,5 +57,5 @@ func (itself *ExclusivePreferences) GetBool(path string, defaultValue ...any) bo
 
 // GetStringMapString returns a string map setting below the namespace.
 func (itself *ExclusivePreferences) GetStringMapString(path string) map[string]string {
-	return v.GetStringMapString(itself.realPath(path))
+	return GetStringMapString(itself.realPath(path))
 }

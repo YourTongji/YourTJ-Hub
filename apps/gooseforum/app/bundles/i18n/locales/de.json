@@ -138,5 +138,7 @@
   "anonymous.nameLocked": "Dieser Name bleibt ein Jahr fest.",
   "anonymous.dailyLimit": "Alle 10 täglichen Ziehungen verbraucht. Vorhandene Kandidaten bleiben heute auswählbar.",
   "anonymous.candidateExpired": "Kandidaten ungültig oder abgelaufen. Heutige Gruppen neu laden.",
-  "anonymous.unavailable": "Anonyme Identität nicht verfügbar"
+  "anonymous.unavailable": "Anonyme Identität nicht verfügbar",
+  "forYouFeed": "Für dich",
+  "dailyFeed": "Top-Themen heute"
 }

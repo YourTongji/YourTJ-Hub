@@ -1587,5 +1587,11 @@
   "anonymousReason": "处置理由（必填）",
   "anonymousBan": "限制该账号发言",
   "anonymousRestore": "解除此项发言限制",
-  "anonymousReveal": "审计揭示身份"
+  "anonymousReveal": "审计揭示身份",
+  "sortForYou": "为你推荐",
+  "feedReasonFollowing": "来自你关注的人",
+  "feedReasonCategory": "你参与过的分类",
+  "feedReasonNewReply": "有新的回复",
+  "feedReasonRecent": "近期发布",
+  "sortDaily": "今日热榜"
 }

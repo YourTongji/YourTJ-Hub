@@ -40,14 +40,16 @@ const (
 )
 
 type Entity struct {
-	PersonaUID string `gorm:"column:persona_uid;type:varchar(32);not null;default:'';index" json:"personaUid,omitempty"`
+	PersonaUID           string     `gorm:"column:persona_uid;type:varchar(32);not null;default:'';index" json:"personaUid,omitempty"`
+	FirstPublicAt        *time.Time `gorm:"index;index:idx_posts_topic_public,priority:2" json:"-"`
+	FirstPublicEstimated bool       `gorm:"not null;default:false" json:"-"`
 	// Revision pointers fence asynchronous outcomes; zero denotes legacy content.
 	LatestRevisionId    uint64    `gorm:"column:latest_revision_id;not null;default:0;index;" json:"-"`
 	PublishedRevisionId uint64    `gorm:"column:published_revision_id;not null;default:0;" json:"-"`
-	Id                  uint64    `gorm:"primaryKey;column:id;autoIncrement;not null;index:idx_posts_topic_id,priority:2;" json:"id"`
-	TopicId             uint64    `gorm:"column:topic_id;not null;default:0;index:idx_posts_topic_created,priority:1;uniqueIndex:idx_posts_topic_no,priority:1;index:idx_posts_topic_id,priority:1;index:idx_posts_topic_process,priority:1;" json:"topicId"`
+	Id                  uint64    `gorm:"primaryKey;column:id;autoIncrement;not null;index:idx_posts_topic_public,priority:4;index:idx_posts_topic_id,priority:2;" json:"id"`
+	TopicId             uint64    `gorm:"column:topic_id;not null;default:0;index:idx_posts_topic_created,priority:1;uniqueIndex:idx_posts_topic_no,priority:1;index:idx_posts_topic_id,priority:1;index:idx_posts_topic_process,priority:1;index:idx_posts_topic_public,priority:1;" json:"topicId"`
 	PostNo              uint64    `gorm:"column:post_no;not null;default:0;uniqueIndex:idx_posts_topic_no,priority:2;" json:"postNo"`
-	UserId              uint64    `gorm:"column:user_id;not null;default:0;index;" json:"userId"`
+	UserId              uint64    `gorm:"column:user_id;not null;default:0;index;index:idx_posts_actor_topics,priority:1;index:idx_posts_topic_public,priority:3;" json:"userId"`
 	ReplyToPostId       uint64    `gorm:"column:reply_to_post_id;not null;default:0;" json:"replyToPostId"`
 	Content             string    `gorm:"column:content;type:text;" json:"content"`
 	RenderedHTML        string    `gorm:"column:rendered_html;type:text;" json:"renderedHTML"`

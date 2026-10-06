@@ -1234,5 +1234,11 @@
   "anonymousReason": "理由（必須）",
   "anonymousBan": "アカウントの投稿を制限",
   "anonymousRestore": "この投稿制限を解除",
-  "anonymousReveal": "監査して身分を開示"
+  "anonymousReveal": "監査して身分を開示",
+  "sortForYou": "おすすめ",
+  "feedReasonFollowing": "フォロー中の人から",
+  "feedReasonCategory": "参加したカテゴリ",
+  "feedReasonNewReply": "新しい返信",
+  "feedReasonRecent": "最近の投稿",
+  "sortDaily": "今日の人気"
 }

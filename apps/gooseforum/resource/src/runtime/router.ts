@@ -1,3 +1,4 @@
+import { beginFeedDetail, endFeedDetail, feedRequestHeaders, resetFeedAccount } from './feed-telemetry'
 import { useNavigationState } from './navigation-state'
 import { homeFeedNavigation } from './home-feed-navigation'
 import { resolvePageComponent } from './page-registry'
@@ -14,7 +15,8 @@ export interface PreparedPage {
 }
 
 export function installNavigation(initialPage: PreparedPage, routeComponent: Component, onPage: (page: PreparedPage) => void): Router {
-  const navigation = useNavigationState()
+  resetFeedAccount(initialPage.payload.layout?.viewer?.id ?? 0)
+ const navigation = useNavigationState()
   let initialNavigation = true
   const pagesByRoute = new Map<string, { page: PreparedPage; feedRequest?: number }>()
 
@@ -165,8 +167,14 @@ async function getPreparedPage(url: URL): Promise<PreparedPage> {
   return preparePayload(await fetchPage(url))
 }
 
-export async function fetchPage(url: URL): Promise<PagePayload> {
-  return client.pages.fetch(url)
+export async function fetchPage(url: URL, prefetch = false): Promise<PagePayload> {
+ const payload = await client.pages.fetch(url, {headers: { ...feedRequestHeaders(url), ...(prefetch ? {'X-Goose-Prefetch': '1'} : {}) }})
+ resetFeedAccount(payload.layout?.viewer?.id ?? 0)
+ if (!prefetch && payload.component === 'topic.detail') {
+ const match = url.pathname.match(/^\/p\/post\/(\d+)/)
+ if (match) beginFeedDetail(Number(match[1]))
+ } else if (!prefetch) endFeedDetail()
+ return payload
 }
 
 export async function preparePayload(payload: PagePayload): Promise<PreparedPage> {

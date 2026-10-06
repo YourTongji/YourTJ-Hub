@@ -1,7 +1,17 @@
 {
   "instance": "dev",
   "server_url": "https://dev.yourtj.de",
-  "trusted_proxies": ["172.16.0.0/12"],
+  "trusted_proxies": [
+    "172.16.0.0/12"
+  ],
   "pg_dbname": "yourtj_dev",
-  "search_maintenance_enabled": false
+  "search_maintenance_enabled": false,
+  "feed": {
+    "ranking_enabled": false,
+    "for_you_enabled": false,
+    "metrics_enabled": false,
+    "rollout_percent": 20,
+    "experiment_period": "dev-default-entry-v1",
+    "experiment_salt": "dev-default-entry-v1"
+  }
 }

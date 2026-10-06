@@ -2,6 +2,7 @@
 library;
 
 export 'src/api/api_error.dart';
+export 'src/api/feed_telemetry.dart';
 export 'src/api/gf_api_client.dart';
 export 'src/api/image_bytes.dart';
 export 'src/api/forum_sse.dart';
@@ -82,3 +83,4 @@ export 'src/schedule/pk_plan_merge.dart';
 
 export 'src/gen/anonymous_identity.dart';
 export 'src/api/repositories/anonymous_identity_repository.dart';
+export 'src/gen/feed.dart';

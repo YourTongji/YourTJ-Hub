@@ -3411,4 +3411,22 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get anonymousReveal => '監査して身分を開示';
+
+  @override
+  String get sortForYou => 'おすすめ';
+
+  @override
+  String get feedReasonFollowing => 'フォロー中の人から';
+
+  @override
+  String get feedReasonCategory => '参加したカテゴリ';
+
+  @override
+  String get feedReasonNewReply => '新しい返信';
+
+  @override
+  String get feedReasonRecent => '最近の投稿';
+
+  @override
+  String get sortDaily => '今日の人気';
 }

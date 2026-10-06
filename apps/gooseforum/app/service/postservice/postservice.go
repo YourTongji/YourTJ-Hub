@@ -7,7 +7,9 @@ import (
 	"time"
 
 	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/feedconfig"
 	identity "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/anonymousIdentity"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/feed"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topicUserStat"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
@@ -60,7 +62,15 @@ func CreateTopicPost(entity *posts.Entity, topicEntity topics.Entity) error {
 		for _, id := range ids {
 			posters = append(posters, topics.Poster{UserID: id})
 		}
-		return topics.IncrementPostFastTx(tx, entity.TopicId, posters, entity.Id, entity.CreatedAt)
+		if err := topics.IncrementPostFastTx(tx, entity.TopicId, posters, entity.Id, entity.CreatedAt); err != nil {
+			return err
+		}
+		if entity.ProcessStatus == posts.ProcessStatusNormal && entity.VisibilityStatus == posts.VisibilityActive {
+			// Fence already queued rank work before it can acknowledge a new
+			// reply's watermark using the old participant projection.
+			return feed.MarkProjectionTx(tx, entity.TopicId)
+		}
+		return nil
 	})
 }
 
@@ -144,6 +154,7 @@ func RebuildTopicPostStatsTx(tx *gorm.DB, topicEntity topics.Entity) error {
 	var activePosts []*posts.Entity
 	if err := tx.Unscoped().
 		Where("topic_id = ?", topicEntity.Id).
+		Select("id,topic_id,post_no,user_id,visibility_status,process_status,deleted_at,is_anonymous,created_at,first_public_at").
 		Order("post_no asc").
 		Order("id asc").
 		Find(&activePosts).Error; err != nil {
@@ -154,25 +165,40 @@ func RebuildTopicPostStatsTx(tx *gorm.DB, topicEntity topics.Entity) error {
 	replyCount := uint64(0)
 	var lastPost *posts.Entity
 	replierIndex := map[uint64]*topicUserStat.ReplierStat{}
+	rankIndex := map[uint64]*topicUserStat.ReplierStat{}
 	for _, post := range activePosts {
-		if post == nil || post.VisibilityStatus != posts.VisibilityActive || post.ProcessStatus != posts.ProcessStatusNormal {
+		if post == nil || post.DeletedAt.Valid || post.VisibilityStatus != posts.VisibilityActive || post.ProcessStatus != posts.ProcessStatusNormal {
 			continue
 		}
 		postCount++
 		if post.PostNo > 1 {
 			replyCount++
-			// 匿名楼层（issue #524）不进入 topic_user_stat，与增量路径口径一致。
+			r := rankIndex[post.UserId]
+			if r == nil {
+				r = &topicUserStat.ReplierStat{UserID: post.UserId}
+				rankIndex[post.UserId] = r
+			}
+			r.RankReplyCount++
+			at := post.CreatedAt
+			if post.FirstPublicAt != nil {
+				at = *post.FirstPublicAt
+			}
+			if r.LastPublicReplyAt == nil || at.After(*r.LastPublicReplyAt) {
+				r.LastPublicReplyAt = &at
+			}
 			if !post.IsAnonymous {
 				replier, ok := replierIndex[post.UserId]
 				if !ok {
-					replier = &topicUserStat.ReplierStat{UserID: post.UserId}
+					replier = r
 					replierIndex[post.UserId] = replier
 				}
 				replier.ReplyCount++
 				if post.CreatedAt.After(replier.LastReplyAt) {
 					replier.LastReplyAt = post.CreatedAt
 				}
+
 			}
+
 		}
 		if lastPost == nil || lastPost.CreatedAt.Before(post.CreatedAt) ||
 			(lastPost.CreatedAt.Equal(post.CreatedAt) && lastPost.Id < post.Id) {
@@ -210,7 +236,29 @@ func RebuildTopicPostStatsTx(tx *gorm.DB, topicEntity topics.Entity) error {
 	for _, userID := range activePosterIDs {
 		posterIDs = append(posterIDs, topics.Poster{UserID: userID})
 	}
-	return topics.ReplacePostStatsTx(tx, topicEntity.Id, postCount, replyCount, posterIDs, lastPostID, lastPostedAt)
+	if err := topics.ReplacePostStatsTx(tx, topicEntity.Id, postCount, replyCount, posterIDs, lastPostID, lastPostedAt); err != nil {
+		return err
+	}
+	var lastPublic *time.Time
+	for _, r := range rankIndex {
+		if r.UserID != topicEntity.UserId && r.LastPublicReplyAt != nil && (lastPublic == nil || r.LastPublicReplyAt.After(*lastPublic)) {
+			at := *r.LastPublicReplyAt
+			lastPublic = &at
+		}
+	}
+	if err := tx.Model(&topics.Entity{}).Where("id = ?", topicEntity.Id).UpdateColumn("last_public_reply_at", lastPublic).Error; err != nil {
+		return err
+	}
+	if feedconfig.Current().Ranking {
+		ranks := make([]topicUserStat.ReplierStat, 0, len(rankIndex))
+		for _, r := range rankIndex {
+			ranks = append(ranks, *r)
+		}
+		if err := topicUserStat.BackfillRankProjectionTx(tx, topicEntity.Id, ranks); err != nil {
+			return err
+		}
+	}
+	return feed.MarkTx(tx, topicEntity.Id)
 }
 
 func publicTopicOwner(topic topics.Entity) uint64 {

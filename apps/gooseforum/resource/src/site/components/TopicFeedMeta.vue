@@ -23,10 +23,12 @@ withDefaults(defineProps<{
 })
 
 const { t } = useI18n()
+function feedReason(reason?: string) { switch(reason) {case 'following': return t('feed.following'); case 'category': return t('feed.category'); case 'newreply': return t('feed.newreply'); case 'recent': return t('feed.recent'); default:return ''} }
 </script>
 
 <template>
   <div class="min-w-0">
+ <p v-if="topic.feedReason" class="mb-1 text-xs text-base-content/55">{{ feedReason(topic.feedReason) }}</p>
     <div class="flex items-center gap-2.5">
       <UserAvatar
         :src="topic.author.avatarUrl"
