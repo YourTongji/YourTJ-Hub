@@ -36,6 +36,10 @@ Chosen: reuse the existing task queue for bounded HTTP notification delivery ret
   no longer permits delivery. Successful delivery keeps the same endpoint-and-approval dedupe claim;
   failed retries release it. Each failed send continues to count toward automatic endpoint disabling
   after three consecutive failures.
+- For endpoints without a stable ID, the retry locator is a digest of the current callback URL. Changing
+  that URL invalidates pending retries instead of redirecting an old notification to the new destination.
+- Enqueueing a retry remains best-effort: if the task queue cannot persist it, the original failed delivery
+  has no retry and an error is logged. Guaranteeing persistence would require a durable enqueue/outbox path.
 - Terminal retry task history is retained for seven days, then cleaned by the existing daily job.
 - This decision supersedes the single-attempt delivery clause of [0064](0064-moderation-approval-notify-channels.md);
   the other notification channel, privacy, and signed confirmation decisions remain in force.
