@@ -344,6 +344,7 @@ func workRank(ctx context.Context, now time.Time) (bool, error) {
 		})
 	}
 	if err != nil {
+		backoffRank(ctx, job, now, err)
 		return true, err
 	}
 	if job.ProjectionDirty {
@@ -353,9 +354,7 @@ func workRank(ctx context.Context, now time.Time) (bool, error) {
 	}
 	in, err := rankInput(ctx, job.TopicID, topic)
 	if err != nil {
-		repairCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 50*time.Millisecond)
-		defer cancel()
-		_ = db.ConnectContext(repairCtx).Model(&feed.Schedule{}).Where("topic_id = ? AND generation = ? AND version = ?", job.TopicID, job.Generation, job.Version).UpdateColumns(map[string]any{"due_at": now.Add(time.Minute), "failures": gorm.Expr("failures + 1"), "last_error": err.Error()[:min(len(err.Error()), 256)]}).Error
+		backoffRank(ctx, job, now, err)
 		return true, err
 	}
 	r := ScoreRankWithRules(in, now, cfg.Rules)
@@ -420,6 +419,12 @@ func workRank(ctx context.Context, now time.Time) (bool, error) {
 		lastRankAt.Store(now.Unix())
 	}
 	return true, err
+}
+
+func backoffRank(ctx context.Context, job feed.Schedule, now time.Time, failure error) {
+	repairCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 50*time.Millisecond)
+	defer cancel()
+	_ = db.ConnectContext(repairCtx).Model(&feed.Schedule{}).Where("topic_id = ? AND generation = ? AND version = ?", job.TopicID, job.Generation, job.Version).UpdateColumns(map[string]any{"due_at": now.Add(time.Minute), "failures": gorm.Expr("failures + 1"), "last_error": failure.Error()[:min(len(failure.Error()), 256)]}).Error
 }
 
 func getState(ctx context.Context, key string) string {

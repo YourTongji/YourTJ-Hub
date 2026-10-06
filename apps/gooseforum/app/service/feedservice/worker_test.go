@@ -2,12 +2,14 @@ package feedservice
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/feedconfig"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/preferences"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/feed"
+	"gorm.io/gorm"
 )
 
 func TestRankBackfillProgressesWhileDueQueueStaysNonempty(t *testing.T) {
@@ -42,6 +44,41 @@ func TestRankBackfillProgressesWhileDueQueueStaysNonempty(t *testing.T) {
 	}
 	if getState(ctx, "posts_cursor") == "" && getState(ctx, "posts_backfilled") != "true" {
 		t.Fatal("publication backfill starved behind due ranking work")
+	}
+}
+
+func TestRankSourceReadFailureBacksOffTheScheduledJob(t *testing.T) {
+	conn := telemetryDB(t)
+	preferences.Set("ranking.enabled", true)
+	ctx := context.Background()
+	const topicID uint64 = 998901
+	if err := conn.Transaction(func(tx *gorm.DB) error { return feed.MarkTx(tx, topicID) }); err != nil {
+		t.Fatal(err)
+	}
+	failure := errors.New("source read failed")
+	if err := conn.Callback().Query().Before("gorm:query").Register("test_fail_rank_source", func(tx *gorm.DB) {
+		if tx.Statement.Table == "topics" {
+			_ = tx.AddError(failure)
+		}
+	}); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := conn.Callback().Query().Remove("test_fail_rank_source"); err != nil {
+			t.Error(err)
+		}
+	})
+	now := time.Now()
+	worked, err := workRank(ctx, now)
+	if !worked || !errors.Is(err, failure) {
+		t.Fatalf("worked=%v error=%v", worked, err)
+	}
+	var job feed.Schedule
+	if err := conn.First(&job, "topic_id = ?", topicID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if job.Failures != 1 || !job.DueAt.After(now) || job.LastError != failure.Error() {
+		t.Fatal("failed source read remained due without retry backoff")
 	}
 }
 

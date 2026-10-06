@@ -38,15 +38,15 @@ filter checks on every continuation. Explicit Latest is retained; strict page ca
 old mobile clients. Cold-build saturation or timeout returns a bounded Latest page rather than mixing
 snapshot cursors with offset pagination.
 
-Raw identifiable observations/assignments/samples expire after at most30 days, with24-hour ranking
+Raw identifiable observations/assignments/samples expire after at most 30 days, with 24-hour ranking
 facts and account-close ingestion fencing. Backup copies exclude raw records and derived work. A process
 epoch invalidates transient cursors/traces and aborts an experiment after incomplete shutdown/restore.
 Only anonymous aggregates and parameter history persist long term. Defaults disable the feature;
-initial account-level default-entry rollout is20%.
+initial account-level default-entry rollout is 20%.
 
 Default-entry and ranking comparisons have independent assignments. Fourteen-day enrollment followed
-by an eight-natural-day account observation window fits30-day retention. Anonymous n/sum/sumSquares
-support difference-of-means intervals only when each observed group has at least30 accounts. Missing
+by an eight-natural-day account observation window fits 30-day retention. Anonymous n/sum/sumSquares
+support difference-of-means intervals only when each observed group has at least 30 accounts. Missing
 and closed trajectories retain their assigned denominator and are explicitly reported; intervals
 cannot correct missingness. Shared interleaving items/exploration do not supply team wins. Independent
 candidate samples support finite-pool deterministic replay, not historical recall or causal estimation.
