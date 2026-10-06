@@ -50,8 +50,15 @@ class IdentityPicker extends ConsumerWidget {
         ),
         const SizedBox(width: 8),
         Expanded(
-          child: Text(
-            '${l.anonymousPublishAs} · ${value == 'persona' ? l.anonymousPersonaLabel : l.anonymousMember}: $name',
+          child: Tooltip(
+            message: name,
+            child: Text(
+              '${l.anonymousPublishAs} · ${value == 'persona' ? l.anonymousPersonaLabel : l.anonymousMember}: $name',
+              // Unrestricted THUOCL words must not consume the reply viewport.
+              // Text semantics and the tooltip retain the complete chosen name.
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
         ),
         if (state.hasError)

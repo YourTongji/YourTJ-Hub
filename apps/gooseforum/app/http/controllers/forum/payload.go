@@ -1064,9 +1064,15 @@ func buildTopicPayloads(topics []*vo.TopicsSimpleVo) []TopicPayload {
 	categoryMap := hotdataserve.CategoryMap()
 	res := make([]TopicPayload, 0, len(topics))
 	imageNames := make([]string, 0, len(topics)*2)
+	topicIDs := make([]uint64, 0, len(topics))
+	uids := make([]string, 0, len(topics))
 	for _, topic := range topics {
 		if topic == nil {
 			continue
+		}
+		topicIDs = append(topicIDs, topic.Id)
+		if topic.PersonaUID != "" {
+			uids = append(uids, topic.PersonaUID)
 		}
 		imageURLs := topic.ImageUrls
 		if len(imageURLs) == 0 && topic.FirstImageURL != "" {
@@ -1076,6 +1082,11 @@ func buildTopicPayloads(topics []*vo.TopicsSimpleVo) []TopicPayload {
 			imageNames = append(imageNames, fileusageservice.FileNameFromURL(imageURL))
 		}
 	}
+	publicRows, _ := posts.PersonaParticipants(dbconnect.Connect(), topicIDs)
+	for _, p := range publicRows {
+		uids = append(uids, p.PersonaUID)
+	}
+	personaMap := anonymousidentityservice.Lookup(uids)
 	imageMetadata, err := filedata.ImageMetadataByNames(imageNames)
 	if err != nil {
 		slog.Warn("resolve feed image metadata failed", "error", err)
@@ -1124,34 +1135,23 @@ func buildTopicPayloads(topics []*vo.TopicsSimpleVo) []TopicPayload {
 			}
 		}
 
+		author := TopicAuthorPayload{Kind: "member", ID: topic.AuthorId, Username: topic.Username, Nickname: topic.Nickname, AvatarURL: topic.AvatarUrl}
+		if topic.PersonaUID != "" {
+			// Public boundaries project from the persona row independently of
+			// upstream transforms, including when that public row is missing.
+			author = personaAuthorPayload(topic.PersonaUID, personaMap[topic.PersonaUID])
+		}
 		res = append(res, TopicPayload{
-			ID:            topic.Id,
-			Title:         topic.Title,
-			Description:   topic.Description,
-			FirstImageURL: topic.FirstImageURL,
-			Images:        topic.ImageUrls,
-			ImageMetadata: images,
-			URL:           urlconfig.PostDetail(topic.Id),
-			PinWeight:     topic.PinWeight,
-			ProcessStatus: topic.ProcessStatus,
-			Author: TopicAuthorPayload{
-				Kind: func() string {
-					if topic.PersonaUID != "" {
-						return "persona"
-					}
-					return "member"
-				}(),
-				PublicUID: topic.PersonaUID, ProfileURL: func() string {
-					if topic.PersonaUID != "" {
-						return "/a/" + topic.PersonaUID
-					}
-					return ""
-				}(),
-				ID:        topic.AuthorId,
-				Username:  topic.Username,
-				Nickname:  topic.Nickname,
-				AvatarURL: topic.AvatarUrl,
-			},
+			ID:             topic.Id,
+			Title:          topic.Title,
+			Description:    topic.Description,
+			FirstImageURL:  topic.FirstImageURL,
+			Images:         topic.ImageUrls,
+			ImageMetadata:  images,
+			URL:            urlconfig.PostDetail(topic.Id),
+			PinWeight:      topic.PinWeight,
+			ProcessStatus:  topic.ProcessStatus,
+			Author:         author,
 			Participants:   buildParticipants(topic),
 			Categories:     categories,
 			ReplyCount:     topic.CommentCount,
@@ -1162,16 +1162,6 @@ func buildTopicPayloads(topics []*vo.TopicsSimpleVo) []TopicPayload {
 			ContentType:    topic.ContentType,
 		})
 	}
-	topicIDs := make([]uint64, 0, len(res))
-	for _, t := range res {
-		topicIDs = append(topicIDs, t.ID)
-	}
-	publicRows, _ := posts.PersonaParticipants(dbconnect.Connect(), topicIDs)
-	uids := make([]string, 0, len(publicRows))
-	for _, p := range publicRows {
-		uids = append(uids, p.PersonaUID)
-	}
-	personaMap := anonymousidentityservice.Lookup(uids)
 	byTopic := map[uint64][]TopicAuthorPayload{}
 	for _, p := range publicRows {
 		byTopic[p.TopicID] = append(byTopic[p.TopicID], personaAuthorPayload(p.PersonaUID, personaMap[p.PersonaUID]))
@@ -1196,9 +1186,14 @@ func buildParticipants(topic *vo.TopicsSimpleVo) []TopicAuthorPayload {
 		participants = append(participants, user)
 	}
 	for _, poster := range topic.Posters {
+		if poster.PersonaUID != "" {
+			continue // Persona participants are projected from public post rows above.
+		}
 		add(TopicAuthorPayload{ID: poster.Id, Username: poster.Username, Nickname: poster.Nickname, AvatarURL: poster.AvatarUrl})
 	}
-	add(TopicAuthorPayload{ID: topic.AuthorId, Username: topic.Username, Nickname: topic.Nickname, AvatarURL: topic.AvatarUrl})
+	if topic.PersonaUID == "" {
+		add(TopicAuthorPayload{ID: topic.AuthorId, Username: topic.Username, Nickname: topic.Nickname, AvatarURL: topic.AvatarUrl})
+	}
 	if len(participants) > 4 {
 		return participants[:4]
 	}

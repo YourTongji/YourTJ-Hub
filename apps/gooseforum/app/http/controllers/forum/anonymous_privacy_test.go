@@ -117,6 +117,41 @@ func TestFollowingFeedExcludesPrivatePersonaOwnership(t *testing.T) {
 	}
 }
 
+func TestTopicListProjectsPersonaWithoutTrustingTransformedAuthor(t *testing.T) {
+	conn := setupRevisionTestDB(t)
+	if err := conn.AutoMigrate(&identity.Persona{}); err != nil {
+		t.Fatal(err)
+	}
+	persona := identity.Persona{UID: strings.Repeat("d", 32), Name: "完整花名", AvatarSeed: strings.Repeat("e", 32)}
+	if err := conn.Create(&persona).Error; err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { conn.Unscoped().Delete(&persona) })
+	for _, uid := range []string{persona.UID, strings.Repeat("f", 32)} {
+		topic := &vo.TopicsSimpleVo{Id: 991850, PersonaUID: uid, AuthorId: 991851, Username: "private-owner", Nickname: "private-nickname", AvatarUrl: "/private-avatar.png",
+			Posters: []vo.PosterVo{{PersonaUID: uid, Id: 991851, Username: "private-owner", AvatarUrl: "/private-avatar.png"}, {Id: 991852, Username: "public-replier"}}}
+		payload := buildTopicPayloads([]*vo.TopicsSimpleVo{topic})
+		raw, err := json.Marshal(payload)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, forbidden := range []string{"private-owner", "private-nickname", "/private-avatar.png", `"id":991851`} {
+			if strings.Contains(string(raw), forbidden) {
+				t.Fatalf("private author escaped list boundary: %s", raw)
+			}
+		}
+		if len(payload) != 1 || payload[0].Author.PublicUID != uid || payload[0].Author.ProfileURL != "/a/"+uid || payload[0].Author.ID != 0 {
+			t.Fatalf("missing independent persona projection: %s", raw)
+		}
+		if uid == persona.UID && payload[0].Author.Username != persona.Name {
+			t.Fatalf("list did not resolve current public name: %s", raw)
+		}
+		if len(payload[0].Participants) != 1 || payload[0].Participants[0].ID != 991852 {
+			t.Fatalf("public member participant lost: %s", raw)
+		}
+	}
+}
+
 func TestAdminWildcardDoesNotAdvertiseAnonymousReveal(t *testing.T) {
 	conn := dbconnect.Connect()
 	if err := conn.AutoMigrate(&users.EntityComplete{}, &rolePermissionRs.Entity{}); err != nil {

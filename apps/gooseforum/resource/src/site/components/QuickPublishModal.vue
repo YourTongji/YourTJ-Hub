@@ -1256,6 +1256,7 @@ async function handleSubmit() {
 
 .gf-modal-editor.is-mention-picking .gf-mention-panel.is-docked {
   flex-shrink: 0;
-  max-height: min(234px, 38vh);
+  /* Reserve space for the identity row and toolbar in short viewports. */
+  max-height: min(234px, 30vh);
 }
 </style>

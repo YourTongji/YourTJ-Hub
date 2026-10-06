@@ -34,6 +34,7 @@ func TestAnonymousIdentityHTTPContract(t *testing.T) {
 	g.POST("disable", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.AnonymousDisable))
 	g.POST("reveal", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.AnonymousReveal))
 	g.POST("govern", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.AnonymousGovern))
+	router.POST("/api/forum/posts/create", middleware.JWTAuthCheck, middleware.CheckWritableAccount, UpLimitedButterReq(maxContentWriteBodyBytes, api.CreatePost))
 	owner := createHTTPContractUser(t, conn, contractTestID())
 	auditor := createHTTPContractUser(t, conn, contractTestID())
 	token := contractSessionToken(t, owner)
@@ -119,6 +120,15 @@ func TestAnonymousIdentityHTTPContract(t *testing.T) {
 	rec = serveJSON(router, "/api/forum/anonymous/disable", `{"disabled":false}`, token)
 	if rec.Code != 403 {
 		t.Fatal("restricted owner bypass", rec.Code, rec.Body.String())
+	}
+	// Governance is account-wide, so neither public identity can bypass it.
+	for _, path := range []string{"/api/forum/topics/write", "/api/forum/posts/create"} {
+		for _, identity := range []string{"member", "persona"} {
+			rec = serveJSON(router, path, fmt.Sprintf(`{"identity":%q}`, identity), token)
+			if rec.Code != 403 || decodeContractEnvelope(t, rec).MessageCode != "permission.userFrozen" {
+				t.Fatalf("governed %s bypassed writing guard on %s: %d %s", identity, path, rec.Code, rec.Body.String())
+			}
+		}
 	}
 	if err := sessionservice.RevokeAllAndInvalidate(owner.Id); err != nil {
 		t.Fatal(err)

@@ -17,10 +17,11 @@ import (
 )
 
 var (
-	ErrLocked      = errors.New("anonymous.nameLocked")
-	ErrQuota       = errors.New("anonymous.dailyLimit")
-	ErrCandidate   = errors.New("anonymous.candidateExpired")
-	ErrUnavailable = errors.New("anonymous.unavailable")
+	ErrLocked        = errors.New("anonymous.nameLocked")
+	ErrQuota         = errors.New("anonymous.dailyLimit")
+	ErrCandidate     = errors.New("anonymous.candidateExpired")
+	ErrUnavailable   = errors.New("anonymous.unavailable")
+	ErrInvalidParams = errors.New("common.request.invalidParams")
 )
 
 type PublicPersona struct {
@@ -106,7 +107,7 @@ func (s Service) State(owner uint64) (State, error) {
 func (s Service) Generate(owner uint64, day, key string) (identity.Batch, error) {
 	var result identity.Batch
 	if len(key) < 8 || len(key) > 128 {
-		return result, ErrCandidate
+		return result, ErrInvalidParams
 	}
 	err := s.DB.Transaction(func(tx *gorm.DB) error {
 		if _, err := users.LockAnonymousOwnerTx(tx, owner); err != nil {
@@ -282,7 +283,7 @@ func (s Service) Cleanup() error {
 	return s.DB.Where("expires_at < ?", cutoff).Delete(&identity.Batch{}).Error
 }
 func ErrorCode(err error) string {
-	if errors.Is(err, ErrLocked) || errors.Is(err, ErrQuota) || errors.Is(err, ErrCandidate) || errors.Is(err, ErrUnavailable) {
+	if errors.Is(err, ErrLocked) || errors.Is(err, ErrQuota) || errors.Is(err, ErrCandidate) || errors.Is(err, ErrUnavailable) || errors.Is(err, ErrInvalidParams) {
 		return err.Error()
 	}
 	return "operation.failed"

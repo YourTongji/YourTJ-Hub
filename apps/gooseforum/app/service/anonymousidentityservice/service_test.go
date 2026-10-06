@@ -224,6 +224,21 @@ func TestGenerationFailureDoesNotCharge(t *testing.T) {
 	}
 }
 
+func TestInvalidGenerationRequestKeyDoesNotCharge(t *testing.T) {
+	s := setup(t, false)
+	day, _ := anonymousnames.Day(s.Now())
+	for _, key := range []string{"", "short", strings.Repeat("x", 129)} {
+		_, err := s.Generate(1, day, key)
+		if err == nil || ErrorCode(err) != "common.request.invalidParams" {
+			t.Fatalf("invalid request key returned %v, want invalid parameters", err)
+		}
+	}
+	state, err := s.State(1)
+	if err != nil || state.Remaining != 10 || len(state.Batches) != 0 {
+		t.Fatalf("invalid request consumed quota: %+v, %v", state, err)
+	}
+}
+
 func exerciseGovernanceAndClosure(t *testing.T, s Service) {
 	t.Helper()
 	day, _ := anonymousnames.Day(s.Now())

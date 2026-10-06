@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-10-06
+> Last verified: 2026-10-07
 
 ## Identity and naming
 
@@ -45,6 +45,15 @@ member; a continuation in the owner's anonymous topic defaults to that persona. 
 the chosen identity with its body. Captcha, review and failed submissions retain that choice.
 An unavailable persona causes failure instead of silently switching to member. Published authors
 cannot be changed by editing their body. Existing server drafts retain the original attribution.
+
+`Current`: composer identity controls stay on one row at large text sizes. A long selected name
+remains complete in the control's accessible text and name tooltip; settings and the public profile
+display the full word. Loading failures offer retry without changing the selected identity or
+expanding the identity row into the editor, mention candidates or sticker panel.
+
+`Current`: topic lists project persona authors again at the final public payload boundary. Private
+author IDs, names and avatars cannot pass through even if an upstream transform is omitted or the
+public persona row is missing; member replies still retain their public attribution.
 
 `Current`: persona authors expose `kind`, `publicUid`, name, avatar and profile URL, with numeric
 author ID zero. Anonymous authors do not carry main-account badges, personal notes or profile fields.

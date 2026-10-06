@@ -1364,7 +1364,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           child: Column(
             children: [
               GfSettingRow(
-                symbol: 'venetian-mask',
+                symbol: 'eye-off',
                 title: l10n.anonymousIdentity,
                 trailing: const GfSymbol('chevron-right', size: 18),
                 onTap: () => context.push('/settings/anonymous-identity'),
