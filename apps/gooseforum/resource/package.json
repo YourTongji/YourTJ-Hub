@@ -48,7 +48,7 @@
     "prosemirror-schema-list": "^1.5.1",
     "prosemirror-state": "^1.4.4",
     "prosemirror-tables": "^1.8.5",
-    "prosemirror-view": "^1.42.1",
+    "prosemirror-view": "^1.42.3",
     "qrcode": "^1.5.4",
     "reka-ui": "^2.9.8",
     "simple-icons": "^16.20.0",
