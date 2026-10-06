@@ -56,6 +56,9 @@ func TestReplyLifecycleRebuildsRankingWithoutSynchronousProjection(t *testing.T)
 		if err := conn.First(&got, "id = ?", topicID).Error; err != nil {
 			t.Fatal(err)
 		}
+		if got.RankReady && got.RankSource != topics.RankSource(got) {
+			t.Fatal("rebuilt projection left a stale watermark and would queue another rebuild")
+		}
 		return got.RankScore
 	}
 	if err := conn.Transaction(func(tx *gorm.DB) error { return feed.MarkTx(tx, topicID) }); err != nil {

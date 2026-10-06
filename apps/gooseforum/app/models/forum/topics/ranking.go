@@ -143,9 +143,18 @@ func AllRankReady(ctx context.Context, hash string) (bool, error) {
 }
 
 func RankSource(e Entity) string {
-	data := fmt.Sprintf("%d:%d:%d:%v:%v:%v:%v", e.UserId, e.ReplyCount, e.LikeCount, e.UpdatedAt, e.LastPublicReplyAt, e.FirstPublicAt, e.CategoryIds)
+	data := fmt.Sprintf("%d:%d:%d:%s:%s:%s:%v", e.UserId, e.ReplyCount, e.LikeCount, e.UpdatedAt.UTC().Format(time.RFC3339Nano), rankSourceTime(e.LastPublicReplyAt), rankSourceTime(e.FirstPublicAt), e.CategoryIds)
 	h := sha256.Sum256([]byte(data))
 	return hex.EncodeToString(h[:16])
+}
+
+// Aggregate scans and normal model reads can use different location names for
+// the same instant. A watermark must survive that database round trip.
+func rankSourceTime(at *time.Time) string {
+	if at == nil {
+		return ""
+	}
+	return at.UTC().Format(time.RFC3339Nano)
 }
 func ReconcileRankBatch(ctx context.Context, after uint64) ([]Entity, error) {
 	var rows []Entity

@@ -396,6 +396,7 @@ func workRank(ctx context.Context, now time.Time) (bool, error) {
 			if e := tx.Model(&topics.Entity{}).Where("id = ?", job.TopicID).UpdateColumn("last_public_reply_at", lastPublic).Error; e != nil {
 				return e
 			}
+			topic.LastPublicReplyAt = lastPublic
 		}
 		if e := tx.Model(&topics.Entity{}).Where("id = ?", job.TopicID).UpdateColumn("rank_source", topics.RankSource(topic)).Error; e != nil {
 			return e
