@@ -24,6 +24,7 @@ class _FeedVisibilityState extends State<FeedVisibility>
   ScrollPosition? _scroll;
   Timer? _check;
   Timer? _qualify;
+  bool _measurementScheduled = false;
   String? _reported;
   bool _foreground = true;
   @override
@@ -55,6 +56,15 @@ class _FeedVisibilityState extends State<FeedVisibility>
   }
 
   void _schedule() {
+    // Check an in-progress interval after every rendered scroll frame. Debounce
+    // alone misses a brief offscreen excursion before the 100ms check fires.
+    if (_qualify != null && !_measurementScheduled) {
+      _measurementScheduled = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _measurementScheduled = false;
+        if (mounted) _measure();
+      });
+    }
     _check?.cancel();
     _check = Timer(const Duration(milliseconds: 100), _measure);
   }

@@ -2,9 +2,12 @@
 import { beforeEach, afterEach, expect, test, vi } from 'vitest'
 import type { TopicPayload } from '@gooseforum/client'
 import {
+  beginFeedDetail,
+  endFeedDetail,
   resetFeedAccount,
   selectFeedTopic,
   feedRequestHeaders,
+  feedFetch,
   observeFeedRows,
   flushFeedEvents,
 } from '../src/runtime/feed-telemetry'
@@ -72,5 +75,30 @@ test('background cancels the continuous visibility interval', async () => {
   vi.advanceTimersByTime(2000)
   await flushFeedEvents()
   expect(fetch).not.toHaveBeenCalled()
+  stop()
+})
+
+test('leaving a traced detail clears attribution for a later search or notification visit', () => {
+  selectFeedTopic(topic())
+  beginFeedDetail(31)
+  expect(feedRequestHeaders('/api/forum/topics/like')['X-Goose-Feed-Trace']).toBe('signed-trace')
+  endFeedDetail()
+  expect(feedRequestHeaders('/p/post/31')).toEqual({})
+  expect(feedRequestHeaders('/api/forum/topics/like')).toEqual({})
+})
+
+test('the real account-close endpoint clears queued exposure and attribution', async () => {
+  const root = document.createElement('section')
+  const row = document.createElement('div')
+  row.dataset.feedId = '31'
+  root.append(row)
+  const stop = observeFeedRows(root, () => [topic()])
+  intersection([{ target: row, isIntersecting: true, intersectionRatio: 0.6 }])
+  vi.advanceTimersByTime(1000)
+  selectFeedTopic(topic())
+  await feedFetch('/api/forum/user/account-close', { method: 'POST' })
+  expect(feedRequestHeaders('/p/post/31')).toEqual({})
+  await flushFeedEvents()
+  expect(fetch).toHaveBeenCalledTimes(1)
   stop()
 })

@@ -54,7 +54,7 @@ export function feedFetch(input: string | URL, init: RequestInit = {}) {
     if (
       response.ok &&
       typeof window !== 'undefined' &&
-      /\/api\/(logout|forum\/account-close)$/.test(new URL(input.toString(), window.location.origin).pathname)
+      /\/api\/(logout|forum\/user\/account-close)$/.test(new URL(input.toString(), window.location.origin).pathname)
     )
       resetFeedAccount(0)
     return response
@@ -94,10 +94,12 @@ function startTimer() {
 }
 
 export function beginFeedDetail(topic: number) {
+  const context = selected
   endFeedDetail()
-  if (selected?.topic !== topic) return
+  if (context?.topic !== topic) return
+  selected = context
   detail = {
-    context: selected,
+    context,
     started: performance.now(),
     elapsed: 0,
     running: !document.hidden,
@@ -123,6 +125,7 @@ function updateDwell() {
 export function endFeedDetail() {
   updateDwell()
   detail = undefined
+  selected = undefined
 }
 
 export async function flushFeedEvents(keepalive = false) {

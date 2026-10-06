@@ -173,14 +173,10 @@ func runWorker(ctx context.Context) {
 				lastParamsHash = cfg.Hash
 			}
 		}
-		if err == nil && cfg.Ranking && now.Sub(lastRank) >= time.Second/time.Duration(cfg.JobsPerSecond) {
-			lastRank = now
-			var worked bool
-			worked, err = workActor(jobCtx)
-			if !worked && err == nil {
-				worked, err = workRank(jobCtx, now)
-			}
-			if !worked && err == nil && now.Sub(lastBackfill) >= time.Second {
+		if err == nil && cfg.Ranking {
+			// Reserve a bounded maintenance slot even when due jobs never drain.
+			// Rebuild requests and changed hashes must not wait for queue idleness.
+			if now.Sub(lastBackfill) >= time.Second {
 				err = backfillRank(jobCtx)
 				lastBackfill = now
 				if err == nil && feedconfig.RankReady() && now.Sub(lastReconcile) >= time.Second {
@@ -192,6 +188,14 @@ func runWorker(ctx context.Context) {
 					if err == nil {
 						lastSnapshot = now
 					}
+				}
+			}
+			if err == nil && now.Sub(lastRank) >= time.Second/time.Duration(cfg.JobsPerSecond) {
+				lastRank = now
+				var worked bool
+				worked, err = workActor(jobCtx)
+				if !worked && err == nil {
+					_, err = workRank(jobCtx, now)
 				}
 			}
 		}

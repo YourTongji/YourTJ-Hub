@@ -50,8 +50,9 @@ class FeedTelemetry with WidgetsBindingObserver {
   Map<String, String> headers(String path) {
     final c = selected;
     final uri = Uri.tryParse(path);
-    if (c == null || uri == null || uri.hasScheme || uri.hasAuthority)
+    if (c == null || uri == null || uri.hasScheme || uri.hasAuthority) {
       return {};
+    }
     if (uri.path != '/p/post/${c.topic}' && !path.startsWith('/api/forum/')) {
       return {};
     }
@@ -83,9 +84,11 @@ class FeedTelemetry with WidgetsBindingObserver {
   }
 
   void beginDetail(int topic) {
+    final context = selected;
     endDetail();
-    if (selected?.topic != topic) return;
-    _detail = selected;
+    if (context?.topic != topic) return;
+    selected = context;
+    _detail = context;
     _reportedSeconds = 0;
     _dwell.reset();
     if (foreground && _routeVisible) _dwell.start();
@@ -115,6 +118,7 @@ class FeedTelemetry with WidgetsBindingObserver {
   void endDetail() {
     _reportDwell();
     _detail = null;
+    selected = null;
     _dwell.stop();
   }
 

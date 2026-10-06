@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:core/core.dart';
-import 'package:core/src/api/feed_telemetry.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -68,6 +67,14 @@ void main() {
       final patch = (batches.single['patches'] as List).single as Map;
       expect(patch['visibleMask'], 1);
       expect(patch.containsKey('openedMask'), false);
+      telemetry.beginDetail(31);
+      expect(
+        telemetry.headers('/api/forum/topics/like')['X-Goose-Feed-Trace'],
+        'signed',
+      );
+      telemetry.endDetail();
+      expect(telemetry.headers('/p/post/31'), isEmpty);
+      expect(telemetry.headers('/api/forum/topics/like'), isEmpty);
       telemetry.bindAccount(13);
       expect(telemetry.headers('/api/forum/topic-like'), isEmpty);
       telemetry.didChangeAppLifecycleState(AppLifecycleState.paused);

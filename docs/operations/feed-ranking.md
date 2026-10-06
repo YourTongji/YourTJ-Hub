@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-10-05
+> Last verified: 2026-10-06
 
 ## 配置与启用
 
@@ -19,7 +19,7 @@ TOML参数在 `ranking`、`ranking.hot`、`ranking.daily`、`feed.for_you`、`fe
 修改物化权重使新排名立即未就绪，后台重新回填；不同hash的排名不能混用。
 
 `Current`：启用 `ranking.enabled` 后，serve进程中的单worker进行公开时间回填与物化排序，
-持久游标每批最多200条；不会在启动迁移内扫描历史正文。只有公开话题全部匹配当前排名hash才就绪。
+持久游标每批最多200条；在后台预算内每秒安排一次回填/重建检查，即使排名队列持续非空也会推进，不依赖空闲队列。不会在启动迁移内扫描历史正文。只有公开话题全部匹配当前排名hash才就绪。
 `feed-rebuild` 仅请求重建，serve仍为唯一计算者。启用metrics后采集基线，再开启for_you；
 入口实验启用且灰度大于0时原始保留必须30天。首次灰度配置为20%，不要把开启开关当作效果验证。
 

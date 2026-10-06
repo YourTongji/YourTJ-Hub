@@ -51,4 +51,53 @@ void main() {
       telemetry.send = null;
     },
   );
+  testWidgets('briefly scrolling out of view restarts the full second', (
+    tester,
+  ) async {
+    final telemetry = FeedTelemetry.instance;
+    telemetry.bindAccount(12);
+    final batches = <Map<String, dynamic>>[];
+    telemetry.send = (batch) async {
+      batches.add(batch);
+    };
+    final controller = ScrollController();
+    final topic = parsePageProps<HomeProps>(
+      parsePayload(homePayloadJson()),
+    )!.topics.first.copyWith(feedTrace: 'scroll-trace', feedPosition: 0);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            height: 200,
+            child: ListView(
+              controller: controller,
+              children: [
+                FeedVisibility(
+                  topic: topic,
+                  child: const SizedBox(height: 100),
+                ),
+                const SizedBox(height: 1000),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.pump(const Duration(milliseconds: 500));
+    controller.jumpTo(200);
+    await tester.pump(const Duration(milliseconds: 1));
+    controller.jumpTo(0);
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.pump(const Duration(milliseconds: 500));
+    await telemetry.flush();
+    expect(batches, isEmpty);
+    await tester.pump(const Duration(seconds: 1));
+    await telemetry.flush();
+    expect((batches.single['patches'] as List).single['visibleMask'], 1);
+    await tester.pumpWidget(const SizedBox());
+    controller.dispose();
+    telemetry.bindAccount(0);
+    telemetry.send = null;
+  });
 }
