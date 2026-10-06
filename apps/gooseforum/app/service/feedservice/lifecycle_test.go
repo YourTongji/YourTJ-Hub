@@ -9,13 +9,105 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/feedconfig"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/preferences"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/feed"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postRevisions"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topicUserAction"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topicUserStat"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/postservice"
 	"gorm.io/gorm"
 )
+
+func TestPublicReplyRebuildsProjectionBeforeQueuedRankAdvancesWatermark(t *testing.T) {
+	for _, anonymous := range []bool{false, true} {
+		name := "public"
+		if anonymous {
+			name = "anonymous"
+		}
+		t.Run(name, func(t *testing.T) {
+			conn := telemetryDB(t)
+			if err := conn.AutoMigrate(&topicUserAction.Entity{}, &topicUserStat.Entity{}, &topicUserStat.RankParticipant{}, &postRevisions.Entity{}); err != nil {
+				t.Fatal(err)
+			}
+			preferences.Set("ranking.enabled", true)
+			const topicID, author, peer, newcomer uint64 = 998201, 998211, 998212, 998213
+			at := time.Now().Add(-8 * 24 * time.Hour)
+			people := []users.EntityComplete{{Id: author, Username: "rank-reply-author", Email: "rank-reply-author@example.invalid"}, {Id: peer, Username: "rank-reply-peer", Email: "rank-reply-peer@example.invalid"}, {Id: newcomer, Username: "rank-reply-new", Email: "rank-reply-new@example.invalid"}}
+			if err := conn.Create(&people).Error; err != nil {
+				t.Fatal(err)
+			}
+			topic := topics.Entity{Id: topicID, UserId: author, Status: 1, FirstPostId: topicID, FirstPublicAt: &at, PostSeq: 2, PostCount: 2, ReplyCount: 1}
+			if err := conn.Create(&topic).Error; err != nil {
+				t.Fatal(err)
+			}
+			rows := []posts.Entity{{Id: topicID, TopicId: topicID, UserId: author, PostNo: 1, FirstPublicAt: &at}, {Id: topicID + 1, TopicId: topicID, UserId: peer, PostNo: 2, FirstPublicAt: &at}}
+			if err := conn.Create(&rows).Error; err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				conn.Where("post_id IN (?)", conn.Unscoped().Model(&posts.Entity{}).Select("id").Where("topic_id = ?", topicID)).Delete(&postRevisions.Entity{})
+				conn.Unscoped().Where("topic_id = ?", topicID).Delete(&posts.Entity{})
+				conn.Unscoped().Delete(&topic)
+				conn.Unscoped().Where("id IN ?", []uint64{author, peer, newcomer}).Delete(&users.EntityComplete{})
+				conn.Where("topic_id = ?", topicID).Delete(&topicUserStat.Entity{})
+				conn.Where("topic_id = ?", topicID).Delete(&topicUserStat.RankParticipant{})
+			})
+			ctx := context.Background()
+			mark := func() {
+				t.Helper()
+				if err := conn.Transaction(func(tx *gorm.DB) error { return feed.MarkTx(tx, topicID) }); err != nil {
+					t.Fatal(err)
+				}
+			}
+			rank := func() topics.Entity {
+				t.Helper()
+				if worked, err := workRank(ctx, time.Now()); err != nil || !worked {
+					t.Fatalf("rank: worked=%v err=%v", worked, err)
+				}
+				var got topics.Entity
+				if err := conn.First(&got, "id = ?", topicID).Error; err != nil {
+					t.Fatal(err)
+				}
+				return got
+			}
+			mark()
+			before := rank()
+			if !before.RankReady || before.RankEngaged != 1 {
+				t.Fatalf("fixture has no ready peer projection: %+v", before)
+			}
+			// A view/like job is already due. Run it after the reply commits but
+			// before reconcile gets a chance to detect the changed source.
+			mark()
+			replyAt := time.Now().Add(-time.Minute)
+			reply := posts.Entity{TopicId: topicID, UserId: newcomer, Content: "new public reply", FirstPublicAt: &replyAt, IsAnonymous: anonymous, VisibilityStatus: posts.VisibilityActive}
+			if err := postservice.CreateTopicPost(&reply, topic); err != nil {
+				t.Fatal(err)
+			}
+			mark() // Later ordinary dirtiness must preserve the reply invalidation.
+			got := rank()
+			if got.RankEngaged != 2 || got.LastPublicReplyAt == nil || !got.LastPublicReplyAt.Equal(replyAt) {
+				t.Fatalf("queued rank lost the new reply: people=%d last=%v want %v", got.RankEngaged, got.LastPublicReplyAt, replyAt)
+			}
+			if got.RankSource != topics.RankSource(got) {
+				t.Fatal("rank watermark does not match the rebuilt source")
+			}
+			participants, err := topicUserStat.RankParticipants(ctx, topicID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			found := false
+			for _, p := range participants {
+				if p.UserId == newcomer && p.RankReplyCount == 1 {
+					found = true
+				}
+			}
+			if !found {
+				t.Fatal("new reply missing from the stored participant projection")
+			}
+		})
+	}
+}
 
 func TestReplyLifecycleRebuildsRankingWithoutSynchronousProjection(t *testing.T) {
 	conn := telemetryDB(t)

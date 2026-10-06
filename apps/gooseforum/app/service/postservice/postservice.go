@@ -55,7 +55,15 @@ func CreateTopicPost(entity *posts.Entity, topicEntity topics.Entity) error {
 		for _, id := range ids {
 			posters = append(posters, topics.Poster{UserID: id})
 		}
-		return topics.IncrementPostFastTx(tx, entity.TopicId, posters, entity.Id, entity.CreatedAt)
+		if err := topics.IncrementPostFastTx(tx, entity.TopicId, posters, entity.Id, entity.CreatedAt); err != nil {
+			return err
+		}
+		if entity.ProcessStatus == posts.ProcessStatusNormal && entity.VisibilityStatus == posts.VisibilityActive {
+			// Fence already queued rank work before it can acknowledge a new
+			// reply's watermark using the old participant projection.
+			return feed.MarkProjectionTx(tx, entity.TopicId)
+		}
+		return nil
 	})
 }
 

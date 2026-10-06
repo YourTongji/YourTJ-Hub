@@ -348,8 +348,8 @@ func workRank(ctx context.Context, now time.Time) (bool, error) {
 		return true, err
 	}
 	if job.ProjectionDirty {
-		// Moderation/deletion commits can precede a best-effort statistics rebuild.
-		// Only those jobs (and initial backfill) read the bounded reply aggregate.
+		// Public replies and lifecycle changes invalidate the projection in
+		// their transaction. Rebuild before acknowledging the source watermark.
 		topic.RankReady = false
 	}
 	in, err := rankInput(ctx, job.TopicID, topic)
