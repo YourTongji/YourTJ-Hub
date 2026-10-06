@@ -39,6 +39,12 @@ route-aware fallback resumes when the launch surface leaves.
 
 ## Navigation and reading
 
+`Current`: Home negotiates feed capability v2, keeps explicit Latest separate from the default root,
+restarts expired recommendation snapshots and reports foreground visible rows/detail dwell. Attribution
+traces stay in memory and are stripped from offline pages. Recommendation reasons use four localized
+labels. See [feed ranking and measurement](feed-ranking.md) for the shared behavior and retention.
+
+
 `Current`: root layout uses the available window width. Below 600 logical pixels it retains bottom
 destinations; at 600 and above it uses a persistent, scrollable 72-pixel navigation rail. Forum,
 notification and conversation lists occupy a centered column up to 720 pixels wide. Campus can use

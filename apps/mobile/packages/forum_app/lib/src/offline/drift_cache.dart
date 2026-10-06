@@ -789,6 +789,21 @@ bool cacheRequestCurrent(Object cache, CacheCategory category) =>
 /// layout.viewer, email, admin permissions, notification counters or page chrome.
 Map<String, dynamic>? _pageProjection(PagePayload page) {
   final props = jsonDecode(jsonEncode(page.props)) as Map<String, dynamic>;
+  void stripTrace(dynamic value) {
+    if (value is Map) {
+      value.remove('feedTrace');
+      value.remove('feedPosition');
+      for (final child in value.values) {
+        stripTrace(child);
+      }
+    } else if (value is List) {
+      for (final child in value) {
+        stripTrace(child);
+      }
+    }
+  }
+
+  stripTrace(props);
   if (page.component == PageComponent.topicDetail) {
     final topic = props['topic'] as Map<String, dynamic>?;
     // Non-normal/moderated/deleted content must remain online-only.

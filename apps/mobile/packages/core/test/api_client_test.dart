@@ -59,6 +59,48 @@ void main() {
       expect(adapter.requests.single.path, '/api/forum/topics/status');
     });
 
+    test('feed card action owns its request attribution', () async {
+      setupClient(initialToken: 'tok-1');
+      final telemetry = FeedTelemetry.instance;
+      telemetry.bindAccount(12);
+      addTearDown(() => telemetry.bindAccount(0));
+      TopicPayload topic(int id, String trace, int position) =>
+          TopicPayload.fromJson({
+            'id': id,
+            'title': 'topic',
+            'description': '',
+            'participants': [],
+            'categories': [],
+            'replyCount': 0,
+            'viewCount': 0,
+            'pinWeight': 0,
+            'processStatus': 0,
+            'activityText': '',
+            'lastUpdateTime': '',
+            'url': '/p/post/$id',
+            'author': {'id': 1, 'username': 'author', 'avatarUrl': ''},
+            'feedTrace': trace,
+            'feedPosition': position,
+          });
+      telemetry.select(topic(31, 'selected-detail', 0));
+      final adapter = MockAdapter((request) async {
+        expect(request.headers['X-Goose-Feed-Trace'], 'card-trace');
+        expect(request.headers['X-Goose-Feed-Position'], '2');
+        expect(request.headers['X-Goose-Feed-Topic'], '32');
+        return ResponseData(200, {'code': 0, 'result': true});
+      });
+      dio.httpClientAdapter = adapter;
+      final repository = TopicRepository(client);
+      final card = topic(32, 'card-trace', 2);
+      await repository.likeTopic(topicId: 32, action: 1, feedTopic: card);
+      await repository.bookmarkTopic(topicId: 32, action: 1, feedTopic: card);
+      expect(adapter.requests, hasLength(2));
+      expect(
+        telemetry.headers('/p/post/31')['X-Goose-Feed-Trace'],
+        'selected-detail',
+      );
+    });
+
     test(
       'own course reviews sends session and pagination without author selector',
       () async {

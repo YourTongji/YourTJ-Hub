@@ -65,6 +65,7 @@ export interface ResetPasswordPageProps {
 }
 
 export interface LayoutPayload {
+  dailyRanking?: boolean
   site: SitePayload
   viewer: ViewerPayload
   header?: NavItemPayload[]
@@ -313,6 +314,9 @@ export interface PaginationPayload {
 }
 
 export interface HomeProps {
+  actualSort?: string
+  degradeReason?: string
+  feedTrace?: string
   /** Server-defined sort keys include following (sign-in required). */
   sort: string
   tabs: Array<{ key: string; label?: string; url: string; active: boolean }>
@@ -451,6 +455,9 @@ export interface PostWindowPayload {
 }
 
 export interface TopicPayload {
+  feedTrace?: string
+  feedPosition?: number
+  feedReason?: string
   id: number
   title: string
   description: string

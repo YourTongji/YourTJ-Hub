@@ -3,6 +3,7 @@
 # WAL 模式下源库在线运行也安全(项目自身 backupSQLite 同思路)。
 # usage: snapshot-db.sh <source.db> <snapshot.db>
 set -euo pipefail
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 SRC="${1:?usage: snapshot-db.sh <source.db> <snapshot.db>}"
 DEST="${2:?usage: snapshot-db.sh <source.db> <snapshot.db>}"
@@ -19,5 +20,6 @@ sqlite3 "$SRC" ".backup '$TMP'" || {
   rm -f "$TMP"
   exit 1
 }
-mv -f "$TMP" "$DEST"
+python3 "$SCRIPT_DIR/feed-privacy.py" --sqlite-copy "$TMP"
+  mv -f "$TMP" "$DEST"
 echo "snapshot-db: $SRC -> $DEST"

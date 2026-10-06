@@ -192,3 +192,53 @@ domains = ["tongji.edu.cn"]
 "1.tongji.edu.cn" = "同济大学教学管理系统"
 "yunpan.tongji.edu.cn" = "同济云盘"
 "www.tongji.edu.cn" = "同济大学"
+
+# Feed limits are hard caps in feedconfig; materialized algorithm hot-daily-v1.
+[ranking]
+enabled = {{FEED_RANKING_ENABLED}}
+jobs_per_second = 20
+query_timeout_ms = 250
+
+[feed.for_you]
+enabled = {{FEED_FOR_YOU_ENABLED}}
+rollout_percent = {{FEED_ROLLOUT_PERCENT}}
+
+[feed.metrics]
+enabled = {{FEED_METRICS_ENABLED}}
+raw_retention_days = 30
+candidate_sample_rate = 0.05
+
+[feed.experiments]
+period = {{FEED_EXPERIMENT_PERIOD}}
+salt = {{FEED_EXPERIMENT_SALT}}
+weight_comparison_enabled = false
+interleaving_enabled = false
+
+[feed.weights]
+follow = 1.0
+recency = 0.8
+quality = 1.0
+daily = 0.5
+category = 0.6
+author = 0.5
+new_reply = 0.4
+
+[feed.alternative_weights]
+follow = 1.0
+recency = 0.8
+quality = 1.0
+daily = 0.5
+category = 0.6
+author = 0.5
+new_reply = 0.4
+
+[ranking.hot]
+like_weight = 6.0
+reply_weight = 14.0
+
+[ranking.daily]
+view_weight = 0.30
+replier_weight = 0.25
+reply_weight = 0.15
+like_weight = 0.20
+bookmark_weight = 0.10

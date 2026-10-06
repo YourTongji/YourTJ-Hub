@@ -27,3 +27,5 @@ export function createGooseClient(options: GooseClientOptions = {}) {
 export type GooseClient = ReturnType<typeof createGooseClient>
 
 export * from './contracts/campus.js'
+
+export type { components, paths, operations } from './gen/openapi.js'

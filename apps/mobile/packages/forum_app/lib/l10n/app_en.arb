@@ -590,6 +590,7 @@
     }
   },
   "topicFloorSelected": "Jumped to floor {floor}",
+  "sortForYou": "For you",
   "sortLatest": "Latest",
   "sortHot": "Hot",
   "sortPopular": "Popular",
@@ -1186,7 +1187,13 @@
   "releaseNotesMore": "Show all updates",
   "releaseNotesFewer": "Show fewer",
   "releaseNotesShowRemaining": "{count, plural, =1{Show 1 more update} other{Show {count} more updates}}",
-  "@releaseNotesShowRemaining": {"placeholders": {"count": {"type": "int"}}},
+  "@releaseNotesShowRemaining": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "releaseNotesRequired": "Required",
   "releaseNotesHistoryError": "Release history is temporarily unavailable.",
   "releaseNotesKindFeature": "New",
@@ -1655,5 +1662,10 @@
   "contentReviewPending": "Under review",
   "notificationReviewPending": "Your post is awaiting manual review",
   "notificationReviewPendingDetail": "We’ll review it soon and notify you of the result. You can view or edit it while you wait.",
-  "notificationReviewRejectedDetail": "This submission won’t be shown publicly. Review, edit and resubmit it from content management. Contact an administrator if you have questions."
+  "notificationReviewRejectedDetail": "This submission won’t be shown publicly. Review, edit and resubmit it from content management. Contact an administrator if you have questions.",
+  "feedReasonFollowing": "From someone you follow",
+  "feedReasonCategory": "A category you participate in",
+  "feedReasonNewReply": "New replies",
+  "feedReasonRecent": "Recently published",
+  "sortDaily": "Today's top"
 }

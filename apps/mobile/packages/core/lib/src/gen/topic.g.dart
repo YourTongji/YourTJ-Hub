@@ -124,6 +124,9 @@ Map<String, dynamic> _$$CategoryBriefPayloadImplToJson(
 
 _$TopicPayloadImpl _$$TopicPayloadImplFromJson(Map<String, dynamic> json) =>
     _$TopicPayloadImpl(
+      feedTrace: json['feedTrace'] as String?,
+      feedPosition: (json['feedPosition'] as num?)?.toInt(),
+      feedReason: json['feedReason'] as String?,
       id: (json['id'] as num).toInt(),
       title: json['title'] as String,
       description: json['description'] as String,
@@ -160,6 +163,9 @@ _$TopicPayloadImpl _$$TopicPayloadImplFromJson(Map<String, dynamic> json) =>
 
 Map<String, dynamic> _$$TopicPayloadImplToJson(_$TopicPayloadImpl instance) =>
     <String, dynamic>{
+      'feedTrace': instance.feedTrace,
+      'feedPosition': instance.feedPosition,
+      'feedReason': instance.feedReason,
       'id': instance.id,
       'title': instance.title,
       'description': instance.description,
