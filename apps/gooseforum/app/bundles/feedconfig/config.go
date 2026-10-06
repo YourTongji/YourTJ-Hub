@@ -191,6 +191,11 @@ func Decode(settings map[string]any) (Config, error) {
 var mu sync.Mutex
 var previous = Default()
 var previousRevision uint64
+var rankGeneration atomic.Uint64
+
+// RankGeneration fences an observed pause/resume, including changes made while
+// no ranking invalidation was written. It is independent of scoring parameters.
+func RankGeneration() uint64 { return rankGeneration.Load() }
 
 func init() {
 	preferences.AddValidator(func(settings map[string]any) error { _, err := Decode(settings); return err })
@@ -207,6 +212,10 @@ func Current() Config {
 	}
 	c, err := Decode(preferences.All())
 	if err == nil {
+		if previousRevision != 0 && previous.Ranking != c.Ranking {
+			rankReady.Store(nil)
+			rankGeneration.Add(1)
+		}
 		previous = c
 	}
 	previousRevision = revision

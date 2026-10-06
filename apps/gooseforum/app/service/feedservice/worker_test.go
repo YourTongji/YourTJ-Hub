@@ -44,3 +44,22 @@ func TestRankBackfillProgressesWhileDueQueueStaysNonempty(t *testing.T) {
 		t.Fatal("publication backfill starved behind due ranking work")
 	}
 }
+
+func TestCleanStopPersistsUnprocessedRankingPause(t *testing.T) {
+	telemetryDB(t)
+	preferences.Set("ranking.enabled", false)
+	ctx := context.Background()
+	for key, value := range map[string]string{"epoch_clean": "true", "ranking_enabled": "true"} {
+		if err := putState(ctx, key, value); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// Stop before a maintenance tick can observe the pause. A clean restart
+	// must still rebuild content changes made with invalidation disabled.
+	runCtx, cancel := context.WithCancel(ctx)
+	cancel()
+	runWorker(runCtx)
+	if getState(ctx, "epoch_clean") != "true" || getState(ctx, "ranking_enabled") != "false" {
+		t.Fatal("clean shutdown lost the ranking pause before the next worker tick")
+	}
+}

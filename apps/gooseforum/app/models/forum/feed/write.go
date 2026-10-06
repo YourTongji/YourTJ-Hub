@@ -27,15 +27,37 @@ func MarkTx(tx *gorm.DB, topicID uint64) error {
 	return MarkManyTx(tx, []uint64{topicID})
 }
 func MarkManyTx(tx *gorm.DB, ids []uint64) error {
+	return markManyTx(tx, ids, false)
+}
+
+// MarkProjectionTx makes a public-reply lifecycle change durable even when
+// the synchronous participant projection is absent or fails after commit.
+func MarkProjectionTx(tx *gorm.DB, topicID uint64) error {
+	return MarkManyProjectionTx(tx, []uint64{topicID})
+}
+func MarkManyProjectionTx(tx *gorm.DB, ids []uint64) error {
+	return markManyTx(tx, ids, true)
+}
+func markManyTx(tx *gorm.DB, ids []uint64, projectionDirty bool) error {
 	if !feedconfig.Current().Ranking || len(ids) == 0 {
 		return nil
 	}
 	now := time.Now()
 	rows := make([]Schedule, 0, len(ids))
 	for _, id := range ids {
-		rows = append(rows, Schedule{TopicID: id, Version: 1, Generation: NewID(), DueAt: now, Dirty: true})
+		if id == 0 {
+			continue
+		}
+		rows = append(rows, Schedule{ProjectionDirty: projectionDirty, TopicID: id, Version: 1, Generation: NewID(), DueAt: now, Dirty: true})
 	}
-	return tx.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "topic_id"}}, DoUpdates: clause.Assignments(map[string]any{"version": gorm.Expr("topic_rank_schedule.version + 1"), "due_at": now, "dirty": true})}).CreateInBatches(&rows, 50).Error
+	updates := map[string]any{"version": gorm.Expr("topic_rank_schedule.version + 1"), "due_at": now, "dirty": true}
+	if projectionDirty {
+		updates["projection_dirty"] = true
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	return tx.Session(&gorm.Session{NewDB: true}).Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "topic_id"}}, DoUpdates: clause.Assignments(updates)}).CreateInBatches(&rows, 50).Error
 }
 
 var ErrClosed = errors.New("feed owner closed")

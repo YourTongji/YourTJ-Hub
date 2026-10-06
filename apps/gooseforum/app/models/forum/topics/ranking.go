@@ -124,7 +124,16 @@ func BackfillFirstPublic(ctx context.Context, ids []uint64) error {
 
 // WriteRankTx uses columns directly: GORM must not refresh updated_at.
 func WriteRankTx(tx *gorm.DB, id uint64, hot, daily int64, hash string, now time.Time) error {
-	return tx.Model(&Entity{}).Where("id = ?", id).UpdateColumns(map[string]any{"rank_score": hot, "daily_score": daily, "rank_ready": true, "rank_params_hash": hash, "rank_scored_at": now}).Error
+	return writeRankTx(tx, id, hot, daily, hash, now, true)
+}
+
+// Hidden topics retain the need to rebuild participants when restored. A reply
+// invalidation consumed while the parent is hidden must never validate old data.
+func ClearRankTx(tx *gorm.DB, id uint64, hash string, now time.Time) error {
+	return writeRankTx(tx, id, 0, 0, hash, now, false)
+}
+func writeRankTx(tx *gorm.DB, id uint64, hot, daily int64, hash string, now time.Time, ready bool) error {
+	return tx.Model(&Entity{}).Where("id = ?", id).UpdateColumns(map[string]any{"rank_score": hot, "daily_score": daily, "rank_ready": ready, "rank_params_hash": hash, "rank_scored_at": now}).Error
 }
 
 func AllRankReady(ctx context.Context, hash string) (bool, error) {
@@ -159,4 +168,13 @@ func NewTopicFactsTx(tx *gorm.DB, ids []uint64) ([]Entity, error) {
 	}
 	err := tx.Model(&Entity{}).Select("id,user_id,first_public_at,first_public_estimated").Where("id IN ? AND status = 1 AND process_status = 0 AND visibility_status = ? AND topic_type = ?", ids[:min(len(ids), 20)], VisibilityActive, TopicTypeForum).Where(firstPostVisibleSQL, ProcessStatusNormal).Where("user_id IN (?)", users.EligibleIDsQuery(tx.Statement.Context)).Find(&rows).Error
 	return rows, err
+}
+
+// ResetRankReadinessTx keeps a controlled rebuild in warming until each queued
+// batch has actually been recomputed; old same-hash scores cannot promote it.
+func ResetRankReadinessTx(tx *gorm.DB, ids []uint64) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	return tx.Model(&Entity{}).Where("id IN ?", ids).UpdateColumn("rank_ready", false).Error
 }

@@ -44,7 +44,10 @@ class GfApiClient {
               options.path.endsWith('/account-close')) {
             FeedTelemetry.instance.bindAccount(0);
           }
-          options.headers.addAll(FeedTelemetry.instance.headers(options.path));
+          for (final entry
+              in FeedTelemetry.instance.headers(options.path).entries) {
+            options.headers.putIfAbsent(entry.key, () => entry.value);
+          }
           handler.next(options);
         },
       ),

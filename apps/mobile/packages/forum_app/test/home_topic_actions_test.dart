@@ -35,6 +35,7 @@ class _Pages extends PageRepository {
   List<Map<String, Object>> categories = const [];
   bool dailyRanking = false;
   bool includeDailyTab = false;
+  String? feedTrace;
   bool liked = true;
   int likeCount = 5;
   bool bookmarked = true;
@@ -61,6 +62,8 @@ class _Pages extends PageRepository {
           ...first,
           'id': 100 + i,
           'title': 'Topic $i',
+          if (i == 0 && feedTrace != null) 'feedTrace': feedTrace,
+          if (i == 0 && feedTrace != null) 'feedPosition': 0,
           'likeCount': likeCount,
           if (known) 'liked': liked,
           if (known) 'bookmarked': bookmarked,
@@ -256,9 +259,15 @@ class _Topics extends TopicRepository {
   final _Pages pages;
   final likes = <int>[];
   final bookmarks = <int>[];
+  final feedTopics = <TopicPayload?>[];
   Completer<bool>? pending;
   @override
-  Future<bool> likeTopic({required int topicId, required int action}) async {
+  Future<bool> likeTopic({
+    required int topicId,
+    required int action,
+    TopicPayload? feedTopic,
+  }) async {
+    feedTopics.add(feedTopic);
     likes.add(action);
     final success = await (pending?.future ?? Future.value(true));
     if (success) pages.liked = action == 1;
@@ -269,7 +278,9 @@ class _Topics extends TopicRepository {
   Future<bool> bookmarkTopic({
     required int topicId,
     required int action,
+    TopicPayload? feedTopic,
   }) async {
+    feedTopics.add(feedTopic);
     bookmarks.add(action);
     pages.bookmarked = action == 1;
     return true;
@@ -431,6 +442,25 @@ void main() {
     expect(topics.likes, [2, 1]);
     expect(topics.bookmarks, [2, 1]);
   });
+
+  testWidgets(
+    'quick actions preserve the card source without selecting a detail',
+    (tester) async {
+      final pages = _Pages()..feedTrace = 'card-trace';
+      final topics = _Topics(pages);
+      FeedTelemetry.instance.bindAccount(12);
+      addTearDown(() => FeedTelemetry.instance.bindAccount(0));
+      await pump(tester, pages, topics);
+      final like = find
+          .byWidgetPredicate((w) => w is GfSymbol && w.name == 'heart-filled')
+          .first;
+      await tester.tap(like);
+      await tester.pump();
+      expect(topics.feedTopics.single?.feedTrace, 'card-trace');
+      expect(topics.feedTopics.single?.feedPosition, 0);
+      expect(FeedTelemetry.instance.headers('/p/post/100'), isEmpty);
+    },
+  );
 
   testWidgets('sort tabs retain their own list, cursor and scroll offset', (
     tester,

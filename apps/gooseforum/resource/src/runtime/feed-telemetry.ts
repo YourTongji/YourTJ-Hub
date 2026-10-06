@@ -33,6 +33,15 @@ export function selectFeedTopic(topic: TopicPayload) {
       : undefined
 }
 
+export function feedTopicHeaders(topic: TopicPayload): Record<string, string> {
+  if (!topic.feedTrace || topic.feedPosition == null) return {}
+  return {
+    'X-Goose-Feed-Trace': topic.feedTrace,
+    'X-Goose-Feed-Position': String(topic.feedPosition),
+    'X-Goose-Feed-Topic': String(topic.id),
+  }
+}
+
 export function feedRequestHeaders(path: string | URL): Record<string, string> {
   if (!selected) return {}
   const url = new URL(path.toString(), window.location.origin)
@@ -49,7 +58,9 @@ export function feedRequestHeaders(path: string | URL): Record<string, string> {
 
 export function feedFetch(input: string | URL, init: RequestInit = {}) {
   const headers = new Headers(init.headers)
-  for (const [key, value] of Object.entries(feedRequestHeaders(input))) headers.set(key, value)
+  for (const [key, value] of Object.entries(feedRequestHeaders(input))) {
+    if (!headers.has(key)) headers.set(key, value)
+  }
   return fetch(input, { ...init, headers }).then((response) => {
     if (
       response.ok &&
@@ -247,10 +258,14 @@ export function observeFeedRows(root: HTMLElement, topics: () => TopicPayload[])
     }
   }
   const click = (event: Event) => {
-    const row = (event.target as Element)?.closest('[data-feed-id]')
+    const mouse = event as MouseEvent
+    const link = (event.target as Element)?.closest<HTMLAnchorElement>('a[href]')
+    if (!link || link.target === '_blank' || mouse.button !== 0 || mouse.metaKey || mouse.ctrlKey || mouse.shiftKey || mouse.altKey) return
+    const row = link.closest('[data-feed-id]')
     if (!row) return
     const topic = topics().find((t) => t.id === Number((row as HTMLElement).dataset.feedId))
-    if (topic) selectFeedTopic(topic)
+    const url = new URL(link.href, window.location.origin)
+    if (topic && url.origin === window.location.origin && url.pathname === `/p/post/${topic.id}`) selectFeedTopic(topic)
   }
   root.addEventListener('click', click, true)
   document.addEventListener('visibilitychange', visibility)

@@ -711,10 +711,12 @@ class _HomePageState extends ConsumerState<HomePage> {
           ? await repository.bookmarkTopic(
               topicId: topic.id,
               action: target ? 1 : 2,
+              feedTopic: topic,
             )
           : await repository.likeTopic(
               topicId: topic.id,
               action: target ? 1 : 2,
+              feedTopic: topic,
             );
       if (!mounted ||
           clearEpoch !=

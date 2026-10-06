@@ -41,6 +41,7 @@ var stopping atomic.Bool
 var backgroundFailures atomic.Uint64
 var lastRankAt atomic.Int64
 var previousEpochIncomplete atomic.Bool
+var handledRankGeneration atomic.Uint64
 
 func Stop() {
 	stopping.Store(true)
@@ -69,9 +70,11 @@ func runWorker(ctx context.Context) {
 	lastMaintenance := time.Time{}
 	lastTelemetry := time.Time{}
 	lastParamsHash := ""
-	if getState(ctx, "epoch_clean") != "true" {
+	recoveryPending := getState(ctx, "epoch_clean") != "true"
+	if recoveryPending {
 		previousEpochIncomplete.Store(true)
 		_ = abortPeriods(ctx, "analytics epoch incomplete or restored")
+		feedconfig.SetRankReady(false)
 	}
 	_ = putState(ctx, "epoch_clean", "false")
 	_ = putState(ctx, "epoch", processEpoch)
@@ -99,6 +102,14 @@ func runWorker(ctx context.Context) {
 			queueBytes = 0
 			sampleBytes = 0
 			queueMu.Unlock()
+			// A pause can precede the next maintenance tick, or be resumed before
+			// its rebuild starts. Preserve that fence across a clean restart.
+			if !feedconfig.Current().Ranking || feedconfig.RankGeneration() != handledRankGeneration.Load() {
+				if err := putState(flushCtx, "ranking_enabled", "false"); err != nil {
+					cancel()
+					return
+				}
+			}
 			_ = putState(flushCtx, "epoch_clean", "true")
 			cancel()
 			return
@@ -130,11 +141,14 @@ func runWorker(ctx context.Context) {
 		}
 		start := time.Now()
 		jobCtx, cancel := context.WithTimeout(ctx, time.Duration(cfg.QueryTimeoutMS)*time.Millisecond)
+		if !cfg.Ranking && getState(jobCtx, "ranking_enabled") != "false" {
+			err = putState(jobCtx, "ranking_enabled", "false")
+		}
 		cleanupInterval := time.Hour
 		if cleanupBacklog.Load() {
 			cleanupInterval = time.Second
 		}
-		if now.Sub(lastCleanup) >= cleanupInterval {
+		if err == nil && now.Sub(lastCleanup) >= cleanupInterval {
 			err = Cleanup(jobCtx, now)
 			if err == nil {
 				lastCleanup = now
@@ -177,7 +191,13 @@ func runWorker(ctx context.Context) {
 			// Reserve a bounded maintenance slot even when due jobs never drain.
 			// Rebuild requests and changed hashes must not wait for queue idleness.
 			if now.Sub(lastBackfill) >= time.Second {
-				err = backfillRank(jobCtx)
+				if recoveryPending {
+					err = RequestRebuild(jobCtx)
+					recoveryPending = err != nil
+				}
+				if err == nil {
+					err = backfillRank(jobCtx)
+				}
 				lastBackfill = now
 				if err == nil && feedconfig.RankReady() && now.Sub(lastReconcile) >= time.Second {
 					err = reconcileRank(jobCtx)
@@ -219,19 +239,12 @@ func rankInput(ctx context.Context, id uint64, topic topics.Entity) (RankInput, 
 	if err != nil {
 		return in, err
 	}
-	participants, err := topicUserStat.RankParticipants(ctx, id)
-	if err != nil {
-		return in, err
-	}
-	if len(likers) > 50000 || len(participants) > 50000 {
+	if len(likers) > 50000 {
 		return in, fmt.Errorf("rank participant bound exceeded")
 	}
 	byUser := map[uint64]Participant{}
-	for _, p := range participants {
-		byUser[p.UserId] = Participant{UserID: p.UserId, Replies: p.RankReplyCount, LastPublicReplyAt: p.LastPublicReplyAt}
-	}
-	// Legacy projections have no publication watermark. Build the narrow reply
-	// aggregate once, then save it through the statistic owner's public API.
+	// Initial backfill and lifecycle invalidation rebuild the bounded aggregate.
+	// Avoid reading an old projection that would immediately be discarded.
 	if !topic.RankReady {
 		rows, e := posts.RankRepliers(ctx, id)
 		if e != nil {
@@ -240,9 +253,19 @@ func rankInput(ctx context.Context, id uint64, topic topics.Entity) (RankInput, 
 		if len(rows) > 50000 {
 			return in, fmt.Errorf("rank replier bound exceeded")
 		}
-		byUser = map[uint64]Participant{}
 		for _, r := range rows {
 			byUser[r.UserID] = Participant{UserID: r.UserID, Replies: r.Replies, LastPublicReplyAt: r.LastPublicReplyAt}
+		}
+	} else {
+		participants, e := topicUserStat.RankParticipants(ctx, id)
+		if e != nil {
+			return in, e
+		}
+		if len(participants) > 50000 {
+			return in, fmt.Errorf("rank participant bound exceeded")
+		}
+		for _, p := range participants {
+			byUser[p.UserId] = Participant{UserID: p.UserId, Replies: p.RankReplyCount, LastPublicReplyAt: p.LastPublicReplyAt}
 		}
 	}
 	for _, uid := range likers {
@@ -314,7 +337,7 @@ func workRank(ctx context.Context, now time.Time) (bool, error) {
 			if locked.Generation != job.Generation || locked.Version != job.Version || !locked.DueAt.Equal(job.DueAt) {
 				return nil
 			}
-			if err := topics.WriteRankTx(tx, job.TopicID, 0, 0, cfg.RankHash, now); err != nil {
+			if err := topics.ClearRankTx(tx, job.TopicID, cfg.RankHash, now); err != nil {
 				return err
 			}
 			return tx.Where("topic_id = ? AND generation = ? AND version = ?", job.TopicID, job.Generation, job.Version).Delete(&feed.Schedule{}).Error
@@ -322,6 +345,11 @@ func workRank(ctx context.Context, now time.Time) (bool, error) {
 	}
 	if err != nil {
 		return true, err
+	}
+	if job.ProjectionDirty {
+		// Moderation/deletion commits can precede a best-effort statistics rebuild.
+		// Only those jobs (and initial backfill) read the bounded reply aggregate.
+		topic.RankReady = false
 	}
 	in, err := rankInput(ctx, job.TopicID, topic)
 	if err != nil {
@@ -386,7 +414,7 @@ func workRank(ctx context.Context, now time.Time) (bool, error) {
 		if r.NextDue.IsZero() {
 			return tx.Where("topic_id = ? AND generation = ? AND version = ?", job.TopicID, job.Generation, job.Version).Delete(&feed.Schedule{}).Error
 		}
-		return tx.Model(&feed.Schedule{}).Where("topic_id = ? AND generation = ? AND version = ?", job.TopicID, job.Generation, job.Version).UpdateColumns(map[string]any{"dirty": false, "due_at": r.NextDue, "failures": 0, "last_error": ""}).Error
+		return tx.Model(&feed.Schedule{}).Where("topic_id = ? AND generation = ? AND version = ?", job.TopicID, job.Generation, job.Version).UpdateColumns(map[string]any{"dirty": false, "projection_dirty": false, "due_at": r.NextDue, "failures": 0, "last_error": ""}).Error
 	})
 	if err == nil {
 		lastRankAt.Store(now.Unix())
@@ -406,14 +434,20 @@ func putState(ctx context.Context, key, value string) error {
 // Backfills never run in the startup migration gate. Cursors persist after a
 // successful bounded batch; ranking remains unavailable until the queue drains.
 func backfillRank(ctx context.Context) error {
-	if getState(ctx, "desired_rank_hash") != feedconfig.Current().RankHash {
+	cfg := feedconfig.Current()
+	generation := feedconfig.RankGeneration()
+	if generation != handledRankGeneration.Load() || getState(ctx, "ranking_enabled") != "true" || getState(ctx, "desired_rank_hash") != cfg.RankHash {
 		feedconfig.SetRankReady(false)
 		if err := RequestRebuild(ctx); err != nil {
 			return err
 		}
-		if err := putState(ctx, "desired_rank_hash", feedconfig.Current().RankHash); err != nil {
+		if err := putState(ctx, "desired_rank_hash", cfg.RankHash); err != nil {
 			return err
 		}
+		if err := putState(ctx, "ranking_enabled", "true"); err != nil {
+			return err
+		}
+		handledRankGeneration.Store(generation)
 	}
 	if feedconfig.RankReady() {
 		return nil
@@ -444,7 +478,12 @@ func backfillRank(ctx context.Context) error {
 		if err = topics.BackfillFirstPublic(ctx, ids); err != nil {
 			return err
 		}
-		if err = db.ConnectContext(ctx).Transaction(func(tx *gorm.DB) error { return feed.MarkManyTx(tx, ids) }); err != nil {
+		if err = db.ConnectContext(ctx).Transaction(func(tx *gorm.DB) error {
+			if err := topics.ResetRankReadinessTx(tx, ids); err != nil {
+				return err
+			}
+			return feed.MarkManyProjectionTx(tx, ids)
+		}); err != nil {
 			return err
 		}
 		return putState(ctx, "topics_cursor", strconv.FormatUint(ids[len(ids)-1], 10))
@@ -499,7 +538,12 @@ func reconcileRank(ctx context.Context) error {
 		}
 	}
 	if len(ids) > 0 {
-		if err = db.ConnectContext(ctx).Transaction(func(tx *gorm.DB) error { return feed.MarkManyTx(tx, ids) }); err != nil {
+		if err = db.ConnectContext(ctx).Transaction(func(tx *gorm.DB) error {
+			if err := topics.ResetRankReadinessTx(tx, ids); err != nil {
+				return err
+			}
+			return feed.MarkManyProjectionTx(tx, ids)
+		}); err != nil {
 			return err
 		}
 	}
@@ -567,7 +611,7 @@ func workActor(ctx context.Context) (bool, error) {
 		if locked.Version != work.Version {
 			return nil
 		}
-		if e := feed.MarkManyTx(tx, ids); e != nil {
+		if e := feed.MarkManyProjectionTx(tx, ids); e != nil {
 			return e
 		}
 		if len(ids) > 0 {

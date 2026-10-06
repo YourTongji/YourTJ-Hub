@@ -45,6 +45,29 @@ test('context remains same-origin and account isolated', () => {
   resetFeedAccount(13)
   expect(feedRequestHeaders('/api/forum/topic-like')).toEqual({})
 })
+test('a card control does not select a detail attribution', () => {
+  const root = document.createElement('section')
+  root.innerHTML = '<div data-feed-id="31"><button>Like</button><a href="/p/post/31">Open</a></div>'
+  const stop = observeFeedRows(root, () => [topic()])
+  root.querySelector('button')!.click()
+  expect(feedRequestHeaders('/p/post/31')).toEqual({})
+  root.querySelector('a')!.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+  expect(feedRequestHeaders('/p/post/31')['X-Goose-Feed-Trace']).toBe('signed-trace')
+  stop()
+})
+test('explicit request attribution is not overwritten by another selected detail', async () => {
+  selectFeedTopic(topic())
+  await feedFetch('/api/forum/topics/like', {
+    headers: {
+      'X-Goose-Feed-Trace': 'another-card',
+      'X-Goose-Feed-Position': '2',
+      'X-Goose-Feed-Topic': '32',
+    },
+  })
+  const headers = (vi.mocked(fetch).mock.calls[0][1] as RequestInit).headers as Headers
+  expect(headers.get('X-Goose-Feed-Trace')).toBe('another-card')
+  expect(headers.get('X-Goose-Feed-Topic')).toBe('32')
+})
 test('requires 50% for one continuous foreground second and sends no opened claim', async () => {
   const root = document.createElement('section')
   const row = document.createElement('div')

@@ -37,7 +37,7 @@ TOML参数在 `ranking`、`ranking.hot`、`ranking.daily`、`feed.for_you`、`fe
 冷构建全局最多2个、200ms截止，查询顺序执行，未构建成功立即返回有限最新候选。
 
 后台不额外建立连接池：所有新增SQL由一个worker顺序执行，查询默认250ms截止、默认20任务/秒，
-每分钟累计工作上限15秒；主池只剩一个连接时让出。排名脏标记与业务变化同事务提交，
+每分钟累计工作上限15秒；主池只剩一个连接时让出。排名脏标记与业务变化同事务提交；回复审核、删除/恢复和身份状态变化额外标记参与者投影失效，由 worker 在有界查询内重建，不依赖提交后的同步统计成功。普通浏览/点赞任务继续读取已有投影。
 版本、随机generation及due时间阻止旧任务确认新变化。被冻结/注销参与者的历史贡献通过同worker
 按owner提供的200条批次标记，安静且超过7天的话题不保留周期性计时任务，业务变化会重新唤醒。
 
@@ -58,7 +58,7 @@ TOML参数在 `ranking`、`ranking.hot`、`ranking.daily`、`feed.for_you`、`fe
 `Current`：`feed.for_you.enabled=false` 关闭推荐入口并回退有限最新流；
 `feed.for_you.rollout_percent=0` 停止默认入口治疗分配（手动推荐标签仍可用）；
 `feed.metrics.enabled=false` 停止行为捕获并终止观察周期；`ranking.enabled=false` 恢复原公开排序。
-同时关闭推荐和捕获是完整推荐回滚，保留schema便于恢复，不删除原生点赞/收藏/内容数据。
+同时关闭推荐和捕获是完整推荐回滚，保留schema便于恢复，不删除原生点赞/收藏/内容数据。排名暂停后重新启用会先进入warming并重建暂停期间漏记的变化；不因旧分数具有相同hash而提前放行。异常退出或恢复同样请求受控重建，干净重启可以续用已记录的运行状态。
 
 `Current`：Go内置SQLite备份及部署backup/snapshot/main→dev脚本共用受测试约束的原始表排除清单
 `deploy/scripts/feed-raw-tables.json`。SQLite仅清理私有副本后VACUUM并原子发布，源库不被清理；

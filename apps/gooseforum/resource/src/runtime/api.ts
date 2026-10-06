@@ -1,4 +1,5 @@
-import { feedFetch } from './feed-telemetry'
+import { feedFetch, feedTopicHeaders } from './feed-telemetry'
+import type { TopicPayload } from '@gooseforum/client'
 // CourseSummaryPayload 以别名导入：本文件 1663 行另有一个同名但形状不同的
 // CourseSummaryPayload（AI 总结：consensus/keywords/pros/cons），二者同名异物。
 // 这里导入的是课程卡片（id/name/ratingAvg/...），故别名为 CourseCatalogItem 避免混淆。
@@ -464,11 +465,12 @@ export async function resolveForumStickers(names: string[]): Promise<StickerItem
   return Array.isArray(items) ? items : []
 }
 
-export async function likeTopic(id: number, action: 1 | 2): Promise<boolean> {
+export async function likeTopic(id: number, action: 1 | 2, topic?: TopicPayload): Promise<boolean> {
   const response = await feedFetch('/api/forum/topics/like', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      ...(topic ? feedTopicHeaders(topic) : {}),
     },
     body: JSON.stringify({
       topicId: id,
@@ -478,11 +480,12 @@ export async function likeTopic(id: number, action: 1 | 2): Promise<boolean> {
   return readApiResponse<boolean>(response, t('api.likeFailed'))
 }
 
-export async function bookmarkTopic(id: number, action: 1 | 2): Promise<boolean> {
+export async function bookmarkTopic(id: number, action: 1 | 2, topic?: TopicPayload): Promise<boolean> {
   const response = await feedFetch('/api/forum/topics/bookmark', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      ...(topic ? feedTopicHeaders(topic) : {}),
     },
     body: JSON.stringify({
       topicId: id,

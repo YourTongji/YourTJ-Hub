@@ -3,6 +3,8 @@ package posts
 import (
 	"context"
 	"fmt"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/feedconfig"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/feed"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"time"
 
@@ -107,4 +109,17 @@ func FirstPeerReplyTx(tx *gorm.DB, topicID, author uint64) (*time.Time, error) {
 	var row Entity
 	err := tx.Model(&Entity{}).Select("first_public_at").Where("topic_id = ? AND post_no > 1 AND user_id <> ? AND process_status = 0 AND visibility_status = ? AND first_public_at IS NOT NULL AND first_public_estimated = ?", topicID, author, VisibilityActive, false).Where("user_id IN (?)", users.EligibleIDsQuery(tx.Statement.Context)).Order("first_public_at,id").Limit(1).Find(&row).Error
 	return row.FirstPublicAt, err
+}
+
+// The post owner supplies topic IDs. The feed owner only writes its schedule;
+// rank recomputation does not depend on a later, best-effort projection refresh.
+func markPostProjectionTx(tx *gorm.DB, id uint64) error {
+	if !feedconfig.Current().Ranking {
+		return nil
+	}
+	var row Entity
+	if err := tx.Session(&gorm.Session{NewDB: true}).Unscoped().Model(&Entity{}).Select("topic_id").Where("id = ?", id).Find(&row).Error; err != nil {
+		return err
+	}
+	return feed.MarkProjectionTx(tx, row.TopicId)
 }

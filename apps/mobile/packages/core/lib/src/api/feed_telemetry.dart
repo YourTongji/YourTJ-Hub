@@ -47,8 +47,14 @@ class FeedTelemetry with WidgetsBindingObserver {
         : null;
   }
 
-  Map<String, String> headers(String path) {
-    final c = selected;
+  Map<String, String> headers(String path, {TopicPayload? topic}) {
+    final trace = topic?.feedTrace;
+    final position = topic?.feedPosition;
+    final c = topic == null
+        ? selected
+        : trace != null && trace.isNotEmpty && position != null
+        ? FeedContext(trace, position, topic.id)
+        : null;
     final uri = Uri.tryParse(path);
     if (c == null || uri == null || uri.hasScheme || uri.hasAuthority) {
       return {};

@@ -5,13 +5,14 @@ import "time"
 // Derived work is coalesced by topic; Version and Generation prevent stale
 // workers from confirming newer dirtiness, including delete/recreate ABA.
 type Schedule struct {
-	TopicID    uint64    `gorm:"primaryKey;autoIncrement:false"`
-	Version    uint64    `gorm:"not null"`
-	Generation string    `gorm:"size:32;not null"`
-	DueAt      time.Time `gorm:"not null;index"`
-	Dirty      bool      `gorm:"not null;default:true"`
-	Failures   int       `gorm:"not null;default:0"`
-	LastError  string    `gorm:"size:256"`
+	ProjectionDirty bool      `gorm:"not null;default:false"`
+	TopicID         uint64    `gorm:"primaryKey;autoIncrement:false"`
+	Version         uint64    `gorm:"not null"`
+	Generation      string    `gorm:"size:32;not null"`
+	DueAt           time.Time `gorm:"not null;index"`
+	Dirty           bool      `gorm:"not null;default:true"`
+	Failures        int       `gorm:"not null;default:0"`
+	LastError       string    `gorm:"size:256"`
 }
 
 func (Schedule) TableName() string { return "topic_rank_schedule" }
