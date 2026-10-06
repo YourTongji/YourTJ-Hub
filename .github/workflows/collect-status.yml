@@ -14,15 +14,15 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: collect-status-production
-  cancel-in-progress: false
-
 jobs:
   dispatch:
     # Fallback only: Cloudflare Cron avoids GitHub's delayed/dropped schedule events.
     # The default-branch scheduler gets no production environment or credentials.
     if: github.repository == 'YourTongji/YourTJ-Hub' && vars.STATUS_COLLECTION_ENABLED == 'true' && vars.STATUS_SCHEDULER_ENABLED != 'true' && github.event_name == 'schedule'
+    # Keep fallback dispatches separate from the main jobs they create.
+    concurrency:
+      group: collect-status-dispatch-${{ github.event.schedule == '7 * * * *' && 'devices' || 'public' }}
+      cancel-in-progress: true
     runs-on: ubuntu-latest
     timeout-minutes: 2
     permissions:
@@ -38,6 +38,12 @@ jobs:
     # Both this workflow definition and its checked-out source must come from main.
     # The environment's deployment branch policy must also allow main only.
     if: github.repository == 'YourTongji/YourTJ-Hub' && vars.STATUS_COLLECTION_ENABLED == 'true' && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    # A job execution timeout does not cover waiting for a runner. Let the next
+    # sample replace a stuck job, without cancelling the other kind of data.
+    # Public views exclude devices; ETag writes protect newer snapshots.
+    concurrency:
+      group: collect-status-production-${{ inputs.kind }}
+      cancel-in-progress: true
     runs-on: ubuntu-latest
     timeout-minutes: 5
     environment: status-collector
