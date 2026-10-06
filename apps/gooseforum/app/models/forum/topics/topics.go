@@ -9,6 +9,7 @@ import (
 const tableName = "topics"
 
 type Entity struct {
+	PersonaUID    string     `gorm:"column:persona_uid;type:varchar(32);not null;default:'';index" json:"personaUid,omitempty"`
 	Id            uint64     `gorm:"primaryKey;column:id;autoIncrement;not null;index:idx_topics_list_default,priority:5,sort:desc;index:idx_topics_list_hot,priority:4,sort:desc;index:idx_topics_list_popular,priority:4,sort:desc;index:idx_topics_list_new,priority:4,sort:desc;index:idx_topics_admin_list,priority:3,sort:desc;index:idx_topics_admin_user_list,priority:4,sort:desc;" json:"id"`
 	Title         string     `gorm:"column:title;type:varchar(512);not null;default:'';" json:"title"`
 	CategoryIds   []uint64   `gorm:"column:category_id;type:varchar(255);not null;default:'[]';serializer:json" json:"categoryIds"`
@@ -84,6 +85,9 @@ func (itself *Entity) TableName() string {
 
 func (itself *Entity) GetPosters() []Poster {
 	if len(itself.Posters) == 0 {
+		if itself.PersonaUID != "" {
+			return nil
+		}
 		return []Poster{{UserID: itself.UserId}}
 	}
 	return itself.Posters

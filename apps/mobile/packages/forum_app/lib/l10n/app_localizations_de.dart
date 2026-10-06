@@ -3505,4 +3505,68 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get notificationReviewRejectedDetail =>
       'Diese Einreichung wird nicht öffentlich angezeigt. Bitte prüfe, bearbeite und sende sie über die Inhaltsverwaltung erneut. Bei Fragen wende dich an die Administration.';
+
+  @override
+  String get anonymousLockDate => 'Name änderbar ab: ';
+
+  @override
+  String get anonymousRemaining => 'Verbleibende Stapel heute: ';
+
+  @override
+  String get anonymousIdentity => 'Anonyme Identität';
+
+  @override
+  String get anonymousBoundary =>
+      'Eine anonyme Identität pro Konto. Der gewählte Name bleibt ein Jahr fest. Öffentlichkeit und normale Moderatoren sehen das Hauptkonto nicht. Berechtigte Administratoren können es mit Begründung und Audit offenlegen. Private Zuordnungen und Audits bleiben nach der Kontoschließung erhalten.';
+
+  @override
+  String get anonymousRetry => 'Neu laden';
+
+  @override
+  String get anonymousUnavailable => 'Anonyme Identität nicht verfügbar';
+
+  @override
+  String get anonymousEnable => 'Reaktivieren';
+
+  @override
+  String get anonymousDisable => 'Deaktivieren';
+
+  @override
+  String get anonymousRandomize => '10 Namen ziehen';
+
+  @override
+  String get anonymousPublishAs => 'Veröffentlichen als';
+
+  @override
+  String get anonymousMember => 'Hauptidentität';
+
+  @override
+  String get anonymousSetup => 'Anonyme Identität einrichten';
+
+  @override
+  String get anonymousConfirm => 'Namen bestätigen (für ein Jahr fest)';
+
+  @override
+  String get anonymousCancel => 'Abbrechen';
+
+  @override
+  String get anonymousNext => 'Nächste Seite';
+
+  @override
+  String get anonymousPersonaLabel => 'Anonyme Identität';
+
+  @override
+  String get anonymousManage => 'Anonyme Identität verwalten';
+
+  @override
+  String get anonymousReason => 'Grund (erforderlich)';
+
+  @override
+  String get anonymousBan => 'Beiträge des Kontos sperren';
+
+  @override
+  String get anonymousRestore => 'Diese Schreibsperre aufheben';
+
+  @override
+  String get anonymousReveal => 'Identität mit Audit offenlegen';
 }

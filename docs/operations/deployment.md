@@ -119,7 +119,7 @@ curl -sS -D - -o /dev/null https://f.yourtj.de/                               # 
 ### Umami 访问统计与会话回放
 
 生产公共论坛页面由 `apps/gooseforum/resource/templates/layout/app.gohtml` 加载自建 Umami 的
-统计脚本与会话记录器；服务端仅在 `setting.IsProduction()` 且隐私政策 `enabled=true` 时注入。
+统计脚本与会话记录器；服务端仅在访客未登录、`setting.IsProduction()` 且隐私政策 `enabled=true` 时注入。登录态页面的身份选择及揭示结果不进入统计或回放，配置的注入脚本也不加载。
 两份脚本均使用 website id `36750dcd-8c48-46ab-9dfb-2f09cdcef501`：
 
 - `https://umi.yourtj.de/script.js`：页面访问、SPA 路由、基础访问统计与页面性能；模板设置 `data-performance="true"`；
@@ -549,6 +549,13 @@ instance:
   `POST /file/img-upload/complete` 由服务端校验（归属/大小/MIME/解码图片头）后发布；
   本地提供方保持服务端代理 multipart 上传。bucket 需配置 CORS（精确论坛源 + POST），
   未完成对象 2 小时后由清理任务移除。详见 [Object storage](object-storage.md)。
+
+## Anonymous identity recovery
+
+Persistent anonymous identity requires restricted, consistent database backups; ordinary public
+exports cannot restore its private binding. Permission grants, indefinite audit retention, candidate
+cleanup and the unsafe downgrade boundary are owned by
+[anonymous identity operations](anonymous-identity.md).
 
 ## Data export/import
 

@@ -7,6 +7,7 @@ export interface QuickPublishEditPayload {
   content: string
   categoryIds: number[]
   images?: string[]
+  identity?: 'member' | 'persona'
 }
 
 // 首开锁存：弹层首次交互打开后保持 true（closeQuickPublish 不复位），让 AppShell

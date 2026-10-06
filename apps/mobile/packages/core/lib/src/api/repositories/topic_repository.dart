@@ -65,6 +65,7 @@ class TopicRepository {
     List<String>? images,
     String? captchaId,
     String? captchaCode,
+    String? identity,
   }) async {
     final WriteTopicResult result = await writeTopicResult(
       topicId: topicId,
@@ -76,6 +77,7 @@ class TopicRepository {
       images: images,
       captchaId: captchaId,
       captchaCode: captchaCode,
+      identity: identity,
     );
     return result.id;
   }
@@ -92,10 +94,12 @@ class TopicRepository {
     List<String>? images,
     String? captchaId,
     String? captchaCode,
+    String? identity,
   }) async {
     final response = await _client.postEnvelope<int>(
       '/api/forum/topics/write',
       body: {
+        'identity': ?identity,
         'topicId': topicId,
         'title': title,
         'content': content,

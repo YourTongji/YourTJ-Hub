@@ -23,6 +23,8 @@ export interface PostStreamTopicActions {
 </script>
 
 <script setup lang="ts">
+import AnonymousModeration from '@/site/components/AnonymousModeration.vue'
+import { authorURL, authorKey } from '@/runtime/anonymous-identity'
 import { userDisplayName } from '@/runtime/private-notes'
 import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, ref, Teleport, useSlots, watch } from 'vue'
 import { AlertTriangle, Ban, Bell, BookOpen, Bookmark, ChevronsUp, Clock, CornerDownLeft, Flag, Heart, HelpCircle, History, Loader2, MoreHorizontal, PencilLine, RotateCcw, Share2, Sparkles, Trash2, X } from '@lucide/vue'
@@ -49,6 +51,7 @@ import { buildBeamAvatarDataUri } from '@/site/utils/course-review-share'
 import type { PostPayload, PostWindowPayload, ReplyTargetPayload, TopicPayload, ViewerPayload } from '@gooseforum/client'
 import { useI18n } from 'vue-i18n'
 import { useCaptchaChallenge } from '@/site/composables/useCaptchaChallenge'
+import { readReplyDraft, writeReplyDraft } from '@/site/utils/reply-draft'
 import { useQuickPublish } from '@/site/composables/useQuickPublish'
 
 const props = withDefaults(defineProps<{
@@ -117,6 +120,7 @@ const {
 const postContent = ref('')
 const targetPostId = ref(0)
 const anonymous = ref(false)
+const identity = ref<'member' | 'persona'>(props.initialPostStream.posts.some(p => p.postNo === 1 && p.isOwnPost && p.author.publicUid) ? 'persona' : 'member')
 const likeCount = ref(props.interactions?.likeCount ?? props.topicActions?.likeCount ?? 0)
 const isLiked = ref(props.interactions?.isLiked ?? props.topicActions?.isLiked ?? false)
 const isBookmarked = ref(props.interactions?.isBookmarked ?? props.topicActions?.isBookmarked ?? false)
@@ -134,6 +138,25 @@ const editingPostId = ref(0)
 const savingEditPostId = ref(0)
 const postDraftBeforeEdit = ref('')
 const targetPostBeforeEdit = ref(0)
+const identityBeforeEdit = ref<'member' | 'persona'>('member')
+let replyDraftOwner = props.viewer.id
+let replyDraftTopic = props.topicId
+function stashReplyDraft() {
+  if (editingPostId.value || replyDraftOwner !== props.viewer.id || replyDraftTopic !== props.topicId) return
+  writeReplyDraft(replyDraftOwner, replyDraftTopic, { content: postContent.value, identity: identity.value, targetPostId: targetPostId.value })
+}
+watch(() => [props.viewer.id, props.topicId] as const, ([owner, topic]) => {
+  replyDraftOwner = owner
+  replyDraftTopic = topic
+  editingPostId.value = 0
+  postDraftBeforeEdit.value = ''
+  targetPostBeforeEdit.value = 0
+  const draft = readReplyDraft(owner, topic)
+  postContent.value = draft?.content ?? ''
+  targetPostId.value = draft?.targetPostId ?? 0
+  identity.value = draft?.identity ?? (props.initialPostStream.posts.some(p => p.postNo === 1 && p.isOwnPost && p.author.publicUid) ? 'persona' : 'member')
+}, { immediate: true, flush: 'sync' })
+watch([postContent, identity, targetPostId], stashReplyDraft)
 const pendingDeletePost = ref<PostPayload | null>(null)
 const pendingDeleteTopic = ref(false)
 const pendingModerationAction = ref<'ban' | 'unban' | null>(null)
@@ -373,6 +396,7 @@ watch(
 )
 
 onMounted(() => {
+  window.addEventListener('pagehide', stashReplyDraft)
   void nextTick(observePostLoader)
   void nextTick(collectPostElements)
   void nextTick(scheduleActivePostFromScroll)
@@ -421,6 +445,8 @@ watch(
 )
 
 onBeforeUnmount(() => {
+  stashReplyDraft()
+  window.removeEventListener('pagehide', stashReplyDraft)
   postLoadObserver?.disconnect()
   window.removeEventListener('scroll', scheduleActivePostFromScroll)
   window.removeEventListener('scroll', schedulePostBottomLoadCheck)
@@ -1473,7 +1499,7 @@ function authorDisplayName(author: { id?: number; username: string; nickname?: s
 }
 
 function isAnonymousPost(post: PostPayload) {
-  return Boolean(post.isAnonymous)
+  return Boolean(post.isAnonymous && !post.author.publicUid)
 }
 
 // 匿名楼层占位头像：复用课程评价的 boring-avatars beam 占位（seed 用楼层 id，跨语言稳定）
@@ -1510,6 +1536,7 @@ function startEditPost(post: PostPayload) {
         content: post.content,
         categoryIds: props.categories?.map((c) => c.id) || [],
         images: props.topicImages,
+        identity: post.author.publicUid ? 'persona' : 'member',
       })
       return
     }
@@ -1519,9 +1546,11 @@ function startEditPost(post: PostPayload) {
   if (!editingPostId.value) {
     postDraftBeforeEdit.value = postContent.value
     targetPostBeforeEdit.value = targetPostId.value
+    identityBeforeEdit.value = identity.value
   }
   targetPostId.value = 0
   editingPostId.value = post.id
+  identity.value = post.author.publicUid ? 'persona' : 'member'
   postContent.value = post.content
   errorMessage.value = ''
   successMessage.value = ''
@@ -1536,6 +1565,7 @@ function cancelEditPost() {
   sensitiveWords.value = []
   postContent.value = postDraftBeforeEdit.value
   targetPostId.value = targetPostBeforeEdit.value
+    identity.value = identityBeforeEdit.value
   postDraftBeforeEdit.value = ''
   targetPostBeforeEdit.value = 0
 }
@@ -1565,7 +1595,9 @@ async function savePostEdit() {
   successMessage.value = ''
   sensitiveWords.value = []
   try {
+    const editOwner = props.viewer.id
     const updated = await updatePost(post.id, content)
+    if (props.viewer.id !== editOwner) return
     const index = posts.value.findIndex((item) => item.id === post.id)
     if (index >= 0) {
       posts.value[index] = {
@@ -1574,7 +1606,7 @@ async function savePostEdit() {
         content: updated.content,
         renderedContent: updated.renderedContent,
         updatedAt: updated.updatedAt,
-        lastEditor: { ...posts.value[index].author, id: updated.lastEditorId },
+        lastEditor: { ...posts.value[index].author, id: posts.value[index].author.publicUid ? 0 : updated.lastEditorId },
         lastEditedAt: updated.lastEditedAt,
         revisionCount: updated.revisionCount,
       }
@@ -1582,6 +1614,7 @@ async function savePostEdit() {
     editingPostId.value = 0
     postContent.value = postDraftBeforeEdit.value
     targetPostId.value = targetPostBeforeEdit.value
+    identity.value = identityBeforeEdit.value
     postDraftBeforeEdit.value = ''
     targetPostBeforeEdit.value = 0
     composerOpen.value = false
@@ -1616,11 +1649,15 @@ async function submitPost() {
   successMessage.value = ''
   sensitiveWords.value = []
   try {
-    const createdPost = await createPost(props.topicId, content, postId, {
+    const submitOwner = props.viewer.id
+    const submitTopic = props.topicId
+    const createdPost = await createPost(submitTopic, content, postId, {
       captchaId: captchaId.value,
       captchaCode: captchaCode.value,
       isAnonymous: props.allowAnonymous ? anonymous.value : undefined,
+ identity: props.allowAnonymous ? undefined : identity.value,
     })
+    if (props.viewer.id !== submitOwner || props.topicId !== submitTopic) return
     clearCaptcha()
     postContent.value = ''
     anonymous.value = false
@@ -1838,6 +1875,7 @@ async function removePost(postId: number) {
       editingPostId.value = 0
       postContent.value = postDraftBeforeEdit.value
       targetPostId.value = targetPostBeforeEdit.value
+    identity.value = identityBeforeEdit.value
       postDraftBeforeEdit.value = ''
       targetPostBeforeEdit.value = 0
     }
@@ -2007,7 +2045,7 @@ defineExpose({ openFloatingPostComposer, focusPostComposer })
             <div class="flex items-center gap-2.5 min-w-0">
               <a
                 v-if="!isAnonymousPost(post)"
-                :href="`/u/${post.author.id}`"
+                :href="authorURL(post.author)"
                 class="shrink-0 pt-0.5"
                 @click="showUserCard(post.author, $event)"
               >
@@ -2026,7 +2064,7 @@ defineExpose({ openFloatingPostComposer, focusPostComposer })
                 <div class="flex items-center gap-1.5 min-w-0">
                   <a
                     v-if="!isAnonymousPost(post)"
-                    :href="`/u/${post.author.id}`"
+                    :href="authorURL(post.author)"
                     class="min-w-0 truncate font-semibold text-sm text-base-content hover:text-primary"
                   >
                     {{ authorDisplayName(post.author) }}
@@ -2067,7 +2105,7 @@ defineExpose({ openFloatingPostComposer, focusPostComposer })
 
           <a
             v-if="!isAnonymousPost(post)"
-            :href="`/u/${post.author.id}`"
+            :href="authorURL(post.author)"
             class="sticky top-19 self-start pt-1"
             :class="isFirstPost(post) && hasShortFormImages ? 'hidden sm:block' : 'block'"
             @click="showUserCard(post.author, $event)"
@@ -2088,7 +2126,7 @@ defineExpose({ openFloatingPostComposer, focusPostComposer })
             >
               <div class="min-w-0">
                 <div class="flex min-w-0 items-center gap-2">
-                  <a v-if="!isAnonymousPost(post)" :href="`/u/${post.author.id}`" class="min-w-0 truncate font-semibold text-base-content hover:text-primary">{{ authorDisplayName(post.author) }}</a>
+                  <a v-if="!isAnonymousPost(post)" :href="authorURL(post.author)" class="min-w-0 truncate font-semibold text-base-content hover:text-primary">{{ authorDisplayName(post.author) }}</a>
                   <span v-else class="min-w-0 truncate font-semibold text-base-content/55">{{ t('topic.authorAnonymous') }}</span>
                   <span v-if="post.postNo" class="hidden shrink-0 text-xs font-semibold tabular-nums text-base-content/55 sm:inline">#{{ formatNumber(post.postNo) }}</span>
                   <span v-if="isQuestionTopic && post.isAnswer" class="hidden shrink-0 rounded bg-success/20 px-1.5 py-0.5 text-[11px] font-semibold text-success sm:inline">{{ t('topic.answer') }}</span>
@@ -2189,6 +2227,7 @@ defineExpose({ openFloatingPostComposer, focusPostComposer })
                   <Flag class="h-3.5 w-3.5" />
                   <span class="sr-only">{{ t('topic.report') }}</span>
                 </button>
+                <AnonymousModeration v-if="post.canModerate && post.author.publicUid" :key="`${viewer.id}:${post.id}`" :post-id="post.id" :public-uid="post.author.publicUid" :can-reveal="viewer.adminPermissions.includes(7)" />
                 <button
                   v-if="post.canModerate && post.processStatus === 0"
                   type="button"
@@ -2214,6 +2253,7 @@ defineExpose({ openFloatingPostComposer, focusPostComposer })
                   <span class="sr-only">{{ t('topic.moderationUnban') }}</span>
                 </button>
 
+                <span v-if="post.author.publicUid" class="text-xs text-base-content/55">{{ t('anonymous.identity') }}</span>
                 <!-- 大屏时间展示 -->
                 <time class="hidden w-36 shrink-0 text-right text-xs text-base-content/55 sm:-ml-1 sm:block">{{ formatDateTime(post.createdAt) }}</time>
 
@@ -2693,8 +2733,8 @@ defineExpose({ openFloatingPostComposer, focusPostComposer })
               <div class="flex flex-wrap gap-1.5">
                 <a
                   v-for="participant in topicActions.participants"
-                  :key="participant.id"
-                  :href="`/u/${participant.id}`"
+                  :key="authorKey(participant)"
+                  :href="authorURL(participant)"
                   class="rounded-full"
                   @click="showUserCard(participant, $event)"
                 >
@@ -2754,11 +2794,12 @@ defineExpose({ openFloatingPostComposer, focusPostComposer })
     @select-rail="selectPostFromRail"
   />
 
-  <PostComposer
+  <PostComposer :viewer="viewer"
     v-if="composerMounted"
     v-model="postContent"
     v-model:captcha-code="captchaCode"
     v-model:anonymous="anonymous"
+    v-model:identity="identity"
     :allow-anonymous="allowAnonymous"
     :open="composerOpen"
     :authenticated="viewer.isAuthenticated"

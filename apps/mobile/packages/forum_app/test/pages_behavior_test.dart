@@ -1471,6 +1471,7 @@ class RecordingPostRepository extends PostRepository {
     int replyToPostId = 0,
     String? captchaId,
     String? captchaCode,
+    String? identity,
   }) async {
     lastTopicId = topicId;
     lastContent = content;
@@ -1498,6 +1499,7 @@ class ReplyCaptchaPostRepository extends RecordingPostRepository {
     int replyToPostId = 0,
     String? captchaId,
     String? captchaCode,
+    String? identity,
   }) async {
     attempts++;
     if (captchaId != 'reply-challenge' || captchaCode != 'ABCD') {

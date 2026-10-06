@@ -4,6 +4,7 @@ import "time"
 
 // TopicsSimpleVo is the compact topic payload used by list views and feed-like responses.
 type TopicsSimpleVo struct {
+	PersonaUID     string     `json:"personaUid,omitempty"`
 	Id             uint64     `json:"id"`
 	Title          string     `json:"title,omitempty"`
 	Description    string     `json:"description,omitempty"`
@@ -31,8 +32,9 @@ type TopicsSimpleVo struct {
 
 // PosterVo is a lightweight user summary attached to compact topic responses.
 type PosterVo struct {
-	Id        uint64 `json:"id"`
-	Username  string `json:"username"`
-	Nickname  string `json:"nickname,omitempty"`
-	AvatarUrl string `json:"avatarUrl"`
+	PersonaUID string `json:"personaUid,omitempty"`
+	Id         uint64 `json:"id"`
+	Username   string `json:"username"`
+	Nickname   string `json:"nickname,omitempty"`
+	AvatarUrl  string `json:"avatarUrl"`
 }

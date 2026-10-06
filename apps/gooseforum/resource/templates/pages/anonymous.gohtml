@@ -1,0 +1,14 @@
+{{template "layout/app.gohtml" .}}
+{{define "noscript"}}{{template "page" .}}{{end}}
+{{define "page"}}
+<main class="gf-crawler-user-page">
+<header><img src="{{.Payload.Props.Persona.AvatarURL}}" width="96" height="96" alt="{{.Payload.Props.Persona.Name}}"><h1>{{.Payload.Props.Persona.Name}}</h1><p>{{t .Lang "anonymous.identity"}}</p></header>
+<p>{{t .Lang "topics"}}: {{.Payload.Props.TopicCount}} · {{t .Lang "repliesTitle"}}: {{.Payload.Props.ReplyCount}}</p>
+{{template "partials/topic_list.gohtml" (dict "Topics" .Payload.Props.Topics "Lang" .Lang)}}
+<ul>{{range .Payload.Props.Replies}}<li><a href="{{.URL}}">{{.Excerpt}}</a></li>{{end}}</ul>
+<nav aria-label="{{t .Lang "nextPage"}}">
+{{if gt .Payload.Props.Page 1}}<a href="{{.Payload.Props.Persona.ProfileURL}}?page={{sub .Payload.Props.Page 1}}">{{t .Lang "prevPage"}}</a>{{end}}
+{{if .Payload.Props.HasNext}}<a href="{{.Payload.Props.Persona.ProfileURL}}?page={{add .Payload.Props.Page 1}}">{{t .Lang "nextPage"}}</a>{{end}}
+</nav>
+</main>
+{{end}}

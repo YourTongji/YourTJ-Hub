@@ -40,6 +40,7 @@ const (
 )
 
 type Entity struct {
+	PersonaUID string `gorm:"column:persona_uid;type:varchar(32);not null;default:'';index" json:"personaUid,omitempty"`
 	// Revision pointers fence asynchronous outcomes; zero denotes legacy content.
 	LatestRevisionId    uint64    `gorm:"column:latest_revision_id;not null;default:0;index;" json:"-"`
 	PublishedRevisionId uint64    `gorm:"column:published_revision_id;not null;default:0;" json:"-"`

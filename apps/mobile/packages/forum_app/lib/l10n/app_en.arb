@@ -1186,7 +1186,13 @@
   "releaseNotesMore": "Show all updates",
   "releaseNotesFewer": "Show fewer",
   "releaseNotesShowRemaining": "{count, plural, =1{Show 1 more update} other{Show {count} more updates}}",
-  "@releaseNotesShowRemaining": {"placeholders": {"count": {"type": "int"}}},
+  "@releaseNotesShowRemaining": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "releaseNotesRequired": "Required",
   "releaseNotesHistoryError": "Release history is temporarily unavailable.",
   "releaseNotesKindFeature": "New",
@@ -1655,5 +1661,26 @@
   "contentReviewPending": "Under review",
   "notificationReviewPending": "Your post is awaiting manual review",
   "notificationReviewPendingDetail": "We’ll review it soon and notify you of the result. You can view or edit it while you wait.",
-  "notificationReviewRejectedDetail": "This submission won’t be shown publicly. Review, edit and resubmit it from content management. Contact an administrator if you have questions."
+  "notificationReviewRejectedDetail": "This submission won’t be shown publicly. Review, edit and resubmit it from content management. Contact an administrator if you have questions.",
+  "anonymousLockDate": "Name available from: ",
+  "anonymousRemaining": "Batches remaining today: ",
+  "anonymousIdentity": "Anonymous identity",
+  "anonymousBoundary": "One anonymous identity per account. A chosen name is locked for one year. The public and ordinary moderators cannot see your main account. Restricted administrators can reveal it with a reason and audit. Private bindings and audits remain after account closure.",
+  "anonymousRetry": "Reload",
+  "anonymousUnavailable": "Anonymous identity is unavailable",
+  "anonymousEnable": "Reactivate identity",
+  "anonymousDisable": "Deactivate identity",
+  "anonymousRandomize": "Draw 10 names",
+  "anonymousPublishAs": "Publish as",
+  "anonymousMember": "Main identity",
+  "anonymousSetup": "Set up anonymous identity",
+  "anonymousConfirm": "Confirm name (locked for one year)",
+  "anonymousCancel": "Cancel",
+  "anonymousNext": "Next page",
+  "anonymousPersonaLabel": "Anonymous identity",
+  "anonymousManage": "Manage anonymous identity",
+  "anonymousReason": "Reason (required)",
+  "anonymousBan": "Restrict account writing",
+  "anonymousRestore": "Remove this writing restriction",
+  "anonymousReveal": "Reveal with audit"
 }

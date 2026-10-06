@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { authorURL } from '@/runtime/anonymous-identity'
 import { nextTick, onBeforeUnmount, onDeactivated, onMounted, ref, watch } from 'vue'
 import { MessageSquare, Pin, Sparkles, HelpCircle, BookOpen } from '@lucide/vue'
 import { useI18n } from 'vue-i18n'

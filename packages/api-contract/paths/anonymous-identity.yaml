@@ -1,0 +1,286 @@
+getAnonymousIdentityState:
+  get:
+    tags: [Forum]
+    summary: getAnonymousIdentityState
+    operationId: getAnonymousIdentityState
+    description: >-
+      Private, no-store response. One persona per numeric owner, shared across clients.
+      Names come from the complete embedded THUOCL pool without content filters.
+      Shanghai calendar day allows ten idempotent batches of ten distinct words.
+      Confirmation preserves UID and avatar and locks the name until the next calendar anniversary.
+      Reveal requires an explicit permission 7 grant, a reason, and a committed private audit;
+      Admin and moderator permissions alone do not grant reveal.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    responses:
+      '200':
+        description: Success or business failure
+        content:
+          application/json:
+            schema:
+              $ref: ../components/anonymous-identity.yaml#/getAnonymousIdentityStateResponse
+            examples:
+              success:
+                externalValue: ../fixtures/anonymous-state-success.json
+      '401':
+        description: Authentication required
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+      '403':
+        description: Frozen account, write eligibility or CSRF rejected
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+      '429':
+        description: Interaction rate limited
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/RateLimitedFailure
+generateAnonymousNames:
+  post:
+    tags: [Forum]
+    summary: generateAnonymousNames
+    operationId: generateAnonymousNames
+    description: >-
+      Private, no-store response. One persona per numeric owner, shared across clients.
+      Names come from the complete embedded THUOCL pool without content filters.
+      Shanghai calendar day allows ten idempotent batches of ten distinct words.
+      Confirmation preserves UID and avatar and locks the name until the next calendar anniversary.
+      Reveal requires an explicit permission 7 grant, a reason, and a committed private audit;
+      Admin and moderator permissions alone do not grant reveal.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/anonymous-identity.yaml#/AnonymousBatchRequest
+    responses:
+      '200':
+        description: Success or business failure
+        content:
+          application/json:
+            schema:
+              $ref: ../components/anonymous-identity.yaml#/generateAnonymousNamesResponse
+            examples:
+              success:
+                externalValue: ../fixtures/anonymous-batches-success.json
+      '401':
+        description: Authentication required
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+      '403':
+        description: Frozen account, write eligibility or CSRF rejected
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+      '429':
+        description: Interaction rate limited
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/RateLimitedFailure
+confirmAnonymousName:
+  post:
+    tags: [Forum]
+    summary: confirmAnonymousName
+    operationId: confirmAnonymousName
+    description: >-
+      Private, no-store response. One persona per numeric owner, shared across clients.
+      Names come from the complete embedded THUOCL pool without content filters.
+      Shanghai calendar day allows ten idempotent batches of ten distinct words.
+      Confirmation preserves UID and avatar and locks the name until the next calendar anniversary.
+      Reveal requires an explicit permission 7 grant, a reason, and a committed private audit;
+      Admin and moderator permissions alone do not grant reveal.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/anonymous-identity.yaml#/AnonymousConfirmRequest
+    responses:
+      '200':
+        description: Success or business failure
+        content:
+          application/json:
+            schema:
+              $ref: ../components/anonymous-identity.yaml#/confirmAnonymousNameResponse
+            examples:
+              success:
+                externalValue: ../fixtures/anonymous-confirm-success.json
+      '401':
+        description: Authentication required
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+      '403':
+        description: Frozen account, write eligibility or CSRF rejected
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+      '429':
+        description: Interaction rate limited
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/RateLimitedFailure
+disableAnonymousIdentity:
+  post:
+    tags: [Forum]
+    summary: disableAnonymousIdentity
+    operationId: disableAnonymousIdentity
+    description: >-
+      Private, no-store response. One persona per numeric owner, shared across clients.
+      Names come from the complete embedded THUOCL pool without content filters.
+      Shanghai calendar day allows ten idempotent batches of ten distinct words.
+      Confirmation preserves UID and avatar and locks the name until the next calendar anniversary.
+      Reveal requires an explicit permission 7 grant, a reason, and a committed private audit;
+      Admin and moderator permissions alone do not grant reveal.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/anonymous-identity.yaml#/AnonymousDisableRequest
+    responses:
+      '200':
+        description: Success or business failure
+        content:
+          application/json:
+            schema:
+              $ref: ../components/anonymous-identity.yaml#/disableAnonymousIdentityResponse
+            examples:
+              success:
+                externalValue: ../fixtures/anonymous-disable-success.json
+      '401':
+        description: Authentication required
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+      '403':
+        description: Frozen account, write eligibility or CSRF rejected
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+      '429':
+        description: Interaction rate limited
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/RateLimitedFailure
+revealAnonymousIdentity:
+  post:
+    tags: [Forum]
+    summary: revealAnonymousIdentity
+    operationId: revealAnonymousIdentity
+    description: >-
+      Private, no-store response. One persona per numeric owner, shared across clients.
+      Names come from the complete embedded THUOCL pool without content filters.
+      Shanghai calendar day allows ten idempotent batches of ten distinct words.
+      Confirmation preserves UID and avatar and locks the name until the next calendar anniversary.
+      Reveal requires an explicit permission 7 grant, a reason, and a committed private audit;
+      Admin and moderator permissions alone do not grant reveal.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/anonymous-identity.yaml#/AnonymousRevealRequest
+    responses:
+      '200':
+        description: Success or business failure
+        content:
+          application/json:
+            schema:
+              $ref: ../components/anonymous-identity.yaml#/revealAnonymousIdentityResponse
+            examples:
+              success:
+                externalValue: ../fixtures/anonymous-reveal-success.json
+      '401':
+        description: Authentication required
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+      '403':
+        description: Frozen account, write eligibility or CSRF rejected
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+      '429':
+        description: Interaction rate limited
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/RateLimitedFailure
+governAnonymousIdentity:
+  post:
+    tags: [Forum]
+    summary: governAnonymousIdentity
+    operationId: governAnonymousIdentity
+    description: >-
+      Private, no-store response. Requires moderation permission in the target post category
+      and a nonempty reason. Restricts both the persona and its private owner atomically,
+      preserving other account freezes when restored. Writes a private governance audit
+      and returns only a boolean; it does not reveal the owner.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/anonymous-identity.yaml#/AnonymousGovernRequest
+    responses:
+      '200':
+        description: Success or business failure
+        content:
+          application/json:
+            schema:
+              $ref: ../components/anonymous-identity.yaml#/governAnonymousIdentityResponse
+            examples:
+              success:
+                externalValue: ../fixtures/anonymous-govern-success.json
+      '401':
+        description: Authentication required
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+      '403':
+        description: Frozen account, write eligibility or CSRF rejected
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+      '429':
+        description: Interaction rate limited
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/RateLimitedFailure

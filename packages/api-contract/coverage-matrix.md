@@ -4,11 +4,11 @@
 
 路由快照来自 `TestRoutesSnapshot`（`fixtures/routes-snapshot.json`，默认配置装配，不含 OIDC `/api/oauth/*` 端点——OIDC 另有专项）。
 
-- 快照路由总数：359
-- /api JSON 路由：292，已入契约：293（100%），已知未覆盖：0
-- 非 API 排除路由：66
+- 快照路由总数：367
+- /api JSON 路由：298，已入契约：299（100%），已知未覆盖：0
+- 非 API 排除路由：68
 
-## 已覆盖（293）
+## 已覆盖（299）
 
 | Method | Path | operationId |
 | --- | --- | --- |
@@ -61,6 +61,7 @@
 | GET | `/api/campus/messages/:messageId` | `campusMessage` |
 | GET | `/api/campus/status` | `campusStatus` |
 | GET | `/api/campus/tongji/callback` | `campusCallback` |
+| GET | `/api/forum/anonymous/state` | `getAnonymousIdentityState` |
 | GET | `/api/forum/courses` | `listCourses` |
 | GET | `/api/forum/courses/:courseId` | `getCourse` |
 | GET | `/api/forum/courses/:courseId/related` | `getCourseRelated` |
@@ -199,6 +200,11 @@
 | POST | `/api/change-password` | `changePassword` |
 | POST | `/api/display-badges` | `displayBadges` |
 | POST | `/api/forgot-password` | `forgotPassword` |
+| POST | `/api/forum/anonymous/batches` | `generateAnonymousNames` |
+| POST | `/api/forum/anonymous/confirm` | `confirmAnonymousName` |
+| POST | `/api/forum/anonymous/disable` | `disableAnonymousIdentity` |
+| POST | `/api/forum/anonymous/govern` | `governAnonymousIdentity` |
+| POST | `/api/forum/anonymous/reveal` | `revealAnonymousIdentity` |
 | POST | `/api/forum/chat/forward` | `forwardChatMessages` |
 | POST | `/api/forum/chat/mark-read` | `markChatRead` |
 | POST | `/api/forum/chat/mark-visible` | `markChatVisibleRead` |
@@ -311,13 +317,15 @@
 | Method | Path | 归属切片 |
 | --- | --- | --- |
 
-## 排除（非 JSON API，66）
+## 排除（非 JSON API，68）
 
 | Method | Path | 原因 |
 | --- | --- | --- |
 | CONNECT | `/mcp` | MCP streamable HTTP 端点（Any 展开多方法），走 MCP 自有协议契约 |
 | DELETE | `/mcp` | MCP streamable HTTP 端点（Any 展开多方法），走 MCP 自有协议契约 |
 | GET | `/` | SSR 页面（GoHTML 三模渲染），非 JSON API |
+| GET | `/a/:publicUid` | 匿名身份只读主页，GoHTML 三模页面（包括 X-Goose-Page），非 JSON API。 |
+| GET | `/a/:publicUid/avatar.svg` | 固定匿名头像 SVG 资源，非 JSON API。 |
 | GET | `/activate` | SSR 页面（GoHTML 三模渲染），非 JSON API |
 | GET | `/admin` | SSR 页面（GoHTML 三模渲染），非 JSON API |
 | GET | `/admin/*path` | SSR 页面（GoHTML 三模渲染），非 JSON API |

@@ -33,6 +33,8 @@ import 'pages/info/site_info_page.dart';
 import 'pages/messages/messages_page.dart';
 import 'pages/notifications/notifications_page.dart';
 import 'pages/profile/profile_page.dart';
+import 'pages/profile/anonymous_profile_page.dart';
+import 'pages/settings/anonymous_identity_page.dart';
 import 'pages/publish/publish_page.dart';
 import 'pages/wiki/wiki_home_page.dart';
 import 'pages/wiki/wiki_page.dart';
@@ -523,6 +525,15 @@ final GoRouter appRouter = GoRouter(
           initialStream: stream,
         ),
       ),
+    GoRoute(
+      path: '/a/:publicUid',
+      builder: (_, state) =>
+          AnonymousProfilePage(uid: state.pathParameters['publicUid']!),
+    ),
+    GoRoute(
+      path: '/settings/anonymous-identity',
+      builder: (_, state) => const AnonymousIdentityPage(),
+    ),
     GoRoute(
       path: '/u/:userId',
       builder: (BuildContext context, GoRouterState state) =>

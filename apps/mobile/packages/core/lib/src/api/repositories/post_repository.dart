@@ -98,11 +98,13 @@ class PostRepository {
     int replyToPostId = 0,
     String? captchaId,
     String? captchaCode,
+    String? identity,
   }) async {
     final response = await _client.postEnvelope<CreatePostResult>(
       '/api/forum/posts/create',
       body: {
         'topicId': topicId,
+        'identity': ?identity,
         'content': content,
         'replyToPostId': replyToPostId,
         if (captchaId != null && captchaId.isNotEmpty) 'captchaId': captchaId,

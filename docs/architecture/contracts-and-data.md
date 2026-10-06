@@ -656,3 +656,26 @@ OpenAPI、TypeScript 和 Dart 镜像同步维护，路由覆盖包含此操作�
 用户生命周期：`DeleteUserDataTx`（硬删该用户的投递与领取）与 `AnonymizeUserDataTx`
 （保留事实行、剥离身份并轮换唯一键）是预留的清理边界；接入账号关闭与保留期限策略由 #787 负责。
 该域不扩展 `event_notification` 或私信表，存量通知/私信的行与表结构不因升级改变。
+
+## Persistent anonymous personas
+
+`Current`: `anonymous_personas` owns public UID/name and private avatar seed/lock/status.
+`anonymous_bindings` maps a numeric owner primary key to a unique persona UID.
+`anonymous_name_quotas` uses owner/day as its composite key; batches have a unique owner/day/request
+key and persist the exact ten-word sample. Owner-row write locks serialize quota and confirmation
+on PostgreSQL and SQLite. The account, persona and content writer checks share that lock for
+anonymous writes. `anonymous_reveal_audits` stores restricted reveal and governance facts. Bindings
+and audits survive closure; cleanup targets expired candidate batches only.
+
+`Current`: topics/posts keep their internal numeric owner plus an optional `persona_uid`. Public
+DTOs project the persona with numeric ID zero and a `/a/` URL. Public main-profile, Following and
+participation queries exclude anonymous ownership. Persona participant queries batch and bound their
+results. Notification `private_actor_id` supports private eligibility; payload actor ID zero and
+`actorPersonaUid` support safe hydration and pushes. Public exports redact anonymous authors and
+editors and cannot reconstruct private ownership. Missing personas never resolve through users.
+
+The six private anonymous settings/governance operations live in the controlled OpenAPI contract;
+Web generated types and Dart mirrors change together. `/a/` is a three-mode page and its SVG avatar
+is a static response, recorded as route-coverage exclusions. Product semantics live in
+[anonymous identity](../product/anonymous-identity.md); permissions, retention and consistent backup
+recovery live in [operations](../operations/anonymous-identity.md).

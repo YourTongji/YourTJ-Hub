@@ -10,6 +10,7 @@ import (
 
 	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/markdown2html"
+	identity "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/anonymousIdentity"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postRevisions"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/taskQueue"
@@ -33,6 +34,9 @@ type Task struct {
 // topic contains proposed metadata for a first post, existing metadata for replies.
 func Submit(ctx context.Context, topic *topics.Entity, post *posts.Entity) error {
 	return db.ConnectContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := identity.ValidateWriterTx(tx, post.UserId, post.PersonaUID); err != nil {
+			return err
+		}
 		if topic.Id == 0 {
 			topic.ProcessStatus = topics.ProcessStatusPending
 			topic.PostSeq, topic.PostCount = 1, 0

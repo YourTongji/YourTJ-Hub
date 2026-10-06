@@ -48,6 +48,7 @@ class _Posts extends PostRepository {
     int replyToPostId = 0,
     String? captchaId,
     String? captchaCode,
+    String? identity,
   }) async {
     if (fail) throw const NetworkException(fallbackMessage: 'offline');
     return pending == null

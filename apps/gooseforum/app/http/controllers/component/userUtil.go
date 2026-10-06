@@ -91,7 +91,7 @@ func CheckUserPermission(userEntity *users.EntityComplete, action PermissionActi
 	actionText := permissionActionFallback(action)
 
 	// 1. 检查用户是否被冻结
-	if userEntity.IsFrozen == users.StatusFrozen {
+	if userEntity.IsFrozen == users.StatusFrozen || userEntity.AnonymousGovernanceBlocked {
 		return 403, NewMessageError(
 			MessagePermissionUserFrozen,
 			fmt.Sprintf("您的账号已被封禁，无法进行%s操作", actionText),

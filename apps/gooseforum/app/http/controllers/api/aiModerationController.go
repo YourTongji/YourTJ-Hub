@@ -3,6 +3,8 @@ package api
 import (
 	"context"
 	"fmt"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"strings"
 	"time"
 
@@ -144,6 +146,16 @@ type AiModerationDecisionItem struct {
 }
 
 func aiDecisionItem(entity moderationDecision.Entity) AiModerationDecisionItem {
+	if entity.SubjectType == "topic" && topics.UnscopedGet(entity.SubjectId).PersonaUID != "" {
+		entity.AuthorId = 0
+	}
+	if entity.SubjectType == "post" {
+		p := posts.GetMapByIdsUnscoped([]uint64{entity.SubjectId})[entity.SubjectId]
+		if p != nil && p.IsAnonymous {
+			entity.AuthorId = 0
+		}
+	}
+
 	images := entity.Images
 	if images == nil {
 		images = []moderationDecision.ImageRecord{}

@@ -495,14 +495,18 @@ Widget buildTopicFeedCard(
         ? "${l10n.contentReviewPending} · ${topic.title}"
         : topic.title,
     description: topic.description,
-    authorName: privateDisplayName(
+    authorName: topic.author.publicUid != null
+        ? '${topic.author.nickname ?? topic.author.username} · ${l10n.anonymousPersonaLabel}'
+        : privateDisplayName(
       context,
       topic.author.id,
       topic.author.username,
       nickname,
     ),
     authorAvatarUrl: resolveApiAssetUrl(topic.author.avatarUrl),
-    onAuthorTap: topic.author.id > 0
+    onAuthorTap: topic.author.publicUid != null
+        ? () => context.push('/a/${topic.author.publicUid}')
+        : topic.author.id > 0
         ? () => context.push('/u/${topic.author.id}')
         : null,
     imageSemanticLabelBuilder: l10n.imageViewPosition,

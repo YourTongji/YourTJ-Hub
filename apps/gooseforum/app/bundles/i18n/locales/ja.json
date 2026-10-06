@@ -132,5 +132,11 @@
   "serverMessages.sticker.libraryFull": "マイスタンプは {limit} 個まで保存できます。追加する前に一部を削除してください。",
   "serverMessages.sticker.uploadQuota": "アップロード上限の {limit} 個に達しました。送信済みの素材は履歴表示のため保持されます。",
   "serverMessages.sticker.imageRequired": "自分がアップロードした {maxSizeMb} MB 以下の画像または GIF を選択してください。",
-  "serverMessages.sticker.unavailable": "このスタンプは利用できません。"
+  "serverMessages.sticker.unavailable": "このスタンプは利用できません。",
+  "permission.revealAnonymousIdentity": "匿名の身元開示（制限された監査）",
+  "anonymous.identity": "匿名の身元",
+  "anonymous.nameLocked": "名前は1年間固定されています。",
+  "anonymous.dailyLimit": "本日10回の抽選上限です。既存の候補から選べます。",
+  "anonymous.candidateExpired": "候補が無効または期限切れです。本日の候補を再読み込みしてください。",
+  "anonymous.unavailable": "匿名の身元は利用できません"
 }

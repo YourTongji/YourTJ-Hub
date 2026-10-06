@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { authorURL } from '@/runtime/anonymous-identity'
 import { userDisplayName } from '@/runtime/private-notes'
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { Award, Bell, Clock, Check, CheckCheck, CheckCircle2, Info, MessageCircle, ShieldAlert, UserPlus } from '@lucide/vue'
@@ -271,7 +272,7 @@ function actorName(item: NotificationPayload) {
 }
 
 function actorURL(item: NotificationPayload) {
-  return item.actor.id ? `/u/${item.actor.id}` : ''
+  return authorURL(item.actor)
 }
 
 function targetURL(item: NotificationPayload) {
@@ -414,7 +415,7 @@ function markItemReadAndNavigate(item: NotificationPayload) {
                 {{ actorName(item) }}
               </a>
               <span v-else class="shrink-0 font-semibold text-base-content" :class="isReviewResult(item) ? 'w-full' : 'max-w-[42%] truncate'">{{ item.eventType === 'follow' ? actorName(item) : notificationTitleText(item) }}</span>
-              <span class="shrink-0 text-base-content/55">{{ item.actor.id || item.eventType === 'follow' ? notificationVerb(item) : '' }}</span>
+              <span class="shrink-0 text-base-content/55">{{ item.actor.id || item.actor.publicUid || item.eventType === 'follow' ? notificationVerb(item) : '' }}</span>
               <a v-if="isReviewResult(item) && targetURL(item)" :href="targetURL(item)" class="min-w-0 truncate font-medium text-primary" @click="markItemReadAndNavigate(item)">{{ item.payload.topicTitle || t('contentReview.view') }}</a>
               <span v-else-if="isReviewResult(item)" class="min-w-0 truncate font-medium text-base-content/75">{{ item.payload.topicTitle }}</span>
               <a
@@ -441,7 +442,7 @@ function markItemReadAndNavigate(item: NotificationPayload) {
               >
                 {{ t('notifications.viewProfile') }}
               </a>
-              <span v-else-if="item.actor.id || item.eventType === 'follow'" class="font-medium text-base-content/75">{{ notificationText(item) }}</span>
+              <span v-else-if="item.actor.id || item.actor.publicUid || item.eventType === 'follow'" class="font-medium text-base-content/75">{{ notificationText(item) }}</span>
               <span v-if="!item.isRead" class="h-1.5 w-1.5 rounded-full bg-primary" />
             </div>
             <p v-if="isReviewResult(item)" class="mt-0.5 text-xs text-base-content/55">

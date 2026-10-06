@@ -22,8 +22,8 @@ func TestEnumIdAndBuildOptions(t *testing.T) {
 	}
 
 	options := BuildOptions("en")
-	if len(options) != int(CourseManager-Admin+1) {
-		t.Fatalf("BuildOptions() length = %d, want %d", len(options), CourseManager-Admin+1)
+	if len(options) != int(RevealAnonymousIdentity-Admin+1) {
+		t.Fatalf("BuildOptions() length = %d, want %d", len(options), RevealAnonymousIdentity-Admin+1)
 	}
 	for _, option := range options {
 		if option.Name == "" || option.Label == "" {

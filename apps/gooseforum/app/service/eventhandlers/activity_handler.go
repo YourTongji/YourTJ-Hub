@@ -2,6 +2,7 @@ package eventhandlers
 
 import (
 	"context"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userActivities"
 )
@@ -13,6 +14,9 @@ func handleActivitySignUp(ctx context.Context, event *UserSignUpEvent) error {
 
 // handleActivityPost 记录发帖行为
 func handleActivityPost(ctx context.Context, event *TopicPublishedEvent) error {
+	if event.Topic != nil && event.Topic.PersonaUID != "" {
+		return nil
+	}
 	topicID, userID, title := event.Subject()
 	if topicID == 0 || userID == 0 {
 		return nil
@@ -22,6 +26,9 @@ func handleActivityPost(ctx context.Context, event *TopicPublishedEvent) error {
 
 // handleActivityLike 记录点赞行为
 func handleActivityLike(ctx context.Context, event *TopicLikedEvent) error {
+	if topics.GetSimple(event.TopicId).PersonaUID != "" {
+		return nil
+	}
 	return userActivities.Record(event.LikerId, userActivities.ActionLike, userActivities.SubjectTopic, event.TopicId, event.Title)
 }
 

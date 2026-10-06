@@ -31,6 +31,14 @@ Web、SSR 与 Flutter 的列表和详情均不展示标题（普通列表与首�
 输入防抖暂存，离开前刷新存储，清空输入后删除副本；上传中的图片也触发离开保护。
 移动端写作恢复与草稿规则见[移动端体验](mobile-experience.md)。
 
+## Persistent anonymous identity
+
+`Current`: ordinary topic and reply composers offer a persistent anonymous persona alongside the
+main identity. It has its own fixed avatar and public history, with one persona per human account.
+Naming, yearly lock, quota, privacy, governance and retention are owned by
+[anonymous identity](anonymous-identity.md). Legacy Wiki anonymous replies and course reviews retain
+their separate rules.
+
 ## Feed and reading
 
 `Current`：Web 桌面（lg 及以上）通过导航栏开关折叠侧栏，内容列填满可用空间；带右侧 rail 的布局
@@ -72,7 +80,7 @@ PWA standalone 触摸设备在页顶支持下拉刷新，以第一页替换列�
 Web 与 Flutter 编辑器提供本地上下文候选和防抖用户搜索，插入普通 Markdown；错误及过期请求不能
 覆盖当前候选，键盘选择不夺走编辑器输入。移动端布局与辅助功能见[移动端体验](mobile-experience.md)。
 
-`Current`：公开首楼与回复向符合条件的提及用户发通知；自提及、匿名内容、草稿、待审及删除内容不发送。
+`Current`：公开首楼与回复向符合条件的提及用户发通知；自提及、既有 Wiki 单条匿名、草稿、待审及删除内容不发送；持久匿名 persona 的公开回复可发送匿名署名通知。
 编辑只通知相对旧正文新增的提及用户。收件人优先级为 `post_reply > mention > comment > topic_post`，
 每次事件最多 20 个 mention 收件人，其余已订阅者仍可收到普通话题通知。
 重新发布不重复通知已有 mention 收件人；待审回复编辑获批时因缺少旧正文快照，不补发 mention。

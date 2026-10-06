@@ -405,6 +405,9 @@ func PostRevisions(req component.BetterRequest[PostRevisionsReq]) component.Resp
 			// （v1 EditorId 即真实作者 uid），公开历史不得回显，否则
 			// 一次未登录请求即可完成去匿名化。
 			editor = anonymousPostAuthor()
+			if postEntity.PersonaUID != "" {
+				editor = personaAuthor(postEntity.PersonaUID)
+			}
 		} else if masked {
 			editor = userPayloadWithWornBadge(0, nil, nil)
 		}

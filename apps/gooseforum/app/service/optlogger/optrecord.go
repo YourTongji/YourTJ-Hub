@@ -6,10 +6,25 @@ import (
 	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/optRecord"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/spf13/cast"
 )
 
 func UserOpt(userId uint64, optType OptEnum, targetId any, msg string) {
+	id := cast.ToUint64(targetId)
+	if optType.TargetTypeEnum() == Topic {
+		topic := topics.UnscopedGet(id)
+		if topic.PersonaUID != "" && topic.UserId == userId {
+			userId = 0
+		}
+	}
+	if optType.TargetTypeEnum() == Post {
+		post := posts.GetMapByIdsUnscoped([]uint64{id})[id]
+		if post != nil && post.IsAnonymous && post.UserId == userId {
+			userId = 0
+		}
+	}
 	entity := optRecord.Entity{
 		OptUserId: userId, OptType: optType.toInt(), TargetType: optType.TargetTypeEnum().toInt(),
 		TargetId: cast.ToString(targetId), OptInfo: msg, CreatedAt: time.Now()}
