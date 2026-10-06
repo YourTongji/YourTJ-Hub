@@ -82,7 +82,8 @@ and audit APIs return `private, no-store`; persona public views do not update ma
 `Current`: readers and ordinary moderators cannot obtain the owner binding. Moderators can restrict
 an anonymous author's account through a post in their category scope, with a required reason. The
 private transaction disables the persona and the owner's writing together and records a governance
-audit. Restoring this restriction preserves independent account freezes. Self-disable and self-enable
+audit. Both member and persona topic/reply publishing are blocked. Restoration uses the same
+moderator action and preserves independent account freezes. Self-disable and self-enable
 retain the UID, name lock and occupied slot and cannot clear a governance restriction.
 
 `Current`: reveal requires an explicit `anonymous.identity.reveal` permission (ID 7), a nonempty

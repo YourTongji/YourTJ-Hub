@@ -20,7 +20,30 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/moderationservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/permission"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/sessionservice"
+	"github.com/gin-gonic/gin"
 )
+
+func TestAnonymousStateHTTPRateLimit(t *testing.T) {
+	conn, _ := setupAccountContractTest(t)
+	if err := conn.AutoMigrate(&identity.Persona{}, &identity.Binding{}, &identity.Quota{}, &identity.Batch{}); err != nil {
+		t.Fatal(err)
+	}
+	restrictContractRateLimit(t, conn, middleware.RateLimitInteract)
+	router := gin.New()
+	RegisterByGin(router)
+	owner := createHTTPContractUser(t, conn, contractTestID())
+	token := contractSessionToken(t, owner)
+	for range 5 {
+		rec := serveAuthSecurityJSON(router, http.MethodGet, "/api/forum/anonymous/state", "", token)
+		if rec.Code != http.StatusOK || decodeContractEnvelope(t, rec).Code != 0 {
+			t.Fatalf("state before rate limit: %d %s", rec.Code, rec.Body.String())
+		}
+	}
+	rec := serveAuthSecurityJSON(router, http.MethodGet, "/api/forum/anonymous/state", "", token)
+	if rec.Code != http.StatusTooManyRequests || rec.Header().Get("Retry-After") == "" || !strings.Contains(rec.Body.String(), `"action":"interact"`) {
+		t.Fatalf("state rate limit: %d %s", rec.Code, rec.Body.String())
+	}
+}
 
 func TestAnonymousIdentityHTTPContract(t *testing.T) {
 	conn, router := setupAccountContractTest(t)
@@ -28,7 +51,7 @@ func TestAnonymousIdentityHTTPContract(t *testing.T) {
 		t.Fatal(err)
 	}
 	g := router.Group("/api/forum/anonymous").Use(middleware.JWTAuthCheck, middleware.NoUpdateUserActivity)
-	g.GET("state", UpButterReq(api.AnonymousState))
+	g.GET("state", middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.AnonymousState))
 	g.POST("batches", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.AnonymousGenerate))
 	g.POST("confirm", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.AnonymousConfirm))
 	g.POST("disable", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.AnonymousDisable))

@@ -86,6 +86,51 @@ func setup(t *testing.T, pg bool) Service {
 		return []string{"C++", "中华人民共和国道路交通安全法实施条例", "人", "数学", "星辰", "春天", "通济", "大学", "上海", "同学"}, nil
 	}}
 }
+
+func exerciseCleanup(t *testing.T, s Service) {
+	t.Helper()
+	day, _ := anonymousnames.Day(s.Now())
+	cutoff, _ := anonymousnames.Day(s.Now().Add(-7 * 24 * time.Hour))
+	old, _ := anonymousnames.Day(s.Now().Add(-8 * 24 * time.Hour))
+	uid := strings.Repeat("a", 32)
+	rows := []any{
+		&identity.Quota{OwnerID: 1, Day: old, Used: 10},
+		&identity.Quota{OwnerID: 1, Day: cutoff, Used: 10},
+		&identity.Quota{OwnerID: 1, Day: day, Used: 10},
+		&identity.Persona{UID: uid, Name: "同学", AvatarSeed: uid},
+		&identity.Binding{OwnerID: 1, PersonaUID: uid},
+		&identity.RevealAudit{ActorID: 2, OwnerID: 1, PersonaUID: uid, Reason: "retained audit"},
+	}
+	for _, row := range rows {
+		if err := s.DB.Create(row).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+	for range 2 {
+		if err := s.Cleanup(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var quotas []identity.Quota
+	if err := s.DB.Order("day").Find(&quotas).Error; err != nil || len(quotas) != 2 || quotas[0].Day != cutoff || quotas[1].Day != day || quotas[1].Used != 10 {
+		t.Fatalf("quota cleanup changed active/boundary counters or retained expired rows: %+v, %v", quotas, err)
+	}
+	for _, model := range []any{&identity.Persona{}, &identity.Binding{}, &identity.RevealAudit{}} {
+		var count int64
+		if err := s.DB.Model(model).Count(&count).Error; err != nil || count != 1 {
+			t.Fatalf("cleanup removed retained %T: %d, %v", model, count, err)
+		}
+	}
+}
+
+func TestCleanupRetainsCurrentQuotaAndPrivateEvidence(t *testing.T) {
+	exerciseCleanup(t, setup(t, false))
+}
+
+func TestPostgreSQLCleanupRetainsCurrentQuotaAndPrivateEvidence(t *testing.T) {
+	exerciseCleanup(t, setup(t, true))
+}
+
 func exerciseQuota(t *testing.T, s Service) {
 	t.Helper()
 	day, _ := anonymousnames.Day(s.Now())

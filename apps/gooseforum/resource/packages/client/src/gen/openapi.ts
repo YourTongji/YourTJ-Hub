@@ -33,7 +33,7 @@ export interface paths {
         };
         /**
          * getAnonymousIdentityState
-         * @description Private, no-store response. One persona per numeric owner, shared across clients. Names come from the complete embedded THUOCL pool without content filters. Shanghai calendar day allows ten idempotent batches of ten distinct words. Confirmation preserves UID and avatar and locks the name until the next calendar anniversary. Reveal requires an explicit permission 7 grant, a reason, and a committed private audit; Admin and moderator permissions alone do not grant reveal.
+         * @description Private, no-store response. One persona per numeric owner, shared across clients. State reads share the configurable interaction rate limit with persona writes. Names come from the complete embedded THUOCL pool without content filters. Shanghai calendar day allows ten idempotent batches of ten distinct words. Confirmation preserves UID and avatar and locks the name until the next calendar anniversary. Reveal requires an explicit permission 7 grant, a reason, and a committed private audit; Admin and moderator permissions alone do not grant reveal.
          */
         get: operations["getAnonymousIdentityState"];
         put?: never;

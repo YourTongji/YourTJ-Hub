@@ -280,7 +280,11 @@ func (s Service) Resolve(owner uint64, choice string) (string, error) {
 // Cleanup never touches retained personas, bindings, audits or the active-day quota.
 func (s Service) Cleanup() error {
 	cutoff := s.Now().Add(-7 * 24 * time.Hour)
-	return s.DB.Where("expires_at < ?", cutoff).Delete(&identity.Batch{}).Error
+	if err := s.DB.Where("expires_at < ?", cutoff).Delete(&identity.Batch{}).Error; err != nil {
+		return err
+	}
+	day, _ := anonymousnames.Day(cutoff)
+	return s.DB.Where("day < ?", day).Delete(&identity.Quota{}).Error
 }
 func ErrorCode(err error) string {
 	if errors.Is(err, ErrLocked) || errors.Is(err, ErrQuota) || errors.Is(err, ErrCandidate) || errors.Is(err, ErrUnavailable) || errors.Is(err, ErrInvalidParams) {

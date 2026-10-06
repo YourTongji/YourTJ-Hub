@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-10-06
+> Last verified: 2026-10-07
 
 ## Permissions and private evidence
 
@@ -22,9 +22,16 @@ credentials and must not be distributed to content moderators.
 `Current`: bindings and reveal/governance audits are retained indefinitely, including after account
 closure, under the approved product retention policy. Do not cascade account cleanup into these
 tables or delete the occupied persona slot. Candidate batches are usable only through their Shanghai
-day and are removed by the existing hourly cron once expired for over seven days. Quota rows are
-retained; they are small account/day counters and never become public data. Retention changes need
-a product decision because they change audit availability and the one-identity guarantee.
+day and are removed by the existing hourly cron once expired for over seven days. The same cron
+removes quota rows whose Shanghai day is strictly earlier than the day seven days ago; current-day
+counters and the cutoff day's rows remain intact. Quotas never become public data. Binding/audit
+retention changes need a product decision because they change audit availability and the
+one-identity guarantee.
+
+`Current`: private state reads share the configurable `interact` HTTP rate limit with persona
+writes. Excess requests return HTTP 429 with `Retry-After`, independently of the daily name-draw
+quota. This bounds polling while the state transaction serializes with writes to keep remaining
+draws and persisted batches consistent. Rate-limit settings apply to this read path too.
 
 ## Migration, backup and recovery
 
@@ -56,6 +63,8 @@ pre-feature snapshot with its corresponding binary, with the usual loss of subse
 logs omit account and IP, use the route pattern and discard query values. Restricted evidence never
 enters ordinary operation/moderation exports. Authenticated Web layouts disable analytics, replay
 and configured script injection; returning between tracking states reloads the whole page.
+Identity routes remain under `/api/forum/anonymous/` and public persona routes under `/a/`; extensions
+to either route namespace must preserve this logging boundary.
 
 An avatar URL is immutable and publicly cacheable for one year. Public name/profile payloads must
 be refreshed after a rename; clients must not publish private settings state to a shared cache.
