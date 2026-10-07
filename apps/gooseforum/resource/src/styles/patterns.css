@@ -58,13 +58,13 @@
 .wiki-hit-flash {
   background: transparent;
   border-radius: 0.35rem;
-  animation: wiki-hit-flash 2.8s ease-out forwards;
+  animation: wiki-hit-flash 1.4s ease-out forwards;
 }
 @keyframes wiki-hit-flash {
   0% {
     background: var(--wiki-hit-bg-strong);
   }
-  18% {
+  20% {
     background: var(--wiki-hit-bg);
   }
   60% {
@@ -72,6 +72,13 @@
   }
   100% {
     background: transparent;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wiki-hit-flash {
+    animation: none;
+    background: var(--wiki-hit-bg);
   }
 }
 
