@@ -153,4 +153,4 @@ CMD ["./yourtj-hub", "serve"]
 ## 许可证
 
 GooseForum 上游内容保留 [MIT License](LICENSE)。YourTJ 原创改动和模块采用
-[GPL-3.0-only](../../docs/development/licensing.md)。上游内容原有的 MIT 授权仍然有效。
+[GPL-3.0-only](LICENSES.md)。上游内容原有的 MIT 授权仍然有效。

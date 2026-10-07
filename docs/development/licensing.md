@@ -45,15 +45,19 @@ CC 4.0 许可覆盖著作权和适用的数据库权利，不自动授予商标�
 CC BY-NC-SA 4.0 不可撤销，作者应在提交前确认许可范围。
 
 GPLv3 允许收费分发，但交付 GPL 软件时，须提供对应版本的完整源代码和许可证文本。
+论坛的 Linux、macOS 和 Windows 二进制归档随附 `licenses/GPL-3.0-only/LICENSE`（根目录 GPLv3 正文）、`LICENSE`（上游 MIT 正文）
+和 [LICENSES.md](../../apps/gooseforum/LICENSES.md)（分发范围说明）；上游 MIT 文件不代表整个修改版按 MIT 授权。
 对 GPLv3 所定义的 User Product，还须提供安装修改版本所需的信息。
 仓库内的 iOS 发布流程会提交 App Store 和 TestFlight 版本。Apple [标准 EULA](https://www.apple.com/legal/internet-services/itunes/dev/stdeula/) 默认限制应用的转让、修改和再分发，
 同时允许开源组件依照其许可证行使权利；开发者提交自定义 EULA 时，还须满足 Apple 的最低条款。
-因此，不能仅凭 GPL 与 Apple 标准 EULA 的文本推定当前 iOS 分发方式兼容。发布者必须检查 App Store Connect 中实际生效的 EULA，
-确认它不限制 GPL 权利，并按 GPLv3 提供对应源代码和必要的安装信息。若无法确认，应暂停该 GPL 应用的 App Store/TestFlight 发布并寻求法律审查。
-EULA 配置位于 App Store Connect，本仓库无法据此确认当前线上版本的 EULA。
+`Current`：维护者已核对 App Store Connect 的 License Agreement，当前应用采用 Apple 标准 EULA。
+`Partial`：GPLv3 与实际 iOS 分发条件的兼容性仍需核验。标准 EULA 的开源组件例外不能单独证明整款应用的分发兼容；
+发布者仍须确认终端用户不受限制 GPL 权利的条款约束，并按 GPLv3 提供对应源代码及满足适用条件时所需的安装信息。
+若无法确认，应暂停该 GPL 应用的 App Store/TestFlight 发布并寻求法律审查。
 
 服务条款默认文案说明 Wiki 和课程评价数据的 CC BY-NC-SA 4.0 许可。管理员可以在站点设置中另行配置服务条款；
-部署者须确认线上条款与本页一致。此仓库变更不会改动运行中的站点配置。
+部署者须确认线上条款与本页一致。已保存的自定义条款继续使用数据库中的文案；未保存自定义条款的现有站点
+在升级后直接使用新的内嵌默认文案，损坏的配置 JSON 也会回退到默认值。默认文案不只在新建或重置站点时生效。
 
 ## 第三方许可清单
 
@@ -61,7 +65,7 @@ EULA 配置位于 App Store Connect，本仓库无法据此确认当前线上版
 
 | 路径 | 已声明的许可证 |
 |---|---|
-| `apps/mobile/packages/ui_kit/assets/LICENSE-lucide.txt` | ISC |
+| `apps/mobile/packages/ui_kit/assets/LICENSE-lucide.txt` | ISC；Feather 衍生图标按文件内 MIT 声明授权 |
 | `apps/mobile/packages/ui_kit/assets/LICENSE-reicon.txt` | MIT |
 | `apps/mobile/packages/ui_kit/assets/LICENSE-simple-icons.txt` | CC0 1.0 Universal |
 | `apps/mobile/third_party/home_widget/LICENSE` | BSD 3-Clause |
@@ -69,7 +73,8 @@ EULA 配置位于 App Store Connect，本仓库无法据此确认当前线上版
 | `apps/gooseforum/app/console/stickerpresets/preset_stickers/LICENSE-WXMemeStickers.txt` | MIT |
 | `apps/gooseforum/app/console/stickerpresets/preset_stickers/LICENSE-flowerhd.txt` | CC BY 4.0 |
 
-`NOTICE.md` 和上述许可证文件列明资源来源、署名和使用范围。新增依赖前应检查其直接与传递依赖许可证，
+[贴纸资源 NOTICE.md](../../apps/gooseforum/app/console/stickerpresets/preset_stickers/NOTICE.md)
+和上述许可证文件列明资源来源、署名和使用范围。新增依赖前应检查其直接与传递依赖许可证，
 并确认没有把不兼容的代码或数据合并进 GPL 发行物。
 
 ## 参考资料

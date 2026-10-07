@@ -155,5 +155,5 @@ CMD ["./yourtj-hub", "serve"]
 ## License
 
 GooseForum upstream material retains the MIT License in [LICENSE](LICENSE). YourTJ-authored changes
-and modules are licensed under [GPL-3.0-only](../../docs/development/licensing.md). The original MIT
+and modules are licensed under [GPL-3.0-only](LICENSES.md). The original MIT
 grant remains available for the upstream material.
