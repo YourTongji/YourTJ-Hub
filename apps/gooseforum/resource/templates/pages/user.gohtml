@@ -6,14 +6,7 @@
 
 {{define "page"}}
 <main class="gf-crawler-user-page">
-    <header class="gf-crawler-user-head">
-        <img class="gf-crawler-user-avatar" src="{{.Payload.Props.User.AvatarUrl}}" alt="{{.Payload.Props.User.Username}}" width="96" height="96">
-        <div>
-            <h1>{{.Payload.Props.User.Nickname}}</h1>
-            <p class="gf-crawler-user-meta">@{{.Payload.Props.User.Username}}</p>
-            {{if .Payload.Props.User.Bio}}<p class="gf-crawler-user-bio">{{.Payload.Props.User.Bio}}</p>{{end}}
-        </div>
-    </header>
+    {{template "partials/profile_header.gohtml" (dict "AvatarUrl" .Payload.Props.User.AvatarUrl "Name" .Payload.Props.User.Nickname "Username" .Payload.Props.User.Username "Bio" .Payload.Props.User.Bio)}}
 
     <section class="gf-crawler-user-stats" aria-label="{{ t .Lang "profileStats" }}">
         <dl>

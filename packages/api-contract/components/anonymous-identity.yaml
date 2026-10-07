@@ -14,7 +14,7 @@ PublicPersona:
       pattern: ^[0-9a-f]{32}$
     name:
       type: string
-      description: Unmodified full THUOCL entry; escaped as plain text.
+      description: New names freely combine two-character action + two-character scene/object + 的 + one-character animal (six Han characters). Existing names remain unchanged; escaped as plain text.
     avatarUrl:
       type: string
     profileUrl:
@@ -35,6 +35,7 @@ AnonymousBatch:
       type: string
       format: date
     words:
+      description: New draws use six Han characters in the phrase6-v1 form. Persisted earlier batches retain their exact words until expiry.
       type: array
       minItems: 10
       maxItems: 10

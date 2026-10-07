@@ -2,10 +2,17 @@
 {{define "noscript"}}{{template "page" .}}{{end}}
 {{define "page"}}
 <main class="gf-crawler-user-page">
-<header><img src="{{.Payload.Props.Persona.AvatarURL}}" width="96" height="96" alt="{{.Payload.Props.Persona.Name}}"><h1>{{.Payload.Props.Persona.Name}}</h1><p>{{t .Lang "anonymous.identity"}}</p></header>
-<p>{{t .Lang "topics"}}: {{.Payload.Props.TopicCount}} · {{t .Lang "repliesTitle"}}: {{.Payload.Props.ReplyCount}}</p>
+{{template "partials/profile_header.gohtml" (dict "AvatarUrl" .Payload.Props.Persona.AvatarURL "Name" .Payload.Props.Persona.Name "Label" (t .Lang "anonymous.identity"))}}
+<section class="gf-crawler-user-stats" aria-label="{{t .Lang "profileStats"}}"><dl>
+<div><dt>{{t .Lang "topics"}}</dt><dd>{{.Payload.Props.TopicCount}}</dd></div>
+<div><dt>{{t .Lang "repliesTitle"}}</dt><dd>{{.Payload.Props.ReplyCount}}</dd></div>
+</dl></section>
+<section class="gf-crawler-user-section"><h2>{{t .Lang "recentTopics"}}</h2>
 {{template "partials/topic_list.gohtml" (dict "Topics" .Payload.Props.Topics "Lang" .Lang)}}
-<ul>{{range .Payload.Props.Replies}}<li><a href="{{.URL}}">{{.Excerpt}}</a></li>{{end}}</ul>
+</section>
+<section class="gf-crawler-user-section"><h2>{{t .Lang "repliesTitle"}}</h2>
+<ul class="gf-crawler-activity-list">{{range .Payload.Props.Replies}}<li class="gf-crawler-activity"><a href="{{.URL}}">{{.Excerpt}}</a></li>{{end}}</ul>
+</section>
 <nav aria-label="{{t .Lang "nextPage"}}">
 {{if gt .Payload.Props.Page 1}}<a href="{{.Payload.Props.Persona.ProfileURL}}?page={{sub .Payload.Props.Page 1}}">{{t .Lang "prevPage"}}</a>{{end}}
 {{if .Payload.Props.HasNext}}<a href="{{.Payload.Props.Persona.ProfileURL}}?page={{add .Payload.Props.Page 1}}">{{t .Lang "nextPage"}}</a>{{end}}

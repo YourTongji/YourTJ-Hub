@@ -1,17 +1,13 @@
-# Anonymous name lexicon
+# Anonymous name components
 
-The single binary embeds all eleven unchanged data files from
-[THUOCL commit a30ce79](https://github.com/thunlp/THUOCL/tree/a30ce79d895d01ab5132a5c74c29703ff7efb4cc).
-The first tab-separated field is used verbatim, with exact duplicates merged. DF,
-length, script, character type and meaning do not restrict eligibility. There are
-156,289 distinct words. Names need not be unique between personas.
+`phrase6-v1` embeds the repository-authored [component lists](data/phrases.json) in
+one binary. Every new name freely combines a two-character action, a two-character
+scene/object, `的`, and a one-character animal. All components are Chinese Han characters.
+The 36 actions, 163 scenes/objects and 32 animals produce 187,776 distinct six-character
+names, including 躲进云里的猫, 抱着松果的熊 and 躲进松果的猫. No grammatical or semantic
+compatibility filter limits the playful combinations.
 
-The upstream MIT license is included in [LICENSE](LICENSE). This application
-使用了清华大学开放中文词库。 Upstream attribution:
-
-韩世依, 张钰晖, 马云山, 涂存超, 郭志芃, 刘知远, 孙茂松. THUOCL：清华大学开放中文词库. 2016.
-
-Shiyi Han, Yuhui Zhang, Yunshan Ma, Cunchao Tu, Zhipeng Guo, Zhiyuan Liu,
-Maosong Sun. THUOCL: Tsinghua Open Chinese Lexicon. 2016.
-
-Upgrading the embedded source never rewrites an existing persona name.
+Cryptographic random indices sample the complete product uniformly; a batch contains
+10 distinct names. Names need not be unique across batches or personas. Changing the
+component version never rewrites a confirmed name or a persisted candidate batch.
+Candidates from an older source remain selectable until their existing expiry.

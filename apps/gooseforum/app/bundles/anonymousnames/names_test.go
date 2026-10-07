@@ -1,53 +1,63 @@
 package anonymousnames
 
 import (
-	"strings"
 	"testing"
-	"unicode/utf8"
+	"unicode"
 )
 
-func TestCompleteUnfilteredLexicon(t *testing.T) {
-	words, err := load()
-	if err != nil {
-		t.Fatal(err)
+func assertPhrase(t *testing.T, name string) {
+	t.Helper()
+	runes := []rune(name)
+	if len(runes) != 6 || runes[4] != '的' {
+		t.Fatalf("expected six-character phrase, got %q", name)
 	}
-	if len(words) != 156289 {
-		t.Fatalf("distinct words: %d", len(words))
-	}
-	min, max, symbols := 100, 0, false
-	for _, word := range words {
-		n := utf8.RuneCountInString(word)
-		if n < min {
-			min = n
-		}
-		if n > max {
-			max = n
-		}
-		if strings.Contains(word, "++") {
-			symbols = true
+	for _, r := range runes {
+		if !unicode.Is(unicode.Han, r) {
+			t.Fatalf("non-Han name: %q", name)
 		}
 	}
-	if min != 1 || max != 29 || !symbols {
-		t.Fatalf("filtered lexicon: min=%d max=%d symbols=%v", min, max, symbols)
-	}
-	eligible := make(map[string]bool, len(words))
-	for _, word := range words {
-		eligible[word] = true
-	}
-	for i := 0; i < 20; i++ {
+}
+
+func TestBatchSixCharacterNames(t *testing.T) {
+	for range 20 {
 		batch, err := Batch()
 		if err != nil {
 			t.Fatal(err)
 		}
-		seen := make(map[string]bool)
 		if len(batch) != 10 {
-			t.Fatal(batch)
+			t.Fatalf("batch size: %d", len(batch))
 		}
-		for _, word := range batch {
-			if !eligible[word] || seen[word] {
-				t.Fatalf("invalid candidate: %q", word)
+		seen := make(map[string]bool)
+		for _, name := range batch {
+			assertPhrase(t, name)
+			if seen[name] {
+				t.Fatalf("repeated candidate: %q", name)
 			}
-			seen[word] = true
+			seen[name] = true
+		}
+	}
+}
+
+func TestCuratedCombinations(t *testing.T) {
+	pool, err := load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pool.size() < 100000 {
+		t.Fatalf("insufficient variety: %d", pool.size())
+	}
+	seen := make(map[string]bool)
+	for index := range pool.size() {
+		name := pool.name(index)
+		assertPhrase(t, name)
+		if seen[name] {
+			t.Fatalf("duplicate combination: %q", name)
+		}
+		seen[name] = true
+	}
+	for _, example := range []string{"躲进云里的猫", "抱着松果的熊", "躲进松果的猫"} {
+		if !seen[example] {
+			t.Fatalf("missing free combination: %q", example)
 		}
 	}
 }

@@ -1,4 +1,6 @@
 /// Persistent forum persona DTOs. Private owner/seed fields are never mirrored.
+/// New draws use phrase6-v1: two-character action + two-character scene/object +
+/// 的 + one-character animal. Existing names/batches retain their exact text.
 class AnonymousPersona {
   const AnonymousPersona({
     required this.publicUid,

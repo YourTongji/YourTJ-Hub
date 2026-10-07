@@ -11,17 +11,19 @@
 ## Identity and naming
 
 `Current`: each human account can create one persistent forum persona. It has a cryptographically
-random 128-bit public UID, an independently generated fixed Beam avatar and a read-only `/a/:publicUid`
+random 128-bit public UID, an independently generated fixed Beam avatar and a public `/a/:publicUid`
 profile. It cannot log in, receive private messages, follow people, hold a separate wallet or gain
 permissions. Numeric users remain the authentication, moderation, posting quota and credit subjects.
 The anonymous profile links only its public forum topics and replies, with their visible counts.
 Main profiles, Following, participation records and public author statistics exclude persona content.
 
-`Current`: names are exact words from all eleven embedded THUOCL files at commit
-`a30ce79d895d01ab5132a5c74c29703ff7efb4cc`. The pool contains 156,289 distinct words; identical
-records are deduplicated. Length, characters, category, frequency and meaning do not filter this pool.
-There is no nickname validation, truncation or generated suffix. Different personas can have the
-same name; their UIDs, avatars and profiles distinguish them. A name confers no official badge.
+`Current`: new names freely combine a two-Han-character action, a two-Han-character
+scene/object, `的`, and a one-Han-character animal: 躲进云里的猫 or 抱着松果的熊.
+The repository-authored component pool is embedded as `phrase6-v1`, with 187,776 distinct
+six-character combinations. Components combine without grammar or semantic filtering, so
+playful phrases such as 躲进松果的猫 are eligible. Confirmed names and already persisted
+candidate batches retain their exact text across generator versions. Different personas can
+have the same name; their UIDs, avatars and profiles distinguish them. A name confers no badge.
 
 `Current`: Web Settings and the native mobile settings page expose ten distinct candidates per
 batch, at most ten new batches per account per Shanghai calendar day. The initial batch counts.
@@ -37,6 +39,22 @@ The locked period prevents both new draws and changes. After the anniversary, se
 keeps the UID, avatar, profile and historical attribution and starts another year. Selecting the same
 name does not restart the lock. Nothing forces a name change. Dynamic author projections use the
 current name; delivered notifications, screenshots and copied text are not recalled.
+
+## Public profile and management entry
+
+`Current`: Web member and persona profiles reuse the same cover/avatar header, responsive
+action area, navigation tabs, statistics and forum topic list components. Native profiles
+reuse the collapsing cover/navigation sliver, user card, edit button, animated tabs and topic
+cards/content rows. Persona profiles show their own public topic/reply streams and counts;
+they do not copy a main account's cover, badges, bio, relationships or activity.
+
+`Current`: the signed-in user's ordinary profile menu includes the anonymous identity entry.
+An existing persona opens its public profile; an unconfigured persona opens setup. The public
+persona page determines ownership only from the viewer's private state. Its owner sees the
+shared profile management button in the ordinary edit-action position, opening the shared
+setup/management dialog or sheet. Other viewers receive no private binding or management action.
+Web SVG avatars keep their original URL at comment, quote, list and profile sizes; no medium
+raster derivative is requested for the public persona SVG endpoint.
 
 ## Settings and first use
 
@@ -143,7 +161,7 @@ anonymous display and legacy Wiki per-post anonymous replies remain separate and
 
 ## Sources
 
-- [MADR 0066](../decisions/0066-persistent-anonymous-forum-persona.md) records the alternatives.
+- [MADR 0074](../decisions/0074-six-character-persona-names.md) owns the current naming policy and carries forward the persona boundaries from [0066](../decisions/0066-persistent-anonymous-forum-persona.md).
 - [Issue 1068](https://github.com/YourTongji/YourTJ-Hub/issues/1068) owns research and acceptance evidence.
-- [THUOCL provenance and license](../../apps/gooseforum/app/bundles/anonymousnames/README.md).
+- [Six-character name component source](../../apps/gooseforum/app/bundles/anonymousnames/README.md).
 - [Contracts and data](../architecture/contracts-and-data.md#persistent-anonymous-personas).
