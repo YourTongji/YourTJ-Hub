@@ -6,15 +6,19 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-10-06
+> Last verified: 2026-10-07
 
 ## 配置与启用
 
-`Current`：默认模板及dev/main实例均关闭排名、推荐和行为统计；默认灰度20%、原始保留30天。
+`Current`：dev实例开启排名、推荐和行为统计，使用独立周期及salt `dev-for-you-v1`；
+默认模板及main实例关闭这三个开关。默认首页分流20%、原始保留30天；
+排名就绪后所有已登录用户均可手动选择For you，20%仅控制默认首页分流。
 部署实例的 `feed.ranking_enabled`、`feed.for_you_enabled`、`feed.metrics_enabled`、
-`feed.rollout_percent`、`feed.period`、`feed.salt` 经render_config生成对应TOML。
+`feed.rollout_percent`、`feed.experiment_period`、`feed.experiment_salt` 经render_config生成对应TOML。
 TOML参数在 `ranking`、`ranking.hot`、`ranking.daily`、`feed.for_you`、`feed.metrics`、
 `feed.weights`、`feed.alternative_weights`、`feed.experiments` 中定义。
+仅修改实例配置时可在合并后运行 `Apply / instance config`，选择dev及dev分支，
+原子下发配置并重建容器；下发后检查管理员统计页中的捕获开关和排名就绪状态。
 配置热更新先解析与校验整份不可变快照，非法值保留旧快照；完整配置与排名参数分别计算hash。
 修改物化权重使新排名立即未就绪，后台重新回填；不同hash的排名不能混用。
 

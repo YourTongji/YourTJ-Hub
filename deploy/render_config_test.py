@@ -200,6 +200,37 @@ for instance_name, expected in [("dev", False), ("main", True)]:
     rendered_flag = tomllib.loads(rc.render("enabled = {{SEARCH_MAINTENANCE_ENABLED}}", flags))
     check_eq(f"{instance_name} maintenance renders a TOML bool", expected, rendered_flag["enabled"])
 
+# Real instance metadata must activate dev feeds without enabling production feeds.
+for instance_name, expected in [("dev", True), ("main", False)]:
+    instance = rc.load_instance(instance_name, rc.DEFAULT_INSTANCES_DIR)
+    feed_env = {
+        **env_partial,
+        "PG_DSN": f"host=postgres user=yourtj dbname={instance['pg_dbname']} port=5432 sslmode=disable",
+        "GH_CLIENT_ID": "test-github-client",
+        "GH_CLIENT_SECRET": "test-github-secret",
+    }
+    feed_values, _ = rc.build_values(
+        instance_name, instance, feed_env, real_tokens, rc.optional_tokens(instance_name)
+    )
+    feed_config = tomllib.loads(rc.render(real_tmpl, feed_values))
+    check_eq(
+        f"{instance_name} rendered ranking/recommendation/metrics switches",
+        (expected, expected, expected),
+        (
+            feed_config["ranking"]["enabled"],
+            feed_config["feed"]["for_you"]["enabled"],
+            feed_config["feed"]["metrics"]["enabled"],
+        ),
+    )
+    check_eq(f"{instance_name} default-entry rollout", 20, feed_config["feed"]["for_you"]["rollout_percent"])
+    check_eq(f"{instance_name} raw retention", 30, feed_config["feed"]["metrics"]["raw_retention_days"])
+    if instance_name == "dev":
+        check_eq(
+            "dev uses its own active experiment period and salt",
+            ("dev-for-you-v1", "dev-for-you-v1"),
+            (feed_config["feed"]["experiments"]["period"], feed_config["feed"]["experiments"]["salt"]),
+        )
+
 # main 场景: GH 凭据未设 → 必须失败（fail-closed 生产）
 fake_main = {
     "instance": "main",
