@@ -11507,6 +11507,10 @@ FeedSeenAck:
 FeedRefreshRequest:
   type: object
   properties:
+    replaceSnapshotId:
+      type: string
+      maxLength: 128
+      description: Current owner-bound browsing snapshot to replace after successful hydration. Optional for a new or expired session; never replaces another live session when this ID was already consumed.
     seenPatches:
       type: array
       maxItems: 50

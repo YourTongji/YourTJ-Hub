@@ -79,23 +79,46 @@ func invalidateViewer(uid uint64) {
 	delete(profiles, uid)
 	profileMu.Unlock()
 }
-func storeSnapshot(s *snapshot) bool {
+func storeSnapshot(ctx context.Context, s *snapshot, replaceID string) error {
 	data, err := json.Marshal(s)
 	if err != nil {
-		return false
+		return err
 	}
 	s.Bytes = len(data)
 	if s.Bytes > 64<<10 {
-		return false
+		return ErrUnavailable
 	}
 	snapshotsMu.Lock()
 	defer snapshotsMu.Unlock()
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if old := snapshots[replaceID]; old != nil && old.User != s.User {
+		return ErrInvalidCursor
+	}
 	now := time.Now()
 	for id, old := range snapshots {
 		if !old.Expires.After(now) {
 			delete(snapshots, id)
 			snapshotsBytes -= old.Bytes
 		}
+	}
+	// Replace only the refreshed session. If a concurrent refresh already
+	// consumed it, do not evict another still-live history session to make room.
+	if old := snapshots[replaceID]; replaceID != "" && old == nil {
+		same := 0
+		for _, existing := range snapshots {
+			if existing.User == s.User {
+				same++
+			}
+		}
+		if same >= 2 {
+			return ErrSnapshotExpired
+		}
+	}
+	if old := snapshots[replaceID]; old != nil {
+		delete(snapshots, old.ID)
+		snapshotsBytes -= old.Bytes
 	}
 	for {
 		same := 0
@@ -122,17 +145,27 @@ func storeSnapshot(s *snapshot) bool {
 			}
 		}
 		if oldest == nil {
-			return false
+			return ErrUnavailable
 		}
 		delete(snapshots, oldest.ID)
 		snapshotsBytes -= oldest.Bytes
 	}
 	snapshots[s.ID] = s
 	snapshotsBytes += s.Bytes
-	return true
+	return nil
 }
 
 func ForYou(ctx context.Context, uid uint64, token string) (Page, error) {
+	return forYou(ctx, uid, token, "", nil)
+}
+
+// RefreshForYou prepares the complete response before atomically replacing the
+// caller's snapshot. A failed preparation leaves both cached sessions intact.
+func RefreshForYou(ctx context.Context, uid uint64, replaceID string, prepare func(Page) error) (Page, error) {
+	return forYou(ctx, uid, "", replaceID, prepare)
+}
+
+func forYou(ctx context.Context, uid uint64, token, replaceID string, prepare func(Page) error) (Page, error) {
 	ctx, cancel := context.WithTimeout(ctx, 200*time.Millisecond)
 	defer cancel()
 	cfg := feedconfig.Current()
@@ -167,7 +200,24 @@ func ForYou(ctx context.Context, uid uint64, token string) (Page, error) {
 		}
 	}
 
-	return snapshotPage(ctx, s, offset)
+	page, err := snapshotPage(ctx, s, offset)
+	if err != nil {
+		return Page{}, err
+	}
+	if prepare != nil {
+		if err := prepare(page); err != nil {
+			return Page{}, err
+		}
+	}
+	if err := ctx.Err(); err != nil {
+		return Page{}, err
+	}
+	if token == "" {
+		if err := storeSnapshot(ctx, s, replaceID); err != nil {
+			return Page{}, err
+		}
+	}
+	return page, nil
 }
 
 func snapshotPage(ctx context.Context, s *snapshot, offset int) (Page, error) {
@@ -505,9 +555,6 @@ func buildSnapshot(ctx context.Context, uid uint64, cfg feedconfig.Config) (*sna
 		return nil, err
 	}
 	s := &snapshot{Config: cfg, EntryVariant: entryVariant, ID: feed.NewID(), User: uid, Hash: cfg.Hash, Variant: variant, Items: ranked, Created: now, Expires: now.Add(30 * time.Minute), Seed: seed}
-	if !storeSnapshot(s) {
-		return nil, ErrUnavailable
-	}
 	captureCandidateSample(uid, s, pool, cfg)
 	return s, nil
 }

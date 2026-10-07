@@ -325,7 +325,7 @@ async function refreshFirstPage(mode: 'prepend' | 'replace') {
   refreshStatusMessage.value = t('topicList.refreshing')
   try {
     if (isForYouFeed.value) {
-      const result = await refreshForYou(sessionAbort.signal)
+      const result = await refreshForYou(sessionAbort.signal, snapshotId.value)
       if (revision !== feedRevision || !sessionActive || feedSwitchInProgress.value) return
       topics.value = result.topics
       pagination.value = result.pagination!

@@ -67,6 +67,11 @@ func TestFeedSessionRoutesAuthBoundsAndDisabledRefresh(t *testing.T) {
 	}
 	user := createHTTPContractUser(t, conn, contractTestID())
 	token := contractSessionToken(t, user)
+	oldConfig := feedconfig.Current()
+	t.Cleanup(func() {
+		preferences.Set("feed.for_you.enabled", oldConfig.Enabled)
+		preferences.Set("ranking.enabled", oldConfig.Ranking)
+	})
 	preferences.Set("feed.for_you.enabled", false)
 	preferences.Set("ranking.enabled", false)
 	for _, body := range []string{`{"topicIds":[]}`, `{"topicIds":[1,1]}`, `{"topicIds":[0]}`} {
@@ -95,6 +100,10 @@ func TestFeedSessionRoutesAuthBoundsAndDisabledRefresh(t *testing.T) {
 	response = serveJSON(router, "/api/forum/feed/refresh", `{"seenPatches":[{"proof":"forged","seen":{"0":1000}}]}`, token)
 	if response.Code != 400 {
 		t.Fatal("forged refresh claim accepted")
+	}
+	response = serveJSON(router, "/api/forum/feed/refresh", `{"replaceSnapshotId":"`+strings.Repeat("x", 129)+`"}`, token)
+	if response.Code != 400 {
+		t.Fatal("oversized replacement ID accepted")
 	}
 }
 

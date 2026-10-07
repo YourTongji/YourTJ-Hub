@@ -47,7 +47,9 @@ Web/PWA caches at most two history-entry sessions, 120 cards each, with a combin
 budget including a recovery shell and a 30-minute inactive TTL. Return/foreground/SSE reconcile only
 loaded IDs, update state in place and remove authoritative hard-ineligible rows. Original order, cursor
 and attribution stay intact; deleted anchors fall forward then backward. Explicit refresh confirms
-pending seen state then builds a new batch. Failure and expired cursors retain the existing list;
+pending seen state then builds a new batch. Publish only after complete response preparation succeeds,
+and replace the identified owner-bound session, preserving the other cached session. Concurrent requests
+cannot consume the same replacement ID by evicting another live session. Failure and expired cursors retain the existing list;
 evicted sessions show a recovery prompt. Account changes clear memory; nothing is persisted to disk.
 
 The events route preserves boolean success for old metric-only requests. Shared OpenAPI, TS and Dart

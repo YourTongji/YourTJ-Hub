@@ -58,7 +58,7 @@ func TestForYouNewFirstPageDoesNotReusePreviousBatch(t *testing.T) {
 	_, viewer, _, items := seenFixture(t)
 	cfg := feedconfig.Current()
 	now := time.Now()
-	if !storeSnapshot(&snapshot{ID: "previous-first-page", User: viewer, Hash: cfg.Hash, Config: cfg, Items: items, Created: now, Expires: now.Add(30 * time.Minute)}) {
+	if err := storeSnapshot(context.Background(), &snapshot{ID: "previous-first-page", User: viewer, Hash: cfg.Hash, Config: cfg, Items: items, Created: now, Expires: now.Add(30 * time.Minute)}, ""); err != nil {
 		t.Fatal("store previous snapshot")
 	}
 	page, err := ForYou(context.Background(), viewer, "")
@@ -71,6 +71,104 @@ func TestForYouNewFirstPageDoesNotReusePreviousBatch(t *testing.T) {
 	}
 	if next.ID == "previous-first-page" {
 		t.Fatal("new first-page request reused the old batch instead of applying current seen state")
+	}
+}
+
+func TestFailedUnpublishedSnapshotPreservesExistingSessions(t *testing.T) {
+	_, viewer, _, items := seenFixture(t)
+	cfg := feedconfig.Current()
+	now := time.Now()
+	for i, id := range []string{"older-session", "newer-session"} {
+		if err := storeSnapshot(context.Background(), &snapshot{ID: id, User: viewer, Hash: cfg.Hash, Config: cfg, Items: items, Created: now.Add(time.Duration(i) * time.Second), Expires: now.Add(30 * time.Minute)}, ""); err != nil {
+			t.Fatal("store existing session")
+		}
+	}
+	draft, err := buildSnapshot(context.Background(), viewer, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := snapshotPage(ctx, draft, 0); err == nil {
+		t.Fatal("cancelled hydration succeeded")
+	}
+	for _, id := range []string{"older-session", "newer-session"} {
+		token := sign(cursor{1, viewer, id, 20, cfg.Hash, now.Add(30 * time.Minute).Unix()}, cursorKey)
+		if _, err := ForYou(context.Background(), viewer, token); err != nil {
+			t.Fatalf("failed refresh evicted %s: %v", id, err)
+		}
+	}
+}
+
+func TestRefreshReplacesOnlyCurrentSessionAfterSuccessfulPreparation(t *testing.T) {
+	_, viewer, _, _ := seenFixture(t)
+	ctx := context.Background()
+	older, err := ForYou(ctx, viewer, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	newer, err := ForYou(ctx, viewer, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	failure := errors.New("response hydration failed")
+	if _, err := RefreshForYou(ctx, viewer, newer.SnapshotID, func(Page) error { return failure }); !errors.Is(err, failure) {
+		t.Fatalf("expected preparation failure: %v", err)
+	}
+	for _, page := range []Page{older, newer} {
+		if _, err := ForYou(ctx, viewer, page.NextCursor); err != nil {
+			t.Fatalf("failed response evicted a retained session: %v", err)
+		}
+	}
+	fresh, err := RefreshForYou(ctx, viewer, newer.SnapshotID, func(Page) error { return nil })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ForYou(ctx, viewer, older.NextCursor); err != nil {
+		t.Fatalf("refreshing newer session evicted older session: %v", err)
+	}
+	if _, err := ForYou(ctx, viewer, newer.NextCursor); !errors.Is(err, ErrSnapshotExpired) {
+		t.Fatalf("replaced session remains cached: %v", err)
+	}
+	if _, err := ForYou(ctx, viewer, fresh.NextCursor); err != nil {
+		t.Fatalf("fresh continuation unavailable: %v", err)
+	}
+	// A concurrent request using the already-consumed replacement must fail
+	// without stealing either live session's continuation.
+	if _, err := RefreshForYou(ctx, viewer, newer.SnapshotID, nil); !errors.Is(err, ErrSnapshotExpired) {
+		t.Fatalf("stale replacement evicted another session: %v", err)
+	}
+	for _, page := range []Page{older, fresh} {
+		if _, err := ForYou(ctx, viewer, page.NextCursor); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func TestSnapshotReplacementRejectsForeignOwnerAndCancelledCommit(t *testing.T) {
+	_, viewer, author, items := seenFixture(t)
+	cfg := feedconfig.Current()
+	now := time.Now()
+	foreign := &snapshot{ID: "foreign-session", User: author, Hash: cfg.Hash, Config: cfg, Items: items, Created: now, Expires: now.Add(30 * time.Minute)}
+	if err := storeSnapshot(context.Background(), foreign, ""); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { invalidateViewer(author) })
+	if _, err := RefreshForYou(context.Background(), viewer, foreign.ID, nil); !errors.Is(err, ErrInvalidCursor) {
+		t.Fatalf("foreign session replaced: %v", err)
+	}
+	draft := *foreign
+	draft.ID = "cancelled-session"
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if err := storeSnapshot(ctx, &draft, foreign.ID); !errors.Is(err, context.Canceled) {
+		t.Fatalf("cancelled commit accepted: %v", err)
+	}
+	snapshotsMu.Lock()
+	retained := snapshots[foreign.ID] == foreign && snapshots[draft.ID] == nil
+	snapshotsMu.Unlock()
+	if !retained {
+		t.Fatal("failed replacement changed the foreign session")
 	}
 }
 

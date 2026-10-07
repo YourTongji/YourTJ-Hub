@@ -323,6 +323,10 @@ export interface SeenPatch {
   proof: string
   seen: Record<number, number>
 }
+export interface FeedRefreshRequest {
+  seenPatches?: SeenPatch[]
+  replaceSnapshotId?: string
+}
 export interface FeedSessionResponse {
   viewerId: number
   topics: TopicPayload[]

@@ -1,5 +1,5 @@
-import type { FeedSessionResponse } from '@gooseforum/client'
-import { acknowledgeSeen, confirmPendingSeen, feedAccount, feedAccountRevision, invalidateSeen, pendingSeenPatches, resetFeedAccount } from './feed-telemetry'
+import type { FeedRefreshRequest, FeedSessionResponse } from '@gooseforum/client'
+import { acknowledgeSeen, confirmPendingSeen, feedAccount, feedAccountRevision, invalidateSeen, pendingSeenPatches, resetFeedAccount, StaleFeedAccountError } from './feed-telemetry'
 
 async function request(path: string, body: unknown, signal?: AbortSignal): Promise<FeedSessionResponse> {
   const owner = feedAccount()
@@ -23,7 +23,9 @@ async function request(path: string, body: unknown, signal?: AbortSignal): Promi
   }
   return result
 }
-export async function refreshForYou(signal?: AbortSignal) {
+export async function refreshForYou(signal?: AbortSignal, replaceSnapshotId = '') {
+  const owner = feedAccount()
+  const revision = feedAccountRevision()
   // Large pending queues are confirmed in bounded batches. The final small
   // queue is carried in the build request, so no five-second telemetry race.
   let pending = pendingSeenPatches()
@@ -31,8 +33,8 @@ export async function refreshForYou(signal?: AbortSignal) {
     await confirmPendingSeen()
     pending = pendingSeenPatches()
   }
-  const owner = feedAccount()
-  const result = await request('refresh', { seenPatches: pending }, signal)
+  if (revision !== feedAccountRevision()) throw new StaleFeedAccountError('feed account changed')
+  const result = await request('refresh', { seenPatches: pending, replaceSnapshotId } satisfies FeedRefreshRequest, signal)
   if (!result.seenConfirmed) throw new Error('seen confirmation unavailable')
   if (owner === feedAccount()) acknowledgeSeen(pending)
   return result

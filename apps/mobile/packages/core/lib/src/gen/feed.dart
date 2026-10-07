@@ -95,10 +95,15 @@ class FeedSeenPatch {
 }
 
 class FeedRefreshRequest {
-  const FeedRefreshRequest({this.seenPatches = const []});
+  const FeedRefreshRequest({
+    this.seenPatches = const [],
+    this.replaceSnapshotId = '',
+  });
   final List<FeedSeenPatch> seenPatches;
+  final String replaceSnapshotId;
   Map<String, dynamic> toJson() => {
     'seenPatches': seenPatches.map((p) => p.toJson()).toList(),
+    if (replaceSnapshotId.isNotEmpty) 'replaceSnapshotId': replaceSnapshotId,
   };
 }
 

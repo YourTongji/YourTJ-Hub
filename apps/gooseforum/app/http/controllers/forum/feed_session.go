@@ -2,6 +2,7 @@ package forum
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/url"
@@ -52,9 +53,10 @@ func FeedRefresh(c *gin.Context) {
 	c.Header("Cache-Control", "private, no-store")
 	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 32<<10)
 	var req struct {
-		SeenPatches []feedservice.SeenPatch `json:"seenPatches"`
+		SeenPatches       []feedservice.SeenPatch `json:"seenPatches"`
+		ReplaceSnapshotID string                  `json:"replaceSnapshotId"`
 	}
-	if c.ShouldBindJSON(&req) != nil {
+	if c.ShouldBindJSON(&req) != nil || len(req.ReplaceSnapshotID) > 128 {
 		feedSessionFailure(c, feedservice.ErrInvalidTrace)
 		return
 	}
@@ -66,35 +68,41 @@ func FeedRefresh(c *gin.Context) {
 		feedSessionFailure(c, err)
 		return
 	}
-	result, err := feedservice.ForYou(ctx, uid, "")
+	var response []byte
+	_, err := feedservice.RefreshForYou(ctx, uid, req.ReplaceSnapshotID, func(page feedservice.Page) error {
+		props := HomeProps{Sort: "for_you", Topics: feedSessionCards(ctx, uid, page.Topics)}
+		c.Set("feed.contentAt", page.ContentAt)
+		c.Set("feed.entryVariant", page.EntryVariant)
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		decorateFeedProps(c, &props, page.Items, page.Hash, page.Config)
+		for i := range props.Topics {
+			for _, item := range page.Items {
+				if item.ID == props.Topics[i].ID {
+					props.Topics[i].FeedReason = item.Reason
+				}
+			}
+		}
+		pagination := PaginationPayload{Page: 1, NextPage: 2, HasNext: page.NextCursor != ""}
+		if pagination.HasNext {
+			pagination.NextURL = "/?" + url.Values{"sort": {"for_you"}, "page": {"2"}, "cursor": {page.NextCursor}}.Encode()
+		}
+		if props.SeenProofs == nil {
+			props.SeenProofs = []feedservice.SeenProof{}
+		}
+		var err error
+		response, err = json.Marshal(component.SuccessData(FeedSessionResponse{ViewerID: uid, Topics: props.Topics, RemovedIDs: []uint64{}, SeenProofs: props.SeenProofs, SnapshotID: page.SnapshotID, Pagination: &pagination, Available: true, SeenConfirmed: true}))
+		if err != nil {
+			return err
+		}
+		return ctx.Err()
+	})
 	if err != nil {
 		feedSessionFailure(c, err)
 		return
 	}
-	cards := feedSessionCards(ctx, uid, result.Topics)
-	props := HomeProps{Sort: "for_you", Topics: cards}
-	c.Set("feed.contentAt", result.ContentAt)
-	c.Set("feed.entryVariant", result.EntryVariant)
-	decorateFeedProps(c, &props, result.Items, result.Hash, result.Config)
-	for i := range props.Topics {
-		for _, item := range result.Items {
-			if item.ID == props.Topics[i].ID {
-				props.Topics[i].FeedReason = item.Reason
-			}
-		}
-	}
-	pagination := PaginationPayload{Page: 1, NextPage: 2, HasNext: result.NextCursor != ""}
-	if pagination.HasNext {
-		pagination.NextURL = "/?" + url.Values{"sort": {"for_you"}, "page": {"2"}, "cursor": {result.NextCursor}}.Encode()
-	}
-	if ctx.Err() != nil {
-		feedSessionFailure(c, ctx.Err())
-		return
-	}
-	if props.SeenProofs == nil {
-		props.SeenProofs = []feedservice.SeenProof{}
-	}
-	c.JSON(http.StatusOK, component.SuccessData(FeedSessionResponse{ViewerID: uid, Topics: props.Topics, RemovedIDs: []uint64{}, SeenProofs: props.SeenProofs, SnapshotID: result.SnapshotID, Pagination: &pagination, Available: true, SeenConfirmed: true}))
+	c.Data(http.StatusOK, "application/json; charset=utf-8", response)
 }
 
 func FeedReconcile(c *gin.Context) {

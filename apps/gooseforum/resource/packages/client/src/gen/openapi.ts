@@ -2485,7 +2485,7 @@ export interface paths {
         put?: never;
         /**
          * Build a fresh For You batch after confirming pending seen state
-         * @description Confirms pending seen claims before a new bounded 300-candidate build. Returns a fresh snapshot and at most 20 cards. Strictly excludes seen topics unless an eligible current public reply by another account first became public after the displayed cutoff. Failure preserves the caller browsing batch; no fallback/latest batch is returned. Shares the 200 ms total deadline and event rate limit.
+         * @description Confirms pending seen claims before a new bounded 300-candidate build. Returns a fresh snapshot and at most 20 cards. Publishes only after the complete response is prepared, replacing the identified owner-bound snapshot rather than another live history session. Strictly excludes seen topics unless an eligible current public reply by another account first became public after the displayed cutoff. Failure preserves the caller browsing batch and valid continuation; no fallback/latest batch is returned. Shares the 200 ms total deadline and event rate limit.
          */
         post: operations["refreshForYou"];
         delete?: never;
@@ -13763,6 +13763,8 @@ export interface components {
             };
         };
         FeedRefreshRequest: {
+            /** @description Current owner-bound browsing snapshot to replace after successful hydration. Optional for a new or expired session; never replaces another live session when this ID was already consumed. */
+            replaceSnapshotId?: string;
             seenPatches?: components["schemas"]["FeedSeenPatch"][];
         };
         FeedSeenProof: {

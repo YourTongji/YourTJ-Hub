@@ -45,11 +45,18 @@ void main() {
     }
     expect(
       FeedRefreshRequest(
+        replaceSnapshotId: 'current-session',
         seenPatches: [
           FeedSeenPatch(proof: 'signed', seen: {'0': 1000}),
         ],
       ).toJson()['seenPatches'],
       hasLength(1),
+    );
+    expect(
+      const FeedRefreshRequest(
+        replaceSnapshotId: 'current-session',
+      ).toJson()['replaceSnapshotId'],
+      'current-session',
     );
     final summary =
         jsonDecode(
