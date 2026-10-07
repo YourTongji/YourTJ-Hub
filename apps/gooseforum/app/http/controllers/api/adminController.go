@@ -64,6 +64,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/permission"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/publicationservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/searchservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/stickerservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/storageservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/themeservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/userservice"
@@ -2105,7 +2106,13 @@ func SaveStorageSettings(req component.BetterRequest[SaveStorageSettingsReq]) co
 		storage.SecretKeyEncrypted = sealed
 		storage.SecretKey = ""
 	}
-	return savePageConfig(pageConfig.StorageSettingsPage, storage, hotdataserve.ClearStorageSettingsConfigCache)
+	return savePageConfig(pageConfig.StorageSettingsPage, storage, func() {
+		hotdataserve.ClearStorageSettingsConfigCache()
+		// Sticker URL caches are composed from storage settings; drop them
+		// together with the settings cache so a provider/URL-prefix switch
+		// does not serve stale sticker URLs for the cache TTL.
+		stickerservice.InvalidateCache()
+	})
 }
 
 type TestStorageConnectionReq struct {

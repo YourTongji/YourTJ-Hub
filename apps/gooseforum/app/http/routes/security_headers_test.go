@@ -9,6 +9,8 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/preferences"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/ratelimit"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/category"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/course"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
 	"github.com/gin-gonic/gin"
 )
@@ -154,8 +156,17 @@ func securityHeadersTestRouter(t *testing.T, appEnv string) *gin.Engine {
 	t.Cleanup(func() { ratelimit.Default().ResetAll() })
 
 	conn := dbconnect.Connect()
-	if err := conn.AutoMigrate(&pageConfig.Entity{}); err != nil {
-		t.Fatalf("migrate page_config: %v", err)
+	if err := conn.AutoMigrate(
+		&pageConfig.Entity{},
+		&category.Entity{},
+		&course.Entity{},
+		&course.AliasEntity{},
+		&course.CourseStatsEntity{},
+		&course.OfferingEntity{},
+		&course.OfferingStatsEntity{},
+		&course.TermEntity{},
+	); err != nil {
+		t.Fatalf("migrate security headers test tables: %v", err)
 	}
 	configureHTTPContractTestSettings(t, conn)
 

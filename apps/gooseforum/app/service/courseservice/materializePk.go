@@ -143,6 +143,7 @@ func materializeFromPk(ctx context.Context, audience pk.Audience, calendarIds []
 	if err != nil {
 		return nil, err
 	}
+	InvalidateCatalogFacetsCache()
 	return report, nil
 }
 

@@ -34,12 +34,33 @@ func GetById(id uint64) (Entity, error) {
 	return entity, err
 }
 
+var onMutation func()
+
+// SetOnMutation registers a callback triggered whenever sticker entities are modified.
+func SetOnMutation(fn func()) {
+	onMutation = fn
+}
+
+func notifyMutation() {
+	if onMutation != nil {
+		onMutation()
+	}
+}
+
 func Save(entity *Entity) error {
-	return builder().Save(entity).Error
+	err := builder().Save(entity).Error
+	if err == nil {
+		notifyMutation()
+	}
+	return err
 }
 
 func DeleteById(id uint64) error {
-	return builder().Where(queryopt.Eq("id", id)).Delete(&Entity{}).Error
+	err := builder().Where(queryopt.Eq("id", id)).Delete(&Entity{}).Error
+	if err == nil {
+		notifyMutation()
+	}
+	return err
 }
 
 func Count() int64 {
@@ -60,9 +81,18 @@ func EnabledByNames(names []string) ([]Entity, error) {
 // InsertIfNameAvailable leaves a PostgreSQL transaction usable on a name race.
 func InsertIfNameAvailable(tx *gorm.DB, entity *Entity) (bool, error) {
 	result := tx.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "name"}}, DoNothing: true}).Create(entity)
+	if result.Error == nil && result.RowsAffected > 0 {
+		notifyMutation()
+	}
 	return result.RowsAffected > 0, result.Error
 }
-func SaveTx(tx *gorm.DB, entity *Entity) error { return tx.Save(entity).Error }
+func SaveTx(tx *gorm.DB, entity *Entity) error {
+	err := tx.Save(entity).Error
+	if err == nil {
+		notifyMutation()
+	}
+	return err
+}
 func GetByIDTx(tx *gorm.DB, id uint64) (Entity, error) {
 	var row Entity
 	err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&row, id).Error
@@ -72,7 +102,11 @@ func DeleteTx(tx *gorm.DB, id uint64) error {
 	if err := tx.Where("sticker_id = ?", id).Delete(&LibraryEntry{}).Error; err != nil {
 		return err
 	}
-	return tx.Delete(&Entity{}, id).Error
+	err := tx.Delete(&Entity{}, id).Error
+	if err == nil {
+		notifyMutation()
+	}
+	return err
 }
 
 func GetByNameTx(tx *gorm.DB, name string) (Entity, error) {

@@ -257,3 +257,64 @@ func TestEnsureRenderedHTMLBatchWithoutTokensFallsBackPerEntity(t *testing.T) {
 		t.Fatalf("cache-hit post was rewritten: %q", storedCurrent.RenderedHTML)
 	}
 }
+
+func TestEnsureRenderedHTMLBatchResolvesMentionsOncePerPayload(t *testing.T) {
+	conn := db.Connect()
+	if err := conn.AutoMigrate(&posts.Entity{}, &users.EntityComplete{}); err != nil {
+		t.Fatal(err)
+	}
+	conn.Where("1 = 1").Delete(&posts.Entity{})
+	conn.Where("1 = 1").Delete(&users.EntityComplete{})
+	t.Cleanup(func() {
+		conn.Where("1 = 1").Delete(&posts.Entity{})
+		conn.Where("1 = 1").Delete(&users.EntityComplete{})
+	})
+
+	u1 := users.MakeUser("batch-user-1", "pass", "b1@example.com")
+	u2 := users.MakeUser("batch-user-2", "pass", "b2@example.com")
+	if err := users.Create(u1); err != nil {
+		t.Fatal(err)
+	}
+	if err := users.Create(u2); err != nil {
+		t.Fatal(err)
+	}
+
+	p1 := posts.Entity{Id: 101, Content: "hello @batch-user-1", TopicId: 1, PostNo: 1}
+	p2 := posts.Entity{Id: 102, Content: "cc @batch-user-2 and @batch-user-1", TopicId: 1, PostNo: 2}
+	p3 := posts.Entity{Id: 103, Content: "fyi @batch-user-2", TopicId: 1, PostNo: 3}
+	for _, p := range []*posts.Entity{&p1, &p2, &p3} {
+		if err := conn.Create(p).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	var userQueryCount int
+	const callbackName = "postservice_test_count_mention_user_queries"
+	if err := conn.Callback().Query().After("gorm:query").Register(callbackName, func(op *gorm.DB) {
+		sql := op.Statement.SQL.String()
+		if strings.Contains(sql, "FROM `users`") || strings.Contains(sql, `FROM "users"`) {
+			userQueryCount++
+		}
+	}); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = conn.Callback().Query().Remove(callbackName) }()
+
+	EnsureRenderedHTMLBatch([]*posts.Entity{&p1, &p2, &p3})
+
+	// Check that mention links were generated properly for all 3 posts
+	if !strings.Contains(p1.RenderedHTML, `/u/`+fmt.Sprint(u1.Id)) {
+		t.Fatalf("p1 missing mention link: %s", p1.RenderedHTML)
+	}
+	if !strings.Contains(p2.RenderedHTML, `/u/`+fmt.Sprint(u1.Id)) || !strings.Contains(p2.RenderedHTML, `/u/`+fmt.Sprint(u2.Id)) {
+		t.Fatalf("p2 missing mention link: %s", p2.RenderedHTML)
+	}
+	if !strings.Contains(p3.RenderedHTML, `/u/`+fmt.Sprint(u2.Id)) {
+		t.Fatalf("p3 missing mention link: %s", p3.RenderedHTML)
+	}
+
+	// With batch resolution, exactly 1 query is executed instead of 3
+	if userQueryCount > 1 {
+		t.Fatalf("expected at most 1 user query for batch mention resolution, got %d", userQueryCount)
+	}
+}

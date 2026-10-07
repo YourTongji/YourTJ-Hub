@@ -195,6 +195,7 @@ func ImportCatalog(ctx context.Context, manifestPath string, dryRun bool) (*Cata
 		if err := course.SaveImportRun(&run); err != nil {
 			return nil, fmt.Errorf("save import run: %w", err)
 		}
+		InvalidateCatalogFacetsCache()
 		return report, nil
 	}
 	return report, nil
