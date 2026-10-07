@@ -9,6 +9,7 @@ import (
 const tableName = "topics"
 
 type Entity struct {
+	AgentRepliesDisabled bool       `gorm:"column:agent_replies_disabled;not null;default:false" json:"agentRepliesDisabled"`
 	PersonaUID           string     `gorm:"column:persona_uid;type:varchar(32);not null;default:'';index" json:"personaUid,omitempty"`
 	LastPublicReplyAt    *time.Time `gorm:"index" json:"-"`
 	RankDueAt            *time.Time `gorm:"index" json:"-"`

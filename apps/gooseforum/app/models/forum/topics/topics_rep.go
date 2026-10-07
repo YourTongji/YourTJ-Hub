@@ -12,6 +12,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/feed"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // firstPostVisibleSQL 首楼可见性半连接条件，与详情页/GetPublished 的公开
@@ -133,6 +134,19 @@ func GetWithContext(ctx context.Context, id uint64) (entity Entity, err error) {
 func GetSimple(id any) (entity Entity) {
 	builder().Where(queryopt.Eq("id", id)).First(&entity)
 	return
+}
+
+// GetForUpdateTx serializes reply publication and immediate topic settings.
+func GetForUpdateTx(tx *gorm.DB, id uint64) (entity Entity, err error) {
+	err = tx.Table(tableName).Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ? AND deleted_at IS NULL", id).Take(&entity).Error
+	return
+}
+
+func UpdateAgentRepliesDisabledTx(tx *gorm.DB, id uint64, disabled bool) error {
+	return tx.Table(tableName).Where("id = ?", id).Updates(map[string]any{
+		"agent_replies_disabled": disabled,
+		"updated_at":             time.Now(),
+	}).Error
 }
 
 func GetMaxId() uint64 {

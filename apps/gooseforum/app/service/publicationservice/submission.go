@@ -18,6 +18,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topicCategoryIndex"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/fileusageservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/topicpolicyservice"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -67,6 +68,9 @@ func Submit(ctx context.Context, topic *topics.Entity, post *posts.Entity) error
 		}
 		if post.Id == 0 {
 			if post.PostNo != 1 {
+				if err := topicpolicyservice.CheckReplyTx(tx, liveTopic, post.UserId); err != nil {
+					return err
+				}
 				no, err := topics.ReservePostSequenceTx(tx, topic.Id)
 				if err != nil {
 					return err

@@ -14,6 +14,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topicUserStat"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/pointservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/topicpolicyservice"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -40,6 +41,13 @@ func CreateTopicPost(entity *posts.Entity, topicEntity topics.Entity) error {
 			return err
 		}
 		entity.PostNo = postNo
+		liveTopic, err := topics.GetForUpdateTx(tx, entity.TopicId)
+		if err != nil {
+			return err
+		}
+		if err := topicpolicyservice.CheckReplyTx(tx, liveTopic, entity.UserId); err != nil {
+			return err
+		}
 		if err := posts.CreateTx(tx, entity); err != nil {
 			return err
 		}

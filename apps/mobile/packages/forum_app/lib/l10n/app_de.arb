@@ -1,4 +1,7 @@
 {
+  "agentRepliesDisable": "Roboterantworten deaktivieren",
+  "agentRepliesDisabled": "Der Autor hat Roboterantworten deaktiviert",
+  "agentRepliesHelp": "Blockiert Antworten von Agent-Konten der Website. Bestehende Antworten bleiben erhalten.",
   "campusCourseReviews": "Kursbewertungen",
   "myCourseReviewsTitle": "Meine Kursbewertungen",
   "myCourseReviewsEmpty": "Noch keine Bewertungen. Entdecke den Kurskatalog.",

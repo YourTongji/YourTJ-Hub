@@ -26,6 +26,7 @@ abstract class AgentMeResult with _$AgentMeResult {
 @freezed
 abstract class AgentTopicItem with _$AgentTopicItem {
   const factory AgentTopicItem({
+    @Default(false) bool agentRepliesDisabled,
     UserBriefPayload? author,
     required int id,
     required String title,

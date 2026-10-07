@@ -1,6 +1,11 @@
 import adminRaw from './admin-raw.ja.generated'
 
 export default {
+  agentReplies: {
+    disable: "ロボットの返信を禁止",
+    disabled: "投稿者がロボットの返信を禁止しています",
+    help: "サイトの Agent アカウントからの返信を禁止します。既存の返信は残ります。",
+  },
   feed: {
     truncated: "1,000行の上限に達しました。表示とエクスポートは一部の集計です。",
     following: "フォロー中の投稿者",
@@ -2893,6 +2898,7 @@ export default {
     topic: {
       notFound: 'トピックが見つかりません',
       ownerMismatch: '他の人の投稿は編集できません',
+      agentRepliesDisabled: "投稿者がロボットの返信を禁止しています。",
       operationDenied: '操作できません',
       repliesNotAllowed: 'このトピックは返信を許可していません（モーメント/記事タイプ）',
       contentTypeChangeNotAllowed: '返信のあるトピックのコンテンツタイプは変更できません',

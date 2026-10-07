@@ -902,6 +902,33 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/forum/topics/agent-replies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Set the robot reply policy for a topic you own
+         * @description Immediately sets the robot reply policy of an active ordinary forum topic.
+         *     Only its author may change it; Wiki and deleted topics cannot be changed.
+         *     Does not edit content or enter moderation. Repeated values are idempotent.
+         *     Both true and false must be explicitly supplied. Missing values return
+         *     `common.request.invalidParams`. Non-owners and unsupported topics return
+         *     `topic.operationDenied`; missing topics return `topic.notFound`.
+         *     A database error returns `common.operation.failed`. Business failures use
+         *     HTTP 200 with code 1. Bot identities cannot bypass the policy by role or transport.
+         */
+        post: operations["updateTopicAgentReplies"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/forum/topics/status": {
         parameters: {
             query?: never;
@@ -1043,7 +1070,11 @@ export interface paths {
         put?: never;
         /**
          * Create a reply post in a topic
-         * @description Creates a reply (postNo 2 or higher) in a visible topic. JSON binding is lenient:
+         * @description Creates a reply (postNo 2 or higher) in a visible topic. Bot identities are rejected
+         *     with `topic.agentRepliesDisabled` when the topic author has disabled robot replies,
+         *     regardless of transport or role. Pending new bot replies are rechecked at first
+         *     public approval; a disabled policy records a terminal rejection. Existing public
+         *     replies remain editable. JSON binding is lenient:
          *     a malformed body binds to zero values and the request then fails as
          *     `topic.notFound` (HTTP 200) rather than a 400. A populated `website` honeypot
          *     field silently succeeds with result true and creates nothing. New accounts may
@@ -8098,6 +8129,11 @@ export interface components {
         TotpDisableResponse: components["schemas"]["TotpDisableSuccess"] | components["schemas"]["ApiFailure"];
         WriteTopicRequest: {
             /**
+             * @description Initial robot reply policy for a new topic only. Ignored on content edits; use topics/agent-replies to change an existing topic.
+             * @default false
+             */
+            agentRepliesDisabled: boolean;
+            /**
              * @description Defaults to member on creation. Edits preserve the original author; attempting to switch fails. An unavailable persona never falls back to member.
              * @enum {string}
              */
@@ -8978,6 +9014,8 @@ export interface components {
             };
         };
         AgentTopicItem: {
+            /** @description Whether the topic author prohibits replies from bot identities. Missing on older servers means false. */
+            agentRepliesDisabled?: boolean;
             author?: components["schemas"]["TopicAuthorPayload"];
             /** Format: uint64 */
             id: number;
@@ -12855,6 +12893,11 @@ export interface components {
         TongjiRegistrationResultResponse: components["schemas"]["ApiSuccess"] & {
             result: components["schemas"]["TongjiRegistrationResult"];
         };
+        UpdateTopicAgentRepliesRequest: {
+            /** Format: uint64 */
+            topicId: number;
+            agentRepliesDisabled: boolean;
+        };
         PostMention: {
             username: string;
             /** Format: uint64 */
@@ -15484,6 +15527,58 @@ export interface operations {
                 };
             };
             /** @description Topic-writing rate limit exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+        };
+    };
+    updateTopicAgentReplies: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateTopicAgentRepliesRequest"];
+            };
+        };
+        responses: {
+            /** @description Status applied (or already in the target state), or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InteractionResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authenticated account is frozen or its account information cannot be resolved. A cross-site cookie-authenticated request (missing or mismatched Origin/Referer) is rejected by the CSRF gate before the handler with HTTP 403 `auth.csrf.rejected`; the session cookie is not cleared (issue #406). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Interaction rate limit (action `interact`) exceeded. */
             429: {
                 headers: {
                     "Retry-After": number;
@@ -19213,7 +19308,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Created post payload, or a legacy business failure envelope (unknown topic, length, sensitive-content rules). */
+            /** @description Created post payload, or a legacy business failure envelope (unknown topic, topic.agentRepliesDisabled, length, sensitive-content rules). A reply submitted for review is checked again before its first public publication. */
             200: {
                 headers: {
                     [name: string]: unknown;
