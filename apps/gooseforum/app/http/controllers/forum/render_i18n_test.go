@@ -449,7 +449,7 @@ func TestAnonymousTemplateRendersSharedCrawlerProfile(t *testing.T) {
 			Name: "躲进云里的猫", PublicUID: uid,
 			AvatarURL: "/a/" + uid + "/avatar.svg", ProfileURL: "/a/" + uid,
 		},
-		TopicCount: 1, ReplyCount: 1, Page: 1,
+		TopicCount: 1, ReplyCount: 1, Page: 1, ShowContent: true,
 		Topics:  []TopicPayload{{ID: 10, Title: "Topic title", URL: "/p/post/10"}},
 		Replies: []AnonymousProfileReply{{ID: 20, URL: "/p/post/10/2", Excerpt: "Reply excerpt"}},
 	}}
@@ -461,6 +461,24 @@ func TestAnonymousTemplateRendersSharedCrawlerProfile(t *testing.T) {
 		if !strings.Contains(buf.String(), want) {
 			t.Fatalf("anonymous crawler profile missing %q", want)
 		}
+	}
+	hidden := payload.Props.(AnonymousProfileProps)
+	hidden.ShowContent = false
+	hidden.Page = 2
+	hidden.HasNext = true
+	payload.Props = hidden
+	buf.Reset()
+	if err := reg.render(&buf, "anonymous.gohtml", templateData{Payload: payload, Lang: "en"}); err != nil {
+		t.Fatal(err)
+	}
+	// Assert crawler markup; serialized props are covered at the HTTP boundary.
+	for _, forbidden := range []string{`href="/p/post/10"`, `href="/p/post/10/2"`, `class="gf-crawler-user-stats"`, `class="gf-crawler-pagination"`} {
+		if strings.Contains(buf.String(), forbidden) {
+			t.Fatalf("hidden crawler profile retained %q", forbidden)
+		}
+	}
+	if !strings.Contains(buf.String(), "Content on this anonymous profile is hidden") {
+		t.Fatal("hidden crawler profile missing visibility message", buf.String())
 	}
 }
 

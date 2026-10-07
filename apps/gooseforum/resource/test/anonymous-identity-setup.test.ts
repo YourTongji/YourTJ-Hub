@@ -3,13 +3,14 @@ import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { i18n, setLocale } from '../src/runtime/i18n'
 import IdentityPicker from '../src/site/components/IdentityPicker.vue'
-import { confirmName, generateNames, getIdentityState, type IdentityState } from '../src/runtime/anonymous-identity'
+import { confirmName, generateNames, getIdentityState, setProfileContent, type IdentityState } from '../src/runtime/anonymous-identity'
 
 vi.mock('../src/runtime/anonymous-identity', () => ({
   getIdentityState: vi.fn(),
   generateNames: vi.fn(),
   confirmName: vi.fn(),
   disableIdentity: vi.fn(),
+  setProfileContent: vi.fn(),
 }))
 let state: IdentityState
 let wrapper: ReturnType<typeof mount>
@@ -22,6 +23,7 @@ beforeEach(async () => {
     nameChangeAvailableAt: null,
     disabled: false,
     governanceDisabled: false,
+    showContent: true,
     day: '2026-10-07',
     remaining: 10,
     resetsAt: '2026-10-07T16:00:00Z',
@@ -92,6 +94,26 @@ test('loading failure keeps the selected identity and offers retry', async () =>
   await flushPromises()
   expect(wrapper.emitted('update:modelValue')).toBeUndefined()
   expect(wrapper.find('button[aria-label="重新加载"]').exists()).toBe(true)
+})
+test('profile privacy commits only after success and preserves the preference on failure', async () => {
+  state.persona = { kind: 'persona', publicUid: 'p1', name: '躲进云里的猫', avatarUrl: '', profileUrl: '/a/p1' }
+  state.nameChangeAvailableAt = '2099-01-01T00:00:00Z'
+  wrapper = mount(IdentityPicker, { props: { modelValue: 'persona', viewer: { username: 'owner', avatarUrl: '' } }, attachTo: document.body, global: { plugins: [i18n] } })
+  await flushPromises()
+  await wrapper.find('button[aria-label^="发布身份"]').trigger('click')
+  await flushPromises()
+  button('管理匿名身份').click()
+  await flushPromises()
+  const input = () => document.querySelector<HTMLInputElement>('input[aria-label="展示匿名主页内容"]')!
+  expect(input().checked).toBe(true)
+  vi.mocked(setProfileContent).mockRejectedValueOnce(new Error('offline'))
+  input().click(); await flushPromises()
+  expect(input().checked).toBe(true)
+  expect(document.body.textContent).toContain('offline')
+  vi.mocked(setProfileContent).mockResolvedValue(true)
+  input().click(); await flushPromises()
+  expect(setProfileContent).toHaveBeenLastCalledWith(false)
+  expect(input().checked).toBe(false)
 })
 
 test('ambiguous draw retries reuse the same request key and failed confirmation keeps the publishing identity', async () => {

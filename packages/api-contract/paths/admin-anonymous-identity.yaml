@@ -1,0 +1,77 @@
+listAdminAnonymousIdentities:
+  post:
+    tags: [Admin]
+    summary: List restricted anonymous identity mappings
+    operationId: listAdminAnonymousIdentities
+    description: >-
+      Requires user management permission plus an explicit anonymous.identity.reveal grant;
+      Admin wildcard never implies reveal. Nonempty reason is required. Permissions are
+      checked against the current role inside the audit transaction. Private no-store response;
+      audit failure or permission revocation fails closed.
+      Every returned mapping is privately audited. Search matches persona name/UID, owner username or exact ID. Closed owners are retained. Status filters apply to persona state; account freezes remain separate.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: { $ref: ../components/admin-anonymous-identity.yaml#/AdminAnonymousListRequest }
+    responses:
+      '200':
+        description: Audited result or business failure
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - { $ref: ../components/admin-anonymous-identity.yaml#/AdminAnonymousListResponse }
+                - { $ref: ../components/schemas.yaml#/ApiFailure }
+            examples:
+              success: { externalValue: ../fixtures/admin-anonymous-list-success.json }
+      '401':
+        description: Authentication required
+        content:
+          application/json:
+            schema: { $ref: ../components/schemas.yaml#/ApiFailure }
+      '403':
+        description: Permission denied, frozen account or CSRF failure
+        content:
+          application/json:
+            schema: { $ref: ../components/schemas.yaml#/ApiFailure }
+governAdminAnonymousIdentity:
+  post:
+    tags: [Admin]
+    summary: Ban or restore an anonymous identity
+    operationId: governAdminAnonymousIdentity
+    description: >-
+      Requires user management permission plus an explicit anonymous.identity.reveal grant;
+      Admin wildcard never implies reveal. Nonempty reason is required. Permissions are
+      checked against the current role inside the audit transaction. Private no-store response;
+      audit failure or permission revocation fails closed.
+      No post is required. Restricts the persona and owner publishing atomically with a private audit. Restore preserves independent account freezes and self-disabled status. Returns only a boolean.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema: { $ref: ../components/admin-anonymous-identity.yaml#/AdminAnonymousGovernRequest }
+    responses:
+      '200':
+        description: Audited result or business failure
+        content:
+          application/json:
+            schema: { $ref: ../components/anonymous-identity.yaml#/governAnonymousIdentityResponse }
+            examples:
+              success: { externalValue: ../fixtures/anonymous-govern-success.json }
+      '401':
+        description: Authentication required
+        content:
+          application/json:
+            schema: { $ref: ../components/schemas.yaml#/ApiFailure }
+      '403':
+        description: Permission denied, frozen account or CSRF failure
+        content:
+          application/json:
+            schema: { $ref: ../components/schemas.yaml#/ApiFailure }

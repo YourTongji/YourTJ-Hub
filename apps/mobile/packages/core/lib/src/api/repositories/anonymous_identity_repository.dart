@@ -27,6 +27,13 @@ class AnonymousIdentityRepository {
     );
   }
 
+  Future<void> setProfileContent(bool showContent) async {
+    await client.post<Object?>(
+      '/api/forum/anonymous/privacy',
+      body: {'showContent': showContent},
+    );
+  }
+
   Future<void> govern(int postId, bool disabled, String reason) async {
     await client.post<Object?>(
       '/api/forum/anonymous/govern',

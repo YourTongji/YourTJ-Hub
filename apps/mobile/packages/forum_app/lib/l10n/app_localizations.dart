@@ -6605,6 +6605,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Name locked for one year.'**
   String get anonymousNameLockHint;
+
+  /// No description provided for @anonymousShowContent.
+  ///
+  /// In en, this message translates to:
+  /// **'Show anonymous profile content'**
+  String get anonymousShowContent;
+
+  /// No description provided for @anonymousShowContentDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Show topics, replies and counts on the anonymous profile. When off, only the name and avatar remain; the original forum content stays accessible.'**
+  String get anonymousShowContentDescription;
+
+  /// No description provided for @anonymousProfileContentHidden.
+  ///
+  /// In en, this message translates to:
+  /// **'Content on this anonymous profile is hidden'**
+  String get anonymousProfileContentHidden;
 }
 
 class _AppLocalizationsDelegate

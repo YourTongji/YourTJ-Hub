@@ -72,7 +72,7 @@ class _AnonymousProfilePageState extends ConsumerState<AnonymousProfilePage> {
         return;
       }
       setState(() {
-        if (append && data != null) {
+        if (append && data != null && next['showContent'] != false) {
           for (final key in ['topics', 'replies']) {
             final previous = data![key] as List;
             final ids = previous.map((row) => (row as Map)['id']).toSet();
@@ -145,6 +145,7 @@ class _AnonymousProfilePageState extends ConsumerState<AnonymousProfilePage> {
         .map((raw) => TopicPayload.fromJson(raw as Map<String, dynamic>))
         .toList();
     final replies = d['replies'] as List;
+    final showContent = d['showContent'] != false;
     final tabs = [
       TabItemPayload(
         key: 'topics',
@@ -160,6 +161,7 @@ class _AnonymousProfilePageState extends ConsumerState<AnonymousProfilePage> {
       ),
     ];
     final hasMore =
+        showContent &&
         page * 20 < (d[tab == 0 ? 'topicCount' : 'replyCount'] as num);
     return Scaffold(
       body: Center(
@@ -208,85 +210,97 @@ class _AnonymousProfilePageState extends ConsumerState<AnonymousProfilePage> {
                         ),
                       ],
                       bio: l.anonymousHistoryHint,
-                      stats: [
-                        (
-                          l.profileTopics,
-                          formatNumber((d['topicCount'] as num).toInt()),
-                        ),
-                        (
-                          l.profileReplies,
-                          formatNumber((d['replyCount'] as num).toInt()),
-                        ),
-                      ],
+                      stats: showContent
+                          ? [
+                              (
+                                l.profileTopics,
+                                formatNumber((d['topicCount'] as num).toInt()),
+                              ),
+                              (
+                                l.profileReplies,
+                                formatNumber((d['replyCount'] as num).toInt()),
+                              ),
+                            ]
+                          : [],
                       statActions: {
                         0: () => setState(() => tab = 0),
                         1: () => setState(() => tab = 1),
                       },
                     ),
                   ),
-                  const SliverToBoxAdapter(child: GfDivider()),
-                  SliverPersistentHeader(
-                    pinned: true,
-                    delegate: ProfileTabsHeader(
-                      height: math.max(
-                        52,
-                        MediaQuery.textScalerOf(context).scale(16) * 1.4 + 24,
-                      ),
-                      child: ProfileTabs(
-                        tabs: tabs,
-                        index: tab,
-                        onChanged: (value) => setState(() => tab = value),
+                  if (showContent) ...[
+                    const SliverToBoxAdapter(child: GfDivider()),
+                    SliverPersistentHeader(
+                      pinned: true,
+                      delegate: ProfileTabsHeader(
+                        height: math.max(
+                          52,
+                          MediaQuery.textScalerOf(context).scale(16) * 1.4 + 24,
+                        ),
+                        child: ProfileTabs(
+                          tabs: tabs,
+                          index: tab,
+                          onChanged: (value) => setState(() => tab = value),
+                        ),
                       ),
                     ),
-                  ),
-                  if (tab == 0 && topics.isNotEmpty)
-                    SliverList.builder(
-                      itemCount: topics.length,
-                      itemBuilder: (context, index) => buildTopicFeedCard(
-                        context,
-                        topics[index],
-                        onReturn: load,
+                    if (tab == 0 && topics.isNotEmpty)
+                      SliverList.builder(
+                        itemCount: topics.length,
+                        itemBuilder: (context, index) => buildTopicFeedCard(
+                          context,
+                          topics[index],
+                          onReturn: load,
+                        ),
+                      )
+                    else if (tab == 1 && replies.isNotEmpty)
+                      SliverList.builder(
+                        itemCount: replies.length,
+                        itemBuilder: (context, index) {
+                          final reply = replies[index] as Map;
+                          return GfContentRow(
+                            author: persona.name,
+                            avatarUrl: resolveApiAssetUrl(persona.avatarUrl),
+                            title: l.profileReplies,
+                            text: reply['excerpt'] as String,
+                            time: '',
+                            onTap: () => context.push(reply['url'] as String),
+                          );
+                        },
+                      )
+                    else
+                      SliverToBoxAdapter(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 32),
+                          child: GfEmpty(
+                            message: tab == 0
+                                ? l.profileEmptyTopics
+                                : l.commonEmpty,
+                          ),
+                        ),
                       ),
-                    )
-                  else if (tab == 1 && replies.isNotEmpty)
-                    SliverList.builder(
-                      itemCount: replies.length,
-                      itemBuilder: (context, index) {
-                        final reply = replies[index] as Map;
-                        return GfContentRow(
-                          author: persona.name,
-                          avatarUrl: resolveApiAssetUrl(persona.avatarUrl),
-                          title: l.profileReplies,
-                          text: reply['excerpt'] as String,
-                          time: '',
-                          onTap: () => context.push(reply['url'] as String),
-                        );
-                      },
-                    )
-                  else
+                    SliverToBoxAdapter(
+                      child: GfListFooter(
+                        progressKey: page * 2 + tab,
+                        loading: loading,
+                        hasMore: hasMore,
+                        error: error == null
+                            ? null
+                            : resolveErrorMessage(l, error!),
+                        onLoadMore: () {
+                          if (!loading) load(append: true);
+                        },
+                      ),
+                    ),
+                  ] else
                     SliverToBoxAdapter(
                       child: Padding(
                         padding: const EdgeInsets.symmetric(vertical: 32),
                         child: GfEmpty(
-                          message: tab == 0
-                              ? l.profileEmptyTopics
-                              : l.commonEmpty,
+                          message: l.anonymousProfileContentHidden,
                         ),
                       ),
                     ),
-                  SliverToBoxAdapter(
-                    child: GfListFooter(
-                      progressKey: page * 2 + tab,
-                      loading: loading,
-                      hasMore: hasMore,
-                      error: error == null
-                          ? null
-                          : resolveErrorMessage(l, error!),
-                      onLoadMore: () {
-                        if (!loading) load(append: true);
-                      },
-                    ),
-                  ),
                   SliverToBoxAdapter(
                     child: SizedBox(
                       height: MediaQuery.paddingOf(context).bottom + 16,

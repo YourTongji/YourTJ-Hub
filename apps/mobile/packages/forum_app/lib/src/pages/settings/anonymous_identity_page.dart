@@ -254,6 +254,19 @@ class _AnonymousIdentityContentState
                             ),
                           ),
                         ],
+                        const SizedBox(height: 16),
+                        GfSettingRow(
+                          title: l.anonymousShowContent,
+                          description: l.anonymousShowContentDescription,
+                          trailing: Switch.adaptive(
+                            value: s.showContent,
+                            onChanged: busy
+                                ? null
+                                : (value) =>
+                                      run(() => repo.setProfileContent(value)),
+                          ),
+                        ),
+                        const GfDivider(),
                         if (!s.governanceDisabled) ...[
                           const SizedBox(height: 16),
                           GfButton(

@@ -3672,4 +3672,15 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get anonymousNameLockHint => 'Name für ein Jahr gesperrt.';
+
+  @override
+  String get anonymousShowContent => 'Inhalte im anonymen Profil anzeigen';
+
+  @override
+  String get anonymousShowContentDescription =>
+      'Themen, Antworten und Zahlen im anonymen Profil anzeigen. Ausgeschaltet bleiben nur Name und Avatar sichtbar; die ursprünglichen Foreninhalte sind weiterhin zugänglich.';
+
+  @override
+  String get anonymousProfileContentHidden =>
+      'Die Inhalte dieses anonymen Profils sind ausgeblendet';
 }
