@@ -379,8 +379,10 @@ func deleteCalendarData(log *pk.FetchLogEntity, calendarId uint64) error {
 
 func deleteCalendarDataForAudience(log *pk.FetchLogEntity, audience Audience, calendarId uint64) error {
 	err := db.Connect().Transaction(func(tx *gorm.DB) error {
-		if err := pk.RenewFetchLogLeaseTx(tx, log); err != nil {
-			return err
+		if log != nil {
+			if err := pk.RenewFetchLogLeaseTx(tx, log); err != nil {
+				return err
+			}
 		}
 		return pk.DeleteCalendarDataForAudienceTx(tx, audience, calendarId)
 	})

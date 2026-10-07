@@ -66,9 +66,11 @@ func setupPkContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 		t.Fatalf("migrate pk contract tables: %v", err)
 	}
 	cleanupPkTables(t, conn)
+	pkservice.InvalidateCatalogCache()
 	t.Cleanup(func() {
 		pkservice.WaitPkAuxiliaryBuildForTest()
 		pkservice.ResetPkAuxiliaryStateForTest()
+		pkservice.InvalidateCatalogCache()
 		cleanupPkTables(t, conn)
 	})
 

@@ -22,12 +22,39 @@ func InvalidateCatalogCache() {
 	facultiesCache.Clear()
 }
 
+// cloneSlice returns a shallow copy of items. Safe for structs composed solely of value types (e.g. CampusItem, FacultyItem).
 func cloneSlice[T any](items []T) []T {
 	if items == nil {
 		return nil
 	}
 	out := make([]T, len(items))
 	copy(out, items)
+	return out
+}
+
+func cloneStringPtr(s *string) *string {
+	if s == nil {
+		return nil
+	}
+	cp := *s
+	return &cp
+}
+
+// cloneCalendars returns a deep copy of items, allocating fresh string pointers
+// for StartDate and EndDate so caller mutations cannot taint the cached entries.
+func cloneCalendars(items []CalendarItem) []CalendarItem {
+	if items == nil {
+		return nil
+	}
+	out := make([]CalendarItem, len(items))
+	for i, item := range items {
+		out[i] = CalendarItem{
+			CalendarId:   item.CalendarId,
+			CalendarName: item.CalendarName,
+			StartDate:    cloneStringPtr(item.StartDate),
+			EndDate:      cloneStringPtr(item.EndDate),
+		}
+	}
 	return out
 }
 
@@ -71,7 +98,7 @@ func ListCalendars() ([]CalendarItem, error) {
 	if err != nil {
 		return nil, err
 	}
-	return cloneSlice(items), nil
+	return cloneCalendars(items), nil
 }
 
 // CampusItem P2 校区输出项。
