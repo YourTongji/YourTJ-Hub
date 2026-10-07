@@ -47,6 +47,16 @@ func Register() {
 		}
 		return taskQueue.CancelPendingIDsTx(tx, tasks, "withdrawn")
 	})
+	agenteventservice.RegisterExpiryHook(func(tx *gorm.DB, instance string, eventIDs []string) error {
+		if err := agentWebhook.RedactExpiredSourceEventsTx(tx, instance, eventIDs); err != nil {
+			return err
+		}
+		tasks, err := agentWebhook.TasksForEventsTx(tx, instance, eventIDs)
+		if err != nil {
+			return err
+		}
+		return taskQueue.CancelPendingIDsTx(tx, tasks, "expired")
+	})
 }
 func EnqueueEventTx(tx *gorm.DB, event agentEvents.Entity, generation uint64) error {
 	if generation == 0 {
@@ -247,7 +257,7 @@ func authorizeTx(tx *gorm.DB, task *taskQueue.Entity, id uint64) (permit, error)
 		reason = "retry_budget_exhausted"
 	}
 	if row.Body == "" {
-		reason = "withdrawn"
+		reason = retainedCopyReason(row)
 	}
 	if reason == "" && !strings.HasPrefix(row.EventID, "evt_test_") {
 		event, err := eventTx(tx, state.ID, row.AgentID, row.EventID)
@@ -261,7 +271,11 @@ func authorizeTx(tx *gorm.DB, task *taskQueue.Entity, id uint64) (permit, error)
 				return p, err
 			}
 			if !allowed {
-				reason = "withdrawn"
+				if event.WithdrawnAt == nil && !time.Now().Before(event.ExpiresAt) {
+					reason = "expired"
+				} else {
+					reason = "withdrawn"
+				}
 			}
 		}
 	}
@@ -284,10 +298,12 @@ func authorizeTx(tx *gorm.DB, task *taskQueue.Entity, id uint64) (permit, error)
 		return p, err
 	}
 	if row.Body == "" {
-		reason = "withdrawn"
+		reason = retainedCopyReason(row)
 	}
 	if row.Status != agentWebhook.Pending && row.Status != agentWebhook.RetryWait && row.Status != agentWebhook.Running {
-		reason = "terminal"
+		if row.Body != "" {
+			reason = "terminal"
+		}
 	}
 	if reason == "" && (agent.Enabled != agents.StatusEnabled || !agent.WebhookEnabled || agent.EndpointGeneration != row.EndpointGeneration) {
 		reason = "configuration_changed"
@@ -605,7 +621,7 @@ func complete(task *taskQueue.Entity, p permit, result safefetch.Result, sendErr
 		}
 		if row.Status == agentWebhook.Cancelled || row.Body == "" {
 			updates["status"] = agentWebhook.Cancelled
-			updates["reason"] = "withdrawn"
+			updates["reason"] = retainedCopyReason(row)
 		} else if status == agentWebhook.Accepted {
 			updates["accepted_at"] = now
 		}
@@ -620,4 +636,11 @@ func complete(task *taskQueue.Entity, p permit, result safefetch.Result, sendErr
 		}
 		return nil
 	})
+}
+
+func retainedCopyReason(row *agentWebhook.Delivery) string {
+	if row.Reason == "expired" {
+		return "expired"
+	}
+	return "withdrawn"
 }

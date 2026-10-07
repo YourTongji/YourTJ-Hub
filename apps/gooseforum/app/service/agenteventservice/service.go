@@ -93,8 +93,13 @@ func encodeCursor(instance, epoch string, agent, seq uint64) string {
 
 var deliveryHook func(*gorm.DB, agentEvents.Entity, uint64) error
 var withdrawalHook func(*gorm.DB, string, []string) error
+var expiryHook func(*gorm.DB, string, []string) error
 
 func RegisterWithdrawalHook(h func(*gorm.DB, string, []string) error) { withdrawalHook = h }
+
+// RegisterExpiryHook redacts retained copies without misclassifying retention
+// expiry as a content or permission withdrawal.
+func RegisterExpiryHook(h func(*gorm.DB, string, []string) error) { expiryHook = h }
 
 func RegisterDeliveryHook(h func(*gorm.DB, agentEvents.Entity, uint64) error) { deliveryHook = h }
 
@@ -509,7 +514,7 @@ func handleTask(ctx context.Context, task *taskQueue.Entity) error {
 			return nil
 		}
 		if time.Now().After(i.ExpiresAt) {
-			return agentEvents.UpdateIntentTx(tx, i.ID, "expired", "retention_expired")
+			return agentEvents.ExpireIntentTx(tx, cfg.ID, i.ID)
 		}
 		p, t, err := PublicSourceTx(tx, i.PostID)
 		if errors.Is(err, ErrInaccessible) || errors.Is(err, gorm.ErrRecordNotFound) {
@@ -527,6 +532,19 @@ func handleTask(ctx context.Context, task *taskQueue.Entity) error {
 		}
 		if err := users.LockInteractionUserIDs(tx, ids); err != nil {
 			return err
+		}
+		// The initial intent read precedes content/participant fences. Lifecycle
+		// cancellation is permanent even if the source has since been restored.
+		// Read again only after those fences, never intent-before-source.
+		i, err = agentEvents.IntentTx(tx, cfg.ID, i.ID)
+		if err != nil {
+			return err
+		}
+		if i.Status == "materialized" || i.Status == "cancelled" || i.Status == "expired" {
+			return nil
+		}
+		if time.Now().After(i.ExpiresAt) {
+			return agentEvents.ExpireIntentTx(tx, cfg.ID, i.ID)
 		}
 		actor, err := users.GetInteractionUserTx(tx, i.ActorID)
 		if err != nil {
@@ -670,6 +688,20 @@ func ValidateEventTx(tx *gorm.DB, e *agentEvents.Entity) error {
 }
 func refreshTx(tx *gorm.DB, e *agentEvents.Entity) error {
 	err := ValidateEventTx(tx, e)
+	// Retention can elapse while validation waits for source/participant fences.
+	// Use the refreshed expiry before interpreting an inaccessible source as revocation.
+	if e.WithdrawnAt == nil && !time.Now().Before(e.ExpiresAt) {
+		if err := agentEvents.ExpireEventTx(tx, e); err != nil {
+			return err
+		}
+		if e.WithdrawnAt != nil && withdrawalHook != nil {
+			return withdrawalHook(tx, e.InstanceID, []string{e.ID})
+		}
+		if expiryHook != nil {
+			return expiryHook(tx, e.InstanceID, []string{e.ID})
+		}
+		return nil
+	}
 	if errors.Is(err, ErrInaccessible) || errors.Is(err, gorm.ErrRecordNotFound) || errors.Is(err, users.ErrInteractionBlocked) {
 		if err := agentEvents.WithdrawTx(tx, e, time.Now().UTC()); err != nil {
 			return err
@@ -1103,13 +1135,13 @@ func Cleanup() error {
 		}
 		ids := make([]string, 0, len(rows))
 		for _, e := range rows {
-			if err := agentEvents.WithdrawTx(tx, &e, now); err != nil {
+			if err := agentEvents.ExpireEventTx(tx, &e); err != nil {
 				return err
 			}
 			ids = append(ids, e.ID)
 		}
-		if withdrawalHook != nil && len(ids) > 0 {
-			if err := withdrawalHook(tx, cfg.ID, ids); err != nil {
+		if expiryHook != nil && len(ids) > 0 {
+			if err := expiryHook(tx, cfg.ID, ids); err != nil {
 				return err
 			}
 		}

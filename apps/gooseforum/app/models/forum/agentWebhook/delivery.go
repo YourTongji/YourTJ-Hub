@@ -98,11 +98,21 @@ func CancelGenerationTx(tx *gorm.DB, instanceID string, agentID, generation uint
 
 // RedactBySourceEventsTx removes all retained payload copies, including accepted deliveries.
 func RedactBySourceEventsTx(tx *gorm.DB, instanceID string, eventIDs []string) error {
+	return redactBySourceEventsTx(tx, instanceID, eventIDs, "withdrawn")
+}
+
+// RedactExpiredSourceEventsTx preserves retention's diagnostic reason even
+// when an already authorized send completes after the retained copy is erased.
+func RedactExpiredSourceEventsTx(tx *gorm.DB, instanceID string, eventIDs []string) error {
+	return redactBySourceEventsTx(tx, instanceID, eventIDs, "expired")
+}
+
+func redactBySourceEventsTx(tx *gorm.DB, instanceID string, eventIDs []string, reason string) error {
 	if len(eventIDs) == 0 {
 		return nil
 	}
 	q := tx.Model(&Delivery{}).Where("instance_id = ? AND event_id IN ?", instanceID, eventIDs)
-	if err := q.Updates(map[string]any{"reason": "withdrawn", "body": ""}).Error; err != nil {
+	if err := q.Updates(map[string]any{"reason": reason, "body": ""}).Error; err != nil {
 		return err
 	}
 	return tx.Model(&Delivery{}).Where("instance_id = ? AND event_id IN ? AND status IN ?", instanceID, eventIDs, []string{Pending, RetryWait, Dead}).Update("status", Cancelled).Error

@@ -17,7 +17,13 @@ func SetPublicationTx(tx *gorm.DB, p Publication) error {
 }
 func CreateIntentTx(tx *gorm.DB, i *Intent) error { return tx.Create(i).Error }
 func UpdateIntentTx(tx *gorm.DB, id string, status, lastError string) error {
-	return tx.Model(&Intent{}).Where("id = ?", id).Updates(map[string]any{"status": status, "last_error": lastError}).Error
+	q := tx.Model(&Intent{}).Where("id = ?", id)
+	if status != "cancelled" && status != "expired" {
+		// A stale worker's success or failure diagnostics cannot revive a
+		// cancelled/expired occurrence after the lifecycle fence has committed.
+		q = q.Where("status NOT IN ?", []string{"cancelled", "expired"})
+	}
+	return q.Updates(map[string]any{"status": status, "last_error": lastError}).Error
 }
 func BindTaskTx(tx *gorm.DB, id string, taskID uint64) error {
 	return tx.Model(&Intent{}).Where("id = ?", id).Update("task_id", taskID).Error
@@ -75,6 +81,20 @@ func WithdrawTx(tx *gorm.DB, e *Entity, now time.Time) error {
 	e.ResultingTopicID = 0
 	return tx.Model(&Entity{}).Where("id = ? AND instance_id = ?", e.ID, e.InstanceID).Updates(map[string]any{"withdrawn_at": now, "actor_id": 0, "reasons": "[]", "topic_id": 0, "post_id": 0, "post_no": 0, "reply_to_post_id": 0, "resulting_post_id": 0, "resulting_topic_id": 0}).Error
 }
+
+// ExpireEventTx redacts source references without recording content revocation.
+// Keep an existing withdrawal timestamp, so actual withdrawals stay permanent.
+func ExpireEventTx(tx *gorm.DB, e *Entity) error {
+	e.ActorID, e.TopicID, e.PostID, e.PostNo, e.ReplyToPostID = 0, 0, 0, 0, 0
+	e.ResultingPostID, e.ResultingTopicID = 0, 0
+	e.Reasons = []string{}
+	if err := tx.Model(&Entity{}).Where("id = ? AND instance_id = ?", e.ID, e.InstanceID).Updates(map[string]any{"actor_id": 0, "reasons": "[]", "topic_id": 0, "post_id": 0, "post_no": 0, "reply_to_post_id": 0, "resulting_post_id": 0, "resulting_topic_id": 0}).Error; err != nil {
+		return err
+	}
+	// The UPDATE fenced the event row. Preserve a withdrawal that may have
+	// committed after this caller's earlier read but before expiry redaction.
+	return tx.Where("id = ? AND instance_id = ?", e.ID, e.InstanceID).Take(e).Error
+}
 func RecordResultTx(tx *gorm.DB, instance string, agentID uint64, eventID string, topicID, postID uint64) error {
 	return tx.Model(&Entity{}).Where("instance_id = ? AND agent_id = ? AND id = ?", instance, agentID, eventID).Updates(map[string]any{"resulting_topic_id": topicID, "resulting_post_id": postID}).Error
 }
@@ -119,19 +139,29 @@ func PageIntentsForAgentTx(tx *gorm.DB, instance string, agentID uint64, page, s
 
 func ExpiringEventsTx(tx *gorm.DB, instance string, now time.Time, limit int) ([]Entity, error) {
 	var rows []Entity
-	err := tx.Where("instance_id = ? AND expires_at <= ? AND (actor_id <> 0 OR post_id <> 0 OR withdrawn_at IS NULL)", instance, now).Order("agent_id ASC").Order("seq ASC").Limit(limit).Find(&rows).Error
+	err := tx.Where("instance_id = ? AND expires_at <= ? AND (actor_id <> 0 OR post_id <> 0 OR topic_id <> 0 OR post_no <> 0 OR reply_to_post_id <> 0 OR resulting_post_id <> 0 OR resulting_topic_id <> 0 OR reasons <> '[]')", instance, now).Order("agent_id ASC").Order("seq ASC").Limit(limit).Find(&rows).Error
 	return rows, err
 }
 func ExpireIntentsTx(tx *gorm.DB, instance string, now time.Time, limit int) error {
 	var ids []string
-	if err := tx.Model(&Intent{}).Where("instance_id = ? AND expires_at <= ? AND status <> 'expired'", instance, now).Order("created_at ASC").Limit(limit).Pluck("id", &ids).Error; err != nil {
+	if err := tx.Model(&Intent{}).Where("instance_id = ? AND expires_at <= ? AND (status <> 'expired' OR actor_id <> 0 OR post_id <> 0 OR version <> 0 OR previous_version <> 0)", instance, now).Order("created_at ASC").Limit(limit).Pluck("id", &ids).Error; err != nil {
 		return err
 	}
 	if len(ids) == 0 {
 		return nil
 	}
-	// The source-version unique index covers live references only, allowing
-	// expired diagnostics to redact their source columns without collisions.
+	return expireIntentRowsTx(tx, instance, ids)
+}
+
+// ExpireIntentTx is shared by workers and retention cleanup. Status alone does
+// not prove that older workers redacted the source references.
+func ExpireIntentTx(tx *gorm.DB, instance, id string) error {
+	return expireIntentRowsTx(tx, instance, []string{id})
+}
+
+func expireIntentRowsTx(tx *gorm.DB, instance string, ids []string) error {
+	// The partial source-version index allows expired diagnostics to retain
+	// their identity while clearing the source columns without collisions.
 	return tx.Model(&Intent{}).Where("instance_id = ? AND id IN ?", instance, ids).Updates(map[string]any{"status": "expired", "last_error": "retention_expired", "actor_id": 0, "post_id": 0, "version": 0, "previous_version": 0}).Error
 }
 
