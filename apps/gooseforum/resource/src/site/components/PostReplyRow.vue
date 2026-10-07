@@ -70,7 +70,7 @@ const canEdit = computed(() => props.post.isOwnPost && (!props.post.isHidden || 
 const canDelete = computed(() => props.post.isOwnPost && !props.post.isHidden && !isRemoved.value)
 const canReply = computed(() => (!props.authenticated || props.canPost) && !props.post.isHidden && !isRemoved.value)
 const canLike = computed(() => props.authenticated && !props.post.isHidden && !isRemoved.value)
-const canReport = computed(() => !props.post.isOwnPost && !props.post.isHidden && !isRemoved.value)
+const canReport = computed(() => props.authenticated && !props.post.isOwnPost && !props.post.isHidden && !isRemoved.value)
 
 function authorDisplayName(author: { id?: number; username: string; nickname?: string }) {
   return userDisplayName(author.id, author.username, author.nickname)

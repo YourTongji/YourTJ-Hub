@@ -1988,6 +1988,7 @@ export default {
     latestReply: '最新の返信',
     replyPosition: '返信位置',
     joinDiscussion: '議論に参加',
+    loginToJoinDiscussion: 'ログインして参加',
     resizeComposer: '返信パネルの高さを調整',
     markdownSoon: 'Markdown 対応は後日追加予定です',
     publishReply: '返信を投稿',

@@ -1988,6 +1988,7 @@ export default {
     latestReply: 'Letzte Antwort',
     replyPosition: 'Position der Antwort',
     joinDiscussion: 'An der Diskussion teilnehmen',
+    loginToJoinDiscussion: 'Anmelden und mitdiskutieren',
     resizeComposer: 'Panelhöhe anpassen',
     markdownSoon: 'Markdown-Unterstützung folgt später',
     publishReply: 'Antwort veröffentlichen',
