@@ -1406,7 +1406,7 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Resolve or reject a report from the moderation workbench
+         * Handle a report from the moderation workbench
          * @description Moderator workbench operation. Authorization is decided inside the controller
          *     against the categories of the report target (course-review reports instead
          *     require the course-review moderation capability) — it does NOT use the
@@ -1415,7 +1415,10 @@ export interface paths {
          *     `report.notFound` (HTTP 200) before the permission check. JSON binding is
          *     lenient: a malformed body binds to zero values and fails validation as
          *     `common.request.invalidParams` (HTTP 200). Other business failures:
-         *     `common.operation.failed` (HTTP 200).
+         *     `common.operation.failed` (HTTP 200). Report status and a supported target
+         *     action are committed in one transaction. A repeated or concurrent action
+         *     against a report that is no longer open fails with `report.alreadyProcessed`
+         *     (HTTP 200), and the first handler and resolution remain unchanged.
          */
         post: operations["moderationUpdateReportStatus"];
         delete?: never;
@@ -9500,10 +9503,10 @@ export interface components {
              */
             id: number;
             /**
-             * @description ban resolves with resolution `banned`, resolve resolves with empty resolution, reject rejects with resolution `ignored`. Any other value (including empty) fails validation with `common.request.invalidParams` (HTTP 200).
+             * @description ban resolves with resolution `banned` and atomically blocks topic/post targets or hides course reviews; resolve resolves with empty resolution; reject rejects with resolution `ignored`; show resolves with empty resolution and restores a course review. Chat-message reports only change report status. A report already closed by another moderator fails with `report.alreadyProcessed`. Any other value (including empty) fails validation with `common.request.invalidParams` (HTTP 200).
              * @enum {string}
              */
-            action: "ban" | "resolve" | "reject";
+            action: "ban" | "resolve" | "reject" | "show";
         };
         ModerationLogListRequest: {
             /**
@@ -16333,7 +16336,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Report handled, or a legacy business failure envelope (`report.notFound` / `permission.denied` / `common.operation.failed` / `common.request.invalidParams`). */
+            /** @description Report handled, or a legacy business failure envelope (`report.notFound` / `report.alreadyProcessed` / `permission.denied` / `common.operation.failed` / `common.request.invalidParams`). */
             200: {
                 headers: {
                     [name: string]: unknown;

@@ -3264,6 +3264,7 @@ export default {
     'report.duplicate': 'Bereits gemeldet und wartet auf Überprüfung.',
     'report.createFailed': 'Senden der Meldung fehlgeschlagen. Versuche es später erneut.',
     'report.notFound': 'Meldung nicht gefunden.',
+    'report.alreadyProcessed': 'Diese Meldung wurde bereits bearbeitet. Prüfe den aktuellen Status.',
     'review.notFound': 'Bewertung nicht gefunden oder nicht sichtbar.',
     'review.notOwned': 'Du kannst die Bewertungen anderer nicht bearbeiten oder löschen.',
     'review.duplicate': 'Du hast diesen Kurs bereits bewertet.',

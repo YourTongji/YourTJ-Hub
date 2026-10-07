@@ -114,8 +114,17 @@ func UpdateStatus(id uint64, status string, resolution string, handlerId uint64)
 // It reports false when another moderator already handled it, so a repeated or
 // concurrent quick action never overwrites the first handler (issue #1049).
 func UpdateStatusIfOpen(id uint64, status string, resolution string, handlerId uint64) (bool, error) {
+	return updateStatusIfOpen(builder(), id, status, resolution, handlerId)
+}
+
+// UpdateStatusIfOpenTx performs the same compare-and-set inside a caller-owned transaction.
+func UpdateStatusIfOpenTx(tx *gorm.DB, id uint64, status string, resolution string, handlerId uint64) (bool, error) {
+	return updateStatusIfOpen(tx.Model(&Entity{}), id, status, resolution, handlerId)
+}
+
+func updateStatusIfOpen(db *gorm.DB, id uint64, status string, resolution string, handlerId uint64) (bool, error) {
 	now := time.Now()
-	result := builder().Where(queryopt.Eq("id", id)).Where(queryopt.Eq(fieldStatus, StatusOpen)).Updates(map[string]any{
+	result := db.Where(queryopt.Eq("id", id)).Where(queryopt.Eq(fieldStatus, StatusOpen)).Updates(map[string]any{
 		"status":     status,
 		"resolution": resolution,
 		"handler_id": handlerId,

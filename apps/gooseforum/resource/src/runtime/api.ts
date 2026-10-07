@@ -635,7 +635,7 @@ export async function moderationReviewAction(kind: 'topic' | 'post', id: number,
   return readApiResponse<unknown>(response, t('moderation.review.actionFailed'))
 }
 
-export async function updateModerationReportStatus(id: number, action: 'ban' | 'resolve' | 'reject'): Promise<boolean> {
+export async function updateModerationReportStatus(id: number, action: 'ban' | 'resolve' | 'reject' | 'show'): Promise<boolean> {
   const response = await feedFetch('/api/forum/moderation/report-status', {
     method: 'POST',
     headers: {

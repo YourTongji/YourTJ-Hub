@@ -5758,8 +5758,8 @@ ModerationReportStatusRequest:
       description: Report id; unknown ids fail with `report.notFound` (HTTP 200). Missing or zero fails validation with `common.request.invalidParams` (HTTP 200).
     action:
       type: string
-      enum: [ban, resolve, reject]
-      description: ban resolves with resolution `banned`, resolve resolves with empty resolution, reject rejects with resolution `ignored`. Any other value (including empty) fails validation with `common.request.invalidParams` (HTTP 200).
+      enum: [ban, resolve, reject, show]
+      description: ban resolves with resolution `banned` and atomically blocks topic/post targets or hides course reviews; resolve resolves with empty resolution; reject rejects with resolution `ignored`; show resolves with empty resolution and restores a course review. Chat-message reports only change report status. A report already closed by another moderator fails with `report.alreadyProcessed`. Any other value (including empty) fails validation with `common.request.invalidParams` (HTTP 200).
   additionalProperties: false
 
 ModerationLogListRequest:

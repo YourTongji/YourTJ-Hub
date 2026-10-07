@@ -218,6 +218,8 @@ Action links in cards and approval payloads point to the on-site confirmation pa
 
 ### Failure protection
 
-Each notification is sent once and never retried automatically. If the receiver is unavailable, that notification is lost; this applies to every event, including approval and report alerts. Failures count toward the failure counter, and the latest error appears in the settings. Notifications are reminders only; the moderator workspace is the source of truth for pending work.
+Failed deliveries enter the existing task queue for bounded retries, up to 24 hours. Each attempt rechecks the global switch, endpoint state, and event subscription. A successful delivery retains the original approval dedupe claim; retry failures keep counting toward the endpoint circuit breaker, which disables the endpoint after three consecutive failures. Retry tasks do not store callback URLs or secrets. Notifications are reminders only; the moderator workspace is the source of truth for pending work.
+
+For endpoints without a stable ID, changing the callback URL during a pending retry invalidates that retry; it is not sent to the new destination. If the task queue cannot save a retry, the delivery remains best-effort and the server logs an error.
 
 If the same callback URL fails 3 times in a row, the system disables that URL and marks it abnormally stopped. Re-enable and save it to clear the failure state.
