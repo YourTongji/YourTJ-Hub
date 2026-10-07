@@ -49,6 +49,24 @@ const intentsLoading = ref(false)
 const intentsError = ref('')
 const busyDeliveryId = ref<number | null>(null)
 const busyIntentId = ref<string | number | null>(null)
+let dialogSession = 0
+
+// Closing or selecting another Agent invalidates every in-flight response,
+// including one-time secrets. Each session owns its loading and action state.
+watch(() => [props.open, props.agent?.agentId] as const, () => {
+  dialogSession++
+  newSecret.value = ''
+  secretCopied.value = false
+  rotationConfirmOpen.value = false
+  emergencyRotation.value = false
+  configSaving.value = false
+  testSending.value = false
+  secretRotating.value = false
+  busyDeliveryId.value = null
+  busyIntentId.value = null
+  deliveries.value = []
+  intents.value = []
+}, { immediate: true })
 
 const deliveryPages = computed(() => Math.max(1, Math.ceil(deliveryTotal.value / pageSize)))
 const intentPages = computed(() => Math.max(1, Math.ceil(intentTotal.value / pageSize)))
@@ -74,14 +92,6 @@ watch(() => [props.open, props.agent] as const, ([open, agent]) => {
   void loadIntents()
 }, { immediate: true })
 
-watch(() => props.open, (open) => {
-  if (!open) {
-    newSecret.value = ''
-    secretCopied.value = false
-    rotationConfirmOpen.value = false
-  }
-})
-
 function messageCode(error: unknown) {
   return (error as { messageCode?: string })?.messageCode || ''
 }
@@ -92,13 +102,17 @@ function isConfigConflict(error: unknown) {
 }
 
 async function loadLatestConfig() {
-  if (!currentAgent.value) return
+  const agent = currentAgent.value
+  if (!agent) return
+  const session = dialogSession
   try {
-    const latest = (await getAgentList()).find(item => item.agentId === currentAgent.value?.agentId)
+    const latest = (await getAgentList()).find(item => item.agentId === agent.agentId)
+    if (session !== dialogSession) return
     if (!latest) throw new Error(t('agentWebhook.loadFailed'))
     syncForm(latest)
     emit('updated')
   } catch (error) {
+    if (session !== dialogSession) return
     actionError.value = error instanceof Error ? error.message : t('agentWebhook.loadFailed')
   }
 }
@@ -106,6 +120,7 @@ async function loadLatestConfig() {
 async function saveConfig() {
   const agent = currentAgent.value
   if (!agent || configSaving.value) return
+  const session = dialogSession
   configSaving.value = true
   actionError.value = ''
   notice.value = ''
@@ -118,10 +133,12 @@ async function saveConfig() {
       webhookEnabled: form.webhookEnabled,
       webhookEndpoint: form.webhookEndpoint.trim(),
     })
+    if (session !== dialogSession) return
     syncForm(updated)
     notice.value = t('agentWebhook.configSaved')
     emit('updated')
   } catch (error) {
+    if (session !== dialogSession) return
     if (isConfigConflict(error)) {
       conflict.value = true
       actionError.value = t('agentWebhook.configConflict')
@@ -129,33 +146,37 @@ async function saveConfig() {
       actionError.value = error instanceof Error ? error.message : t('agentWebhook.loadFailed')
     }
   } finally {
-    configSaving.value = false
+    if (session === dialogSession) configSaving.value = false
   }
 }
 
 async function sendTest() {
   const agent = currentAgent.value
   if (!agent || testSending.value) return
+  const session = dialogSession
   testSending.value = true
   actionError.value = ''
   notice.value = ''
   try {
     const delivery = await testAgentWebhook(agent.agentId)
+    if (session !== dialogSession) return
     notice.value = delivery.status === 'accepted'
       ? t('agentWebhook.testAccepted')
       : t('agentWebhook.testPending')
     deliveryPage.value = 1
     await loadDeliveries()
   } catch (error) {
+    if (session !== dialogSession) return
     actionError.value = error instanceof Error ? error.message : t('agentWebhook.testFailed')
   } finally {
-    testSending.value = false
+    if (session === dialogSession) testSending.value = false
   }
 }
 
 async function rotateSecret() {
   const agent = currentAgent.value
   if (!agent || secretRotating.value) return
+  const session = dialogSession
   secretRotating.value = true
   actionError.value = ''
   try {
@@ -164,6 +185,7 @@ async function rotateSecret() {
       configVersion: agent.configVersion,
       emergency: emergencyRotation.value,
     })
+    if (session !== dialogSession) return
     newSecret.value = result.secret
     newSecretVersion.value = result.secretVersion
     secretCopied.value = false
@@ -172,6 +194,7 @@ async function rotateSecret() {
     emergencyRotation.value = false
     emit('updated')
   } catch (error) {
+    if (session !== dialogSession) return
     if (isConfigConflict(error)) {
       conflict.value = true
       actionError.value = t('agentWebhook.configConflict')
@@ -179,16 +202,19 @@ async function rotateSecret() {
       actionError.value = error instanceof Error ? error.message : t('agentWebhook.loadFailed')
     }
   } finally {
-    secretRotating.value = false
+    if (session === dialogSession) secretRotating.value = false
   }
 }
 
 async function copySecret() {
   if (!newSecret.value) return
+  const session = dialogSession
   try {
     await navigator.clipboard.writeText(newSecret.value)
+    if (session !== dialogSession) return
     secretCopied.value = true
   } catch {
+    if (session !== dialogSession) return
     actionError.value = t('agentWebhook.copyFailed')
   }
 }
@@ -218,62 +244,74 @@ function statusText(status: string) {
 async function loadDeliveries() {
   const agent = currentAgent.value
   if (!agent) return
+  const session = dialogSession
   deliveriesLoading.value = true
   deliveriesError.value = ''
   try {
     const result = await getAgentWebhookDeliveries(agent.agentId, deliveryPage.value, pageSize)
+    if (session !== dialogSession) return
     deliveries.value = result.list
     deliveryTotal.value = result.total
   } catch (error) {
+    if (session !== dialogSession) return
     deliveriesError.value = error instanceof Error ? error.message : t('agentWebhook.loadFailed')
   } finally {
-    deliveriesLoading.value = false
+    if (session === dialogSession) deliveriesLoading.value = false
   }
 }
 
 async function loadIntents() {
   const agent = currentAgent.value
   if (!agent) return
+  const session = dialogSession
   intentsLoading.value = true
   intentsError.value = ''
   try {
     const result = await getAgentInteractionIntents(agent.agentId, intentPage.value, pageSize)
+    if (session !== dialogSession) return
     intents.value = result.list
     intentTotal.value = result.total
   } catch (error) {
+    if (session !== dialogSession) return
     intentsError.value = error instanceof Error ? error.message : t('agentWebhook.loadFailed')
   } finally {
-    intentsLoading.value = false
+    if (session === dialogSession) intentsLoading.value = false
   }
 }
 
 async function redeliver(delivery: AdminAgentWebhookDelivery) {
   const agent = currentAgent.value
   if (!agent || busyDeliveryId.value !== null) return
+  const session = dialogSession
   busyDeliveryId.value = delivery.id
   actionError.value = ''
   try {
     await redeliverAgentWebhookDelivery(agent.agentId, delivery.id)
+    if (session !== dialogSession) return
     await loadDeliveries()
   } catch (error) {
+    if (session !== dialogSession) return
     actionError.value = error instanceof Error ? error.message : t('agentWebhook.redeliverFailed')
   } finally {
-    busyDeliveryId.value = null
+    if (session === dialogSession) busyDeliveryId.value = null
   }
 }
 
 async function replay(intent: AdminAgentInteractionIntent) {
   const agent = currentAgent.value
   if (!agent || busyIntentId.value !== null) return
+  const session = dialogSession
   busyIntentId.value = intent.id
   actionError.value = ''
   try {
     await replayAgentInteractionIntent(agent.agentId, intent.id)
+    if (session !== dialogSession) return
     await loadIntents()
   } catch (error) {
+    if (session !== dialogSession) return
     actionError.value = error instanceof Error ? error.message : t('agentWebhook.replayFailed')
   } finally {
-    busyIntentId.value = null
+    if (session === dialogSession) busyIntentId.value = null
   }
 }
 

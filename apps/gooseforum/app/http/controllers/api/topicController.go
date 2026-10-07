@@ -30,6 +30,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/agentwriteservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/contentdeleteservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/eventhandlers"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/feedservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/fileusageservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/llmsservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/moderationservice"
@@ -39,6 +40,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/topicunseenservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/userservice"
 	"github.com/gin-gonic/gin"
+	"github.com/spf13/cast"
 	"gorm.io/gorm"
 )
 
@@ -50,10 +52,14 @@ func requestContext(c *gin.Context) context.Context {
 }
 
 func betterRequestContext[T any](req component.BetterRequest[T]) context.Context {
-	if req.Context != nil {
-		return req.Context
+	ctx := req.Context
+	if ctx == nil {
+		ctx = requestContext(req.GinContext)
 	}
-	return requestContext(req.GinContext)
+	if req.GinContext != nil {
+		ctx = feedservice.AttributionContext(ctx, req.UserId, cast.ToUint64(req.GinContext.GetHeader("X-Goose-Feed-Topic")), req.GinContext.GetHeader("X-Goose-Feed-Trace"), cast.ToInt(req.GinContext.GetHeader("X-Goose-Feed-Position")))
+	}
+	return ctx
 }
 
 func detachedRequestContext(c *gin.Context) context.Context {
@@ -1155,7 +1161,11 @@ func LikeTopic(req component.BetterRequest[LikeTopicReq]) component.Response {
 	if state.Id != 0 && (state.LikedAt != nil) == targetLiked {
 		return component.SuccessResponse(true)
 	}
-	if topicUserAction.SetLiked(req.UserId, topicEntity.Id, targetLiked) {
+	changed, err := topicUserAction.SetState(betterRequestContext(req), req.UserId, topicEntity.Id, "liked_at", targetLiked)
+	if err != nil {
+		return component.FailResponseCode(component.MessageOperationFailed, nil)
+	}
+	if changed {
 		// 仅状态迁移时执行统计与事件副作用（并发重复请求不会重复计数）
 		if targetLiked {
 			topics.IncrementLike(topicEntity)
@@ -1208,7 +1218,11 @@ func BookmarkTopic(req component.BetterRequest[BookmarkTopicReq]) component.Resp
 		return component.SuccessResponse(true)
 	}
 
-	if topicUserAction.SetBookmarked(req.UserId, topicEntity.Id, targetBookmarked) {
+	changed, err := topicUserAction.SetState(betterRequestContext(req), req.UserId, topicEntity.Id, "bookmarked_at", targetBookmarked)
+	if err != nil {
+		return component.FailResponseCode(component.MessageOperationFailed, nil)
+	}
+	if changed {
 		updateBookmarkStats(req.UserId, targetBookmarked)
 		userservice.InvalidateUserPublicProfileCache(req.UserId)
 	}
@@ -1280,7 +1294,11 @@ func LikePost(req component.BetterRequest[LikePostReq]) component.Response {
 		return component.SuccessResponse(true)
 	}
 
-	if postUserAction.SetLiked(req.UserId, postEntity.Id, targetLiked) {
+	changed, err := postUserAction.SetState(betterRequestContext(req), req.UserId, postEntity.Id, postEntity.TopicId, "liked_at", targetLiked)
+	if err != nil {
+		return component.FailResponseCode(component.MessageOperationFailed, nil)
+	}
+	if changed {
 		// 仅状态迁移时执行统计与事件副作用（并发重复请求不会重复计数）
 		if targetLiked {
 			userStatistics.GivenLike(req.UserId)
@@ -1333,7 +1351,11 @@ func BookmarkPost(req component.BetterRequest[BookmarkPostReq]) component.Respon
 		return component.SuccessResponse(true)
 	}
 
-	if postUserAction.SetBookmarked(req.UserId, postEntity.Id, targetBookmarked) {
+	changed, err := postUserAction.SetState(betterRequestContext(req), req.UserId, postEntity.Id, postEntity.TopicId, "bookmarked_at", targetBookmarked)
+	if err != nil {
+		return component.FailResponseCode(component.MessageOperationFailed, nil)
+	}
+	if changed {
 		updateBookmarkStats(req.UserId, targetBookmarked)
 		userservice.InvalidateUserPublicProfileCache(req.UserId)
 	}

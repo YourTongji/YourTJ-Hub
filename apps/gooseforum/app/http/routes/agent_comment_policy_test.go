@@ -1,7 +1,9 @@
 package routes
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -9,10 +11,14 @@ import (
 
 	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/api"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/moderationDecision"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postRevisions"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/agentcommentservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/publicationservice"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
@@ -188,5 +194,46 @@ func TestAdminAgentCommentPolicyEndpoints(t *testing.T) {
 	}
 	if code, resp := postAgent(t, router, "/api/admin/set-agent-comment-topic-policy", `{"topicId":999999,"disabled":true}`); code != http.StatusOK || resp["messageCode"] != "topic.notFound" {
 		t.Fatalf("unknown topic should fail with topic.notFound: %d %#v", code, resp)
+	}
+}
+
+func TestAgentCommentPolicyRecheckedAtFirstApproval(t *testing.T) {
+	for _, scope := range []string{"topic", "global"} {
+		t.Run(scope, func(t *testing.T) {
+			setupAIModerationContractTest(t, func(o *pageConfig.AiModerationOptions) { o.TextModeration = true })
+			conn := setupAgentEventsHTTP(t)
+			agentID, _ := createAgentForumAgent(t, conn, "approval_policy_"+scope)
+			author := createHTTPContractUser(t, conn, contractTestID())
+			base := contractTestID()
+			createContractPublishedTopic(t, conn, base, base+1, author.Id)
+			topic := topics.Get(base)
+			pending := posts.Entity{TopicId: base, UserId: agentID, Content: "A robot reply queued while comments were allowed."}
+			if err := publicationservice.Submit(context.Background(), &topic, &pending); err != nil {
+				t.Fatal(err)
+			}
+			if scope == "topic" {
+				if err := topics.UpdateAgentCommentDisabled(base, true); err != nil {
+					t.Fatal(err)
+				}
+			} else {
+				if err := agentcommentservice.SaveGlobalPolicy(pageConfig.AgentCommentPolicyConfig{AllowAgentComments: false}); err != nil {
+					t.Fatal(err)
+				}
+				t.Cleanup(func() {
+					_ = agentcommentservice.SaveGlobalPolicy(pageConfig.AgentCommentPolicyConfig{AllowAgentComments: true})
+				})
+			}
+			if err := publicationservice.Review(context.Background(), pending.LatestRevisionId, moderationDecision.ActionAllow, "", author.Id); err != nil {
+				t.Fatal(err)
+			}
+			result := posts.Get(pending.Id)
+			revision := postRevisions.Get(pending.LatestRevisionId)
+			if result.PublishedRevisionId != 0 || revision.ProcessStatus != posts.ProcessStatusBlocked || revision.ReviewReason == "" {
+				t.Fatalf("disabled Agent comment became public: post=%+v revision=%+v", result, revision)
+			}
+			if err := publicationservice.Review(context.Background(), pending.LatestRevisionId, moderationDecision.ActionAllow, "", author.Id); !errors.Is(err, publicationservice.ErrUnavailable) {
+				t.Fatalf("retry revived rejected reply: %v", err)
+			}
+		})
 	}
 }

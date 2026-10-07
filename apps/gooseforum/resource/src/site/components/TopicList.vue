@@ -96,7 +96,8 @@ onBeforeUnmount(clearInteractions)
         </div>
       </li>
       <TransitionGroup name="pinned-topic">
-        <li v-for="topic in visiblePinnedTopics" :key="topic.id" class="grid grid-rows-[1fr]">
+        <li v-for="topic in visiblePinnedTopics" :key="topic.id"
+        :data-feed-id="topic.id" :data-feed-trace="topic.feedTrace" class="grid grid-rows-[1fr]">
           <div class="min-h-0 overflow-hidden">
             <a
               :href="topic.url"
@@ -128,6 +129,7 @@ onBeforeUnmount(clearInteractions)
       <TopicRow
         v-for="topic in regularTopics"
         :key="topic.id"
+        :data-feed-id="topic.id" :data-feed-trace="topic.feedTrace"
         :topic="topic"
         :home="home"
         :show-categories="showCategories"
@@ -149,6 +151,7 @@ onBeforeUnmount(clearInteractions)
       <div
         v-for="topic in regularTopics"
         :key="topic.id"
+        :data-feed-id="topic.id" :data-feed-trace="topic.feedTrace"
         class="gf-card group relative overflow-hidden [&_a.gf-topic-chip]:pointer-events-auto [&_a.gf-topic-chip]:relative [&_a.gf-topic-chip]:z-10"
       >
         <TopicFeedPreview :topic="topic" :show-categories="showCategories" :show-hot="showHot" :show-pinned="showPinned" compact :show-stats="false" class="pointer-events-none" />

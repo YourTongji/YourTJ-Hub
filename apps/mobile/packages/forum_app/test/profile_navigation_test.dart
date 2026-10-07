@@ -124,13 +124,21 @@ class _ContentActions extends _FollowActions {
   final writes = <(int, bool, int)>[];
   final write = Completer<bool>();
   @override
-  Future<bool> likeTopic({required int topicId, required int action}) {
+  Future<bool> likeTopic({
+    required int topicId,
+    required int action,
+    TopicPayload? feedTopic,
+  }) {
     writes.add((topicId, false, action));
     return write.future;
   }
 
   @override
-  Future<bool> bookmarkTopic({required int topicId, required int action}) {
+  Future<bool> bookmarkTopic({
+    required int topicId,
+    required int action,
+    TopicPayload? feedTopic,
+  }) {
     writes.add((topicId, true, action));
     return write.future;
   }

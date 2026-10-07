@@ -40,7 +40,9 @@ topic and global page-config row in the content transaction; committed idempoten
 before this check. The default global row is materialized when absent so the first admin save also
 serializes with writes. Transactional policy reads use the caller's connection and never invoke a
 cold cache loader, preserving single-connection SQLite support. Admin saves atomically upsert the
-same row and invalidate the read cache only after a successful commit.
+same row and invalidate the read cache only after a successful commit. First approval of pending
+Agent replies rechecks both operator controls under the topic transaction lock and records a terminal
+rejection when disabled. Existing public replies remain editable.
 
 ## Pros and Cons of the Options
 

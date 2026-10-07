@@ -81,6 +81,10 @@
   },
   {
     "method": "GET",
+    "path": "/api/admin/feed/summary"
+  },
+  {
+    "method": "GET",
     "path": "/api/admin/friend-links"
   },
   {
@@ -1082,6 +1086,10 @@
   {
     "method": "POST",
     "path": "/api/forum/courses/bookmark"
+  },
+  {
+    "method": "POST",
+    "path": "/api/forum/feed/events"
   },
   {
     "method": "POST",

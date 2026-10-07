@@ -11,9 +11,11 @@ import (
 // ReplierStat 单个回复者的重建聚合值。LastReplyAt 必须来自历史回复的
 // MAX(created_at)，绝不重放增量路径的 time.Now()（PR #575 review P2）。
 type ReplierStat struct {
-	UserID      uint64
-	ReplyCount  uint32
-	LastReplyAt time.Time
+	RankReplyCount    uint32
+	LastPublicReplyAt *time.Time
+	UserID            uint64
+	ReplyCount        uint32
+	LastReplyAt       time.Time
 }
 
 func SaveOrCreateById(entity *Entity) int64 {

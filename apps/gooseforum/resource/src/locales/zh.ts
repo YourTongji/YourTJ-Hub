@@ -1,6 +1,18 @@
 import adminRaw from './admin-raw.generated'
 
 export default {
+  feed: {
+    truncated: "结果已达到 1000 行上限；此视图和导出均包含有限的汇总。",
+    following: "你关注的作者",
+    category: "你常看的分类",
+    newreply: "讨论有新回复",
+    recent: "近期讨论",
+    statistics: "推荐统计",
+    capture: "采集状态",
+    export: "导出汇总",
+    refresh: "刷新",
+  },
+
   planSync: {
     title: "处理方案冲突",
     body: "其他设备也修改了这些内容。请选择每项要保留的值，其余修改会自动合并。",
@@ -1141,6 +1153,8 @@ export default {
     refreshComplete: '已刷新到最新内容',
     refreshFailed: '刷新失败，请稍后重试',
     tabs: {
+      daily: "今日热榜",
+      forYou: '为你推荐',
       following: '关注',
       latest: '最新',
       hot: '热门',

@@ -2,6 +2,8 @@ package sqlconnect
 
 import (
 	"fmt"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/feed"
+	"github.com/glebarez/sqlite"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -54,19 +56,57 @@ func (itself *Connect) BackupSQLiteHandle() {
 	cleanOldBackups(itself.Config.DbPath, keep)
 }
 
-func backupSQLite(db *gorm.DB, backupPath string) error {
-
-	// 使用 SQLite 备份 API
-	result := db.Exec("VACUUM main INTO ?", backupPath)
-	if result.Error != nil {
-		return result.Error
+// Scrub only a private backup copy, then publish it atomically. VACUUM after
+// deletion removes raw records from free pages as well as logical tables.
+func backupSQLite(source *gorm.DB, backupPath string) error {
+	dir, err := os.MkdirTemp(filepath.Dir(backupPath), ".feed-backup-")
+	if err != nil {
+		return err
 	}
-	// 碎片清理
-	result = db.Exec("VACUUM")
-	if result.Error != nil {
-		return result.Error
+	defer func() {
+		if cleanupErr := os.RemoveAll(dir); cleanupErr != nil {
+			slog.Warn("remove temporary feed backup directory", "error", cleanupErr)
+		}
+	}()
+	temporary := filepath.Join(dir, "copy.db")
+	if err = source.Exec("VACUUM main INTO ?", temporary).Error; err != nil {
+		return err
 	}
-	return nil
+	copyDB, err := gorm.Open(sqlite.Open(temporary), &gorm.Config{})
+	if err != nil {
+		return err
+	}
+	sqlDB, err := copyDB.DB()
+	if err != nil {
+		return err
+	}
+	defer func() { _ = sqlDB.Close() }()
+	err = copyDB.Transaction(func(tx *gorm.DB) error {
+		for _, table := range append(append([]string{}, feed.RawTables...), "feed_state", "topic_rank_schedule") {
+			if tx.Migrator().HasTable(table) {
+				if e := tx.Exec("DELETE FROM " + table).Error; e != nil {
+					return e
+				}
+			}
+		}
+		if tx.Migrator().HasColumn("topics", "rank_ready") {
+			return tx.Table("topics").Where("1 = 1").UpdateColumn("rank_ready", false).Error
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	if err = copyDB.Exec("VACUUM").Error; err != nil {
+		return err
+	}
+	if err = sqlDB.Close(); err != nil {
+		return err
+	}
+	if err = os.Chmod(temporary, 0600); err != nil {
+		return err
+	}
+	return os.Rename(temporary, backupPath)
 }
 
 func cleanOldBackups(sourcePath string, keep int) {

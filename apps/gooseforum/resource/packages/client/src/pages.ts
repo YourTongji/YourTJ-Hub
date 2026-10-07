@@ -43,6 +43,7 @@ export function createPageClient(http: GooseHttpClient): PageClient {
     const headers = new Headers(init.headers)
     headers.set('Accept', 'application/json')
     headers.set('X-Goose-Page', 'true')
+    headers.set('X-Goose-Feed-Version', '2')
     const response = await http.fetch(path, { ...init, headers })
     if (!response.ok && response.status !== 404) {
       throw new GooseClientError(`GooseForum page request failed with HTTP ${response.status}`, {

@@ -4,11 +4,11 @@
 
 路由快照来自 `TestRoutesSnapshot`（`fixtures/routes-snapshot.json`，默认配置装配，不含 OIDC `/api/oauth/*` 端点——OIDC 另有专项）。
 
-- 快照路由总数：373
-- /api JSON 路由：306，已入契约：307（100%），已知未覆盖：0
+- 快照路由总数：375
+- /api JSON 路由：308，已入契约：309（100%），已知未覆盖：0
 - 非 API 排除路由：66
 
-## 已覆盖（307）
+## 已覆盖（309）
 
 | Method | Path | operationId |
 | --- | --- | --- |
@@ -26,6 +26,7 @@
 | GET | `/api/admin/data/export/download/:taskId` | `adminDownloadExportTask` |
 | GET | `/api/admin/data/export/tasks` | `adminListExportTasks` |
 | GET | `/api/admin/data/import/tasks` | `adminListImportTasks` |
+| GET | `/api/admin/feed/summary` | `getFeedSummary` |
 | GET | `/api/admin/friend-links` | `adminGetFriendLinks` |
 | GET | `/api/admin/get-all-role-item` | `adminGetAllRoleItem` |
 | GET | `/api/admin/http-notify-settings` | `adminGetHttpNotifySettings` |
@@ -221,6 +222,7 @@
 | POST | `/api/forum/course-reviews` | `createCourseReview` |
 | POST | `/api/forum/course-reviews/:reviewId/reports` | `reportCourseReview` |
 | POST | `/api/forum/courses/bookmark` | `bookmarkCourse` |
+| POST | `/api/forum/feed/events` | `captureFeedEvents` |
 | POST | `/api/forum/follow-user` | `followUser` |
 | POST | `/api/forum/moderation/approval-action/execute` | `moderationApprovalActionExecute` |
 | POST | `/api/forum/moderation/approval-action/preview` | `moderationApprovalActionPreview` |

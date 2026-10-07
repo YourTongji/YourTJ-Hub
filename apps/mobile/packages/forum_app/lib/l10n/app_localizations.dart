@@ -1938,6 +1938,12 @@ abstract class AppLocalizations {
   /// **'Jumped to floor {floor}'**
   String topicFloorSelected(Object floor);
 
+  /// No description provided for @sortForYou.
+  ///
+  /// In en, this message translates to:
+  /// **'For you'**
+  String get sortForYou;
+
   /// No description provided for @sortLatest.
   ///
   /// In en, this message translates to:
@@ -6311,6 +6317,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'This submission won’t be shown publicly. Review, edit and resubmit it from content management. Contact an administrator if you have questions.'**
   String get notificationReviewRejectedDetail;
+
+  /// No description provided for @feedReasonFollowing.
+  ///
+  /// In en, this message translates to:
+  /// **'From someone you follow'**
+  String get feedReasonFollowing;
+
+  /// No description provided for @feedReasonCategory.
+  ///
+  /// In en, this message translates to:
+  /// **'A category you participate in'**
+  String get feedReasonCategory;
+
+  /// No description provided for @feedReasonNewReply.
+  ///
+  /// In en, this message translates to:
+  /// **'New replies'**
+  String get feedReasonNewReply;
+
+  /// No description provided for @feedReasonRecent.
+  ///
+  /// In en, this message translates to:
+  /// **'Recently published'**
+  String get feedReasonRecent;
+
+  /// No description provided for @sortDaily.
+  ///
+  /// In en, this message translates to:
+  /// **'Today\'s top'**
+  String get sortDaily;
 }
 
 class _AppLocalizationsDelegate

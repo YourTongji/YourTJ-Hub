@@ -10,6 +10,7 @@ import (
 
 	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/markdown2html"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/feed"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postRevisions"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/taskQueue"
@@ -162,6 +163,11 @@ func SubmitWithHooks(ctx context.Context, topic *topics.Entity, post *posts.Enti
 		}
 		post.LatestRevisionId, post.PublishedRevisionId, post.ProcessStatus = revision.Id, live.PublishedRevisionId, posts.ProcessStatusPending
 		post.LastEditorId, post.LastEditedAt = post.UserId, &now
+		if live.PublishedRevisionId == 0 {
+			if err := feed.EventTx(tx, post.UserId, topic.Id, post.Id, "intent", true); err != nil {
+				return err
+			}
+		}
 		if after != nil {
 			return after(tx)
 		}

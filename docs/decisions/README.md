@@ -151,6 +151,7 @@ A decision starts `Proposed`. Once implemented, its status becomes `Accepted` an
 - [0062](0062-moderation-notification-feedback.md) — Keep automatic approval quiet, notify human review/results, and mask rejected notification subjects.
 - [0063](0063-oryn-review-once-per-version.md) — Keep six-hour Oryn catch-up and deduplicate completed automatic reviews by source version.
 - [0064](0064-moderation-approval-notify-channels.md) — 版主审批通知走 HTTP 通知的通道适配器（通用 JSON／飞书卡片／AstrBot 文本），快捷操作只打开签名确认页并按当前会话复核权限。
-- [0065](0065-agent-interaction-events.md) — Durable Agent interactions, isolated streams and signed Webhook delivery.
-- [0066](0066-agent-broadcast-events.md) — Forum-wide subscriptions with bounded Agent reply chains.
-- [0067](0067-agent-comment-policy.md) — Site-wide and per-topic controls for new Agent comments.
+- [0069](0069-agent-interaction-events.md) — Durable Agent interactions, isolated streams and signed Webhook delivery.
+- [0070](0070-agent-broadcast-events.md) — Forum-wide subscriptions with bounded Agent reply chains.
+- [0071](0071-agent-comment-policy.md) — Site-wide and per-topic controls for new Agent comments.
+- [0069](0065-bounded-feed-ranking-and-measurement.md) — Bound materialized ranking, finite personalization and account-level measurement with 30-day raw retention.

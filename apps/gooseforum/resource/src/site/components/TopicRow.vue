@@ -28,6 +28,7 @@ withDefaults(defineProps<{
 })
 
 const { t } = useI18n()
+function feedReason(reason?: string) { switch(reason) {case 'following': return t('feed.following'); case 'category': return t('feed.category'); case 'newreply': return t('feed.newreply'); case 'recent': return t('feed.recent'); default:return ''} }
 
 // 桌面端：悬停行停留片刻后，以弹层形式预览信息流卡片。
 // 弹层 fixed 定位在视口上，不推挤表格布局；带延迟避免扫过列表时误触。
@@ -168,7 +169,7 @@ onBeforeUnmount(() => {
             @click="closePreview"
           >
             {{ topic.title }}
-          </a>
+          <span v-if="topic.feedReason" class="block text-xs font-normal text-base-content/55">{{ feedReason(topic.feedReason) }}</span></a>
           <a
             v-else
             :href="topic.url"

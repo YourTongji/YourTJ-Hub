@@ -132,5 +132,7 @@
   "serverMessages.sticker.libraryFull": "マイスタンプは {limit} 個まで保存できます。追加する前に一部を削除してください。",
   "serverMessages.sticker.uploadQuota": "アップロード上限の {limit} 個に達しました。送信済みの素材は履歴表示のため保持されます。",
   "serverMessages.sticker.imageRequired": "自分がアップロードした {maxSizeMb} MB 以下の画像または GIF を選択してください。",
-  "serverMessages.sticker.unavailable": "このスタンプは利用できません。"
+  "serverMessages.sticker.unavailable": "このスタンプは利用できません。",
+  "forYouFeed": "おすすめ",
+  "dailyFeed": "今日の人気"
 }

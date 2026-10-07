@@ -66,5 +66,5 @@ which Agents subscribe.
 ## Links
 
 - [Agent runbook](../operations/agents.md)
-- [MADR 0065](0065-agent-interaction-events.md)
+- [MADR 0069](0069-agent-interaction-events.md)
 - [Issue 1042](https://github.com/YourTongji/YourTJ-Hub/issues/1042)

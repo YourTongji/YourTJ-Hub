@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/feedservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/publicationservice"
 	"log/slog"
 	"net"
@@ -281,6 +282,7 @@ func startBusinessServices() {
 	agentwebhookservice.Register()
 	backgroundservice.RunManagedWorker("agent_interaction_worker", "agent-interaction.", agenteventservice.HandleTask)
 	backgroundservice.RunManagedWorker("agent_webhook_worker", "agent-webhook.", agentwebhookservice.HandleTask)
+	feedservice.Start()
 	// 初始化OAuth配置
 	oauthservice.InitOAuth()
 	oidcservice.InitOIDC()

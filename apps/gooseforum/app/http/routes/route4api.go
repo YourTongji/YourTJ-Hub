@@ -303,6 +303,7 @@ func apiRoute(ginApp *gin.Engine) {
 	pkLoginApi.DELETE("plans", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitPkPlans), pkAuthNoReq(pkcontroller.DeletePlans))
 
 	forumApi := baseApi.Group("forum")
+	forumApi.POST("feed/events", middleware.CSRFProtection, middleware.JWTAuthCheck, api.FeedEvents)
 	forumApi.GET("get-site-statistics", ginUpNP(api.GetSiteStatistics))
 	forumApi.GET("search", middleware.JWTAuth, UpQueryReq(forum.SearchJSON))
 	forumApi.GET("courses", middleware.RateLimit(middleware.RateLimitCourseCatalog), UpQueryReq(forum.CourseListJSON))
@@ -455,6 +456,7 @@ func apiRoute(ginApp *gin.Engine) {
 
 	adminApi := baseApi.Group("admin", middleware.CSRFProtection, middleware.JWTAuthCheck, middleware.CheckWritableAccount)
 
+	adminApi.GET("feed/summary", middleware.CheckPermission(permission.Admin), UpButterReq(api.FeedSummary))
 	adminApi.POST("traffic-overview", middleware.CheckPermission(permission.Admin), UpButterReq(api.GetTrafficOverview))
 
 	adminApi.

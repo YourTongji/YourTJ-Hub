@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-10-04
+> Last verified: 2026-10-06
 
 `Partial`：状态站的 Cloudflare 实现使用 Workers Static Assets、只读 Worker API 和私有 R2 快照。较重的采集
 在公开仓库的 GitHub Actions 标准 Linux runner 执行，独立于论坛进程、数据库和静态资源。
@@ -36,13 +36,17 @@ pnpm exec wrangler r2 bucket list
 ## 2. 采集与凭据
 
 [Collect / status](../../.github/workflows/collect-status.yml) 每十五分钟采集资源、可用性、
-历史和流量，每小时采集设备统计。两个任务串行执行，最长五分钟，不上传快照为 Actions
+历史和流量，每小时采集设备统计。`public`、`devices` 使用独立的 job 并发组；同类新任务
+取消尚未完成的旧任务，两类采集可并行。五分钟超时只限制 job 执行，不限制等待 runner
+的时间；替换旧任务允许后续采样恢复，不保证 GitHub 及时分配 runner。不上传快照为 Actions
 artifact。Cloudflare Cron 按 UTC 触发独立调度器，向固定仓库的固定采集工作流发送 main
 `workflow_dispatch`；它不抓取、转换或保存业务统计。响应不是 204、超时或缺少令牌会使
 Cron 执行失败，日志仅记录结果类型和 HTTP 状态码。不会自动重发结果不明的 POST。
 
 GitHub 自带定时任务只作为备用，在默认分支 dev 触发；该调度 job 不挂载生产 environment，
 只用短期 `GITHUB_TOKEN` 的 `actions: write` 权限向 main 发起 `workflow_dispatch`。
+备用调度同样按采集类型分组，但与生产采集使用不同的 job 并发组，避免父调度和子采集
+互相取消。workflow 不设置全局并发组，被跳过的备用调度不会占用生产采集队列。
 生产采集的 workflow 定义和源码都来自该 main 提交；仅 checkout main 不能隔离 dev 的 workflow。
 手动采集也仅允许从 main 运行。仓库变量 `STATUS_COLLECTION_ENABLED=true` 才启用任务；
 资源、main 源码和凭据就绪后再开启。此开关不影响公开站点读取已保存快照。
@@ -151,6 +155,9 @@ production Wrangler 配置声明 `status.yourtj.de` Custom Domain；首次部署
   一个设备对象。视图保留各来源的时间、失败标记和作用域指纹，不会延长数据有效期。
 - R2 和 S3 适配器都使用 ETag 条件写，慢任务不能覆盖新快照。单源失败保留原始成功时间并
   标记过期；采集任务报告失败，其他来源已成功写入的结果仍可用。请求拒绝重定向和过大响应。
+- 公开采集写公共来源和只读视图，设备采集只写 `devices-*` 对象，两类写入互不重叠。
+  同类任务取消可能留下部分已写入结果；不会清空已有快照，也不会刷新未完成来源的时间戳。
+  公开视图只在公开采集末尾发布，设备对象独立读取；后续采集继续更新，旧数据按原保留期失效。
 - GitHub 备用 schedule 可能排队、延迟或丢弃，不能保证页面数据持续可用。Cloudflare Cron
   避开此定时事件链路，但 GitHub runner 排队和上游故障仍会影响采集。状态站不是告警
   系统；监控由独立 Uptime Kuma 提供。当前／历史／流量二十分钟后过期，一小时后隐藏；
@@ -165,6 +172,27 @@ production Wrangler 配置声明 `status.yourtj.de` Custom Domain；首次部署
   每次两次读取估算，31 天最多约 620 万次公开 API 对象读取，另加采集读取；这些免费额度
   与账户其他应用共享，零月费不是无限用量承诺。
 
+### 采集排队排障
+
+先区分未创建工作流、等待 runner、等待 environment 审批和执行失败：检查 Cloudflare Cron
+结果、main 工作流的 job/runner/step 状态、environment 待审批项及正式 API 的各来源
+`fetchedAt`。仅收到 dispatch 或 API 返回 200，都不能证明数据已更新。
+
+同类下一次调度会请求取消旧任务。若 job 长期没有 runner、没有执行任何 step，且没有
+待审批项，核对 main 已使用本节的 job 并发策略，再查看 GitHub Actions 服务状态。
+从旧 workflow 策略切换时，已有运行保留原定义；只取消已确认卡住的旧 run，不批量取消
+其他 CI 或发布任务。需要临时补采时，确认没有有效的同类运行后执行一次：
+
+```sh
+gh workflow run collect-status.yml --repo YourTongji/YourTJ-Hub --ref main -f kind=public
+# 设备来源也需要补采时，单独运行：
+gh workflow run collect-status.yml --repo YourTongji/YourTJ-Hub --ref main -f kind=devices
+```
+
+确认对应 main job 成功且正式 API 原始时间戳推进；手动补采只能证明临时恢复。
+上线后的恢复验收还应检查后续真实定时的两类任务。平台仍无法分配 runner 时，不要反复
+dispatch、延长数据新鲜度阈值或把外部跟进自动化变成采集器。
+
 ## 官方参考
 
 - [Static Assets](https://developers.cloudflare.com/workers/static-assets/)
@@ -173,6 +201,7 @@ production Wrangler 配置声明 `status.yourtj.de` Custom Domain；首次部署
 - [R2 定价](https://developers.cloudflare.com/r2/pricing/)
 - [GitHub Actions 免费用量](https://docs.github.com/en/billing/concepts/product-billing/github-actions)
 - [GitHub schedule 限制](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule)
+- [GitHub job/workflow 并发与取消](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/control-workflow-concurrency)
 - [Cloudflare Cron](https://developers.cloudflare.com/workers/configuration/cron-triggers/)
 - [GitHub dispatch 权限](https://docs.github.com/en/rest/actions/workflows#create-a-workflow-dispatch-event)
 - [GitHub token 触发 workflow_dispatch](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow)

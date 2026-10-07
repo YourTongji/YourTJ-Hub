@@ -18,7 +18,9 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userActivities"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userStatistics"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/agentcommentservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/agenteventservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/fileusageservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/llmsservice"
@@ -164,6 +166,21 @@ func Review(ctx context.Context, revisionID uint64, action, reason string, actor
 		if action != moderationDecision.ActionAllow && action != moderationDecision.ActionBlock {
 			return errors.New("invalid review action")
 		}
+		// Submission may precede an operator ban. Recheck only first publication
+		// of bot replies; an existing public reply remains editable.
+		if action == moderationDecision.ActionAllow && post.PostNo > 1 && post.PublishedRevisionId == 0 && post.ProcessStatus != posts.ProcessStatusNormal {
+			author, err := users.GetInteractionUserTx(tx, post.UserId)
+			if err != nil {
+				return err
+			}
+			if author.IsBot() {
+				if err := agentcommentservice.CheckNewCommentTx(tx, topic.Id); errors.Is(err, agentcommentservice.ErrAgentCommentDisabled) {
+					action, reason = moderationDecision.ActionBlock, "该话题或站点已禁止机器人回复。"
+				} else if err != nil {
+					return err
+				}
+			}
+		}
 		status := posts.ProcessStatusBlocked
 		if action == moderationDecision.ActionAllow {
 			status = posts.ProcessStatusNormal
@@ -180,7 +197,25 @@ func Review(ctx context.Context, revisionID uint64, action, reason string, actor
 		if action == moderationDecision.ActionAllow {
 			revision.ProcessStatus = status
 			revision.RenderedHTML = approvedHTML
+			firstPublication := stampFirstPublic(&post, now, wasPublic)
 			ApplySnapshot(&topic, &post, revision)
+			if post.PostNo == 1 && topic.FirstPublicAt == nil {
+				at := *post.FirstPublicAt
+				topic.FirstPublicAt = &at
+				topic.FirstPublicEstimated = post.FirstPublicEstimated
+				if err := tx.Model(&topics.Entity{}).Where("id = ? AND first_public_at IS NULL", topic.Id).UpdateColumns(map[string]any{"first_public_at": at, "first_public_estimated": topic.FirstPublicEstimated}).Error; err != nil {
+					return err
+				}
+			}
+			if firstPublication {
+				kind := "public_reply"
+				if post.PostNo == 1 {
+					kind = "public_topic"
+				}
+				if err := capturePublicContributionTx(tx, post.UserId, topic.Id, post.Id, kind); err != nil {
+					return err
+				}
+			}
 			post.PublishedRevisionId = revision.Id
 			if err := posts.SaveTx(tx, &post); err != nil {
 				return err
@@ -302,4 +337,19 @@ func enqueueEffect(tx *gorm.DB, effect Effect) error {
 		return err
 	}
 	return taskQueue.CreateTx(tx, &taskQueue.Entity{Type: EffectTaskType, TaskJson: string(raw)})
+}
+
+// A legacy public projection has an estimated clock; every genuinely pending
+// first publication starts its clock at approval, and restore never resets it.
+func stampFirstPublic(post *posts.Entity, now time.Time, wasPublic bool) bool {
+	if post.FirstPublicAt != nil {
+		return false
+	}
+	at := now
+	if wasPublic {
+		at = post.CreatedAt
+		post.FirstPublicEstimated = true
+	}
+	post.FirstPublicAt = &at
+	return !wasPublic
 }

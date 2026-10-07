@@ -134,6 +134,43 @@ async function clickByText(body: DOMWrapper, text: string) {
 }
 
 describe('Agent Webhook management dialog', () => {
+  test('ignores a configuration response after another Agent opens', async () => {
+    let resolveSave!: (value: AdminAgent) => void
+    vi.mocked(saveAgentWebhookConfig).mockImplementationOnce(() => new Promise(resolve => { resolveSave = resolve }))
+    const { page, body } = await mountDialog()
+    await flushPromises()
+    await clickByText(body, 'Save configuration')
+    await page.setProps({ open: false, agent: null })
+    const otherAgent = { ...agent, agentId: 9, username: 'other-bot', webhookEndpoint: 'https://other.example/hook' }
+    await page.setProps({ open: true, agent: otherAgent })
+    await flushPromises()
+    resolveSave({ ...agent, configVersion: 6 })
+    await flushPromises()
+    const endpoint = body.findAll('input').find(input => input.attributes('type') === 'url')!
+    expect((endpoint.element as HTMLInputElement).value).toBe(otherAgent.webhookEndpoint)
+    vi.mocked(saveAgentWebhookConfig).mockResolvedValueOnce({ ...otherAgent, configVersion: 6 })
+    await clickByText(body, 'Save configuration')
+    await flushPromises()
+    expect(saveAgentWebhookConfig).toHaveBeenLastCalledWith(expect.objectContaining({ agentId: 9 }))
+  })
+
+  test('does not reveal an old Agent signing secret in a new dialog session', async () => {
+    let resolveRotation!: (value: { secret: string, secretVersion: number, configVersion: number }) => void
+    vi.mocked(rotateAgentWebhookSecret).mockImplementationOnce(() => new Promise(resolve => { resolveRotation = resolve }))
+    const { page, body } = await mountDialog()
+    await flushPromises()
+    await clickByText(body, 'Rotate signing secret')
+    await flushPromises()
+    const rotateButtons = body.findAll('button').filter(item => item.text().includes('Rotate signing secret'))
+    await rotateButtons[1].trigger('click')
+    await page.setProps({ open: false, agent: null })
+    await page.setProps({ open: true, agent: { ...agent, agentId: 9, username: 'other-bot' } })
+    await flushPromises()
+    resolveRotation({ secret: 'whsec_previous_agent', secretVersion: 2, configVersion: 6 })
+    await flushPromises()
+    expect(body.text()).not.toContain('whsec_previous_agent')
+  })
+
   test('shows accepted delivery separately from Agent acknowledgement and test replies', async () => {
     const { body } = await mountDialog()
     await flushPromises()
